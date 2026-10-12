@@ -1,6 +1,6 @@
 # 0008. Errors, logging and assertions
 
-- Status: Accepted
+- Status: Accepted; amended by [0019](0019-default-log-filter.md) (default log filter)
 - Date: 2026-10-12
 
 ## Context

@@ -11,10 +11,16 @@ use tracing_subscriber::fmt::format::FmtSpan;
 /// The environment variable that selects which log events are recorded.
 ///
 /// Its value uses the directive syntax of `tracing-subscriber`'s `EnvFilter`: a level
-/// (`SLIME_LOG=debug`), levels per module (`SLIME_LOG=warn,slime_app=trace`), or `off`. When the
-/// variable is unset, events at level `info` and above are recorded. Invalid directives are
-/// reported on standard error and ignored.
+/// (`SLIME_LOG=debug`), levels per module (`SLIME_LOG=warn,slime_app=trace`), or `off`. A module
+/// without a level of its own records `info` and above. Invalid directives are reported on standard
+/// error and ignored. When the variable is unset or empty, [`DEFAULT_LOG_FILTER`] applies.
 pub const LOG_ENV_VAR: &str = "SLIME_LOG";
+
+/// The log filter used when [`LOG_ENV_VAR`] is unset or empty: `info` and above, except for
+/// wgpu-hal, whose `info` messages list what the GPU supports (`warn` and above), and for the
+/// wgpu-hal module that relays the messages of the Vulkan loader and layers (`error` only)
+/// (ADR-0019).
+pub const DEFAULT_LOG_FILTER: &str = "info,wgpu_hal=warn,wgpu_hal::vulkan::instance=error";
 
 /// Sets up logging and panic reporting for the process, then logs a line with the engine version,
 /// the operating system, the CPU architecture and the number of logical CPUs available to the
@@ -45,10 +51,13 @@ pub fn init_diagnostics() {
 }
 
 fn install_subscriber() {
+    let directives = std::env::var(LOG_ENV_VAR)
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| DEFAULT_LOG_FILTER.to_owned());
     let filter = EnvFilter::builder()
         .with_default_directive(LevelFilter::INFO.into())
-        .with_env_var(LOG_ENV_VAR)
-        .from_env_lossy();
+        .parse_lossy(directives);
     let installed = tracing_subscriber::fmt()
         .with_env_filter(filter)
         .with_writer(std::io::stderr)

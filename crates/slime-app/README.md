@@ -79,10 +79,12 @@ assert_eq!(game.fixed_steps, 60);
   steps of a fixed duration. Both take durations rather than reading a clock
   (`docs/adr/0009-frame-timing.md`).
 - `init_diagnostics()`: installs the log subscriber (output on standard error, filtered by the
-  `SLIME_LOG` environment variable, `info` by default) and a panic hook that logs panics, then
-  logs the engine version, operating system, CPU architecture and number of logical CPUs. `run`
-  calls it; call it yourself only in a program that does not use `run`. Later calls do nothing.
-  `LOG_ENV_VAR` is the name of that environment variable.
+  `SLIME_LOG` environment variable) and a panic hook that logs panics, then logs the engine
+  version, operating system, CPU architecture and number of logical CPUs. `run` calls it; call it
+  yourself only in a program that does not use `run`. Later calls do nothing. `LOG_ENV_VAR` is the
+  name of that environment variable. When it is unset, `DEFAULT_LOG_FILTER` applies: `info` and
+  above, except for wgpu-hal's details about the GPU and the Vulkan loader's messages
+  (`docs/adr/0019-default-log-filter.md`).
 
 Engine code and games log through the `tracing` macros. The conventions for errors, log levels and
 assertions are in `docs/adr/0008-errors-logging-and-assertions.md`; why the engine owns the main
