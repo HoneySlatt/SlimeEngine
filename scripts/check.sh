@@ -3,6 +3,9 @@
 # unchanged, inside the Nix development shell: `nix develop -c scripts/check.sh`.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# The Nix development shell sets this variable (flake.nix). Without the shell, the GPU tests and the
+# samples would fail only after minutes of other checks.
+: "${SLIME_LAVAPIPE_ICD:?run this script inside nix develop}"
 
 step() { printf '\n==> %s\n' "$*"; }
 
@@ -19,8 +22,7 @@ step "Build"
 cargo build --workspace --all-targets --locked
 
 step "Tests (GPU tests on lavapipe, the Vulkan driver that renders on the CPU, as in CI)"
-VK_DRIVER_FILES="${SLIME_LAVAPIPE_ICD:?run this script inside nix develop}" \
-    cargo test --workspace --locked
+VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo test --workspace --locked
 
 step "Rustdoc"
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
@@ -40,13 +42,17 @@ runtime=$(mktemp -d)
 XDG_RUNTIME_DIR=$runtime weston --backend=headless --socket=slime-check --idle-time=0 \
     >"$runtime/weston.log" 2>&1 &
 weston=$!
-trap 'kill "$weston" 2>/dev/null; rm -rf "$runtime"' EXIT
+# `kill` fails when Weston has already exited; that must not skip the rest of the cleanup.
+trap 'kill "$weston" 2>/dev/null || true; rm -rf "$runtime"' EXIT
 for _ in $(seq 100); do
     [ -S "$runtime/slime-check" ] && break
     sleep 0.1
 done
-env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check \
-    VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo run --locked --example window -- --frames 120 ||
+[ -S "$runtime/slime-check" ] || { echo "Weston did not start:"; cat "$runtime/weston.log"; exit 1; }
+# The run takes about 2 s; `timeout` ends a stalled one, with SIGTERM, which stops the engine
+# cleanly, then SIGKILL if that is not enough, and the failure then prints Weston's log.
+env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+    timeout -k 10 120 cargo run --locked --example window -- --frames 120 ||
     { cat "$runtime/weston.log"; exit 1; }
 
 step "Documentation links"
