@@ -13,7 +13,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 2 — GPU layer → 0.0.2
-- Milestone M2.2 — Offscreen triangle and reference image
+- Milestone M2.3 — The triangle in the window
 - Left over from Stage 1: the `v0.0.1` tag, which waits for a check by hand of keyboard and mouse
   input (see [Releasing 0.0.1](#releasing-001)).
 
@@ -23,8 +23,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 |---|---|---|
 | [M2.0](#m20--windows-in-ci) | Windows in CI | Done, except the check by hand in the Windows virtual machine (see [Known debt](#known-debt)) |
 | [M2.1](#m21--gpu-device-without-a-window) | GPU device without a window | Done |
-| [M2.2](#m22--offscreen-triangle-and-reference-image) | Offscreen triangle and reference image | In progress |
-| [M2.3](#m23--the-triangle-in-the-window) | The triangle in the window | Planned |
+| [M2.2](#m22--offscreen-triangle-and-reference-image) | Offscreen triangle and reference image | Done |
+| [M2.3](#m23--the-triangle-in-the-window) | The triangle in the window | In progress |
 | [M2.4](#m24--frame-pacing) | Frame pacing | Planned |
 | [M2.5](#m25--debug-markers-robustness-release-002) | Debug markers, robustness, release 0.0.2 | Planned |
 
@@ -201,5 +201,6 @@ of this file and in the commits that implemented it.
 
 ## Notes
 
-- CI build cache: not added in M2.1. With wgpu, each CI job takes about 5 minutes, which is
-  acceptable; a cache is to add if it grows much further.
+- CI build cache: not added yet. With wgpu, the Linux job takes about 5 minutes and the Windows
+  job about 8 (it compiles the dependencies three times: for clippy, for the tests, and in release
+  for the artifact), which is acceptable; a cache is to add if it grows much further.
