@@ -13,7 +13,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3a — First renderer → 0.0.3: in progress. Planned on 2026-10-12 and validated by the
-  owner. M3.1 to M3.4 are done; next: M3.5.
+  owner. M3.1 to M3.5 are done; next: M3.6.
 - Between 0.0.2 and this stage, a stabilization pass on 2026-10-12 corrected what an audit of
   0.0.2 found: the corrections are listed in [`CHANGELOG.md`](../CHANGELOG.md) under
   *Unreleased*, and what was found without being corrected is in [Known debt](#known-debt).
@@ -26,7 +26,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M3.2](#m32--the-render-crate-camera-meshes-instances) | The render crate: camera, meshes, instances | Done |
 | [M3.3](#m33--directional-light-and-material) | Directional light and material | Done |
 | [M3.4](#m34--textures-and-samplers) | Textures and samplers | Done |
-| [M3.5](#m35--a-gltf-scene-and-camera-control) | A glTF scene and camera control | Planned |
+| [M3.5](#m35--a-gltf-scene-and-camera-control) | A glTF scene and camera control | Done |
 | [M3.6](#m36--statistics-gpu-timings-and-the-dev-overlay) | Statistics, GPU timings and the dev overlay | Planned |
 | [M3.7](#m37--windows-check-documentation-release-003) | Windows check, documentation, release 0.0.3 | Planned |
 
@@ -185,16 +185,34 @@ it:
 - **Delivers.** A temporary loader in `examples/common/gltf.rs`, built on the `gltf` crate without
   its default features: GLB files with embedded buffers, PNG images decoded with `png`; meshes,
   materials, textures and samplers created through the renderer; the node hierarchy flattened into
-  instances; a clear error for what is not supported (external files, JPEG images, skins,
-  animations, extensions). A sample asset in `examples/assets/`, a scene made in Blender under
-  CC0 (under 500 kB), embedded in the sample with `include_bytes!`; `--scene <file>` loads another
-  GLB file. Camera: automatic orbit around the scene's bounds, orbit with the left button, zoom
-  with the wheel. The image test `scene-gltf` renders the asset at fixed camera poses. ADR:
-  temporary glTF loading, and its removal in Stage 4.
+  instances; a clear error for what it cannot draw right (external files, images that are not
+  PNG, required extensions, other coordinate sets, other primitive modes) and a warning for what
+  it ignores (animations, skins, cameras, extensions used without being required). A sample
+  asset in `examples/assets/`, a scene made in Blender under CC0 (under 500 kB), embedded in the
+  sample with `include_bytes!`; `--scene <file>` loads another GLB file. Camera: automatic orbit
+  around the scene's bounds, orbit with the left button, zoom with the wheel. The image test
+  `tests/gltf.rs` renders the asset at fixed camera poses. ADR: temporary glTF loading, and its
+  removal in Stage 4.
 - **Done when.** The sample shows the asset on niri, through Xwayland and in the Windows virtual
   machine; the image test passes on the three drivers; a Khronos sample model loads with
   `--scene`.
 - **How to test.** `cargo run --example scene -- --scene <file.glb>`; the image test.
+- **Checked** on 2026-10-13: the asset (`examples/assets/scene.glb`, 94 kB: 7 primitives, 2 274
+  triangles, three textures of 128 × 128 pixels) was built by `make_scene.py` in the owner's
+  Blender 5.2.2, driven through its MCP add-on, and exported with Blender's defaults but
+  animations, skins, cameras and lights left out. `tests/gltf.rs` renders it from two poses: on
+  lavapipe, which rendered the references, no pixel differs; on RADV, 92 and 21 pixels differ by
+  more than 2, 4 and 1 by more than 4, none by more than 8 (largest difference 5). Mipmaps came
+  with this milestone, as M3.4 planned: without them the floor aliased (42 pixels of the front
+  view differed by more than 2 on RADV, by 8 at most) and shimmered. With them, the checkered
+  sphere of `tests/scene.rs` differs on RADV by more than 4 on 233 pixels, by more than 8 on 14
+  and by more than 16 on 1 (largest 18), where the levels of its checker blend differently;
+  ADR-0030 therefore keeps the strict rule on lavapipe and loosens it on other drivers. WARP's
+  figures, printed by the Windows CI job, are below. The `scene` example drew 300 frames on niri
+  with RADV (7 draw calls, 2 274 triangles per frame) and 120 in the headless Weston. Not done:
+  the owner's run of `scene.exe` in the Windows virtual machine (the artifact contains it), and
+  the check of a Khronos sample model with `--scene`, which needs a file the repository does not
+  hold.
 
 ### M3.6 — Statistics, GPU timings and the dev overlay
 
@@ -255,9 +273,6 @@ justify a decision are also in its ADR.
 
 ## Known debt
 
-- **Textures have no mipmaps** (M3.4): a texture minified on screen aliases, and shimmers when
-  the camera moves, as the sphere's checker of the `scene` example shows. Mipmaps generated on
-  the CPU at upload are to add when the glTF scene of M3.5 shows the need, or in Stage 3b.
 - **Frames are not synchronized with the display's refresh** (ADR-0021). With Mailbox, the
   default, the schedule alone paces frames: on a 60 Hz display, an image is now and then shown
   twice while the next one is dropped. Aligning frames on the compositor's frame callbacks is to

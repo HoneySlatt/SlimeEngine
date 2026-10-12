@@ -55,6 +55,11 @@ waits between them, so that the engine asks for at most `AppConfig::max_frame_ra
 second on average. With the default *present mode*, it alone paces the frames
 ([ADR-0021](adr/0021-frame-pacing.md), which calls it the timer, or the schedule).
 
+**glTF.** The Khronos Group's format for 3D scenes: meshes, materials, textures and a node
+hierarchy, as a JSON file with binary buffers, or as one GLB file with everything embedded. The
+examples load GLB files with a temporary loader ([ADR-0029](adr/0029-temporary-gltf-loading.md));
+the asset pipeline of Stage 4 will import them.
+
 **Graphics API.** The interface between programs and GPU drivers: Vulkan (the engine's choice on
 Linux) and Direct3D 12 (on Windows). wgpu translates the engine's calls into one of them.
 
@@ -62,9 +67,10 @@ Linux) and Direct3D 12 (on Windows). wgpu translates the engine's calls into one
 configuration, used by automated tests and, later, by dedicated servers.
 
 **Image test.** A test that renders offscreen and compares the result with a *reference image*,
-pixel by pixel, within a tolerance that absorbs how drivers round colors and blend texels
-([ADR-0018](adr/0018-reference-image-tests.md),
-[ADR-0028](adr/0028-image-tests-tolerate-a-few-pixels.md)).
+pixel by pixel, within a tolerance that absorbs how drivers round colors and filter textures
+([ADR-0018](adr/0018-reference-image-tests.md), amended by
+[ADR-0028](adr/0028-image-tests-tolerate-a-few-pixels.md) and
+[ADR-0030](adr/0030-image-tests-strict-on-the-reference-driver.md)).
 
 **Index buffer.** A buffer of indices into a vertex buffer, so that the triangles of a mesh share
 vertices (`slime_gfx::IndexBuffer`).

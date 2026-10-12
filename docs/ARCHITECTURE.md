@@ -37,7 +37,7 @@ is created only when code needs it.
 | [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `slime-platform`, `slime-gfx`, `ctrlc`, `thiserror`, `tracing`, `tracing-subscriber` | Headless runs, and windowed runs drawn by the GPU |
 | [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu | `wgpu`, `pollster`, `raw-window-handle`, `thiserror`, `tracing` | Opens a GPU device, draws into offscreen images and reads them back, draws into a window |
 | [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, seen from a camera, into render targets; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `glam`, `thiserror`, `tracing` | Meshes, materials of one color, a perspective camera, the depth test, one directional light; textures to come |
-| [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-gfx`, `slime-platform`, `slime-render`, `png`, `tracing` | `hello`, `headless`, `window`, `offscreen`, `scene`; the reference image tests |
+| [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-gfx`, `slime-platform`, `slime-render`, `gltf`, `png`, `tracing` | `hello`, `headless`, `window`, `offscreen`, `scene`; the reference image tests; a temporary glTF loader |
 
 ## Dependency rules
 
@@ -232,7 +232,10 @@ its instance's matrix then the camera's, and its normal by the instance's normal
 inverse transpose, so that normals stay perpendicular to surfaces scaled unevenly); each fragment
 is lit by the scene's directional light in proportion to the cosine between its normal and the
 direction to the light (Lambert), plus the ambient light, times its material's base color and
-its texture, read at the texture coordinates of the vertex. Conventions: world space is right-handed with +Y up, the camera looks down −Z, front faces wind
+its texture, read at the texture coordinates of the vertex. The examples' temporary glTF loader
+([`examples/common/gltf.rs`](../examples/common/gltf.rs),
+[ADR-0029](adr/0029-temporary-gltf-loading.md)) builds `MeshData`, materials and textures from a
+GLB file this way, and flattens its node hierarchy into instances. Conventions: world space is right-handed with +Y up, the camera looks down −Z, front faces wind
 counter-clockwise, depth runs from 0 to 1, colors are linear and the sRGB target encodes them.
 
 ### Rendering in a window

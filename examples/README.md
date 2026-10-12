@@ -14,7 +14,7 @@ cargo run --example <name> [-- <arguments>]
 | [`headless`](headless.rs) | An application without a window: frames back to back with simulated time, exit at a frame limit, profiling spans (`SLIME_LOG=trace`) | `--frames <count>` (default 600) |
 | [`window`](window.rs) | A window in which the GPU draws the samples' triangle, which follows resizes; its events logged (window, keys, mouse; cursor motion with `SLIME_LOG=debug`); Escape, closing it or Ctrl+C quits cleanly. The sample of Stage 2 | `--frames <count>` closes it after that many frames, and fails if none of them drew the triangle; `--headless` runs the same program without a window; `--present-mode mailbox|fifo` chooses how images are shown (default `mailbox`) |
 | [`offscreen`](offscreen.rs) | Rendering without a window: the GPU draws a triangle into an image, which is read back and written to a PNG file; works on software drivers (lavapipe, WARP) | `--output <file>` (default `triangle.png`) |
-| [`scene`](scene.rs) | Cubes and a sphere, two of them with a checker texture, drawn by the renderer (`slime-render`) with a depth test, lit by a directional light, seen from a camera that orbits them; Escape, closing the window or Ctrl+C quits cleanly. The sample of Stage 3a, which grows with it | `--frames <count>` closes it after that many frames, and fails if none of them drew the scene |
+| [`scene`](scene.rs) | A glTF scene drawn by the renderer (`slime-render`): [`assets/scene.glb`](assets/README.md), or any GLB file with embedded buffers and PNG images, lit by a directional light, seen from a camera that orbits it until the mouse takes over (drag with the left button to turn, roll the wheel to come nearer or farther); Escape, closing the window or Ctrl+C quits cleanly. The sample of Stage 3a, which grows with it | `--scene <file.glb>` draws another file; `--frames <count>` closes it after that many frames, and fails if none of them drew the scene |
 
 On Windows, the same commands work with the toolchain described in
 [`CONTRIBUTING.md`](../CONTRIBUTING.md#on-windows). Each CI run on GitHub also publishes
@@ -30,16 +30,27 @@ The log level of every example is set by the `SLIME_LOG` environment variable, f
 
 - [`common/`](common) holds code used by several examples and tests, each file included where it
   is needed with `#[path = "common/<file>.rs"] mod <file>;`: the triangle that `window`,
-  `offscreen` and its image test draw, and its shader; the shapes (a cube, a sphere, a checker
-  texture, their materials and light) that `scene` and its image test draw; PNG writing; the comparison with a
-  reference image; error messages with their causes.
-- [`tests/offscreen.rs`](tests/offscreen.rs) renders the triangle and compares it with the
-  reference image [`tests/reference/triangle.png`](tests/reference/triangle.png), and
-  [`tests/scene.rs`](tests/scene.rs) renders the shapes at a fixed time and compares them with
-  [`tests/reference/shapes.png`](tests/reference/shapes.png), both within a tolerance
-  ([ADR-0018](../docs/adr/0018-reference-image-tests.md)). Their module comments explain how to
-  render a reference again after a deliberate change; the tests print the difference they
-  measured with `--nocapture`.
+  `offscreen` and its image test draw, and its shader; the temporary glTF loader
+  ([`gltf.rs`](common/gltf.rs), [ADR-0029](../docs/adr/0029-temporary-gltf-loading.md)); the
+  sample scene with its asset and its light (`sample_scene.rs`) and the camera placed around a
+  point (`orbit.rs`), which `scene` and its image test share; the shapes (a cube, a sphere, a
+  checker texture, their materials and light) of another image test; PNG writing; the comparison
+  with a reference image; error messages with their causes.
+- [`assets/`](assets/README.md) holds the sample scene, the Blender script that made it, and its
+  license.
+- The image tests compare a render with a reference, within a tolerance
+  ([ADR-0018](../docs/adr/0018-reference-image-tests.md), amended by
+  [ADR-0028](../docs/adr/0028-image-tests-tolerate-a-few-pixels.md) and
+  [ADR-0030](../docs/adr/0030-image-tests-strict-on-the-reference-driver.md)):
+  [`tests/offscreen.rs`](tests/offscreen.rs) renders the triangle
+  ([`tests/reference/triangle.png`](tests/reference/triangle.png)),
+  [`tests/scene.rs`](tests/scene.rs) the shapes at a fixed time
+  ([`tests/reference/shapes.png`](tests/reference/shapes.png)), and
+  [`tests/gltf.rs`](tests/gltf.rs) the sample scene from two camera poses
+  ([`tests/reference/gltf-front.png`](tests/reference/gltf-front.png) and
+  [`tests/reference/gltf-back.png`](tests/reference/gltf-back.png)). Their module comments
+  explain how to render a reference again after a deliberate change; the tests print the
+  difference they measured with `--nocapture`.
 
 To add an example, put its source in this directory, declare it as an `[[example]]` in
 [`Cargo.toml`](Cargo.toml), give it a module comment saying what it shows and how to run it, and

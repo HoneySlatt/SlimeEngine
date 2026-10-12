@@ -17,9 +17,16 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   proportion to the cosine between their normal and the direction to the light, plus an ambient
   light; normals follow the rotation of their instance and stay perpendicular to surfaces scaled
   unevenly.
-- The `scene` example, the sample of Stage 3a: cubes and a smooth sphere drawn by the renderer,
-  lit by a directional light, seen from a camera that orbits them; and its image test, compared
-  with a reference rendered with lavapipe.
+- The `scene` example, the sample of Stage 3a: a glTF scene drawn by the renderer, lit by a
+  directional light, seen from a camera that orbits it until the mouse takes over (dragging turns
+  it, the wheel zooms). It draws `examples/assets/scene.glb`, made in Blender by
+  `examples/assets/make_scene.py` and released under CC0, or any GLB file with embedded buffers
+  and PNG images given with `--scene`, through a temporary loader in the examples
+  ([ADR-0029](docs/adr/0029-temporary-gltf-loading.md)). Two image tests, compared with
+  references rendered with lavapipe: the sample scene from two camera poses, and shapes drawn by
+  the renderer (cubes and a smooth sphere, two of them with a checker texture).
+- Textures have mipmaps, computed on the CPU when they are created, in linear light for the sRGB
+  formats; samplers read the level of detail that fits, and linear filtering blends two levels.
 - The GPU resources a renderer needs, in `slime-gfx`: index buffers and indexed draws, uniform
   buffers written through `Gpu::write_uniform_buffer`, bind group layouts and bind groups that
   pipelines declare and render passes bind, with dynamic offsets so that one uniform buffer holds
@@ -32,18 +39,20 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   sample, in an sRGB format (decoded when read) or in the new linear `TextureFormat::Rgba8Unorm`;
   `Gpu::create_sampler` sets the filters and the address modes that glTF samplers express; both
   are bound through bind groups. A material of `slime-render` can have a base color texture,
-  multiplied with its base color; the `scene` example textures its center cube and its sphere
-  with a checker.
+  multiplied with its base color.
 - `Surface::check` and `GfxError::SurfaceLost`: a window's surface that is lost for good (it cannot
   be created again, or is lost again each time) stops the run like a lost device, instead of an
   error logged at every frame while the run went on without drawing (ADR-0025).
 
 ### Changed
 
-- An image test passes when at most 0.1 % of its pixels exceed the per-channel tolerance, where
-  drivers blend texels or place edges differently
-  ([ADR-0028](docs/adr/0028-image-tests-tolerate-a-few-pixels.md)); the tests print what they
-  measured with `--nocapture`, and the Windows CI job runs them that way.
+- The image tests keep the tolerance of 2 out of 255, exceeded by no pixel, on lavapipe, which
+  rendered the references; on other drivers, which filter textures and place edges differently,
+  a pixel may differ by up to 8, and 0.1 % of the pixels by more
+  ([ADR-0028](docs/adr/0028-image-tests-tolerate-a-few-pixels.md),
+  [ADR-0030](docs/adr/0030-image-tests-strict-on-the-reference-driver.md)). The tests print what
+  they measured with `--nocapture` (how many pixels differ by more than 2, 4, 8 and 16), and the
+  Windows CI job runs them that way.
 - `Gpu::render` takes a `RenderPassDescriptor` (the target, whether to clear it, an optional depth
   target) instead of a target and a clear color. `RenderPipelineDescriptor` gains
   `bind_group_layouts`, `depth` and `cull`, and pipeline layouts are always explicit: a shader
