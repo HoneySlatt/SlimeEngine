@@ -168,18 +168,27 @@ do with the triangle of [`examples/common/triangle.rs`](../examples/common/trian
 ```text
 gpu = Gpu::new()
 ├── create_render_target(label, width, height, format)   the image to draw into
+├── create_depth_target(label, width, height)            the depth of what is drawn, for passes
+│                                                        that test depth
 ├── create_shader_module(label, wgsl)                    rejected → GfxError::Shader
-├── create_render_pipeline(&descriptor)                  rejected → GfxError::Pipeline
+├── create_bind_group_layout(label, entries)             what the shaders read: uniform buffers
+├── create_render_pipeline(&descriptor)                  rejected → GfxError::Pipeline; declares
+│                                                        its bind group layouts, depth test, culling
 ├── create_vertex_buffer(label, bytes)
-├── render(&target, clear color, |pass| ...)             one command encoder and render pass;
-│                                                        the closure sets the pipeline and the
-│                                                        vertex buffer and draws; then submitted
+├── create_index_buffer(label, indices)
+├── create_uniform_buffer(label, bytes)                  written again with write_uniform_buffer
+├── create_bind_group(label, &layout, entries)           the uniform buffers, bound together
+├── render(&RenderPassDescriptor { target, clear, depth }, |pass| ...)
+│                                                        one command encoder and render pass; the
+│                                                        closure sets the pipeline, the bind groups
+│                                                        and the buffers, and draws; then submitted
 └── read_render_target(&target)                          copy into a buffer, wait for the GPU,
                                                          map it → Image (RGBA, top row first)
 ```
 
 Each GPU object is an engine-owned type holding its wgpu object
-([ADR-0017](adr/0017-gpu-resource-types.md)). Shader modules and pipelines are created inside a
+([ADR-0017](adr/0017-gpu-resource-types.md); bind groups and depth:
+[ADR-0026](adr/0026-resource-binding-and-depth.md)). Shader modules and pipelines are created inside a
 wgpu error scope, so that a rejection comes back as an error with wgpu's message; any other wgpu
 error is a bug and panics ([ADR-0016](adr/0016-gpu-layer-with-wgpu.md)). The test
 [`examples/tests/offscreen.rs`](../examples/tests/offscreen.rs) compares the image with a

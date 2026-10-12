@@ -12,11 +12,24 @@ software driver such as lavapipe or WARP. The engine opens one adapter's *device
 **Application time.** The sum of the deltas of all frames so far (`FrameTime::elapsed`). It
 falls behind wall-clock time when a frame delta is limited, for example after a pause.
 
+**Bind group.** A set of GPU resources that a pipeline's shaders read together, bound at one
+`@group` index: uniform buffers for now, textures and samplers later (`slime_gfx::BindGroup`). Its
+*bind group layout* says which bindings it has and what each holds (`slime_gfx::BindGroupLayout`,
+[ADR-0026](adr/0026-resource-binding-and-depth.md)).
+
+**Culling.** Not drawing the triangles that face one way, usually the back faces of closed
+meshes, which their front faces hide anyway (`slime_gfx::CullMode`). A triangle faces the front
+when its vertices wind counter-clockwise on screen.
+
 **Debug group.** A named section of the commands of a render pass, shown by GPU capture tools such
 as RenderDoc (`RenderPass::debug_group`).
 
 **Definition of done.** The conditions a milestone must meet before it is reported as finished,
 listed in [`AGENTS.md`](../AGENTS.md#definition-of-done).
+
+**Depth target.** A texture holding, for each pixel, the depth of what was drawn there, with
+which a render pass keeps the nearest surface whatever the order the surfaces are drawn in: the
+*depth test* (`slime_gfx::DepthTarget`, `slime_gfx::DepthState`).
 
 **Device (GPU).** The engine's connection to an adapter: it creates GPU resources, and its
 *queue* receives the work to execute (`slime_gfx::Gpu`). It is *lost* when the driver crashes or
@@ -51,6 +64,9 @@ configuration, used by automated tests and, later, by dedicated servers.
 **Image test.** A test that renders offscreen and compares the result with a *reference image*,
 pixel by pixel, within a tolerance that absorbs how drivers round colors
 ([ADR-0018](adr/0018-reference-image-tests.md)).
+
+**Index buffer.** A buffer of indices into a vertex buffer, so that the triangles of a mesh share
+vertices (`slime_gfx::IndexBuffer`).
 
 **Interpolation factor.** The fraction of a fixed step accumulated but not yet run
 (`FixedStep::alpha`), between 0 and 1. Used to draw a state between the last two fixed steps.
@@ -126,6 +142,9 @@ up, which stops the run, when that fails or when it is lost again each time
 terminal), SIGTERM (a service manager or `kill`) or SIGHUP (the terminal closing). The first one
 stops a run cleanly; a second one ends the process at once
 ([ADR-0012](adr/0012-clean-shutdown-on-termination-signals.md)).
+
+**Uniform buffer.** A buffer of values that a whole draw reads, such as a camera's matrices,
+declared `var<uniform>` in WGSL and read through a *bind group* (`slime_gfx::UniformBuffer`).
 
 **WARP.** Microsoft's software driver for Direct3D 12, part of Windows. wgpu uses it on Windows
 machines without a GPU, such as the CI runners.

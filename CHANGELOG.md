@@ -8,12 +8,21 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- The GPU resources a renderer needs, in `slime-gfx`: index buffers and indexed draws, uniform
+  buffers written through `Gpu::write_uniform_buffer`, bind group layouts and bind groups that
+  pipelines declare and render passes bind, depth targets with a depth test and face culling
+  declared by the pipeline, and render passes that keep the target's content instead of clearing
+  it ([ADR-0026](docs/adr/0026-resource-binding-and-depth.md)).
 - `Surface::check` and `GfxError::SurfaceLost`: a window's surface that is lost for good (it cannot
   be created again, or is lost again each time) stops the run like a lost device, instead of an
   error logged at every frame while the run went on without drawing (ADR-0025).
 
 ### Changed
 
+- `Gpu::render` takes a `RenderPassDescriptor` (the target, whether to clear it, an optional depth
+  target) instead of a target and a clear color. `RenderPipelineDescriptor` gains
+  `bind_group_layouts`, `depth` and `cull`, and pipeline layouts are always explicit: a shader
+  binding that no layout holds is rejected as `GfxError::Pipeline`.
 - The default log filter also hides the error that winit's client-side decorations log when no
   session bus or desktop portal answers (`sctk_adwaita::config=off`, ADR-0019).
 - The Windows CI artifact also contains `offscreen.exe`, and the Windows job runs the release build

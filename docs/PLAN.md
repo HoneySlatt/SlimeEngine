@@ -13,7 +13,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3a — First renderer → 0.0.3: in progress. Planned on 2026-10-12 and validated by the
-  owner. Milestone in progress: M3.1.
+  owner. M3.1 is done; next: M3.2.
 - Between 0.0.2 and this stage, a stabilization pass on 2026-10-12 corrected what an audit of
   0.0.2 found: the corrections are listed in [`CHANGELOG.md`](../CHANGELOG.md) under
   *Unreleased*, and what was found without being corrected is in [Known debt](#known-debt).
@@ -22,7 +22,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 
 | Milestone | Goal | Status |
 |---|---|---|
-| [M3.1](#m31--gpu-resources-for-a-renderer) | GPU resources for a renderer | In progress |
+| [M3.1](#m31--gpu-resources-for-a-renderer) | GPU resources for a renderer | Done |
 | [M3.2](#m32--the-render-crate-camera-meshes-instances) | The render crate: camera, meshes, instances | Planned |
 | [M3.3](#m33--directional-light-and-material) | Directional light and material | Planned |
 | [M3.4](#m34--textures-and-samplers) | Textures and samplers | Planned |
@@ -90,6 +90,13 @@ it:
   faces are culled when asked; a pipeline whose shader bindings do not match its layouts is
   rejected as `GfxError::Pipeline`.
 - **How to test.** `VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo test -p slime-gfx`.
+- **Checked** on 2026-10-12: the tests of `crates/slime-gfx/tests/drawing.rs` (an indexed quad; a
+  uniform offset written between two renders; a pass that keeps the image; the depth test with
+  both draw orders, and the last draw winning without it; culling of back and of front faces; a
+  depth target of another size rejected) and of `errors.rs` (a binding without a layout rejected
+  as `GfxError::Pipeline`, with wgpu's message naming the binding; empty or misaligned buffers
+  rejected at creation) pass on lavapipe, and on WARP in the Windows CI job. Dynamic offsets,
+  textures and samplers are left to the milestones that use them, as ADR-0026 says.
 
 ### M3.2 — The render crate: camera, meshes, instances
 

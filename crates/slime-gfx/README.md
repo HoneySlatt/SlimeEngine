@@ -6,9 +6,10 @@ drivers.
 ## Status
 
 Partial. It opens a GPU device, with or without a window, draws into offscreen images and reads
-them back, and draws into a window. It draws lists of triangles of one color format family
-(8-bit sRGB), without depth, blending, textures or uniform data yet: they come with the renderer
-of Stage 3 (`docs/ROADMAP.md`).
+them back, and draws into a window. It draws lists of triangles from vertex and index buffers,
+reading uniform buffers through bind groups, with a depth test and face culling, into one color
+format family (8-bit sRGB). Textures, samplers and blending are not there yet: textures and
+samplers come with the materials of the renderer of Stage 3 (`docs/PLAN.md`).
 
 ## Role
 
@@ -97,19 +98,36 @@ fn main() -> Result<(), GfxError> {
     orders.
   - `VertexBuffer`: vertex data, given as bytes (`create_vertex_buffer`): at least one byte, at
     most 256 MiB with the default limits.
+  - `IndexBuffer`: 32-bit indices into a vertex buffer (`create_index_buffer`), for draws whose
+    triangles share vertices; it knows its `count`.
+  - `UniformBuffer`: values that a whole draw reads, given as bytes laid out as the shader's
+    uniform declares (`create_uniform_buffer`: at least 4 bytes, in multiples of 4), and written
+    again with `Gpu::write_uniform_buffer`, always with the same size.
+  - `BindGroupLayout` and `BindGroup`: the resources a pipeline's shaders read, bound together at
+    one `@group` index (`docs/adr/0026-resource-binding-and-depth.md`). A layout
+    (`create_bind_group_layout`) lists its bindings as `BindGroupLayoutEntry`s: a binding number,
+    the `ShaderStages` that read it and a `BindingType`, a uniform buffer for now; a group
+    (`create_bind_group`) gives the `BindingResource` of each binding of a layout.
+  - `DepthTarget`: a texture holding the depth of what was drawn (`create_depth_target`), at the
+    size of the render targets it is used with, for depth testing. It cannot be read back.
   - `ShaderModule`: WGSL source compiled by wgpu (`create_shader_module`).
-  - `RenderPipeline`: a shader's entry points, the layout of its vertices and the format of the
-    target it draws into (`create_render_pipeline`, from a `RenderPipelineDescriptor`). It draws
-    lists of triangles, without depth, culling or blending.
+  - `RenderPipeline`: a shader's entry points, the layout of its vertices, the layouts of the bind
+    groups its shaders read, its depth test (`DepthState`), its culling (`CullMode`) and the format
+    of the target it draws into (`create_render_pipeline`, from a `RenderPipelineDescriptor`). It
+    draws lists of triangles, without blending. A binding that the shaders declare and that no
+    layout holds is rejected.
 
   They are cheap to clone, clones share the GPU object, and it is freed when the last one is
   dropped. Each belongs to the `Gpu` that created it: using it with another `Gpu` is a bug, which
   panics inside wgpu.
-- `Gpu::render(target, clear, record)` clears a target to a color, lets `record` draw into it
-  through a `RenderPass` (`set_pipeline`, `set_vertex_buffer`, `draw`), and sends the work to the
-  GPU. The pass is named after the target's label in capture tools, and
-  `RenderPass::debug_group(label, record)` names a group of commands inside it. Labels and groups
-  reach the driver in debug builds, or with `WGPU_DEBUG=1`.
+- `Gpu::render(&RenderPassDescriptor { target, clear, depth }, record)` runs one render pass: it
+  clears the target to a color, and the depth target to the farthest depth, or keeps what both
+  hold when `clear` is `None`; lets `record` draw through a `RenderPass` (`set_pipeline`,
+  `set_bind_group`, `set_vertex_buffer`, `set_index_buffer`, `draw`, `draw_indexed`); and sends
+  the work to the GPU. A pass with a depth target takes pipelines with a depth test, and one
+  without takes pipelines without. The pass is named after the target's label in capture tools,
+  and `RenderPass::debug_group(label, record)` names a group of commands inside it. Labels and
+  groups reach the driver in debug builds, or with `WGPU_DEBUG=1`.
 - `Gpu::read_render_target(target)` waits for the GPU and copies a target into an `Image`: RGBA
   bytes, rows from top to bottom, whatever the byte order of the target's format.
 - `Gpu::new_for_window(window, width, height, present_mode)` opens the most capable GPU that can
