@@ -8,6 +8,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- A windowed run whose `render` draws nothing into the window's image no longer grows at every
+  frame (about 180 kB per frame, measured with lavapipe): the engine gives wgpu a submission for
+  such frames, without which it never reclaimed the work of the earlier ones.
 - Frames that the windowing system asks for on its own (during a resize) or that the application
   requests through `Window::request_redraw` no longer postpone the engine's schedule: after a burst
   of them, the loop went to sleep until the schedule caught up, for seconds, without running frames

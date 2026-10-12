@@ -2,6 +2,7 @@
 
 use std::fmt;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
@@ -295,9 +296,17 @@ impl SurfaceFrame {
 
     /// Hands the image to the window, to be shown at one of the display's next refreshes, as the
     /// surface's [`PresentMode`] says. Call it after the work that draws into the target has been
-    /// submitted, as [`Gpu::render`] does. With [`PresentMode::Fifo`], it can wait for the window
-    /// (one second per frame for a hidden window on niri).
+    /// submitted, as [`Gpu::render`] does; an image that nothing drew into is shown cleared to
+    /// black. With [`PresentMode::Fifo`], it can wait for the window (one second per frame for a
+    /// hidden window on niri).
     pub fn present(self) {
+        if !self.target.drawn.load(Ordering::Relaxed) {
+            // wgpu clears an image that nothing drew into when it is presented, and keeps that
+            // work, with everything earlier frames used, until a submission lets it see what the
+            // GPU has finished. A frame that draws nothing must give it one, or that work piles up
+            // at every frame for as long as the run lasts.
+            self.queue.submit([]);
+        }
         self.queue.present(self.texture);
     }
 }

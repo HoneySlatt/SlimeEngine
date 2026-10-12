@@ -1,6 +1,7 @@
 //! Render passes: drawing into a render target.
 
 use std::ops::Range;
+use std::sync::atomic::Ordering;
 
 use crate::gpu::Gpu;
 use crate::pipeline::RenderPipeline;
@@ -105,5 +106,6 @@ impl Gpu {
         }
         let _span = tracing::trace_span!("submit").entered();
         self.queue.submit([encoder.finish()]);
+        target.drawn.store(true, Ordering::Relaxed);
     }
 }

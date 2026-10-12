@@ -1,5 +1,8 @@
 //! Textures that render passes draw into.
 
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+
 use crate::gpu::Gpu;
 
 /// The formats of the textures the engine renders into.
@@ -43,6 +46,8 @@ pub struct RenderTarget {
     pub(crate) view: wgpu::TextureView,
     pub(crate) label: String,
     format: TextureFormat,
+    /// Whether a render pass drew into the texture; set by [`Gpu::render`], shared by the clones.
+    pub(crate) drawn: Arc<AtomicBool>,
 }
 
 impl RenderTarget {
@@ -103,6 +108,7 @@ impl RenderTarget {
             view,
             label: label.to_owned(),
             format,
+            drawn: Arc::new(AtomicBool::new(false)),
         }
     }
 }
