@@ -12,8 +12,10 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 
 ## Current
 
-- Stage 2 — GPU layer → 0.0.2
-- Milestone M2.5 — Debug markers, robustness, release 0.0.2
+- Stage 2 — GPU layer → 0.0.2: done and released (tag `v0.0.2`). Its milestones stay below until
+  the next stage is planned.
+- Next: planning Stage 3a with the owner (see [`ROADMAP.md`](ROADMAP.md)). No code is written
+  for it before its plan is validated.
 
 ## Status
 
@@ -24,9 +26,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M2.2](#m22--offscreen-triangle-and-reference-image) | Offscreen triangle and reference image | Done |
 | [M2.3](#m23--the-triangle-in-the-window) | The triangle in the window | Done |
 | [M2.4](#m24--frame-pacing) | Frame pacing | Done |
-| [M2.5](#m25--debug-markers-robustness-release-002) | Debug markers, robustness, release 0.0.2 | In progress |
+| [M2.5](#m25--debug-markers-robustness-release-002) | Debug markers, robustness, release 0.0.2 | Done |
 
-Stages 0 and 1 are done; see [Completed stages](#completed-stages).
+Stages 0, 1 and 2 are done; see [Completed stages](#completed-stages).
 
 ## Stage 2 — GPU layer → 0.0.2
 
@@ -217,7 +219,8 @@ A release is an annotated git tag on a commit whose CI run is green on Linux and
    `git tag -a v<version> -m "SlimeEngine <version>" <commit>`.
 
 0.0.1 was released on 2026-10-12, before Windows joined CI: the tag `v0.0.1` is on the commit
-"Release 0.0.1".
+"Release 0.0.1". 0.0.2 was released the same way on 2026-10-12: the tag `v0.0.2` is on the
+commit "Release 0.0.2".
 
 ## Completed stages
 
@@ -225,6 +228,7 @@ A release is an annotated git tag on a commit whose CI run is green on Linux and
 |---|---|---|
 | 0 — Foundations | M0.1 repository and ADR process; M0.2 Nix environment; M0.3 workspace, lints, crate skeletons; M0.4 dependency policy and CI | Done. CI green on the first push to GitHub (2026-10-12). |
 | 1 — Core and platform → 0.0.1 | M1.1 logging and diagnostics; M1.2 frame timing; M1.3 lifecycle and headless mode; M1.4 window; M1.5 input; M1.6 clean shutdown | Done; released as 0.0.1 (tag `v0.0.1`). Content listed in [`CHANGELOG.md`](../CHANGELOG.md). |
+| 2 — GPU layer → 0.0.2 | M2.0 Windows in CI; M2.1 GPU device without a window; M2.2 offscreen triangle and reference image; M2.3 the triangle in the window; M2.4 frame pacing; M2.5 debug markers, robustness, release | Done; released as 0.0.2 (tag `v0.0.2`). Content listed in [`CHANGELOG.md`](../CHANGELOG.md). |
 
 The details of each completed milestone (what it delivered, how it was checked) are in the history
 of this file and in the commits that implemented it.

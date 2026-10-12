@@ -6,6 +6,13 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ## [Unreleased]
 
+## [0.0.2] - 2026-10-12
+
+The second release, which closes Stage 2 of the roadmap: the GPU layer. The engine draws a triangle
+in its window on Linux (Vulkan) and Windows (Direct3D 12), renders offscreen images that CI
+compares with a reference on software drivers, paces frames without stalling when the window is
+hidden, names its GPU work for capture tools, and stops cleanly when the GPU device is lost.
+
 ### Added
 
 - Windows support for what exists: CI runs clippy, the tests and the headless samples on a Windows
@@ -59,6 +66,14 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 ### Removed
 
 - `softbuffer`, with which the `window` example filled its window from the CPU.
+
+### Known limitations
+
+See the known debt in [`docs/PLAN.md`](docs/PLAN.md#known-debt). In short: no renderer yet (no
+depth, textures, lighting or meshes; they come with Stage 3), frames are not synchronized with the
+display's refresh, presenting can still stall where Mailbox is not offered, frames pause on
+Windows while the window is moved, wgpu's errors panic in release builds too, a lost GPU device is
+not replaced, and modifier state, input methods, touch, gestures and gamepads are not reported.
 
 ## [0.0.1] - 2026-10-12
 

@@ -6,14 +6,15 @@ games first, then open-world games, then large online worlds.
 
 ## Status
 
-Pre-alpha. Stage 0 (*Foundations*) and Stage 1 (*Core and platform*) are done and released as
-0.0.1 (git tag `v0.0.1`). Applications run headless or with a window (Wayland or X11 on Linux,
-Win32 on Windows) that receives keyboard and mouse input, with a fixed-step main loop, logging,
-panic reporting and a clean shutdown on Ctrl+C. Stage 2, the GPU layer, is in progress: the
-engine opens the GPU (Vulkan on Linux, Direct3D 12 on Windows), draws a triangle in the window and
-into offscreen images checked against a reference image, paces frames with its own schedule and
-the Mailbox present mode by default, names its GPU work for capture tools, and stops cleanly when
-the GPU device is lost. [`docs/PLAN.md`](docs/PLAN.md) lists what remains and the known debt.
+Pre-alpha. Stages 0 (*Foundations*), 1 (*Core and platform*) and 2 (*GPU layer*) are done; the
+latest release is 0.0.2 (git tag `v0.0.2`). Applications run headless or with a window (Wayland
+or X11 on Linux, Win32 on Windows) that receives keyboard and mouse input, with a fixed-step main
+loop, logging, panic reporting and a clean shutdown on Ctrl+C. The engine opens the GPU (Vulkan
+on Linux, Direct3D 12 on Windows), draws a triangle in the window and into offscreen images
+checked against a reference image, paces frames with its own schedule and the Mailbox present
+mode by default, names its GPU work for capture tools, and stops cleanly when the GPU device is
+lost. There is no renderer yet: meshes, textures and lighting come with Stage 3.
+[`docs/PLAN.md`](docs/PLAN.md) lists what comes next and the known debt.
 
 ## Getting started
 
