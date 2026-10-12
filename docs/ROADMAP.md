@@ -52,7 +52,7 @@ The editor sits beside games, not inside the engine: it is a client of the engin
 | License | MPL-2.0 |
 | GPU abstraction | wgpu. Its types stay inside the `gfx` and `render` crates; the rest of the engine uses engine-owned handles. |
 | Shaders | WGSL to start |
-| First platform | Linux (Wayland and X11) |
+| First platforms | Linux (Wayland and X11) and Windows: games run on both from Stage 2 on. macOS comes later. |
 | Game-facing API | Rust first. The C ABI and C++ SDK are derived later from a proven API. |
 | Editor UI | Engine-owned, GPU-rendered UI framework (no Qt/GTK) |
 | Windowing and input | winit, used only inside `platform`; its types never leave that crate (ADR-0011) |
@@ -129,15 +129,16 @@ A Wayland window shows nothing until the application gives it pixels, and presen
 
 **Goal.** Own the boundary between the engine and wgpu.
 
-- Device, surface, resize, present, frame pacing (replaces the Stage 1 frame limiter and CPU fill)
-- Engine-owned handles for the resources that the triangle and the offscreen render use; the set grows with the renderer in Stage 3
-- WGSL loading (hot reload comes with the asset pipeline, Stage 4)
+- Device, surface, resize, present (replaces the Stage 1 CPU fill), on Linux (Vulkan) and Windows (Direct3D 12)
+- Frame pacing, decided by measurement on each platform: on Wayland compositors without the FIFO protocol, presentation can stall while the window is hidden, so the Stage 1 frame scheduler may stay
+- Engine-owned resource types for what the triangle and the offscreen render use; their representation is decided by ADR, and the set grows with the renderer in Stage 3
+- WGSL shaders compiled from source text, with readable errors (loading from files and hot reload come with the asset pipeline, Stage 4)
 - GPU debug labels and markers
 - Offscreen rendering
 
 `gfx` does not depend on `platform`: it accepts window handles through the `raw-window-handle` traits, so that offscreen rendering and its tests run without a window.
 
-**Exit.** A triangle renders and survives resize. An offscreen render is compared to a reference image in CI. CI has no GPU: the image is rendered with a software Vulkan driver (Mesa lavapipe), reference images are produced with that driver, and the comparison uses a tolerance so that the same test passes on hardware drivers.
+**Exit.** A triangle renders and survives resize, on Linux and on Windows. An offscreen render is compared to a reference image in CI. CI has no GPU: the image is rendered with software drivers, Mesa lavapipe on Linux and WARP (the software Direct3D 12 driver) on Windows, and the comparison uses a tolerance so that the same test passes on hardware drivers.
 
 Stage 3 is split in two so that each half ends with a runnable, tested sample.
 
@@ -234,7 +235,7 @@ Stage 3 is split in two so that each half ends with a runnable, tested sample.
 - Sequencer: camera, animation, audio, event and VFX tracks
 - VFX: CPU and GPU particles
 - Navigation: navmesh, pathfinding, spatial queries
-- Build, cook and package: Development, Shipping, Server, Editor configurations
+- Build, cook and package: Development, Shipping, Server, Editor configurations, for Linux and Windows. Builds without a console (Windows games) write their log to a file.
 
 **Exit.** A short narrative vertical slice (animated character, cutscene, gameplay) ships as a packaged build.
 
@@ -260,7 +261,7 @@ Stage 3 is split in two so that each half ends with a runnable, tested sample.
 - Crash reporting and diagnostics
 - Migration tooling for assets, projects and serialized formats
 - Deprecation policy
-- Windows and macOS as supported platforms
+- macOS as a supported platform
 - User, SDK and engine documentation
 
 **Exit for 0.9.** An external project is built without touching engine source.
@@ -273,6 +274,7 @@ These run through every stage. They are never "a phase for later".
 | Track | Content |
 |---|---|
 | Testing and CI | Unit, integration, image comparison, serialization round-trip, performance regression |
+| Platforms | Every stage's sample builds and its tests pass in CI on Linux and Windows; windowed behaviour is checked by hand on both |
 | Profiling | Instrumentation added with each system |
 | Performance budgets | CPU frame, GPU frame, memory, VRAM, load times, tracked per sample |
 | Iteration speed | Compile times, hot reload, startup time |
@@ -297,7 +299,7 @@ Direction only. None of this is planned work until Stage 11 is reached.
 | System | Requires |
 |---|---|
 | platform | core |
-| gfx | core; window handles through the `raw-window-handle` traits, not `platform` |
+| gfx | no engine crate; window handles through the `raw-window-handle` traits, not `platform` |
 | render | gfx |
 | assets | core, basic task pool |
 | serialization | reflect |
