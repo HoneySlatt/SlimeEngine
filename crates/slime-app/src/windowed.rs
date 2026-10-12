@@ -33,9 +33,10 @@ struct WindowedDriver<'a, A> {
     app: &'a mut A,
     ctx: Context,
     frames: Frames,
-    /// The shortest time between two frames, from `AppConfig::max_frame_rate`.
+    /// The interval at which frames are scheduled, from `AppConfig::max_frame_rate`.
     frame_period: Duration,
     last_frame: Instant,
+    /// When the next frame is due.
     next_frame: Instant,
     /// Why the loop is ending, once it has been decided.
     stop: Option<&'static str>,
@@ -65,9 +66,7 @@ impl<A: App> EventHandler for WindowedDriver<'_, A> {
                 self.frames
                     .run_one(self.app, &mut self.ctx, now - self.last_frame);
                 self.last_frame = now;
-                // A late frame moves the schedule instead of being followed by a burst of
-                // frames that catch up.
-                self.next_frame = (self.next_frame + self.frame_period).max(now);
+                self.next_frame = next_due(self.next_frame, now, self.frame_period);
             }
         }
         if self.stop.is_none() {
@@ -84,5 +83,48 @@ impl<A: App> EventHandler for WindowedDriver<'_, A> {
         tracing::info!(frames = self.frames.count(), "stopping: {reason}");
         self.app.shutdown(&mut self.ctx);
         self.ctx.set_window(None);
+    }
+}
+
+/// When the frame after one that was due at `due` and started at `started` is due.
+///
+/// Frames stay on a regular schedule, so that a frame starting a little late does not lower the
+/// average rate. After falling a whole period behind, the schedule restarts from the frame that
+/// just started: catching up would run frames back to back.
+fn next_due(due: Instant, started: Instant, period: Duration) -> Instant {
+    let next = due + period;
+    if next <= started {
+        started + period
+    } else {
+        next
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const PERIOD: Duration = Duration::from_millis(16);
+
+    #[test]
+    fn a_frame_on_time_schedules_the_next_one_period_later() {
+        let due = Instant::now();
+        assert_eq!(next_due(due, due, PERIOD), due + PERIOD);
+    }
+
+    #[test]
+    fn a_slightly_late_frame_keeps_the_schedule() {
+        let due = Instant::now();
+        let started = due + Duration::from_millis(5);
+        assert_eq!(next_due(due, started, PERIOD), due + PERIOD);
+    }
+
+    #[test]
+    fn a_frame_late_by_a_period_or_more_restarts_the_schedule() {
+        let due = Instant::now();
+        for late in [PERIOD, PERIOD * 3 + Duration::from_millis(2)] {
+            let started = due + late;
+            assert_eq!(next_due(due, started, PERIOD), started + PERIOD);
+        }
     }
 }

@@ -114,9 +114,12 @@ slime_app::run
     └── winit "exiting"         → driver.exiting → app.shutdown(ctx), the window is released
 ```
 
-Frames are spaced by at least `1 / AppConfig::max_frame_rate`: between them the event loop
-sleeps until the next frame is due or an event arrives, so an idle window uses almost no CPU.
-This frame limiter is temporary; presenting frames on screen will pace them from Stage 2.
+Frames are scheduled every `1 / AppConfig::max_frame_rate` seconds: between them the event loop
+sleeps until the next frame is due or an event arrives, so an idle window uses almost no CPU. A
+frame that starts a little late does not shift the schedule, which keeps the average rate; after
+falling a whole period behind, the schedule restarts instead of catching up with frames run back
+to back (`next_due` in `windowed.rs`). This frame limiter is temporary; presenting frames on
+screen will pace them from Stage 2.
 
 ### Termination signals
 
