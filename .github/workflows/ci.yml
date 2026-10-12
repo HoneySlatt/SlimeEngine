@@ -1,7 +1,6 @@
-# Runs every automated check of the definition of done on each push to main and on each pull
-# request. The checks live in scripts/check.sh, so a local run and a CI run are identical; see
-# docs/adr/0007-documentation-tooling-and-ci.md. Actions are pinned to commit SHAs, with the
-# release they correspond to in a comment.
+# Runs the automated checks of the definition of done on each push to main and on each pull
+# request, on Linux and on Windows (docs/adr/0015-platforms-and-ci.md). Actions are pinned to
+# commit SHAs, with the release they correspond to in a comment.
 name: CI
 
 on:
@@ -13,6 +12,8 @@ permissions:
   contents: read
 
 jobs:
+  # Every check, in the same Nix shell that contributors use: a local run of scripts/check.sh and
+  # this job are identical (docs/adr/0007-documentation-tooling-and-ci.md).
   check:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -20,3 +21,36 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
       - run: nix develop --command scripts/check.sh
+
+  # What can only be checked on Windows: running the build, the tests and the samples there. The
+  # checks that do not depend on the platform (formatting, rustdoc, dependencies, links) and
+  # compiling for Windows already run in the Linux job.
+  windows:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install the toolchain pinned in rust-toolchain.toml
+        run: rustup toolchain install
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Tests
+        run: cargo test --workspace --locked
+      - name: Headless samples
+        run: |
+          cargo run --locked --example headless -- --frames 600
+          cargo run --locked --example window -- --headless --frames 600
+      - name: Build the examples for checks by hand
+        run: cargo build --locked --release --examples
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: slime-examples-windows
+          path: |
+            target/release/examples/hello.exe
+            target/release/examples/headless.exe
+            target/release/examples/window.exe
+          if-no-files-found: error
+          retention-days: 14

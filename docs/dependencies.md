@@ -54,3 +54,7 @@ Used by [`.github/workflows/ci.yml`](../.github/workflows/ci.yml), pinned to com
 |---|---|---|
 | [actions/checkout](https://github.com/actions/checkout) | Checks out the repository | MIT |
 | [cachix/install-nix-action](https://github.com/cachix/install-nix-action) | Installs Nix with flakes enabled, so CI runs the same development shell as contributors | Apache-2.0 |
+| [actions/upload-artifact](https://github.com/actions/upload-artifact) | Publishes the examples built by the Windows job, to run by hand on a Windows machine | MIT |
+
+The Windows job uses the Rust toolchain manager (rustup) and the Visual Studio build tools that the
+`windows-2025` runner image provides; rustup installs the toolchain of `rust-toolchain.toml`.

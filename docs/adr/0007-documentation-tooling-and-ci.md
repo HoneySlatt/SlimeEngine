@@ -1,6 +1,6 @@
 # 0007. Documentation tooling and continuous integration
 
-- Status: Accepted
+- Status: Accepted; amended by [0015](0015-platforms-and-ci.md) (CI on Windows)
 - Date: 2026-10-12
 
 ## Context

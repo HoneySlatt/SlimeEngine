@@ -27,9 +27,10 @@ Do not write one for choices that are local to a function or a module and cheap 
 3. The ADR is written in the same change that first applies the decision, so that it describes
    a decision that is actually in effect.
 4. An accepted ADR is never edited to change its meaning. To change a decision, write a new ADR
-   that supersedes the old one, and set the old one's status to `Superseded by NNNN`. Fixing a
-   typo, a broken link, or a factual error that leaves the decision unchanged is fine; the commit
-   message says what was corrected.
+   that supersedes the old one, and set the old one's status to `Superseded by NNNN`. When a new
+   ADR changes only part of an older one, the older one's status becomes
+   `Accepted; amended by NNNN`. Fixing a typo, a broken link, or a factual error that leaves the
+   decision unchanged is fine; the commit message says what was corrected.
 
 ## Format
 
@@ -38,7 +39,7 @@ File name: `NNNN-short-title.md`, numbered in order of acceptance, never reused.
 ```markdown
 # NNNN. Title in the imperative or as a noun phrase
 
-- Status: Accepted | Superseded by NNNN
+- Status: Accepted | Accepted; amended by NNNN | Superseded by NNNN
 - Date: YYYY-MM-DD
 
 ## Context
@@ -73,7 +74,7 @@ the ADR linking to it.
 | [0004](0004-workspace-layout-and-crate-naming.md) | Workspace layout and crate naming | Accepted |
 | [0005](0005-lints-and-unsafe-policy.md) | Lints and `unsafe` policy | Accepted |
 | [0006](0006-dependency-policy.md) | Dependency policy | Accepted |
-| [0007](0007-documentation-tooling-and-ci.md) | Documentation tooling and continuous integration | Accepted |
+| [0007](0007-documentation-tooling-and-ci.md) | Documentation tooling and continuous integration | Accepted; amended by 0015 |
 | [0008](0008-errors-logging-and-assertions.md) | Errors, logging and assertions | Accepted |
 | [0009](0009-frame-timing.md) | Frame timing | Accepted |
 | [0010](0010-main-loop-ownership.md) | Main loop ownership and the application API | Accepted |
@@ -81,3 +82,4 @@ the ADR linking to it.
 | [0012](0012-clean-shutdown-on-termination-signals.md) | Clean shutdown on termination signals | Accepted |
 | [0013](0013-windowed-smoke-test-in-weston.md) | Windowed smoke test in a headless Weston compositor | Accepted |
 | [0014](0014-amend-roadmap-for-stage-2-and-windows.md) | Amend the roadmap for Stage 2 and for Windows | Accepted |
+| [0015](0015-platforms-and-ci.md) | Platforms and CI on Linux and Windows | Accepted |
