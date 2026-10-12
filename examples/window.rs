@@ -17,6 +17,7 @@ mod error_chain;
 #[path = "common/triangle.rs"]
 mod triangle;
 
+use std::ffi::OsStr;
 use std::process::ExitCode;
 
 use slime_app::{App, AppConfig, AppError, Context};
@@ -120,25 +121,26 @@ struct Options {
 
 fn parse_options() -> Result<Options, String> {
     let mut options = Options::default();
-    let mut arguments = std::env::args().skip(1);
+    let mut arguments = std::env::args_os().skip(1);
     while let Some(argument) = arguments.next() {
-        match argument.as_str() {
-            "--headless" => options.headless = true,
-            "--frames" => {
+        match argument.to_str() {
+            Some("--headless") => options.headless = true,
+            Some("--frames") => {
                 let value = arguments.next().ok_or("--frames needs a value")?;
                 let frames = value
-                    .parse()
-                    .map_err(|_| format!("invalid frame count `{value}`"))?;
+                    .to_str()
+                    .and_then(|value| value.parse().ok())
+                    .ok_or_else(|| format!("invalid frame count `{}`", value.display()))?;
                 options.frame_limit = Some(frames);
             }
-            "--present-mode" => {
-                options.present_mode = match arguments.next().as_deref() {
+            Some("--present-mode") => {
+                options.present_mode = match arguments.next().as_deref().and_then(OsStr::to_str) {
                     Some("mailbox") => PresentMode::Mailbox,
                     Some("fifo") => PresentMode::Fifo,
                     _ => return Err("--present-mode needs `mailbox` or `fifo`".to_owned()),
                 };
             }
-            _ => return Err(format!("unknown argument `{argument}`")),
+            _ => return Err(format!("unknown argument `{}`", argument.display())),
         }
     }
     Ok(options)

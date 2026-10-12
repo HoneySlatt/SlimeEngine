@@ -11,11 +11,14 @@ use std::process::ExitCode;
 
 fn main() -> ExitCode {
     let mut panic_requested = false;
-    for argument in std::env::args().skip(1) {
-        match argument.as_str() {
-            "--panic" => panic_requested = true,
+    for argument in std::env::args_os().skip(1) {
+        match argument.to_str() {
+            Some("--panic") => panic_requested = true,
             _ => {
-                eprintln!("unknown argument `{argument}`\nusage: hello [--panic]");
+                eprintln!(
+                    "unknown argument `{}`\nusage: hello [--panic]",
+                    argument.display()
+                );
                 return ExitCode::from(2);
             }
         }

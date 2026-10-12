@@ -68,16 +68,17 @@ fn main() -> ExitCode {
 
 fn parse_frames() -> Result<u64, String> {
     let mut frames = 600;
-    let mut arguments = std::env::args().skip(1);
+    let mut arguments = std::env::args_os().skip(1);
     while let Some(argument) = arguments.next() {
-        match argument.as_str() {
-            "--frames" => {
+        match argument.to_str() {
+            Some("--frames") => {
                 let value = arguments.next().ok_or("--frames needs a value")?;
                 frames = value
-                    .parse()
-                    .map_err(|_| format!("invalid frame count `{value}`"))?;
+                    .to_str()
+                    .and_then(|value| value.parse().ok())
+                    .ok_or_else(|| format!("invalid frame count `{}`", value.display()))?;
             }
-            _ => return Err(format!("unknown argument `{argument}`")),
+            _ => return Err(format!("unknown argument `{}`", argument.display())),
         }
     }
     Ok(frames)

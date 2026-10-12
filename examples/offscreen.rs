@@ -54,15 +54,17 @@ fn render_to_file(output: &std::path::Path) -> Result<(), Box<dyn std::error::Er
     gpu.render(&target, BACKGROUND, |pass| triangle.draw(pass));
     let image = gpu.read_render_target(&target)?;
     png_file::write(output, &image)
+        .map_err(|error| format!("cannot write {}: {error}", output.display()))?;
+    Ok(())
 }
 
 fn parse_output() -> Result<PathBuf, String> {
     let mut output = PathBuf::from("triangle.png");
-    let mut arguments = std::env::args().skip(1);
+    let mut arguments = std::env::args_os().skip(1);
     while let Some(argument) = arguments.next() {
-        match argument.as_str() {
-            "--output" => output = arguments.next().ok_or("--output needs a path")?.into(),
-            _ => return Err(format!("unknown argument `{argument}`")),
+        match argument.to_str() {
+            Some("--output") => output = arguments.next().ok_or("--output needs a path")?.into(),
+            _ => return Err(format!("unknown argument `{}`", argument.display())),
         }
     }
     Ok(output)

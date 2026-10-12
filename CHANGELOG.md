@@ -15,6 +15,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- The examples report a command-line argument that is not valid text as a usage error instead of
+  panicking, and the `offscreen` example names the file it could not write.
 - A windowed run without any usable graphics driver reports `no GPU adapter is available` with
   wgpu's explanation, instead of `cannot create a surface for the window` with an empty cause.
 - A `SLIME_LOG` value without a bare level, such as `slime_app=trace`, no longer silences every
