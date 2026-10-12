@@ -83,3 +83,4 @@ the ADR linking to it.
 | [0013](0013-windowed-smoke-test-in-weston.md) | Windowed smoke test in a headless Weston compositor | Accepted |
 | [0014](0014-amend-roadmap-for-stage-2-and-windows.md) | Amend the roadmap for Stage 2 and for Windows | Accepted |
 | [0015](0015-platforms-and-ci.md) | Platforms and CI on Linux and Windows | Accepted |
+| [0016](0016-gpu-layer-with-wgpu.md) | The GPU layer: wgpu behind `slime-gfx` | Accepted |

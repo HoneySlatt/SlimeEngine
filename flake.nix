@@ -30,9 +30,10 @@
           pkgs.weston
         ];
 
-        # winit (in slime-platform) and softbuffer (in the examples) open the windowing system's
-        # libraries at run time instead of linking them. NixOS has no global library directory,
-        # so the dynamic loader has to be told where they are.
+        # winit (in slime-platform), softbuffer (in the examples) and wgpu (in slime-gfx) open the
+        # windowing system's libraries and the Vulkan loader at run time instead of linking them.
+        # NixOS has no global library directory, so the dynamic loader has to be told where they
+        # are.
         LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
           pkgs.wayland
           pkgs.libxkbcommon
@@ -40,7 +41,13 @@
           pkgs.libxcursor
           pkgs.libxi
           pkgs.libxcb
+          pkgs.vulkan-loader
         ];
+
+        # The Vulkan driver of Mesa that renders on the CPU (lavapipe). scripts/check.sh points the
+        # Vulkan loader at it (VK_DRIVER_FILES) so that GPU tests give the same results on every
+        # machine and in CI, which has no GPU.
+        SLIME_LAVAPIPE_ICD = "${pkgs.mesa}/share/vulkan/icd.d/lvp_icd.x86_64.json";
       };
     };
 }

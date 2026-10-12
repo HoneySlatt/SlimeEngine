@@ -17,6 +17,8 @@ publish = false
 [workspace.dependencies]
 # `termination` also handles SIGTERM and SIGHUP, not only SIGINT.
 ctrlc = { version = "3.5.2", features = ["termination"] }
+# Waits for wgpu's adapter and device requests, which are futures, when the GPU is opened.
+pollster = "1.0.1"
 raw-window-handle = "0.6.2"
 # Examples only. The `kms` backend (direct rendering without a compositor) is left out.
 softbuffer = { version = "0.4.8", default-features = false, features = ["wayland", "wayland-dlopen", "x11", "x11-dlopen"] }
@@ -28,9 +30,13 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 # compositor does not draw them, as on GNOME) are built without title text: the text renderer
 # depends on `ttf-parser`, which is unmaintained (RUSTSEC-2026-0192).
 winit = { version = "0.30.13", default-features = false, features = ["rwh_06", "x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita-notitle"] }
+# Vulkan on Linux, Direct3D 12 on Windows, WGSL shaders (ADR-0016). OpenGL, Metal and WebGPU are
+# left out; `vulkan` also builds on Windows, where it is not used by default.
+wgpu = { version = "30.0.1", default-features = false, features = ["std", "parking_lot", "vulkan", "dx12", "wgsl"] }
 
 # Workspace crates.
 slime-app = { path = "crates/slime-app" }
+slime-gfx = { path = "crates/slime-gfx" }
 slime-platform = { path = "crates/slime-platform" }
 
 [workspace.lints.rust]

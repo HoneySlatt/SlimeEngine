@@ -18,8 +18,9 @@ cargo clippy --workspace --all-targets --locked --target x86_64-pc-windows-msvc 
 step "Build"
 cargo build --workspace --all-targets --locked
 
-step "Tests"
-cargo test --workspace --locked
+step "Tests (GPU tests on lavapipe, the Vulkan driver that renders on the CPU, as in CI)"
+VK_DRIVER_FILES="${SLIME_LAVAPIPE_ICD:?run this script inside nix develop}" \
+    cargo test --workspace --locked
 
 step "Rustdoc"
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked

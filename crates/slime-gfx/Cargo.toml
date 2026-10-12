@@ -1,0 +1,17 @@
+[package]
+name = "slime-gfx"
+description = "SlimeEngine's GPU layer: the boundary between the engine and wgpu."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+pollster.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+wgpu.workspace = true
