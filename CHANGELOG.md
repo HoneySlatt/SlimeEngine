@@ -36,6 +36,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   `present`.
 - Names for GPU capture tools such as RenderDoc: `RenderPass::debug_group` names groups of
   commands, and the window's image of each frame is named `window, frame <index>`.
+- A lost GPU device (driver crash or reset, GPU removed, out of memory) stops the run cleanly:
+  `run` returns `RunError::Gfx` with `GfxError::DeviceLost`, instead of the engine panicking
+  ([ADR-0022](docs/adr/0022-losing-the-gpu-device.md)). `Gpu::check` tells whether the device
+  is still usable.
 
 ### Changed
 

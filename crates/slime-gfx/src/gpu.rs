@@ -1,5 +1,7 @@
 //! Opening the GPU: the adapter, the device and its queue.
 
+use std::sync::{Arc, OnceLock};
+
 use crate::error::GfxError;
 
 /// The graphics API used when `WGPU_BACKEND` does not choose another one: Vulkan on Linux,
@@ -18,6 +20,8 @@ pub struct Gpu {
     pub(crate) device: wgpu::Device,
     pub(crate) queue: wgpu::Queue,
     adapter_name: String,
+    /// Why the device was lost, once it has been: set by wgpu's device-lost callback.
+    loss: Arc<OnceLock<String>>,
 }
 
 impl Gpu {
@@ -33,7 +37,7 @@ impl Gpu {
     /// In debug builds, wgpu passes debug labels to the driver, so that capture tools such as
     /// RenderDoc show them. The graphics API's own validation layers stay off unless
     /// `WGPU_VALIDATION=1` is set; wgpu always validates how the engine uses it, and a use it
-    /// rejects is a bug that panics.
+    /// rejects is a bug that panics, except once the device is lost ([`Gpu::check`]).
     ///
     /// # Errors
     ///
@@ -69,17 +73,55 @@ impl Gpu {
             ..Default::default()
         }))
         .map_err(|error| GfxError::RequestDevice(Box::new(error)))?;
-        device.set_device_lost_callback(|reason, message| match reason {
-            wgpu::DeviceLostReason::Destroyed => tracing::debug!("GPU device destroyed"),
-            _ => tracing::error!(%message, "GPU device lost"),
+        let loss = Arc::new(OnceLock::new());
+        device.set_device_lost_callback({
+            let loss = Arc::clone(&loss);
+            move |reason, message| {
+                match reason {
+                    wgpu::DeviceLostReason::Destroyed => tracing::debug!("GPU device destroyed"),
+                    _ => tracing::error!(%message, "GPU device lost"),
+                }
+                // Only the first loss counts.
+                let _ = loss.set(message);
+            }
         });
+        device.on_uncaptured_error(Arc::new({
+            let loss = Arc::clone(&loss);
+            move |error: wgpu::Error| {
+                // Every use of a lost device fails; the loss itself is what matters, and the run
+                // stops on it (ADR-0022). Before the loss, an error is a bug in the engine or the
+                // application, as with wgpu's default handler.
+                if loss.get().is_some() {
+                    tracing::debug!(%error, "GPU error after the device was lost");
+                } else {
+                    panic!("wgpu error: {error}");
+                }
+            }
+        }));
 
         let gpu = Self {
             device,
             queue,
             adapter_name: info.name,
+            loss,
         };
         Ok((gpu, adapter))
+    }
+
+    /// Whether the device can still be used. It cannot once it is lost: the driver crashed or was
+    /// reset, the GPU was removed, or it ran out of memory. Every later use of the device then
+    /// fails without effect, and its objects can only be dropped.
+    ///
+    /// # Errors
+    ///
+    /// [`GfxError::DeviceLost`] once the device is lost, with the reason the driver gave.
+    pub fn check(&self) -> Result<(), GfxError> {
+        match self.loss.get() {
+            Some(message) => Err(GfxError::DeviceLost {
+                message: message.clone(),
+            }),
+            None => Ok(()),
+        }
     }
 
     /// The name of the adapter in use, as its driver reports it: for example
@@ -126,4 +168,35 @@ fn instance_flags() -> wgpu::InstanceFlags {
         flags |= wgpu::InstanceFlags::DEBUG;
     }
     flags.with_env()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Color, TextureFormat};
+
+    #[test]
+    fn a_lost_device_is_reported_and_using_it_does_not_panic() {
+        let gpu =
+            Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+        let target = gpu.create_render_target("lost target", 4, 4, TextureFormat::Rgba8UnormSrgb);
+        assert!(gpu.check().is_ok());
+
+        gpu.device.destroy();
+        // wgpu reports a destroyed device when it is next polled and its queue is empty.
+        let _ = gpu.device.poll(wgpu::PollType::wait_indefinitely());
+        assert!(
+            matches!(gpu.check(), Err(GfxError::DeviceLost { .. })),
+            "the loss is reported"
+        );
+
+        let black = Color {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+            a: 1.0,
+        };
+        gpu.render(&target, black, |_pass| {});
+        assert!(gpu.read_render_target(&target).is_err());
+    }
 }

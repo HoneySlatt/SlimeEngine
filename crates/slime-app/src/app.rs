@@ -153,7 +153,7 @@ impl Context {
     }
 
     /// Whether the run is going to stop: the application requested an exit, the window was closed,
-    /// or the process received a termination signal.
+    /// the process received a termination signal, or the GPU device was lost.
     pub fn exit_requested(&self) -> bool {
         self.exit.is_some()
     }
@@ -196,6 +196,7 @@ pub(crate) enum ExitReason {
     Requested,
     WindowClosed,
     Signal,
+    DeviceLost,
 }
 
 /// Runs `app` until it stops, then returns.
@@ -242,7 +243,10 @@ pub(crate) enum ExitReason {
 /// - With a window, [`RunError::Platform`]: no windowing system can be reached, the window cannot
 ///   be created, a windowed run was already attempted in this process (the windowing library
 ///   allows one attempt per process, even a failed one), or the event loop fails.
-/// - With a window, [`RunError::Gfx`]: no GPU can draw into the window.
+/// - With a window, [`RunError::Gfx`]: no GPU can draw into the window, or the GPU device was
+///   lost during the run (`GfxError::DeviceLost`: the driver crashed or was reset, the GPU was
+///   removed, or it ran out of memory). After a loss, the run stops like after an exit request:
+///   the frame in progress finishes, without drawing, and `shutdown` is called.
 ///
 /// When the window or the GPU could not be opened, neither `init` nor `shutdown` is called.
 /// Headless runs fail only when `init` does.
@@ -302,15 +306,20 @@ impl Frames {
     }
 
     /// Why no further frame must run, if that is the case. A termination signal received since the
-    /// last check is recorded in `ctx` first, so that the application sees it as an exit request.
+    /// last check, or the loss of the GPU, is recorded in `ctx` first, so that the application sees
+    /// it as an exit request.
     pub(crate) fn check_stop(&self, ctx: &mut Context) -> Option<&'static str> {
         if signal::received() {
             ctx.exit_because(ExitReason::Signal);
+        }
+        if ctx.gpu().is_some_and(|gpu| gpu.check().is_err()) {
+            ctx.exit_because(ExitReason::DeviceLost);
         }
         match ctx.exit {
             Some(ExitReason::Requested) => Some("the application requested an exit"),
             Some(ExitReason::WindowClosed) => Some("the window was closed"),
             Some(ExitReason::Signal) => Some("a termination signal was received"),
+            Some(ExitReason::DeviceLost) => Some("the GPU device was lost"),
             None if self.limit.is_some_and(|limit| self.count >= limit) => {
                 Some("the frame limit was reached")
             }

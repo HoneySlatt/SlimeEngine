@@ -80,7 +80,9 @@ fn main() -> Result<(), GfxError> {
   The `WGPU_BACKEND` environment variable can choose another graphics API, and `VK_DRIVER_FILES`
   can restrict Vulkan to one driver, such as lavapipe.
 - `Gpu::adapter_name()` names the adapter in use; `Gpu::wait_idle()` blocks until the GPU has
-  finished its work.
+  finished its work; `Gpu::check()` returns `GfxError::DeviceLost` once the device is lost (the
+  driver crashed or was reset, the GPU was removed, or it ran out of memory), after which every
+  use of the device fails without effect (`docs/adr/0022-losing-the-gpu-device.md`).
 - GPU objects, each created by a method of `Gpu` with a label that names it in error messages and
   GPU capture tools (`docs/adr/0017-gpu-resource-types.md`):
   - `RenderTarget`: an image the GPU draws into (`create_render_target`), in one of the
@@ -119,7 +121,9 @@ fn main() -> Result<(), GfxError> {
   hidden window. Applications built on `slime-app` do not call these: the engine does.
 - `GfxError` says why the GPU could not be opened or used. A rejected shader or pipeline is
   returned as `GfxError::Shader` or `GfxError::Pipeline`, with wgpu's message, which for WGSL
-  gives the line and column of the error. Other misuses of wgpu are bugs and panic.
+  gives the line and column of the error. Other misuses of wgpu are bugs and panic, except once
+  the device is lost: errors then only repeat that it is gone, and are logged at the `debug`
+  level.
 
 ## Dependencies
 

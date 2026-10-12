@@ -209,6 +209,15 @@ pass of frame 42 appears as `window, frame 42`, and `RenderPass::debug_group` na
 commands inside it; the samples' triangle is drawn in a group named `triangle`. Debug builds pass
 these names to the driver ([ADR-0016](adr/0016-gpu-layer-with-wgpu.md)).
 
+### Losing the GPU
+
+The driver can lose the device: it crashes or is reset, the GPU is removed, or it runs out of
+memory. `slime-gfx` records the loss in wgpu's device-lost callback, and from then on its error
+handler logs wgpu's errors instead of panicking, since every use of the device fails. Before each
+frame, the windowed driver checks `Gpu::check()` with the other reasons to stop: after a loss, the
+run stops like after an exit request, and `run` returns `RunError::Gfx` with
+`GfxError::DeviceLost` ([ADR-0022](adr/0022-losing-the-gpu-device.md)).
+
 ### Termination signals
 
 `run` installs, once per process, a handler for SIGINT (Ctrl+C), SIGTERM and SIGHUP

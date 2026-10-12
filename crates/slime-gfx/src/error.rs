@@ -23,6 +23,13 @@ pub enum GfxError {
         /// The formats the window offers, as wgpu names them.
         offered: String,
     },
+    /// The GPU device was lost: the driver crashed or was reset, the GPU was removed, or it ran out
+    /// of memory. Objects created from the device can no longer be used.
+    #[error("the GPU device was lost: {message}")]
+    DeviceLost {
+        /// The reason the driver gave.
+        message: String,
+    },
     /// Waiting for the GPU to finish its work failed.
     #[error("waiting for the GPU failed")]
     Wait(#[source] Source),

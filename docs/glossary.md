@@ -19,7 +19,9 @@ listed in [`AGENTS.md`](../AGENTS.md#definition-of-done).
 as RenderDoc (`RenderPass::debug_group`).
 
 **Device (GPU).** The engine's connection to an adapter: it creates GPU resources, and its
-*queue* receives the work to execute (`slime_gfx::Gpu`).
+*queue* receives the work to execute (`slime_gfx::Gpu`). It is *lost* when the driver crashes or
+is reset, the GPU is removed, or it runs out of memory: its objects can then no longer be used,
+and the run stops ([ADR-0022](adr/0022-losing-the-gpu-device.md)).
 
 **Driver.** The loop that decides when frames run and what time each one represents. `run` has a
 headless driver (frames back to back, simulated time) and a windowed driver, called back by the

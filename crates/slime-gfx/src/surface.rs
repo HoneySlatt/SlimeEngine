@@ -207,9 +207,9 @@ impl Surface {
                 return None;
             }
             wgpu::CurrentSurfaceTexture::Validation => {
-                // Only reachable when an error scope caught the error; otherwise wgpu's error
-                // handler has already panicked.
-                tracing::error!("frame not drawn: wgpu rejected the acquisition of the image");
+                // Reached when the device was lost, whose errors the engine's error handler
+                // records instead of panicking (ADR-0022), or when an error scope caught the error.
+                tracing::debug!("frame not drawn: wgpu rejected the acquisition of the image");
                 return None;
             }
         };

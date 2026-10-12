@@ -83,9 +83,10 @@ the ADR linking to it.
 | [0013](0013-windowed-smoke-test-in-weston.md) | Windowed smoke test in a headless Weston compositor | Accepted; amended by 0020 |
 | [0014](0014-amend-roadmap-for-stage-2-and-windows.md) | Amend the roadmap for Stage 2 and for Windows | Accepted |
 | [0015](0015-platforms-and-ci.md) | Platforms and CI on Linux and Windows | Accepted |
-| [0016](0016-gpu-layer-with-wgpu.md) | The GPU layer: wgpu behind `slime-gfx` | Accepted |
+| [0016](0016-gpu-layer-with-wgpu.md) | The GPU layer: wgpu behind `slime-gfx` | Accepted; amended by 0022 |
 | [0017](0017-gpu-resource-types.md) | GPU resource types | Accepted |
 | [0018](0018-reference-image-tests.md) | Reference image tests | Accepted |
 | [0019](0019-default-log-filter.md) | Default log filter | Accepted |
 | [0020](0020-rendering-in-the-main-loop.md) | Rendering in the main loop, and application errors | Accepted; amended by 0021 |
 | [0021](0021-frame-pacing.md) | Frame pacing | Accepted |
+| [0022](0022-losing-the-gpu-device.md) | Losing the GPU device | Accepted |

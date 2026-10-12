@@ -1,6 +1,6 @@
 # 0016. The GPU layer: wgpu behind `slime-gfx`
 
-- Status: Accepted
+- Status: Accepted; amended by [0022](0022-losing-the-gpu-device.md) (errors after a loss)
 - Date: 2026-10-12
 
 ## Context
