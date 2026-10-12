@@ -3,6 +3,7 @@
 mod bytes;
 mod camera;
 mod error;
+mod light;
 mod material;
 mod mesh;
 mod renderer;
@@ -13,6 +14,7 @@ pub use glam;
 
 pub use camera::Camera;
 pub use error::RenderError;
+pub use light::DirectionalLight;
 pub use material::{Material, MaterialData};
 pub use mesh::{Mesh, MeshData};
 pub use renderer::{Instance, RenderStats, Renderer, Scene};

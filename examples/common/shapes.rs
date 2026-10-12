@@ -1,19 +1,30 @@
-//! The cubes that the `scene` example and its image test draw: a unit cube mesh, two materials,
-//! three instances that overlap from most viewpoints, and a camera that orbits them with time.
+//! The shapes that the `scene` example and its image test draw: a unit cube and a smooth sphere,
+//! three materials, four instances that overlap from most viewpoints, a directional light, and a
+//! camera that orbits them with time.
+
+use std::f32::consts::{PI, TAU};
 
 use slime_gfx::{Color, Gpu, RenderTarget, TextureFormat};
 use slime_render::glam::{Mat4, Quat, Vec3};
 use slime_render::{
-    Camera, Instance, Material, MaterialData, Mesh, MeshData, RenderError, RenderStats, Renderer,
-    Scene,
+    Camera, DirectionalLight, Instance, Material, MaterialData, Mesh, MeshData, RenderError,
+    RenderStats, Renderer, Scene,
 };
 
-/// The color behind the cubes.
+/// The color behind the shapes.
 pub const BACKGROUND: Color = Color {
     r: 0.05,
     g: 0.06,
     b: 0.08,
     a: 1.0,
+};
+
+/// A slightly warm light from above and from the side the camera starts on, with a slightly cold
+/// ambient light.
+const LIGHT: DirectionalLight = DirectionalLight {
+    direction: Vec3::new(-0.6, -1.0, -0.5),
+    color: Vec3::new(1.0, 0.98, 0.9),
+    ambient: Vec3::new(0.15, 0.16, 0.2),
 };
 
 /// How far the camera orbits from the origin, and how high above it.
@@ -22,42 +33,39 @@ const ORBIT_HEIGHT: f32 = 1.8;
 /// How fast the camera orbits, in radians per second.
 const ORBIT_SPEED: f32 = 0.5;
 
-/// The renderer and the GPU objects of the cubes, for targets of one format.
-pub struct Cubes {
+/// The renderer and the GPU objects of the shapes, for targets of one format.
+pub struct Shapes {
     renderer: Renderer,
     cube: Mesh,
+    sphere: Mesh,
     orange: Material,
     blue: Material,
+    green: Material,
 }
 
-impl Cubes {
-    /// Creates the renderer, the cube mesh and the materials, for targets of `format`.
+impl Shapes {
+    /// Creates the renderer, the meshes and the materials, for targets of `format`.
     pub fn new(gpu: &Gpu, format: TextureFormat) -> Result<Self, RenderError> {
         let renderer = Renderer::new(gpu, format)?;
         let cube = renderer.create_mesh(gpu, "cube", &cube())?;
-        let orange = renderer.create_material(
-            gpu,
-            "orange",
-            &MaterialData {
-                base_color: [0.9, 0.45, 0.1, 1.0],
-            },
-        );
-        let blue = renderer.create_material(
-            gpu,
-            "blue",
-            &MaterialData {
-                base_color: [0.15, 0.4, 0.9, 1.0],
-            },
-        );
+        let sphere = renderer.create_mesh(gpu, "sphere", &sphere(0.5, 16, 24))?;
+        let material = |label: &str, base_color: [f32; 4]| {
+            renderer.create_material(gpu, label, &MaterialData { base_color })
+        };
+        let orange = material("orange", [0.9, 0.45, 0.1, 1.0]);
+        let blue = material("blue", [0.15, 0.4, 0.9, 1.0]);
+        let green = material("green", [0.2, 0.7, 0.3, 1.0]);
         Ok(Self {
             renderer,
             cube,
+            sphere,
             orange,
             blue,
+            green,
         })
     }
 
-    /// Draws the cubes into `target` as the camera sees them `time` seconds after the start: it
+    /// Draws the shapes into `target` as the camera sees them `time` seconds after the start: it
     /// has orbited them by then.
     pub fn render(&mut self, gpu: &Gpu, target: &RenderTarget, time: f32) -> RenderStats {
         let angle = time * ORBIT_SPEED;
@@ -93,12 +101,19 @@ impl Cubes {
                     Vec3::new(-1.3, -0.2, 0.4),
                 ),
             },
+            // The sphere sits on the first cube.
+            Instance {
+                mesh: &self.sphere,
+                material: &self.green,
+                transform: Mat4::from_translation(Vec3::new(0.0, 1.0, 0.0)),
+            },
         ];
         self.renderer.render(
             gpu,
             target,
             &Scene {
                 camera,
+                light: LIGHT,
                 clear: BACKGROUND,
                 instances: &instances,
             },
@@ -181,6 +196,45 @@ pub fn cube() -> MeshData {
         }
         data.indices
             .extend([first, first + 1, first + 2, first, first + 2, first + 3]);
+    }
+    data
+}
+
+/// A sphere of radius `radius` centred on the origin, smooth: the normal of each vertex points
+/// away from the centre. `rings` bands go from the top pole to the bottom one and `segments`
+/// go around; the texture wraps around it once, its top row at the top pole.
+pub fn sphere(radius: f32, rings: u32, segments: u32) -> MeshData {
+    let mut data = MeshData::default();
+    for ring in 0..=rings {
+        let polar = PI * ring as f32 / rings as f32;
+        let (y, ring_radius) = (polar.cos(), polar.sin());
+        for segment in 0..=segments {
+            let azimuth = TAU * segment as f32 / segments as f32;
+            let normal = [ring_radius * azimuth.cos(), y, ring_radius * azimuth.sin()];
+            data.positions
+                .push(normal.map(|coordinate| coordinate * radius));
+            data.normals.push(normal);
+            data.uvs
+                .push([segment as f32 / segments as f32, ring as f32 / rings as f32]);
+        }
+    }
+    // Each ring is a row of `segments + 1` vertices, the last one repeating the first with the
+    // texture's right edge. Between two rows, each quad gives two triangles wound
+    // counter-clockwise from outside, except at the poles, where one of them has no area.
+    let row = segments + 1;
+    for ring in 0..rings {
+        for segment in 0..segments {
+            let a = ring * row + segment;
+            let b = a + row;
+            let c = b + 1;
+            let d = a + 1;
+            if ring != 0 {
+                data.indices.extend([a, d, c]);
+            }
+            if ring != rings - 1 {
+                data.indices.extend([a, c, b]);
+            }
+        }
     }
     data
 }

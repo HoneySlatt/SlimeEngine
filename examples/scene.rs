@@ -1,15 +1,16 @@
-//! Draws cubes with the renderer, seen from a camera that orbits them: the sample of Stage 3a,
-//! which grows with the stage. Escape, closing the window or Ctrl+C quits.
+//! Draws cubes and a sphere with the renderer, lit by a directional light, seen from a camera
+//! that orbits them: the sample of Stage 3a, which grows with it. Escape, closing the window or
+//! Ctrl+C quits.
 //!
 //! ```sh
 //! cargo run --example scene
 //! cargo run --example scene -- --frames 120   # closes itself after 120 frames
 //! ```
 
-#[path = "common/cubes.rs"]
-mod cubes;
 #[path = "common/error_chain.rs"]
 mod error_chain;
+#[path = "common/shapes.rs"]
+mod shapes;
 
 use std::process::ExitCode;
 
@@ -19,17 +20,17 @@ use slime_gfx::RenderTarget;
 use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, WindowConfig};
 use slime_render::RenderStats;
 
-use cubes::Cubes;
 use error_chain::error_chain;
+use shapes::Shapes;
 
 const USAGE: &str = "usage: scene [--frames <count>]";
 
 #[derive(Default)]
 struct SceneExample {
-    cubes: Option<Cubes>,
+    shapes: Option<Shapes>,
     /// Seconds since the start, which places the camera.
     time: f32,
-    /// How many frames drew the cubes.
+    /// How many frames drew the shapes.
     drawn: u64,
     /// What the last frame cost.
     stats: RenderStats,
@@ -40,7 +41,7 @@ impl App for SceneExample {
         let (Some(gpu), Some(format)) = (ctx.gpu(), ctx.surface_format()) else {
             return Err("the scene example needs a window".into());
         };
-        self.cubes = Some(Cubes::new(gpu, format)?);
+        self.shapes = Some(Shapes::new(gpu, format)?);
         Ok(())
     }
 
@@ -60,8 +61,8 @@ impl App for SceneExample {
     }
 
     fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
-        if let (Some(gpu), Some(cubes)) = (ctx.gpu(), &mut self.cubes) {
-            self.stats = cubes.render(gpu, target, self.time);
+        if let (Some(gpu), Some(shapes)) = (ctx.gpu(), &mut self.shapes) {
+            self.stats = shapes.render(gpu, target, self.time);
             self.drawn += 1;
         }
     }

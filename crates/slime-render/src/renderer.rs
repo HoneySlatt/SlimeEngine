@@ -1,6 +1,7 @@
-//! The renderer: draws instances of meshes, seen from a camera, into a render target.
+//! The renderer: draws instances of meshes, seen from a camera and lit by a directional light,
+//! into a render target.
 
-use glam::Mat4;
+use glam::{Mat3, Mat4};
 use slime_gfx::{
     BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource, BindingType,
     Color, CullMode, DepthCompare, DepthState, DepthTarget, Gpu, RenderPassDescriptor,
@@ -8,16 +9,21 @@ use slime_gfx::{
     UniformBuffer,
 };
 
-use crate::bytes::{push_f32s, push_mat4};
+use crate::bytes::{push_f32s, push_mat3, push_mat4};
 use crate::camera::Camera;
 use crate::error::RenderError;
+use crate::light::DirectionalLight;
 use crate::material::{Material, MaterialData};
 use crate::mesh::{Mesh, MeshData, VERTEX_LAYOUT};
 
 /// The shader of every draw.
 const SHADER: &str = include_str!("shader.wgsl");
-/// The size of the values each instance has in the instance buffer: its `mat4x4<f32>` transform.
-const INSTANCE_VALUES_SIZE: usize = 64;
+/// The size of the values of a frame: the camera's `mat4x4<f32>` and the light's three
+/// `vec4<f32>`.
+const FRAME_VALUES_SIZE: usize = 64 + 3 * 16;
+/// The size of the values each instance has in the instance buffer: its `mat4x4<f32>` transform
+/// and the `mat3x3<f32>` that transforms its normals, three columns padded to 16 bytes.
+const INSTANCE_VALUES_SIZE: usize = 64 + 3 * 16;
 /// How many instances the instance buffer holds when the renderer is created; it doubles whenever
 /// a scene has more.
 const INITIAL_INSTANCE_CAPACITY: usize = 64;
@@ -38,6 +44,8 @@ pub struct Instance<'a> {
 pub struct Scene<'a> {
     /// Where the scene is seen from.
     pub camera: Camera,
+    /// What lights the surfaces.
+    pub light: DirectionalLight,
     /// The color of the background, linear.
     pub clear: Color,
     /// What to draw, in this order.
@@ -106,9 +114,7 @@ impl Renderer {
             target_format: format,
         })?;
 
-        let mut frame_bytes = Vec::new();
-        push_mat4(&mut frame_bytes, Mat4::IDENTITY);
-        let frame_uniform = gpu.create_uniform_buffer("frame", &frame_bytes);
+        let frame_uniform = gpu.create_uniform_buffer("frame", &[0; FRAME_VALUES_SIZE]);
         let frame_group = gpu.create_bind_group(
             "frame",
             &frame_layout,
@@ -163,7 +169,8 @@ impl Renderer {
     }
 
     /// Draws `scene` into `target`: clears it to the scene's color, then draws every instance
-    /// with the depth test, so that nearer surfaces hide farther ones whatever their order. The
+    /// with the depth test, so that nearer surfaces hide farther ones whatever their order, each
+    /// surface lit by the scene's light according to its normal and colored by its material. The
     /// work runs on the GPU after this method returns, as with
     /// [`Gpu::render`](slime_gfx::Gpu::render).
     ///
@@ -194,11 +201,17 @@ impl Renderer {
         }
         let depth = self.depth.as_ref().expect("created above");
 
-        let mut frame_bytes = Vec::with_capacity(64);
+        let mut frame_bytes = Vec::with_capacity(FRAME_VALUES_SIZE);
         push_mat4(
             &mut frame_bytes,
             scene.camera.view_projection(width as f32 / height as f32),
         );
+        let to_light = -scene.light.direction.normalize();
+        push_f32s(&mut frame_bytes, &[to_light.x, to_light.y, to_light.z, 0.0]);
+        let color = scene.light.color;
+        push_f32s(&mut frame_bytes, &[color.x, color.y, color.z, 0.0]);
+        let ambient = scene.light.ambient;
+        push_f32s(&mut frame_bytes, &[ambient.x, ambient.y, ambient.z, 0.0]);
         gpu.write_uniform_buffer(&self.frame_uniform, &frame_bytes);
 
         if self.instances.capacity < scene.instances.len() {
@@ -214,6 +227,11 @@ impl Renderer {
         for (slot, instance) in scene.instances.iter().enumerate() {
             let mut bytes = Vec::with_capacity(INSTANCE_VALUES_SIZE);
             push_mat4(&mut bytes, instance.transform);
+            // Normals are transformed by the inverse transpose, so that they stay perpendicular
+            // to surfaces scaled unevenly. A transform that flattens the mesh (a scale of zero)
+            // has no inverse and gives unusable normals, but draws nothing visible anyway.
+            let normal_matrix = Mat3::from_mat4(instance.transform).inverse().transpose();
+            push_mat3(&mut bytes, normal_matrix);
             instance_bytes[slot * stride..slot * stride + INSTANCE_VALUES_SIZE]
                 .copy_from_slice(&bytes);
         }
