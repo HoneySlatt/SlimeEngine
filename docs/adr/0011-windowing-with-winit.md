@@ -60,7 +60,8 @@ it until the sample filled it with pixels.
 - The windowing system's libraries are loaded at run time, so a headless run, which never creates
   an event loop, does not need them. The Nix shell puts them on the loader path; other systems
   need them installed (see `CONTRIBUTING.md`).
-- winit allows one event loop per process, so a process can run only one windowed application.
+- winit allows one attempt at creating an event loop per process, even a failed one, so a process
+  can run only one windowed application and cannot retry after failing to connect.
 - Replacing winit means rewriting `slime-platform`'s event loop and translation code; no other
   crate changes.
 - The examples use `softbuffer` to fill the window until the GPU layer exists (ADR-0002).

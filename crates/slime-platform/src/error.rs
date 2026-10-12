@@ -12,9 +12,10 @@ pub enum PlatformError {
     /// the `WAYLAND_DISPLAY` and `DISPLAY` environment variables do not point to one.
     #[error("cannot connect to a windowing system (Wayland or X11)")]
     Connect(#[source] Source),
-    /// An event loop was already created in this process. The windowing library allows only
-    /// one per process, so a process can run only one windowed application.
-    #[error("an event loop already ran in this process; only one is allowed")]
+    /// An event loop was already requested in this process. The windowing library allows one
+    /// attempt per process, even a failed one, so a process can run only one windowed
+    /// application, and cannot retry after failing to connect.
+    #[error("an event loop was already requested in this process; only one is allowed")]
     SecondEventLoop,
     /// The windowing system refused to create the window.
     #[error("cannot create the window")]

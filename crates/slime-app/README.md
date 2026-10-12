@@ -60,10 +60,13 @@ assert_eq!(game.fixed_steps, 60);
   - Headless: frames run back to back with simulated time: each frame represents one fixed step,
     so runs are deterministic. The windowing system is never touched.
   - With a window: the window exists before `init`; frames represent the real time between them,
-    at most `AppConfig::max_frame_rate` per second (60 by default), and the loop sleeps between
-    them. This limiter is temporary: presentation will pace frames once the GPU layer exists.
+    on average at most `AppConfig::max_frame_rate` per second (60 by default), and the loop sleeps
+    between them. This limiter is temporary: presentation will pace frames once the GPU layer
+    exists. `run` must then be called from the main thread.
   - It returns a `slime_platform::PlatformError` when the window cannot be opened, for example
-    without a display server. Only one windowed run is possible per process.
+    without a display server. Only one windowed run, or attempt, is possible per process.
+  - The signal handler replaces any other handler the process had for these signals, except one
+    installed earlier through the `ctrlc` crate, which is kept.
 - `AppConfig`: the window (`None`, the default, runs headless), frame limit, fixed step
   (1/60 s), maximum fixed steps per frame (8), maximum frame delta (250 ms) and maximum frame rate
   (60). Write it as a struct literal ending with `..AppConfig::default()`.

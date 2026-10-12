@@ -36,8 +36,9 @@ crates that use it, why it is needed, the alternative that was considered, and i
 Dependencies that shape the architecture (a windowing library, a logging framework) also get
 their own ADR. Versions are declared once in `[workspace.dependencies]` (ADR-0004).
 
-**Enforcement.** [`deny.toml`](../../deny.toml) configures [cargo-deny](https://github.com/EmbarkStudios/cargo-deny),
-which runs in the checks and fails when:
+**Enforcement.** [`deny.toml`](../../deny.toml) configures
+[cargo-deny](https://github.com/EmbarkStudios/cargo-deny), which runs in the checks and fails
+when:
 
 - a crate's license is not in the allowed list;
 - a dependency is affected by a RustSec security advisory (vulnerability, unsound or unmaintained

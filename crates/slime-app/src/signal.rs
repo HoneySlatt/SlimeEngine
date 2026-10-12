@@ -11,8 +11,12 @@ static RECEIVED: AtomicBool = AtomicBool::new(false);
 /// drivers check between frames; a second one ends the process at once, with exit code 130, in
 /// case the application no longer reaches the end of a frame.
 ///
-/// If the process already has a handler installed through the `ctrlc` crate, for example by the
-/// game, that handler is kept and the engine logs a warning.
+/// The handler replaces whatever the process had set for these signals: another library's
+/// handlers, or an inherited "ignore" (as under `nohup`, or for a command started in the
+/// background by a script). Keeping an inherited "ignore" would mean, since `ctrlc` installs the
+/// three signals together, not handling SIGTERM either. The only exception is a handler installed
+/// earlier through the `ctrlc` crate, for example by the game: it is kept, and the engine logs a
+/// warning.
 pub(crate) fn install_handler() {
     static INSTALL: Once = Once::new();
     INSTALL.call_once(|| {
@@ -26,12 +30,17 @@ pub(crate) fn install_handler() {
                  to quit immediately)"
             );
         });
-        if let Err(error) = installed {
-            tracing::warn!(
+        match installed {
+            Ok(()) => {}
+            Err(ctrlc::Error::MultipleHandlers) => tracing::warn!(
+                "termination signals are already handled through the ctrlc crate, probably by the \
+                 game: the engine leaves them to that handler, so they do not stop runs cleanly"
+            ),
+            Err(error) => tracing::warn!(
                 %error,
                 "cannot handle termination signals: they will end the process without a clean \
                  shutdown"
-            );
+            ),
         }
     });
 }

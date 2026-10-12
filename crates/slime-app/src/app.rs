@@ -87,8 +87,8 @@ pub struct AppConfig {
     pub max_fixed_steps_per_frame: u32,
     /// The longest time one frame can represent. Default: 250 ms.
     pub max_frame_delta: Duration,
-    /// With a window, the highest number of frames per second; the loop waits between frames to
-    /// stay under it. Headless runs ignore it. Default: 60.
+    /// With a window, the highest average number of frames per second: frames are scheduled at
+    /// this rate and the loop sleeps between them. Headless runs ignore it. Default: 60.
     ///
     /// This limiter is temporary: once frames are presented on screen (Stage 2), the display's
     /// refresh rate paces them.
@@ -153,8 +153,8 @@ pub(crate) enum ExitReason {
 
 /// Runs `app` until it stops, then returns.
 ///
-/// It first calls [`init_diagnostics`], so logging works from the first line of `init`, and installs
-/// a handler for termination signals. It then calls [`App::init`], runs frames until the
+/// It first calls [`init_diagnostics`], so logging works from the first line of `init`, and
+/// installs a handler for termination signals. It then calls [`App::init`], runs frames until the
 /// application requests an exit, the window is closed, the process receives a termination signal
 /// or [`AppConfig::frame_limit`] is reached, and calls [`App::shutdown`]. An exit requested during
 /// `init` runs no frame.
@@ -163,6 +163,10 @@ pub(crate) enum ExitReason {
 /// process) and SIGHUP (the terminal closing). The first one stops the run cleanly, like an exit
 /// request; a second one ends the process at once with exit code 130, for an application that no
 /// longer finishes its frames. A signal received once stops every later run in the process too.
+/// The handler replaces whatever the process had set for these signals, including another
+/// library's handlers and an inherited "ignore" (as under `nohup`). The only exception is a
+/// handler installed earlier through the `ctrlc` crate, for example by the game: it is kept, and
+/// signals then do not stop runs cleanly.
 ///
 /// - **Headless** ([`AppConfig::window`] is `None`): frames run back to back, as fast as the
 ///   machine allows, with simulated time: each frame represents exactly one fixed step, so it runs
@@ -170,9 +174,9 @@ pub(crate) enum ExitReason {
 ///   longer than the maximum frame delta, which would limit it). The windowing system is never
 ///   touched.
 /// - **With a window**: the window is created before `init`, and frames represent the real time
-///   measured between them, at most [`AppConfig::max_frame_rate`] per second. Between frames, the
-///   loop sleeps until the next frame is due or an event arrives, and each event is passed to
-///   [`App::on_event`].
+///   measured between them, on average at most [`AppConfig::max_frame_rate`] per second. Between
+///   frames, the loop sleeps until the next frame is due or an event arrives, and each event is
+///   passed to [`App::on_event`].
 ///
 /// Each frame is recorded as a `trace`-level profiling span named `frame`, containing one
 /// `fixed_update` span per fixed step and one `update` span.
@@ -180,14 +184,15 @@ pub(crate) enum ExitReason {
 /// # Errors
 ///
 /// With a window, any [`PlatformError`]: no windowing system can be reached, the window cannot
-/// be created, an event loop already ran in this process (only one windowed run is possible per
-/// process), or the event loop fails. When the window could not be created, neither `init` nor
-/// `shutdown` is called. Headless runs do not fail.
+/// be created, a windowed run was already attempted in this process (the windowing library
+/// allows one attempt per process, even a failed one), or the event loop fails. When the window
+/// could not be created, neither `init` nor `shutdown` is called. Headless runs do not fail.
 ///
 /// # Panics
 ///
 /// If `config.fixed_step`, `config.max_fixed_steps_per_frame` or `config.max_frame_delta` is
-/// zero, or, with a window, if `config.max_frame_rate` is zero.
+/// zero. With a window, also if `config.max_frame_rate` is zero, or if `run` is not called from
+/// the main thread.
 pub fn run(app: &mut impl App, config: &AppConfig) -> Result<(), PlatformError> {
     init_diagnostics();
     signal::install_handler();

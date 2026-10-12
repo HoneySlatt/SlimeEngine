@@ -30,7 +30,9 @@ nix develop
 ```
 
 The shell it opens contains the pinned toolchain and the project's tools: `cargo-deny` (checks
-dependency licenses and security advisories) and `lychee` (checks links in the documentation).
+dependency licenses and security advisories), `lychee` (checks links in the documentation) and
+Weston (a Wayland compositor without screen, in which the checks run the windowed sample). It
+also puts the windowing libraries that the engine loads at run time on the loader path.
 [`flake.lock`](flake.lock) pins every input, so every contributor and CI get the same versions.
 To run a single command in that environment without opening a shell, use
 `nix develop -c <command>`.
@@ -42,10 +44,11 @@ Nix only sees the files that git tracks. If you change `flake.nix` so that it re
 
 Install [rustup](https://rustup.rs). It reads `rust-toolchain.toml` and installs the pinned
 toolchain the first time you run `cargo` in the repository. Install the tools with
-`cargo install --locked cargo-deny lychee`; CI uses the versions pinned by `flake.lock`. To open
-windows, the examples need the windowing system's libraries, which are loaded at run time:
-libwayland-client and libxkbcommon for Wayland; libX11, libXcursor, libXi and libxcb for X11.
-Most desktop distributions install them already.
+`cargo install --locked cargo-deny lychee`, and Weston from your distribution's packages; CI uses
+the versions pinned by `flake.lock`. To open windows, the examples need the windowing system's
+libraries, which are loaded at run time: libwayland-client and libxkbcommon for Wayland; libX11,
+libX11-xcb, libXcursor, libXi, libxcb and libxkbcommon-x11 for X11. Most desktop distributions
+install them already.
 
 ## Checks
 

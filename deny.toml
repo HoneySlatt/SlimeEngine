@@ -3,7 +3,8 @@
 # Run with `cargo deny --locked check` (scripts/check.sh does).
 
 [graph]
-# Vet optional dependencies too, before anyone enables the feature that pulls them in.
+# Check the dependencies of every feature of the workspace crates, not only of the default ones.
+# (This does not reach the optional dependencies of third-party crates that nothing enables.)
 all-features = true
 
 [advisories]

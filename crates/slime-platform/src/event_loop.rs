@@ -48,16 +48,22 @@ pub enum LoopControl {
 /// Connects to the windowing system, creates a window, and runs the event loop until the
 /// handler returns [`LoopControl::Exit`].
 ///
-/// The windowing system is Wayland when `WAYLAND_DISPLAY` points to a compositor, X11 otherwise.
-/// This function must be called from the main thread.
+/// The windowing system is chosen from the environment, with no fallback from one to the other:
+/// Wayland if `WAYLAND_DISPLAY` or `WAYLAND_SOCKET` is set to a non-empty value, otherwise X11 if
+/// `DISPLAY` is. The windowing library allows one attempt per process: whether it succeeded or
+/// not, a second call returns [`PlatformError::SecondEventLoop`].
 ///
 /// # Errors
 ///
 /// - [`PlatformError::Connect`] if no windowing system can be reached.
-/// - [`PlatformError::SecondEventLoop`] if an event loop was already created in this process.
+/// - [`PlatformError::SecondEventLoop`] if this function was already called in this process.
 /// - [`PlatformError::CreateWindow`] if the window cannot be created; the handler is then never
 ///   called.
 /// - [`PlatformError::EventLoop`] if the event loop fails while running.
+///
+/// # Panics
+///
+/// If the event loop is created from a thread other than the main thread.
 pub fn run_event_loop(
     config: &WindowConfig,
     handler: &mut impl EventHandler,
@@ -66,27 +72,27 @@ pub fn run_event_loop(
         EventLoopError::RecreationAttempt => PlatformError::SecondEventLoop,
         error => PlatformError::Connect(Box::new(error)),
     })?;
-    let mut driver = Driver {
+    let mut adapter = WinitAdapter {
         config,
         handler,
         window: None,
         error: None,
     };
     event_loop
-        .run_app(&mut driver)
+        .run_app(&mut adapter)
         .map_err(|error| PlatformError::EventLoop(Box::new(error)))?;
-    driver.error.map_or(Ok(()), Err)
+    adapter.error.map_or(Ok(()), Err)
 }
 
 /// Adapts winit's callbacks to an [`EventHandler`].
-struct Driver<'a, H> {
+struct WinitAdapter<'a, H> {
     config: &'a WindowConfig,
     handler: &'a mut H,
     window: Option<Window>,
     error: Option<PlatformError>,
 }
 
-impl<H: EventHandler> ApplicationHandler for Driver<'_, H> {
+impl<H: EventHandler> ApplicationHandler for WinitAdapter<'_, H> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         // winit sends `resumed` once at startup on desktop platforms; mobile platforms send it
         // again after a suspension, when the window already exists.

@@ -23,7 +23,8 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
 
 - `run_event_loop(&config, &mut handler)` connects to the windowing system, creates the window
   described by a `WindowConfig`, and runs the event loop until the handler ends it. It must run on
-  the main thread, and only once per process.
+  the main thread (it panics otherwise), and only once per process: the windowing library allows
+  one attempt per process, even a failed one.
 - `EventHandler` is what the event loop calls back: `window_created` once, then `event` for each
   event and `about_to_wait` whenever all pending events are handled, then `exiting` once.
   `about_to_wait` returns a `LoopControl`: wait until a given instant, or exit.
@@ -31,17 +32,20 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
   factor, and the `raw-window-handle` traits through which a graphics library draws into it.
 - `Event` is what happened to the window, or input it received. It is `#[non_exhaustive]`: new
   kinds of events will be added.
-- Input types: `KeyEvent` describes a key twice, by `physical` position (`KeyCode`, named after
-  the W3C UI Events `code` values, such as `KeyQ` or `Escape`, whatever the layout) and by
-  `logical` meaning with the current layout (`Key`: a character such as `"a"`, a `NamedKey` such as
-  `Enter`, or a dead key), plus the `text` it produces and whether it is a repeat. Use the physical
-  code for movement keys and the logical key for shortcuts and text. `MouseButton`, `ButtonState`
-  and `ScrollDelta` describe the mouse.
+- Input types: `KeyEvent` describes a key twice: by `physical` position, whatever the layout
+  (`KeyCode`, named after the W3C UI Events `code` values such as `KeyQ` or `Escape`, with two
+  exceptions listed in its rustdoc), and by `logical` meaning with the current layout (`Key`: a
+  character such as `"a"`, a `NamedKey` such as `Enter`, or a dead key). It also gives the `text`
+  the key produces and whether it is a repeat. Use the physical code for movement keys and the
+  logical key for shortcuts and text. `MouseButton`, `ButtonState` and `ScrollDelta` describe the
+  mouse.
 - `PlatformError` says why the event loop could not run; winit's own error is its `source()`.
 
-The windowing system is Wayland when `WAYLAND_DISPLAY` points to a compositor, X11 otherwise. Its
-libraries (libwayland-client, libxkbcommon, libX11, libXcursor, libXi, libxcb) are loaded at run
-time, so a program that never creates an event loop runs without them.
+The windowing system is chosen from the environment, with no fallback from one to the other:
+Wayland if `WAYLAND_DISPLAY` or `WAYLAND_SOCKET` is set to a non-empty value, otherwise X11 if
+`DISPLAY` is. Its libraries are loaded at run time, so a program that never creates an event loop
+runs without them: libwayland-client and libxkbcommon for Wayland; libX11, libX11-xcb, libXcursor,
+libXi, libxcb and libxkbcommon-x11 for X11.
 
 ## Dependencies
 

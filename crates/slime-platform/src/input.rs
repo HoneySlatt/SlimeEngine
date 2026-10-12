@@ -85,11 +85,13 @@ macro_rules! mirror_enum {
 mirror_enum! {
     /// The position of a key on the keyboard, independent of the layout.
     ///
-    /// Variant names are the values of the `code` attribute of the
-    /// [W3C UI Events](https://www.w3.org/TR/uievents-code/) specification: they name a key by the
-    /// character it produces at that position on a US keyboard (`KeyQ`, `Digit1`, `Semicolon`) or
-    /// by its function (`Escape`, `ShiftLeft`, `Numpad0`).
-    enum KeyCode mirrors WinitKeyCode, variant doc "The key whose W3C UI Events code is ",
+    /// Variant names follow the `code` values of the
+    /// [W3C UI Events](https://www.w3.org/TR/uievents-code/) specification, as winit reports them:
+    /// they name a key by the character it produces at that position on a US keyboard (`KeyQ`,
+    /// `Digit1`, `Semicolon`) or by its function (`Escape`, `ShiftLeft`, `Numpad0`). Two exceptions
+    /// come from winit: the keys the specification calls `MetaLeft` and `MetaRight` are `SuperLeft`
+    /// and `SuperRight` here, and the key it calls `Super` is reported as `Unidentified`.
+    enum KeyCode mirrors WinitKeyCode, variant doc "The key named ",
     fn translate_key_code;
     variants {
         Backquote Backslash BracketLeft BracketRight Comma Digit0 Digit1 Digit2 Digit3 Digit4 Digit5

@@ -11,7 +11,8 @@ documentation was updated and reread.
 
 ## Current
 
-- Stage 1 — Core and platform: every milestone is implemented and checked locally.
+- Stage 1 — Core and platform: every milestone is implemented, and every automated check passes
+  locally.
 - Before 0.0.1 is tagged: the first CI run on GitHub, and the check by hand of keyboard and mouse
   input (see [Known debt](#known-debt)). Then, the [release steps](#releasing-001).
 - Stage 2 has not been planned yet.
@@ -28,8 +29,8 @@ documentation was updated and reread.
 | [M1.2](#m12--frame-timing) | Frame timing | Done |
 | [M1.3](#m13--lifecycle-and-headless-mode) | Lifecycle and headless mode | Done |
 | [M1.4](#m14--window) | Window | Done |
-| [M1.5](#m15--input) | Input | Done, except the check by hand of keys and mouse buttons (see [Known debt](#known-debt)) |
-| [M1.6](#m16--clean-shutdown-hardening-release-001) | Clean shutdown, hardening, release 0.0.1 | Done, except the release itself (see [Releasing 0.0.1](#releasing-001)) |
+| [M1.5](#m15--input) | Input | Done, except the check by hand of keys, mouse buttons and scrolling (see [Known debt](#known-debt)) |
+| [M1.6](#m16--clean-shutdown-hardening-release-001) | Clean shutdown, hardening, release 0.0.1 | Done, except the release, which waits for the first CI run and the input check (see [Releasing 0.0.1](#releasing-001)) |
 
 ## Stage 0 — Foundations
 
@@ -98,8 +99,8 @@ CI. X11 is checked through Xwayland.
 - **Crates.** `slime-app`; the `examples` package with a first example, `hello`.
 - **Delivers.** Installation of the log subscriber (`tracing-subscriber`: output to stderr,
   timestamps, filter read from `SLIME_LOG`), a panic hook that logs the panic before the default
-  hook runs, a startup log line with the engine version, OS, architecture and number of logical CPUs.
-  ADR-0008 (errors, logging, assertions). Dependencies: `tracing`, `tracing-subscriber`.
+  hook runs, a startup log line with the engine version, OS, architecture and number of logical
+  CPUs. ADR-0008 (errors, logging, assertions). Dependencies: `tracing`, `tracing-subscriber`.
 - **Done when.** The `hello` example logs; `SLIME_LOG=debug` changes the level; `hello --panic`
   logs the panic and exits with a non-zero code; an automated test checks the panic output.
 - **How to test.** Run `hello` with and without `SLIME_LOG` and `--panic`.
@@ -205,6 +206,9 @@ The release is a git tag on a commit whose CI run is green
   `logical: Character("a")`.
 - **Input not reported yet:** the state of the modifier keys as a whole, input-method text,
   touch, touchpad gestures, gamepads, dropped files.
+- **The interpolation factor is not passed to applications.** `FixedStep::alpha` computes it, but
+  `run` keeps its `FixedStep` private, so an application cannot interpolate between fixed steps
+  yet. To expose when a renderer needs it.
 
 ## Notes
 

@@ -7,13 +7,14 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 ## [Unreleased]
 
 The content of the first release, 0.0.1, which closes Stage 1 of the roadmap: a very small
-application that is architecturally sound. It will be tagged once CI has run green on GitHub.
+application that is architecturally sound. It will be tagged once CI has run green on GitHub and
+keyboard and mouse input have been checked by hand (see `docs/PLAN.md`).
 
 ### Added
 
 - `slime-app`: the `App` trait and `run`, which runs an application headless (frames back to back
-  with simulated time, deterministic) or with one window (real time between frames, at most 60
-  frames per second by default). The engine owns the main loop
+  with simulated time, deterministic) or with one window (real time between frames, on average at
+  most 60 frames per second by default). The engine owns the main loop
   ([ADR-0010](docs/adr/0010-main-loop-ownership.md)).
 - Frame timing: `FrameClock` limits how much time one frame represents, `FixedStep` splits frame
   time into fixed steps and drops the backlog instead of spiralling

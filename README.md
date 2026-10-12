@@ -6,12 +6,13 @@ games first, then open-world games, then large online worlds.
 
 ## Status
 
-Pre-alpha. Stage 0, *Foundations*, is done: the repository has its rules, its roadmap, its plan,
-a reproducible development environment, its checks and a CI workflow. Stage 1 is implemented:
-applications run headless or with a window (Wayland or X11) that receives keyboard and mouse
-input, with a fixed-step main loop, logging, panic reporting and a clean shutdown on Ctrl+C. There
-is no rendering yet. It will be released as 0.0.1 once CI has run on GitHub;
-[`docs/PLAN.md`](docs/PLAN.md) lists what remains and the known debt.
+Pre-alpha. Stage 0 (*Foundations*) and Stage 1 (*Core and platform*) are implemented and pass
+every check locally; the CI workflow has not run yet, because the repository is not on GitHub
+yet. Applications run headless or with a window (Wayland or X11) that receives keyboard and mouse
+input, with a fixed-step main loop, logging, panic reporting and a clean shutdown on Ctrl+C. The
+input translation is tested, but key presses, mouse buttons and scrolling still have to be
+checked by hand. There is no rendering yet. Version 0.0.1 will be tagged once CI has run green
+and input has been checked; [`docs/PLAN.md`](docs/PLAN.md) lists what remains and the known debt.
 
 ## Getting started
 

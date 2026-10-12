@@ -25,15 +25,16 @@ the frame rate advances (`slime_app::time::FixedStep`). A frame runs zero or mor
 **Frame.** One iteration of the main loop. Its *delta* is the time it represents: the time since
 the previous frame, limited to a maximum (`slime_app::time::FrameClock`).
 
-**Frame limiter.** The part of the windowed driver that waits between frames so that at most
-`AppConfig::max_frame_rate` frames run per second. Temporary: presenting frames on screen will
-pace them once the GPU layer exists.
+**Frame limiter.** The part of the windowed driver that schedules frames and waits between them,
+so that on average at most `AppConfig::max_frame_rate` frames run per second. Temporary:
+presenting frames on screen will pace them once the GPU layer exists.
 
 **Headless.** Running the engine without a window, renderer or audio output. It is a normal
 configuration, used by automated tests and, later, by dedicated servers.
 
 **Interpolation factor.** The fraction of a fixed step accumulated but not yet run
 (`FixedStep::alpha`), between 0 and 1. Used to draw a state between the last two fixed steps.
+`run` does not pass it to applications yet.
 
 **Logical key.** What a key means with the current keyboard layout and modifiers
 (`slime_platform::Key`): on a French AZERTY keyboard, the first letter key of the top row gives

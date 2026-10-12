@@ -43,6 +43,12 @@ and a future dedicated server cannot leave cleanly. The engine's lifecycle promi
 - Ctrl+C and service stops run `App::shutdown`, in both modes; tests check SIGINT, SIGTERM and the
   forced exit (`crates/slime-app/tests/signals.rs`).
 - `ctrlc` also handles Ctrl+C on Windows, so this keeps working when Windows is supported.
+- The handler replaces whatever the process had set for these signals: handlers installed by
+  other libraries (signal-hook, tokio) stop receiving them, and an inherited "ignore" is lifted
+  (under `nohup`, closing the terminal then stops the run cleanly instead of being ignored).
+  `ctrlc`'s `try_set_handler` would keep them, but it installs the three signals together, so an
+  inherited "ignore" of SIGINT, common for commands a script starts in the background, would
+  leave SIGTERM unhandled too.
 - A game cannot install its own `ctrlc` handler after `run` has started; if games need custom
   signal handling, the engine will need an API for it.
 - Reversing the decision means removing one module of `slime-app` and the `ctrlc` dependency.
