@@ -9,10 +9,10 @@ games first, then open-world games, then large online worlds.
 Pre-alpha. Stage 0 (*Foundations*) and Stage 1 (*Core and platform*) are done and released as
 0.0.1 (git tag `v0.0.1`). Applications run headless or with a window (Wayland or X11) that
 receives keyboard and mouse input, with a fixed-step main loop, logging, panic reporting and a
-clean shutdown on Ctrl+C. Stage 2, the GPU layer, is in progress: the engine opens a GPU device
-(Vulkan on Linux, Direct3D 12 on Windows) and renders into offscreen images, checked against a
-reference image, but does not draw into the window yet. [`docs/PLAN.md`](docs/PLAN.md) lists what
-remains and the known debt.
+clean shutdown on Ctrl+C. Stage 2, the GPU layer, is in progress: the engine opens the GPU
+(Vulkan on Linux, Direct3D 12 on Windows), draws a triangle in the window and into offscreen
+images checked against a reference image; how frames are paced is not decided yet.
+[`docs/PLAN.md`](docs/PLAN.md) lists what remains and the known debt.
 
 ## Getting started
 

@@ -20,8 +20,9 @@ listed in [`AGENTS.md`](../AGENTS.md#definition-of-done).
 
 **Driver.** The loop that decides when frames run and what time each one represents. `run` has a
 headless driver (frames back to back, simulated time) and a windowed driver, called back by the
-windowing library's event loop, which measures real time and limits the frame rate. All drivers
-run frames the same way ([ADR-0010](adr/0010-main-loop-ownership.md)).
+windowing library's event loop, which measures real time, asks for frames at a limited rate and
+runs them on *redraw requests*. All drivers run frames the same way
+([ADR-0010](adr/0010-main-loop-ownership.md)). Not to be confused with a GPU driver.
 
 **Example.** A runnable program in the `examples/` directory that demonstrates one feature.
 
@@ -32,8 +33,9 @@ the frame rate advances (`slime_app::time::FixedStep`). A frame runs zero or mor
 the previous frame, limited to a maximum (`slime_app::time::FrameClock`).
 
 **Frame limiter.** The part of the windowed driver that schedules frames and waits between them,
-so that on average at most `AppConfig::max_frame_rate` frames run per second. Temporary:
-presenting frames on screen will pace them once the GPU layer exists.
+so that the engine asks for at most `AppConfig::max_frame_rate` frames per second on average. How
+it combines with *presentation*, which can also pace frames, is decided by measurement (Stage 2,
+frame pacing).
 
 **Graphics API.** The interface between programs and GPU drivers: Vulkan (the engine's choice on
 Linux) and Direct3D 12 (on Windows). wgpu translates the engine's calls into one of them.
@@ -68,10 +70,19 @@ example to read it back to the CPU. Image tests render this way, without a windo
 
 **Owner.** The person who validates the project's direction and its architecture decisions.
 
+**Present (an image).** Hand a drawn image to the window, which shows it at one of the display's
+next refreshes. With wgpu's FIFO present mode, the one the engine uses for now, images are shown
+in order, one per refresh, and presenting can block until the window can take another one.
+
 **Physical key.** The position of a key on the keyboard, whatever the layout
 (`slime_platform::KeyCode`), named after the character it produces on a US keyboard: the first
 letter key of the top row is `KeyQ` on every layout, whether it is labelled Q (QWERTY) or A
 (AZERTY). Suits movement keys. See also *logical key*.
+
+**Redraw request.** A notice from the windowing system that the window should be drawn now:
+either the engine asked for it (`Window::request_redraw`), or the system did on its own, for
+example during a resize. The windowed driver runs a frame for each one
+([ADR-0020](adr/0020-rendering-in-the-main-loop.md)).
 
 **Reference image.** A PNG file stored in the repository that an *image test* compares its render
 with. The references are rendered with lavapipe and rendered again only after a deliberate change
@@ -95,6 +106,10 @@ steps per frame and dropping the rest.
 
 **Stage.** A step of [`docs/ROADMAP.md`](ROADMAP.md), ordered by dependency, with a goal and an
 exit criterion. Stages are numbered from 0; a stage may be split (Stage 3a and 3b).
+
+**Surface.** The link between the GPU and a window: the images the window shows. Each frame, the
+engine *acquires* one, the application draws into it, and the engine *presents* it
+(`slime_gfx::Surface`).
 
 **Termination signal.** A request from outside the process to stop it: SIGINT (Ctrl+C in a
 terminal), SIGTERM (a service manager or `kill`) or SIGHUP (the terminal closing). The first one

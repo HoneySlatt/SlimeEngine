@@ -21,12 +21,30 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - The `offscreen` example, which writes a triangle rendered without a window to a PNG file, and an
   image test that compares the same render with a reference image, within a tolerance, on
   lavapipe, WARP and hardware GPUs ([ADR-0018](docs/adr/0018-reference-image-tests.md)).
+- Drawing into the window: windowed runs open the GPU for their window (`Gpu::new_for_window`,
+  `Surface`), and the new `App::render` draws each frame into the window's image, which the engine
+  then presents. `Context::gpu` and `Context::surface_format` let the application create its GPU
+  objects in `init`. The `window` example draws the samples' triangle
+  ([ADR-0020](docs/adr/0020-rendering-in-the-main-loop.md)).
+- `TextureFormat::Bgra8UnormSrgb`, the usual format of windows; render targets in this format
+  read back as RGBA, like the others.
 
 ### Changed
 
 - The log filter used when `SLIME_LOG` is unset is now `slime_app::DEFAULT_LOG_FILTER`: `info` as
   before, except for wgpu-hal's details about the GPU and the Vulkan loader's messages about
   drivers, whose errors still appear ([ADR-0019](docs/adr/0019-default-log-filter.md)).
+- `App::init` returns `Result<(), AppError>`: when it fails, no frame runs, `shutdown` is not
+  called, and `run` returns the error. `run` returns a `RunError` (`Init`, `Platform` or `Gfx`)
+  instead of a `PlatformError`.
+- With a window, frames run on redraw requests: the engine asks for them at most
+  `AppConfig::max_frame_rate` times per second, and the windowing system's own requests, during a
+  resize for example, run frames too.
+- The windowed check in a headless Weston draws with lavapipe; it now takes about 25 seconds.
+
+### Removed
+
+- `softbuffer`, with which the `window` example filled its window from the CPU.
 
 ## [0.0.1] - 2026-10-12
 

@@ -68,9 +68,9 @@ The GPU layer uses Vulkan on Linux and Direct3D 12 on Windows
   (AMD), ANV (Intel) or NVK (NVIDIA), or NVIDIA's own driver. The Nix shell provides the loader.
 - On Windows, Direct3D 12 is part of the system. Without a GPU, for example in a virtual machine,
   wgpu uses WARP, Microsoft's software driver.
-- `scripts/check.sh` runs the tests on lavapipe, Mesa's Vulkan driver that renders on the CPU, so
-  that they give the same results on every machine and in CI. To run the GPU tests on your own GPU,
-  run `cargo test` without `VK_DRIVER_FILES`; to reproduce the checks, run
+- `scripts/check.sh` runs the tests and the samples on lavapipe, Mesa's Vulkan driver that renders
+  on the CPU, so that they give the same results on every machine and in CI. To run the GPU tests
+  on your own GPU, run `cargo test` without `VK_DRIVER_FILES`; to reproduce the checks, run
   `VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo test` inside `nix develop`. Without Nix, install
   Mesa's Vulkan drivers (on Debian and Ubuntu, `mesa-vulkan-drivers`) and point `VK_DRIVER_FILES`
   at their `lvp_icd.x86_64.json` file.
@@ -100,7 +100,8 @@ nix develop -c scripts/check.sh
 and tests of every target, rustdoc with warnings as errors, `cargo deny` (dependency licenses,
 security advisories and sources; it downloads the advisory database, so it needs network access),
 the samples with no display server available, the windowed sample inside a headless Weston
-compositor, and `lychee` (links between Markdown files). The individual commands are listed in
+compositor (about 25 seconds, see the known debt in `docs/PLAN.md`), and `lychee` (links between
+Markdown files). The individual commands are listed in
 [`AGENTS.md`](AGENTS.md#environment-and-commands) for when you want to run only one of them.
 
 The script also runs clippy for the Windows target, which catches code that does not compile on

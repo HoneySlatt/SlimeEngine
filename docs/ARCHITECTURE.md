@@ -33,33 +33,31 @@ is created only when code needs it.
 | Crate | Role | Depends on | Status |
 |---|---|---|---|
 | [`slime-platform`](../crates/slime-platform/README.md) | The window, its events and keyboard and mouse input; the only crate that uses the windowing library (winit) | `winit`, `raw-window-handle`, `thiserror`, `tracing` | One window; window, keyboard and mouse events |
-| [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `slime-platform`, `ctrlc`, `tracing`, `tracing-subscriber` | Headless and windowed runs work |
-| [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu | `wgpu`, `pollster`, `thiserror`, `tracing` | Opens a GPU device, draws into offscreen images and reads them back; no other engine crate uses it yet |
-| [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-gfx`, `slime-platform`, `png`, `softbuffer`, `tracing` | `hello`, `headless`, `window`, `offscreen`; the reference image test |
+| [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `slime-platform`, `slime-gfx`, `ctrlc`, `thiserror`, `tracing`, `tracing-subscriber` | Headless runs, and windowed runs drawn by the GPU |
+| [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu | `wgpu`, `pollster`, `raw-window-handle`, `thiserror`, `tracing` | Opens a GPU device, draws into offscreen images and reads them back, draws into a window |
+| [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-gfx`, `slime-platform`, `png`, `tracing` | `hello`, `headless`, `window`, `offscreen`; the reference image test |
 
 ## Dependency rules
 
 ```text
-slime-examples ──▶ slime-app ──▶ slime-platform ──▶ winit
-    │    │                             ▲
-    │    └─────────────────────────────┘
-    └──▶ slime-gfx ──▶ wgpu
+slime-examples ──▶ slime-app ──┬──▶ slime-platform ──▶ winit
+       │                       └──▶ slime-gfx ──────▶ wgpu
+       └──▶ slime-platform, slime-gfx (their types: events, GPU objects)
 ```
 
-No engine crate uses `slime-gfx` yet: the examples call it directly, and `slime-app` will drive it
-once frames are drawn in the window.
-
-- Dependencies between crates point one way: `slime-app` depends on `slime-platform`, never the
-  reverse.
+- Dependencies between crates point one way: `slime-app` depends on `slime-platform` and
+  `slime-gfx`, never the reverse, and `slime-platform` and `slime-gfx` do not depend on each
+  other: the window reaches the GPU layer only as `raw-window-handle` traits.
 - Only `slime-platform` uses winit, and winit's types never appear in a public API
   ([ADR-0011](adr/0011-windowing-with-winit.md)). `slime_platform::Window` exposes the
   `raw-window-handle` traits so that graphics libraries can draw into it.
 - Only `slime-gfx` uses wgpu, and wgpu's types never appear in a public API
   ([ADR-0016](adr/0016-gpu-layer-with-wgpu.md)). `slime-gfx` depends on no other engine crate,
   so that it works without a windowing system.
-- A headless run never touches the windowing system: it does not create an event loop, so the
-  windowing libraries, which are loaded at run time, are not even needed. The checks run the
-  headless sample with no display server to prove it.
+- A headless run never touches the windowing system or the GPU: it does not create an event loop
+  or open a device, so the windowing libraries and the Vulkan loader, which are loaded at run
+  time, are not even needed. The checks run the headless sample with no display server to prove
+  it.
 
 ## Main flows
 
@@ -85,13 +83,18 @@ frame                                span "frame", trace level
 ├── FrameClock::advance(delta)       the time the frame represents, limited
 ├── FixedStep::advance(delta)        how many fixed steps are due: n
 ├── app.fixed_update(ctx, step)      n times, span "fixed_update"
-└── app.update(ctx, &frame)          once, span "update"
+├── app.update(ctx, &frame)          once, span "update"
+└── with a window:
+    ├── surface.acquire()            the window's image, or none: skip drawing; span "acquire"
+    ├── app.render(ctx, target)      draws into the image; span "render"
+    └── image.present()              hands it to the window; span "present"
 ```
 
 The run stops before the next frame once the application has called `ctx.request_exit()`, the
 window was closed, the process received a termination signal, or `config.frame_limit` frames have
-run. The frame in progress always
-finishes, and `app.shutdown` is always called after `app.init`. The call order is checked by
+run. The frame in progress always finishes, and `app.shutdown` is always called after an
+`app.init` that succeeded; when `app.init` returns an error, the run stops at once and `run`
+returns it as `RunError::Init`. The call order is checked by
 [`crates/slime-app/tests/lifecycle.rs`](../crates/slime-app/tests/lifecycle.rs).
 
 **Headless driver** (`AppConfig::window` is `None`), in `app.rs`:
@@ -113,22 +116,28 @@ implements:
 slime_app::run
 ├── init_diagnostics()
 └── slime_platform::run_event_loop(window config, driver)
-    ├── winit "resumed"         create the window → driver.window_created
-    │                           → ctx gets the window, app.init(ctx)
-    ├── winit "window_event"    translate (event.rs) → driver.event
-    │                           → app.on_event(ctx, &event); CloseRequested → stop
-    ├── winit "about_to_wait"   → driver.about_to_wait
-    │                           → if the next frame is due: frame with the measured delta;
-    │                             return WaitUntil(next frame) or Exit
-    └── winit "exiting"         → driver.exiting → app.shutdown(ctx), the window is released
+    ├── winit "resumed"          create the window → driver.window_created
+    │                            → Gpu::new_for_window: the GPU and the window's surface;
+    │                              ctx gets the window and the GPU; app.init(ctx)
+    ├── winit "window_event"     translate (event.rs) → driver.event
+    │                            → Resized: surface.resize; app.on_event(ctx, &event);
+    │                              CloseRequested → stop
+    ├── winit "RedrawRequested"  → driver.redraw_requested → frame with the measured delta
+    ├── winit "about_to_wait"    → driver.about_to_wait
+    │                            → if the next frame is due: window.request_redraw();
+    │                              return WaitUntil(next frame) or Exit
+    └── winit "exiting"          → driver.exiting → app.shutdown(ctx); the surface, the GPU and
+                                   the window are released
 ```
 
-Frames are scheduled every `1 / AppConfig::max_frame_rate` seconds: between them the event loop
-sleeps until the next frame is due or an event arrives, so an idle window uses almost no CPU. A
-frame that starts a little late does not shift the schedule, which keeps the average rate; after
-falling a whole period behind, the schedule restarts instead of catching up with frames run back
-to back (`next_due` in `windowed.rs`). This frame limiter is temporary; presenting frames on
-screen will pace them from Stage 2.
+Frames run on redraw requests ([ADR-0020](adr/0020-rendering-in-the-main-loop.md)). The engine
+asks for one every `1 / AppConfig::max_frame_rate` seconds: between them the event loop sleeps
+until the next frame is due or an event arrives. A frame that starts a little late does not shift
+the schedule, which keeps the average rate; after falling a whole period behind, the schedule
+restarts instead of catching up with frames run back to back (`next_due` in `windowed.rs`). The
+windowing system also asks for redraws on its own, during a resize for example, and each of them
+runs a frame too. On Windows, this is what keeps the window drawn while the user resizes it: the
+system then runs its own loop, in which `about_to_wait` is not called.
 
 ### Opening the GPU
 
@@ -138,6 +147,13 @@ device and queue ([`crates/slime-gfx/src/gpu.rs`](../crates/slime-gfx/src/gpu.rs
 [ADR-0016](adr/0016-gpu-layer-with-wgpu.md)). Without a GPU, the adapter is a software one:
 lavapipe on Linux when `VK_DRIVER_FILES` points at it, WARP on Windows. Headless runs never open
 the GPU.
+
+`slime_gfx::Gpu::new_for_window(window, width, height)` does the same for a window: it creates
+the window's surface from the window's `raw-window-handle` traits first, asks only for adapters
+that can present to it, and configures it in the first sRGB format the window offers
+([`crates/slime-gfx/src/surface.rs`](../crates/slime-gfx/src/surface.rs)). The surface keeps the
+window alive, which is why the windowed driver releases it before the event loop closes its
+connection to the windowing system.
 
 ### Rendering offscreen
 
@@ -164,6 +180,27 @@ error is a bug and panics ([ADR-0016](adr/0016-gpu-layer-with-wgpu.md)). The tes
 [`examples/tests/offscreen.rs`](../examples/tests/offscreen.rs) compares the image with a
 reference PNG within a tolerance ([ADR-0018](adr/0018-reference-image-tests.md)).
 
+### Rendering in a window
+
+The same objects draw into a window. Each frame of a windowed run, `Frames::run_one` asks the
+surface for the window's image (`Surface::acquire`), lets the application draw into its target
+(`App::render`, usually with `Gpu::render`), then presents it (`SurfaceFrame::present`). The
+surface handles what the graphics API reports about the window, so that the application only sees
+whether there is an image to draw:
+
+| Reported | Handled by |
+|---|---|
+| A new size (from `Event::Resized`) | `Surface::resize`; the surface is configured again before the next image |
+| A size of zero (minimized window) | No image; the frame runs without drawing |
+| Outdated configuration | Configured again, then one more try |
+| Suboptimal image | Drawn and presented, then configured again |
+| Image not ready in time, window occluded | No image this frame |
+| Surface lost | Created again from the window; no image this frame |
+
+Images are presented with wgpu's FIFO present mode, in step with the display. Presentation can
+therefore block a frame; the measurements are in
+[`PLAN.md`](PLAN.md#m23--the-triangle-in-the-window).
+
 ### Termination signals
 
 `run` installs, once per process, a handler for SIGINT (Ctrl+C), SIGTERM and SIGHUP
@@ -181,13 +218,6 @@ frame (measured, or simulated in headless runs), gets a `FrameTime` back, and gi
 [`crates/slime-app/src/time.rs`](../crates/slime-app/src/time.rs); rules:
 [ADR-0009](adr/0009-frame-timing.md).
 
-### Showing the window (examples only)
-
-A Wayland compositor shows a window only once the application has given it pixels. The engine has
-no renderer yet, so the `window` example fills its window from the CPU with `softbuffer`, through
-the window's `raw-window-handle` traits, whenever the window is resized. This is temporary and
-lives only in the examples ([ADR-0002](adr/0002-amend-roadmap-stages-0-to-3.md)).
-
 ## Platforms
 
 The engine targets Linux (`x86_64-unknown-linux-gnu`) and Windows (`x86_64-pc-windows-msvc`)
@@ -195,7 +225,9 @@ The engine targets Linux (`x86_64-unknown-linux-gnu`) and Windows (`x86_64-pc-wi
 
 - winit hides the windowing systems (Wayland and X11 on Linux, Win32 on Windows). The only
   platform-specific code in `slime-platform` names the windowing system in the log
-  (`backend_name` in `event_loop.rs`).
+  (`backend_name` in `event_loop.rs`). One difference shapes the main loop: on Windows, the
+  system runs its own loop while the user resizes or moves a window, which is why frames run on
+  redraw requests.
 - `ctrlc` hides signals (Unix) and console events (Windows); `crates/slime-app/src/signal.rs`
   describes how each platform behaves.
 - wgpu hides the graphics APIs; `slime-gfx` only chooses which one to ask for on each platform

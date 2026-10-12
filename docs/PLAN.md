@@ -119,14 +119,34 @@ it:
   measurements are recorded.
 - **How to test.** `cargo run --example window` on Linux; `window.exe` from the CI artifact on
   Windows.
+- **Measured** on 2026-10-12, with the default `AppConfig` (60 frames per second at most) and
+  wgpu's FIFO present mode; frame times from the `frame` spans (`SLIME_LOG=slime_app=trace`), in a
+  debug build unless stated:
+  - niri (Wayland), RX 6900 XT (RADV): frames every 16.66 ms on average (standard deviation
+    1.5 ms; one interval in 340 above 20 ms). In a release build, 5 % of one CPU core, about 55
+    system calls and 4 wake-ups of the event loop per frame; the GPU load of the triangle cannot be
+    told apart from the desktop's.
+  - niri, window moved to an empty workspace (hidden): `present` blocks for one second in each
+    frame, so frames run once per second, each with the maximum of 8 fixed steps: the simulation
+    runs 8 steps per second instead of 60. CPU use falls to 0.2–0.4 %.
+  - X11 through Xwayland (xwayland-satellite on niri), RADV: frames every 16.66 ms (standard
+    deviation 0.7 ms, longest 19 ms).
+  - Weston (headless) with lavapipe: the triangle appears in a screenshot of the compositor. One
+    image acquisition in three waits about 0.8 s, so 120 frames take about 25 s; with the Mailbox
+    or Immediate present mode, 60 frames take 1.06 s.
+  - Present modes offered: Mailbox and Fifo on niri; Immediate, Mailbox, Fifo and FifoRelaxed on
+    X11; Mailbox, Fifo and Immediate with lavapipe in Weston. Every surface offered
+    `Bgra8UnormSrgb` first.
+  - Windows (virtual machine): to be checked by the owner.
 
 ### M2.4 — Frame pacing
 
 - **Goal.** Frames are paced without stalling the engine, on each platform.
 - **Crates.** `slime-app`, `slime-gfx`.
 - **Delivers.** The pacing policy chosen from the measurements of M2.3, the present mode in
-  `AppConfig`, the frame scheduler kept or removed per platform, profiling spans for acquiring,
-  recording, submitting and presenting a frame. ADR: frame pacing.
+  `AppConfig`, the frame scheduler kept or removed per platform, a profiling span for submitting
+  the work of a frame (acquiring, recording and presenting have theirs since M2.3). ADR: frame
+  pacing.
 - **Done when.** A hidden window does not stall the loop beyond what the ADR states (Ctrl+C is
   still handled); idle CPU and GPU use and the regularity of frames are measured on niri; Windows
   is checked in the virtual machine, whose GPU says nothing about timing.
@@ -172,19 +192,28 @@ of this file and in the commits that implemented it.
 
 ## Known debt
 
-- **Temporary frame pacing and display (Stage 2).** The windowed driver limits the frame rate by
-  sleeping (`AppConfig::max_frame_rate`), and the `window` example fills its window from the CPU
-  with `softbuffer`. M2.3 replaces the CPU fill; M2.4 decides the pacing.
+- **Frame pacing is not decided yet (M2.4).** The windowed driver asks for frames on a timer
+  (`AppConfig::max_frame_rate`) and presents them with FIFO, which can stall the loop: one frame
+  per second while the window is hidden on niri, and about 0.8 s for one image in three in a
+  headless Weston with lavapipe, which makes the Weston check last about 25 seconds (see the
+  measurements of M2.3).
+- **Frames are expected to pause on Windows while the user moves the window**, since no redraw
+  arrives then (ADR-0020). To check in the Windows virtual machine.
+- **wgpu-hal logs an error when an adapter cannot present to the window**, even though the engine
+  then uses another one: seen with RADV in a headless Weston, where only lavapipe can present.
 - **No title text in client-side decorations.** On compositors that do not draw decorations
   (GNOME), the title bar has no text, because winit's text renderer depends on an unmaintained
   crate (ADR-0011).
-- **`App` methods cannot return errors** (ADR-0010). `App::init` becomes fallible in M2.3.
+- **Only `App::init` can return an error** (ADR-0020). An application that hits an error in
+  another method logs it and requests an exit.
 - **The examples were not run by hand on Windows yet.** CI builds and tests them on Windows, but
   only a person can check a window there. To do: download the artifact `slime-examples-windows`
   of the latest CI run (on GitHub, or with `gh run download -n slime-examples-windows`), then in
-  the Windows virtual machine run `window.exe` from a terminal: the window appears, resizes,
-  closes cleanly with Escape or its close button, and logs keys (including on an AZERTY layout),
-  clicks and scrolling; Ctrl+C in the terminal also ends it cleanly.
+  the Windows virtual machine run `window.exe` from a terminal: the window appears with the
+  triangle, which follows an interactive resize; the window closes cleanly with Escape or its
+  close button, and logs keys (including on an AZERTY layout), clicks and scrolling; Ctrl+C in the
+  terminal also ends it cleanly; the log shows whether frames go on while the window is moved or
+  minimized (`SLIME_LOG=slime_app=trace` shows each frame).
 - **Input not reported yet:** the state of the modifier keys as a whole, input-method text,
   touch, touchpad gestures, gamepads, dropped files.
 - **The interpolation factor is not passed to applications.** `FixedStep::alpha` computes it, but
