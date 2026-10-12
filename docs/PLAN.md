@@ -172,8 +172,9 @@ it:
   image test of the shapes, whose center cube and sphere now carry a checker texture read with
   linear filtering, passes on lavapipe, which rendered the reference, and on RADV with one pixel
   of 65 536 differing by 3 out of 255, where two texels blend: more than ADR-0018 allowed, so
-  ADR-0028 lets 0.1 % of the pixels exceed the per-channel tolerance. WARP's measurement is
-  printed by the Windows CI job. No mipmaps: the sphere's checker aliases where it is minified,
+  ADR-0028 lets 0.1 % of the pixels exceed the per-channel tolerance. On WARP, as the Windows CI
+  job printed, no pixel exceeds it and the largest difference is 2 (1 on the triangle). No
+  mipmaps: the sphere's checker aliases where it is minified,
   which shows as shimmering when the camera moves; recorded in the known debt, to settle with
   the glTF asset of M3.5.
 
