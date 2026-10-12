@@ -12,10 +12,11 @@ it is built this way.
 ├── .github/workflows/   CI: runs scripts/check.sh
 ├── Cargo.toml           virtual workspace: shared metadata, lints and dependency versions
 ├── crates/              engine crates, one directory per crate, named after the package
-│   ├── slime-app/       application lifecycle and main loop (skeleton)
+│   ├── slime-app/       application lifecycle and main loop; today, diagnostics only
 │   └── slime-platform/  windows and input (skeleton)
 ├── deny.toml            dependency license, advisory and source rules
 ├── docs/                roadmap, plan, decisions (adr/), glossary, dependencies, this file
+├── examples/            runnable examples, one per feature (package `slime-examples`)
 ├── flake.nix            Nix development shell
 ├── rust-toolchain.toml  pinned Rust toolchain
 ├── scripts/check.sh     every automated check, as CI runs them
@@ -31,7 +32,8 @@ is created only when code needs it.
 | Crate | Role | Depends on | Status |
 |---|---|---|---|
 | [`slime-platform`](../crates/slime-platform/README.md) | Windows and input; the only crate that uses the windowing library | — | Skeleton |
-| [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | — | Skeleton |
+| [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `tracing`, `tracing-subscriber` | Diagnostics only |
+| [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `tracing` | `hello` |
 
 A *skeleton* crate exists with its documentation and inherits the workspace policies, but holds
 no code yet.
@@ -49,7 +51,15 @@ slime-app ──may depend on──▶ slime-platform
 
 ## Main flows
 
-None yet: the crates contain no code.
+### Diagnostics setup
+
+An engine program calls `slime_app::init_diagnostics()` first. It installs a global `tracing`
+subscriber writing to standard error (unless one already exists), filtered by the `SLIME_LOG`
+environment variable, then a panic hook that logs panics before the standard hook prints them,
+then logs one line describing the engine and the machine. From then on, every `tracing` event
+from the engine, the game or a dependency goes through that subscriber. Source:
+[`crates/slime-app/src/diagnostics.rs`](../crates/slime-app/src/diagnostics.rs); conventions:
+[ADR-0008](adr/0008-errors-logging-and-assertions.md).
 
 ## Where to start reading
 
@@ -57,6 +67,7 @@ None yet: the crates contain no code.
 2. This file for the crate map.
 3. [`PLAN.md`](PLAN.md) for the milestone in progress.
 4. The `README.md` of the crate you are about to change.
+5. [`examples/`](../examples/README.md) for runnable programs that use the engine.
 
 ## `unsafe` code
 

@@ -7,10 +7,11 @@ games first, then open-world games, then large online worlds.
 ## Status
 
 Pre-alpha. Stage 0, *Foundations*, is done: the repository has its rules, its roadmap, its plan,
-a reproducible development environment, its checks and a CI workflow, and a Cargo workspace whose
-two crates are still empty skeletons. Stage 1, which brings the first engine code (window, input,
-main loop, headless mode), has started. There is nothing to run yet.
-[`docs/PLAN.md`](docs/PLAN.md) shows the milestone in progress and the known debt.
+a reproducible development environment, its checks and a CI workflow. Stage 1, which brings the
+first engine code (window, input, main loop, headless mode), is in progress: so far the engine
+sets up logging and panic reporting, which the `hello` example demonstrates. There is no main
+loop and no window yet. [`docs/PLAN.md`](docs/PLAN.md) shows the milestone in progress and the
+known debt.
 
 ## Getting started
 
@@ -22,7 +23,8 @@ Nix. Then:
 ```sh
 cargo build --workspace
 cargo test --workspace
-scripts/check.sh   # every check, exactly as CI runs them
+cargo run --example hello   # the examples are listed in examples/README.md
+scripts/check.sh            # every check, exactly as CI runs them
 ```
 
 ## Where to read next

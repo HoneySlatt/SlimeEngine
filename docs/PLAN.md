@@ -12,7 +12,7 @@ documentation was updated and reread.
 ## Current
 
 - Stage 1 — Core and platform
-- Milestone M1.1 — Logging and diagnostics
+- Milestone M1.2 — Frame timing
 
 ## Status
 
@@ -22,8 +22,8 @@ documentation was updated and reread.
 | [M0.2](#m02--nix-development-environment) | Nix development environment | Done |
 | [M0.3](#m03--workspace-lints-and-crate-skeletons) | Workspace, lints and crate skeletons | Done |
 | [M0.4](#m04--dependency-policy-and-ci) | Dependency policy and CI | Done, CI not run yet (see [Known debt](#known-debt)) |
-| [M1.1](#m11--logging-and-diagnostics) | Logging and diagnostics | In progress |
-| [M1.2](#m12--frame-timing) | Frame timing | Planned |
+| [M1.1](#m11--logging-and-diagnostics) | Logging and diagnostics | Done |
+| [M1.2](#m12--frame-timing) | Frame timing | In progress |
 | [M1.3](#m13--lifecycle-and-headless-mode) | Lifecycle and headless mode | Planned |
 | [M1.4](#m14--window) | Window | Planned |
 | [M1.5](#m15--input) | Input | Planned |
@@ -96,7 +96,7 @@ CI. X11 is checked through Xwayland.
 - **Crates.** `slime-app`; the `examples` package with a first example, `hello`.
 - **Delivers.** Installation of the log subscriber (`tracing-subscriber`: output to stderr,
   timestamps, filter read from `SLIME_LOG`), a panic hook that logs the panic before the default
-  hook runs, a startup log line with the engine version, OS, architecture and number of CPU cores.
+  hook runs, a startup log line with the engine version, OS, architecture and number of logical CPUs.
   ADR-0008 (errors, logging, assertions). Dependencies: `tracing`, `tracing-subscriber`.
 - **Done when.** The `hello` example logs; `SLIME_LOG=debug` changes the level; `hello --panic`
   logs the panic and exits with a non-zero code; an automated test checks the panic output.
@@ -125,7 +125,7 @@ CI. X11 is checked through Xwayland.
 - **Done when.** An integration test checks the order and number of callbacks, that `shutdown`
   runs exactly once, and the exit code; the example runs with `WAYLAND_DISPLAY` and `DISPLAY`
   unset; `SLIME_LOG=trace` shows the spans.
-- **How to test.** `cargo run -p slime-examples --example headless -- --frames 600`.
+- **How to test.** `cargo run --example headless -- --frames 600`.
 
 ### M1.4 — Window
 
@@ -142,7 +142,7 @@ CI. X11 is checked through Xwayland.
 - **Done when.** On niri the window appears, resizes are logged, closing it from the compositor
   shuts down cleanly (`shutdown` runs, exit code 0), CPU use stays low while idle, and the same
   holds on X11 through Xwayland.
-- **How to test.** `cargo run -p slime-examples --example window`, close the window; then again
+- **How to test.** `cargo run --example window`, close the window; then again
   with `WAYLAND_DISPLAY` unset to use X11.
 
 ### M1.5 — Input
@@ -168,7 +168,7 @@ CI. X11 is checked through Xwayland.
   reread of the documentation as a newcomer; the `v0.0.1` git tag.
 - **Done when.** Ctrl+C in both modes logs the shutdown and exits with code 0; CI is green.
 - **How to test.** Press Ctrl+C in `window` and in `headless`; run
-  `cargo run -p slime-examples --example window` with `WAYLAND_DISPLAY` and `DISPLAY` unset.
+  `cargo run --example window` with `WAYLAND_DISPLAY` and `DISPLAY` unset.
 
 ## Known debt
 

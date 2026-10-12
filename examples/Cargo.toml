@@ -1,0 +1,20 @@
+[package]
+name = "slime-examples"
+description = "Runnable examples of SlimeEngine features."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+# Examples are the only targets of this package, so their dependencies are dev-dependencies.
+[dev-dependencies]
+slime-app.workspace = true
+tracing.workspace = true
+
+[[example]]
+name = "hello"
+path = "hello.rs"

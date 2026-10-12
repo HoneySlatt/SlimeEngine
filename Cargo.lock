@@ -100,6 +100,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "slime-examples"
+version = "0.0.0"
+dependencies = [
+ "slime-app",
+ "tracing",
+]
+
+[[package]]
 name = "slime-platform"
 version = "0.0.0"
 

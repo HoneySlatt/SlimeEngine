@@ -38,6 +38,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all --check
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 scripts/check.sh                                          # everything above, plus the checks below
+cargo run --example <name>                                # run an example (list in examples/README.md)
 ```
 
 `scripts/check.sh` is what CI runs. Besides the commands above, it checks dependency licenses, security advisories and sources with `cargo deny --locked check` (needs network access), and links between Markdown files with `lychee`. Run it before reporting a milestone done.
