@@ -14,18 +14,16 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 
 - Stage 2 — GPU layer → 0.0.2
 - Milestone M2.5 — Debug markers, robustness, release 0.0.2
-- Left over from M2.0, M2.3 and M2.4: the check by hand in the Windows virtual machine (see
-  [Known debt](#known-debt)), which the release of 0.0.2 waits for.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
-| [M2.0](#m20--windows-in-ci) | Windows in CI | Done, except the check by hand in the Windows virtual machine (see [Known debt](#known-debt)) |
+| [M2.0](#m20--windows-in-ci) | Windows in CI | Done |
 | [M2.1](#m21--gpu-device-without-a-window) | GPU device without a window | Done |
 | [M2.2](#m22--offscreen-triangle-and-reference-image) | Offscreen triangle and reference image | Done |
-| [M2.3](#m23--the-triangle-in-the-window) | The triangle in the window | Done, except the check by hand in the Windows virtual machine (see [Known debt](#known-debt)) |
-| [M2.4](#m24--frame-pacing) | Frame pacing | Done, except the check by hand in the Windows virtual machine (see [Known debt](#known-debt)) |
+| [M2.3](#m23--the-triangle-in-the-window) | The triangle in the window | Done |
+| [M2.4](#m24--frame-pacing) | Frame pacing | Done |
 | [M2.5](#m25--debug-markers-robustness-release-002) | Debug markers, robustness, release 0.0.2 | In progress |
 
 Stages 0 and 1 are done; see [Completed stages](#completed-stages).
@@ -139,8 +137,8 @@ it:
   - Present modes offered: Mailbox and Fifo on niri; Immediate, Mailbox, Fifo and FifoRelaxed on
     X11; Mailbox, Fifo and Immediate with lavapipe in Weston. Every surface offered
     `Bgra8UnormSrgb` first.
-  - The owner saw the triangle on niri and through Xwayland.
-  - Windows (virtual machine): to be checked by the owner.
+  - The owner saw the triangle on niri and through Xwayland, and reports that `window.exe` works
+    in the Windows virtual machine.
 
 ### M2.4 — Frame pacing
 
@@ -175,7 +173,10 @@ it:
     part of it from writing the log), and `present` takes 1.4 ms on average.
   - Headless Weston with lavapipe: 120 frames take 2.1 s with Mailbox; with
     `--present-mode fifo`, 30 frames take 5.5 s.
-  - Windows (virtual machine): to be checked by the owner.
+  - Windows, in the virtual machine, with the RX 6900 XT through Direct3D 12 (AMD driver
+    32.0.21030.2001), Mailbox: 600 frames take 16.4 s when the window is moved for about 6 s, so
+    frames pause during the move; they take 10.2 s when the window is minimized for 6.6 s, so
+    frames go on while minimized, without drawing.
 
 ### M2.5 — Debug markers, robustness, release 0.0.2
 
@@ -225,8 +226,10 @@ of this file and in the commits that implemented it.
   hidden window on niri, about 0.8 s for one image in three in a headless Weston with lavapipe.
 - **A hidden window keeps drawing** at the scheduled rate (3 % of one CPU core on the development
   machine): the engine cannot tell on Wayland whether its window is visible.
-- **Frames are expected to pause on Windows while the user moves the window**, since no redraw
-  arrives then (ADR-0020). To check in the Windows virtual machine.
+- **Frames pause on Windows while the user moves the window**, since no redraw arrives during the
+  system's move loop (ADR-0020; measured in M2.4). The simulation stops for as long as the move
+  lasts. Keeping frames going would mean asking for redraws from inside each frame and waiting there
+  for the schedule.
 - **wgpu-hal logs an error when an adapter cannot present to the window**, even though the engine
   then uses another one: seen with RADV in a headless Weston, where only lavapipe can present.
 - **No title text in client-side decorations.** On compositors that do not draw decorations
@@ -234,17 +237,6 @@ of this file and in the commits that implemented it.
   crate (ADR-0011).
 - **Only `App::init` can return an error** (ADR-0020). An application that hits an error in
   another method logs it and requests an exit.
-- **The examples were not run by hand on Windows yet.** CI builds and tests them on Windows, but
-  only a person can check a window there. To do: download the artifact `slime-examples-windows`
-  of the latest CI run (on GitHub, or with `gh run download -n slime-examples-windows`), then in
-  the Windows virtual machine run `window.exe` from a terminal: the window appears with the
-  triangle, which follows an interactive resize; the window closes cleanly with Escape or its
-  close button, and logs keys (including on an AZERTY layout), clicks and scrolling; Ctrl+C in the
-  terminal also ends it cleanly. To measure whether frames go on while the window is moved or
-  minimized, time a run of 600 frames (10 seconds at 60 frames per second) in PowerShell with
-  `Measure-Command { .\window.exe --frames 600 | Out-Default }`, holding the window by its title
-  bar, or keeping it minimized, for about 5 seconds: about 10 seconds means frames go on, about 15
-  that they pause.
 - **Input not reported yet:** the state of the modifier keys as a whole, input-method text,
   touch, touchpad gestures, gamepads, dropped files.
 - **The interpolation factor is not passed to applications.** `FixedStep::alpha` computes it, but

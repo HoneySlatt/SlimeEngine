@@ -8,7 +8,7 @@ Partial. It opens one window, on Wayland or X11 (Linux) and on Windows, reports 
 requested, resized, scale factor changed, focus, keys, mouse buttons, cursor motion and scrolling)
 and its redraw requests. It does not report yet: the state of the modifier keys as a whole, text
 composed by input methods (Chinese, Japanese, Korean), touch screens, touchpad gestures, gamepads,
-or files dropped on the window. On Windows, the window has not been checked by hand yet.
+or files dropped on the window.
 
 ## Role
 
