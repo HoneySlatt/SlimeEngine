@@ -74,7 +74,7 @@ Each is decided by ADR at the stage where it becomes necessary, not earlier.
 
 ## 5. Repository layout
 
-Indicative; the final structure is settled in Stage 0.
+Indicative. The structure in use is described in `docs/ARCHITECTURE.md` and its rules in ADR-0004; a directory is created when its first content exists.
 
 ```
 engine/

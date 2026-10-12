@@ -59,8 +59,8 @@ decision later.
 ```
 
 Keep ADRs short. If a decision needs a long explanation, the explanation probably belongs in
-`docs/ARCHITECTURE.md` or in the rustdoc of the code it governs, with the
-ADR linking to it.
+[`docs/ARCHITECTURE.md`](../ARCHITECTURE.md) or in the rustdoc of the code it governs, with
+the ADR linking to it.
 
 ## Index
 
@@ -69,3 +69,4 @@ ADR linking to it.
 | [0001](0001-record-architecture-decisions.md) | Record architecture decisions | Accepted |
 | [0002](0002-amend-roadmap-stages-0-to-3.md) | Amend the roadmap for Stages 0 to 3 | Accepted |
 | [0003](0003-toolchain-edition-and-msrv.md) | Pin the toolchain in one file, use edition 2024, set the MSRV to the pinned version | Accepted |
+| [0004](0004-workspace-layout-and-crate-naming.md) | Workspace layout and crate naming | Accepted |
