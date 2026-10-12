@@ -12,15 +12,15 @@ documentation was updated and reread.
 ## Current
 
 - Stage 0 — Foundations
-- Milestone M0.2 — Nix development environment
+- Milestone M0.3 — Workspace, lints and crate skeletons
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
 | [M0.1](#m01--repository-license-and-adr-process) | Repository, license and ADR process | Done |
-| [M0.2](#m02--nix-development-environment) | Nix development environment | In progress |
-| [M0.3](#m03--workspace-lints-and-crate-skeletons) | Workspace, lints and crate skeletons | Planned |
+| [M0.2](#m02--nix-development-environment) | Nix development environment | Done |
+| [M0.3](#m03--workspace-lints-and-crate-skeletons) | Workspace, lints and crate skeletons | In progress |
 | [M0.4](#m04--dependency-policy-and-ci) | Dependency policy and CI | Planned |
 | [M1.1](#m11--logging-and-diagnostics) | Logging and diagnostics | Planned |
 | [M1.2](#m12--frame-timing) | Frame timing | Planned |
@@ -53,8 +53,9 @@ baseline exists and CI checks it.
 - **Goal.** `nix develop` provides exactly the pinned toolchain and the project's tools.
 - **Delivers.** `flake.nix`, `flake.lock`, `rust-toolchain.toml`, ADR-0003 (toolchain, edition,
   minimum supported Rust version). The development shell provides the Rust toolchain (rustc,
-  cargo, clippy, rustfmt, rust-src, rust-analyzer), `cargo-deny`, `lychee`, and the system
-  libraries that the windowing code loads at run time.
+  cargo, clippy, rustfmt, rust-src, rust-analyzer), `cargo-deny` and `lychee`. The system
+  libraries that the windowing code loads at run time are added in M1.4, with the code that loads
+  them, because they cannot be checked before.
 - **Done when.** `nix develop -c rustc --version` prints the version pinned in
   `rust-toolchain.toml`, and `nix flake check` passes.
 - **How to test.** Run both commands.
@@ -132,8 +133,9 @@ CI. X11 is checked through Xwayland.
 - **Crates.** `slime-platform` (winit 0.30, never exposed), `slime-app` (windowed driver);
   `examples` gains `window`.
 - **Delivers.** The window and its events (close requested, resized, scale factor, focus), the
-  windowed driver calling the same frame function as the headless one, window handles exposed
-  through `raw-window-handle`, the frame limiter. The `window` example fills its window with a
+  system libraries it loads at run time (added to the Nix shell), the windowed driver calling the
+  same frame function as the headless one, window handles exposed through `raw-window-handle`,
+  the frame limiter. The `window` example fills its window with a
   solid color through `softbuffer` (checked first without it, to confirm the problem described in
   ADR-0002). ADR-0011 (windowing with winit). Dependencies: `winit`, `raw-window-handle`,
   `thiserror`; `softbuffer` for the examples only.

@@ -7,8 +7,15 @@ games first, then open-world games, then large online worlds.
 ## Status
 
 Pre-alpha. The project is in Stage 0, *Foundations*: the repository contains its rules, its
-roadmap and its plan, but no engine code yet. There is nothing to build or run.
-[`docs/PLAN.md`](docs/PLAN.md) shows the milestone in progress.
+roadmap, its plan and a reproducible development environment, but no engine code yet. There is
+nothing to build or run. [`docs/PLAN.md`](docs/PLAN.md) shows the milestone in progress.
+
+## Getting started
+
+Linux on x86_64 only. With [Nix](https://nixos.org) and flakes enabled, `nix develop` at the
+repository root opens a shell with the pinned Rust toolchain and the project's tools.
+[`CONTRIBUTING.md`](CONTRIBUTING.md#development-environment) explains this and the setup without
+Nix.
 
 ## Where to read next
 

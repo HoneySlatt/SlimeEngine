@@ -14,8 +14,35 @@ apply to every contributor.
 
 ## Development environment
 
-Linux is the only supported platform for now. The project has no code yet: the development
-environment arrives in milestone M0.2 of the plan.
+Linux on x86_64 is the only supported platform for now.
+
+The Rust toolchain is pinned in [`rust-toolchain.toml`](rust-toolchain.toml): an exact stable
+version with clippy, rustfmt, the standard library sources and rust-analyzer.
+[ADR-0003](docs/adr/0003-toolchain-edition-and-msrv.md) explains why and how it is bumped.
+
+### With Nix (recommended)
+
+The repository is a [Nix flake](https://wiki.nixos.org/wiki/Flakes). With Nix installed and flakes
+enabled, run this at the repository root:
+
+```sh
+nix develop
+```
+
+The shell it opens contains the pinned toolchain and the project's tools: `cargo-deny` (checks
+dependency licenses and security advisories) and `lychee` (checks links in the documentation).
+[`flake.lock`](flake.lock) pins every input, so every contributor and CI get the same versions.
+To run a single command in that environment without opening a shell, use
+`nix develop -c <command>`.
+
+Nix only sees the files that git tracks. If you change `flake.nix` so that it reads a new file,
+`git add` that file before running `nix develop`.
+
+### Without Nix
+
+Install [rustup](https://rustup.rs). It reads `rust-toolchain.toml` and installs the pinned
+toolchain the first time you run `cargo` in the repository. Install the tools with
+`cargo install --locked cargo-deny lychee`; CI uses the versions pinned by `flake.lock`.
 
 ## Making a change
 
