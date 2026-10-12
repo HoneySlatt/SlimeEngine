@@ -16,7 +16,6 @@ png.workspace = true
 slime-app.workspace = true
 slime-gfx.workspace = true
 slime-platform.workspace = true
-softbuffer.workspace = true
 tracing.workspace = true
 
 [[example]]

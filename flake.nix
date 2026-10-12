@@ -30,8 +30,8 @@
           pkgs.weston
         ];
 
-        # winit (in slime-platform), softbuffer (in the examples) and wgpu (in slime-gfx) open the
-        # windowing system's libraries and the Vulkan loader at run time instead of linking them.
+        # winit (in slime-platform) and wgpu (in slime-gfx) open the windowing system's libraries and
+        # the Vulkan loader at run time instead of linking them.
         # NixOS has no global library directory, so the dynamic loader has to be told where they
         # are.
         LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [

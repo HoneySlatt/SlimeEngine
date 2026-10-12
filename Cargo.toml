@@ -23,8 +23,6 @@ png = "0.18.1"
 # shader module or pipeline is created.
 pollster = "1.0.1"
 raw-window-handle = "0.6.2"
-# Examples only. The `kms` backend (direct rendering without a compositor) is left out.
-softbuffer = { version = "0.4.8", default-features = false, features = ["wayland", "wayland-dlopen", "x11", "x11-dlopen"] }
 thiserror = "2.0.21"
 # The `attributes` feature (`#[instrument]`) is left out: it pulls in a proc-macro stack.
 tracing = { version = "0.1.44", default-features = false, features = ["std"] }
