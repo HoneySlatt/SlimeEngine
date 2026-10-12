@@ -11,11 +11,12 @@ documentation was updated and reread.
 
 ## Current
 
-- Stage 1 — Core and platform: every milestone is implemented, and every automated check passes
-  locally.
-- Before 0.0.1 is tagged: the first CI run on GitHub, and the check by hand of keyboard and mouse
-  input (see [Known debt](#known-debt)). Then, the [release steps](#releasing-001).
-- Stage 2 has not been planned yet.
+- Stage 1 — Core and platform: every milestone is implemented, and every automated check passes,
+  locally and in CI.
+- Before 0.0.1 is tagged: the check by hand of keyboard and mouse input (see
+  [Known debt](#known-debt)). CI ran green on the first push to GitHub. Then, the
+  [release steps](#releasing-001).
+- Stage 2 is being planned; its milestones are written here once the owner validates them.
 
 ## Status
 
@@ -24,13 +25,13 @@ documentation was updated and reread.
 | [M0.1](#m01--repository-license-and-adr-process) | Repository, license and ADR process | Done |
 | [M0.2](#m02--nix-development-environment) | Nix development environment | Done |
 | [M0.3](#m03--workspace-lints-and-crate-skeletons) | Workspace, lints and crate skeletons | Done |
-| [M0.4](#m04--dependency-policy-and-ci) | Dependency policy and CI | Done, CI not run yet (see [Known debt](#known-debt)) |
+| [M0.4](#m04--dependency-policy-and-ci) | Dependency policy and CI | Done |
 | [M1.1](#m11--logging-and-diagnostics) | Logging and diagnostics | Done |
 | [M1.2](#m12--frame-timing) | Frame timing | Done |
 | [M1.3](#m13--lifecycle-and-headless-mode) | Lifecycle and headless mode | Done |
 | [M1.4](#m14--window) | Window | Done |
 | [M1.5](#m15--input) | Input | Done, except the check by hand of keys, mouse buttons and scrolling (see [Known debt](#known-debt)) |
-| [M1.6](#m16--clean-shutdown-hardening-release-001) | Clean shutdown, hardening, release 0.0.1 | Done, except the release, which waits for the first CI run and the input check (see [Releasing 0.0.1](#releasing-001)) |
+| [M1.6](#m16--clean-shutdown-hardening-release-001) | Clean shutdown, hardening, release 0.0.1 | Done, except the release, which waits for the input check (see [Releasing 0.0.1](#releasing-001)) |
 
 ## Stage 0 — Foundations
 
@@ -83,8 +84,7 @@ baseline exists and CI checks it.
   the GitHub Actions workflow, ADR-0006 (dependency policy), ADR-0007 (documentation tooling and
   CI).
 - **Done when.** `scripts/check.sh` passes locally; a deliberately broken Markdown link makes it
-  fail; CI is green on GitHub. Nothing has been pushed to GitHub yet: until it is, the CI run is
-  recorded below as not verified.
+  fail; CI is green on GitHub (it was, on the first push, 2026-10-12).
 - **How to test.** `nix develop -c scripts/check.sh`.
 
 ## Stage 1 — Core and platform → 0.0.1
@@ -180,7 +180,8 @@ CI. X11 is checked through Xwayland.
 The release is a git tag on a commit whose CI run is green
 ([ADR-0004](adr/0004-workspace-layout-and-crate-naming.md)):
 
-1. Push the repository to GitHub and check that the CI workflow passes.
+1. Push the repository to GitHub and check that the CI workflow passes (done: the first push, on
+   2026-10-12, ran green).
 2. Check keyboard and mouse input by hand (see [Known debt](#known-debt)).
 3. In one commit: set `version = "0.0.1"` in the root `Cargo.toml`, rename the `[Unreleased]`
    section of `CHANGELOG.md` to `[0.0.1] - <date>`, and update this plan.
@@ -188,9 +189,6 @@ The release is a git tag on a commit whose CI run is green
 
 ## Known debt
 
-- **CI has never run.** Nothing has been pushed to GitHub yet, so the GitHub Actions workflow has
-  not been executed. `scripts/check.sh` passes locally in the same Nix shell that CI uses. Stage 0
-  is complete except for this: the first push to GitHub must show a green run.
 - **Temporary frame pacing and display (Stage 2).** The windowed driver limits the frame rate by
   sleeping (`AppConfig::max_frame_rate`), and the `window` example fills its window from the CPU
   with `softbuffer`. Both go away when the GPU layer presents frames.

@@ -7,12 +7,12 @@ games first, then open-world games, then large online worlds.
 ## Status
 
 Pre-alpha. Stage 0 (*Foundations*) and Stage 1 (*Core and platform*) are implemented and pass
-every check locally; the CI workflow has not run yet, because nothing has been pushed to GitHub
-yet. Applications run headless or with a window (Wayland or X11) that receives keyboard and mouse
-input, with a fixed-step main loop, logging, panic reporting and a clean shutdown on Ctrl+C. The
-input translation is tested, but key presses, mouse buttons and scrolling still have to be
-checked by hand. There is no rendering yet. Version 0.0.1 will be tagged once CI has run green
-and input has been checked; [`docs/PLAN.md`](docs/PLAN.md) lists what remains and the known debt.
+every check, locally and in CI. Applications run headless or with a window (Wayland or X11) that
+receives keyboard and mouse input, with a fixed-step main loop, logging, panic reporting and a
+clean shutdown on Ctrl+C. The input translation is tested, but key presses, mouse buttons and
+scrolling still have to be checked by hand. There is no rendering yet. Version 0.0.1 will be
+tagged once input has been checked; [`docs/PLAN.md`](docs/PLAN.md) lists what remains and the
+known debt.
 
 ## Getting started
 
