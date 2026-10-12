@@ -15,6 +15,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- A windowed run without any usable graphics driver reports `no GPU adapter is available` with
+  wgpu's explanation, instead of `cannot create a surface for the window` with an empty cause.
 - A `SLIME_LOG` value without a bare level, such as `slime_app=trace`, no longer silences every
   other module: `info` applies to the modules it does not name, as the documentation said. A
   misspelt level, which `tracing` reads as a module name, no longer silences everything either.

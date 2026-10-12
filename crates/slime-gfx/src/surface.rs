@@ -79,9 +79,10 @@ impl Gpu {
     ///
     /// # Errors
     ///
+    /// - [`GfxError::NoAdapter`] if no graphics API is available at all (no Vulkan driver on Linux)
+    ///   or no adapter can present to the window, and [`GfxError::RequestDevice`] if the adapter
+    ///   refuses to open a device.
     /// - [`GfxError::CreateSurface`] if the graphics API cannot draw into this window.
-    /// - [`GfxError::NoAdapter`] if no adapter can present to the window, and
-    ///   [`GfxError::RequestDevice`] if the adapter refuses to open a device.
     /// - [`GfxError::SurfaceFormat`] if the window offers no sRGB format that the engine supports.
     pub fn new_for_window<W>(
         window: W,
@@ -94,9 +95,18 @@ impl Gpu {
     {
         let instance = crate::gpu::create_instance();
         let window: Arc<dyn WindowHandles> = Arc::new(window);
-        let surface = instance
-            .create_surface(Arc::clone(&window))
-            .map_err(|error| GfxError::CreateSurface(Box::new(error)))?;
+        let surface = match instance.create_surface(Arc::clone(&window)) {
+            Ok(surface) => surface,
+            Err(error) => {
+                // Without any usable graphics API (no Vulkan driver, a `WGPU_BACKEND` this build
+                // does not have), wgpu fails to create the surface with an empty list of causes;
+                // asking for an adapter then gives the message that names what is missing.
+                let options = wgpu::RequestAdapterOptions::default();
+                pollster::block_on(instance.request_adapter(&options))
+                    .map_err(|error| GfxError::NoAdapter(Box::new(error)))?;
+                return Err(GfxError::CreateSurface(Box::new(error)));
+            }
+        };
         let (gpu, adapter) = Gpu::open(&instance, Some(&surface))?;
 
         let capabilities = surface.get_capabilities(&adapter);
