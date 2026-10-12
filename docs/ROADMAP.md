@@ -98,25 +98,30 @@ Stages are ordered by dependency. They overlap in practice, and carry no dates o
 
 - Cargo workspace, crate naming, edition, MSRV, lints
 - Nix dev shell
-- CI: build, test, clippy, fmt
+- CI: build, test, clippy, fmt, documentation (rustdoc warnings, doc tests, Markdown links), dependency licenses and security advisories
 - ADR process and first ADRs
 - Dependency policy (admission criteria, license compatibility with MPL-2.0)
 - `unsafe` policy
+- Documentation baseline: README, CONTRIBUTING, architecture overview, glossary, one README per crate
 
-**Exit.** CI is green on the empty workspace; the policies above exist as ADRs.
+**Exit.** CI is green on a workspace that contains the skeletons of the Stage 1 crates; the policies above exist as ADRs; the documentation baseline exists and CI checks it.
 
 ### Stage 1 — Core and platform → 0.0.1
 
 **Goal.** A very small application that is architecturally sound.
 
-- `core`: errors, logging, assertions, time, IDs and handles, configuration
-- `platform`: window, input, filesystem, timers, system information
-- Application lifecycle: create → run loop → shutdown
+- Conventions for errors, logging, assertions and panic reporting
+- `platform`: window and input, behind an engine-owned API
+- Application lifecycle: create → run loop → shutdown, with the ownership of the main loop decided by ADR
 - Frame timing (fixed and variable step)
+- A frame limiter, until presenting to the screen paces frames (Stage 2)
 - Profiling spans in the main loop
 - Headless run mode
+- System information logged at startup
 
-**Not yet.** Rendering, scenes, entities, physics.
+A Wayland window shows nothing until the application gives it pixels, and presenting pixels belongs to Stage 2. The Stage 1 sample therefore fills its window with a solid color from the CPU (softbuffer). This dependency is limited to the sample and is removed in Stage 2.
+
+**Not yet.** Rendering, scenes, entities, physics. IDs and handles (Stage 2, with their first user). Configuration files and a virtual filesystem (Stage 4).
 
 **Exit.** A window opens on Wayland, input events are logged, shutdown is clean. The same binary runs N frames headless in CI.
 
@@ -124,25 +129,38 @@ Stages are ordered by dependency. They overlap in practice, and carry no dates o
 
 **Goal.** Own the boundary between the engine and wgpu.
 
-- Device, surface, resize, present, frame pacing
-- Engine-owned handles: buffer, texture, sampler, shader, pipeline
-- WGSL loading with hot reload
+- Device, surface, resize, present, frame pacing (replaces the Stage 1 frame limiter and CPU fill)
+- Engine-owned handles for the resources that the triangle and the offscreen render use; the set grows with the renderer in Stage 3
+- WGSL loading (hot reload comes with the asset pipeline, Stage 4)
 - GPU debug labels and markers
 - Offscreen rendering
 
-**Exit.** A triangle renders and survives resize. An offscreen render is compared to a reference image in CI.
+`gfx` does not depend on `platform`: it accepts window handles through the `raw-window-handle` traits, so that offscreen rendering and its tests run without a window.
 
-### Stage 3 — First renderer → 0.1
+**Exit.** A triangle renders and survives resize. An offscreen render is compared to a reference image in CI. CI has no GPU: the image is rendered with a software Vulkan driver (Mesa lavapipe), reference images are produced with that driver, and the comparison uses a tolerance so that the same test passes on hardware drivers.
 
-**Goal.** Render a simple scene correctly.
+Stage 3 is split in two so that each half ends with a runnable, tested sample.
 
-- Meshes, camera, depth, textures, materials, lights
-- PBR, image-based lighting, shadows
-- HDR, tone mapping, basic post-processing
-- Minimal render graph: declared passes and resources, automatic ordering
+### Stage 3a — First renderer → 0.0.3
+
+**Goal.** Render a textured scene with a simple lighting model.
+
+- Meshes, camera, depth, textures, a basic material and a directional light
 - Render statistics and GPU timings
 - Dev overlay (egui, tooling only, temporary)
 - Temporary direct glTF loading
+
+`egui-wgpu` is built against a specific wgpu version: while the overlay exists, upgrading wgpu waits for egui.
+
+**Exit.** A glTF scene renders with textures, depth and simple lighting under a moving camera, with statistics shown in the overlay, covered by image tests.
+
+### Stage 3b — Physically based renderer → 0.1
+
+**Goal.** Render a simple scene correctly.
+
+- PBR materials, light types, image-based lighting, shadows
+- HDR, tone mapping, basic post-processing
+- Minimal render graph: declared passes and resources, automatic ordering. It is extracted from the concrete passes at the end of the stage, once at least three of them exist, not designed ahead of them.
 
 **Exit.** A sample scene with camera, lights, PBR materials and shadows, covered by image tests.
 
@@ -279,7 +297,7 @@ Direction only. None of this is planned work until Stage 11 is reached.
 | System | Requires |
 |---|---|
 | platform | core |
-| gfx | platform |
+| gfx | core; window handles through the `raw-window-handle` traits, not `platform` |
 | render | gfx |
 | assets | core, basic task pool |
 | serialization | reflect |
@@ -299,7 +317,8 @@ Direction only. None of this is planned work until Stage 11 is reached.
 |---|---|---|
 | 0.0.1 | 1 | Core and platform |
 | 0.0.2 | 2 | GPU layer |
-| 0.1 | 3 | Renderer |
+| 0.0.3 | 3a | First renderer |
+| 0.1 | 3b | Physically based renderer |
 | 0.2 | 4 | Assets |
 | 0.3 | 5 | Reflection, serialization, world |
 | 0.4 | 6 | Editor |
