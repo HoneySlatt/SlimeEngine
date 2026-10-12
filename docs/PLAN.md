@@ -184,8 +184,10 @@ The release is a git tag on a commit whose CI run is green
    2026-10-12, ran green).
 2. Check keyboard and mouse input by hand (see [Known debt](#known-debt)).
 3. In one commit: set `version = "0.0.1"` in the root `Cargo.toml`, rename the `[Unreleased]`
-   section of `CHANGELOG.md` to `[0.0.1] - <date>`, and update this plan.
-4. Tag that commit: `git tag -a v0.0.1 -m "SlimeEngine 0.0.1"`.
+   section of `CHANGELOG.md` to `[0.0.1] - <date>`, and update this plan (done: the commit
+   "Release 0.0.1").
+4. Once step 2 is done, tag that commit, not a later one:
+   `git tag -a v0.0.1 -m "SlimeEngine 0.0.1" <commit>`, then push the tag.
 
 ## Known debt
 

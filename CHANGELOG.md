@@ -6,9 +6,13 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ## [Unreleased]
 
-The content of the first release, 0.0.1, which closes Stage 1 of the roadmap: a very small
-application that is architecturally sound. It will be tagged once keyboard and mouse input have
-been checked by hand (see `docs/PLAN.md`); CI already runs green.
+Nothing yet.
+
+## [0.0.1] - 2026-10-12
+
+The first release, which closes Stage 1 of the roadmap: a very small application that is
+architecturally sound. Its git tag, `v0.0.1`, is created once keyboard and mouse input have been
+checked by hand (see `docs/PLAN.md`); CI runs green.
 
 ### Added
 

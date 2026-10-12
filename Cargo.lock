@@ -1252,7 +1252,7 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
 name = "slime-app"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "ctrlc",
  "slime-platform",
@@ -1262,7 +1262,7 @@ dependencies = [
 
 [[package]]
 name = "slime-examples"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "slime-app",
  "slime-platform",
@@ -1272,7 +1272,7 @@ dependencies = [
 
 [[package]]
 name = "slime-platform"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "raw-window-handle",
  "thiserror 2.0.21",
