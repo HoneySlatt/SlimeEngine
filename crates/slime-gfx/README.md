@@ -107,7 +107,10 @@ fn main() -> Result<(), GfxError> {
     one `@group` index (`docs/adr/0026-resource-binding-and-depth.md`). A layout
     (`create_bind_group_layout`) lists its bindings as `BindGroupLayoutEntry`s: a binding number,
     the `ShaderStages` that read it and a `BindingType`, a uniform buffer for now; a group
-    (`create_bind_group`) gives the `BindingResource` of each binding of a layout.
+    (`create_bind_group`) gives the `BindingResource` of each binding of a layout: a whole uniform
+    buffer, or a range of one whose start is given each time the group is bound (a *dynamic
+    offset*, a multiple of `Gpu::uniform_offset_alignment`), so that one buffer holds the values
+    of many draws.
   - `DepthTarget`: a texture holding the depth of what was drawn (`create_depth_target`), at the
     size of the render targets it is used with, for depth testing. It cannot be read back.
   - `ShaderModule`: WGSL source compiled by wgpu (`create_shader_module`).
@@ -123,8 +126,8 @@ fn main() -> Result<(), GfxError> {
 - `Gpu::render(&RenderPassDescriptor { target, clear, depth }, record)` runs one render pass: it
   clears the target to a color, and the depth target to the farthest depth, or keeps what both
   hold when `clear` is `None`; lets `record` draw through a `RenderPass` (`set_pipeline`,
-  `set_bind_group`, `set_vertex_buffer`, `set_index_buffer`, `draw`, `draw_indexed`); and sends
-  the work to the GPU. A pass with a depth target takes pipelines with a depth test, and one
+  `set_bind_group` with the dynamic offsets of the group, `set_vertex_buffer`, `set_index_buffer`,
+  `draw`, `draw_indexed`); and sends the work to the GPU. A pass with a depth target takes pipelines with a depth test, and one
   without takes pipelines without. The pass is named after the target's label in capture tools,
   and `RenderPass::debug_group(label, record)` names a group of commands inside it. Labels and
   groups reach the driver in debug builds, or with `WGPU_DEBUG=1`.

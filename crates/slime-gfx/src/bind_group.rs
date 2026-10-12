@@ -1,5 +1,7 @@
 //! Bind groups: the resources that a pipeline's shaders read, in the layout they declare.
 
+use std::num::NonZeroU64;
+
 use crate::gpu::Gpu;
 use crate::uniform_buffer::UniformBuffer;
 
@@ -29,7 +31,13 @@ impl ShaderStages {
 #[non_exhaustive]
 pub enum BindingType {
     /// A [`UniformBuffer`], declared `var<uniform>` in WGSL.
-    UniformBuffer,
+    UniformBuffer {
+        /// Whether the start of the bound range is given each time the group is bound
+        /// ([`RenderPass::set_bind_group`](crate::RenderPass::set_bind_group)), so that one buffer
+        /// holds the values of many draws, one range each. The group then binds a
+        /// [`BindingResource::UniformBufferRange`].
+        dynamic_offset: bool,
+    },
 }
 
 /// One binding of a [`BindGroupLayout`]: its number in the shaders and what it holds.
@@ -58,6 +66,15 @@ pub struct BindGroupLayout {
 pub enum BindingResource<'a> {
     /// A whole uniform buffer.
     UniformBuffer(&'a UniformBuffer),
+    /// `size` bytes of a uniform buffer, starting at the offset given each time the group is
+    /// bound: for a binding with a dynamic offset. The offset is a multiple of
+    /// [`Gpu::uniform_offset_alignment`], and the range must stay inside the buffer.
+    UniformBufferRange {
+        /// The buffer.
+        buffer: &'a UniformBuffer,
+        /// The size of the range, in bytes: what the shader's uniform declares.
+        size: usize,
+    },
 }
 
 /// One binding of a [`BindGroup`]: its number and the resource it holds.
@@ -98,9 +115,9 @@ impl Gpu {
                 binding: entry.binding,
                 visibility: entry.visible_to.to_wgpu(),
                 ty: match entry.ty {
-                    BindingType::UniformBuffer => wgpu::BindingType::Buffer {
+                    BindingType::UniformBuffer { dynamic_offset } => wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
+                        has_dynamic_offset: dynamic_offset,
                         min_binding_size: None,
                     },
                 },
@@ -121,8 +138,8 @@ impl Gpu {
     ///
     /// # Panics
     ///
-    /// If the entries do not match the layout (a binding missing, or of another kind): this is a
-    /// bug in the caller (ADR-0016).
+    /// If a range has a size of zero or larger than its buffer, or if the entries do not match the
+    /// layout (a binding missing, or of another kind): these are bugs in the caller (ADR-0016).
     pub fn create_bind_group(
         &self,
         label: &str,
@@ -135,6 +152,19 @@ impl Gpu {
                 binding: entry.binding,
                 resource: match entry.resource {
                     BindingResource::UniformBuffer(buffer) => buffer.buffer.as_entire_binding(),
+                    BindingResource::UniformBufferRange { buffer, size } => {
+                        let size = NonZeroU64::new(size as u64).unwrap_or_else(|| {
+                            panic!(
+                                "binding {} of bind group `{label}` has a size of zero",
+                                entry.binding
+                            )
+                        });
+                        wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                            buffer: &buffer.buffer,
+                            offset: 0,
+                            size: Some(size),
+                        })
+                    }
                 },
             })
             .collect();

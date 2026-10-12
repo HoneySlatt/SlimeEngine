@@ -65,6 +65,12 @@ impl RenderTarget {
     pub fn format(&self) -> TextureFormat {
         self.format
     }
+
+    /// The label given at creation, which names the target in error messages and in GPU capture
+    /// tools.
+    pub fn label(&self) -> &str {
+        &self.label
+    }
 }
 
 impl Gpu {

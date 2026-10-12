@@ -33,7 +33,9 @@ impl Gpu {
     /// # Panics
     ///
     /// If `contents` is empty or its length is not a multiple of 4 bytes, which GPU copies
-    /// require, or if it is larger than a uniform binding can be (64 KiB with the default limits).
+    /// require, or if it is larger than the device allows (256 MiB with the default limits). A
+    /// binding of the whole buffer is limited to 64 KiB with the default limits; a buffer holding
+    /// the values of many draws, bound one range at a time, can be larger.
     pub fn create_uniform_buffer(&self, label: &str, contents: &[u8]) -> UniformBuffer {
         assert!(
             !contents.is_empty() && contents.len().is_multiple_of(4),

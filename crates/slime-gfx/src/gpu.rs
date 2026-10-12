@@ -146,6 +146,14 @@ impl Gpu {
         &self.adapter_name
     }
 
+    /// The alignment, in bytes, of the offsets given to
+    /// [`RenderPass::set_bind_group`](crate::RenderPass::set_bind_group) for bindings with a
+    /// dynamic offset (256 with the default limits): a uniform buffer that holds the values of
+    /// many draws lays them out at multiples of it.
+    pub fn uniform_offset_alignment(&self) -> usize {
+        self.device.limits().min_uniform_buffer_offset_alignment as usize
+    }
+
     /// Submits an empty piece of work, then blocks until the GPU has finished everything submitted
     /// so far.
     ///

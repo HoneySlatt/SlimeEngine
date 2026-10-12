@@ -84,7 +84,9 @@ impl Scene {
             &[BindGroupLayoutEntry {
                 binding: 0,
                 visible_to: ShaderStages::Vertex,
-                ty: BindingType::UniformBuffer,
+                ty: BindingType::UniformBuffer {
+                    dynamic_offset: false,
+                },
             }],
         );
         let offset = gpu.create_uniform_buffer("offset", &offset_bytes(0.0, 0.0));
@@ -106,39 +108,10 @@ impl Scene {
         }
     }
 
-    /// A pipeline for `SHADER`, with the given depth test and culling.
+    /// A pipeline for `SHADER`, with the given depth test and culling, reading the offset at
+    /// group 0 through the scene's layout.
     fn pipeline(&self, depth: Option<DepthState>, cull: CullMode) -> RenderPipeline {
-        let shader = self
-            .gpu
-            .create_shader_module("drawing", SHADER)
-            .expect("the shader compiles");
-        self.gpu
-            .create_render_pipeline(&RenderPipelineDescriptor {
-                label: "drawing",
-                shader: &shader,
-                vertex_entry_point: "vs_main",
-                fragment_entry_point: "fs_main",
-                vertex_layout: VertexLayout {
-                    stride: 6 * 4,
-                    attributes: &[
-                        VertexAttribute {
-                            location: 0,
-                            offset: 0,
-                            format: VertexFormat::Float32x3,
-                        },
-                        VertexAttribute {
-                            location: 1,
-                            offset: 3 * 4,
-                            format: VertexFormat::Float32x3,
-                        },
-                    ],
-                },
-                bind_group_layouts: &[&self.layout],
-                depth,
-                cull,
-                target_format: self.target.format(),
-            })
-            .expect("the pipeline is valid")
+        pipeline_for(&self.gpu, &self.layout, self.target.format(), depth, cull)
     }
 
     fn vertices(&self, vertices: &[Vertex]) -> VertexBuffer {
@@ -159,7 +132,7 @@ impl Scene {
             depth: with_depth.then_some(&self.depth),
         };
         self.gpu.render(&pass, |pass| {
-            pass.set_bind_group(0, &self.group);
+            pass.set_bind_group(0, &self.group, &[]);
             draw(pass);
         });
         self.image()
@@ -266,7 +239,7 @@ fn a_pass_without_a_clear_keeps_what_was_drawn_before() {
         depth: None,
     };
     scene.gpu.render(&pass, |pass| {
-        pass.set_bind_group(0, &scene.group);
+        pass.set_bind_group(0, &scene.group, &[]);
         draw(pass);
     });
     let image = scene.image();
@@ -373,4 +346,103 @@ fn a_depth_target_of_another_size_is_rejected() {
         depth: Some(&small),
     };
     scene.gpu.render(&pass, |_pass| {});
+}
+
+/// A pipeline for `SHADER` reading the offset at group 0 through `layout`, with the given depth
+/// test and culling.
+fn pipeline_for(
+    gpu: &Gpu,
+    layout: &BindGroupLayout,
+    format: TextureFormat,
+    depth: Option<DepthState>,
+    cull: CullMode,
+) -> RenderPipeline {
+    let shader = gpu
+        .create_shader_module("drawing", SHADER)
+        .expect("the shader compiles");
+    gpu.create_render_pipeline(&RenderPipelineDescriptor {
+        label: "drawing",
+        shader: &shader,
+        vertex_entry_point: "vs_main",
+        fragment_entry_point: "fs_main",
+        vertex_layout: VertexLayout {
+            stride: 6 * 4,
+            attributes: &[
+                VertexAttribute {
+                    location: 0,
+                    offset: 0,
+                    format: VertexFormat::Float32x3,
+                },
+                VertexAttribute {
+                    location: 1,
+                    offset: 3 * 4,
+                    format: VertexFormat::Float32x3,
+                },
+            ],
+        },
+        bind_group_layouts: &[layout],
+        depth,
+        cull,
+        target_format: format,
+    })
+    .expect("the pipeline is valid")
+}
+
+#[test]
+fn a_dynamic_offset_selects_the_values_of_each_draw() {
+    let scene = Scene::new();
+    let alignment = scene.gpu.uniform_offset_alignment();
+    // The values of two draws in one buffer, each at a multiple of the alignment.
+    let mut slots = vec![0; alignment * 2];
+    slots[..16].copy_from_slice(&offset_bytes(0.0, 0.0));
+    slots[alignment..alignment + 16].copy_from_slice(&offset_bytes(1.0, 1.0));
+    let buffer = scene.gpu.create_uniform_buffer("offsets", &slots);
+    let layout = scene.gpu.create_bind_group_layout(
+        "dynamic offset",
+        &[BindGroupLayoutEntry {
+            binding: 0,
+            visible_to: ShaderStages::Vertex,
+            ty: BindingType::UniformBuffer {
+                dynamic_offset: true,
+            },
+        }],
+    );
+    let group = scene.gpu.create_bind_group(
+        "dynamic offset",
+        &layout,
+        &[BindGroupEntry {
+            binding: 0,
+            resource: BindingResource::UniformBufferRange {
+                buffer: &buffer,
+                size: 16,
+            },
+        }],
+    );
+    let pipeline = pipeline_for(
+        &scene.gpu,
+        &layout,
+        scene.target.format(),
+        None,
+        CullMode::None,
+    );
+    let triangle = scene.vertices(&QUARTER);
+
+    let pass = RenderPassDescriptor {
+        target: &scene.target,
+        clear: Some(BLACK),
+        depth: None,
+    };
+    scene.gpu.render(&pass, |pass| {
+        pass.set_pipeline(&pipeline);
+        pass.set_vertex_buffer(0, &triangle);
+        for offset in [0, alignment] {
+            let offset = u32::try_from(offset).expect("two slots fit");
+            pass.set_bind_group(0, &group, &[offset]);
+            pass.draw(0..3);
+        }
+    });
+    let image = scene.image();
+    assert_eq!(pixel(&image, BOTTOM_LEFT), [255, 255, 255], "first draw");
+    assert_eq!(pixel(&image, TOP_RIGHT), [255, 255, 255], "second draw");
+    assert_eq!(pixel(&image, (6, 6)), [0, 0, 0], "in neither triangle");
 }

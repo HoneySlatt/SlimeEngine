@@ -65,8 +65,12 @@ impl RenderPass<'_> {
 
     /// Binds `group` at `index` for the next draws: the `@group` number of its layout in the
     /// pipeline's [`bind_group_layouts`](crate::RenderPipelineDescriptor::bind_group_layouts).
-    pub fn set_bind_group(&mut self, index: u32, group: &BindGroup) {
-        self.pass.set_bind_group(index, &group.group, &[]);
+    /// `offsets` gives the start of the bound range of each binding that has a dynamic offset
+    /// ([`BindingType::UniformBuffer`](crate::BindingType::UniformBuffer)), in the order of the
+    /// bindings, each a multiple of [`Gpu::uniform_offset_alignment`]; it is empty for a group
+    /// without any.
+    pub fn set_bind_group(&mut self, index: u32, group: &BindGroup, offsets: &[u32]) {
+        self.pass.set_bind_group(index, &group.group, offsets);
     }
 
     /// Reads the vertices of the next draws from `buffer`, at the pipeline's vertex buffer `slot`.
