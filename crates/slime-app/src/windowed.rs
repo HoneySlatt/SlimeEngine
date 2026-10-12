@@ -1,16 +1,19 @@
-//! The windowed driver: frames run from the callbacks of the platform's event loop.
+//! The windowed driver: frames run from the callbacks of the platform's event loop, each time the
+//! windowing system lets the window draw.
 
 use std::time::{Duration, Instant};
 
-use slime_platform::{Event, EventHandler, LoopControl, PlatformError, Window, WindowConfig};
+use slime_gfx::{Gpu, Surface};
+use slime_platform::{Event, EventHandler, LoopControl, Window, WindowConfig};
 
 use crate::app::{App, AppConfig, Context, ExitReason, Frames};
+use crate::error::RunError;
 
 pub(crate) fn run_windowed(
     app: &mut impl App,
     config: &AppConfig,
     window: &WindowConfig,
-) -> Result<(), PlatformError> {
+) -> Result<(), RunError> {
     assert!(
         config.max_frame_rate > 0,
         "the maximum frame rate must not be zero"
@@ -20,68 +23,124 @@ pub(crate) fn run_windowed(
         app,
         ctx: Context::default(),
         frames: Frames::new(config),
+        surface: None,
         frame_period: Duration::from_secs(1) / config.max_frame_rate,
         last_frame: now,
         next_frame: now,
+        started: false,
         stop: None,
+        error: None,
     };
     tracing::debug!(?config, "running with a window");
-    slime_platform::run_event_loop(window, &mut driver)
+    slime_platform::run_event_loop(window, &mut driver)?;
+    driver.error.map_or(Ok(()), Err)
 }
 
 struct WindowedDriver<'a, A> {
     app: &'a mut A,
     ctx: Context,
     frames: Frames,
+    /// The window's surface; the GPU that draws into it is in `ctx`.
+    surface: Option<Surface>,
     /// The interval at which frames are scheduled, from `AppConfig::max_frame_rate`.
     frame_period: Duration,
     last_frame: Instant,
     /// When the next frame is due.
     next_frame: Instant,
+    /// Whether `App::init` succeeded, which makes `App::shutdown` due at the end.
+    started: bool,
     /// Why the loop is ending, once it has been decided.
     stop: Option<&'static str>,
+    /// Why the run failed, if it did.
+    error: Option<RunError>,
+}
+
+impl<A: App> WindowedDriver<'_, A> {
+    /// Opens the GPU for the window, then initializes the application.
+    fn start(&mut self, window: &Window) -> Result<(), RunError> {
+        let size = window.inner_size();
+        let (gpu, surface) = Gpu::new_for_window(window.clone(), size.width, size.height)?;
+        self.ctx.set_gpu(Some(gpu), Some(surface.format()));
+        self.surface = Some(surface);
+        self.app.init(&mut self.ctx).map_err(RunError::Init)
+    }
 }
 
 impl<A: App> EventHandler for WindowedDriver<'_, A> {
     fn window_created(&mut self, window: &Window) {
         self.ctx.set_window(Some(window.clone()));
-        self.app.init(&mut self.ctx);
-        let now = Instant::now();
-        self.last_frame = now;
-        self.next_frame = now;
+        match self.start(window) {
+            Ok(()) => {
+                self.started = true;
+                let now = Instant::now();
+                self.last_frame = now;
+                self.next_frame = now;
+            }
+            Err(error) => {
+                self.error = Some(error);
+                self.stop = Some("the run failed to start");
+            }
+        }
     }
 
     fn event(&mut self, event: Event) {
+        if !self.started {
+            return;
+        }
         tracing::trace!(?event, "platform event");
+        if let (Event::Resized(size), Some(surface)) = (&event, &mut self.surface) {
+            surface.resize(size.width, size.height);
+        }
         self.app.on_event(&mut self.ctx, &event);
         if event == Event::CloseRequested {
             self.ctx.exit_because(ExitReason::WindowClosed);
         }
     }
 
-    fn about_to_wait(&mut self) -> LoopControl {
-        if self.stop.is_none() && self.frames.check_stop(&mut self.ctx).is_none() {
-            let now = Instant::now();
-            if now >= self.next_frame {
-                self.frames
-                    .run_one(self.app, &mut self.ctx, now - self.last_frame);
-                self.last_frame = now;
-                self.next_frame = next_due(self.next_frame, now, self.frame_period);
-            }
+    fn redraw_requested(&mut self) {
+        if !self.started || self.stop.is_some() || self.frames.check_stop(&mut self.ctx).is_some() {
+            return;
         }
+        let now = Instant::now();
+        self.frames.run_one(
+            self.app,
+            &mut self.ctx,
+            now - self.last_frame,
+            self.surface.as_mut(),
+        );
+        self.last_frame = now;
+        self.next_frame = next_due(self.next_frame, now, self.frame_period);
+    }
+
+    fn about_to_wait(&mut self) -> LoopControl {
         if self.stop.is_none() {
             self.stop = self.frames.check_stop(&mut self.ctx);
         }
-        match self.stop {
-            Some(_) => LoopControl::Exit,
-            None => LoopControl::WaitUntil(self.next_frame),
+        if self.stop.is_some() {
+            return LoopControl::Exit;
         }
+        let now = Instant::now();
+        if now < self.next_frame {
+            return LoopControl::WaitUntil(self.next_frame);
+        }
+        // The frame runs when the redraw arrives, which also wakes the loop. The deadline only
+        // bounds the wait if it does not come, so that signals are still noticed.
+        if let Some(window) = self.ctx.window() {
+            window.request_redraw();
+        }
+        LoopControl::WaitUntil(now + self.frame_period)
     }
 
     fn exiting(&mut self) {
-        let reason = self.stop.unwrap_or("the event loop ended");
-        tracing::info!(frames = self.frames.count(), "stopping: {reason}");
-        self.app.shutdown(&mut self.ctx);
+        if self.started {
+            let reason = self.stop.unwrap_or("the event loop ended");
+            tracing::info!(frames = self.frames.count(), "stopping: {reason}");
+            self.app.shutdown(&mut self.ctx);
+        }
+        // The surface keeps the window alive: release it, the GPU and the window while the
+        // connection to the windowing system is still open.
+        self.surface = None;
+        self.ctx.set_gpu(None, None);
         self.ctx.set_window(None);
     }
 }

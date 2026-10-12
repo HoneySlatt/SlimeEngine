@@ -34,7 +34,7 @@ env -u WAYLAND_DISPLAY -u DISPLAY cargo run --locked --example window -- --headl
 env -u WAYLAND_DISPLAY -u DISPLAY VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
     cargo run --locked --example offscreen -- --output target/triangle.png
 
-step "Windowed sample in a headless Wayland compositor (Weston)"
+step "Windowed sample in a headless Wayland compositor (Weston), drawn with lavapipe"
 # A private runtime directory keeps this compositor apart from the one the developer may be using.
 runtime=$(mktemp -d)
 XDG_RUNTIME_DIR=$runtime weston --backend=headless --socket=slime-check --idle-time=0 \
@@ -46,7 +46,7 @@ for _ in $(seq 100); do
     sleep 0.1
 done
 env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check \
-    cargo run --locked --example window -- --frames 120 ||
+    VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo run --locked --example window -- --frames 120 ||
     { cat "$runtime/weston.log"; exit 1; }
 
 step "Documentation links"

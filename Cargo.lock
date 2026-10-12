@@ -1640,7 +1640,9 @@ name = "slime-app"
 version = "0.0.1"
 dependencies = [
  "ctrlc",
+ "slime-gfx",
  "slime-platform",
+ "thiserror 2.0.21",
  "tracing",
  "tracing-subscriber",
 ]

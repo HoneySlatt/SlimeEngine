@@ -74,6 +74,16 @@ impl Window {
     pub fn scale_factor(&self) -> f64 {
         self.inner.scale_factor()
     }
+
+    /// Asks the windowing system for a chance to draw: the event loop then calls
+    /// [`EventHandler::redraw_requested`](crate::EventHandler::redraw_requested), usually during
+    /// its next iteration. Requests made before that call are merged into one.
+    ///
+    /// The windowing system also asks for redraws on its own, for example while the window is being
+    /// resized.
+    pub fn request_redraw(&self) {
+        self.inner.request_redraw();
+    }
 }
 
 impl HasWindowHandle for Window {

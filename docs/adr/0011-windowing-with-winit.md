@@ -1,6 +1,6 @@
 # 0011. Windowing and input with winit, behind `slime-platform`
 
-- Status: Accepted
+- Status: Accepted; amended by [0020](0020-rendering-in-the-main-loop.md) (frames on redraw requests)
 - Date: 2026-10-12
 
 ## Context

@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use slime_app::time::FrameTime;
-use slime_app::{App, AppConfig, Context, run};
+use slime_app::{App, AppConfig, AppError, Context, RunError, run};
 
 const STEP: Duration = Duration::from_millis(10);
 
@@ -19,20 +19,25 @@ enum Call {
     Shutdown,
 }
 
-/// Records every call it receives, and requests an exit where it is told to.
+/// Records every call it receives, and requests an exit or fails where it is told to.
 #[derive(Default)]
 struct Recorder {
     calls: Vec<Call>,
     exit_in_init: bool,
+    fail_in_init: bool,
     exit_in_update_of_frame: Option<u64>,
 }
 
 impl App for Recorder {
-    fn init(&mut self, ctx: &mut Context) {
+    fn init(&mut self, ctx: &mut Context) -> Result<(), AppError> {
         self.calls.push(Call::Init);
+        if self.fail_in_init {
+            return Err("no save file".into());
+        }
         if self.exit_in_init {
             ctx.request_exit();
         }
+        Ok(())
     }
 
     fn fixed_update(&mut self, _ctx: &mut Context, step: Duration) {
@@ -74,7 +79,7 @@ fn update(index: u64) -> Call {
 #[test]
 fn runs_init_then_one_fixed_step_and_one_update_per_frame_then_shutdown() {
     let mut app = Recorder::default();
-    run(&mut app, &config(Some(3))).expect("headless runs do not fail");
+    run(&mut app, &config(Some(3))).expect("this application starts");
     assert_eq!(
         app.calls,
         [
@@ -96,7 +101,7 @@ fn an_exit_request_lets_the_current_frame_finish_and_runs_no_other() {
         exit_in_update_of_frame: Some(1),
         ..Recorder::default()
     };
-    run(&mut app, &config(None)).expect("headless runs do not fail");
+    run(&mut app, &config(None)).expect("this application starts");
     assert_eq!(
         app.calls,
         [
@@ -116,14 +121,32 @@ fn an_exit_requested_during_init_runs_no_frame() {
         exit_in_init: true,
         ..Recorder::default()
     };
-    run(&mut app, &config(None)).expect("headless runs do not fail");
+    run(&mut app, &config(None)).expect("this application starts");
     assert_eq!(app.calls, [Call::Init, Call::Shutdown]);
+}
+
+#[test]
+fn an_init_error_stops_the_run_without_frames_or_shutdown() {
+    let mut app = Recorder {
+        fail_in_init: true,
+        ..Recorder::default()
+    };
+    let error = run(&mut app, &config(None)).expect_err("the init error is returned");
+    assert!(
+        matches!(error, RunError::Init(_)),
+        "unexpected error: {error:?}"
+    );
+    assert_eq!(
+        std::error::Error::source(&error).map(ToString::to_string),
+        Some("no save file".to_owned())
+    );
+    assert_eq!(app.calls, [Call::Init]);
 }
 
 #[test]
 fn a_frame_limit_of_zero_runs_no_frame() {
     let mut app = Recorder::default();
-    run(&mut app, &config(Some(0))).expect("headless runs do not fail");
+    run(&mut app, &config(Some(0))).expect("this application starts");
     assert_eq!(app.calls, [Call::Init, Call::Shutdown]);
 }
 
@@ -131,8 +154,8 @@ fn a_frame_limit_of_zero_runs_no_frame() {
 fn headless_time_is_simulated_and_identical_between_runs() {
     let mut first = Recorder::default();
     let mut second = Recorder::default();
-    run(&mut first, &config(Some(600))).expect("headless runs do not fail");
-    run(&mut second, &config(Some(600))).expect("headless runs do not fail");
+    run(&mut first, &config(Some(600))).expect("this application starts");
+    run(&mut second, &config(Some(600))).expect("this application starts");
 
     assert_eq!(first.calls, second.calls);
     assert_eq!(first.calls.len(), 1 + 600 * 2 + 1);

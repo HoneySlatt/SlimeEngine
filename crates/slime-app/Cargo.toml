@@ -12,6 +12,8 @@ workspace = true
 
 [dependencies]
 ctrlc.workspace = true
+slime-gfx.workspace = true
 slime-platform.workspace = true
+thiserror.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true

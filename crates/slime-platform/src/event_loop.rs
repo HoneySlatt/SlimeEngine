@@ -17,15 +17,23 @@ use crate::window::{Window, WindowConfig};
 /// the loop ends.
 ///
 /// The calls come in this order: [`window_created`](Self::window_created) once; then
-/// [`event`](Self::event) and [`about_to_wait`](Self::about_to_wait) as events arrive and time
-/// passes; then [`exiting`](Self::exiting) once. None of them is called if the window could not
-/// be created.
+/// [`event`](Self::event), [`redraw_requested`](Self::redraw_requested) and
+/// [`about_to_wait`](Self::about_to_wait) as events arrive and time passes; then
+/// [`exiting`](Self::exiting) once. None of them is called if the window could not be created.
 pub trait EventHandler {
     /// The window now exists. Called once, before any other method.
     fn window_created(&mut self, window: &Window);
 
     /// Something happened to the window.
     fn event(&mut self, event: Event);
+
+    /// The window should be drawn now: the handler asked for it with [`Window::request_redraw`],
+    /// or the windowing system did, for example because the window was resized or uncovered.
+    ///
+    /// On Windows, while the user resizes or moves the window, the system runs a loop of its own
+    /// in which this is the only call the handler receives besides [`event`](Self::event):
+    /// [`about_to_wait`](Self::about_to_wait) is not called until the user releases the window.
+    fn redraw_requested(&mut self);
 
     /// Every pending event has been delivered and the loop is about to wait for new ones. The
     /// handler does its periodic work here and says when the loop must wake up next, or that it
@@ -127,7 +135,9 @@ impl<H: EventHandler> ApplicationHandler for WinitAdapter<'_, H> {
         if self.window.is_none() {
             return;
         }
-        if let Some(event) = translate(event) {
+        if matches!(event, WindowEvent::RedrawRequested) {
+            self.handler.redraw_requested();
+        } else if let Some(event) = translate(event) {
             self.handler.event(event);
         }
     }

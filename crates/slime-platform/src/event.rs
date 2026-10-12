@@ -52,6 +52,8 @@ pub enum Event {
 }
 
 /// Translates a winit window event, or returns `None` for events the engine does not handle.
+/// Redraw requests are not events: the event loop passes them to
+/// [`EventHandler::redraw_requested`](crate::EventHandler::redraw_requested).
 pub(crate) fn translate(event: WindowEvent) -> Option<Event> {
     match event {
         WindowEvent::CloseRequested => Some(Event::CloseRequested),
@@ -112,6 +114,5 @@ mod tests {
             translate(WindowEvent::Moved(PhysicalPosition::new(10, 20))),
             None
         );
-        assert_eq!(translate(WindowEvent::RedrawRequested), None);
     }
 }

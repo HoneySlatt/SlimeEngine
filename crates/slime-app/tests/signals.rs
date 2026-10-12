@@ -16,7 +16,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use slime_app::time::FrameTime;
-use slime_app::{App, AppConfig, Context, run};
+use slime_app::{App, AppConfig, AppError, Context, run};
 
 const CHILD_ENV: &str = "SLIME_APP_TEST_CHILD";
 const TIMEOUT: Duration = Duration::from_secs(10);
@@ -27,8 +27,9 @@ struct Announcer {
 }
 
 impl App for Announcer {
-    fn init(&mut self, _ctx: &mut Context) {
+    fn init(&mut self, _ctx: &mut Context) -> Result<(), AppError> {
         println!("ready");
+        Ok(())
     }
 
     fn update(&mut self, _ctx: &mut Context, frame: &FrameTime) {
@@ -48,7 +49,7 @@ fn is_child() -> bool {
 
 fn run_child_app(block_first_frame: bool) {
     let mut app = Announcer { block_first_frame };
-    run(&mut app, &AppConfig::default()).expect("headless runs do not fail");
+    run(&mut app, &AppConfig::default()).expect("this application starts");
 }
 
 /// Starts the test named `test` in a child process and waits until its application is running.

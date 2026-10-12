@@ -1,6 +1,6 @@
 # 0010. Main loop ownership and the application API
 
-- Status: Accepted
+- Status: Accepted; amended by [0020](0020-rendering-in-the-main-loop.md) (rendering and errors)
 - Date: 2026-10-12
 
 ## Context

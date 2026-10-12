@@ -1,10 +1,7 @@
-//! Opens a window, logs the events it receives (window, keyboard and mouse), and fills it with a
-//! solid color. Escape, closing the window or Ctrl+C quits; cursor motion is logged at the `debug`
-//! level. With `--headless`, the same program runs without a window, as automated checks run it.
-//!
-//! A Wayland compositor shows a window only once the application has given it pixels. Until the
-//! engine presents frames with the GPU (Stage 2), this example fills the window from the CPU with
-//! `softbuffer`, a dependency of the examples only.
+//! Opens a window, draws the samples' triangle in it with the GPU, and logs the events it receives
+//! (window, keyboard and mouse). Escape, closing the window or Ctrl+C quits; cursor motion is
+//! logged at the `debug` level. With `--headless`, the same program runs without a window and
+//! without a GPU, as automated checks run it.
 //!
 //! ```sh
 //! cargo run --example window
@@ -16,66 +13,30 @@
 
 #[path = "common/error_chain.rs"]
 mod error_chain;
+#[path = "common/triangle.rs"]
+mod triangle;
 
-use std::num::NonZeroU32;
 use std::process::ExitCode;
 
-use slime_app::time::FrameTime;
-use slime_app::{App, AppConfig, Context};
-use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, Window, WindowConfig};
-use softbuffer::SoftBufferError;
+use slime_app::{App, AppConfig, AppError, Context};
+use slime_gfx::RenderTarget;
+use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, WindowConfig};
 
 use error_chain::error_chain;
-
-/// The fill color, as `0x00RRGGBB`.
-const COLOR: u32 = 0x0030_7a4a;
-
-type Surface = softbuffer::Surface<Window, Window>;
+use triangle::{BACKGROUND, Triangle};
 
 #[derive(Default)]
 struct WindowExample {
-    surface: Option<Surface>,
-    needs_redraw: bool,
-    /// Set when drawing failed. The run then stops and the program exits with an error code, so
-    /// that the automated checks notice.
-    failed: bool,
-}
-
-impl WindowExample {
-    fn redraw(&mut self) -> Result<(), SoftBufferError> {
-        let Some(surface) = &mut self.surface else {
-            return Ok(());
-        };
-        let size = surface.window().inner_size();
-        let (Some(width), Some(height)) =
-            (NonZeroU32::new(size.width), NonZeroU32::new(size.height))
-        else {
-            // Nothing to draw into while the window has no area.
-            return Ok(());
-        };
-        surface.resize(width, height)?;
-        let mut buffer = surface.buffer_mut()?;
-        buffer.fill(COLOR);
-        buffer.present()
-    }
+    /// The triangle's GPU objects; `None` when running headless.
+    triangle: Option<Triangle>,
 }
 
 impl App for WindowExample {
-    fn init(&mut self, ctx: &mut Context) {
-        let Some(window) = ctx.window() else {
-            return;
-        };
-        match create_surface(window) {
-            Ok(surface) => {
-                self.surface = Some(surface);
-                self.needs_redraw = true;
-            }
-            Err(error) => {
-                tracing::error!(%error, "cannot create the drawing surface");
-                self.failed = true;
-                ctx.request_exit();
-            }
+    fn init(&mut self, ctx: &mut Context) -> Result<(), AppError> {
+        if let (Some(gpu), Some(format)) = (ctx.gpu(), ctx.surface_format()) {
+            self.triangle = Some(Triangle::new(gpu, format)?);
         }
+        Ok(())
     }
 
     fn on_event(&mut self, ctx: &mut Context, event: &Event) {
@@ -83,39 +44,25 @@ impl App for WindowExample {
             Event::CursorMoved { .. } => tracing::debug!(?event, "event"),
             _ => tracing::info!(?event, "event"),
         }
-        match event {
-            Event::Resized(_) | Event::ScaleFactorChanged { .. } => self.needs_redraw = true,
-            Event::Key(KeyEvent {
-                physical: KeyCode::Escape,
-                state: ButtonState::Pressed,
-                ..
-            }) => ctx.request_exit(),
-            _ => {}
-        }
-    }
-
-    fn update(&mut self, ctx: &mut Context, _frame: &FrameTime) {
-        if !self.needs_redraw {
-            return;
-        }
-        self.needs_redraw = false;
-        if let Err(error) = self.redraw() {
-            tracing::error!(%error, "cannot draw the window");
-            self.failed = true;
+        if let Event::Key(KeyEvent {
+            physical: KeyCode::Escape,
+            state: ButtonState::Pressed,
+            ..
+        }) = event
+        {
             ctx.request_exit();
         }
     }
 
+    fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
+        if let (Some(gpu), Some(triangle)) = (ctx.gpu(), &self.triangle) {
+            gpu.render(target, BACKGROUND, |pass| triangle.draw(pass));
+        }
+    }
+
     fn shutdown(&mut self, _ctx: &mut Context) {
-        // The surface holds clones of the window; release them while the window still exists.
-        self.surface = None;
         tracing::info!("shutdown");
     }
-}
-
-fn create_surface(window: &Window) -> Result<Surface, SoftBufferError> {
-    let context = softbuffer::Context::new(window.clone())?;
-    softbuffer::Surface::new(&context, window.clone())
 }
 
 fn main() -> ExitCode {
@@ -136,9 +83,7 @@ fn main() -> ExitCode {
         frame_limit: options.frame_limit,
         ..AppConfig::default()
     };
-    let mut example = WindowExample::default();
-    match slime_app::run(&mut example, &config) {
-        Ok(()) if example.failed => ExitCode::FAILURE,
+    match slime_app::run(&mut WindowExample::default(), &config) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             tracing::error!("run failed: {}", error_chain(&error));

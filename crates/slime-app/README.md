@@ -5,15 +5,18 @@ down.
 
 ## Status
 
-Applications run headless or with one window that receives keyboard and mouse input; the main
-loop, frame timing, exit requests, clean shutdown on Ctrl+C and other termination signals,
-profiling spans and diagnostics work. What is missing is listed in `docs/PLAN.md` (known debt).
+Applications run headless or with one window that receives keyboard and mouse input and that they
+draw into with the GPU; the main loop, frame timing, exit requests, errors at startup, clean
+shutdown on Ctrl+C and other termination signals, profiling spans and diagnostics work. What is
+missing is listed in `docs/PLAN.md` (known debt).
 
 ## Role
 
 - Starts an application, runs its frames, and shuts it down, with or without a window. Running
   without a window (headless) is a normal configuration, used by automated tests and later by
   dedicated servers.
+- With a window, opens the GPU that draws into it, and gives each frame an image of the window to
+  draw into, which it then shows.
 - Sets up the engine's diagnostics and owns frame timing.
 
 ## Entry points
@@ -44,13 +47,47 @@ impl App for Game {
 
 let mut game = Game::default();
 // The default configuration runs headless; set `window` to open one.
-slime_app::run(&mut game, &AppConfig::default()).expect("headless runs do not fail");
+slime_app::run(&mut game, &AppConfig::default()).expect("this application starts");
 assert_eq!(game.fixed_steps, 60);
 ```
 
+With a window, `render` draws each frame. This one clears the window to a color; the `window`
+example (`examples/window.rs`) also creates GPU objects in `init` and draws a triangle:
+
+```rust,no_run
+use slime_app::{App, AppConfig, Context};
+use slime_gfx::{Color, RenderTarget};
+use slime_platform::WindowConfig;
+
+struct Game;
+
+impl App for Game {
+    fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
+        let gpu = ctx.gpu().expect("windowed runs have a GPU");
+        let sky = Color { r: 0.1, g: 0.3, b: 0.8, a: 1.0 };
+        gpu.render(target, sky, |_pass| {});
+    }
+}
+
+let config = AppConfig {
+    window: Some(WindowConfig::default()),
+    ..AppConfig::default()
+};
+if let Err(error) = slime_app::run(&mut Game, &config) {
+    eprintln!("cannot run the game: {error}");
+}
+```
+
 - `App`: the methods the engine calls, in this order: `init` once; then for each frame,
-  `fixed_update` once per fixed step and `update` once; then `shutdown` once. With a window,
-  `on_event` receives each window event between frames. All have empty defaults.
+  `fixed_update` once per fixed step, `update` once and, with a window, `render` once; then
+  `shutdown` once. With a window, `on_event` receives each window event between frames. All have
+  defaults that do nothing.
+  - `init` can fail: it returns `Result<(), AppError>`, where `AppError` is any boxed error (`?`
+    converts errors into it). After a failed `init`, no frame runs, `shutdown` is not called and
+    `run` returns the error.
+  - `render(ctx, target)` draws the frame into `target`, the window's image, with `ctx.gpu()`;
+    the engine shows the image afterwards. It is not called in frames where the window cannot
+    show a new image: while it is minimized, or when its next image is not ready in time.
 - `run(&mut app, &config)`: sets up diagnostics and a handler for termination signals, then runs
   the application until it calls `Context::request_exit`, the window is closed, the process
   receives SIGINT (Ctrl+C), SIGTERM or SIGHUP, or `AppConfig::frame_limit` is reached. In every
@@ -58,13 +95,18 @@ assert_eq!(game.fixed_steps, 60);
   once (exit code 130) for an application that no longer finishes its frames
   (`docs/adr/0012-clean-shutdown-on-termination-signals.md`).
   - Headless: frames run back to back with simulated time: each frame represents one fixed step,
-    so runs are deterministic. The windowing system is never touched.
-  - With a window, `run` must be called from the main thread (it panics otherwise). The window
-    exists before `init`; frames represent the real time between them, on average at most
-    `AppConfig::max_frame_rate` per second (60 by default), and the loop sleeps between them. This
-    limiter is temporary: presentation will pace frames once the GPU layer exists.
-  - It returns a `slime_platform::PlatformError` when the window cannot be opened, for example
-    without a display server. Only one windowed run, or attempt, is possible per process.
+    so runs are deterministic. Neither the windowing system nor the GPU is touched.
+  - With a window, `run` must be called from the main thread (it panics otherwise). The window and
+    the GPU exist before `init`. Frames represent the real time between them. The engine asks for
+    a frame on average at most `AppConfig::max_frame_rate` times per second (60 by default) and
+    sleeps in between; a frame runs each time the windowing system lets the window draw, which
+    also happens on its own initiative, for example during a resize
+    (`docs/adr/0020-rendering-in-the-main-loop.md`). The images are shown in step with the
+    display, which can block a frame: up to one second when the compositor stops showing a hidden
+    window (see `docs/PLAN.md`).
+  - It returns a `RunError`: `Init` when `init` fails, `Platform` when the window cannot be opened
+    (for example without a display server) or its event loop fails, `Gfx` when no GPU can draw into
+    the window. Only one windowed run, or attempt, is possible per process.
   - The signal handler replaces any other handler the process had for these signals, except one
     installed earlier through the `ctrlc` crate, which is kept.
   - On Windows, Ctrl+C and Ctrl+Break in a console stop the run the same way; closing the console
@@ -72,8 +114,9 @@ assert_eq!(game.fixed_steps, 60);
 - `AppConfig`: the window (`None`, the default, runs headless), frame limit, fixed step
   (1/60 s), maximum fixed steps per frame (8), maximum frame delta (250 ms) and maximum frame rate
   (60). Write it as a struct literal ending with `..AppConfig::default()`.
-- `Context`: what an application can ask from the engine: the window (`Context::window`, `None`
-  when headless) and stopping the run.
+- `Context`: what an application can ask from the engine: the window (`Context::window`), the GPU
+  that draws into it (`Context::gpu`) and the format of its images (`Context::surface_format`),
+  all `None` when headless; and stopping the run.
 - `time`: `FrameClock` turns the time between frames into a `FrameTime` (index, delta, elapsed
   time) and limits how much time one frame can represent; `FixedStep` splits frame time into
   steps of a fixed duration. Both take durations rather than reading a clock
@@ -89,16 +132,20 @@ assert_eq!(game.fixed_steps, 60);
 Engine code and games log through the `tracing` macros. The conventions for errors, log levels and
 assertions are in `docs/adr/0008-errors-logging-and-assertions.md`; why the engine owns the main
 loop is in `docs/adr/0010-main-loop-ownership.md`. With `SLIME_LOG=trace`, each frame's profiling
-spans (`frame`, `fixed_update`, `update`) are logged with the time spent in them.
+spans are logged with the time spent in them: `frame`, containing `fixed_update`, `update`, and
+with a window `acquire` (waiting for the window's image), `render` and `present`.
 
 ## Dependencies
 
 - `ctrlc`: handles termination signals.
+- `slime-gfx`: the GPU and the window's surface, for windowed runs.
 - `slime-platform`: the window and its events, for windowed runs.
+- `thiserror`: derives `RunError`'s `Display` and `Error` implementations.
 - `tracing`: the logging macros and profiling spans.
 - `tracing-subscriber`: the subscriber that formats, filters and writes log events.
 
 ## Must not
 
-- Use the windowing library directly: windows and input go through `slime-platform`.
-- Touch the windowing system when it runs headless.
+- Use the windowing library or wgpu directly: windows and input go through `slime-platform`, the
+  GPU through `slime-gfx`.
+- Touch the windowing system or the GPU when it runs headless.

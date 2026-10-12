@@ -12,7 +12,7 @@ use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
 use slime_app::time::FrameTime;
-use slime_app::{App, AppConfig, Context};
+use slime_app::{App, AppConfig, AppError, Context};
 
 /// Counts what the engine asks it to do.
 #[derive(Default)]
@@ -22,8 +22,9 @@ struct Counter {
 }
 
 impl App for Counter {
-    fn init(&mut self, _ctx: &mut Context) {
+    fn init(&mut self, _ctx: &mut Context) -> Result<(), AppError> {
         tracing::info!("init");
+        Ok(())
     }
 
     fn fixed_update(&mut self, _ctx: &mut Context, _step: Duration) {
@@ -60,7 +61,7 @@ fn main() -> ExitCode {
         ..AppConfig::default()
     };
     let started = Instant::now();
-    slime_app::run(&mut Counter::default(), &config).expect("headless runs do not fail");
+    slime_app::run(&mut Counter::default(), &config).expect("this application starts");
     tracing::info!(wall_clock = ?started.elapsed(), "done");
     ExitCode::SUCCESS
 }
