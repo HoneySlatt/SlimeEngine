@@ -12,7 +12,7 @@ documentation was updated and reread.
 ## Current
 
 - Stage 0 — Foundations
-- Milestone M0.3 — Workspace, lints and crate skeletons
+- Milestone M0.4 — Dependency policy and CI
 
 ## Status
 
@@ -20,8 +20,8 @@ documentation was updated and reread.
 |---|---|---|
 | [M0.1](#m01--repository-license-and-adr-process) | Repository, license and ADR process | Done |
 | [M0.2](#m02--nix-development-environment) | Nix development environment | Done |
-| [M0.3](#m03--workspace-lints-and-crate-skeletons) | Workspace, lints and crate skeletons | In progress |
-| [M0.4](#m04--dependency-policy-and-ci) | Dependency policy and CI | Planned |
+| [M0.3](#m03--workspace-lints-and-crate-skeletons) | Workspace, lints and crate skeletons | Done |
+| [M0.4](#m04--dependency-policy-and-ci) | Dependency policy and CI | In progress |
 | [M1.1](#m11--logging-and-diagnostics) | Logging and diagnostics | Planned |
 | [M1.2](#m12--frame-timing) | Frame timing | Planned |
 | [M1.3](#m13--lifecycle-and-headless-mode) | Lifecycle and headless mode | Planned |
@@ -176,5 +176,5 @@ None yet.
 
 ## Notes
 
-- Links to `docs/ARCHITECTURE.md` and `docs/dependencies.md` are added to the documents that
-  mention them when those files are created (M0.3 and M0.4).
+- Links to `docs/dependencies.md` are added to the documents that mention it when the file is
+  created (M0.4).

@@ -44,6 +44,17 @@ Install [rustup](https://rustup.rs). It reads `rust-toolchain.toml` and installs
 toolchain the first time you run `cargo` in the repository. Install the tools with
 `cargo install --locked cargo-deny lychee`; CI uses the versions pinned by `flake.lock`.
 
+## Checks
+
+The commands that every change must pass are listed in
+[`AGENTS.md`](AGENTS.md#environment-and-commands): build, tests, clippy with warnings as errors,
+rustfmt, and rustdoc with warnings as errors. Run them inside `nix develop`, or prefix each with
+`nix develop -c`.
+
+The lints they enforce are set once for the whole workspace in [`Cargo.toml`](Cargo.toml);
+[ADR-0005](docs/adr/0005-lints-and-unsafe-policy.md) explains them and the rules for `unsafe`
+code.
+
 ## Making a change
 
 1. Keep each commit to one logical change, small enough to review. Write the subject in the

@@ -23,5 +23,8 @@ M1.3.
 **Sample.** The example that demonstrates the exit criterion of a stage. Every stage ends with
 one.
 
+**Skeleton (crate).** A crate that exists with its documentation and inherits the workspace
+policies, but holds no code yet.
+
 **Stage.** A step of [`docs/ROADMAP.md`](ROADMAP.md), ordered by dependency, with a goal and an
 exit criterion. Stages are numbered from 0; a stage may be split (Stage 3a and 3b).
