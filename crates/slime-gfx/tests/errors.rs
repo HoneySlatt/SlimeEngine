@@ -1,8 +1,9 @@
-//! Errors from creating GPU objects: they are returned, readable, and name the object's label.
+//! Errors from creating GPU objects: they are returned, readable, and name the object's label;
+//! and the misuses that are caught at creation, which panic with the label.
 
 use slime_gfx::{
-    GfxError, Gpu, RenderPipelineDescriptor, TextureFormat, VertexAttribute, VertexFormat,
-    VertexLayout,
+    CullMode, GfxError, Gpu, RenderPipelineDescriptor, TextureFormat, VertexAttribute,
+    VertexFormat, VertexLayout,
 };
 
 const SHADER: &str = "
@@ -16,6 +17,31 @@ fn fs_main() -> @location(0) vec4<f32> {
     return vec4<f32>(1.0, 1.0, 1.0, 1.0);
 }
 ";
+
+/// The same, moved by a uniform that the pipeline must provide a layout for.
+const SHADER_WITH_UNIFORM: &str = "
+@group(0) @binding(0) var<uniform> offset: vec4<f32>;
+
+@vertex
+fn vs_main(@location(0) position: vec2<f32>) -> @builtin(position) vec4<f32> {
+    return vec4<f32>(position + offset.xy, 0.0, 1.0);
+}
+
+@fragment
+fn fs_main() -> @location(0) vec4<f32> {
+    return vec4<f32>(1.0, 1.0, 1.0, 1.0);
+}
+";
+
+/// A position in clip space, and nothing else.
+const POSITION_ONLY: VertexLayout<'static> = VertexLayout {
+    stride: 8,
+    attributes: &[VertexAttribute {
+        location: 0,
+        offset: 0,
+        format: VertexFormat::Float32x2,
+    }],
+};
 
 fn gpu() -> Gpu {
     Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers")
@@ -48,14 +74,10 @@ fn a_pipeline_error_names_the_pipeline() {
             shader: &shader,
             vertex_entry_point: "does_not_exist",
             fragment_entry_point: "fs_main",
-            vertex_layout: VertexLayout {
-                stride: 8,
-                attributes: &[VertexAttribute {
-                    location: 0,
-                    offset: 0,
-                    format: VertexFormat::Float32x2,
-                }],
-            },
+            vertex_layout: POSITION_ONLY,
+            bind_group_layouts: &[],
+            depth: None,
+            cull: CullMode::None,
             target_format: TextureFormat::Rgba8UnormSrgb,
         })
         .expect_err("a missing entry point must be rejected");
@@ -69,7 +91,57 @@ fn a_pipeline_error_names_the_pipeline() {
 }
 
 #[test]
+fn a_pipeline_whose_shader_bindings_are_not_in_its_layouts_is_rejected() {
+    let gpu = gpu();
+    let shader = gpu
+        .create_shader_module("offset", SHADER_WITH_UNIFORM)
+        .expect("the shader compiles");
+    let error = gpu
+        .create_render_pipeline(&RenderPipelineDescriptor {
+            label: "pipeline without the layout of its uniform",
+            shader: &shader,
+            vertex_entry_point: "vs_main",
+            fragment_entry_point: "fs_main",
+            vertex_layout: POSITION_ONLY,
+            bind_group_layouts: &[],
+            depth: None,
+            cull: CullMode::None,
+            target_format: TextureFormat::Rgba8UnormSrgb,
+        })
+        .expect_err("a binding that no layout holds must be rejected");
+    let GfxError::Pipeline { label, message } = &error else {
+        panic!("expected a pipeline error, got {error:?}");
+    };
+    assert_eq!(label, "pipeline without the layout of its uniform");
+    assert!(
+        message.to_lowercase().contains("binding"),
+        "wgpu's message names the binding: {message}"
+    );
+}
+
+#[test]
 #[should_panic(expected = "vertex buffer `empty mesh` is empty")]
 fn an_empty_vertex_buffer_is_rejected_at_creation() {
     gpu().create_vertex_buffer("empty mesh", &[]);
+}
+
+#[test]
+#[should_panic(expected = "index buffer `empty mesh` is empty")]
+fn an_empty_index_buffer_is_rejected_at_creation() {
+    gpu().create_index_buffer("empty mesh", &[]);
+}
+
+#[test]
+#[should_panic(expected = "uniform buffer `odd` holds 6 bytes")]
+fn a_uniform_buffer_whose_size_is_not_a_multiple_of_4_is_rejected_at_creation() {
+    gpu().create_uniform_buffer("odd", &[0; 6]);
+}
+
+#[test]
+#[should_panic(expected = "uniform buffer `offset` holds 16 bytes, but 8 were written")]
+fn a_write_of_another_size_than_the_uniform_buffer_is_rejected() {
+    let gpu = gpu();
+    let buffer = gpu.create_uniform_buffer("offset", &[0; 16]);
+    assert_eq!(buffer.size(), 16);
+    gpu.write_uniform_buffer(&buffer, &[0; 8]);
 }

@@ -84,7 +84,7 @@ the ADR linking to it.
 | [0014](0014-amend-roadmap-for-stage-2-and-windows.md) | Amend the roadmap for Stage 2 and for Windows | Accepted |
 | [0015](0015-platforms-and-ci.md) | Platforms and CI on Linux and Windows | Accepted |
 | [0016](0016-gpu-layer-with-wgpu.md) | The GPU layer: wgpu behind `slime-gfx` | Accepted; amended by 0022 |
-| [0017](0017-gpu-resource-types.md) | GPU resource types | Accepted |
+| [0017](0017-gpu-resource-types.md) | GPU resource types | Accepted; amended by 0026 |
 | [0018](0018-reference-image-tests.md) | Reference image tests | Accepted |
 | [0019](0019-default-log-filter.md) | Default log filter | Accepted |
 | [0020](0020-rendering-in-the-main-loop.md) | Rendering in the main loop, and application errors | Accepted; amended by 0021, 0022, 0025 |
@@ -93,3 +93,4 @@ the ADR linking to it.
 | [0023](0023-dependency-checks-for-the-supported-targets.md) | Check the dependencies of the supported targets only | Accepted |
 | [0024](0024-windowed-lifecycle-check-in-weston.md) | Windowed lifecycle check in the headless compositor | Accepted |
 | [0025](0025-giving-up-a-lost-surface.md) | Giving up a window's surface that is lost for good | Accepted |
+| [0026](0026-resource-binding-and-depth.md) | Resource binding and depth in `slime-gfx` | Accepted |

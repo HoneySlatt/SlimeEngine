@@ -25,8 +25,8 @@ Drawing a triangle into an offscreen image and reading it back:
 
 ```rust
 use slime_gfx::{
-    Color, GfxError, Gpu, RenderPipelineDescriptor, TextureFormat, VertexAttribute, VertexFormat,
-    VertexLayout,
+    Color, CullMode, GfxError, Gpu, RenderPassDescriptor, RenderPipelineDescriptor, TextureFormat,
+    VertexAttribute, VertexFormat, VertexLayout,
 };
 
 const SHADER: &str = "
@@ -58,6 +58,9 @@ fn main() -> Result<(), GfxError> {
                 format: VertexFormat::Float32x2,
             }],
         },
+        bind_group_layouts: &[],
+        depth: None,
+        cull: CullMode::None,
         target_format: target.format(),
     })?;
     // Three corners as (x, y) pairs of f32, in the GPU's byte order (little-endian).
@@ -66,7 +69,8 @@ fn main() -> Result<(), GfxError> {
     let vertices = gpu.create_vertex_buffer("triangle", &bytes);
 
     let black = Color { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
-    gpu.render(&target, black, |pass| {
+    let pass = RenderPassDescriptor { target: &target, clear: Some(black), depth: None };
+    gpu.render(&pass, |pass| {
         pass.set_pipeline(&pipeline);
         pass.set_vertex_buffer(0, &vertices);
         pass.draw(0..3);

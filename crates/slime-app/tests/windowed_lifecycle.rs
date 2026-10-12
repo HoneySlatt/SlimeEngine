@@ -12,7 +12,7 @@ use std::time::Instant;
 
 use slime_app::time::FrameTime;
 use slime_app::{App, AppConfig, AppError, Context, RunError};
-use slime_gfx::{Color, RenderTarget};
+use slime_gfx::{Color, RenderPassDescriptor, RenderTarget};
 use slime_platform::{Event, PlatformError, WindowConfig};
 
 const SCENARIO_ENV: &str = "SLIME_APP_TEST_SCENARIO";
@@ -79,9 +79,12 @@ impl App for Recorder {
             b: 0.2,
             a: 1.0,
         };
-        ctx.gpu()
-            .expect("windowed run")
-            .render(target, grey, |_pass| {});
+        let pass = RenderPassDescriptor {
+            target,
+            clear: Some(grey),
+            depth: None,
+        };
+        ctx.gpu().expect("windowed run").render(&pass, |_pass| {});
         println!("call render {}", self.last_update);
     }
 

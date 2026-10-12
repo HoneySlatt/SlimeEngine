@@ -3,7 +3,10 @@
 use std::ops::Range;
 use std::sync::atomic::Ordering;
 
+use crate::bind_group::BindGroup;
+use crate::depth_target::DepthTarget;
 use crate::gpu::Gpu;
+use crate::index_buffer::IndexBuffer;
 use crate::pipeline::RenderPipeline;
 use crate::render_target::RenderTarget;
 use crate::vertex_buffer::VertexBuffer;
@@ -32,6 +35,22 @@ impl Color {
     }
 }
 
+/// What a render pass draws into ([`Gpu::render`]).
+#[derive(Clone, Copy, Debug)]
+pub struct RenderPassDescriptor<'a> {
+    /// The image to draw into.
+    pub target: &'a RenderTarget,
+    /// `Some(color)` clears the target to that color before drawing, and the depth target, if
+    /// there is one, to the farthest depth; `None` keeps what both hold, so that the pass draws
+    /// over an earlier one.
+    pub clear: Option<Color>,
+    /// The depth target that pipelines with a depth test read and write, or `None` for a pass
+    /// without one. It must have the size of `target`. A pass with a depth target takes only
+    /// pipelines with a depth test, and a pass without takes only pipelines without
+    /// ([`RenderPipelineDescriptor::depth`](crate::RenderPipelineDescriptor::depth)).
+    pub depth: Option<&'a DepthTarget>,
+}
+
 /// The drawing commands of one render pass, recorded inside [`Gpu::render`].
 #[derive(Debug)]
 pub struct RenderPass<'a> {
@@ -44,14 +63,32 @@ impl RenderPass<'_> {
         self.pass.set_pipeline(&pipeline.pipeline);
     }
 
+    /// Binds `group` at `index` for the next draws: the `@group` number of its layout in the
+    /// pipeline's [`bind_group_layouts`](crate::RenderPipelineDescriptor::bind_group_layouts).
+    pub fn set_bind_group(&mut self, index: u32, group: &BindGroup) {
+        self.pass.set_bind_group(index, &group.group, &[]);
+    }
+
     /// Reads the vertices of the next draws from `buffer`, at the pipeline's vertex buffer `slot`.
     pub fn set_vertex_buffer(&mut self, slot: u32, buffer: &VertexBuffer) {
         self.pass.set_vertex_buffer(slot, buffer.buffer.slice(..));
     }
 
+    /// Reads the indices of the next indexed draws from `buffer`.
+    pub fn set_index_buffer(&mut self, buffer: &IndexBuffer) {
+        self.pass
+            .set_index_buffer(buffer.buffer.slice(..), wgpu::IndexFormat::Uint32);
+    }
+
     /// Draws the vertices of the range `vertices`, three by three as triangles.
     pub fn draw(&mut self, vertices: Range<u32>) {
         self.pass.draw(vertices, 0..1);
+    }
+
+    /// Draws the vertices that the indices of the range `indices` of the index buffer name, three
+    /// by three as triangles.
+    pub fn draw_indexed(&mut self, indices: Range<u32>) {
+        self.pass.draw_indexed(indices, 0, 0..1);
     }
 
     /// Groups the commands that `record` gives under `label`, for GPU capture tools such as
@@ -65,21 +102,35 @@ impl RenderPass<'_> {
 }
 
 impl Gpu {
-    /// Clears `target` to `clear`, lets `record` draw into it, then submits the work to the GPU.
+    /// Runs one render pass as `descriptor` says: clears or keeps the target, lets `record` draw
+    /// into it, then submits the work to the GPU.
     ///
     /// The work runs on the GPU after this function returns; reading the target back waits for
     /// it. Submitting it is recorded as a `trace`-level profiling span named `submit`.
     ///
     /// # Panics
     ///
-    /// If wgpu rejects a command that `record` gave, for example a pipeline built for another
-    /// target format: this is a bug in the caller.
+    /// If the depth target does not have the size of the render target, or if wgpu rejects a
+    /// command that `record` gave, for example a pipeline built for another target format or
+    /// without the depth test the pass needs: these are bugs in the caller.
     pub fn render(
         &self,
-        target: &RenderTarget,
-        clear: Color,
+        descriptor: &RenderPassDescriptor<'_>,
         record: impl FnOnce(&mut RenderPass<'_>),
     ) {
+        let target = descriptor.target;
+        if let Some(depth) = descriptor.depth {
+            assert!(
+                (depth.width(), depth.height()) == (target.width(), target.height()),
+                "depth target `{}` is {}x{} but render target `{}` is {}x{}",
+                depth.label,
+                depth.width(),
+                depth.height(),
+                target.label,
+                target.width(),
+                target.height()
+            );
+        }
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -93,11 +144,27 @@ impl Gpu {
                     depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(clear.to_wgpu()),
+                        load: match descriptor.clear {
+                            Some(color) => wgpu::LoadOp::Clear(color.to_wgpu()),
+                            None => wgpu::LoadOp::Load,
+                        },
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: descriptor.depth.map(|depth| {
+                    wgpu::RenderPassDepthStencilAttachment {
+                        view: &depth.view,
+                        depth_ops: Some(wgpu::Operations {
+                            load: if descriptor.clear.is_some() {
+                                wgpu::LoadOp::Clear(1.0)
+                            } else {
+                                wgpu::LoadOp::Load
+                            },
+                            store: wgpu::StoreOp::Store,
+                        }),
+                        stencil_ops: None,
+                    }
+                }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
                 multiview_mask: None,

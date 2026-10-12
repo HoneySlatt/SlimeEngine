@@ -23,7 +23,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
-use slime_gfx::{Gpu, Image, TextureFormat};
+use slime_gfx::{Gpu, Image, RenderPassDescriptor, TextureFormat};
 
 use triangle::{BACKGROUND, Triangle};
 
@@ -53,7 +53,12 @@ fn check_triangle(format: TextureFormat, name: &str) {
     let target = gpu.create_render_target("reference triangle", SIZE, SIZE, format);
     let triangle =
         Triangle::new(&gpu, target.format()).expect("the triangle's GPU objects are valid");
-    gpu.render(&target, BACKGROUND, |pass| triangle.draw(pass));
+    let pass = RenderPassDescriptor {
+        target: &target,
+        clear: Some(BACKGROUND),
+        depth: None,
+    };
+    gpu.render(&pass, |pass| triangle.draw(pass));
     let image = gpu
         .read_render_target(&target)
         .expect("the image is read back");

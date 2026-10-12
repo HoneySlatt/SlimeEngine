@@ -56,7 +56,7 @@ example (`examples/window.rs`) also creates GPU objects in `init` and draws a tr
 
 ```rust,no_run
 use slime_app::{App, AppConfig, Context};
-use slime_gfx::{Color, RenderTarget};
+use slime_gfx::{Color, RenderPassDescriptor, RenderTarget};
 use slime_platform::WindowConfig;
 
 struct Game;
@@ -65,7 +65,8 @@ impl App for Game {
     fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
         let gpu = ctx.gpu().expect("windowed runs have a GPU");
         let sky = Color { r: 0.1, g: 0.3, b: 0.8, a: 1.0 };
-        gpu.render(target, sky, |_pass| {});
+        let pass = RenderPassDescriptor { target, clear: Some(sky), depth: None };
+        gpu.render(&pass, |_pass| {});
     }
 }
 

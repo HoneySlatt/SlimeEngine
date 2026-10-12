@@ -3,7 +3,7 @@
 //! not a multiple of that exercise the unpadding, which the 256-pixel-wide reference image does
 //! not. Runs on whatever adapter the machine offers, like `device.rs`.
 
-use slime_gfx::{Color, Gpu, TextureFormat};
+use slime_gfx::{Color, Gpu, RenderPassDescriptor, TextureFormat};
 
 /// A color whose sRGB encoding is known: 0.5 linear is 187.5 of 255, so 187 or 188.
 const CLEAR: Color = Color {
@@ -20,7 +20,12 @@ fn readback_unpads_rows_and_orders_channels_for_every_size() {
     for (width, height) in [(1, 1), (3, 5), (63, 2), (64, 1), (65, 2), (257, 2)] {
         for format in [TextureFormat::Rgba8UnormSrgb, TextureFormat::Bgra8UnormSrgb] {
             let target = gpu.create_render_target("readback", width, height, format);
-            gpu.render(&target, CLEAR, |_pass| {});
+            let pass = RenderPassDescriptor {
+                target: &target,
+                clear: Some(CLEAR),
+                depth: None,
+            };
+            gpu.render(&pass, |_pass| {});
             let image = gpu
                 .read_render_target(&target)
                 .expect("the image is read back");

@@ -18,7 +18,7 @@ mod triangle;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use slime_gfx::{Gpu, TextureFormat};
+use slime_gfx::{Gpu, RenderPassDescriptor, TextureFormat};
 
 use error_chain::error_chain;
 use triangle::{BACKGROUND, Triangle};
@@ -51,7 +51,12 @@ fn render_to_file(output: &std::path::Path) -> Result<(), Box<dyn std::error::Er
     let gpu = Gpu::new()?;
     let target = gpu.create_render_target("offscreen", SIZE, SIZE, TextureFormat::Rgba8UnormSrgb);
     let triangle = Triangle::new(&gpu, target.format())?;
-    gpu.render(&target, BACKGROUND, |pass| triangle.draw(pass));
+    let pass = RenderPassDescriptor {
+        target: &target,
+        clear: Some(BACKGROUND),
+        depth: None,
+    };
+    gpu.render(&pass, |pass| triangle.draw(pass));
     let image = gpu.read_render_target(&target)?;
     png_file::write(output, &image)
         .map_err(|error| format!("cannot write {}: {error}", output.display()))?;

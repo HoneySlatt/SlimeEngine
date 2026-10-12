@@ -196,7 +196,7 @@ fn instance_flags() -> wgpu::InstanceFlags {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Color, TextureFormat};
+    use crate::{Color, RenderPassDescriptor, TextureFormat};
 
     #[test]
     fn a_lost_device_is_reported_and_using_it_does_not_panic() {
@@ -219,7 +219,12 @@ mod tests {
             b: 0.0,
             a: 1.0,
         };
-        gpu.render(&target, black, |_pass| {});
+        let pass = RenderPassDescriptor {
+            target: &target,
+            clear: Some(black),
+            depth: None,
+        };
+        gpu.render(&pass, |_pass| {});
         for result in [
             gpu.read_render_target(&target).map(|_| ()),
             gpu.wait_idle(),

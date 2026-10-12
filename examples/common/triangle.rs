@@ -2,8 +2,8 @@
 //! shader, its vertices and the commands that draw it.
 
 use slime_gfx::{
-    Color, GfxError, Gpu, RenderPass, RenderPipeline, RenderPipelineDescriptor, TextureFormat,
-    VertexAttribute, VertexBuffer, VertexFormat, VertexLayout,
+    Color, CullMode, GfxError, Gpu, RenderPass, RenderPipeline, RenderPipelineDescriptor,
+    TextureFormat, VertexAttribute, VertexBuffer, VertexFormat, VertexLayout,
 };
 
 /// The color behind the triangle.
@@ -51,6 +51,9 @@ impl Triangle {
                     },
                 ],
             },
+            bind_group_layouts: &[],
+            depth: None,
+            cull: CullMode::None,
             target_format: format,
         })?;
         let bytes: Vec<u8> = VERTICES

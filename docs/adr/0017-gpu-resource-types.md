@@ -1,6 +1,6 @@
 # 0017. GPU resource types
 
-- Status: Accepted
+- Status: Accepted; amended by [0026](0026-resource-binding-and-depth.md) (buffers, bind groups, depth)
 - Date: 2026-10-12
 
 ## Context

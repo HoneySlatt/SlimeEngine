@@ -1,6 +1,8 @@
-//! Render pipelines: how vertices are read, which shader entry points run, and what they render
-//! into.
+//! Render pipelines: how vertices are read, which shader entry points run, what they read, and
+//! what they render into.
 
+use crate::bind_group::BindGroupLayout;
+use crate::depth_target::DEPTH_FORMAT;
 use crate::error::GfxError;
 use crate::gpu::Gpu;
 use crate::render_target::TextureFormat;
@@ -48,10 +50,64 @@ pub struct VertexLayout<'a> {
     pub attributes: &'a [VertexAttribute],
 }
 
+/// How a pipeline compares the depth of what it draws with the depth already in the depth target.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum DepthCompare {
+    /// Draw where the new depth is less than the stored one: nearer, with the usual projections.
+    Less,
+    /// Draw where the new depth is less than or equal to the stored one.
+    LessEqual,
+    /// Draw whatever the stored depth.
+    Always,
+}
+
+impl DepthCompare {
+    fn to_wgpu(self) -> wgpu::CompareFunction {
+        match self {
+            Self::Less => wgpu::CompareFunction::Less,
+            Self::LessEqual => wgpu::CompareFunction::LessEqual,
+            Self::Always => wgpu::CompareFunction::Always,
+        }
+    }
+}
+
+/// The depth test of a pipeline: how it uses the depth target of the pass it draws in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct DepthState {
+    /// The comparison that decides whether a fragment is drawn.
+    pub compare: DepthCompare,
+    /// Whether the depth of what is drawn is written to the depth target.
+    pub write: bool,
+}
+
+/// Which faces of the triangles are not drawn. A face is front-facing when its vertices wind
+/// counter-clockwise on screen, as in glTF.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum CullMode {
+    /// Every face is drawn.
+    None,
+    /// Back faces are not drawn: the usual choice for closed meshes, whose back faces are hidden
+    /// by their front faces anyway.
+    Back,
+    /// Front faces are not drawn.
+    Front,
+}
+
+impl CullMode {
+    fn to_wgpu(self) -> Option<wgpu::Face> {
+        match self {
+            Self::None => None,
+            Self::Back => Some(wgpu::Face::Back),
+            Self::Front => Some(wgpu::Face::Front),
+        }
+    }
+}
+
 /// What [`Gpu::create_render_pipeline`] needs to build a pipeline.
 ///
-/// The pipeline draws lists of triangles, without depth testing, culling or blending, from one
-/// vertex buffer, into one render target of `target_format`.
+/// The pipeline draws lists of triangles, without blending, from one vertex buffer, into one
+/// render target of `target_format`.
 #[derive(Clone, Copy, Debug)]
 pub struct RenderPipelineDescriptor<'a> {
     /// Names the pipeline in error messages and in GPU capture tools.
@@ -64,6 +120,15 @@ pub struct RenderPipelineDescriptor<'a> {
     pub fragment_entry_point: &'a str,
     /// The layout of the vertex buffer bound at slot 0.
     pub vertex_layout: VertexLayout<'a>,
+    /// The layouts of the bind groups the shaders read, by `@group` index. A binding that the
+    /// shaders declare and that no layout holds is rejected.
+    pub bind_group_layouts: &'a [&'a BindGroupLayout],
+    /// The depth test, or `None` for none. A pipeline with a depth test draws only in passes that
+    /// have a depth target, and one without only in passes without
+    /// ([`RenderPassDescriptor::depth`](crate::RenderPassDescriptor::depth)).
+    pub depth: Option<DepthState>,
+    /// Which faces are not drawn.
+    pub cull: CullMode,
     /// The format of the render targets the pipeline draws into.
     pub target_format: TextureFormat,
 }
@@ -82,9 +147,10 @@ impl Gpu {
     /// # Errors
     ///
     /// [`GfxError::Pipeline`] if wgpu rejects the pipeline, for example because an entry point
-    /// does not exist in the shader or its inputs do not match the vertex layout, or if the
-    /// graphics driver rejects it. The message names the pipeline's label. [`GfxError::DeviceLost`]
-    /// once the device is lost ([`Gpu::check`]).
+    /// does not exist in the shader, its inputs do not match the vertex layout, or the shaders
+    /// declare a binding that the bind group layouts do not hold; or if the graphics driver
+    /// rejects it. The message names the pipeline's label. [`GfxError::DeviceLost`] once the
+    /// device is lost ([`Gpu::check`]).
     pub fn create_render_pipeline(
         &self,
         descriptor: &RenderPipelineDescriptor<'_>,
@@ -100,11 +166,23 @@ impl Gpu {
                 shader_location: attribute.location,
             })
             .collect();
+        let bind_group_layouts: Vec<Option<&wgpu::BindGroupLayout>> = descriptor
+            .bind_group_layouts
+            .iter()
+            .map(|layout| Some(&layout.layout))
+            .collect();
         let (pipeline, error) = self.catch_errors(|| {
+            let layout = self
+                .device
+                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    label: Some(descriptor.label),
+                    bind_group_layouts: &bind_group_layouts,
+                    immediate_size: 0,
+                });
             self.device
                 .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                     label: Some(descriptor.label),
-                    layout: None,
+                    layout: Some(&layout),
                     vertex: wgpu::VertexState {
                         module: &descriptor.shader.module,
                         entry_point: Some(descriptor.vertex_entry_point),
@@ -115,8 +193,17 @@ impl Gpu {
                             attributes: &attributes,
                         })],
                     },
-                    primitive: wgpu::PrimitiveState::default(),
-                    depth_stencil: None,
+                    primitive: wgpu::PrimitiveState {
+                        cull_mode: descriptor.cull.to_wgpu(),
+                        ..wgpu::PrimitiveState::default()
+                    },
+                    depth_stencil: descriptor.depth.map(|depth| wgpu::DepthStencilState {
+                        format: DEPTH_FORMAT,
+                        depth_write_enabled: Some(depth.write),
+                        depth_compare: Some(depth.compare.to_wgpu()),
+                        stencil: wgpu::StencilState::default(),
+                        bias: wgpu::DepthBiasState::default(),
+                    }),
                     multisample: wgpu::MultisampleState::default(),
                     fragment: Some(wgpu::FragmentState {
                         module: &descriptor.shader.module,

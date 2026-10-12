@@ -21,7 +21,7 @@ use std::ffi::OsStr;
 use std::process::ExitCode;
 
 use slime_app::{App, AppConfig, AppError, Context};
-use slime_gfx::{PresentMode, RenderTarget};
+use slime_gfx::{PresentMode, RenderPassDescriptor, RenderTarget};
 use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, WindowConfig};
 
 use error_chain::error_chain;
@@ -62,7 +62,12 @@ impl App for WindowExample {
 
     fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
         if let (Some(gpu), Some(triangle)) = (ctx.gpu(), &self.triangle) {
-            gpu.render(target, BACKGROUND, |pass| triangle.draw(pass));
+            let pass = RenderPassDescriptor {
+                target,
+                clear: Some(BACKGROUND),
+                depth: None,
+            };
+            gpu.render(&pass, |pass| triangle.draw(pass));
             self.drawn += 1;
         }
     }
