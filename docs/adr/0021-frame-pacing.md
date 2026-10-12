@@ -20,7 +20,8 @@ per second:
   callback once per second, and Mesa's FIFO waits for it, since niri does not offer the protocol
   that lets FIFO work without callbacks. The simulation slows to 8 fixed steps per second, the most
   one frame can run. In a headless Weston with lavapipe, one image acquisition in three waits about
-  0.8 s, so the windowed check takes about 25 s instead of 2.
+  0.8 s, so the windowed check takes about 25 s instead of 2 (a measurement of that day; later ones
+  the same day gave 9 to 15 s for 120 frames: the stall depends on the machine's load).
 - **Frames on the compositor's frame callbacks** (winit's `pre_present_notify`): aligned with the
   display and without waiting while visible, but once per second while hidden, for the same reason.
 - **FIFO without the timer**, paced by the display: one frame per refresh (180 frames per second
@@ -52,7 +53,7 @@ This amends ADR-0020, whose surfaces used FIFO.
 ## Alternatives considered
 
 - **FIFO by default.** Every platform offers it, and it shows every frame, but it stalls a hidden
-  window on niri and slows the windowed check fourteen-fold.
+  window on niri and slows the windowed check four- to fourteen-fold, depending on the load.
 - **Frames aligned on the compositor while visible, and frames without drawing on the timer while
   hidden.** No stall, even with FIFO, and images in step with the display, but two kinds of frames,
   and only Wayland would benefit. To reconsider when a renderer draws real scenes, whose

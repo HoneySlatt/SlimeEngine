@@ -18,8 +18,11 @@ and a future dedicated server cannot leave cleanly. The engine's lifecycle promi
 - The first signal sets a process-wide flag. The drivers check it between frames, as they check
   an exit request: the frame in progress finishes, `App::shutdown` runs, and `run` returns
   normally. The application sees the signal through `Context::exit_requested`. The headless driver
-  checks it before every frame; the windowed driver wakes up at least once per frame period, so a
-  signal is noticed within one frame.
+  checks it before every frame; the windowed driver wakes up at least once per frame period while
+  its loop runs, so a signal is then noticed within one frame. It is noticed later when the loop
+  does not run: on Windows during the system's own loop (a move, a resize, a held title bar, an
+  open system menu), and before the first frame, while the windowing library waits for the
+  window's first configuration.
 - A second signal ends the process at once with exit code 130, without `shutdown`. Without it, an
   application stuck in a frame could not be stopped with Ctrl+C.
 - The flag is never cleared: a signal asks the whole process to stop, so later runs in the same

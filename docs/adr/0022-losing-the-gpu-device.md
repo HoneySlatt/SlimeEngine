@@ -55,3 +55,6 @@ This amends ADR-0016: wgpu's errors still panic, except after the device was los
   tested.
 - Running out of GPU memory on the paths where wgpu does not treat it as a loss still panics, like
   every other error that wgpu reports outside an error scope.
+- A loss that a wait for the GPU is the first to find, in `Gpu::wait_idle` or
+  `Gpu::read_render_target`, still panics inside wgpu, whose `Device::poll` treats it as fatal; the
+  windowed loop never waits, so only applications that read back or wait are exposed.

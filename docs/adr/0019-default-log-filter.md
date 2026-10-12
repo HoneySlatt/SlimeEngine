@@ -33,6 +33,8 @@ When `SLIME_LOG` is unset or empty, the filter is
 Any value of `SLIME_LOG` replaces the default entirely; a module without a level of its own then
 records `info` and above, as before.
 
+This amends ADR-0008, whose default filter was `info` for every module.
+
 Entries added since, each with the message that justifies it:
 
 - 2026-10-12: `sctk_adwaita::config=off`. The module of winit's client-side decorations that asks

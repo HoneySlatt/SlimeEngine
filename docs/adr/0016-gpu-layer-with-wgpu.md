@@ -32,8 +32,11 @@ Microsoft's WARP on Windows. The engine must still run without any GPU when it i
   always installed. wgpu always validates how the engine uses it.
 - **Errors.** A failure caused by the environment is returned as a `GfxError`: no adapter, a
   device the adapter refuses, a failed wait. A use of wgpu that wgpu rejects is a bug and panics
-  (wgpu's default error handler, consistent with ADR-0008). The loss of the device, for example
-  after a driver crash, is logged as an error; stopping the run on it comes with rendering.
+  (wgpu's default error handler, consistent with ADR-0008); the engine keeps the environment from
+  causing such rejections where it can: a window larger than the device's largest image is drawn at
+  that size, and a shader or pipeline that the graphics driver rejects after wgpu's validation is
+  returned as an error (ADR-0017). The loss of the device, for example after a driver crash, is
+  logged as an error; stopping the run on it comes with rendering.
 - **Asynchronous requests.** wgpu's adapter and device requests are futures; `slime-gfx` waits for
   them with `pollster` when the GPU is opened.
 - **Software drivers in the checks.** The Nix shell gives the path of lavapipe's driver file

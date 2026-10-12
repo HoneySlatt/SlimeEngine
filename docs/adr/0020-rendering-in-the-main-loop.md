@@ -105,4 +105,6 @@ check presents, and how long it takes).
 - With FIFO, presentation can block: on compositors that stop showing a hidden window, each frame
   waits for the compositor (measured: one second per frame on niri), and in a headless Weston with
   lavapipe, one image in three waits about 0.8 s, so the Weston check takes about 25 seconds
-  instead of 2. Frame pacing addresses both.
+  instead of 2 (a measurement of that day; later ones the same day, with the same Weston and Mesa,
+  gave 9 to 15 s for 120 frames with waits of 0.13 to 0.25 s: the stall depends on the machine's
+  load). Frame pacing addresses both.

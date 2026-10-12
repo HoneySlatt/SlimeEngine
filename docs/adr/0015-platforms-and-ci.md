@@ -34,6 +34,9 @@ but nothing verified it.
 - What CI cannot check on Windows (windows, input, rendering on a real GPU, frame pacing) is
   checked by hand in the Windows virtual machine, in the milestones that change it.
 
+This amends ADR-0007: CI runs a second job, on Windows, outside the Nix shell, and the checks are
+listed in two places.
+
 ## Alternatives considered
 
 - **One cross-platform check program (`cargo xtask`) instead of `scripts/check.sh`.** The checks

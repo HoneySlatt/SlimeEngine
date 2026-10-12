@@ -25,14 +25,16 @@ GPU no longer uses it, even after the program drops it.
 - **Only what is used.** Each type covers what the triangle and the offscreen render need: render
   targets of one format (`Rgba8UnormSrgb`) that can be read back, vertex buffers filled at creation,
   pipelines that draw triangle lists from one vertex buffer without depth, culling or blending.
-  Each grows when a renderer needs more.
+  Each grows when a renderer needs more. (When this was decided, `Rgba8UnormSrgb` was the only
+  format; the window milestone added `Bgra8UnormSrgb`, the usual format of windows, whose images
+  cannot be read back: ADR-0020.)
 - **Labels everywhere.** Every creation method takes a label. It names the object in error
   messages and in GPU capture tools.
 - **Errors at creation.** Shader modules and pipelines can be rejected for reasons the caller
-  controls (a WGSL error, a missing entry point). They are created inside a wgpu error scope, and a
-  rejection is returned as `GfxError::Shader` or `GfxError::Pipeline`, with wgpu's message, which
-  for WGSL shows the line and column of the error. Other wgpu errors are bugs and panic
-  (ADR-0016).
+  controls (a WGSL error, a missing entry point). They are created inside wgpu error scopes, and a
+  rejection, by wgpu's validation or by the graphics driver's compiler, is returned as
+  `GfxError::Shader` or `GfxError::Pipeline`, with wgpu's message, which for WGSL shows the line
+  and column of the error. Other wgpu errors are bugs and panic (ADR-0016).
 - **Drawing through a closure.** `Gpu::render(target, clear_color, |pass| ...)` creates the
   command encoder and the render pass, lets the closure record commands into an engine-owned
   `RenderPass`, then submits the work. wgpu's lifetimes stay inside `slime-gfx`.
