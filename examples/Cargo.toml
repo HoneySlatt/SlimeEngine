@@ -12,6 +12,7 @@ workspace = true
 
 # Examples are the only targets of this package, so their dependencies are dev-dependencies.
 [dev-dependencies]
+gltf.workspace = true
 png.workspace = true
 slime-app.workspace = true
 slime-gfx.workspace = true
