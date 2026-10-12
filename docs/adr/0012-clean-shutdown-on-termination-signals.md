@@ -42,7 +42,9 @@ and a future dedicated server cannot leave cleanly. The engine's lifecycle promi
 
 - Ctrl+C and service stops run `App::shutdown`, in both modes; tests check SIGINT, SIGTERM and the
   forced exit (`crates/slime-app/tests/signals.rs`).
-- `ctrlc` also handles Ctrl+C on Windows, so this keeps working when Windows is supported.
+- On Windows, `ctrlc` receives the console's events: Ctrl+C and Ctrl+Break stop the run cleanly, but
+  Windows ends the process as soon as the handler returns for the console being closed, a logoff
+  or a shutdown, so those get no clean shutdown.
 - The handler replaces whatever the process had set for these signals: handlers installed by
   other libraries (signal-hook, tokio) stop receiving them, and an inherited "ignore" is lifted
   (under `nohup`, closing the terminal then stops the run cleanly instead of being ignored).

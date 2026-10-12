@@ -145,6 +145,22 @@ no renderer yet, so the `window` example fills its window from the CPU with `sof
 the window's `raw-window-handle` traits, whenever the window is resized. This is temporary and
 lives only in the examples ([ADR-0002](adr/0002-amend-roadmap-stages-0-to-3.md)).
 
+## Platforms
+
+The engine targets Linux (`x86_64-unknown-linux-gnu`) and Windows (`x86_64-pc-windows-msvc`)
+([ADR-0015](adr/0015-platforms-and-ci.md)). Platform differences are kept in few places:
+
+- winit hides the windowing systems (Wayland and X11 on Linux, Win32 on Windows). The only
+  platform-specific code in `slime-platform` names the windowing system in the log
+  (`backend_name` in `event_loop.rs`).
+- `ctrlc` hides signals (Unix) and console events (Windows); `crates/slime-app/src/signal.rs`
+  describes how each platform behaves.
+- Tests that cannot run on a platform are compiled out with `#[cfg]`, and their file says why: the
+  signal tests run on Unix only.
+
+`scripts/check.sh` compiles the whole workspace for Windows on Linux, and CI runs the tests and
+the headless samples on a Windows runner.
+
 ## Where to start reading
 
 1. [`README.md`](../README.md) for what the project is and its state.

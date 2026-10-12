@@ -168,6 +168,9 @@ pub(crate) enum ExitReason {
 /// handler installed earlier through the `ctrlc` crate, for example by the game: it is kept, and
 /// signals then do not stop runs cleanly.
 ///
+/// On Windows, Ctrl+C and Ctrl+Break in a console stop the run the same way. Closing the console
+/// window ends the process at once, without `shutdown`.
+///
 /// - **Headless** ([`AppConfig::window`] is `None`): frames run back to back, as fast as the
 ///   machine allows, with simulated time: each frame represents exactly one fixed step, so it runs
 ///   exactly one fixed step, and every run gives the same times (as long as the fixed step is not

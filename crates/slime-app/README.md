@@ -67,6 +67,8 @@ assert_eq!(game.fixed_steps, 60);
     without a display server. Only one windowed run, or attempt, is possible per process.
   - The signal handler replaces any other handler the process had for these signals, except one
     installed earlier through the `ctrlc` crate, which is kept.
+  - On Windows, Ctrl+C and Ctrl+Break in a console stop the run the same way; closing the console
+    window ends the process at once, without `shutdown`.
 - `AppConfig`: the window (`None`, the default, runs headless), frame limit, fixed step
   (1/60 s), maximum fixed steps per frame (8), maximum frame delta (250 ms) and maximum frame rate
   (60). Write it as a struct literal ending with `..AppConfig::default()`.

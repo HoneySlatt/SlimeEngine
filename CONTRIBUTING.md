@@ -14,13 +14,15 @@ apply to every contributor.
 
 ## Development environment
 
-Linux on x86_64 is the only supported platform for now.
+The engine supports Linux and Windows, both on x86_64; macOS comes later
+([ADR-0015](docs/adr/0015-platforms-and-ci.md)). Development happens mostly on Linux, with Nix.
 
 The Rust toolchain is pinned in [`rust-toolchain.toml`](rust-toolchain.toml): an exact stable
-version with clippy, rustfmt, the standard library sources and rust-analyzer.
+version with clippy, rustfmt, the standard library sources, rust-analyzer, and the Windows
+standard library so that the code can be checked for Windows from Linux.
 [ADR-0003](docs/adr/0003-toolchain-edition-and-msrv.md) explains why and how it is bumped.
 
-### With Nix (recommended)
+### On Linux, with Nix (recommended)
 
 The repository is a [Nix flake](https://wiki.nixos.org/wiki/Flakes). With Nix installed and flakes
 enabled, run this at the repository root:
@@ -40,7 +42,7 @@ To run a single command in that environment without opening a shell, use
 Nix only sees the files that git tracks. If you change `flake.nix` so that it reads a new file,
 `git add` that file before running `nix develop`.
 
-### Without Nix
+### On Linux, without Nix
 
 Install [rustup](https://rustup.rs). It reads `rust-toolchain.toml` and installs the pinned
 toolchain the first time you run `cargo` in the repository. Install the tools with
@@ -49,6 +51,13 @@ the versions pinned by `flake.lock`. To open windows, the examples need the wind
 libraries, which are loaded at run time: libxkbcommon for both windowing systems;
 libwayland-client for Wayland; libX11, libX11-xcb, libXcursor, libXi, libxcb and libxkbcommon-x11
 for X11. Most desktop distributions install them already.
+
+### On Windows
+
+Install [rustup](https://rustup.rs) and the Visual Studio Build Tools with the "Desktop development
+with C++" workload, which provides the MSVC compiler and linker and the Windows SDK. rustup reads
+`rust-toolchain.toml` like on Linux. `scripts/check.sh` needs Linux and Nix: on Windows, run the
+cargo commands listed in [`AGENTS.md`](AGENTS.md#environment-and-commands) instead.
 
 ## Checks
 
@@ -65,9 +74,15 @@ the samples with no display server available, the windowed sample inside a headl
 compositor, and `lychee` (links between Markdown files). The individual commands are listed in
 [`AGENTS.md`](AGENTS.md#environment-and-commands) for when you want to run only one of them.
 
-CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the same script on every push to
-`main` and every pull request; [ADR-0007](docs/adr/0007-documentation-tooling-and-ci.md) explains
-the setup.
+The script also runs clippy for the Windows target, which catches code that does not compile on
+Windows without a Windows machine.
+
+CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push to `main` and every
+pull request. A Linux job runs the same script; a Windows job runs clippy, the tests and the
+headless samples on Windows, and publishes the examples built for Windows as an artifact named
+`slime-examples-windows`, to run by hand on a Windows machine.
+[ADR-0007](docs/adr/0007-documentation-tooling-and-ci.md) and
+[ADR-0015](docs/adr/0015-platforms-and-ci.md) explain the setup.
 
 The lints they enforce are set once for the whole workspace in [`Cargo.toml`](Cargo.toml);
 [ADR-0005](docs/adr/0005-lints-and-unsafe-policy.md) explains them and the rules for `unsafe`

@@ -6,7 +6,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- Windows support for what exists: CI runs clippy, the tests and the headless samples on a Windows
+  runner, publishes the examples built for Windows, and the Linux checks compile the code for
+  Windows too ([ADR-0015](docs/adr/0015-platforms-and-ci.md)).
 
 ## [0.0.1] - 2026-10-12
 

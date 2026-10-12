@@ -1,5 +1,10 @@
 //! Clean shutdown on termination signals: Ctrl+C in a terminal (SIGINT), a service manager
 //! stopping the process (SIGTERM), or the terminal closing (SIGHUP).
+//!
+//! On Windows, the same handler receives the console's events: Ctrl+C and Ctrl+Break stop the run
+//! cleanly. Closing the console window, logging off or shutting down also reach it, but Windows
+//! ends the process as soon as the handler returns, which it does at once, so these get no clean
+//! shutdown. A program without a console (a Windows game) receives none of these events.
 
 use std::sync::Once;
 use std::sync::atomic::{AtomicBool, Ordering};

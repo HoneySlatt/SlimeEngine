@@ -28,7 +28,7 @@ The roadmap is an overview. It sets direction and dependency order; it does not 
 
 ## Environment and commands
 
-Development happens on NixOS, under Wayland. Everything must build and run there.
+Development happens on NixOS, under Wayland. Everything must build and run there, and on Windows (x86_64, MSVC toolchain): CI checks Windows on every push, and windowed behaviour is checked by hand in a Windows virtual machine (ADR-0015). `scripts/check.sh` also compiles the code for Windows, so most Windows breakage shows up on Linux.
 
 ```sh
 nix develop                                               # enter the dev shell

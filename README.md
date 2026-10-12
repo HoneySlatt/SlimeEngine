@@ -16,17 +16,19 @@ known debt.
 
 ## Getting started
 
-Linux on x86_64 only. With [Nix](https://nixos.org) and flakes enabled, `nix develop` at the
-repository root opens a shell with the pinned Rust toolchain and the project's tools.
-[`CONTRIBUTING.md`](CONTRIBUTING.md#development-environment) explains this and the setup without
-Nix. Then:
+Linux and Windows, on x86_64. On Linux, with [Nix](https://nixos.org) and flakes enabled,
+`nix develop` at the repository root opens a shell with the pinned Rust toolchain and the project's
+tools. [`CONTRIBUTING.md`](CONTRIBUTING.md#development-environment) explains this, the setup without
+Nix, and the setup on Windows. Then:
 
 ```sh
 cargo build --workspace
 cargo test --workspace
 cargo run --example window   # the examples are listed in examples/README.md
-scripts/check.sh             # every check, exactly as CI runs them
+scripts/check.sh             # every check, exactly as CI runs them (Linux only)
 ```
+
+Each CI run on GitHub also publishes the examples built for Windows, to try without a toolchain.
 
 ## Where to read next
 
