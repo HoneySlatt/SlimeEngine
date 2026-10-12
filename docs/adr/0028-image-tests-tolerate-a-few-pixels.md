@@ -1,6 +1,6 @@
 # 0028. Image tests tolerate a few differing pixels
 
-- Status: Accepted
+- Status: Accepted; amended by [0030](0030-image-tests-strict-on-the-reference-driver.md) (tolerances by driver)
 - Date: 2026-10-13
 
 ## Context

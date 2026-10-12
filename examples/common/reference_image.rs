@@ -1,5 +1,5 @@
 //! Comparing a rendered image with a reference PNG stored in `tests/reference/`, within the
-//! tolerance of ADR-0018 and ADR-0028, and rendering the references again on request.
+//! tolerances of ADR-0018, ADR-0028 and ADR-0030, and rendering the references again on request.
 
 #[path = "png_file.rs"]
 mod png_file;
@@ -10,11 +10,25 @@ use std::path::{Path, PathBuf};
 
 use slime_gfx::Image;
 
-/// The largest difference allowed in one channel of one pixel, out of 255.
-const CHANNEL_TOLERANCE: u8 = 2;
-/// The fraction of the pixels that may differ by more than `CHANNEL_TOLERANCE`: where drivers
-/// blend texels or place an edge differently (ADR-0028).
-const MAX_DIFFERENT_FRACTION: f64 = 0.001;
+/// How far a rendered image may be from its reference.
+struct Tolerance {
+    /// The largest difference allowed in one channel of one pixel, out of 255.
+    channel: u8,
+    /// The fraction of the pixels that may differ by more than that.
+    pixels: f64,
+}
+
+/// On the driver that rendered the references, a difference is a change of the rendering
+/// (ADR-0018).
+const ON_REFERENCE_DRIVER: Tolerance = Tolerance {
+    channel: 2,
+    pixels: 0.0,
+};
+/// On other drivers, which filter textures and place edges differently (ADR-0028, ADR-0030).
+const ON_OTHER_DRIVERS: Tolerance = Tolerance {
+    channel: 8,
+    pixels: 0.001,
+};
 
 /// Whether the references are to be rendered again instead of being compared with:
 /// `SLIME_UPDATE_REFERENCE_IMAGES` is set.
@@ -27,27 +41,41 @@ pub fn write(name: &str, image: &Image) {
     png_file::write(&reference_path(name), image).expect("the reference image is written");
 }
 
-/// Compares `image` with the reference named `name`. When they differ beyond the tolerance, the
-/// image is written as `<actual_name>.actual.png` in the build directory, and the test fails
-/// with its path, the size of the difference and the adapter that rendered it.
+/// Compares `image` with the reference named `name`, within the tolerance of the driver of
+/// `adapter`. When they differ beyond it, the image is written as `<actual_name>.actual.png` in
+/// the build directory, and the test fails with its path, the size of the difference and the
+/// adapter that rendered it.
 pub fn check(name: &str, actual_name: &str, image: &Image, adapter: &str) {
     let reference = read_png(&reference_path(name));
     let difference = compare(image, &reference);
-    let allowed = (f64::from(image.width * image.height) * MAX_DIFFERENT_FRACTION).floor();
-    // Visible with `--nocapture`: the measurements that justify the tolerance.
+    // The references are rendered with lavapipe, which names its adapter after llvmpipe.
+    let tolerance = if adapter.starts_with("llvmpipe") {
+        ON_REFERENCE_DRIVER
+    } else {
+        ON_OTHER_DRIVERS
+    };
+    let different = difference.over(tolerance.channel);
+    let allowed = (f64::from(image.width * image.height) * tolerance.pixels).floor();
+    // Visible with `--nocapture`: the measurements that justify the tolerances.
     eprintln!(
-        "reference `{name}` on `{adapter}`: {} pixels differ by more than {CHANNEL_TOLERANCE} \
-         ({allowed} allowed), largest difference {}",
-        difference.different_pixels, difference.largest
+        "reference `{name}` on `{adapter}`: {different} pixels differ by more than {} \
+         ({allowed} allowed); over 2: {}, over 4: {}, over 8: {}, over 16: {}; largest \
+         difference {}",
+        tolerance.channel,
+        difference.over(2),
+        difference.over(4),
+        difference.over(8),
+        difference.over(16),
+        difference.largest
     );
-    if difference.different_pixels as f64 > allowed {
+    if different as f64 > allowed {
         let actual_path =
             PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("{actual_name}.actual.png"));
         png_file::write(&actual_path, image).expect("the rendered image is written");
         panic!(
-            "{} pixels differ from the reference `{name}` by more than {CHANNEL_TOLERANCE}, \
-             {allowed} allowed (largest difference: {}) on adapter `{adapter}`; rendered image: {}",
-            difference.different_pixels,
+            "{different} pixels differ from the reference `{name}` by more than {}, {allowed} \
+             allowed (largest difference: {}) on adapter `{adapter}`; rendered image: {}",
+            tolerance.channel,
             difference.largest,
             actual_path.display()
         );
@@ -58,11 +86,21 @@ fn reference_path(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("tests/reference/{name}.png"))
 }
 
+/// How two images differ: for each pixel, the largest difference in any of its channels.
 struct Difference {
-    /// Pixels where at least one channel differs by more than `CHANNEL_TOLERANCE`.
-    different_pixels: usize,
-    /// The largest difference found in any channel.
+    largest_per_pixel: Vec<u8>,
+    /// The largest difference found in any channel of any pixel.
     largest: u8,
+}
+
+impl Difference {
+    /// How many pixels differ by more than `threshold` in at least one channel.
+    fn over(&self, threshold: u8) -> usize {
+        self.largest_per_pixel
+            .iter()
+            .filter(|&&largest| largest > threshold)
+            .count()
+    }
 }
 
 fn compare(image: &Image, reference: &Image) -> Difference {
@@ -71,23 +109,24 @@ fn compare(image: &Image, reference: &Image) -> Difference {
         (reference.width, reference.height),
         "the images have different sizes"
     );
-    let mut difference = Difference {
-        different_pixels: 0,
-        largest: 0,
-    };
-    for (pixel, expected) in image.pixels.chunks(4).zip(reference.pixels.chunks(4)) {
-        let largest = pixel
-            .iter()
-            .zip(expected)
-            .map(|(a, b)| a.abs_diff(*b))
-            .max()
-            .unwrap_or(0);
-        difference.largest = difference.largest.max(largest);
-        if largest > CHANNEL_TOLERANCE {
-            difference.different_pixels += 1;
-        }
+    let largest_per_pixel: Vec<u8> = image
+        .pixels
+        .chunks(4)
+        .zip(reference.pixels.chunks(4))
+        .map(|(pixel, expected)| {
+            pixel
+                .iter()
+                .zip(expected)
+                .map(|(a, b)| a.abs_diff(*b))
+                .max()
+                .unwrap_or(0)
+        })
+        .collect();
+    let largest = largest_per_pixel.iter().copied().max().unwrap_or(0);
+    Difference {
+        largest_per_pixel,
+        largest,
     }
-    difference
 }
 
 fn read_png(path: &Path) -> Image {
