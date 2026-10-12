@@ -4,9 +4,10 @@ The engine's link to the operating system's windowing and input services.
 
 ## Status
 
-Partial. It opens one window on Wayland or X11 and reports its window events (close requested,
-resized, scale factor changed, focus). Keyboard and mouse input arrive in milestone M1.5 (see
-`docs/PLAN.md`). Linux only.
+Partial. It opens one window on Wayland or X11 and reports its events: close requested, resized,
+scale factor changed, focus, keys, mouse buttons, cursor motion and scrolling. It does not report
+yet: the state of the modifier keys as a whole, text composed by input methods (Chinese, Japanese,
+Korean), touch screens, touchpad gestures, gamepads, or files dropped on the window. Linux only.
 
 ## Role
 
@@ -28,8 +29,14 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
   `about_to_wait` returns a `LoopControl`: wait until a given instant, or exit.
 - `Window` is a cheap, clonable handle to the window: its size in physical pixels, its scale
   factor, and the `raw-window-handle` traits through which a graphics library draws into it.
-- `Event` is what happened to the window. It is `#[non_exhaustive]`: new kinds of events will be
-  added.
+- `Event` is what happened to the window, or input it received. It is `#[non_exhaustive]`: new
+  kinds of events will be added.
+- Input types: `KeyEvent` describes a key twice, by `physical` position (`KeyCode`, named after
+  the W3C UI Events `code` values, such as `KeyQ` or `Escape`, whatever the layout) and by
+  `logical` meaning with the current layout (`Key`: a character such as `"a"`, a `NamedKey` such as
+  `Enter`, or a dead key), plus the `text` it produces and whether it is a repeat. Use the physical
+  code for movement keys and the logical key for shortcuts and text. `MouseButton`, `ButtonState`
+  and `ScrollDelta` describe the mouse.
 - `PlatformError` says why the event loop could not run; winit's own error is its `source()`.
 
 The windowing system is Wayland when `WAYLAND_DISPLAY` points to a compositor, X11 otherwise. Its

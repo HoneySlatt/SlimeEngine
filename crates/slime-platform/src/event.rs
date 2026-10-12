@@ -2,9 +2,15 @@
 
 use winit::event::WindowEvent;
 
+use crate::input::{self, ButtonState, KeyEvent, MouseButton, ScrollDelta};
 use crate::window::PhysicalSize;
 
-/// Something that happened to the window.
+/// Something that happened to the window, or input it received.
+///
+/// Input arrives only while the window has the keyboard focus (keys) or the cursor (mouse). The
+/// engine does not report yet: the state of modifier keys as a whole (track the `Shift`,
+/// `Control`, `Alt` and `Super` keys instead), text composed by input methods (used for Chinese,
+/// Japanese or Korean), touch screens, touchpad gestures, or files dropped on the window.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum Event {
@@ -21,6 +27,28 @@ pub enum Event {
     },
     /// The window gained (`true`) or lost (`false`) the keyboard focus.
     Focused(bool),
+    /// A key went down or up.
+    Key(KeyEvent),
+    /// A mouse button went down or up while the cursor was over the window.
+    MouseButton {
+        /// Which button.
+        button: MouseButton,
+        /// Whether it went down or up.
+        state: ButtonState,
+    },
+    /// The cursor moved over the window.
+    CursorMoved {
+        /// Distance from the left edge of the content area, in physical pixels.
+        x: f64,
+        /// Distance from the top edge of the content area, in physical pixels.
+        y: f64,
+    },
+    /// The cursor entered the window.
+    CursorEntered,
+    /// The cursor left the window.
+    CursorLeft,
+    /// A mouse wheel or a touchpad scrolled while the cursor was over the window.
+    MouseWheel(ScrollDelta),
 }
 
 /// Translates a winit window event, or returns `None` for events the engine does not handle.
@@ -35,6 +63,20 @@ pub(crate) fn translate(event: WindowEvent) -> Option<Event> {
             Some(Event::ScaleFactorChanged { scale_factor })
         }
         WindowEvent::Focused(focused) => Some(Event::Focused(focused)),
+        WindowEvent::KeyboardInput { event, .. } => Some(Event::Key(input::key_event(event))),
+        WindowEvent::MouseInput { state, button, .. } => Some(Event::MouseButton {
+            button: input::mouse_button(button),
+            state: input::button_state(state),
+        }),
+        WindowEvent::CursorMoved { position, .. } => Some(Event::CursorMoved {
+            x: position.x,
+            y: position.y,
+        }),
+        WindowEvent::CursorEntered { .. } => Some(Event::CursorEntered),
+        WindowEvent::CursorLeft { .. } => Some(Event::CursorLeft),
+        WindowEvent::MouseWheel { delta, .. } => {
+            Some(Event::MouseWheel(input::scroll_delta(delta)))
+        }
         _ => None,
     }
 }

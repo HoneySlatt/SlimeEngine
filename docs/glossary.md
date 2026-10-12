@@ -35,11 +35,20 @@ configuration, used by automated tests and, later, by dedicated servers.
 **Interpolation factor.** The fraction of a fixed step accumulated but not yet run
 (`FixedStep::alpha`), between 0 and 1. Used to draw a state between the last two fixed steps.
 
+**Logical key.** What a key means with the current keyboard layout and modifiers
+(`slime_platform::Key`): on a French AZERTY keyboard, the first letter key of the top row gives
+the logical key `"a"`. Suits shortcuts and text. See also *physical key*.
+
 **Milestone.** A small, verifiable step of a stage, listed with its goal, its done criteria and
 how to test it in [`docs/PLAN.md`](PLAN.md). Milestones are numbered `M<stage>.<n>`, for example
 M1.3.
 
 **Owner.** The person who validates the project's direction and its architecture decisions.
+
+**Physical key.** The position of a key on the keyboard, whatever the layout
+(`slime_platform::KeyCode`), named after the character it produces on a US keyboard: the first
+letter key of the top row is `KeyQ` on every layout, whether it is labelled Q (QWERTY) or A
+(AZERTY). Suits movement keys. See also *logical key*.
 
 **Sample.** The example that demonstrates the exit criterion of a stage. Every stage ends with
 one.

@@ -13,7 +13,7 @@ it is built this way.
 ├── Cargo.toml           virtual workspace: shared metadata, lints and dependency versions
 ├── crates/              engine crates, one directory per crate, named after the package
 │   ├── slime-app/       application lifecycle and main loop
-│   └── slime-platform/  window and its events
+│   └── slime-platform/  window, its events and input
 ├── deny.toml            dependency license, advisory and source rules
 ├── docs/                roadmap, plan, decisions (adr/), glossary, dependencies, this file
 ├── examples/            runnable examples, one per feature (package `slime-examples`)
@@ -31,7 +31,7 @@ is created only when code needs it.
 
 | Crate | Role | Depends on | Status |
 |---|---|---|---|
-| [`slime-platform`](../crates/slime-platform/README.md) | The window and its events; the only crate that uses the windowing library (winit) | `winit`, `raw-window-handle`, `thiserror`, `tracing` | One window, window events; no keyboard or mouse input yet |
+| [`slime-platform`](../crates/slime-platform/README.md) | The window, its events and keyboard and mouse input; the only crate that uses the windowing library (winit) | `winit`, `raw-window-handle`, `thiserror`, `tracing` | One window; window, keyboard and mouse events |
 | [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `slime-platform`, `tracing`, `tracing-subscriber` | Headless and windowed runs work |
 | [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-platform`, `softbuffer`, `tracing` | `hello`, `headless`, `window` |
 
