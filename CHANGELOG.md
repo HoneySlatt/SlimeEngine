@@ -8,6 +8,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- `Gpu::create_vertex_buffer` rejects empty data with a message naming the buffer, instead of
+  letting the first `set_vertex_buffer` panic inside wgpu; its rustdoc now lists its panics.
 - A windowed run whose `render` draws nothing into the window's image no longer grows at every
   frame (about 180 kB per frame, measured with lavapipe): the engine gives wgpu a submission for
   such frames, without which it never reclaimed the work of the earlier ones.

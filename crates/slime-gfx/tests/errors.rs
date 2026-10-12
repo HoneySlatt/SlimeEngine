@@ -67,3 +67,9 @@ fn a_pipeline_error_names_the_pipeline() {
         "wgpu's message names the label: {message}"
     );
 }
+
+#[test]
+#[should_panic(expected = "vertex buffer `empty mesh` is empty")]
+fn an_empty_vertex_buffer_is_rejected_at_creation() {
+    gpu().create_vertex_buffer("empty mesh", &[]);
+}

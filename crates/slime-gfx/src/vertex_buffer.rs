@@ -17,7 +17,16 @@ impl Gpu {
     /// Creates a vertex buffer holding `contents`, laid out as the pipeline that reads it
     /// declares in its [`VertexLayout`](crate::VertexLayout). `label` names it in error messages
     /// and in GPU capture tools.
+    ///
+    /// # Panics
+    ///
+    /// If `contents` is empty (wgpu cannot bind an empty buffer), or larger than the device allows
+    /// (256 MiB with the default limits).
     pub fn create_vertex_buffer(&self, label: &str, contents: &[u8]) -> VertexBuffer {
+        assert!(
+            !contents.is_empty(),
+            "vertex buffer `{label}` is empty: wgpu cannot bind an empty buffer"
+        );
         let buffer = self
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {

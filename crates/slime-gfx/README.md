@@ -89,7 +89,8 @@ fn main() -> Result<(), GfxError> {
   - `RenderTarget`: an image the GPU draws into (`create_render_target`), in one of the
     `TextureFormat`s: `Rgba8UnormSrgb` or `Bgra8UnormSrgb`, the same 8-bit sRGB colors in two byte
     orders.
-  - `VertexBuffer`: vertex data, given as bytes (`create_vertex_buffer`).
+  - `VertexBuffer`: vertex data, given as bytes (`create_vertex_buffer`): at least one byte, at
+    most 256 MiB with the default limits.
   - `ShaderModule`: WGSL source compiled by wgpu (`create_shader_module`).
   - `RenderPipeline`: a shader's entry points, the layout of its vertices and the format of the
     target it draws into (`create_render_pipeline`, from a `RenderPipelineDescriptor`). It draws
