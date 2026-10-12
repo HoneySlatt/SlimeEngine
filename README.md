@@ -14,8 +14,8 @@ on Linux, Direct3D 12 on Windows), draws a triangle in the window and into offsc
 checked against a reference image, paces frames with its own schedule and the Mailbox present
 mode by default, names its GPU work for capture tools, and stops cleanly when the GPU device is
 lost. Stage 3a, the first renderer, is in progress: `slime-render` draws instances of meshes from
-a camera, with a depth test, each with a material of one color, lit by a directional light;
-textures and a glTF scene come with its next milestones. [`docs/PLAN.md`](docs/PLAN.md) lists what comes next and the
+a camera, with a depth test, each with a material of one color or a texture, lit by a
+directional light; a glTF scene comes with its next milestone. [`docs/PLAN.md`](docs/PLAN.md) lists what comes next and the
 known debt.
 
 ## Getting started

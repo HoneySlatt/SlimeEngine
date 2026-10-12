@@ -13,7 +13,7 @@ software driver such as lavapipe or WARP. The engine opens one adapter's *device
 falls behind wall-clock time when a frame delta is limited, for example after a pause.
 
 **Bind group.** A set of GPU resources that a pipeline's shaders read together, bound at one
-`@group` index: uniform buffers for now, textures and samplers later (`slime_gfx::BindGroup`). Its
+`@group` index: uniform buffers, textures and samplers (`slime_gfx::BindGroup`). Its
 *bind group layout* says which bindings it has and what each holds (`slime_gfx::BindGroupLayout`,
 [ADR-0026](adr/0026-resource-binding-and-depth.md)).
 
@@ -62,8 +62,9 @@ Linux) and Direct3D 12 (on Windows). wgpu translates the engine's calls into one
 configuration, used by automated tests and, later, by dedicated servers.
 
 **Image test.** A test that renders offscreen and compares the result with a *reference image*,
-pixel by pixel, within a tolerance that absorbs how drivers round colors
-([ADR-0018](adr/0018-reference-image-tests.md)).
+pixel by pixel, within a tolerance that absorbs how drivers round colors and blend texels
+([ADR-0018](adr/0018-reference-image-tests.md),
+[ADR-0028](adr/0028-image-tests-tolerate-a-few-pixels.md)).
 
 **Index buffer.** A buffer of indices into a vertex buffer, so that the triangles of a mesh share
 vertices (`slime_gfx::IndexBuffer`).
@@ -86,8 +87,9 @@ that GPU tests give the same results on every machine, including machines withou
 (`slime_platform::Key`): on a French AZERTY keyboard, the first letter key of the top row gives
 the logical key `"a"`. Suits shortcuts and text. See also *physical key*.
 
-**Material.** How a surface looks: a base color for now (`slime_render::Material`, from
-`MaterialData`), which the scene's light multiplies. Textures join it later in Stage 3a.
+**Material.** How a surface looks: a base color, which a texture read with a *sampler* may
+modulate, and which the scene's light multiplies (`slime_render::Material`, from
+`MaterialData`).
 
 **Mesh.** Triangles given as vertices (a position, a normal and texture coordinates each) and
 indices, uploaded to the GPU (`slime_render::Mesh`, from `MeshData`).
@@ -128,6 +130,9 @@ of what the test draws.
 
 **Sample.** The example that demonstrates the exit criterion of a stage. Every stage ends with
 one.
+
+**Sampler.** How shaders read a texture: nearest or linear filtering, and what lies beyond its
+edges (repeat, mirror or clamp) (`slime_gfx::Sampler`).
 
 **Scene (render).** What the renderer draws in one frame: a camera, a directional light, a
 clear color and *instances* (`slime_render::Scene`). Not a scene graph: the renderer keeps nothing between frames,

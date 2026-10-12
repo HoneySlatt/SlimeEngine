@@ -14,7 +14,7 @@ cargo run --example <name> [-- <arguments>]
 | [`headless`](headless.rs) | An application without a window: frames back to back with simulated time, exit at a frame limit, profiling spans (`SLIME_LOG=trace`) | `--frames <count>` (default 600) |
 | [`window`](window.rs) | A window in which the GPU draws the samples' triangle, which follows resizes; its events logged (window, keys, mouse; cursor motion with `SLIME_LOG=debug`); Escape, closing it or Ctrl+C quits cleanly. The sample of Stage 2 | `--frames <count>` closes it after that many frames, and fails if none of them drew the triangle; `--headless` runs the same program without a window; `--present-mode mailbox|fifo` chooses how images are shown (default `mailbox`) |
 | [`offscreen`](offscreen.rs) | Rendering without a window: the GPU draws a triangle into an image, which is read back and written to a PNG file; works on software drivers (lavapipe, WARP) | `--output <file>` (default `triangle.png`) |
-| [`scene`](scene.rs) | Cubes and a sphere drawn by the renderer (`slime-render`) with a depth test, lit by a directional light, seen from a camera that orbits them; Escape, closing the window or Ctrl+C quits cleanly. The sample of Stage 3a, which grows with it | `--frames <count>` closes it after that many frames, and fails if none of them drew the scene |
+| [`scene`](scene.rs) | Cubes and a sphere, two of them with a checker texture, drawn by the renderer (`slime-render`) with a depth test, lit by a directional light, seen from a camera that orbits them; Escape, closing the window or Ctrl+C quits cleanly. The sample of Stage 3a, which grows with it | `--frames <count>` closes it after that many frames, and fails if none of them drew the scene |
 
 On Windows, the same commands work with the toolchain described in
 [`CONTRIBUTING.md`](../CONTRIBUTING.md#on-windows). Each CI run on GitHub also publishes
@@ -30,8 +30,8 @@ The log level of every example is set by the `SLIME_LOG` environment variable, f
 
 - [`common/`](common) holds code used by several examples and tests, each file included where it
   is needed with `#[path = "common/<file>.rs"] mod <file>;`: the triangle that `window`,
-  `offscreen` and its image test draw, and its shader; the shapes (a cube, a sphere, their
-  materials and light) that `scene` and its image test draw; PNG writing; the comparison with a
+  `offscreen` and its image test draw, and its shader; the shapes (a cube, a sphere, a checker
+  texture, their materials and light) that `scene` and its image test draw; PNG writing; the comparison with a
   reference image; error messages with their causes.
 - [`tests/offscreen.rs`](tests/offscreen.rs) renders the triangle and compares it with the
   reference image [`tests/reference/triangle.png`](tests/reference/triangle.png), and

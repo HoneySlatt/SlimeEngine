@@ -177,13 +177,16 @@ gpu = Gpu::new()
 ├── create_depth_target(label, width, height)            the depth of what is drawn, for passes
 │                                                        that test depth
 ├── create_shader_module(label, wgsl)                    rejected → GfxError::Shader
-├── create_bind_group_layout(label, entries)             what the shaders read: uniform buffers
+├── create_bind_group_layout(label, entries)             what the shaders read: uniform buffers,
+│                                                        textures, samplers
 ├── create_render_pipeline(&descriptor)                  rejected → GfxError::Pipeline; declares
 │                                                        its bind group layouts, depth test, culling
 ├── create_vertex_buffer(label, bytes)
 ├── create_index_buffer(label, indices)
 ├── create_uniform_buffer(label, bytes)                  written again with write_uniform_buffer
-├── create_bind_group(label, &layout, entries)           the uniform buffers, bound together
+├── create_texture(label, width, height, format, pixels) an image that shaders sample
+├── create_sampler(label, &descriptor)                   how they read it
+├── create_bind_group(label, &layout, entries)           the resources, bound together
 ├── render(&RenderPassDescriptor { target, clear, depth }, |pass| ...)
 │                                                        one command encoder and render pass; the
 │                                                        closure sets the pipeline, the bind groups
@@ -212,7 +215,8 @@ target, the window's image or an offscreen one
 renderer = Renderer::new(&gpu, format)                 the shader, the pipeline (depth test, back-
 │                                                      face culling), the bind group layouts
 ├── create_mesh(&gpu, label, &MeshData)                vertex and index buffers, after a check
-├── create_material(&gpu, label, &MaterialData)        a uniform buffer and its bind group
+├── create_material(&gpu, label, &MaterialData)        a uniform buffer, the texture and sampler
+│                                                      (one white pixel without), in a bind group
 └── render(&gpu, &target, &Scene { camera, clear, instances }) → RenderStats
     ├── the depth target, created at the target's size, again when it changes
     ├── the frame uniform ← camera.view_projection(aspect), the light  bind group 0
@@ -227,8 +231,8 @@ The shader ([`shader.wgsl`](../crates/slime-render/src/shader.wgsl)) transforms 
 its instance's matrix then the camera's, and its normal by the instance's normal matrix (the
 inverse transpose, so that normals stay perpendicular to surfaces scaled unevenly); each fragment
 is lit by the scene's directional light in proportion to the cosine between its normal and the
-direction to the light (Lambert), plus the ambient light, times its material's base color.
-Conventions: world space is right-handed with +Y up, the camera looks down −Z, front faces wind
+direction to the light (Lambert), plus the ambient light, times its material's base color and
+its texture, read at the texture coordinates of the vertex. Conventions: world space is right-handed with +Y up, the camera looks down −Z, front faces wind
 counter-clockwise, depth runs from 0 to 1, colors are linear and the sRGB target encodes them.
 
 ### Rendering in a window

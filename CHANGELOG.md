@@ -28,12 +28,22 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   target's content instead of clearing it
   ([ADR-0026](docs/adr/0026-resource-binding-and-depth.md)). `RenderTarget::label` gives a
   target's label back.
+- Textures and samplers in `slime-gfx`: `Gpu::create_texture` uploads an image that shaders
+  sample, in an sRGB format (decoded when read) or in the new linear `TextureFormat::Rgba8Unorm`;
+  `Gpu::create_sampler` sets the filters and the address modes that glTF samplers express; both
+  are bound through bind groups. A material of `slime-render` can have a base color texture,
+  multiplied with its base color; the `scene` example textures its center cube and its sphere
+  with a checker.
 - `Surface::check` and `GfxError::SurfaceLost`: a window's surface that is lost for good (it cannot
   be created again, or is lost again each time) stops the run like a lost device, instead of an
   error logged at every frame while the run went on without drawing (ADR-0025).
 
 ### Changed
 
+- An image test passes when at most 0.1 % of its pixels exceed the per-channel tolerance, where
+  drivers blend texels or place edges differently
+  ([ADR-0028](docs/adr/0028-image-tests-tolerate-a-few-pixels.md)); the tests print what they
+  measured with `--nocapture`, and the Windows CI job runs them that way.
 - `Gpu::render` takes a `RenderPassDescriptor` (the target, whether to clear it, an optional depth
   target) instead of a target and a clear color. `RenderPipelineDescriptor` gains
   `bind_group_layouts`, `depth` and `cull`, and pipeline layouts are always explicit: a shader
