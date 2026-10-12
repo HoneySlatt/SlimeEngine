@@ -1,0 +1,8 @@
+# The Rust toolchain used to build and check SlimeEngine. This file is the single source of truth:
+# the Nix development shell reads it (see flake.nix), and rustup reads it for contributors who do
+# not use Nix. ADR-0003 explains the policy; bump it on purpose, together with `rust-version` in
+# Cargo.toml.
+[toolchain]
+channel = "1.99.0"
+components = ["clippy", "rustfmt", "rust-src", "rust-analyzer"]
+profile = "minimal"
