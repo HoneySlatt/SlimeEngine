@@ -12,7 +12,7 @@ documentation was updated and reread.
 ## Current
 
 - Stage 1 — Core and platform
-- Milestone M1.2 — Frame timing
+- Milestone M1.3 — Lifecycle and headless mode
 
 ## Status
 
@@ -23,8 +23,8 @@ documentation was updated and reread.
 | [M0.3](#m03--workspace-lints-and-crate-skeletons) | Workspace, lints and crate skeletons | Done |
 | [M0.4](#m04--dependency-policy-and-ci) | Dependency policy and CI | Done, CI not run yet (see [Known debt](#known-debt)) |
 | [M1.1](#m11--logging-and-diagnostics) | Logging and diagnostics | Done |
-| [M1.2](#m12--frame-timing) | Frame timing | In progress |
-| [M1.3](#m13--lifecycle-and-headless-mode) | Lifecycle and headless mode | Planned |
+| [M1.2](#m12--frame-timing) | Frame timing | Done |
+| [M1.3](#m13--lifecycle-and-headless-mode) | Lifecycle and headless mode | In progress |
 | [M1.4](#m14--window) | Window | Planned |
 | [M1.5](#m15--input) | Input | Planned |
 | [M1.6](#m16--clean-shutdown-hardening-release-001) | Clean shutdown, hardening, release 0.0.1 | Planned |

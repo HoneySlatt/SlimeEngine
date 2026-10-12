@@ -5,8 +5,8 @@ down.
 
 ## Status
 
-Partial. What exists today is the diagnostics setup: logging and panic reporting. The main loop,
-frame timing and the headless mode arrive in milestones M1.2 and M1.3, windows in M1.4 (see
+Partial. What exists today is the diagnostics setup (logging and panic reporting) and the frame
+timing types. The main loop and the headless mode arrive in milestone M1.3, windows in M1.4 (see
 `docs/PLAN.md`).
 
 ## Role
@@ -32,6 +32,12 @@ tracing::debug!("recorded only with SLIME_LOG=debug or more verbose");
 
 Engine code and games log through the `tracing` macros. The conventions for errors, log levels and
 assertions are in `docs/adr/0008-errors-logging-and-assertions.md`.
+
+The `time` module holds the frame timing types: `FrameClock` turns the time between frames into
+a `FrameTime` (index, delta, elapsed time) and limits how much time one frame can represent;
+`FixedStep` splits frame time into steps of a fixed duration for code that must not depend on
+the frame rate. Both are fed durations rather than reading the system clock, so a run can use
+simulated, deterministic time. The rules are in `docs/adr/0009-frame-timing.md`.
 
 ## Dependencies
 
