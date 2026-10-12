@@ -1,6 +1,6 @@
 # 0013. Windowed smoke test in a headless Weston compositor
 
-- Status: Accepted; amended by [0020](0020-rendering-in-the-main-loop.md) (GPU images, duration)
+- Status: Accepted; amended by [0020](0020-rendering-in-the-main-loop.md) (GPU images, duration) and [0024](0024-windowed-lifecycle-check-in-weston.md) (lifecycle check)
 - Date: 2026-10-12
 
 ## Context

@@ -22,3 +22,10 @@ tracing-subscriber.workspace = true
 [[test]]
 name = "windowed_errors"
 harness = false
+
+# Needs a Wayland compositor, so scripts/check.sh runs it in a headless Weston instead of the default
+# test run; runs on the main thread like the one above (ADR-0024).
+[[test]]
+name = "windowed_lifecycle"
+harness = false
+test = false

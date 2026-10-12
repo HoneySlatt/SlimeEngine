@@ -96,7 +96,9 @@ window was closed, the process received a termination signal, or `config.frame_l
 run. The frame in progress always finishes, and `app.shutdown` is always called after an
 `app.init` that succeeded; when `app.init` returns an error, the run stops at once and `run`
 returns it as `RunError::Init`. The call order is checked by
-[`crates/slime-app/tests/lifecycle.rs`](../crates/slime-app/tests/lifecycle.rs).
+[`crates/slime-app/tests/lifecycle.rs`](../crates/slime-app/tests/lifecycle.rs) headless, and by
+[`crates/slime-app/tests/windowed_lifecycle.rs`](../crates/slime-app/tests/windowed_lifecycle.rs)
+with a window, which the checks run in a headless Weston compositor (ADR-0024).
 
 **Headless driver** (`AppConfig::window` is `None`), in `app.rs`:
 
