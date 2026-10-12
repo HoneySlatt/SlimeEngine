@@ -1,0 +1,22 @@
+# Runs every automated check of the definition of done on each push to main and on each pull
+# request. The checks live in scripts/check.sh, so a local run and a CI run are identical; see
+# docs/adr/0007-documentation-tooling-and-ci.md. Actions are pinned to commit SHAs, with the
+# release they correspond to in a comment.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+      - run: nix develop --command scripts/check.sh

@@ -13,7 +13,7 @@ Write an ADR when a decision:
 - shapes how crates depend on each other, or what a crate is responsible for;
 - sets a convention every contributor must follow (errors, logging, naming, `unsafe`, lints);
 - adds a dependency that other code will be built around (small leaf dependencies are recorded
-  in `docs/dependencies.md` instead);
+  in [`docs/dependencies.md`](../dependencies.md) instead);
 - changes the roadmap: a stage is reshaped, merged, reordered or dropped;
 - would be expensive or confusing to reverse without knowing why it was made.
 
@@ -71,3 +71,5 @@ the ADR linking to it.
 | [0003](0003-toolchain-edition-and-msrv.md) | Pin the toolchain in one file, use edition 2024, set the MSRV to the pinned version | Accepted |
 | [0004](0004-workspace-layout-and-crate-naming.md) | Workspace layout and crate naming | Accepted |
 | [0005](0005-lints-and-unsafe-policy.md) | Lints and `unsafe` policy | Accepted |
+| [0006](0006-dependency-policy.md) | Dependency policy | Accepted |
+| [0007](0007-documentation-tooling-and-ci.md) | Documentation tooling and continuous integration | Accepted |

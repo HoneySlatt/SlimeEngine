@@ -1,0 +1,44 @@
+# cargo-deny configuration. It enforces the dependency policy of
+# docs/adr/0006-dependency-policy.md; docs/dependencies.md says why each dependency is used.
+# Run with `cargo deny --locked check` (scripts/check.sh does).
+
+[graph]
+# Vet optional dependencies too, before anyone enables the feature that pulls them in.
+all-features = true
+
+[advisories]
+# Every RustSec advisory (vulnerability, unsound or unmaintained crate) affecting a dependency
+# fails the check. An advisory may be ignored only with an entry here that says why.
+ignore = []
+
+[licenses]
+# Licenses compatible with distributing SlimeEngine under MPL-2.0 and games under any license.
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "CC0-1.0",
+    "ISC",
+    "MIT",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Zlib",
+]
+confidence-threshold = 0.8
+unused-allowed-license = "allow"
+
+[licenses.private]
+# Workspace crates are not published; their license is set once in the workspace Cargo.toml.
+ignore = true
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# Path dependencies between workspace crates carry no version; that is not a wildcard.
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
