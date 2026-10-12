@@ -31,8 +31,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 ## [0.0.1] - 2026-10-12
 
 The first release, which closes Stage 1 of the roadmap: a very small application that is
-architecturally sound. Its git tag, `v0.0.1`, is created once keyboard and mouse input have been
-checked by hand (see `docs/PLAN.md`); CI runs green.
+architecturally sound. It was tagged `v0.0.1` once keyboard and mouse input had been checked by
+hand; its CI run is green.
 
 ### Added
 

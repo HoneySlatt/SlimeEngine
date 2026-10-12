@@ -14,8 +14,6 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 
 - Stage 2 — GPU layer → 0.0.2
 - Milestone M2.3 — The triangle in the window
-- Left over from Stage 1: the `v0.0.1` tag, which waits for a check by hand of keyboard and mouse
-  input (see [Releasing 0.0.1](#releasing-001)).
 
 ## Status
 
@@ -148,26 +146,26 @@ it:
   platforms; the tag is pushed.
 - **How to test.** Capture a frame of the `window` example in RenderDoc.
 
-## Releasing 0.0.1
+## Releasing
 
-The release is a git tag on a commit whose CI run is green
+A release is an annotated git tag on a commit whose CI run is green on Linux and Windows
 ([ADR-0004](adr/0004-workspace-layout-and-crate-naming.md)):
 
-1. Push the repository to GitHub and check that the CI workflow passes (done: the first push, on
-   2026-10-12, ran green).
-2. Check keyboard and mouse input by hand (see [Known debt](#known-debt)).
-3. In one commit: set `version = "0.0.1"` in the root `Cargo.toml`, rename the `[Unreleased]`
-   section of `CHANGELOG.md` to `[0.0.1] - <date>`, and update this plan (done: the commit
-   "Release 0.0.1").
-4. Once step 2 is done, tag that commit, not a later one:
-   `git tag -a v0.0.1 -m "SlimeEngine 0.0.1" <commit>`, then push the tag.
+1. In one commit, set the version in the root `Cargo.toml`, rename the `[Unreleased]` section of
+   `CHANGELOG.md` to `[<version>] - <date>`, and update this plan.
+2. Push that commit and wait for its CI run to pass.
+3. Tag that commit, not a later one, then push the tag:
+   `git tag -a v<version> -m "SlimeEngine <version>" <commit>`.
+
+0.0.1 was released on 2026-10-12, before Windows joined CI: the tag `v0.0.1` is on the commit
+"Release 0.0.1".
 
 ## Completed stages
 
 | Stage | Milestones | Result |
 |---|---|---|
 | 0 — Foundations | M0.1 repository and ADR process; M0.2 Nix environment; M0.3 workspace, lints, crate skeletons; M0.4 dependency policy and CI | Done. CI green on the first push to GitHub (2026-10-12). |
-| 1 — Core and platform → 0.0.1 | M1.1 logging and diagnostics; M1.2 frame timing; M1.3 lifecycle and headless mode; M1.4 window; M1.5 input; M1.6 clean shutdown | Done, except the check by hand of keyboard and mouse input. Content listed in [`CHANGELOG.md`](../CHANGELOG.md). |
+| 1 — Core and platform → 0.0.1 | M1.1 logging and diagnostics; M1.2 frame timing; M1.3 lifecycle and headless mode; M1.4 window; M1.5 input; M1.6 clean shutdown | Done; released as 0.0.1 (tag `v0.0.1`). Content listed in [`CHANGELOG.md`](../CHANGELOG.md). |
 
 The details of each completed milestone (what it delivered, how it was checked) are in the history
 of this file and in the commits that implemented it.
@@ -181,12 +179,6 @@ of this file and in the commits that implemented it.
   (GNOME), the title bar has no text, because winit's text renderer depends on an unmaintained
   crate (ADR-0011).
 - **`App` methods cannot return errors** (ADR-0010). `App::init` becomes fallible in M2.3.
-- **Keyboard and mouse input not checked by hand.** The translation is unit-tested, and cursor
-  events were seen in a real run, but key presses, mouse buttons and scrolling were not checked in
-  a real window: an automated check would have to type into the owner's session. To do: run
-  `cargo run --example window`, type, click and scroll, and read the log. On a French AZERTY
-  layout, the first letter key of the top row (labelled A) must log `physical: KeyQ` and
-  `logical: Character("a")`.
 - **The examples were not run by hand on Windows yet.** CI builds and tests them on Windows, but
   only a person can check a window there. To do: download the artifact `slime-examples-windows`
   of the latest CI run (on GitHub, or with `gh run download -n slime-examples-windows`), then in
