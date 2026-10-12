@@ -32,6 +32,8 @@ const USAGE: &str = "usage: window [--headless] [--frames <count>] [--present-mo
 struct WindowExample {
     /// The triangle's GPU objects; `None` when running headless.
     triangle: Option<Triangle>,
+    /// How many frames drew the triangle.
+    drawn: u64,
 }
 
 impl App for WindowExample {
@@ -60,11 +62,12 @@ impl App for WindowExample {
     fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
         if let (Some(gpu), Some(triangle)) = (ctx.gpu(), &self.triangle) {
             gpu.render(target, BACKGROUND, |pass| triangle.draw(pass));
+            self.drawn += 1;
         }
     }
 
     fn shutdown(&mut self, _ctx: &mut Context) {
-        tracing::info!("shutdown");
+        tracing::info!(drawn = self.drawn, "shutdown");
     }
 }
 
@@ -87,7 +90,18 @@ fn main() -> ExitCode {
         present_mode: options.present_mode,
         ..AppConfig::default()
     };
-    match slime_app::run(&mut WindowExample::default(), &config) {
+    let mut example = WindowExample::default();
+    match slime_app::run(&mut example, &config) {
+        // The automated checks run this example for a number of frames in a compositor without a
+        // screen, to prove that the window is drawn into: a run that drew nothing has failed.
+        Ok(()) if config.window.is_some() && options.frame_limit.is_some_and(|limit| limit > 0) => {
+            if example.drawn == 0 {
+                tracing::error!("no frame drew the triangle");
+                ExitCode::FAILURE
+            } else {
+                ExitCode::SUCCESS
+            }
+        }
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             tracing::error!("run failed: {}", error_chain(&error));

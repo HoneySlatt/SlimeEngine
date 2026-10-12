@@ -6,6 +6,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ## [Unreleased]
 
+### Changed
+
+- The `window` example exits with a failure when a run limited by `--frames` drew nothing, so
+  that the windowed check in a headless Weston proves that frames are drawn, as ADR-0013 says.
+
 ### Fixed
 
 - A `SLIME_LOG` value without a bare level, such as `slime_app=trace`, no longer silences every
