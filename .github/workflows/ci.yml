@@ -64,5 +64,6 @@ jobs:
             target/release/examples/headless.exe
             target/release/examples/window.exe
             target/release/examples/offscreen.exe
+            target/release/examples/scene.exe
           if-no-files-found: error
           retention-days: 14

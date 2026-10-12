@@ -16,6 +16,7 @@ png.workspace = true
 slime-app.workspace = true
 slime-gfx.workspace = true
 slime-platform.workspace = true
+slime-render.workspace = true
 tracing.workspace = true
 
 [[example]]
@@ -33,3 +34,7 @@ path = "window.rs"
 [[example]]
 name = "offscreen"
 path = "offscreen.rs"
+
+[[example]]
+name = "scene"
+path = "scene.rs"

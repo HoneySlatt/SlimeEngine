@@ -37,7 +37,7 @@ env -u WAYLAND_DISPLAY -u DISPLAY cargo run --locked --example window -- --headl
 env -u WAYLAND_DISPLAY -u DISPLAY VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
     cargo run --locked --example offscreen -- --output target/triangle.png
 
-step "Windowed sample and lifecycle test in a headless Wayland compositor (Weston), drawn with lavapipe"
+step "Windowed samples and lifecycle test in a headless Wayland compositor (Weston), drawn with lavapipe"
 # A private runtime directory keeps this compositor apart from the one the developer may be using.
 runtime=$(mktemp -d)
 XDG_RUNTIME_DIR=$runtime weston --backend=headless --socket=slime-check --idle-time=0 \
@@ -50,11 +50,13 @@ for _ in $(seq 100); do
     sleep 0.1
 done
 [ -S "$runtime/slime-check" ] || { echo "Weston did not start:"; cat "$runtime/weston.log"; exit 1; }
-# The run takes about 2 s; `timeout` ends a stalled one, with SIGTERM, which stops the engine
+# Each run takes a few seconds; `timeout` ends a stalled one, with SIGTERM, which stops the engine
 # cleanly, then SIGKILL if that is not enough, and the failure then prints Weston's log.
-env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
-    timeout -k 10 120 cargo run --locked --example window -- --frames 120 ||
-    { cat "$runtime/weston.log"; exit 1; }
+for example in window scene; do
+    env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+        timeout -k 10 120 cargo run --locked --example "$example" -- --frames 120 ||
+        { cat "$runtime/weston.log"; exit 1; }
+done
 # The windowed lifecycle test needs the compositor too, so it is outside the default test run
 # (ADR-0024).
 env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \

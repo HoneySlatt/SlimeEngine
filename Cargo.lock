@@ -1616,6 +1616,7 @@ dependencies = [
  "slime-app",
  "slime-gfx",
  "slime-platform",
+ "slime-render",
  "tracing",
 ]
 

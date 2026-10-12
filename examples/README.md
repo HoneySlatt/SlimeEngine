@@ -14,13 +14,14 @@ cargo run --example <name> [-- <arguments>]
 | [`headless`](headless.rs) | An application without a window: frames back to back with simulated time, exit at a frame limit, profiling spans (`SLIME_LOG=trace`) | `--frames <count>` (default 600) |
 | [`window`](window.rs) | A window in which the GPU draws the samples' triangle, which follows resizes; its events logged (window, keys, mouse; cursor motion with `SLIME_LOG=debug`); Escape, closing it or Ctrl+C quits cleanly. The sample of Stage 2 | `--frames <count>` closes it after that many frames, and fails if none of them drew the triangle; `--headless` runs the same program without a window; `--present-mode mailbox|fifo` chooses how images are shown (default `mailbox`) |
 | [`offscreen`](offscreen.rs) | Rendering without a window: the GPU draws a triangle into an image, which is read back and written to a PNG file; works on software drivers (lavapipe, WARP) | `--output <file>` (default `triangle.png`) |
+| [`scene`](scene.rs) | Cubes drawn by the renderer (`slime-render`) with a depth test, seen from a camera that orbits them; Escape, closing the window or Ctrl+C quits cleanly. The sample of Stage 3a, which grows with it | `--frames <count>` closes it after that many frames, and fails if none of them drew the scene |
 
 On Windows, the same commands work with the toolchain described in
 [`CONTRIBUTING.md`](../CONTRIBUTING.md#on-windows). Each CI run on GitHub also publishes
-`hello.exe`, `headless.exe`, `window.exe` and `offscreen.exe` built for Windows, as the artifact
-`slime-examples-windows`, to run on a Windows machine without a Rust toolchain. Run them from a
-terminal (Windows Terminal, PowerShell or cmd): started by a double click, their console closes
-with them, and an error at startup disappears with it.
+`hello.exe`, `headless.exe`, `window.exe`, `offscreen.exe` and `scene.exe` built for Windows, as
+the artifact `slime-examples-windows`, to run on a Windows machine without a Rust toolchain. Run
+them from a terminal (Windows Terminal, PowerShell or cmd): started by a double click, their
+console closes with them, and an error at startup disappears with it.
 
 The log level of every example is set by the `SLIME_LOG` environment variable, for example
 `SLIME_LOG=debug cargo run --example hello`.
@@ -29,12 +30,15 @@ The log level of every example is set by the `SLIME_LOG` environment variable, f
 
 - [`common/`](common) holds code used by several examples and tests, each file included where it
   is needed with `#[path = "common/<file>.rs"] mod <file>;`: the triangle that `window`,
-  `offscreen` and the image test draw, and its shader; PNG writing; error messages with their
-  causes.
-- [`tests/offscreen.rs`](tests/offscreen.rs) renders the same triangle and compares it with the
-  reference image [`tests/reference/triangle.png`](tests/reference/triangle.png), within a
-  tolerance ([ADR-0018](../docs/adr/0018-reference-image-tests.md)). Its module comment explains
-  how to render the reference again after a deliberate change.
+  `offscreen` and its image test draw, and its shader; the cubes that `scene` and its image test
+  draw; PNG writing; the comparison with a reference image; error messages with their causes.
+- [`tests/offscreen.rs`](tests/offscreen.rs) renders the triangle and compares it with the
+  reference image [`tests/reference/triangle.png`](tests/reference/triangle.png), and
+  [`tests/scene.rs`](tests/scene.rs) renders the cubes at a fixed time and compares them with
+  [`tests/reference/cubes.png`](tests/reference/cubes.png), both within a tolerance
+  ([ADR-0018](../docs/adr/0018-reference-image-tests.md)). Their module comments explain how to
+  render a reference again after a deliberate change; the tests print the difference they
+  measured with `--nocapture`.
 
 To add an example, put its source in this directory, declare it as an `[[example]]` in
 [`Cargo.toml`](Cargo.toml), give it a module comment saying what it shows and how to run it, and
