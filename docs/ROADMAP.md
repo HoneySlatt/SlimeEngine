@@ -298,7 +298,7 @@ Direction only. None of this is planned work until Stage 11 is reached.
 
 | System | Requires |
 |---|---|
-| platform | core |
+| platform | no engine crate (ADR-0004) |
 | gfx | no engine crate; window handles through the `raw-window-handle` traits, not `platform` |
 | render | gfx |
 | assets | core, basic task pool |
