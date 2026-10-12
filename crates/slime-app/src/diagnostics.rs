@@ -19,10 +19,13 @@ use tracing_subscriber::fmt::format::FmtSpan;
 pub const LOG_ENV_VAR: &str = "SLIME_LOG";
 
 /// The log filter used when [`LOG_ENV_VAR`] is unset or empty: `info` and above, except for
-/// wgpu-hal, whose `info` messages list what the GPU supports (`warn` and above), and for the
-/// wgpu-hal module that relays the messages of the Vulkan loader and layers (`error` only)
-/// (ADR-0019).
-pub const DEFAULT_LOG_FILTER: &str = "info,wgpu_hal=warn,wgpu_hal::vulkan::instance=error";
+/// wgpu-hal, whose `info` messages list what the GPU supports (`warn` and above), for the wgpu-hal
+/// module that relays the messages of the Vulkan loader and layers (`error` only), and for the
+/// module of winit's client-side decorations that asks the desktop settings portal for the theme
+/// (nothing): it logs an error whenever no session bus or portal answers, which the engine cannot
+/// act on (ADR-0019).
+pub const DEFAULT_LOG_FILTER: &str =
+    "info,wgpu_hal=warn,wgpu_hal::vulkan::instance=error,sctk_adwaita::config=off";
 
 /// Sets up logging and panic reporting for the process, then logs a line with the engine version,
 /// the operating system, the CPU architecture and the number of logical CPUs available to the

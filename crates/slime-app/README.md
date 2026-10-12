@@ -133,7 +133,8 @@ if let Err(error) = slime_app::run(&mut Game, &config) {
   CPU architecture and number of logical CPUs. `run` calls it; call it
   yourself only in a program that does not use `run`. Later calls do nothing. `LOG_ENV_VAR` is the
   name of that environment variable. When it is unset, `DEFAULT_LOG_FILTER` applies: `info` and
-  above, except for wgpu-hal's details about the GPU and the Vulkan loader's messages
+  above, except for wgpu-hal's details about the GPU, the Vulkan loader's messages, and the error
+  that winit's client-side decorations log when no desktop portal answers
   (`docs/adr/0019-default-log-filter.md`).
 
 Engine code and games log through the `tracing` macros. The conventions for errors, log levels and

@@ -291,9 +291,9 @@ of this file and in the commits that implemented it.
   waits on the swap chain's frame-latency object, up to one second, if the compositor stops taking
   images; whether Windows does so for such windows is unknown.
 - **Client-side decorations run `dbus-send` twice when the window is created** (winit's
-  sctk-adwaita, on compositors that do not draw decorations), and log an `ERROR` from
-  `sctk_adwaita::config` under the default log filter when no session bus or settings portal
-  answers, although nothing timed out.
+  sctk-adwaita, on compositors that do not draw decorations), each waiting up to 100 ms when the
+  settings portal does not answer; the error they log when no session bus or portal answers is
+  hidden by the default log filter (ADR-0019).
 
 ## Notes
 

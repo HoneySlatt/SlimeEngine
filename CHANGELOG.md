@@ -8,6 +8,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- The default log filter also hides the error that winit's client-side decorations log when no
+  session bus or desktop portal answers (`sctk_adwaita::config=off`, ADR-0019).
 - The Windows CI artifact also contains `offscreen.exe`, and the Windows job runs the release build
   of the headless samples.
 - The `window` example exits with a failure when a run limited by `--frames` drew nothing, so

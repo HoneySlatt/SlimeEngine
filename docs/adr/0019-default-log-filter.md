@@ -33,6 +33,13 @@ When `SLIME_LOG` is unset or empty, the filter is
 Any value of `SLIME_LOG` replaces the default entirely; a module without a level of its own then
 records `info` and above, as before.
 
+Entries added since, each with the message that justifies it:
+
+- 2026-10-12: `sctk_adwaita::config=off`. The module of winit's client-side decorations that asks
+  the desktop settings portal for the theme logs an `error` whenever `dbus-send` returns nothing,
+  with a text that speaks of a timeout although none occurred: at every start on systems without a
+  session bus or portal (containers, CI runners, minimal compositors). The engine cannot act on it.
+
 ## Alternatives considered
 
 - **Keep `info` for everything.** Every run starts with lines about drivers that the user cannot
