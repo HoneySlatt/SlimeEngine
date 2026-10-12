@@ -124,6 +124,20 @@ impl Gpu {
         }
     }
 
+    /// Runs `create` inside wgpu error scopes and returns what it created, with the error wgpu
+    /// reported if there is one: a validation error, or an internal one, which the graphics
+    /// driver's compiler raises when it rejects a shader or pipeline that wgpu's own validation
+    /// accepted. Errors of other kinds reach the error handler.
+    pub(crate) fn catch_errors<T>(&self, create: impl FnOnce() -> T) -> (T, Option<wgpu::Error>) {
+        let validation = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
+        let internal = self.device.push_error_scope(wgpu::ErrorFilter::Internal);
+        let created = create();
+        // Scopes are popped in the reverse order of their pushes.
+        let internal = pollster::block_on(internal.pop());
+        let validation = pollster::block_on(validation.pop());
+        (created, internal.or(validation))
+    }
+
     /// The name of the adapter in use, as its driver reports it: for example
     /// `"AMD Radeon RX 6900 XT (RADV NAVI21)"`, or `"llvmpipe (LLVM 21.1.8, 256 bits)"` for
     /// lavapipe.

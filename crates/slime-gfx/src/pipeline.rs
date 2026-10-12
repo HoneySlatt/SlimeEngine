@@ -82,8 +82,8 @@ impl Gpu {
     /// # Errors
     ///
     /// [`GfxError::Pipeline`] if wgpu rejects the pipeline, for example because an entry point
-    /// does not exist in the shader or its inputs do not match the vertex layout. The message
-    /// names the pipeline's label.
+    /// does not exist in the shader or its inputs do not match the vertex layout, or if the
+    /// graphics driver rejects it. The message names the pipeline's label.
     pub fn create_render_pipeline(
         &self,
         descriptor: &RenderPipelineDescriptor<'_>,
@@ -98,39 +98,39 @@ impl Gpu {
                 shader_location: attribute.location,
             })
             .collect();
-        let scope = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
-        let pipeline = self
-            .device
-            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some(descriptor.label),
-                layout: None,
-                vertex: wgpu::VertexState {
-                    module: &descriptor.shader.module,
-                    entry_point: Some(descriptor.vertex_entry_point),
-                    compilation_options: wgpu::PipelineCompilationOptions::default(),
-                    buffers: &[Some(wgpu::VertexBufferLayout {
-                        array_stride: descriptor.vertex_layout.stride,
-                        step_mode: wgpu::VertexStepMode::Vertex,
-                        attributes: &attributes,
-                    })],
-                },
-                primitive: wgpu::PrimitiveState::default(),
-                depth_stencil: None,
-                multisample: wgpu::MultisampleState::default(),
-                fragment: Some(wgpu::FragmentState {
-                    module: &descriptor.shader.module,
-                    entry_point: Some(descriptor.fragment_entry_point),
-                    compilation_options: wgpu::PipelineCompilationOptions::default(),
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format: descriptor.target_format.to_wgpu(),
-                        blend: None,
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
-                }),
-                multiview_mask: None,
-                cache: None,
-            });
-        match pollster::block_on(scope.pop()) {
+        let (pipeline, error) = self.catch_errors(|| {
+            self.device
+                .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                    label: Some(descriptor.label),
+                    layout: None,
+                    vertex: wgpu::VertexState {
+                        module: &descriptor.shader.module,
+                        entry_point: Some(descriptor.vertex_entry_point),
+                        compilation_options: wgpu::PipelineCompilationOptions::default(),
+                        buffers: &[Some(wgpu::VertexBufferLayout {
+                            array_stride: descriptor.vertex_layout.stride,
+                            step_mode: wgpu::VertexStepMode::Vertex,
+                            attributes: &attributes,
+                        })],
+                    },
+                    primitive: wgpu::PrimitiveState::default(),
+                    depth_stencil: None,
+                    multisample: wgpu::MultisampleState::default(),
+                    fragment: Some(wgpu::FragmentState {
+                        module: &descriptor.shader.module,
+                        entry_point: Some(descriptor.fragment_entry_point),
+                        compilation_options: wgpu::PipelineCompilationOptions::default(),
+                        targets: &[Some(wgpu::ColorTargetState {
+                            format: descriptor.target_format.to_wgpu(),
+                            blend: None,
+                            write_mask: wgpu::ColorWrites::ALL,
+                        })],
+                    }),
+                    multiview_mask: None,
+                    cache: None,
+                })
+        });
+        match error {
             None => Ok(RenderPipeline { pipeline }),
             Some(error) => Err(GfxError::Pipeline {
                 label: descriptor.label.to_owned(),

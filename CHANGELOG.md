@@ -8,6 +8,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- A shader module or render pipeline that the graphics driver's compiler rejects, after wgpu's
+  own validation accepted it, is returned as `GfxError::Shader` or `GfxError::Pipeline` instead
+  of panicking.
 - `Gpu::create_vertex_buffer` rejects empty data with a message naming the buffer, instead of
   letting the first `set_vertex_buffer` panic inside wgpu; its rustdoc now lists its panics.
 - A windowed run whose `render` draws nothing into the window's image no longer grows at every
