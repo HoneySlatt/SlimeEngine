@@ -5,7 +5,8 @@ The engine's link to the operating system's windowing and input services.
 ## Status
 
 Partial. It opens one window, on Wayland or X11 (Linux) and on Windows, reports its events (close
-requested, resized, scale factor changed, focus, keys, mouse buttons, cursor motion and scrolling)
+requested, resized, scale factor changed, focus, keys, mouse buttons, cursor motion, the cursor
+entering and leaving, and scrolling)
 and its redraw requests. It does not report yet: the state of the modifier keys as a whole, text
 composed by input methods (Chinese, Japanese, Korean), touch screens, touchpad gestures, gamepads,
 or files dropped on the window.
@@ -46,11 +47,16 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
   logical key for shortcuts and text. `MouseButton`, `ButtonState` and `ScrollDelta` describe the
   mouse.
 - `PlatformError` says why the event loop could not run; winit's own error is its `source()`.
+  A compositor or X server that dies while the loop runs ends it cleanly (`exiting` is called) with
+  `PlatformError::EventLoop`, whose source says only `Exit Failure: 1`; the cause appears in lines
+  that the Wayland library prints to standard error itself.
 
 On Linux, the windowing system is chosen from the environment, with no fallback from one to the
 other: Wayland if `WAYLAND_DISPLAY` or `WAYLAND_SOCKET` is set to a non-empty value, otherwise X11
-if `DISPLAY` is. Its libraries are loaded at run time, so a program that never creates an event
-loop runs without them: libxkbcommon for both; libwayland-client for Wayland; libX11, libX11-xcb,
+if `DISPLAY` is. A `WAYLAND_SOCKET` that does not name an open file descriptor aborts debug builds,
+since the Wayland library takes ownership of the descriptor before checking it, and gives
+`PlatformError::Connect` in release builds. Its libraries are loaded at run time, so a program that
+never creates an event loop runs without them: libxkbcommon for both; libwayland-client for Wayland; libX11, libX11-xcb,
 libXcursor, libXi, libxcb and libxkbcommon-x11 for X11.
 
 ## Dependencies

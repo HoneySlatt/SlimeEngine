@@ -20,7 +20,11 @@ pub enum PlatformError {
     /// The windowing system refused to create the window.
     #[error("cannot create the window")]
     CreateWindow(#[source] Source),
-    /// The event loop stopped with an error.
+    /// The event loop stopped with an error. On Linux, this is what a compositor or X server that
+    /// dies or closes the connection produces: the loop ends cleanly first, so
+    /// [`EventHandler::exiting`](crate::EventHandler::exiting) is still called, and the source is
+    /// the windowing library's `Exit Failure: <code>`; the cause appears only in lines that the
+    /// Wayland library prints to standard error itself.
     #[error("the event loop failed")]
     EventLoop(#[source] Source),
 }

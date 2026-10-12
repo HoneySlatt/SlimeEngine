@@ -207,6 +207,11 @@ impl Surface {
     /// It can block until an image is free. With [`PresentMode::Fifo`], it does in step with the
     /// display; with [`PresentMode::Mailbox`], it was measured not to (on niri with RADV, and in a
     /// headless Weston with lavapipe).
+    ///
+    /// # Panics
+    ///
+    /// If the [`SurfaceFrame`] of the previous call has neither been presented nor dropped: wgpu
+    /// treats acquiring a second image as a misuse (ADR-0016).
     pub fn acquire(&mut self, label: &str) -> Option<SurfaceFrame> {
         if self.config.width == 0 || self.config.height == 0 {
             return None;

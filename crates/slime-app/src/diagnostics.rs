@@ -37,7 +37,8 @@ pub const DEFAULT_LOG_FILTER: &str = "info,wgpu_hal=warn,wgpu_hal::vulkan::insta
 ///   written, because the reader of standard error exited or the terminal closed, is dropped and
 ///   the process goes on.
 /// - If the process already has a global subscriber, for example because the game installed its
-///   own, that subscriber is kept and receives the engine's events.
+///   own, that subscriber is kept and receives the engine's events. A `log` logger installed before
+///   this call keeps receiving the records that dependencies emit through `log`.
 /// - Installs a panic hook that logs the panic message, its location and the name of the thread
 ///   as an `error` event, then runs the hook that was installed before it. By default that is the
 ///   standard library's hook, which prints the message and, when `RUST_BACKTRACE` asks for it, a
@@ -73,8 +74,8 @@ fn install_subscriber() {
         // either way; the engine must go on.
         .log_internal_errors(false)
         .try_init();
-    if installed.is_err() {
-        tracing::debug!("a global log subscriber already exists, keeping it");
+    if let Err(error) = installed {
+        tracing::debug!(%error, "the process already has a log subscriber or logger, keeping it");
     }
 }
 

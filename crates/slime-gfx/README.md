@@ -99,7 +99,8 @@ fn main() -> Result<(), GfxError> {
     lists of triangles, without depth, culling or blending.
 
   They are cheap to clone, clones share the GPU object, and it is freed when the last one is
-  dropped.
+  dropped. Each belongs to the `Gpu` that created it: using it with another `Gpu` is a bug, which
+  panics inside wgpu.
 - `Gpu::render(target, clear, record)` clears a target to a color, lets `record` draw into it
   through a `RenderPass` (`set_pipeline`, `set_vertex_buffer`, `draw`), and sends the work to the
   GPU. The pass is named after the target's label in capture tools, and
