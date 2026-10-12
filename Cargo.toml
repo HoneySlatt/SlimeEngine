@@ -1,4 +1,5 @@
 # Workspace layout and naming: docs/adr/0004-workspace-layout-and-crate-naming.md
+# Lints and unsafe policy: docs/adr/0005-lints-and-unsafe-policy.md
 [workspace]
 members = ["crates/*"]
 resolver = "3"
@@ -11,3 +12,12 @@ rust-version = "1.99"
 license = "MPL-2.0"
 publish = false
 
+[workspace.lints.rust]
+missing_docs = "warn"
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+allow_attributes_without_reason = "warn"
+missing_errors_doc = "warn"
+missing_panics_doc = "warn"
+undocumented_unsafe_blocks = "warn"

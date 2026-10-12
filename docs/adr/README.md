@@ -70,3 +70,4 @@ the ADR linking to it.
 | [0002](0002-amend-roadmap-stages-0-to-3.md) | Amend the roadmap for Stages 0 to 3 | Accepted |
 | [0003](0003-toolchain-edition-and-msrv.md) | Pin the toolchain in one file, use edition 2024, set the MSRV to the pinned version | Accepted |
 | [0004](0004-workspace-layout-and-crate-naming.md) | Workspace layout and crate naming | Accepted |
+| [0005](0005-lints-and-unsafe-policy.md) | Lints and `unsafe` policy | Accepted |
