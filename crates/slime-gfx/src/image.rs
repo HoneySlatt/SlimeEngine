@@ -25,15 +25,17 @@ impl Gpu {
     ///
     /// # Errors
     ///
-    /// [`GfxError::Readback`] if waiting for the GPU or reading its memory fails, for example
-    /// because the device was lost.
+    /// [`GfxError::DeviceLost`] once the device is lost ([`Gpu::check`]); [`GfxError::Readback`] if
+    /// waiting for the GPU or reading its memory fails.
     ///
     /// # Panics
     ///
     /// If `target` is the image of a window
     /// ([`SurfaceFrame::target`](crate::SurfaceFrame::target)): only targets created by
-    /// [`Gpu::create_render_target`] can be read back.
+    /// [`Gpu::create_render_target`] can be read back. Also if the wait for the GPU is what finds
+    /// the device lost: wgpu treats that as fatal.
     pub fn read_render_target(&self, target: &RenderTarget) -> Result<Image, GfxError> {
+        self.check()?;
         let readback_error =
             |source: Box<dyn std::error::Error + Send + Sync>| GfxError::Readback {
                 label: target.label.clone(),

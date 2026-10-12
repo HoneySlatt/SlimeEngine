@@ -109,8 +109,9 @@ impl Gpu {
     }
 
     /// Whether the device can still be used. It cannot once it is lost: the driver crashed or was
-    /// reset, the GPU was removed, or it ran out of memory. Every later use of the device then
-    /// fails without effect, and its objects can only be dropped.
+    /// reset, the GPU was removed, or it ran out of memory. The methods of this crate that return a
+    /// `Result` then return [`GfxError::DeviceLost`]; the others do nothing, since wgpu ignores
+    /// every use of a lost device, and the objects they return cannot be used.
     ///
     /// # Errors
     ///
@@ -150,8 +151,14 @@ impl Gpu {
     ///
     /// # Errors
     ///
-    /// [`GfxError::Wait`] if waiting failed, for example because the device was lost.
+    /// [`GfxError::DeviceLost`] once the device is lost ([`Gpu::check`]); [`GfxError::Wait`] if
+    /// waiting failed.
+    ///
+    /// # Panics
+    ///
+    /// If the wait itself is what finds the device lost: wgpu treats that as fatal.
     pub fn wait_idle(&self) -> Result<(), GfxError> {
+        self.check()?;
         let encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -211,6 +218,15 @@ mod tests {
             a: 1.0,
         };
         gpu.render(&target, black, |_pass| {});
-        assert!(gpu.read_render_target(&target).is_err());
+        for result in [
+            gpu.read_render_target(&target).map(|_| ()),
+            gpu.wait_idle(),
+            gpu.create_shader_module("lost shader", "").map(|_| ()),
+        ] {
+            assert!(
+                matches!(result, Err(GfxError::DeviceLost { .. })),
+                "a lost device is reported by every method that returns a result: {result:?}"
+            );
+        }
     }
 }

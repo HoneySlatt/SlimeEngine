@@ -82,8 +82,10 @@ fn main() -> Result<(), GfxError> {
   can restrict Vulkan to one driver, such as lavapipe.
 - `Gpu::adapter_name()` names the adapter in use; `Gpu::wait_idle()` blocks until the GPU has
   finished its work; `Gpu::check()` returns `GfxError::DeviceLost` once the device is lost (the
-  driver crashed or was reset, the GPU was removed, or it ran out of memory), after which every
-  use of the device fails without effect (`docs/adr/0022-losing-the-gpu-device.md`).
+  driver crashed or was reset, the GPU was removed, or it ran out of memory): the methods that
+  return a `Result` then return that error, and the others do nothing
+  (`docs/adr/0022-losing-the-gpu-device.md`). A loss that a wait for the GPU is the first to find
+  panics inside wgpu, which treats it as fatal.
 - GPU objects, each created by a method of `Gpu` with a label that names it in error messages and
   GPU capture tools (`docs/adr/0017-gpu-resource-types.md`):
   - `RenderTarget`: an image the GPU draws into (`create_render_target`), in one of the

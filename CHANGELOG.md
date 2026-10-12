@@ -8,6 +8,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- `Gpu::wait_idle`, `Gpu::create_shader_module`, `Gpu::create_render_pipeline` and
+  `Gpu::read_render_target` return `GfxError::DeviceLost` once the device is lost, as documented,
+  instead of `Ok` with objects that cannot be used.
 - A `WindowConfig` with a zero width or height, a size above 16 384 logical pixels, or a title
   containing a NUL byte is rejected with a clear message before the window is created, instead of
   panicking inside the windowing library (a zero size on Wayland, a NUL byte on Wayland and X11) or

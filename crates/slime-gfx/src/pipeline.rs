@@ -83,11 +83,13 @@ impl Gpu {
     ///
     /// [`GfxError::Pipeline`] if wgpu rejects the pipeline, for example because an entry point
     /// does not exist in the shader or its inputs do not match the vertex layout, or if the
-    /// graphics driver rejects it. The message names the pipeline's label.
+    /// graphics driver rejects it. The message names the pipeline's label. [`GfxError::DeviceLost`]
+    /// once the device is lost ([`Gpu::check`]).
     pub fn create_render_pipeline(
         &self,
         descriptor: &RenderPipelineDescriptor<'_>,
     ) -> Result<RenderPipeline, GfxError> {
+        self.check()?;
         let attributes: Vec<wgpu::VertexAttribute> = descriptor
             .vertex_layout
             .attributes

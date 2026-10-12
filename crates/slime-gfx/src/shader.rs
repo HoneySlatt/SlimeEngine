@@ -19,8 +19,10 @@ impl Gpu {
     ///
     /// [`GfxError::Shader`] if the source does not compile, with the compiler's message, which
     /// shows the line and column of each error; or if the graphics driver rejects the compiled
-    /// module, with the driver's message.
+    /// module, with the driver's message. [`GfxError::DeviceLost`] once the device is lost
+    /// ([`Gpu::check`]).
     pub fn create_shader_module(&self, label: &str, wgsl: &str) -> Result<ShaderModule, GfxError> {
+        self.check()?;
         let (module, error) = self.catch_errors(|| {
             self.device
                 .create_shader_module(wgpu::ShaderModuleDescriptor {
