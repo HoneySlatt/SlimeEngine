@@ -108,6 +108,51 @@ mod tests {
         );
     }
 
+    /// Keyboard and scale-factor events cannot be built outside winit; their translation is
+    /// covered by the tests of `input.rs`.
+    #[test]
+    fn mouse_events_are_translated() {
+        use winit::event::{
+            DeviceId, ElementState, MouseButton as WinitButton, MouseScrollDelta, TouchPhase,
+        };
+
+        let device_id = DeviceId::dummy();
+        assert_eq!(
+            translate(WindowEvent::MouseInput {
+                device_id,
+                state: ElementState::Pressed,
+                button: WinitButton::Left,
+            }),
+            Some(Event::MouseButton {
+                button: MouseButton::Left,
+                state: ButtonState::Pressed,
+            })
+        );
+        assert_eq!(
+            translate(WindowEvent::CursorMoved {
+                device_id,
+                position: PhysicalPosition::new(3.5, 12.0),
+            }),
+            Some(Event::CursorMoved { x: 3.5, y: 12.0 })
+        );
+        assert_eq!(
+            translate(WindowEvent::CursorEntered { device_id }),
+            Some(Event::CursorEntered)
+        );
+        assert_eq!(
+            translate(WindowEvent::CursorLeft { device_id }),
+            Some(Event::CursorLeft)
+        );
+        assert_eq!(
+            translate(WindowEvent::MouseWheel {
+                device_id,
+                delta: MouseScrollDelta::LineDelta(0.0, -1.0),
+                phase: TouchPhase::Moved,
+            }),
+            Some(Event::MouseWheel(ScrollDelta::Lines { x: 0.0, y: -1.0 }))
+        );
+    }
+
     #[test]
     fn events_the_engine_does_not_handle_are_dropped() {
         assert_eq!(
