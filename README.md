@@ -7,11 +7,11 @@ games first, then open-world games, then large online worlds.
 ## Status
 
 Pre-alpha. Stage 0, *Foundations*, is done: the repository has its rules, its roadmap, its plan,
-a reproducible development environment, its checks and a CI workflow. Stage 1, which brings the
-first engine code (window, input, main loop, headless mode), is in progress: applications run
-headless or with a window (Wayland or X11) that receives keyboard and mouse input, with a
-fixed-step main loop, logging and panic reporting. [`docs/PLAN.md`](docs/PLAN.md) shows the
-milestone in progress and the known debt.
+a reproducible development environment, its checks and a CI workflow. Stage 1 is implemented:
+applications run headless or with a window (Wayland or X11) that receives keyboard and mouse
+input, with a fixed-step main loop, logging, panic reporting and a clean shutdown on Ctrl+C. There
+is no rendering yet. It will be released as 0.0.1 once CI has run on GitHub;
+[`docs/PLAN.md`](docs/PLAN.md) lists what remains and the known debt.
 
 ## Getting started
 
@@ -39,6 +39,7 @@ scripts/check.sh             # every check, exactly as CI runs them
 | [`docs/adr/`](docs/adr/README.md) | Every architecture decision, with its context and the alternatives rejected. |
 | [`docs/glossary.md`](docs/glossary.md) | Terms the project defines. |
 | [`docs/dependencies.md`](docs/dependencies.md) | Every third-party dependency and tool, and why it is used. |
+| [`CHANGELOG.md`](CHANGELOG.md) | Notable changes, per release. |
 
 ## License
 

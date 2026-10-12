@@ -11,8 +11,10 @@ documentation was updated and reread.
 
 ## Current
 
-- Stage 1 — Core and platform
-- Milestone M1.6 — Clean shutdown, hardening, release 0.0.1
+- Stage 1 — Core and platform: every milestone is implemented and checked locally.
+- Before 0.0.1 is tagged: the first CI run on GitHub, and the check by hand of keyboard and mouse
+  input (see [Known debt](#known-debt)). Then, the [release steps](#releasing-001).
+- Stage 2 has not been planned yet.
 
 ## Status
 
@@ -27,7 +29,7 @@ documentation was updated and reread.
 | [M1.3](#m13--lifecycle-and-headless-mode) | Lifecycle and headless mode | Done |
 | [M1.4](#m14--window) | Window | Done |
 | [M1.5](#m15--input) | Input | Done, except the check by hand of keys and mouse buttons (see [Known debt](#known-debt)) |
-| [M1.6](#m16--clean-shutdown-hardening-release-001) | Clean shutdown, hardening, release 0.0.1 | In progress |
+| [M1.6](#m16--clean-shutdown-hardening-release-001) | Clean shutdown, hardening, release 0.0.1 | Done, except the release itself (see [Releasing 0.0.1](#releasing-001)) |
 
 ## Stage 0 — Foundations
 
@@ -161,14 +163,27 @@ CI. X11 is checked through Xwayland.
 
 - **Goal.** The application always ends cleanly, and 0.0.1 is released.
 - **Crates.** `slime-app`, `examples`.
-- **Delivers.** SIGINT and SIGTERM trigger a clean shutdown in both modes (dependency `ctrlc`);
-  without a display, a clear error and a non-zero exit code instead of a panic; the `window`
-  example also runs headless (`--headless --frames N`): the same binary in both modes; optionally,
-  an automated windowed smoke test under a headless Weston compositor; `CHANGELOG.md`; a full
-  reread of the documentation as a newcomer; the `v0.0.1` git tag.
+- **Delivers.** SIGINT, SIGTERM and SIGHUP trigger a clean shutdown in both modes, and a second
+  signal ends the process at once (dependency `ctrlc`, ADR-0012); without a display, a clear error
+  and a non-zero exit code instead of a panic; the `window` example also runs headless
+  (`--headless --frames N`): the same binary in both modes; an automated windowed smoke test in a
+  headless Weston compositor (ADR-0013); `CHANGELOG.md`; a full reread of the documentation as a
+  newcomer; the `v0.0.1` git tag.
 - **Done when.** Ctrl+C in both modes logs the shutdown and exits with code 0; CI is green.
-- **How to test.** Press Ctrl+C in `window` and in `headless`; run
-  `cargo run --example window` with `WAYLAND_DISPLAY` and `DISPLAY` unset.
+- **How to test.** Press Ctrl+C in `window` and in `headless -- --frames 1000000000`; run
+  `cargo run --example window` with `WAYLAND_DISPLAY` and `DISPLAY` unset; run
+  `scripts/check.sh`.
+
+### Releasing 0.0.1
+
+The release is a git tag on a commit whose CI run is green
+([ADR-0004](adr/0004-workspace-layout-and-crate-naming.md)):
+
+1. Push the repository to GitHub and check that the CI workflow passes.
+2. Check keyboard and mouse input by hand (see [Known debt](#known-debt)).
+3. In one commit: set `version = "0.0.1"` in the root `Cargo.toml`, rename the `[Unreleased]`
+   section of `CHANGELOG.md` to `[0.0.1] - <date>`, and update this plan.
+4. Tag that commit: `git tag -a v0.0.1 -m "SlimeEngine 0.0.1"`.
 
 ## Known debt
 
