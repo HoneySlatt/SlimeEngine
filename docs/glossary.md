@@ -12,6 +12,11 @@ falls behind wall-clock time when a frame delta is limited, for example after a 
 **Definition of done.** The conditions a milestone must meet before it is reported as finished,
 listed in [`AGENTS.md`](../AGENTS.md#definition-of-done).
 
+**Driver.** The loop that decides when frames run and what time each one represents. `run` has a
+headless driver (frames back to back, simulated time); a windowed driver, called back by the
+windowing library's event loop, arrives with windows. All drivers run frames the same way
+([ADR-0010](adr/0010-main-loop-ownership.md)).
+
 **Example.** A runnable program in the `examples/` directory that demonstrates one feature.
 
 **Fixed step.** A duration of time, constant for a run, in which code that must not depend on

@@ -6,6 +6,7 @@ use std::sync::Once;
 
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::EnvFilter;
+use tracing_subscriber::fmt::format::FmtSpan;
 
 /// The environment variable that selects which log events are recorded.
 ///
@@ -22,7 +23,9 @@ pub const LOG_ENV_VAR: &str = "SLIME_LOG";
 /// - Installs a global [`tracing`] subscriber that writes events to standard error with a
 ///   timestamp, the level and the module that emitted them, filtered by [`LOG_ENV_VAR`]. Colors
 ///   are used only when standard error is a terminal and `NO_COLOR` is not set. Records that
-///   dependencies emit through the `log` crate reach the same subscriber.
+///   dependencies emit through the `log` crate reach the same subscriber. When a span that the
+///   filter lets through closes, a line records how long it was busy and idle, which makes the
+///   profiling spans of the main loop visible with `SLIME_LOG=trace`.
 /// - If the process already has a global subscriber, for example because the game installed its
 ///   own, that subscriber is kept and receives the engine's events.
 /// - Installs a panic hook that logs the panic message, its location and the name of the thread
@@ -50,6 +53,7 @@ fn install_subscriber() {
         .with_env_filter(filter)
         .with_writer(std::io::stderr)
         .with_ansi(use_colors())
+        .with_span_events(FmtSpan::CLOSE)
         .try_init();
     if installed.is_err() {
         tracing::debug!("a global log subscriber already exists, keeping it");

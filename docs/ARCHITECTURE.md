@@ -12,7 +12,7 @@ it is built this way.
 ├── .github/workflows/   CI: runs scripts/check.sh
 ├── Cargo.toml           virtual workspace: shared metadata, lints and dependency versions
 ├── crates/              engine crates, one directory per crate, named after the package
-│   ├── slime-app/       application lifecycle and main loop; today, diagnostics and timing
+│   ├── slime-app/       application lifecycle and main loop; headless only so far
 │   └── slime-platform/  windows and input (skeleton)
 ├── deny.toml            dependency license, advisory and source rules
 ├── docs/                roadmap, plan, decisions (adr/), glossary, dependencies, this file
@@ -32,8 +32,8 @@ is created only when code needs it.
 | Crate | Role | Depends on | Status |
 |---|---|---|---|
 | [`slime-platform`](../crates/slime-platform/README.md) | Windows and input; the only crate that uses the windowing library | — | Skeleton |
-| [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `tracing`, `tracing-subscriber` | Diagnostics and frame timing; no main loop yet |
-| [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `tracing` | `hello` |
+| [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `tracing`, `tracing-subscriber` | Headless runs work; no window yet |
+| [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `tracing` | `hello`, `headless` |
 
 A *skeleton* crate exists with its documentation and inherits the workspace policies, but holds
 no code yet.
@@ -60,6 +60,28 @@ then logs one line describing the engine and the machine. From then on, every `t
 from the engine, the game or a dependency goes through that subscriber. Source:
 [`crates/slime-app/src/diagnostics.rs`](../crates/slime-app/src/diagnostics.rs); conventions:
 [ADR-0008](adr/0008-errors-logging-and-assertions.md).
+
+### Running an application
+
+A game implements `slime_app::App` and calls `slime_app::run`, which owns the main loop
+([ADR-0010](adr/0010-main-loop-ownership.md)). Today every run is headless:
+
+```text
+slime_app::run(&mut app, &config)
+├── init_diagnostics()                   no effect if already done in this process
+├── app.init(ctx)
+├── loop, until ctx.request_exit() was called or config.frame_limit frames have run
+│   └── frame                            span "frame", trace level
+│       ├── FrameClock::advance(delta)   headless: delta = the fixed step (simulated time)
+│       ├── FixedStep::advance(delta)    how many fixed steps are due: n
+│       ├── app.fixed_update(ctx, step)  n times, span "fixed_update"
+│       └── app.update(ctx, &frame)      once, span "update"
+└── app.shutdown(ctx)
+```
+
+An exit request takes effect between frames: the frame in progress always finishes. Source:
+[`crates/slime-app/src/app.rs`](../crates/slime-app/src/app.rs); the call order is checked by
+[`crates/slime-app/tests/lifecycle.rs`](../crates/slime-app/tests/lifecycle.rs).
 
 ### Frame timing
 

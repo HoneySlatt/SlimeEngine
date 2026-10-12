@@ -75,3 +75,4 @@ the ADR linking to it.
 | [0007](0007-documentation-tooling-and-ci.md) | Documentation tooling and continuous integration | Accepted |
 | [0008](0008-errors-logging-and-assertions.md) | Errors, logging and assertions | Accepted |
 | [0009](0009-frame-timing.md) | Frame timing | Accepted |
+| [0010](0010-main-loop-ownership.md) | Main loop ownership and the application API | Accepted |
