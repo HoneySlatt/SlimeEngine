@@ -137,7 +137,8 @@ until the next frame is due or an event arrives. A frame that starts a little la
 the schedule, which keeps the average rate; after falling a whole period behind, the schedule
 restarts instead of catching up with frames run back to back (`next_due` in `windowed.rs`). The
 windowing system also asks for redraws on its own, during a resize for example, and each of them
-runs a frame too. On Windows, this is what keeps the window drawn while the user resizes it: the
+runs a frame too; such a frame restarts the schedule as well, so the next frame the engine asks for
+comes one period after it. On Windows, this is what keeps the window drawn while the user resizes it: the
 system then runs its own loop, in which `about_to_wait` is not called.
 
 ### Opening the GPU

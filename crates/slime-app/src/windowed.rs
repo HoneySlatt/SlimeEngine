@@ -154,11 +154,15 @@ impl<A: App> EventHandler for WindowedDriver<'_, A> {
 /// When the frame after one that was due at `due` and started at `started` is due.
 ///
 /// Frames stay on a regular schedule, so that a frame starting a little late does not lower the
-/// average rate. After falling a whole period behind, the schedule restarts from the frame that
-/// just started: catching up would run frames back to back.
+/// average rate. The schedule restarts from the frame that just started in two cases: after
+/// falling a whole period behind, since catching up would run frames back to back; and after a
+/// frame that ran before it was due, because the windowing system asked for it (during a resize)
+/// or the application did. Counting such a frame as the scheduled one would push the schedule one
+/// period further away at each of them, and the loop would then sleep until the schedule caught
+/// up, without running frames or noticing signals.
 fn next_due(due: Instant, started: Instant, period: Duration) -> Instant {
     let next = due + period;
-    if next <= started {
+    if started < due || next <= started {
         started + period
     } else {
         next
@@ -182,6 +186,13 @@ mod tests {
         let due = Instant::now();
         let started = due + Duration::from_millis(5);
         assert_eq!(next_due(due, started, PERIOD), due + PERIOD);
+    }
+
+    #[test]
+    fn a_frame_that_ran_before_it_was_due_restarts_the_schedule() {
+        let started = Instant::now();
+        let due = started + Duration::from_millis(10);
+        assert_eq!(next_due(due, started, PERIOD), started + PERIOD);
     }
 
     #[test]

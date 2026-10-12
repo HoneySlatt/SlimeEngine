@@ -8,6 +8,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- Frames that the windowing system asks for on its own (during a resize) or that the application
+  requests through `Window::request_redraw` no longer postpone the engine's schedule: after a burst
+  of them, the loop went to sleep until the schedule caught up, for seconds, without running frames
+  or noticing termination signals.
 - A window larger than the images the GPU accepts (8192 pixels in a dimension with the default
   limits) no longer panics the engine: the images are limited to that size, with a warning.
 - `FrameClock` no longer panics when the elapsed time would overflow (a maximum frame delta
