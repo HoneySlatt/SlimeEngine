@@ -1,181 +1,151 @@
 # Plan
 
-This file says what is being worked on now. It lists the milestones of the current stages, their
-status, how each one is checked, and the known debt. Direction beyond these stages is in
+This file says what is being worked on now. It lists the milestones of the current stage, their
+status, how each one is checked, and the known debt. Direction beyond this stage is in
 [`ROADMAP.md`](ROADMAP.md); decisions are in [`adr/`](adr/README.md). A *stage* is a step of the
 roadmap; a *milestone* is a small, verifiable step of a stage.
 
 Every milestone ends with the definition of done in [`AGENTS.md`](../AGENTS.md#definition-of-done):
 build, tests, clippy, rustfmt and rustdoc pass, the program was actually run, and the affected
-documentation was updated and reread.
+documentation was updated and reread. From Stage 2 on, every milestone is also checked on Windows
+([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-windows.md)).
 
 ## Current
 
-- Stage 1 — Core and platform: every milestone is implemented, and every automated check passes,
-  locally and in CI.
-- Before 0.0.1 is tagged: the check by hand of keyboard and mouse input (see
-  [Known debt](#known-debt)). CI ran green on the first push to GitHub. Then, the
-  [release steps](#releasing-001).
-- Stage 2 is being planned; its milestones are written here once the owner validates them.
+- Stage 2 — GPU layer → 0.0.2
+- Milestone M2.0 — Windows in CI
+- Left over from Stage 1: the `v0.0.1` tag, which waits for a check by hand of keyboard and mouse
+  input (see [Releasing 0.0.1](#releasing-001)).
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
-| [M0.1](#m01--repository-license-and-adr-process) | Repository, license and ADR process | Done |
-| [M0.2](#m02--nix-development-environment) | Nix development environment | Done |
-| [M0.3](#m03--workspace-lints-and-crate-skeletons) | Workspace, lints and crate skeletons | Done |
-| [M0.4](#m04--dependency-policy-and-ci) | Dependency policy and CI | Done |
-| [M1.1](#m11--logging-and-diagnostics) | Logging and diagnostics | Done |
-| [M1.2](#m12--frame-timing) | Frame timing | Done |
-| [M1.3](#m13--lifecycle-and-headless-mode) | Lifecycle and headless mode | Done |
-| [M1.4](#m14--window) | Window | Done |
-| [M1.5](#m15--input) | Input | Done, except the check by hand of keys, mouse buttons and scrolling (see [Known debt](#known-debt)) |
-| [M1.6](#m16--clean-shutdown-hardening-release-001) | Clean shutdown, hardening, release 0.0.1 | Done, except the release, which waits for the input check (see [Releasing 0.0.1](#releasing-001)) |
+| [M2.0](#m20--windows-in-ci) | Windows in CI | In progress |
+| [M2.1](#m21--gpu-device-without-a-window) | GPU device without a window | Planned |
+| [M2.2](#m22--offscreen-triangle-and-reference-image) | Offscreen triangle and reference image | Planned |
+| [M2.3](#m23--the-triangle-in-the-window) | The triangle in the window | Planned |
+| [M2.4](#m24--frame-pacing) | Frame pacing | Planned |
+| [M2.5](#m25--debug-markers-robustness-release-002) | Debug markers, robustness, release 0.0.2 | Planned |
 
-## Stage 0 — Foundations
+Stages 0 and 1 are done; see [Completed stages](#completed-stages).
 
-Exit criterion (see [`ROADMAP.md`](ROADMAP.md#stage-0--foundations)): CI is green on a workspace
-that contains the skeletons of the Stage 1 crates; the policies exist as ADRs; the documentation
-baseline exists and CI checks it.
+## Stage 2 — GPU layer → 0.0.2
 
-### M0.1 — Repository, license and ADR process
+Exit criterion (see [`ROADMAP.md`](ROADMAP.md#stage-2--gpu-layer--002)): a triangle renders and
+survives resize, on Linux and on Windows; an offscreen render is compared to a reference image in
+CI, rendered with lavapipe on Linux and WARP on Windows, with a tolerance so that the same test
+passes on hardware drivers.
 
-- **Goal.** The repository exists and its rules are written down.
-- **Crates.** None.
-- **Delivers.** `LICENSE` (MPL-2.0), `README.md`, `CONTRIBUTING.md` (skeleton), this plan,
-  [`docs/adr/README.md`](adr/README.md) (process and template), ADR-0001 (decisions are recorded
-  as ADRs), ADR-0002 (roadmap amendments) with the amended roadmap,
-  [`docs/glossary.md`](glossary.md).
-- **Done when.** The files exist and every relative link resolves (checked by hand; the link
-  checker arrives in M0.4).
-- **How to test.** Read `README.md`, then `CONTRIBUTING.md`, then this plan; every link leads
-  somewhere.
+Decisions taken when this stage was planned, each recorded as an ADR in the milestone that applies
+it:
 
-### M0.2 — Nix development environment
+- GPU resources are engine-owned types that hold their wgpu object privately (no table of
+  identifiers until something needs one).
+- The engine drives rendering: windowed runs create the GPU device and the surface, the engine
+  acquires each frame's image, calls a new `App::render` after `update`, then presents. Headless
+  runs create no GPU device.
+- Frames are driven by redraw requests, which keep arriving while Windows runs its modal loop
+  during an interactive resize or move.
+- Frame pacing is decided by measurement, possibly differently on each platform.
+- GPU object creation reports errors (shader and pipeline errors with the shader compiler's
+  message); `App::init` can fail and `run` returns a `RunError`.
+- Image tests: reference PNG images in the repository, produced with lavapipe, compared with a
+  tolerance; CI uses lavapipe on Linux and WARP on Windows.
+- Dependencies: `wgpu` 30 (Vulkan on Linux, Direct3D 12 on Windows, WGSL shaders), `pollster`,
+  `bytemuck`, `png`. `softbuffer` is removed. Windows builds use the MSVC toolchain.
 
-- **Goal.** `nix develop` provides exactly the pinned toolchain and the project's tools.
-- **Delivers.** `flake.nix`, `flake.lock`, `rust-toolchain.toml`, ADR-0003 (toolchain, edition,
-  minimum supported Rust version). The development shell provides the Rust toolchain (rustc,
-  cargo, clippy, rustfmt, rust-src, rust-analyzer), `cargo-deny` and `lychee`. The system
-  libraries that the windowing code loads at run time are added in M1.4, with the code that loads
-  them, because they cannot be checked before.
-- **Done when.** `nix develop -c rustc --version` prints the version pinned in
-  `rust-toolchain.toml`, and `nix flake check` passes.
-- **How to test.** Run both commands.
+### M2.0 — Windows in CI
 
-### M0.3 — Workspace, lints and crate skeletons
+- **Goal.** Everything that exists builds, passes its tests and runs headless on Windows, checked on
+  every push.
+- **Crates.** `slime-app` (tests, documentation), `examples`; CI.
+- **Delivers.** A Windows job in CI (toolchain from `rust-toolchain.toml` through rustup, MSVC
+  target): clippy, build, tests, headless samples. The examples' Windows build published as a CI
+  artifact. The Windows target of the standard library in `rust-toolchain.toml`, so that
+  `scripts/check.sh` also runs clippy for Windows on Linux. Signal tests limited to Unix. The
+  Windows development setup in `CONTRIBUTING.md`. ADR: platforms and CI.
+- **Done when.** The Windows job is green; on Linux, `scripts/check.sh` fails on a deliberate
+  Windows-only compile error; the owner ran the `window` example from the artifact in a Windows
+  virtual machine (window, resize, close, keyboard and mouse).
+- **How to test.** Push and read the CI run; download the artifact in the Windows virtual machine
+  and run `window.exe`.
 
-- **Goal.** A Cargo workspace that builds with every policy active.
-- **Crates.** `slime-platform` and `slime-app`, whose `lib.rs` contains only crate
-  documentation.
-- **Delivers.** The workspace `Cargo.toml` (edition, `rust-version`, version, license, lints),
-  `.gitignore`, `Cargo.lock`, one `README.md` per crate, `docs/ARCHITECTURE.md` (crate map,
-  dependency graph, layering rules), ADR-0004 (workspace layout and crate naming), ADR-0005 (lints
-  and `unsafe` policy).
-- **Done when.** The five commands of `AGENTS.md` pass. A public function without documentation
-  and an `unsafe` block are each shown to fail the checks, then removed.
-- **How to test.** Run the five commands listed in `AGENTS.md`.
+### M2.1 — GPU device without a window
 
-### M0.4 — Dependency policy and CI
+- **Goal.** Open a GPU device without a window, on Linux and Windows, on hardware and software
+  drivers.
+- **Crates.** New `slime-gfx`.
+- **Delivers.** Creation of the GPU device and queue (Vulkan on Linux, Direct3D 12 on Windows,
+  high-performance adapter), the adapter described in the log, a device-loss callback, error types.
+  The Nix shell puts the Vulkan loader on the library path and gives the path of the lavapipe
+  driver; `scripts/check.sh` and CI run GPU tests on lavapipe (Linux) and WARP (Windows). A build
+  cache in CI if build times call for it. ADR: the `gfx` crate and wgpu's configuration, with the
+  GPU error policy. Dependencies: `wgpu`, `pollster`.
+- **Done when.** A test opens a device on lavapipe (Linux CI), on WARP (Windows CI) and on the
+  owner's GPU (by hand); headless runs open none.
+- **How to test.** `cargo test -p slime-gfx`, and again with lavapipe forced through
+  `VK_DRIVER_FILES`.
 
-- **Goal.** Every check of the definition of done runs from one script, locally and in CI.
-- **Delivers.** `deny.toml`, `docs/dependencies.md` (dependency register), `scripts/check.sh`,
-  the GitHub Actions workflow, ADR-0006 (dependency policy), ADR-0007 (documentation tooling and
-  CI).
-- **Done when.** `scripts/check.sh` passes locally; a deliberately broken Markdown link makes it
-  fail; CI is green on GitHub (it was, on the first push, 2026-10-12).
-- **How to test.** `nix develop -c scripts/check.sh`.
+### M2.2 — Offscreen triangle and reference image
 
-## Stage 1 — Core and platform → 0.0.1
+- **Goal.** Render without a window and compare the result with a reference image, on Linux and
+  Windows.
+- **Crates.** `slime-gfx`; `examples` gains `offscreen`.
+- **Delivers.** The resource types (buffer, texture, shader module, render pipeline), WGSL compiled
+  from source text with readable errors, a minimal pipeline and render pass, reading the image back
+  to the CPU, a comparison with tolerance, a reference image produced with lavapipe, a label
+  required on every resource. The `offscreen` example writes the triangle to a PNG file. ADRs: GPU
+  resource types; image tests. Dependencies: `bytemuck`, `png`.
+- **Done when.** The image test passes on lavapipe, WARP and the owner's GPU (or uses one
+  reference per driver if no tolerance covers all three, as the ADR then records); a deliberate
+  colour change makes it fail; a WGSL error gives a readable message; a resource's label appears in
+  a validation error.
+- **How to test.** `cargo test -p slime-gfx`; `cargo run --example offscreen` and open the PNG.
 
-Exit criterion (see [`ROADMAP.md`](ROADMAP.md#stage-1--core-and-platform--001)): a window opens on
-Wayland, input events are logged, shutdown is clean. The same binary runs N frames headless in
-CI. X11 is checked through Xwayland.
+### M2.3 — The triangle in the window
 
-### M1.1 — Logging and diagnostics
+- **Goal.** The engine presents the triangle in the window, on Linux and Windows.
+- **Crates.** `slime-gfx` (surface), `slime-app` (render callback, fallible `init`, `RunError`,
+  frames driven by redraw requests), `slime-platform` (redraw requests), `examples` (`window` draws
+  the triangle; `softbuffer` removed).
+- **Delivers.** A surface created from the window through `raw-window-handle`, an sRGB format,
+  resize, handling of every state of the surface, `App::render`. Measurements: a hidden window on
+  niri, idle CPU and GPU, frame times, X11, Weston with lavapipe, the Windows virtual machine. ADR:
+  rendering in the main loop and application errors (replacing parts of ADR-0010 and ADR-0011).
+- **Done when.** The triangle shows on niri (Wayland), through Xwayland and on Windows; it survives
+  resize, including an interactive resize on Windows; the Weston check passes with lavapipe; the
+  measurements are recorded.
+- **How to test.** `cargo run --example window` on Linux; `window.exe` from the CI artifact on
+  Windows.
 
-- **Goal.** Every engine application logs correctly from its first line.
-- **Crates.** `slime-app`; the `examples` package with a first example, `hello`.
-- **Delivers.** Installation of the log subscriber (`tracing-subscriber`: output to stderr,
-  timestamps, filter read from `SLIME_LOG`), a panic hook that logs the panic before the default
-  hook runs, a startup log line with the engine version, OS, architecture and number of logical
-  CPUs. ADR-0008 (errors, logging, assertions). Dependencies: `tracing`, `tracing-subscriber`.
-- **Done when.** The `hello` example logs; `SLIME_LOG=debug` changes the level; `hello --panic`
-  logs the panic and exits with a non-zero code; an automated test checks the panic output.
-- **How to test.** Run `hello` with and without `SLIME_LOG` and `--panic`.
+### M2.4 — Frame pacing
 
-### M1.2 — Frame timing
+- **Goal.** Frames are paced without stalling the engine, on each platform.
+- **Crates.** `slime-app`, `slime-gfx`.
+- **Delivers.** The pacing policy chosen from the measurements of M2.3, the present mode in
+  `AppConfig`, the frame scheduler kept or removed per platform, profiling spans for acquiring,
+  recording, submitting and presenting a frame. ADR: frame pacing.
+- **Done when.** A hidden window does not stall the loop beyond what the ADR states (Ctrl+C is
+  still handled); idle CPU and GPU use and the regularity of frames are measured on niri; Windows
+  is checked in the virtual machine, whose GPU says nothing about timing.
+- **How to test.** Run the `window` example, hide it, and read the frame spans with
+  `SLIME_LOG=trace`.
 
-- **Goal.** Deterministic frame timing, testable without sleeping.
-- **Crates.** `slime-app` (module `time`).
-- **Delivers.** A frame clock (delta clamped to a maximum, elapsed time, frame index) and a
-  fixed-step accumulator (maximum number of steps per frame, interpolation factor). Both are fed
-  durations, so a real clock and a simulated clock drive them the same way. ADR-0009 (frame
-  timing).
-- **Done when.** Unit tests cover the clamp, the step count, the absence of a "spiral of death"
-  and the range of the interpolation factor, without any sleep.
-- **How to test.** `cargo test -p slime-app`.
+### M2.5 — Debug markers, robustness, release 0.0.2
 
-### M1.3 — Lifecycle and headless mode
+- **Goal.** GPU work can be inspected in a capture tool, failures of the GPU do not crash the
+  engine, and 0.0.2 is released.
+- **Crates.** `slime-gfx`, `slime-app`.
+- **Delivers.** Debug groups for frames and render passes, checked in RenderDoc (Linux, through
+  Xwayland); loss of the surface or of the device handled without a panic; the documentation
+  reread by a reviewing agent; `CHANGELOG.md`; the `v0.0.2` tag on a commit whose CI is green on
+  both platforms.
+- **Done when.** A RenderDoc capture shows the labels and groups; the checks are green on both
+  platforms; the tag is pushed.
+- **How to test.** Capture a frame of the `window` example in RenderDoc.
 
-- **Goal.** An application runs frames without a window, deterministically.
-- **Crates.** `slime-app`; `examples` gains `headless`.
-- **Delivers.** The `App` trait (`init`, `fixed_update`, `update`, `shutdown`), the application
-  configuration, `run()`, the headless driver with simulated time, exit requests from the
-  application, a frame limit, profiling spans (`frame`, `fixed_update`, `update`). ADR-0010 (main
-  loop ownership). The lifecycle flow in `docs/ARCHITECTURE.md`.
-- **Done when.** An integration test checks the order and number of callbacks, that `shutdown`
-  runs exactly once, and the exit code; the example runs with `WAYLAND_DISPLAY` and `DISPLAY`
-  unset; `SLIME_LOG=trace` shows the spans.
-- **How to test.** `cargo run --example headless -- --frames 600`.
-
-### M1.4 — Window
-
-- **Goal.** A window opens, shows its content, resizes and closes cleanly.
-- **Crates.** `slime-platform` (winit 0.30, never exposed), `slime-app` (windowed driver);
-  `examples` gains `window`.
-- **Delivers.** The window and its events (close requested, resized, scale factor, focus), the
-  system libraries it loads at run time (added to the Nix shell), the windowed driver calling the
-  same frame function as the headless one, window handles exposed through `raw-window-handle`,
-  the frame limiter. The `window` example fills its window with a
-  solid color through `softbuffer` (checked first without it, to confirm the problem described in
-  ADR-0002). ADR-0011 (windowing with winit). Dependencies: `winit`, `raw-window-handle`,
-  `thiserror`; `softbuffer` for the examples only.
-- **Done when.** On niri the window appears, resizes are logged, closing it from the compositor
-  shuts down cleanly (`shutdown` runs, exit code 0), CPU use stays low while idle, and the same
-  holds on X11 through Xwayland.
-- **How to test.** `cargo run --example window`, close the window; then again
-  with `WAYLAND_DISPLAY` unset to use X11.
-
-### M1.5 — Input
-
-- **Goal.** Keyboard and mouse input reaches the application as engine-owned events.
-- **Crates.** `slime-platform`; `examples` (`window` logs every event, Escape quits).
-- **Delivers.** Engine-owned input events: keyboard (physical key, logical key, text, pressed or
-  released, repeat), mouse (buttons, position, wheel), cursor entering or leaving the window; their
-  translation from winit.
-- **Done when.** Unit tests cover the translation; by hand, every kind of event appears in the
-  log, and with a French AZERTY layout the logical key is right (the physical `KeyQ` key produces
-  `a`).
-- **How to test.** Type and use the mouse in the `window` example and read the log.
-
-### M1.6 — Clean shutdown, hardening, release 0.0.1
-
-- **Goal.** The application always ends cleanly, and 0.0.1 is released.
-- **Crates.** `slime-app`, `examples`.
-- **Delivers.** SIGINT, SIGTERM and SIGHUP trigger a clean shutdown in both modes, and a second
-  signal ends the process at once (dependency `ctrlc`, ADR-0012); without a display, a clear error
-  and a non-zero exit code instead of a panic; the `window` example also runs headless
-  (`--headless --frames N`): the same binary in both modes; an automated windowed smoke test in a
-  headless Weston compositor (ADR-0013); `CHANGELOG.md`; a full reread of the documentation as a
-  newcomer; the `v0.0.1` git tag.
-- **Done when.** Ctrl+C in both modes logs the shutdown and exits with code 0; CI is green.
-- **How to test.** Press Ctrl+C in `window` and in `headless -- --frames 1000000000`; run
-  `cargo run --example window` with `WAYLAND_DISPLAY` and `DISPLAY` unset; run
-  `scripts/check.sh`.
-
-### Releasing 0.0.1
+## Releasing 0.0.1
 
 The release is a git tag on a commit whose CI run is green
 ([ADR-0004](adr/0004-workspace-layout-and-crate-naming.md)):
@@ -189,15 +159,25 @@ The release is a git tag on a commit whose CI run is green
 4. Once step 2 is done, tag that commit, not a later one:
    `git tag -a v0.0.1 -m "SlimeEngine 0.0.1" <commit>`, then push the tag.
 
+## Completed stages
+
+| Stage | Milestones | Result |
+|---|---|---|
+| 0 — Foundations | M0.1 repository and ADR process; M0.2 Nix environment; M0.3 workspace, lints, crate skeletons; M0.4 dependency policy and CI | Done. CI green on the first push to GitHub (2026-10-12). |
+| 1 — Core and platform → 0.0.1 | M1.1 logging and diagnostics; M1.2 frame timing; M1.3 lifecycle and headless mode; M1.4 window; M1.5 input; M1.6 clean shutdown | Done, except the check by hand of keyboard and mouse input. Content listed in [`CHANGELOG.md`](../CHANGELOG.md). |
+
+The details of each completed milestone (what it delivered, how it was checked) are in the history
+of this file and in the commits that implemented it.
+
 ## Known debt
 
 - **Temporary frame pacing and display (Stage 2).** The windowed driver limits the frame rate by
   sleeping (`AppConfig::max_frame_rate`), and the `window` example fills its window from the CPU
-  with `softbuffer`. Both go away when the GPU layer presents frames.
+  with `softbuffer`. M2.3 replaces the CPU fill; M2.4 decides the pacing.
 - **No title text in client-side decorations.** On compositors that do not draw decorations
   (GNOME), the title bar has no text, because winit's text renderer depends on an unmaintained
   crate (ADR-0011).
-- **`App` methods cannot return errors** (ADR-0010). Revisit before games depend on the API.
+- **`App` methods cannot return errors** (ADR-0010). `App::init` becomes fallible in M2.3.
 - **Keyboard and mouse input not checked by hand.** The translation is unit-tested, and cursor
   events were seen in a real run, but key presses, mouse buttons and scrolling were not checked in
   a real window: an automated check would have to type into the owner's session. To do: run
