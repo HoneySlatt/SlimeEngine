@@ -27,9 +27,11 @@ pub struct KeyEvent {
     pub physical: KeyCode,
     /// What the key means with the current layout and modifiers.
     pub logical: Key,
-    /// The text the key produces, if any: typically `Some` when a character key is pressed, and
-    /// `None` when it is released or for keys such as arrows. It includes the effect of dead keys:
-    /// pressing `^` then `e` on a French layout gives the text `"ê"` on the second press.
+    /// The text the key produces when pressed, if any. A character key gives its character, with
+    /// dead keys applied: pressing `^` then `e` on a French layout gives the text `"ê"` on the
+    /// second press. Some named keys give a control character: Enter `"\r"`, Tab `"\t"`,
+    /// Backspace `"\u{8}"`, Escape `"\u{1b}"`. `None` for a release, and for keys without a text
+    /// form such as arrows and modifiers.
     pub text: Option<String>,
     /// Whether the key went down or up.
     pub state: ButtonState,
@@ -177,9 +179,18 @@ pub(crate) fn key_event(event: winit::event::KeyEvent) -> KeyEvent {
     KeyEvent {
         physical: key_code(event.physical_key),
         logical: key(&event.logical_key),
-        text: event.text.map(|text| text.to_string()),
+        text: key_text(event.state, event.text.as_deref()),
         state: button_state(event.state),
         repeat: event.repeat,
+    }
+}
+
+/// The text of a key event: what a press produces, nothing for a release. The windowing library
+/// reports a release with the same text as the press on Wayland and X11, but not on Windows.
+fn key_text(state: ElementState, text: Option<&str>) -> Option<String> {
+    match state {
+        ElementState::Pressed => text.map(str::to_owned),
+        ElementState::Released => None,
     }
 }
 
@@ -279,6 +290,16 @@ mod tests {
             key(&WinitKey::Named(WinitNamedKey::TVPower)),
             Key::Unidentified
         );
+    }
+
+    #[test]
+    fn a_release_carries_no_text() {
+        assert_eq!(
+            key_text(ElementState::Pressed, Some("a")),
+            Some("a".to_owned())
+        );
+        assert_eq!(key_text(ElementState::Released, Some("a")), None);
+        assert_eq!(key_text(ElementState::Pressed, None), None);
     }
 
     #[test]

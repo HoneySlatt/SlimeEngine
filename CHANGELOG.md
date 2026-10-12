@@ -8,6 +8,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- On Wayland and X11, a key release no longer carries the text of the press in `KeyEvent::text`,
+  which the documentation promised to be `None` and which Windows already left empty. The
+  documentation now says that named keys such as Enter carry their control character.
 - `Gpu::wait_idle`, `Gpu::create_shader_module`, `Gpu::create_render_pipeline` and
   `Gpu::read_render_target` return `GfxError::DeviceLost` once the device is lost, as documented,
   instead of `Ok` with objects that cannot be used.
