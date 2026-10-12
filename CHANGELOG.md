@@ -8,6 +8,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- A `SLIME_LOG` value without a bare level, such as `slime_app=trace`, no longer silences every
+  other module: `info` applies to the modules it does not name, as the documentation said. A
+  misspelt level, which `tracing` reads as a module name, no longer silences everything either.
 - On Wayland and X11, a key release no longer carries the text of the press in `KeyEvent::text`,
   which the documentation promised to be `None` and which Windows already left empty. The
   documentation now says that named keys such as Enter carry their control character.

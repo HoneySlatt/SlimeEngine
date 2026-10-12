@@ -12,8 +12,10 @@ use tracing_subscriber::fmt::format::FmtSpan;
 ///
 /// Its value uses the directive syntax of `tracing-subscriber`'s `EnvFilter`: a level
 /// (`SLIME_LOG=debug`), levels per module (`SLIME_LOG=warn,slime_app=trace`), or `off`. A module
-/// without a level of its own records `info` and above. Invalid directives are reported on standard
-/// error and ignored. When the variable is unset or empty, [`DEFAULT_LOG_FILTER`] applies.
+/// without a level of its own records `info` and above: when the value names no bare level, as
+/// `slime_app=trace` does not, `info` is added for the other modules. Invalid directives are
+/// reported on standard error and ignored. When the variable is unset or empty,
+/// [`DEFAULT_LOG_FILTER`] applies.
 pub const LOG_ENV_VAR: &str = "SLIME_LOG";
 
 /// The log filter used when [`LOG_ENV_VAR`] is unset or empty: `info` and above, except for
@@ -56,7 +58,7 @@ fn install_subscriber() {
     let directives = std::env::var(LOG_ENV_VAR)
         .ok()
         .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| DEFAULT_LOG_FILTER.to_owned());
+        .map_or_else(|| DEFAULT_LOG_FILTER.to_owned(), with_default_level);
     let filter = EnvFilter::builder()
         .with_default_directive(LevelFilter::INFO.into())
         .parse_lossy(directives);
@@ -73,6 +75,20 @@ fn install_subscriber() {
         .try_init();
     if installed.is_err() {
         tracing::debug!("a global log subscriber already exists, keeping it");
+    }
+}
+
+/// `directives` with `info,` in front when none of them is a bare level. `EnvFilter` otherwise
+/// records nothing from the modules that the directives do not name, and reads a misspelt level as
+/// the name of a module, which would silence everything.
+fn with_default_level(directives: String) -> String {
+    let has_bare_level = directives
+        .split(',')
+        .any(|directive| directive.trim().parse::<LevelFilter>().is_ok());
+    if has_bare_level {
+        directives
+    } else {
+        format!("info,{directives}")
     }
 }
 
@@ -113,4 +129,34 @@ fn log_system_information() {
         cpus = %cpus,
         "SlimeEngine starting"
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn directives_without_a_bare_level_get_info_for_the_other_modules() {
+        for value in [
+            "slime_app=trace",
+            "slime_app",
+            "garbage",
+            "debg,slime_gfx=warn",
+        ] {
+            assert_eq!(
+                with_default_level(value.to_owned()),
+                format!("info,{value}")
+            );
+        }
+        for value in [
+            "debug",
+            "DEBUG",
+            "off",
+            "3",
+            "warn,slime_app=trace",
+            "slime_app=trace,error",
+        ] {
+            assert_eq!(with_default_level(value.to_owned()), value);
+        }
+    }
 }

@@ -127,3 +127,32 @@ fn logging_to_a_broken_pipe_does_not_end_the_process() {
         "a broken log pipe must not end the process: {status}"
     );
 }
+
+#[test]
+fn modules_without_a_level_of_their_own_record_info() {
+    if is_child() {
+        slime_app::init_diagnostics();
+        tracing::info!("line from the game");
+        return;
+    }
+
+    let engine_only = run_child(
+        "modules_without_a_level_of_their_own_record_info",
+        Some("slime_app=trace"),
+    );
+    let engine_only = String::from_utf8_lossy(&engine_only.stderr);
+    assert!(
+        engine_only.contains("line from the game"),
+        "a value without a bare level must keep the other modules at info\n{engine_only}"
+    );
+
+    let quiet = run_child(
+        "modules_without_a_level_of_their_own_record_info",
+        Some("warn,slime_app=trace"),
+    );
+    let quiet = String::from_utf8_lossy(&quiet.stderr);
+    assert!(
+        !quiet.contains("line from the game"),
+        "a bare level in the value applies to the other modules\n{quiet}"
+    );
+}
