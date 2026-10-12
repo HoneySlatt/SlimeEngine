@@ -4,10 +4,11 @@ use std::sync::mpsc;
 
 use crate::error::GfxError;
 use crate::gpu::Gpu;
-use crate::render_target::RenderTarget;
+use crate::render_target::{RenderTarget, TextureFormat};
 
 /// An image in CPU memory: `width` × `height` pixels, rows from top to bottom, 4 bytes per pixel
-/// (red, green, blue, alpha), encoded like the texture it was read from.
+/// in the order red, green, blue, alpha, whatever the byte order of the texture it was read from,
+/// and encoded like that texture (sRGB for the engine's formats).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Image {
     /// Width in pixels.
@@ -26,6 +27,11 @@ impl Gpu {
     ///
     /// [`GfxError::Readback`] if waiting for the GPU or reading its memory fails, for example
     /// because the device was lost.
+    ///
+    /// # Panics
+    ///
+    /// If `target` is the image of a window ([`SurfaceFrame::target`](crate::SurfaceFrame::target)):
+    /// only targets created by [`Gpu::create_render_target`] can be read back.
     pub fn read_render_target(&self, target: &RenderTarget) -> Result<Image, GfxError> {
         let readback_error =
             |source: Box<dyn std::error::Error + Send + Sync>| GfxError::Readback {
@@ -93,6 +99,11 @@ impl Gpu {
         }
         drop(mapped);
         buffer.unmap();
+        if target.format() == TextureFormat::Bgra8UnormSrgb {
+            for pixel in pixels.as_chunks_mut::<4>().0 {
+                pixel.swap(0, 2);
+            }
+        }
         Ok(Image {
             width,
             height,

@@ -5,8 +5,9 @@ drivers.
 
 ## Status
 
-Partial. It opens a GPU device without a window, draws into offscreen images and reads them back.
-Drawing into a window arrives in the next milestones of Stage 2 (see `docs/PLAN.md`).
+Partial. It opens a GPU device, with or without a window, draws into offscreen images and reads
+them back, and draws into a window. It draws lists of triangles of one color format family
+(8-bit sRGB), without depth, blending, textures or uniform data yet (see `docs/PLAN.md`).
 
 ## Role
 
@@ -14,6 +15,8 @@ Drawing into a window arrives in the next milestones of Stage 2 (see `docs/PLAN.
   crate (`docs/adr/0016-gpu-layer-with-wgpu.md`).
 - Opens the GPU with the graphics API of each platform: Vulkan on Linux, Direct3D 12 on Windows.
 - Works without a window: offscreen rendering and its tests need no windowing system.
+- Draws into a window given as `raw-window-handle` traits, through the window's *surface*: the
+  images the window shows, which the GPU draws into and then *presents*.
 
 ## Entry points
 
@@ -80,8 +83,9 @@ fn main() -> Result<(), GfxError> {
   finished its work.
 - GPU objects, each created by a method of `Gpu` with a label that names it in error messages and
   GPU capture tools (`docs/adr/0017-gpu-resource-types.md`):
-  - `RenderTarget`: an image the GPU draws into, which can be read back
-    (`create_render_target`). Its only format for now is `TextureFormat::Rgba8UnormSrgb`.
+  - `RenderTarget`: an image the GPU draws into (`create_render_target`), in one of the
+    `TextureFormat`s: `Rgba8UnormSrgb` or `Bgra8UnormSrgb`, the same 8-bit sRGB colors in two byte
+    orders.
   - `VertexBuffer`: vertex data, given as bytes (`create_vertex_buffer`).
   - `ShaderModule`: WGSL source compiled by wgpu (`create_shader_module`).
   - `RenderPipeline`: a shader's entry points, the layout of its vertices and the format of the
@@ -94,7 +98,21 @@ fn main() -> Result<(), GfxError> {
   through a `RenderPass` (`set_pipeline`, `set_vertex_buffer`, `draw`), and sends the work to the
   GPU.
 - `Gpu::read_render_target(target)` waits for the GPU and copies a target into an `Image`: RGBA
-  bytes, rows from top to bottom.
+  bytes, rows from top to bottom, whatever the byte order of the target's format.
+- `Gpu::new_for_window(window, width, height)` opens the most capable GPU that can draw into a
+  window, and returns it with the window's `Surface`
+  (`docs/adr/0020-rendering-in-the-main-loop.md`):
+  - `Surface::format()` is the format of the window's images, the first 8-bit sRGB format the
+    window offers; pipelines that draw into the window are created for it.
+  - `Surface::resize(width, height)` follows the window's size.
+  - `Surface::acquire()` returns the `SurfaceFrame` to draw the next frame into, or `None` when
+    the window cannot show a new image (a size of zero, an image not ready in time, an occluded or
+    lost surface, all handled). Draw into `SurfaceFrame::target()` with `Gpu::render`, then call
+    `SurfaceFrame::present()`. Window images cannot be read back.
+
+  Images are shown in step with the display (wgpu's FIFO present mode), so `acquire` or
+  `present` can block: up to one second on compositors that stop showing a hidden window.
+  Applications built on `slime-app` do not call these: the engine does.
 - `GfxError` says why the GPU could not be opened or used. A rejected shader or pipeline is
   returned as `GfxError::Shader` or `GfxError::Pipeline`, with wgpu's message, which for WGSL
   gives the line and column of the error. Other misuses of wgpu are bugs and panic.
@@ -103,6 +121,8 @@ fn main() -> Result<(), GfxError> {
 
 - `wgpu`: access to the GPU through Vulkan and Direct3D 12, and the WGSL shader compiler.
 - `pollster`: waits for wgpu's requests, which are futures.
+- `raw-window-handle`: the standard traits through which a window, created by another crate, is
+  drawn into.
 - `thiserror`: derives `GfxError`'s `Display` and `Error` implementations.
 - `tracing`: logging.
 

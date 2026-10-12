@@ -35,14 +35,22 @@ const MAX_DIFFERENT_PIXELS: usize = 0;
 
 #[test]
 fn the_triangle_matches_its_reference_image() {
+    check_triangle(TextureFormat::Rgba8UnormSrgb, "triangle");
+}
+
+/// Most windows show images in blue, green, red order; once read back, the triangle must be the
+/// same.
+#[test]
+fn the_triangle_in_the_usual_window_format_matches_the_same_reference() {
+    check_triangle(TextureFormat::Bgra8UnormSrgb, "triangle-bgra");
+}
+
+/// Renders the triangle into a target of `format` and compares it with the reference. A rendered
+/// image that does not match is written as `<name>.actual.png`.
+fn check_triangle(format: TextureFormat, name: &str) {
     let gpu =
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-    let target = gpu.create_render_target(
-        "reference triangle",
-        SIZE,
-        SIZE,
-        TextureFormat::Rgba8UnormSrgb,
-    );
+    let target = gpu.create_render_target("reference triangle", SIZE, SIZE, format);
     let triangle =
         Triangle::new(&gpu, target.format()).expect("the triangle's GPU objects are valid");
     gpu.render(&target, BACKGROUND, |pass| triangle.draw(pass));
@@ -52,13 +60,17 @@ fn the_triangle_matches_its_reference_image() {
 
     let reference_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/reference/triangle.png");
     if std::env::var_os("SLIME_UPDATE_REFERENCE_IMAGES").is_some() {
-        png_file::write(&reference_path, &image).expect("the reference image is written");
+        // One reference for both formats, written by the test of the format it was made in.
+        if format == TextureFormat::Rgba8UnormSrgb {
+            png_file::write(&reference_path, &image).expect("the reference image is written");
+        }
         return;
     }
     let reference = read_png(&reference_path);
     let difference = compare(&image, &reference);
     if difference.different_pixels > MAX_DIFFERENT_PIXELS {
-        let actual_path = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("triangle.actual.png");
+        let actual_path =
+            PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("{name}.actual.png"));
         png_file::write(&actual_path, &image).expect("the rendered image is written");
         panic!(
             "{} pixels differ from the reference by more than {CHANNEL_TOLERANCE} (largest \

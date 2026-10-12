@@ -7,6 +7,7 @@ mod pass;
 mod pipeline;
 mod render_target;
 mod shader;
+mod surface;
 mod vertex_buffer;
 
 pub use error::GfxError;
@@ -18,4 +19,5 @@ pub use pipeline::{
 };
 pub use render_target::{RenderTarget, TextureFormat};
 pub use shader::ShaderModule;
+pub use surface::{Surface, SurfaceFrame};
 pub use vertex_buffer::VertexBuffer;

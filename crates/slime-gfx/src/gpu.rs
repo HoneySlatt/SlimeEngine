@@ -11,7 +11,8 @@ const DEFAULT_BACKENDS: wgpu::Backends = wgpu::Backends::VULKAN;
 
 /// The GPU device the engine works with, and the queue that receives its work.
 ///
-/// A `Gpu` is opened without a window, so that it can render offscreen and run in tests.
+/// [`Gpu::new`] opens it without a window, so that it can render offscreen and run in tests;
+/// [`Gpu::new_for_window`] opens it together with the surface of a window.
 #[derive(Debug)]
 pub struct Gpu {
     pub(crate) device: wgpu::Device,
@@ -39,12 +40,18 @@ impl Gpu {
     /// [`GfxError::NoAdapter`] if no adapter of the graphics API is available, and
     /// [`GfxError::RequestDevice`] if the adapter refuses to open a device.
     pub fn new() -> Result<Self, GfxError> {
-        let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
-        descriptor.backends = wgpu::Backends::from_env().unwrap_or(DEFAULT_BACKENDS);
-        descriptor.flags = instance_flags();
-        let instance = wgpu::Instance::new(descriptor);
+        Self::open(&create_instance(), None).map(|(gpu, _adapter)| gpu)
+    }
+
+    /// Opens the most capable adapter of `instance`, among those that can present to
+    /// `compatible_surface` if there is one, and its device.
+    pub(crate) fn open(
+        instance: &wgpu::Instance,
+        compatible_surface: Option<&wgpu::Surface<'_>>,
+    ) -> Result<(Self, wgpu::Adapter), GfxError> {
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
+            compatible_surface,
             ..Default::default()
         }))
         .map_err(|error| GfxError::NoAdapter(Box::new(error)))?;
@@ -67,11 +74,12 @@ impl Gpu {
             _ => tracing::error!(%message, "GPU device lost"),
         });
 
-        Ok(Self {
+        let gpu = Self {
             device,
             queue,
             adapter_name: info.name,
-        })
+        };
+        Ok((gpu, adapter))
     }
 
     /// The name of the adapter in use, as its driver reports it: for example
@@ -99,6 +107,14 @@ impl Gpu {
             .map(|_| ())
             .map_err(|error| GfxError::Wait(Box::new(error)))
     }
+}
+
+/// The wgpu instance, limited to the platform's graphics API unless `WGPU_BACKEND` chooses another.
+pub(crate) fn create_instance() -> wgpu::Instance {
+    let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
+    descriptor.backends = wgpu::Backends::from_env().unwrap_or(DEFAULT_BACKENDS);
+    descriptor.flags = instance_flags();
+    wgpu::Instance::new(descriptor)
 }
 
 /// Debug labels in debug builds; validation layers of the graphics API only on request

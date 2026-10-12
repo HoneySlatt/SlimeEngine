@@ -9,17 +9,31 @@ pub enum TextureFormat {
     /// Red, green, blue and alpha, 8 bits each, with sRGB encoding: shaders write linear colors and
     /// the GPU encodes them, as image files and displays expect.
     Rgba8UnormSrgb,
+    /// The same channels and encoding in another byte order: blue, green, red, then alpha. Most
+    /// windows use it.
+    Bgra8UnormSrgb,
 }
 
 impl TextureFormat {
     pub(crate) fn to_wgpu(self) -> wgpu::TextureFormat {
         match self {
             Self::Rgba8UnormSrgb => wgpu::TextureFormat::Rgba8UnormSrgb,
+            Self::Bgra8UnormSrgb => wgpu::TextureFormat::Bgra8UnormSrgb,
+        }
+    }
+
+    /// The engine's name for a wgpu format, if the engine supports it.
+    pub(crate) fn from_wgpu(format: wgpu::TextureFormat) -> Option<Self> {
+        match format {
+            wgpu::TextureFormat::Rgba8UnormSrgb => Some(Self::Rgba8UnormSrgb),
+            wgpu::TextureFormat::Bgra8UnormSrgb => Some(Self::Bgra8UnormSrgb),
+            _ => None,
         }
     }
 }
 
-/// A texture that render passes draw into, and whose content can be read back to the CPU.
+/// A texture that render passes draw into: an offscreen image, or the image of a window for one
+/// frame ([`SurfaceFrame::target`](crate::SurfaceFrame::target)).
 ///
 /// Clones refer to the same texture, which is freed when the last clone is dropped and the GPU no
 /// longer uses it.
@@ -77,8 +91,14 @@ impl Gpu {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
             view_formats: &[],
         });
+        RenderTarget::new(texture, label, format)
+    }
+}
+
+impl RenderTarget {
+    pub(crate) fn new(texture: wgpu::Texture, label: &str, format: TextureFormat) -> Self {
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        RenderTarget {
+        Self {
             texture,
             view,
             label: label.to_owned(),

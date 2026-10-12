@@ -14,6 +14,15 @@ pub enum GfxError {
     /// The adapter refused to open a device.
     #[error("cannot open the GPU device")]
     RequestDevice(#[source] Source),
+    /// The graphics API cannot draw into the window.
+    #[error("cannot create a surface for the window")]
+    CreateSurface(#[source] Source),
+    /// The window offers no sRGB format that the engine supports.
+    #[error("the window offers no sRGB format that the engine supports (it offers {offered})")]
+    SurfaceFormat {
+        /// The formats the window offers, as wgpu names them.
+        offered: String,
+    },
     /// Waiting for the GPU to finish its work failed.
     #[error("waiting for the GPU failed")]
     Wait(#[source] Source),
