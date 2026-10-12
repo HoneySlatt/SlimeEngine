@@ -60,7 +60,7 @@ fn main() -> ExitCode {
         ..AppConfig::default()
     };
     let started = Instant::now();
-    slime_app::run(&mut Counter::default(), &config);
+    slime_app::run(&mut Counter::default(), &config).expect("headless runs do not fail");
     tracing::info!(wall_clock = ?started.elapsed(), "done");
     ExitCode::SUCCESS
 }

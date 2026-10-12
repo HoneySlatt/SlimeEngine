@@ -15,12 +15,19 @@ publish = false
 # Third-party dependencies, one version for the whole workspace. Each one is listed with its
 # reason in docs/dependencies.md (ADR-0006).
 [workspace.dependencies]
+raw-window-handle = "0.6.2"
+thiserror = "2.0.21"
 # The `attributes` feature (`#[instrument]`) is left out: it pulls in a proc-macro stack.
 tracing = { version = "0.1.44", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+# Default features, except that client-side decorations (drawn by the application when the
+# compositor does not draw them, as on GNOME) are built without title text: the text renderer
+# depends on `ttf-parser`, which is unmaintained (RUSTSEC-2026-0192).
+winit = { version = "0.30.13", default-features = false, features = ["rwh_06", "x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita-notitle"] }
 
 # Workspace crates.
 slime-app = { path = "crates/slime-app" }
+slime-platform = { path = "crates/slime-platform" }
 
 [workspace.lints.rust]
 missing_docs = "warn"

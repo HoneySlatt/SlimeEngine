@@ -76,3 +76,4 @@ the ADR linking to it.
 | [0008](0008-errors-logging-and-assertions.md) | Errors, logging and assertions | Accepted |
 | [0009](0009-frame-timing.md) | Frame timing | Accepted |
 | [0010](0010-main-loop-ownership.md) | Main loop ownership and the application API | Accepted |
+| [0011](0011-windowing-with-winit.md) | Windowing and input with winit, behind `slime-platform` | Accepted |

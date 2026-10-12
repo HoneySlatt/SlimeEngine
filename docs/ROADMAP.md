@@ -55,6 +55,7 @@ The editor sits beside games, not inside the engine: it is a client of the engin
 | First platform | Linux (Wayland and X11) |
 | Game-facing API | Rust first. The C ABI and C++ SDK are derived later from a proven API. |
 | Editor UI | Engine-owned, GPU-rendered UI framework (no Qt/GTK) |
+| Windowing and input | winit, used only inside `platform`; its types never leave that crate (ADR-0011) |
 
 ### Open
 
@@ -62,7 +63,6 @@ Each is decided by ADR at the stage where it becomes necessary, not earlier.
 
 | Topic | Candidates | Decide at |
 |---|---|---|
-| Windowing and input | winit behind the platform layer, or direct Wayland/X11 | Stage 1 |
 | Entity model | hecs, bevy_ecs, custom ECS, or non-ECS | Stage 5 |
 | Serialization format | Text for sources, binary for cooked data | Stage 4–5 |
 | UI framework architecture | Retained, immediate, or hybrid | Stage 6 |

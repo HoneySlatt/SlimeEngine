@@ -42,7 +42,10 @@ Nix only sees the files that git tracks. If you change `flake.nix` so that it re
 
 Install [rustup](https://rustup.rs). It reads `rust-toolchain.toml` and installs the pinned
 toolchain the first time you run `cargo` in the repository. Install the tools with
-`cargo install --locked cargo-deny lychee`; CI uses the versions pinned by `flake.lock`.
+`cargo install --locked cargo-deny lychee`; CI uses the versions pinned by `flake.lock`. To open
+windows, the examples need the windowing system's libraries, which are loaded at run time:
+libwayland-client and libxkbcommon for Wayland; libX11, libXcursor, libXi and libxcb for X11.
+Most desktop distributions install them already.
 
 ## Checks
 

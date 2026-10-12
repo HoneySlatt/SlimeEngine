@@ -74,7 +74,7 @@ fn update(index: u64) -> Call {
 #[test]
 fn runs_init_then_one_fixed_step_and_one_update_per_frame_then_shutdown() {
     let mut app = Recorder::default();
-    run(&mut app, &config(Some(3)));
+    run(&mut app, &config(Some(3))).expect("headless runs do not fail");
     assert_eq!(
         app.calls,
         [
@@ -96,7 +96,7 @@ fn an_exit_request_lets_the_current_frame_finish_and_runs_no_other() {
         exit_in_update_of_frame: Some(1),
         ..Recorder::default()
     };
-    run(&mut app, &config(None));
+    run(&mut app, &config(None)).expect("headless runs do not fail");
     assert_eq!(
         app.calls,
         [
@@ -116,14 +116,14 @@ fn an_exit_requested_during_init_runs_no_frame() {
         exit_in_init: true,
         ..Recorder::default()
     };
-    run(&mut app, &config(None));
+    run(&mut app, &config(None)).expect("headless runs do not fail");
     assert_eq!(app.calls, [Call::Init, Call::Shutdown]);
 }
 
 #[test]
 fn a_frame_limit_of_zero_runs_no_frame() {
     let mut app = Recorder::default();
-    run(&mut app, &config(Some(0)));
+    run(&mut app, &config(Some(0))).expect("headless runs do not fail");
     assert_eq!(app.calls, [Call::Init, Call::Shutdown]);
 }
 
@@ -131,8 +131,8 @@ fn a_frame_limit_of_zero_runs_no_frame() {
 fn headless_time_is_simulated_and_identical_between_runs() {
     let mut first = Recorder::default();
     let mut second = Recorder::default();
-    run(&mut first, &config(Some(600)));
-    run(&mut second, &config(Some(600)));
+    run(&mut first, &config(Some(600))).expect("headless runs do not fail");
+    run(&mut second, &config(Some(600))).expect("headless runs do not fail");
 
     assert_eq!(first.calls, second.calls);
     assert_eq!(first.calls.len(), 1 + 600 * 2 + 1);

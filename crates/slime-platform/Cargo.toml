@@ -9,3 +9,9 @@ publish.workspace = true
 
 [lints]
 workspace = true
+
+[dependencies]
+raw-window-handle.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+winit.workspace = true

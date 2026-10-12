@@ -13,9 +13,9 @@ falls behind wall-clock time when a frame delta is limited, for example after a 
 listed in [`AGENTS.md`](../AGENTS.md#definition-of-done).
 
 **Driver.** The loop that decides when frames run and what time each one represents. `run` has a
-headless driver (frames back to back, simulated time); a windowed driver, called back by the
-windowing library's event loop, arrives with windows. All drivers run frames the same way
-([ADR-0010](adr/0010-main-loop-ownership.md)).
+headless driver (frames back to back, simulated time) and a windowed driver, called back by the
+windowing library's event loop, which measures real time and limits the frame rate. All drivers
+run frames the same way ([ADR-0010](adr/0010-main-loop-ownership.md)).
 
 **Example.** A runnable program in the `examples/` directory that demonstrates one feature.
 
@@ -24,6 +24,10 @@ the frame rate advances (`slime_app::time::FixedStep`). A frame runs zero or mor
 
 **Frame.** One iteration of the main loop. Its *delta* is the time it represents: the time since
 the previous frame, limited to a maximum (`slime_app::time::FrameClock`).
+
+**Frame limiter.** The part of the windowed driver that waits between frames so that at most
+`AppConfig::max_frame_rate` frames run per second. Temporary: presenting frames on screen will
+pace them once the GPU layer exists.
 
 **Headless.** Running the engine without a window, renderer or audio output. It is a normal
 configuration, used by automated tests and, later, by dedicated servers.
