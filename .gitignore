@@ -1,1 +1,3 @@
 /target/
+# Written by `cargo run --example offscreen` from the repository root.
+/triangle.png
