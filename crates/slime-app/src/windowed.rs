@@ -59,7 +59,7 @@ impl<A: App> EventHandler for WindowedDriver<'_, A> {
     }
 
     fn about_to_wait(&mut self) -> LoopControl {
-        if self.stop.is_none() && self.frames.stop_reason(&self.ctx).is_none() {
+        if self.stop.is_none() && self.frames.check_stop(&mut self.ctx).is_none() {
             let now = Instant::now();
             if now >= self.next_frame {
                 self.frames
@@ -71,7 +71,7 @@ impl<A: App> EventHandler for WindowedDriver<'_, A> {
             }
         }
         if self.stop.is_none() {
-            self.stop = self.frames.stop_reason(&self.ctx);
+            self.stop = self.frames.check_stop(&mut self.ctx);
         }
         match self.stop {
             Some(_) => LoopControl::Exit,

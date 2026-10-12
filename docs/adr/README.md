@@ -77,3 +77,5 @@ the ADR linking to it.
 | [0009](0009-frame-timing.md) | Frame timing | Accepted |
 | [0010](0010-main-loop-ownership.md) | Main loop ownership and the application API | Accepted |
 | [0011](0011-windowing-with-winit.md) | Windowing and input with winit, behind `slime-platform` | Accepted |
+| [0012](0012-clean-shutdown-on-termination-signals.md) | Clean shutdown on termination signals | Accepted |
+| [0013](0013-windowed-smoke-test-in-weston.md) | Windowed smoke test in a headless Weston compositor | Accepted |

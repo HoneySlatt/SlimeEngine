@@ -32,7 +32,7 @@ is created only when code needs it.
 | Crate | Role | Depends on | Status |
 |---|---|---|---|
 | [`slime-platform`](../crates/slime-platform/README.md) | The window, its events and keyboard and mouse input; the only crate that uses the windowing library (winit) | `winit`, `raw-window-handle`, `thiserror`, `tracing` | One window; window, keyboard and mouse events |
-| [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `slime-platform`, `tracing`, `tracing-subscriber` | Headless and windowed runs work |
+| [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `slime-platform`, `ctrlc`, `tracing`, `tracing-subscriber` | Headless and windowed runs work |
 | [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-platform`, `softbuffer`, `tracing` | `hello`, `headless`, `window` |
 
 ## Dependency rules
@@ -80,7 +80,8 @@ frame                                span "frame", trace level
 ```
 
 The run stops before the next frame once the application has called `ctx.request_exit()`, the
-window was closed, or `config.frame_limit` frames have run. The frame in progress always
+window was closed, the process received a termination signal, or `config.frame_limit` frames have
+run. The frame in progress always
 finishes, and `app.shutdown` is always called after `app.init`. The call order is checked by
 [`crates/slime-app/tests/lifecycle.rs`](../crates/slime-app/tests/lifecycle.rs).
 
@@ -116,6 +117,15 @@ slime_app::run
 Frames are spaced by at least `1 / AppConfig::max_frame_rate`: between them the event loop
 sleeps until the next frame is due or an event arrives, so an idle window uses almost no CPU.
 This frame limiter is temporary; presenting frames on screen will pace them from Stage 2.
+
+### Termination signals
+
+`run` installs, once per process, a handler for SIGINT (Ctrl+C), SIGTERM and SIGHUP
+([`crates/slime-app/src/signal.rs`](../crates/slime-app/src/signal.rs)). The handler runs on a
+thread of its own and only sets a flag; before each frame, the driver records the flag in the
+`Context` as an exit request, so the run stops like any other: the frame in progress finishes and
+`app.shutdown` runs. A second signal ends the process at once with exit code 130
+([ADR-0012](adr/0012-clean-shutdown-on-termination-signals.md)).
 
 ### Frame timing
 

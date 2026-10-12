@@ -11,6 +11,7 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+ctrlc.workspace = true
 slime-platform.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true

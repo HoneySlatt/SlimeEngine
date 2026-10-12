@@ -2,6 +2,7 @@
 
 mod app;
 mod diagnostics;
+mod signal;
 pub mod time;
 mod windowed;
 

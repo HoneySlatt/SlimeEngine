@@ -5,9 +5,9 @@ down.
 
 ## Status
 
-Partial. Applications run headless or with one window that receives keyboard and mouse input; the
-main loop, frame timing, exit requests, profiling spans and diagnostics work. Clean shutdown on
-Ctrl+C arrives in milestone M1.6 (see `docs/PLAN.md`).
+Applications run headless or with one window that receives keyboard and mouse input; the main
+loop, frame timing, exit requests, clean shutdown on Ctrl+C and other termination signals,
+profiling spans and diagnostics work. What is missing is listed in `docs/PLAN.md` (known debt).
 
 ## Role
 
@@ -51,8 +51,12 @@ assert_eq!(game.fixed_steps, 60);
 - `App`: the methods the engine calls, in this order: `init` once; then for each frame,
   `fixed_update` once per fixed step and `update` once; then `shutdown` once. With a window,
   `on_event` receives each window event between frames. All have empty defaults.
-- `run(&mut app, &config)`: sets up diagnostics, then runs the application until it calls
-  `Context::request_exit`, the window is closed, or `AppConfig::frame_limit` is reached.
+- `run(&mut app, &config)`: sets up diagnostics and a handler for termination signals, then runs
+  the application until it calls `Context::request_exit`, the window is closed, the process
+  receives SIGINT (Ctrl+C), SIGTERM or SIGHUP, or `AppConfig::frame_limit` is reached. In every
+  case the frame in progress finishes and `shutdown` runs; a second signal ends the process at
+  once (exit code 130) for an application that no longer finishes its frames
+  (`docs/adr/0012-clean-shutdown-on-termination-signals.md`).
   - Headless: frames run back to back with simulated time: each frame represents one fixed step,
     so runs are deterministic. The windowing system is never touched.
   - With a window: the window exists before `init`; frames represent the real time between them,
@@ -82,6 +86,7 @@ spans (`frame`, `fixed_update`, `update`) are logged with the time spent in them
 
 ## Dependencies
 
+- `ctrlc`: handles termination signals.
 - `slime-platform`: the window and its events, for windowed runs.
 - `tracing`: the logging macros and profiling spans.
 - `tracing-subscriber`: the subscriber that formats, filters and writes log events.

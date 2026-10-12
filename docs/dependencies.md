@@ -12,6 +12,7 @@ are set in `[workspace.dependencies]` of the root [`Cargo.toml`](../Cargo.toml).
 
 | Crate | Used by | Why | Alternative considered | License | Added |
 |---|---|---|---|---|---|
+| [ctrlc](https://crates.io/crates/ctrlc) | `slime-app` | Handles SIGINT, SIGTERM and SIGHUP (feature `termination`) so that they stop the run cleanly ([ADR-0012](adr/0012-clean-shutdown-on-termination-signals.md)) | `signal-hook`, lower level | MIT OR Apache-2.0 | M1.6 |
 | [raw-window-handle](https://crates.io/crates/raw-window-handle) | `slime-platform` | The standard traits through which a graphics library (softbuffer now, wgpu later) draws into a window created by another library; `Window` implements them on purpose ([ADR-0011](adr/0011-windowing-with-winit.md)) | None: it is the interface wgpu and softbuffer accept | MIT OR Apache-2.0 OR Zlib | M1.4 |
 | [softbuffer](https://crates.io/crates/softbuffer) | examples only | Fills the window from the CPU so that the compositor shows it, until the GPU layer exists. Temporary: removed in Stage 2 ([ADR-0002](adr/0002-amend-roadmap-stages-0-to-3.md)). Built without its `kms` backend. | A wgpu "clear" pass, which would bring the GPU layer into Stage 1 | MIT OR Apache-2.0 | M1.4 |
 | [thiserror](https://crates.io/crates/thiserror) | `slime-platform` | Derives `Display` and `Error` for engine error enums ([ADR-0008](adr/0008-errors-logging-and-assertions.md)) | Hand-written implementations | MIT OR Apache-2.0 | M1.4 |
@@ -43,6 +44,7 @@ install them as described in [`CONTRIBUTING.md`](../CONTRIBUTING.md#development-
 | [nixpkgs](https://github.com/NixOS/nixpkgs) (flake input) | Provides every other tool of the development shell | — | MIT |
 | [cargo-deny](https://github.com/EmbarkStudios/cargo-deny) | Checks dependency licenses, security advisories and sources ([ADR-0006](adr/0006-dependency-policy.md)) | cargo-audit plus a separate license tool | MIT OR Apache-2.0 |
 | [lychee](https://github.com/lycheeverse/lychee) | Checks links and anchors between Markdown files ([ADR-0007](adr/0007-documentation-tooling-and-ci.md)) | markdown-link-check, which needs Node.js | Apache-2.0 OR MIT |
+| [Weston](https://gitlab.freedesktop.org/wayland/weston) | A Wayland compositor without screen in which the checks run the windowed sample ([ADR-0013](adr/0013-windowed-smoke-test-in-weston.md)) | Xvfb, which only covers X11 | MIT |
 
 ## CI actions
 

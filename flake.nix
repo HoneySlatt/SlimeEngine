@@ -26,6 +26,8 @@
           (pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml)
           pkgs.cargo-deny
           pkgs.lychee
+          # A compositor without a screen, in which scripts/check.sh runs the windowed sample.
+          pkgs.weston
         ];
 
         # winit (in slime-platform) and softbuffer (in the examples) open the windowing system's

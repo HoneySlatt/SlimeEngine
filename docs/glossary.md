@@ -65,3 +65,8 @@ steps per frame and dropping the rest.
 
 **Stage.** A step of [`docs/ROADMAP.md`](ROADMAP.md), ordered by dependency, with a goal and an
 exit criterion. Stages are numbered from 0; a stage may be split (Stage 3a and 3b).
+
+**Termination signal.** A request from outside the process to stop it: SIGINT (Ctrl+C in a
+terminal), SIGTERM (a service manager or `kill`) or SIGHUP (the terminal closing). The first one
+stops a run cleanly; a second one ends the process at once
+([ADR-0012](adr/0012-clean-shutdown-on-termination-signals.md)).

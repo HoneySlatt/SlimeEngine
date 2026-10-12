@@ -5,6 +5,7 @@ use std::time::Duration;
 use slime_platform::{Event, PlatformError, Window, WindowConfig};
 
 use crate::diagnostics::init_diagnostics;
+use crate::signal;
 use crate::time::{FixedStep, FrameClock, FrameTime};
 use crate::windowed::run_windowed;
 
@@ -121,8 +122,8 @@ impl Context {
         self.exit_because(ExitReason::Requested);
     }
 
-    /// Whether the run is going to stop: the application requested an exit, or the window was
-    /// closed.
+    /// Whether the run is going to stop: the application requested an exit, the window was closed,
+    /// or the process received a termination signal.
     pub fn exit_requested(&self) -> bool {
         self.exit.is_some()
     }
@@ -147,14 +148,21 @@ impl Context {
 pub(crate) enum ExitReason {
     Requested,
     WindowClosed,
+    Signal,
 }
 
 /// Runs `app` until it stops, then returns.
 ///
-/// It first calls [`init_diagnostics`], so logging works from the first line of `init`. It then
-/// calls [`App::init`], runs frames until the application requests an exit, the window is closed
+/// It first calls [`init_diagnostics`], so logging works from the first line of `init`, and installs
+/// a handler for termination signals. It then calls [`App::init`], runs frames until the
+/// application requests an exit, the window is closed, the process receives a termination signal
 /// or [`AppConfig::frame_limit`] is reached, and calls [`App::shutdown`]. An exit requested during
 /// `init` runs no frame.
+///
+/// Termination signals are SIGINT (Ctrl+C in a terminal), SIGTERM (a service manager stopping the
+/// process) and SIGHUP (the terminal closing). The first one stops the run cleanly, like an exit
+/// request; a second one ends the process at once with exit code 130, for an application that no
+/// longer finishes its frames. A signal received once stops every later run in the process too.
 ///
 /// - **Headless** ([`AppConfig::window`] is `None`): frames run back to back, as fast as the
 ///   machine allows, with simulated time: each frame represents exactly one fixed step, so it runs
@@ -182,6 +190,7 @@ pub(crate) enum ExitReason {
 /// zero, or, with a window, if `config.max_frame_rate` is zero.
 pub fn run(app: &mut impl App, config: &AppConfig) -> Result<(), PlatformError> {
     init_diagnostics();
+    signal::install_handler();
     match &config.window {
         None => {
             run_headless(app, config);
@@ -198,7 +207,7 @@ fn run_headless(app: &mut impl App, config: &AppConfig) {
     tracing::debug!(?config, "running headless");
     app.init(&mut ctx);
     let reason = loop {
-        if let Some(reason) = frames.stop_reason(&ctx) {
+        if let Some(reason) = frames.check_stop(&mut ctx) {
             break reason;
         }
         frames.run_one(app, &mut ctx, config.fixed_step);
@@ -230,11 +239,16 @@ impl Frames {
         self.count
     }
 
-    /// Why no further frame must run, if that is the case.
-    pub(crate) fn stop_reason(&self, ctx: &Context) -> Option<&'static str> {
+    /// Why no further frame must run, if that is the case. A termination signal received since the
+    /// last check is recorded in `ctx` first, so that the application sees it as an exit request.
+    pub(crate) fn check_stop(&self, ctx: &mut Context) -> Option<&'static str> {
+        if signal::received() {
+            ctx.exit_because(ExitReason::Signal);
+        }
         match ctx.exit {
             Some(ExitReason::Requested) => Some("the application requested an exit"),
             Some(ExitReason::WindowClosed) => Some("the window was closed"),
+            Some(ExitReason::Signal) => Some("a termination signal was received"),
             None if self.limit.is_some_and(|limit| self.count >= limit) => {
                 Some("the frame limit was reached")
             }
