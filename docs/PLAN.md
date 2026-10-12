@@ -12,14 +12,14 @@ documentation was updated and reread.
 ## Current
 
 - Stage 0 — Foundations
-- Milestone M0.1 — Repository, license and ADR process
+- Milestone M0.2 — Nix development environment
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
-| [M0.1](#m01--repository-license-and-adr-process) | Repository, license and ADR process | In progress |
-| [M0.2](#m02--nix-development-environment) | Nix development environment | Planned |
+| [M0.1](#m01--repository-license-and-adr-process) | Repository, license and ADR process | Done |
+| [M0.2](#m02--nix-development-environment) | Nix development environment | In progress |
 | [M0.3](#m03--workspace-lints-and-crate-skeletons) | Workspace, lints and crate skeletons | Planned |
 | [M0.4](#m04--dependency-policy-and-ci) | Dependency policy and CI | Planned |
 | [M1.1](#m11--logging-and-diagnostics) | Logging and diagnostics | Planned |
