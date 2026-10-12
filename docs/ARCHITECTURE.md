@@ -204,11 +204,11 @@ whether there is an image to draw:
 | Surface lost | Created again from the window; no image this frame. Lost for good (it cannot be created again, or is lost again each time): no image, and the run stops before the next frame, like after a lost device |
 | Device lost (see [Losing the GPU](#losing-the-gpu)) | No image; the run stops before the next frame |
 
-How the window shows the images is the *present mode* (`AppConfig::present_mode`, ADR-0021).
-With Mailbox, the default, presenting never waits, and the frame scheduler alone paces frames,
-whether the window is visible or not; windows that do not offer it fall back to FIFO, with which
-presenting can block a frame. The measurements behind this choice are in
-[`PLAN.md`](PLAN.md#m24--frame-pacing).
+How the window shows the images is the *present mode* (`AppConfig::present_mode`). With Mailbox,
+the default, presenting never waits, and the frame scheduler alone paces frames, whether the
+window is visible or not; windows that do not offer it fall back to FIFO, with which presenting
+can block a frame. The measurements behind this choice are in
+[ADR-0021](adr/0021-frame-pacing.md).
 
 In GPU capture tools such as RenderDoc, each render pass is named after its target, so the window's
 pass of frame 42 appears as `window, frame 42`, and `RenderPass::debug_group` names groups of

@@ -12,203 +12,179 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 
 ## Current
 
-- Stage 2 — GPU layer → 0.0.2: done and released (tag `v0.0.2`). Its milestones stay below until
-  the next stage is planned.
-- Next: planning Stage 3a with the owner (see [`ROADMAP.md`](ROADMAP.md)). No code is written
-  for it before its plan is validated.
-- A stabilization pass on 2026-10-12 corrected what an audit of 0.0.2 found: the corrections are
-  listed in [`CHANGELOG.md`](../CHANGELOG.md) under *Unreleased*, and what was found without being
-  corrected is in [Known debt](#known-debt).
+- Stage 3a — First renderer → 0.0.3: in progress. Planned on 2026-10-12 and validated by the
+  owner. Milestone in progress: M3.1.
+- Between 0.0.2 and this stage, a stabilization pass on 2026-10-12 corrected what an audit of
+  0.0.2 found: the corrections are listed in [`CHANGELOG.md`](../CHANGELOG.md) under
+  *Unreleased*, and what was found without being corrected is in [Known debt](#known-debt).
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
-| [M2.0](#m20--windows-in-ci) | Windows in CI | Done |
-| [M2.1](#m21--gpu-device-without-a-window) | GPU device without a window | Done |
-| [M2.2](#m22--offscreen-triangle-and-reference-image) | Offscreen triangle and reference image | Done |
-| [M2.3](#m23--the-triangle-in-the-window) | The triangle in the window | Done |
-| [M2.4](#m24--frame-pacing) | Frame pacing | Done |
-| [M2.5](#m25--debug-markers-robustness-release-002) | Debug markers, robustness, release 0.0.2 | Done |
+| [M3.1](#m31--gpu-resources-for-a-renderer) | GPU resources for a renderer | In progress |
+| [M3.2](#m32--the-render-crate-camera-meshes-instances) | The render crate: camera, meshes, instances | Planned |
+| [M3.3](#m33--directional-light-and-material) | Directional light and material | Planned |
+| [M3.4](#m34--textures-and-samplers) | Textures and samplers | Planned |
+| [M3.5](#m35--a-gltf-scene-and-camera-control) | A glTF scene and camera control | Planned |
+| [M3.6](#m36--statistics-gpu-timings-and-the-dev-overlay) | Statistics, GPU timings and the dev overlay | Planned |
+| [M3.7](#m37--windows-check-documentation-release-003) | Windows check, documentation, release 0.0.3 | Planned |
 
 Stages 0, 1 and 2 are done; see [Completed stages](#completed-stages).
 
-## Stage 2 — GPU layer → 0.0.2
+## Stage 3a — First renderer → 0.0.3
 
-Exit criterion (see [`ROADMAP.md`](ROADMAP.md#stage-2--gpu-layer--002)): a triangle renders and
-survives resize, on Linux and on Windows; an offscreen render is compared to a reference image in
-CI, rendered with lavapipe on Linux and WARP on Windows, with a tolerance so that the same test
-passes on hardware drivers.
+Exit criterion (see [`ROADMAP.md`](ROADMAP.md#stage-3a--first-renderer--003)): a glTF scene
+renders with textures, depth and simple lighting under a moving camera, with statistics shown in
+the overlay, covered by image tests.
+
+Out of scope, left to the stages that need them: physically based materials, shadows, HDR and
+post-processing, a render graph, multisampling, transparency, animation and skinning, glTF
+extensions (Stage 3b and later); mipmaps, unless the image tests or the sample show aliasing that
+the tolerance cannot absorb; and a scene model, which comes with the world of Stage 5: the
+renderer draws a flat list of instances that the application builds, and the temporary glTF loader
+flattens the file's node hierarchy into such a list.
 
 Decisions taken when this stage was planned, each recorded as an ADR in the milestone that applies
 it:
 
-- GPU resources are engine-owned types that hold their wgpu object privately (no table of
-  identifiers until something needs one).
-- The engine drives rendering: windowed runs create the GPU device and the surface, the engine
-  acquires each frame's image, calls a new `App::render` after `update`, then presents. Headless
-  runs create no GPU device.
-- Frames are driven by redraw requests, which keep arriving while Windows runs its modal loop
-  during an interactive resize (not during a move: see [Known debt](#known-debt)).
-- Frame pacing is decided by measurement, possibly differently on each platform.
-- GPU object creation reports errors (shader and pipeline errors with the shader compiler's
-  message); `App::init` can fail and `run` returns a `RunError`.
-- Image tests: reference PNG images in the repository, produced with lavapipe, compared with a
-  tolerance; CI uses lavapipe on Linux and WARP on Windows.
-- Dependencies: `wgpu` 30 (Vulkan on Linux, Direct3D 12 on Windows, WGSL shaders), `pollster`,
-  `png`. `softbuffer` is removed. Windows builds use the MSVC toolchain. (`bytemuck`, also planned,
-  proved unnecessary in M2.2.)
+- Crates. A new `slime-render` crate holds the renderer: meshes, materials, camera, light,
+  statistics. It is built on `slime-gfx`'s engine-owned types only, without wgpu, so that the
+  renderer is the second concrete use of each of them. The dev overlay lives in a temporary
+  `slime-devui` crate, the only crate besides `slime-gfx` that reaches wgpu, through a feature of
+  `slime-gfx` documented as internal and removed with the overlay (amends ADR-0016).
+- GPU resources (M3.1). Typed buffers (`IndexBuffer`, `UniformBuffer`) rather than one generic
+  buffer; bind group layouts and bind groups as engine-owned types; depth targets; a pass
+  descriptor that says whether the target is cleared or kept (amends ADR-0017).
+- Math. `glam`; its types appear in `slime-render`'s API, the exception that ADR-0006 allows for a
+  dependency whose purpose it is.
+- glTF. The `gltf` crate without its default features (neither `image` nor `base64`), in the
+  examples only: GLB files with embedded buffers, PNG images decoded with `png`. The loader is
+  deleted in Stage 4.
+- Overlay. `egui` and `egui-wgpu`, the latter without its default features (they would enable
+  every wgpu backend), and no `egui-winit`: `slime-devui` translates the engine's events itself,
+  since winit's types do not leave `slime-platform` (ADR-0011).
+- GPU timings. wgpu's timestamp queries, written by the engine rather than taken from the
+  `wgpu-profiler` crate, requested only when the adapter offers them; everything works without
+  them (amends ADR-0016, which asked for no optional feature).
+- Sample asset. A small scene made in Blender under CC0, under 500 kB, embedded in the sample;
+  `--scene <file>` loads another GLB file. A Khronos sample model under CC-BY 4.0 was the
+  alternative.
+- No `bytemuck`: bytes are produced with `to_le_bytes`, as ADR-0017 chose; no `image` crate.
+- Windows: the Windows CI job runs the tests and the headless samples at every milestone; the owner
+  checks windowed behaviour in the virtual machine at M3.2, M3.5 and M3.6.
 
-### M2.0 — Windows in CI
+### M3.1 — GPU resources for a renderer
 
-- **Goal.** Everything that exists builds, passes its tests and runs headless on Windows, checked on
-  every push.
-- **Crates.** `slime-app` (tests, documentation), `examples`; CI.
-- **Delivers.** A Windows job in CI (toolchain from `rust-toolchain.toml` through rustup, MSVC
-  target): clippy, build, tests, headless samples. The examples' Windows build published as a CI
-  artifact. The Windows target of the standard library in `rust-toolchain.toml`, so that
-  `scripts/check.sh` also runs clippy for Windows on Linux. Signal tests limited to Unix. The
-  Windows development setup in `CONTRIBUTING.md`. ADR: platforms and CI.
-- **Done when.** The Windows job is green; on Linux, `scripts/check.sh` fails on a deliberate
-  Windows-only compile error; the owner ran the `window` example from the artifact in a Windows
-  virtual machine (window, resize, close, keyboard and mouse).
-- **How to test.** Push and read the CI run; download the artifact in the Windows virtual machine
-  and run `window.exe`.
+- **Goal.** Everything a 3D renderer needs from `slime-gfx`, proven offscreen on lavapipe and WARP.
+- **Crates.** `slime-gfx`; the examples and tests that call `Gpu::render`.
+- **Delivers.** Index buffers and indexed draws; uniform buffers, written through the `Gpu` whenever
+  their content changes; bind group layouts and bind groups, holding uniform buffers now (textures
+  and samplers come in M3.4, dynamic offsets when M3.2 needs them); the pipeline descriptor gains
+  its bind group layouts, a depth test and a cull mode; depth targets; `Gpu::render` takes a pass
+  descriptor: the target, whether to clear it or keep its content, and an optional depth target.
+  ADR: resource binding and depth (amends 0017).
+- **Done when.** `slime-gfx` tests pass on lavapipe and on WARP: an indexed quad fills the target; a
+  uniform offset moves a triangle between two renders; with the depth test, the nearer of two
+  overlapping triangles wins whatever the draw order, and the later one wins without it; back
+  faces are culled when asked; a pipeline whose shader bindings do not match its layouts is
+  rejected as `GfxError::Pipeline`.
+- **How to test.** `VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo test -p slime-gfx`.
 
-### M2.1 — GPU device without a window
+### M3.2 — The render crate: camera, meshes, instances
 
-- **Goal.** Open a GPU device without a window, on Linux and Windows, on hardware and software
-  drivers.
-- **Crates.** New `slime-gfx`.
-- **Delivers.** Creation of the GPU device and queue (Vulkan on Linux, Direct3D 12 on Windows,
-  high-performance adapter), the adapter described in the log, a device-loss callback, error types.
-  The Nix shell puts the Vulkan loader on the library path and gives the path of the lavapipe
-  driver; `scripts/check.sh` and CI run GPU tests on lavapipe (Linux) and WARP (Windows). A build
-  cache in CI if build times call for it. ADR: the `gfx` crate and wgpu's configuration, with the
-  GPU error policy. Dependencies: `wgpu`, `pollster`.
-- **Done when.** A test opens a device on lavapipe (Linux CI), on WARP (Windows CI) and on the
-  owner's GPU (by hand); headless runs open none.
-- **How to test.** `cargo test -p slime-gfx`, and again with lavapipe forced through
-  `VK_DRIVER_FILES`.
+- **Goal.** Draw a list of mesh instances from a camera, with depth, into any render target.
+- **Crates.** New `slime-render`; `examples` gains `scene`, the sample of this stage, and its image
+  test.
+- **Delivers.** `Renderer::new(gpu, format)`, whose depth buffer follows the size of the target it
+  draws into; `Mesh` from CPU data (positions, normals, texture coordinates, indices); `Camera`
+  (perspective projection, look-at); `Instance` (a mesh and a transform);
+  `Renderer::render(gpu, target, &frame)`, which clears the target, draws the instances and returns
+  `RenderStats` (draw calls, triangles); per-instance transforms in one uniform buffer with dynamic
+  offsets; conventions: right-handed axes with +Y up, as glTF, the camera looking down −Z, depth
+  from 0 to 1, linear colors in shaders. Bytes for the GPU are packed with `to_le_bytes`. The
+  `scene` example shows cubes under a camera that orbits them; `scripts/check.sh` runs it in the
+  headless Weston; the image test `scene-cubes` renders two overlapping cubes. ADR: the render
+  crate and glam.
+- **Done when.** The image test passes on lavapipe, WARP and the owner's GPU; the sample shows the
+  cubes under the moving camera on niri; `scene --frames 120` draws in the headless Weston; the
+  owner ran `scene.exe` in the Windows virtual machine.
+- **How to test.** `cargo run --example scene`; `cargo test -p slime-examples --test scene`.
 
-### M2.2 — Offscreen triangle and reference image
+### M3.3 — Directional light and material
 
-- **Goal.** Render without a window and compare the result with a reference image, on Linux and
-  Windows.
-- **Crates.** `slime-gfx`; `examples` gains `offscreen`.
-- **Delivers.** The resource types (buffer, texture, shader module, render pipeline), WGSL compiled
-  from source text with readable errors, a minimal pipeline and render pass, reading the image back
-  to the CPU, a comparison with tolerance, a reference image produced with lavapipe, a label
-  required on every resource. The `offscreen` example writes the triangle to a PNG file. ADRs: GPU
-  resource types; image tests. Dependency: `png`. `bytemuck` was planned too, but vertex data is
-  turned into bytes with the standard library (`f32::to_le_bytes`) as long as there are no vertex
-  structures (ADR-0017).
-- **Done when.** The image test passes on lavapipe, WARP and the owner's GPU (or uses one
-  reference per driver if no tolerance covers all three, as the ADR then records); a deliberate
-  colour change makes it fail; a WGSL error gives a readable message; a resource's label appears in
-  a validation error.
-- **How to test.** `cargo test -p slime-gfx`; `cargo run --example offscreen` and open the PNG.
+- **Goal.** A simple lighting model: one directional light with an ambient term, and materials
+  with a base color.
+- **Crates.** `slime-render`; `examples`.
+- **Delivers.** `Material` (a base color) created through the renderer and named by each instance;
+  `DirectionalLight` (direction, color, ambient light) in the frame; normals transformed with the
+  instance; Lambert diffuse shading in WGSL on linear colors, which the sRGB target encodes;
+  back-face culling on. The image test shows lit cubes; the tolerance of ADR-0018 is measured on
+  WARP and RADV with shading in the picture, and amended if it does not hold.
+- **Done when.** The image test passes on the three drivers; the lit cubes look right by eye.
+- **How to test.** As M3.2.
 
-### M2.3 — The triangle in the window
+### M3.4 — Textures and samplers
 
-- **Goal.** The engine presents the triangle in the window, on Linux and Windows.
-- **Crates.** `slime-gfx` (surface), `slime-app` (render callback, fallible `init`, `RunError`,
-  frames driven by redraw requests), `slime-platform` (redraw requests), `examples` (`window` draws
-  the triangle; `softbuffer` removed).
-- **Delivers.** A surface created from the window through `raw-window-handle`, an sRGB format,
-  resize, handling of every state of the surface, `App::render`. Measurements: a hidden window on
-  niri, idle CPU and GPU, frame times, X11, Weston with lavapipe, the Windows virtual machine. ADR:
-  rendering in the main loop and application errors (replacing parts of ADR-0010 and ADR-0011).
-- **Done when.** The triangle shows on niri (Wayland), through Xwayland and on Windows; it survives
-  resize, including an interactive resize on Windows; the Weston check passes with lavapipe; the
-  measurements are recorded.
-- **How to test.** `cargo run --example window` on Linux; `window.exe` from the CI artifact on
-  Windows.
-- **Measured** on 2026-10-12, with the default `AppConfig` (60 frames per second at most) and
-  wgpu's FIFO present mode; frame times from the `frame` spans (`SLIME_LOG=slime_app=trace`), in a
-  debug build unless stated:
-  - niri (Wayland), RX 6900 XT (RADV): frames every 16.66 ms on average (standard deviation
-    1.5 ms; one interval in 340 above 20 ms). In a release build, 5 % of one CPU core, about 55
-    system calls and 4 wake-ups of the event loop per frame; the GPU load of the triangle cannot be
-    told apart from the desktop's.
-  - niri, window moved to an empty workspace (hidden): `present` blocks for one second in each
-    frame, so frames run once per second, each with the maximum of 8 fixed steps: the simulation
-    runs 8 steps per second instead of 60. CPU use falls to 0.2–0.4 %.
-  - X11 through Xwayland (xwayland-satellite on niri), RADV: frames every 16.66 ms (standard
-    deviation 0.7 ms, longest 19 ms).
-  - Weston (headless) with lavapipe: the triangle appears in a screenshot of the compositor. One
-    image acquisition in three waits about 0.8 s, so 120 frames take about 25 s; with the Mailbox
-    or Immediate present mode, 60 frames take 1.06 s.
-  - Present modes offered: Mailbox and Fifo on niri; Immediate, Mailbox, Fifo and FifoRelaxed on
-    X11; Mailbox, Fifo and Immediate with lavapipe in Weston. Every surface offered
-    `Bgra8UnormSrgb` first.
-  - The owner saw the triangle on niri and through Xwayland, and reports that `window.exe` works
-    in the Windows virtual machine.
+- **Goal.** Textured materials.
+- **Crates.** `slime-gfx` (textures, samplers, their bind group entries); `slime-render`;
+  `examples`.
+- **Delivers.** `Texture` (two-dimensional, 8-bit RGBA, sRGB or linear, uploaded from bytes,
+  without mipmaps) and `Sampler` (nearest or linear filtering; repeat, clamp or mirror addressing:
+  what glTF samplers express) in `slime-gfx`, bound through bind groups; `Material` gains a base
+  color texture and its sampler; the sample generates a checker texture; the image test renders
+  the textured cube. Mipmaps are added only if the image tests or the sample show aliasing that
+  the tolerance cannot absorb, and the ADR of M3.1 is then amended.
+- **Done when.** The image test passes on the three drivers.
+- **How to test.** As M3.2.
 
-### M2.4 — Frame pacing
+### M3.5 — A glTF scene and camera control
 
-- **Goal.** Frames are paced without stalling the engine, on each platform.
-- **Crates.** `slime-app`, `slime-gfx`.
-- **Delivers.** The pacing policy chosen from the measurements of M2.3, the present mode in
-  `AppConfig`, the frame scheduler kept or removed per platform, a profiling span for submitting
-  the work of a frame (acquiring, recording and presenting have theirs since M2.3). ADR: frame
-  pacing.
-- **Done when.** A hidden window does not stall the loop beyond what the ADR states (Ctrl+C is
-  still handled); idle CPU and GPU use and the regularity of frames are measured on niri; Windows
-  is checked in the virtual machine, whose GPU says nothing about timing.
-- **How to test.** Run the `window` example, hide it, and read the frame spans with
-  `SLIME_LOG=trace`.
-- **Measured** on 2026-10-12 on niri, RX 6900 XT (RADV), displays at 240 Hz and at 180 Hz with
-  variable refresh, 60 frames per second asked, release builds:
-  - Before the decision, with frames timed inside the program (one window moved to an empty
-    workspace to hide it):
-    - FIFO and the schedule: regular frames while visible; hidden, each `present` waits one
-      second, because niri sends a hidden window one frame callback per second.
-    - Mailbox and the schedule: 60 frames per second visible and hidden, frame starts 0.02 to
-      0.5 ms from the schedule (standard deviation).
-    - FIFO without the schedule: one frame per refresh of the display (180 per second), each
-      waiting in `present`; once per second while hidden.
-    - Frames on the compositor's frame callbacks (winit's `pre_present_notify`), with FIFO or
-      Mailbox: in step with the display, without waiting, while visible; once per second while
-      hidden.
-  - With the decision (ADR-0021, Mailbox by default): 4 % of one CPU core visible, 3 % hidden;
-    the GPU load of the triangle cannot be told apart from the desktop's (11 to 24 % for the whole
-    GPU). A termination signal sent while the window is hidden stops the run 17 ms later. With
-    `SLIME_LOG=slime_app=trace`, frame ends are 3.1 ms from the schedule (standard deviation,
-    part of it from writing the log), and `present` takes 1.4 ms on average.
-  - Headless Weston with lavapipe: 120 frames take 2.1 s with Mailbox; with
-    `--present-mode fifo`, 30 frames take 5.5 s.
-  - Windows, in the virtual machine, with the RX 6900 XT through Direct3D 12 (AMD driver
-    32.0.21030.2001), Mailbox: 600 frames take 16.4 s when the window is moved for about 6 s, so
-    frames pause during the move; they take 10.2 s when the window is minimized for 6.6 s, so
-    frames go on while minimized, without drawing.
+- **Goal.** The sample renders a glTF scene under a camera the user moves.
+- **Crates.** `examples` (the loader, the asset, the sample, its image test).
+- **Delivers.** A temporary loader in `examples/common/gltf.rs`, built on the `gltf` crate without
+  its default features: GLB files with embedded buffers, PNG images decoded with `png`; meshes,
+  materials, textures and samplers created through the renderer; the node hierarchy flattened into
+  instances; a clear error for what is not supported (external files, JPEG images, skins,
+  animations, extensions). A sample asset in `examples/assets/`, a scene made in Blender under
+  CC0 (under 500 kB), embedded in the sample with `include_bytes!`; `--scene <file>` loads another
+  GLB file. Camera: automatic orbit around the scene's bounds, orbit with the left button, zoom
+  with the wheel. The image test `scene-gltf` renders the asset at fixed camera poses. ADR:
+  temporary glTF loading, and its removal in Stage 4.
+- **Done when.** The sample shows the asset on niri, through Xwayland and in the Windows virtual
+  machine; the image test passes on the three drivers; a Khronos sample model loads with
+  `--scene`.
+- **How to test.** `cargo run --example scene -- --scene <file.glb>`; the image test.
 
-### M2.5 — Debug markers, robustness, release 0.0.2
+### M3.6 — Statistics, GPU timings and the dev overlay
 
-- **Goal.** GPU work can be inspected in a capture tool, failures of the GPU do not crash the
-  engine, and 0.0.2 is released.
-- **Crates.** `slime-gfx`, `slime-app`.
-- **Delivers.** Debug groups for frames and render passes, checked in RenderDoc (Linux, through
-  Xwayland); loss of the surface or of the device handled without a panic; the documentation
-  reread by a reviewing agent; `CHANGELOG.md`; the `v0.0.2` tag on a commit whose CI is green on
+- **Goal.** Render statistics shown in an overlay while the scene runs, with the GPU time of the
+  frame.
+- **Crates.** `slime-gfx` (timestamp queries, the wgpu access feature); `slime-render`
+  (statistics); new `slime-devui`; `examples`.
+- **Delivers.** `RenderStats` complete: draw calls, triangles, the CPU time of `render`, and the
+  GPU time of the pass from timestamp queries when the adapter offers them, read a few frames
+  later so that nothing waits. `slime-devui`, a temporary crate: `egui` and `egui-wgpu` without
+  default features; the engine's events translated to egui's; the overlay drawn into the frame's
+  target after the scene, in a pass that keeps the image; F1 shows and hides it. The sample shows
+  the frame time, the GPU time, draw calls, triangles and the adapter's name. ADR: the dev overlay
+  and wgpu access (amends 0016), optional GPU features.
+- **Done when.** The overlay is visible on niri, in a screenshot of the headless Weston and in the
+  Windows virtual machine; the GPU time shows on RADV and on Direct3D 12; whether lavapipe and WARP
+  offer timestamps is measured and recorded here; the image tests are unchanged.
+- **How to test.** `cargo run --example scene`, then F1.
+
+### M3.7 — Windows check, documentation, release 0.0.3
+
+- **Goal.** 0.0.3 released.
+- **Crates.** All; CI.
+- **Delivers.** The Windows checklist run by the owner in the virtual machine (`scene.exe`: window,
+  resize, camera, overlay, GPU time); `scene.exe` in the CI artifact; the documentation reread by
+  a reviewing agent (`ARCHITECTURE.md`, the glossary, `dependencies.md`, the crate READMEs);
+  `CHANGELOG.md`; the duration of CI measured; the `v0.0.3` tag on a commit whose CI is green on
   both platforms.
-- **Done when.** A RenderDoc capture shows the labels and groups; the checks are green on both
-  platforms; the tag is pushed.
-- **How to test.** Capture a frame of the `window` example in RenderDoc.
-- **Checked** on 2026-10-12:
-  - Frames are named through the window's render target (`window, frame <index>`) rather than
-    by a debug group: a group cannot span the several submissions a frame can make, and the
-    target's label names both the pass and its command buffer.
-  - A capture of the `window` example (debug build) in RenderDoc 1.46, on Wayland in a headless
-    Weston with lavapipe, the capture triggered through RenderDoc's target control: the pass
-    appears as a region named `window, frame 76` (RenderDoc's frame 76 too), containing the
-    render pass, inside which a region named `triangle` holds the pipeline and vertex buffer
-    bindings and the draw; the pipeline and the vertex buffer carry their labels (`triangle`,
-    `triangle vertices`). Xwayland was not needed.
-  - A test destroys the device: `Gpu::check` reports the loss, and rendering and reading back
-    with the lost device do not panic; without the engine's error handler, the same test panics.
-    It passes on lavapipe and on WARP. A real loss and the loss of the surface cannot be caused
-    on purpose and are not tested.
+- **Done when.** The checks are green on both platforms; the tag is pushed.
+- **How to test.** Push and read the CI run; the Windows artifact in the virtual machine.
 
 ## Releasing
 
@@ -233,8 +209,9 @@ commit "Release 0.0.2".
 | 1 — Core and platform → 0.0.1 | M1.1 logging and diagnostics; M1.2 frame timing; M1.3 lifecycle and headless mode; M1.4 window; M1.5 input; M1.6 clean shutdown | Done; released as 0.0.1 (tag `v0.0.1`). Content listed in [`CHANGELOG.md`](../CHANGELOG.md). |
 | 2 — GPU layer → 0.0.2 | M2.0 Windows in CI; M2.1 GPU device without a window; M2.2 offscreen triangle and reference image; M2.3 the triangle in the window; M2.4 frame pacing; M2.5 debug markers, robustness, release | Done; released as 0.0.2 (tag `v0.0.2`). Content listed in [`CHANGELOG.md`](../CHANGELOG.md). |
 
-The details of each completed milestone (what it delivered, how it was checked) are in the history
-of this file and in the commits that implemented it.
+The details of each completed milestone (what it delivered, how it was checked, what was measured)
+are in the history of this file and in the commits that implemented it; the measurements that
+justify a decision are also in its ADR.
 
 ## Known debt
 
@@ -295,4 +272,5 @@ of this file and in the commits that implemented it.
 - CI build cache: not added yet. With wgpu, the Linux job takes about 2.5 minutes and the Windows
   job about 5 (measured on the runs of 2026-10-12; it compiles the dependencies three times: for
   clippy, for the tests, and in release for the artifact), which is acceptable; a cache is to add if
-  it grows much further.
+  it grows much further. The dependencies of this stage (glam, gltf, egui) are expected to add to
+  it: each milestone that adds one records the new duration here.
