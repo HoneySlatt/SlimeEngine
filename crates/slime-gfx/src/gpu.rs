@@ -151,12 +151,12 @@ impl Gpu {
     ///
     /// # Errors
     ///
-    /// [`GfxError::DeviceLost`] once the device is lost ([`Gpu::check`]); [`GfxError::Wait`] if
-    /// waiting failed.
+    /// [`GfxError::DeviceLost`] once the device is lost ([`Gpu::check`]).
     ///
     /// # Panics
     ///
-    /// If the wait itself is what finds the device lost: wgpu treats that as fatal.
+    /// If the wait itself is what finds the device lost: wgpu treats that as fatal. Also if wgpu
+    /// reports an error that its indefinite wait cannot produce.
     pub fn wait_idle(&self) -> Result<(), GfxError> {
         self.check()?;
         let encoder = self
@@ -165,10 +165,12 @@ impl Gpu {
                 label: Some("SlimeEngine wait_idle"),
             });
         self.queue.submit([encoder.finish()]);
+        // wgpu reports a wait that timed out or that named a submission not made yet; an indefinite
+        // wait without a submission index does neither.
         self.device
             .poll(wgpu::PollType::wait_indefinitely())
-            .map(|_| ())
-            .map_err(|error| GfxError::Wait(Box::new(error)))
+            .expect("an indefinite wait neither times out nor names a submission");
+        Ok(())
     }
 }
 

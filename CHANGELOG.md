@@ -15,8 +15,14 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - The `window` example exits with a failure when a run limited by `--frames` drew nothing, so
   that the windowed check in a headless Weston proves that frames are drawn, as ADR-0013 says.
 
+### Removed
+
+- `GfxError::Wait`, which no method could return: wgpu's indefinite wait reports no error.
+
 ### Fixed
 
+- On Windows, the log uses colors only in Windows Terminal: the older console host printed the
+  escape sequences as text.
 - The examples report a command-line argument that is not valid text as a usage error instead of
   panicking, and the `offscreen` example names the file it could not write.
 - A windowed run without any usable graphics driver reports `no GPU adapter is available` with

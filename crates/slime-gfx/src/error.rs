@@ -30,9 +30,6 @@ pub enum GfxError {
         /// The reason the driver gave.
         message: String,
     },
-    /// Waiting for the GPU to finish its work failed.
-    #[error("waiting for the GPU failed")]
-    Wait(#[source] Source),
     /// A shader module was rejected, usually because its WGSL source does not compile.
     #[error("shader `{label}` was rejected:\n{message}")]
     Shader {

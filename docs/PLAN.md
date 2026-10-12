@@ -285,8 +285,6 @@ of this file and in the commits that implemented it.
 - **A lost surface that cannot be created again** makes `Surface::acquire` log an error at every
   frame while the run goes on without drawing; only a lost device stops the run (ADR-0022). Neither
   loss can be caused on purpose.
-- **`GfxError::Wait` is never returned**: wgpu's indefinite wait reports no error that the engine
-  could map to it, and a loss that the wait is the first to find panics inside wgpu instead.
 - **On Direct3D 12, a covered window or a locked session was not measured.** In `acquire`, wgpu
   waits on the swap chain's frame-latency object, up to one second, if the compositor stops taking
   images; whether Windows does so for such windows is unknown.
