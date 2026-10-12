@@ -88,6 +88,27 @@ The GPU layer uses Vulkan on Linux and Direct3D 12 on Windows
       cargo test -p slime-examples --test offscreen
   ```
 
+#### Capturing a frame in RenderDoc
+
+Debug builds give GPU capture tools the names of the engine's GPU work: each render pass is named
+after its target (the window's pass of frame 42 is `window, frame 42`), `RenderPass::debug_group`
+names groups of commands (the samples' triangle is drawn in `triangle`), and every GPU object
+carries its label. To look at a frame of the `window` example in
+[RenderDoc](https://renderdoc.org), which the development shell does not include, launch the
+example under RenderDoc from inside `nix develop`:
+
+```sh
+RENDERDOC=$(nix eval --raw --inputs-from . nixpkgs#renderdoc.outPath)
+VK_ADD_IMPLICIT_LAYER_PATH=$RENDERDOC/share/vulkan/implicit_layer.d \
+    $RENDERDOC/bin/renderdoccmd capture -w -c /tmp/window target/debug/examples/window
+```
+
+`VK_ADD_IMPLICIT_LAYER_PATH` lets the Vulkan loader find RenderDoc's layer without registering it
+on the system. Then start `qrenderdoc` from a terminal outside `nix develop` (the shell's library
+path does not suit RenderDoc's interface), attach it to the running example (File, Attach to
+Running Instance), and trigger a capture. Captures on Windows, through Direct3D 12, have not been
+tried yet.
+
 ## Checks
 
 One script runs every automated check, exactly as CI does:

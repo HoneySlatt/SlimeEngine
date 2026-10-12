@@ -190,6 +190,20 @@ it:
 - **Done when.** A RenderDoc capture shows the labels and groups; the checks are green on both
   platforms; the tag is pushed.
 - **How to test.** Capture a frame of the `window` example in RenderDoc.
+- **Checked** on 2026-10-12:
+  - Frames are named through the window's render target (`window, frame <index>`) rather than
+    by a debug group: a group cannot span the several submissions a frame can make, and the
+    target's label names both the pass and its command buffer.
+  - A capture of the `window` example (debug build) in RenderDoc 1.46, on Wayland in a headless
+    Weston with lavapipe, the capture triggered through RenderDoc's target control: the pass
+    appears as a region named `window, frame 76` (RenderDoc's frame 76 too), containing the
+    render pass, inside which a region named `triangle` holds the pipeline and vertex buffer
+    bindings and the draw; the pipeline and the vertex buffer carry their labels (`triangle`,
+    `triangle vertices`). Xwayland was not needed.
+  - A test destroys the device: `Gpu::check` reports the loss, and rendering and reading back
+    with the lost device do not panic; without the engine's error handler, the same test panics.
+    It passes on lavapipe and on WARP. A real loss and the loss of the surface cannot be caused
+    on purpose and are not tested.
 
 ## Releasing
 
