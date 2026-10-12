@@ -8,14 +8,18 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
-- `slime-render`, the first renderer: `Renderer` draws a `Scene` (a camera, a clear color and
-  instances of meshes with their materials) into any render target, with a depth test and
-  back-face culling, and returns the draw-call and triangle counts; meshes come from positions,
-  normals, texture coordinates and indices, materials have one base color, `Camera` gives its
-  matrices in WebGPU's convention, and `glam` is re-exported for the math
-  ([ADR-0027](docs/adr/0027-the-render-crate.md)).
-- The `scene` example, the sample of Stage 3a: cubes drawn by the renderer, seen from a camera
-  that orbits them; and its image test, compared with a reference rendered with lavapipe.
+- `slime-render`, the first renderer: `Renderer` draws a `Scene` (a camera, a directional light,
+  a clear color and instances of meshes with their materials) into any render target, with a
+  depth test and back-face culling, and returns the draw-call and triangle counts; meshes come
+  from positions, normals, texture coordinates and indices, materials have one base color,
+  `Camera` gives its matrices in WebGPU's convention, and `glam` is re-exported for the math
+  ([ADR-0027](docs/adr/0027-the-render-crate.md)). `DirectionalLight` lights surfaces in
+  proportion to the cosine between their normal and the direction to the light, plus an ambient
+  light; normals follow the rotation of their instance and stay perpendicular to surfaces scaled
+  unevenly.
+- The `scene` example, the sample of Stage 3a: cubes and a smooth sphere drawn by the renderer,
+  lit by a directional light, seen from a camera that orbits them; and its image test, compared
+  with a reference rendered with lavapipe.
 - The GPU resources a renderer needs, in `slime-gfx`: index buffers and indexed draws, uniform
   buffers written through `Gpu::write_uniform_buffer`, bind group layouts and bind groups that
   pipelines declare and render passes bind, with dynamic offsets so that one uniform buffer holds

@@ -13,7 +13,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3a — First renderer → 0.0.3: in progress. Planned on 2026-10-12 and validated by the
-  owner. M3.1 and M3.2 are done; next: M3.3.
+  owner. M3.1 to M3.3 are done; next: M3.4.
 - Between 0.0.2 and this stage, a stabilization pass on 2026-10-12 corrected what an audit of
   0.0.2 found: the corrections are listed in [`CHANGELOG.md`](../CHANGELOG.md) under
   *Unreleased*, and what was found without being corrected is in [Known debt](#known-debt).
@@ -24,7 +24,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 |---|---|---|
 | [M3.1](#m31--gpu-resources-for-a-renderer) | GPU resources for a renderer | Done |
 | [M3.2](#m32--the-render-crate-camera-meshes-instances) | The render crate: camera, meshes, instances | Done |
-| [M3.3](#m33--directional-light-and-material) | Directional light and material | Planned |
+| [M3.3](#m33--directional-light-and-material) | Directional light and material | Done |
 | [M3.4](#m34--textures-and-samplers) | Textures and samplers | Planned |
 | [M3.5](#m35--a-gltf-scene-and-camera-control) | A glTF scene and camera control | Planned |
 | [M3.6](#m36--statistics-gpu-timings-and-the-dev-overlay) | Statistics, GPU timings and the dev overlay | Planned |
@@ -135,11 +135,22 @@ it:
 - **Crates.** `slime-render`; `examples`.
 - **Delivers.** `DirectionalLight` (direction, color, ambient light) in the scene; normals
   transformed with the instance; Lambert diffuse shading in WGSL on the material's base color, in
-  linear colors, which the sRGB target encodes. The image test shows lit cubes; the tolerance of
-  ADR-0018 is measured on WARP and RADV with shading in the picture, and amended if it does not
-  hold.
-- **Done when.** The image test passes on the three drivers; the lit cubes look right by eye.
+  linear colors, which the sRGB target encodes. The image test shows lit cubes and a smooth
+  sphere, added to the sample so that interpolated normals are in the measurement; the tolerance
+  of ADR-0018 is measured on WARP and RADV with shading in the picture, and amended if it does
+  not hold.
+- **Done when.** The image test passes on the three drivers; the lit shapes look right by eye.
 - **How to test.** As M3.2.
+- **Checked** on 2026-10-13: the image test of the shapes (reference `shapes.png`: the lit cubes
+  and a green sphere of 720 triangles sitting on the orange cube) passes on lavapipe, which
+  rendered the reference, and on the owner's RX 6900 XT (RADV), where the largest difference is
+  1 out of 255, on the sphere, and no pixel exceeds the tolerance; the Windows CI job runs it on
+  WARP. Two tests in `crates/slime-render/tests/lighting.rs` read pixels back: a surface facing
+  the light is fully lit and one facing away gets the ambient light only, and the normal of a
+  square turned by 60° gives the cosine of that angle, while one turned by 45° then stretched
+  four times along the world's X axis is lit as its real normal says (the model matrix alone
+  would lean it the other way). The shapes look right by eye: each face of the cubes has its own
+  shade, the sphere is smooth with its bright side towards the light.
 
 ### M3.4 — Textures and samplers
 

@@ -87,7 +87,7 @@ that GPU tests give the same results on every machine, including machines withou
 the logical key `"a"`. Suits shortcuts and text. See also *physical key*.
 
 **Material.** How a surface looks: a base color for now (`slime_render::Material`, from
-`MaterialData`). Lighting parameters and textures join it later in Stage 3a.
+`MaterialData`), which the scene's light multiplies. Textures join it later in Stage 3a.
 
 **Mesh.** Triangles given as vertices (a position, a normal and texture coordinates each) and
 indices, uploaded to the GPU (`slime_render::Mesh`, from `MeshData`).
@@ -129,8 +129,8 @@ of what the test draws.
 **Sample.** The example that demonstrates the exit criterion of a stage. Every stage ends with
 one.
 
-**Scene (render).** What the renderer draws in one frame: a camera, a clear color and
-*instances* (`slime_render::Scene`). Not a scene graph: the renderer keeps nothing between frames,
+**Scene (render).** What the renderer draws in one frame: a camera, a directional light, a
+clear color and *instances* (`slime_render::Scene`). Not a scene graph: the renderer keeps nothing between frames,
 and the world model of Stage 5 will produce such scenes.
 
 **Simulated time.** Frame deltas supplied as a constant duration instead of being measured, so
