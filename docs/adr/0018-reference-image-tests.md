@@ -1,6 +1,6 @@
 # 0018. Reference image tests
 
-- Status: Accepted
+- Status: Accepted; amended by [0028](0028-image-tests-tolerate-a-few-pixels.md) (how many pixels may differ)
 - Date: 2026-10-12
 
 ## Context

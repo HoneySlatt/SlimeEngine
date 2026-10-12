@@ -45,6 +45,10 @@ jobs:
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Tests
         run: cargo test --workspace --locked
+      # The image tests print the difference they measured against the reference, which only this
+      # job can tell for WARP; the step above has run them already.
+      - name: Image tests, printing their measurements
+        run: cargo test --locked -p slime-examples -- --nocapture
       - name: Headless samples
         run: |
           cargo run --locked --example headless -- --frames 600

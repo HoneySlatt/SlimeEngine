@@ -5,8 +5,8 @@ use glam::{Mat3, Mat4};
 use slime_gfx::{
     BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource, BindingType,
     Color, CullMode, DepthCompare, DepthState, DepthTarget, Gpu, RenderPassDescriptor,
-    RenderPipeline, RenderPipelineDescriptor, RenderTarget, ShaderStages, TextureFormat,
-    UniformBuffer,
+    RenderPipeline, RenderPipelineDescriptor, RenderTarget, Sampler, SamplerDescriptor,
+    ShaderStages, Texture, TextureFormat, UniformBuffer,
 };
 
 use crate::bytes::{push_f32s, push_mat3, push_mat4};
@@ -73,6 +73,10 @@ pub struct Renderer {
     instance_layout: BindGroupLayout,
     frame_uniform: UniformBuffer,
     frame_group: BindGroup,
+    /// One white pixel, bound as the texture of materials that have none.
+    white: Texture,
+    /// The sampler of that pixel.
+    default_sampler: Sampler,
     instances: InstanceSlots,
     depth: Option<DepthTarget>,
 }
@@ -97,7 +101,28 @@ impl Renderer {
             )
         };
         let frame_layout = uniform("frame", false);
-        let material_layout = uniform("material", false);
+        let material_layout = gpu.create_bind_group_layout(
+            "material",
+            &[
+                BindGroupLayoutEntry {
+                    binding: 0,
+                    visible_to: ShaderStages::Fragment,
+                    ty: BindingType::UniformBuffer {
+                        dynamic_offset: false,
+                    },
+                },
+                BindGroupLayoutEntry {
+                    binding: 1,
+                    visible_to: ShaderStages::Fragment,
+                    ty: BindingType::Texture,
+                },
+                BindGroupLayoutEntry {
+                    binding: 2,
+                    visible_to: ShaderStages::Fragment,
+                    ty: BindingType::Sampler,
+                },
+            ],
+        );
         let instance_layout = uniform("instance", true);
         let pipeline = gpu.create_render_pipeline(&RenderPipelineDescriptor {
             label: "scene",
@@ -123,6 +148,14 @@ impl Renderer {
                 resource: BindingResource::UniformBuffer(&frame_uniform),
             }],
         );
+        let white = gpu.create_texture(
+            "white",
+            1,
+            1,
+            TextureFormat::Rgba8UnormSrgb,
+            &[255, 255, 255, 255],
+        );
+        let default_sampler = gpu.create_sampler("default", &SamplerDescriptor::default());
         let instances = InstanceSlots::new(gpu, &instance_layout, INITIAL_INSTANCE_CAPACITY);
         Ok(Self {
             format,
@@ -131,6 +164,8 @@ impl Renderer {
             instance_layout,
             frame_uniform,
             frame_group,
+            white,
+            default_sampler,
             instances,
             depth: None,
         })
@@ -152,18 +187,33 @@ impl Renderer {
         Mesh::new(gpu, label, data)
     }
 
-    /// Creates a material. `label` names it in error messages and in GPU capture tools.
-    pub fn create_material(&self, gpu: &Gpu, label: &str, data: &MaterialData) -> Material {
+    /// Creates a material. `label` names it in error messages and in GPU capture tools. The
+    /// material keeps its texture and sampler alive.
+    pub fn create_material(&self, gpu: &Gpu, label: &str, data: &MaterialData<'_>) -> Material {
         let mut bytes = Vec::new();
         push_f32s(&mut bytes, &data.base_color);
         let uniform = gpu.create_uniform_buffer(label, &bytes);
+        let (texture, sampler) = match data.base_color_texture {
+            Some(sampled) => (sampled.texture, sampled.sampler),
+            None => (&self.white, &self.default_sampler),
+        };
         let group = gpu.create_bind_group(
             label,
             &self.material_layout,
-            &[BindGroupEntry {
-                binding: 0,
-                resource: BindingResource::UniformBuffer(&uniform),
-            }],
+            &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: BindingResource::UniformBuffer(&uniform),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: BindingResource::Texture(texture),
+                },
+                BindGroupEntry {
+                    binding: 2,
+                    resource: BindingResource::Sampler(sampler),
+                },
+            ],
         );
         Material { group }
     }

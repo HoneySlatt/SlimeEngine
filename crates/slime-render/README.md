@@ -6,9 +6,9 @@ the GPU layer (`slime-gfx`).
 ## Status
 
 Partial: the first renderer of Stage 3a (`docs/PLAN.md`). It draws instances of meshes from a
-perspective camera, with a depth test and back-face culling, each with a material of one color,
-lit by one directional light and an ambient light. Textures and samplers, and statistics beyond
-counts, come with the later milestones of the stage.
+perspective camera, with a depth test and back-face culling, each with a material of one base
+color, which a texture may modulate, lit by one directional light and an ambient light. Statistics
+beyond counts come with a later milestone of the stage.
 
 ## Role
 
@@ -42,7 +42,11 @@ fn main() -> Result<(), RenderError> {
         uvs: vec![[0.0, 1.0], [1.0, 1.0], [0.5, 0.0]],
         indices: vec![0, 1, 2],
     })?;
-    let red = renderer.create_material(&gpu, "red", &MaterialData { base_color: [1.0, 0.0, 0.0, 1.0] });
+    let red = renderer.create_material(
+        &gpu,
+        "red",
+        &MaterialData { base_color: [1.0, 0.0, 0.0, 1.0], ..MaterialData::default() },
+    );
 
     let camera = Camera { eye: Vec3::new(0.0, 0.0, 3.0), ..Camera::default() };
     // A light shining straight at the triangle, which faces +Z, and no ambient light.
@@ -71,8 +75,11 @@ fn main() -> Result<(), RenderError> {
 - `Renderer::create_mesh(gpu, label, &MeshData)` uploads positions, normals, texture coordinates
   and indices as a `Mesh`; data that cannot be drawn (arrays of different lengths, no triangle, an
   index that names no vertex) is returned as `RenderError::InvalidMesh`.
-  `Renderer::create_material(gpu, label, &MaterialData)` creates a `Material` of one base color.
-  Both are cheap to clone and shared by their clones.
+  `Renderer::create_material(gpu, label, &MaterialData)` creates a `Material`: a base color, and
+  a `SampledTexture` (a `slime_gfx::Texture` and the `Sampler` that reads it, created with
+  `Gpu::create_texture` and `Gpu::create_sampler`) multiplied with it where the material has one,
+  read at the texture coordinates of the mesh, whose (0, 0) is the texture's top left. Both are
+  cheap to clone and shared by their clones.
 - `Renderer::render(gpu, target, &Scene)` clears the target to the scene's color and draws its
   instances (`Instance`: a mesh, a material, a transform from the mesh's space to world space)
   from its `Camera`, lit by its `DirectionalLight`, with the depth test, so that nearer surfaces

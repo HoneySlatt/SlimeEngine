@@ -1,5 +1,5 @@
 //! Comparing a rendered image with a reference PNG stored in `tests/reference/`, within the
-//! tolerance of ADR-0018, and rendering the references again on request.
+//! tolerance of ADR-0018 and ADR-0028, and rendering the references again on request.
 
 #[path = "png_file.rs"]
 mod png_file;
@@ -12,8 +12,9 @@ use slime_gfx::Image;
 
 /// The largest difference allowed in one channel of one pixel, out of 255.
 const CHANNEL_TOLERANCE: u8 = 2;
-/// How many pixels may differ by more than `CHANNEL_TOLERANCE`.
-const MAX_DIFFERENT_PIXELS: usize = 0;
+/// The fraction of the pixels that may differ by more than `CHANNEL_TOLERANCE`: where drivers
+/// blend texels or place an edge differently (ADR-0028).
+const MAX_DIFFERENT_FRACTION: f64 = 0.001;
 
 /// Whether the references are to be rendered again instead of being compared with:
 /// `SLIME_UPDATE_REFERENCE_IMAGES` is set.
@@ -32,19 +33,20 @@ pub fn write(name: &str, image: &Image) {
 pub fn check(name: &str, actual_name: &str, image: &Image, adapter: &str) {
     let reference = read_png(&reference_path(name));
     let difference = compare(image, &reference);
+    let allowed = (f64::from(image.width * image.height) * MAX_DIFFERENT_FRACTION).floor();
     // Visible with `--nocapture`: the measurements that justify the tolerance.
     eprintln!(
-        "reference `{name}` on `{adapter}`: {} pixels differ by more than {CHANNEL_TOLERANCE}, \
-         largest difference {}",
+        "reference `{name}` on `{adapter}`: {} pixels differ by more than {CHANNEL_TOLERANCE} \
+         ({allowed} allowed), largest difference {}",
         difference.different_pixels, difference.largest
     );
-    if difference.different_pixels > MAX_DIFFERENT_PIXELS {
+    if difference.different_pixels as f64 > allowed {
         let actual_path =
             PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("{actual_name}.actual.png"));
         png_file::write(&actual_path, image).expect("the rendered image is written");
         panic!(
-            "{} pixels differ from the reference `{name}` by more than {CHANNEL_TOLERANCE} \
-             (largest difference: {}) on adapter `{adapter}`; rendered image: {}",
+            "{} pixels differ from the reference `{name}` by more than {CHANNEL_TOLERANCE}, \
+             {allowed} allowed (largest difference: {}) on adapter `{adapter}`; rendered image: {}",
             difference.different_pixels,
             difference.largest,
             actual_path.display()

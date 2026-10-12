@@ -17,6 +17,9 @@ struct MaterialUniform {
     base_color: vec4<f32>,
 }
 @group(1) @binding(0) var<uniform> material: MaterialUniform;
+// Multiplied with the base color; white where the material has no texture.
+@group(1) @binding(1) var base_color_texture: texture_2d<f32>;
+@group(1) @binding(2) var base_color_sampler: sampler;
 
 struct InstanceUniform {
     // From the mesh's space to world space.
@@ -37,6 +40,7 @@ struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     // In world space, interpolated across the triangle, so of a length below one.
     @location(0) normal: vec3<f32>,
+    @location(1) uv: vec2<f32>,
 }
 
 @vertex
@@ -44,13 +48,16 @@ fn vs_main(input: VertexInput) -> VertexOutput {
     var output: VertexOutput;
     output.clip_position = frame.view_proj * instance.model * vec4<f32>(input.position, 1.0);
     output.normal = instance.normal * input.normal;
+    output.uv = input.uv;
     return output;
 }
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
+    let base = material.base_color
+        * textureSample(base_color_texture, base_color_sampler, input.uv);
     let normal = normalize(input.normal);
     let diffuse = max(dot(normal, frame.to_light.xyz), 0.0);
     let light = frame.ambient.rgb + frame.light_color.rgb * diffuse;
-    return vec4<f32>(material.base_color.rgb * light, material.base_color.a);
+    return vec4<f32>(base.rgb * light, base.a);
 }
