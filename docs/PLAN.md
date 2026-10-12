@@ -290,4 +290,5 @@ justify a decision are also in its ADR.
   job about 5 (measured on the runs of 2026-10-12; it compiles the dependencies three times: for
   clippy, for the tests, and in release for the artifact), which is acceptable; a cache is to add if
   it grows much further. The dependencies of this stage (glam, gltf, egui) are expected to add to
-  it: each milestone that adds one records the new duration here.
+  it: each milestone that adds one records the new duration here. With glam and the render crate
+  (M3.2, 2026-10-13): Linux 2 minutes 49 seconds, Windows 4 minutes 59 seconds.
