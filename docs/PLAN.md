@@ -13,7 +13,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 2 — GPU layer → 0.0.2
-- Milestone M2.3 — The triangle in the window
+- Milestone M2.4 — Frame pacing
+- Left over from M2.0 and M2.3: the check by hand in the Windows virtual machine (see
+  [Known debt](#known-debt)).
 
 ## Status
 
@@ -22,8 +24,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M2.0](#m20--windows-in-ci) | Windows in CI | Done, except the check by hand in the Windows virtual machine (see [Known debt](#known-debt)) |
 | [M2.1](#m21--gpu-device-without-a-window) | GPU device without a window | Done |
 | [M2.2](#m22--offscreen-triangle-and-reference-image) | Offscreen triangle and reference image | Done |
-| [M2.3](#m23--the-triangle-in-the-window) | The triangle in the window | In progress |
-| [M2.4](#m24--frame-pacing) | Frame pacing | Planned |
+| [M2.3](#m23--the-triangle-in-the-window) | The triangle in the window | Done, except the check by hand in the Windows virtual machine (see [Known debt](#known-debt)) |
+| [M2.4](#m24--frame-pacing) | Frame pacing | In progress |
 | [M2.5](#m25--debug-markers-robustness-release-002) | Debug markers, robustness, release 0.0.2 | Planned |
 
 Stages 0 and 1 are done; see [Completed stages](#completed-stages).
@@ -137,6 +139,7 @@ it:
   - Present modes offered: Mailbox and Fifo on niri; Immediate, Mailbox, Fifo and FifoRelaxed on
     X11; Mailbox, Fifo and Immediate with lavapipe in Weston. Every surface offered
     `Bgra8UnormSrgb` first.
+  - The owner saw the triangle on niri and through Xwayland.
   - Windows (virtual machine): to be checked by the owner.
 
 ### M2.4 — Frame pacing
@@ -212,8 +215,11 @@ of this file and in the commits that implemented it.
   the Windows virtual machine run `window.exe` from a terminal: the window appears with the
   triangle, which follows an interactive resize; the window closes cleanly with Escape or its
   close button, and logs keys (including on an AZERTY layout), clicks and scrolling; Ctrl+C in the
-  terminal also ends it cleanly; the log shows whether frames go on while the window is moved or
-  minimized (`SLIME_LOG=slime_app=trace` shows each frame).
+  terminal also ends it cleanly. To measure whether frames go on while the window is moved or
+  minimized, time a run of 600 frames (10 seconds at 60 frames per second) in PowerShell with
+  `Measure-Command { .\window.exe --frames 600 | Out-Default }`, holding the window by its title
+  bar, or keeping it minimized, for about 5 seconds: about 10 seconds means frames go on, about 15
+  that they pause.
 - **Input not reported yet:** the state of the modifier keys as a whole, input-method text,
   touch, touchpad gestures, gamepads, dropped files.
 - **The interpolation factor is not passed to applications.** `FixedStep::alpha` computes it, but
