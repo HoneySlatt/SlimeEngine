@@ -53,6 +53,10 @@ pub enum LoopControl {
     Exit,
 }
 
+/// The largest width or height a window can be asked for, in logical pixels: larger than any
+/// display, and far from the sizes at which the windowing library's arithmetic overflows.
+const MAX_WINDOW_SIZE: u32 = 16_384;
+
 /// Connects to the windowing system, creates a window, and runs the event loop until the
 /// handler returns [`LoopControl::Exit`].
 ///
@@ -71,11 +75,25 @@ pub enum LoopControl {
 ///
 /// # Panics
 ///
-/// If the event loop is created from a thread other than the main thread.
+/// If `config` asks for a width or height of zero or above 16 384 logical pixels, or for a title
+/// containing a NUL byte: the windowing library would panic on them later, less clearly. Also if
+/// the event loop is created from a thread other than the main thread.
 pub fn run_event_loop(
     config: &WindowConfig,
     handler: &mut impl EventHandler,
 ) -> Result<(), PlatformError> {
+    assert!(
+        (1..=MAX_WINDOW_SIZE).contains(&config.width)
+            && (1..=MAX_WINDOW_SIZE).contains(&config.height),
+        "the window size must be between 1 and {MAX_WINDOW_SIZE} logical pixels in each \
+         dimension, not {} by {}",
+        config.width,
+        config.height
+    );
+    assert!(
+        !config.title.contains('\0'),
+        "the window title must not contain NUL bytes"
+    );
     let event_loop = EventLoop::new().map_err(|error| match error {
         EventLoopError::RecreationAttempt => PlatformError::SecondEventLoop,
         error => PlatformError::Connect(Box::new(error)),
@@ -176,4 +194,53 @@ fn backend_name(event_loop: &ActiveEventLoop) -> &'static str {
 #[cfg(not(target_os = "linux"))]
 fn backend_name(_event_loop: &ActiveEventLoop) -> &'static str {
     std::env::consts::OS
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct Nothing;
+
+    impl EventHandler for Nothing {
+        fn window_created(&mut self, _window: &Window) {}
+        fn event(&mut self, _event: Event) {}
+        fn redraw_requested(&mut self) {}
+        fn about_to_wait(&mut self) -> LoopControl {
+            LoopControl::Exit
+        }
+        fn exiting(&mut self) {}
+    }
+
+    // The configuration is checked before the event loop is created, so these tests need no
+    // windowing system and leave the one attempt per process unused.
+    #[test]
+    #[should_panic(expected = "window size")]
+    fn a_zero_size_is_rejected() {
+        let config = WindowConfig {
+            width: 0,
+            ..WindowConfig::default()
+        };
+        let _ = run_event_loop(&config, &mut Nothing);
+    }
+
+    #[test]
+    #[should_panic(expected = "window size")]
+    fn an_absurd_size_is_rejected() {
+        let config = WindowConfig {
+            height: u32::MAX,
+            ..WindowConfig::default()
+        };
+        let _ = run_event_loop(&config, &mut Nothing);
+    }
+
+    #[test]
+    #[should_panic(expected = "NUL")]
+    fn a_title_with_a_nul_byte_is_rejected() {
+        let config = WindowConfig {
+            title: "save \0 name".to_owned(),
+            ..WindowConfig::default()
+        };
+        let _ = run_event_loop(&config, &mut Nothing);
+    }
 }

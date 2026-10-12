@@ -8,6 +8,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- A `WindowConfig` with a zero width or height, a size above 16 384 logical pixels, or a title
+  containing a NUL byte is rejected with a clear message before the window is created, instead of
+  panicking inside the windowing library (a zero size on Wayland, a NUL byte on Wayland and X11) or
+  overflowing in its decorations.
 - A shader module or render pipeline that the graphics driver's compiler rejects, after wgpu's
   own validation accepted it, is returned as `GfxError::Shader` or `GfxError::Pipeline` instead
   of panicking.

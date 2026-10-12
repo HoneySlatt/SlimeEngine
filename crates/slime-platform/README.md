@@ -25,7 +25,9 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
 - `run_event_loop(&config, &mut handler)` connects to the windowing system, creates the window
   described by a `WindowConfig`, and runs the event loop until the handler ends it. It must run on
   the main thread (it panics otherwise), and only once per process: the windowing library allows
-  one attempt per process, even a failed one.
+  one attempt per process, even a failed one. It panics on an invalid configuration (a zero size,
+  a size above 16 384 logical pixels, a title with a NUL byte) before touching the windowing
+  system.
 - `EventHandler` is what the event loop calls back: `window_created` once, then `event` for each
   event, `redraw_requested` when the window should be drawn, and `about_to_wait` whenever all
   pending events are handled, then `exiting` once. `about_to_wait` returns a `LoopControl`: wait

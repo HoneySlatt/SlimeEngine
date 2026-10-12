@@ -9,14 +9,17 @@ use raw_window_handle::{
 /// The settings of the window that [`run_event_loop`](crate::run_event_loop) creates.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WindowConfig {
-    /// The title the compositor shows, for example in a title bar or a task switcher. Default:
+    /// The title the compositor shows, for example in a title bar or a task switcher. It must not
+    /// contain NUL bytes; on Wayland, only its first 1024 bytes are shown. Default:
     /// `"SlimeEngine"`.
     pub title: String,
-    /// The requested width of the window's content area, in logical pixels: the compositor
-    /// multiplies it by the display's scale factor. Compositors may choose another size; tiling
-    /// compositors such as niri usually do. Default: 1280.
+    /// The requested width of the window's content area, in logical pixels, from 1 to 16 384: the
+    /// compositor multiplies it by the display's scale factor, and does not limit the result to the
+    /// display. Compositors may choose another size; tiling compositors such as niri usually do.
+    /// Default: 1280.
     pub width: u32,
-    /// The requested height of the window's content area, in logical pixels. Default: 720.
+    /// The requested height of the window's content area, in logical pixels, from 1 to 16 384.
+    /// Default: 720.
     pub height: u32,
 }
 

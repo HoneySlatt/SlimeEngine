@@ -256,8 +256,9 @@ pub(crate) enum ExitReason {
 /// # Panics
 ///
 /// If `config.fixed_step`, `config.max_fixed_steps_per_frame` or `config.max_frame_delta` is
-/// zero. With a window, also if `config.max_frame_rate` is zero, or if `run` is not called from
-/// the main thread.
+/// zero. With a window, also if `config.max_frame_rate` is zero, if the window's width or height
+/// is zero or above 16 384 logical pixels, if its title contains a NUL byte, or if `run` is not
+/// called from the main thread.
 pub fn run(app: &mut impl App, config: &AppConfig) -> Result<(), RunError> {
     init_diagnostics();
     signal::install_handler();
