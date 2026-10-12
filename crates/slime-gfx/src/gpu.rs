@@ -14,8 +14,8 @@ const DEFAULT_BACKENDS: wgpu::Backends = wgpu::Backends::VULKAN;
 /// A `Gpu` is opened without a window, so that it can render offscreen and run in tests.
 #[derive(Debug)]
 pub struct Gpu {
-    device: wgpu::Device,
-    queue: wgpu::Queue,
+    pub(crate) device: wgpu::Device,
+    pub(crate) queue: wgpu::Queue,
     adapter_name: String,
 }
 

@@ -84,4 +84,5 @@ the ADR linking to it.
 | [0014](0014-amend-roadmap-for-stage-2-and-windows.md) | Amend the roadmap for Stage 2 and for Windows | Accepted |
 | [0015](0015-platforms-and-ci.md) | Platforms and CI on Linux and Windows | Accepted |
 | [0016](0016-gpu-layer-with-wgpu.md) | The GPU layer: wgpu behind `slime-gfx` | Accepted |
+| [0017](0017-gpu-resource-types.md) | GPU resource types | Accepted |
 | [0019](0019-default-log-filter.md) | Default log filter | Accepted |

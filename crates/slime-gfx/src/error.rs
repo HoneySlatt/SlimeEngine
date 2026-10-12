@@ -17,4 +17,30 @@ pub enum GfxError {
     /// Waiting for the GPU to finish its work failed.
     #[error("waiting for the GPU failed")]
     Wait(#[source] Source),
+    /// A shader module was rejected, usually because its WGSL source does not compile.
+    #[error("shader `{label}` was rejected:\n{message}")]
+    Shader {
+        /// The label given to the shader module.
+        label: String,
+        /// The compiler's message, with the line and column of the error in the source.
+        message: String,
+    },
+    /// A render pipeline was rejected, for example because an entry point does not exist in its
+    /// shader or does not match the vertex layout.
+    #[error("render pipeline `{label}` was rejected:\n{message}")]
+    Pipeline {
+        /// The label given to the pipeline.
+        label: String,
+        /// wgpu's message.
+        message: String,
+    },
+    /// Reading a render target back to the CPU failed.
+    #[error("reading the render target `{label}` back failed")]
+    Readback {
+        /// The label of the render target.
+        label: String,
+        /// wgpu's error.
+        #[source]
+        source: Source,
+    },
 }

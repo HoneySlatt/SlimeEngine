@@ -17,7 +17,8 @@ publish = false
 [workspace.dependencies]
 # `termination` also handles SIGTERM and SIGHUP, not only SIGINT.
 ctrlc = { version = "3.5.2", features = ["termination"] }
-# Waits for wgpu's adapter and device requests, which are futures, when the GPU is opened.
+# Waits for wgpu's requests, which are futures: opening the GPU, and the errors caught while a
+# shader module or pipeline is created.
 pollster = "1.0.1"
 raw-window-handle = "0.6.2"
 # Examples only. The `kms` backend (direct rendering without a compositor) is left out.
