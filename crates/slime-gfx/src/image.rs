@@ -8,7 +8,8 @@ use crate::render_target::{RenderTarget, TextureFormat};
 
 /// An image in CPU memory: `width` × `height` pixels, rows from top to bottom, 4 bytes per pixel
 /// in the order red, green, blue, alpha, whatever the byte order of the texture it was read from,
-/// and encoded like that texture (sRGB for the engine's formats).
+/// and encoded as that texture's format says: sRGB-encoded for the sRGB formats, linear for the
+/// others.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Image {
     /// Width in pixels.

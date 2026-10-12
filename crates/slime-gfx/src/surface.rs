@@ -122,7 +122,7 @@ impl Gpu {
         let format = capabilities
             .formats
             .iter()
-            .find_map(|&format| TextureFormat::from_wgpu(format))
+            .find_map(|&format| TextureFormat::from_wgpu(format).filter(|format| format.is_srgb()))
             .ok_or_else(|| GfxError::SurfaceFormat {
                 offered: format!("{:?}", capabilities.formats),
             })?;

@@ -7,9 +7,8 @@ drivers.
 
 Partial. It opens a GPU device, with or without a window, draws into offscreen images and reads
 them back, and draws into a window. It draws lists of triangles from vertex and index buffers,
-reading uniform buffers through bind groups, with a depth test and face culling, into one color
-format family (8-bit sRGB). Textures, samplers and blending are not there yet: textures and
-samplers come with the materials of the renderer of Stage 3 (`docs/PLAN.md`).
+reading uniform buffers, textures and samplers through bind groups, with a depth test and face
+culling, into 8-bit sRGB or linear images. Blending and mipmaps are not there yet.
 
 ## Role
 
@@ -95,7 +94,12 @@ fn main() -> Result<(), GfxError> {
   GPU capture tools (`docs/adr/0017-gpu-resource-types.md`):
   - `RenderTarget`: an image the GPU draws into (`create_render_target`), in one of the
     `TextureFormat`s: `Rgba8UnormSrgb` or `Bgra8UnormSrgb`, the same 8-bit sRGB colors in two byte
-    orders.
+    orders, or `Rgba8Unorm`, linear.
+  - `Texture`: a two-dimensional image that shaders sample (`create_texture`, from its pixels in
+    the byte order of its `TextureFormat`; sRGB formats are decoded to linear values when read,
+    `Rgba8Unorm` is read as it is), without mipmaps; and `Sampler` (`create_sampler`, from a
+    `SamplerDescriptor`): how it is read, with nearest or linear `Filter`s and the `AddressMode`
+    beyond its edges (repeat, mirror, clamp). Both are bound through bind groups.
   - `VertexBuffer`: vertex data, given as bytes (`create_vertex_buffer`): at least one byte, at
     most 256 MiB with the default limits.
   - `IndexBuffer`: 32-bit indices into a vertex buffer (`create_index_buffer`), for draws whose
@@ -106,7 +110,8 @@ fn main() -> Result<(), GfxError> {
   - `BindGroupLayout` and `BindGroup`: the resources a pipeline's shaders read, bound together at
     one `@group` index (`docs/adr/0026-resource-binding-and-depth.md`). A layout
     (`create_bind_group_layout`) lists its bindings as `BindGroupLayoutEntry`s: a binding number,
-    the `ShaderStages` that read it and a `BindingType`, a uniform buffer for now; a group
+    the `ShaderStages` that read it and a `BindingType` (a uniform buffer, a texture or a
+    sampler); a group
     (`create_bind_group`) gives the `BindingResource` of each binding of a layout: a whole uniform
     buffer, or a range of one whose start is given each time the group is bound (a *dynamic
     offset*, a multiple of `Gpu::uniform_offset_alignment`), so that one buffer holds the values

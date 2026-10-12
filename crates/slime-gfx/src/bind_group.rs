@@ -3,6 +3,8 @@
 use std::num::NonZeroU64;
 
 use crate::gpu::Gpu;
+use crate::sampler::Sampler;
+use crate::texture::Texture;
 use crate::uniform_buffer::UniformBuffer;
 
 /// The shader stages that read a binding.
@@ -38,6 +40,10 @@ pub enum BindingType {
         /// [`BindingResource::UniformBufferRange`].
         dynamic_offset: bool,
     },
+    /// A [`Texture`], declared `texture_2d<f32>` in WGSL and read with a [`Sampler`].
+    Texture,
+    /// A [`Sampler`], declared `sampler` in WGSL.
+    Sampler,
 }
 
 /// One binding of a [`BindGroupLayout`]: its number in the shaders and what it holds.
@@ -75,6 +81,10 @@ pub enum BindingResource<'a> {
         /// The size of the range, in bytes: what the shader's uniform declares.
         size: usize,
     },
+    /// A texture.
+    Texture(&'a Texture),
+    /// A sampler.
+    Sampler(&'a Sampler),
 }
 
 /// One binding of a [`BindGroup`]: its number and the resource it holds.
@@ -120,6 +130,14 @@ impl Gpu {
                         has_dynamic_offset: dynamic_offset,
                         min_binding_size: None,
                     },
+                    BindingType::Texture => wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    BindingType::Sampler => {
+                        wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering)
+                    }
                 },
                 count: None,
             })
@@ -164,6 +182,12 @@ impl Gpu {
                             offset: 0,
                             size: Some(size),
                         })
+                    }
+                    BindingResource::Texture(texture) => {
+                        wgpu::BindingResource::TextureView(&texture.view)
+                    }
+                    BindingResource::Sampler(sampler) => {
+                        wgpu::BindingResource::Sampler(&sampler.sampler)
                     }
                 },
             })

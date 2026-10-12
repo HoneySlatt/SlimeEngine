@@ -5,23 +5,32 @@ use std::sync::atomic::AtomicBool;
 
 use crate::gpu::Gpu;
 
-/// The formats of the textures the engine renders into.
+/// The formats of the engine's textures: those it renders into, and those shaders sample.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum TextureFormat {
-    /// Red, green, blue and alpha, 8 bits each, with sRGB encoding: shaders write linear colors and
-    /// the GPU encodes them, as image files and displays expect.
+    /// Red, green, blue and alpha, 8 bits each, with sRGB encoding: shaders write and read linear
+    /// colors, which the GPU encodes and decodes, as image files and displays expect.
     Rgba8UnormSrgb,
     /// The same channels and encoding in another byte order: blue, green, red, then alpha. Most
     /// windows use it.
     Bgra8UnormSrgb,
+    /// Red, green, blue and alpha, 8 bits each, linear: for data that is not a color, such as a
+    /// normal map, which shaders read as it is.
+    Rgba8Unorm,
 }
 
 impl TextureFormat {
+    /// Whether the format is sRGB-encoded, so that shaders write and read linear values.
+    pub fn is_srgb(self) -> bool {
+        matches!(self, Self::Rgba8UnormSrgb | Self::Bgra8UnormSrgb)
+    }
+
     pub(crate) fn to_wgpu(self) -> wgpu::TextureFormat {
         match self {
             Self::Rgba8UnormSrgb => wgpu::TextureFormat::Rgba8UnormSrgb,
             Self::Bgra8UnormSrgb => wgpu::TextureFormat::Bgra8UnormSrgb,
+            Self::Rgba8Unorm => wgpu::TextureFormat::Rgba8Unorm,
         }
     }
 
@@ -30,6 +39,7 @@ impl TextureFormat {
         match format {
             wgpu::TextureFormat::Rgba8UnormSrgb => Some(Self::Rgba8UnormSrgb),
             wgpu::TextureFormat::Bgra8UnormSrgb => Some(Self::Bgra8UnormSrgb),
+            wgpu::TextureFormat::Rgba8Unorm => Some(Self::Rgba8Unorm),
             _ => None,
         }
     }

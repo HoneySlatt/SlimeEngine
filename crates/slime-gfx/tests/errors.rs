@@ -138,6 +138,12 @@ fn a_uniform_buffer_whose_size_is_not_a_multiple_of_4_is_rejected_at_creation() 
 }
 
 #[test]
+#[should_panic(expected = "texture `tiny` is 2x2 and needs 16 bytes of pixels, but 12 were given")]
+fn a_texture_with_the_wrong_number_of_bytes_is_rejected_at_creation() {
+    gpu().create_texture("tiny", 2, 2, TextureFormat::Rgba8UnormSrgb, &[0; 12]);
+}
+
+#[test]
 #[should_panic(expected = "uniform buffer `offset` holds 16 bytes, but 8 were written")]
 fn a_write_of_another_size_than_the_uniform_buffer_is_rejected() {
     let gpu = gpu();
