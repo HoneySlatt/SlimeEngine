@@ -41,7 +41,7 @@ scripts/check.sh                                          # everything above, pl
 cargo run --example <name>                                # run an example (list in examples/README.md)
 ```
 
-`scripts/check.sh` is what CI runs. Besides the commands above, it checks dependency licenses, security advisories and sources with `cargo deny --locked check` (needs network access), and links between Markdown files with `lychee`. Run it before reporting a milestone done.
+`scripts/check.sh` is what CI runs. Besides the commands above, it checks dependency licenses, security advisories and sources with `cargo deny --locked check` (needs network access), runs the samples without a display server and the windowed sample inside a headless Weston compositor, and checks links between Markdown files with `lychee`. Run it before reporting a milestone done.
 
 Keep this section up to date when commands, examples or tools are added.
 
@@ -110,6 +110,7 @@ The reader is a competent Rust developer who has never seen this project, arrivi
 | `docs/adr/NNNN-title.md` | Context, decision, alternatives rejected, consequences | Each architecture decision |
 | `docs/glossary.md` | Terms the project defines | A term is coined or changes meaning |
 | `docs/dependencies.md` | Every third-party dependency and tool: who uses it, why, the alternative considered, its license | A dependency is added, removed or repurposed |
+| `CHANGELOG.md` | Notable changes, per release | A change users would notice; a release is tagged |
 | `crates/*/README.md` | Role, what it depends on, entry points, what it must not do | Crate created or its role changes |
 | rustdoc | Public API | Public API changes |
 

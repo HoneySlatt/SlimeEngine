@@ -1,5 +1,6 @@
 //! Opens a window, logs the events it receives (window, keyboard and mouse), and fills it with a
-//! solid color. Escape or closing the window quits; cursor motion is logged at the `debug` level.
+//! solid color. Escape, closing the window or Ctrl+C quits; cursor motion is logged at the `debug`
+//! level. With `--headless`, the same program runs without a window, as automated checks run it.
 //!
 //! A Wayland compositor shows a window only once the application has given it pixels. Until the
 //! engine presents frames with the GPU (Stage 2), this example fills the window from the CPU with
@@ -10,6 +11,7 @@
 //! SLIME_LOG=debug cargo run --example window   # also logs cursor motion
 //! cargo run --example window -- --frames 120    # closes itself after 120 frames
 //! WAYLAND_DISPLAY= cargo run --example window   # X11, for example through Xwayland
+//! cargo run --example window -- --headless --frames 600   # no window: runs anywhere
 //! ```
 
 use std::num::NonZeroU32;
@@ -107,20 +109,21 @@ fn create_surface(window: &Window) -> Result<Surface, SoftBufferError> {
 }
 
 fn main() -> ExitCode {
-    let frame_limit = match parse_frame_limit() {
-        Ok(limit) => limit,
+    let options = match parse_options() {
+        Ok(options) => options,
         Err(message) => {
-            eprintln!("{message}\nusage: window [--frames <count>]");
+            eprintln!("{message}\nusage: window [--headless] [--frames <count>]");
             return ExitCode::from(2);
         }
     };
 
+    let window = WindowConfig {
+        title: "SlimeEngine window example".to_owned(),
+        ..WindowConfig::default()
+    };
     let config = AppConfig {
-        window: Some(WindowConfig {
-            title: "SlimeEngine window example".to_owned(),
-            ..WindowConfig::default()
-        }),
-        frame_limit,
+        window: (!options.headless).then_some(window),
+        frame_limit: options.frame_limit,
         ..AppConfig::default()
     };
     match slime_app::run(&mut WindowExample::default(), &config) {
@@ -132,22 +135,30 @@ fn main() -> ExitCode {
     }
 }
 
-fn parse_frame_limit() -> Result<Option<u64>, String> {
-    let mut limit = None;
+/// The command-line options of the example.
+#[derive(Default)]
+struct Options {
+    headless: bool,
+    frame_limit: Option<u64>,
+}
+
+fn parse_options() -> Result<Options, String> {
+    let mut options = Options::default();
     let mut arguments = std::env::args().skip(1);
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
+            "--headless" => options.headless = true,
             "--frames" => {
                 let value = arguments.next().ok_or("--frames needs a value")?;
                 let frames = value
                     .parse()
                     .map_err(|_| format!("invalid frame count `{value}`"))?;
-                limit = Some(frames);
+                options.frame_limit = Some(frames);
             }
             _ => return Err(format!("unknown argument `{argument}`")),
         }
     }
-    Ok(limit)
+    Ok(options)
 }
 
 /// The error's message followed by the messages of its sources: "error: cause: cause of cause".

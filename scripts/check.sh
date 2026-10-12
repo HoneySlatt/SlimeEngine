@@ -24,8 +24,24 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
 step "Dependencies (licenses, advisories, sources)"
 cargo deny --locked check
 
-step "Headless sample (no display server)"
+step "Headless samples (no display server)"
 env -u WAYLAND_DISPLAY -u DISPLAY cargo run --locked --example headless -- --frames 600
+env -u WAYLAND_DISPLAY -u DISPLAY cargo run --locked --example window -- --headless --frames 600
+
+step "Windowed sample in a headless Wayland compositor (Weston)"
+# A private runtime directory keeps this compositor apart from the one the developer may be using.
+runtime=$(mktemp -d)
+XDG_RUNTIME_DIR=$runtime weston --backend=headless --socket=slime-check --idle-time=0 \
+    >"$runtime/weston.log" 2>&1 &
+weston=$!
+trap 'kill "$weston" 2>/dev/null; rm -rf "$runtime"' EXIT
+for _ in $(seq 100); do
+    [ -S "$runtime/slime-check" ] && break
+    sleep 0.1
+done
+env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check \
+    cargo run --locked --example window -- --frames 120 ||
+    { cat "$runtime/weston.log"; exit 1; }
 
 step "Documentation links"
 # Tracked and new, non-ignored Markdown files. External links are not checked: they fail for
