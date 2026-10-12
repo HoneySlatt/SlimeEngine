@@ -11,6 +11,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - Windows support for what exists: CI runs clippy, the tests and the headless samples on a Windows
   runner, publishes the examples built for Windows, and the Linux checks compile the code for
   Windows too ([ADR-0015](docs/adr/0015-platforms-and-ci.md)).
+- `slime-gfx`, the GPU layer: opens a GPU device without a window, with Vulkan on Linux and
+  Direct3D 12 on Windows; the checks run its tests on lavapipe (Linux) and WARP (Windows)
+  ([ADR-0016](docs/adr/0016-gpu-layer-with-wgpu.md)).
 
 ## [0.0.1] - 2026-10-12
 

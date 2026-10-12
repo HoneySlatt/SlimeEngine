@@ -59,6 +59,25 @@ with C++" workload, which provides the MSVC compiler and linker and the Windows 
 `rust-toolchain.toml` like on Linux. `scripts/check.sh` needs Linux and Nix: on Windows, run the
 cargo commands listed in [`AGENTS.md`](AGENTS.md#environment-and-commands) instead.
 
+### GPU
+
+The GPU layer uses Vulkan on Linux and Direct3D 12 on Windows
+([ADR-0016](docs/adr/0016-gpu-layer-with-wgpu.md)).
+
+- On Linux, the engine needs the Vulkan loader (`libvulkan`) and a Vulkan driver: Mesa's RADV
+  (AMD), ANV (Intel) or NVK (NVIDIA), or NVIDIA's own driver. The Nix shell provides the loader.
+- On Windows, Direct3D 12 is part of the system. Without a GPU, for example in a virtual machine,
+  wgpu uses WARP, Microsoft's software driver.
+- `scripts/check.sh` runs the tests on lavapipe, Mesa's Vulkan driver that renders on the CPU, so
+  that they give the same results on every machine and in CI. To run the GPU tests on your own GPU,
+  run `cargo test` without `VK_DRIVER_FILES`; to reproduce the checks, run
+  `VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo test` inside `nix develop`. Without Nix, install
+  Mesa's Vulkan drivers (on Debian and Ubuntu, `mesa-vulkan-drivers`) and point `VK_DRIVER_FILES`
+  at their `lvp_icd.x86_64.json` file.
+- `WGPU_BACKEND` chooses another graphics API that the build supports (`WGPU_BACKEND=vulkan` on
+  Windows), and `WGPU_VALIDATION=1` turns on the validation layers of Vulkan or Direct3D 12, when
+  they are installed.
+
 ## Checks
 
 One script runs every automated check, exactly as CI does:

@@ -6,11 +6,17 @@ game-development vocabulary is not repeated here. Entries are in alphabetical or
 **ADR (Architecture Decision Record).** A short document in [`docs/adr/`](adr/README.md) that
 records one decision: its context, the decision, the alternatives rejected and the consequences.
 
+**Adapter.** A GPU as wgpu sees it, through one graphics API: a discrete or integrated GPU, or a
+software driver such as lavapipe or WARP. The engine opens one adapter's *device* to use it.
+
 **Application time.** The sum of the deltas of all frames so far (`FrameTime::elapsed`). It
 falls behind wall-clock time when a frame delta is limited, for example after a pause.
 
 **Definition of done.** The conditions a milestone must meet before it is reported as finished,
 listed in [`AGENTS.md`](../AGENTS.md#definition-of-done).
+
+**Device (GPU).** The engine's connection to an adapter: it creates GPU resources, and its
+*queue* receives the work to execute (`slime_gfx::Gpu`).
 
 **Driver.** The loop that decides when frames run and what time each one represents. `run` has a
 headless driver (frames back to back, simulated time) and a windowed driver, called back by the
@@ -29,12 +35,18 @@ the previous frame, limited to a maximum (`slime_app::time::FrameClock`).
 so that on average at most `AppConfig::max_frame_rate` frames run per second. Temporary:
 presenting frames on screen will pace them once the GPU layer exists.
 
+**Graphics API.** The interface between programs and GPU drivers: Vulkan (the engine's choice on
+Linux) and Direct3D 12 (on Windows). wgpu translates the engine's calls into one of them.
+
 **Headless.** Running the engine without a window, renderer or audio output. It is a normal
 configuration, used by automated tests and, later, by dedicated servers.
 
 **Interpolation factor.** The fraction of a fixed step accumulated but not yet run
 (`FixedStep::alpha`), between 0 and 1. Used to draw a state between the last two fixed steps.
 `run` does not pass it to applications yet.
+
+**lavapipe.** Mesa's Vulkan driver that renders on the CPU. The checks and CI use it on Linux, so
+that GPU tests give the same results on every machine, including machines without a GPU.
 
 **Logical key.** What a key means with the current keyboard layout and modifiers
 (`slime_platform::Key`): on a French AZERTY keyboard, the first letter key of the top row gives
@@ -71,3 +83,6 @@ exit criterion. Stages are numbered from 0; a stage may be split (Stage 3a and 3
 terminal), SIGTERM (a service manager or `kill`) or SIGHUP (the terminal closing). The first one
 stops a run cleanly; a second one ends the process at once
 ([ADR-0012](adr/0012-clean-shutdown-on-termination-signals.md)).
+
+**WARP.** Microsoft's software driver for Direct3D 12, part of Windows. wgpu uses it on Windows
+machines without a GPU, such as the CI runners.

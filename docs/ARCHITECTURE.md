@@ -9,10 +9,11 @@ it is built this way.
 
 ```text
 .
-├── .github/workflows/   CI: runs scripts/check.sh
+├── .github/workflows/   CI: scripts/check.sh on Linux; tests and samples on Windows
 ├── Cargo.toml           virtual workspace: shared metadata, lints and dependency versions
 ├── crates/              engine crates, one directory per crate, named after the package
 │   ├── slime-app/       application lifecycle and main loop
+│   ├── slime-gfx/       GPU layer (wgpu)
 │   └── slime-platform/  window, its events and input
 ├── deny.toml            dependency license, advisory and source rules
 ├── docs/                roadmap, plan, decisions (adr/), glossary, dependencies, this file
@@ -33,6 +34,7 @@ is created only when code needs it.
 |---|---|---|---|
 | [`slime-platform`](../crates/slime-platform/README.md) | The window, its events and keyboard and mouse input; the only crate that uses the windowing library (winit) | `winit`, `raw-window-handle`, `thiserror`, `tracing` | One window; window, keyboard and mouse events |
 | [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `slime-platform`, `ctrlc`, `tracing`, `tracing-subscriber` | Headless and windowed runs work |
+| [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu | `wgpu`, `pollster`, `thiserror`, `tracing` | Opens a GPU device without a window; nothing renders yet, and no other crate uses it yet |
 | [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-platform`, `softbuffer`, `tracing` | `hello`, `headless`, `window` |
 
 ## Dependency rules
@@ -41,6 +43,8 @@ is created only when code needs it.
 slime-examples ──▶ slime-app ──▶ slime-platform ──▶ winit
        │                               ▲
        └───────────────────────────────┘
+
+slime-gfx ──▶ wgpu        (used by no engine crate yet; slime-app will drive it)
 ```
 
 - Dependencies between crates point one way: `slime-app` depends on `slime-platform`, never the
@@ -48,6 +52,9 @@ slime-examples ──▶ slime-app ──▶ slime-platform ──▶ winit
 - Only `slime-platform` uses winit, and winit's types never appear in a public API
   ([ADR-0011](adr/0011-windowing-with-winit.md)). `slime_platform::Window` exposes the
   `raw-window-handle` traits so that graphics libraries can draw into it.
+- Only `slime-gfx` uses wgpu, and wgpu's types never appear in a public API
+  ([ADR-0016](adr/0016-gpu-layer-with-wgpu.md)). `slime-gfx` depends on no other engine crate,
+  so that it works without a windowing system.
 - A headless run never touches the windowing system: it does not create an event loop, so the
   windowing libraries, which are loaded at run time, are not even needed. The checks run the
   headless sample with no display server to prove it.
@@ -120,6 +127,15 @@ frame that starts a little late does not shift the schedule, which keeps the ave
 falling a whole period behind, the schedule restarts instead of catching up with frames run back
 to back (`next_due` in `windowed.rs`). This frame limiter is temporary; presenting frames on
 screen will pace them from Stage 2.
+
+### Opening the GPU
+
+`slime_gfx::Gpu::new()` creates a wgpu instance limited to the platform's graphics API (Vulkan on
+Linux, Direct3D 12 on Windows), asks for the high-performance adapter, logs it, and opens its
+device and queue ([`crates/slime-gfx/src/gpu.rs`](../crates/slime-gfx/src/gpu.rs),
+[ADR-0016](adr/0016-gpu-layer-with-wgpu.md)). Without a GPU, the adapter is a software one:
+lavapipe on Linux when `VK_DRIVER_FILES` points at it, WARP on Windows. Headless runs never open
+the GPU.
 
 ### Termination signals
 
