@@ -12,7 +12,7 @@ documentation was updated and reread.
 ## Current
 
 - Stage 1 — Core and platform
-- Milestone M1.3 — Lifecycle and headless mode
+- Milestone M1.4 — Window
 
 ## Status
 
@@ -24,8 +24,8 @@ documentation was updated and reread.
 | [M0.4](#m04--dependency-policy-and-ci) | Dependency policy and CI | Done, CI not run yet (see [Known debt](#known-debt)) |
 | [M1.1](#m11--logging-and-diagnostics) | Logging and diagnostics | Done |
 | [M1.2](#m12--frame-timing) | Frame timing | Done |
-| [M1.3](#m13--lifecycle-and-headless-mode) | Lifecycle and headless mode | In progress |
-| [M1.4](#m14--window) | Window | Planned |
+| [M1.3](#m13--lifecycle-and-headless-mode) | Lifecycle and headless mode | Done |
+| [M1.4](#m14--window) | Window | In progress |
 | [M1.5](#m15--input) | Input | Planned |
 | [M1.6](#m16--clean-shutdown-hardening-release-001) | Clean shutdown, hardening, release 0.0.1 | Planned |
 

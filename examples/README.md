@@ -11,6 +11,7 @@ cargo run --example <name> [-- <arguments>]
 | Example | Shows | Arguments |
 |---|---|---|
 | [`hello`](hello.rs) | Diagnostics: logging through `tracing`, the `SLIME_LOG` filter, panic reporting | `--panic` panics on purpose |
+| [`headless`](headless.rs) | An application without a window: frames back to back with simulated time, exit at a frame limit, profiling spans (`SLIME_LOG=trace`) | `--frames <count>` (default 600) |
 
 The log level of every example is set by the `SLIME_LOG` environment variable, for example
 `SLIME_LOG=debug cargo run --example hello`.

@@ -24,6 +24,9 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
 step "Dependencies (licenses, advisories, sources)"
 cargo deny --locked check
 
+step "Headless sample (no display server)"
+env -u WAYLAND_DISPLAY -u DISPLAY cargo run --locked --example headless -- --frames 600
+
 step "Documentation links"
 # Tracked and new, non-ignored Markdown files. External links are not checked: they fail for
 # reasons unrelated to the change being checked.

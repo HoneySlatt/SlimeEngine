@@ -54,8 +54,9 @@ nix develop -c scripts/check.sh
 
 [`scripts/check.sh`](scripts/check.sh) runs rustfmt, clippy with warnings as errors, the build
 and tests of every target, rustdoc with warnings as errors, `cargo deny` (dependency licenses,
-security advisories and sources; it downloads the advisory database, so it needs network access)
-and `lychee` (links between Markdown files). The individual commands are listed in
+security advisories and sources; it downloads the advisory database, so it needs network access),
+the headless sample with no display server available, and `lychee` (links between Markdown
+files). The individual commands are listed in
 [`AGENTS.md`](AGENTS.md#environment-and-commands) for when you want to run only one of them.
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the same script on every push to

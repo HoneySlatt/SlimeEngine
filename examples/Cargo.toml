@@ -18,3 +18,7 @@ tracing.workspace = true
 [[example]]
 name = "hello"
 path = "hello.rs"
+
+[[example]]
+name = "headless"
+path = "headless.rs"
