@@ -109,7 +109,9 @@ fn main() -> Result<(), GfxError> {
   (`docs/adr/0020-rendering-in-the-main-loop.md`):
   - `Surface::format()` is the format of the window's images, the first 8-bit sRGB format the
     window offers; pipelines that draw into the window are created for it.
-  - `Surface::resize(width, height)` follows the window's size.
+  - `Surface::resize(width, height)` follows the window's size, limited to what the device accepts
+    (8192 pixels in each dimension with the default limits), with a warning when the window is
+    larger.
   - `Surface::acquire(label)` returns the `SurfaceFrame` to draw the next frame into, its target
     named `label`, or `None` when the window cannot show a new image (a size of zero, an image not
     ready in time, an occluded or lost surface, all handled). Draw into `SurfaceFrame::target()`

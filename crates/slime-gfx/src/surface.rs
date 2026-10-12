@@ -59,13 +59,18 @@ pub struct Surface {
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     format: TextureFormat,
+    /// The largest width or height the device accepts for an image (8192 with the default limits).
+    max_dimension: u32,
+    /// Whether the window is larger than that, so that its images are smaller than it.
+    oversize: bool,
     /// Whether `config` must be applied before the next image is acquired.
     stale: bool,
 }
 
 impl Gpu {
     /// Opens the most capable GPU that can draw into `window`, and creates the window's surface
-    /// for images of `width` × `height` physical pixels, shown as `present_mode` says.
+    /// for images of `width` × `height` physical pixels (limited as [`Surface::resize`] says), shown
+    /// as `present_mode` says.
     ///
     /// The GPU is chosen as by [`Gpu::new`], among the adapters that can present to the window.
     /// The surface uses the first sRGB format the window offers among the engine's
@@ -116,14 +121,15 @@ impl Gpu {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: format.to_wgpu(),
             color_space: wgpu::SurfaceColorSpace::Auto,
-            width,
-            height,
+            // Set by `resize` below, which limits the size to what the device accepts.
+            width: 0,
+            height: 0,
             present_mode: chosen_mode,
             desired_maximum_frame_latency: 2,
             alpha_mode: wgpu::CompositeAlphaMode::Auto,
             view_formats: Vec::new(),
         };
-        let surface = Surface {
+        let mut surface = Surface {
             surface,
             instance,
             window,
@@ -131,8 +137,11 @@ impl Gpu {
             queue: gpu.queue.clone(),
             config,
             format,
+            max_dimension: gpu.device.limits().max_texture_dimension_2d,
+            oversize: false,
             stale: true,
         };
+        surface.resize(width, height);
         Ok((gpu, surface))
     }
 }
@@ -146,8 +155,25 @@ impl Surface {
 
     /// Sets the size of the window's images, in physical pixels; call it whenever the window is
     /// resized. The images change size from the next [`acquire`](Self::acquire). A size of zero,
-    /// for example while the window is minimized, means there is nothing to draw.
+    /// for example while the window is minimized, means there is nothing to draw. A width or
+    /// height above what the device accepts (8192 with the default limits) is limited to it, and
+    /// the log says so once: the images are then smaller than the window.
     pub fn resize(&mut self, width: u32, height: u32) {
+        let oversize = width > self.max_dimension || height > self.max_dimension;
+        if oversize && !self.oversize {
+            tracing::warn!(
+                width,
+                height,
+                max = self.max_dimension,
+                "the window is larger than the GPU can draw into; its images are limited to the \
+                 largest size the device accepts"
+            );
+        }
+        self.oversize = oversize;
+        let (width, height) = (
+            width.min(self.max_dimension),
+            height.min(self.max_dimension),
+        );
         if (width, height) != (self.config.width, self.config.height) {
             self.config.width = width;
             self.config.height = height;

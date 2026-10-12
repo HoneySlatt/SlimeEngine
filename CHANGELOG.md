@@ -8,6 +8,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- A window larger than the images the GPU accepts (8192 pixels in a dimension with the default
+  limits) no longer panics the engine: the images are limited to that size, with a warning.
 - `FrameClock` no longer panics when the elapsed time would overflow (a maximum frame delta
   near `Duration::MAX`): it saturates.
 - Logging to a standard error that is gone (a pipe whose reader exited, a closed terminal) no

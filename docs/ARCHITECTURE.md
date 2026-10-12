@@ -193,6 +193,7 @@ whether there is an image to draw:
 | Reported | Handled by |
 |---|---|
 | A new size (from `Event::Resized`) | `Surface::resize`; the surface is configured again before the next image |
+| A size above the largest image the device accepts (8192 pixels in a dimension with the default limits) | Limited to it, with a warning; the images are then smaller than the window |
 | A size of zero (minimized window) | No image; the frame runs without drawing |
 | Outdated configuration | Configured again, then one more try; no image this frame if still outdated |
 | Suboptimal image | Drawn and presented, then configured again |
