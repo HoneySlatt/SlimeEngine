@@ -87,10 +87,11 @@ impl FrameClock {
         self.max_delta
     }
 
-    /// Starts a new frame that represents `raw_delta`, limited to the maximum delta.
+    /// Starts a new frame that represents `raw_delta`, limited to the maximum delta. The elapsed
+    /// time saturates at [`Duration::MAX`] instead of overflowing.
     pub fn advance(&mut self, raw_delta: Duration) -> FrameTime {
         let delta = raw_delta.min(self.max_delta);
-        self.elapsed += delta;
+        self.elapsed = self.elapsed.saturating_add(delta);
         let frame = FrameTime {
             index: self.next_index,
             delta,
@@ -204,6 +205,13 @@ mod tests {
         let paused = clock.advance(Duration::from_secs(30));
         assert_eq!(paused.delta(), 100 * MS);
         assert_eq!(paused.elapsed(), 100 * MS);
+    }
+
+    #[test]
+    fn clock_elapsed_saturates_instead_of_overflowing() {
+        let mut clock = FrameClock::new(Duration::MAX);
+        clock.advance(Duration::MAX);
+        assert_eq!(clock.advance(MS).elapsed(), Duration::MAX);
     }
 
     #[test]

@@ -8,6 +8,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- `FrameClock` no longer panics when the elapsed time would overflow (a maximum frame delta
+  near `Duration::MAX`): it saturates.
 - Logging to a standard error that is gone (a pipe whose reader exited, a closed terminal) no
   longer aborts the process: the events are dropped and the run goes on.
 
