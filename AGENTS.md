@@ -1,0 +1,148 @@
+# AGENTS.md
+
+Instructions for AI agents working in this repository. Read this file fully at the start of every session.
+
+## Project
+
+A general-purpose, modular, open-source (MPL-2.0) game engine written in Rust: runtime, asset pipeline, editor and SDK. It is developed primarily by AI agents; the human owner validates direction and architecture decisions.
+
+The engine is meant to be used and contributed to by other people. Anyone arriving in the repository, at any point in its life, must be able to understand all of it from the repository alone. Documentation is part of every deliverable, held to the same standard as the code (see "Documentation").
+
+## Read before working
+
+1. `docs/PLAN.md` — current stage, milestones and status. This is the source of truth for what to do now.
+2. `docs/ROADMAP.md` — direction, stage order, exit criteria. An overview, not a commitment (see "Scope").
+3. `docs/ARCHITECTURE.md` — crates, their roles and their dependencies.
+4. `docs/adr/` — decisions already made. Do not re-decide them.
+5. The `README.md` of each crate you are about to touch.
+
+You have no memory of previous sessions. These files are the project's memory: if something is not written there, the next session will not know it.
+
+## Scope
+
+- Work only on the stage and milestone marked as current in `docs/PLAN.md`.
+- Do not start later stages, and do not add abstractions that prepare for them.
+- If a task needs something out of scope, stop and say so.
+
+The roadmap is an overview. It sets direction and dependency order; it does not say what will be built, nor how. Not all of it will happen: stages will be merged, cut down, reordered or dropped as the project teaches us. Build something because the current milestone needs it, never because the roadmap mentions it. When experience contradicts the roadmap, propose a change to it; once accepted, record the change in an ADR.
+
+## Environment and commands
+
+Development happens on NixOS, under Wayland. Everything must build and run there.
+
+```sh
+nix develop                                               # enter the dev shell
+cargo build --workspace
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
+cargo fmt --all --check
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
+```
+
+Keep this section up to date when commands, examples or tools are added.
+
+## Definition of done
+
+A milestone is done only when all of the following hold:
+
+- Build, tests, clippy, fmt and doc pass with the commands above.
+- The binary or example was actually run and behaved as expected.
+- New behaviour is covered by tests where a test is practical.
+- `docs/PLAN.md` reflects the new status.
+- Every document affected by the change is updated (see "Documentation"), and was reread as a newcomer would read it.
+- Any architecture decision taken is recorded as an ADR.
+
+Never report that something works without having verified it. If you could not verify, say exactly what was not verified and why.
+
+## Architecture rules
+
+- Dependencies between crates flow in one direction, as described in `docs/ARCHITECTURE.md`. No cycles, no shortcuts across layers.
+- wgpu types stay inside the `gfx` and `render` crates. Everything else uses engine-owned handles.
+- The editor is a client of the engine. It uses public API only.
+- The engine must run headless (no window, renderer or audio). Do not make core systems depend on them.
+- Internal Rust APIs may change freely. Nothing is promised stable before 1.0.
+
+## Code rules
+
+- No abstraction without a second concrete use. No trait, generic or layer added "just in case".
+- Do not reimplement what the standard library provides without a measurement that justifies it.
+- Every new dependency needs a justification: why, which alternative was considered, license compatibility with MPL-2.0. Ask before adding one.
+- Every `unsafe` block carries a `// SAFETY:` comment explaining why it is sound.
+- Follow the conventions set by ADRs (errors, logging, naming). If no ADR covers a case, propose one instead of deciding silently.
+- Comments explain why, not what. No commented-out code.
+
+## Consistency rules
+
+These keep the codebase understandable as it grows.
+
+- Before writing a helper, type or pattern, search the workspace for an existing one. Reuse or extend it.
+- One way to do a given thing. If you find two, unify them or report it.
+- Prefer less code. Delete dead code, unused parameters and unused features instead of keeping them.
+- Keep changes local to the milestone. Unrelated cleanup goes in a separate commit, or in a note in `docs/PLAN.md`.
+- If you notice the code has drifted from `docs/ARCHITECTURE.md` or an ADR, report it. Do not silently work around it.
+
+## Documentation
+
+### Standard
+
+The reader is a competent Rust developer who has never seen this project, arriving at any point in its life. From the repository alone, they must be able to understand what every part does and why it is built that way, then build, test and change it.
+
+- Documentation describes the code as it is now, not as it is intended to be. Wrong documentation is worse than missing documentation.
+- Write for that reader: no reference to past sessions, conversations or context they cannot see; no undefined project jargon; every term the project coins is defined where it first appears.
+- State limits and known debt plainly. Do not present a partial feature as complete.
+- Every public item has rustdoc that says what it does, its invariants, its errors and panics. Examples in rustdoc compile and run as doc tests.
+- Each notable feature has a runnable example in `examples/`, kept working.
+- A change that leaves a document wrong is not finished.
+
+### Files
+
+| File | Content | Update when |
+|---|---|---|
+| `README.md` | What the project is, its real current state, how to build and run it, where to read next | State or entry points change |
+| `CONTRIBUTING.md` | Environment, commands, rules, how a change is made and reviewed | Process or tools change |
+| `docs/ROADMAP.md` | Direction, stage order, exit criteria | A stage is reshaped, merged or dropped (with an ADR) |
+| `docs/PLAN.md` | Current stage, milestones, status, known debt | Every milestone |
+| `docs/ARCHITECTURE.md` | Crate map, responsibilities, dependency graph, main data flows, where to start reading | Structure or a flow changes |
+| `docs/adr/NNNN-title.md` | Context, decision, alternatives rejected, consequences | Each architecture decision |
+| `docs/glossary.md` | Terms the project defines | A term is coined or changes meaning |
+| `crates/*/README.md` | Role, what it depends on, entry points, what it must not do | Crate created or its role changes |
+| rustdoc | Public API | Public API changes |
+
+## Commits
+
+- One logical change per commit, small enough to review.
+- Subject in the imperative, in English. The body explains why when it is not obvious.
+- Do not commit code that fails the checks.
+
+## When to stop and ask
+
+Stop and ask the owner before proceeding when:
+
+- A decision affects architecture and no ADR covers it.
+- You want to add a dependency.
+- The request contradicts `docs/ROADMAP.md` or an ADR.
+- The plan turns out to be wrong or a milestone is larger than expected.
+- You are about to delete or rewrite a significant part of existing code.
+
+Propose options with trade-offs and a recommendation. Do not work around a problem to keep going.
+
+## Reporting
+
+At the end of each milestone, report:
+
+- What was done.
+- Notable design choices, why, and which alternatives were rejected.
+- What deserves to be read first.
+- Shortcuts taken and debt introduced.
+
+## Working with several agents
+
+- Each agent works on one milestone or one crate at a time, as assigned in `docs/PLAN.md`.
+- Do not edit files outside your assigned scope. If you need a change elsewhere, report it.
+- Shared files (`docs/PLAN.md`, `docs/ARCHITECTURE.md`, workspace `Cargo.toml`) are edited by one agent at a time.
+- A reviewing agent checks a milestone against this file and the ADRs before it is reported as done.
+
+## Language
+
+- Everything in the repository is in English: code, comments, commits, documentation.
+- Talk to the owner in French.
