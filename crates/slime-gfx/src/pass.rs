@@ -58,7 +58,7 @@ impl Gpu {
     /// Clears `target` to `clear`, lets `record` draw into it, then submits the work to the GPU.
     ///
     /// The work runs on the GPU after this function returns; reading the target back waits for
-    /// it.
+    /// it. Submitting it is recorded as a `trace`-level profiling span named `submit`.
     ///
     /// # Panics
     ///
@@ -94,6 +94,7 @@ impl Gpu {
             });
             record(&mut RenderPass { pass });
         }
+        let _span = tracing::trace_span!("submit").entered();
         self.queue.submit([encoder.finish()]);
     }
 }

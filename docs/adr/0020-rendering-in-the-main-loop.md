@@ -1,6 +1,6 @@
 # 0020. Rendering in the main loop, and application errors
 
-- Status: Accepted
+- Status: Accepted; amended by [0021](0021-frame-pacing.md) (present mode)
 - Date: 2026-10-12
 
 ## Context

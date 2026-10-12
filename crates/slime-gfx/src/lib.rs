@@ -19,5 +19,5 @@ pub use pipeline::{
 };
 pub use render_target::{RenderTarget, TextureFormat};
 pub use shader::ShaderModule;
-pub use surface::{Surface, SurfaceFrame};
+pub use surface::{PresentMode, Surface, SurfaceFrame};
 pub use vertex_buffer::VertexBuffer;

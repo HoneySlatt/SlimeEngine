@@ -15,12 +15,39 @@ trait WindowHandles: HasWindowHandle + HasDisplayHandle + Send + Sync {}
 
 impl<W: HasWindowHandle + HasDisplayHandle + Send + Sync> WindowHandles for W {}
 
+/// How a window shows the images presented to it (`docs/adr/0021-frame-pacing.md`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum PresentMode {
+    /// Each image presented replaces the one waiting to be shown, which the display shows at its
+    /// next refresh: presenting never waits, and images the display had no time to show are
+    /// dropped. A window that does not offer it uses [`Fifo`](Self::Fifo) instead, which the log
+    /// says. The default.
+    #[default]
+    Mailbox,
+    /// Every image presented is shown, in order, one per refresh of the display: presenting waits
+    /// while earlier images are still to be shown. Every window offers it. On compositors that show
+    /// a hidden window's images only from time to time (once per second on niri), each frame then
+    /// waits that long.
+    Fifo,
+}
+
+/// The wgpu present mode for `requested`, among those the window offers. Every window offers
+/// FIFO.
+fn choose_present_mode(requested: PresentMode, offered: &[wgpu::PresentMode]) -> wgpu::PresentMode {
+    match requested {
+        PresentMode::Mailbox if offered.contains(&wgpu::PresentMode::Mailbox) => {
+            wgpu::PresentMode::Mailbox
+        }
+        PresentMode::Mailbox | PresentMode::Fifo => wgpu::PresentMode::Fifo,
+    }
+}
+
 /// The link between the GPU and a window: the images the window shows, which the GPU draws into.
 ///
 /// Each frame, [`acquire`](Self::acquire) gives the image to draw into, and
 /// [`SurfaceFrame::present`] hands it to the window once drawn. The images are in an sRGB format
-/// ([`format`](Self::format)), and are shown in step with the display's refresh (wgpu's FIFO
-/// present mode, the only one every platform supports).
+/// ([`format`](Self::format)), and are shown as the [`PresentMode`] chosen at creation says.
 ///
 /// The surface keeps the window alive: drop it before the windowing system's connection closes.
 pub struct Surface {
@@ -38,11 +65,11 @@ pub struct Surface {
 
 impl Gpu {
     /// Opens the most capable GPU that can draw into `window`, and creates the window's surface
-    /// for images of `width` × `height` physical pixels.
+    /// for images of `width` × `height` physical pixels, shown as `present_mode` says.
     ///
     /// The GPU is chosen as by [`Gpu::new`], among the adapters that can present to the window.
     /// The surface uses the first sRGB format the window offers among the engine's
-    /// [`TextureFormat`]s; it is logged at the `info` level.
+    /// [`TextureFormat`]s. The format and the present mode in use are logged at the `info` level.
     ///
     /// # Errors
     ///
@@ -54,6 +81,7 @@ impl Gpu {
         window: W,
         width: u32,
         height: u32,
+        present_mode: PresentMode,
     ) -> Result<(Self, Surface), GfxError>
     where
         W: HasWindowHandle + HasDisplayHandle + Send + Sync + 'static,
@@ -73,7 +101,11 @@ impl Gpu {
             .ok_or_else(|| GfxError::SurfaceFormat {
                 offered: format!("{:?}", capabilities.formats),
             })?;
-        tracing::info!(?format, width, height, "window surface");
+        let chosen_mode = choose_present_mode(present_mode, &capabilities.present_modes);
+        tracing::info!(?format, present_mode = ?chosen_mode, width, height, "window surface");
+        if present_mode == PresentMode::Mailbox && chosen_mode != wgpu::PresentMode::Mailbox {
+            tracing::info!("the window does not offer the Mailbox present mode; Fifo is used");
+        }
         tracing::debug!(
             formats = ?capabilities.formats,
             present_modes = ?capabilities.present_modes,
@@ -86,7 +118,7 @@ impl Gpu {
             color_space: wgpu::SurfaceColorSpace::Auto,
             width,
             height,
-            present_mode: wgpu::PresentMode::Fifo,
+            present_mode: chosen_mode,
             desired_maximum_frame_latency: 2,
             alpha_mode: wgpu::CompositeAlphaMode::Auto,
             view_formats: Vec::new(),
@@ -131,8 +163,9 @@ impl Surface {
     /// it), and after the surface was lost, in which case it is created again for the next call.
     /// These cases are logged at the `debug` level, except the loss of the surface (`warn`).
     ///
-    /// It can block until an image is free: in step with the display while the window is
-    /// visible, and up to wgpu's timeout on compositors that stop showing a hidden window's frames.
+    /// It can block until an image is free. With [`PresentMode::Fifo`], it does in step with the
+    /// display; with [`PresentMode::Mailbox`], it was measured not to (on niri with RADV, and in a
+    /// headless Weston with lavapipe).
     pub fn acquire(&mut self) -> Option<SurfaceFrame> {
         if self.config.width == 0 || self.config.height == 0 {
             return None;
@@ -194,7 +227,10 @@ impl Surface {
                 self.stale = true;
             }
             Err(error) => {
-                tracing::error!(%error, "the window's surface was lost and cannot be created again");
+                tracing::error!(
+                    %error,
+                    "the window's surface was lost and cannot be created again"
+                );
             }
         }
     }
@@ -227,9 +263,38 @@ impl SurfaceFrame {
         &self.target
     }
 
-    /// Hands the image to the window, to be shown at the display's next refresh. Call it after
-    /// the work that draws into the target has been submitted, as [`Gpu::render`] does.
+    /// Hands the image to the window, to be shown at one of the display's next refreshes, as the
+    /// surface's [`PresentMode`] says. Call it after the work that draws into the target has been
+    /// submitted, as [`Gpu::render`] does. With [`PresentMode::Fifo`], it can wait for the window
+    /// (one second per frame for a hidden window on niri).
     pub fn present(self) {
         self.queue.present(self.texture);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mailbox_is_used_when_the_window_offers_it() {
+        let offered = [wgpu::PresentMode::Fifo, wgpu::PresentMode::Mailbox];
+        assert_eq!(
+            choose_present_mode(PresentMode::Mailbox, &offered),
+            wgpu::PresentMode::Mailbox
+        );
+        assert_eq!(
+            choose_present_mode(PresentMode::Fifo, &offered),
+            wgpu::PresentMode::Fifo
+        );
+    }
+
+    #[test]
+    fn fifo_replaces_mailbox_when_the_window_does_not_offer_it() {
+        let offered = [wgpu::PresentMode::Fifo, wgpu::PresentMode::Immediate];
+        assert_eq!(
+            choose_present_mode(PresentMode::Mailbox, &offered),
+            wgpu::PresentMode::Fifo
+        );
     }
 }

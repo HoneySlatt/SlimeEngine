@@ -30,8 +30,9 @@ impl Gpu {
     ///
     /// # Panics
     ///
-    /// If `target` is the image of a window ([`SurfaceFrame::target`](crate::SurfaceFrame::target)):
-    /// only targets created by [`Gpu::create_render_target`] can be read back.
+    /// If `target` is the image of a window
+    /// ([`SurfaceFrame::target`](crate::SurfaceFrame::target)): only targets created by
+    /// [`Gpu::create_render_target`] can be read back.
     pub fn read_render_target(&self, target: &RenderTarget) -> Result<Image, GfxError> {
         let readback_error =
             |source: Box<dyn std::error::Error + Send + Sync>| GfxError::Readback {

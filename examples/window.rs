@@ -9,6 +9,7 @@
 //! cargo run --example window -- --frames 120    # closes itself after 120 frames
 //! WAYLAND_DISPLAY= cargo run --example window   # X11, for example through Xwayland
 //! cargo run --example window -- --headless --frames 600   # no window: runs anywhere
+//! cargo run --example window -- --present-mode fifo        # every image shown, one per refresh
 //! ```
 
 #[path = "common/error_chain.rs"]
@@ -19,11 +20,13 @@ mod triangle;
 use std::process::ExitCode;
 
 use slime_app::{App, AppConfig, AppError, Context};
-use slime_gfx::RenderTarget;
+use slime_gfx::{PresentMode, RenderTarget};
 use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, WindowConfig};
 
 use error_chain::error_chain;
 use triangle::{BACKGROUND, Triangle};
+
+const USAGE: &str = "usage: window [--headless] [--frames <count>] [--present-mode mailbox|fifo]";
 
 #[derive(Default)]
 struct WindowExample {
@@ -69,7 +72,7 @@ fn main() -> ExitCode {
     let options = match parse_options() {
         Ok(options) => options,
         Err(message) => {
-            eprintln!("{message}\nusage: window [--headless] [--frames <count>]");
+            eprintln!("{message}\n{USAGE}");
             return ExitCode::from(2);
         }
     };
@@ -81,6 +84,7 @@ fn main() -> ExitCode {
     let config = AppConfig {
         window: (!options.headless).then_some(window),
         frame_limit: options.frame_limit,
+        present_mode: options.present_mode,
         ..AppConfig::default()
     };
     match slime_app::run(&mut WindowExample::default(), &config) {
@@ -97,6 +101,7 @@ fn main() -> ExitCode {
 struct Options {
     headless: bool,
     frame_limit: Option<u64>,
+    present_mode: PresentMode,
 }
 
 fn parse_options() -> Result<Options, String> {
@@ -111,6 +116,13 @@ fn parse_options() -> Result<Options, String> {
                     .parse()
                     .map_err(|_| format!("invalid frame count `{value}`"))?;
                 options.frame_limit = Some(frames);
+            }
+            "--present-mode" => {
+                options.present_mode = match arguments.next().as_deref() {
+                    Some("mailbox") => PresentMode::Mailbox,
+                    Some("fifo") => PresentMode::Fifo,
+                    _ => return Err("--present-mode needs `mailbox` or `fifo`".to_owned()),
+                };
             }
             _ => return Err(format!("unknown argument `{argument}`")),
         }

@@ -101,9 +101,12 @@ if let Err(error) = slime_app::run(&mut Game, &config) {
     a frame on average at most `AppConfig::max_frame_rate` times per second (60 by default) and
     sleeps in between; a frame runs each time the windowing system lets the window draw, which
     also happens on its own initiative, for example during a resize
-    (`docs/adr/0020-rendering-in-the-main-loop.md`). The images are shown in step with the
-    display, which can block a frame: up to one second when the compositor stops showing a hidden
-    window (see `docs/PLAN.md`).
+    (`docs/adr/0020-rendering-in-the-main-loop.md`). The images are shown as
+    `AppConfig::present_mode` says: by default, each one replaces the image waiting to be shown,
+    so the display never makes a frame wait, and the schedule alone paces the frames, hidden window
+    included (`docs/adr/0021-frame-pacing.md`). With `PresentMode::Fifo`, every image is shown
+    in step with the display, which can block a frame: up to one second when the compositor
+    rarely shows a hidden window.
   - It returns a `RunError`: `Init` when `init` fails, `Platform` when the window cannot be opened
     (for example without a display server) or its event loop fails, `Gfx` when no GPU can draw into
     the window. Only one windowed run, or attempt, is possible per process.
@@ -112,8 +115,9 @@ if let Err(error) = slime_app::run(&mut Game, &config) {
   - On Windows, Ctrl+C and Ctrl+Break in a console stop the run the same way; closing the console
     window ends the process at once, without `shutdown`.
 - `AppConfig`: the window (`None`, the default, runs headless), frame limit, fixed step
-  (1/60 s), maximum fixed steps per frame (8), maximum frame delta (250 ms) and maximum frame rate
-  (60). Write it as a struct literal ending with `..AppConfig::default()`.
+  (1/60 s), maximum fixed steps per frame (8), maximum frame delta (250 ms), maximum frame rate
+  (60) and present mode (`PresentMode::Mailbox`). Write it as a struct literal ending with
+  `..AppConfig::default()`.
 - `Context`: what an application can ask from the engine: the window (`Context::window`), the GPU
   that draws into it (`Context::gpu`) and the format of its images (`Context::surface_format`),
   all `None` when headless; and stopping the run.

@@ -3,7 +3,7 @@
 
 use std::time::{Duration, Instant};
 
-use slime_gfx::{Gpu, Surface};
+use slime_gfx::{Gpu, PresentMode, Surface};
 use slime_platform::{Event, EventHandler, LoopControl, Window, WindowConfig};
 
 use crate::app::{App, AppConfig, Context, ExitReason, Frames};
@@ -24,6 +24,7 @@ pub(crate) fn run_windowed(
         ctx: Context::default(),
         frames: Frames::new(config),
         surface: None,
+        present_mode: config.present_mode,
         frame_period: Duration::from_secs(1) / config.max_frame_rate,
         last_frame: now,
         next_frame: now,
@@ -42,6 +43,7 @@ struct WindowedDriver<'a, A> {
     frames: Frames,
     /// The window's surface; the GPU that draws into it is in `ctx`.
     surface: Option<Surface>,
+    present_mode: PresentMode,
     /// The interval at which frames are scheduled, from `AppConfig::max_frame_rate`.
     frame_period: Duration,
     last_frame: Instant,
@@ -59,7 +61,8 @@ impl<A: App> WindowedDriver<'_, A> {
     /// Opens the GPU for the window, then initializes the application.
     fn start(&mut self, window: &Window) -> Result<(), RunError> {
         let size = window.inner_size();
-        let (gpu, surface) = Gpu::new_for_window(window.clone(), size.width, size.height)?;
+        let (gpu, surface) =
+            Gpu::new_for_window(window.clone(), size.width, size.height, self.present_mode)?;
         self.ctx.set_gpu(Some(gpu), Some(surface.format()));
         self.surface = Some(surface);
         self.app.init(&mut self.ctx).map_err(RunError::Init)

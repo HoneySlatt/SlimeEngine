@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use slime_gfx::{Gpu, RenderTarget, Surface, TextureFormat};
+use slime_gfx::{Gpu, PresentMode, RenderTarget, Surface, TextureFormat};
 use slime_platform::{Event, Window, WindowConfig};
 
 use crate::diagnostics::init_diagnostics;
@@ -111,10 +111,15 @@ pub struct AppConfig {
     /// The longest time one frame can represent. Default: 250 ms.
     pub max_frame_delta: Duration,
     /// With a window, the highest average number of frames per second that the engine asks for:
-    /// frames are scheduled at this rate and the loop sleeps between them. The windowing system
-    /// can ask for more, for example while the window is being resized, and showing the images in
-    /// step with the display can slow frames down. Headless runs ignore it. Default: 60.
+    /// frames are scheduled at this rate and the loop sleeps between them. This schedule paces the
+    /// frames (`docs/adr/0021-frame-pacing.md`); the windowing system can ask for more, for
+    /// example while the window is being resized, and with [`PresentMode::Fifo`] the display can
+    /// slow them down. Headless runs ignore it. Default: 60.
     pub max_frame_rate: u32,
+    /// With a window, how it shows the images drawn by [`App::render`]. Headless runs ignore it.
+    /// Default: [`PresentMode::Mailbox`], which never makes a frame wait for the display, and is
+    /// replaced by [`PresentMode::Fifo`] on windows that do not offer it.
+    pub present_mode: PresentMode,
 }
 
 impl Default for AppConfig {
@@ -126,6 +131,7 @@ impl Default for AppConfig {
             max_fixed_steps_per_frame: 8,
             max_frame_delta: Duration::from_millis(250),
             max_frame_rate: 60,
+            present_mode: PresentMode::default(),
         }
     }
 }
@@ -222,8 +228,9 @@ pub(crate) enum ExitReason {
 ///   average at most [`AppConfig::max_frame_rate`] times per second, and a frame runs each time
 ///   the windowing system lets the window draw: when the engine asked, and when the system asks
 ///   on its own, for example while the window is being resized. Each frame ends with
-///   [`App::render`], whose image the engine then shows. Between frames, the loop sleeps until
-///   the next frame is due or an event arrives, and each event is passed to [`App::on_event`].
+///   [`App::render`], whose image the engine then shows as [`AppConfig::present_mode`] says.
+///   Between frames, the loop sleeps until the next frame is due or an event arrives, and each
+///   event is passed to [`App::on_event`].
 ///
 /// Each frame is recorded as a `trace`-level profiling span named `frame`, containing one
 /// `fixed_update` span per fixed step, one `update` span and, when the frame is drawn, one

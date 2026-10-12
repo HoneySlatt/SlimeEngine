@@ -87,4 +87,5 @@ the ADR linking to it.
 | [0017](0017-gpu-resource-types.md) | GPU resource types | Accepted |
 | [0018](0018-reference-image-tests.md) | Reference image tests | Accepted |
 | [0019](0019-default-log-filter.md) | Default log filter | Accepted |
-| [0020](0020-rendering-in-the-main-loop.md) | Rendering in the main loop, and application errors | Accepted |
+| [0020](0020-rendering-in-the-main-loop.md) | Rendering in the main loop, and application errors | Accepted; amended by 0021 |
+| [0021](0021-frame-pacing.md) | Frame pacing | Accepted |

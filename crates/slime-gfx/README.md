@@ -99,8 +99,8 @@ fn main() -> Result<(), GfxError> {
   GPU.
 - `Gpu::read_render_target(target)` waits for the GPU and copies a target into an `Image`: RGBA
   bytes, rows from top to bottom, whatever the byte order of the target's format.
-- `Gpu::new_for_window(window, width, height)` opens the most capable GPU that can draw into a
-  window, and returns it with the window's `Surface`
+- `Gpu::new_for_window(window, width, height, present_mode)` opens the most capable GPU that can
+  draw into a window, and returns it with the window's `Surface`
   (`docs/adr/0020-rendering-in-the-main-loop.md`):
   - `Surface::format()` is the format of the window's images, the first 8-bit sRGB format the
     window offers; pipelines that draw into the window are created for it.
@@ -110,9 +110,11 @@ fn main() -> Result<(), GfxError> {
     lost surface, all handled). Draw into `SurfaceFrame::target()` with `Gpu::render`, then call
     `SurfaceFrame::present()`. Window images cannot be read back.
 
-  Images are shown in step with the display (wgpu's FIFO present mode), so `acquire` or
-  `present` can block: up to one second on compositors that stop showing a hidden window.
-  Applications built on `slime-app` do not call these: the engine does.
+  `PresentMode` says how the window shows the images (`docs/adr/0021-frame-pacing.md`): with
+  `Mailbox`, the default, each image replaces the one waiting to be shown and presenting never
+  waits; windows that do not offer it use `Fifo`, which shows every image, one per refresh, and
+  makes `acquire` or `present` wait, up to one second per frame on compositors that rarely show a
+  hidden window. Applications built on `slime-app` do not call these: the engine does.
 - `GfxError` says why the GPU could not be opened or used. A rejected shader or pipeline is
   returned as `GfxError::Shader` or `GfxError::Pipeline`, with wgpu's message, which for WGSL
   gives the line and column of the error. Other misuses of wgpu are bugs and panic.
