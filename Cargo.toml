@@ -17,6 +17,9 @@ publish = false
 [workspace.dependencies]
 # `termination` also handles SIGTERM and SIGHUP, not only SIGINT.
 ctrlc = { version = "3.5.2", features = ["termination"] }
+# Vectors, matrices and quaternions for the renderer; its types are part of slime-render's API
+# (ADR-0027).
+glam = "0.34.1"
 # Examples and tests only: writes and reads PNG files (reference images, the offscreen example).
 png = "0.18.1"
 # Waits for wgpu's requests, which are futures: opening the GPU, and the errors caught while a
@@ -39,6 +42,7 @@ winit = { version = "0.30.13", default-features = false, features = ["rwh_06", "
 slime-app = { path = "crates/slime-app" }
 slime-gfx = { path = "crates/slime-gfx" }
 slime-platform = { path = "crates/slime-platform" }
+slime-render = { path = "crates/slime-render" }
 
 [workspace.lints.rust]
 missing_docs = "warn"
