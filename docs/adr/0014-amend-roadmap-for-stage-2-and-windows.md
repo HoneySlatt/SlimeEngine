@@ -27,8 +27,8 @@ First, measurements on the development machine contradict parts of the Stage 2 t
 
 Second, the owner set a new requirement: as soon as the engine can produce a complete game, even a
 very small one, it must produce it for Windows as well as Linux, since most players use Windows.
-The roadmap only listed Windows in Stage 11 (0.9), and the first brief said "Windows later". Adding
-a platform late is expensive, because assumptions about the first platform accumulate in the code,
+The roadmap only listed Windows in Stage 11 (0.9), and ADR-0011 left Windows for later. Adding a
+platform late is expensive, because assumptions about the first platform accumulate in the code,
 the tools and the tests.
 
 ## Decision
@@ -49,6 +49,9 @@ The roadmap is amended as follows.
   Linux and Windows, and windowed behaviour is checked by hand on both. The Stage 2 exit criterion
   names both platforms and both software drivers used by CI (lavapipe and WARP). Stage 9 packages
   builds for Linux and Windows, and builds without a console (Windows games) log to a file.
+
+A1 and A4 amend decisions of ADR-0002 (the frame limiter until presentation, `gfx` depending on
+`core`), and A4 amends ADR-0004 (a `core` crate expected in Stage 2).
 
 ## Alternatives considered
 

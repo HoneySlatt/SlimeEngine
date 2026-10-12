@@ -69,9 +69,9 @@ the ADR linking to it.
 | ADR | Title | Status |
 |---|---|---|
 | [0001](0001-record-architecture-decisions.md) | Record architecture decisions | Accepted |
-| [0002](0002-amend-roadmap-stages-0-to-3.md) | Amend the roadmap for Stages 0 to 3 | Accepted |
+| [0002](0002-amend-roadmap-stages-0-to-3.md) | Amend the roadmap for Stages 0 to 3 | Accepted; amended by 0014 |
 | [0003](0003-toolchain-edition-and-msrv.md) | Pin the toolchain in one file, use edition 2024, set the MSRV to the pinned version | Accepted |
-| [0004](0004-workspace-layout-and-crate-naming.md) | Workspace layout and crate naming | Accepted |
+| [0004](0004-workspace-layout-and-crate-naming.md) | Workspace layout and crate naming | Accepted; amended by 0014 |
 | [0005](0005-lints-and-unsafe-policy.md) | Lints and `unsafe` policy | Accepted |
 | [0006](0006-dependency-policy.md) | Dependency policy | Accepted |
 | [0007](0007-documentation-tooling-and-ci.md) | Documentation tooling and continuous integration | Accepted; amended by 0015 |
@@ -87,6 +87,6 @@ the ADR linking to it.
 | [0017](0017-gpu-resource-types.md) | GPU resource types | Accepted |
 | [0018](0018-reference-image-tests.md) | Reference image tests | Accepted |
 | [0019](0019-default-log-filter.md) | Default log filter | Accepted |
-| [0020](0020-rendering-in-the-main-loop.md) | Rendering in the main loop, and application errors | Accepted; amended by 0021 |
+| [0020](0020-rendering-in-the-main-loop.md) | Rendering in the main loop, and application errors | Accepted; amended by 0021, 0022 |
 | [0021](0021-frame-pacing.md) | Frame pacing | Accepted |
 | [0022](0022-losing-the-gpu-device.md) | Losing the GPU device | Accepted |

@@ -1,6 +1,6 @@
 # 0004. Workspace layout and crate naming
 
-- Status: Accepted
+- Status: Accepted; amended by [0014](0014-amend-roadmap-for-stage-2-and-windows.md) (no `core` crate in Stage 2)
 - Date: 2026-10-12
 
 ## Context

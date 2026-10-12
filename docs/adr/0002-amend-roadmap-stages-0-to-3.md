@@ -1,6 +1,6 @@
 # 0002. Amend the roadmap for Stages 0 to 3
 
-- Status: Accepted
+- Status: Accepted; amended by [0014](0014-amend-roadmap-for-stage-2-and-windows.md) (frame pacing, `gfx` dependencies)
 - Date: 2026-10-12
 
 ## Context

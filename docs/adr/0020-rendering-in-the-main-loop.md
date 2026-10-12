@@ -1,6 +1,6 @@
 # 0020. Rendering in the main loop, and application errors
 
-- Status: Accepted; amended by [0021](0021-frame-pacing.md) (present mode)
+- Status: Accepted; amended by [0021](0021-frame-pacing.md) (present mode) and [0022](0022-losing-the-gpu-device.md) (device loss)
 - Date: 2026-10-12
 
 ## Context
