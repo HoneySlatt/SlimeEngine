@@ -46,10 +46,21 @@ toolchain the first time you run `cargo` in the repository. Install the tools wi
 
 ## Checks
 
-The commands that every change must pass are listed in
-[`AGENTS.md`](AGENTS.md#environment-and-commands): build, tests, clippy with warnings as errors,
-rustfmt, and rustdoc with warnings as errors. Run them inside `nix develop`, or prefix each with
-`nix develop -c`.
+One script runs every automated check, exactly as CI does:
+
+```sh
+nix develop -c scripts/check.sh
+```
+
+[`scripts/check.sh`](scripts/check.sh) runs rustfmt, clippy with warnings as errors, the build
+and tests of every target, rustdoc with warnings as errors, `cargo deny` (dependency licenses,
+security advisories and sources; it downloads the advisory database, so it needs network access)
+and `lychee` (links between Markdown files). The individual commands are listed in
+[`AGENTS.md`](AGENTS.md#environment-and-commands) for when you want to run only one of them.
+
+CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the same script on every push to
+`main` and every pull request; [ADR-0007](docs/adr/0007-documentation-tooling-and-ci.md) explains
+the setup.
 
 The lints they enforce are set once for the whole workspace in [`Cargo.toml`](Cargo.toml);
 [ADR-0005](docs/adr/0005-lints-and-unsafe-policy.md) explains them and the rules for `unsafe`
@@ -74,7 +85,10 @@ applies the decision.
 ## Dependencies
 
 Ask before adding a dependency, and explain why it is needed, which alternative was considered
-and its license. A written dependency policy arrives in milestone M0.4.
+and its license. [ADR-0006](docs/adr/0006-dependency-policy.md) gives the admission criteria and
+the allowed licenses; `cargo deny` enforces the license and advisory rules. Record every
+dependency in [`docs/dependencies.md`](docs/dependencies.md) in the same change that adds it, and
+declare its version once, in `[workspace.dependencies]` of the root `Cargo.toml`.
 
 ## Review
 

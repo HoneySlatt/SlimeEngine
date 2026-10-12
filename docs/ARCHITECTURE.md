@@ -9,13 +9,16 @@ it is built this way.
 
 ```text
 .
+├── .github/workflows/   CI: runs scripts/check.sh
 ├── Cargo.toml           virtual workspace: shared metadata, lints and dependency versions
 ├── crates/              engine crates, one directory per crate, named after the package
 │   ├── slime-app/       application lifecycle and main loop (skeleton)
 │   └── slime-platform/  windows and input (skeleton)
-├── docs/                roadmap, plan, decisions (adr/), glossary, this file
+├── deny.toml            dependency license, advisory and source rules
+├── docs/                roadmap, plan, decisions (adr/), glossary, dependencies, this file
 ├── flake.nix            Nix development shell
 ├── rust-toolchain.toml  pinned Rust toolchain
+├── scripts/check.sh     every automated check, as CI runs them
 └── AGENTS.md            rules for every contributor
 ```
 

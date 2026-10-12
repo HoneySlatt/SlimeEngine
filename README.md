@@ -6,10 +6,11 @@ games first, then open-world games, then large online worlds.
 
 ## Status
 
-Pre-alpha. The project is in Stage 0, *Foundations*: the repository contains its rules, its
-roadmap, its plan, a reproducible development environment and a Cargo workspace whose two crates
-are still empty skeletons. There is nothing to run yet. [`docs/PLAN.md`](docs/PLAN.md) shows the
-milestone in progress.
+Pre-alpha. Stage 0, *Foundations*, is done: the repository has its rules, its roadmap, its plan,
+a reproducible development environment, its checks and a CI workflow, and a Cargo workspace whose
+two crates are still empty skeletons. Stage 1, which brings the first engine code (window, input,
+main loop, headless mode), has started. There is nothing to run yet.
+[`docs/PLAN.md`](docs/PLAN.md) shows the milestone in progress and the known debt.
 
 ## Getting started
 
@@ -21,6 +22,7 @@ Nix. Then:
 ```sh
 cargo build --workspace
 cargo test --workspace
+scripts/check.sh   # every check, exactly as CI runs them
 ```
 
 ## Where to read next
@@ -34,6 +36,7 @@ cargo test --workspace
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The crates, their roles, how they depend on each other, and where to start reading the code. |
 | [`docs/adr/`](docs/adr/README.md) | Every architecture decision, with its context and the alternatives rejected. |
 | [`docs/glossary.md`](docs/glossary.md) | Terms the project defines. |
+| [`docs/dependencies.md`](docs/dependencies.md) | Every third-party dependency and tool, and why it is used. |
 
 ## License
 

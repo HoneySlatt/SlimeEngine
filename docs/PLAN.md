@@ -11,8 +11,8 @@ documentation was updated and reread.
 
 ## Current
 
-- Stage 0 — Foundations
-- Milestone M0.4 — Dependency policy and CI
+- Stage 1 — Core and platform
+- Milestone M1.1 — Logging and diagnostics
 
 ## Status
 
@@ -21,8 +21,8 @@ documentation was updated and reread.
 | [M0.1](#m01--repository-license-and-adr-process) | Repository, license and ADR process | Done |
 | [M0.2](#m02--nix-development-environment) | Nix development environment | Done |
 | [M0.3](#m03--workspace-lints-and-crate-skeletons) | Workspace, lints and crate skeletons | Done |
-| [M0.4](#m04--dependency-policy-and-ci) | Dependency policy and CI | In progress |
-| [M1.1](#m11--logging-and-diagnostics) | Logging and diagnostics | Planned |
+| [M0.4](#m04--dependency-policy-and-ci) | Dependency policy and CI | Done, CI not run yet (see [Known debt](#known-debt)) |
+| [M1.1](#m11--logging-and-diagnostics) | Logging and diagnostics | In progress |
 | [M1.2](#m12--frame-timing) | Frame timing | Planned |
 | [M1.3](#m13--lifecycle-and-headless-mode) | Lifecycle and headless mode | Planned |
 | [M1.4](#m14--window) | Window | Planned |
@@ -172,9 +172,10 @@ CI. X11 is checked through Xwayland.
 
 ## Known debt
 
-None yet.
+- **CI has never run.** The repository has no remote yet, so the GitHub Actions workflow has not
+  been executed. `scripts/check.sh` passes locally in the same Nix shell that CI uses. Stage 0 is
+  complete except for this: the first push to GitHub must show a green run.
 
 ## Notes
 
-- Links to `docs/dependencies.md` are added to the documents that mention it when the file is
-  created (M0.4).
+None.
