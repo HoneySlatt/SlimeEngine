@@ -156,3 +156,18 @@ fn modules_without_a_level_of_their_own_record_info() {
         "a bare level in the value applies to the other modules\n{quiet}"
     );
 }
+
+#[test]
+fn a_panic_payload_that_is_not_a_string_is_logged() {
+    if is_child() {
+        slime_app::init_diagnostics();
+        std::panic::panic_any(42_u32);
+    }
+
+    let output = run_child("a_panic_payload_that_is_not_a_string_is_logged", None);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("panic: <panic payload is not a string>"),
+        "the payload's absence must be logged\n{stderr}"
+    );
+}
