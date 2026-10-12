@@ -207,8 +207,9 @@ it:
   view differed by more than 2 on RADV, by 8 at most) and shimmered. With them, the checkered
   sphere of `tests/scene.rs` differs on RADV by more than 4 on 233 pixels, by more than 8 on 14
   and by more than 16 on 1 (largest 18), where the levels of its checker blend differently;
-  ADR-0030 therefore keeps the strict rule on lavapipe and loosens it on other drivers. WARP's
-  figures, printed by the Windows CI job, are below. The `scene` example drew 300 frames on niri
+  ADR-0030 therefore keeps the strict rule on lavapipe and loosens it on other drivers. On WARP,
+  as the Windows CI job printed, 30 and 13 pixels of the glTF views and 30 of the shapes differ by
+  more than 2, none by more than 4. The `scene` example drew 300 frames on niri
   with RADV (7 draw calls, 2 274 triangles per frame) and 120 in the headless Weston. Not done:
   the owner's run of `scene.exe` in the Windows virtual machine (the artifact contains it), and
   the check of a Khronos sample model with `--scene`, which needs a file the repository does not
