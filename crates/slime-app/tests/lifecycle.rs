@@ -62,7 +62,15 @@ impl App for Recorder {
     }
 }
 
+/// Sends the engine's log to the test harness, which shows it only for a failing test, instead of
+/// the real standard error, which a `SLIME_LOG=trace` left in the shell would flood. `run` keeps
+/// the subscriber that exists.
+fn quiet_logs() {
+    let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+}
+
 fn config(frame_limit: Option<u64>) -> AppConfig {
+    quiet_logs();
     AppConfig {
         frame_limit,
         fixed_step: STEP,
