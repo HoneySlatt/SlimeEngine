@@ -96,7 +96,9 @@ fn main() -> Result<(), GfxError> {
   dropped.
 - `Gpu::render(target, clear, record)` clears a target to a color, lets `record` draw into it
   through a `RenderPass` (`set_pipeline`, `set_vertex_buffer`, `draw`), and sends the work to the
-  GPU.
+  GPU. The pass is named after the target's label in capture tools, and
+  `RenderPass::debug_group(label, record)` names a group of commands inside it. Labels and groups
+  reach the driver in debug builds, or with `WGPU_DEBUG=1`.
 - `Gpu::read_render_target(target)` waits for the GPU and copies a target into an `Image`: RGBA
   bytes, rows from top to bottom, whatever the byte order of the target's format.
 - `Gpu::new_for_window(window, width, height, present_mode)` opens the most capable GPU that can
@@ -105,10 +107,10 @@ fn main() -> Result<(), GfxError> {
   - `Surface::format()` is the format of the window's images, the first 8-bit sRGB format the
     window offers; pipelines that draw into the window are created for it.
   - `Surface::resize(width, height)` follows the window's size.
-  - `Surface::acquire()` returns the `SurfaceFrame` to draw the next frame into, or `None` when
-    the window cannot show a new image (a size of zero, an image not ready in time, an occluded or
-    lost surface, all handled). Draw into `SurfaceFrame::target()` with `Gpu::render`, then call
-    `SurfaceFrame::present()`. Window images cannot be read back.
+  - `Surface::acquire(label)` returns the `SurfaceFrame` to draw the next frame into, its target
+    named `label`, or `None` when the window cannot show a new image (a size of zero, an image not
+    ready in time, an occluded or lost surface, all handled). Draw into `SurfaceFrame::target()`
+    with `Gpu::render`, then call `SurfaceFrame::present()`. Window images cannot be read back.
 
   `PresentMode` says how the window shows the images (`docs/adr/0021-frame-pacing.md`): with
   `Mailbox`, the default, each image replaces the one waiting to be shown and presenting never

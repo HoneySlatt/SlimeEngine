@@ -52,6 +52,15 @@ impl RenderPass<'_> {
     pub fn draw(&mut self, vertices: Range<u32>) {
         self.pass.draw(vertices, 0..1);
     }
+
+    /// Groups the commands that `record` gives under `label`, for GPU capture tools such as
+    /// RenderDoc, which show the group as a named section of the pass. Groups can be nested. They
+    /// reach the driver when wgpu's debug labels are on: in debug builds, or with `WGPU_DEBUG=1`.
+    pub fn debug_group(&mut self, label: &str, record: impl FnOnce(&mut Self)) {
+        self.pass.push_debug_group(label);
+        record(self);
+        self.pass.pop_debug_group();
+    }
 }
 
 impl Gpu {

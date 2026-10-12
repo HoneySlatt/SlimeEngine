@@ -62,10 +62,12 @@ impl Triangle {
         Ok(Self { pipeline, vertices })
     }
 
-    /// Records the commands that draw the triangle.
+    /// Records the commands that draw the triangle, grouped under `triangle` for capture tools.
     pub fn draw(&self, pass: &mut RenderPass<'_>) {
-        pass.set_pipeline(&self.pipeline);
-        pass.set_vertex_buffer(0, &self.vertices);
-        pass.draw(0..3);
+        pass.debug_group("triangle", |pass| {
+            pass.set_pipeline(&self.pipeline);
+            pass.set_vertex_buffer(0, &self.vertices);
+            pass.draw(0..3);
+        });
     }
 }

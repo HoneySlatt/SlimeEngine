@@ -34,6 +34,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   takes `--present-mode`.
 - Profiling spans for the drawing part of a frame: `acquire`, `render` with `submit` inside, and
   `present`.
+- Names for GPU capture tools such as RenderDoc: `RenderPass::debug_group` names groups of
+  commands, and the window's image of each frame is named `window, frame <index>`.
 
 ### Changed
 

@@ -15,6 +15,9 @@ falls behind wall-clock time when a frame delta is limited, for example after a 
 **Definition of done.** The conditions a milestone must meet before it is reported as finished,
 listed in [`AGENTS.md`](../AGENTS.md#definition-of-done).
 
+**Debug group.** A named section of the commands of a render pass, shown by GPU capture tools such
+as RenderDoc (`RenderPass::debug_group`).
+
 **Device (GPU).** The engine's connection to an adapter: it creates GPU resources, and its
 *queue* receives the work to execute (`slime_gfx::Gpu`).
 

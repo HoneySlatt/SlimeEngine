@@ -85,7 +85,8 @@ frame                                span "frame", trace level
 ├── app.fixed_update(ctx, step)      n times, span "fixed_update"
 ├── app.update(ctx, &frame)          once, span "update"
 └── with a window:
-    ├── surface.acquire()            the window's image, or none: skip drawing; span "acquire"
+    ├── surface.acquire(label)       the window's image, named "window, frame <index>", or
+    │                                none: skip drawing; span "acquire"
     ├── app.render(ctx, target)      draws into the image; span "render"
     └── image.present()              hands it to the window; span "present"
 ```
@@ -202,6 +203,11 @@ With Mailbox, the default, presenting never waits, and the frame scheduler alone
 whether the window is visible or not; windows that do not offer it fall back to FIFO, with which
 presenting can block a frame. The measurements behind this choice are in
 [`PLAN.md`](PLAN.md#m24--frame-pacing).
+
+In GPU capture tools such as RenderDoc, each render pass is named after its target, so the window's
+pass of frame 42 appears as `window, frame 42`, and `RenderPass::debug_group` names groups of
+commands inside it; the samples' triangle is drawn in a group named `triangle`. Debug builds pass
+these names to the driver ([ADR-0016](adr/0016-gpu-layer-with-wgpu.md)).
 
 ### Termination signals
 

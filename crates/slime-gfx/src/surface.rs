@@ -156,7 +156,9 @@ impl Surface {
     }
 
     /// The image to draw the next frame into, or `None` when the window cannot show a new image
-    /// now; the frame is then not drawn, and the next call tries again.
+    /// now; the frame is then not drawn, and the next call tries again. `label` names the image's
+    /// target in error messages and in GPU capture tools, where it also names the render passes
+    /// drawn into it; the engine passes `window, frame <index>`.
     ///
     /// It returns `None` while the window has a size of zero, when the next image is not ready
     /// within wgpu's timeout (one second), while the window is occluded (on platforms that report
@@ -166,7 +168,7 @@ impl Surface {
     /// It can block until an image is free. With [`PresentMode::Fifo`], it does in step with the
     /// display; with [`PresentMode::Mailbox`], it was measured not to (on niri with RADV, and in a
     /// headless Weston with lavapipe).
-    pub fn acquire(&mut self) -> Option<SurfaceFrame> {
+    pub fn acquire(&mut self, label: &str) -> Option<SurfaceFrame> {
         if self.config.width == 0 || self.config.height == 0 {
             return None;
         }
@@ -211,7 +213,7 @@ impl Surface {
                 return None;
             }
         };
-        let target = RenderTarget::new(texture.texture.clone(), "window", self.format);
+        let target = RenderTarget::new(texture.texture.clone(), label, self.format);
         Some(SurfaceFrame {
             texture,
             target,

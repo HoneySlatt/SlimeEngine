@@ -339,7 +339,7 @@ impl Frames {
         }
         let image = surface.and_then(|surface| {
             let _span = tracing::trace_span!("acquire").entered();
-            surface.acquire()
+            surface.acquire(&format!("window, frame {}", frame.index()))
         });
         if let Some(image) = image {
             {
