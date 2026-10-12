@@ -15,8 +15,9 @@ regressions late, if at all.
 `scripts/check.sh`, which CI runs, starts [Weston](https://gitlab.freedesktop.org/wayland/weston)
 with its headless backend (a Wayland compositor without screen, input devices or GPU) in a private
 runtime directory, and runs the `window` example inside it for 120 frames. The check passes if the
-example ends by itself at its frame limit with exit code 0. Weston is provided by the Nix
-development shell.
+example exits with code 0. It exits with an error code when it cannot connect, create its window
+or draw into it; nothing stops it before its frame limit, since the compositor has no input and
+never asks to close the window. Weston is provided by the Nix development shell.
 
 This checks that the engine connects to a Wayland compositor, creates a window, that the example
 can present a CPU buffer in it, that frames run and that the run ends cleanly. It does not check

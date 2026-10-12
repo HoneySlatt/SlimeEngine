@@ -31,6 +31,9 @@ type Surface = softbuffer::Surface<Window, Window>;
 struct WindowExample {
     surface: Option<Surface>,
     needs_redraw: bool,
+    /// Set when drawing failed. The run then stops and the program exits with an error code, so
+    /// that the automated checks notice.
+    failed: bool,
 }
 
 impl WindowExample {
@@ -64,6 +67,7 @@ impl App for WindowExample {
             }
             Err(error) => {
                 tracing::error!(%error, "cannot create the drawing surface");
+                self.failed = true;
                 ctx.request_exit();
             }
         }
@@ -92,6 +96,7 @@ impl App for WindowExample {
         self.needs_redraw = false;
         if let Err(error) = self.redraw() {
             tracing::error!(%error, "cannot draw the window");
+            self.failed = true;
             ctx.request_exit();
         }
     }
@@ -126,7 +131,9 @@ fn main() -> ExitCode {
         frame_limit: options.frame_limit,
         ..AppConfig::default()
     };
-    match slime_app::run(&mut WindowExample::default(), &config) {
+    let mut example = WindowExample::default();
+    match slime_app::run(&mut example, &config) {
+        Ok(()) if example.failed => ExitCode::FAILURE,
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             tracing::error!("run failed: {}", error_chain(&error));
