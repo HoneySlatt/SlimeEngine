@@ -13,7 +13,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 2 — GPU layer → 0.0.2
-- Milestone M2.0 — Windows in CI
+- Milestone M2.1 — GPU device without a window
 - Left over from Stage 1: the `v0.0.1` tag, which waits for a check by hand of keyboard and mouse
   input (see [Releasing 0.0.1](#releasing-001)).
 
@@ -21,8 +21,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 
 | Milestone | Goal | Status |
 |---|---|---|
-| [M2.0](#m20--windows-in-ci) | Windows in CI | In progress |
-| [M2.1](#m21--gpu-device-without-a-window) | GPU device without a window | Planned |
+| [M2.0](#m20--windows-in-ci) | Windows in CI | Done, except the check by hand in the Windows virtual machine (see [Known debt](#known-debt)) |
+| [M2.1](#m21--gpu-device-without-a-window) | GPU device without a window | In progress |
 | [M2.2](#m22--offscreen-triangle-and-reference-image) | Offscreen triangle and reference image | Planned |
 | [M2.3](#m23--the-triangle-in-the-window) | The triangle in the window | Planned |
 | [M2.4](#m24--frame-pacing) | Frame pacing | Planned |
@@ -184,6 +184,12 @@ of this file and in the commits that implemented it.
   `cargo run --example window`, type, click and scroll, and read the log. On a French AZERTY
   layout, the first letter key of the top row (labelled A) must log `physical: KeyQ` and
   `logical: Character("a")`.
+- **The examples were not run by hand on Windows yet.** CI builds and tests them on Windows, but
+  only a person can check a window there. To do: download the artifact `slime-examples-windows`
+  of the latest CI run (on GitHub, or with `gh run download -n slime-examples-windows`), then in
+  the Windows virtual machine run `window.exe` from a terminal: the window appears, resizes,
+  closes cleanly with Escape or its close button, and logs keys (including on an AZERTY layout),
+  clicks and scrolling; Ctrl+C in the terminal also ends it cleanly.
 - **Input not reported yet:** the state of the modifier keys as a whole, input-method text,
   touch, touchpad gestures, gamepads, dropped files.
 - **The interpolation factor is not passed to applications.** `FixedStep::alpha` computes it, but
