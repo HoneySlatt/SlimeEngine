@@ -1,4 +1,6 @@
-//! Tests of the application lifecycle driven by `slime_app::run` in headless mode.
+//! Tests of the application lifecycle driven by `slime_app::run` in headless mode. The windowed
+//! lifecycle is checked by running the `window` example in a headless compositor
+//! (`scripts/check.sh`) and by `windowed_errors.rs`.
 
 use std::time::Duration;
 

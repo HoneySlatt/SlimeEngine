@@ -17,3 +17,8 @@ slime-platform.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+
+# Runs on the main thread, which the windowing library requires: see the test's module comment.
+[[test]]
+name = "windowed_errors"
+harness = false
