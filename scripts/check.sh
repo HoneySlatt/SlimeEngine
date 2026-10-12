@@ -12,6 +12,9 @@ cargo fmt --all --check
 step "Clippy"
 cargo clippy --workspace --all-targets --locked -- -D warnings
 
+step "Clippy for Windows (compiles the Windows code paths without a Windows machine)"
+cargo clippy --workspace --all-targets --locked --target x86_64-pc-windows-msvc -- -D warnings
+
 step "Build"
 cargo build --workspace --all-targets --locked
 

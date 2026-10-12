@@ -5,4 +5,7 @@
 [toolchain]
 channel = "1.99.0"
 components = ["clippy", "rustfmt", "rust-src", "rust-analyzer"]
+# The Windows standard library, so that Linux checks also compile the code for Windows
+# (ADR-0015). On Windows, it is the native target.
+targets = ["x86_64-pc-windows-msvc"]
 profile = "minimal"

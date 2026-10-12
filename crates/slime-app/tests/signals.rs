@@ -4,6 +4,10 @@
 //! process, restricted to that one test. The child runs a headless application that prints
 //! `ready` when it starts and `shutdown` when it stops; the parent sends it signals with the
 //! `kill` command and checks how it ended.
+//!
+//! Unix only: Windows has no signals to send, and a console Ctrl+C cannot be sent to a single
+//! child process from a test. On Windows, Ctrl+C is checked by hand.
+#![cfg(unix)]
 
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, ExitStatus, Stdio};
