@@ -17,7 +17,7 @@ it is built this way.
 │   └── slime-platform/  window, its events and input
 ├── deny.toml            dependency license, advisory and source rules
 ├── docs/                roadmap, plan, decisions (adr/), glossary, dependencies, this file
-├── examples/            runnable examples, one per feature (package `slime-examples`)
+├── examples/            runnable examples, one per feature, with their tests (`slime-examples`)
 ├── flake.nix            Nix development shell
 ├── rust-toolchain.toml  pinned Rust toolchain
 ├── scripts/check.sh     every automated check, as CI runs them
@@ -34,18 +34,20 @@ is created only when code needs it.
 |---|---|---|---|
 | [`slime-platform`](../crates/slime-platform/README.md) | The window, its events and keyboard and mouse input; the only crate that uses the windowing library (winit) | `winit`, `raw-window-handle`, `thiserror`, `tracing` | One window; window, keyboard and mouse events |
 | [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `slime-platform`, `ctrlc`, `tracing`, `tracing-subscriber` | Headless and windowed runs work |
-| [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu | `wgpu`, `pollster`, `thiserror`, `tracing` | Opens a GPU device without a window; nothing renders yet, and no other crate uses it yet |
-| [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-platform`, `softbuffer`, `tracing` | `hello`, `headless`, `window` |
+| [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu | `wgpu`, `pollster`, `thiserror`, `tracing` | Opens a GPU device, draws into offscreen images and reads them back; no other engine crate uses it yet |
+| [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-gfx`, `slime-platform`, `png`, `softbuffer`, `tracing` | `hello`, `headless`, `window`, `offscreen`; the reference image test |
 
 ## Dependency rules
 
 ```text
 slime-examples ──▶ slime-app ──▶ slime-platform ──▶ winit
-       │                               ▲
-       └───────────────────────────────┘
-
-slime-gfx ──▶ wgpu        (used by no engine crate yet; slime-app will drive it)
+    │    │                             ▲
+    │    └─────────────────────────────┘
+    └──▶ slime-gfx ──▶ wgpu
 ```
+
+No engine crate uses `slime-gfx` yet: the examples call it directly, and `slime-app` will drive it
+once frames are drawn in the window.
 
 - Dependencies between crates point one way: `slime-app` depends on `slime-platform`, never the
   reverse.
@@ -137,6 +139,31 @@ device and queue ([`crates/slime-gfx/src/gpu.rs`](../crates/slime-gfx/src/gpu.rs
 lavapipe on Linux when `VK_DRIVER_FILES` points at it, WARP on Windows. Headless runs never open
 the GPU.
 
+### Rendering offscreen
+
+Drawing into an image without a window, as the `offscreen` example and the reference image test
+do with the triangle of [`examples/common/triangle.rs`](../examples/common/triangle.rs):
+
+```text
+gpu = Gpu::new()
+├── create_render_target(label, width, height, format)   the image to draw into
+├── create_shader_module(label, wgsl)                    rejected → GfxError::Shader
+├── create_render_pipeline(&descriptor)                  rejected → GfxError::Pipeline
+├── create_vertex_buffer(label, bytes)
+├── render(&target, clear color, |pass| ...)             one command encoder and render pass;
+│                                                        the closure sets the pipeline and the
+│                                                        vertex buffer and draws; then submitted
+└── read_render_target(&target)                          copy into a buffer, wait for the GPU,
+                                                         map it → Image (RGBA, top row first)
+```
+
+Each GPU object is an engine-owned type holding its wgpu object
+([ADR-0017](adr/0017-gpu-resource-types.md)). Shader modules and pipelines are created inside a
+wgpu error scope, so that a rejection comes back as an error with wgpu's message; any other wgpu
+error is a bug and panics ([ADR-0016](adr/0016-gpu-layer-with-wgpu.md)). The test
+[`examples/tests/offscreen.rs`](../examples/tests/offscreen.rs) compares the image with a
+reference PNG within a tolerance ([ADR-0018](adr/0018-reference-image-tests.md)).
+
 ### Termination signals
 
 `run` installs, once per process, a handler for SIGINT (Ctrl+C), SIGTERM and SIGHUP
@@ -171,6 +198,8 @@ The engine targets Linux (`x86_64-unknown-linux-gnu`) and Windows (`x86_64-pc-wi
   (`backend_name` in `event_loop.rs`).
 - `ctrlc` hides signals (Unix) and console events (Windows); `crates/slime-app/src/signal.rs`
   describes how each platform behaves.
+- wgpu hides the graphics APIs; `slime-gfx` only chooses which one to ask for on each platform
+  (`DEFAULT_BACKENDS` in `crates/slime-gfx/src/gpu.rs`).
 - Tests that cannot run on a platform are compiled out with `#[cfg]`, and their file says why: the
   signal tests run on Unix only.
 

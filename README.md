@@ -11,7 +11,8 @@ every check, locally and in CI. Applications run headless or with a window (Wayl
 receives keyboard and mouse input, with a fixed-step main loop, logging, panic reporting and a
 clean shutdown on Ctrl+C. The input translation is tested, but key presses, mouse buttons and
 scrolling still have to be checked by hand. Stage 2, the GPU layer, is in progress: the engine
-opens a GPU device (Vulkan on Linux, Direct3D 12 on Windows), but renders nothing yet. Version
+opens a GPU device (Vulkan on Linux, Direct3D 12 on Windows) and renders into offscreen images,
+checked against a reference image, but does not draw into the window yet. Version
 0.0.1 will be tagged once input has been checked; [`docs/PLAN.md`](docs/PLAN.md) lists what
 remains and the known debt.
 

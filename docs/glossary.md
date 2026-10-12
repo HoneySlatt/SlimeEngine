@@ -41,9 +41,16 @@ Linux) and Direct3D 12 (on Windows). wgpu translates the engine's calls into one
 **Headless.** Running the engine without a window, renderer or audio output. It is a normal
 configuration, used by automated tests and, later, by dedicated servers.
 
+**Image test.** A test that renders offscreen and compares the result with a *reference image*,
+pixel by pixel, within a tolerance that absorbs how drivers round colors
+([ADR-0018](adr/0018-reference-image-tests.md)).
+
 **Interpolation factor.** The fraction of a fixed step accumulated but not yet run
 (`FixedStep::alpha`), between 0 and 1. Used to draw a state between the last two fixed steps.
 `run` does not pass it to applications yet.
+
+**Label (GPU object).** The name given to a GPU object when it is created, required by every
+creation method of `slime_gfx::Gpu`. Error messages and GPU capture tools show it.
 
 **lavapipe.** Mesa's Vulkan driver that renders on the CPU. The checks and CI use it on Linux, so
 that GPU tests give the same results on every machine, including machines without a GPU.
@@ -56,12 +63,22 @@ the logical key `"a"`. Suits shortcuts and text. See also *physical key*.
 how to test it in [`docs/PLAN.md`](PLAN.md). Milestones are numbered `M<stage>.<n>`, for example
 M1.3.
 
+**Offscreen rendering.** Drawing into an image that no window shows, a *render target*, for
+example to read it back to the CPU. Image tests render this way, without a windowing system.
+
 **Owner.** The person who validates the project's direction and its architecture decisions.
 
 **Physical key.** The position of a key on the keyboard, whatever the layout
 (`slime_platform::KeyCode`), named after the character it produces on a US keyboard: the first
 letter key of the top row is `KeyQ` on every layout, whether it is labelled Q (QWERTY) or A
 (AZERTY). Suits movement keys. See also *logical key*.
+
+**Reference image.** A PNG file stored in the repository that an *image test* compares its render
+with. The references are rendered with lavapipe and rendered again only after a deliberate change
+of what the test draws.
+
+**Render target.** An image the GPU draws into, which can be read back to the CPU
+(`slime_gfx::RenderTarget`).
 
 **Sample.** The example that demonstrates the exit criterion of a stage. Every stage ends with
 one.

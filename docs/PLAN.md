@@ -53,7 +53,8 @@ it:
 - Image tests: reference PNG images in the repository, produced with lavapipe, compared with a
   tolerance; CI uses lavapipe on Linux and WARP on Windows.
 - Dependencies: `wgpu` 30 (Vulkan on Linux, Direct3D 12 on Windows, WGSL shaders), `pollster`,
-  `bytemuck`, `png`. `softbuffer` is removed. Windows builds use the MSVC toolchain.
+  `png`. `softbuffer` is removed. Windows builds use the MSVC toolchain. (`bytemuck`, also planned,
+  proved unnecessary in M2.2.)
 
 ### M2.0 — Windows in CI
 
@@ -96,7 +97,9 @@ it:
   from source text with readable errors, a minimal pipeline and render pass, reading the image back
   to the CPU, a comparison with tolerance, a reference image produced with lavapipe, a label
   required on every resource. The `offscreen` example writes the triangle to a PNG file. ADRs: GPU
-  resource types; image tests. Dependencies: `bytemuck`, `png`.
+  resource types; image tests. Dependency: `png`. `bytemuck` was planned too, but vertex data is
+  turned into bytes with the standard library (`f32::to_le_bytes`) as long as there are no vertex
+  structures (ADR-0017).
 - **Done when.** The image test passes on lavapipe, WARP and the owner's GPU (or uses one
   reference per driver if no tolerance covers all three, as the ADR then records); a deliberate
   colour change makes it fail; a WGSL error gives a readable message; a resource's label appears in

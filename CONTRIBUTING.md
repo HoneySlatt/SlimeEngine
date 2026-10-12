@@ -77,6 +77,16 @@ The GPU layer uses Vulkan on Linux and Direct3D 12 on Windows
 - `WGPU_BACKEND` chooses another graphics API that the build supports (`WGPU_BACKEND=vulkan` on
   Windows), and `WGPU_VALIDATION=1` turns on the validation layers of Vulkan or Direct3D 12, when
   they are installed.
+- Image tests compare a render with a reference image stored in `examples/tests/reference/`,
+  within a tolerance ([ADR-0018](docs/adr/0018-reference-image-tests.md)). When one fails, it
+  prints the path of the image it rendered; compare the two by eye. If your change alters what a
+  test draws on purpose, render the reference again on lavapipe, look at the new image, and commit
+  it with the change:
+
+  ```sh
+  SLIME_UPDATE_REFERENCE_IMAGES=1 VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+      cargo test -p slime-examples --test offscreen
+  ```
 
 ## Checks
 

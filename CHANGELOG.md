@@ -14,6 +14,19 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - `slime-gfx`, the GPU layer: opens a GPU device without a window, with Vulkan on Linux and
   Direct3D 12 on Windows; the checks run its tests on lavapipe (Linux) and WARP (Windows)
   ([ADR-0016](docs/adr/0016-gpu-layer-with-wgpu.md)).
+- Offscreen rendering in `slime-gfx`: render targets, vertex buffers, WGSL shader modules and
+  render pipelines as engine-owned types with a label each, a render pass, and reading an image
+  back to the CPU. A shader or pipeline that wgpu rejects is returned as an error with the
+  compiler's message ([ADR-0017](docs/adr/0017-gpu-resource-types.md)).
+- The `offscreen` example, which writes a triangle rendered without a window to a PNG file, and an
+  image test that compares the same render with a reference image, within a tolerance, on
+  lavapipe, WARP and hardware GPUs ([ADR-0018](docs/adr/0018-reference-image-tests.md)).
+
+### Changed
+
+- The log filter used when `SLIME_LOG` is unset is now `slime_app::DEFAULT_LOG_FILTER`: `info` as
+  before, except for wgpu-hal's details about the GPU and the Vulkan loader's messages about
+  drivers, whose errors still appear ([ADR-0019](docs/adr/0019-default-log-filter.md)).
 
 ## [0.0.1] - 2026-10-12
 
