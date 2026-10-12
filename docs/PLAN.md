@@ -16,6 +16,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   the next stage is planned.
 - Next: planning Stage 3a with the owner (see [`ROADMAP.md`](ROADMAP.md)). No code is written
   for it before its plan is validated.
+- A stabilization pass on 2026-10-12 corrected what an audit of 0.0.2 found: the corrections are
+  listed in [`CHANGELOG.md`](../CHANGELOG.md) under *Unreleased*, and what was found without being
+  corrected is in [Known debt](#known-debt).
 
 ## Status
 
@@ -241,20 +244,28 @@ of this file and in the commits that implemented it.
   reconsider when a renderer draws real scenes.
 - **Without Mailbox, presenting can still stall the loop.** Windows that do not offer it, and
   applications that choose `PresentMode::Fifo`, wait for the display: one frame per second for a
-  hidden window on niri, about 0.8 s for one image in three in a headless Weston with lavapipe.
-- **A hidden window keeps drawing** at the scheduled rate (3 % of one CPU core on the development
-  machine): the engine cannot tell on Wayland whether its window is visible.
+  hidden window on niri. In a headless Weston with lavapipe, `acquire` waits for Weston's frame
+  callbacks for a time that depends on the machine's load: 120 frames of the `window` example took
+  15 s on 2026-10-12 (release build, waits of 130 ms on average), 9 s and 25 s in other
+  measurements the same day, against 2 s with Mailbox.
+- **A hidden window keeps drawing** at the scheduled rate (2 to 3 % of one CPU core on the
+  development machine): the engine cannot tell on Wayland whether its window is visible. winit
+  reports occlusion on X11, which the engine ignores: under a compositing manager, Xwayland
+  included, the X server reports windows as visible anyway.
 - **wgpu's errors panic, in release builds too** (ADR-0016): a use of wgpu that it rejects is
   treated as a bug. Before games ship, logging the error and dropping the frame is to be
   considered. Running out of GPU memory panics as well on the paths where wgpu does not treat it as
-  the loss of the device (ADR-0022).
+  the loss of the device (ADR-0022). The engine avoids the rejections that the environment can
+  cause: a window larger than the device's largest image is drawn at that size (`Surface::resize`),
+  and a shader or pipeline that the driver rejects is returned as an error.
 - **A lost GPU device is not replaced** (ADR-0022): the run stops with an error, and since winit
   allows one event loop per process, carrying on means starting the process again.
 - **Captures in RenderDoc were not tried on Windows** (Direct3D 12).
-- **Frames pause on Windows while the user moves the window**, since no redraw arrives during the
-  system's move loop (ADR-0020; measured in M2.4). The simulation stops for as long as the move
-  lasts. Keeping frames going would mean asking for redraws from inside each frame and waiting there
-  for the schedule.
+- **Frames pause on Windows while the user moves the window, holds its title bar or a border, or
+  opens the system menu**: the system then runs a loop of its own, in which no redraw arrives and
+  the engine's loop does not wake, so frames and the check for termination signals pause until it
+  ends (ADR-0020; the move was measured in M2.4). Keeping frames going would mean asking for
+  redraws from inside each frame and waiting there for the schedule.
 - **wgpu-hal logs an error when an adapter cannot present to the window**, even though the engine
   then uses another one: seen with RADV in a headless Weston, where only lavapipe can present.
 - **No title text in client-side decorations.** On compositors that do not draw decorations
@@ -267,9 +278,26 @@ of this file and in the commits that implemented it.
 - **The interpolation factor is not passed to applications.** `FixedStep::alpha` computes it, but
   `run` keeps its `FixedStep` private, so an application cannot interpolate between fixed steps
   yet. To expose when a renderer needs it.
+- **A compositor that stops answering blocks the engine.** Before the first frame, winit waits for
+  the window's first configuration without a timeout, so a termination signal is noticed only when
+  a second one ends the process; after `shutdown`, releasing the window or the surface can block
+  too (seen with a Weston stopped by SIGSTOP).
+- **A lost surface that cannot be created again** makes `Surface::acquire` log an error at every
+  frame while the run goes on without drawing; only a lost device stops the run (ADR-0022). Neither
+  loss can be caused on purpose.
+- **`GfxError::Wait` is never returned**: wgpu's indefinite wait reports no error that the engine
+  could map to it, and a loss that the wait is the first to find panics inside wgpu instead.
+- **On Direct3D 12, a covered window or a locked session was not measured.** In `acquire`, wgpu
+  waits on the swap chain's frame-latency object, up to one second, if the compositor stops taking
+  images; whether Windows does so for such windows is unknown.
+- **Client-side decorations run `dbus-send` twice when the window is created** (winit's
+  sctk-adwaita, on compositors that do not draw decorations), and log an `ERROR` from
+  `sctk_adwaita::config` under the default log filter when no session bus or settings portal
+  answers, although nothing timed out.
 
 ## Notes
 
-- CI build cache: not added yet. With wgpu, the Linux job takes about 5 minutes and the Windows
-  job about 8 (it compiles the dependencies three times: for clippy, for the tests, and in release
-  for the artifact), which is acceptable; a cache is to add if it grows much further.
+- CI build cache: not added yet. With wgpu, the Linux job takes about 2.5 minutes and the Windows
+  job about 5 (measured on the runs of 2026-10-12; it compiles the dependencies three times: for
+  clippy, for the tests, and in release for the artifact), which is acceptable; a cache is to add if
+  it grows much further.
