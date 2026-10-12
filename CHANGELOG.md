@@ -51,7 +51,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   instead of a `PlatformError`.
 - With a window, frames run on redraw requests: the engine asks for them at most
   `AppConfig::max_frame_rate` times per second, and the windowing system's own requests, during a
-  resize for example, run frames too.
+  resize for example, run frames too. In `slime-platform`, `Window::request_redraw` asks for one,
+  and `EventHandler` has a new required method, `redraw_requested`, through which the event loop
+  reports them.
 - The windowed check in a headless Weston draws with lavapipe.
 
 ### Removed

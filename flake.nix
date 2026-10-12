@@ -12,7 +12,8 @@
   outputs =
     { nixpkgs, rust-overlay, ... }:
     let
-      # Linux on x86_64 is the only platform the project builds and tests on for now.
+      # The development shell is for Linux on x86_64; on Windows, contributors use rustup
+      # (CONTRIBUTING.md), and CI builds and tests there without Nix.
       system = "x86_64-linux";
       pkgs = import nixpkgs {
         inherit system;

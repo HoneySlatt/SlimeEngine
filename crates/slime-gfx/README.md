@@ -7,7 +7,8 @@ drivers.
 
 Partial. It opens a GPU device, with or without a window, draws into offscreen images and reads
 them back, and draws into a window. It draws lists of triangles of one color format family
-(8-bit sRGB), without depth, blending, textures or uniform data yet (see `docs/PLAN.md`).
+(8-bit sRGB), without depth, blending, textures or uniform data yet: they come with the renderer
+of Stage 3 (`docs/ROADMAP.md`).
 
 ## Role
 

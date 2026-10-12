@@ -162,8 +162,10 @@ impl Surface {
     ///
     /// It returns `None` while the window has a size of zero, when the next image is not ready
     /// within wgpu's timeout (one second), while the window is occluded (on platforms that report
-    /// it), and after the surface was lost, in which case it is created again for the next call.
-    /// These cases are logged at the `debug` level, except the loss of the surface (`warn`).
+    /// it), when the surface is still outdated after being configured again, after the surface was
+    /// lost, in which case it is created again for the next call, and once the device is lost.
+    /// These cases are logged at the `debug` level, except a size of zero (not logged) and the loss
+    /// of the surface (`warn`).
     ///
     /// It can block until an image is free. With [`PresentMode::Fifo`], it does in step with the
     /// display; with [`PresentMode::Mailbox`], it was measured not to (on niri with RADV, and in a

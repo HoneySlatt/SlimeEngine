@@ -16,7 +16,8 @@ pub enum RunError {
     /// The window could not be opened, or its event loop failed.
     #[error("the window or its event loop failed")]
     Platform(#[from] PlatformError),
-    /// The GPU could not be opened to draw into the window.
+    /// The GPU could not be opened to draw into the window, or the GPU device was lost during the
+    /// run (`GfxError::DeviceLost`).
     #[error("cannot draw into the window")]
     Gfx(#[from] GfxError),
     /// The application could not start: [`App::init`](crate::App::init) returned this error.

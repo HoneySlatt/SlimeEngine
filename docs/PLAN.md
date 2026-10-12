@@ -44,7 +44,7 @@ it:
   acquires each frame's image, calls a new `App::render` after `update`, then presents. Headless
   runs create no GPU device.
 - Frames are driven by redraw requests, which keep arriving while Windows runs its modal loop
-  during an interactive resize or move.
+  during an interactive resize (not during a move: see [Known debt](#known-debt)).
 - Frame pacing is decided by measurement, possibly differently on each platform.
 - GPU object creation reports errors (shader and pipeline errors with the shader compiler's
   message); `App::init` can fail and `run` returns a `RunError`.
@@ -240,6 +240,13 @@ of this file and in the commits that implemented it.
   hidden window on niri, about 0.8 s for one image in three in a headless Weston with lavapipe.
 - **A hidden window keeps drawing** at the scheduled rate (3 % of one CPU core on the development
   machine): the engine cannot tell on Wayland whether its window is visible.
+- **wgpu's errors panic, in release builds too** (ADR-0016): a use of wgpu that it rejects is
+  treated as a bug. Before games ship, logging the error and dropping the frame is to be
+  considered. Running out of GPU memory panics as well on the paths where wgpu does not treat it as
+  the loss of the device (ADR-0022).
+- **A lost GPU device is not replaced** (ADR-0022): the run stops with an error, and since winit
+  allows one event loop per process, carrying on means starting the process again.
+- **Captures in RenderDoc were not tried on Windows** (Direct3D 12).
 - **Frames pause on Windows while the user moves the window**, since no redraw arrives during the
   system's move loop (ADR-0020; measured in M2.4). The simulation stops for as long as the move
   lasts. Keeping frames going would mean asking for redraws from inside each frame and waiting there

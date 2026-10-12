@@ -149,9 +149,10 @@ device and queue ([`crates/slime-gfx/src/gpu.rs`](../crates/slime-gfx/src/gpu.rs
 lavapipe on Linux when `VK_DRIVER_FILES` points at it, WARP on Windows. Headless runs never open
 the GPU.
 
-`slime_gfx::Gpu::new_for_window(window, width, height)` does the same for a window: it creates
-the window's surface from the window's `raw-window-handle` traits first, asks only for adapters
-that can present to it, and configures it in the first sRGB format the window offers
+`slime_gfx::Gpu::new_for_window(window, width, height, present_mode)` does the same for a window:
+it creates the window's surface from the window's `raw-window-handle` traits first, asks only for
+adapters that can present to it, and configures it in the first sRGB format the window offers and
+the requested present mode, FIFO when the window does not offer Mailbox
 ([`crates/slime-gfx/src/surface.rs`](../crates/slime-gfx/src/surface.rs)). The surface keeps the
 window alive, which is why the windowed driver releases it before the event loop closes its
 connection to the windowing system.
@@ -193,10 +194,11 @@ whether there is an image to draw:
 |---|---|
 | A new size (from `Event::Resized`) | `Surface::resize`; the surface is configured again before the next image |
 | A size of zero (minimized window) | No image; the frame runs without drawing |
-| Outdated configuration | Configured again, then one more try |
+| Outdated configuration | Configured again, then one more try; no image this frame if still outdated |
 | Suboptimal image | Drawn and presented, then configured again |
 | Image not ready in time, window occluded | No image this frame |
 | Surface lost | Created again from the window; no image this frame |
+| Device lost (see [Losing the GPU](#losing-the-gpu)) | No image; the run stops before the next frame |
 
 How the window shows the images is the *present mode* (`AppConfig::present_mode`, ADR-0021).
 With Mailbox, the default, presenting never waits, and the frame scheduler alone paces frames,

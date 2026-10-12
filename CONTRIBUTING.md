@@ -98,14 +98,16 @@ carries its label. To look at a frame of the `window` example in
 example under RenderDoc from inside `nix develop`:
 
 ```sh
-RENDERDOC=$(nix eval --raw --inputs-from . nixpkgs#renderdoc.outPath)
+cargo build --example window
+RENDERDOC=$(nix build --no-link --print-out-paths --inputs-from . nixpkgs#renderdoc)
 VK_ADD_IMPLICIT_LAYER_PATH=$RENDERDOC/share/vulkan/implicit_layer.d \
     $RENDERDOC/bin/renderdoccmd capture -w -c /tmp/window target/debug/examples/window
 ```
 
-`VK_ADD_IMPLICIT_LAYER_PATH` lets the Vulkan loader find RenderDoc's layer without registering it
-on the system. Then start `qrenderdoc` from a terminal outside `nix develop` (the shell's library
-path does not suit RenderDoc's interface), attach it to the running example (File, Attach to
+`nix build` fetches RenderDoc from the same nixpkgs as the development shell, and
+`VK_ADD_IMPLICIT_LAYER_PATH` lets the Vulkan loader find its layer without registering it on the
+system. Then start `$RENDERDOC/bin/qrenderdoc` from a terminal outside `nix develop` (the shell's
+library path does not suit RenderDoc's interface), attach it to the running example (File, Attach to
 Running Instance), and trigger a capture. Captures on Windows, through Direct3D 12, have not been
 tried yet.
 
@@ -129,8 +131,8 @@ Windows without a Windows machine.
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push to `main` and every
 pull request. A Linux job runs the same script; a Windows job runs clippy, the tests and the
-headless samples on Windows, and publishes the examples built for Windows as an artifact named
-`slime-examples-windows`, to run by hand on a Windows machine.
+headless samples on Windows, and publishes the `hello`, `headless` and `window` examples built for
+Windows as an artifact named `slime-examples-windows`, to run by hand on a Windows machine.
 [ADR-0007](docs/adr/0007-documentation-tooling-and-ci.md) and
 [ADR-0015](docs/adr/0015-platforms-and-ci.md) explain the setup.
 

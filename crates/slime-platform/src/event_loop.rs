@@ -56,10 +56,10 @@ pub enum LoopControl {
 /// Connects to the windowing system, creates a window, and runs the event loop until the
 /// handler returns [`LoopControl::Exit`].
 ///
-/// The windowing system is chosen from the environment, with no fallback from one to the other:
-/// Wayland if `WAYLAND_DISPLAY` or `WAYLAND_SOCKET` is set to a non-empty value, otherwise X11 if
-/// `DISPLAY` is. The windowing library allows one attempt per process: whether it succeeded or
-/// not, a second call returns [`PlatformError::SecondEventLoop`].
+/// On Linux, the windowing system is chosen from the environment, with no fallback from one to the
+/// other: Wayland if `WAYLAND_DISPLAY` or `WAYLAND_SOCKET` is set to a non-empty value, otherwise
+/// X11 if `DISPLAY` is. The windowing library allows one attempt per process: whether it succeeded
+/// or not, a second call returns [`PlatformError::SecondEventLoop`].
 ///
 /// # Errors
 ///

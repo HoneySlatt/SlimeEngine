@@ -7,12 +7,13 @@ games first, then open-world games, then large online worlds.
 ## Status
 
 Pre-alpha. Stage 0 (*Foundations*) and Stage 1 (*Core and platform*) are done and released as
-0.0.1 (git tag `v0.0.1`). Applications run headless or with a window (Wayland or X11) that
-receives keyboard and mouse input, with a fixed-step main loop, logging, panic reporting and a
-clean shutdown on Ctrl+C. Stage 2, the GPU layer, is in progress: the engine opens the GPU
-(Vulkan on Linux, Direct3D 12 on Windows), draws a triangle in the window and into offscreen
-images checked against a reference image; how frames are paced is not decided yet.
-[`docs/PLAN.md`](docs/PLAN.md) lists what remains and the known debt.
+0.0.1 (git tag `v0.0.1`). Applications run headless or with a window (Wayland or X11 on Linux,
+Win32 on Windows) that receives keyboard and mouse input, with a fixed-step main loop, logging,
+panic reporting and a clean shutdown on Ctrl+C. Stage 2, the GPU layer, is in progress: the
+engine opens the GPU (Vulkan on Linux, Direct3D 12 on Windows), draws a triangle in the window and
+into offscreen images checked against a reference image, paces frames with its own schedule and
+the Mailbox present mode by default, names its GPU work for capture tools, and stops cleanly when
+the GPU device is lost. [`docs/PLAN.md`](docs/PLAN.md) lists what remains and the known debt.
 
 ## Getting started
 
@@ -28,7 +29,8 @@ cargo run --example window   # the examples are listed in examples/README.md
 scripts/check.sh             # every check, exactly as CI runs them (Linux only)
 ```
 
-Each CI run on GitHub also publishes the examples built for Windows, to try without a toolchain.
+Each CI run on GitHub also publishes the `hello`, `headless` and `window` examples built for
+Windows, to try without a toolchain.
 
 ## Where to read next
 

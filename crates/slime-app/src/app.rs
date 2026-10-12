@@ -234,8 +234,9 @@ pub(crate) enum ExitReason {
 ///   event is passed to [`App::on_event`].
 ///
 /// Each frame is recorded as a `trace`-level profiling span named `frame`, containing one
-/// `fixed_update` span per fixed step, one `update` span and, when the frame is drawn, one
-/// `render` span.
+/// `fixed_update` span per fixed step, one `update` span and, with a window, an `acquire` span
+/// and, when the frame is drawn, a `render` span (containing `submit`, recorded by `slime-gfx`)
+/// and a `present` span.
 ///
 /// # Errors
 ///

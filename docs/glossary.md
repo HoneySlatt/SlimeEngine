@@ -12,11 +12,11 @@ software driver such as lavapipe or WARP. The engine opens one adapter's *device
 **Application time.** The sum of the deltas of all frames so far (`FrameTime::elapsed`). It
 falls behind wall-clock time when a frame delta is limited, for example after a pause.
 
-**Definition of done.** The conditions a milestone must meet before it is reported as finished,
-listed in [`AGENTS.md`](../AGENTS.md#definition-of-done).
-
 **Debug group.** A named section of the commands of a render pass, shown by GPU capture tools such
 as RenderDoc (`RenderPass::debug_group`).
+
+**Definition of done.** The conditions a milestone must meet before it is reported as finished,
+listed in [`AGENTS.md`](../AGENTS.md#definition-of-done).
 
 **Device (GPU).** The engine's connection to an adapter: it creates GPU resources, and its
 *queue* receives the work to execute (`slime_gfx::Gpu`). It is *lost* when the driver crashes or
@@ -37,9 +37,10 @@ the frame rate advances (`slime_app::time::FixedStep`). A frame runs zero or mor
 **Frame.** One iteration of the main loop. Its *delta* is the time it represents: the time since
 the previous frame, limited to a maximum (`slime_app::time::FrameClock`).
 
-**Frame limiter.** The part of the windowed driver that schedules frames and waits between them,
-so that the engine asks for at most `AppConfig::max_frame_rate` frames per second on average. With
-the default *present mode*, it alone paces the frames ([ADR-0021](adr/0021-frame-pacing.md)).
+**Frame scheduler (frame limiter).** The part of the windowed driver that schedules frames and
+waits between them, so that the engine asks for at most `AppConfig::max_frame_rate` frames per
+second on average. With the default *present mode*, it alone paces the frames
+([ADR-0021](adr/0021-frame-pacing.md), which calls it the timer, or the schedule).
 
 **Graphics API.** The interface between programs and GPU drivers: Vulkan (the engine's choice on
 Linux) and Direct3D 12 (on Windows). wgpu translates the engine's calls into one of them.
@@ -74,6 +75,11 @@ example to read it back to the CPU. Image tests render this way, without a windo
 
 **Owner.** The person who validates the project's direction and its architecture decisions.
 
+**Physical key.** The position of a key on the keyboard, whatever the layout
+(`slime_platform::KeyCode`), named after the character it produces on a US keyboard: the first
+letter key of the top row is `KeyQ` on every layout, whether it is labelled Q (QWERTY) or A
+(AZERTY). Suits movement keys. See also *logical key*.
+
 **Present (an image).** Hand a drawn image to the window, which shows it at one of the display's
 next refreshes, as the *present mode* says.
 
@@ -81,11 +87,6 @@ next refreshes, as the *present mode* says.
 *Mailbox*, the engine's default, each image replaces the one waiting to be shown and presenting
 never waits; with *FIFO*, every image is shown in order, one per refresh, and presenting waits
 while earlier images are still to be shown ([ADR-0021](adr/0021-frame-pacing.md)).
-
-**Physical key.** The position of a key on the keyboard, whatever the layout
-(`slime_platform::KeyCode`), named after the character it produces on a US keyboard: the first
-letter key of the top row is `KeyQ` on every layout, whether it is labelled Q (QWERTY) or A
-(AZERTY). Suits movement keys. See also *logical key*.
 
 **Redraw request.** A notice from the windowing system that the window should be drawn now:
 either the engine asked for it (`Window::request_redraw`), or the system did on its own, for

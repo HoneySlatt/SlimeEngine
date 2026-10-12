@@ -8,9 +8,9 @@ type Source = Box<dyn std::error::Error + Send + Sync>;
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum PlatformError {
-    /// No windowing system could be reached: no Wayland compositor or X server is running, or
-    /// the `WAYLAND_DISPLAY` and `DISPLAY` environment variables do not point to one.
-    #[error("cannot connect to a windowing system (Wayland or X11)")]
+    /// No windowing system could be reached. On Linux: no Wayland compositor or X server is
+    /// running, or the `WAYLAND_DISPLAY` and `DISPLAY` environment variables do not point to one.
+    #[error("cannot connect to the windowing system")]
     Connect(#[source] Source),
     /// An event loop was already requested in this process. The windowing library allows one
     /// attempt per process, even a failed one, so a process can run only one windowed
