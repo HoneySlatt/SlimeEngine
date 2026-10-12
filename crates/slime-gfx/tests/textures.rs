@@ -287,3 +287,29 @@ fn srgb_textures_are_decoded_and_linear_ones_are_read_as_they_are() {
         );
     }
 }
+
+#[test]
+fn minified_textures_are_read_from_their_smaller_levels() {
+    let setup = Setup::new();
+    // Black and white pixels alternating, in a linear format: every level but the first is grey,
+    // 128, which the sRGB target encodes as 188.
+    let mut pixels = Vec::new();
+    for index in 0..16 {
+        let value = if (index + index / 4) % 2 == 0 { 0 } else { 255 };
+        pixels.extend([value, value, value, 255]);
+    }
+    let texture = setup
+        .gpu
+        .create_texture("checker", 4, 4, TextureFormat::Rgba8Unorm, &pixels);
+    let sampler = setup.sampler(Filter::Linear, AddressMode::Repeat);
+    // The texture repeats eight times across the eight pixels of the target: each pixel covers
+    // four of its pixels in each direction, so the level of one pixel is read.
+    let image = setup.draw(&texture, &sampler, [8.0, 8.0]);
+    for position in [(0, 0), (4, 4), (7, 7)] {
+        let [red, ..] = pixel(&image, position);
+        assert!(
+            red.abs_diff(188) <= 2,
+            "{position:?}: expected grey, got {red}"
+        );
+    }
+}

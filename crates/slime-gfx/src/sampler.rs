@@ -19,6 +19,13 @@ impl Filter {
             Self::Linear => wgpu::FilterMode::Linear,
         }
     }
+
+    fn to_wgpu_mipmap(self) -> wgpu::MipmapFilterMode {
+        match self {
+            Self::Nearest => wgpu::MipmapFilterMode::Nearest,
+            Self::Linear => wgpu::MipmapFilterMode::Linear,
+        }
+    }
 }
 
 /// What a texture coordinate outside 0 to 1 reads.
@@ -50,7 +57,9 @@ pub struct SamplerDescriptor {
     /// The filter when the texture is magnified: one of its pixels covers several of the target.
     pub mag_filter: Filter,
     /// The filter when the texture is minified: several of its pixels fall into one of the
-    /// target. Without mipmaps, only the nearest ones are read either way.
+    /// target. The level of detail that fits is read, between its pixels with this filter, and
+    /// blended with the next level the same way: linear filtering blends the two nearest levels,
+    /// nearest filtering reads one.
     pub min_filter: Filter,
     /// What a horizontal coordinate (`u`) outside 0 to 1 reads.
     pub address_u: AddressMode,
@@ -77,7 +86,7 @@ impl Gpu {
             address_mode_w: wgpu::AddressMode::ClampToEdge,
             mag_filter: descriptor.mag_filter.to_wgpu(),
             min_filter: descriptor.min_filter.to_wgpu(),
-            mipmap_filter: wgpu::MipmapFilterMode::Nearest,
+            mipmap_filter: descriptor.min_filter.to_wgpu_mipmap(),
             ..wgpu::SamplerDescriptor::default()
         });
         Sampler { sampler }

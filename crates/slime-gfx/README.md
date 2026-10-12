@@ -8,7 +8,7 @@ drivers.
 Partial. It opens a GPU device, with or without a window, draws into offscreen images and reads
 them back, and draws into a window. It draws lists of triangles from vertex and index buffers,
 reading uniform buffers, textures and samplers through bind groups, with a depth test and face
-culling, into 8-bit sRGB or linear images. Blending and mipmaps are not there yet.
+culling, into 8-bit sRGB or linear images. Blending is not there yet.
 
 ## Role
 
@@ -97,9 +97,11 @@ fn main() -> Result<(), GfxError> {
     orders, or `Rgba8Unorm`, linear.
   - `Texture`: a two-dimensional image that shaders sample (`create_texture`, from its pixels in
     the byte order of its `TextureFormat`; sRGB formats are decoded to linear values when read,
-    `Rgba8Unorm` is read as it is), without mipmaps; and `Sampler` (`create_sampler`, from a
-    `SamplerDescriptor`): how it is read, with nearest or linear `Filter`s and the `AddressMode`
-    beyond its edges (repeat, mirror, clamp). Both are bound through bind groups.
+    `Rgba8Unorm` is read as it is), with mipmaps computed from its pixels when it is created, in
+    linear light for the sRGB formats; and `Sampler` (`create_sampler`, from a
+    `SamplerDescriptor`): how it is read, with nearest or linear `Filter`s, between the pixels of
+    the level of detail that fits and between two levels, and the `AddressMode` beyond its edges
+    (repeat, mirror, clamp). Both are bound through bind groups.
   - `VertexBuffer`: vertex data, given as bytes (`create_vertex_buffer`): at least one byte, at
     most 256 MiB with the default limits.
   - `IndexBuffer`: 32-bit indices into a vertex buffer (`create_index_buffer`), for draws whose
