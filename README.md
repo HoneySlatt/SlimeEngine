@@ -30,8 +30,8 @@ cargo run --example window   # the examples are listed in examples/README.md
 scripts/check.sh             # every check, exactly as CI runs them (Linux only)
 ```
 
-Each CI run on GitHub also publishes the `hello`, `headless` and `window` examples built for
-Windows, to try without a toolchain.
+Each CI run on GitHub also publishes the `hello`, `headless`, `window` and `offscreen` examples
+built for Windows, to try without a toolchain.
 
 ## Where to read next
 

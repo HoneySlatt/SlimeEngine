@@ -8,6 +8,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- The Windows CI artifact also contains `offscreen.exe`, and the Windows job runs the release build
+  of the headless samples.
 - The `window` example exits with a failure when a run limited by `--frames` drew nothing, so
   that the windowed check in a headless Weston proves that frames are drawn, as ADR-0013 says.
 

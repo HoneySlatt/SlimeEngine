@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Runs every automated check of the definition of done (AGENTS.md). CI runs this script
-# unchanged, inside the Nix development shell: `nix develop -c scripts/check.sh`.
+# unchanged, inside the Nix development shell: `nix develop --no-update-lock-file -c scripts/check.sh`
+# (the flag makes an incomplete flake.lock an error instead of a silent update).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 # The Nix development shell sets this variable (flake.nix). Without the shell, the GPU tests and the

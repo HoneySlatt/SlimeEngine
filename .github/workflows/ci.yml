@@ -3,6 +3,11 @@
 # commit SHAs, with the release they correspond to in a comment.
 name: CI
 
+# A new push to the same branch supersedes the run in progress.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: [main]
@@ -20,7 +25,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
-      - run: nix develop --command scripts/check.sh
+      # Without the flag, an incomplete flake.lock would be completed with an unpinned revision.
+      - run: nix develop --no-update-lock-file --command scripts/check.sh
 
   # What can only be checked on Windows: running the build, the tests and the samples there. The
   # checks that do not depend on the platform (formatting, rustdoc, dependencies, links) and
@@ -46,6 +52,10 @@ jobs:
           cargo run --locked --example offscreen -- --output target/triangle.png
       - name: Build the examples for checks by hand
         run: cargo build --locked --release --examples
+      - name: Run the headless samples of the release build
+        run: |
+          target/release/examples/headless.exe --frames 600
+          target/release/examples/offscreen.exe --output target/triangle-release.png
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: slime-examples-windows
@@ -53,5 +63,6 @@ jobs:
             target/release/examples/hello.exe
             target/release/examples/headless.exe
             target/release/examples/window.exe
+            target/release/examples/offscreen.exe
           if-no-files-found: error
           retention-days: 14

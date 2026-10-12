@@ -131,8 +131,9 @@ Windows without a Windows machine.
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push to `main` and every
 pull request. A Linux job runs the same script; a Windows job runs clippy, the tests and the
-headless samples on Windows, and publishes the `hello`, `headless` and `window` examples built for
-Windows as an artifact named `slime-examples-windows`, to run by hand on a Windows machine.
+headless samples on Windows, runs the release build of the headless ones, and publishes the
+`hello`, `headless`, `window` and `offscreen` examples built for Windows as an artifact named
+`slime-examples-windows`, to run by hand on a Windows machine.
 [ADR-0007](docs/adr/0007-documentation-tooling-and-ci.md) and
 [ADR-0015](docs/adr/0015-platforms-and-ci.md) explain the setup.
 
