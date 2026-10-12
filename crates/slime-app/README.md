@@ -109,8 +109,9 @@ if let Err(error) = slime_app::run(&mut Game, &config) {
     rarely shows a hidden window.
   - It returns a `RunError`: `Init` when `init` fails, `Platform` when the window cannot be opened
     (for example without a display server) or its event loop fails, `Gfx` when no GPU can draw into
-    the window or when the GPU device is lost during the run. After a loss, the run stops like
-    after an exit request, `shutdown` included (`docs/adr/0022-losing-the-gpu-device.md`). Only
+    the window or when the GPU device or the window's surface is lost for good during the run. After
+    a loss, the run stops like after an exit request, `shutdown` included
+    (`docs/adr/0022-losing-the-gpu-device.md`, `docs/adr/0025-giving-up-a-lost-surface.md`). Only
     one windowed run, or attempt, is possible per process.
   - The signal handler replaces any other handler the process had for these signals, except one
     installed earlier through the `ctrlc` crate, which is kept.

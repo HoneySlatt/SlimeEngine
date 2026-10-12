@@ -101,7 +101,13 @@ impl<A: App> EventHandler for WindowedDriver<'_, A> {
     }
 
     fn redraw_requested(&mut self) {
-        if !self.started || self.stop.is_some() || self.frames.check_stop(&mut self.ctx).is_some() {
+        if !self.started
+            || self.stop.is_some()
+            || self
+                .frames
+                .check_stop(&mut self.ctx, self.surface.as_ref())
+                .is_some()
+        {
             return;
         }
         let now = Instant::now();
@@ -117,7 +123,7 @@ impl<A: App> EventHandler for WindowedDriver<'_, A> {
 
     fn about_to_wait(&mut self) -> LoopControl {
         if self.stop.is_none() {
-            self.stop = self.frames.check_stop(&mut self.ctx);
+            self.stop = self.frames.check_stop(&mut self.ctx, self.surface.as_ref());
         }
         if self.stop.is_some() {
             return LoopControl::Exit;
@@ -141,6 +147,9 @@ impl<A: App> EventHandler for WindowedDriver<'_, A> {
             self.app.shutdown(&mut self.ctx);
         }
         if let Some(Err(error)) = self.ctx.gpu().map(Gpu::check) {
+            self.error.get_or_insert(RunError::Gfx(error));
+        }
+        if let Some(Err(error)) = self.surface.as_ref().map(Surface::check) {
             self.error.get_or_insert(RunError::Gfx(error));
         }
         // The surface keeps the window alive: release it, the GPU and the window while the

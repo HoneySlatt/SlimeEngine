@@ -6,6 +6,12 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ## [Unreleased]
 
+### Added
+
+- `Surface::check` and `GfxError::SurfaceLost`: a window's surface that is lost for good (it cannot
+  be created again, or is lost again each time) stops the run like a lost device, instead of an
+  error logged at every frame while the run went on without drawing (ADR-0025).
+
 ### Changed
 
 - The default log filter also hides the error that winit's client-side decorations log when no

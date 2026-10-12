@@ -87,8 +87,9 @@ the ADR linking to it.
 | [0017](0017-gpu-resource-types.md) | GPU resource types | Accepted |
 | [0018](0018-reference-image-tests.md) | Reference image tests | Accepted |
 | [0019](0019-default-log-filter.md) | Default log filter | Accepted |
-| [0020](0020-rendering-in-the-main-loop.md) | Rendering in the main loop, and application errors | Accepted; amended by 0021, 0022 |
+| [0020](0020-rendering-in-the-main-loop.md) | Rendering in the main loop, and application errors | Accepted; amended by 0021, 0022, 0025 |
 | [0021](0021-frame-pacing.md) | Frame pacing | Accepted |
-| [0022](0022-losing-the-gpu-device.md) | Losing the GPU device | Accepted |
+| [0022](0022-losing-the-gpu-device.md) | Losing the GPU device | Accepted; amended by 0025 |
 | [0023](0023-dependency-checks-for-the-supported-targets.md) | Check the dependencies of the supported targets only | Accepted |
 | [0024](0024-windowed-lifecycle-check-in-weston.md) | Windowed lifecycle check in the headless compositor | Accepted |
+| [0025](0025-giving-up-a-lost-surface.md) | Giving up a window's surface that is lost for good | Accepted |

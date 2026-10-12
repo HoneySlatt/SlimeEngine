@@ -47,6 +47,13 @@ pub enum GfxError {
         /// wgpu's message.
         message: String,
     },
+    /// The window's surface was lost for good: after a loss, it could not be created again, or it
+    /// was lost again each time it was. Nothing can be drawn into the window any more.
+    #[error("the window's surface was lost for good: {message}")]
+    SurfaceLost {
+        /// Why: the error of creating it again, or the losses that followed.
+        message: String,
+    },
     /// Reading a render target back to the CPU failed.
     #[error("reading the render target `{label}` back failed")]
     Readback {

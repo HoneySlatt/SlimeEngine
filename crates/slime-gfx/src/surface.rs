@@ -33,6 +33,10 @@ pub enum PresentMode {
     Fifo,
 }
 
+/// Losses in a row after which the surface is given up: each loss creates the surface again, and
+/// one that is lost again at once every time will not come back.
+const MAX_LOSSES_IN_A_ROW: u32 = 3;
+
 /// The wgpu present mode for `requested`, among those the window offers. Every window offers
 /// FIFO.
 fn choose_present_mode(requested: PresentMode, offered: &[wgpu::PresentMode]) -> wgpu::PresentMode {
@@ -66,6 +70,11 @@ pub struct Surface {
     oversize: bool,
     /// Whether `config` must be applied before the next image is acquired.
     stale: bool,
+    /// How many times in a row the surface was lost, with no image acquired in between.
+    losses_in_a_row: u32,
+    /// Why the surface is lost for good, once it is: it could not be created again, or was lost
+    /// again each time it was.
+    lost: Option<String>,
 }
 
 impl Gpu {
@@ -151,6 +160,8 @@ impl Gpu {
             max_dimension: gpu.device.limits().max_texture_dimension_2d,
             oversize: false,
             stale: true,
+            losses_in_a_row: 0,
+            lost: None,
         };
         surface.resize(width, height);
         Ok((gpu, surface))
@@ -200,9 +211,10 @@ impl Surface {
     /// It returns `None` while the window has a size of zero, when the next image is not ready
     /// within wgpu's timeout (one second), while the window is occluded (on platforms that report
     /// it), when the surface is still outdated after being configured again, after the surface was
-    /// lost, in which case it is created again for the next call, and once the device is lost.
-    /// These cases are logged at the `debug` level, except a size of zero (not logged) and the loss
-    /// of the surface (`warn`).
+    /// lost, in which case it is created again for the next call, once the surface is lost for good
+    /// ([`check`](Self::check)), and once the device is lost. These cases are logged at the `debug`
+    /// level, except a size of zero and a surface lost for good (not logged again) and the loss of
+    /// the surface (`warn`).
     ///
     /// It can block until an image is free. With [`PresentMode::Fifo`], it does in step with the
     /// display; with [`PresentMode::Mailbox`], it was measured not to (on niri with RADV, and in a
@@ -213,7 +225,7 @@ impl Surface {
     /// If the [`SurfaceFrame`] of the previous call has neither been presented nor dropped: wgpu
     /// treats acquiring a second image as a misuse (ADR-0016).
     pub fn acquire(&mut self, label: &str) -> Option<SurfaceFrame> {
-        if self.config.width == 0 || self.config.height == 0 {
+        if self.lost.is_some() || self.config.width == 0 || self.config.height == 0 {
             return None;
         }
         if self.stale {
@@ -257,6 +269,7 @@ impl Surface {
                 return None;
             }
         };
+        self.losses_in_a_row = 0;
         let target = RenderTarget::new(texture.texture.clone(), label, self.format);
         Some(SurfaceFrame {
             texture,
@@ -265,20 +278,47 @@ impl Surface {
         })
     }
 
+    /// Whether the surface can still show images. It cannot once it is lost for good: after a loss,
+    /// it could not be created again, or it was lost again each time it was. [`acquire`](Self::acquire)
+    /// then returns `None`, and a run built on `slime-app` stops like after a lost device
+    /// (`docs/adr/0025-giving-up-a-lost-surface.md`).
+    ///
+    /// # Errors
+    ///
+    /// [`GfxError::SurfaceLost`] once the surface is lost for good, with the reason.
+    pub fn check(&self) -> Result<(), GfxError> {
+        match &self.lost {
+            Some(message) => Err(GfxError::SurfaceLost {
+                message: message.clone(),
+            }),
+            None => Ok(()),
+        }
+    }
+
+    /// Creates the surface again after a loss, or gives it up when that fails or when the losses
+    /// follow one another without an image in between: a surface lost at every frame would
+    /// otherwise be created again, with a warning, at every frame.
     fn recreate(&mut self) {
+        self.losses_in_a_row += 1;
+        if self.losses_in_a_row > MAX_LOSSES_IN_A_ROW {
+            self.give_up(format!(
+                "it was lost again {MAX_LOSSES_IN_A_ROW} times after being created again"
+            ));
+            return;
+        }
         match self.instance.create_surface(Arc::clone(&self.window)) {
             Ok(surface) => {
                 tracing::warn!("the window's surface was lost; it was created again");
                 self.surface = surface;
                 self.stale = true;
             }
-            Err(error) => {
-                tracing::error!(
-                    %error,
-                    "the window's surface was lost and cannot be created again"
-                );
-            }
+            Err(error) => self.give_up(format!("it cannot be created again: {error}")),
         }
+    }
+
+    fn give_up(&mut self, message: String) {
+        tracing::error!(%message, "the window's surface was lost for good");
+        self.lost = Some(message);
     }
 }
 

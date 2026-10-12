@@ -1,6 +1,6 @@
 # 0022. Losing the GPU device
 
-- Status: Accepted
+- Status: Accepted; amended by [0025](0025-giving-up-a-lost-surface.md) (surface lost for good)
 - Date: 2026-10-12
 
 ## Context

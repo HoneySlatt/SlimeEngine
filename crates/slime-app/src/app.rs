@@ -154,7 +154,8 @@ impl Context {
     }
 
     /// Whether the run is going to stop: the application requested an exit, the window was closed,
-    /// the process received a termination signal, or the GPU device was lost.
+    /// the process received a termination signal, the GPU device was lost, or the window's surface
+    /// was lost for good.
     pub fn exit_requested(&self) -> bool {
         self.exit.is_some()
     }
@@ -198,6 +199,7 @@ pub(crate) enum ExitReason {
     WindowClosed,
     Signal,
     DeviceLost,
+    SurfaceLost,
 }
 
 /// Runs `app` until it stops, then returns.
@@ -245,10 +247,12 @@ pub(crate) enum ExitReason {
 /// - With a window, [`RunError::Platform`]: no windowing system can be reached, the window cannot
 ///   be created, a windowed run was already attempted in this process (the windowing library
 ///   allows one attempt per process, even a failed one), or the event loop fails.
-/// - With a window, [`RunError::Gfx`]: no GPU can draw into the window, or the GPU device was
-///   lost during the run (`GfxError::DeviceLost`: the driver crashed or was reset, the GPU was
-///   removed, or it ran out of memory). After a loss, the run stops like after an exit request:
-///   the frame in progress finishes, without drawing, and `shutdown` is called.
+/// - With a window, [`RunError::Gfx`]: no GPU can draw into the window, the GPU device was lost
+///   during the run (`GfxError::DeviceLost`: the driver crashed or was reset, the GPU was removed,
+///   or it ran out of memory), or the window's surface was lost for good (`GfxError::SurfaceLost`:
+///   it could not be created again after a loss, or was lost again each time). After a loss, the
+///   run stops like after an exit request: the frame in progress finishes, without drawing, and
+///   `shutdown` is called.
 ///
 /// When the window or the GPU could not be opened, neither `init` nor `shutdown` is called.
 /// Headless runs fail only when `init` does.
@@ -275,7 +279,7 @@ fn run_headless(app: &mut impl App, config: &AppConfig) -> Result<(), RunError> 
     tracing::debug!(?config, "running headless");
     app.init(&mut ctx).map_err(RunError::Init)?;
     let reason = loop {
-        if let Some(reason) = frames.check_stop(&mut ctx) {
+        if let Some(reason) = frames.check_stop(&mut ctx, None) {
             break reason;
         }
         frames.run_one(app, &mut ctx, config.fixed_step, None);
@@ -309,20 +313,28 @@ impl Frames {
     }
 
     /// Why no further frame must run, if that is the case. A termination signal received since the
-    /// last check, or the loss of the GPU, is recorded in `ctx` first, so that the application sees
-    /// it as an exit request.
-    pub(crate) fn check_stop(&self, ctx: &mut Context) -> Option<&'static str> {
+    /// last check, or the loss of the GPU or of the window's `surface`, is recorded in `ctx` first,
+    /// so that the application sees it as an exit request.
+    pub(crate) fn check_stop(
+        &self,
+        ctx: &mut Context,
+        surface: Option<&Surface>,
+    ) -> Option<&'static str> {
         if signal::received() {
             ctx.exit_because(ExitReason::Signal);
         }
         if ctx.gpu().is_some_and(|gpu| gpu.check().is_err()) {
             ctx.exit_because(ExitReason::DeviceLost);
         }
+        if surface.is_some_and(|surface| surface.check().is_err()) {
+            ctx.exit_because(ExitReason::SurfaceLost);
+        }
         match ctx.exit {
             Some(ExitReason::Requested) => Some("the application requested an exit"),
             Some(ExitReason::WindowClosed) => Some("the window was closed"),
             Some(ExitReason::Signal) => Some("a termination signal was received"),
             Some(ExitReason::DeviceLost) => Some("the GPU device was lost"),
+            Some(ExitReason::SurfaceLost) => Some("the window's surface was lost"),
             None if self.limit.is_some_and(|limit| self.count >= limit) => {
                 Some("the frame limit was reached")
             }

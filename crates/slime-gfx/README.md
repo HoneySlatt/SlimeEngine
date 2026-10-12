@@ -118,8 +118,12 @@ fn main() -> Result<(), GfxError> {
     larger.
   - `Surface::acquire(label)` returns the `SurfaceFrame` to draw the next frame into, its target
     named `label`, or `None` when the window cannot show a new image (a size of zero, an image not
-    ready in time, an occluded or lost surface, all handled). Draw into `SurfaceFrame::target()`
-    with `Gpu::render`, then call `SurfaceFrame::present()`. Window images cannot be read back.
+    ready in time, an occluded surface, a lost surface, which is created again). Draw into
+    `SurfaceFrame::target()` with `Gpu::render`, then call `SurfaceFrame::present()`. Window images
+    cannot be read back.
+  - `Surface::check()` returns `GfxError::SurfaceLost` once the surface is lost for good: it could
+    not be created again, or was lost again each time it was; `acquire` then returns `None` without
+    logging, and a run built on `slime-app` stops (`docs/adr/0025-giving-up-a-lost-surface.md`).
 
   `PresentMode` says how the window shows the images (`docs/adr/0021-frame-pacing.md`): with
   `Mailbox`, the default, each image replaces the one waiting to be shown and presenting never

@@ -201,7 +201,7 @@ whether there is an image to draw:
 | Outdated configuration | Configured again, then one more try; no image this frame if still outdated |
 | Suboptimal image | Drawn and presented, then configured again |
 | Image not ready in time, window occluded | No image this frame |
-| Surface lost | Created again from the window; no image this frame |
+| Surface lost | Created again from the window; no image this frame. Lost for good (it cannot be created again, or is lost again each time): no image, and the run stops before the next frame, like after a lost device |
 | Device lost (see [Losing the GPU](#losing-the-gpu)) | No image; the run stops before the next frame |
 
 How the window shows the images is the *present mode* (`AppConfig::present_mode`, ADR-0021).
@@ -222,7 +222,10 @@ memory. `slime-gfx` records the loss in wgpu's device-lost callback, and from th
 handler logs wgpu's errors instead of panicking, since every use of the device fails. Before each
 frame, the windowed driver checks `Gpu::check()` with the other reasons to stop: after a loss, the
 run stops like after an exit request, and `run` returns `RunError::Gfx` with
-`GfxError::DeviceLost` ([ADR-0022](adr/0022-losing-the-gpu-device.md)).
+`GfxError::DeviceLost` ([ADR-0022](adr/0022-losing-the-gpu-device.md)). The window's surface can be
+lost for good as well, when it cannot be created again after a loss or is lost again each time it
+is: `Surface::check` reports it, and the run stops the same way with `GfxError::SurfaceLost`
+([ADR-0025](adr/0025-giving-up-a-lost-surface.md)).
 
 ### Termination signals
 

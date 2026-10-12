@@ -118,7 +118,9 @@ exit criterion. Stages are numbered from 0; a stage may be split (Stage 3a and 3
 
 **Surface.** The link between the GPU and a window: the images the window shows. Each frame, the
 engine *acquires* one, the application draws into it, and the engine *presents* it
-(`slime_gfx::Surface`).
+(`slime_gfx::Surface`). The graphics API can report it *lost*: it is then created again, and given
+up, which stops the run, when that fails or when it is lost again each time
+([ADR-0025](adr/0025-giving-up-a-lost-surface.md)).
 
 **Termination signal.** A request from outside the process to stop it: SIGINT (Ctrl+C in a
 terminal), SIGTERM (a service manager or `kill`) or SIGHUP (the terminal closing). The first one

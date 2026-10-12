@@ -282,9 +282,6 @@ of this file and in the commits that implemented it.
   the window's first configuration without a timeout, so a termination signal is noticed only when
   a second one ends the process; after `shutdown`, releasing the window or the surface can block
   too (seen with a Weston stopped by SIGSTOP).
-- **A lost surface that cannot be created again** makes `Surface::acquire` log an error at every
-  frame while the run goes on without drawing; only a lost device stops the run (ADR-0022). Neither
-  loss can be caused on purpose.
 - **On Direct3D 12, a covered window or a locked session was not measured.** In `acquire`, wgpu
   waits on the swap chain's frame-latency object, up to one second, if the compositor stops taking
   images; whether Windows does so for such windows is unknown.
