@@ -7,7 +7,8 @@ repurposes a dependency.
 
 ## Crates
 
-Direct dependencies only; `cargo deny` checks the licenses of everything they pull in. Versions
+Direct dependencies only; `cargo deny` checks the licenses of everything they pull in for the
+supported targets ([ADR-0023](adr/0023-dependency-checks-for-the-supported-targets.md)). Versions
 are set in `[workspace.dependencies]` of the root [`Cargo.toml`](../Cargo.toml).
 
 | Crate | Used by | Why | Alternative considered | License | Added |

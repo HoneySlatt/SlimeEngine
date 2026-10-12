@@ -6,6 +6,10 @@
 # Check the dependencies of every feature of the workspace crates, not only of the default ones.
 # (This does not reach the optional dependencies of third-party crates that nothing enables.)
 all-features = true
+# Only the crates compiled for the supported targets (ADR-0015): Cargo.lock also holds the crates of
+# platforms the engine does not build for (Android, macOS, the web), whose advisories and duplicate
+# versions would otherwise be reported (ADR-0023).
+targets = ["x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
 
 [advisories]
 # Every RustSec advisory (vulnerability, unsound or unmaintained crate) affecting a dependency

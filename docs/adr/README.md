@@ -73,7 +73,7 @@ the ADR linking to it.
 | [0003](0003-toolchain-edition-and-msrv.md) | Pin the toolchain in one file, use edition 2024, set the MSRV to the pinned version | Accepted |
 | [0004](0004-workspace-layout-and-crate-naming.md) | Workspace layout and crate naming | Accepted; amended by 0014 |
 | [0005](0005-lints-and-unsafe-policy.md) | Lints and `unsafe` policy | Accepted |
-| [0006](0006-dependency-policy.md) | Dependency policy | Accepted |
+| [0006](0006-dependency-policy.md) | Dependency policy | Accepted; amended by 0023 |
 | [0007](0007-documentation-tooling-and-ci.md) | Documentation tooling and continuous integration | Accepted; amended by 0015 |
 | [0008](0008-errors-logging-and-assertions.md) | Errors, logging and assertions | Accepted; amended by 0019 |
 | [0009](0009-frame-timing.md) | Frame timing | Accepted |
@@ -90,3 +90,4 @@ the ADR linking to it.
 | [0020](0020-rendering-in-the-main-loop.md) | Rendering in the main loop, and application errors | Accepted; amended by 0021, 0022 |
 | [0021](0021-frame-pacing.md) | Frame pacing | Accepted |
 | [0022](0022-losing-the-gpu-device.md) | Losing the GPU device | Accepted |
+| [0023](0023-dependency-checks-for-the-supported-targets.md) | Check the dependencies of the supported targets only | Accepted |

@@ -1,6 +1,6 @@
 # 0006. Dependency policy
 
-- Status: Accepted
+- Status: Accepted; amended by [0023](0023-dependency-checks-for-the-supported-targets.md) (targets checked)
 - Date: 2026-10-12
 
 ## Context
