@@ -14,6 +14,9 @@
 //! cargo run --example window -- --headless --frames 600   # no window: runs anywhere
 //! ```
 
+#[path = "common/error_chain.rs"]
+mod error_chain;
+
 use std::num::NonZeroU32;
 use std::process::ExitCode;
 
@@ -21,6 +24,8 @@ use slime_app::time::FrameTime;
 use slime_app::{App, AppConfig, Context};
 use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, Window, WindowConfig};
 use softbuffer::SoftBufferError;
+
+use error_chain::error_chain;
 
 /// The fill color, as `0x00RRGGBB`.
 const COLOR: u32 = 0x0030_7a4a;
@@ -166,16 +171,4 @@ fn parse_options() -> Result<Options, String> {
         }
     }
     Ok(options)
-}
-
-/// The error's message followed by the messages of its sources: "error: cause: cause of cause".
-fn error_chain(error: &dyn std::error::Error) -> String {
-    let mut chain = error.to_string();
-    let mut source = error.source();
-    while let Some(cause) = source {
-        chain.push_str(": ");
-        chain.push_str(&cause.to_string());
-        source = cause.source();
-    }
-    chain
 }

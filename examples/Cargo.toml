@@ -12,7 +12,9 @@ workspace = true
 
 # Examples are the only targets of this package, so their dependencies are dev-dependencies.
 [dev-dependencies]
+png.workspace = true
 slime-app.workspace = true
+slime-gfx.workspace = true
 slime-platform.workspace = true
 softbuffer.workspace = true
 tracing.workspace = true
@@ -28,3 +30,7 @@ path = "headless.rs"
 [[example]]
 name = "window"
 path = "window.rs"
+
+[[example]]
+name = "offscreen"
+path = "offscreen.rs"

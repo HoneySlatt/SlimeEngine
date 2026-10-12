@@ -43,6 +43,7 @@ jobs:
         run: |
           cargo run --locked --example headless -- --frames 600
           cargo run --locked --example window -- --headless --frames 600
+          cargo run --locked --example offscreen -- --output target/triangle.png
       - name: Build the examples for checks by hand
         run: cargo build --locked --release --examples
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

@@ -31,6 +31,8 @@ cargo deny --locked check
 step "Headless samples (no display server)"
 env -u WAYLAND_DISPLAY -u DISPLAY cargo run --locked --example headless -- --frames 600
 env -u WAYLAND_DISPLAY -u DISPLAY cargo run --locked --example window -- --headless --frames 600
+env -u WAYLAND_DISPLAY -u DISPLAY VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+    cargo run --locked --example offscreen -- --output target/triangle.png
 
 step "Windowed sample in a headless Wayland compositor (Weston)"
 # A private runtime directory keeps this compositor apart from the one the developer may be using.
