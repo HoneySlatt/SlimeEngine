@@ -100,8 +100,7 @@ nix develop -c scripts/check.sh
 and tests of every target, rustdoc with warnings as errors, `cargo deny` (dependency licenses,
 security advisories and sources; it downloads the advisory database, so it needs network access),
 the samples with no display server available, the windowed sample inside a headless Weston
-compositor (about 25 seconds, see the known debt in `docs/PLAN.md`), and `lychee` (links between
-Markdown files). The individual commands are listed in
+compositor, and `lychee` (links between Markdown files). The individual commands are listed in
 [`AGENTS.md`](AGENTS.md#environment-and-commands) for when you want to run only one of them.
 
 The script also runs clippy for the Windows target, which catches code that does not compile on

@@ -33,9 +33,8 @@ the frame rate advances (`slime_app::time::FixedStep`). A frame runs zero or mor
 the previous frame, limited to a maximum (`slime_app::time::FrameClock`).
 
 **Frame limiter.** The part of the windowed driver that schedules frames and waits between them,
-so that the engine asks for at most `AppConfig::max_frame_rate` frames per second on average. How
-it combines with *presentation*, which can also pace frames, is decided by measurement (Stage 2,
-frame pacing).
+so that the engine asks for at most `AppConfig::max_frame_rate` frames per second on average. With
+the default *present mode*, it alone paces the frames ([ADR-0021](adr/0021-frame-pacing.md)).
 
 **Graphics API.** The interface between programs and GPU drivers: Vulkan (the engine's choice on
 Linux) and Direct3D 12 (on Windows). wgpu translates the engine's calls into one of them.
@@ -71,8 +70,12 @@ example to read it back to the CPU. Image tests render this way, without a windo
 **Owner.** The person who validates the project's direction and its architecture decisions.
 
 **Present (an image).** Hand a drawn image to the window, which shows it at one of the display's
-next refreshes. With wgpu's FIFO present mode, the one the engine uses for now, images are shown
-in order, one per refresh, and presenting can block until the window can take another one.
+next refreshes, as the *present mode* says.
+
+**Present mode.** How a window shows the images presented to it (`slime_gfx::PresentMode`). With
+*Mailbox*, the engine's default, each image replaces the one waiting to be shown and presenting
+never waits; with *FIFO*, every image is shown in order, one per refresh, and presenting waits
+while earlier images are still to be shown ([ADR-0021](adr/0021-frame-pacing.md)).
 
 **Physical key.** The position of a key on the keyboard, whatever the layout
 (`slime_platform::KeyCode`), named after the character it produces on a US keyboard: the first

@@ -197,9 +197,11 @@ whether there is an image to draw:
 | Image not ready in time, window occluded | No image this frame |
 | Surface lost | Created again from the window; no image this frame |
 
-Images are presented with wgpu's FIFO present mode, in step with the display. Presentation can
-therefore block a frame; the measurements are in
-[`PLAN.md`](PLAN.md#m23--the-triangle-in-the-window).
+How the window shows the images is the *present mode* (`AppConfig::present_mode`, ADR-0021).
+With Mailbox, the default, presenting never waits, and the frame scheduler alone paces frames,
+whether the window is visible or not; windows that do not offer it fall back to FIFO, with which
+presenting can block a frame. The measurements behind this choice are in
+[`PLAN.md`](PLAN.md#m24--frame-pacing).
 
 ### Termination signals
 

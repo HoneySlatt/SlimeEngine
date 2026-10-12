@@ -13,9 +13,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 2 — GPU layer → 0.0.2
-- Milestone M2.4 — Frame pacing
-- Left over from M2.0 and M2.3: the check by hand in the Windows virtual machine (see
-  [Known debt](#known-debt)).
+- Milestone M2.5 — Debug markers, robustness, release 0.0.2
+- Left over from M2.0, M2.3 and M2.4: the check by hand in the Windows virtual machine (see
+  [Known debt](#known-debt)), which the release of 0.0.2 waits for.
 
 ## Status
 
@@ -25,8 +25,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M2.1](#m21--gpu-device-without-a-window) | GPU device without a window | Done |
 | [M2.2](#m22--offscreen-triangle-and-reference-image) | Offscreen triangle and reference image | Done |
 | [M2.3](#m23--the-triangle-in-the-window) | The triangle in the window | Done, except the check by hand in the Windows virtual machine (see [Known debt](#known-debt)) |
-| [M2.4](#m24--frame-pacing) | Frame pacing | In progress |
-| [M2.5](#m25--debug-markers-robustness-release-002) | Debug markers, robustness, release 0.0.2 | Planned |
+| [M2.4](#m24--frame-pacing) | Frame pacing | Done, except the check by hand in the Windows virtual machine (see [Known debt](#known-debt)) |
+| [M2.5](#m25--debug-markers-robustness-release-002) | Debug markers, robustness, release 0.0.2 | In progress |
 
 Stages 0 and 1 are done; see [Completed stages](#completed-stages).
 
@@ -155,6 +155,27 @@ it:
   is checked in the virtual machine, whose GPU says nothing about timing.
 - **How to test.** Run the `window` example, hide it, and read the frame spans with
   `SLIME_LOG=trace`.
+- **Measured** on 2026-10-12 on niri, RX 6900 XT (RADV), displays at 240 Hz and at 180 Hz with
+  variable refresh, 60 frames per second asked, release builds:
+  - Before the decision, with frames timed inside the program (one window moved to an empty
+    workspace to hide it):
+    - FIFO and the schedule: regular frames while visible; hidden, each `present` waits one
+      second, because niri sends a hidden window one frame callback per second.
+    - Mailbox and the schedule: 60 frames per second visible and hidden, frame starts 0.02 to
+      0.5 ms from the schedule (standard deviation).
+    - FIFO without the schedule: one frame per refresh of the display (180 per second), each
+      waiting in `present`; once per second while hidden.
+    - Frames on the compositor's frame callbacks (winit's `pre_present_notify`), with FIFO or
+      Mailbox: in step with the display, without waiting, while visible; once per second while
+      hidden.
+  - With the decision (ADR-0021, Mailbox by default): 4 % of one CPU core visible, 3 % hidden;
+    the GPU load of the triangle cannot be told apart from the desktop's (11 to 24 % for the whole
+    GPU). A termination signal sent while the window is hidden stops the run 17 ms later. With
+    `SLIME_LOG=slime_app=trace`, frame ends are 3.1 ms from the schedule (standard deviation,
+    part of it from writing the log), and `present` takes 1.4 ms on average.
+  - Headless Weston with lavapipe: 120 frames take 2.1 s with Mailbox; with
+    `--present-mode fifo`, 30 frames take 5.5 s.
+  - Windows (virtual machine): to be checked by the owner.
 
 ### M2.5 — Debug markers, robustness, release 0.0.2
 
@@ -195,11 +216,15 @@ of this file and in the commits that implemented it.
 
 ## Known debt
 
-- **Frame pacing is not decided yet (M2.4).** The windowed driver asks for frames on a timer
-  (`AppConfig::max_frame_rate`) and presents them with FIFO, which can stall the loop: one frame
-  per second while the window is hidden on niri, and about 0.8 s for one image in three in a
-  headless Weston with lavapipe, which makes the Weston check last about 25 seconds (see the
-  measurements of M2.3).
+- **Frames are not synchronized with the display's refresh** (ADR-0021). With Mailbox, the
+  default, the schedule alone paces frames: on a 60 Hz display, an image is now and then shown
+  twice while the next one is dropped. Aligning frames on the compositor's frame callbacks is to
+  reconsider when a renderer draws real scenes.
+- **Without Mailbox, presenting can still stall the loop.** Windows that do not offer it, and
+  applications that choose `PresentMode::Fifo`, wait for the display: one frame per second for a
+  hidden window on niri, about 0.8 s for one image in three in a headless Weston with lavapipe.
+- **A hidden window keeps drawing** at the scheduled rate (3 % of one CPU core on the development
+  machine): the engine cannot tell on Wayland whether its window is visible.
 - **Frames are expected to pause on Windows while the user moves the window**, since no redraw
   arrives then (ADR-0020). To check in the Windows virtual machine.
 - **wgpu-hal logs an error when an adapter cannot present to the window**, even though the engine

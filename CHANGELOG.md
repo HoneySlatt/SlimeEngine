@@ -28,6 +28,12 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   ([ADR-0020](docs/adr/0020-rendering-in-the-main-loop.md)).
 - `TextureFormat::Bgra8UnormSrgb`, the usual format of windows; render targets in this format
   read back as RGBA, like the others.
+- `AppConfig::present_mode` (`PresentMode::Mailbox` or `PresentMode::Fifo`): by default, presenting
+  an image never waits, so a hidden window keeps running at the scheduled rate; the frame scheduler
+  paces frames on every platform ([ADR-0021](docs/adr/0021-frame-pacing.md)). The `window` example
+  takes `--present-mode`.
+- Profiling spans for the drawing part of a frame: `acquire`, `render` with `submit` inside, and
+  `present`.
 
 ### Changed
 
@@ -40,7 +46,7 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - With a window, frames run on redraw requests: the engine asks for them at most
   `AppConfig::max_frame_rate` times per second, and the windowing system's own requests, during a
   resize for example, run frames too.
-- The windowed check in a headless Weston draws with lavapipe; it now takes about 25 seconds.
+- The windowed check in a headless Weston draws with lavapipe.
 
 ### Removed
 
