@@ -6,6 +6,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ## [Unreleased]
 
+### Fixed
+
+- Logging to a standard error that is gone (a pipe whose reader exited, a closed terminal) no
+  longer aborts the process: the events are dropped and the run goes on.
+
 ## [0.0.2] - 2026-10-12
 
 The second release, which closes Stage 2 of the roadmap: the GPU layer. The engine draws a triangle

@@ -4,7 +4,7 @@
 //! binary as a child process, restricted to that one test, and checks what the child wrote to
 //! standard error. The child knows it is the child because `CHILD_ENV` is set.
 
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 
 const CHILD_ENV: &str = "SLIME_APP_TEST_CHILD";
 
@@ -90,5 +90,40 @@ fn second_call_installs_nothing_more() {
         stderr.matches("panic: deliberate test panic").count(),
         1,
         "the panic must be logged once, so the hook is installed once\n{stderr}"
+    );
+}
+
+/// The log output can disappear while the engine runs: a pipe whose reader exited, a terminal
+/// that closed. Writing to it then fails, which must not end the process.
+#[test]
+fn logging_to_a_broken_pipe_does_not_end_the_process() {
+    if is_child() {
+        slime_app::init_diagnostics();
+        // Enough events to reach the pipe after the parent has closed its end.
+        for index in 0..10_000 {
+            tracing::info!(index, "line");
+        }
+        return;
+    }
+
+    let mut command = Command::new(std::env::current_exe().expect("test binary path"));
+    command
+        .args([
+            "--exact",
+            "logging_to_a_broken_pipe_does_not_end_the_process",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env(CHILD_ENV, "1")
+        .env(slime_app::LOG_ENV_VAR, "info")
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+    let mut child = command.spawn().expect("child test process starts");
+    // Closing the reading end makes every write of the child fail.
+    drop(child.stderr.take());
+    let status = child.wait().expect("the child ends");
+    assert!(
+        status.success(),
+        "a broken log pipe must not end the process: {status}"
     );
 }

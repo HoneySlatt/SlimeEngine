@@ -31,7 +31,9 @@ pub const DEFAULT_LOG_FILTER: &str = "info,wgpu_hal=warn,wgpu_hal::vulkan::insta
 ///   are used only when standard error is a terminal and `NO_COLOR` is unset or empty. Records that
 ///   dependencies emit through the `log` crate reach the same subscriber. When a span that the
 ///   filter lets through closes, a line records how long it was busy and idle, which makes the
-///   profiling spans of the main loop visible with `SLIME_LOG=trace`.
+///   profiling spans of the main loop visible with `SLIME_LOG=trace`. An event that cannot be
+///   written, because the reader of standard error exited or the terminal closed, is dropped and
+///   the process goes on.
 /// - If the process already has a global subscriber, for example because the game installed its
 ///   own, that subscriber is kept and receives the engine's events.
 /// - Installs a panic hook that logs the panic message, its location and the name of the thread
@@ -63,6 +65,11 @@ fn install_subscriber() {
         .with_writer(std::io::stderr)
         .with_ansi(use_colors())
         .with_span_events(FmtSpan::CLOSE)
+        // A write to standard error can fail: its reader exited, the terminal closed. By default the
+        // subscriber then reports the failure with `eprintln!`, which panics on the same error, and
+        // since the panic hook logs through the subscriber the process aborts. The events are lost
+        // either way; the engine must go on.
+        .log_internal_errors(false)
         .try_init();
     if installed.is_err() {
         tracing::debug!("a global log subscriber already exists, keeping it");

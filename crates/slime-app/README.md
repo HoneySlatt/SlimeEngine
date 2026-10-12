@@ -128,8 +128,9 @@ if let Err(error) = slime_app::run(&mut Game, &config) {
   steps of a fixed duration. Both take durations rather than reading a clock
   (`docs/adr/0009-frame-timing.md`).
 - `init_diagnostics()`: installs the log subscriber (output on standard error, filtered by the
-  `SLIME_LOG` environment variable) and a panic hook that logs panics, then logs the engine
-  version, operating system, CPU architecture and number of logical CPUs. `run` calls it; call it
+  `SLIME_LOG` environment variable; events that cannot be written because standard error is gone
+  are dropped) and a panic hook that logs panics, then logs the engine version, operating system,
+  CPU architecture and number of logical CPUs. `run` calls it; call it
   yourself only in a program that does not use `run`. Later calls do nothing. `LOG_ENV_VAR` is the
   name of that environment variable. When it is unset, `DEFAULT_LOG_FILTER` applies: `info` and
   above, except for wgpu-hal's details about the GPU and the Vulkan loader's messages
