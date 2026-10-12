@@ -5,9 +5,9 @@ down.
 
 ## Status
 
-Partial. Applications run headless or with one window; the main loop, frame timing, exit
-requests, profiling spans and diagnostics work. Keyboard and mouse input arrive in milestone
-M1.5, and clean shutdown on Ctrl+C in M1.6 (see `docs/PLAN.md`).
+Partial. Applications run headless or with one window that receives keyboard and mouse input; the
+main loop, frame timing, exit requests, profiling spans and diagnostics work. Clean shutdown on
+Ctrl+C arrives in milestone M1.6 (see `docs/PLAN.md`).
 
 ## Role
 

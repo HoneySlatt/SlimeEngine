@@ -1,4 +1,5 @@
-//! Opens a window, logs the events it receives, and fills it with a solid color.
+//! Opens a window, logs the events it receives (window, keyboard and mouse), and fills it with a
+//! solid color. Escape or closing the window quits; cursor motion is logged at the `debug` level.
 //!
 //! A Wayland compositor shows a window only once the application has given it pixels. Until the
 //! engine presents frames with the GPU (Stage 2), this example fills the window from the CPU with
@@ -6,6 +7,7 @@
 //!
 //! ```sh
 //! cargo run --example window
+//! SLIME_LOG=debug cargo run --example window   # also logs cursor motion
 //! cargo run --example window -- --frames 120    # closes itself after 120 frames
 //! WAYLAND_DISPLAY= cargo run --example window   # X11, for example through Xwayland
 //! ```
@@ -15,7 +17,7 @@ use std::process::ExitCode;
 
 use slime_app::time::FrameTime;
 use slime_app::{App, AppConfig, Context};
-use slime_platform::{Event, Window, WindowConfig};
+use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, Window, WindowConfig};
 use softbuffer::SoftBufferError;
 
 /// The fill color, as `0x00RRGGBB`.
@@ -65,10 +67,19 @@ impl App for WindowExample {
         }
     }
 
-    fn on_event(&mut self, _ctx: &mut Context, event: &Event) {
-        tracing::info!(?event, "event");
-        if matches!(event, Event::Resized(_) | Event::ScaleFactorChanged { .. }) {
-            self.needs_redraw = true;
+    fn on_event(&mut self, ctx: &mut Context, event: &Event) {
+        match event {
+            Event::CursorMoved { .. } => tracing::debug!(?event, "event"),
+            _ => tracing::info!(?event, "event"),
+        }
+        match event {
+            Event::Resized(_) | Event::ScaleFactorChanged { .. } => self.needs_redraw = true,
+            Event::Key(KeyEvent {
+                physical: KeyCode::Escape,
+                state: ButtonState::Pressed,
+                ..
+            }) => ctx.request_exit(),
+            _ => {}
         }
     }
 

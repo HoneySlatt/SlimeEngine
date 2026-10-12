@@ -9,8 +9,8 @@ games first, then open-world games, then large online worlds.
 Pre-alpha. Stage 0, *Foundations*, is done: the repository has its rules, its roadmap, its plan,
 a reproducible development environment, its checks and a CI workflow. Stage 1, which brings the
 first engine code (window, input, main loop, headless mode), is in progress: applications run
-headless or with a window (Wayland or X11), with a fixed-step main loop, logging and panic
-reporting. Keyboard and mouse input are not there yet. [`docs/PLAN.md`](docs/PLAN.md) shows the
+headless or with a window (Wayland or X11) that receives keyboard and mouse input, with a
+fixed-step main loop, logging and panic reporting. [`docs/PLAN.md`](docs/PLAN.md) shows the
 milestone in progress and the known debt.
 
 ## Getting started

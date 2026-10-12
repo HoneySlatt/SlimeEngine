@@ -12,7 +12,7 @@ documentation was updated and reread.
 ## Current
 
 - Stage 1 — Core and platform
-- Milestone M1.5 — Input
+- Milestone M1.6 — Clean shutdown, hardening, release 0.0.1
 
 ## Status
 
@@ -26,8 +26,8 @@ documentation was updated and reread.
 | [M1.2](#m12--frame-timing) | Frame timing | Done |
 | [M1.3](#m13--lifecycle-and-headless-mode) | Lifecycle and headless mode | Done |
 | [M1.4](#m14--window) | Window | Done |
-| [M1.5](#m15--input) | Input | In progress |
-| [M1.6](#m16--clean-shutdown-hardening-release-001) | Clean shutdown, hardening, release 0.0.1 | Planned |
+| [M1.5](#m15--input) | Input | Done, except the check by hand of keys and mouse buttons (see [Known debt](#known-debt)) |
+| [M1.6](#m16--clean-shutdown-hardening-release-001) | Clean shutdown, hardening, release 0.0.1 | In progress |
 
 ## Stage 0 — Foundations
 
@@ -182,6 +182,14 @@ CI. X11 is checked through Xwayland.
   (GNOME), the title bar has no text, because winit's text renderer depends on an unmaintained
   crate (ADR-0011).
 - **`App` methods cannot return errors** (ADR-0010). Revisit before games depend on the API.
+- **Keyboard and mouse input not checked by hand.** The translation is unit-tested, and cursor
+  events were seen in a real run, but key presses, mouse buttons and scrolling were not checked in
+  a real window: an automated check would have to type into the owner's session. To do: run
+  `cargo run --example window`, type, click and scroll, and read the log. On a French AZERTY
+  layout, the first letter key of the top row (labelled A) must log `physical: KeyQ` and
+  `logical: Character("a")`.
+- **Input not reported yet:** the state of the modifier keys as a whole, input-method text,
+  touch, touchpad gestures, gamepads, dropped files.
 
 ## Notes
 
