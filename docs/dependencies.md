@@ -12,8 +12,24 @@ are set in `[workspace.dependencies]` of the root [`Cargo.toml`](../Cargo.toml).
 
 | Crate | Used by | Why | Alternative considered | License | Added |
 |---|---|---|---|---|---|
-| [tracing](https://crates.io/crates/tracing) | `slime-app`, examples | Logging macros and profiling spans for all engine code ([ADR-0008](adr/0008-errors-logging-and-assertions.md)). Built without its default `attributes` feature, which pulls in a proc-macro stack. | `log`, which has no spans | MIT | M1.1 |
+| [raw-window-handle](https://crates.io/crates/raw-window-handle) | `slime-platform` | The standard traits through which a graphics library (softbuffer now, wgpu later) draws into a window created by another library; `Window` implements them on purpose ([ADR-0011](adr/0011-windowing-with-winit.md)) | None: it is the interface wgpu and softbuffer accept | MIT OR Apache-2.0 OR Zlib | M1.4 |
+| [softbuffer](https://crates.io/crates/softbuffer) | examples only | Fills the window from the CPU so that the compositor shows it, until the GPU layer exists. Temporary: removed in Stage 2 ([ADR-0002](adr/0002-amend-roadmap-stages-0-to-3.md)). Built without its `kms` backend. | A wgpu "clear" pass, which would bring the GPU layer into Stage 1 | MIT OR Apache-2.0 | M1.4 |
+| [thiserror](https://crates.io/crates/thiserror) | `slime-platform` | Derives `Display` and `Error` for engine error enums ([ADR-0008](adr/0008-errors-logging-and-assertions.md)) | Hand-written implementations | MIT OR Apache-2.0 | M1.4 |
+| [tracing](https://crates.io/crates/tracing) | `slime-app`, `slime-platform`, examples | Logging macros and profiling spans for all engine code ([ADR-0008](adr/0008-errors-logging-and-assertions.md)). Built without its default `attributes` feature, which pulls in a proc-macro stack. | `log`, which has no spans | MIT | M1.1 |
 | [tracing-subscriber](https://crates.io/crates/tracing-subscriber) | `slime-app` | Formats, filters (`SLIME_LOG`, feature `env-filter`) and writes log events; forwards `log` records from dependencies | `env_logger`, which only serves `log` | MIT | M1.1 |
+| [winit](https://crates.io/crates/winit) | `slime-platform` | Windows, events and input on Wayland and X11, later Windows; loads the windowing libraries at run time ([ADR-0011](adr/0011-windowing-with-winit.md)). Client-side decorations are built without title text, to leave out the unmaintained `ttf-parser` | Wayland and X11 directly, or SDL3 | Apache-2.0 | M1.4 |
+
+## System libraries
+
+winit and softbuffer do not link the windowing system's libraries: they open them at run time, only
+when a window is created. They are part of the operating system, not of SlimeEngine; the Nix
+shell puts them on the loader path (`LD_LIBRARY_PATH` in [`flake.nix`](../flake.nix)).
+
+| Library | Used for |
+|---|---|
+| libwayland-client | Wayland |
+| libxkbcommon (and libxkbcommon-x11) | Keyboard layouts on Wayland and X11 |
+| libX11, libX11-xcb, libXcursor, libXi, libxcb | X11 |
 
 ## Development tools
 

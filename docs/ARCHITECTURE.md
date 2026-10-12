@@ -12,8 +12,8 @@ it is built this way.
 ├── .github/workflows/   CI: runs scripts/check.sh
 ├── Cargo.toml           virtual workspace: shared metadata, lints and dependency versions
 ├── crates/              engine crates, one directory per crate, named after the package
-│   ├── slime-app/       application lifecycle and main loop; headless only so far
-│   └── slime-platform/  windows and input (skeleton)
+│   ├── slime-app/       application lifecycle and main loop
+│   └── slime-platform/  window and its events
 ├── deny.toml            dependency license, advisory and source rules
 ├── docs/                roadmap, plan, decisions (adr/), glossary, dependencies, this file
 ├── examples/            runnable examples, one per feature (package `slime-examples`)
@@ -31,23 +31,26 @@ is created only when code needs it.
 
 | Crate | Role | Depends on | Status |
 |---|---|---|---|
-| [`slime-platform`](../crates/slime-platform/README.md) | Windows and input; the only crate that uses the windowing library | — | Skeleton |
-| [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `tracing`, `tracing-subscriber` | Headless runs work; no window yet |
-| [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `tracing` | `hello`, `headless` |
-
-A *skeleton* crate exists with its documentation and inherits the workspace policies, but holds
-no code yet.
+| [`slime-platform`](../crates/slime-platform/README.md) | The window and its events; the only crate that uses the windowing library (winit) | `winit`, `raw-window-handle`, `thiserror`, `tracing` | One window, window events; no keyboard or mouse input yet |
+| [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `slime-platform`, `tracing`, `tracing-subscriber` | Headless and windowed runs work |
+| [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-platform`, `softbuffer`, `tracing` | `hello`, `headless`, `window` |
 
 ## Dependency rules
 
 ```text
-slime-app ──may depend on──▶ slime-platform
+slime-examples ──▶ slime-app ──▶ slime-platform ──▶ winit
+       │                               ▲
+       └───────────────────────────────┘
 ```
 
-- Dependencies between crates point one way. `slime-app` may depend on `slime-platform`;
-  `slime-platform` never depends on `slime-app`. Neither depends on the other yet.
-- Only `slime-platform` uses the windowing library, and its types never appear in a public API.
-- A headless run never touches the windowing system.
+- Dependencies between crates point one way: `slime-app` depends on `slime-platform`, never the
+  reverse.
+- Only `slime-platform` uses winit, and winit's types never appear in a public API
+  ([ADR-0011](adr/0011-windowing-with-winit.md)). `slime_platform::Window` exposes the
+  `raw-window-handle` traits so that graphics libraries can draw into it.
+- A headless run never touches the windowing system: it does not create an event loop, so the
+  windowing libraries, which are loaded at run time, are not even needed. The checks run the
+  headless sample with no display server to prove it.
 
 ## Main flows
 
@@ -64,32 +67,70 @@ from the engine, the game or a dependency goes through that subscriber. Source:
 ### Running an application
 
 A game implements `slime_app::App` and calls `slime_app::run`, which owns the main loop
-([ADR-0010](adr/0010-main-loop-ownership.md)). Today every run is headless:
+([ADR-0010](adr/0010-main-loop-ownership.md)). A *driver* decides when frames run and what time
+they represent; every driver runs a frame the same way (`Frames::run_one` in
+[`crates/slime-app/src/app.rs`](../crates/slime-app/src/app.rs)):
 
 ```text
-slime_app::run(&mut app, &config)
-├── init_diagnostics()                   no effect if already done in this process
+frame                                span "frame", trace level
+├── FrameClock::advance(delta)       the time the frame represents, limited
+├── FixedStep::advance(delta)        how many fixed steps are due: n
+├── app.fixed_update(ctx, step)      n times, span "fixed_update"
+└── app.update(ctx, &frame)          once, span "update"
+```
+
+The run stops before the next frame once the application has called `ctx.request_exit()`, the
+window was closed, or `config.frame_limit` frames have run. The frame in progress always
+finishes, and `app.shutdown` is always called after `app.init`. The call order is checked by
+[`crates/slime-app/tests/lifecycle.rs`](../crates/slime-app/tests/lifecycle.rs).
+
+**Headless driver** (`AppConfig::window` is `None`), in `app.rs`:
+
+```text
+slime_app::run
+├── init_diagnostics()
 ├── app.init(ctx)
-├── loop, until ctx.request_exit() was called or config.frame_limit frames have run
-│   └── frame                            span "frame", trace level
-│       ├── FrameClock::advance(delta)   headless: delta = the fixed step (simulated time)
-│       ├── FixedStep::advance(delta)    how many fixed steps are due: n
-│       ├── app.fixed_update(ctx, step)  n times, span "fixed_update"
-│       └── app.update(ctx, &frame)      once, span "update"
+├── loop: frame with delta = the fixed step (simulated time), back to back
 └── app.shutdown(ctx)
 ```
 
-An exit request takes effect between frames: the frame in progress always finishes. Source:
-[`crates/slime-app/src/app.rs`](../crates/slime-app/src/app.rs); the call order is checked by
-[`crates/slime-app/tests/lifecycle.rs`](../crates/slime-app/tests/lifecycle.rs).
+**Windowed driver** (`AppConfig::window` is `Some`), in
+[`crates/slime-app/src/windowed.rs`](../crates/slime-app/src/windowed.rs). winit owns the event
+loop; `slime-platform` adapts its callbacks to the `EventHandler` trait, which the windowed driver
+implements:
+
+```text
+slime_app::run
+├── init_diagnostics()
+└── slime_platform::run_event_loop(window config, driver)
+    ├── winit "resumed"         create the window → driver.window_created
+    │                           → ctx gets the window, app.init(ctx)
+    ├── winit "window_event"    translate (event.rs) → driver.event
+    │                           → app.on_event(ctx, &event); CloseRequested → stop
+    ├── winit "about_to_wait"   → driver.about_to_wait
+    │                           → if the next frame is due: frame with the measured delta;
+    │                             return WaitUntil(next frame) or Exit
+    └── winit "exiting"         → driver.exiting → app.shutdown(ctx), the window is released
+```
+
+Frames are spaced by at least `1 / AppConfig::max_frame_rate`: between them the event loop
+sleeps until the next frame is due or an event arrives, so an idle window uses almost no CPU.
+This frame limiter is temporary; presenting frames on screen will pace them from Stage 2.
 
 ### Frame timing
 
-`slime_app::time` has no clock of its own: the code that drives frames gives `FrameClock` the
-duration of each frame (measured, or simulated in headless runs), gets a `FrameTime` back, and
-gives its delta to `FixedStep`, which says how many fixed steps the frame must run. Source:
+`slime_app::time` has no clock of its own: the driver gives `FrameClock` the duration of each
+frame (measured, or simulated in headless runs), gets a `FrameTime` back, and gives its delta to
+`FixedStep`, which says how many fixed steps the frame must run. Source:
 [`crates/slime-app/src/time.rs`](../crates/slime-app/src/time.rs); rules:
 [ADR-0009](adr/0009-frame-timing.md).
+
+### Showing the window (examples only)
+
+A Wayland compositor shows a window only once the application has given it pixels. The engine has
+no renderer yet, so the `window` example fills its window from the CPU with `softbuffer`, through
+the window's `raw-window-handle` traits, whenever the window is resized. This is temporary and
+lives only in the examples ([ADR-0002](adr/0002-amend-roadmap-stages-0-to-3.md)).
 
 ## Where to start reading
 

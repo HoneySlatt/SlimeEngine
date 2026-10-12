@@ -13,6 +13,8 @@ workspace = true
 # Examples are the only targets of this package, so their dependencies are dev-dependencies.
 [dev-dependencies]
 slime-app.workspace = true
+slime-platform.workspace = true
+softbuffer.workspace = true
 tracing.workspace = true
 
 [[example]]
@@ -22,3 +24,7 @@ path = "hello.rs"
 [[example]]
 name = "headless"
 path = "headless.rs"
+
+[[example]]
+name = "window"
+path = "window.rs"

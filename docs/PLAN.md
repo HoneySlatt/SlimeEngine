@@ -12,7 +12,7 @@ documentation was updated and reread.
 ## Current
 
 - Stage 1 — Core and platform
-- Milestone M1.4 — Window
+- Milestone M1.5 — Input
 
 ## Status
 
@@ -25,8 +25,8 @@ documentation was updated and reread.
 | [M1.1](#m11--logging-and-diagnostics) | Logging and diagnostics | Done |
 | [M1.2](#m12--frame-timing) | Frame timing | Done |
 | [M1.3](#m13--lifecycle-and-headless-mode) | Lifecycle and headless mode | Done |
-| [M1.4](#m14--window) | Window | In progress |
-| [M1.5](#m15--input) | Input | Planned |
+| [M1.4](#m14--window) | Window | Done |
+| [M1.5](#m15--input) | Input | In progress |
 | [M1.6](#m16--clean-shutdown-hardening-release-001) | Clean shutdown, hardening, release 0.0.1 | Planned |
 
 ## Stage 0 — Foundations
@@ -175,6 +175,13 @@ CI. X11 is checked through Xwayland.
 - **CI has never run.** The repository has no remote yet, so the GitHub Actions workflow has not
   been executed. `scripts/check.sh` passes locally in the same Nix shell that CI uses. Stage 0 is
   complete except for this: the first push to GitHub must show a green run.
+- **Temporary frame pacing and display (Stage 2).** The windowed driver limits the frame rate by
+  sleeping (`AppConfig::max_frame_rate`), and the `window` example fills its window from the CPU
+  with `softbuffer`. Both go away when the GPU layer presents frames.
+- **No title text in client-side decorations.** On compositors that do not draw decorations
+  (GNOME), the title bar has no text, because winit's text renderer depends on an unmaintained
+  crate (ADR-0011).
+- **`App` methods cannot return errors** (ADR-0010). Revisit before games depend on the API.
 
 ## Notes
 
