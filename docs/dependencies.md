@@ -7,7 +7,13 @@ repurposes a dependency.
 
 ## Crates
 
-None. The workspace has no third-party crate dependency yet.
+Direct dependencies only; `cargo deny` checks the licenses of everything they pull in. Versions
+are set in `[workspace.dependencies]` of the root [`Cargo.toml`](../Cargo.toml).
+
+| Crate | Used by | Why | Alternative considered | License | Added |
+|---|---|---|---|---|---|
+| [tracing](https://crates.io/crates/tracing) | `slime-app`, examples | Logging macros and profiling spans for all engine code ([ADR-0008](adr/0008-errors-logging-and-assertions.md)). Built without its default `attributes` feature, which pulls in a proc-macro stack. | `log`, which has no spans | MIT | M1.1 |
+| [tracing-subscriber](https://crates.io/crates/tracing-subscriber) | `slime-app` | Formats, filters (`SLIME_LOG`, feature `env-filter`) and writes log events; forwards `log` records from dependencies | `env_logger`, which only serves `log` | MIT | M1.1 |
 
 ## Development tools
 

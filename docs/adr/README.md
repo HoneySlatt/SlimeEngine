@@ -73,3 +73,4 @@ the ADR linking to it.
 | [0005](0005-lints-and-unsafe-policy.md) | Lints and `unsafe` policy | Accepted |
 | [0006](0006-dependency-policy.md) | Dependency policy | Accepted |
 | [0007](0007-documentation-tooling-and-ci.md) | Documentation tooling and continuous integration | Accepted |
+| [0008](0008-errors-logging-and-assertions.md) | Errors, logging and assertions | Accepted |
