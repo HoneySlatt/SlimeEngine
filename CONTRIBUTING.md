@@ -81,11 +81,12 @@ The GPU layer uses Vulkan on Linux and Direct3D 12 on Windows
   within a tolerance ([ADR-0018](docs/adr/0018-reference-image-tests.md)). When one fails, it
   prints the path of the image it rendered; compare the two by eye. If your change alters what a
   test draws on purpose, render the reference again on lavapipe, look at the new image, and commit
-  it with the change:
+  it with the change (this renders the references of every image test; each test names its
+  reference in its module comment):
 
   ```sh
   SLIME_UPDATE_REFERENCE_IMAGES=1 VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
-      cargo test -p slime-examples --test offscreen
+      cargo test -p slime-examples
   ```
 
 #### Capturing a frame in RenderDoc
@@ -122,7 +123,7 @@ nix develop -c scripts/check.sh
 [`scripts/check.sh`](scripts/check.sh) runs rustfmt, clippy with warnings as errors, the build
 and tests of every target, rustdoc with warnings as errors, `cargo deny` (dependency licenses,
 security advisories and sources; it downloads the advisory database, so it needs network access),
-the samples with no display server available, the windowed sample and the windowed lifecycle test
+the samples with no display server available, the windowed samples and the windowed lifecycle test
 inside a headless Weston compositor, and `lychee` (links between Markdown files). The individual commands are listed in
 [`AGENTS.md`](AGENTS.md#environment-and-commands) for when you want to run only one of them.
 
@@ -132,7 +133,7 @@ Windows without a Windows machine.
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push to `main` and every
 pull request. A Linux job runs the same script; a Windows job runs clippy, the tests and the
 headless samples on Windows, runs the release build of the headless ones, and publishes the
-`hello`, `headless`, `window` and `offscreen` examples built for Windows as an artifact named
+`hello`, `headless`, `window`, `offscreen` and `scene` examples built for Windows as an artifact named
 `slime-examples-windows`, to run by hand on a Windows machine.
 [ADR-0007](docs/adr/0007-documentation-tooling-and-ci.md) and
 [ADR-0015](docs/adr/0015-platforms-and-ci.md) explain the setup.

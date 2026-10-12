@@ -8,11 +8,22 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- `slime-render`, the first renderer: `Renderer` draws a `Scene` (a camera, a clear color and
+  instances of meshes with their materials) into any render target, with a depth test and
+  back-face culling, and returns the draw-call and triangle counts; meshes come from positions,
+  normals, texture coordinates and indices, materials have one base color, `Camera` gives its
+  matrices in WebGPU's convention, and `glam` is re-exported for the math
+  ([ADR-0027](docs/adr/0027-the-render-crate.md)).
+- The `scene` example, the sample of Stage 3a: cubes drawn by the renderer, seen from a camera
+  that orbits them; and its image test, compared with a reference rendered with lavapipe.
 - The GPU resources a renderer needs, in `slime-gfx`: index buffers and indexed draws, uniform
   buffers written through `Gpu::write_uniform_buffer`, bind group layouts and bind groups that
-  pipelines declare and render passes bind, depth targets with a depth test and face culling
-  declared by the pipeline, and render passes that keep the target's content instead of clearing
-  it ([ADR-0026](docs/adr/0026-resource-binding-and-depth.md)).
+  pipelines declare and render passes bind, with dynamic offsets so that one uniform buffer holds
+  the values of many draws (`Gpu::uniform_offset_alignment` gives their alignment), depth targets
+  with a depth test and face culling declared by the pipeline, and render passes that keep the
+  target's content instead of clearing it
+  ([ADR-0026](docs/adr/0026-resource-binding-and-depth.md)). `RenderTarget::label` gives a
+  target's label back.
 - `Surface::check` and `GfxError::SurfaceLost`: a window's surface that is lost for good (it cannot
   be created again, or is lost again each time) stops the run like a lost device, instead of an
   error logged at every frame while the run went on without drawing (ADR-0025).
@@ -25,8 +36,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   binding that no layout holds is rejected as `GfxError::Pipeline`.
 - The default log filter also hides the error that winit's client-side decorations log when no
   session bus or desktop portal answers (`sctk_adwaita::config=off`, ADR-0019).
-- The Windows CI artifact also contains `offscreen.exe`, and the Windows job runs the release build
-  of the headless samples.
+- The Windows CI artifact also contains `offscreen.exe` and `scene.exe`, and the Windows job runs
+  the release build of the headless samples.
 - The `window` example exits with a failure when a run limited by `--frames` drew nothing, so
   that the windowed check in a headless Weston proves that frames are drawn, as ADR-0013 says.
 

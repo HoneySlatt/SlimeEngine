@@ -14,7 +14,8 @@ it is built this way.
 ├── crates/              engine crates, one directory per crate, named after the package
 │   ├── slime-app/       application lifecycle and main loop
 │   ├── slime-gfx/       GPU layer (wgpu)
-│   └── slime-platform/  window, its events and input
+│   ├── slime-platform/  window, its events and input
+│   └── slime-render/    renderer: meshes, materials, camera, instances
 ├── deny.toml            dependency license, advisory and source rules
 ├── docs/                roadmap, plan, decisions (adr/), glossary, dependencies, this file
 ├── examples/            runnable examples, one per feature, with their tests (`slime-examples`)
@@ -35,19 +36,24 @@ is created only when code needs it.
 | [`slime-platform`](../crates/slime-platform/README.md) | The window, its events and keyboard and mouse input; the only crate that uses the windowing library (winit) | `winit`, `raw-window-handle`, `thiserror`, `tracing` | One window; window, keyboard and mouse events |
 | [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `slime-platform`, `slime-gfx`, `ctrlc`, `thiserror`, `tracing`, `tracing-subscriber` | Headless runs, and windowed runs drawn by the GPU |
 | [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu | `wgpu`, `pollster`, `raw-window-handle`, `thiserror`, `tracing` | Opens a GPU device, draws into offscreen images and reads them back, draws into a window |
-| [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-gfx`, `slime-platform`, `png`, `tracing` | `hello`, `headless`, `window`, `offscreen`; the reference image test |
+| [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, seen from a camera, into render targets; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `glam`, `thiserror`, `tracing` | Meshes, materials of one color, a perspective camera, the depth test; lighting and textures to come |
+| [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-gfx`, `slime-platform`, `slime-render`, `png`, `tracing` | `hello`, `headless`, `window`, `offscreen`, `scene`; the reference image tests |
 
 ## Dependency rules
 
 ```text
 slime-examples ──▶ slime-app ──┬──▶ slime-platform ──▶ winit
        │                       └──▶ slime-gfx ──────▶ wgpu
+       ├──▶ slime-render ──────────▶ slime-gfx
        └──▶ slime-platform, slime-gfx (their types: events, GPU objects)
 ```
 
 - Dependencies between crates point one way: `slime-app` depends on `slime-platform` and
   `slime-gfx`, never the reverse, and `slime-platform` and `slime-gfx` do not depend on each
   other: the window reaches the GPU layer only as `raw-window-handle` traits.
+- `slime-render` depends on `slime-gfx` only and does not use wgpu
+  ([ADR-0027](adr/0027-the-render-crate.md)). `slime-app` does not depend on it: an application
+  creates its `Renderer` in `init`, from the GPU of its `Context`, and calls it in `render`.
 - Only `slime-platform` uses winit, and winit's types never appear in a public API
   ([ADR-0011](adr/0011-windowing-with-winit.md)). `slime_platform::Window` exposes the
   `raw-window-handle` traits so that graphics libraries can draw into it.
@@ -193,6 +199,33 @@ wgpu error scope, so that a rejection comes back as an error with wgpu's message
 error is a bug and panics ([ADR-0016](adr/0016-gpu-layer-with-wgpu.md)). The test
 [`examples/tests/offscreen.rs`](../examples/tests/offscreen.rs) compares the image with a
 reference PNG within a tolerance ([ADR-0018](adr/0018-reference-image-tests.md)).
+
+### Rendering a scene
+
+`slime-render` draws meshes with the objects above. The application builds a `Scene` for each
+frame, a flat list of instances seen from a camera, and the renderer draws it into any render
+target, the window's image or an offscreen one
+([`crates/slime-render/src/renderer.rs`](../crates/slime-render/src/renderer.rs), rules:
+[ADR-0027](adr/0027-the-render-crate.md)):
+
+```text
+renderer = Renderer::new(&gpu, format)                 the shader, the pipeline (depth test, back-
+│                                                      face culling), the bind group layouts
+├── create_mesh(&gpu, label, &MeshData)                vertex and index buffers, after a check
+├── create_material(&gpu, label, &MaterialData)        a uniform buffer and its bind group
+└── render(&gpu, &target, &Scene { camera, clear, instances }) → RenderStats
+    ├── the depth target, created at the target's size, again when it changes
+    ├── the frame uniform ← camera.view_projection(aspect)            bind group 0
+    ├── the instance buffer ← each instance's transform, one slot     bind group 2, one dynamic
+    │   each, at the device's alignment; grows when a scene needs it  offset per instance
+    └── one render pass, cleared: for each instance, its material's
+        bind group 1, its slot, its buffers, draw_indexed
+```
+
+The shader ([`shader.wgsl`](../crates/slime-render/src/shader.wgsl)) transforms each vertex by
+its instance's matrix then the camera's, and colors it with its material. Conventions: world
+space is right-handed with +Y up, the camera looks down −Z, front faces wind counter-clockwise,
+depth runs from 0 to 1, colors are linear and the sRGB target encodes them.
 
 ### Rendering in a window
 

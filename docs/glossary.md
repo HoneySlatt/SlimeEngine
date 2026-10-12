@@ -68,6 +68,10 @@ pixel by pixel, within a tolerance that absorbs how drivers round colors
 **Index buffer.** A buffer of indices into a vertex buffer, so that the triangles of a mesh share
 vertices (`slime_gfx::IndexBuffer`).
 
+**Instance (render).** One thing the renderer draws: a *mesh*, a *material* and a transform from
+the mesh's space to world space (`slime_render::Instance`). A render *scene* is a flat list of
+them, built for each frame.
+
 **Interpolation factor.** The fraction of a fixed step accumulated but not yet run
 (`FixedStep::alpha`), between 0 and 1. Used to draw a state between the last two fixed steps.
 `run` does not pass it to applications yet.
@@ -81,6 +85,12 @@ that GPU tests give the same results on every machine, including machines withou
 **Logical key.** What a key means with the current keyboard layout and modifiers
 (`slime_platform::Key`): on a French AZERTY keyboard, the first letter key of the top row gives
 the logical key `"a"`. Suits shortcuts and text. See also *physical key*.
+
+**Material.** How a surface looks: a base color for now (`slime_render::Material`, from
+`MaterialData`). Lighting parameters and textures join it later in Stage 3a.
+
+**Mesh.** Triangles given as vertices (a position, a normal and texture coordinates each) and
+indices, uploaded to the GPU (`slime_render::Mesh`, from `MeshData`).
 
 **Milestone.** A small, verifiable step of a stage, listed with its goal, its done criteria and
 how to test it in [`docs/PLAN.md`](PLAN.md). Milestones are numbered `M<stage>.<n>`, for example
@@ -118,6 +128,10 @@ of what the test draws.
 
 **Sample.** The example that demonstrates the exit criterion of a stage. Every stage ends with
 one.
+
+**Scene (render).** What the renderer draws in one frame: a camera, a clear color and
+*instances* (`slime_render::Scene`). Not a scene graph: the renderer keeps nothing between frames,
+and the world model of Stage 5 will produce such scenes.
 
 **Simulated time.** Frame deltas supplied as a constant duration instead of being measured, so
 that a run gives the same results on every machine. Headless runs use it.

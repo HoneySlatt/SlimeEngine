@@ -13,8 +13,10 @@ loop, logging, panic reporting and a clean shutdown on Ctrl+C. The engine opens 
 on Linux, Direct3D 12 on Windows), draws a triangle in the window and into offscreen images
 checked against a reference image, paces frames with its own schedule and the Mailbox present
 mode by default, names its GPU work for capture tools, and stops cleanly when the GPU device is
-lost. There is no renderer yet: meshes, textures and lighting come with Stage 3.
-[`docs/PLAN.md`](docs/PLAN.md) lists what comes next and the known debt.
+lost. Stage 3a, the first renderer, is in progress: `slime-render` draws instances of meshes from
+a camera, with a depth test, each with a material of one color; lighting, textures and a glTF
+scene come with its next milestones. [`docs/PLAN.md`](docs/PLAN.md) lists what comes next and the
+known debt.
 
 ## Getting started
 
@@ -30,8 +32,8 @@ cargo run --example window   # the examples are listed in examples/README.md
 scripts/check.sh             # every check, exactly as CI runs them (Linux only)
 ```
 
-Each CI run on GitHub also publishes the `hello`, `headless`, `window` and `offscreen` examples
-built for Windows, to try without a toolchain.
+Each CI run on GitHub also publishes the `hello`, `headless`, `window`, `offscreen` and `scene`
+examples built for Windows, to try without a toolchain.
 
 ## Where to read next
 

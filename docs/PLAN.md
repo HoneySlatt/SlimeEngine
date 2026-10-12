@@ -13,7 +13,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3a — First renderer → 0.0.3: in progress. Planned on 2026-10-12 and validated by the
-  owner. M3.1 is done; next: M3.2.
+  owner. M3.1 and M3.2 are done; next: M3.3.
 - Between 0.0.2 and this stage, a stabilization pass on 2026-10-12 corrected what an audit of
   0.0.2 found: the corrections are listed in [`CHANGELOG.md`](../CHANGELOG.md) under
   *Unreleased*, and what was found without being corrected is in [Known debt](#known-debt).
@@ -23,7 +23,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | Milestone | Goal | Status |
 |---|---|---|
 | [M3.1](#m31--gpu-resources-for-a-renderer) | GPU resources for a renderer | Done |
-| [M3.2](#m32--the-render-crate-camera-meshes-instances) | The render crate: camera, meshes, instances | Planned |
+| [M3.2](#m32--the-render-crate-camera-meshes-instances) | The render crate: camera, meshes, instances | Done |
 | [M3.3](#m33--directional-light-and-material) | Directional light and material | Planned |
 | [M3.4](#m34--textures-and-samplers) | Textures and samplers | Planned |
 | [M3.5](#m35--a-gltf-scene-and-camera-control) | A glTF scene and camera control | Planned |
@@ -105,29 +105,39 @@ it:
   test.
 - **Delivers.** `Renderer::new(gpu, format)`, whose depth buffer follows the size of the target it
   draws into; `Mesh` from CPU data (positions, normals, texture coordinates, indices); `Camera`
-  (perspective projection, look-at); `Instance` (a mesh and a transform);
-  `Renderer::render(gpu, target, &frame)`, which clears the target, draws the instances and returns
-  `RenderStats` (draw calls, triangles); per-instance transforms in one uniform buffer with dynamic
-  offsets; conventions: right-handed axes with +Y up, as glTF, the camera looking down −Z, depth
-  from 0 to 1, linear colors in shaders. Bytes for the GPU are packed with `to_le_bytes`. The
-  `scene` example shows cubes under a camera that orbits them; `scripts/check.sh` runs it in the
-  headless Weston; the image test `scene-cubes` renders two overlapping cubes. ADR: the render
-  crate and glam.
+  (perspective projection, look-at); `Instance` (a mesh, a material of one color, a transform);
+  `Renderer::render(gpu, target, &scene)`, which clears the target, draws the instances and
+  returns `RenderStats` (draw calls, triangles); per-instance transforms in one uniform buffer
+  with dynamic offsets; conventions: right-handed axes with +Y up, as glTF, the camera looking
+  down −Z, depth from 0 to 1, linear colors in shaders. Bytes for the GPU are packed with
+  `to_le_bytes`. The `scene` example shows cubes under a camera that orbits them;
+  `scripts/check.sh` runs it in the headless Weston; the image test of the cubes renders them
+  overlapping. ADR: the render crate and glam.
 - **Done when.** The image test passes on lavapipe, WARP and the owner's GPU; the sample shows the
   cubes under the moving camera on niri; `scene --frames 120` draws in the headless Weston; the
   owner ran `scene.exe` in the Windows virtual machine.
 - **How to test.** `cargo run --example scene`; `cargo test -p slime-examples --test scene`.
+- **Checked** on 2026-10-13: the image test of the cubes (`examples/tests/scene.rs`, reference
+  `cubes.png`, three cubes of two flat colors, the orange one in front of the blue one) passes on
+  lavapipe, which rendered the reference, and on the owner's RX 6900 XT (RADV) with no pixel
+  differing at all, flat colors leaving nothing to round; the Windows CI job runs it on WARP. The
+  `scene` example drew 300 frames on niri with RADV (3 draw calls and 36 triangles per frame),
+  and `scene --frames 120` draws in the headless Weston with lavapipe in the checks. The owner's
+  run of `scene.exe` in the Windows virtual machine, which the CI artifact now contains, is
+  pending. Dynamic offsets joined `slime-gfx` with the instances, as ADR-0026 planned; the
+  material of one color came with this milestone rather than M3.3, since instances need a color
+  from the start.
 
 ### M3.3 — Directional light and material
 
 - **Goal.** A simple lighting model: one directional light with an ambient term, and materials
   with a base color.
 - **Crates.** `slime-render`; `examples`.
-- **Delivers.** `Material` (a base color) created through the renderer and named by each instance;
-  `DirectionalLight` (direction, color, ambient light) in the frame; normals transformed with the
-  instance; Lambert diffuse shading in WGSL on linear colors, which the sRGB target encodes;
-  back-face culling on. The image test shows lit cubes; the tolerance of ADR-0018 is measured on
-  WARP and RADV with shading in the picture, and amended if it does not hold.
+- **Delivers.** `DirectionalLight` (direction, color, ambient light) in the scene; normals
+  transformed with the instance; Lambert diffuse shading in WGSL on the material's base color, in
+  linear colors, which the sRGB target encodes. The image test shows lit cubes; the tolerance of
+  ADR-0018 is measured on WARP and RADV with shading in the picture, and amended if it does not
+  hold.
 - **Done when.** The image test passes on the three drivers; the lit cubes look right by eye.
 - **How to test.** As M3.2.
 
