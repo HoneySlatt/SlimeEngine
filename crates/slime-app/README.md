@@ -59,10 +59,10 @@ assert_eq!(game.fixed_steps, 60);
   (`docs/adr/0012-clean-shutdown-on-termination-signals.md`).
   - Headless: frames run back to back with simulated time: each frame represents one fixed step,
     so runs are deterministic. The windowing system is never touched.
-  - With a window: the window exists before `init`; frames represent the real time between them,
-    on average at most `AppConfig::max_frame_rate` per second (60 by default), and the loop sleeps
-    between them. This limiter is temporary: presentation will pace frames once the GPU layer
-    exists. `run` must then be called from the main thread.
+  - With a window, `run` must be called from the main thread (it panics otherwise). The window
+    exists before `init`; frames represent the real time between them, on average at most
+    `AppConfig::max_frame_rate` per second (60 by default), and the loop sleeps between them. This
+    limiter is temporary: presentation will pace frames once the GPU layer exists.
   - It returns a `slime_platform::PlatformError` when the window cannot be opened, for example
     without a display server. Only one windowed run, or attempt, is possible per process.
   - The signal handler replaces any other handler the process had for these signals, except one

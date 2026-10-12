@@ -33,7 +33,7 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
 - `Event` is what happened to the window, or input it received. It is `#[non_exhaustive]`: new
   kinds of events will be added.
 - Input types: `KeyEvent` describes a key twice: by `physical` position, whatever the layout
-  (`KeyCode`, named after the W3C UI Events `code` values such as `KeyQ` or `Escape`, with two
+  (`KeyCode`, named after the W3C UI Events `code` values such as `KeyQ` or `Escape`, with a few
   exceptions listed in its rustdoc), and by `logical` meaning with the current layout (`Key`: a
   character such as `"a"`, a `NamedKey` such as `Enter`, or a dead key). It also gives the `text`
   the key produces and whether it is a repeat. Use the physical code for movement keys and the
@@ -44,8 +44,8 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
 The windowing system is chosen from the environment, with no fallback from one to the other:
 Wayland if `WAYLAND_DISPLAY` or `WAYLAND_SOCKET` is set to a non-empty value, otherwise X11 if
 `DISPLAY` is. Its libraries are loaded at run time, so a program that never creates an event loop
-runs without them: libwayland-client and libxkbcommon for Wayland; libX11, libX11-xcb, libXcursor,
-libXi, libxcb and libxkbcommon-x11 for X11.
+runs without them: libxkbcommon for both; libwayland-client for Wayland; libX11, libX11-xcb,
+libXcursor, libXi, libxcb and libxkbcommon-x11 for X11.
 
 ## Dependencies
 

@@ -88,9 +88,10 @@ mirror_enum! {
     /// Variant names follow the `code` values of the
     /// [W3C UI Events](https://www.w3.org/TR/uievents-code/) specification, as winit reports them:
     /// they name a key by the character it produces at that position on a US keyboard (`KeyQ`,
-    /// `Digit1`, `Semicolon`) or by its function (`Escape`, `ShiftLeft`, `Numpad0`). Two exceptions
-    /// come from winit: the keys the specification calls `MetaLeft` and `MetaRight` are `SuperLeft`
-    /// and `SuperRight` here, and the key it calls `Super` is reported as `Unidentified`.
+    /// `Digit1`, `Semicolon`) or by its function (`Escape`, `ShiftLeft`, `Numpad0`). Three
+    /// differences come from winit: the keys the specification calls `MetaLeft` and `MetaRight`
+    /// are `SuperLeft` and `SuperRight` here, the key it calls `Super` is reported as
+    /// `Unidentified`, and `Meta` is a winit addition that the specification does not define.
     enum KeyCode mirrors WinitKeyCode, variant doc "The key named ",
     fn translate_key_code;
     variants {

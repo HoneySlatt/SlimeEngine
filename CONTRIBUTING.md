@@ -46,9 +46,9 @@ Install [rustup](https://rustup.rs). It reads `rust-toolchain.toml` and installs
 toolchain the first time you run `cargo` in the repository. Install the tools with
 `cargo install --locked cargo-deny lychee`, and Weston from your distribution's packages; CI uses
 the versions pinned by `flake.lock`. To open windows, the examples need the windowing system's
-libraries, which are loaded at run time: libwayland-client and libxkbcommon for Wayland; libX11,
-libX11-xcb, libXcursor, libXi, libxcb and libxkbcommon-x11 for X11. Most desktop distributions
-install them already.
+libraries, which are loaded at run time: libxkbcommon for both windowing systems;
+libwayland-client for Wayland; libX11, libX11-xcb, libXcursor, libXi, libxcb and libxkbcommon-x11
+for X11. Most desktop distributions install them already.
 
 ## Checks
 

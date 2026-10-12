@@ -28,7 +28,8 @@ Do not write one for choices that are local to a function or a module and cheap 
    a decision that is actually in effect.
 4. An accepted ADR is never edited to change its meaning. To change a decision, write a new ADR
    that supersedes the old one, and set the old one's status to `Superseded by NNNN`. Fixing a
-   typo or a broken link is fine.
+   typo, a broken link, or a factual error that leaves the decision unchanged is fine; the commit
+   message says what was corrected.
 
 ## Format
 

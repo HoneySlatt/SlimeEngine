@@ -83,7 +83,7 @@ baseline exists and CI checks it.
   the GitHub Actions workflow, ADR-0006 (dependency policy), ADR-0007 (documentation tooling and
   CI).
 - **Done when.** `scripts/check.sh` passes locally; a deliberately broken Markdown link makes it
-  fail; CI is green on GitHub. The repository has no remote yet: until it is pushed, the CI run is
+  fail; CI is green on GitHub. Nothing has been pushed to GitHub yet: until it is, the CI run is
   recorded below as not verified.
 - **How to test.** `nix develop -c scripts/check.sh`.
 
@@ -188,9 +188,9 @@ The release is a git tag on a commit whose CI run is green
 
 ## Known debt
 
-- **CI has never run.** The repository has no remote yet, so the GitHub Actions workflow has not
-  been executed. `scripts/check.sh` passes locally in the same Nix shell that CI uses. Stage 0 is
-  complete except for this: the first push to GitHub must show a green run.
+- **CI has never run.** Nothing has been pushed to GitHub yet, so the GitHub Actions workflow has
+  not been executed. `scripts/check.sh` passes locally in the same Nix shell that CI uses. Stage 0
+  is complete except for this: the first push to GitHub must show a green run.
 - **Temporary frame pacing and display (Stage 2).** The windowed driver limits the frame rate by
   sleeping (`AppConfig::max_frame_rate`), and the `window` example fills its window from the CPU
   with `softbuffer`. Both go away when the GPU layer presents frames.
