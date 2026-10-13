@@ -2,7 +2,9 @@
 
 - Status: Accepted; amends [0027](0027-the-render-crate.md),
   [0033](0033-gpu-layer-for-multi-pass-rendering.md) and
-  [0037](0037-lights-in-physical-units-and-pre-exposure.md)
+  [0037](0037-lights-in-physical-units-and-pre-exposure.md); amended by
+  [0039](0039-image-based-lighting-computed-on-the-cpu.md) (the frame's values; group 0 holds the
+  environment)
 - Date: 2026-10-13
 
 ## Context

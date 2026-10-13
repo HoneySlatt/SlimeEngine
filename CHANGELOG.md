@@ -62,6 +62,19 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   shadow pass, which the `scene` example's overlay shows.
 - `FragmentState::target_format` in `slime-gfx` is optional: a fragment stage without a target
   format writes no color and may discard fragments, in a pass without a render target.
+- Image-based lighting in `slime-render`
+  ([ADR-0039](docs/adr/0039-image-based-lighting-computed-on-the-cpu.md)):
+  `Renderer::create_environment` computes a `Sky` on the CPU, a clear-sky gradient over hazy
+  ground with an optional sun, into an `Environment`: a cube map prefiltered for four roughnesses,
+  which `Scene::environment` names. Surfaces reflect it as the Khronos glTF Sample Viewer does,
+  smooth ones sharply and rough ones blurred, metals in their color, and a sky pass draws it behind
+  the scene with the sun's disc (`RenderStats::sky_gpu_time`). The sample and the shapes are drawn
+  under a clear blue sky, and the `scene` example's overlay shows the sky pass and the time the
+  sky took to compute at startup.
+- In `slime-gfx`: textures whose levels the caller gives, in any format
+  (`Gpu::create_texture_with_levels`), cube textures (`Gpu::create_cube_texture`,
+  `BindingType::CubeTexture`), and `f32_to_f16`, which converts to the half-precision floats of
+  `Rgba16Float` texels.
 
 ### Changed
 
@@ -90,6 +103,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - A frame of `Renderer::render` takes three passes, the shadow pass first; `Renderer::new` builds
   six pipelines and a 16 MiB shadow map; a `DirectionalLight` written in full names
   `casts_shadows`; images of scenes lit by a directional light show its shadows.
+- `Scene::environment` replaces `Scene::ambient` and `Scene::clear`: a scene without an
+  environment is black around its surfaces and lit by its lights alone. A frame takes four passes,
+  the sky's after the scene's, and `Renderer::new` builds seven pipelines. Images change: the
+  samples show a sky, their shadows are blue, and their metals reflect the sky.
 - `RenderStats::gpu_time` is replaced by `scene_gpu_time` and `tone_mapping_gpu_time`; `Scene`
   has a new field, `exposure`; `Renderer::new` takes the output's format, any render-target
   format. `Scene::clear` is light, exposed and tone mapped like surfaces, and its alpha is no

@@ -1,6 +1,6 @@
 # 0033. The GPU layer for multi-pass rendering
 
-- Status: Accepted; amended by [0038](0038-shadow-mapping.md) (a fragment stage may have no target format)
+- Status: Accepted; amended by [0038](0038-shadow-mapping.md) (a fragment stage may have no target format) and by [0039](0039-image-based-lighting-computed-on-the-cpu.md) (cube textures, `Rgba16Float` textures from the CPU, levels given by the caller)
 - Date: 2026-10-13
 
 ## Context

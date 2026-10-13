@@ -12,9 +12,9 @@ records one decision: its context, the decision, the alternatives rejected and t
 **Alpha mask.** Not drawing the fragments of a surface whose alpha falls below a cutoff, so that
 a texture can cut shapes out of it: glTF's `MASK` alpha mode (`slime_render::AlphaMode`).
 
-**Ambient light.** A constant light that reaches every surface from every direction, a stand-in for
-the light of the surroundings until image-based lighting (M3b.6): `Scene::ambient`, a radiance in
-*nits*, which surfaces reflect times their base color and their occlusion.
+**Ambient light.** A constant light that reached every surface from every direction, the stand-in
+for the light of the surroundings until the *environment* replaced it
+([ADR-0039](adr/0039-image-based-lighting-computed-on-the-cpu.md)).
 
 **Application time.** The sum of the deltas of all frames so far (`FrameTime::elapsed`). It
 falls behind wall-clock time when a frame delta is limited, for example after a pause.
@@ -27,6 +27,11 @@ falls behind wall-clock time when a frame delta is limited, for example after a 
 **BRDF (bidirectional reflectance distribution function).** How much of the light arriving at a
 surface from one direction it reflects towards another: what the *metallic-roughness model*
 computes.
+
+**BRDF table (scale and bias).** The table, by n·v and roughness, of the two numbers A and B such
+that a surface reflecting f0 at normal incidence reflects f0 A + B of a uniform *environment*
+(single scattering): the second factor of the *split sum*. The renderer computes it on the CPU once
+per process, 32 × 32 ([ADR-0039](adr/0039-image-based-lighting-computed-on-the-cpu.md)).
 
 **Candela (cd).** The unit of luminous intensity, lumens per steradian: the strength of a point or
 spot light (`intensity`). A surface facing such a light d metres away receives intensity / d² *lux*.
@@ -44,6 +49,10 @@ crate depends on: the examples, the dev *overlay* (`slime-devui`) and, later, th
 where it does not, and linear filtering blends the four nearest results
 (`slime_gfx::ComparisonSampler`, [ADR-0033](adr/0033-gpu-layer-for-multi-pass-rendering.md)).
 Shadow maps are read this way. See *percentage-closer filtering*.
+
+**Cube texture (cube map).** Six square images on the faces of a cube, which shaders read by
+direction: the face is the axis along which the direction is longest
+(`Gpu::create_cube_texture`).
 
 **Culling.** Not drawing the triangles that face one way, usually the back faces of closed
 meshes, which their front faces hide anyway (`slime_gfx::CullMode`). A triangle faces the front
@@ -99,6 +108,10 @@ GPU objects of `slime_gfx` hold wgpu's, `slime_platform::Window` holds winit's
 ([ADR-0011](adr/0011-windowing-with-winit.md), [ADR-0016](adr/0016-gpu-layer-with-wgpu.md),
 [ADR-0017](adr/0017-gpu-resource-types.md)).
 
+**Environment.** The surroundings of a scene as the renderer draws and reflects them: a *sky* drawn
+on the CPU into a *cube texture* and its *prefiltered levels* (`slime_render::Environment`,
+[ADR-0039](adr/0039-image-based-lighting-computed-on-the-cpu.md)).
+
 **Example.** A runnable program in the `examples/` directory that demonstrates one feature.
 
 **Exposure.** What the scene's light is multiplied by before it is written into the *HDR* target,
@@ -111,6 +124,11 @@ sensitivity ISO 100: log2(N² / t) for an aperture N and a shutter time t in sec
 one stop darker. About 15 for direct sunlight, 7 for a lit room. Its exposure is
 1 / (1.2 × 2^EV100), the convention of Frostbite and Filament; the `scene` example's slider moves in
 it.
+
+**Filtered importance sampling.** Reading each sample of a Monte Carlo integral of a texture from
+a blurred level of it whose texels cover the solid angle the sample stands for, which removes the
+noise of sharp features with few samples (Křivánek and Colbert); the *prefiltered levels* are
+computed so.
 
 **Fixed step.** A duration of time, constant for a run, in which code that must not depend on
 the frame rate advances (`slime_app::time::FixedStep`). A frame runs zero or more fixed steps.
@@ -126,6 +144,9 @@ second on average. With the default *present mode*, it alone paces the frames
 **Fullscreen triangle.** One triangle larger than the target, which covers every pixel of it,
 built by the vertex shader from the vertex index without a vertex buffer: how a pass that
 processes a whole image, such as tone mapping, draws.
+
+**Furnace test.** A white object inside a uniform *environment* must reflect exactly its radiance,
+and disappear into it: any loss or gain of light shows.
 
 **glTF.** The Khronos Group's format for 3D scenes: meshes, materials, textures and a node
 hierarchy, as a JSON file with binary buffers, or as one GLB file with everything embedded. The
@@ -157,6 +178,9 @@ its tone-mapping pass reads.
 turns into the light the surface reflects: a `DirectionalLight`'s `illuminance`, and what a point
 or spot light gives at a distance (ADR-0035, ADR-0037).
 
+**Image-based lighting (IBL).** Lighting surfaces with the light of their whole surroundings, read
+from images of it, here an *environment*, rather than from *punctual lights* alone.
+
 **Image test.** A test that renders offscreen and compares the result with a *reference image*,
 pixel by pixel, within a tolerance that absorbs how drivers round colors and filter textures
 ([ADR-0018](adr/0018-reference-image-tests.md), amended by
@@ -173,6 +197,10 @@ them, built for each frame.
 **Interpolation factor.** The fraction of a fixed step accumulated but not yet run
 (`FixedStep::alpha`), between 0 and 1. Used to draw a state between the last two fixed steps.
 `run` does not pass it to applications yet.
+
+**Irradiance.** The light that reaches a surface from every direction of its hemisphere, each
+weighted by the cosine of its incidence, in *lux*: a matte surface of albedo c reflects
+c × irradiance / π. The roughest of the *prefiltered levels* holds the irradiance divided by π.
 
 **Label (GPU object).** The name given to a GPU object when it is created, required by every
 creation method of `slime_gfx::Gpu`. Error messages and GPU capture tools show it.
@@ -216,11 +244,16 @@ faces so that it keeps its front ones, as glTF does (ADR-0035).
 **Mipmaps.** Copies of a texture at half, a quarter, ... of its size, down to one pixel: the
 *levels of detail* among which a *sampler* chooses by the size the texture is drawn at, so that a
 minified texture does not alias. The engine computes them on the CPU when the texture is created
-(`Gpu::create_texture`), in linear light for the sRGB formats; linear filtering blends two levels.
+(`Gpu::create_texture`), in linear light for the sRGB formats, or takes them from the caller
+(`Gpu::create_texture_with_levels`, `Gpu::create_cube_texture`); linear filtering blends two levels.
+
+**Multiple scattering.** Light that bounces between the microfacets of a rough surface before it
+leaves, which a single-scattering *BRDF* loses: a white rough metal would look grey. The renderer
+gives it back in the *environment*'s light, as the Khronos glTF Sample Viewer does, not in the
+lights'.
 
 **Nit (cd/m²).** The unit of luminance, candelas per square metre: the light that surfaces reflect
-and emit, the ambient light and the background, as the renderer computes them before the
-*exposure*.
+and emit and the *sky*'s, as the renderer computes them before the *exposure*.
 
 **Normal matrix.** The matrix by which the renderer transforms an instance's normals so that they
 stay perpendicular to surfaces scaled unevenly: the cofactor matrix of the transform's 3 × 3 part,
@@ -232,8 +265,8 @@ the culling.
 it detail without more triangles: red along the tangent, green up the image, blue along the
 normal, each from −1 to 1 stored as 0 to 1 (glTF).
 
-**Occlusion texture.** A texture whose red channel says how much of the ambient light reaches each
-point of a surface, darkening creases (glTF).
+**Occlusion texture.** A texture whose red channel says how much of the *environment*'s light
+reaches each point of a surface, darkening creases (glTF).
 
 **Offscreen rendering.** Drawing into an image that no window shows, a *render target*, for
 example to read it back to the CPU. Image tests render this way, without a windowing system.
@@ -265,6 +298,10 @@ letter key of the top row is `KeyQ` on every layout, whether it is labelled Q (Q
 **Pre-exposure.** Multiplying the scene's light by the *exposure* in the scene pass, before the
 *HDR* target is written, so that light in physical units fits *half precision*
 ([ADR-0037](adr/0037-lights-in-physical-units-and-pre-exposure.md)).
+
+**Prefiltered levels.** The levels of an *environment*'s *cube texture* past the first: the sky
+averaged under the reflection lobe of a growing roughness, so that one lookup gives what a rough
+surface reflects ([ADR-0039](adr/0039-image-based-lighting-computed-on-the-cpu.md)).
 
 **Present (an image).** Hand a drawn image to the window, which shows it at one of the display's
 next refreshes, as the *present mode* says.
@@ -305,8 +342,8 @@ one.
 **Sampler.** How shaders read a texture: nearest or linear filtering, and what lies beyond its
 edges (repeat, mirror or clamp) (`slime_gfx::Sampler`).
 
-**Scene (render).** What the renderer draws in one frame: a camera, *punctual lights*, an ambient
-light, a clear color, an *exposure* and *instances* (`slime_render::Scene`). Not a scene graph: the
+**Scene (render).** What the renderer draws in one frame: a camera, *punctual lights*, an
+*environment*, an *exposure* and *instances* (`slime_render::Scene`). Not a scene graph: the
 renderer keeps nothing between frames, and the world model of Stage 5 will produce such scenes.
 
 **Shadow acne.** Speckles of shadow that a surface casts on itself where its depth and the one
@@ -325,12 +362,27 @@ that a run gives the same results on every machine. Headless runs use it.
 **Skeleton (crate).** A crate that exists with its documentation and inherits the workspace
 policies, but holds no code yet.
 
+**Sky.** The procedural daytime sky from which the renderer computes an *environment*
+(`slime_render::Sky`): a gradient from the zenith to the horizon, a haze into the ground below,
+and an optional sun, whose glow, the light the sky scatters around it, it holds. The sun's disc is
+drawn by the *sky pass*, not held.
+
+**Sky pass.** The render pass that draws the *environment* and the *sun's disc* where no surface
+was drawn, after the scene pass.
+
 **Spiral of death.** A fixed-step loop that falls further behind at each frame because running
 the overdue steps takes longer than the time they cover. `FixedStep` avoids it by limiting the
 steps per frame and dropping the rest.
 
+**Split sum.** Karis's approximation of what a surface reflects of its *environment*: a
+*prefiltered level* read along the reflection, times a Fresnel term from the *BRDF table*.
+
 **Stage.** A step of [`docs/ROADMAP.md`](ROADMAP.md), ordered by dependency, with a goal and an
 exit criterion. Stages are numbered from 0; a stage may be split (Stage 3a and 3b).
+
+**Sun's disc.** The disc of the sun's apparent size, 0.533°, that the *sky pass* draws, whose
+radiance gives a surface facing it the sun's illuminance; it lights nothing, the scene's
+directional light carrying the sun's light.
 
 **Surface.** The link between the GPU and a window: the images the window shows. Each frame, the
 engine *acquires* one, the application draws into it, and the engine *presents* it

@@ -15,8 +15,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 - Stage 3b — Physically based renderer → 0.1: in progress. Planned on 2026-10-13 and validated by
   the owner. M3b.1 to M3b.5 are done. The owner's decisions of 2026-10-13 on earlier proposals are
   applied, and the findings of rounds 4 and 5 of the audit of 0.0.3 (issue
-  [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are fixed or recorded below; next:
-  M3b.6.
+  [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are fixed or recorded below. M3b.6 is
+  implemented and checked (ADR-0039) and awaits the Windows CI job and the owner's look at the
+  sample; next: M3b.7.
 
 ## Status
 
@@ -27,7 +28,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M3b.3](#m3b3--physically-based-materials) | Physically based materials | Done |
 | [M3b.4](#m3b4--light-types) | Light types | Done |
 | [M3b.5](#m3b5--shadows) | Shadows | Done |
-| [M3b.6](#m3b6--image-based-lighting) | Image-based lighting | Planned |
+| [M3b.6](#m3b6--image-based-lighting) | Image-based lighting | Awaiting the owner |
 | [M3b.7](#m3b7--bloom) | Bloom | Planned |
 | [M3b.8](#m3b8--render-graph) | Render graph | Planned |
 | [M3b.9](#m3b9--windows-check-documentation-release-01) | Windows check, documentation, release 0.1 | Planned |
@@ -82,7 +83,9 @@ it:
   through a comparison sampler.
 - IBL. A procedural sky drawn into an environment cube map, its irradiance, its prefiltered
   specular levels and the table of the BRDF's scale and bias, all computed on the CPU at startup:
-  no compute pass and no image file. The asset pipeline of Stage 4 may cook them instead.
+  no compute pass and no image file. The asset pipeline of Stage 4 may cook them instead. (Done at
+  M3b.6, ADR-0039: the roughest level is the irradiance; the sun's disc is drawn by the sky pass,
+  its light carried by the scene's directional light.)
 - Post-processing. The tone-mapping pass with its exposure, and a bloom: a chain of downsampled HDR
   targets, upsampled and added in the tone-mapping pass, so that no blending is needed.
 - Render graph. Extracted at the end of the stage from the passes that exist then (shadow, scene,
@@ -107,7 +110,9 @@ differently, which the per-channel tolerance of the image tests cannot absorb (A
 tolerance may need a measured amendment at M3b.5 (measured at M3b.5: they do not, and ADR-0030's
 tolerance stands, ADR-0038); every image test renders more passes on lavapipe and WARP, which
 lengthens CI; the CPU precomputation of IBL runs in every process that draws the sample, tests
-included, and must stay small; upgrading wgpu still waits for egui.
+included, and must stay small (measured at M3b.6: 38 ms for the sample's sky and the BRDF table in
+a release build on the owner's 16 threads, about 180 ms for the sky in a debug build, ADR-0039);
+upgrading wgpu still waits for egui.
 
 ### M3b.1 — GPU layer for multi-pass rendering
 
@@ -386,6 +391,41 @@ included, and must stay small; upgrading wgpu still waits for egui.
   CPU precomputation of the sample stays under a budget measured and recorded here. The image
   tests pass on the three drivers; the sample looks right by eye.
 - **How to test.** As M3b.2.
+- **Checked** on 2026-10-13: ADR-0039 records the sky, the precomputation, the binding, the sky
+  pass, the shading and the alternatives rejected, from three prototyped designs; the owner chose a
+  sun disc and its glow described in the sky, a clear blue sky over dark soil for the sample, and
+  faces of 128 texels. The budget: the sample's environment and the BRDF table take at most 50 ms
+  on every core in a release build on the owner's machine (Ryzen 7 5800X, 16 threads); measured
+  with its desktop busy, 23 ms (20 to 28) and 15 ms, 162 ms and 135 ms on one core, with
+  `cargo test --release -p slime-render --lib -- --ignored --nocapture`. Unit tests compare the
+  sky's formula with values computed by hand, the glow's integral and the disc's radiance with
+  their closed forms, every prefiltered level with an integral over every texel of the first (2.2,
+  1.4, 1.1 and 0.31 % at most, the largest in the sun's glow), the roughest level with the
+  irradiance of a linear sky and of the sample's (0.43 %), the BRDF table with a Gauss-Legendre
+  quadrature, the uniform sky's shortcut with the computation, and the cube's faces with the GPU,
+  texel by texel. `crates/slime-render/tests/environment.rs` reads every pixel back from an
+  `Rgba16Float` output: white spheres of roughness 0 to 1, metal and dielectric, vanish into a
+  uniform sky (the furnace test, within 2.8 × 10⁻⁴); a black dielectric and a grey metal reflect
+  what the split sum predicts from an independent integration (2.8 × 10⁻³); a mirror sphere
+  reflects the sky's formula (8.7 × 10⁻⁴); a matte sphere shows the sky's irradiance (1.9 ×
+  10⁻³); rough metals show the sky under their lobe (3.9 × 10⁻³); the sky pass shows the sky and
+  the sun's glow along every view ray (5.1 × 10⁻⁴), the same on lavapipe and RADV.
+  `tone_mapping.rs` checks that the sky is exposed before the target and clamped, and that the
+  sun's disc is drawn once at its radiance. `slime-gfx` checks every half and every midpoint
+  between halves through `f32_to_f16`, half-precision levels read back exactly, and every texel of
+  a cube in its documented direction. A prototype of the design, with another sky, was checked
+  against 43 mutations: 42 were caught, and the sky pass's clamp at 65 504 cannot be shown on
+  lavapipe and RADV, which clamp themselves. Every test passes on lavapipe, with glam's assertions
+  on, and on RADV. The references were rendered again on lavapipe and looked at (the sky, blue
+  shadows, metals reflecting it); on RADV, `gltf-front` has 223 pixels off by more than 2, 82 by
+  more than 4, 4 by more than 8 (65 allowed), largest 25; `gltf-back` 25, 1, 0, largest 5;
+  `shapes` 554, 284, 49, largest 19: ADR-0030's tolerance stands, `shapes` nearer its limit (49
+  of 65, 36 at M3b.5), where its metal spheres reflect the sky. On RADV at 1920 × 1080, the
+  sample's passes take 9.0 µs (shadow), 21.6 µs (scene), 14.6 µs (sky) and 10.2 µs (tone mapping)
+  from the start pose, 9.0, 14.6, 15.2 and 10.0 µs from a low pose. The `scene` example ran 400
+  frames in a headless Weston at 1280 × 720 on lavapipe (sky computed in 179 ms in a debug build;
+  shadow pass 2.0 ms, scene 3.0 ms, sky 1.1 ms, tone mapping 0.9 ms), and a screenshot was looked
+  at: the sky, the blue shadows, the overlay's sky lines.
 
 ### M3b.7 — Bloom
 
@@ -538,9 +578,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   warns once at startup, and its panels look slightly lighter than egui's own demos (ADR-0031).
   Harmless for tooling.
 - **Mipmaps are computed on the CPU when a texture is created** (`Gpu::create_texture`), on the
-  calling thread, in work proportional to the texture's pixels, and a caller cannot supply levels
-  of its own (ADR-0032). To move to the GPU, or to the asset pipeline of Stage 4, if textures
-  grow.
+  calling thread, in work proportional to the texture's pixels (ADR-0032); a caller with levels of
+  its own gives them to `Gpu::create_texture_with_levels` (ADR-0039). To move to the GPU, or to
+  the asset pipeline of Stage 4, if textures grow.
 - **Every offscreen render target and depth target can be sampled** (ADR-0033): they all carry the
   usage that allows it, which may cost some compression on some GPUs. Measured at M3b.5 on an RX
   6900 XT (RADV), with two builds that differ only by it: no cost (the scene pass took 43.9 µs
@@ -707,22 +747,19 @@ GitHub issues, linked from their entry; this list stays the reference.
   primitive to the vertices its indices name. To measure: load a three.js export of a mesh with
   several materials, and compare the sum of `MeshData::positions.len()` over the meshes created,
   and the load time, before and after.
-- **Shadowed surfaces and the background look darker than authored until image-based lighting**
-  (ADR-0034). The tone-mapping curve lowers dark colors, on the assumption that every surface
-  reflects some of its surroundings, which image-based lighting adds at M3b.6. Until then, the
-  samples' background, (0.05, 0.06, 0.08) once exposed, (63, 69, 80) in sRGB, shows as (34, 44, 60),
-  and surfaces lit by the ambient light alone lose up to 0.04 in every channel: a third to two
-  thirds of their light at the samples' ambient light, and most of a channel much weaker than the
-  others, which saturates them.
-- **Exposed light beyond 65 504 is clamped** (ADR-0035, ADR-0037). The scene shader writes exposed
-  light above 65 504, the largest value of the `Rgba16Float` target, as 65 504, and the renderer
-  bounds the exposed background the same way, rather than leave it to the driver, which may store an
-  infinity that the tone curve turns into NaN. Pre-exposure keeps the sample far below it: at its
+- **Exposed light beyond 65 504 is clamped** (ADR-0035, ADR-0037, ADR-0039). The scene and sky
+  shaders write exposed light above 65 504, the largest value of the `Rgba16Float` target, as
+  65 504, rather than leave it to the driver, which may store an infinity that the tone curve turns
+  into NaN; lavapipe and RADV clamp it themselves, so that no test can show either clamp. The sun's
+  disc, 1.47 × 10⁹ nits for the sample's sun, is clamped from an exposure of 4.46 × 10⁻⁵, half a
+  stop above the sample's. A sky's radiance is at most 65 504 nits before the exposure: brighter
+  zenith, horizon or ground is refused, and a brighter glow kept within it. Pre-exposure keeps the
+  sample far below it: at its
   exposure, π / 100 000, it writes at most 21.8 over 360 camera poses (348 four stops brighter),
   and at least 1.0 × 10⁻³ above zero, normal half-precision values (measured on lavapipe with
   the tone curve replaced by the identity, 2026-10-13). The clamp still catches the sun's highlights
-  on metals smoother than a roughness of about 0.125 seen near grazing incidence, emission or a
-  background above 65 504 / exposure, and any light once the exposure is raised about 7.5 stops
+  on metals smoother than a roughness of about 0.125 seen near grazing incidence, emission above
+  65 504 / exposure, and any light once the exposure is raised about 7.5 stops
   above the sample's. Clamped light loses its energy, which the bloom of M3b.7 would spread wrongly.
 - **Every fragment evaluates every light of the scene** (ADR-0037). The scene pass has no light
   culling: its cost grows with the number of lights, about 20 µs per light for a screen of 1920 ×
@@ -757,10 +794,38 @@ GitHub issues, linked from their entry; this list stays the reference.
   against which normal textures are usually baked. Such files shade slightly differently from
   other viewers, most at seams in the texture coordinates. The importer of Stage 4 computes
   MikkTSpace tangents.
-- **The ambient light ignores roughness and Fresnel until image-based lighting** (ADR-0035). Every
-  surface reflects it times its base color, whatever its metallic and roughness: smooth surfaces
-  show no reflection of their surroundings, and dielectrics lack the 4 % they reflect at normal
-  incidence. M3b.6 replaces it.
+- **The sky's light is neither shadowed nor occluded** (ADR-0039). A surface under an object, or
+  inside a box, receives the whole sky, but for its material's occlusion texture: no ambient
+  occlusion (screen-space effects are outside the stage), no reflection probes, and mirrors reflect
+  the sky, never the objects around them.
+- **The environment is computed on the CPU, in every process that draws a sky** (ADR-0039): 23 ms
+  in a release build on the owner's 16 threads, 162 ms on one core, and the BRDF table once (15
+  ms); about eight times longer in a debug build, which every test that draws a sky with a gradient
+  or a sun pays: the workspace's tests took 23.9 s instead of 9.7 s on lavapipe on the owner's
+  machine, most in `slime-render`'s `tests/environment.rs` (6.2 s) and the examples'
+  `tests/gltf.rs` (5.7 s), whose every load of a file computes the sample's sky. A sky that changes
+  needs a new environment: no time of day. To measure: `cargo test --release -p slime-render --lib
+  -- --ignored --nocapture`, against the budget of M3b.6. To move to the asset pipeline of Stage 4,
+  or to compute passes if skies change at run time; if the tests' time matters first, building
+  `slime-render` optimized in debug builds would shorten it, at the cost of stepping through it in
+  a debugger.
+- **The sky's sun is described twice** (ADR-0039). A game gives the same `DirectionalLight` to
+  `Sky::sun`, for the disc and the glow, and to `Scene::lights`, for its light and its shadows;
+  two different lights show a disc where no light comes from. The sample takes both from the
+  file's first directional light.
+- **Rough metals reflect the sky with multiple scattering compensated, the lights without**
+  (ADR-0039, as the Khronos glTF Sample Viewer): a white metal of roughness 1 reflects all of a
+  uniform sky, but its lights keep glTF's single-scattering BRDF, under which it would reflect
+  31 % of that sky; rough metals are darker in the sun than in the shade, relatively.
+- **A roughness between two prefiltered levels reads a blend of their lobes** (ADR-0039): the four
+  levels are 0.25 apart, and a lobe in between is approximated by mixing the nearest two, the split
+  sum's usual approximation; each level is within 2.2 % of its own lobe's average.
+- **Smooth gradients band on 8-bit outputs.** The sky's gradient shows steps one sRGB level apart,
+  20 to 40 pixels wide, as an 8-bit output does without dithering; not visible in the sample at
+  normal contrast.
+- **The `shapes` image test uses 49 of the 65 pixels that RADV may have off by more than 8**
+  (ADR-0030): the metal spheres' reflections of the sky. A change that adds reflective detail may
+  exceed it; measure it again then.
 - **glTF minification filters are approximated.** `slime-gfx` ties mip blending to the
   minification filter and gives every texture mipmaps, so only `NEAREST_MIPMAP_NEAREST` and
   `LINEAR_MIPMAP_LINEAR` are exact (documented in the loader). Revisit when an engine-side user
