@@ -85,7 +85,7 @@ the ADR linking to it.
 | [0015](0015-platforms-and-ci.md) | Platforms and CI on Linux and Windows | Accepted |
 | [0016](0016-gpu-layer-with-wgpu.md) | The GPU layer: wgpu behind `slime-gfx` | Accepted; amended by 0022, 0031 |
 | [0017](0017-gpu-resource-types.md) | GPU resource types | Accepted; amended by 0026 |
-| [0018](0018-reference-image-tests.md) | Reference image tests | Accepted; amended by 0028 |
+| [0018](0018-reference-image-tests.md) | Reference image tests | Accepted; amended by 0028, 0030 |
 | [0019](0019-default-log-filter.md) | Default log filter | Accepted |
 | [0020](0020-rendering-in-the-main-loop.md) | Rendering in the main loop, and application errors | Accepted; amended by 0021, 0022, 0025 |
 | [0021](0021-frame-pacing.md) | Frame pacing | Accepted |

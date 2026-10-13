@@ -1,6 +1,6 @@
 # 0018. Reference image tests
 
-- Status: Accepted; amended by [0028](0028-image-tests-tolerate-a-few-pixels.md) (how many pixels may differ)
+- Status: Accepted; amended by [0028](0028-image-tests-tolerate-a-few-pixels.md) (how many pixels may differ) and [0030](0030-image-tests-strict-on-the-reference-driver.md) (tolerances by driver)
 - Date: 2026-10-12
 
 ## Context
