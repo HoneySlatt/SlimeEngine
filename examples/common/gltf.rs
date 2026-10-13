@@ -5,12 +5,13 @@
 //! It reads triangle primitives with positions, normals (when missing, each triangle gets the
 //! normal of its face, as glTF requires), the first set of texture coordinates (zero when
 //! missing) and indices; the base color factor and texture of materials, with the file's sampler
-//! settings; and the node hierarchy of the default scene, flattened into instances (a node whose
-//! transform mirrors draws its primitives with their triangles wound the other way, as glTF
-//! prescribes). It refuses, with a clear error, what it cannot draw right: external files, images
-//! that are not PNG, images larger than the GPU accepts, required extensions, other coordinate
-//! sets, other primitive modes. It ignores, with a warning, animations, skins, cameras, vertex
-//! colors and extensions the file uses without requiring them.
+//! settings, but for how levels of detail are read, which `slime-gfx` ties to the minification
+//! filter (see `sampler_descriptor`); and the node hierarchy of the default scene, flattened into
+//! instances (a node whose transform mirrors draws its primitives with their triangles wound the
+//! other way, as glTF prescribes). It refuses, with a clear error, what it cannot draw right:
+//! external files, images that are not PNG, images larger than the GPU accepts, required
+//! extensions, other coordinate sets, other primitive modes. It ignores, with a warning,
+//! animations, skins, cameras, vertex colors and extensions the file uses without requiring them.
 //!
 //! The `gltf` crate's validation checks little more than that the file's objects name each other
 //! correctly, and its readers panic on some of what it lets through. The loader refuses, rather
@@ -541,6 +542,13 @@ fn flat_shaded(
 
 /// The sampler settings of a glTF texture; glTF leaves the filters open, and linear is the usual
 /// choice.
+///
+/// `slime-gfx` gives every texture mipmaps, and its minification filter also says how levels of
+/// detail are read: linear blends two, nearest reads one. Of glTF's six minification filters, only
+/// `NEAREST_MIPMAP_NEAREST` and `LINEAR_MIPMAP_LINEAR` are therefore drawn as the file asks. The
+/// others keep their filter between the pixels of a level but not their choice of levels:
+/// `LINEAR_MIPMAP_NEAREST` blends two, `NEAREST_MIPMAP_LINEAR` reads one, and `NEAREST` and
+/// `LINEAR`, which glTF reads from the full image only, read smaller levels too.
 fn sampler_descriptor(sampler: &gltf::texture::Sampler<'_>) -> SamplerDescriptor {
     let wrap = |mode: WrappingMode| match mode {
         WrappingMode::ClampToEdge => AddressMode::ClampToEdge,
