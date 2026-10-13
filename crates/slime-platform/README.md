@@ -30,7 +30,8 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
   system.
 - `WindowConfig`: the window's title (`"SlimeEngine"` by default) and the requested width and
   height of its content area, in logical pixels (1280 × 720 by default); compositors may choose
-  another size.
+  another size. On X11, the size in physical pixels, the logical size times the scale factor, is
+  limited to 65 535 per side, the most the X11 protocol allows.
 - `EventHandler` is what the event loop calls back: `window_created` once, then `event` for each
   event, `redraw_requested` when the window should be drawn, and `about_to_wait` whenever all
   pending events are handled, then `exiting` once. `about_to_wait` returns a `LoopControl`: wait

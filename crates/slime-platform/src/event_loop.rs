@@ -54,7 +54,8 @@ pub enum LoopControl {
 }
 
 /// The largest width or height a window can be asked for, in logical pixels: larger than any
-/// display, and far from the sizes at which the windowing library's arithmetic overflows.
+/// display. Times the scale factor, it can still exceed the 65 535 physical pixels that X11
+/// allows, so `resumed` also gives winit a maximum size there.
 const MAX_WINDOW_SIZE: u32 = 16_384;
 
 /// Connects to the windowing system, creates a window, and runs the event loop until the
@@ -135,6 +136,19 @@ impl<H: EventHandler> ApplicationHandler for WinitAdapter<'_, H> {
         let attributes = winit::window::Window::default_attributes()
             .with_title(&self.config.title)
             .with_inner_size(LogicalSize::new(self.config.width, self.config.height));
+        // The X11 protocol limits a window to 65 535 physical pixels per side, and winit panics
+        // when the requested size times the scale factor is larger, unless a maximum size makes
+        // it limit the size first.
+        #[cfg(target_os = "linux")]
+        let attributes = {
+            use winit::platform::wayland::ActiveEventLoopExtWayland;
+            if event_loop.is_wayland() {
+                attributes
+            } else {
+                let max = u32::from(u16::MAX);
+                attributes.with_max_inner_size(winit::dpi::PhysicalSize::new(max, max))
+            }
+        };
         match event_loop.create_window(attributes) {
             Ok(window) => {
                 let window = Window::new(window);
