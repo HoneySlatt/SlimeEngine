@@ -42,6 +42,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- On Direct3D 12, shaders are compiled with FXC, which is part of Windows, on every machine
+  ([ADR-0036](docs/adr/0036-direct3d-12-shader-compiler.md)). wgpu used any `dxcompiler.dll` that
+  Windows found, whatever its version, so the same program could compile its shaders differently,
+  or not start, from one machine to another. `WGPU_DX12_COMPILER=dxc` still asks for DXC.
 - The Windows examples that CI publishes link the C runtime statically: they start on a Windows
   without the Visual C++ Redistributable, such as a fresh install or Windows Sandbox.
 - `MeshData::tangents` is required, and a vertex takes 48 bytes: the largest mesh is 5 592 405

@@ -85,7 +85,10 @@ The GPU layer uses Vulkan on Linux and Direct3D 12 on Windows
   Windows), `WGPU_VALIDATION=1` turns on the validation layers of Vulkan or Direct3D 12, when
   they are installed, and `WGPU_DEBUG=1` passes the engine's labels and debug groups to the
   Vulkan driver in release builds, as debug builds always do (Direct3D 12 receives them in every
-  build; `WGPU_DISCARD_HAL_LABELS=1` keeps them back).
+  build; `WGPU_DISCARD_HAL_LABELS=1` keeps them back). On Direct3D 12, shaders are compiled with
+  FXC, part of Windows; `WGPU_DX12_COMPILER=dxc` asks for DXC instead, loaded from a
+  `dxcompiler.dll` that you provide
+  ([ADR-0036](docs/adr/0036-direct3d-12-shader-compiler.md)).
 - Image tests compare a render with a reference image stored in `examples/tests/reference/`,
   within a tolerance that depends on the driver
   ([ADR-0018](docs/adr/0018-reference-image-tests.md), amended by

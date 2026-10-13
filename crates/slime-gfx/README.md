@@ -95,7 +95,9 @@ fn main() -> Result<(), GfxError> {
 
 - `Gpu::new()` opens the most capable adapter of the machine and its device, and logs the adapter.
   The `WGPU_BACKEND` environment variable can choose another graphics API, and `VK_DRIVER_FILES`
-  can restrict Vulkan to one driver, such as lavapipe.
+  can restrict Vulkan to one driver, such as lavapipe. On Direct3D 12, shaders are compiled with
+  FXC, which is part of Windows, unless `WGPU_DX12_COMPILER=dxc` asks for DXC
+  (`docs/adr/0036-direct3d-12-shader-compiler.md`).
 - `Gpu::adapter_name()` names the adapter in use; `Gpu::wait_idle()` blocks until the GPU has
   finished its work; `Gpu::check()` returns `GfxError::DeviceLost` once the device is lost (the
   driver crashed or was reset, the GPU was removed, or it ran out of memory): the methods that

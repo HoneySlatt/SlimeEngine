@@ -252,12 +252,26 @@ impl Gpu {
     }
 }
 
-/// The wgpu instance, limited to the platform's graphics API unless `WGPU_BACKEND` chooses another.
+/// The wgpu instance, limited to the platform's graphics API unless `WGPU_BACKEND` chooses another,
+/// with the shader compiler of Direct3D 12 that [`dx12_compiler`] chooses.
 pub(crate) fn create_instance() -> wgpu::Instance {
     let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
     descriptor.backends = wgpu::Backends::from_env().unwrap_or(DEFAULT_BACKENDS);
     descriptor.flags = instance_flags();
+    descriptor.backend_options.dx12.shader_compiler = dx12_compiler(wgpu::Dx12Compiler::from_env());
     wgpu::Instance::new(descriptor)
+}
+
+/// The shader compiler of Direct3D 12 (ADR-0036): FXC, which is part of Windows, so that every
+/// machine compiles shaders the same way, unless `WGPU_DX12_COMPILER` asks for DXC loaded from
+/// `dxcompiler.dll` (`dxc` or `dynamicdxc`), given here as `requested`. wgpu's default, `Auto`,
+/// takes any `dxcompiler.dll` that Windows finds, whatever its version; its other choices are
+/// ignored: `staticdxc` needs a wgpu feature the engine does not build, on which wgpu panics.
+fn dx12_compiler(requested: Option<wgpu::Dx12Compiler>) -> wgpu::Dx12Compiler {
+    match requested {
+        Some(dxc @ wgpu::Dx12Compiler::DynamicDxc { .. }) => dxc,
+        _ => wgpu::Dx12Compiler::Fxc,
+    }
 }
 
 /// Debug labels in debug builds, which Vulkan needs to receive them (Direct3D 12 receives them in
@@ -276,6 +290,32 @@ fn instance_flags() -> wgpu::InstanceFlags {
 mod tests {
     use super::*;
     use crate::{Color, RenderPassDescriptor, TextureFormat};
+
+    #[test]
+    fn direct3d_12_compiles_shaders_with_fxc_unless_dxc_is_asked_for() {
+        for (requested, case) in [
+            (None, "nothing asked"),
+            (Some(wgpu::Dx12Compiler::Fxc), "FXC"),
+            (
+                Some(wgpu::Dx12Compiler::StaticDxc),
+                "a DXC the engine does not build",
+            ),
+            (Some(wgpu::Dx12Compiler::Auto), "wgpu's choice"),
+        ] {
+            assert!(
+                matches!(dx12_compiler(requested), wgpu::Dx12Compiler::Fxc),
+                "{case}"
+            );
+        }
+        let dxc = wgpu::Dx12Compiler::default_dynamic_dxc();
+        assert!(
+            matches!(
+                dx12_compiler(Some(dxc)),
+                wgpu::Dx12Compiler::DynamicDxc { dxc_path } if dxc_path == "dxcompiler.dll"
+            ),
+            "DXC asked for"
+        );
+    }
 
     #[test]
     fn a_lost_device_is_reported_and_using_it_does_not_panic() {

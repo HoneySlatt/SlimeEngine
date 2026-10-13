@@ -564,14 +564,6 @@ GitHub issues, linked from their entry; this list stays the reference.
   that pass until the next time replaces it. wgpu does not tell how many bits are valid, so the
   wrapped difference cannot be recovered. Dropping such a sample (`end.checked_sub(start)` in
   `crates/slime-gfx/src/timer.rs`) is a one-line change if it ever matters.
-- **Which shader compiler Direct3D 12 uses depends on the machine** (ADR-0016; a change is
-  proposed to the owner). wgpu 30 defaults to `Dx12Compiler::Auto`. Any `dxcompiler.dll` that the
-  Windows DLL search finds compiles every shader, with no check of its version: the application's
-  directory, the system directories, the working directory and `PATH`, where the Vulkan SDK or a
-  Visual Studio developer prompt put one. FXC, which is part of Windows, is used only when no such
-  DLL loads. A DLL that loads but fails in another way removes the Direct3D 12 backend, so
-  `Gpu::new` returns `NoAdapter`. `WGPU_DX12_COMPILER` is ignored, because the engine never reads
-  it. CI most likely runs FXC.
 - **The instance buffer is uploaded at its largest size every frame.** `Renderer::render` packs,
   zero-fills and uploads `capacity × stride` bytes (256-byte slots with the default limits), where
   the capacity is the largest instance count ever drawn, rounded up to a power of two (at least
