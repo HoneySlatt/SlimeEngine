@@ -169,7 +169,11 @@ fn main() -> Result<(), GfxError> {
 
   Except the timer, they are cheap to clone, clones share the GPU object, and it is freed when
   the last one is dropped. Each belongs to the `Gpu` that created it: using it with another `Gpu`
-  is a bug, which panics inside wgpu.
+  is a bug that neither the engine nor wgpu reliably catches. Each `Gpu` opens its own wgpu
+  instance, and wgpu finds an object by an index that every instance numbers from zero, so the
+  call may panic inside wgpu, or silently act on an unrelated object of the `Gpu` it was used
+  with, one that has the same index: a render target of one `Gpu` read back with another can
+  return the pixels of the second one's target.
 - `Gpu::render(&RenderPassDescriptor { target, clear, depth, timer }, record)` runs one render
   pass: it clears the target to a color, and the depth target to the farthest depth, or keeps
   what both hold when `clear` is `None`; lets `record` draw through a `RenderPass`
