@@ -5,13 +5,19 @@ use glam::{Mat4, Vec3};
 /// A perspective camera, looking from [`eye`](Self::eye) at [`target`](Self::target).
 ///
 /// World space is right-handed with +Y up, as in glTF; the camera looks down its own −Z axis.
+///
+/// A camera that [`view`](Self::view) or [`projection`](Self::projection) says draws nothing can
+/// panic inside glam instead when glam's assertions are on: its `glam-assert` feature, or
+/// `debug-glam-assert` in a debug build. A game that enables either on the glam it shares with
+/// the engine, the version [`crate::glam`] re-exports, enables it in the engine too.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Camera {
     /// Where the camera is, in world space.
     pub eye: Vec3,
     /// The point it looks at, which must differ from `eye`.
     pub target: Vec3,
-    /// Which way is up, usually [`Vec3::Y`]. It must not be parallel to the viewing direction.
+    /// Which way is up, usually [`Vec3::Y`]. Its length does not matter, but it must not be zero
+    /// or parallel to the viewing direction.
     pub up: Vec3,
     /// The vertical field of view, in radians.
     pub fov_y: f32,
@@ -38,10 +44,11 @@ impl Default for Camera {
 
 impl Camera {
     /// The view matrix: from world space to the camera's space. A `target` at `eye`, or so near it
-    /// that the square of their distance rounds to zero in `f32`, or an `up` parallel to the
-    /// viewing direction, gives a matrix that is not finite and draws nothing.
+    /// that the square of their distance rounds to zero in `f32`, or an `up` that is zero or
+    /// parallel to the viewing direction, gives a matrix that is not finite and draws nothing.
     pub fn view(&self) -> Mat4 {
-        glam::camera::rh::view::look_at_mat4(self.eye, self.target, self.up)
+        // glam asks for an `up` of length one, and asserts it when its assertions are on.
+        glam::camera::rh::view::look_at_mat4(self.eye, self.target, self.up.normalize())
     }
 
     /// The projection matrix for a target `aspect` times as wide as it is high: from the camera's
@@ -92,5 +99,19 @@ mod tests {
         let up = project(&camera, Vec3::new(0.0, 1.0, 0.0));
         assert!(right.x > 0.0 && right.y.abs() < 1e-6, "{right}");
         assert!(up.y > 0.0 && up.x.abs() < 1e-6, "{up}");
+    }
+
+    /// glam's `look_at_mat4` asks for an `up` of length one and asserts it when glam's assertions
+    /// are on, which `cargo test -p slime-render --features glam/debug-glam-assert` checks.
+    #[test]
+    fn the_length_of_up_does_not_change_the_view() {
+        let unit = Camera::default().view();
+        for length in [2.0, 1e-3] {
+            let camera = Camera {
+                up: Vec3::Y * length,
+                ..Camera::default()
+            };
+            assert!(camera.view().abs_diff_eq(unit, 1e-6), "length {length}");
+        }
     }
 }
