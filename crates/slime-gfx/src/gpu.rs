@@ -132,17 +132,28 @@ impl Gpu {
     }
 
     /// Runs `create` inside wgpu error scopes and returns what it created, with the error wgpu
-    /// reported if there is one: a validation error, or an internal one, which the graphics
-    /// driver's compiler raises when it rejects a shader or pipeline that wgpu's own validation
-    /// accepted. Errors of other kinds reach the error handler.
-    pub(crate) fn catch_errors<T>(&self, create: impl FnOnce() -> T) -> (T, Option<wgpu::Error>) {
+    /// reported if there is one: a validation error, or an internal one, which wgpu raises when it
+    /// cannot translate a shader for the graphics API, and Direct3D 12's shader compiler or driver
+    /// when it rejects a shader or pipeline that wgpu's own validation accepted. Errors of other
+    /// kinds reach the error handler.
+    ///
+    /// # Errors
+    ///
+    /// [`GfxError::DeviceLost`] if the device is lost once `create` returns. On Vulkan, a driver
+    /// that fails to create a shader or pipeline (which a conformant one does only when it runs
+    /// out of memory) makes wgpu lose the device, and no scope sees an error.
+    pub(crate) fn catch_errors<T>(
+        &self,
+        create: impl FnOnce() -> T,
+    ) -> Result<(T, Option<wgpu::Error>), GfxError> {
         let validation = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
         let internal = self.device.push_error_scope(wgpu::ErrorFilter::Internal);
         let created = create();
         // Scopes are popped in the reverse order of their pushes.
         let internal = pollster::block_on(internal.pop());
         let validation = pollster::block_on(validation.pop());
-        (created, internal.or(validation))
+        self.check()?;
+        Ok((created, internal.or(validation)))
     }
 
     /// Creates a buffer of `usage` holding `contents`, which must not be empty. On a lost device,
@@ -292,5 +303,21 @@ mod tests {
                 "a lost device is reported by every method that returns a result: {result:?}"
             );
         }
+    }
+
+    #[test]
+    fn a_device_lost_while_creating_is_reported() {
+        let gpu =
+            Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+        // On Vulkan, a driver that fails to create a pipeline makes wgpu lose the device without an
+        // error that a scope catches; destroying the device does the same.
+        let result = gpu.catch_errors(|| {
+            gpu.device.destroy();
+            let _ = gpu.device.poll(wgpu::PollType::wait_indefinitely());
+        });
+        assert!(
+            matches!(result, Err(GfxError::DeviceLost { .. })),
+            "the loss is reported: {result:?}"
+        );
     }
 }

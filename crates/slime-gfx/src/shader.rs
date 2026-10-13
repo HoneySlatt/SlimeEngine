@@ -18,9 +18,10 @@ impl Gpu {
     /// # Errors
     ///
     /// [`GfxError::Shader`] if the source does not compile, with the compiler's message, which
-    /// shows the line and column of each error; or if the graphics driver rejects the compiled
-    /// module, with the driver's message. [`GfxError::DeviceLost`] once the device is lost
-    /// ([`Gpu::check`]).
+    /// shows the line and column of each error; or if wgpu cannot translate it for the graphics
+    /// API, with wgpu's message. [`GfxError::DeviceLost`] once the device is lost
+    /// ([`Gpu::check`]), including when creating the module loses it: on Vulkan, wgpu treats a
+    /// driver that fails to create it as a lost device.
     pub fn create_shader_module(&self, label: &str, wgsl: &str) -> Result<ShaderModule, GfxError> {
         self.check()?;
         let (module, error) = self.catch_errors(|| {
@@ -29,7 +30,7 @@ impl Gpu {
                     label: Some(label),
                     source: wgpu::ShaderSource::Wgsl(wgsl.into()),
                 })
-        });
+        })?;
         match error {
             None => Ok(ShaderModule { module }),
             Some(error) => Err(GfxError::Shader {

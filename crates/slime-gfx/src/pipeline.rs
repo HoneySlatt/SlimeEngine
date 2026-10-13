@@ -195,8 +195,11 @@ impl Gpu {
     /// hold as another kind (a `texture_depth_2d` or `sampler_comparison` against a layout entry
     /// that is not a [`BindingType::DepthTexture`](crate::BindingType::DepthTexture) or
     /// [`BindingType::ComparisonSampler`](crate::BindingType::ComparisonSampler), or the reverse);
-    /// or if the graphics driver rejects it. The message names the pipeline's label.
-    /// [`GfxError::DeviceLost`] once the device is lost ([`Gpu::check`]).
+    /// or, on Direct3D 12, if the shader compiler or the graphics driver rejects it. The message
+    /// names the pipeline's label. [`GfxError::DeviceLost`] once the device is lost
+    /// ([`Gpu::check`]), including when creating the pipeline loses it: on Vulkan, wgpu treats a
+    /// driver that fails to create it (which a conformant one does only when it runs out of
+    /// memory) as a lost device.
     pub fn create_render_pipeline(
         &self,
         descriptor: &RenderPipelineDescriptor<'_>,
@@ -285,7 +288,7 @@ impl Gpu {
                     multiview_mask: None,
                     cache: None,
                 })
-        });
+        })?;
         match error {
             None => Ok(RenderPipeline { pipeline }),
             Some(error) => Err(GfxError::Pipeline {

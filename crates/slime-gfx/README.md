@@ -205,9 +205,10 @@ fn main() -> Result<(), GfxError> {
   hidden window. Applications built on `slime-app` do not call these: the engine does.
 - `GfxError` says why the GPU could not be opened or used. A rejected shader or pipeline is
   returned as `GfxError::Shader` or `GfxError::Pipeline`, with wgpu's message, which for WGSL
-  gives the line and column of the error. Other misuses of wgpu are bugs and panic, except once
-  the device is lost: errors then only repeat that it is gone, and are logged at the `debug`
-  level.
+  gives the line and column of the error; so is one that Direct3D 12's shader compiler or driver
+  rejects. On Vulkan, wgpu treats a driver that fails to create one as a lost device, returned as
+  `GfxError::DeviceLost`. Other misuses of wgpu are bugs and panic, except once the device is
+  lost: errors then only repeat that it is gone, and are logged at the `debug` level.
 
 ## Dependencies
 
