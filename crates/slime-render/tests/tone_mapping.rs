@@ -144,8 +144,9 @@ fn the_sky_is_exposed_before_the_high_dynamic_range_target_and_kept_within_its_r
     let mut renderer =
         Renderer::new(&gpu, TextureFormat::Rgba16Float).expect("the renderer is created");
     let output = gpu.create_render_target("output", 4, 4, TextureFormat::Rgba16Float);
-    // Exposed light beyond 65 504 is stored as 65 504, as the scene shader writes surfaces, rather
-    // than left to the driver, which may store an infinity that the curve turns into NaN.
+    // Exposed light beyond 65 504 is stored as 65 504, as the sky shader writes it, rather than
+    // left to the driver, which may store an infinity that the curve turns into NaN. lavapipe and
+    // RADV would store 65 504 without the shader's clamp too: this checks the value, not the clamp.
     draw(&gpu, &mut renderer, &output, [32_768.0; 3], 4.0);
     let image = gpu
         .read_float_render_target(&output)
@@ -160,27 +161,27 @@ fn the_sky_is_exposed_before_the_high_dynamic_range_target_and_kept_within_its_r
     // every pixel of a narrow view is in the disc, where the sun's glow adds 14 324 nits, 5 × 10⁻⁶
     // once exposed. The same light in the scene lights surfaces but draws no second disc.
     let solid_angle = 2.0 * std::f64::consts::PI * (1.0 - (0.533_f64 / 2.0).to_radians().cos());
-    let sun = DirectionalLight {
-        direction: -Vec3::Z,
-        illuminance: 100_000.0,
-        ..DirectionalLight::default()
-    };
-    let environment = renderer.create_environment(
-        &gpu,
-        &Sky {
-            zenith: Vec3::ZERO,
-            horizon: Vec3::ZERO,
-            ground: Vec3::ZERO,
-            sun: Some(sun),
-        },
-    );
-    let narrow = Camera {
-        eye: Vec3::ZERO,
-        target: Vec3::Z,
-        fov_y: 0.001,
-        ..Camera::default()
-    };
-    let mut disc = |exposure: f32| {
+    let mut disc = |direction: Vec3, exposure: f32| {
+        let sun = DirectionalLight {
+            direction,
+            illuminance: 100_000.0,
+            ..DirectionalLight::default()
+        };
+        let environment = renderer.create_environment(
+            &gpu,
+            &Sky {
+                zenith: Vec3::ZERO,
+                horizon: Vec3::ZERO,
+                ground: Vec3::ZERO,
+                sun: Some(sun),
+            },
+        );
+        let narrow = Camera {
+            eye: Vec3::ZERO,
+            target: -direction,
+            fov_y: 0.001,
+            ..Camera::default()
+        };
         renderer.render(
             &gpu,
             &output,
@@ -195,16 +196,28 @@ fn the_sky_is_exposed_before_the_high_dynamic_range_target_and_kept_within_its_r
         gpu.read_float_render_target(&output)
             .expect("the image is read back")
     };
+    // A sun 26.6° high.
+    let high = Vec3::new(0.0, -0.5, -1.0);
     assert_every_pixel(
-        &disc((0.5 * solid_angle / 100_000.0) as f32),
+        &disc(high, (0.5 * solid_angle / 100_000.0) as f32),
         tone_curve::tone_map([0.5; 3]),
         "the sun's disc",
     );
     // Exposed at 1, it would be 1.47 × 10⁹: stored as 65 504.
     assert_every_pixel(
-        &disc(1.0),
+        &disc(high, 1.0),
         tone_curve::tone_map([65_504.0; 3]),
         "the sun's disc at an exposure of 1",
+    );
+    // 11.3° below the horizon, the ground's haze leaves e^(−0.196 / 0.03) = 1.5 × 10⁻³ of it.
+    let low = disc(
+        Vec3::new(0.0, 0.2, -1.0),
+        (0.5 * solid_angle / 100_000.0) as f32,
+    );
+    assert!(
+        low.pixels.iter().all(|&value| value < 2e-3 || value == 1.0),
+        "the sun below the horizon: {:?}",
+        &low.pixels[..4]
     );
 }
 

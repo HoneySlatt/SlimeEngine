@@ -391,7 +391,7 @@ fn a_coloured_sphere_inside_a_uniform_environment_reflects_what_the_split_sum_pr
     // Where the BRDF's scale and bias matter: a black dielectric reflects only its specular
     // layer, F(0.04) of the light, and a grey metal F(0.5); both depend on n·v and the roughness
     // read from the table, which a swapped axis, a lookup off by half a texel or a wrong formula
-    // shows. Every pixel of the sphere not seen within 60° of its edge, against the table
+    // shows. Every pixel of the sphere whose normal is within 60° of the view, against the table
     // computed here by another integration: within the table's error (2.5 × 10⁻³ in A and B,
     // `environment.rs`), at radiance 1.
     let mut setup = Setup::new();
@@ -446,9 +446,9 @@ fn a_coloured_sphere_inside_a_uniform_environment_reflects_what_the_split_sum_pr
 fn a_mirror_sphere_reflects_the_sky() {
     // A white metal of roughness 0 reflects all the light along the reflection of each view ray:
     // the sky there, as the first level of the environment holds it. Pixels whose reflection is
-    // within 12° of the horizon, where the first level's texels of 0.7° blur the step to the
-    // ground, and those seen within 60° of the sphere's edge, where its 64 × 128 facets turn
-    // the reflection most, are left out.
+    // within 12° of the horizon, where the first level's texels of 0.45 to 0.9° blur the haze into
+    // the ground, and those whose normal is more than 60° from the view, near the sphere's edge,
+    // where its 64 × 128 facets turn the reflection most, are left out.
     let mut setup = Setup::new();
     let environment = setup.environment(&SKY);
     let mirror = setup.material([1.0; 3], 1.0, 0.0);
@@ -534,6 +534,51 @@ fn the_sky_shows_where_no_surface_is() {
         assert!(checked > 10_000, "{checked} pixels");
     }
     println!("largest difference {largest}");
+}
+
+#[test]
+fn an_environment_draws_with_any_renderer_and_a_scene_without_one_is_black() {
+    // A renderer builds the group of the environment a scene names, and builds it again when the
+    // scene names another one or none: an environment that one renderer made draws the same with
+    // another, and a scene without one, drawn after it, shows nothing but black.
+    let mut setup = Setup::new();
+    let environment = setup.environment(&SUNNY_SKY);
+    let camera = camera(Vec3::new(0.0, 0.5, 1.0));
+    let material = setup.material([0.8, 0.5, 0.2], 1.0, 0.3);
+    let made_here = setup.draw(camera, &environment, Some(&material), 1.0);
+    let mut other =
+        Renderer::new(&setup.gpu, TextureFormat::Rgba16Float).expect("the renderer is created");
+    let instances = [Instance {
+        mesh: &setup.sphere,
+        material: &material,
+        transform: Mat4::IDENTITY,
+    }];
+    let mut scene = Scene {
+        camera,
+        lights: &[],
+        environment: Some(&environment),
+        exposure: 1.0,
+        instances: &instances,
+    };
+    other.render(&setup.gpu, &setup.output, &scene);
+    let drawn_elsewhere = setup
+        .gpu
+        .read_float_render_target(&setup.output)
+        .expect("the image is read back");
+    assert_eq!(drawn_elsewhere.pixels, made_here.pixels);
+    scene.environment = None;
+    other.render(&setup.gpu, &setup.output, &scene);
+    let black = setup
+        .gpu
+        .read_float_render_target(&setup.output)
+        .expect("the image is read back");
+    assert!(
+        black
+            .pixels
+            .chunks(4)
+            .all(|pixel| pixel[..3].iter().all(|&value| value == 0.0)),
+        "a scene without an environment and without lights is black"
+    );
 }
 
 /// The sky's radiance averaged around the unit vector `r` with the weight `weight(r·l)` of each

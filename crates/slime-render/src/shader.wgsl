@@ -40,6 +40,10 @@ const BRDF_TABLE_SIZE: f32 = 32.0;
 // angular radius r, 0.2665 degrees (SUN_ANGULAR_RADIUS in environment.rs, which a unit test
 // compares with it).
 const SUN_CHORD: f32 = 0.0046512983;
+// The sine of the depression below the horizon over which the ground hides the horizon's light by
+// a factor e (GROUND_HAZE in environment.rs, which a unit test compares with it): it hides the
+// sun's disc as the environment hides its glow.
+const GROUND_HAZE: f32 = 0.03;
 
 // One light, in world space, as Light::push_values in light.rs packs it.
 struct Light {
@@ -331,6 +335,7 @@ fn environment_fresnel(
 struct SkyVertex {
     @builtin(position) clip_position: vec4<f32>,
     // The direction of the pixel, homogeneous: interpolated linearly, since w is 1 at every corner.
+    // Its w is positive, so that its xyz alone gives the direction.
     @location(0) direction: vec4<f32>,
 }
 
@@ -346,15 +351,18 @@ fn vs_sky(@builtin(vertex_index) index: u32) -> SkyVertex {
 
 @fragment
 fn fs_sky(input: SkyVertex) -> @location(0) vec4<f32> {
-    let direction = normalize(input.direction.xyz / input.direction.w);
+    // Not divided by w: w comes from terms that cancel, and reaches 0 when the camera's far plane
+    // is about 10^7 times its near one.
+    let direction = normalize(input.direction.xyz);
     var light = textureSampleLevel(environment, environment_sampler, direction, 0.0).rgb;
     // The sun's disc, which is in no level of the environment, so that surfaces receive the sun's
     // light once, through the scene's light, which casts shadows. Its edge is blended over a
     // pixel; the distance from its centre is the chord, which keeps its precision where the
-    // cosine of so small an angle would not.
+    // cosine of so small an angle would not. Below the horizon, the ground's haze hides it.
     let from_centre = length(direction - frame.to_sun);
     let covered = saturate((SUN_CHORD - from_centre) / max(fwidth(from_centre), 1e-7) + 0.5);
-    light += frame.sun_radiance * covered;
+    let seen = min(exp(direction.y / GROUND_HAZE), 1.0);
+    light += frame.sun_radiance * (covered * seen);
     return vec4<f32>(min(light * frame.exposure, vec3<f32>(LARGEST_HALF)), 1.0);
 }
 

@@ -16,8 +16,8 @@ use slime_gfx::{Gpu, Texture, TextureFormat, f32_to_f16};
 
 use crate::light::DirectionalLight;
 
-/// The width of the faces of the environment's first level, in texels: 0.70° per texel at a face's
-/// centre.
+/// The width of the faces of the environment's first level, in texels: 0.90° per texel at a face's
+/// centre, 0.45° at its edges.
 pub(crate) const ENVIRONMENT_SIZE: u32 = 128;
 /// The environment's levels, each half the size of the one before (128 down to 8): level `i` is
 /// prefiltered for a roughness of `i / (ENVIRONMENT_LEVELS - 1)`. `ROUGHEST_LEVEL` in `shader.wgsl`
@@ -42,7 +42,7 @@ const GLOW_SHARE: f32 = 0.04;
 const GLOW_FOCUS: f32 = 0.8;
 /// The sine of the depression below the horizon over which the horizon's light fades into the
 /// ground's by a factor e: about 1.7°, the haze over distant ground.
-const GROUND_HAZE: f32 = 0.03;
+pub(crate) const GROUND_HAZE: f32 = 0.03;
 /// The CIE standard clear sky's luminance gradation, 1 − exp(−0.32 / sin elevation), at the zenith.
 const GRADATION_AT_ZENITH: f32 = 0.273_850_96;
 /// The largest radiance a sky may have, the largest half-precision float, which its texels hold.
@@ -66,10 +66,10 @@ const SMALLEST_N_DOT_V: f32 = 1e-4;
 /// With a `sun`, the sky also holds the light it scatters around the sun, its glow: 4 % of the
 /// sun's illuminance, gathered around its direction by a Henyey-Greenstein lobe (g = 0.8), and
 /// hidden by the ground through the same haze. The sun itself is not in the sky's light: the sky
-/// pass draws its disc, of the real sun's size, whose radiance gives the sun's illuminance, but the
-/// disc lights nothing. The same light in [`Scene::lights`](crate::Scene::lights) lights surfaces
-/// and casts shadows, so that the sun's light reaches surfaces once, and a shadow keeps the sky's
-/// light, as outdoors.
+/// pass draws its disc, of the real sun's size, whose radiance gives the sun's illuminance, hidden
+/// below the horizon by the same haze, but the disc lights nothing. The same light in
+/// [`Scene::lights`](crate::Scene::lights) lights surfaces and casts shadows, so that the sun's
+/// light reaches surfaces once, and a shadow keeps the sky's light, as outdoors.
 ///
 /// A sky's light in any direction, glow included, is at most 65 504 nits per channel, the largest
 /// value the environment's half-precision texels hold: [`Renderer::create_environment`] refuses
@@ -139,7 +139,9 @@ impl Sky {
 /// it.
 ///
 /// Clones refer to the same textures, which are freed when the last clone is dropped and the GPU
-/// no longer uses them.
+/// no longer uses them. A renderer keeps a clone of the last environment it drew with, until it
+/// draws with another one or without one: dropping every clone of yours frees the textures only
+/// then.
 #[derive(Clone, Debug)]
 pub struct Environment {
     pub(crate) texture: Arc<Texture>,
@@ -157,13 +159,16 @@ impl Environment {
     /// As [`environment_levels`].
     pub(crate) fn new(gpu: &Gpu, sky: &Sky) -> Self {
         let (to_sun, sun_radiance) = sky.sun_disc();
-        Self::upload(
-            gpu,
-            "environment",
-            ENVIRONMENT_SIZE,
-            &environment_levels(sky),
-        )
-        .with_sun(to_sun, sun_radiance)
+        Self {
+            to_sun,
+            sun_radiance,
+            ..Self::upload(
+                gpu,
+                "environment",
+                ENVIRONMENT_SIZE,
+                &environment_levels(sky),
+            )
+        }
     }
 
     /// One black texel and no sun: the environment of scenes without one.
@@ -185,14 +190,6 @@ impl Environment {
             )),
             to_sun: Vec3::Y,
             sun_radiance: Vec3::ZERO,
-        }
-    }
-
-    fn with_sun(self, to_sun: Vec3, sun_radiance: Vec3) -> Self {
-        Self {
-            to_sun,
-            sun_radiance,
-            ..self
         }
     }
 
@@ -759,127 +756,35 @@ mod tests {
     }
 
     #[test]
-    fn the_cube_faces_are_where_the_gpu_reads_them() {
-        // A cube whose every texel holds its face, column and row, sampled with the nearest filter
-        // along the direction `texel_direction` gives for it, one pixel per texel: each must come
-        // back, which proves the order and the orientation of the faces against wgpu's, on the
-        // driver the test runs on, rather than by reading its specification.
-        const SHADER: &str = "
-            @group(0) @binding(0) var cube: texture_cube<f32>;
-            @group(0) @binding(1) var cube_sampler: sampler;
-            @group(0) @binding(2) var<uniform> directions: array<vec4<f32>, 96>;
-            @vertex
-            fn vs(@builtin(vertex_index) index: u32) -> @builtin(position) vec4<f32> {
-                let corner = vec2<f32>(f32((index & 1u) * 4u) - 1.0, f32((index & 2u) * 2u) - 1.0);
-                return vec4<f32>(corner, 0.0, 1.0);
+    fn texel_directions_follow_the_faces_of_slime_gfx_s_cube_textures() {
+        // The table of `Gpu::create_cube_texture`, which `slime-gfx`'s `tests/levels.rs` checks
+        // on the GPU texel by texel: the point (s, t) of a face, each from 0 at its left or top
+        // edge to 1, lies along these directions. A face mirrored or swapped consistently in
+        // `texel_direction` and `face_point` passes their round trip, but not this.
+        let documented = |face: usize, s: f32, t: f32| {
+            let (sc, tc) = (2.0 * s - 1.0, 2.0 * t - 1.0);
+            match face {
+                0 => Vec3::new(1.0, -tc, -sc),
+                1 => Vec3::new(-1.0, -tc, sc),
+                2 => Vec3::new(sc, 1.0, tc),
+                3 => Vec3::new(sc, -1.0, -tc),
+                4 => Vec3::new(sc, -tc, 1.0),
+                _ => Vec3::new(-sc, -tc, -1.0),
             }
-            @fragment
-            fn fs(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
-                let direction = directions[u32(position.x)].xyz;
-                return textureSampleLevel(cube, cube_sampler, direction, 0.0);
-            }";
-        let size = 4_u32;
-        let gpu =
-            Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-        let mut texels = Vec::new();
-        let mut directions = Vec::new();
+        };
+        let size = 4;
         for face in 0..6 {
             for y in 0..size {
                 for x in 0..size {
-                    texels.extend([face as f32, x as f32, y as f32, 1.0]);
-                    let direction = texel_direction(face, x as f32 + 0.5, y as f32 + 0.5, size);
-                    for value in [direction.x, direction.y, direction.z, 0.0] {
-                        directions.extend(value.to_le_bytes());
-                    }
+                    let (s, t) = ((x as f32 + 0.5) / 4.0, (y as f32 + 0.5) / 4.0);
+                    assert_eq!(
+                        texel_direction(face, x as f32 + 0.5, y as f32 + 0.5, size),
+                        documented(face, s, t),
+                        "face {face}, ({x}, {y})"
+                    );
                 }
             }
         }
-        let cube = gpu.create_cube_texture(
-            "faces",
-            size,
-            slime_gfx::TextureFormat::Rgba16Float,
-            &[&halves(&texels)],
-        );
-        let directions = gpu.create_uniform_buffer("directions", &directions);
-        let sampler = gpu.create_sampler(
-            "nearest",
-            &slime_gfx::SamplerDescriptor {
-                mag_filter: slime_gfx::Filter::Nearest,
-                min_filter: slime_gfx::Filter::Nearest,
-                ..slime_gfx::SamplerDescriptor::default()
-            },
-        );
-        let entries = [
-            (0, slime_gfx::BindingType::CubeTexture),
-            (1, slime_gfx::BindingType::Sampler),
-            (
-                2,
-                slime_gfx::BindingType::UniformBuffer {
-                    dynamic_offset: false,
-                },
-            ),
-        ]
-        .map(|(binding, ty)| slime_gfx::BindGroupLayoutEntry {
-            binding,
-            visible_to: slime_gfx::ShaderStages::Fragment,
-            ty,
-        });
-        let layout = gpu.create_bind_group_layout("faces", &entries);
-        let group = gpu.create_bind_group(
-            "faces",
-            &layout,
-            &[
-                slime_gfx::BindGroupEntry {
-                    binding: 0,
-                    resource: slime_gfx::BindingResource::Texture(&cube),
-                },
-                slime_gfx::BindGroupEntry {
-                    binding: 1,
-                    resource: slime_gfx::BindingResource::Sampler(&sampler),
-                },
-                slime_gfx::BindGroupEntry {
-                    binding: 2,
-                    resource: slime_gfx::BindingResource::UniformBuffer(&directions),
-                },
-            ],
-        );
-        let shader = gpu
-            .create_shader_module("faces", SHADER)
-            .expect("the shader is valid");
-        let pipeline = gpu
-            .create_render_pipeline(&slime_gfx::RenderPipelineDescriptor {
-                label: "faces",
-                shader: &shader,
-                vertex_entry_point: "vs",
-                vertex_layout: None,
-                fragment: Some(slime_gfx::FragmentState {
-                    entry_point: "fs",
-                    target_format: Some(slime_gfx::TextureFormat::Rgba16Float),
-                }),
-                bind_group_layouts: &[&layout],
-                depth: None,
-                cull: slime_gfx::CullMode::None,
-            })
-            .expect("the pipeline is valid");
-        let target =
-            gpu.create_render_target("faces", 96, 1, slime_gfx::TextureFormat::Rgba16Float);
-        gpu.render(
-            &slime_gfx::RenderPassDescriptor {
-                target: &target,
-                clear: None,
-                depth: None,
-                timer: None,
-            },
-            |pass| {
-                pass.set_pipeline(&pipeline);
-                pass.set_bind_group(0, &group, &[]);
-                pass.draw(0..3);
-            },
-        );
-        let image = gpu
-            .read_float_render_target(&target)
-            .expect("the image is read back");
-        assert_eq!(image.pixels, texels);
     }
 
     #[test]

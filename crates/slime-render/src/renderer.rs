@@ -107,8 +107,8 @@ pub struct Scene<'a> {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct RenderStats {
-    /// Draw calls of the scene pass: one per instance. The tone-mapping pass's single draw is not
-    /// counted.
+    /// Draw calls of the scene pass: one per instance. The single draws of the sky and
+    /// tone-mapping passes are not counted.
     pub draw_calls: u32,
     /// Triangles the scene pass submitted to the GPU, before culling.
     pub triangles: u64,
@@ -232,7 +232,10 @@ impl Renderer {
     /// Creates a renderer that draws into output targets of `format`: the window's, for a
     /// windowed application (`Context::surface_format` in `slime-app`). An sRGB format encodes the
     /// tone-mapped light for display; `Rgba16Float` holds the tone-mapped values themselves;
-    /// `Rgba8Unorm` stores them unencoded, which displays too dark.
+    /// `Rgba8Unorm` stores them unencoded, which displays too dark. The first renderer of a process
+    /// computes the table of the BRDF's scale and bias for image-based lighting on the CPU, on
+    /// every core (ADR-0039): about 15 ms in a release build, more in a debug build; the others
+    /// reuse it.
     ///
     /// # Errors
     ///
@@ -1004,7 +1007,9 @@ mod tests {
     use glam::{EulerRot, Quat, Vec4};
 
     use super::*;
-    use crate::environment::{BRDF_TABLE_SIZE, ENVIRONMENT_LEVELS, SUN_ANGULAR_RADIUS};
+    use crate::environment::{
+        BRDF_TABLE_SIZE, ENVIRONMENT_LEVELS, GROUND_HAZE, SUN_ANGULAR_RADIUS,
+    };
 
     /// Where `matrix` sends `normal`, normalized as the shader does.
     fn direction(matrix: Mat3, normal: Vec3) -> Vec3 {
@@ -1129,6 +1134,8 @@ mod tests {
         let chord = 2.0 * (SUN_ANGULAR_RADIUS / 2.0).sin();
         assert!((SUN_ANGULAR_RADIUS - 0.533_f64.to_radians() / 2.0).abs() < 1e-12);
         assert!((shader_constant("SUN_CHORD") / chord - 1.0).abs() < 1e-6);
+        // The ground hides the disc as the environment hides the sun's glow.
+        assert_eq!(shader_constant("GROUND_HAZE") as f32, GROUND_HAZE);
     }
 
     #[test]
