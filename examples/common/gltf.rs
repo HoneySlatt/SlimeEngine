@@ -1,6 +1,6 @@
-//! A temporary loader of glTF scenes for the `scene` example and its image test: GLB files with
-//! embedded buffers and PNG images, drawn as they are (ADR-0029). The asset pipeline of Stage 4
-//! replaces it with an importer and deletes it.
+//! A temporary loader of glTF scenes for the `scene` example and its image test: GLB files that
+//! hold their buffer and PNG images in their binary chunk, drawn as they are (ADR-0029). The asset
+//! pipeline of Stage 4 replaces it with an importer and deletes it.
 //!
 //! It reads triangle primitives with positions, normals (when missing, each triangle gets the
 //! normal of its face, as glTF requires), the first set of texture coordinates (zero when
@@ -9,11 +9,11 @@
 //! filter (see `sampler_descriptor`); and the node hierarchy of the default scene, flattened into
 //! instances (a node whose transform mirrors draws its primitives with their triangles wound the
 //! other way, as glTF prescribes). It refuses, with a clear error, what it cannot draw right:
-//! external files, images that are not PNG, images larger than the GPU accepts, primitives whose
-//! vertices or indices need a larger buffer than it accepts (one without normals has three
-//! vertices per triangle), required extensions, other coordinate sets, other primitive modes. It
-//! ignores, with a warning, animations, skins, cameras, vertex colors and extensions the file uses
-//! without requiring them.
+//! buffers and images in external files or in data URIs (it reads the binary chunk only), images
+//! that are not PNG, images larger than the GPU accepts, primitives whose vertices or indices
+//! need a larger buffer than it accepts (one without normals has three vertices per triangle),
+//! required extensions, other coordinate sets, other primitive modes. It ignores, with a warning,
+//! animations, skins, cameras, vertex colors and extensions the file uses without requiring them.
 //! The other properties of materials are ignored without one, as the renderer has no use for
 //! them yet: every material is drawn opaque, and with its back faces culled even when the file
 //! marks it double-sided, as the sample asset does (its floor disappears when seen from below).
@@ -152,9 +152,10 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
     })?;
     for buffer in document.buffers() {
         if let gltf::buffer::Source::Uri(uri) = buffer.source() {
-            return Err(LoadError(format!(
-                "buffer `{uri}` is an external file, which the loader does not read"
-            )));
+            let name = buffer
+                .name()
+                .map_or_else(|| format!("buffer {}", buffer.index()), str::to_owned);
+            return Err(outside_the_binary_chunk(&name, uri));
         }
     }
     let buffer_data = |buffer: gltf::Buffer<'_>| match buffer.source() {
@@ -605,6 +606,18 @@ fn sampler_descriptor(sampler: &gltf::texture::Sampler<'_>) -> SamplerDescriptor
     }
 }
 
+/// The refusal of `name`, a buffer or an image whose data the file gives at `uri` instead of in its
+/// binary chunk: in an external file, or as text in a data URI, which can hold megabytes and is
+/// therefore not quoted. The `gltf` crate decodes data URIs only with its `import` feature, which
+/// the examples leave out (ADR-0029).
+fn outside_the_binary_chunk(name: &str, uri: &str) -> LoadError {
+    LoadError(if uri.starts_with("data:") {
+        format!("{name} is given as a data URI, which the loader does not decode")
+    } else {
+        format!("{name} is an external file, `{uri}`, which the loader does not read")
+    })
+}
+
 /// A decoded image: RGBA bytes, rows from top to bottom.
 struct DecodedImage {
     width: u32,
@@ -645,11 +658,7 @@ fn decode_png(
                 .ok_or_else(|| LoadError(format!("{name} lies outside the file's binary chunk")))?,
             mime_type,
         ),
-        gltf::image::Source::Uri { uri, .. } => {
-            return Err(LoadError(format!(
-                "image `{uri}` is an external file, which the loader does not read"
-            )));
-        }
+        gltf::image::Source::Uri { uri, .. } => return Err(outside_the_binary_chunk(&name, uri)),
     };
     if mime_type != "image/png" {
         return Err(LoadError(format!(

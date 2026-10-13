@@ -96,6 +96,40 @@ fn images_whose_data_cannot_be_found_are_refused() {
 }
 
 #[test]
+fn data_outside_the_binary_chunk_is_refused_without_quoting_data_uris() {
+    let gpu =
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+    // What a data URI holds, as text: a whole image or buffer in a real file, which the error
+    // must leave out.
+    const PAYLOAD: &str = "iVBORw0KGgoAAAANSUhEUgAAAAIAAAAC";
+    let data_uri = format!("data:application/octet-stream;base64,{PAYLOAD}");
+    for (uri, expected) in [
+        (data_uri.as_str(), "is given as a data URI"),
+        ("other.bin", "is an external file, `other.bin`"),
+    ] {
+        let mut image = Glb::triangle().with_texture(&png(2, 2));
+        remove(&mut image.json["images"][0], "bufferView");
+        image.json["images"][0]["uri"] = uri.into();
+        let error = refusal(&gpu, &mut image);
+        assert!(
+            error.contains(&format!("image 0 {expected}")) && !error.contains(PAYLOAD),
+            "{error}"
+        );
+
+        let mut buffer = Glb::triangle();
+        push(
+            &mut buffer.json["buffers"],
+            json(&format!(r#"{{ "byteLength": 24, "uri": "{uri}" }}"#)),
+        );
+        let error = refusal(&gpu, &mut buffer);
+        assert!(
+            error.contains(&format!("buffer 1 {expected}")) && !error.contains(PAYLOAD),
+            "{error}"
+        );
+    }
+}
+
+#[test]
 fn accessors_the_loader_cannot_read_are_refused() {
     let gpu =
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
