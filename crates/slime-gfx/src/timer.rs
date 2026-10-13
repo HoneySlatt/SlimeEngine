@@ -241,7 +241,8 @@ mod tests {
         gpu.render(&pass, |_pass| {});
         assert_eq!(in_flight(), 1, "a freed slot times the next pass");
         gpu.wait_idle().expect("the GPU finishes the pass");
-        assert!(timer.latest().is_some(), "its time comes back");
-        assert_eq!(in_flight(), 0, "and frees the slot again");
+        // `latest` still gives the time read before, so only the slot shows this one was read.
+        timer.latest();
+        assert_eq!(in_flight(), 0, "reading its time frees the slot again");
     }
 }
