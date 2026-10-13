@@ -9,6 +9,11 @@
 //! right: external files, images that are not PNG, images larger than the GPU accepts, required
 //! extensions, other coordinate sets, other primitive modes. It ignores, with a warning,
 //! animations, skins, cameras and extensions the file uses without requiring them.
+//!
+//! The `gltf` crate's validation checks little more than that the file's objects name each other
+//! correctly, and its readers panic on some of what it lets through. The loader refuses, rather
+//! than panic on, such malformed files: images whose data lies outside the binary chunk, has no
+//! MIME type or is missing.
 
 use std::fmt;
 
@@ -146,7 +151,12 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
     let textures: Vec<(Texture, Sampler)> = document
         .textures()
         .map(|texture| {
-            let image = decode_png(texture.source(), blob, gpu.max_texture_dimension())?;
+            let image = decode_png(
+                document,
+                texture.source(),
+                blob,
+                gpu.max_texture_dimension(),
+            )?;
             let label = texture
                 .name()
                 .or(texture.source().name())
@@ -380,6 +390,7 @@ struct DecodedImage {
 /// Decodes a PNG image embedded in the file, if neither of its sides is longer than
 /// `max_dimension`, the GPU's largest texture.
 fn decode_png(
+    document: &gltf::Document,
     image: gltf::Image<'_>,
     blob: &[u8],
     max_dimension: u32,
@@ -387,9 +398,26 @@ fn decode_png(
     let name = image
         .name()
         .map_or_else(|| format!("image {}", image.index()), str::to_owned);
+    // `Image::source` panics on what the `gltf` crate's validation lets through: an image
+    // embedded without a MIME type, or with neither a buffer view nor a URI.
+    let json = &document.as_json().images[image.index()];
+    match (&json.buffer_view, &json.mime_type, &json.uri) {
+        (Some(_), None, _) => {
+            return Err(LoadError(format!("{name} is embedded without a MIME type")));
+        }
+        (None, _, None) => {
+            return Err(LoadError(format!(
+                "{name} has no data: neither a buffer view nor a URI"
+            )));
+        }
+        _ => {}
+    }
     let (bytes, mime_type) = match image.source() {
         gltf::image::Source::View { view, mime_type } => (
-            &blob[view.offset()..view.offset() + view.length()],
+            view.offset()
+                .checked_add(view.length())
+                .and_then(|end| blob.get(view.offset()..end))
+                .ok_or_else(|| LoadError(format!("{name} lies outside the file's binary chunk")))?,
             mime_type,
         ),
         gltf::image::Source::Uri { uri, .. } => {

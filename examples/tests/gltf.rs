@@ -64,6 +64,31 @@ fn an_image_larger_than_the_gpu_accepts_is_refused() {
     assert!(error.contains(&format!("{side}x1")), "{error}");
 }
 
+#[test]
+fn images_whose_data_cannot_be_found_are_refused() {
+    let gpu =
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+    let textured = || Glb::triangle().with_texture(&png(2, 2));
+
+    let mut past_the_chunk = textured();
+    let view = past_the_chunk.json["images"][0]["bufferView"].clone();
+    let length = past_the_chunk.bin.len() + 4;
+    past_the_chunk.json["bufferViews"][index(&view)]["byteLength"] = length.into();
+    let error = refusal(&gpu, &mut past_the_chunk);
+    assert!(error.contains("outside the file's binary chunk"), "{error}");
+
+    let mut without_type = textured();
+    remove(&mut without_type.json["images"][0], "mimeType");
+    let error = refusal(&gpu, &mut without_type);
+    assert!(error.contains("without a MIME type"), "{error}");
+
+    let mut without_data = textured();
+    remove(&mut without_data.json["images"][0], "bufferView");
+    remove(&mut without_data.json["images"][0], "mimeType");
+    let error = refusal(&gpu, &mut without_data);
+    assert!(error.contains("no data"), "{error}");
+}
+
 /// A GLB file built in memory: one triangle facing +Z, with positions only, in the one node of
 /// the default scene, which each test changes.
 struct Glb {
@@ -165,6 +190,16 @@ fn push(array: &mut Value, value: Value) -> usize {
     let array = array.as_array_mut().expect("a JSON array");
     array.push(value);
     array.len() - 1
+}
+
+/// Removes `key` from `object`, a JSON object.
+fn remove(object: &mut Value, key: &str) {
+    object.as_object_mut().expect("a JSON object").remove(key);
+}
+
+/// The index that `value`, a JSON number, gives.
+fn index(value: &Value) -> usize {
+    value.as_u64().expect("an index") as usize
 }
 
 /// A white PNG image of `width` × `height` pixels.
