@@ -344,10 +344,13 @@ fn minified_textures_are_read_from_their_smaller_levels() {
         .gpu
         .create_texture("checker", 4, 4, TextureFormat::Rgba8Unorm, &pixels);
     let sampler = setup.sampler(Filter::Linear, AddressMode::Repeat);
-    // The texture repeats eight times across the eight pixels of the target: each pixel covers
-    // four of its pixels in each direction, so the level of one pixel is read.
-    let image = setup.draw(&texture, &sampler, [8.0, 8.0]);
-    for position in [(0, 0), (4, 4), (7, 7)] {
+    // The texture repeats six times across the eight pixels of the target: each pixel covers three
+    // of its pixels in each direction, so levels 1 and 2 (2 × 2 and 1 × 1 pixels, all grey) are
+    // read and blended. The center of each pixel of the target falls on the center of one pixel
+    // of the texture (at 3x + 1.5, wrapped to 0..4), so the first level alone would give pure
+    // black or white: black at (0, 0), (4, 4) and (7, 7), white at (1, 0).
+    let image = setup.draw(&texture, &sampler, [6.0, 6.0]);
+    for position in [(0, 0), (1, 0), (4, 4), (7, 7)] {
         let [red, ..] = pixel(&image, position);
         assert!(
             red.abs_diff(188) <= 2,
