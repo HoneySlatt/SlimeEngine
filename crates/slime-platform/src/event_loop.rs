@@ -10,7 +10,7 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::WindowId;
 
 use crate::error::PlatformError;
-use crate::event::{Event, translate};
+use crate::event::{Event, Translator};
 use crate::window::{Window, WindowConfig};
 
 /// The code that [`run_event_loop`] calls back. It decides what happens in the window and when
@@ -102,6 +102,7 @@ pub fn run_event_loop(
         config,
         handler,
         window: None,
+        translator: Translator::default(),
         error: None,
     };
     event_loop
@@ -115,6 +116,7 @@ struct WinitAdapter<'a, H> {
     config: &'a WindowConfig,
     handler: &'a mut H,
     window: Option<Window>,
+    translator: Translator,
     error: Option<PlatformError>,
 }
 
@@ -155,8 +157,9 @@ impl<H: EventHandler> ApplicationHandler for WinitAdapter<'_, H> {
         }
         if matches!(event, WindowEvent::RedrawRequested) {
             self.handler.redraw_requested();
-        } else if let Some(event) = translate(event) {
-            self.handler.event(event);
+        } else {
+            self.translator
+                .translate(event, |event| self.handler.event(event));
         }
     }
 

@@ -40,7 +40,11 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
   factor, `request_redraw` to ask for a chance to draw, and the `raw-window-handle` traits through
   which a graphics library draws into it.
 - `Event` is what happened to the window, or input it received. It is `#[non_exhaustive]`: new
-  kinds of events will be added.
+  kinds of events will be added. Key events pair up the same way on every platform: a key still
+  down when the window loses the keyboard focus is released just before `Focused(false)`, and a
+  key already down when the window gains the focus is not reported until it is pressed again.
+  winit differs here from one platform to the next, so the event loop keeps track of the keys
+  that are down.
 - Input types: `KeyEvent` describes a key twice: by `physical` position, whatever the layout
   (`KeyCode`, named after the W3C UI Events `code` values such as `KeyQ` or `Escape`, with a few
   exceptions listed in its rustdoc), and by `logical` meaning with the current layout (`Key`: a
