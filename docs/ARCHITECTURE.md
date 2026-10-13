@@ -340,7 +340,7 @@ whether there is an image to draw:
 | A size of zero (minimized window) | No image; the frame runs without drawing |
 | Outdated configuration | Configured again, then one more try; no image this frame if still outdated |
 | Suboptimal image | Drawn and presented, then configured again |
-| Image not ready in time (Vulkan), window occluded | No image this frame; on Direct3D 12, wgpu waits up to one second for a late image, then returns it, and the frame is drawn late |
+| Image not ready in time (Vulkan), window occluded | No image this frame; on Direct3D 12, wgpu waits up to one second for a late image, then returns it, and the frame is drawn late; on Windows with Vulkan, an image that wgpu handed out but that is still not free after one second loses the device, and the run stops |
 | Surface lost, or a configuration the graphics API refuses | Created again from the window; no image this frame. Lost for good (it cannot be created again, or is lost again each time): no image, and the run stops before the next frame, like after a lost device |
 | Device lost (see [Losing the GPU](#losing-the-gpu)) | No image; the run stops before the next frame. An image acquired before the loss was found is released instead of presented, so that the surface can be dropped |
 
@@ -394,14 +394,17 @@ The engine targets Linux (`x86_64-unknown-linux-gnu`) and Windows (`x86_64-pc-wi
 ([ADR-0015](adr/0015-platforms-and-ci.md)). Platform differences are kept in few places:
 
 - winit hides the windowing systems (Wayland and X11 on Linux, Win32 on Windows).
-  `slime-platform` has platform-specific code in three places of `event_loop.rs`:
+  `slime-platform` has platform-specific code in three places of `event_loop.rs` and one of
+  `event.rs`:
   - `backend_name` names the windowing system in the log.
   - On X11, `resumed` gives winit a maximum window size of 65 535 physical pixels, the protocol's
     limit; beyond it, winit panics.
   - On Windows, `exiting` hides the window, which winit destroys only from inside the event loop.
+  - On Windows, `Translator::translate` releases both Shift keys on a key-up of either, since
+    Windows sends a single key-up for the two.
 
   Where winit's events differ between platforms, `slime-platform` makes them agree: `Translator`
-  in `event.rs` pairs key events across focus changes. One difference shapes the main loop: on
+  in `event.rs` pairs key and mouse button events across focus changes. One difference shapes the main loop: on
   Windows, the system runs its own loop while the user resizes or moves a window, which is why
   frames run on redraw requests.
 - `ctrlc` hides signals (Unix) and console events (Windows); `crates/slime-app/src/signal.rs`

@@ -304,3 +304,10 @@ This amends:
   stage (ADR-0033).
 - The loader no longer decodes images that no material reads: a broken image that nothing uses no
   longer refuses the file.
+
+## Corrections
+
+- 2026-10-13: the loader also refuses a vertex placed at a point that is not finite (NaN or
+  infinite positions or node transforms, or finite values whose product overflows), and a GLB
+  header that declares a length shorter than itself, and checks that every primitive's positions
+  name an accessor before the `gltf` crate validates the file, whose validation panics otherwise.

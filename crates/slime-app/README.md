@@ -89,7 +89,9 @@ if let Err(error) = slime_app::run(&mut Game, &config) {
   - `render(ctx, target)` draws the frame into `target`, the window's image, with `ctx.gpu()`;
     the engine shows the image afterwards. It is not called in frames where the window cannot
     show a new image: while it is minimized, or when its next image is not ready in time on
-    Vulkan (on Direct3D 12, the engine waits up to one second for it, then draws the frame late).
+    Vulkan (on Direct3D 12, the engine waits up to one second for it, then draws the frame late;
+    on Windows with Vulkan, wgpu treats a wait of more than one second as a lost device, and the
+    run stops).
 - `run(&mut app, &config)`: sets up diagnostics and a handler for termination signals, then runs
   the application until it calls `Context::request_exit`, the window is closed, the process
   receives SIGINT (Ctrl+C), SIGTERM or SIGHUP, or `AppConfig::frame_limit` is reached. In every

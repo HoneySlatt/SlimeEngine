@@ -15,8 +15,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 - Stage 3b — Physically based renderer → 0.1: in progress. Planned on 2026-10-13 and validated by
   the owner. M3b.1 is done; M3b.2 and M3b.3 pass on the three drivers and wait for the owner's
   checks on niri and in the Windows virtual machine, which the owner runs together later. The
-  owner's decisions of 2026-10-13 on earlier proposals are applied; next: the audit findings of
-  issue [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4), then M3b.4.
+  owner's decisions of 2026-10-13 on earlier proposals are applied, and the findings of rounds 4
+  and 5 of the audit of 0.0.3 (issue [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are
+  fixed or recorded below; next: M3b.4.
 
 ## Status
 
@@ -371,13 +372,6 @@ justify a decision are also in its ADR.
 Limitations known and accepted for now. The ones that a contributor could take on alone are also
 GitHub issues, linked from their entry; this list stays the reference.
 
-- **Findings confirmed by rounds 4 and 5 of the audit of 0.0.3 are not fixed yet** (issue
-  [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)): 22 findings, from mouse buttons left
-  down after a focus change to loader inputs that panic inside the `gltf` crate, each upheld by at
-  least two of three independent reviews against commit 6f251f3. The issue lists them; each fix
-  that leaves a limit behind adds its entry here. The audit stopped during round 6, before two
-  rounds in a row without a confirmed finding.
-
 - **Frames are not synchronized with the display's refresh** (ADR-0021; issue
   [#1](https://github.com/HoneySlatt/SlimeEngine/issues/1)). With Mailbox, the default, the
   schedule alone paces frames: on a 60 Hz display, an image is now and then shown twice while the
@@ -537,7 +531,53 @@ GitHub issues, linked from their entry; this list stays the reference.
   1000 instances with `SLIME_LOG` unset, then with `slime_app=trace`. Alternatively, profile with
   `perf record -g` and look for `tracing_log::LogTracer::log`, `EnvFilter::enabled` and
   `wgpu_core::resource::Labeled::error_ident`. Capping the `log` level needs `log` or
-  `tracing-log` as a direct dependency (ADR-0006).
+  `tracing-log` as a direct dependency (ADR-0006). Span close lines are also written while the
+  enclosing span is entered, so `frame`, `render` and, with `slime_gfx=trace`,
+  `RenderStats::cpu_time` include them: take timing baselines with `SLIME_LOG` unset.
+- **On Windows with Vulkan (`WGPU_BACKEND=vulkan`), an acquire that waits more than one second
+  loses the device.** wgpu-hal 30.0.1 waits on a fence after `vkAcquireNextImageKHR` hands out an
+  image, on Windows only, and maps a timeout of that wait to `DeviceError::Unexpected`, which
+  wgpu-core treats as the loss of the device. A GPU frame longer than about one second, or a
+  compositor that holds the window's images that long (a covered window, a locked session), then
+  stops the run with `GfxError::DeviceLost`, with a reason that blames the driver; on Linux the
+  frame is skipped instead. Not measured. To report to wgpu: that wait's timeout should give
+  `SurfaceError::Timeout`, as its other waits do.
+- **A mouse button can stay down on Wayland when the compositor takes the pointer away during a
+  press without taking the keyboard focus.** winit 0.30 reports only `CursorLeft` then, and
+  `Translator` (`crates/slime-platform/src/event.rs`) releases held buttons only when the focus is
+  lost. Releasing them on `CursorLeft` would be right on Wayland only: on X11 and Windows the
+  cursor leaves the window during an ordinary drag.
+- **On Windows, the first of two held Shift keys let go of is released late.** Windows sends a
+  single key-up for both Shift keys, so the engine releases the first one only when the second
+  goes up. If Windows marks the second Shift's press as a repeat, neither its press nor its release
+  is reported. Polling `GetKeyState`, as GLFW and SDL do, would remove the delay, but needs
+  `windows-sys` as a direct dependency. Not checked on Windows yet.
+- **After a dead key, a press and its release report different logical keys.** On Wayland and
+  X11, a character key that does not combine with a pending dead key is reported as
+  `Key::Unidentified` with no text; when the keys combine, the press is the composed character and
+  the release the plain one. winit exposes no better value; rebuilding one would need libxkbcommon
+  called directly. Documented in `KeyEvent::logical`.
+- **A key pressed just after the window gains the focus can be swallowed on X11 and Windows.**
+  winit reads which keys are down when it handles the focus event, not when the focus changed. A
+  key pressed in between counts as held before the focus and is not reported until it is pressed
+  again; on X11 the gap covers `App::init` when the window manager focuses the window while it
+  runs. The translator cannot tell such a press from X11's unmarked first auto-repeat. On Windows,
+  trusting `KeyEvent::repeat` would close the gap, at the cost of a rule that differs between
+  platforms; left as documented.
+- **No automated check resizes a window after its surface exists** (a change is proposed to the
+  owner). The forwarding of `Event::Resized` to `Surface::resize`
+  (`crates/slime-app/src/windowed.rs`) passes `scripts/check.sh` even when removed: Weston's
+  default shell keeps the size the client asks for, and winit applies a compositor-imposed first
+  size before `Window::new` returns. A headless Weston started with `--scale=2` reports the scale
+  after the first frame, and winit then resizes the window to twice its physical size: a check of
+  image and window sizes in that compositor fails when the forwarding is removed (measured on
+  2026-10-13).
+- **The examples' glTF loader sets no limit on a file's total memory** (a change is proposed to
+  the owner). It checks each primitive alone against the GPU's largest buffer, reads every
+  primitive of every mesh before placing any, and gives primitives that name the same accessors
+  their own copy, three vertices per triangle when they have no normals. A valid GLB of a few MiB
+  that lists one primitive many times can make the process run out of memory rather than be
+  refused. Budgets for imported assets belong to the importer of Stage 4.
 - **No test covers the empty submission of frames without a window image.** When
   `Surface::acquire` gives no image, it submits an empty batch, so that wgpu releases the writes
   an application makes outside `App::render`. Without it, 2000 frames of a surface resized to

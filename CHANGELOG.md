@@ -103,6 +103,28 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- `Context::exit_requested` reports a termination signal as soon as it arrives, during
+  `App::init` and in the middle of a frame too, so that a long loading or update that checks it
+  can stop early on Ctrl+C. It reported it only once the run was already stopping between frames.
+- Mouse buttons still down when the window loses the keyboard focus are released just before
+  `Event::Focused(false)`, as keys are (`slime-platform`); a later real release, and a second press
+  of a button already down, are not reported. On Windows, a drag carried across Alt+Tab left the
+  button down for good, and the `scene` example's camera kept turning.
+- On Windows, a key-up of either Shift key releases both: Windows sends no key-up for the first of
+  two held Shift keys to be let go of, so that key stayed down until the window lost the focus.
+- The dev overlay follows egui's zoom factor: panels zoomed with `set_zoom_factor` or
+  `set_pixels_per_point` were laid out past the window, and the cursor missed them. A hidden
+  overlay no longer submits an empty render pass every frame (2 µs per call instead of 14 on
+  lavapipe and 38 on RADV, at 1920 × 1080).
+- The examples' glTF loader refuses, rather than panics on, a GLB header that declares a length
+  shorter than itself and a primitive whose positions name an accessor the file does not have, and
+  refuses a vertex placed at a point that is not finite, which made the box around the scene NaN.
+- The `scene` example's camera keeps orbiting when left running for days: its yaw stays within one
+  turn instead of growing until each frame's step rounded to nothing.
+- Documentation corrected: logging off or shutting down Windows never reaches the engine's console
+  handler; using a GPU object with another `Gpu` does not reliably panic; on Windows with Vulkan, a
+  wait of more than one second for the window's image loses the device; a key pressed after a dead
+  key, or just after the focus is gained, is reported as `KeyEvent` now says.
 - A window's surface that the graphics API refuses to configure (a window or a display gone, a
   swap chain that cannot be created) no longer panics: it counts as lost, is created again, and is
   given up with wgpu's message after the losses that ADR-0025 allows, which stops the run with
