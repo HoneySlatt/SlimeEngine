@@ -16,9 +16,10 @@ them back, and draws into a window:
   or into a depth target only.
 - Later passes sample the render and depth targets that earlier ones drew into.
 - It times each render pass with a timer of its own, on adapters that have timestamp queries.
+- It creates textures from the CPU: two-dimensional ones whose levels of detail it computes, or
+  whose levels the caller gives, in 8-bit or half-precision float formats, and cube textures.
 
-Not there yet: blending, multisampling, cube and array textures, and float textures created from
-the CPU.
+Not there yet: blending, multisampling, and array textures.
 
 ## Role
 
@@ -109,8 +110,8 @@ fn main() -> Result<(), GfxError> {
   - `RenderTarget`: an image the GPU draws into (`create_render_target`), in one of the
     `TextureFormat`s: `Rgba8UnormSrgb` or `Bgra8UnormSrgb`, the same 8-bit sRGB colors in two byte
     orders; `Rgba8Unorm`, linear; or `Rgba16Float`, a 16-bit floating-point number per channel,
-    linear, for colors beyond 0 to 1 (`create_texture` does not take it). A later pass samples a
-    render target through a bind group (`BindingResource::RenderTarget` at a
+    linear, for colors beyond 0 to 1 (`create_texture` does not take it; the next item does). A
+    later pass samples a render target through a bind group (`BindingResource::RenderTarget` at a
     `BindingType::Texture` binding). A pass cannot sample the target it draws into, and a window's
     image cannot be sampled.
   - `Texture`: a two-dimensional image that shaders sample (`create_texture`, from its pixels in
@@ -121,7 +122,12 @@ fn main() -> Result<(), GfxError> {
     `Sampler` (`create_sampler`, from a `SamplerDescriptor`): how it is read, with nearest or
     linear `Filter`s, between the pixels of the level of detail that fits and between two
     levels, and the `AddressMode` beyond its edges (repeat, mirror, clamp). Both are bound
-    through bind groups.
+    through bind groups. `create_texture_with_levels` takes the levels of detail from the
+    caller instead, in any `TextureFormat`, `Rgba16Float` included, whose half-precision
+    channels `f32_to_f16` converts, rounding to the nearest; `create_cube_texture` takes a cube's
+    six square faces, level by level, in wgpu's order and orientation (documented on it), which
+    shaders read by direction (`texture_cube<f32>`, `BindingType::CubeTexture`)
+    (`docs/adr/0039-image-based-lighting-computed-on-the-cpu.md`).
   - `VertexBuffer`: vertex data, given as bytes (`create_vertex_buffer`): at least one byte, at
     most `Gpu::max_buffer_size()` bytes (256 MiB with the default limits; a loader checks the
     meshes of a file against it).

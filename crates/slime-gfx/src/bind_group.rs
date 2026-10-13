@@ -46,6 +46,9 @@ pub enum BindingType {
     /// `texture_2d<f32>` in WGSL: sampled through a [`Sampler`] (`textureSample`), or read texel by
     /// texel with `textureLoad`.
     Texture,
+    /// A [`Texture`] created by [`Gpu::create_cube_texture`], declared `texture_cube<f32>` in WGSL:
+    /// sampled through a [`Sampler`] by direction.
+    CubeTexture,
     /// A [`Sampler`], declared `sampler` in WGSL.
     Sampler,
     /// A [`DepthTarget`], declared `texture_depth_2d` in WGSL: read with `textureLoad`, or
@@ -90,7 +93,8 @@ pub enum BindingResource<'a> {
         /// The size of the range, in bytes: what the shader's uniform declares.
         size: usize,
     },
-    /// A texture.
+    /// A texture, for a [`BindingType::Texture`] binding, or a [`BindingType::CubeTexture`] one
+    /// for a cube texture.
     Texture(&'a Texture),
     /// A sampler.
     Sampler(&'a Sampler),
@@ -154,6 +158,11 @@ impl Gpu {
                         view_dimension: wgpu::TextureViewDimension::D2,
                         multisampled: false,
                     },
+                    BindingType::CubeTexture => wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::Cube,
+                        multisampled: false,
+                    },
                     BindingType::Sampler => {
                         wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering)
                     }
@@ -185,10 +194,11 @@ impl Gpu {
     ///
     /// If a range has a size of zero or larger than its buffer, or if the entries do not match the
     /// layout: a binding missing, or a resource of another kind than its entry declares, such as a
-    /// depth target at a `Texture` binding, a render target or texture at a `DepthTexture`
-    /// binding, or a [`Sampler`] at a `ComparisonSampler` binding or the reverse. Also if a render
-    /// target is the image of a window, which cannot be sampled. These are bugs in the caller,
-    /// which wgpu rejects (ADR-0016).
+    /// depth target at a `Texture` binding, a cube texture at a `Texture` binding or the reverse, a
+    /// render target or texture at a `DepthTexture` binding, or a [`Sampler`] at a
+    /// `ComparisonSampler` binding or the reverse. Also if a render target is the image of a
+    /// window, which cannot be sampled. These are bugs in the caller, which wgpu rejects
+    /// (ADR-0016).
     pub fn create_bind_group(
         &self,
         label: &str,

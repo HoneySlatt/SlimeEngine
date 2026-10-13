@@ -6,12 +6,16 @@ use std::sync::LazyLock;
 use crate::gpu::Gpu;
 use crate::render_target::TextureFormat;
 
-/// A two-dimensional texture that shaders sample through a bind group
-/// ([`BindingResource::Texture`](crate::BindingResource::Texture)), with a [`Sampler`](crate::Sampler).
+/// A texture that shaders sample through a bind group
+/// ([`BindingResource::Texture`](crate::BindingResource::Texture)), with a
+/// [`Sampler`](crate::Sampler): a two-dimensional image (`texture_2d<f32>` in WGSL), or a cube of
+/// six square faces (`texture_cube<f32>`, created by [`Gpu::create_cube_texture`]) that shaders
+/// read by direction.
 ///
-/// It has mipmaps: levels of detail, each half the size of the one before, down to one pixel,
-/// computed when the texture is created. A texture minified on screen is then read from the
-/// level that fits, instead of aliasing.
+/// It has levels of detail (mipmaps), each half the size of the one before: a texture minified on
+/// screen is then read from the level that fits, instead of aliasing. [`Gpu::create_texture`]
+/// computes every level down to one pixel; [`Gpu::create_texture_with_levels`] and
+/// [`Gpu::create_cube_texture`] take the levels the caller gives.
 ///
 /// Clones refer to the same texture, which is freed when the last clone is dropped and the GPU no
 /// longer uses it.
@@ -52,7 +56,8 @@ impl Gpu {
     ///
     /// # Panics
     ///
-    /// If `format` is `Rgba16Float`, a format of render targets only; if `width` or `height` is
+    /// If `format` is `Rgba16Float`, whose textures take levels the caller gives
+    /// ([`Gpu::create_texture_with_levels`]); if `width` or `height` is
     /// zero or larger than the device allows ([`Gpu::max_texture_dimension`], 8192 with the
     /// default limits); or if `pixels` does not hold `width * height * 4` bytes.
     pub fn create_texture(
@@ -65,7 +70,8 @@ impl Gpu {
     ) -> Texture {
         assert!(
             format != TextureFormat::Rgba16Float,
-            "texture `{label}`: Rgba16Float is a format of render targets only"
+            "texture `{label}`: Rgba16Float textures take levels given by the caller \
+             (Gpu::create_texture_with_levels)"
         );
         let expected = width as usize * height as usize * 4;
         assert!(
@@ -122,6 +128,143 @@ impl Gpu {
         }
         // The view keeps the texture alive.
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        Texture {
+            view,
+            width,
+            height,
+            format,
+        }
+    }
+
+    /// Creates a two-dimensional texture of `width` × `height` pixels whose levels of detail the
+    /// caller gives: `levels[0]` is the full-size image, each next one half the size of the one
+    /// before, rounded down, and at least one pixel, as wgpu sizes levels; there may be fewer
+    /// levels than down to one pixel, but at least one. Each level holds its rows from top to
+    /// bottom, in the byte order of `format`: 4 bytes per pixel for the 8-bit formats, 8 for
+    /// `Rgba16Float`, whose channels are half-precision floats, little-endian, as
+    /// [`f32_to_f16`](crate::f32_to_f16) gives them. Sampled like the textures of
+    /// [`Gpu::create_texture`]; a sampler reads no level beyond the last given.
+    ///
+    /// # Panics
+    ///
+    /// If `width` or `height` is zero or larger than the device allows
+    /// ([`Gpu::max_texture_dimension`]), if `levels` is empty or has more levels than down to one
+    /// pixel, or if a level does not hold exactly its pixels' bytes.
+    pub fn create_texture_with_levels(
+        &self,
+        label: &str,
+        width: u32,
+        height: u32,
+        format: TextureFormat,
+        levels: &[&[u8]],
+    ) -> Texture {
+        self.create_texture_from_levels(label, (width, height), 1, format, levels)
+    }
+
+    /// Creates a cube texture, whose six faces are squares of `size` × `size` pixels, with the
+    /// levels of detail the caller gives, as [`Gpu::create_texture_with_levels`] takes them: each
+    /// level holds the six faces one after the other, in wgpu's order, +X, −X, +Y, −Y, +Z, −Z, each
+    /// face its rows from top to bottom. Shaders read it with a direction (`texture_cube<f32>` in
+    /// WGSL, bound at a [`BindingType::CubeTexture`](crate::BindingType::CubeTexture) binding): the
+    /// face is the axis along which the direction is longest, and on it the pixel at column `s`
+    /// and row `t` (from 0 at the left or top edge to 1 at the right or bottom one) lies in the
+    /// direction, for `sc = 2s − 1` and `tc = 2t − 1`:
+    ///
+    /// | Face | Direction |
+    /// |---|---|
+    /// | +X | (1, −tc, −sc) |
+    /// | −X | (−1, −tc, sc) |
+    /// | +Y | (sc, 1, tc) |
+    /// | −Y | (sc, −1, −tc) |
+    /// | +Z | (sc, −tc, 1) |
+    /// | −Z | (−sc, −tc, −1) |
+    ///
+    /// the convention of Vulkan, Direct3D and Metal, which wgpu follows on every graphics API.
+    /// Filtering blends pixels across the edges between faces.
+    ///
+    /// # Panics
+    ///
+    /// As [`Gpu::create_texture_with_levels`], for a level holding six faces.
+    pub fn create_cube_texture(
+        &self,
+        label: &str,
+        size: u32,
+        format: TextureFormat,
+        levels: &[&[u8]],
+    ) -> Texture {
+        self.create_texture_from_levels(label, (size, size), 6, format, levels)
+    }
+
+    /// Creates a texture of `layers` images (1, or 6 for a cube) from the levels the caller
+    /// gives, each level holding every image.
+    fn create_texture_from_levels(
+        &self,
+        label: &str,
+        (width, height): (u32, u32),
+        layers: u32,
+        format: TextureFormat,
+        levels: &[&[u8]],
+    ) -> Texture {
+        let full_chain = u32::BITS - width.max(height).leading_zeros();
+        assert!(
+            !levels.is_empty() && levels.len() <= full_chain as usize,
+            "texture `{label}` is {width}x{height} and takes 1 to {full_chain} levels, but {} \
+             were given",
+            levels.len()
+        );
+        let texel_size = format.texel_size();
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some(label),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: layers,
+            },
+            mip_level_count: levels.len() as u32,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: format.to_wgpu(),
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        for (index, bytes) in levels.iter().enumerate() {
+            let (level_width, level_height) = ((width >> index).max(1), (height >> index).max(1));
+            let expected = (level_width * level_height * layers * texel_size) as usize;
+            assert!(
+                bytes.len() == expected,
+                "level {index} of texture `{label}` is {level_width}x{level_height}x{layers} and \
+                 needs {expected} bytes, but {} were given",
+                bytes.len()
+            );
+            // Unlike copies recorded in a command encoder, this write needs no row alignment.
+            self.queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &texture,
+                    mip_level: index as u32,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                bytes,
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(level_width * texel_size),
+                    rows_per_image: Some(level_height),
+                },
+                wgpu::Extent3d {
+                    width: level_width,
+                    height: level_height,
+                    depth_or_array_layers: layers,
+                },
+            );
+        }
+        let view = texture.create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(if layers == 6 {
+                wgpu::TextureViewDimension::Cube
+            } else {
+                wgpu::TextureViewDimension::D2
+            }),
+            ..wgpu::TextureViewDescriptor::default()
+        });
         Texture {
             view,
             width,

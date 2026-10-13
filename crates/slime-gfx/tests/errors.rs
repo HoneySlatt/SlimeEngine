@@ -324,7 +324,7 @@ fn an_8_bit_target_is_not_read_as_floats() {
 }
 
 #[test]
-#[should_panic(expected = "texture `hdr`: Rgba16Float is a format of render targets only")]
-fn a_float_texture_is_rejected_at_creation() {
+#[should_panic(expected = "texture `hdr`: Rgba16Float textures take levels given by the caller")]
+fn a_float_texture_takes_levels_given_by_the_caller() {
     gpu().create_texture("hdr", 1, 1, TextureFormat::Rgba16Float, &[0; 8]);
 }

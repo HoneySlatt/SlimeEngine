@@ -6,7 +6,6 @@ use std::sync::atomic::AtomicBool;
 use crate::gpu::Gpu;
 
 /// The formats of the engine's textures: those it renders into, and those shaders sample.
-/// `Rgba16Float` is a format of render targets only.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum TextureFormat {
@@ -22,9 +21,11 @@ pub enum TextureFormat {
     /// Red, green, blue and alpha, each a 16-bit (half-precision) floating-point number, linear:
     /// values beyond 0 to 1, up to ±65 504 with 11 significant bits, such as the light of a scene
     /// before tone mapping (high dynamic range); a shader that writes more gets ±65 504 or an
-    /// infinity, depending on the driver. A format of render targets only: shaders sample
-    /// them, [`Gpu::read_float_render_target`] reads them back, and [`Gpu::create_texture`] does
-    /// not take it.
+    /// infinity, depending on the driver. Render targets of this format are sampled by shaders
+    /// and read back by [`Gpu::read_float_render_target`]; textures of it are created from
+    /// levels the caller gives ([`Gpu::create_texture_with_levels`],
+    /// [`Gpu::create_cube_texture`]), not by [`Gpu::create_texture`], whose levels are computed
+    /// from 8-bit pixels.
     Rgba16Float,
 }
 
@@ -32,6 +33,14 @@ impl TextureFormat {
     /// Whether the format is sRGB-encoded, so that shaders write and read linear values.
     pub fn is_srgb(self) -> bool {
         matches!(self, Self::Rgba8UnormSrgb | Self::Bgra8UnormSrgb)
+    }
+
+    /// The size of a texel in bytes: 4, or 8 for `Rgba16Float`.
+    pub(crate) fn texel_size(self) -> u32 {
+        match self {
+            Self::Rgba16Float => 8,
+            Self::Rgba8UnormSrgb | Self::Bgra8UnormSrgb | Self::Rgba8Unorm => 4,
+        }
     }
 
     /// The wgpu format, for the engine's tooling only (ADR-0031).
