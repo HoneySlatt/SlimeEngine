@@ -9,8 +9,9 @@ Partial: the first renderer of Stage 3a (`docs/PLAN.md`). It draws instances of 
 perspective camera, with a depth test and back-face culling, each with a material of one base
 color, which a texture may modulate, lit by one directional light and an ambient light, and
 reports what each frame cost on the CPU and, on adapters that can time their work, on the GPU.
-Surfaces are opaque: the alpha of a base color reaches the shader but is not used. Instances are
-drawn in the order of the scene, neither sorted nor batched.
+Surfaces are opaque: the alpha of a base color and of its texture is not used, and a surface
+leaves an alpha of 1 in the target. Instances are drawn in the order of the scene, neither sorted
+nor batched.
 
 ## Role
 

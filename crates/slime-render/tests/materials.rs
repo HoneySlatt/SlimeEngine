@@ -1,6 +1,6 @@
 //! Materials, checked by reading pixels back: a base color texture is read at the texture
-//! coordinates of the mesh and multiplied with the base color. Runs on whatever adapter the
-//! machine offers.
+//! coordinates of the mesh and multiplied with the base color, and surfaces are opaque whatever
+//! the alpha of their base color. Runs on whatever adapter the machine offers.
 
 use slime_gfx::{AddressMode, Color, Filter, Gpu, Image, SamplerDescriptor, TextureFormat};
 use slime_render::glam::{Mat4, Vec3};
@@ -16,14 +16,12 @@ const BLACK: Color = Color {
     a: 1.0,
 };
 
-/// The red, green and blue of the pixel at `(x, y)`, `y` counted from the top.
-fn pixel(image: &Image, (x, y): (u32, u32)) -> [u8; 3] {
+/// The red, green, blue and alpha of the pixel at `(x, y)`, `y` counted from the top.
+fn pixel(image: &Image, (x, y): (u32, u32)) -> [u8; 4] {
     let start = ((y * image.width + x) * 4) as usize;
-    [
-        image.pixels[start],
-        image.pixels[start + 1],
-        image.pixels[start + 2],
-    ]
+    image.pixels[start..start + 4]
+        .try_into()
+        .expect("four channels")
 }
 
 #[test]
@@ -100,18 +98,36 @@ fn the_base_color_texture_is_read_at_the_texture_coordinates_and_tints_the_base_
         ..Camera::default()
     };
 
+    // Half transparent, which an opaque surface ignores.
+    let translucent = renderer.create_material(
+        &gpu,
+        "textured and translucent",
+        &MaterialData {
+            base_color: [1.0, 1.0, 1.0, 0.5],
+            base_color_texture: Some(sampled),
+        },
+    );
+
     // The pixels at 5 and 10 are inside the square's quarters, away from the texture's edges.
+    let white = [
+        [255, 0, 0, 255],
+        [0, 255, 0, 255],
+        [0, 0, 255, 255],
+        [255, 255, 255, 255],
+    ];
     for (material, expected, case) in [
-        (
-            &plain,
-            [[255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 255]],
-            "white base color",
-        ),
+        (&plain, white, "white base color"),
         (
             &dimmed,
-            [[188, 0, 0], [0, 188, 0], [0, 0, 188], [188, 188, 188]],
+            [
+                [188, 0, 0, 255],
+                [0, 188, 0, 255],
+                [0, 0, 188, 255],
+                [188, 188, 188, 255],
+            ],
             "half base color",
         ),
+        (&translucent, white, "half alpha"),
     ] {
         let instances = [Instance {
             mesh: &square,

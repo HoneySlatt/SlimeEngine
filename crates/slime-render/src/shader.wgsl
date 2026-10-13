@@ -60,5 +60,6 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let normal = normalize(input.normal);
     let diffuse = max(dot(normal, frame.to_light.xyz), 0.0);
     let light = frame.ambient.rgb + frame.light_color.rgb * diffuse;
-    return vec4<f32>(base.rgb * light, base.a);
+    // Surfaces are opaque: the target's alpha is 1 wherever one is drawn.
+    return vec4<f32>(base.rgb * light, 1.0);
 }
