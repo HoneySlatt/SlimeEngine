@@ -921,6 +921,16 @@ fn decode_png(
             "{name} is a {mime_type} image; only PNG images are supported"
         )));
     }
+    decode_png_data(&name, bytes, max_dimension)
+}
+
+/// Decodes `bytes`, the PNG image `name`, into RGBA bytes of 8 bits per channel, whatever the image
+/// stores, if neither of its sides is longer than `max_dimension`.
+fn decode_png_data(
+    name: &str,
+    bytes: &[u8],
+    max_dimension: u32,
+) -> Result<DecodedImage, LoadError> {
     let error = |what: &str| LoadError(format!("{name} cannot be decoded: {what}"));
     let mut decoder = png::Decoder::new(std::io::Cursor::new(bytes));
     // 8 bits per channel, palettes expanded, whatever the file stores.
@@ -1077,6 +1087,102 @@ mod tests {
                 descriptor(Repeat, Repeat, Linear, Nearest),
                 descriptor(Repeat, Repeat, Linear, Linear),
             ]
+        );
+    }
+
+    #[test]
+    fn png_images_of_every_kind_are_decoded_into_rgba() {
+        use png::{BitDepth, ColorType};
+
+        // An image of two pixels side by side, of `color` in `depth`, stored as `data`, with
+        // `palette` and `transparency` chunks unless they are empty, decoded.
+        let decoded = |color, depth, data: &[u8], palette: &[u8], transparency: &[u8]| {
+            let mut bytes = Vec::new();
+            let mut encoder = png::Encoder::new(&mut bytes, 2, 1);
+            encoder.set_color(color);
+            encoder.set_depth(depth);
+            if !palette.is_empty() {
+                encoder.set_palette(palette.to_vec());
+            }
+            if !transparency.is_empty() {
+                encoder.set_trns(transparency.to_vec());
+            }
+            let mut writer = encoder.write_header().expect("the PNG header is written");
+            writer
+                .write_image_data(data)
+                .expect("the PNG image is written");
+            writer.finish().expect("the PNG image is finished");
+            let image = decode_png_data("image", &bytes, 2).expect("the image is decoded");
+            assert_eq!((image.width, image.height), (2, 1));
+            image.pixels
+        };
+        let (eight, none) = (BitDepth::Eight, &[]);
+
+        assert_eq!(
+            decoded(
+                ColorType::Rgba,
+                eight,
+                &[10, 20, 30, 40, 50, 60, 70, 80],
+                none,
+                none
+            ),
+            [10, 20, 30, 40, 50, 60, 70, 80]
+        );
+        let rgb = [10, 20, 30, 50, 60, 70];
+        assert_eq!(
+            decoded(ColorType::Rgb, eight, &rgb, none, none),
+            [10, 20, 30, 255, 50, 60, 70, 255]
+        );
+        // The color of the transparency chunk, written in 16 bits per channel, is transparent.
+        assert_eq!(
+            decoded(ColorType::Rgb, eight, &rgb, none, &[0, 10, 0, 20, 0, 30]),
+            [10, 20, 30, 0, 50, 60, 70, 255]
+        );
+        // 16 bits per channel, big-endian: the most significant byte is kept.
+        assert_eq!(
+            decoded(
+                ColorType::Rgb,
+                BitDepth::Sixteen,
+                &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+                none,
+                none
+            ),
+            [1, 3, 5, 255, 7, 9, 11, 255]
+        );
+        assert_eq!(
+            decoded(ColorType::Grayscale, eight, &[10, 200], none, none),
+            [10, 10, 10, 255, 200, 200, 200, 255]
+        );
+        // One bit per pixel, from the most significant bit: white, then black.
+        assert_eq!(
+            decoded(
+                ColorType::Grayscale,
+                BitDepth::One,
+                &[0b1000_0000],
+                none,
+                none
+            ),
+            [255, 255, 255, 255, 0, 0, 0, 255]
+        );
+        assert_eq!(
+            decoded(
+                ColorType::GrayscaleAlpha,
+                eight,
+                &[10, 40, 200, 80],
+                none,
+                none
+            ),
+            [10, 10, 10, 40, 200, 200, 200, 80]
+        );
+        // A palette of red and blue, without and with an alpha per entry.
+        let palette = [255, 0, 0, 0, 0, 255];
+        assert_eq!(
+            decoded(ColorType::Indexed, eight, &[0, 1], &palette, none),
+            [255, 0, 0, 255, 0, 0, 255, 255]
+        );
+        assert_eq!(
+            decoded(ColorType::Indexed, eight, &[0, 1], &palette, &[128, 255]),
+            [255, 0, 0, 128, 0, 0, 255, 255]
         );
     }
 
