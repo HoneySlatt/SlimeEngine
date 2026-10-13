@@ -21,7 +21,7 @@ pub struct Gpu {
     pub(crate) queue: wgpu::Queue,
     adapter_name: String,
     /// Why the device was lost, once it has been: set by wgpu's device-lost callback.
-    loss: Arc<OnceLock<String>>,
+    pub(crate) loss: Arc<OnceLock<String>>,
 }
 
 impl Gpu {

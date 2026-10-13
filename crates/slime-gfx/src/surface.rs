@@ -1,8 +1,8 @@
 //! Drawing into a window: its surface, and the image of each frame.
 
 use std::fmt;
-use std::sync::Arc;
 use std::sync::atomic::Ordering;
+use std::sync::{Arc, OnceLock};
 
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
@@ -66,6 +66,8 @@ pub struct Surface {
     window: Arc<dyn WindowHandles>,
     device: wgpu::Device,
     queue: wgpu::Queue,
+    /// Why the device was lost, once it has been: the [`Gpu`]'s record.
+    device_loss: Arc<OnceLock<String>>,
     config: wgpu::SurfaceConfiguration,
     format: TextureFormat,
     /// The largest width or height the device accepts for an image (8192 with the default limits).
@@ -159,6 +161,7 @@ impl Gpu {
             window,
             device: gpu.device.clone(),
             queue: gpu.queue.clone(),
+            device_loss: Arc::clone(&gpu.loss),
             config,
             format,
             max_dimension: gpu.device.limits().max_texture_dimension_2d,
@@ -235,6 +238,13 @@ impl Surface {
         if self.stale {
             self.surface.configure(&self.device, &self.config);
             self.stale = false;
+        }
+        // Configuring fails once the device is lost, and can be what finds the loss, since it waits
+        // for the GPU. wgpu then treats the acquisition of an image from a surface never configured
+        // (the first one, or one created again) as fatal, and panics.
+        if self.device_loss.get().is_some() {
+            tracing::debug!("frame not drawn: the GPU device is lost");
+            return None;
         }
         let mut current = self.surface.get_current_texture();
         if matches!(current, wgpu::CurrentSurfaceTexture::Outdated) {
