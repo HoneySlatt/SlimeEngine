@@ -265,7 +265,9 @@ pub(crate) enum ExitReason {
 /// If `config.fixed_step`, `config.max_fixed_steps_per_frame` or `config.max_frame_delta` is
 /// zero. With a window, also if `config.max_frame_rate` is zero, if the window's width or height
 /// is zero or above 16 384 logical pixels, if its title contains a NUL byte, or if `run` is not
-/// called from the main thread.
+/// called from the main thread. On Linux, also when the windowing library cannot load
+/// libxkbcommon, or libxkbcommon-x11 on X11 (see [`slime_platform::run_event_loop`]); on
+/// Wayland, this can happen during the run, when a keyboard first appears.
 pub fn run(app: &mut impl App, config: &AppConfig) -> Result<(), RunError> {
     init_diagnostics();
     signal::install_handler();

@@ -52,7 +52,9 @@ toolchain the first time you run `cargo` in the repository. Install the tools wi
 the versions pinned by `flake.lock`. To open windows, the examples need the windowing system's
 libraries, which are loaded at run time: libxkbcommon for both windowing systems;
 libwayland-client for Wayland; libX11, libX11-xcb, libXcursor, libXi, libxcb and libxkbcommon-x11
-for X11. Most desktop distributions install them already.
+for X11. Without libxkbcommon, or libxkbcommon-x11 on X11, the examples panic instead of
+reporting that the windowing system cannot be reached. Most desktop distributions install them
+already.
 
 ### On Windows
 
