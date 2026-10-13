@@ -144,7 +144,7 @@ slime_app::run
     ├── winit "resumed"          create the window → driver.window_created
     │                            → Gpu::new_for_window: the GPU and the window's surface;
     │                              ctx gets the window and the GPU; app.init(ctx)
-    ├── winit "window_event"     translate (event.rs) → driver.event
+    ├── winit "window_event"     Translator::translate (event.rs) → driver.event
     │                            → Resized: surface.resize; app.on_event(ctx, &event);
     │                              CloseRequested → stop
     ├── winit "window_event"     RedrawRequested → driver.redraw_requested → frame with the
@@ -355,11 +355,17 @@ frame (measured, or simulated in headless runs), gets a `FrameTime` back, and gi
 The engine targets Linux (`x86_64-unknown-linux-gnu`) and Windows (`x86_64-pc-windows-msvc`)
 ([ADR-0015](adr/0015-platforms-and-ci.md)). Platform differences are kept in few places:
 
-- winit hides the windowing systems (Wayland and X11 on Linux, Win32 on Windows). The only
-  platform-specific code in `slime-platform` names the windowing system in the log
-  (`backend_name` in `event_loop.rs`). One difference shapes the main loop: on Windows, the
-  system runs its own loop while the user resizes or moves a window, which is why frames run on
-  redraw requests.
+- winit hides the windowing systems (Wayland and X11 on Linux, Win32 on Windows).
+  `slime-platform` has platform-specific code in three places of `event_loop.rs`:
+  - `backend_name` names the windowing system in the log.
+  - On X11, `resumed` gives winit a maximum window size of 65 535 physical pixels, the protocol's
+    limit; beyond it, winit panics.
+  - On Windows, `exiting` hides the window, which winit destroys only from inside the event loop.
+
+  Where winit's events differ between platforms, `slime-platform` makes them agree: `Translator`
+  in `event.rs` pairs key events across focus changes. One difference shapes the main loop: on
+  Windows, the system runs its own loop while the user resizes or moves a window, which is why
+  frames run on redraw requests.
 - `ctrlc` hides signals (Unix) and console events (Windows); `crates/slime-app/src/signal.rs`
   describes how each platform behaves.
 - wgpu hides the graphics APIs; `slime-gfx` only chooses which one to ask for on each platform
