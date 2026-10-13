@@ -110,9 +110,9 @@ impl Overlay {
             events: self.input.take_events(),
             ..egui::RawInput::default()
         };
-        // The scale factor is the screen's own, not a zoom: when its zoom changes, egui lays the
-        // frame out in the last frame's area rescaled, not in `screen_rect`, as if the window had
-        // kept its pixels, and moves the panels into that area for good.
+        // egui gets the scale factor as the screen's own, not as a zoom: when its zoom changes,
+        // egui lays the next frame out in the last frame's area rescaled, not in `screen_rect`, as
+        // if the window had kept its pixels, and moves the panels into that area for good.
         raw_input
             .viewports
             .entry(egui::ViewportId::ROOT)
@@ -136,8 +136,8 @@ impl Overlay {
             }
         }
         // egui's renderer panics when it uploads its buffers to a lost device. A loss found
-        // earlier in the frame, by the scene's work or the uploads above, stops the run at its
-        // next check (ADR-0022), so this frame is dropped.
+        // earlier in the frame, by the scene's work or the uploads above, stops a windowed run at
+        // its next check (ADR-0022), so this frame is dropped.
         if gpu.check().is_err() {
             textures.clear();
             return;
