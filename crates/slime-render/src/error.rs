@@ -6,8 +6,8 @@ use slime_gfx::GfxError;
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum RenderError {
-    /// The GPU layer failed: the graphics driver rejected the renderer's shader or pipeline, or
-    /// the device was lost.
+    /// The GPU layer failed: the graphics driver rejected one of the renderer's shaders or
+    /// pipelines (the scene pass's or the tone-mapping pass's), or the device was lost.
     #[error("the GPU layer failed")]
     Gfx(#[from] GfxError),
     /// Mesh data that cannot be drawn: mismatched vertex arrays, no triangle, an index that names
