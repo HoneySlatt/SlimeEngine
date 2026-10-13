@@ -215,6 +215,10 @@ gpu = Gpu::new()
 ├── create_bind_group(label, &layout, entries)           the resources, bound together
 ├── uniform_offset_alignment()                           the step of a bind group's dynamic
 │                                                        offsets into a uniform buffer
+├── max_texture_dimension()                              the largest side of a texture or a
+│                                                        target (8192 with the default limits)
+├── max_buffer_size()                                    the largest buffer (256 MiB with the
+│                                                        default limits)
 ├── create_timer(label)                                  a GpuTimer per timed pass, when can_time()
 │                                                        says the adapter has timestamp queries
 ├── render(&RenderPassDescriptor { target, clear, depth, timer }, |pass| ...)
