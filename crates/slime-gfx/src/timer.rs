@@ -189,3 +189,56 @@ impl std::fmt::Debug for GpuTimer {
             .finish_non_exhaustive()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Color, RenderPassDescriptor, TextureFormat};
+
+    #[test]
+    fn passes_beyond_the_slots_go_untimed_until_reading_frees_them() {
+        let gpu =
+            Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+        let Some(timer) = gpu.create_timer("slots") else {
+            eprintln!("adapter `{}` cannot time its work", gpu.adapter_name());
+            return;
+        };
+        let target = gpu.create_render_target("timed", 4, 4, TextureFormat::Rgba8UnormSrgb);
+        let pass = RenderPassDescriptor {
+            target: &target,
+            clear: Some(Color {
+                r: 0.0,
+                g: 0.0,
+                b: 0.0,
+                a: 1.0,
+            }),
+            depth: None,
+            timer: Some(&timer),
+        };
+        let in_flight = || {
+            timer
+                .slots
+                .iter()
+                .filter(|slot| slot.in_flight.get())
+                .count()
+        };
+
+        // One pass more than there are slots, none of them read: the last finds every slot
+        // waiting for its time, and goes untimed rather than map a readback whose map is pending,
+        // which wgpu would reject.
+        for _ in 0..=SLOTS {
+            gpu.render(&pass, |_pass| {});
+        }
+        assert_eq!(in_flight(), SLOTS, "every slot waits for its time");
+
+        gpu.wait_idle().expect("the GPU finishes the passes");
+        assert!(timer.latest(&gpu).is_some(), "the times have come back");
+        assert_eq!(in_flight(), 0, "reading them frees every slot");
+
+        gpu.render(&pass, |_pass| {});
+        assert_eq!(in_flight(), 1, "a freed slot times the next pass");
+        gpu.wait_idle().expect("the GPU finishes the pass");
+        assert!(timer.latest(&gpu).is_some(), "its time comes back");
+        assert_eq!(in_flight(), 0, "and frees the slot again");
+    }
+}
