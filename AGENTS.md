@@ -41,7 +41,7 @@ scripts/check.sh                                          # everything above, pl
 cargo run --example <name>                                # run an example (list in examples/README.md)
 ```
 
-`scripts/check.sh` is what CI runs. Besides the commands above, it checks dependency licenses, security advisories and sources with `cargo deny --locked check` (needs network access), runs the samples without a display server, the windowed samples and the windowed lifecycle test inside a headless Weston compositor, and checks links between Markdown files with `lychee`. Run it before reporting a milestone done. It runs the tests on lavapipe, a Vulkan driver that renders on the CPU; to run one test the same way, prefix it with `VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD"`.
+`scripts/check.sh` is what CI runs. Besides the commands above, it runs the renderer's tests once more with glam's assertions on (`--features glam/debug-glam-assert`), checks dependency licenses, security advisories and sources with `cargo deny --locked check` (needs network access), runs the samples without a display server, the windowed samples and the windowed lifecycle test inside a headless Weston compositor, and checks links between Markdown files with `lychee`. Run it before reporting a milestone done. It runs the tests on lavapipe, a Vulkan driver that renders on the CPU; to run one test the same way, prefix it with `VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD"`.
 
 Keep this section up to date when commands, examples or tools are added.
 

@@ -149,12 +149,14 @@ One script runs every automated check, exactly as CI does:
 nix develop -c scripts/check.sh
 ```
 
-[`scripts/check.sh`](scripts/check.sh) runs rustfmt, clippy with warnings as errors, the build
-and tests of every target, rustdoc with warnings as errors, `cargo deny` (dependency licenses,
-security advisories and sources; it downloads the advisory database, so it needs network access),
-the samples with no display server available, the windowed samples and the windowed lifecycle test
-inside a headless Weston compositor, and `lychee` (links between Markdown files). The individual commands are listed in
-[`AGENTS.md`](AGENTS.md#environment-and-commands) for when you want to run only one of them.
+[`scripts/check.sh`](scripts/check.sh) runs rustfmt, clippy with warnings as errors, the build and
+tests of every target, the renderer's tests again with glam's assertions on (which a game that turns
+them on also turns on in the engine), rustdoc with warnings as errors, `cargo deny` (dependency
+licenses, security advisories and sources; it downloads the advisory database, so it needs network
+access), the samples with no display server available, the windowed samples and the windowed
+lifecycle test inside a headless Weston compositor, and `lychee` (links between Markdown files). The
+individual commands are listed in [`AGENTS.md`](AGENTS.md#environment-and-commands) for when you
+want to run only one of them.
 
 The script also runs clippy for the Windows target, which catches code that does not compile on
 Windows without a Windows machine.

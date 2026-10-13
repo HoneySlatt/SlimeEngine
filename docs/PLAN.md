@@ -548,15 +548,6 @@ GitHub issues, linked from their entry; this list stays the reference.
   the console to interpret the sequences with `nu_ansi_term::enable_ansi_support`: the crate is
   already in `Cargo.lock` through tracing-subscriber, but `slime-app` would depend on it directly,
   on Windows only, which needs the owner's approval.
-- **CI does not run the renderer's tests with glam's assertions on** (a change is proposed to the
-  owner). `camera::tests::the_length_of_up_does_not_change_the_view` can fail only when they are
-  on, since glam otherwise ignores the length of `up`, and `scripts/check.sh` runs the tests with
-  them off. `VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo test --locked -p slime-render --features
-  glam/debug-glam-assert` passes, and fails if `Camera::view` stops normalizing `up`. Proposed:
-  add that command to the Tests step of `scripts/check.sh` (a few seconds), and list it in
-  AGENTS.md and CONTRIBUTING.md. Enabling the feature in `slime-render`'s dev-dependencies was
-  rejected: feature unification would turn the assertions on for `cargo test --workspace` but not
-  for `cargo test -p slime-examples`.
 - **Any `trace` directive in `SLIME_LOG` makes wgpu build its per-command trace records.**
   tracing-subscriber sets the `log` crate's maximum level from the most verbose directive. With
   `slime_app=trace`, wgpu-core then formats and filters out about five records per draw while it
