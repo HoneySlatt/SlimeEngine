@@ -58,6 +58,41 @@ fn a_timed_pass_reports_how_long_it_took_when_the_adapter_can_tell() {
 }
 
 #[test]
+fn a_time_comes_back_with_later_frames_without_waiting() {
+    // What the renderer relies on: it never waits for the GPU, and reads its timer after each
+    // frame's submission, which is when wgpu collects the passes the GPU has finished.
+    let gpu =
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+    let Some(timer) = gpu.create_timer("frames") else {
+        assert!(!gpu.can_time(), "an adapter that can time gives a timer");
+        eprintln!("adapter `{}` cannot time its work", gpu.adapter_name());
+        return;
+    };
+    let target = gpu.create_render_target("timed", 64, 64, TextureFormat::Rgba8UnormSrgb);
+    let pass = RenderPassDescriptor {
+        target: &target,
+        clear: Some(BLACK),
+        depth: None,
+        timer: Some(&timer),
+    };
+    // Frames a millisecond apart, so that the GPU, however slow, finishes a pass well before the
+    // last of them.
+    let frames = 1000;
+    let mut measured = None;
+    for frame in 0..frames {
+        gpu.render(&pass, |_pass| {});
+        measured = timer.latest();
+        if measured.is_some() {
+            eprintln!("time of a pass, read without waiting at frame {frame}: {measured:?}");
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    let time = measured.unwrap_or_else(|| panic!("no time came back within {frames} frames"));
+    assert!(time < Duration::from_secs(1), "{time:?}");
+}
+
+#[test]
 fn three_passes_timed_in_one_frame_each_get_their_own_time() {
     let gpu =
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
