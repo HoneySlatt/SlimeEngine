@@ -16,7 +16,7 @@ use std::time::Duration;
 use slime_gfx::{Color, Gpu, Image, TextureFormat};
 use slime_render::glam::{Mat4, Vec3, Vec4};
 use slime_render::{
-    Camera, DirectionalLight, Instance, Material, MaterialData, Mesh, MeshData, RenderStats,
+    Camera, DirectionalLight, Instance, Light, Material, MaterialData, Mesh, MeshData, RenderStats,
     Renderer, Scene,
 };
 
@@ -71,30 +71,32 @@ impl Setup {
         }
     }
 
-    /// Draws the square with `transform` under `light`, seen from +Z, at an exposure of 1, and
-    /// returns the red channel of the center pixel, sRGB-encoded.
-    fn center_red(&mut self, light: DirectionalLight, transform: Mat4) -> u8 {
-        self.exposed_center_red(light, transform, 1.0)
+    /// Draws the square with `transform` under `light` and an ambient light of `ambient`, seen
+    /// from +Z, at an exposure of 1, and returns the red channel of the center pixel, sRGB-encoded.
+    fn center_red(&mut self, light: DirectionalLight, ambient: f32, transform: Mat4) -> u8 {
+        self.exposed_center_red(light, ambient, transform, 1.0)
     }
 
     /// The same, at `exposure`.
     fn exposed_center_red(
         &mut self,
         light: DirectionalLight,
+        ambient: f32,
         transform: Mat4,
         exposure: f32,
     ) -> u8 {
-        let (image, _) = self.draw(light, &[transform], (SIZE, SIZE), exposure);
+        let (image, _) = self.draw(light, ambient, &[transform], (SIZE, SIZE), exposure);
         let center = ((SIZE / 2 * SIZE + SIZE / 2) * 4) as usize;
         image.pixels[center]
     }
 
-    /// Draws an instance of the square for each of `transforms` under `light`, seen from +Z, into
-    /// a target of `width` × `height` pixels at `exposure`, and returns the image, sRGB-encoded,
-    /// and the statistics of the frame.
+    /// Draws an instance of the square for each of `transforms` under `light` and an ambient
+    /// light of `ambient`, seen from +Z, into a target of `width` × `height` pixels at
+    /// `exposure`, and returns the image, sRGB-encoded, and the statistics of the frame.
     fn draw(
         &mut self,
         light: DirectionalLight,
+        ambient: f32,
         transforms: &[Mat4],
         (width, height): (u32, u32),
         exposure: f32,
@@ -119,7 +121,8 @@ impl Setup {
             &target,
             &Scene {
                 camera,
-                light,
+                lights: &[Light::Directional(light)],
+                ambient: Vec3::splat(ambient),
                 clear: BLACK,
                 exposure,
                 instances: &instances,
@@ -135,7 +138,7 @@ impl Setup {
     /// The red channel of the center pixel of a frame drawn by [`draw`](Self::draw), at an
     /// exposure of 1.
     fn center_of(&mut self, transforms: &[Mat4], (width, height): (u32, u32)) -> (u8, RenderStats) {
-        let (image, stats) = self.draw(from_the_front(), transforms, (width, height), 1.0);
+        let (image, stats) = self.draw(from_the_front(), 0.0, transforms, (width, height), 1.0);
         let center = ((height / 2 * width + width / 2) * 4) as usize;
         (image.pixels[center], stats)
     }
@@ -154,12 +157,12 @@ fn fully_lit() -> u8 {
     displayed([lit(1.0); 3])[0]
 }
 
-/// A light of π travelling towards −Z: it comes from the camera's side.
+/// A white light of π lux travelling towards −Z: it comes from the camera's side.
 fn from_the_front() -> DirectionalLight {
     DirectionalLight {
         direction: Vec3::new(0.0, 0.0, -1.0),
-        color: Vec3::splat(PI),
-        ambient: Vec3::ZERO,
+        color: Vec3::ONE,
+        illuminance: PI,
     }
 }
 
@@ -174,17 +177,16 @@ fn assert_close(actual: u8, expected: u8, case: &str) {
 fn a_surface_facing_the_light_is_fully_lit_and_one_facing_away_gets_the_ambient_light() {
     let mut setup = Setup::new();
     assert_close(
-        setup.center_red(from_the_front(), Mat4::IDENTITY),
+        setup.center_red(from_the_front(), 0.0, Mat4::IDENTITY),
         fully_lit(),
         "facing the light",
     );
     let from_behind = DirectionalLight {
         direction: Vec3::new(0.0, 0.0, 1.0),
-        color: Vec3::splat(PI),
-        ambient: Vec3::splat(0.5),
+        ..from_the_front()
     };
     assert_close(
-        setup.center_red(from_behind, Mat4::IDENTITY),
+        setup.center_red(from_behind, 0.5, Mat4::IDENTITY),
         displayed([0.5; 3])[0],
         "facing away, ambient light only",
     );
@@ -196,7 +198,7 @@ fn normals_follow_the_rotation_of_the_instance_but_not_its_scale() {
     // Turned by 60° about Y, the square's normal makes a 60° angle with the light.
     let turned = Mat4::from_rotation_y(60f32.to_radians());
     assert_close(
-        setup.center_red(from_the_front(), turned),
+        setup.center_red(from_the_front(), 0.0, turned),
         displayed([lit(60f32.to_radians().cos()); 3])[0],
         "turned by 60°",
     );
@@ -207,7 +209,7 @@ fn normals_follow_the_rotation_of_the_instance_but_not_its_scale() {
         Mat4::from_scale(Vec3::new(4.0, 1.0, 1.0)) * Mat4::from_rotation_y(45f32.to_radians());
     let normal = Vec3::new(1.0 / 4.0, 0.0, 1.0).normalize();
     assert_close(
-        setup.center_red(from_the_front(), stretched),
+        setup.center_red(from_the_front(), 0.0, stretched),
         displayed([lit(normal.z); 3])[0],
         "turned by 45° and stretched along X",
     );
@@ -215,7 +217,7 @@ fn normals_follow_the_rotation_of_the_instance_but_not_its_scale() {
     // light, although the transform has no inverse.
     let flattened = Mat4::from_scale(Vec3::new(1.0, 1.0, 0.0));
     assert_close(
-        setup.center_red(from_the_front(), flattened),
+        setup.center_red(from_the_front(), 0.0, flattened),
         fully_lit(),
         "flattened along its normal",
     );
@@ -225,34 +227,34 @@ fn normals_follow_the_rotation_of_the_instance_but_not_its_scale() {
 fn the_exposure_multiplies_the_light_that_surfaces_reflect() {
     let mut setup = Setup::new();
     let half = DirectionalLight {
-        color: Vec3::splat(PI / 2.0),
+        illuminance: PI / 2.0,
         ..from_the_front()
     };
     // Both reflect the same before the curve: scaling by a power of two is exact in f32 and f16.
     assert_eq!(
-        setup.exposed_center_red(half, Mat4::IDENTITY, 2.0),
-        setup.exposed_center_red(from_the_front(), Mat4::IDENTITY, 1.0),
+        setup.exposed_center_red(half, 0.0, Mat4::IDENTITY, 2.0),
+        setup.exposed_center_red(from_the_front(), 0.0, Mat4::IDENTITY, 1.0),
         "a light of π/2 at an exposure of 2 shows as a light of π at an exposure of 1"
     );
     assert_close(
-        setup.exposed_center_red(from_the_front(), Mat4::IDENTITY, 0.5),
+        setup.exposed_center_red(from_the_front(), 0.0, Mat4::IDENTITY, 0.5),
         displayed([lit(1.0) / 2.0; 3])[0],
         "a light of π at an exposure of 0.5",
     );
     // Light above 1 reaches the curve unclipped: a light of 4π shows compressed rather than as a
     // reflected light of 1, and brought back by an exposure of 1/4, as a light of π.
     let bright = DirectionalLight {
-        color: Vec3::splat(4.0 * PI),
+        illuminance: 4.0 * PI,
         ..from_the_front()
     };
     assert_close(
-        setup.center_red(bright, Mat4::IDENTITY),
+        setup.center_red(bright, 0.0, Mat4::IDENTITY),
         displayed([4.0 * lit(1.0); 3])[0],
         "a light of 4π",
     );
     assert_eq!(
-        setup.exposed_center_red(bright, Mat4::IDENTITY, 0.25),
-        setup.exposed_center_red(from_the_front(), Mat4::IDENTITY, 1.0),
+        setup.exposed_center_red(bright, 0.0, Mat4::IDENTITY, 0.25),
+        setup.exposed_center_red(from_the_front(), 0.0, Mat4::IDENTITY, 1.0),
         "a light of 4π at an exposure of 1/4 shows as a light of π at an exposure of 1"
     );
     // The exposure is applied before the high-dynamic-range target is written: under a light of
@@ -260,11 +262,11 @@ fn the_exposure_multiplies_the_light_that_surfaces_reflect() {
     // an exposure of 10⁻⁶ as under a light of π at 1. Exposed after the target, it would show the
     // clamped light, 65 504 × 10⁻⁶, about 0.07.
     let blinding = DirectionalLight {
-        color: Vec3::splat(1e6 * PI),
+        illuminance: 1e6 * PI,
         ..from_the_front()
     };
     assert_close(
-        setup.exposed_center_red(blinding, Mat4::IDENTITY, 1e-6),
+        setup.exposed_center_red(blinding, 0.0, Mat4::IDENTITY, 1e-6),
         fully_lit(),
         "a light of 10⁶ π at an exposure of 10⁻⁶",
     );
@@ -278,8 +280,8 @@ fn the_targets_follow_the_size_of_the_output() {
     // size would frame the square differently, and a depth target of another size would make the
     // pass panic.
     for size in [(16, 16), (16, 8), (8, 8), (16, 16)] {
-        let (image, _) = setup.draw(from_the_front(), &[Mat4::IDENTITY], size, 1.0);
-        let (expected, _) = Setup::new().draw(from_the_front(), &[Mat4::IDENTITY], size, 1.0);
+        let (image, _) = setup.draw(from_the_front(), 0.0, &[Mat4::IDENTITY], size, 1.0);
+        let (expected, _) = Setup::new().draw(from_the_front(), 0.0, &[Mat4::IDENTITY], size, 1.0);
         assert!(image.pixels == expected.pixels, "a {size:?} target");
     }
 }
@@ -291,7 +293,13 @@ fn the_projection_follows_the_aspect_ratio_of_the_output() {
     // down in a target twice as wide as it is high: a projection that ignored the aspect ratio
     // would stretch it.
     let (width, height) = (64, 32);
-    let (image, _) = setup.draw(from_the_front(), &[Mat4::IDENTITY], (width, height), 1.0);
+    let (image, _) = setup.draw(
+        from_the_front(),
+        0.0,
+        &[Mat4::IDENTITY],
+        (width, height),
+        1.0,
+    );
     let lit = |x: u32, y: u32| image.pixels[((y * width + x) * 4) as usize] > 0;
     let across = (0..width).filter(|&x| lit(x, height / 2)).count();
     let down = (0..height).filter(|&y| lit(width / 2, y)).count();
@@ -305,7 +313,7 @@ fn the_projection_follows_the_aspect_ratio_of_the_output() {
 fn instances_beyond_the_first_instance_buffer_are_drawn_where_they_are() {
     let mut setup = Setup::new();
     assert_close(
-        setup.center_red(from_the_front(), Mat4::IDENTITY),
+        setup.center_red(from_the_front(), 0.0, Mat4::IDENTITY),
         fully_lit(),
         "one instance",
     );

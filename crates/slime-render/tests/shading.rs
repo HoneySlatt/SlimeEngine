@@ -11,6 +11,8 @@
 
 #[path = "common/brdf.rs"]
 mod brdf;
+#[path = "common/shown.rs"]
+mod shown;
 #[path = "common/tone_curve.rs"]
 #[expect(
     dead_code,
@@ -26,11 +28,12 @@ use slime_gfx::{
 };
 use slime_render::glam::{DVec3, Mat4, Quat, Vec3, Vec4};
 use slime_render::{
-    AlphaMode, Camera, DirectionalLight, Instance, Material, MaterialData, Mesh, MeshData,
+    AlphaMode, Camera, DirectionalLight, Instance, Light, Material, MaterialData, Mesh, MeshData,
     Renderer, SampledTexture, Scene,
 };
 
 use brdf::Surface;
+use shown::assert_shows;
 
 const SIZE: u32 = 9;
 /// The pixel on the camera's axis.
@@ -130,11 +133,11 @@ impl Setup {
     }
 
     /// Draws the square once for each of `instances`, with its material and transform, in this
-    /// order, seen from `camera` under `light`, against black, and reads the output back.
+    /// order, seen from `camera` under `lighting`, against black, and reads the output back.
     fn draw(
         &mut self,
         camera: Camera,
-        light: DirectionalLight,
+        (light, ambient): Lighting,
         instances: &[(&Material, Mat4)],
     ) -> FloatImage {
         let instances: Vec<Instance<'_>> = instances
@@ -150,7 +153,8 @@ impl Setup {
             &self.output,
             &Scene {
                 camera,
-                light,
+                lights: &[Light::Directional(light)],
+                ambient: Vec3::splat(ambient),
                 clear: BLACK,
                 exposure: 1.0,
                 instances: &instances,
@@ -170,14 +174,18 @@ fn camera(z: f32) -> Camera {
     }
 }
 
+/// A white directional light, and the radiance of the ambient light.
+type Lighting = (DirectionalLight, f32);
+
 /// A directional light that arrives from `to_light`, of `illuminance`, with an ambient light of
 /// `ambient`.
-fn lighting(to_light: Vec3, illuminance: f32, ambient: f32) -> DirectionalLight {
-    DirectionalLight {
+fn lighting(to_light: Vec3, illuminance: f32, ambient: f32) -> Lighting {
+    let light = DirectionalLight {
         direction: -to_light,
-        color: Vec3::splat(illuminance),
-        ambient: Vec3::splat(ambient),
-    }
+        color: Vec3::ONE,
+        illuminance,
+    };
+    (light, ambient)
 }
 
 /// What `surface`, of normal `normal`, reflects towards the camera at `z` from the center of the
@@ -192,25 +200,6 @@ fn expected(
     let to_camera = brdf::to_camera(&camera(camera_z), (SIZE, SIZE), CENTER, 0.0);
     brdf::reflected(surface, normal, to_light.as_dvec3().normalize(), to_camera)
         .map(|channel| channel * f64::from(illuminance))
-}
-
-/// Checks that the pixel at `(x, y)` shows `light`, high-dynamic-range light tone mapped at an
-/// exposure of 1, within 2 × 10^-3: two roundings to half precision (the high-dynamic-range target
-/// and the output), each up to one step of 4.9 × 10^-4 below 1 even on a driver that rounds toward
-/// zero, and the rounding of the shader, about 10^-6; half a step of an 8-bit display.
-fn assert_shows(image: &FloatImage, (x, y): (u32, u32), light: [f64; 3], case: &str) {
-    let expected = tone_curve::tone_map(light.map(|channel| channel as f32));
-    let start = ((y * image.width + x) * 4) as usize;
-    let actual = &image.pixels[start..start + 3];
-    let largest = actual
-        .iter()
-        .zip(expected)
-        .map(|(actual, expected)| (actual - expected).abs())
-        .fold(0.0, f32::max);
-    assert!(
-        largest <= 2e-3,
-        "{case}: expected {expected:?} for light {light:?}, got {actual:?} (off by {largest})"
-    );
 }
 
 /// Draws the square with `transform`, a white matte material whose normal texture is `texel` at

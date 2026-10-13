@@ -9,7 +9,7 @@ use std::f32::consts::PI;
 
 use slime_gfx::{Color, Gpu, RenderTarget, TextureFormat};
 use slime_render::glam::Vec3;
-use slime_render::{Camera, DirectionalLight, RenderStats, Renderer, Scene};
+use slime_render::{Camera, DirectionalLight, Light, RenderStats, Renderer, Scene};
 
 pub use gltf::Bounds;
 
@@ -24,13 +24,15 @@ pub const BACKGROUND: Color = Color {
     a: 1.0,
 };
 
-/// A slightly warm light from above, of about π, under which a white matte surface facing it
-/// reflects about 0.97 (ADR-0035), with a slightly cold ambient light.
-const LIGHT: DirectionalLight = DirectionalLight {
+/// A slightly warm light from above, of π lux, under which a white matte surface facing it
+/// reflects about 0.97 nits (ADR-0035).
+const LIGHT: Light = Light::Directional(DirectionalLight {
     direction: Vec3::new(-0.5, -1.0, -0.6),
-    color: Vec3::new(PI, 0.98 * PI, 0.9 * PI),
-    ambient: Vec3::new(0.18, 0.19, 0.23),
-};
+    color: Vec3::new(1.0, 0.98, 0.9),
+    illuminance: PI,
+});
+/// A slightly cold ambient light, in nits.
+const AMBIENT: Vec3 = Vec3::new(0.18, 0.19, 0.23);
 
 /// A loaded glTF scene and the renderer that draws it, for targets of one format.
 pub struct SampleScene {
@@ -75,7 +77,8 @@ impl SampleScene {
             target,
             &Scene {
                 camera,
-                light: LIGHT,
+                lights: &[LIGHT],
+                ambient: AMBIENT,
                 clear: BACKGROUND,
                 exposure,
                 instances: &instances,

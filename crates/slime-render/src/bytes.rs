@@ -9,6 +9,13 @@ pub(crate) fn push_f32s(bytes: &mut Vec<u8>, values: &[f32]) {
     }
 }
 
+/// Appends `values` as little-endian 32-bit unsigned integers.
+pub(crate) fn push_u32s(bytes: &mut Vec<u8>, values: &[u32]) {
+    for value in values {
+        bytes.extend_from_slice(&value.to_le_bytes());
+    }
+}
+
 /// Appends `matrix` as a `mat4x4<f32>`: sixteen floats, column after column.
 pub(crate) fn push_mat4(bytes: &mut Vec<u8>, matrix: Mat4) {
     push_f32s(bytes, &matrix.to_cols_array());

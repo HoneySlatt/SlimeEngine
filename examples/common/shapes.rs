@@ -9,7 +9,7 @@ use std::f32::consts::{PI, TAU};
 use slime_gfx::{Color, Gpu, RenderTarget, SamplerDescriptor, TextureFormat};
 use slime_render::glam::{Mat4, Quat, Vec3};
 use slime_render::{
-    Camera, DirectionalLight, Instance, Material, MaterialData, Mesh, MeshData, RenderError,
+    Camera, DirectionalLight, Instance, Light, Material, MaterialData, Mesh, MeshData, RenderError,
     RenderStats, Renderer, SampledTexture, Scene,
 };
 
@@ -21,14 +21,17 @@ pub const BACKGROUND: Color = Color {
     a: 1.0,
 };
 
-/// A slightly warm light of about π from above and from the side the camera starts on, under which
-/// a white matte surface facing it reflects about 0.97 (ADR-0035), with a slightly cold ambient
-/// light.
-const LIGHT: DirectionalLight = DirectionalLight {
+/// A slightly warm light of π lux from above and from the side the camera starts on, under which a
+/// white matte surface facing it reflects about 0.97 nits (ADR-0035), shown as they are at an
+/// exposure of 1. Light in these units keeps the image of this test as it was before lights had
+/// physical units: it checks the shapes and their materials, not the units.
+const LIGHT: Light = Light::Directional(DirectionalLight {
     direction: Vec3::new(-0.6, -1.0, -0.5),
-    color: Vec3::new(PI, 0.98 * PI, 0.9 * PI),
-    ambient: Vec3::new(0.15, 0.16, 0.2),
-};
+    color: Vec3::new(1.0, 0.98, 0.9),
+    illuminance: PI,
+});
+/// A slightly cold ambient light, in nits.
+const AMBIENT: Vec3 = Vec3::new(0.15, 0.16, 0.2);
 
 /// How far the camera orbits from the origin, and how high above it.
 const ORBIT_RADIUS: f32 = 4.0;
@@ -180,7 +183,8 @@ impl Shapes {
             target,
             &Scene {
                 camera,
-                light: LIGHT,
+                lights: &[LIGHT],
+                ambient: AMBIENT,
                 clear: BACKGROUND,
                 exposure: 1.0,
                 instances: &instances,

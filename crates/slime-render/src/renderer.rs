@@ -1,6 +1,6 @@
 //! The renderer: draws instances of meshes, seen from a camera and shaded with glTF's
-//! metallic-roughness materials under a directional light, into a render target, in two passes:
-//! the scene in high dynamic range, exposed, then tone mapping.
+//! metallic-roughness materials under a scene's lights, into a render target, in two passes: the
+//! scene in high dynamic range, exposed, then tone mapping.
 
 use std::time::{Duration, Instant};
 
@@ -12,10 +12,10 @@ use slime_gfx::{
     Sampler, SamplerDescriptor, ShaderStages, Texture, TextureFormat, UniformBuffer,
 };
 
-use crate::bytes::{push_f32s, push_mat3, push_mat4};
+use crate::bytes::{push_f32s, push_mat3, push_mat4, push_u32s};
 use crate::camera::Camera;
 use crate::error::RenderError;
-use crate::light::DirectionalLight;
+use crate::light::{LIGHT_VALUES_SIZE, Light, MAX_LIGHTS};
 use crate::material::{Material, MaterialData};
 use crate::mesh::{Mesh, MeshData, VERTEX_LAYOUT};
 
@@ -33,10 +33,10 @@ const BLACK: Color = Color {
     b: 0.0,
     a: 1.0,
 };
-/// The size of the values of a frame: the camera's `mat4x4<f32>` and four `vec4<f32>`: the
-/// direction to the light, its illuminance, the ambient light, and the camera's position with the
-/// exposure.
-const FRAME_VALUES_SIZE: usize = 64 + 4 * 16;
+/// The size of the values of a frame, as `FrameUniform` in `shader.wgsl` lays them out: the
+/// camera's `mat4x4<f32>`, its position and the exposure (16 bytes), the ambient light and the
+/// number of lights (16 bytes), then room for [`MAX_LIGHTS`] lights: 1 120 bytes.
+const FRAME_VALUES_SIZE: usize = 64 + 2 * 16 + MAX_LIGHTS * LIGHT_VALUES_SIZE;
 /// The largest value of the high-dynamic-range target's half-precision floats, to which the exposed
 /// background is limited, as the scene shader limits surfaces (`LARGEST_HALF` in `shader.wgsl`).
 const LARGEST_HALF: f64 = 65_504.0;
@@ -69,24 +69,33 @@ pub struct Instance<'a> {
 
 /// What the renderer draws in one frame.
 ///
-/// The scene pass multiplies the scene's light, the background's included, by the exposure before
-/// it writes it into the high-dynamic-range target (pre-exposure, ADR-0037), whose half-precision
-/// floats reach 65 504: exposed light above it is written as 65 504, which clips it.
+/// Light is in physical units (ADR-0037): lights in lux and candelas, the light that surfaces
+/// reflect and emit, the ambient light and the background in nits (candelas per square metre),
+/// distances in metres. The scene pass multiplies that light by the exposure before it writes it
+/// into the high-dynamic-range target (pre-exposure), whose half-precision floats reach 65 504:
+/// exposed light above it is written as 65 504, which clips it.
 #[derive(Clone, Copy, Debug)]
 pub struct Scene<'a> {
     /// Where the scene is seen from.
     pub camera: Camera,
-    /// What lights the surfaces.
-    pub light: DirectionalLight,
-    /// The light behind the scene, where no surface is drawn: linear, in the units of the light (it
-    /// may exceed 1), not negative, and exposed and tone mapped like the surfaces. Its alpha is not
-    /// used: the output is opaque.
+    /// What lights the surfaces, at most [`MAX_LIGHTS`]: [`Renderer::render`] panics on more.
+    pub lights: &'a [Light],
+    /// The radiance of the ambient light, in nits, the same from every direction: a stand-in for
+    /// the light that the surroundings reflect, which the renderer does not compute until
+    /// image-based lighting replaces it. Every surface reflects it times its base color and its
+    /// occlusion, whatever its metallic and roughness. Linear, not negative.
+    pub ambient: Vec3,
+    /// The light behind the scene, where no surface is drawn, in nits: linear, not negative, and
+    /// exposed and tone mapped like the surfaces. Its alpha is not used: the output is opaque.
     pub clear: Color,
     /// What the scene's light, the background's included, is multiplied by before it is written
-    /// into the high-dynamic-range target, then tone mapped (ADR-0034, ADR-0037): a linear factor.
-    /// 1 leaves it as it is: light of 1 reflected towards the camera shows at 0.87 (sRGB 240), and
-    /// a white matte surface lit at normal incidence by a light of π at 0.86 (sRGB 239); 2 is one
-    /// photographic stop brighter; 0 gives black. Finite and not negative.
+    /// into the high-dynamic-range target, then tone mapped (ADR-0034, ADR-0037): a linear factor,
+    /// the inverse of the luminance, in nits, that shows as about 0.87 (sRGB 240). 2 is one
+    /// photographic stop brighter; 0 gives black. A white matte surface facing a light of E lux
+    /// reflects 0.97 E / π nits, which an exposure of π / E shows at sRGB 239. A camera of exposure
+    /// value EV100 (at ISO 100) has an exposure of 1 / (1.2 × 2^EV100) in the convention that
+    /// Frostbite and Filament follow: about 1 / 39 000 for EV100 15, a photographer's exposure for
+    /// direct sunlight. Finite and not negative.
     pub exposure: f32,
     /// What to draw, in this order.
     pub instances: &'a [Instance<'a>],
@@ -402,15 +411,21 @@ impl Renderer {
     ///
     /// # Panics
     ///
-    /// If `target` does not have the format the renderer was created for, or if the instances
-    /// need a buffer larger than the device allows (256 MiB with the default limits: about a
-    /// million instances): these are bugs in the caller.
+    /// If `target` does not have the format the renderer was created for, if the scene has more
+    /// than [`MAX_LIGHTS`] lights, or if the instances need a buffer larger than the device allows
+    /// (256 MiB with the default limits: about a million instances): these are bugs in the caller.
     ///
     /// With glam's assertions on (see [`Camera`]), also for a camera or a light that would
     /// otherwise draw nothing usable: as [`Camera::view_projection`] does, and for a zero
-    /// [`DirectionalLight::direction`].
+    /// [`DirectionalLight::direction`](crate::DirectionalLight::direction) or
+    /// [`SpotLight::direction`](crate::SpotLight::direction).
     pub fn render(&mut self, gpu: &Gpu, target: &RenderTarget, scene: &Scene<'_>) -> RenderStats {
         let started = Instant::now();
+        assert!(
+            scene.lights.len() <= MAX_LIGHTS,
+            "the scene has {} lights; the renderer draws at most {MAX_LIGHTS}",
+            scene.lights.len()
+        );
         assert!(
             target.format() == self.format,
             "the renderer draws into {:?} targets, not into `{}`, which is {:?}",
@@ -443,14 +458,18 @@ impl Renderer {
             &mut frame_bytes,
             scene.camera.view_projection(width as f32 / height as f32),
         );
-        let to_light = -scene.light.direction.normalize();
-        push_f32s(&mut frame_bytes, &[to_light.x, to_light.y, to_light.z, 0.0]);
-        let color = scene.light.color;
-        push_f32s(&mut frame_bytes, &[color.x, color.y, color.z, 0.0]);
-        let ambient = scene.light.ambient;
-        push_f32s(&mut frame_bytes, &[ambient.x, ambient.y, ambient.z, 0.0]);
         let eye = scene.camera.eye;
         push_f32s(&mut frame_bytes, &[eye.x, eye.y, eye.z, scene.exposure]);
+        push_f32s(&mut frame_bytes, &scene.ambient.to_array());
+        push_u32s(
+            &mut frame_bytes,
+            &[u32::try_from(scene.lights.len()).expect("checked above")],
+        );
+        for light in scene.lights {
+            light.push_values(&mut frame_bytes);
+        }
+        // The slots of the lights the scene does not have: the shader does not read them.
+        frame_bytes.resize(FRAME_VALUES_SIZE, 0);
         gpu.write_uniform_buffer(&self.frame_uniform, &frame_bytes);
 
         if self.instances.capacity < scene.instances.len() {
@@ -750,6 +769,16 @@ mod tests {
         assert!(matrix.is_finite(), "{matrix}");
         let normal = direction(matrix, Vec3::Z);
         assert!(normal.x.abs() < 1e-6 && normal.z.abs() < 1e-6, "{normal}");
+    }
+
+    #[test]
+    fn the_scene_shader_holds_as_many_lights_as_the_renderer_packs() {
+        // WGSL sizes the array of lights with a constant of its own, which cannot come from Rust.
+        let declared = format!("const MAX_LIGHTS: u32 = {MAX_LIGHTS}u;");
+        assert!(
+            SCENE_SHADER.contains(&declared),
+            "shader.wgsl lacks `{declared}`"
+        );
     }
 
     #[test]

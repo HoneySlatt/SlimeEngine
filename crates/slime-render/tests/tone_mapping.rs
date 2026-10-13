@@ -9,7 +9,8 @@
 mod tone_curve;
 
 use slime_gfx::{Color, FloatImage, Gpu, RenderTarget, TextureFormat};
-use slime_render::{Camera, DirectionalLight, RenderStats, Renderer, Scene};
+use slime_render::glam::Vec3;
+use slime_render::{Camera, RenderStats, Renderer, Scene};
 
 /// Light, and what Khronos PBR Neutral makes of it, each derived by hand from the specification's
 /// equations (K_s = 0.76 where compression starts, K_d = 0.15, F90 = 0.04).
@@ -50,7 +51,8 @@ fn draw(
         output,
         &Scene {
             camera: Camera::default(),
-            light: DirectionalLight::default(),
+            lights: &[],
+            ambient: Vec3::ZERO,
             clear: Color { r, g, b, a: 0.0 },
             exposure,
             instances: &[],

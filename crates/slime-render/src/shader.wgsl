@@ -1,7 +1,7 @@
 // The shader of the scene pass (ADR-0034, ADR-0035, ADR-0037): vertices transformed by their
 // instance and the camera; surfaces shaded with glTF's metallic-roughness model, with the formulas
-// of the Khronos glTF Sample Viewer (glTF 2.0 specification, Appendix B), under the scene's
-// directional light, plus its constant ambient light and the material's emission; multiplied by
+// of the Khronos glTF Sample Viewer (glTF 2.0 specification, Appendix B), under the scene's lights
+// (KHR_lights_punctual), plus its constant ambient light and the material's emission; multiplied by
 // the exposure and written into the high-dynamic-range target, which the tone-mapping pass then
 // maps to the output.
 
@@ -16,21 +16,52 @@ const MIN_ROUGHNESS: f32 = 0.045;
 // light is written as it rather than left to the driver, which may store an infinity that the tone
 // curve turns into NaN.
 const LARGEST_HALF: f32 = 65504.0;
+// The most lights a scene holds: MAX_LIGHTS in light.rs, which a unit test compares with it.
+const MAX_LIGHTS: u32 = 16u;
+// Light::kind of a directional light. Point lights are 1u and spot lights 2u, which the shader
+// treats alike: a point light's cone values give 1 in every direction.
+const DIRECTIONAL: u32 = 0u;
+// The square of the distance, in square metres, within which a point or spot light gives what it
+// gives 1 cm away, as Filament and Bevy do: the inverse square of the distance would grow without
+// bound at the light.
+const MIN_DISTANCE_SQUARED: f32 = 1e-4;
+// The square of the distance, 1 µm squared, within which a fragment has no direction to a point or
+// spot light: positions in 32-bit floats a few metres from the origin are about that precise.
+const DIRECTIONLESS_SQUARED: f32 = 1e-12;
+
+// One light, in world space, as Light::push_values in light.rs packs it.
+struct Light {
+    // The light's color times its illuminance (lux) for a directional light, times its intensity
+    // (candelas) for the others.
+    color: vec3<f32>,
+    // DIRECTIONAL, or 1u for a point light, 2u for a spot light.
+    kind: u32,
+    // Point and spot lights: where the light is.
+    position: vec3<f32>,
+    // Point and spot lights: 1 / range^2, or 0 for a light without range.
+    inverse_range_squared: f32,
+    // Directional and spot lights: the direction the light travels in, of length one.
+    direction: vec3<f32>,
+    // Spot lights: the cone's attenuation is saturate(cos * scale + offset)^2, where cos is the
+    // cosine of the angle from the axis (KHR_lights_punctual's reference code). 0 and 1 for the
+    // other lights: no cone.
+    cone_scale: f32,
+    cone_offset: f32,
+}
 
 struct FrameUniform {
     // From world space to clip space.
     view_proj: mat4x4<f32>,
-    // Towards the light, of length one, in world space; w unused.
-    to_light: vec4<f32>,
-    // The illuminance the directional light gives a surface facing it; w unused.
-    light_color: vec4<f32>,
-    // The radiance of the ambient light, the same from every direction; w unused.
-    ambient: vec4<f32>,
     // Where the camera is, in world space.
     camera_position: vec3<f32>,
     // What the light is multiplied by before it is written into the high-dynamic-range target
     // (pre-exposure, ADR-0037).
     exposure: f32,
+    // The radiance of the ambient light, in nits, the same from every direction.
+    ambient: vec3<f32>,
+    // How many entries of `lights` hold the scene's lights, from 0 to MAX_LIGHTS.
+    light_count: u32,
+    lights: array<Light, MAX_LIGHTS>,
 }
 @group(0) @binding(0) var<uniform> frame: FrameUniform;
 
@@ -133,12 +164,38 @@ fn fs_main(
     let roughness = clamp(material.roughness * metallic_roughness.g, MIN_ROUGHNESS, 1.0);
     let normal = shading_normal(input.normal, input.tangent, encoded_normal, front_facing);
     let to_camera = normalize(frame.camera_position - input.world_position);
-    let direct = frame.light_color.rgb
-        * reflected(base.rgb, metallic, roughness, normal, frame.to_light.xyz, to_camera);
+    // The loop's bound and each light are the same for every fragment: control flow stays
+    // uniform, and every light is evaluated whatever lies around it.
+    var direct = vec3<f32>(0.0);
+    for (var i = 0u; i < frame.light_count; i += 1u) {
+        let light = frame.lights[i];
+        var l = -light.direction;
+        var attenuation = 1.0;
+        if light.kind != DIRECTIONAL {
+            let to_light = light.position - input.world_position;
+            let distance_squared = dot(to_light, to_light);
+            // A fragment on the light has no direction to it, and gets no light rather than NaN.
+            // The divisor is bounded so that no infinity is computed where it is not used either,
+            // which WGSL lets implementations assume never happens.
+            l = select(
+                vec3<f32>(0.0),
+                to_light * inverseSqrt(max(distance_squared, DIRECTIONLESS_SQUARED)),
+                distance_squared > DIRECTIONLESS_SQUARED,
+            );
+            // KHR_lights_punctual: the inverse square of the distance, brought to 0 at the range
+            // by 1 - (d / range)^4, not squared.
+            let ratio = distance_squared * light.inverse_range_squared;
+            let window = saturate(1.0 - ratio * ratio);
+            let cone = saturate(dot(light.direction, -l) * light.cone_scale + light.cone_offset);
+            attenuation = window / max(distance_squared, MIN_DISTANCE_SQUARED) * cone * cone;
+        }
+        direct += light.color * attenuation
+            * reflected(base.rgb, metallic, roughness, normal, l, to_camera);
+    }
     // Until image-based lighting, the ambient light stands for even surroundings, which every
     // surface reflects in its base color, metal or not; occlusion darkens it, and it alone
     // (glTF: indirect light).
-    let ambient = frame.ambient.rgb * base.rgb
+    let ambient = frame.ambient * base.rgb
         * (1.0 + material.occlusion_strength * (occlusion - 1.0));
     // Exposed here, in 32-bit floats, before the half-precision target: light in physical units
     // reaches hundreds of thousands, which half precision does not hold (ADR-0037). Surfaces are
@@ -175,10 +232,11 @@ fn shading_normal(
     return select(-n, n, seen_from_the_front);
 }
 
-// What a surface reflects towards v from a directional light of illuminance 1 coming from l
-// (unit vectors), glTF 2.0 Appendix B: a dielectric diffuses its base color (Lambert) under a
-// specular layer, the two mixed by Fresnel; a metal reflects specularly, tinted by its base
-// color; the two are blended by metallic, and multiplied by the cosine of incidence.
+// What a surface reflects towards v from light of illuminance 1 arriving from l (unit vectors, but
+// for an l of zero, which reflects nothing), glTF 2.0 Appendix B: a dielectric diffuses its base
+// color (Lambert) under a specular layer, the two mixed by Fresnel; a metal reflects specularly,
+// tinted by its base color; the two are blended by metallic, and multiplied by the cosine of
+// incidence.
 fn reflected(
     base: vec3<f32>,
     metallic: f32,

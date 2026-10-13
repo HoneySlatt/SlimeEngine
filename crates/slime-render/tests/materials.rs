@@ -11,7 +11,8 @@ use std::f32::consts::PI;
 use slime_gfx::{AddressMode, Color, Filter, Gpu, Image, SamplerDescriptor, TextureFormat};
 use slime_render::glam::{Mat4, Vec3};
 use slime_render::{
-    Camera, DirectionalLight, Instance, MaterialData, MeshData, Renderer, SampledTexture, Scene,
+    Camera, DirectionalLight, Instance, Light, MaterialData, MeshData, Renderer, SampledTexture,
+    Scene,
 };
 
 const SIZE: u32 = 16;
@@ -97,11 +98,11 @@ fn the_base_color_texture_is_read_at_the_texture_coordinates_and_tints_the_base_
     );
     // Lit straight on by a light of π, without ambient light: a matte surface seen from the light
     // reflects 0.96 of its color, diffused, and 0.01, reflected by its specular layer (ADR-0035).
-    let light = DirectionalLight {
+    let light = Light::Directional(DirectionalLight {
         direction: Vec3::new(0.0, 0.0, -1.0),
-        color: Vec3::splat(PI),
-        ambient: Vec3::ZERO,
-    };
+        color: Vec3::ONE,
+        illuminance: PI,
+    });
     let camera = Camera {
         eye: Vec3::new(0.0, 0.0, 3.0),
         ..Camera::default()
@@ -150,7 +151,8 @@ fn the_base_color_texture_is_read_at_the_texture_coordinates_and_tints_the_base_
             &target,
             &Scene {
                 camera,
-                light,
+                lights: &[light],
+                ambient: Vec3::ZERO,
                 clear: BLACK,
                 exposure: 1.0,
                 instances: &instances,

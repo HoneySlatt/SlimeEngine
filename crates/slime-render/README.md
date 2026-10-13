@@ -8,10 +8,12 @@ the GPU layer (`slime-gfx`).
 Partial: the renderer of Stage 3b, physically based by the end of the stage (`docs/PLAN.md`). It
 draws instances of meshes from a perspective camera, with a depth test, each with a physically based
 material, glTF's metallic-roughness model (a base color, metallic and roughness, normal, occlusion
-and emissive textures; opaque or masked; single- or double-sided), lit by one directional light,
-whose color is an illuminance, and an ambient light (`docs/adr/0035-physically-based-materials.md`).
-It draws the scene in high dynamic range, where light may exceed 1, multiplied by an exposure before
-it is written, then maps it to the output with a tone-mapping operator, Khronos PBR Neutral
+and emissive textures; opaque or masked; single- or double-sided), lit by up to 16 directional,
+point and spot lights in physical units, lux and candelas, as glTF's `KHR_lights_punctual` defines
+them, and an ambient light (`docs/adr/0035-physically-based-materials.md`,
+`docs/adr/0037-lights-in-physical-units-and-pre-exposure.md`). It draws the scene in high dynamic
+range, where light may exceed 1, multiplied by an exposure before it is written, then maps it to the
+output with a tone-mapping operator, Khronos PBR Neutral
 (`docs/adr/0034-hdr-rendering-and-tone-mapping.md`,
 `docs/adr/0037-lights-in-physical-units-and-pre-exposure.md`). It reports what each frame cost on
 the CPU and, on adapters that can time their work, what each of its two passes cost on the GPU.
@@ -40,7 +42,7 @@ Drawing a red triangle into an offscreen image:
 use slime_gfx::{Color, Gpu, TextureFormat};
 use slime_render::glam::{Mat4, Vec3};
 use slime_render::{
-    Camera, DirectionalLight, Instance, MaterialData, MeshData, RenderError, Renderer, Scene,
+    Camera, DirectionalLight, Instance, Light, MaterialData, MeshData, RenderError, Renderer, Scene,
 };
 
 use std::f32::consts::PI;
@@ -65,16 +67,24 @@ fn main() -> Result<(), RenderError> {
     );
 
     let camera = Camera { eye: Vec3::new(0.0, 0.0, 3.0), ..Camera::default() };
-    // A light of π shining straight at the triangle, which faces +Z, and no ambient light: the
-    // matte red surface reflects 0.97 of it in red, 0.01 in green and blue.
-    let light = DirectionalLight {
+    // The sun of a clear day, 100 000 lux, shining straight at the triangle, which faces +Z, and no
+    // ambient light: the matte red surface reflects 0.97 / π of it in red and 0.01 / π in green and
+    // blue, about 30 900 and 320 nits, which an exposure of π / 100 000 brings to 0.97 and 0.01.
+    let sun = Light::Directional(DirectionalLight {
         direction: Vec3::new(0.0, 0.0, -1.0),
-        color: Vec3::splat(PI),
-        ambient: Vec3::ZERO,
-    };
+        color: Vec3::ONE,
+        illuminance: 100_000.0,
+    });
     let instances = [Instance { mesh: &triangle, material: &red, transform: Mat4::IDENTITY }];
     let black = Color { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
-    let scene = Scene { camera, light, clear: black, exposure: 1.0, instances: &instances };
+    let scene = Scene {
+        camera,
+        lights: &[sun],
+        ambient: Vec3::ZERO,
+        clear: black,
+        exposure: PI / 100_000.0,
+        instances: &instances,
+    };
     let stats = renderer.render(&gpu, &target, &scene);
     assert_eq!((stats.draw_calls, stats.triangles), (1, 1));
 
@@ -114,32 +124,42 @@ fn main() -> Result<(), RenderError> {
 - `Renderer::render(gpu, target, &Scene)` draws a frame in two passes. The scene pass clears a
   target of half-precision floats to the scene's background and draws its instances (`Instance`: a
   mesh, a material, a transform from the mesh's space to world space) from its `Camera`, lit by its
-  `DirectionalLight`, with the depth test, so that nearer surfaces hide farther ones whatever the
-  order of the instances. The light of both is multiplied by the scene's `exposure` (1 leaves it as
-  it is, 2 is one photographic stop brighter) before it is written: exposed light above 65 504, the
-  largest value of that target, is written as 65 504. The tone-mapping pass then maps that light to
-  the output's range with Khronos PBR Neutral: colors whose channels lie between 0.08 and 0.8 come
-  out lowered by 0.04, darker ones less, and brighter ones are compressed towards 1 and turned
-  towards white, so that a surface reflecting a light of 1 shows at 0.87 (sRGB 240). It returns
-  `RenderStats`: the scene pass's draw calls and triangles, the CPU time of the call, and the GPU
-  time of each pass (`scene_gpu_time`, `tone_mapping_gpu_time`), measured with a
-  `slime_gfx::GpuTimer` each on adapters that can time their work and read back a few frames later
-  (`None` otherwise, and until the first time comes back); the two can come from different frames.
+  `lights` and its `ambient` light, with the depth test, so that nearer surfaces hide farther ones
+  whatever the order of the instances; it panics on a scene of more than `MAX_LIGHTS` lights. The
+  light of both is multiplied by the scene's `exposure` (1 leaves it as it is, 2 is one photographic
+  stop brighter) before it is written: exposed light above 65 504, the largest value of that target,
+  is written as 65 504. The tone-mapping pass then maps that light to the output's range with
+  Khronos PBR Neutral: colors whose channels lie between 0.08 and 0.8 come out lowered by 0.04,
+  darker ones less, and brighter ones are compressed towards 1 and turned towards white, so that a
+  surface reflecting a light of 1 shows at 0.87 (sRGB 240). It returns `RenderStats`: the scene
+  pass's draw calls and triangles, the CPU time of the call, and the GPU time of each pass
+  (`scene_gpu_time`, `tone_mapping_gpu_time`), measured with a `slime_gfx::GpuTimer` each on
+  adapters that can time their work and read back a few frames later (`None` otherwise, and until
+  the first time comes back); the two can come from different frames.
 - `Camera`: an eye, a target, an up direction, a vertical field of view in radians, and the near
   and far distances; `view`, `projection(aspect)` and `view_projection(aspect)` give its matrices.
-- `DirectionalLight`: the direction the light travels in, its color, the illuminance it gives a
-  surface facing it, and the ambient light's radiance, all in world space and linear. Surfaces
-  reflect the directional light with glTF's metallic-roughness model, so that a white matte
-  surface facing the light and the camera reflects 0.97/π of it (the default light is π); they
-  reflect the ambient light times their base color and occlusion. Normals follow the rotation of
-  their instance and stay perpendicular to surfaces scaled unevenly, even flattened along one axis.
-- Conventions: world space is right-handed with +Y up, as in glTF; the camera looks down its −Z
-  axis; front faces wind counter-clockwise; depth runs from 0 at the near plane to 1 at the far
-  plane; colors in materials and clear colors are linear; light is not negative and may exceed 1,
-  and once exposed, the high-dynamic-range target holds it up to 65 504, its largest value; an
+- `Light`: one of the punctual lights of glTF's `KHR_lights_punctual`, each with a linear color
+  and a strength in its physical unit, glTF's defaults, and no shadow. A `DirectionalLight` comes
+  from one direction everywhere with an illuminance in lux. A `PointLight` shines from a position
+  with an intensity in candelas: a surface facing it d metres away receives intensity / d² lux,
+  brought smoothly to zero at its optional range, and nearer than 1 cm what it would receive at
+  1 cm. A `SpotLight` is a point light with a direction, full within its inner cone angle, dark
+  beyond its outer one, and fading in between with the square of a ramp linear in the cosine.
+  Surfaces reflect each light with glTF's metallic-roughness model, so that a white matte surface
+  facing a light and the camera reflects 0.97/π of the illuminance it receives, and reflect
+  `Scene::ambient`, a radiance, times their base color and occlusion. A scene holds at most
+  `MAX_LIGHTS` (16) lights, every one of which every fragment evaluates. Normals follow the rotation
+  of their instance and stay perpendicular to surfaces scaled unevenly, even flattened along one
+  axis.
+- Conventions: world space is right-handed with +Y up, as in glTF; distances are in metres and light
+  is in physical units, as in glTF: lux, candelas, and nits (candelas per square metre) for the
+  light that surfaces reflect and emit, the ambient light and the background; the camera looks down
+  its −Z axis; front faces wind counter-clockwise; depth runs from 0 at the near plane to 1 at the
+  far plane; colors in materials and clear colors are linear; light is not negative and may exceed
+  1, and once exposed, the high-dynamic-range target holds it up to 65 504, its largest value; an
   sRGB output encodes the tone-mapped values; tangents and normal textures follow glTF: x along
-  increasing u, y up the image (the bitangent is cross(normal, tangent) × w), z along the normal;
-  a mirrored instance keeps its front faces.
+  increasing u, y up the image (the bitangent is cross(normal, tangent) × w), z along the normal; a
+  mirrored instance keeps its front faces.
 - `slime_render::glam` re-exports the math crate the API uses (`Mat4`, `Vec3`, `Quat`), so that
   callers use the same version.
 - `RenderError`: an invalid mesh, or a failure of the GPU layer (`GfxError` as its source).
