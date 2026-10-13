@@ -232,9 +232,9 @@ it:
   Windows virtual machine; the GPU time shows on RADV and on Direct3D 12; whether lavapipe and WARP
   offer timestamps is measured and recorded here; the image tests are unchanged.
 - **How to test.** `cargo run --example scene`, then F1.
-- **Checked** on 2026-10-13: lavapipe and RADV both support timestamp queries
-  (`crates/slime-gfx/tests/timing.rs` prints it, and WARP's answer comes from the Windows CI job,
-  below). The time of a pass that clears 64 × 64 pixels: 812 µs on lavapipe, 1 µs on RADV. The
+- **Checked** on 2026-10-13: lavapipe, RADV and WARP all support timestamp queries
+  (`crates/slime-gfx/tests/timing.rs` prints it; the Windows CI job runs it for WARP). The time
+  of a pass that clears 64 × 64 pixels: 812 µs on lavapipe, 1 µs on RADV, 13 µs on WARP. The
   `scene` example drew 300 frames on niri with RADV, its render taking 1.0 ms on the CPU and
   14 µs on the GPU per frame (7 draw calls, 2 274 triangles), and 240 in the headless Weston with
   lavapipe, 2.4 ms on the CPU and 1.1 ms on the GPU; the overlay appears in a screenshot of that
