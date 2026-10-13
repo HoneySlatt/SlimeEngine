@@ -333,7 +333,6 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
     for node in scene.nodes() {
         place(
             &node,
-            Mat4::IDENTITY,
             &primitives_of_mesh,
             &primitives,
             &mut reached,
@@ -399,47 +398,45 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
     })
 }
 
-/// Places the primitives of `node` and of its descendants, under `parent`, the transform of the
-/// node above: adds each to `placed`, as an index into `primitives` with its transform, and grows
-/// `bounds` with it. `reached` says which nodes were placed already.
+/// Places the primitives of `node`, a node of the scene, and of its descendants: adds each to
+/// `placed`, as an index into `primitives` with its transform, and grows `bounds` with it.
+/// `reached` says which nodes were placed already.
 ///
-/// Fails on a node reached a second time: glTF requires the node hierarchy to be a set of trees,
-/// which the `gltf` crate does not check, and a node that is its own descendant would otherwise
-/// be placed until the stack overflows.
+/// The walk goes depth first, in the file's order, with a stack of its own rather than by
+/// recursion: a valid file can nest nodes deeper than a thread's stack holds calls. It fails on a
+/// node reached a second time: glTF requires the node hierarchy to be a set of trees, which the
+/// `gltf` crate does not check, and a node that is its own descendant would otherwise be placed
+/// without end.
 fn place(
     node: &gltf::Node<'_>,
-    parent: Mat4,
     primitives_of_mesh: &[Vec<usize>],
     primitives: &[LoadedPrimitive],
     reached: &mut [bool],
     placed: &mut Vec<(usize, Mat4)>,
     bounds: &mut Bounds,
 ) -> Result<(), LoadError> {
-    if std::mem::replace(&mut reached[node.index()], true) {
-        return Err(LoadError(format!(
-            "node {} is reached twice: the node hierarchy must be a set of trees",
-            node.index()
-        )));
-    }
-    let transform = parent * Mat4::from_cols_array_2d(&node.transform().matrix());
-    if let Some(mesh) = node.mesh() {
-        for &index in &primitives_of_mesh[mesh.index()] {
-            for position in &primitives[index].data.positions {
-                bounds.grow(transform.transform_point3(Vec3::from(*position)));
-            }
-            placed.push((index, transform));
+    // The nodes left to place, the next one last, each with the transform of the node above it.
+    let mut stack = vec![(node.clone(), Mat4::IDENTITY)];
+    while let Some((node, parent)) = stack.pop() {
+        if std::mem::replace(&mut reached[node.index()], true) {
+            return Err(LoadError(format!(
+                "node {} is reached twice: the node hierarchy must be a set of trees",
+                node.index()
+            )));
         }
-    }
-    for child in node.children() {
-        place(
-            &child,
-            transform,
-            primitives_of_mesh,
-            primitives,
-            reached,
-            placed,
-            bounds,
-        )?;
+        let transform = parent * Mat4::from_cols_array_2d(&node.transform().matrix());
+        if let Some(mesh) = node.mesh() {
+            for &index in &primitives_of_mesh[mesh.index()] {
+                for position in &primitives[index].data.positions {
+                    bounds.grow(transform.transform_point3(Vec3::from(*position)));
+                }
+                placed.push((index, transform));
+            }
+        }
+        // Reversed on the stack, so that the first child and its descendants are placed next.
+        let children = stack.len();
+        stack.extend(node.children().map(|child| (child, transform)));
+        stack[children..].reverse();
     }
     Ok(())
 }

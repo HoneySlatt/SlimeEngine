@@ -13,7 +13,8 @@
 //! ```
 //!
 //! The other tests give the loader small GLB files built in memory, which hold what the asset
-//! does not: what the loader must refuse with an error rather than panic on, and a mirrored node.
+//! does not: what the loader must refuse with an error rather than panic on, a mirrored node, and
+//! a node hierarchy deeper than a thread's stack holds calls of a recursive walk.
 //! The unit tests of `common/gltf.rs` and `common/orbit.rs` run here too, the one test program
 //! that includes both.
 
@@ -207,6 +208,24 @@ fn node_hierarchies_that_are_not_trees_are_refused() {
     cycle.json["nodes"][0]["children"] = json("[0]");
     let error = refusal(&gpu, &mut cycle);
     assert!(error.contains("node 0 is reached twice"), "{error}");
+}
+
+#[test]
+fn a_node_hierarchy_deeper_than_the_stack_holds_calls_is_placed() {
+    let gpu =
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+    // A valid file: each node the only child of the one before, the last one with the triangle,
+    // a hundred thousand levels down, a few MiB of JSON.
+    let depth = 100_000;
+    let mut file = Glb::triangle();
+    let mut nodes: Vec<String> = (1..depth)
+        .map(|child| format!(r#"{{ "children": [{child}] }}"#))
+        .collect();
+    nodes.push(r#"{ "mesh": 0 }"#.to_owned());
+    file.json["nodes"] = json(&format!("[{}]", nodes.join(", ")));
+    let scene = SampleScene::new(&gpu, TextureFormat::Rgba8UnormSrgb, &file.bytes())
+        .expect("the file loads");
+    assert_eq!(scene.bounds().max, Vec3::new(1.0, 1.0, 0.0));
 }
 
 #[test]
