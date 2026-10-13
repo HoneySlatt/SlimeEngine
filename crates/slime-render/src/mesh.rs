@@ -98,7 +98,7 @@ impl Mesh {
 
     /// Checks `data` and uploads it.
     pub(crate) fn new(gpu: &Gpu, label: &str, data: &MeshData) -> Result<Self, RenderError> {
-        data.check(MAX_BUFFER_SIZE)
+        data.check(gpu.max_buffer_size())
             .map_err(|reason| RenderError::InvalidMesh {
                 label: label.to_owned(),
                 reason,
@@ -111,11 +111,6 @@ impl Mesh {
 
 /// The size of one vertex as the pipeline reads it: eight 32-bit floats.
 const VERTEX_STRIDE: u64 = 8 * 4;
-
-/// The size of the largest buffer the device accepts: 256 MiB, wgpu's default limit, since
-/// [`Gpu::new`](slime_gfx::Gpu::new) opens the device with the default limits. A larger vertex or
-/// index buffer would be a wgpu error, which panics.
-const MAX_BUFFER_SIZE: u64 = 256 << 20;
 
 /// How the pipeline reads the vertices of a mesh.
 pub(crate) const VERTEX_LAYOUT: VertexLayout<'static> = VertexLayout {
@@ -142,6 +137,9 @@ pub(crate) const VERTEX_LAYOUT: VertexLayout<'static> = VertexLayout {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The largest buffer of wgpu's default limits, which `Gpu::new` asks for.
+    const MAX_BUFFER_SIZE: u64 = 256 << 20;
 
     fn triangle() -> MeshData {
         MeshData {
