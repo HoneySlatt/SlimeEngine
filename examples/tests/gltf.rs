@@ -13,7 +13,9 @@
 //! ```
 //!
 //! The other tests give the loader small GLB files built in memory, which hold what the asset
-//! does not: what the loader must refuse with an error rather than panic on.
+//! does not: what the loader must refuse with an error rather than panic on, and a mirrored node.
+//! The unit tests of `common/gltf.rs` and `common/orbit.rs` run here too, the one test program
+//! that includes both.
 
 #[path = "../common/orbit.rs"]
 mod orbit;
