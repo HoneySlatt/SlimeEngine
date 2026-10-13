@@ -29,9 +29,11 @@ pub struct KeyEvent {
     pub logical: Key,
     /// The text the key produces when pressed, if any. A character key gives its character, with
     /// dead keys applied: pressing `^` then `e` on a French layout gives the text `"ê"` on the
-    /// second press. Some named keys give a control character: Enter `"\r"`, Tab `"\t"`,
-    /// Backspace `"\u{8}"`, Escape `"\u{1b}"`. `None` for a release, and for keys without a text
-    /// form such as arrows and modifiers.
+    /// second press. Four named keys give a control character: Enter `"\r"`, Tab `"\t"` (with
+    /// Shift too), Backspace `"\u{8}"` and Escape `"\u{1b}"`. Space gives `" "`, or after a dead
+    /// key the dead key's character (`"^"` for `^` then Space). The other named keys, such as
+    /// Delete, the arrows and the modifiers, give `None`, as does a release. This holds on every
+    /// platform.
     pub text: Option<String>,
     /// Whether the key went down or up.
     pub state: ButtonState,
@@ -179,7 +181,7 @@ pub(crate) fn key_event(event: winit::event::KeyEvent) -> KeyEvent {
     KeyEvent {
         physical: key_code(event.physical_key),
         logical: key(&event.logical_key),
-        text: key_text(event.state, event.text.as_deref()),
+        text: key_text(event.state, &event.logical_key, event.text.as_deref()),
         state: button_state(event.state),
         repeat: event.repeat,
     }
@@ -187,10 +189,20 @@ pub(crate) fn key_event(event: winit::event::KeyEvent) -> KeyEvent {
 
 /// The text of a key event: what a press produces, nothing for a release. The windowing library
 /// reports a release with the same text as the press on Wayland and X11, but not on Windows.
-fn key_text(state: ElementState, text: Option<&str>) -> Option<String> {
-    match state {
-        ElementState::Pressed => text.map(str::to_owned),
-        ElementState::Released => None,
+///
+/// A named key other than Space gives the text of the windowing library's own table (Enter,
+/// Tab, Backspace and Escape have one), which its Windows backend already uses when Ctrl is held,
+/// rather than the platform's text. On Wayland and X11, that text comes from libxkbcommon, which
+/// gives Delete `"\u{7f}"` and Clear `"\u{b}"` and gives Shift+Tab nothing, where Windows gives
+/// Delete and Clear nothing and Shift+Tab `"\t"`. Space keeps the platform's text, because after
+/// a dead key both platforms give the dead key's character rather than `" "`.
+fn key_text(state: ElementState, logical: &WinitKey, text: Option<&str>) -> Option<String> {
+    match (state, logical) {
+        (ElementState::Released, _) => None,
+        (ElementState::Pressed, WinitKey::Named(named)) if *named != WinitNamedKey::Space => {
+            named.to_text().map(str::to_owned)
+        }
+        (ElementState::Pressed, _) => text.map(str::to_owned),
     }
 }
 
@@ -294,12 +306,39 @@ mod tests {
 
     #[test]
     fn a_release_carries_no_text() {
+        let a = WinitKey::Character(SmolStr::new("a"));
         assert_eq!(
-            key_text(ElementState::Pressed, Some("a")),
+            key_text(ElementState::Pressed, &a, Some("a")),
             Some("a".to_owned())
         );
-        assert_eq!(key_text(ElementState::Released, Some("a")), None);
-        assert_eq!(key_text(ElementState::Pressed, None), None);
+        assert_eq!(key_text(ElementState::Released, &a, Some("a")), None);
+        assert_eq!(
+            key_text(
+                ElementState::Released,
+                &WinitKey::Named(WinitNamedKey::Enter),
+                Some("\r")
+            ),
+            None
+        );
+        assert_eq!(key_text(ElementState::Pressed, &a, None), None);
+    }
+
+    #[test]
+    fn named_keys_give_the_same_text_on_every_platform() {
+        let press = |named, text| key_text(ElementState::Pressed, &WinitKey::Named(named), text);
+        // The text Wayland and X11 report for Delete, Clear and Shift+Tab, where Windows reports
+        // none, none and "\t".
+        assert_eq!(press(WinitNamedKey::Delete, Some("\u{7f}")), None);
+        assert_eq!(press(WinitNamedKey::Clear, Some("\u{b}")), None);
+        assert_eq!(press(WinitNamedKey::Tab, None), Some("\t".to_owned()));
+        assert_eq!(
+            press(WinitNamedKey::Enter, Some("\r")),
+            Some("\r".to_owned())
+        );
+        assert_eq!(press(WinitNamedKey::ArrowLeft, None), None);
+        // Space keeps the platform's text: after a dead key, it gives the dead key's character.
+        assert_eq!(press(WinitNamedKey::Space, Some(" ")), Some(" ".to_owned()));
+        assert_eq!(press(WinitNamedKey::Space, Some("^")), Some("^".to_owned()));
     }
 
     #[test]
