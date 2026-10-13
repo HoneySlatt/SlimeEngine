@@ -584,12 +584,12 @@ GitHub issues, linked from their entry; this list stays the reference.
   after the first frame, and winit then resizes the window to twice its physical size: a check of
   image and window sizes in that compositor fails when the forwarding is removed (measured on
   2026-10-13).
-- **The examples' glTF loader sets no limit on a file's total memory** (a change is proposed to
-  the owner). It checks each primitive alone against the GPU's largest buffer, reads every
-  primitive of every mesh before placing any, and gives primitives that name the same accessors
-  their own copy, three vertices per triangle when they have no normals. A valid GLB of a few MiB
-  that lists one primitive many times can make the process run out of memory rather than be
-  refused. Budgets for imported assets belong to the importer of Stage 4.
+- **The examples' glTF loader sets no limit on a file's total memory** (left as it is by the owner's
+  decision of 2026-10-13: the loader is temporary). It checks each primitive alone against the GPU's
+  largest buffer, reads every primitive of every mesh before placing any, and gives primitives that
+  name the same accessors their own copy, three vertices per triangle when they have no normals. A
+  valid GLB of a few MiB that lists one primitive many times can make the process run out of memory
+  rather than be refused. Budgets for imported assets belong to the importer of Stage 4.
 - **No test covers the empty submission of frames without a window image.** When
   `Surface::acquire` gives no image, it submits an empty batch, so that wgpu releases the writes
   an application makes outside `App::render`. Without it, 2000 frames of a surface resized to
