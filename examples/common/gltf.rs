@@ -40,7 +40,8 @@
 //! The `gltf` crate's validation checks little more than that the file's objects name each other
 //! correctly, and its readers panic on some of what it lets through. The loader refuses, rather
 //! than panic on, such malformed files: a GLB header that declares a length shorter than itself,
-//! on which the crate's parser panics in debug builds; images whose data lies outside the binary
+//! on which the crate's parser panics in debug builds; positions that name an accessor the file
+//! does not have, on which the crate's validation itself panics; images whose data lies outside the binary
 //! chunk, has no MIME type or is missing; positions, normals, tangents, texture coordinates or indices stored in
 //! types glTF does not allow for them, in a sparse accessor (which the loader does not read), in
 //! an empty one, closer together than their size, or outside the binary chunk; a node hierarchy
@@ -210,9 +211,14 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
              shorter than the header, 12 bytes"
         )));
     }
-    let file = gltf::Gltf::from_slice(bytes)
-        .map_err(|error| LoadError(format!("the file is not valid glTF: {error}")))?;
-    let document = &file.document;
+    let not_valid = |error| LoadError(format!("the file is not valid glTF: {error}"));
+    let gltf::Gltf {
+        document: unvalidated,
+        blob,
+    } = gltf::Gltf::from_slice_without_validation(bytes).map_err(not_valid)?;
+    check_positions_exist(unvalidated.as_json())?;
+    let document = gltf::Document::from_json(unvalidated.into_json()).map_err(not_valid)?;
+    let document = &document;
 
     // The `gltf` crate refuses a file that requires an extension it is not built to read.
     let ignored: Vec<&str> = document
@@ -246,7 +252,7 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
         }
     }
 
-    let blob = file.blob.as_deref().ok_or_else(|| {
+    let blob = blob.as_deref().ok_or_else(|| {
         LoadError(
             "the file has no binary chunk: only GLB files that hold their buffer and PNG images \
              in it are supported"
@@ -557,6 +563,28 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
         placements,
         bounds,
     })
+}
+
+/// Checks that the positions of every primitive of `json`, a file not validated yet, name an
+/// accessor of the file. The `gltf` crate's validation reports any other index that names nothing,
+/// but reads this accessor without checking that it exists, and panics on one that does not.
+fn check_positions_exist(json: &gltf::json::Root) -> Result<(), LoadError> {
+    for (index, mesh) in json.meshes.iter().enumerate() {
+        for (primitive, data) in mesh.primitives.iter().enumerate() {
+            if let Some(accessor) = data
+                .attributes
+                .get(&gltf::json::validation::Checked::Valid(Semantic::Positions))
+                && accessor.value() >= json.accessors.len()
+            {
+                let name = mesh.name.clone().unwrap_or_else(|| format!("mesh {index}"));
+                return Err(LoadError(format!(
+                    "the file is not valid glTF: {name} primitive {primitive} reads its positions \
+                     from accessor {accessor}, which does not exist",
+                )));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Places the primitives of `node`, a node of the scene, and of its descendants: adds each to

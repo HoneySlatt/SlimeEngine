@@ -112,6 +112,21 @@ fn a_glb_header_that_declares_a_length_shorter_than_itself_is_refused() {
 }
 
 #[test]
+fn positions_that_name_no_accessor_are_refused() {
+    let gpu =
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+    // The `gltf` crate's validation reads the accessor of a primitive's positions without checking
+    // that it exists.
+    let mut file = Glb::triangle();
+    file.json["meshes"][0]["primitives"][0]["attributes"]["POSITION"] = 99.into();
+    let error = refusal(&gpu, &mut file);
+    assert!(
+        error.contains("mesh 0 primitive 0 reads its positions from accessor 99"),
+        "{error}"
+    );
+}
+
+#[test]
 fn data_outside_the_binary_chunk_is_refused_without_quoting_data_uris() {
     let gpu =
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
