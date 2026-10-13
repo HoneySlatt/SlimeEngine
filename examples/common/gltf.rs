@@ -31,23 +31,23 @@
 //! another set of texture coordinates than the first, in any slot; a node hierarchy that is not a
 //! set of trees; a vertex that a node places at a point that is not finite (positions or
 //! transforms that are NaN or infinite, which glTF forbids, or whose product overflows), which
-//! would spoil the box around the scene; a file without a scene, or whose scene draws nothing. It warns about, and draws
-//! without: animations, skins, cameras, vertex colors, the extensions a file uses without requiring
-//! them that it does not read (`KHR_texture_transform` among them), and the blending of materials
-//! whose alpha mode is `BLEND`, which are drawn opaque. A primitive that has normals and shares its
-//! vertex attributes with other primitives, as three.js writes a mesh of several materials, gets
-//! its own copy of every vertex they hold, even those its indices do not name: K such primitives
-//! over V vertices upload K × V vertices.
+//! would spoil the box around the scene; a file without a scene, or whose scene draws nothing. It
+//! warns about, and draws without: animations, skins, cameras, vertex colors, the extensions a
+//! file uses without requiring them that it does not read (`KHR_texture_transform` among them),
+//! and the blending of materials whose alpha mode is `BLEND`, which are drawn opaque. A primitive
+//! that has normals and shares its vertex attributes with other primitives, as three.js writes a
+//! mesh of several materials, gets its own copy of every vertex they hold, even those its indices
+//! do not name: K such primitives over V vertices upload K × V vertices.
 //!
 //! The `gltf` crate's validation checks little more than that the file's objects name each other
 //! correctly, and its readers panic on some of what it lets through. The loader refuses, rather
 //! than panic on, such malformed files: a GLB header that declares a length shorter than itself,
 //! on which the crate's parser panics in debug builds; positions that name an accessor the file
-//! does not have, on which the crate's validation itself panics; images whose data lies outside the binary
-//! chunk, has no MIME type or is missing; positions, normals, tangents, texture coordinates or indices stored in
-//! types glTF does not allow for them, in a sparse accessor (which the loader does not read), in
-//! an empty one, closer together than their size, or outside the binary chunk; a node hierarchy
-//! that is not a set of trees.
+//! does not have, on which the crate's validation itself panics; images whose data lies outside
+//! the binary chunk, has no MIME type or is missing; positions, normals, tangents, texture
+//! coordinates or indices stored in types glTF does not allow for them, in a sparse accessor
+//! (which the loader does not read), in an empty one, closer together than their size, or outside
+//! the binary chunk; a node hierarchy that is not a set of trees.
 
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
