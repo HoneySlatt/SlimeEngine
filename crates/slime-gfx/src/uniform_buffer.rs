@@ -1,7 +1,5 @@
 //! Buffers of uniform data: values that a whole draw reads, such as a camera's matrices.
 
-use wgpu::util::DeviceExt;
-
 use crate::gpu::Gpu;
 
 /// A buffer of uniform data, which shaders read through a bind group
@@ -42,13 +40,11 @@ impl Gpu {
             "uniform buffer `{label}` holds {} bytes; it needs at least 4, in multiples of 4",
             contents.len()
         );
-        let buffer = self
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some(label),
-                contents,
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            });
+        let buffer = self.create_buffer_with(
+            label,
+            contents,
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        );
         UniformBuffer {
             buffer,
             label: label.to_owned(),

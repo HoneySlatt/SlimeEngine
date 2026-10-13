@@ -145,6 +145,31 @@ impl Gpu {
         (created, internal.or(validation))
     }
 
+    /// Creates a buffer of `usage` holding `contents`, which must not be empty. On a lost device,
+    /// the buffer cannot be used, like every object created then.
+    pub(crate) fn create_buffer_with(
+        &self,
+        label: &str,
+        contents: &[u8],
+        usage: wgpu::BufferUsages,
+    ) -> wgpu::Buffer {
+        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some(label),
+            // A buffer mapped at creation has a size in multiples of 4 bytes.
+            size: (contents.len() as u64).next_multiple_of(wgpu::COPY_BUFFER_ALIGNMENT),
+            usage,
+            mapped_at_creation: true,
+        });
+        // wgpu's own `create_buffer_init` panics here on a lost device: the buffer it then creates
+        // is invalid and cannot be mapped. Such a buffer is returned as it is, unusable (ADR-0022).
+        if let Ok(mut mapped) = buffer.get_mapped_range_mut(..) {
+            mapped.slice(..contents.len()).copy_from_slice(contents);
+            drop(mapped);
+            buffer.unmap();
+        }
+        buffer
+    }
+
     /// The name of the adapter in use, as its driver reports it: for example
     /// `"AMD Radeon RX 6900 XT (RADV NAVI21)"`, or `"llvmpipe (LLVM 21.1.8, 256 bits)"` for
     /// lavapipe.
@@ -253,6 +278,10 @@ mod tests {
             timer: None,
         };
         gpu.render(&pass, |_pass| {});
+        // wgpu cannot map a buffer created on a lost device to fill it.
+        gpu.create_vertex_buffer("lost vertices", &[0; 6]);
+        gpu.create_index_buffer("lost indices", &[0]);
+        gpu.create_uniform_buffer("lost uniforms", &[0; 4]);
         for result in [
             gpu.read_render_target(&target).map(|_| ()),
             gpu.wait_idle(),

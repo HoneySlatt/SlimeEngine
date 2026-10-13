@@ -1,7 +1,5 @@
 //! Buffers of vertex indices.
 
-use wgpu::util::DeviceExt;
-
 use crate::gpu::Gpu;
 
 /// A buffer of 32-bit indices into a vertex buffer, which indexed draws read
@@ -41,13 +39,7 @@ impl Gpu {
             .iter()
             .flat_map(|index| index.to_le_bytes())
             .collect();
-        let buffer = self
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some(label),
-                contents: &contents,
-                usage: wgpu::BufferUsages::INDEX,
-            });
+        let buffer = self.create_buffer_with(label, &contents, wgpu::BufferUsages::INDEX);
         IndexBuffer { buffer, count }
     }
 }
