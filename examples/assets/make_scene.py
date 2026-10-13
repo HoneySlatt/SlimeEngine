@@ -6,9 +6,12 @@ Run it inside Blender (5.2 was used), from the repository root:
 
 The scene is small on purpose: a tiled floor, two wooden crates (the small one a child of the big
 one), a sphere and a pillar under a turned empty, a brick wall and a ring, so that the loader
-meets textured and plain materials, smooth and flat shading, and nested transforms. Its textures
-are drawn here with numpy and embedded in the file as PNG images. Everything the script produces
-is released under CC0 1.0 (public domain); see README.md in this directory.
+meets textured and plain materials, smooth and flat shading, nested transforms, and glTF's
+physically based properties: metallic-roughness, normal, occlusion and emissive textures, an
+emissive strength above 1, metals and dielectrics of several roughnesses, single- and
+double-sided materials, and tangents. Its textures are drawn here with numpy and embedded in the
+file as PNG images. Everything the script produces is released under CC0 1.0 (public domain); see
+README.md in this directory.
 """
 
 import math
@@ -20,6 +23,7 @@ import numpy as np
 from mathutils import Vector
 
 SIZE = 128
+BRICK_HEIGHT, BRICK_WIDTH = 16, 32
 
 
 def output_path():
@@ -40,10 +44,14 @@ def clear():
             bpy.data.images.remove(image)
 
 
-def image(name, pixels):
-    """A texture from `pixels`, an array of shape (SIZE, SIZE, 3) of sRGB bytes, rows from top."""
-    img = bpy.data.images.new(name, SIZE, SIZE, alpha=False)
-    rgba = np.ones((SIZE, SIZE, 4), dtype=np.float32)
+def image(name, pixels, data=False):
+    """A texture from `pixels`, an array of shape (height, width, 3) of bytes, rows from the top:
+    sRGB-encoded colors, or, when `data` is set, values that shaders read as they are."""
+    height, width = pixels.shape[:2]
+    img = bpy.data.images.new(name, width, height, alpha=False)
+    if data:
+        img.colorspace_settings.name = "Non-Color"
+    rgba = np.ones((height, width, 4), dtype=np.float32)
     rgba[:, :, :3] = pixels[::-1].astype(np.float32) / 255.0  # Blender stores rows from bottom.
     img.pixels.foreach_set(rgba.ravel())
     img.pack()
@@ -69,7 +77,7 @@ def tiles():
 
 
 def planks():
-    """Horizontal wooden planks with a darker frame: the sides of a crate."""
+    """Horizontal wooden planks in an iron frame: the sides of a crate."""
     rng = np.random.default_rng(3)
     pixels = np.zeros((SIZE, SIZE, 3), dtype=np.uint8)
     plank = 32
@@ -79,7 +87,7 @@ def planks():
         pixels[row * plank:row * plank + 2, :] = [84, 56, 30]
     grain = rng.integers(-10, 10, size=(SIZE, 1, 1)) * np.ones((1, SIZE, 1), dtype=int)
     pixels = np.clip(pixels.astype(int) + grain, 0, 255).astype(np.uint8)
-    frame = np.array([96, 64, 34], dtype=np.uint8)
+    frame = np.array([150, 150, 155], dtype=np.uint8)
     for edge in range(6):
         pixels[edge, :] = frame
         pixels[SIZE - 1 - edge, :] = frame
@@ -88,37 +96,162 @@ def planks():
     return pixels
 
 
+def planks_orm():
+    """Occlusion, roughness and metallic of the planks in red, green and blue (glTF's layout): the
+    iron frame smooth and metallic, the wood rough, the gaps between planks occluded."""
+    orm = np.zeros((SIZE, SIZE, 3), dtype=np.uint8)
+    orm[:, :, 0] = 255
+    orm[:, :, 1] = round(0.7 * 255)
+    for row in range(SIZE // 32):
+        orm[row * 32:row * 32 + 2, :, 0] = round(0.5 * 255)
+    frame = np.zeros((SIZE, SIZE), dtype=bool)
+    frame[:6, :] = frame[-6:, :] = frame[:, :6] = frame[:, -6:] = True
+    orm[frame] = (255, round(0.4 * 255), 255)
+    return orm
+
+
+def tiles_occlusion():
+    """How much ambient light reaches the floor: all of it on the tiles, 0.6 of it in the grout."""
+    occlusion = np.full((SIZE, SIZE, 3), 255, dtype=np.uint8)
+    for line in range(0, SIZE, 32):
+        occlusion[line:line + 2, :] = round(0.6 * 255)
+        occlusion[:, line:line + 2] = round(0.6 * 255)
+    return occlusion
+
+
+def brick_rectangles():
+    """The bricks, (y0, y1, x0, x1) in pixels, clipped to the image: rows shifted by half a brick,
+    2 pixels of mortar between them. Empty ones are kept, so that `bricks` draws its random
+    shades in the same order."""
+    for row in range(SIZE // BRICK_HEIGHT):
+        shift = (BRICK_WIDTH // 2) if row % 2 else 0
+        for column in range(-1, SIZE // BRICK_WIDTH + 1):
+            x0 = column * BRICK_WIDTH + shift + 2
+            y0 = row * BRICK_HEIGHT + 2
+            yield y0, y0 + BRICK_HEIGHT - 2, max(x0, 0), min(x0 + BRICK_WIDTH - 2, SIZE)
+
+
 def bricks():
     """Rows of bricks, each row shifted by half a brick, with mortar between them."""
     rng = np.random.default_rng(11)
-    mortar = np.array([200, 194, 184], dtype=np.uint8)
-    pixels = np.tile(mortar, (SIZE, SIZE, 1))
-    height, width = 16, 32
-    for row in range(SIZE // height):
-        shift = (width // 2) if row % 2 else 0
-        for column in range(-1, SIZE // width + 1):
-            x0 = column * width + shift + 2
-            x1 = x0 + width - 2
-            y0 = row * height + 2
-            y1 = y0 + height - 2
-            color = np.array([150, 72, 56]) + rng.integers(-16, 16)
-            pixels[y0:y1, max(x0, 0):min(x1, SIZE)] = color
+    pixels = np.tile(np.array([200, 194, 184], dtype=np.uint8), (SIZE, SIZE, 1))
+    for y0, y1, x0, x1 in brick_rectangles():
+        color = np.array([150, 72, 56]) + rng.integers(-16, 16)
+        pixels[y0:y1, x0:x1] = color
     return pixels.astype(np.uint8)
 
 
-def material(name, color, texture=None):
-    """A Principled BSDF of `color`, multiplied by `texture` when there is one."""
+def normal_map(height, strength):
+    """The tangent-space normal map of `height` (rows from the top, wrapping around, as the texture
+    repeats), in glTF's convention: red for +X (to the right), green for +Y (up the image), blue for
+    +Z (out of the surface), each from -1 to 1 stored as 0 to 255."""
+    right = (np.roll(height, -1, axis=1) - np.roll(height, 1, axis=1)) / 2
+    up = (np.roll(height, 1, axis=0) - np.roll(height, -1, axis=0)) / 2
+    normal = np.dstack((-strength * right, -strength * up, np.ones_like(height)))
+    normal /= np.linalg.norm(normal, axis=2, keepdims=True)
+    return np.round((normal + 1) * 127.5).astype(np.uint8)
+
+
+def bricks_normal():
+    """The bricks raised above their mortar, with rounded edges."""
+    height = np.zeros((SIZE, SIZE))
+    for y0, y1, x0, x1 in brick_rectangles():
+        height[y0:y1, x0:x1] = 1.0
+    for _ in range(2):  # a 3 x 3 box blur, twice
+        height = sum(np.roll(np.roll(height, dy, 0), dx, 1) for dy in (-1, 0, 1) for dx in (-1, 0, 1)) / 9
+    return normal_map(height, strength=2.0)
+
+
+def ring_glow():
+    """Eight glowing teal segments on black, around the ring."""
+    pixels = np.zeros((SIZE, SIZE, 3), dtype=np.uint8)
+    for start in range(0, SIZE, 16):
+        pixels[:, start:start + 10] = (120, 255, 235)
+    return pixels
+
+
+def material(name, color, texture=None, roughness=0.8, metallic=0.0, double_sided=False):
+    """A Principled BSDF of `color`, multiplied by `texture` when there is one; closed objects'
+    materials cull their back faces, which glTF exports as single-sided."""
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
-    nodes = mat.node_tree.nodes
-    bsdf = nodes["Principled BSDF"]
+    mat.use_backface_culling = not double_sided
+    bsdf = mat.node_tree.nodes["Principled BSDF"]
     bsdf.inputs["Base Color"].default_value = (*color, 1.0)
-    bsdf.inputs["Roughness"].default_value = 0.8
+    bsdf.inputs["Roughness"].default_value = roughness
+    bsdf.inputs["Metallic"].default_value = metallic
     if texture is not None:
-        node = nodes.new("ShaderNodeTexImage")
-        node.image = texture
-        mat.node_tree.links.new(node.outputs["Color"], bsdf.inputs["Base Color"])
+        mat.node_tree.links.new(image_node(mat, texture).outputs["Color"], bsdf.inputs["Base Color"])
     return mat
+
+
+def image_node(mat, img):
+    """A node of `mat`'s node tree that reads `img`."""
+    node = mat.node_tree.nodes.new("ShaderNodeTexImage")
+    node.image = img
+    return node
+
+
+def channels(mat, img):
+    """The red, green and blue outputs of `img` in `mat`'s node tree."""
+    separate = mat.node_tree.nodes.new("ShaderNodeSeparateColor")
+    mat.node_tree.links.new(image_node(mat, img).outputs["Color"], separate.inputs["Color"])
+    return separate.outputs
+
+
+def gltf_material_output():
+    """The node group whose "Occlusion" input Blender's glTF exporter reads as the occlusion
+    texture, built as the exporter's own helper builds it."""
+    group = bpy.data.node_groups.get("glTF Material Output")
+    if group is None:
+        group = bpy.data.node_groups.new("glTF Material Output", "ShaderNodeTree")
+        group.interface.new_socket("Occlusion", in_out="INPUT", socket_type="NodeSocketFloat")
+        group.nodes.new("NodeGroupInput")
+        group.nodes.new("NodeGroupOutput")
+    return group
+
+
+def add_occlusion(mat, red):
+    """Makes `red`, the red output of an image's `channels`, the occlusion texture of `mat`: glTF
+    reads occlusion from the red channel, and Blender's shaders have no occlusion input."""
+    node = mat.node_tree.nodes.new("ShaderNodeGroup")
+    node.node_tree = gltf_material_output()
+    mat.node_tree.links.new(red, node.inputs["Occlusion"])
+
+
+def add_metal_roughness(mat, outputs):
+    """Makes the green and blue `outputs` of an image's `channels` the roughness and metallic of
+    `mat`: the exporter then writes that image, unchanged, as the metallic-roughness texture, and
+    as the occlusion texture too when its red output is `add_occlusion`'s."""
+    bsdf = mat.node_tree.nodes["Principled BSDF"]
+    mat.node_tree.links.new(outputs["Green"], bsdf.inputs["Roughness"])
+    mat.node_tree.links.new(outputs["Blue"], bsdf.inputs["Metallic"])
+
+
+def add_normal_map(mat, img):
+    """Gives `mat` the tangent-space normal texture `img`, at glTF's default scale of 1."""
+    normal = mat.node_tree.nodes.new("ShaderNodeNormalMap")  # tangent space, strength 1
+    mat.node_tree.links.new(image_node(mat, img).outputs["Color"], normal.inputs["Color"])
+    mat.node_tree.links.new(normal.outputs["Normal"], mat.node_tree.nodes["Principled BSDF"].inputs["Normal"])
+
+
+def add_emission(mat, img, strength):
+    """Makes `img` times `strength` the light `mat` emits: the exporter writes an emissive factor
+    of 1 and, for a strength above 1, the strength as `KHR_materials_emissive_strength`."""
+    bsdf = mat.node_tree.nodes["Principled BSDF"]
+    mat.node_tree.links.new(image_node(mat, img).outputs["Color"], bsdf.inputs["Emission Color"])
+    bsdf.inputs["Emission Strength"].default_value = strength
+
+
+def triangulate_ngons(obj):
+    """Splits faces of more than four corners into triangles, which Blender's tangents need: the
+    exporter writes no tangents for a mesh with such faces. It would split them into as many
+    triangles itself, so the triangle count does not change."""
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    bmesh.ops.triangulate(bm, faces=[face for face in bm.faces if len(face.verts) > 4])
+    bm.to_mesh(obj.data)
+    bm.free()
 
 
 def box_uvs(obj, repeat_u=1.0, repeat_v=1.0):
@@ -151,13 +284,18 @@ def add(name, material, location, rotation_z=0.0, parent=None, smooth=False):
 
 def build():
     clear()
-    tile_texture, plank_texture, brick_texture = image("tiles", tiles()), image("planks", planks()), image("bricks", bricks())
-    floor_material = material("tiles", (1.0, 1.0, 1.0), tile_texture)
-    crate_material = material("planks", (1.0, 1.0, 1.0), plank_texture)
-    wall_material = material("bricks", (1.0, 1.0, 1.0), brick_texture)
-    red = material("red", (0.80, 0.15, 0.10))
-    grey = material("grey", (0.72, 0.72, 0.70))
+    floor_material = material("tiles", (1.0, 1.0, 1.0), image("tiles", tiles()), double_sided=True)
+    add_occlusion(floor_material, channels(floor_material, image("tiles occlusion", tiles_occlusion(), data=True))["Red"])
+    crate_material = material("planks", (1.0, 1.0, 1.0), image("planks", planks()))
+    crate_orm = channels(crate_material, image("planks ORM", planks_orm(), data=True))
+    add_occlusion(crate_material, crate_orm["Red"])
+    add_metal_roughness(crate_material, crate_orm)
+    wall_material = material("bricks", (1.0, 1.0, 1.0), image("bricks", bricks()))
+    add_normal_map(wall_material, image("bricks normal", bricks_normal(), data=True))
+    red = material("red", (0.80, 0.15, 0.10), roughness=0.35)
+    grey = material("grey", (0.72, 0.72, 0.70), roughness=0.4, metallic=1.0)
     teal = material("teal", (0.10, 0.60, 0.60))
+    add_emission(teal, image("ring glow", ring_glow()), strength=4.0)
 
     bpy.ops.mesh.primitive_plane_add(size=6.0)
     floor = add("floor", floor_material, (0.0, 0.0, 0.0))
@@ -177,7 +315,8 @@ def build():
     bpy.ops.mesh.primitive_uv_sphere_add(radius=0.45, segments=32, ring_count=16)
     add("sphere", red, (-1.2, 0.8, 0.45), parent=props, smooth=True)
     bpy.ops.mesh.primitive_cylinder_add(radius=0.25, depth=2.0, vertices=32)
-    add("pillar", grey, (-1.6, -1.4, 1.0), parent=props, smooth=True)
+    pillar = add("pillar", grey, (-1.6, -1.4, 1.0), parent=props, smooth=True)
+    triangulate_ngons(pillar)
 
     bpy.ops.mesh.primitive_cube_add(size=1.0)
     wall = add("wall", wall_material, (0.0, -2.2, 0.5))
@@ -203,6 +342,7 @@ def export(path):
         export_apply=True,
         export_yup=True,
         export_normals=True,
+        export_tangents=True,
         export_texcoords=True,
         export_materials="EXPORT",
         export_image_format="AUTO",

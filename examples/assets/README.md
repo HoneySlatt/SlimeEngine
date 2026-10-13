@@ -2,7 +2,38 @@
 
 | File | What it is | Made with | License |
 |---|---|---|---|
-| `scene.glb` | The scene of the `scene` example and its image test: a tiled floor, two wooden crates, a sphere, a pillar, a brick wall and a ring, with three textures drawn in code and embedded as PNG images | [`make_scene.py`](make_scene.py), run in Blender 5.2: `blender --background --python examples/assets/make_scene.py -- examples/assets/scene.glb` | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/): public domain |
+| `scene.glb` | The scene of the `scene` example and its image test: a tiled floor, two wooden crates, a sphere, a pillar, a brick wall and a ring, with seven textures drawn in code and embedded as PNG images; 127 296 bytes | [`make_scene.py`](make_scene.py), run in Blender 5.2: `blender --background --python examples/assets/make_scene.py -- examples/assets/scene.glb` | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/): public domain |
+
+## What `scene.glb` holds
+
+Seven primitives, one per object, with 1696 vertices and 2274 triangles in all. Each has normals,
+one set of texture coordinates, and tangents (glTF's `TANGENT`), which Blender computes with
+MikkTSpace. Six materials use glTF's metallic-roughness model, so that one small file exercises
+each property the loader reads:
+
+| Material | Drawn on | What it exercises |
+|---|---|---|
+| `tiles` | The floor | A base color texture, `tiles`. An occlusion texture, `tiles occlusion`: all of the ambient light reaches the tiles, 0.6 of it the grout. The only double-sided material: the floor is a single plane, which can be seen from below. A rough dielectric: roughness 0.8, metallic 0. |
+| `planks` | Both crates | A base color texture, `planks`: wooden planks in an iron-grey frame. One packed texture, `planks ORM`, is both the occlusion texture and the metallic-roughness texture. Its red channel is the occlusion: 0.5 in the gaps between planks, 1 elsewhere. Green is the roughness: 0.7 on the wood, 0.4 on the frame. Blue is the metallic: 0 on the wood, 1 on the frame. Both factors are 1. |
+| `bricks` | The wall | A base color texture, `bricks`. A tangent-space normal texture, `bricks normal`: the bricks stand above their mortar, with rounded edges. It follows glTF's convention: red points right, green up the image, blue out of the surface. The flat inside of a brick is (128, 128, 255). Roughness 0.8, metallic 0. |
+| `red` | The sphere | A plain dielectric with roughness 0.35, which gives a sharper highlight than the other materials. |
+| `grey` | The pillar | A plain metal: metallic 1, roughness 0.4. The script splits the pillar's 32-sided caps into triangles, because Blender computes tangents only for faces of three or four corners. |
+| `teal` | The ring | An emissive texture, `ring glow`: eight teal segments on black. Its emissive factor is 1 and its emissive strength 4 (`KHR_materials_emissive_strength`), so it emits light above 1. Roughness 0.8, metallic 0. |
+
+Every material but `tiles` is single-sided. The other objects are closed, so their back faces are
+never seen. The script turns on Blender's backface culling for their materials, and the exporter
+writes that as `doubleSided` false.
+
+The textures are 128 × 128 pixels, drawn with numpy from fixed seeds, and share one sampler
+(linear, mipmapped, repeating). The textures of colors (base color and emissive) hold sRGB values.
+The textures of data (occlusion, metallic-roughness and normal) hold the values that shaders read;
+Blender stores them unchanged, in its Non-Color color space. The file uses
+`KHR_materials_emissive_strength` without requiring it, and no other extension.
+
+To change the asset, edit `make_scene.py` and run the command above from the repository root;
+do not edit the GLB file by hand. Two runs give files that differ only in the order of the
+sphere's triangles, which Blender does not keep from one run to the next; the triangles
+themselves, and their winding, are the same.
 
 The glTF loader of the examples ([`examples/common/gltf.rs`](../common/gltf.rs),
 [ADR-0029](../../docs/adr/0029-temporary-gltf-loading.md)) reads GLB files that hold their buffer
