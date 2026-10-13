@@ -42,7 +42,7 @@ is created only when code needs it.
 |---|---|---|---|
 | [`slime-platform`](../crates/slime-platform/README.md) | The window, its events and keyboard and mouse input; the only crate that uses the windowing library (winit) | `winit`, `raw-window-handle`, `thiserror`, `tracing` | One window; window, keyboard and mouse events |
 | [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `slime-platform`, `slime-gfx`, `ctrlc`, `thiserror`, `tracing`, `tracing-subscriber` | Headless runs, and windowed runs drawn by the GPU |
-| [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu, apart from the dev overlay through its `wgpu` feature | `wgpu`, `pollster`, `raw-window-handle`, `thiserror`, `tracing` | Opens a GPU device, draws into offscreen images and reads them back, draws into a window |
+| [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu, apart from the dev overlay through its `wgpu` feature | `wgpu`, `pollster`, `raw-window-handle`, `thiserror`, `tracing` | Opens a GPU device; draws into offscreen images, 8-bit or 16-bit float, and reads them back; draws into a window; later passes sample what earlier ones drew; depth-only passes |
 | [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, lit by a directional light, seen from a camera, into render targets, and reports what a frame cost; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `glam`, `thiserror`, `tracing` | Meshes, materials with a base color and a texture, a perspective camera, the depth test, one directional light, statistics with the GPU time |
 | [`slime-devui`](../crates/slime-devui/README.md) | The dev overlay: egui drawn over the engine's frames, fed with the engine's events; temporary tooling until the editor's UI framework exists | `egui`, `egui-wgpu`, `slime-gfx` (with its `wgpu` feature), `slime-platform` | Panels over a frame; no modifier keys, clipboard or input methods |
 | [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `gltf`, `png`, `tracing` | `hello`, `headless`, `window`, `offscreen`, `scene`; the reference image tests; a temporary glTF loader |
@@ -190,38 +190,58 @@ do with the triangle of [`examples/common/triangle.rs`](../examples/common/trian
 
 ```text
 gpu = Gpu::new()
-├── create_render_target(label, width, height, format)   the image to draw into
+├── create_render_target(label, width, height, format)   the image to draw into, 8-bit or
+│                                                        Rgba16Float; later passes can sample it
 ├── create_depth_target(label, width, height)            the depth of what is drawn, for passes
-│                                                        that test depth
+│                                                        that test depth; later passes can sample
+│                                                        it (a shadow map)
 ├── create_shader_module(label, wgsl)                    rejected → GfxError::Shader
 ├── create_bind_group_layout(label, entries)             what the shaders read: uniform buffers,
-│                                                        textures, samplers
+│                                                        textures and render targets, depth
+│                                                        targets, samplers, comparison samplers
 ├── create_render_pipeline(&descriptor)                  rejected → GfxError::Pipeline; declares
-│                                                        its bind group layouts, depth test, culling
+│                                                        its vertex layout (or none: vertices from
+│                                                        the vertex index), its fragment stage (or
+│                                                        none: depth only), its bind group layouts,
+│                                                        depth test and bias, culling
 ├── create_vertex_buffer(label, bytes)
 ├── create_index_buffer(label, indices)
 ├── create_uniform_buffer(label, bytes)                  written again with write_uniform_buffer
 ├── create_texture(label, width, height, format, pixels) an image that shaders sample
 ├── create_sampler(label, &descriptor)                   how they read it
+├── create_comparison_sampler(label, compare, filter)    how they compare a depth with a depth
+│                                                        target's (shadow lookups, PCF)
 ├── create_bind_group(label, &layout, entries)           the resources, bound together
 ├── uniform_offset_alignment()                           the step of a bind group's dynamic
 │                                                        offsets into a uniform buffer
-├── create_timer(label)                                  a GpuTimer, when can_time() says the
-│                                                        adapter has timestamp queries
+├── create_timer(label)                                  a GpuTimer per timed pass, when can_time()
+│                                                        says the adapter has timestamp queries
 ├── render(&RenderPassDescriptor { target, clear, depth, timer }, |pass| ...)
 │                                                        one command encoder and render pass; the
 │                                                        closure sets the pipeline, the bind groups
 │                                                        and the buffers, and draws; then submitted,
 │                                                        timed by the timer when there is one
-└── read_render_target(&target)                          copy into a buffer, wait for the GPU,
-                                                         map it → Image (RGBA, top row first)
+├── render_depth(&DepthPassDescriptor { depth, timer }, |pass| ...)
+│                                                        a pass without a render target: clears the
+│                                                        depth target, draws depth-only pipelines
+├── read_render_target(&target)                          copy into a buffer, wait for the GPU,
+│                                                        map it → Image (8-bit RGBA, top row first)
+└── read_float_render_target(&target)                    an Rgba16Float target → FloatImage (f32)
 ```
+
+A frame of several passes runs them one after another, each submitted by its `render` or
+`render_depth`. A later pass binds the targets an earlier one drew into
+(`BindingResource::RenderTarget`, `BindingResource::DepthTarget`). A pass cannot sample what it
+draws into: wgpu refuses it and the engine panics
+([ADR-0033](adr/0033-gpu-layer-for-multi-pass-rendering.md)).
+[`crates/slime-gfx/tests/passes.rs`](../crates/slime-gfx/tests/passes.rs) shows each case.
 
 Each GPU object is an engine-owned type holding its wgpu object
 ([ADR-0017](adr/0017-gpu-resource-types.md); bind groups and depth:
-[ADR-0026](adr/0026-resource-binding-and-depth.md)). Shader modules and pipelines are created inside a
-wgpu error scope, so that a rejection comes back as an error with wgpu's message; any other wgpu
-error is a bug and panics ([ADR-0016](adr/0016-gpu-layer-with-wgpu.md)). The test
+[ADR-0026](adr/0026-resource-binding-and-depth.md); float and sampled targets, depth-only passes:
+[ADR-0033](adr/0033-gpu-layer-for-multi-pass-rendering.md)). Shader modules and pipelines are
+created inside a wgpu error scope, so that a rejection comes back as an error with wgpu's message;
+any other wgpu error is a bug and panics ([ADR-0016](adr/0016-gpu-layer-with-wgpu.md)). The test
 [`examples/tests/offscreen.rs`](../examples/tests/offscreen.rs) compares the image with a
 reference PNG within a tolerance ([ADR-0018](adr/0018-reference-image-tests.md)).
 

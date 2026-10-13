@@ -13,13 +13,13 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3b — Physically based renderer → 0.1: in progress. Planned on 2026-10-13 and validated by
-  the owner. Next: M3b.1.
+  the owner. M3b.1 is done; next: M3b.2.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
-| [M3b.1](#m3b1--gpu-layer-for-multi-pass-rendering) | GPU layer for multi-pass rendering | In progress |
+| [M3b.1](#m3b1--gpu-layer-for-multi-pass-rendering) | GPU layer for multi-pass rendering | Done |
 | [M3b.2](#m3b2--hdr-rendering-and-tone-mapping) | HDR rendering and tone mapping | Planned |
 | [M3b.3](#m3b3--physically-based-materials) | Physically based materials | Planned |
 | [M3b.4](#m3b4--light-types) | Light types | Planned |
@@ -125,6 +125,19 @@ sample, tests included, and must stay small; upgrading wgpu still waits for egui
   which gives 0 on one side of the reference depth and 1 on the other; a depth bias moves a
   surface's depth by the expected amount; three passes timed in one frame each get a time.
 - **How to test.** `VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo test -p slime-gfx`.
+- **Checked** on 2026-10-13: ADR-0033 records the API, chosen from four independent designs.
+  `crates/slime-gfx/tests/passes.rs` (a fullscreen triangle without a vertex buffer covering a
+  67 × 5 float target; a pass sampling a float target an earlier pass drew, mirrored, then copied
+  into an sRGB target; a depth-only pass read through comparison samplers, with the value at a
+  shadow's edge; the constant and slope-scaled depth biases; a pass sampling its own target, and a
+  depth-only pipeline in a pass with a render target, both refused), `readback.rs` (float targets
+  of six sizes cleared to values beyond 0 to 1), `timing.rs` (three passes of a frame, one of them
+  depth-only, timed each) and `errors.rs` (pipelines without vertices or without a target, bindings
+  of another kind than their layout, the read and texture asserts) pass on lavapipe and on the
+  owner's RX 6900 XT (RADV). On both, the biases are exactly the amounts the formula gives, and a
+  comparison halfway between a shadowed and a lit texel gives 0.5. The passes of the timing test
+  took 241, 165 and 133 µs on lavapipe, 2.4, 1.2 and 1.1 µs on RADV. No example uses these
+  features yet: the `scene` example does from M3b.2 on.
 
 ### M3b.2 — HDR rendering and tone mapping
 
@@ -361,6 +374,12 @@ GitHub issues, linked from their entry; this list stays the reference.
   calling thread, in work proportional to the texture's pixels, and a caller cannot supply levels
   of its own (ADR-0032). To move to the GPU, or to the asset pipeline of Stage 4, if textures
   grow.
+- **Every offscreen render target and depth target can be sampled** (ADR-0033): they all carry the
+  usage that allows it, which may cost some compression on some GPUs. Not measured; to compare
+  with the GPU times of 0.0.3 at M3b.2 and M3b.5.
+- **A pipeline that does not fit its pass, or a target sampled by the pass that draws into it,
+  panics only when the pass ends** inside `Gpu::render` or `Gpu::render_depth`, with wgpu's
+  message, rather than at the faulty call (ADR-0033).
 
 ## Notes
 

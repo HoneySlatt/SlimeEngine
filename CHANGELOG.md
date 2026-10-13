@@ -6,6 +6,26 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ## [Unreleased]
 
+### Added
+
+- Multi-pass rendering in `slime-gfx`
+  ([ADR-0033](docs/adr/0033-gpu-layer-for-multi-pass-rendering.md)): render targets in the new
+  `TextureFormat::Rgba16Float`, 16-bit floating-point colors beyond 0 to 1, read back with
+  `Gpu::read_float_render_target` as a `FloatImage`; render targets and depth targets that later
+  passes sample (`BindingResource::RenderTarget`, and `BindingResource::DepthTarget` at the new
+  `BindingType::DepthTexture`); pipelines without a vertex buffer, for a fullscreen triangle built
+  from the vertex index; depth-only pipelines and passes (`Gpu::render_depth`); comparison samplers
+  (`Gpu::create_comparison_sampler`, `BindingType::ComparisonSampler`), for shadow lookups with
+  percentage-closer filtering; and a depth bias on pipelines (`DepthBias`).
+
+### Changed
+
+- `RenderPipelineDescriptor::vertex_layout` is an `Option`, and `fragment: Option<FragmentState>`
+  replaces `fragment_entry_point` and `target_format`. `DepthState` gains `bias` and is no longer
+  `Eq` or `Hash`. Offscreen render targets and depth targets carry the usage that lets shaders
+  sample them. `Gpu::create_texture` and `Gpu::read_render_target` panic on `Rgba16Float`, a
+  format of render targets only, read with `Gpu::read_float_render_target`.
+
 ## [0.0.3] - 2026-10-13
 
 The third release, which closes Stage 3a of the roadmap: the first renderer. The engine draws a

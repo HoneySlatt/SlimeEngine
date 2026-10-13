@@ -25,6 +25,12 @@ Weston compositor, and the links between documents ([`CONTRIBUTING.md`](../CONTR
 **Client of the engine.** A crate or program built on the engine's public API only, which no engine
 crate depends on: the examples, the dev *overlay* (`slime-devui`) and, later, the editor.
 
+**Comparison sampler.** A sampler that compares a reference depth with the depths stored in a
+*depth target* instead of reading them: each pixel read gives 1 where the comparison holds and 0
+where it does not, and linear filtering blends the four nearest results
+(`slime_gfx::ComparisonSampler`, [ADR-0033](adr/0033-gpu-layer-for-multi-pass-rendering.md)).
+Shadow maps are read this way. See *percentage-closer filtering*.
+
 **Culling.** Not drawing the triangles that face one way, usually the back faces of closed
 meshes, which their front faces hide anyway (`slime_gfx::CullMode`). A triangle faces the front
 when its vertices wind counter-clockwise on screen.
@@ -35,9 +41,20 @@ as RenderDoc (`RenderPass::debug_group`).
 **Definition of done.** The conditions a milestone must meet before it is reported as finished,
 listed in [`AGENTS.md`](../AGENTS.md#definition-of-done).
 
+**Depth bias.** An offset that a pipeline adds to the depth of what it draws before the depth
+test: a constant part, and a part proportional to how steeply the triangle's depth changes from
+pixel to pixel (`slime_gfx::DepthBias`). A *shadow map* is drawn with one, so that a surface does
+not shadow itself where its depth and the stored one differ only by rounding, which would cover
+it with dark specks (*shadow acne*).
+
+**Depth-only pass.** A render pass without a *render target*, which writes depth only into a
+*depth target*, with pipelines that have no fragment stage (`Gpu::render_depth`): how a *shadow
+map* is drawn.
+
 **Depth target.** A texture holding, for each pixel, the depth of what was drawn there, with
 which a render pass keeps the nearest surface whatever the order the surfaces are drawn in: the
-*depth test* (`slime_gfx::DepthTarget`, `slime_gfx::DepthState`).
+*depth test* (`slime_gfx::DepthTarget`, `slime_gfx::DepthState`). Later passes can sample it, as
+a *shadow map* is read.
 
 **Device (GPU).** The engine's connection to an adapter: it creates GPU resources, and its
 *queue* receives the work to execute (`slime_gfx::Gpu`). It is *lost* when the driver crashes or
@@ -74,6 +91,10 @@ waits between them, so that the engine asks for at most `AppConfig::max_frame_ra
 second on average. With the default *present mode*, it alone paces the frames
 ([ADR-0021](adr/0021-frame-pacing.md), which calls it the timer, or the schedule).
 
+**Fullscreen triangle.** One triangle larger than the target, which covers every pixel of it,
+built by the vertex shader from the vertex index without a vertex buffer: how a pass that
+processes a whole image, such as tone mapping, draws.
+
 **glTF.** The Khronos Group's format for 3D scenes: meshes, materials, textures and a node
 hierarchy, as a JSON file with binary buffers, or as one GLB file with everything embedded. The
 examples load GLB files with a temporary loader ([ADR-0029](adr/0029-temporary-gltf-loading.md));
@@ -81,14 +102,22 @@ the asset pipeline of Stage 4 will import them.
 
 **GPU time.** How long the GPU took to run a render pass, measured by timestamps written at its
 start and its end (`slime_gfx::GpuTimer`) and read back a few frames later; `None` on adapters
-without timestamp queries. The renderer's statistics report it with the CPU time of the call
-(`slime_render::RenderStats`).
+without timestamp queries. Each timed pass has a `GpuTimer` of its own. The renderer's statistics
+report it with the CPU time of the call (`slime_render::RenderStats`).
 
 **Graphics API.** The interface between programs and GPU drivers: Vulkan (the engine's choice on
 Linux) and Direct3D 12 (on Windows). wgpu translates the engine's calls into one of them.
 
+**Half-precision float.** A 16-bit floating-point number (IEEE 754 binary16): 11 significant bits,
+values up to ±65 504. The channels of `Rgba16Float` render targets, which the engine converts to
+and from `f32` by hand.
+
 **Headless.** Running the engine without a window, renderer or audio output. It is a normal
 configuration, used by automated tests and, later, by dedicated servers.
+
+**High dynamic range (HDR).** Colors not limited to 0 to 1, such as the light a scene reflects
+before it is mapped to the display's range by tone mapping. The engine draws them into
+`Rgba16Float` render targets.
 
 **Image test.** A test that renders offscreen and compares the result with a *reference image*,
 pixel by pixel, within a tolerance that absorbs how drivers round colors and filter textures
@@ -152,6 +181,11 @@ replaces it.
 
 **Owner.** The person who validates the project's direction and its architecture decisions.
 
+**Percentage-closer filtering (PCF).** Reading a *shadow map* by comparing a point's depth with
+several stored depths around it and averaging the results, so that the edges of shadows are soft
+instead of blocky. A *comparison sampler* with linear filtering does it over 2 × 2 pixels in the
+GPU.
+
 **Physical key.** The position of a key on the keyboard, whatever the layout
 (`slime_platform::KeyCode`), named after the character it produces on a US keyboard: the first
 letter key of the top row is `KeyQ` on every layout, whether it is labelled Q (QWERTY) or A
@@ -182,7 +216,8 @@ deliberate change of what the test draws, or after an update of lavapipe that ch
 ([ADR-0030](adr/0030-image-tests-strict-on-the-reference-driver.md)).
 
 **Render target.** An image the GPU draws into (`slime_gfx::RenderTarget`): an offscreen image,
-which can be read back to the CPU, or the image of a window for one frame, which cannot.
+which can be read back to the CPU and sampled by later passes, or the image of a window for one
+frame, which can be neither.
 
 **Sample.** The example that demonstrates the exit criterion of a stage. Every stage ends with
 one.
@@ -193,6 +228,9 @@ edges (repeat, mirror or clamp) (`slime_gfx::Sampler`).
 **Scene (render).** What the renderer draws in one frame: a camera, a directional light, a
 clear color and *instances* (`slime_render::Scene`). Not a scene graph: the renderer keeps nothing between frames,
 and the world model of Stage 5 will produce such scenes.
+
+**Shadow map.** A *depth target* drawn from a light's point of view by a *depth-only pass*: a
+point is in shadow where something nearer to the light is stored at its place in the map.
 
 **Simulated time.** Frame deltas supplied as a constant duration instead of being measured, so
 that a run gives the same results on every machine. Headless runs use it.
