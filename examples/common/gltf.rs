@@ -78,8 +78,8 @@ struct Placement {
 
 /// A glTF scene on the GPU: its meshes, its materials, and where to draw them.
 pub struct LoadedScene {
-    /// One per primitive that a node places, and another for a primitive that a node places
-    /// mirrored, with its triangles wound the other way.
+    /// One per primitive that a node places as the file winds it, and one per primitive that a
+    /// node places mirrored, with its triangles wound the other way.
     meshes: Vec<Mesh>,
     /// One per material of the file, then the default material of glTF, white.
     materials: Vec<Material>,
