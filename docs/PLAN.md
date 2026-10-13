@@ -350,4 +350,6 @@ justify a decision are also in its ADR.
   clippy, for the tests, and in release for the artifact), which is acceptable; a cache is to add if
   it grows much further. The dependencies of this stage (glam, gltf, egui) are expected to add to
   it: each milestone that adds one records the new duration here. With glam and the render crate
-  (M3.2, 2026-10-13): Linux 2 minutes 49 seconds, Windows 4 minutes 59 seconds.
+  (M3.2, 2026-10-13): Linux 2 minutes 49 seconds, Windows 4 minutes 59 seconds. With gltf and
+  egui (M3.6, 2026-10-13): Linux 3 minutes 22 seconds, Windows 5 minutes 42 seconds, and 6 minutes
+  2 seconds once its tests ran one at a time.
