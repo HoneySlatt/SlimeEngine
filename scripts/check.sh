@@ -45,31 +45,49 @@ env -u WAYLAND_DISPLAY -u DISPLAY cargo run --locked --example window -- --headl
 env -u WAYLAND_DISPLAY -u DISPLAY VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
     cargo run --locked --example offscreen -- --output target/triangle.png
 
-step "Windowed samples and lifecycle test in a headless Wayland compositor (Weston), drawn with lavapipe"
-# A private runtime directory keeps this compositor apart from the one the developer may be using.
+step "Windowed samples and lifecycle test in headless Wayland compositors (Weston), drawn with lavapipe"
+# A private runtime directory keeps these compositors apart from the one the developer may be using.
 runtime=$(mktemp -d)
-XDG_RUNTIME_DIR=$runtime weston --backend=headless --socket=slime-check --idle-time=0 \
-    >"$runtime/weston.log" 2>&1 &
-weston=$!
-# `kill` fails when Weston has already exited; that must not skip the rest of the cleanup.
-trap 'kill "$weston" 2>/dev/null || true; rm -rf "$runtime"' EXIT
-for _ in $(seq 100); do
-    [ -S "$runtime/slime-check" ] && break
-    sleep 0.1
-done
-[ -S "$runtime/slime-check" ] || { echo "Weston did not start:"; cat "$runtime/weston.log"; exit 1; }
+westons=()
+# `kill` fails when a Weston has already exited; that must not skip the rest of the cleanup.
+trap 'kill "${westons[@]}" 2>/dev/null || true; rm -rf "$runtime"' EXIT
+# Starts a headless Weston on the socket named by the first argument, with the options that follow,
+# and waits until it accepts clients. Its log goes to `$runtime/<socket>.log`.
+start_weston() {
+    local socket=$1
+    shift
+    XDG_RUNTIME_DIR=$runtime weston --backend=headless --socket="$socket" --idle-time=0 "$@" \
+        >"$runtime/$socket.log" 2>&1 &
+    westons+=("$!")
+    for _ in $(seq 100); do
+        [ -S "$runtime/$socket" ] && return
+        sleep 0.1
+    done
+    echo "Weston did not start:"
+    cat "$runtime/$socket.log"
+    exit 1
+}
+start_weston slime-check
 # Each run takes a few seconds; `timeout` ends a stalled one, with SIGTERM, which stops the engine
 # cleanly, then SIGKILL if that is not enough, and the failure then prints Weston's log.
 for example in window scene; do
     env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
         timeout -k 10 120 cargo run --locked --example "$example" -- --frames 120 ||
-        { cat "$runtime/weston.log"; exit 1; }
+        { cat "$runtime/slime-check.log"; exit 1; }
 done
 # The windowed lifecycle test needs the compositor too, so it is outside the default test run
 # (ADR-0024).
 env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
     timeout -k 10 120 cargo test --locked -p slime-app --test windowed_lifecycle ||
-    { cat "$runtime/weston.log"; exit 1; }
+    { cat "$runtime/slime-check.log"; exit 1; }
+# Nothing resizes a window in that compositor once it exists. One at scale 2 reports its scale after
+# the first frame, and the window then doubles in size: the lifecycle test's `resized` scenario runs
+# there, alone (ADR-0024).
+start_weston slime-check-scaled --scale=2
+env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check-scaled \
+    SLIME_APP_TEST_SCALED=1 VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+    timeout -k 10 120 cargo test --locked -p slime-app --test windowed_lifecycle ||
+    { cat "$runtime/slime-check-scaled.log"; exit 1; }
 
 step "Documentation links"
 # Tracked and new, non-ignored Markdown files. External links are not checked: they fail for

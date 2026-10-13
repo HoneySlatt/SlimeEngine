@@ -1,6 +1,6 @@
 # 0024. Windowed lifecycle check in the headless compositor
 
-- Status: Accepted
+- Status: Accepted; extended to a window resized in a second compositor (2026-10-13)
 - Date: 2026-10-12
 
 ## Context
@@ -32,6 +32,14 @@ compositor would hide its own absence from `cargo test`.
   burst of redraws requested by the application runs frames back to back, and the first scheduled
   frame after the burst comes within 100 ms), a failed `init` (`RunError::Init`, no frame, no
   `shutdown`) and an exit requested in `init` (no frame, `shutdown`).
+- **A second compositor, at scale 2, for a resized window** (added on 2026-10-13 by the owner's
+  decision). Nothing resizes a window in the first compositor once it exists, so the windowed
+  driver's forwarding of `Event::Resized` to the window's surface passed the checks even when
+  removed. A headless Weston started with `--scale=2` reports its scale after the window's first
+  frame, and the window then doubles in size. `scripts/check.sh` starts one after the first
+  compositor's runs, and runs the program again there with `SLIME_APP_TEST_SCALED` set, which
+  selects the `resized` scenario alone: every image drawn is as large as its window, before and
+  after the window doubles. The other scenarios and the samples keep running at scale 1.
 - The Windows job does not run it, having no Weston: the windowed lifecycle on Windows stays a
   check by hand ([ADR-0015](0015-platforms-and-ci.md)).
 
@@ -43,6 +51,9 @@ runs and draws.
 - **A plain `#[test]` that skips without a display.** It would run on a thread the windowing
   library refuses, and its skipping would hide its absence.
 - **An example in `examples/`.** Examples demonstrate features; this program is a test.
+- **One compositor, at scale 2, for every windowed check** (considered on 2026-10-13). A single
+  option in the script, and every scenario and sample would see a resize; but no windowed check
+  would run at scale 1 any more.
 - **Assertions inside the `window` example.** The sample would become a test, in one process, which
   cannot cover both a failed `init` and a normal run.
 

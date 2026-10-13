@@ -581,14 +581,6 @@ GitHub issues, linked from their entry; this list stays the reference.
   runs. The translator cannot tell such a press from X11's unmarked first auto-repeat. On Windows,
   trusting `KeyEvent::repeat` would close the gap, at the cost of a rule that differs between
   platforms; left as documented.
-- **No automated check resizes a window after its surface exists** (a change is proposed to the
-  owner). The forwarding of `Event::Resized` to `Surface::resize`
-  (`crates/slime-app/src/windowed.rs`) passes `scripts/check.sh` even when removed: Weston's
-  default shell keeps the size the client asks for, and winit applies a compositor-imposed first
-  size before `Window::new` returns. A headless Weston started with `--scale=2` reports the scale
-  after the first frame, and winit then resizes the window to twice its physical size: a check of
-  image and window sizes in that compositor fails when the forwarding is removed (measured on
-  2026-10-13).
 - **The examples' glTF loader sets no limit on a file's total memory** (left as it is by the owner's
   decision of 2026-10-13: the loader is temporary). It checks each primitive alone against the GPU's
   largest buffer, reads every primitive of every mesh before placing any, and gives primitives that

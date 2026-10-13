@@ -2,9 +2,11 @@
 //! `init`, the order of the calls, the stop conditions, the frame schedule after a burst of
 //! redraws, the time each frame represents, the profiling spans of each frame, the memory of a run
 //! whose frames draw nothing, a run whose GPU cannot open, a window larger than the GPU can draw
-//! into, and a GPU device lost in the middle of a frame. `scripts/check.sh` runs it in a headless Weston with lavapipe (ADR-0024). It is not
-//! in the default run of `cargo test` (`test = false` in Cargo.toml), since it needs a compositor,
-//! and it has no harness, since the windowing library needs the main thread.
+//! into, a GPU device lost in the middle of a frame, and a window resized during the run.
+//! `scripts/check.sh` runs it in a headless Weston with lavapipe, then runs it again in a second
+//! one, at scale 2, for the resize alone (ADR-0024). It is not in the default run of `cargo test`
+//! (`test = false` in Cargo.toml), since it needs a compositor, and it has no harness, since the
+//! windowing library needs the main thread.
 //!
 //! A process can run one windowed application, so each scenario runs in a child process: this
 //! program runs itself again with `SLIME_APP_TEST_SCENARIO` set, and checks what the child prints.
@@ -42,6 +44,12 @@ mod linux {
         "oversize",
         "device-lost",
     ];
+    /// When this variable is set, the program runs `SCALED_SCENARIOS` instead of `SCENARIOS`, as
+    /// `scripts/check.sh` does in a compositor at scale 2. Such a compositor reports its scale
+    /// after the first frame, and the window then doubles in size; at scale 1, nothing resizes a
+    /// window once it exists.
+    const SCALED_ENV: &str = "SLIME_APP_TEST_SCALED";
+    const SCALED_SCENARIOS: [&str; 1] = ["resized"];
     /// The frame in whose `render` the `device-lost` scenario destroys the GPU device.
     const LOSS_FRAME: u64 = 5;
 
@@ -153,7 +161,7 @@ mod linux {
                 }
                 gpu.render(&pass, |_pass| {});
             }
-            if self.scenario == "oversize" {
+            if matches!(self.scenario, "oversize" | "resized") {
                 let window = ctx.window().expect("windowed run").inner_size();
                 println!(
                     "image {} {} window {} {}",
@@ -218,12 +226,18 @@ mod linux {
             let scenario = scenario.to_str().expect("scenario name");
             let scenario = SCENARIOS
                 .into_iter()
+                .chain(SCALED_SCENARIOS)
                 .find(|name| *name == scenario)
                 .expect("known scenario");
             return child(scenario);
         }
 
-        for scenario in SCENARIOS {
+        let scenarios = if std::env::var_os(SCALED_ENV).is_some() {
+            &SCALED_SCENARIOS[..]
+        } else {
+            &SCENARIOS[..]
+        };
+        for &scenario in scenarios {
             let mut command = Command::new(std::env::current_exe().expect("test binary path"));
             command
                 .env(SCENARIO_ENV, scenario)
@@ -250,6 +264,7 @@ mod linux {
                 "no-gpu" => check_no_gpu(&lines),
                 "oversize" => check_oversize(&lines),
                 "device-lost" => check_device_lost(&lines),
+                "resized" => check_resized(&lines),
                 _ => unreachable!(),
             }
             println!("scenario {scenario} ... ok");
@@ -572,23 +587,31 @@ mod linux {
         );
     }
 
-    fn check_oversize(lines: &[&str]) {
-        // wgpu rejects a surface larger than the device's largest image, and its errors panic.
-        assert!(lines.contains(&"result Ok"), "the run succeeds: {lines:?}");
-        let sizes: Vec<Vec<u32>> = lines
+    /// The sizes that `render` prints in `oversize` and `resized`, one per frame drawn: the
+    /// image's width and height, then the window's.
+    fn image_sizes(lines: &[&str]) -> Vec<[u32; 4]> {
+        lines
             .iter()
             .filter_map(|line| line.strip_prefix("image "))
             .map(|line| {
-                line.split_whitespace()
+                let numbers: Vec<u32> = line
+                    .split_whitespace()
                     .filter_map(|word| word.parse().ok())
-                    .collect()
+                    .collect();
+                numbers[..]
+                    .try_into()
+                    .unwrap_or_else(|_| panic!("an image's size and its window's: {line}"))
             })
-            .collect();
+            .collect()
+    }
+
+    fn check_oversize(lines: &[&str]) {
+        // wgpu rejects a surface larger than the device's largest image, and its errors panic.
+        assert!(lines.contains(&"result Ok"), "the run succeeds: {lines:?}");
+        let sizes = image_sizes(lines);
         assert!(!sizes.is_empty(), "frames are drawn: {lines:?}");
         for size in sizes {
-            let [width, height, window_width, window_height] = size[..] else {
-                panic!("an image's size and its window's: {size:?}");
-            };
+            let [width, height, window_width, window_height] = size;
             assert!(
                 window_width > 8192,
                 "the compositor keeps the window wider than the device's largest image: {size:?}"
@@ -634,5 +657,28 @@ mod linux {
                 .any(|line| line.starts_with("result Gfx(DeviceLost")),
             "the run returns DeviceLost: {lines:?}"
         );
+    }
+
+    /// The window is first drawn at the size it asked for, then doubles once the compositor at
+    /// scale 2 has reported its scale, and every image follows it: the driver resizes the surface
+    /// when the window reports its new size. Without that, the images would keep the first size.
+    fn check_resized(lines: &[&str]) {
+        assert!(lines.contains(&"result Ok"), "the run succeeds: {lines:?}");
+        let sizes = image_sizes(lines);
+        let &[_, _, width, height] = sizes.first().expect("frames are drawn");
+        assert!(
+            sizes
+                .iter()
+                .any(|size| size[2..] == [2 * width, 2 * height]),
+            "the window doubles in size after the first frame (is the compositor at scale 2?): \
+             {sizes:?}"
+        );
+        for size in &sizes {
+            assert_eq!(
+                size[..2],
+                size[2..],
+                "every image is as large as its window: {sizes:?}"
+            );
+        }
     }
 }

@@ -88,6 +88,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - `scripts/check.sh` also runs clippy on the windowed lifecycle test of `slime-app`, on Linux and
   for Windows. Because it is outside the default test run (`test = false`), `--all-targets` used
   to leave it out.
+- `scripts/check.sh` checks that a window's images follow its size when it is resized during a
+  run, which nothing checked: it starts a second headless Weston, at scale 2, which doubles the
+  window after its first frame, and runs the new `resized` scenario of the windowed lifecycle test
+  there ([ADR-0024](docs/adr/0024-windowed-lifecycle-check-in-weston.md)).
 - `KeyEvent::text` is the same for a named key on every platform. Only Enter, Tab, Backspace,
   Escape and Space give text. On Wayland and X11, Delete gave `"\u{7f}"` and Clear `"\u{b}"`,
   where Windows gave none; Shift+Tab gave no text there, where Windows gave `"\t"`. Space still

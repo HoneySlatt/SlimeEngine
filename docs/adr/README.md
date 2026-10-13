@@ -91,7 +91,7 @@ the ADR linking to it.
 | [0021](0021-frame-pacing.md) | Frame pacing | Accepted |
 | [0022](0022-losing-the-gpu-device.md) | Losing the GPU device | Accepted; amended by 0025 |
 | [0023](0023-dependency-checks-for-the-supported-targets.md) | Check the dependencies of the supported targets only | Accepted |
-| [0024](0024-windowed-lifecycle-check-in-weston.md) | Windowed lifecycle check in the headless compositor | Accepted |
+| [0024](0024-windowed-lifecycle-check-in-weston.md) | Windowed lifecycle check in the headless compositor | Accepted; extended on 2026-10-13 |
 | [0025](0025-giving-up-a-lost-surface.md) | Giving up a window's surface that is lost for good | Accepted |
 | [0026](0026-resource-binding-and-depth.md) | Resource binding and depth in `slime-gfx` | Accepted; amended by 0032, 0033 |
 | [0027](0027-the-render-crate.md) | The render crate, what it draws, and glam | Accepted; amended by 0034 and 0035 |
