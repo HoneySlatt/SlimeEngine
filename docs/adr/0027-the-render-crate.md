@@ -1,6 +1,6 @@
 # 0027. The render crate, what it draws, and glam
 
-- Status: Accepted
+- Status: Accepted; amended by [0034](0034-hdr-rendering-and-tone-mapping.md) (two passes, the scene in HDR, the exposure, tone mapping)
 - Date: 2026-10-13
 
 ## Context

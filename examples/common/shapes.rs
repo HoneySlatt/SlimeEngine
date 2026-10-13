@@ -143,6 +143,7 @@ impl Shapes {
                 camera,
                 light: LIGHT,
                 clear: BACKGROUND,
+                exposure: 1.0,
                 instances: &instances,
             },
         )

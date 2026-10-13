@@ -1,5 +1,5 @@
 //! The renderer: draws instances of meshes, seen from a camera and lit by a directional light,
-//! into a render target.
+//! into a render target, in two passes: the scene in high dynamic range, then tone mapping.
 
 use std::time::{Duration, Instant};
 
@@ -18,8 +18,22 @@ use crate::light::DirectionalLight;
 use crate::material::{Material, MaterialData};
 use crate::mesh::{Mesh, MeshData, VERTEX_LAYOUT};
 
-/// The shader of every draw.
-const SHADER: &str = include_str!("shader.wgsl");
+/// The shader of the scene pass.
+const SCENE_SHADER: &str = include_str!("shader.wgsl");
+/// The shader of the tone-mapping pass.
+const TONE_MAPPING_SHADER: &str = include_str!("tone_mapping.wgsl");
+/// The format the scene pass draws into: half-precision floats, which keep light above 1
+/// (ADR-0034).
+const HDR_FORMAT: TextureFormat = TextureFormat::Rgba16Float;
+/// What the tone-mapping pass clears the output to; its triangle then covers every pixel.
+const BLACK: Color = Color {
+    r: 0.0,
+    g: 0.0,
+    b: 0.0,
+    a: 1.0,
+};
+/// The size of the values of the tone-mapping pass: the exposure, padded to 16 bytes.
+const TONE_MAPPING_VALUES_SIZE: usize = 16;
 /// The size of the values of a frame: the camera's `mat4x4<f32>` and the light's three
 /// `vec4<f32>`.
 const FRAME_VALUES_SIZE: usize = 64 + 3 * 16;
@@ -50,8 +64,15 @@ pub struct Scene<'a> {
     pub camera: Camera,
     /// What lights the surfaces.
     pub light: DirectionalLight,
-    /// The color of the background, linear.
+    /// The light behind the scene, where no surface is drawn: linear, in the units of the light
+    /// (it may exceed 1), not negative, and multiplied by the exposure and tone mapped like the
+    /// surfaces. Its alpha is not used: the output is opaque.
     pub clear: Color,
+    /// What the scene's light, the background's included, is multiplied by before tone mapping
+    /// (ADR-0034): a linear factor. 1 leaves it as it is, which shows a white surface lit at
+    /// normal incidence by a light of 1 at 0.87 (sRGB 240); 2 is one photographic stop brighter;
+    /// 0 gives black. Finite and not negative.
+    pub exposure: f32,
     /// What to draw, in this order.
     pub instances: &'a [Instance<'a>],
 }
@@ -60,49 +81,113 @@ pub struct Scene<'a> {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct RenderStats {
-    /// Draw calls recorded: one per instance.
+    /// Draw calls of the scene pass: one per instance. The tone-mapping pass's single draw is not
+    /// counted.
     pub draw_calls: u32,
-    /// Triangles submitted to the GPU, before culling.
+    /// Triangles the scene pass submitted to the GPU, before culling.
     pub triangles: u64,
-    /// How long [`Renderer::render`] took on the CPU: packing the values, recording the pass and
-    /// submitting it.
+    /// How long [`Renderer::render`] took on the CPU: packing the values, recording both passes
+    /// and submitting them.
     pub cpu_time: Duration,
-    /// How long the GPU took to draw a scene: the latest time that has come back, a few frames
-    /// old. `None` on adapters that cannot time their work
+    /// How long the GPU took to draw the scene into the high-dynamic-range target: the latest time
+    /// that has come back, a few frames old. `None` on adapters that cannot time their work
     /// ([`Gpu::can_time`](slime_gfx::Gpu::can_time)), and until the first time comes back.
-    pub gpu_time: Option<Duration>,
+    pub scene_gpu_time: Option<Duration>,
+    /// How long the GPU took for the tone-mapping pass, under the same rules. It may come from
+    /// another frame than `scene_gpu_time`, and their sum is not the GPU time of a frame
+    /// (ADR-0033).
+    pub tone_mapping_gpu_time: Option<Duration>,
 }
 
-/// Draws scenes into render targets of one format.
+/// Draws scenes into output targets of one format.
 ///
-/// It owns the pipeline, the depth target, which it creates at the size of the target it draws
-/// into and again when that size changes, and the buffer of the instances' values.
+/// Each frame takes two passes (ADR-0034): the scene pass draws the instances into a target of
+/// half-precision floats, where light may exceed 1, with a depth target; the tone-mapping pass then
+/// multiplies that light by the scene's exposure and maps it to the output's range with Khronos
+/// PBR Neutral. The renderer owns both pipelines; the high-dynamic-range and depth targets, which
+/// it creates at the size of the output it draws into and again when that size changes; the buffer
+/// of the instances' values; and a GPU timer per pass.
 pub struct Renderer {
+    /// The output's format.
     format: TextureFormat,
-    pipeline: RenderPipeline,
+    scene_pipeline: RenderPipeline,
+    tone_mapping_pipeline: RenderPipeline,
     material_layout: BindGroupLayout,
     instance_layout: BindGroupLayout,
+    /// The layout of the group through which the tone-mapping pass reads the scene's target and
+    /// its own values.
+    tone_mapping_layout: BindGroupLayout,
     frame_uniform: UniformBuffer,
     frame_group: BindGroup,
+    /// The exposure, read by the tone-mapping pass.
+    tone_mapping_uniform: UniformBuffer,
     /// One white pixel, bound as the texture of materials that have none.
     white: Texture,
     /// The sampler of that pixel.
     default_sampler: Sampler,
     instances: InstanceSlots,
-    depth: Option<DepthTarget>,
-    /// Times the scene's pass on the GPU, when the adapter can.
-    timer: Option<GpuTimer>,
+    /// Created by the first `render`, and again when the output's size changes.
+    targets: Option<SizedTargets>,
+    /// Time each pass on the GPU, when the adapter can.
+    scene_timer: Option<GpuTimer>,
+    tone_mapping_timer: Option<GpuTimer>,
+}
+
+/// The targets that follow the output's size: what the scene pass draws into, and the group
+/// through which the tone-mapping pass reads it. They are created together, and again together
+/// when the size changes, since a group keeps the target it was created with (ADR-0033).
+struct SizedTargets {
+    /// The scene's light, in high dynamic range. Labelled "scene", which names the scene pass in
+    /// capture tools.
+    hdr: RenderTarget,
+    depth: DepthTarget,
+    tone_mapping_group: BindGroup,
+}
+
+impl SizedTargets {
+    fn new(
+        gpu: &Gpu,
+        layout: &BindGroupLayout,
+        uniform: &UniformBuffer,
+        width: u32,
+        height: u32,
+    ) -> Self {
+        let hdr = gpu.create_render_target("scene", width, height, HDR_FORMAT);
+        let depth = gpu.create_depth_target("scene depth", width, height);
+        let tone_mapping_group = gpu.create_bind_group(
+            "tone mapping",
+            layout,
+            &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: BindingResource::RenderTarget(&hdr),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: BindingResource::UniformBuffer(uniform),
+                },
+            ],
+        );
+        Self {
+            hdr,
+            depth,
+            tone_mapping_group,
+        }
+    }
 }
 
 impl Renderer {
-    /// Creates a renderer for targets of `format`.
+    /// Creates a renderer that draws into output targets of `format`: the window's, for a
+    /// windowed application (`Context::surface_format` in `slime-app`). An sRGB format encodes the
+    /// tone-mapped light for display; `Rgba16Float` holds the tone-mapped values themselves;
+    /// `Rgba8Unorm` stores them unencoded, which displays too dark.
     ///
     /// # Errors
     ///
-    /// [`RenderError::Gfx`] if the graphics driver rejects the renderer's shader or pipeline, or
-    /// if the device is lost.
+    /// [`RenderError::Gfx`] if the graphics driver rejects one of the renderer's two shaders or
+    /// two pipelines, or if the device is lost.
     pub fn new(gpu: &Gpu, format: TextureFormat) -> Result<Self, RenderError> {
-        let shader = gpu.create_shader_module("scene", SHADER)?;
+        let shader = gpu.create_shader_module("scene", SCENE_SHADER)?;
         let uniform = |label: &str, dynamic_offset: bool| {
             gpu.create_bind_group_layout(
                 label,
@@ -137,14 +222,14 @@ impl Renderer {
             ],
         );
         let instance_layout = uniform("instance", true);
-        let pipeline = gpu.create_render_pipeline(&RenderPipelineDescriptor {
+        let scene_pipeline = gpu.create_render_pipeline(&RenderPipelineDescriptor {
             label: "scene",
             shader: &shader,
             vertex_entry_point: "vs_main",
             vertex_layout: Some(VERTEX_LAYOUT),
             fragment: Some(FragmentState {
                 entry_point: "fs_main",
-                target_format: format,
+                target_format: HDR_FORMAT,
             }),
             bind_group_layouts: &[&frame_layout, &material_layout, &instance_layout],
             depth: Some(DepthState {
@@ -154,6 +239,40 @@ impl Renderer {
             }),
             cull: CullMode::Back,
         })?;
+
+        let tone_mapping_shader = gpu.create_shader_module("tone mapping", TONE_MAPPING_SHADER)?;
+        let tone_mapping_layout = gpu.create_bind_group_layout(
+            "tone mapping",
+            &[
+                BindGroupLayoutEntry {
+                    binding: 0,
+                    visible_to: ShaderStages::Fragment,
+                    ty: BindingType::Texture,
+                },
+                BindGroupLayoutEntry {
+                    binding: 1,
+                    visible_to: ShaderStages::Fragment,
+                    ty: BindingType::UniformBuffer {
+                        dynamic_offset: false,
+                    },
+                },
+            ],
+        );
+        let tone_mapping_pipeline = gpu.create_render_pipeline(&RenderPipelineDescriptor {
+            label: "tone mapping",
+            shader: &tone_mapping_shader,
+            vertex_entry_point: "vs_main",
+            vertex_layout: None,
+            fragment: Some(FragmentState {
+                entry_point: "fs_main",
+                target_format: format,
+            }),
+            bind_group_layouts: &[&tone_mapping_layout],
+            depth: None,
+            cull: CullMode::None,
+        })?;
+        let tone_mapping_uniform =
+            gpu.create_uniform_buffer("tone mapping", &[0; TONE_MAPPING_VALUES_SIZE]);
 
         let frame_uniform = gpu.create_uniform_buffer("frame", &[0; FRAME_VALUES_SIZE]);
         let frame_group = gpu.create_bind_group(
@@ -173,22 +292,27 @@ impl Renderer {
         );
         let default_sampler = gpu.create_sampler("default", &SamplerDescriptor::default());
         let instances = InstanceSlots::new(gpu, &instance_layout, INITIAL_INSTANCE_CAPACITY);
-        let timer = gpu.create_timer("scene");
-        if timer.is_none() {
+        let scene_timer = gpu.create_timer("scene");
+        let tone_mapping_timer = gpu.create_timer("tone mapping");
+        if scene_timer.is_none() {
             tracing::info!("the adapter cannot time its work: the statistics have no GPU time");
         }
         Ok(Self {
             format,
-            pipeline,
+            scene_pipeline,
+            tone_mapping_pipeline,
             material_layout,
             instance_layout,
+            tone_mapping_layout,
             frame_uniform,
             frame_group,
+            tone_mapping_uniform,
             white,
             default_sampler,
             instances,
-            depth: None,
-            timer,
+            targets: None,
+            scene_timer,
+            tone_mapping_timer,
         })
     }
 
@@ -241,14 +365,17 @@ impl Renderer {
         Material { group }
     }
 
-    /// Draws `scene` into `target`: clears it to the scene's color, then draws every instance
-    /// with the depth test, so that nearer surfaces hide farther ones whatever their order, each
-    /// surface lit by the scene's light according to its normal and colored by its material. The
-    /// work runs on the GPU after this method returns, as with
-    /// [`Gpu::render`](slime_gfx::Gpu::render).
+    /// Draws `scene` into `target`, in two passes. The scene pass clears a high-dynamic-range
+    /// target to the scene's background, then draws every instance into it with the depth test,
+    /// so that nearer surfaces hide farther ones whatever their order, each surface lit by the
+    /// scene's light according to its normal and colored by its material. The tone-mapping pass
+    /// then multiplies that light by the scene's exposure, maps it to the range a display shows,
+    /// and writes it into `target`, opaque. The work runs on the GPU after this method returns, as
+    /// with [`Gpu::render`](slime_gfx::Gpu::render).
     ///
-    /// The depth target is created at the size of `target` the first time, and again whenever
-    /// that size changes; the instance buffer grows when a scene has more instances than before.
+    /// The high-dynamic-range and depth targets are created at the size of `target` the first
+    /// time, and again whenever that size changes; the instance buffer grows when a scene has more
+    /// instances than before.
     ///
     /// # Panics
     ///
@@ -266,14 +393,24 @@ impl Renderer {
         );
         let (width, height) = (target.width(), target.height());
         if self
-            .depth
+            .targets
             .as_ref()
-            .is_none_or(|depth| (depth.width(), depth.height()) != (width, height))
+            .is_none_or(|targets| (targets.hdr.width(), targets.hdr.height()) != (width, height))
         {
-            tracing::debug!(width, height, "creating the depth target");
-            self.depth = Some(gpu.create_depth_target("scene depth", width, height));
+            tracing::debug!(
+                width,
+                height,
+                "creating the high-dynamic-range and depth targets"
+            );
+            self.targets = Some(SizedTargets::new(
+                gpu,
+                &self.tone_mapping_layout,
+                &self.tone_mapping_uniform,
+                width,
+                height,
+            ));
         }
-        let depth = self.depth.as_ref().expect("created above");
+        let targets = self.targets.as_ref().expect("created above");
 
         let mut frame_bytes = Vec::with_capacity(FRAME_VALUES_SIZE);
         push_mat4(
@@ -307,15 +444,19 @@ impl Renderer {
         }
         gpu.write_uniform_buffer(&self.instances.buffer, &instance_bytes);
 
+        let mut tone_mapping_bytes = Vec::with_capacity(TONE_MAPPING_VALUES_SIZE);
+        push_f32s(&mut tone_mapping_bytes, &[scene.exposure, 0.0, 0.0, 0.0]);
+        gpu.write_uniform_buffer(&self.tone_mapping_uniform, &tone_mapping_bytes);
+
         let mut stats = RenderStats::default();
-        let pass = RenderPassDescriptor {
-            target,
+        let scene_pass = RenderPassDescriptor {
+            target: &targets.hdr,
             clear: Some(scene.clear),
-            depth: Some(depth),
-            timer: self.timer.as_ref(),
+            depth: Some(&targets.depth),
+            timer: self.scene_timer.as_ref(),
         };
-        gpu.render(&pass, |pass| {
-            pass.set_pipeline(&self.pipeline);
+        gpu.render(&scene_pass, |pass| {
+            pass.set_pipeline(&self.scene_pipeline);
             pass.set_bind_group(0, &self.frame_group, &[]);
             for (slot, instance) in scene.instances.iter().enumerate() {
                 let offset = u32::try_from(slot * stride)
@@ -329,7 +470,23 @@ impl Renderer {
                 stats.triangles += u64::from(instance.mesh.triangle_count());
             }
         });
-        stats.gpu_time = self.timer.as_ref().and_then(GpuTimer::latest);
+        // The tone-mapping pass clears rather than keeps the output: its triangle covers every
+        // pixel, and a clear does not read what the window's image held before.
+        let tone_mapping_pass = RenderPassDescriptor {
+            target,
+            clear: Some(BLACK),
+            depth: None,
+            timer: self.tone_mapping_timer.as_ref(),
+        };
+        gpu.render(&tone_mapping_pass, |pass| {
+            pass.debug_group("tone mapping", |pass| {
+                pass.set_pipeline(&self.tone_mapping_pipeline);
+                pass.set_bind_group(0, &targets.tone_mapping_group, &[]);
+                pass.draw(0..3);
+            });
+        });
+        stats.scene_gpu_time = self.scene_timer.as_ref().and_then(GpuTimer::latest);
+        stats.tone_mapping_gpu_time = self.tone_mapping_timer.as_ref().and_then(GpuTimer::latest);
         stats.cpu_time = started.elapsed();
         stats
     }

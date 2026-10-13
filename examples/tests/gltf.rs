@@ -48,7 +48,7 @@ fn the_gltf_scene_matches_its_reference_images() {
     for (name, yaw, pitch) in [("gltf-front", 0.6, 0.45), ("gltf-back", 3.6, 0.25)] {
         let radius = bounds.radius();
         let camera = orbit::camera_at(bounds.center(), radius, radius * 2.2, yaw, pitch);
-        let stats = scene.render(&gpu, &target, camera);
+        let stats = scene.render(&gpu, &target, camera, 1.0);
         assert_eq!((stats.draw_calls, stats.triangles), (7, 2274));
         let image = gpu
             .read_render_target(&target)
@@ -248,7 +248,12 @@ fn a_mirrored_node_shows_the_same_faces_as_the_node_it_mirrors() {
             SampleScene::new(&gpu, target.format(), &file.bytes()).expect("the triangle loads");
         // Seen from +Z, at the center of the image: the center of the triangle.
         let center = Vec3::new(scale_x / 3.0, 1.0 / 3.0, 0.0);
-        scene.render(&gpu, &target, orbit::camera_at(center, 1.0, 3.0, 0.0, 0.0));
+        scene.render(
+            &gpu,
+            &target,
+            orbit::camera_at(center, 1.0, 3.0, 0.0, 0.0),
+            1.0,
+        );
         let image = gpu
             .read_render_target(&target)
             .expect("the image is read back");

@@ -1,9 +1,13 @@
-//! Lighting, checked by reading pixels back: a surface facing the light is fully lit, one facing
-//! away gets the ambient light only, and normals follow the rotation of an instance but not its
-//! scale. Also what the renderer keeps from one frame to the next, with the same lit square: the
-//! depth target follows the size of the target, the instance buffer grows beyond its first
-//! size, and the statistics give the GPU time of a frame. Runs on whatever adapter the machine
-//! offers.
+//! Lighting, checked by reading pixels back through the tone-mapping curve of the renderer
+//! (ADR-0034): a surface facing the light is fully lit, one facing away gets the ambient light
+//! only, normals follow the rotation of an instance but not its scale, and the exposure multiplies
+//! the light. Also what the renderer keeps from one frame to the next, with the same lit square:
+//! the targets follow the size of the output, the projection its aspect ratio, the instance buffer
+//! grows beyond its first size, and the statistics give the GPU time of each pass. Runs on
+//! whatever adapter the machine offers.
+
+#[path = "common/tone_curve.rs"]
+mod tone_curve;
 
 use std::time::Duration;
 
@@ -13,6 +17,8 @@ use slime_render::{
     Camera, DirectionalLight, Instance, Material, MaterialData, Mesh, MeshData, RenderStats,
     Renderer, Scene,
 };
+
+use tone_curve::displayed;
 
 const SIZE: u32 = 16;
 const BLACK: Color = Color {
@@ -62,21 +68,34 @@ impl Setup {
         }
     }
 
-    /// Draws the square with `transform` under `light`, seen from +Z, and returns the red channel
-    /// of the center pixel, sRGB-encoded.
+    /// Draws the square with `transform` under `light`, seen from +Z, at an exposure of 1, and
+    /// returns the red channel of the center pixel, sRGB-encoded.
     fn center_red(&mut self, light: DirectionalLight, transform: Mat4) -> u8 {
-        self.draw(light, &[transform], (SIZE, SIZE)).0
+        self.exposed_center_red(light, transform, 1.0)
+    }
+
+    /// The same, at `exposure`.
+    fn exposed_center_red(
+        &mut self,
+        light: DirectionalLight,
+        transform: Mat4,
+        exposure: f32,
+    ) -> u8 {
+        let (image, _) = self.draw(light, &[transform], (SIZE, SIZE), exposure);
+        let center = ((SIZE / 2 * SIZE + SIZE / 2) * 4) as usize;
+        image.pixels[center]
     }
 
     /// Draws an instance of the square for each of `transforms` under `light`, seen from +Z, into
-    /// a target of `width` × `height` pixels, and returns the red channel of the center pixel,
-    /// sRGB-encoded, and the statistics of the frame.
+    /// a target of `width` × `height` pixels at `exposure`, and returns the image, sRGB-encoded,
+    /// and the statistics of the frame.
     fn draw(
         &mut self,
         light: DirectionalLight,
         transforms: &[Mat4],
         (width, height): (u32, u32),
-    ) -> (u8, RenderStats) {
+        exposure: f32,
+    ) -> (Image, RenderStats) {
         let target =
             self.gpu
                 .create_render_target("lighting", width, height, TextureFormat::Rgba8UnormSrgb);
@@ -99,16 +118,29 @@ impl Setup {
                 camera,
                 light,
                 clear: BLACK,
+                exposure,
                 instances: &instances,
             },
         );
-        let image: Image = self
+        let image = self
             .gpu
             .read_render_target(&target)
             .expect("the image is read back");
+        (image, stats)
+    }
+
+    /// The red channel of the center pixel of a frame drawn by [`draw`](Self::draw), at an
+    /// exposure of 1.
+    fn center_of(&mut self, transforms: &[Mat4], (width, height): (u32, u32)) -> (u8, RenderStats) {
+        let (image, stats) = self.draw(from_the_front(), transforms, (width, height), 1.0);
         let center = ((height / 2 * width + width / 2) * 4) as usize;
         (image.pixels[center], stats)
     }
+}
+
+/// What the center of the square shows when it faces the light fully, at an exposure of 1.
+fn fully_lit() -> u8 {
+    displayed([1.0; 3])[0]
 }
 
 /// A light travelling towards −Z: it comes from the camera's side.
@@ -118,16 +150,6 @@ fn from_the_front() -> DirectionalLight {
         color: Vec3::ONE,
         ambient: Vec3::ZERO,
     }
-}
-
-/// The sRGB encoding of a linear value, out of 255.
-fn srgb(linear: f32) -> u8 {
-    let encoded = if linear <= 0.003_130_8 {
-        linear * 12.92
-    } else {
-        1.055 * linear.powf(1.0 / 2.4) - 0.055
-    };
-    (encoded * 255.0).round() as u8
 }
 
 fn assert_close(actual: u8, expected: u8, case: &str) {
@@ -142,7 +164,7 @@ fn a_surface_facing_the_light_is_fully_lit_and_one_facing_away_gets_the_ambient_
     let mut setup = Setup::new();
     assert_close(
         setup.center_red(from_the_front(), Mat4::IDENTITY),
-        255,
+        fully_lit(),
         "facing the light",
     );
     let from_behind = DirectionalLight {
@@ -152,7 +174,7 @@ fn a_surface_facing_the_light_is_fully_lit_and_one_facing_away_gets_the_ambient_
     };
     assert_close(
         setup.center_red(from_behind, Mat4::IDENTITY),
-        srgb(0.5),
+        displayed([0.5; 3])[0],
         "facing away, ambient light only",
     );
 }
@@ -164,7 +186,7 @@ fn normals_follow_the_rotation_of_the_instance_but_not_its_scale() {
     let turned = Mat4::from_rotation_y(60f32.to_radians());
     assert_close(
         setup.center_red(from_the_front(), turned),
-        srgb(60f32.to_radians().cos()),
+        displayed([60f32.to_radians().cos(); 3])[0],
         "turned by 60°",
     );
     // Turned by 45° about Y, then stretched four times along the world's X axis: the surface
@@ -175,7 +197,7 @@ fn normals_follow_the_rotation_of_the_instance_but_not_its_scale() {
     let normal = Vec3::new(1.0 / 4.0, 0.0, 1.0).normalize();
     assert_close(
         setup.center_red(from_the_front(), stretched),
-        srgb(normal.z),
+        displayed([normal.z; 3])[0],
         "turned by 45° and stretched along X",
     );
     // Flattened along Z, the axis of its normal, the square is unchanged and still faces the
@@ -183,20 +205,57 @@ fn normals_follow_the_rotation_of_the_instance_but_not_its_scale() {
     let flattened = Mat4::from_scale(Vec3::new(1.0, 1.0, 0.0));
     assert_close(
         setup.center_red(from_the_front(), flattened),
-        255,
+        fully_lit(),
         "flattened along its normal",
     );
 }
 
 #[test]
-fn the_depth_target_follows_the_size_of_the_target() {
+fn the_exposure_multiplies_the_light_that_surfaces_reflect() {
+    let mut setup = Setup::new();
+    let half = DirectionalLight {
+        color: Vec3::splat(0.5),
+        ..from_the_front()
+    };
+    // Both are exactly 1 before the curve: scaling by a power of two is exact in f32 and f16.
+    assert_eq!(
+        setup.exposed_center_red(half, Mat4::IDENTITY, 2.0),
+        setup.exposed_center_red(from_the_front(), Mat4::IDENTITY, 1.0),
+        "a light of 0.5 at an exposure of 2 shows as a light of 1 at an exposure of 1"
+    );
+    assert_close(
+        setup.exposed_center_red(from_the_front(), Mat4::IDENTITY, 0.5),
+        displayed([0.5; 3])[0],
+        "a light of 1 at an exposure of 0.5",
+    );
+}
+
+#[test]
+fn the_targets_follow_the_size_of_the_output() {
     let mut setup = Setup::new();
     // Only the height changes, then only the width, then both: a depth target of another size
-    // would make the pass panic.
+    // would make the pass panic, and a stale high-dynamic-range target would leave pixels unlit.
     for size in [(16, 16), (16, 8), (8, 8), (16, 16)] {
-        let (red, _) = setup.draw(from_the_front(), &[Mat4::IDENTITY], size);
-        assert_close(red, 255, &format!("a {size:?} target"));
+        let (red, _) = setup.center_of(&[Mat4::IDENTITY], size);
+        assert_close(red, fully_lit(), &format!("a {size:?} target"));
     }
+}
+
+#[test]
+fn the_projection_follows_the_aspect_ratio_of_the_output() {
+    let mut setup = Setup::new();
+    // The square, two units wide at three units from the camera, covers as many pixels across as
+    // down in a target twice as wide as it is high: a projection that ignored the aspect ratio
+    // would stretch it.
+    let (width, height) = (64, 32);
+    let (image, _) = setup.draw(from_the_front(), &[Mat4::IDENTITY], (width, height), 1.0);
+    let lit = |x: u32, y: u32| image.pixels[((y * width + x) * 4) as usize] > 0;
+    let across = (0..width).filter(|&x| lit(x, height / 2)).count();
+    let down = (0..height).filter(|&y| lit(width / 2, y)).count();
+    assert!(
+        across > 0 && across.abs_diff(down) <= 1,
+        "{across} across, {down} down"
+    );
 }
 
 #[test]
@@ -204,7 +263,7 @@ fn instances_beyond_the_first_instance_buffer_are_drawn_where_they_are() {
     let mut setup = Setup::new();
     assert_close(
         setup.center_red(from_the_front(), Mat4::IDENTITY),
-        255,
+        fully_lit(),
         "one instance",
     );
     // A hundred instances, more than the 64 the instance buffer starts with: all but the last
@@ -213,36 +272,41 @@ fn instances_beyond_the_first_instance_buffer_are_drawn_where_they_are() {
     let point = Mat4::from_scale(Vec3::ZERO);
     let mut transforms = vec![point; 99];
     transforms.push(Mat4::IDENTITY);
-    let (red, stats) = setup.draw(from_the_front(), &transforms, (SIZE, SIZE));
+    let (red, stats) = setup.center_of(&transforms, (SIZE, SIZE));
     assert_eq!(stats.draw_calls, 100);
-    assert_close(red, 255, "the last of 100 instances");
+    assert_close(red, fully_lit(), "the last of 100 instances");
     // Fewer instances again, in the grown buffer.
-    let (red, _) = setup.draw(
-        from_the_front(),
-        &[point, Mat4::IDENTITY, point],
-        (SIZE, SIZE),
-    );
-    assert_close(red, 255, "the second of 3 instances");
+    let (red, _) = setup.center_of(&[point, Mat4::IDENTITY, point], (SIZE, SIZE));
+    assert_close(red, fully_lit(), "the second of 3 instances");
 }
 
 #[test]
-fn the_statistics_give_the_gpu_time_on_adapters_that_can_time_their_work() {
+fn the_statistics_give_the_gpu_time_of_each_pass_on_adapters_that_can_time_their_work() {
     let mut setup = Setup::new();
-    let mut gpu_time = None;
+    let mut times = (None, None);
     for _frame in 0..8 {
-        let (_, stats) = setup.draw(from_the_front(), &[Mat4::IDENTITY], (SIZE, SIZE));
+        let (_, stats) = setup.center_of(&[Mat4::IDENTITY], (SIZE, SIZE));
         assert_eq!((stats.draw_calls, stats.triangles), (1, 2));
-        gpu_time = stats.gpu_time;
-        if gpu_time.is_some() {
+        times = (
+            times.0.or(stats.scene_gpu_time),
+            times.1.or(stats.tone_mapping_gpu_time),
+        );
+        if times.0.is_some() && times.1.is_some() {
             break;
         }
-        // Waiting is not needed to get a time back, but makes the test deterministic.
+        // Waiting is not needed to get the times back, but makes the test deterministic.
         setup.gpu.wait_idle().expect("the GPU finishes the frame");
     }
-    if setup.gpu.can_time() {
-        let time = gpu_time.expect("the GPU time of a frame comes back within a few frames");
-        assert!(time < Duration::from_secs(1), "{time:?}");
-    } else {
-        assert_eq!(gpu_time, None, "an adapter that cannot time gives no time");
+    eprintln!(
+        "adapter `{}`: scene and tone-mapping passes timed {times:?}",
+        setup.gpu.adapter_name()
+    );
+    for time in [times.0, times.1] {
+        if setup.gpu.can_time() {
+            let time = time.expect("the GPU time of each pass comes back within a few frames");
+            assert!(time < Duration::from_secs(1), "{time:?}");
+        } else {
+            assert_eq!(time, None, "an adapter that cannot time gives no time");
+        }
     }
 }

@@ -1,6 +1,10 @@
-//! Materials, checked by reading pixels back: a base color texture is read at the texture
-//! coordinates of the mesh and multiplied with the base color, and surfaces are opaque whatever
-//! the alpha of their base color. Runs on whatever adapter the machine offers.
+//! Materials, checked by reading pixels back through the tone-mapping curve of the renderer
+//! (ADR-0034): a base color texture is read at the texture coordinates of the mesh and multiplied
+//! with the base color, and surfaces are opaque whatever the alpha of their base color. Runs on
+//! whatever adapter the machine offers.
+
+#[path = "common/tone_curve.rs"]
+mod tone_curve;
 
 use slime_gfx::{AddressMode, Color, Filter, Gpu, Image, SamplerDescriptor, TextureFormat};
 use slime_render::glam::{Mat4, Vec3};
@@ -108,26 +112,27 @@ fn the_base_color_texture_is_read_at_the_texture_coordinates_and_tints_the_base_
         },
     );
 
-    // The pixels at 5 and 10 are inside the square's quarters, away from the texture's edges.
-    let white = [
-        [255, 0, 0, 255],
-        [0, 255, 0, 255],
-        [0, 0, 255, 255],
-        [255, 255, 255, 255],
+    // The pixels at 5 and 10 are inside the square's quarters, away from the texture's edges:
+    // red, green, blue and white texels, lit fully, so that what shows is the tone-mapped texel
+    // times the base color. With a white base color, about (241, 33, 33) for each primary and
+    // 240 for white; with half of it, 188 for each primary, which the curve leaves alone (no
+    // channel above 0.76, none at an offset), and 181 for white.
+    let quarters: [[f32; 3]; 4] = [
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0],
+        [1.0, 1.0, 1.0],
     ];
+    let shown = |base: f32| {
+        quarters.map(|texel| {
+            let [r, g, b] = tone_curve::displayed(texel.map(|channel| channel * base));
+            [r, g, b, 255]
+        })
+    };
     for (material, expected, case) in [
-        (&plain, white, "white base color"),
-        (
-            &dimmed,
-            [
-                [188, 0, 0, 255],
-                [0, 188, 0, 255],
-                [0, 0, 188, 255],
-                [188, 188, 188, 255],
-            ],
-            "half base color",
-        ),
-        (&translucent, white, "half alpha"),
+        (&plain, shown(1.0), "white base color"),
+        (&dimmed, shown(0.5), "half base color"),
+        (&translucent, shown(1.0), "half alpha"),
     ] {
         let instances = [Instance {
             mesh: &square,
@@ -141,6 +146,7 @@ fn the_base_color_texture_is_read_at_the_texture_coordinates_and_tints_the_base_
                 camera,
                 light,
                 clear: BLACK,
+                exposure: 1.0,
                 instances: &instances,
             },
         );

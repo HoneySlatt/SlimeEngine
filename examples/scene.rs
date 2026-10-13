@@ -1,7 +1,8 @@
 //! Draws a glTF scene with the renderer, lit by a directional light, seen from a camera that
 //! orbits it until the mouse takes over: drag with the left button to turn around it, roll the
-//! wheel to come nearer or go farther. A dev overlay shows what each frame costs; F1 hides and
-//! shows it. The sample of Stage 3a. Escape, closing the window or Ctrl+C quits.
+//! wheel to come nearer or go farther. A dev overlay shows what each frame costs, with the GPU
+//! time of each pass, and a slider that changes the exposure; F1 hides and shows it. The sample of
+//! Stages 3a and 3b. Escape, closing the window or Ctrl+C quits.
 //!
 //! ```sh
 //! cargo run --example scene                              # the scene of examples/assets/scene.glb
@@ -146,6 +147,9 @@ struct SceneExample {
     drawn: u64,
     /// What the last frame cost.
     stats: RenderStats,
+    /// What the scene's light is multiplied by before tone mapping; the overlay's slider changes
+    /// it.
+    exposure: f32,
 }
 
 impl App for SceneExample {
@@ -209,7 +213,7 @@ impl App for SceneExample {
         let (Some(gpu), Some(scene)) = (ctx.gpu(), &mut self.scene) else {
             return;
         };
-        self.stats = scene.render(gpu, target, self.camera.camera());
+        self.stats = scene.render(gpu, target, self.camera.camera(), self.exposure);
         self.drawn += 1;
         if let Some(overlay) = &mut self.overlay {
             let show = self.show_overlay;
@@ -217,6 +221,8 @@ impl App for SceneExample {
             let stats = self.stats;
             let frame_ms = self.frame_ms;
             let size = (target.width(), target.height());
+            // The overlay's slider changes it; the scene is drawn with it from the next frame.
+            let exposure = &mut self.exposure;
             // Drawn with no panel while hidden, so that egui still takes the events handed to the
             // overlay as they come, not all at once when it is shown again.
             overlay.render(gpu, target, |ctx| {
@@ -233,17 +239,30 @@ impl App for SceneExample {
                             "render on the CPU: {:.2} ms",
                             stats.cpu_time.as_secs_f64() * 1000.0
                         ));
-                        ui.label(match stats.gpu_time {
-                            Some(time) => {
-                                format!("render on the GPU: {:.3} ms", time.as_secs_f64() * 1000.0)
-                            }
-                            None => "render on the GPU: not measured".to_owned(),
-                        });
+                        for (pass, time) in [
+                            ("scene", stats.scene_gpu_time),
+                            ("tone mapping", stats.tone_mapping_gpu_time),
+                        ] {
+                            ui.label(match time {
+                                Some(time) => format!(
+                                    "{pass} on the GPU: {:.3} ms",
+                                    time.as_secs_f64() * 1000.0
+                                ),
+                                None => format!("{pass} on the GPU: not measured"),
+                            });
+                        }
                         ui.label(format!(
                             "{} draw calls, {} triangles",
                             stats.draw_calls, stats.triangles
                         ));
                         ui.label(format!("{} × {} pixels", size.0, size.1));
+                        // Logarithmic, so that equal drags are equal photographic stops: from
+                        // 1/16 to 16, four stops each way.
+                        ui.add(
+                            egui::Slider::new(exposure, 1.0 / 16.0..=16.0)
+                                .logarithmic(true)
+                                .text("exposure"),
+                        );
                         ui.label("F1 hides this");
                     });
             });
@@ -256,7 +275,8 @@ impl App for SceneExample {
             draw_calls = self.stats.draw_calls,
             triangles = self.stats.triangles,
             cpu_time = ?self.stats.cpu_time,
-            gpu_time = ?self.stats.gpu_time,
+            scene_gpu_time = ?self.stats.scene_gpu_time,
+            tone_mapping_gpu_time = ?self.stats.tone_mapping_gpu_time,
             "shutdown"
         );
     }
@@ -295,6 +315,7 @@ fn main() -> ExitCode {
         camera: OrbitCamera::new(Vec3::ZERO, 1.0, 1.0, 0.0, 0.0),
         overlay: None,
         show_overlay: true,
+        exposure: 1.0,
         frame_ms: 0.0,
         drawn: 0,
         stats: RenderStats::default(),

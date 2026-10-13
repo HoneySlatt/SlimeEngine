@@ -3,7 +3,7 @@
 //! `tests/reference/shapes.png` within a tolerance (ADR-0018).
 //!
 //! The reference was rendered with lavapipe, like the triangle's. To render it again, after a
-//! deliberate change of the shapes:
+//! deliberate change of the shapes or of the renderer:
 //!
 //! ```sh
 //! SLIME_UPDATE_REFERENCE_IMAGES=1 VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \

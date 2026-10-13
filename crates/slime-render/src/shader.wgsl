@@ -1,5 +1,7 @@
-// The shader of every draw: vertices transformed by their instance and the camera, surfaces lit
-// by the scene's directional light and colored by their material.
+// The shader of the scene pass: vertices transformed by their instance and the camera, surfaces
+// lit by the scene's directional light and colored by their material, written into the
+// high-dynamic-range target, where light may exceed 1; the tone-mapping pass then maps it to the
+// output (ADR-0034).
 
 struct FrameUniform {
     // From world space to clip space.

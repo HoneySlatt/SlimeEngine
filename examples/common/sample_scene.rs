@@ -58,8 +58,15 @@ impl SampleScene {
         &self.loaded.bounds
     }
 
-    /// Draws the scene into `target` as `camera` sees it.
-    pub fn render(&mut self, gpu: &Gpu, target: &RenderTarget, camera: Camera) -> RenderStats {
+    /// Draws the scene into `target` as `camera` sees it, its light multiplied by `exposure` (1
+    /// leaves it as it is) before tone mapping.
+    pub fn render(
+        &mut self,
+        gpu: &Gpu,
+        target: &RenderTarget,
+        camera: Camera,
+        exposure: f32,
+    ) -> RenderStats {
         let instances = self.loaded.instances();
         self.renderer.render(
             gpu,
@@ -68,6 +75,7 @@ impl SampleScene {
                 camera,
                 light: LIGHT,
                 clear: BACKGROUND,
+                exposure,
                 instances: &instances,
             },
         )
