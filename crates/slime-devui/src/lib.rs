@@ -143,7 +143,12 @@ impl Overlay {
         let uploads =
             self.renderer
                 .update_buffers(device, queue, &mut encoder, &primitives, &screen);
-        queue.submit(uploads.into_iter().chain([encoder.finish()]));
+        // Only egui's paint callbacks, which the overlay has none of, record into the encoder or
+        // return command buffers. The buffer uploads are queued writes, which wgpu submits ahead
+        // of the overlay's pass below: a submission of their own would be an empty one.
+        if !uploads.is_empty() {
+            queue.submit(uploads.into_iter().chain([encoder.finish()]));
+        }
         let pass = RenderPassDescriptor {
             target,
             clear: None,
@@ -237,6 +242,41 @@ mod tests {
             overlay.wants_pointer(),
             "the window was drawn in the layout egui kept"
         );
+    }
+
+    #[test]
+    fn the_panels_are_drawn_over_what_the_target_holds() {
+        let gpu = gpu();
+        let target = gpu.create_render_target("overlay target", 200, 200, FORMAT);
+        let mut overlay = Overlay::new(&gpu, FORMAT, 1.0);
+        let black = slime_gfx::Color {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+            a: 1.0,
+        };
+        let scene = RenderPassDescriptor {
+            target: &target,
+            clear: Some(black),
+            depth: None,
+            timer: None,
+        };
+        // egui sizes the window on the first frame and draws it from the second.
+        for _ in 0..2 {
+            gpu.render(&scene, |_| {});
+            overlay.render(&gpu, &target, |ctx| {
+                // Without fading in, the window is opaque from its first frame.
+                ctx.all_styles_mut(|style| style.animation_time = 0.0);
+                egui::Window::new("panel")
+                    .default_pos(egui::pos2(10.0, 10.0))
+                    .show(ctx, |ui| ui.label("text"));
+            });
+        }
+
+        let image = gpu.read_render_target(&target).expect("read the target");
+        let pixel = |x: usize, y: usize| &image.pixels[(y * 200 + x) * 4..][..3];
+        assert_ne!(pixel(20, 20), [0, 0, 0], "the window is drawn");
+        assert_eq!(pixel(190, 190), [0, 0, 0], "the scene is kept around it");
     }
 
     #[test]
