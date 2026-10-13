@@ -35,6 +35,7 @@ fn gpu() -> Gpu {
 }
 
 /// Draws a scene without instances, whose background is `light`, into `output` at `exposure`.
+/// The background's alpha is 0, which the output must not show: it is opaque (ADR-0034).
 fn draw(
     gpu: &Gpu,
     renderer: &mut Renderer,
@@ -49,7 +50,7 @@ fn draw(
         &Scene {
             camera: Camera::default(),
             light: DirectionalLight::default(),
-            clear: Color { r, g, b, a: 1.0 },
+            clear: Color { r, g, b, a: 0.0 },
             exposure,
             instances: &[],
         },
