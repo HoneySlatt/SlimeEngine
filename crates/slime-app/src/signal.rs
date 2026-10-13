@@ -13,9 +13,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 static RECEIVED: AtomicBool = AtomicBool::new(false);
 
 /// Installs the process-wide signal handler, once. The first signal sets a flag, which the drivers
-/// check between frames, and logs that it was received; a second one ends the process at
-/// once, with exit code 130 and without a log line, in case the application no longer reaches the
-/// end of a frame.
+/// check between frames, and logs that it was received, from another thread: the line can come
+/// after lines the run writes later, and is lost if the process ends first. A second signal ends
+/// the process at once, with exit code 130 and without a log line, in case the application no
+/// longer reaches the end of a frame.
 ///
 /// The handler replaces whatever the process had set for these signals: another library's
 /// handlers, or an inherited "ignore" (as under `nohup`, or for a command started in the
@@ -29,8 +30,9 @@ pub(crate) fn install_handler() {
         // `ctrlc` runs this on one thread, which waits for the next signal only once it returns.
         // Writing to standard error can block, when it is a pipe that nobody reads, so a log line
         // written here could keep the second signal from ever being handled: the second signal
-        // writes nothing, and the first one's line is written from a thread of its own (lost if
-        // that thread cannot start).
+        // writes nothing, and the first one's line is written from a thread of its own, which is
+        // not waited for. The line can therefore come after the run's own lines, and is lost if
+        // the process ends before that thread writes it, or if the thread cannot start.
         let installed = ctrlc::set_handler(|| {
             if RECEIVED.swap(true, Ordering::SeqCst) {
                 std::process::exit(130);
