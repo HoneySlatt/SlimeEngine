@@ -482,6 +482,20 @@ GitHub issues, linked from their entry; this list stays the reference.
   where glTF keeps the front faces. The examples' glTF loader works around it: a mirrored node
   draws a copy of its mesh whose triangles are wound the other way. M3b.3, whose double-sided
   materials need a pipeline chosen per draw too, plans the fix.
+- **A mesh flattened between two rotations can be lit from the wrong side.** When a zero scale
+  sits between two rotations (a glTF node scaled to zero along one axis, under a turned parent,
+  with a turned child), the columns of the instance's transform lie in one plane only up to
+  rounding, and its determinant is rounding noise of either sign. The renderer reads a negative
+  one as a mirror and negates the normal matrix: drawn through `Renderer` directly, about two such
+  meshes in five get the ambient light only on their visible faces. The examples' glTF loader
+  decides whether to reverse a node's winding from a determinant computed another way, which
+  agrees with the renderer's for about 92 % of such transforms, so about 8 % of such nodes are
+  lit wrong. Counting a determinant as positive when it is negligible next to the lengths of the
+  columns (under 1e-5 of their product, about 80 times the noise) fixes the renderer, but the
+  loader must decide the same way, or 40 % of such nodes would be lit wrong instead of 8 %
+  (measured on 2026-10-13 over 3600 such transforms). In M3b.3 both decisions become one: the
+  renderer chooses the culling of each draw from the same test, and the loader stops reversing
+  the winding.
 - **The instance buffer is uploaded at its largest size every frame.** `Renderer::render` packs,
   zero-fills and uploads `capacity × stride` bytes (256-byte slots with the default limits), where
   the capacity is the largest instance count ever drawn, rounded up to a power of two (at least
