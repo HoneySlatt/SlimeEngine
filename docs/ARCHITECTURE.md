@@ -342,9 +342,11 @@ is: `Surface::check` reports it, and the run stops the same way with `GfxError::
 
 `run` installs, once per process, a handler for SIGINT (Ctrl+C), SIGTERM and SIGHUP
 ([`crates/slime-app/src/signal.rs`](../crates/slime-app/src/signal.rs)). The handler runs on a
-thread of its own and only sets a flag; before each frame, the driver records the flag in the
-`Context` as an exit request, so the run stops like any other: the frame in progress finishes and
-`app.shutdown` runs. A second signal ends the process at once with exit code 130
+thread of its own: it sets a flag and hands its log line to another thread, so that a blocked
+standard error cannot keep a second signal from being handled; before each frame, the driver
+records the flag in the `Context` as an exit request, so the run stops like any other: the frame
+in progress finishes and `app.shutdown` runs. A second signal ends the process at once with exit
+code 130
 ([ADR-0012](adr/0012-clean-shutdown-on-termination-signals.md)).
 
 ### Frame timing
