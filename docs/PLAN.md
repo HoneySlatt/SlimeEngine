@@ -488,15 +488,16 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **A GPU device lost by a frame's own submission is checked by hand only** (ADR-0022). The
   `device-lost` scenario of `crates/slime-app/tests/windowed_lifecycle.rs` destroys the device in
   the middle of a frame and checks that the run stops: no frame drawn after it, `shutdown` called
-  once, and `run` returning `RunError::Gfx(GfxError::DeviceLost)`. The most likely loss in a windowed frame is one that a submission of `App::render` finds,
-  between `Surface::acquire` and `SurfaceFrame::present`: wgpu 30 then refuses to present the
-  image and keeps it, and on Vulkan, dropping the surface at the end of the run panicked in
-  wgpu-hal. `present` now destroys the image's texture instead, which releases what wgpu-hal holds
-  for it (it relies on wgpu-core 30's `Texture::destroy`, to check again when wgpu is upgraded).
-  This was checked by hand on 2026-10-13 in a headless Weston with lavapipe, with a temporary hook
-  that destroys the device from `App::render`: before the fix the run panicked, after it `run`
-  returns `DeviceLost`. A test cannot keep this check: a destroyed device records its loss only in
-  a poll, and that poll releases the image itself.
+  once, and `run` returning `RunError::Gfx(GfxError::DeviceLost)`. The most likely loss in a
+  windowed frame is one that a submission of `App::render` finds, between `Surface::acquire` and
+  `SurfaceFrame::present`: wgpu 30 then refuses to present the image and keeps it, and on Vulkan,
+  dropping the surface at the end of the run panicked in wgpu-hal. `present` now destroys the
+  image's texture instead, which releases what wgpu-hal holds for it (it relies on wgpu-core 30's
+  `Texture::destroy`, to check again when wgpu is upgraded). This was checked by hand on 2026-10-13
+  in a headless Weston with lavapipe, with a temporary hook that destroys the device from
+  `App::render`: before the fix the run panicked, after it `run` returns `DeviceLost`. A test cannot
+  keep this check: a destroyed device records its loss only in a poll, and that poll releases the
+  image itself.
 - **A window frame dropped without being presented keeps one of the window's images on Vulkan.**
   wgpu 30 discards such a frame with wgpu-hal's `discard_texture`, which does nothing on Vulkan.
   The image stays acquired until the surface is configured again, and once none is left,

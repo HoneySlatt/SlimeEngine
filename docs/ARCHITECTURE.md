@@ -403,10 +403,10 @@ The engine targets Linux (`x86_64-unknown-linux-gnu`) and Windows (`x86_64-pc-wi
   - On Windows, `Translator::translate` releases both Shift keys on a key-up of either, since
     Windows sends a single key-up for the two.
 
-  Where winit's events differ between platforms, `slime-platform` makes them agree: `Translator`
-  in `event.rs` pairs key and mouse button events across focus changes. One difference shapes the main loop: on
-  Windows, the system runs its own loop while the user resizes or moves a window, which is why
-  frames run on redraw requests.
+  Where winit's events differ between platforms, `slime-platform` makes them agree: `Translator` in
+  `event.rs` pairs key and mouse button events across focus changes. One difference shapes the main
+  loop: on Windows, the system runs its own loop while the user resizes or moves a window, which is
+  why frames run on redraw requests.
 - `ctrlc` hides signals (Unix) and console events (Windows); `crates/slime-app/src/signal.rs`
   describes how each platform behaves.
 - wgpu hides the graphics APIs; `slime-gfx` only chooses which one to ask for on each platform
