@@ -116,7 +116,9 @@ if let Err(error) = slime_app::run(&mut Game, &config) {
     (`docs/adr/0022-losing-the-gpu-device.md`, `docs/adr/0025-giving-up-a-lost-surface.md`). Only
     one windowed run, or attempt, is possible per process.
   - The signal handler replaces any other handler the process had for these signals, except one
-    installed earlier through the `ctrlc` crate, which is kept.
+    installed earlier through the `ctrlc` crate, which is kept. It stays installed after `run`
+    returns: a signal then no longer ends the process by itself, and only the second one received
+    in the process ends it (exit code 130).
   - On Windows, Ctrl+C and Ctrl+Break in a console stop the run the same way; closing the console
     window ends the process at once, without `shutdown`.
 - `AppConfig`: the window (`None`, the default, runs headless), frame limit, fixed step

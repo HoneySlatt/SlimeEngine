@@ -215,10 +215,12 @@ pub(crate) enum ExitReason {
 /// process) and SIGHUP (the terminal closing). The first one stops the run cleanly, like an exit
 /// request; a second one ends the process at once with exit code 130, for an application that no
 /// longer finishes its frames. A signal received once stops every later run in the process too.
-/// The handler replaces whatever the process had set for these signals, including another
-/// library's handlers and an inherited "ignore" (as under `nohup`). The only exception is a
-/// handler installed earlier through the `ctrlc` crate, for example by the game: it is kept, and
-/// signals then do not stop runs cleanly.
+/// The handler stays installed after `run` returns, and a signal then no longer ends the process
+/// by itself: if none was received yet, the first one only stops later runs; the next one ends
+/// the process with exit code 130. The handler replaces whatever the process had set for these
+/// signals, including another library's handlers and an inherited "ignore" (as under `nohup`). The
+/// only exception is a handler installed earlier through the `ctrlc` crate, for example by the
+/// game: it is kept, and signals then do not stop runs cleanly.
 ///
 /// On Windows, Ctrl+C and Ctrl+Break in a console stop the run the same way. Closing the console
 /// window ends the process at once, without `shutdown`.
