@@ -14,8 +14,10 @@ apply to every contributor.
 
 ## Development environment
 
-The engine supports Linux and Windows, both on x86_64; macOS comes later
-([ADR-0015](docs/adr/0015-platforms-and-ci.md)). Development happens mostly on Linux, with Nix.
+The engine supports Linux and Windows, both on x86_64
+([ADR-0015](docs/adr/0015-platforms-and-ci.md)); macOS comes later
+([ADR-0014](docs/adr/0014-amend-roadmap-for-stage-2-and-windows.md)). Development happens mostly
+on Linux, with Nix.
 
 The Rust toolchain is pinned in [`rust-toolchain.toml`](rust-toolchain.toml): an exact stable
 version with clippy, rustfmt, the standard library sources, rust-analyzer, and the Windows
@@ -33,7 +35,7 @@ nix develop
 
 The shell it opens contains the pinned toolchain and the project's tools: `cargo-deny` (checks
 dependency licenses and security advisories), `lychee` (checks links in the documentation) and
-Weston (a Wayland compositor without screen, in which the checks run the windowed sample). It
+Weston (a Wayland compositor without screen, in which the checks run the windowed samples). It
 also puts the windowing libraries that the engine loads at run time on the loader path.
 [`flake.lock`](flake.lock) pins every input, so every contributor and CI get the same versions.
 To run a single command in that environment without opening a shell, use
@@ -75,10 +77,14 @@ The GPU layer uses Vulkan on Linux and Direct3D 12 on Windows
   Mesa's Vulkan drivers (on Debian and Ubuntu, `mesa-vulkan-drivers`) and point `VK_DRIVER_FILES`
   at their `lvp_icd.x86_64.json` file.
 - `WGPU_BACKEND` chooses another graphics API that the build supports (`WGPU_BACKEND=vulkan` on
-  Windows), and `WGPU_VALIDATION=1` turns on the validation layers of Vulkan or Direct3D 12, when
-  they are installed.
+  Windows), `WGPU_VALIDATION=1` turns on the validation layers of Vulkan or Direct3D 12, when
+  they are installed, and `WGPU_DEBUG=1` passes the engine's labels and debug groups to the
+  driver in release builds, as debug builds always do.
 - Image tests compare a render with a reference image stored in `examples/tests/reference/`,
-  within a tolerance ([ADR-0018](docs/adr/0018-reference-image-tests.md)). When one fails, it
+  within a tolerance that depends on the driver
+  ([ADR-0018](docs/adr/0018-reference-image-tests.md), amended by
+  [ADR-0028](docs/adr/0028-image-tests-tolerate-a-few-pixels.md) and
+  [ADR-0030](docs/adr/0030-image-tests-strict-on-the-reference-driver.md)). When one fails, it
   prints the path of the image it rendered; compare the two by eye. If your change alters what a
   test draws on purpose, render the reference again on lavapipe, look at the new image, and commit
   it with the change (this renders the references of every image test; each test names its
@@ -148,8 +154,10 @@ The script also runs clippy for the Windows target, which catches code that does
 Windows without a Windows machine.
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push to `main` and every
-pull request. A Linux job runs the same script; a Windows job runs clippy, the tests and the
-headless samples on Windows, runs the release build of the headless ones, and publishes the
+pull request. A Linux job runs the same script; a Windows job runs clippy, the tests, then the
+image tests and the GPU timing test again with `--nocapture` so that its log shows what they
+measured on WARP, then the headless samples on Windows, runs the release build of the headless
+ones, and publishes the
 `hello`, `headless`, `window`, `offscreen` and `scene` examples built for Windows as an artifact named
 `slime-examples-windows`, to run by hand on a Windows machine. The Windows job runs the tests one
 at a time (`--test-threads=1`): WARP's shader compiler crashes the process, now and then, when

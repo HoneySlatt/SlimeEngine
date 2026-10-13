@@ -3,11 +3,11 @@
 Terms that this project defines, or uses with a narrower meaning than usual. Standard Rust and
 game-development vocabulary is not repeated here. Entries are in alphabetical order.
 
-**ADR (Architecture Decision Record).** A short document in [`docs/adr/`](adr/README.md) that
-records one decision: its context, the decision, the alternatives rejected and the consequences.
-
 **Adapter.** A GPU as wgpu sees it, through one graphics API: a discrete or integrated GPU, or a
 software driver such as lavapipe or WARP. The engine opens one adapter's *device* to use it.
+
+**ADR (Architecture Decision Record).** A short document in [`docs/adr/`](adr/README.md) that
+records one decision: its context, the decision, the alternatives rejected and the consequences.
 
 **Application time.** The sum of the deltas of all frames so far (`FrameTime::elapsed`). It
 falls behind wall-clock time when a frame delta is limited, for example after a pause.
@@ -16,6 +16,14 @@ falls behind wall-clock time when a frame delta is limited, for example after a 
 `@group` index: uniform buffers, textures and samplers (`slime_gfx::BindGroup`). Its
 *bind group layout* says which bindings it has and what each holds (`slime_gfx::BindGroupLayout`,
 [ADR-0026](adr/0026-resource-binding-and-depth.md)).
+
+**Checks (the).** The automated checks of the *definition of done*, which `scripts/check.sh` runs
+and the Linux CI job runs unchanged: formatting, clippy (for Windows too), the build, the tests on
+lavapipe, rustdoc, the dependency rules, the samples without a display server and in a headless
+Weston compositor, and the links between documents ([`CONTRIBUTING.md`](../CONTRIBUTING.md#checks)).
+
+**Client of the engine.** A crate or program built on the engine's public API only, which no engine
+crate depends on: the examples, the dev *overlay* (`slime-devui`) and, later, the editor.
 
 **Culling.** Not drawing the triangles that face one way, usually the back faces of closed
 meshes, which their front faces hide anyway (`slime_gfx::CullMode`). A triangle faces the front
@@ -41,6 +49,17 @@ headless driver (frames back to back, simulated time) and a windowed driver, cal
 windowing library's event loop, which measures real time, asks for frames at a limited rate and
 runs them on *redraw requests*. All drivers run frames the same way
 ([ADR-0010](adr/0010-main-loop-ownership.md)). Not to be confused with a GPU driver.
+
+**Dynamic offset.** The start of the range of a *uniform buffer* that a *bind group* binds, given
+each time the group is bound (`RenderPass::set_bind_group`) rather than when the group is created,
+as a multiple of `Gpu::uniform_offset_alignment`. One buffer and one group then serve many draws,
+one range each: the renderer's instances ([ADR-0027](adr/0027-the-render-crate.md)).
+
+**Engine-owned type.** A type of an engine crate that holds an object of a third-party library and
+exposes only what the engine needs, so that the library's types never appear in a public API: the
+GPU objects of `slime_gfx` hold wgpu's, `slime_platform::Window` holds winit's
+([ADR-0011](adr/0011-windowing-with-winit.md), [ADR-0016](adr/0016-gpu-layer-with-wgpu.md),
+[ADR-0017](adr/0017-gpu-resource-types.md)).
 
 **Example.** A runnable program in the `examples/` directory that demonstrates one feature.
 
@@ -92,11 +111,17 @@ them, built for each frame.
 creation method of `slime_gfx::Gpu`. Error messages and GPU capture tools show it.
 
 **lavapipe.** Mesa's Vulkan driver that renders on the CPU. The checks and CI use it on Linux, so
-that GPU tests give the same results on every machine, including machines without a GPU.
+that GPU tests give the same results on every machine, including machines without a GPU. It is
+the *reference driver* of the image tests.
 
 **Logical key.** What a key means with the current keyboard layout and modifiers
 (`slime_platform::Key`): on a French AZERTY keyboard, the first letter key of the top row gives
 the logical key `"a"`. Suits shortcuts and text. See also *physical key*.
+
+**Logical pixel.** A pixel of the window as the user sees it; the *scale factor*
+(`Window::scale_factor`, `Event::ScaleFactorChanged`) says how many *physical pixels*, the
+display's, it covers. The sizes of `WindowConfig` are logical; `Window::inner_size`,
+`Event::CursorMoved` and render targets are physical. egui calls logical pixels *points*.
 
 **Material.** How a surface looks: a base color, which a texture read with a *sampler* may
 modulate, and which the scene's light multiplies (`slime_render::Material`, from
@@ -108,6 +133,14 @@ indices, uploaded to the GPU (`slime_render::Mesh`, from `MeshData`).
 **Milestone.** A small, verifiable step of a stage, listed with its goal, its done criteria and
 how to test it in [`docs/PLAN.md`](PLAN.md). Milestones are numbered `M<stage>.<n>`, for example
 M1.3.
+
+**Mipmaps.** Copies of a texture at half, a quarter, ... of its size, down to one pixel: the
+*levels of detail* among which a *sampler* chooses by the size the texture is drawn at, so that a
+minified texture does not alias. The engine computes them on the CPU when the texture is created
+(`Gpu::create_texture`), in linear light for the sRGB formats; linear filtering blends two levels.
+
+**Normal matrix.** The inverse transpose of an instance's transform, by which the renderer
+transforms its normals so that they stay perpendicular to surfaces scaled unevenly.
 
 **Offscreen rendering.** Drawing into an image that no window shows, a *render target*, for
 example to read it back to the CPU. Image tests render this way, without a windowing system.
@@ -124,6 +157,8 @@ replaces it.
 letter key of the top row is `KeyQ` on every layout, whether it is labelled Q (QWERTY) or A
 (AZERTY). Suits movement keys. See also *logical key*.
 
+**Physical pixel.** A pixel of the display. See *logical pixel*.
+
 **Present (an image).** Hand a drawn image to the window, which shows it at one of the display's
 next refreshes, as the *present mode* says.
 
@@ -137,12 +172,17 @@ either the engine asked for it (`Window::request_redraw`), or the system did on 
 example during a resize. The windowed driver runs a frame for each one
 ([ADR-0020](adr/0020-rendering-in-the-main-loop.md)).
 
-**Reference image.** A PNG file stored in the repository that an *image test* compares its render
-with. The references are rendered with lavapipe and rendered again only after a deliberate change
-of what the test draws.
+**Reference driver.** The driver that rendered the *reference images* and is held to the strict
+tolerance of the *image tests*: lavapipe, recognized by its adapter name
+([ADR-0030](adr/0030-image-tests-strict-on-the-reference-driver.md)).
 
-**Render target.** An image the GPU draws into, which can be read back to the CPU
-(`slime_gfx::RenderTarget`).
+**Reference image.** A PNG file stored in the repository that an *image test* compares its render
+with. The references are rendered with lavapipe and rendered again only on purpose: after a
+deliberate change of what the test draws, or after an update of lavapipe that changes them
+([ADR-0030](adr/0030-image-tests-strict-on-the-reference-driver.md)).
+
+**Render target.** An image the GPU draws into (`slime_gfx::RenderTarget`): an offscreen image,
+which can be read back to the CPU, or the image of a window for one frame, which cannot.
 
 **Sample.** The example that demonstrates the exit criterion of a stage. Every stage ends with
 one.
@@ -177,6 +217,15 @@ up, which stops the run, when that fails or when it is lost again each time
 terminal), SIGTERM (a service manager or `kill`) or SIGHUP (the terminal closing). The first one
 stops a run cleanly; a second one ends the process at once
 ([ADR-0012](adr/0012-clean-shutdown-on-termination-signals.md)).
+
+**Timestamp query.** A GPU feature that writes the GPU's clock at a point of its command stream;
+two of them, around a render pass, give its *GPU time* (`slime_gfx::GpuTimer`). Optional: the
+device asks for it only when the adapter offers it (`Gpu::can_time`,
+[ADR-0031](adr/0031-dev-overlay-with-egui.md)).
+
+**Tooling (engine's).** Code that serves development and ships with no game: the dev *overlay*
+today. It alone may reach wgpu, through the `wgpu` feature of `slime-gfx`
+([ADR-0031](adr/0031-dev-overlay-with-egui.md)).
 
 **Uniform buffer.** A buffer of values that a whole draw reads, such as a camera's matrices,
 declared `var<uniform>` in WGSL and read through a *bind group* (`slime_gfx::UniformBuffer`).

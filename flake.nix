@@ -27,7 +27,7 @@
           (pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml)
           pkgs.cargo-deny
           pkgs.lychee
-          # A compositor without a screen, in which scripts/check.sh runs the windowed sample.
+          # A compositor without a screen, in which scripts/check.sh runs the windowed samples.
           pkgs.weston
         ];
 

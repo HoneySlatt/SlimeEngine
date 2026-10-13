@@ -28,7 +28,7 @@ The roadmap is an overview. It sets direction and dependency order; it does not 
 
 ## Environment and commands
 
-Development happens on NixOS, under Wayland. Everything must build and run there, and on Windows (x86_64, MSVC toolchain): CI checks Windows on every push, and windowed behaviour is checked by hand in a Windows virtual machine (ADR-0015). `scripts/check.sh` also compiles the code for Windows, so most Windows breakage shows up on Linux.
+Development happens on NixOS, under Wayland. Everything must build and run there, and on Windows (x86_64, MSVC toolchain): CI checks Windows on every push to `main` and every pull request, and windowed behaviour is checked by hand in a Windows virtual machine (ADR-0015). `scripts/check.sh` also compiles the code for Windows, so most Windows breakage shows up on Linux.
 
 ```sh
 nix develop                                               # enter the dev shell
@@ -41,7 +41,7 @@ scripts/check.sh                                          # everything above, pl
 cargo run --example <name>                                # run an example (list in examples/README.md)
 ```
 
-`scripts/check.sh` is what CI runs. Besides the commands above, it checks dependency licenses, security advisories and sources with `cargo deny --locked check` (needs network access), runs the samples without a display server, the windowed sample and the windowed lifecycle test inside a headless Weston compositor, and checks links between Markdown files with `lychee`. Run it before reporting a milestone done. It runs the tests on lavapipe, a Vulkan driver that renders on the CPU; to run one test the same way, prefix it with `VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD"`.
+`scripts/check.sh` is what CI runs. Besides the commands above, it checks dependency licenses, security advisories and sources with `cargo deny --locked check` (needs network access), runs the samples without a display server, the windowed samples and the windowed lifecycle test inside a headless Weston compositor, and checks links between Markdown files with `lychee`. Run it before reporting a milestone done. It runs the tests on lavapipe, a Vulkan driver that renders on the CPU; to run one test the same way, prefix it with `VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD"`.
 
 Keep this section up to date when commands, examples or tools are added.
 
