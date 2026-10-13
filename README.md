@@ -17,7 +17,7 @@ camera, with a depth test, each with a material of one base color, which a textu
 may modulate, lit by a directional light, into the window or into offscreen images that image
 tests compare with references; the `scene` example draws a glTF scene under a camera driven by
 the mouse, with its frame, CPU and GPU times in a dev overlay. Stage 3b, the physically based
-renderer, is planned next. [`docs/PLAN.md`](docs/PLAN.md) lists what comes next and the known
+renderer, is in progress. [`docs/PLAN.md`](docs/PLAN.md) lists what comes next and the known
 debt.
 
 ## Getting started

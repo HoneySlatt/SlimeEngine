@@ -12,275 +12,248 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 
 ## Current
 
-- Stage 3a — First renderer → 0.0.3: done and released (tag `v0.0.3`). Its milestones stay below
-  until the next stage is planned.
-- Next: planning Stage 3b with the owner (see [`ROADMAP.md`](ROADMAP.md)). No code is written
-  for it before its plan is validated.
-- Between 0.0.2 and this stage, a stabilization pass on 2026-10-12 corrected what an audit of
-  0.0.2 found: the corrections are listed in [`CHANGELOG.md`](../CHANGELOG.md) under *0.0.3*,
-  and what was found without being corrected is in [Known debt](#known-debt).
+- Stage 3b — Physically based renderer → 0.1: in progress. Planned on 2026-10-13 and validated by
+  the owner. Next: M3b.1.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
-| [M3.1](#m31--gpu-resources-for-a-renderer) | GPU resources for a renderer | Done |
-| [M3.2](#m32--the-render-crate-camera-meshes-instances) | The render crate: camera, meshes, instances | Done |
-| [M3.3](#m33--directional-light-and-material) | Directional light and material | Done |
-| [M3.4](#m34--textures-and-samplers) | Textures and samplers | Done |
-| [M3.5](#m35--a-gltf-scene-and-camera-control) | A glTF scene and camera control | Done |
-| [M3.6](#m36--statistics-gpu-timings-and-the-dev-overlay) | Statistics, GPU timings and the dev overlay | Done |
-| [M3.7](#m37--windows-check-documentation-release-003) | Windows check, documentation, release 0.0.3 | Done |
+| [M3b.1](#m3b1--gpu-layer-for-multi-pass-rendering) | GPU layer for multi-pass rendering | In progress |
+| [M3b.2](#m3b2--hdr-rendering-and-tone-mapping) | HDR rendering and tone mapping | Planned |
+| [M3b.3](#m3b3--physically-based-materials) | Physically based materials | Planned |
+| [M3b.4](#m3b4--light-types) | Light types | Planned |
+| [M3b.5](#m3b5--shadows) | Shadows | Planned |
+| [M3b.6](#m3b6--image-based-lighting) | Image-based lighting | Planned |
+| [M3b.7](#m3b7--bloom) | Bloom | Planned |
+| [M3b.8](#m3b8--render-graph) | Render graph | Planned |
+| [M3b.9](#m3b9--windows-check-documentation-release-01) | Windows check, documentation, release 0.1 | Planned |
 
-Stages 0, 1 and 2 are done; see [Completed stages](#completed-stages).
+Stages 0, 1, 2 and 3a are done; see [Completed stages](#completed-stages).
 
-## Stage 3a — First renderer → 0.0.3
+## Stage 3b — Physically based renderer → 0.1
 
-Exit criterion (see [`ROADMAP.md`](ROADMAP.md#stage-3a--first-renderer--003)): a glTF scene
-renders with textures, depth and simple lighting under a moving camera, with statistics shown in
-the overlay, covered by image tests.
+Exit criterion (see [`ROADMAP.md`](ROADMAP.md#stage-3b--physically-based-renderer--01)): a sample
+scene with a camera, lights, physically based materials and shadows, covered by image tests.
 
-Out of scope, left to the stages that need them: physically based materials, shadows, HDR and
-post-processing, a render graph, multisampling, transparency, animation and skinning, glTF
-extensions (Stage 3b and later); and a scene model, which comes with the world of Stage 5: the
-renderer draws a flat list of instances that the application builds, and the temporary glTF loader
-flattens the file's node hierarchy into such a list. Mipmaps were left out unless the image tests
-or the sample showed aliasing that the tolerance could not absorb; the floor of the glTF scene did,
-and M3.5 added them ([ADR-0032](adr/0032-mipmaps-computed-at-texture-creation.md)).
+The renderer of Stage 3a becomes physically based (PBR): surfaces say how much light they reflect
+and how, with glTF's metallic-roughness materials; lights have physical units; the scene is drawn
+in high dynamic range (HDR), with colors above 1, then mapped to the display by a tone-mapping
+pass; a shadow map gives the main light its shadows; image-based lighting (IBL) lights surfaces
+with their surroundings; and a minimal render graph, extracted from these passes at the end of the
+stage, orders the passes of a frame.
+
+Out of scope, left to the stages that need them: blended transparency (glTF's `BLEND` alpha mode;
+`MASK` is in); cascaded shadow maps, and shadows of point and spot lights; environments read from
+HDR image files (a decoder or a new dependency, and an asset far above the sample's budget: the sky
+is procedural); IBL precomputed on the GPU, compute passes and storage buffers; screen-space
+effects (ambient occlusion, reflections) and temporal anti-aliasing; multisampling and FXAA, unless
+the image tests or the sample show aliasing that the tolerance cannot absorb, the rule that
+admitted mipmaps in Stage 3a; tangents computed with MikkTSpace, as glTF prescribes for files
+without tangents (the loader computes simpler ones; the importer of Stage 4 will do it right);
+animation and skinning; glTF extensions other than `KHR_lights_punctual` and
+`KHR_materials_emissive_strength`; and, as in Stage 3a, a scene model (Stage 5) and the asset
+pipeline (Stage 4): the renderer still draws flat lists of instances, and the glTF loader stays
+temporary.
 
 Decisions taken when this stage was planned, each recorded as an ADR in the milestone that applies
 it:
 
-- Crates. A new `slime-render` crate holds the renderer: meshes, materials, camera, light,
-  statistics. It is built on `slime-gfx`'s engine-owned types only, without wgpu, so that the
-  renderer is the second concrete use of each of them. The dev overlay lives in a temporary
-  `slime-devui` crate, the only crate besides `slime-gfx` that reaches wgpu, through a feature of
-  `slime-gfx` documented as internal and removed with the overlay (amends ADR-0016).
-- GPU resources (M3.1). Typed buffers (`IndexBuffer`, `UniformBuffer`) rather than one generic
-  buffer; bind group layouts and bind groups as engine-owned types; depth targets; a pass
-  descriptor that says whether the target is cleared or kept (amends ADR-0017).
-- Math. `glam`; its types appear in `slime-render`'s API, the exception that ADR-0006 allows for a
-  dependency whose purpose it is.
-- glTF. The `gltf` crate without its `import` feature (neither `image` nor `base64`), in the
-  examples only: GLB files with embedded buffers, PNG images decoded with `png`. The loader is
-  deleted in Stage 4.
-- Overlay. `egui` and `egui-wgpu`, the latter without its default features (they would enable
-  every wgpu backend), and no `egui-winit`: `slime-devui` translates the engine's events itself,
-  since winit's types do not leave `slime-platform` (ADR-0011).
-- GPU timings. wgpu's timestamp queries, written by the engine rather than taken from the
-  `wgpu-profiler` crate, requested only when the adapter offers them; everything works without
-  them (amends ADR-0016, which asked for no optional feature).
-- Sample asset. A small scene made in Blender under CC0, under 500 kB, embedded in the sample;
-  `--scene <file>` loads another GLB file. A Khronos sample model under CC-BY 4.0 was the
-  alternative.
-- No `bytemuck` in the engine's code: bytes are produced with `to_le_bytes`, as ADR-0017 chose
-  (the crate is still compiled, as a dependency of wgpu and egui); no `image` crate.
-- Windows: the Windows CI job runs the tests and the headless samples at every milestone; the owner
-  checks windowed behaviour in the virtual machine at M3.2, M3.5 and M3.6.
+- HDR first. The scene is drawn into a target of 16-bit floating-point colors (`Rgba16Float`),
+  then a fullscreen pass multiplies it by an exposure, maps it to the display's range with a
+  tone-mapping operator, and writes the sRGB image of the window. It comes first because every
+  later image test depends on this output transform: their references are rendered once against
+  it.
+- Materials. glTF's metallic-roughness model, with the formulas of the Khronos glTF sample viewer
+  (the GGX distribution, Smith's visibility term, Schlick's Fresnel approximation): base color,
+  metallic-roughness, normal, occlusion and emissive textures, each created in the format of its
+  slot (sRGB for colors, linear for data); the `MASK` alpha mode by discarding fragments;
+  double-sided materials drawn without culling.
+- Lights. Directional, point and spot lights in glTF's units (lux for directional lights, candela
+  for the others), read from the `KHR_lights_punctual` extension through the `gltf` crate's
+  feature of that name, a feature of an admitted dependency recorded in `dependencies.md`; a fixed
+  maximum number per scene, in a uniform buffer; storage buffers only if a measurement asks for
+  them.
+- Shadows. One shadow map, for the first directional light: an orthographic projection fitted to
+  the scene's bounds, a depth bias, and percentage-closer filtering (PCF) over 3 × 3 samples
+  through a comparison sampler.
+- IBL. A procedural sky drawn into an environment cube map, its irradiance, its prefiltered
+  specular levels and the table of the BRDF's scale and bias, all computed on the CPU at startup:
+  no compute pass and no image file. The asset pipeline of Stage 4 may cook them instead.
+- Post-processing. The tone-mapping pass with its exposure, and a bloom: a chain of downsampled HDR
+  targets, upsampled and added in the tone-mapping pass, so that no blending is needed.
+- Render graph. Extracted at the end of the stage from the passes that exist then (shadow, scene,
+  sky, bloom, tone mapping), as the roadmap asks: passes declare the targets they read and write,
+  the graph owns the targets that live for one frame and orders the passes; no memory aliasing, no
+  asynchronous compute.
+- GPU layer. `slime-gfx` gains what the passes need, when they need it, without wgpu outside it
+  (ADR-0016): float render targets, targets and depth targets that shaders sample, pipelines
+  without vertex buffers, passes without color targets, comparison samplers and depth bias in
+  M3b.1, for the HDR and shadow passes; cube textures and mip levels given by the caller in M3b.6,
+  with IBL, their first user (amending ADR-0032).
+- Loader and asset. The temporary glTF loader reads the PBR textures, tangents (computed per
+  triangle when the file has none) and lights; `make_scene.py` draws the new textures in code and
+  exports tangents and lights; the asset stays under CC0 and under 500 kB.
+- No new dependency. Half-precision floats are converted by hand, as bytes are packed by hand
+  (ADR-0026); the procedural sky needs no image decoder.
+- Windows. The Windows CI job runs the tests and the headless samples at every milestone; the owner
+  checks windowed behaviour in the virtual machine at M3b.2, M3b.5 and M3b.9.
 
-### M3.1 — GPU resources for a renderer
+Risks, to measure as the stage goes: shadows flip whole pixels where drivers rasterize an edge
+differently, which the per-channel tolerance of the image tests cannot absorb (ADR-0028), so the
+tolerance may need a measured amendment at M3b.5; every image test renders more passes on lavapipe
+and WARP, which lengthens CI; the CPU precomputation of IBL runs in every process that draws the
+sample, tests included, and must stay small; upgrading wgpu still waits for egui.
 
-- **Goal.** Everything a 3D renderer needs from `slime-gfx`, proven offscreen on lavapipe and WARP.
-- **Crates.** `slime-gfx`; the examples and tests that call `Gpu::render`.
-- **Delivers.** Index buffers and indexed draws; uniform buffers, written through the `Gpu` whenever
-  their content changes; bind group layouts and bind groups, holding uniform buffers now (textures
-  and samplers come in M3.4, dynamic offsets when M3.2 needs them); the pipeline descriptor gains
-  its bind group layouts, a depth test and a cull mode; depth targets; `Gpu::render` takes a pass
-  descriptor: the target, whether to clear it or keep its content, and an optional depth target.
-  ADR: resource binding and depth (amends 0017).
-- **Done when.** `slime-gfx` tests pass on lavapipe and on WARP: an indexed quad fills the target; a
-  uniform offset moves a triangle between two renders; with the depth test, the nearer of two
-  overlapping triangles wins whatever the draw order, and the later one wins without it; back
-  faces are culled when asked; a pipeline whose shader bindings do not match its layouts is
-  rejected as `GfxError::Pipeline`.
+### M3b.1 — GPU layer for multi-pass rendering
+
+- **Goal.** What the passes of the stage need from `slime-gfx` to draw into targets that later
+  passes read, proven offscreen on lavapipe and WARP.
+- **Crates.** `slime-gfx`; the callers of what it changes (`slime-render`, `slime-devui`, the
+  examples and the tests).
+- **Delivers.** The `Rgba16Float` format for render targets, read back to the CPU as floating-point
+  values; render targets and depth targets that shaders sample through bind groups once a pass has
+  drawn into them, while a window's image cannot be sampled; pipelines without a vertex buffer, for
+  a fullscreen triangle built from the vertex index; passes and pipelines without a color target,
+  which write depth only; comparison samplers, and a depth bias on pipelines; several passes timed
+  in one frame, each time read back on its own. ADR: the GPU layer for multi-pass rendering
+  (amends 0017 and 0026).
+- **Done when.** `slime-gfx` tests pass on lavapipe and on WARP: a float target keeps values above
+  1 and below 0 and reads them back as half-precision floats represent them; a fullscreen triangle
+  drawn without a vertex buffer covers every pixel; a second pass samples the target a first pass
+  drew into; a depth-only pass writes depths that a later pass reads through a comparison sampler,
+  which gives 0 on one side of the reference depth and 1 on the other; a depth bias moves a
+  surface's depth by the expected amount; three passes timed in one frame each get a time.
 - **How to test.** `VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo test -p slime-gfx`.
-- **Checked** on 2026-10-12: the tests of `crates/slime-gfx/tests/drawing.rs` (an indexed quad; a
-  uniform offset written between two renders; a pass that keeps the image; the depth test with
-  both draw orders, and the last draw winning without it; culling of back and of front faces; a
-  depth target of another size rejected) and of `errors.rs` (a binding without a layout rejected
-  as `GfxError::Pipeline`, with wgpu's message naming the binding; empty or misaligned buffers
-  rejected at creation) pass on lavapipe, and on WARP in the Windows CI job. Dynamic offsets,
-  textures and samplers are left to the milestones that use them, as ADR-0026 says.
 
-### M3.2 — The render crate: camera, meshes, instances
+### M3b.2 — HDR rendering and tone mapping
 
-- **Goal.** Draw a list of mesh instances from a camera, with depth, into any render target.
-- **Crates.** New `slime-render`; `examples` gains `scene`, the sample of this stage, and its image
-  test.
-- **Delivers.** `Renderer::new(gpu, format)`, whose depth buffer follows the size of the target it
-  draws into; `Mesh` from CPU data (positions, normals, texture coordinates, indices); `Camera`
-  (perspective projection, look-at); `Instance` (a mesh, a material of one color, a transform);
-  `Renderer::render(gpu, target, &scene)`, which clears the target, draws the instances and
-  returns `RenderStats` (draw calls, triangles); per-instance transforms in one uniform buffer
-  with dynamic offsets; conventions: right-handed axes with +Y up, as glTF, the camera looking
-  down −Z, depth from 0 to 1, linear colors in shaders. Bytes for the GPU are packed with
-  `to_le_bytes`. The `scene` example shows cubes under a camera that orbits them;
-  `scripts/check.sh` runs it in the headless Weston; the image test of the cubes renders them
-  overlapping. ADR: the render crate and glam.
-- **Done when.** The image test passes on lavapipe, WARP and the owner's GPU; the sample shows the
-  cubes under the moving camera on niri; `scene --frames 120` draws in the headless Weston; the
-  owner ran `scene.exe` in the Windows virtual machine.
-- **How to test.** `cargo run --example scene`; `cargo test -p slime-examples --test scene`.
-- **Checked** on 2026-10-13: the image test of the cubes (`examples/tests/scene.rs`, reference
-  `cubes.png`, since replaced by `shapes.png` when M3.3 added the sphere; three cubes of two flat
-  colors, the orange one in front of the blue one) passes on lavapipe, which rendered the
-  reference, and on the owner's RX 6900 XT (RADV, Mesa's Vulkan driver for AMD GPUs) with no pixel
-  differing at all, flat colors leaving nothing to round; the Windows CI job runs it on WARP. The
-  `scene` example drew 300 frames on niri (the owner's Wayland compositor) with RADV (3 draw calls
-  and 36 triangles per frame), and `scene --frames 120` draws in the headless Weston (the
-  compositor without a screen that the checks start) with lavapipe in the checks. The owner's
-  run of `scene.exe` in the Windows virtual machine, which the CI artifact now contains, took
-  place at M3.7 (see there). Dynamic offsets joined `slime-gfx` with the instances, as ADR-0026
-  planned; the material of one color came with this milestone rather than M3.3, since instances
-  need a color from the start.
-
-### M3.3 — Directional light and material
-
-- **Goal.** A simple lighting model: one directional light with an ambient term, and materials
-  with a base color.
+- **Goal.** The scene is drawn in high dynamic range and mapped to the display by a tone-mapping
+  pass with an exposure.
 - **Crates.** `slime-render`; `examples`.
-- **Delivers.** `DirectionalLight` (direction, color, ambient light) in the scene; normals
-  transformed with the instance; Lambert diffuse shading in WGSL on the material's base color, in
-  linear colors, which the sRGB target encodes. The image test shows lit cubes and a smooth
-  sphere, added to the sample so that interpolated normals are in the measurement; the tolerance
-  of ADR-0018 is measured on WARP and RADV with shading in the picture, and amended if it does
-  not hold.
-- **Done when.** The image test passes on the three drivers; the lit shapes look right by eye.
-- **How to test.** As M3.2.
-- **Checked** on 2026-10-13: the image test of the shapes (reference `shapes.png`: the lit cubes
-  and a green sphere of 720 triangles sitting on the orange cube, the center one, textured since
-  M3.4) passes on lavapipe, which
-  rendered the reference, and on the owner's RX 6900 XT (RADV), where the largest difference is
-  1 out of 255, on the sphere, and no pixel exceeds the tolerance; the Windows CI job runs it on
-  WARP. Two tests in `crates/slime-render/tests/lighting.rs` read pixels back: a surface facing
-  the light is fully lit and one facing away gets the ambient light only, and the normal of a
-  square turned by 60° gives the cosine of that angle, while one turned by 45° then stretched
-  four times along the world's X axis is lit as its real normal says (the model matrix alone
-  would lean it the other way). The shapes look right by eye: each face of the cubes has its own
-  shade, the sphere is smooth with its bright side towards the light.
+- **Delivers.** The renderer draws the scene into an `Rgba16Float` target with its depth target,
+  both following the output's size, then a fullscreen pass samples it, multiplies it by the
+  exposure, applies the tone-mapping operator chosen in the ADR, and writes the output target (the
+  window's image, or an offscreen sRGB one); `Scene` gains the exposure; `RenderStats` gives the
+  GPU time of each pass; the `scene` example shows them in the overlay and lets the user change the
+  exposure; the references of the image tests are rendered again on lavapipe and looked at; the
+  lighting and material tests of `slime-render` check their values through the tone-mapping
+  curve. ADR: HDR rendering and tone mapping (amends 0027: several passes, the scene in HDR).
+- **Done when.** The image tests pass on the three drivers; the sample looks right by eye on niri
+  and in a screenshot of the headless Weston; the owner ran `scene.exe` in the Windows virtual
+  machine.
+- **How to test.** `cargo run --example scene`; `cargo test -p slime-examples`.
 
-### M3.4 — Textures and samplers
+### M3b.3 — Physically based materials
 
-- **Goal.** Textured materials.
-- **Crates.** `slime-gfx` (textures, samplers, their bind group entries); `slime-render`;
-  `examples`.
-- **Delivers.** `Texture` (two-dimensional, 8-bit RGBA, sRGB or linear, uploaded from bytes,
-  without mipmaps) and `Sampler` (nearest or linear filtering; repeat, clamp or mirror addressing:
-  what glTF samplers express) in `slime-gfx`, bound through bind groups; `Material` gains a base
-  color texture and its sampler; the sample generates a checker texture; the image test renders
-  the textured cube. Mipmaps are added only if the image tests or the sample show aliasing that
-  the tolerance cannot absorb, and the ADR of M3.1 is then amended.
-- **Done when.** The image test passes on the three drivers.
-- **How to test.** As M3.2.
-- **Checked** on 2026-10-13: `crates/slime-gfx/tests/textures.rs` reads pixels back to check
-  nearest and linear filtering, the three address modes and the decoding of sRGB formats, and
-  `crates/slime-render/tests/materials.rs` checks that a base color texture is read at the
-  texture coordinates and multiplied with the base color; all pass on lavapipe and RADV. The
-  image test of the shapes, whose center cube and sphere now carry a checker texture read with
-  linear filtering, passes on lavapipe, which rendered the reference, and on RADV with one pixel
-  of 65 536 differing by 3 out of 255, where two texels blend: more than ADR-0018 allowed, so
-  ADR-0028 lets 0.1 % of the pixels exceed the per-channel tolerance. On WARP, as the Windows CI
-  job printed, no pixel exceeds it and the largest difference is 2 (1 on the triangle). No
-  mipmaps yet: the sphere's checker aliased where it was minified, which showed as shimmering
-  when the camera moved; M3.5 added them
-  ([ADR-0032](adr/0032-mipmaps-computed-at-texture-creation.md)).
+- **Goal.** Surfaces shaded with glTF's metallic-roughness model.
+- **Crates.** `slime-render`; `examples` (the loader, the asset and its Blender script, the image
+  tests).
+- **Delivers.** `MaterialData` gains the metallic and roughness factors and their texture, a normal
+  texture and its scale, an occlusion texture and its strength, the emissive factor, strength and
+  texture, the alpha mode (opaque, or masked with a cutoff) and double-sidedness; `MeshData` gains
+  tangents; the shader evaluates the BRDF for the directional light, with the camera's position in
+  the frame's values; default textures stand in for the slots a material leaves empty; the loader
+  reads all of it, creates each texture in its slot's format, and reads tangents or computes them;
+  `make_scene.py` draws the new textures and exports tangents; the shapes of the image test gain
+  spheres of increasing metallic and roughness. ADR: physically based materials (amends 0027 and
+  0029).
+- **Done when.** Tests that read pixels back: a white dielectric lit at normal incidence gives the
+  value the BRDF predicts, computed in the test; a rougher surface spreads its highlight; a metal
+  reflects in its base color; a normal map tilts the shading as a tilted surface would; a masked
+  material discards fragments below its cutoff. The image tests pass on the three drivers; the
+  sample looks right by eye.
+- **How to test.** As M3b.2.
 
-### M3.5 — A glTF scene and camera control
+### M3b.4 — Light types
 
-- **Goal.** The sample renders a glTF scene under a camera the user moves.
-- **Crates.** `examples` (the loader, the asset, the sample, its image test).
-- **Delivers.** A temporary loader in `examples/common/gltf.rs`, built on the `gltf` crate without
-  its default features: GLB files with embedded buffers, PNG images decoded with `png`; meshes,
-  materials, textures and samplers created through the renderer; the node hierarchy flattened into
-  instances; a clear error for what it cannot draw right (external files, images that are not
-  PNG, required extensions, other coordinate sets, other primitive modes) and a warning for what
-  it ignores (animations, skins, cameras, extensions used without being required). A sample
-  asset in `examples/assets/`, a scene made in Blender under CC0 (under 500 kB), embedded in the
-  sample with `include_bytes!`; `--scene <file>` loads another GLB file. Camera: automatic orbit
-  around the scene's bounds, orbit with the left button, zoom with the wheel. The image test
-  `tests/gltf.rs` renders the asset at fixed camera poses. ADR: temporary glTF loading, and its
-  removal in Stage 4.
-- **Done when.** The sample shows the asset on niri, through Xwayland (X11 on a Wayland desktop)
-  and in the Windows virtual
-  machine; the image test passes on the three drivers; a Khronos sample model loads with
-  `--scene`.
-- **How to test.** `cargo run --example scene -- --scene <file.glb>`; the image test.
-- **Checked** on 2026-10-13: the asset (`examples/assets/scene.glb`, 94 kB: 7 primitives, 2 274
-  triangles, three textures of 128 × 128 pixels) was built by `make_scene.py` in the owner's
-  Blender 5.2.2 and exported by the script with modifiers applied and animations, skins, morph
-  targets, cameras, lights and extras left out, Blender's defaults otherwise. `tests/gltf.rs`
-  renders it from two poses: on
-  lavapipe, which rendered the references, no pixel differs; on RADV, 92 and 21 pixels differ by
-  more than 2, 4 and 1 by more than 4, none by more than 8 (largest difference 5). Mipmaps came
-  with this milestone, as M3.4 planned
-  ([ADR-0032](adr/0032-mipmaps-computed-at-texture-creation.md)): without them the floor aliased
-  (42 pixels of the front
-  view differed by more than 2 on RADV, by 8 at most) and shimmered. With them, the checkered
-  sphere of `tests/scene.rs` differs on RADV by more than 4 on 233 pixels, by more than 8 on 14
-  and by more than 16 on 1 (largest 18), where the levels of its checker blend differently;
-  ADR-0030 therefore keeps the strict rule on lavapipe and loosens it on other drivers. On WARP,
-  as the Windows CI job printed, 30 and 13 pixels of the glTF views and 30 of the shapes differ by
-  more than 2, none by more than 4. The `scene` example drew 300 frames on niri
-  with RADV (7 draw calls, 2 274 triangles per frame) and 120 in the headless Weston. The owner's
-  run of `scene.exe` in the Windows virtual machine took place at M3.7 (see there). The Khronos
-  sample model `BoxTextured.glb` (downloaded with the owner's agreement, not kept) loads
-  with `--scene`: one mesh of 12 triangles, one texture, 120 frames drawn.
+- **Goal.** Several directional, point and spot lights per scene, in physical units.
+- **Crates.** `slime-render`; `examples`.
+- **Delivers.** `Scene` holds a list of lights: directional (illuminance in lux), point (intensity
+  in candela, range) and spot (intensity, range, inner and outer cone angles), up to a fixed
+  maximum, in a uniform buffer; the falloff that `KHR_lights_punctual` recommends (the inverse
+  square of the distance, brought smoothly to zero at the range) and its cone attenuation; the
+  constant ambient light stays until IBL replaces it; the loader reads `KHR_lights_punctual`
+  through the `gltf` feature of that name (`dependencies.md` and ADR-0029 updated); the asset
+  exports its sun and a point or spot light; the sample's exposure suits physical units. ADR:
+  lights and their units.
+- **Done when.** Tests that read pixels back: a point light gives a quarter of the light at twice
+  the distance, and none beyond its range; a spot light lights fully inside its inner cone, not at
+  all outside its outer cone, and in between smoothly; a scene with the maximum number of lights
+  draws, and one with more is refused as documented. The image tests pass on the three drivers;
+  the sample looks right by eye.
+- **How to test.** As M3b.2.
 
-### M3.6 — Statistics, GPU timings and the dev overlay
+### M3b.5 — Shadows
 
-- **Goal.** Render statistics shown in an overlay while the scene runs, with the GPU time of the
-  frame.
-- **Crates.** `slime-gfx` (timestamp queries, the wgpu access feature); `slime-render`
-  (statistics); new `slime-devui`; `examples`.
-- **Delivers.** `RenderStats` complete: draw calls, triangles, the CPU time of `render`, and the
-  GPU time of the pass from timestamp queries when the adapter offers them, read a few frames
-  later so that nothing waits. `slime-devui`, a temporary crate: `egui` and `egui-wgpu` without
-  default features; the engine's events translated to egui's; the overlay drawn into the frame's
-  target after the scene, in a pass that keeps the image; F1 shows and hides it. The sample shows
-  the frame time, the GPU time, draw calls, triangles and the adapter's name. ADR: the dev overlay
-  and wgpu access (amends 0016), optional GPU features.
-- **Done when.** The overlay is visible on niri, in a screenshot of the headless Weston and in the
-  Windows virtual machine; the GPU time shows on RADV and on Direct3D 12; whether lavapipe and WARP
-  offer timestamps is measured and recorded here; the image tests are unchanged.
-- **How to test.** `cargo run --example scene`, then F1.
-- **Checked** on 2026-10-13: lavapipe, RADV and WARP all support timestamp queries
-  (`crates/slime-gfx/tests/timing.rs` prints it; the Windows CI job runs it for WARP). The time
-  of a pass that clears 64 × 64 pixels: 812 µs on lavapipe, 1 µs on RADV, 13 µs on WARP. The
-  `scene` example drew 300 frames on niri with RADV, its render taking 1.0 ms on the CPU and
-  14 µs on the GPU per frame (7 draw calls, 2 274 triangles), and 240 in the headless Weston with
-  lavapipe, 2.4 ms on the CPU and 1.1 ms on the GPU; the overlay appears in a screenshot of that
-  compositor. The image tests are unchanged: the overlay is not drawn offscreen. The owner's run
-  of `scene.exe` in the Windows virtual machine, with the GPU time on Direct3D 12, took place at
-  M3.7 (see there). egui warns once that the framebuffer is sRGB (it prefers a linear one for its
-  blending): the overlay looks slightly lighter than egui's own demos, which is harmless for
-  tooling.
+- **Goal.** The first directional light casts shadows.
+- **Crates.** `slime-render`; `examples`.
+- **Delivers.** A depth-only shadow pass into a sampleable depth target, from an orthographic
+  projection fitted to the bounds of the instances; the scene pass reads it with 3 × 3 PCF through
+  a comparison sampler, with a constant and a slope-scaled depth bias; `RenderStats` counts the
+  shadow pass's draw calls and gives its GPU time. ADR: shadow mapping.
+- **Done when.** Tests that read pixels back: a square above a floor darkens a square of the floor
+  of the expected size, with edges blended over the width of the filter; a lit floor shows no
+  self-shadowing (shadow acne). The image tests pass on the three drivers, with a tolerance amended
+  by a measured ADR if shadow edges require it; the sample looks right by eye; the owner ran
+  `scene.exe` in the Windows virtual machine.
+- **How to test.** As M3b.2.
 
-### M3.7 — Windows check, documentation, release 0.0.3
+### M3b.6 — Image-based lighting
 
-- **Goal.** 0.0.3 released.
+- **Goal.** Surfaces lit by their surroundings: a procedural sky and its reflections.
+- **Crates.** `slime-gfx` (cube textures, mip levels given by the caller, `Rgba16Float` textures
+  uploaded from the CPU); `slime-render`; `examples`.
+- **Delivers.** `slime-gfx`: cube textures, and textures whose mip levels the caller gives, in
+  `Rgba16Float` among other formats, with half-precision floats converted by hand (amends
+  ADR-0032). `slime-render`: a procedural sky (a gradient and a sun) drawn on the CPU into a small
+  cube map, its irradiance and its prefiltered specular levels, and the table of the BRDF's scale
+  and bias, computed at startup; a sky pass draws the environment behind the scene instead of the
+  clear color; IBL replaces the constant ambient light. ADR: image-based lighting computed on the
+  CPU.
+- **Done when.** Tests that read pixels back: a white rough sphere inside a uniform environment
+  reflects that environment's radiance (the furnace test); a mirror sphere reflects the sky; the
+  CPU precomputation of the sample stays under a budget measured and recorded here. The image
+  tests pass on the three drivers; the sample looks right by eye.
+- **How to test.** As M3b.2.
+
+### M3b.7 — Bloom
+
+- **Goal.** Bright parts of the image glow.
+- **Crates.** `slime-render`; `examples`.
+- **Delivers.** A chain of HDR targets, each half the size of the one before, filled by
+  downsampling the scene, then upsampled back and added to the scene in the tone-mapping pass, with
+  a strength; the sample's asset gains an emissive object bright enough to bloom; the overlay shows
+  the chain's GPU time. ADR: bloom.
+- **Done when.** Tests that read pixels back: a single bright pixel spreads into a symmetric halo,
+  and a dark image is unchanged. The image tests pass on the three drivers; the sample looks right
+  by eye.
+- **How to test.** As M3b.2.
+
+### M3b.8 — Render graph
+
+- **Goal.** The passes of a frame are declared and ordered by a minimal render graph, extracted
+  from the passes that exist.
+- **Crates.** `slime-render`, unless the ADR shows that the graph belongs in `slime-gfx`.
+- **Delivers.** Passes declare the targets they read and write; the graph creates the targets that
+  live for one frame at the output's size or a fraction of it, orders the passes by what they read
+  and write, records them, and reports each pass's statistics; the renderer's frame (shadow,
+  scene, sky, bloom, tone mapping) is built as a graph. ADR: the render graph.
+- **Done when.** Tests of the graph without a GPU: passes are ordered by their dependencies, a read
+  of a target that no pass writes and a cycle are refused; the image tests give the same pixels on
+  lavapipe as before the extraction; the CPU time of a frame is not worse, measured before and
+  after.
+- **How to test.** `cargo test -p slime-render`; the image tests.
+
+### M3b.9 — Windows check, documentation, release 0.1
+
+- **Goal.** 0.1 released.
 - **Crates.** All; CI.
-- **Delivers.** The Windows checklist run by the owner in the virtual machine (`scene.exe`: window,
-  resize, camera, overlay, GPU time); `scene.exe` in the CI artifact; the documentation reread by
-  reviewing agents (`ARCHITECTURE.md`, the crate READMEs, the glossary, `dependencies.md`,
-  `README.md`, `CONTRIBUTING.md`, the ADRs, `CHANGELOG.md`, this file); the duration of CI
-  measured; the `v0.0.3` tag on a commit whose CI is green on both platforms.
+- **Delivers.** The Windows checklist run by the owner in the virtual machine; the documentation
+  reread by reviewing agents; `CHANGELOG.md`; the duration of CI measured; the `v0.1.0` tag on a
+  commit whose CI is green on both platforms.
 - **Done when.** The checks are green on both platforms; the tag is pushed.
 - **How to test.** Push and read the CI run; the Windows artifact in the virtual machine.
-- **Checked** on 2026-10-13: the owner ran `scene.exe` from the CI artifact of the commit "Record
-  the CI durations after M3.6" in the Windows virtual machine, where the adapter is WARP: the
-  window opens with the glTF scene and follows resizes, minimizing and restoring; the camera
-  orbits on its own, then follows the mouse (drag) and the wheel; the overlay shows the adapter,
-  the frame time, the CPU and GPU times (the GPU time is measured on WARP, through Direct3D 12),
-  7 draw calls and 2 274 triangles, and F1 hides it; Escape, the close button and Ctrl+C stop the
-  run cleanly. This also closes the runs that M3.2, M3.5 and M3.6 left pending. Three reviewing
-  agents reread the documentation against the code (one for `ARCHITECTURE.md` and the crate
-  READMEs, one for the glossary, `dependencies.md`, `README.md`, `CONTRIBUTING.md` and the ADRs,
-  one for `CHANGELOG.md` and this file); what they found is corrected in the commits from "Drop
-  the unused tracing dependency of slime-devui" to "Complete the changelog and correct the plan
-  before 0.0.3", and the mipmap decision of M3.5 is recorded in ADR-0032, as M3.4 had planned.
-  One drift from an ADR is left to the owner: the two windowed test programs of `slime-app`
-  return at once on other platforms instead of being compiled out, as ADR-0015 asks. The CI
-  durations are in [Notes](#notes). Released as 0.0.3 (see [Releasing](#releasing)).
 
 ## Releasing
 
@@ -388,9 +361,9 @@ justify a decision are also in its ADR.
 - CI build cache: not added yet. With wgpu, the Linux job takes about 2.5 minutes and the Windows
   job about 5 (measured on the runs of 2026-10-12; it compiles the dependencies three times: for
   clippy, for the tests, and in release for the artifact), which is acceptable; a cache is to add if
-  it grows much further. The dependencies of this stage (glam, gltf, egui) are expected to add to
-  it: each milestone that adds one records the new duration here. With glam and the render crate
-  (M3.2, 2026-10-13): Linux 2 minutes 49 seconds, Windows 4 minutes 59 seconds. With gltf and
+  it grows much further. The dependencies of Stage 3a (glam, gltf, egui) were expected to add to
+  it, and each milestone that added one recorded the new duration here. With glam and the render
+  crate (M3.2, 2026-10-13): Linux 2 minutes 49 seconds, Windows 4 minutes 59 seconds. With gltf and
   egui (M3.6, 2026-10-13): Linux 3 minutes 22 seconds, Windows 5 minutes 42 seconds, and 6 minutes
   2 seconds once its tests ran one at a time. At the release (M3.7, 2026-10-13), over the ten
   green runs before it: Linux from 2 minutes 35 seconds to 3 minutes 38 seconds, Windows from
