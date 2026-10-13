@@ -1,7 +1,7 @@
 //! Translating the engine's events into egui's.
 
 use egui::{Modifiers, MouseWheelUnit, PointerButton, Pos2, pos2, vec2};
-use slime_platform::{ButtonState, Event, Key, KeyEvent, MouseButton, ScrollDelta};
+use slime_platform::{ButtonState, Event, Key, KeyEvent, MouseButton, NamedKey, ScrollDelta};
 
 /// The events of the window since the last frame, as egui reads them, and what they need: the
 /// scale factor and where the cursor is.
@@ -9,6 +9,9 @@ pub(crate) struct Input {
     pixels_per_point: f32,
     /// Where the cursor was last seen, in logical points.
     pointer: Pos2,
+    /// Whether a Ctrl key is down, as its own presses and releases say: the engine does not report
+    /// the state of the modifier keys.
+    control_held: bool,
     events: Vec<egui::Event>,
 }
 
@@ -17,6 +20,7 @@ impl Input {
         Self {
             pixels_per_point: scale_factor as f32,
             pointer: Pos2::ZERO,
+            control_held: false,
             events: Vec::new(),
         }
     }
@@ -83,6 +87,10 @@ impl Input {
     /// A key, by the name egui gives it, and the text it produces when pressed.
     fn key(&mut self, event: &KeyEvent, modifiers: Modifiers) {
         let pressed = event.state == ButtonState::Pressed;
+        // By meaning rather than position, so that a key the layout turns into Ctrl counts.
+        if event.logical == Key::Named(NamedKey::Control) {
+            self.control_held = pressed;
+        }
         let name = match &event.logical {
             Key::Character(character) => character.clone(),
             Key::Named(named) => format!("{named:?}"),
@@ -97,7 +105,10 @@ impl Input {
                 modifiers,
             });
         }
-        if let (true, Some(text)) = (pressed, &event.text)
+        // A key pressed with Ctrl gives its text without Ctrl applied, "c" for Ctrl+C, which a text
+        // field would insert. It is dropped, as egui's own integration with winit does: the
+        // shortcut then does nothing rather than type its letter.
+        if let (true, Some(text)) = (pressed && !self.control_held, &event.text)
             && text.chars().all(|character| !character.is_control())
         {
             self.events.push(egui::Event::Text(text.clone()));
@@ -119,7 +130,7 @@ fn pointer_button(button: MouseButton) -> Option<PointerButton> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use slime_platform::{KeyCode, NamedKey};
+    use slime_platform::KeyCode;
 
     #[test]
     fn cursor_positions_are_in_logical_points() {
@@ -175,5 +186,45 @@ mod tests {
             }
         ));
         assert_eq!(events.len(), 3, "a control character is not text");
+    }
+
+    #[test]
+    fn keys_pressed_while_control_is_held_give_no_text() {
+        let control = |state| {
+            Event::Key(KeyEvent {
+                physical: KeyCode::ControlLeft,
+                logical: Key::Named(NamedKey::Control),
+                text: None,
+                state,
+                repeat: false,
+            })
+        };
+        // winit gives the text of a key pressed with Ctrl without Ctrl applied.
+        let c = Event::Key(KeyEvent {
+            physical: KeyCode::KeyC,
+            logical: Key::Character("c".to_owned()),
+            text: Some("c".to_owned()),
+            state: ButtonState::Pressed,
+            repeat: false,
+        });
+        let mut input = Input::new(1.0);
+
+        input.handle(&control(ButtonState::Pressed));
+        input.handle(&c);
+        let events = input.take_events();
+        assert!(
+            !events
+                .iter()
+                .any(|event| matches!(event, egui::Event::Text(_))),
+            "Ctrl+C types no text: {events:?}"
+        );
+
+        input.handle(&control(ButtonState::Released));
+        input.handle(&c);
+        let events = input.take_events();
+        assert!(
+            matches!(events.as_slice(), [.., egui::Event::Text(text)] if text == "c"),
+            "C types \"c\" once Ctrl is released: {events:?}"
+        );
     }
 }
