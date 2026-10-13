@@ -17,6 +17,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   from the vertex index; depth-only pipelines and passes (`Gpu::render_depth`); comparison samplers
   (`Gpu::create_comparison_sampler`, `BindingType::ComparisonSampler`), for shadow lookups with
   percentage-closer filtering; and a depth bias on pipelines (`DepthBias`).
+- `Gpu::max_texture_dimension()` and `Gpu::max_buffer_size()`: the largest width or height of a
+  texture, a render target, a depth target or a window's image (8192 with the default limits),
+  and the largest buffer (256 MiB). A loader checks the images and meshes of a file against them
+  before creating them, as the examples' glTF loader does.
 
 ### Changed
 
@@ -25,6 +29,123 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   `Eq` or `Hash`. Offscreen render targets and depth targets carry the usage that lets shaders
   sample them. `Gpu::create_texture` and `Gpu::read_render_target` panic on `Rgba16Float`, a
   format of render targets only, read with `Gpu::read_float_render_target`.
+- `GpuTimer::latest` takes no argument and no longer polls the device. Times come back when later
+  work is submitted (the next frame) or in `Gpu::wait_idle`.
+- The `submit` profiling span covers only the queue submission. wgpu's validation and encoding of
+  a pass's commands now count in the caller's span (`render` in a windowed run).
+- The second termination signal no longer logs a warning before it ends the process; exit code
+  130 says what happened.
+- `slime_devui::Overlay::render` takes an `FnMut` closure instead of an `FnOnce`, since egui may
+  call it twice in a frame. A closure that moves a captured value into egui (for example
+  `ui.label(name)` with an owned `String`) must borrow it instead.
+- `slime_devui::Overlay::render` panics with a clear message when the target does not have the
+  overlay's format. It used to panic only on frames that drew something, with a wgpu validation
+  error.
+- The dev overlay makes one queue submission per frame instead of two.
+- When a step of the Windows CI job fails, the job publishes the images that the failing image
+  tests rendered on WARP, as the artifact `image-test-failures-windows`. Its test step no longer
+  stops at the first test program that fails.
+- `scripts/check.sh` also runs clippy on the windowed lifecycle test of `slime-app`, on Linux and
+  for Windows. Because it is outside the default test run (`test = false`), `--all-targets` used
+  to leave it out.
+
+### Fixed
+
+- Key events pair up the same way on every platform (`slime-platform`). A key still down when the
+  window loses the keyboard focus is released just before `Event::Focused(false)`. This is new on
+  Wayland, where such a key stayed down for applications that track held keys. A key already down
+  when the window gains the focus is no longer reported as a new press on X11 and Windows; it is
+  not reported at all, its release included, until it is pressed again. Before, holding Escape
+  while a launcher or a dialog closed quit the `window` and `scene` examples. On Windows, which
+  reports only the release of Print Screen, that key now gives no event.
+- On Windows, ending the event loop no longer waits for the last frame's deadline, and no longer
+  calls `EventHandler::about_to_wait` once more before `exiting`. After a failed window creation,
+  the loop no longer waits for a message without limit before returning the error. Not checked on
+  Windows yet.
+- On Windows, the window is hidden when the event loop ends, instead of staying on screen,
+  unresponsive, until the process exits. Not checked on Windows yet.
+- On X11, a window whose size times the scale factor exceeds 65 535 physical pixels no longer
+  panics inside winit. That is 16 384 logical pixels at a scale factor of 4, and 65 535 is the
+  most the protocol allows. The size is now limited to 65 535 physical pixels per side.
+- The documentation of `slime-platform` was wrong in three places, now corrected:
+  - On X11, losing the X server ends the process; only on Wayland does the loop end cleanly.
+  - A missing libxkbcommon panics instead of returning `PlatformError::Connect`.
+  - Mouse positions can lie outside the window during a drag and, on X11, when the window gains
+    the focus.
+- A `SLIME_LOG` value with a stray comma or a space around a directive, such as `slime_app=trace,`
+  or ` debug`, no longer silences the modules it does not name. Empty directives and the spaces
+  around directives are dropped before the value is read. A value with no directive left uses the
+  default filter.
+- A second termination signal now ends the process with exit code 130 even while standard error
+  is blocked, for example a pipe that nobody reads. The thread that handles signals no longer
+  writes the log line itself.
+- Frames that get no window image (a minimized window, an image not ready in time) now give wgpu
+  a submission, as frames with an undrawn image already did. GPU writes an application makes
+  outside `App::render` (`Gpu::write_uniform_buffer`, `Gpu::create_texture`) no longer pile up for
+  as long as the window is minimized.
+- Mipmaps of textures with an odd width or height now include the last column and row of each
+  odd-sized level. Each level used to be computed without them, so the smallest levels of a
+  texture whose sides are not powers of two showed only its top-left part, stretched. Along an odd
+  side longer than one pixel, each pixel of the next level now weights the three pixels it
+  overlaps by how much of each it covers
+  ([ADR-0032](docs/adr/0032-mipmaps-computed-at-texture-creation.md)). Textures whose sides are
+  powers of two are unchanged.
+- Creating a vertex, index or uniform buffer no longer panics once the GPU device is lost. Before,
+  a mesh, a material or a larger instance buffer created after a driver reset panicked inside
+  wgpu.
+- On Vulkan, `Gpu::create_render_pipeline` and `Gpu::create_shader_module` return
+  `GfxError::DeviceLost` when the driver's failure to create the object loses the device. Before,
+  they returned `Ok` with an unusable object.
+- A renderer with a GPU timer no longer panics inside wgpu in the frame where a Vulkan driver
+  reports the device lost: the run stops with `GfxError::DeviceLost`, as documented.
+- A windowed run whose GPU device is lost before the window's first image, or before the first
+  image after its surface was created again, stops with `GfxError::DeviceLost` instead of
+  panicking inside wgpu.
+- `slime-render` lights an instance flattened along one axis (a scale of 0 on one axis, such as a
+  glTF node with scale [1, 1, 0]), whose normals were NaN. Normals are now transformed by the
+  cofactor matrix of the instance's transform, which also stays finite at extreme scales.
+- `slime-render` writes an alpha of 1 for every surface it draws, as documented for opaque
+  surfaces. It wrote the material's alpha, so an offscreen image read back with
+  `Gpu::read_render_target` showed translucent surfaces.
+- `Renderer::create_mesh` returns `RenderError::InvalidMesh` for a mesh whose vertices or indices
+  need a buffer larger than the device accepts (`Gpu::max_buffer_size`, 256 MiB with the default
+  limits: more than 8 388 608 vertices or 67 108 864 indices), instead of panicking in wgpu.
+- `Camera`'s documentation names the inputs that give a matrix that is not finite: a `target` at
+  `eye`, and a `far` that is not finite.
+- The dev overlay keeps its panels in place when the window's scale factor changes. Moving the
+  window to a screen with a higher scale used to push them toward the top-left, for good.
+- The dev overlay no longer draws an empty frame when egui lays a frame out twice, as on the first
+  frame of a grid or of a window being resized.
+- The dev overlay no longer panics when the GPU device was lost earlier in the frame. It skips the
+  frame, and the windowed run stops with `GfxError::DeviceLost`.
+- The examples' glTF loader returns an error instead of panicking or aborting on what the `gltf`
+  crate's validation lets through:
+  - images larger than the GPU accepts, checked before they are decoded;
+  - primitives whose vertices or indices need a larger buffer than the GPU accepts, checked before
+    the loader builds them;
+  - image data that lies outside the binary chunk, has no MIME type, or is missing;
+  - accessors stored in types glTF does not allow, sparse, empty, overlapping, or outside the
+    binary chunk. Before, indices it could not read were silently drawn as non-indexed triangles;
+  - node hierarchies that are not trees. A cycle used to overflow the stack;
+  - an index that names no vertex, in a primitive without normals.
+- The loader places node hierarchies of any depth. A valid chain of a few thousand nodes
+  overflowed the stack and aborted.
+- The loader gives primitives without normals flat normals, as glTF requires, instead of
+  smoothing them across shared vertices.
+- The loader draws mirrored nodes (a negative determinant) with their front faces outward instead
+  of inside-out.
+- The loader warns about vertex colors, which it ignores.
+- The `scene` example draws large and small GLB files: its camera's near and far planes now fit
+  the scene, and the wheel keeps the camera between 0.1 and 20 radii of it.
+- In the `scene` example, a drag that ends over the dev overlay no longer leaves the camera
+  turning with the mouse.
+- The `scene` example no longer replays, when F1 shows its overlay again, all the input received
+  while the overlay was hidden: a click on the scene could press a button of the overlay.
+- A renderer failure in the `scene` example is reported with its cause.
+- `examples/README.md` says that the Windows examples published by CI need the x64 Microsoft
+  Visual C++ Redistributable (`VCRUNTIME140.dll`), which a fresh Windows install lacks.
+- `CONTRIBUTING.md` tells contributors on WARP to run the tests one at a time
+  (`--test-threads=1`), as the Windows CI job does.
 
 ## [0.0.3] - 2026-10-13
 
