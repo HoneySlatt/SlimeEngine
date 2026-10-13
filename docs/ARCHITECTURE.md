@@ -107,8 +107,9 @@ frame                                span "frame", trace level
 ├── app.fixed_update(ctx, step)      n times, span "fixed_update"
 ├── app.update(ctx, &frame)          once, span "update"
 └── with a window:
-    ├── surface.acquire(label)       the window's image, named "window, frame <index>", or
-    │                                none: skip drawing; span "acquire"
+    ├── surface.acquire(label)       the window's image, its passes named "window, frame
+    │                                <index>", or none: skip drawing, after an empty submission
+    │                                that lets wgpu release the frame's writes; span "acquire"
     ├── app.render(ctx, target)      draws into the image; span "render"
     └── image.present()              hands it to the window; span "present"
 ```
@@ -306,7 +307,7 @@ whether there is an image to draw:
 | A size of zero (minimized window) | No image; the frame runs without drawing |
 | Outdated configuration | Configured again, then one more try; no image this frame if still outdated |
 | Suboptimal image | Drawn and presented, then configured again |
-| Image not ready in time, window occluded | No image this frame |
+| Image not ready in time (Vulkan), window occluded | No image this frame; on Direct3D 12, wgpu waits up to one second for a late image, then returns it, and the frame is drawn late |
 | Surface lost | Created again from the window; no image this frame. Lost for good (it cannot be created again, or is lost again each time): no image, and the run stops before the next frame, like after a lost device |
 | Device lost (see [Losing the GPU](#losing-the-gpu)) | No image; the run stops before the next frame |
 
