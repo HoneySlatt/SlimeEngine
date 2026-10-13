@@ -13,14 +13,13 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3b — Physically based renderer → 0.1: in progress. Planned on 2026-10-13 and validated by
-  the owner. M3b.1 is in progress: done on lavapipe and RADV, waiting for the Windows CI job on
-  WARP.
+  the owner. M3b.1 is done; next: M3b.2.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
-| [M3b.1](#m3b1--gpu-layer-for-multi-pass-rendering) | GPU layer for multi-pass rendering | In progress |
+| [M3b.1](#m3b1--gpu-layer-for-multi-pass-rendering) | GPU layer for multi-pass rendering | Done |
 | [M3b.2](#m3b2--hdr-rendering-and-tone-mapping) | HDR rendering and tone mapping | Planned |
 | [M3b.3](#m3b3--physically-based-materials) | Physically based materials | Planned |
 | [M3b.4](#m3b4--light-types) | Light types | Planned |
@@ -138,10 +137,12 @@ sample, tests included, and must stay small; upgrading wgpu still waits for egui
   in bands, as targets larger than the largest buffer are), `timing.rs` (three passes of a frame,
   one of them depth-only, timed each) and `errors.rs` (pipelines without vertices or without a
   target, bindings of another kind than their layout in both directions, the read and texture
-  asserts) pass on lavapipe and on the owner's RX 6900 XT (RADV). On both, the biases are exactly
-  the amounts the formula gives, and a comparison halfway between a shadowed and a lit texel gives
-  0.5. The passes of the timing test took 241, 165 and 133 µs on lavapipe, 2.4, 1.2 and 1.1 µs on
-  RADV. No example uses these features yet: the `scene` example does from M3b.2 on.
+  asserts) pass on lavapipe, on the owner's RX 6900 XT (RADV) and, in the Windows CI job, on
+  WARP. On all three, the biases are exactly the amounts the formula gives, and a comparison
+  halfway between a shadowed and a lit texel gives 0.5. The passes of the timing test took 241,
+  165 and 133 µs on lavapipe, 2.4, 1.2 and 1.1 µs on RADV, 36, 39 and 17 µs on WARP. No example
+  uses these features yet: the `scene` example does from M3b.2 on. The Windows job took 8 minutes
+  40 seconds, the Linux one 3 minutes 23 seconds.
 
 ### M3b.2 — HDR rendering and tone mapping
 

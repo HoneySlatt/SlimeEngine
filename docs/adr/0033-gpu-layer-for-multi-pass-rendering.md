@@ -140,8 +140,8 @@ This amends ADR-0017 (formats, readback, how passes run, what pipelines draw) an
 - Each pass is still its own submission. Times of different timers can come from different frames,
   and the sum of a frame's pass times is not a frame time.
 - The depth-bias amount and linear comparison filtering depend on the driver. The tests check the
-  expected values and print what they measure: on lavapipe and on the owner's RX 6900 XT (RADV),
-  the constant and slope-scaled biases are exactly the amounts the formula gives, and a comparison
-  halfway between a shadowed and a lit texel gives 0.5.
+  expected values and print what they measure: on lavapipe, on the owner's RX 6900 XT (RADV) and
+  on WARP, the constant and slope-scaled biases are exactly the amounts the formula gives, and a
+  comparison halfway between a shadowed and a lit texel gives 0.5.
 - `Rgba16Float` textures uploaded from the CPU, cube and array textures, mip levels given by the
   caller, multisampling, blending and compute passes arrive with their first users.
