@@ -1,6 +1,6 @@
 # 0029. Temporary glTF loading, in the examples
 
-- Status: Accepted
+- Status: Accepted; amended by [0035](0035-physically-based-materials.md) (its lists of what the loader reads, refuses and warns about are replaced)
 - Date: 2026-10-13
 
 ## Context

@@ -1,6 +1,6 @@
 # 0034. HDR rendering and tone mapping
 
-- Status: Accepted
+- Status: Accepted; amended by [0035](0035-physically-based-materials.md) (light above 65 504 is written as 65 504)
 - Date: 2026-10-13
 
 ## Context

@@ -1,6 +1,6 @@
 # 0027. The render crate, what it draws, and glam
 
-- Status: Accepted; amended by [0034](0034-hdr-rendering-and-tone-mapping.md) (two passes, the scene in HDR, the exposure, tone mapping)
+- Status: Accepted; amended by [0034](0034-hdr-rendering-and-tone-mapping.md) (two passes, the scene in HDR, the exposure, tone mapping) and by [0035](0035-physically-based-materials.md) (three scene pipelines chosen per draw, physically based materials, tangents)
 - Date: 2026-10-13
 
 ## Context

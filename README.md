@@ -10,15 +10,16 @@ Pre-alpha. Stages 0 (*Foundations*), 1 (*Core and platform*), 2 (*GPU layer*) an
 renderer*) are done; the latest release is 0.0.3 (git tag `v0.0.3`). Applications run headless or
 with a window (Wayland or X11 on Linux, Win32 on Windows) that receives keyboard and mouse input,
 with a fixed-step main loop, logging, panic reporting and a clean shutdown on Ctrl+C. The engine
-opens the GPU (Vulkan on Linux, Direct3D 12 on Windows), paces frames with its own schedule and
-the Mailbox present mode by default, names its GPU work for capture tools, and stops cleanly when
-the GPU device is lost. Its first renderer, `slime-render`, draws instances of meshes from a
-camera, with a depth test, each with a material of one base color, which a texture with mipmaps
-may modulate, lit by a directional light, into the window or into offscreen images that image
-tests compare with references; the `scene` example draws a glTF scene under a camera driven by
-the mouse, with its frame time, CPU time, the GPU time of each pass and an exposure slider in a
-dev overlay. Stage 3b, the physically based renderer, is in progress: the renderer draws the scene
-in high dynamic range and maps it to the display with a tone-mapping pass and an exposure.
+opens the GPU (Vulkan on Linux, Direct3D 12 on Windows), paces frames with its own schedule and the
+Mailbox present mode by default, names its GPU work for capture tools, and stops cleanly when the
+GPU device is lost. Its first renderer, `slime-render`, draws instances of meshes from a camera,
+with a depth test, each with a physically based material (glTF's metallic-roughness model, with base
+color, metallic-roughness, normal, occlusion and emissive textures), lit by a directional light,
+into the window or into offscreen images that image tests compare with references; the `scene`
+example draws a glTF scene under a camera driven by the mouse, with its frame time, CPU time, the
+GPU time of each pass and an exposure slider in a dev overlay. Stage 3b, the physically based
+renderer, is in progress: the renderer draws the scene in high dynamic range, shades it with glTF's
+metallic-roughness materials, and maps it to the display with a tone-mapping pass and an exposure.
 [`docs/PLAN.md`](docs/PLAN.md) lists what comes next and the known debt.
 
 ## Getting started

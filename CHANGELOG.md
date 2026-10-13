@@ -28,9 +28,28 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   Neutral, which keeps hues and compresses highlights instead of clipping them.
   `RenderStats::scene_gpu_time` and `RenderStats::tone_mapping_gpu_time` give the
   GPU time of each pass. The `scene` example shows both and has an exposure slider.
+- Physically based materials in `slime-render`
+  ([ADR-0035](docs/adr/0035-physically-based-materials.md)): glTF's metallic-roughness model with
+  the formulas of the Khronos glTF Sample Viewer. `MaterialData` gains metallic and roughness with
+  their texture, a normal texture and its scale, an occlusion texture and its strength, an
+  emission with its strength and texture, `AlphaMode` (opaque, or masked with a cutoff) and
+  double-sidedness; double-sided materials are drawn without culling and shaded from the side
+  seen. `MeshData::tangents` gives normal textures their frame.
+- The examples' glTF loader reads all of it, tangents included (computed per triangle when a file
+  has none), and `KHR_materials_emissive_strength`. The sample asset has normal, occlusion,
+  metallic-roughness and emissive textures and tangents; the shapes of the image test have six
+  spheres of increasing roughness, dielectric and metal.
 
 ### Changed
 
+- `MeshData::tangents` is required, and a vertex takes 48 bytes: the largest mesh is 5 592 405
+  vertices with the default limits. `DirectionalLight::color` is an illuminance: a white matte
+  surface facing the light and the camera reflects 0.97/π of it, and the default light is π.
+  `Renderer::create_material` panics on a texture in the wrong kind of format for its slot (sRGB
+  for colors, `Rgba8Unorm` for data). `Renderer::new` builds four pipelines. Images change. The
+  examples' loader leaves unsupported required extensions to the `gltf` crate's validation, draws
+  `BLEND` materials opaque with a warning, and decodes only the images that materials read, each
+  once.
 - `RenderStats::gpu_time` is replaced by `scene_gpu_time` and `tone_mapping_gpu_time`; `Scene`
   has a new field, `exposure`; `Renderer::new` takes the output's format, any render-target
   format. `Scene::clear` is light, exposed and tone mapped like surfaces, and its alpha is no
@@ -78,6 +97,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- Mirrored instances are no longer drawn inside out: the renderer keeps their front faces, and
+  the examples' loader no longer copies mirrored meshes with their triangles wound the other way.
+  A mesh flattened between two rotations is no longer lit from the wrong side. The sample scene's
+  floor no longer disappears when seen from below.
 - Key events pair up the same way on every platform (`slime-platform`). A key still down when the
   window loses the keyboard focus is released just before `Event::Focused(false)`. This is new on
   Wayland, where such a key stayed down for applications that track held keys. A key already down

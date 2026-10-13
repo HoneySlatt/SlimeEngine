@@ -13,8 +13,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3b — Physically based renderer → 0.1: in progress. Planned on 2026-10-13 and validated by
-  the owner. M3b.1 is done; M3b.2 passes on the three drivers and waits for the owner's
-  checks on niri and in the Windows virtual machine; next: M3b.3.
+  the owner. M3b.1 is done; M3b.2 and M3b.3 pass on the three drivers and wait for the owner's
+  checks on niri and in the Windows virtual machine, which the owner runs together later; next:
+  the decisions the owner took on 2026-10-13 about earlier proposals, then M3b.4.
 
 ## Status
 
@@ -22,7 +23,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 |---|---|---|
 | [M3b.1](#m3b1--gpu-layer-for-multi-pass-rendering) | GPU layer for multi-pass rendering | Done |
 | [M3b.2](#m3b2--hdr-rendering-and-tone-mapping) | HDR rendering and tone mapping | Awaiting the owner |
-| [M3b.3](#m3b3--physically-based-materials) | Physically based materials | Planned |
+| [M3b.3](#m3b3--physically-based-materials) | Physically based materials | Awaiting the owner |
 | [M3b.4](#m3b4--light-types) | Light types | Planned |
 | [M3b.5](#m3b5--shadows) | Shadows | Planned |
 | [M3b.6](#m3b6--image-based-lighting) | Image-based lighting | Planned |
@@ -199,7 +200,7 @@ sample, tests included, and must stay small; upgrading wgpu still waits for egui
   0029). The pipeline is chosen per draw from the material's double-sidedness and from the sign of
   the determinant of the instance's transform (no culling, or culling the back or the front
   faces), so that mirrored instances keep their front faces, as glTF does; the examples' loader
-  then stops reversing the winding of mirrored nodes (see the known debt). The lists in ADR-0029
+  then stops reversing the winding of mirrored nodes. The lists in ADR-0029
   of what the loader reads, refuses and warns about predate several of its current checks: images
   larger than the GPU accepts, primitives too large for its buffers, malformed image data and
   accessors, node hierarchies that are not trees, the vertex-color warning, the reversed winding
@@ -214,6 +215,29 @@ sample, tests included, and must stay small; upgrading wgpu still waits for egui
   material discards fragments below its cutoff. The image tests pass on the three drivers; the
   sample looks right by eye.
 - **How to test.** As M3b.2.
+- **Checked** on 2026-10-13: ADR-0035 records the material model, the light's unit, the pipelines
+  and the alternatives rejected; the owner took the choices it lists.
+  `crates/slime-render/tests/shading.rs` reads `Rgba16Float` outputs back and compares them within 2
+  × 10⁻³ with what a CPU copy of the BRDF (`tests/common/brdf.rs`, checked against closed forms)
+  predicts: a white dielectric at normal incidence, a highlight spreading with roughness, a metal
+  reflecting its base color, the channels of the metallic-roughness texture, a normal texture
+  tilting the shading as a turned square does (green up the image), masks by factor and by texture,
+  double-sided back faces, mirrored instances with their normal textures and a pipeline switch in
+  one frame, occlusion and emission, the clamp at 65 504, and the panics on a texture in the wrong
+  format; mutating the shader's handedness or facing makes it fail. The unit tests check the
+  material's packing, the tangents of a mesh, `cull_mode` and `is_mirrored` (3600 meshes flattened
+  between two rotations, none mirrored); the loader's tests check computed and read tangents, masks,
+  blending, double sides, required extensions, a texture in two slots and coordinate sets in every
+  slot. They pass on lavapipe and on the owner's RX 6900 XT (RADV), and on lavapipe with glam's
+  assertions on. The references were rendered again on lavapipe and looked at. On RADV, `gltf-front`
+  has 222 pixels off by more than 2, 78 by more than 4, 7 by more than 8 (65 allowed), largest 26;
+  `gltf-back` 25, 0, 0, largest 4; `shapes` 588, 278, 36 (50 at M3b.2), largest 18. The scene pass
+  took 5.8 µs on RADV in the lighting test. The asset, regenerated with Blender 5.2 from
+  `make_scene.py`, is 127 296 bytes, and every item that the design checks in it was found. The
+  `scene` example ran 400 frames in a headless Weston on lavapipe, and a screenshot was looked at:
+  the glowing ring, the iron frames of the crates, the metal pillar, the bricks' relief. Not checked
+  yet: the sample by eye on niri, and `scene.exe` in the Windows virtual machine, which the owner
+  runs.
 
 ### M3b.4 — Light types
 
@@ -224,7 +248,8 @@ sample, tests included, and must stay small; upgrading wgpu still waits for egui
   maximum, in a uniform buffer; the falloff that `KHR_lights_punctual` recommends (the inverse
   square of the distance, brought smoothly to zero at the range) and its cone attenuation; the
   constant ambient light stays until IBL replaces it; the loader reads `KHR_lights_punctual`
-  through the `gltf` feature of that name (`dependencies.md` and ADR-0029 updated); the asset
+  through the `gltf` feature of that name (`dependencies.md` updated, and the lists of ADR-0035
+  amended), adds it to `READ_EXTENSIONS`, and a test loads a file that requires it; the asset
   exports its sun and a point or spot light; the sample's exposure suits physical units. ADR:
   lights and their units.
 - **Done when.** Tests that read pixels back: a point light gives a quarter of the light at twice
@@ -241,7 +266,10 @@ sample, tests included, and must stay small; upgrading wgpu still waits for egui
 - **Delivers.** A depth-only shadow pass into a sampleable depth target, from an orthographic
   projection fitted to the bounds of the instances; the scene pass reads it with 3 × 3 PCF through
   a comparison sampler, with a constant and a slope-scaled depth bias; `RenderStats` counts the
-  shadow pass's draw calls and gives its GPU time. ADR: shadow mapping.
+  shadow pass's draw calls and gives its GPU time. ADR: shadow mapping. Masked materials
+  (ADR-0035) discard in a fragment stage, which depth-only pipelines lack (ADR-0033): this
+  milestone decides whether masked casters cast solid shadows or depth-only pipelines gain a
+  fragment stage.
 - **Done when.** Tests that read pixels back: a square above a floor darkens a square of the floor
   of the expected size, with edges blended over the width of the filter; a lit floor shows no
   self-shadowing (shadow acne). The image tests pass on the three drivers, with a tolerance amended
@@ -273,7 +301,8 @@ sample, tests included, and must stay small; upgrading wgpu still waits for egui
 - **Crates.** `slime-render`; `examples`.
 - **Delivers.** A chain of HDR targets, each half the size of the one before, filled by
   downsampling the scene, then upsampled back and added to the scene in the tone-mapping pass, with
-  a strength; the sample's asset gains an emissive object bright enough to bloom; the overlay shows
+  a strength; the sample's asset has an emissive object bright enough to bloom (its ring already
+  emits at a strength of 4, M3b.3); the overlay shows
   the chain's GPU time. ADR: bloom.
 - **Done when.** Tests that read pixels back: a single bright pixel spreads into a symmetric halo,
   and a dark image is unchanged. The image tests pass on the three drivers; the sample looks right
@@ -558,27 +587,6 @@ GitHub issues, linked from their entry; this list stays the reference.
   DLL loads. A DLL that loads but fails in another way removes the Direct3D 12 backend, so
   `Gpu::new` returns `NoAdapter`. `WGPU_DX12_COMPILER` is ignored, because the engine never reads
   it. CI most likely runs FXC.
-- **Mirrored instances are drawn inside out** (ADR-0027; a change is proposed to the owner). An
-  instance whose transform has a negative determinant (a scale of −1 along one axis, or a glTF
-  node mirrored by its parents) winds its triangles clockwise on screen. The renderer's scene
-  pipeline culls those faces, so the instance's front faces are culled and its back faces drawn,
-  where glTF keeps the front faces. The examples' glTF loader works around it: a mirrored node
-  draws a copy of its mesh whose triangles are wound the other way. M3b.3, whose double-sided
-  materials need a pipeline chosen per draw too, plans the fix.
-- **A mesh flattened between two rotations can be lit from the wrong side.** When a zero scale
-  sits between two rotations (a glTF node scaled to zero along one axis, under a turned parent,
-  with a turned child), the columns of the instance's transform lie in one plane only up to
-  rounding, and its determinant is rounding noise of either sign. The renderer reads a negative
-  one as a mirror and negates the normal matrix: drawn through `Renderer` directly, about two such
-  meshes in five get the ambient light only on their visible faces. The examples' glTF loader
-  decides whether to reverse a node's winding from a determinant computed another way, which
-  agrees with the renderer's for about 92 % of such transforms, so about 8 % of such nodes are
-  lit wrong. Counting a determinant as positive when it is negligible next to the lengths of the
-  columns (under 1e-5 of their product, about 80 times the noise) fixes the renderer, but the
-  loader must decide the same way, or 40 % of such nodes would be lit wrong instead of 8 %
-  (measured on 2026-10-13 over 3600 such transforms). In M3b.3 both decisions become one: the
-  renderer chooses the culling of each draw from the same test, and the loader stops reversing
-  the winding.
 - **The instance buffer is uploaded at its largest size every frame.** `Renderer::render` packs,
   zero-fills and uploads `capacity × stride` bytes (256-byte slots with the default limits), where
   the capacity is the largest instance count ever drawn, rounded up to a power of two (at least
@@ -600,19 +608,6 @@ GitHub issues, linked from their entry; this list stays the reference.
   loss that egui-wgpu's own buffer upload is the first to find, and `Overlay::new` on a device
   already lost (egui-wgpu creates its buffers with `create_buffer_init`). Both are documented
   under `# Panics`; closing them needs a change in egui-wgpu or wgpu.
-- **The glTF loader's own required-extension check cannot run yet** (`examples/common/gltf.rs`).
-  The `gltf` crate is built without extension features, so `Gltf::from_slice` already refuses any
-  `extensionsRequired` entry, under the message "the file is not valid glTF". The check becomes
-  reachable, and wrong, when M3b.4 enables `KHR_lights_punctual`: it would refuse files that
-  require that supported extension. M3b.4 must narrow the check to the extensions the loader does
-  not read, or delete it and rely on the crate. It should also add a test that refuses a file
-  requiring an unsupported extension and loads one requiring `KHR_lights_punctual`
-  (`examples/tests/gltf.rs` builds such files in memory).
-- **The glTF loader decodes, mipmaps and uploads every texture of a file**, though only
-  base-color textures are sampled until M3b.3. An image shared by several textures is decoded once
-  per texture. When M3b.3 creates textures per slot, cache the decoded images by image index. To
-  measure: time `gltf::load` in a debug build on a PNG-only PBR asset with five 2048 × 2048 maps,
-  before and after.
 - **The glTF loader copies shared vertex attributes into every primitive that uses them**
   (`examples/common/gltf.rs`). Each primitive that has normals gets every vertex of its position,
   normal and texture-coordinate accessors, including those its indices do not name. K primitives
@@ -623,9 +618,6 @@ GitHub issues, linked from their entry; this list stays the reference.
   primitive to the vertices its indices name. To measure: load a three.js export of a mesh with
   several materials, and compare the sum of `MeshData::positions.len()` over the meshes created,
   and the load time, before and after.
-- **Double-sided and masked glTF materials are drawn back-face culled and opaque until M3b.3.**
-  Every material of the sample asset is double-sided, and its floor disappears when the camera
-  goes below it.
 - **Shadowed surfaces and the background look darker than authored until image-based lighting**
   (ADR-0034). The tone-mapping curve lowers dark colors, on the assumption that every surface
   reflects some of its surroundings, which image-based lighting adds at M3b.6. Until then, the
@@ -633,13 +625,31 @@ GitHub issues, linked from their entry; this list stays the reference.
   ambient light alone lose up to 0.04 in every channel: a third to two thirds of their light at
   the samples' ambient light, and most of a channel much weaker than the others, which saturates
   them.
-- **Light beyond 65 504 overflows the HDR target** (ADR-0034; a change is proposed to the owner for
-  M3b.4). The exposure is applied after the scene pass has written the `Rgba16Float` target, whose
-  largest value is 65 504: a brighter channel is stored as 65 504 or as an infinity, depending on
-  the driver; the first clips it, the curve turns the second into NaN, which shows as a color that
-  has nothing to do with the scene. No light of the engine is that bright yet; with the units of
-  M3b.4 (lux and candela), a highlight of the sun is. Applying the exposure in the scene pass
-  instead (pre-exposure) keeps the target in range, but departs from the plan as validated.
+- **Light beyond 65 504 is clamped in the HDR target** (ADR-0034, ADR-0035; a change is proposed
+  to the owner for M3b.4). The exposure is applied after the scene pass has written the
+  `Rgba16Float` target, whose largest value is 65 504. The scene shader writes brighter light as
+  65 504, rather than leave it to the driver, which may store an infinity that the tone curve
+  turns into NaN. The highlights of smooth metals under a light of π already reach it: about
+  61 000 at normal incidence for a roughness of 0.045, more at grazing angles; with the units of
+  M3b.4 (lux and candela), the sun's highlights exceed it by far. Clamped light loses its energy,
+  which a low exposure shows as a flat highlight and the bloom of M3b.7 would spread wrongly.
+  Applying the exposure in the scene pass instead (pre-exposure) keeps the target in range, but
+  departs from the plan as validated; it is to decide at M3b.4, and the clamp stays as a safety
+  net either way.
+- **Every draw of the scene pass runs a shader that can discard fragments** (ADR-0035). The `MASK`
+  alpha mode discards in the one fragment shader that every material uses, opaque materials with a
+  cutoff of 0. Some GPUs then test depth after the shader rather than before, for opaque draws
+  too, which costs overdraw. Not measured: compare the scene pass's GPU time on a scene with much
+  overdraw against a build whose opaque materials use a fragment entry point without `discard`
+  (six pipelines instead of three).
+- **Tangents that a glTF file lacks are computed per triangle, not with MikkTSpace** (ADR-0035),
+  against which normal textures are usually baked. Such files shade slightly differently from
+  other viewers, most at seams in the texture coordinates. The importer of Stage 4 computes
+  MikkTSpace tangents.
+- **The ambient light ignores roughness and Fresnel until image-based lighting** (ADR-0035). Every
+  surface reflects it times its base color, whatever its metallic and roughness: smooth surfaces
+  show no reflection of their surroundings, and dielectrics lack the 4 % they reflect at normal
+  incidence. M3b.6 replaces it.
 - **glTF minification filters are approximated.** `slime-gfx` ties mip blending to the
   minification filter and gives every texture mipmaps, so only `NEAREST_MIPMAP_NEAREST` and
   `LINEAR_MIPMAP_LINEAR` are exact (documented in the loader). Revisit when an engine-side user

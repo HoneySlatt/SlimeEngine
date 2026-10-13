@@ -9,6 +9,9 @@ software driver such as lavapipe or WARP. The engine opens one adapter's *device
 **ADR (Architecture Decision Record).** A short document in [`docs/adr/`](adr/README.md) that
 records one decision: its context, the decision, the alternatives rejected and the consequences.
 
+**Alpha mask.** Not drawing the fragments of a surface whose alpha falls below a cutoff, so that
+a texture can cut shapes out of it: glTF's `MASK` alpha mode (`slime_render::AlphaMode`).
+
 **Application time.** The sum of the deltas of all frames so far (`FrameTime::elapsed`). It
 falls behind wall-clock time when a frame delta is limited, for example after a pause.
 
@@ -16,6 +19,10 @@ falls behind wall-clock time when a frame delta is limited, for example after a 
 `@group` index: uniform buffers, textures and samplers (`slime_gfx::BindGroup`). Its
 *bind group layout* says which bindings it has and what each holds (`slime_gfx::BindGroupLayout`,
 [ADR-0026](adr/0026-resource-binding-and-depth.md)).
+
+**BRDF (bidirectional reflectance distribution function).** How much of the light arriving at a
+surface from one direction it reflects towards another: what the *metallic-roughness model*
+computes.
 
 **Checks (the).** The automated checks of the *definition of done*, which `scripts/check.sh` runs
 and the Linux CI job runs unchanged: formatting, clippy (for Windows too), the build, the tests on
@@ -33,7 +40,8 @@ Shadow maps are read this way. See *percentage-closer filtering*.
 
 **Culling.** Not drawing the triangles that face one way, usually the back faces of closed
 meshes, which their front faces hide anyway (`slime_gfx::CullMode`). A triangle faces the front
-when its vertices wind counter-clockwise on screen.
+when its vertices wind counter-clockwise on screen. The renderer chooses it per draw, from the
+material's double-sidedness and from whether the instance is *mirrored* (ADR-0035).
 
 **Debug group.** A named section of the commands of a render pass, shown by GPU capture tools such
 as RenderDoc (`RenderPass::debug_group`).
@@ -61,6 +69,9 @@ a *shadow map* is read.
 is reset, the GPU is removed, or it runs out of memory: its objects can then no longer be used,
 and the run stops ([ADR-0022](adr/0022-losing-the-gpu-device.md)).
 
+**Double-sided material.** A material whose back faces are drawn too, shaded with their normals
+reversed (glTF).
+
 **Driver.** The loop that decides when frames run and what time each one represents. `run` has a
 headless driver (frames back to back, simulated time) and a windowed driver, called back by the
 windowing library's event loop, which measures real time, asks for frames at a limited rate and
@@ -71,6 +82,9 @@ runs them on *redraw requests*. All drivers run frames the same way
 each time the group is bound (`RenderPass::set_bind_group`) rather than when the group is created,
 as a multiple of `Gpu::uniform_offset_alignment`. One buffer and one group then serve many draws,
 one range each: the renderer's instances ([ADR-0027](adr/0027-the-render-crate.md)).
+
+**Emission.** The light a surface gives off, added to the light it reflects: glTF's emissive
+factor, its strength (`KHR_materials_emissive_strength`) and its texture.
 
 **Engine-owned type.** A type of an engine crate that holds an object of a third-party library and
 exposes only what the engine needs, so that the library's types never appear in a public API: the
@@ -126,6 +140,9 @@ before it is mapped to the display's range by *tone mapping*. The engine draws t
 `Rgba16Float` render targets: the renderer draws the scene into one at the output's size, which
 its tone-mapping pass reads.
 
+**Illuminance.** The light a surface facing a light receives from it, which the *BRDF* turns into
+the light the surface reflects: what `DirectionalLight::color` gives (ADR-0035).
+
 **Image test.** A test that renders offscreen and compares the result with a *reference image*,
 pixel by pixel, within a tolerance that absorbs how drivers round colors and filter textures
 ([ADR-0018](adr/0018-reference-image-tests.md), amended by
@@ -159,16 +176,25 @@ the logical key `"a"`. Suits shortcuts and text. See also *physical key*.
 display's, it covers. The sizes of `WindowConfig` are logical; `Window::inner_size`,
 `Event::CursorMoved` and render targets are physical. egui calls logical pixels *points*.
 
-**Material.** How a surface looks: a base color, which a texture read with a *sampler* may
-modulate, and which the scene's light multiplies (`slime_render::Material`, from
-`MaterialData`).
+**Material.** How a surface looks, with glTF's *metallic-roughness model*: a base color,
+metallic and roughness, normal, occlusion and emissive textures each read with a *sampler*, an
+alpha mode and double-sidedness (`slime_render::Material`, from `MaterialData`;
+[ADR-0035](adr/0035-physically-based-materials.md)).
 
-**Mesh.** Triangles given as vertices (a position, a normal and texture coordinates each) and
-indices, uploaded to the GPU (`slime_render::Mesh`, from `MeshData`).
+**Mesh.** Triangles given as vertices (a position, a normal, texture coordinates and a *tangent*
+each) and indices, uploaded to the GPU (`slime_render::Mesh`, from `MeshData`).
+
+**Metallic-roughness model.** glTF's physically based material: a dielectric's diffuse color
+under a specular layer, or a metal's reflection tinted by its color, blended by *metallic*, with
+highlights as wide as the *roughness* (glTF 2.0, Appendix B; ADR-0035).
 
 **Milestone.** A small, verifiable step of a stage, listed with its goal, its done criteria and
 how to test it in [`docs/PLAN.md`](PLAN.md). Milestones are numbered `M<stage>.<n>`, for example
 M1.3.
+
+**Mirrored instance.** An instance whose transform has a negative determinant, such as a scale of
+−1 along one axis: it turns front faces clockwise on screen, and the renderer culls its other
+faces so that it keeps its front ones, as glTF does (ADR-0035).
 
 **Mipmaps.** Copies of a texture at half, a quarter, ... of its size, down to one pixel: the
 *levels of detail* among which a *sampler* chooses by the size the texture is drawn at, so that a
@@ -178,7 +204,15 @@ minified texture does not alias. The engine computes them on the CPU when the te
 **Normal matrix.** The matrix by which the renderer transforms an instance's normals so that they
 stay perpendicular to surfaces scaled unevenly: the cofactor matrix of the transform's 3 × 3 part,
 proportional to its inverse transpose, which, unlike the inverse, stays finite for a mesh
-flattened along one axis.
+flattened along one axis. It is negated for a *mirrored instance*, by the same test that chooses
+the culling.
+
+**Normal texture.** A texture of normals in *tangent space*, which replace a mesh's normals to give
+it detail without more triangles: red along the tangent, green up the image, blue along the
+normal, each from −1 to 1 stored as 0 to 1 (glTF).
+
+**Occlusion texture.** A texture whose red channel says how much of the ambient light reaches each
+point of a surface, darkening creases (glTF).
 
 **Offscreen rendering.** Drawing into an image that no window shows, a *render target*, for
 example to read it back to the CPU. Image tests render this way, without a windowing system.
@@ -259,6 +293,11 @@ engine *acquires* one, the application draws into it, and the engine *presents* 
 (`slime_gfx::Surface`). The graphics API can report it *lost*: it is then created again, and given
 up, which stops the run, when that fails or when it is lost again each time
 ([ADR-0025](adr/0025-giving-up-a-lost-surface.md)).
+
+**Tangent.** A direction in a surface, along which the texture's u coordinate grows. With the
+normal and the *handedness* w (±1, −1 where the texture is mirrored on the surface), it gives the
+bitangent, cross(normal, tangent) × w, and with it the *tangent space* in which *normal textures*
+are stored (`MeshData::tangents`, glTF's convention).
 
 **Termination signal.** A request from outside the process to stop it: SIGINT (Ctrl+C in a
 terminal), SIGTERM (a service manager or `kill`) or SIGHUP (the terminal closing). The first one
