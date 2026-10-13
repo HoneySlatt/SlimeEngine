@@ -13,17 +13,18 @@ use tracing_subscriber::fmt::format::FmtSpan;
 /// Its value uses the directive syntax of `tracing-subscriber`'s `EnvFilter`: a level
 /// (`SLIME_LOG=debug`), levels per module (`SLIME_LOG=warn,slime_app=trace`), or `off`. A module
 /// without a level of its own records `info` and above: when the value names no bare level, as
-/// `slime_app=trace` does not, `info` is added for the other modules. Invalid directives are
-/// reported on standard error and ignored. When the variable is unset or empty,
+/// `slime_app=trace` does not, `info` is added for the other modules. Spaces around a directive and
+/// empty directives, as a stray comma leaves, are ignored; invalid directives are reported on
+/// standard error and ignored. When the variable is unset or has no directive,
 /// [`DEFAULT_LOG_FILTER`] applies.
 pub const LOG_ENV_VAR: &str = "SLIME_LOG";
 
-/// The log filter used when [`LOG_ENV_VAR`] is unset or empty: `info` and above, except for
-/// wgpu-hal, whose `info` messages list what the GPU supports (`warn` and above), for the wgpu-hal
-/// module that relays the messages of the Vulkan loader and layers (`error` only), and for the
-/// module of winit's client-side decorations that asks the desktop settings portal for the theme
-/// (nothing): it logs an error whenever no session bus or portal answers, which the engine cannot
-/// act on (ADR-0019).
+/// The log filter used when [`LOG_ENV_VAR`] is unset or has no directive: `info` and above, except
+/// for wgpu-hal, whose `info` messages list what the GPU supports (`warn` and above), for the
+/// wgpu-hal module that relays the messages of the Vulkan loader and layers (`error` only), and for
+/// the module of winit's client-side decorations that asks the desktop settings portal for the
+/// theme (nothing): it logs an error whenever no session bus or portal answers, which the engine
+/// cannot act on (ADR-0019).
 pub const DEFAULT_LOG_FILTER: &str =
     "info,wgpu_hal=warn,wgpu_hal::vulkan::instance=error,sctk_adwaita::config=off";
 
@@ -62,8 +63,8 @@ pub fn init_diagnostics() {
 fn install_subscriber() {
     let directives = std::env::var(LOG_ENV_VAR)
         .ok()
-        .filter(|value| !value.trim().is_empty())
-        .map_or_else(|| DEFAULT_LOG_FILTER.to_owned(), with_default_level);
+        .and_then(|value| with_default_level(&value))
+        .unwrap_or_else(|| DEFAULT_LOG_FILTER.to_owned());
     let filter = EnvFilter::builder()
         .with_default_directive(LevelFilter::INFO.into())
         .parse_lossy(directives);
@@ -83,18 +84,32 @@ fn install_subscriber() {
     }
 }
 
-/// `directives` with `info,` in front when none of them is a bare level. `EnvFilter` otherwise
-/// records nothing from the modules that the directives do not name, and reads a misspelt level as
-/// the name of a module, which would silence everything.
-fn with_default_level(directives: String) -> String {
-    let has_bare_level = directives
+/// The directives of `value`, with `info,` in front when none of them is a bare level, or `None`
+/// when it has no directive. `EnvFilter` otherwise records nothing from the modules that the
+/// directives do not name, and reads a misspelt level as the name of a module, which would silence
+/// everything.
+///
+/// Spaces around a directive and empty directives are dropped first. `EnvFilter` would read a
+/// level with a space around it as the name of a module, and skips an empty directive, which
+/// `LevelFilter` parses as a level: either way, the value would have no bare level left.
+fn with_default_level(value: &str) -> Option<String> {
+    let directives: Vec<&str> = value
         .split(',')
-        .any(|directive| directive.trim().parse::<LevelFilter>().is_ok());
-    if has_bare_level {
+        .map(str::trim)
+        .filter(|directive| !directive.is_empty())
+        .collect();
+    if directives.is_empty() {
+        return None;
+    }
+    let has_bare_level = directives
+        .iter()
+        .any(|directive| directive.parse::<LevelFilter>().is_ok());
+    let directives = directives.join(",");
+    Some(if has_bare_level {
         directives
     } else {
         format!("info,{directives}")
-    }
+    })
 }
 
 /// Escape sequences only make sense on a terminal that interprets them, and `NO_COLOR`
@@ -151,10 +166,7 @@ mod tests {
             "garbage",
             "debg,slime_gfx=warn",
         ] {
-            assert_eq!(
-                with_default_level(value.to_owned()),
-                format!("info,{value}")
-            );
+            assert_eq!(with_default_level(value), Some(format!("info,{value}")));
         }
         for value in [
             "debug",
@@ -164,7 +176,29 @@ mod tests {
             "warn,slime_app=trace",
             "slime_app=trace,error",
         ] {
-            assert_eq!(with_default_level(value.to_owned()), value);
+            assert_eq!(with_default_level(value).as_deref(), Some(value));
+        }
+    }
+
+    #[test]
+    fn stray_commas_and_spaces_are_dropped() {
+        for (value, directives) in [
+            ("slime_app=trace,", "info,slime_app=trace"),
+            (",slime_app=trace", "info,slime_app=trace"),
+            ("slime_app=trace,,", "info,slime_app=trace"),
+            (" debug", "debug"),
+            ("debug ", "debug"),
+            ("slime_app=trace, debug", "slime_app=trace,debug"),
+            ("warn, slime_app=trace", "warn,slime_app=trace"),
+        ] {
+            assert_eq!(
+                with_default_level(value).as_deref(),
+                Some(directives),
+                "{value:?}"
+            );
+        }
+        for value in ["", " ", ",", " , "] {
+            assert_eq!(with_default_level(value), None, "{value:?}");
         }
     }
 }

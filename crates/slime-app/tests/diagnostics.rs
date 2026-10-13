@@ -146,6 +146,19 @@ fn modules_without_a_level_of_their_own_record_info() {
         "a value without a bare level must keep the other modules at info\n{engine_only}"
     );
 
+    // A stray comma or space, as a script or an environment file leaves, changes nothing.
+    for value in ["slime_app=trace,", " debug"] {
+        let stray = run_child(
+            "modules_without_a_level_of_their_own_record_info",
+            Some(value),
+        );
+        let stray = String::from_utf8_lossy(&stray.stderr);
+        assert!(
+            stray.contains("line from the game"),
+            "SLIME_LOG={value:?} must keep the other modules recording\n{stray}"
+        );
+    }
+
     let quiet = run_child(
         "modules_without_a_level_of_their_own_record_info",
         Some("warn,slime_app=trace"),
