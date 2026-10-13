@@ -200,7 +200,10 @@ fn main() -> Result<(), GfxError> {
     itself), or `None` when the window cannot show a new image (a size of zero, an image not
     ready in time on Vulkan, an occluded surface, a lost surface, which is created again; on
     Direct3D 12, wgpu waits up to one second for an image that is late, then returns it). Draw into
-    `SurfaceFrame::target()` with `Gpu::render`, then call `SurfaceFrame::present()`. Window images
+    `SurfaceFrame::target()` with `Gpu::render`, then call `SurfaceFrame::present()`. Every frame
+    acquired must be presented: on Vulkan, wgpu cannot give back an image dropped without being
+    presented, so each such drop takes one of the window's images until the surface is configured
+    again, and once none is left, `acquire` waits one second and returns `None`. Window images
     cannot be read back.
   - `Surface::check()` returns `GfxError::SurfaceLost` once the surface is lost for good: it could
     not be created again, or was lost again each time it was; `acquire` then returns `None` without

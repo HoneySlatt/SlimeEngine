@@ -239,8 +239,9 @@ impl Surface {
     ///
     /// # Panics
     ///
-    /// If the [`SurfaceFrame`] of the previous call has neither been presented nor dropped: wgpu
-    /// treats acquiring a second image as a misuse (ADR-0016).
+    /// If the [`SurfaceFrame`] of the previous call still exists: wgpu treats acquiring a second
+    /// image while one is held as a misuse (ADR-0016). Present each frame before the next call;
+    /// dropping it instead is a misuse too ([`SurfaceFrame`] says why).
     pub fn acquire(&mut self, label: &str) -> Option<SurfaceFrame> {
         let image = self.next_image(label);
         if image.is_none() {
@@ -370,8 +371,15 @@ impl fmt::Debug for Surface {
 }
 
 /// The image of a window for one frame, from [`Surface::acquire`]. Draw into
-/// [`target`](Self::target), then [`present`](Self::present) it; dropping it without presenting
-/// discards it and the window keeps showing its previous image.
+/// [`target`](Self::target), then [`present`](Self::present) it.
+///
+/// Every frame acquired must be presented, even one that nothing drew into (it is shown cleared
+/// to black); to keep the window's current image, do not acquire a new one. Dropping a frame
+/// without presenting it is a misuse that nothing reports: on Vulkan, wgpu cannot give such an
+/// image back to the window (its discard does nothing), so each drop takes one of the window's
+/// images until the surface is configured again, and leaves wgpu's synchronization of that image
+/// in a state that Vulkan forbids. Once the window has no image left,
+/// [`acquire`](Surface::acquire) waits one second at every call and returns `None`.
 #[derive(Debug)]
 pub struct SurfaceFrame {
     texture: wgpu::SurfaceTexture,
