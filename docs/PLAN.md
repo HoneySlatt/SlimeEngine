@@ -327,7 +327,17 @@ GitHub issues, linked from their entry; this list stays the reference.
   considered. Running out of GPU memory panics as well on the paths where wgpu does not treat it as
   the loss of the device (ADR-0022). The engine avoids the rejections that the environment can
   cause: a window larger than the device's largest image is drawn at that size (`Surface::resize`),
-  and a shader or pipeline that the driver rejects is returned as an error.
+  and a shader or pipeline that the driver rejects is returned as an error (`GfxError::Shader` or
+  `GfxError::Pipeline` on Direct3D 12; on Vulkan, wgpu treats the driver's failure as a lost
+  device, `GfxError::DeviceLost`). A window's surface that cannot be configured still panics, as
+  the next entry says.
+- **A window's surface that cannot be configured panics** (ADR-0025; a change is proposed to the
+  owner). `Surface::acquire` configures the surface outside a wgpu error scope, so a failed
+  configuration is a validation error, which panics while the device is alive. On Vulkan, a
+  surface gone for good (an X11 window destroyed by another client, for example) fails its
+  configuration this way before the limit of ADR-0025 is reached, since a surface created again
+  is configured before its first image; on Direct3D 12, a swap chain that cannot be created does
+  the same.
 - **A lost GPU device is not replaced** (ADR-0022; issue
   [#2](https://github.com/HoneySlatt/SlimeEngine/issues/2)): the run stops with an error, and
   since winit allows one event loop per process, carrying on means starting the process again.
@@ -357,14 +367,17 @@ GitHub issues, linked from their entry; this list stays the reference.
   too (seen with a Weston stopped by SIGSTOP).
 - **On Direct3D 12, a covered window or a locked session was not measured.** In `acquire`, wgpu
   waits on the swap chain's frame-latency object, up to one second, if the compositor stops taking
-  images; whether Windows does so for such windows is unknown.
+  images; whether Windows does so for such windows is unknown. After that wait wgpu hands out the
+  image anyway rather than reporting a timeout, so the frame is drawn late instead of skipped, and
+  no debug line marks it: the stall shows only as a long `acquire` span
+  (`SLIME_LOG=slime_app=trace`).
 - **WARP's shader compiler crashes the process, now and then, when several threads compile
   shaders at once**, even on separate devices: an access violation (`STATUS_ACCESS_VIOLATION`)
   that other projects trace to `d3d10warp.dll`, and that no test can catch. Seen once in the
   Windows CI job, on 2026-10-13, in the texture tests of
   `slime-gfx`, after about ten green runs; other projects that test on WARP report the same crash,
-  and that running the tests one at a time avoids it, which the Windows job does since. The
-  engine's own code is not involved.
+  and that running the tests one at a time avoids it, which the Windows job does since, and which
+  `CONTRIBUTING.md` asks of contributors on WARP. The engine's own code is not involved.
 - **Client-side decorations run `dbus-send` twice when the window is created** (winit's
   sctk-adwaita, on compositors that do not draw decorations), each waiting up to 100 ms when the
   settings portal does not answer; the error they log when no session bus or portal answers is
@@ -385,6 +398,117 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **A pipeline that does not fit its pass, or a target sampled by the pass that draws into it,
   panics only when the pass ends** inside `Gpu::render` or `Gpu::render_depth`, with wgpu's
   message, rather than at the faulty call (ADR-0033).
+- **On X11, losing the connection to the X server ends the process** with exit status 1, inside
+  the X11 library (Xlib). `EventHandler::exiting`, `App::shutdown` and the return of `run` do not
+  happen, although ADR-0010 promises that `shutdown` is called once `init` has been. winit
+  installs no IO error handler. Installing one (`XSetIOErrorExitHandler`, libX11 1.7 or later)
+  would need a new direct dependency such as `x11-dl`. On Wayland, a compositor that dies ends the
+  loop cleanly.
+- **Without libxkbcommon, the windowing library panics** rather than returning
+  `PlatformError::Connect`. On X11 it panics at once, also without libxkbcommon-x11 or without the
+  X server's XKB extension. On Wayland it panics when the compositor first reports a keyboard,
+  which can be in the middle of a run. Turning it into an error would mean probing the libraries
+  before winit does.
+- **Two Windows changes to the event loop were not checked on Windows** (2026-10-13). First,
+  ending the loop sets `ControlFlow::Poll`, so that winit does not wait for the last deadline, and
+  `about_to_wait` is no longer passed to the handler after `LoopControl::Exit`. Second, the window
+  is hidden when the loop ends, because winit destroys windows only from inside the loop. To check
+  in the Windows virtual machine: close the `window` example and see the `stopping:` line come at
+  once. Then add a sleep after `run` returns in an example and see the window disappear as soon as
+  it is closed.
+- **A termination signal received after `run` has returned no longer ends the process by itself**
+  (ADR-0012). `ctrlc` cannot remove the handler that `run` installs. A first signal received then
+  only stops later runs, and logs that the run stops after the current frame; only a second one
+  ends the process, with exit code 130. This matters for a program that keeps working after
+  `run`, for example under a service manager, which waits out its stop timeout. Ending the process
+  at once when no run is active would amend ADR-0012.
+- **Closing the terminal of a foreground run can end it without `shutdown`** (ADR-0012; a change
+  is proposed to the owner). The shell and then the kernel each send SIGHUP, less than a
+  millisecond apart. The second one counts as the "second signal" and forces exit code 130 before
+  the loop has noticed the first. Measured on 2026-10-13 with the `window` example in a headless
+  Weston: two SIGHUPs 1 ms apart end it with code 130, and `shutdown` does not run or is cut
+  short.
+- **A GPU device lost during a windowed run is not tested** (ADR-0022; a change is proposed to the
+  owner). Only the unit test of `slime-gfx` loses a device, by destroying it outside any run. The
+  windowed path (the run stops, `shutdown` is called once, and `run` returns
+  `RunError::Gfx(GfxError::DeviceLost)`) was checked by hand, with a lifecycle scenario that
+  destroys the device. That scenario is not kept: it reaches wgpu outside `slime-gfx`, which only
+  the dev overlay may do (ADR-0031), and the lifecycle test uses the public API only (ADR-0024).
+- **Any `trace` directive in `SLIME_LOG` makes wgpu build its per-command trace records.**
+  tracing-subscriber sets the `log` crate's maximum level from the most verbose directive. With
+  `slime_app=trace`, wgpu-core then formats and filters out about five records per draw while it
+  encodes a pass, which counts in the caller's span (`render` in a windowed run). This is
+  negligible for the samples. To measure it: read `RenderStats::cpu_time` for a scene of about
+  1000 instances with `SLIME_LOG` unset, then with `slime_app=trace`. Alternatively, profile with
+  `perf record -g` and look for `tracing_log::LogTracer::log`, `EnvFilter::enabled` and
+  `wgpu_core::resource::Labeled::error_ident`. Capping the `log` level needs `log` or
+  `tracing-log` as a direct dependency (ADR-0006).
+- **A GPU time can read 0 once when the timestamp counter wraps.** On adapters whose timestamps
+  have 36 valid bits (Intel's Vulkan driver, about once every one to one and a half hours), a
+  timed pass that runs across the wrap ends before it starts. `GpuTimer::latest` then gives 0 for
+  that pass until the next time replaces it. wgpu does not tell how many bits are valid, so the
+  wrapped difference cannot be recovered. Dropping such a sample (`end.checked_sub(start)` in
+  `crates/slime-gfx/src/timer.rs`) is a one-line change if it ever matters.
+- **Which shader compiler Direct3D 12 uses depends on the machine** (ADR-0016; a change is
+  proposed to the owner). wgpu 30 defaults to `Dx12Compiler::Auto`. Any `dxcompiler.dll` that the
+  Windows DLL search finds compiles every shader, with no check of its version: the application's
+  directory, the system directories, the working directory and `PATH`, where the Vulkan SDK or a
+  Visual Studio developer prompt put one. FXC, which is part of Windows, is used only when no such
+  DLL loads. A DLL that loads but fails in another way removes the Direct3D 12 backend, so
+  `Gpu::new` returns `NoAdapter`. `WGPU_DX12_COMPILER` is ignored, because the engine never reads
+  it. CI most likely runs FXC.
+- **Mirrored instances are drawn inside out** (ADR-0027; a change is proposed to the owner). An
+  instance whose transform has a negative determinant (a scale of −1 along one axis, or a glTF
+  node mirrored by its parents) winds its triangles clockwise on screen. The renderer's only
+  pipeline culls those faces, so the instance's front faces are culled and its back faces drawn,
+  where glTF keeps the front faces. The examples' glTF loader works around it: a mirrored node
+  draws a copy of its mesh whose triangles are wound the other way. M3b.3, whose double-sided
+  materials need a pipeline chosen per draw too, plans the fix.
+- **The instance buffer is uploaded at its largest size every frame.** `Renderer::render` packs,
+  zero-fills and uploads `capacity × stride` bytes (256-byte slots with the default limits), where
+  the capacity is the largest instance count ever drawn, rounded up to a power of two (at least
+  64). It never shrinks. A scene that shrinks after a large peak still pays for the peak: about
+  32 MiB a frame after 100 000 instances. It also allocates one small `Vec` per instance per
+  frame. Uploading only the live slots would amend ADR-0026's rule that a uniform buffer is always
+  written at its creation size. To measure first: `RenderStats::cpu_time` and the GPU time of a
+  10-instance frame after a 100 000-instance frame, against a renderer that never drew more than
+  10.
+- **The dev overlay leaves egui's focus flag set.** `slime-devui` sends egui the window's focus
+  changes as events only (`WindowFocused`) and leaves `RawInput::focused` at egui's default,
+  `true`. A focused text field therefore keeps its caret blinking after the window loses the
+  focus. The effect is cosmetic: the engine redraws every frame anyway, and the scene example shows
+  labels only. Fix: keep a `focused` flag in `slime-devui`'s `input::Input`, updated on
+  `Event::Focused`, and set `RawInput::focused` from it in `Overlay::render`.
+- **The dev overlay can still panic on a lost device** (ADR-0022). `Overlay::render` skips the
+  frame when the device was lost earlier in it, but two cases panic inside egui-wgpu or wgpu: a
+  loss that egui-wgpu's own buffer upload is the first to find, and `Overlay::new` on a device
+  already lost (egui-wgpu creates its buffers with `create_buffer_init`). Both are documented
+  under `# Panics`; closing them needs a change in egui-wgpu or wgpu.
+- **The glTF loader's own required-extension check cannot run yet** (`examples/common/gltf.rs`).
+  The `gltf` crate is built without extension features, so `Gltf::from_slice` already refuses any
+  `extensionsRequired` entry, under the message "the file is not valid glTF". The check becomes
+  reachable, and wrong, when M3b.4 enables `KHR_lights_punctual`: it would refuse files that
+  require that supported extension. M3b.4 must narrow the check to the extensions the loader does
+  not read, or delete it and rely on the crate. It should also add a test that refuses a file
+  requiring an unsupported extension and loads one requiring `KHR_lights_punctual`
+  (`examples/tests/gltf.rs` builds such files in memory).
+- **The glTF loader decodes, mipmaps and uploads every texture of a file**, though only
+  base-color textures are sampled until M3b.3. An image shared by several textures is decoded once
+  per texture. When M3b.3 creates textures per slot, cache the decoded images by image index. To
+  measure: time `gltf::load` in a debug build on a PNG-only PBR asset with five 2048 × 2048 maps,
+  before and after.
+- **Double-sided and masked glTF materials are drawn back-face culled and opaque until M3b.3.**
+  Every material of the sample asset is double-sided, and its floor disappears when the camera
+  goes below it.
+- **glTF minification filters are approximated.** `slime-gfx` ties mip blending to the
+  minification filter and gives every texture mipmaps, so only `NEAREST_MIPMAP_NEAREST` and
+  `LINEAR_MIPMAP_LINEAR` are exact (documented in the loader). Revisit when an engine-side user
+  needs a separate mipmap filter or a base-level-only read.
+- **The Windows examples artifact needs the Visual C++ Redistributable** (ADR-0015; a change is
+  proposed to the owner). CI builds `slime-examples-windows` with the MSVC C runtime linked
+  dynamically, the default, so the executables import `VCRUNTIME140.dll`. A fresh Windows install
+  and Windows Sandbox do not have it, and there the programs fail to start; `examples/README.md`
+  says so. How shipped games link the C runtime belongs to packaging (Stage 9).
 
 ## Notes
 
