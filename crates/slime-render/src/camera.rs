@@ -16,8 +16,9 @@ pub struct Camera {
     pub eye: Vec3,
     /// The point it looks at, which must differ from `eye`.
     pub target: Vec3,
-    /// Which way is up, usually [`Vec3::Y`]. Its length does not matter, but it must not be zero
-    /// or parallel to the viewing direction.
+    /// Which way is up, usually [`Vec3::Y`]. Its length does not matter, short of one so small or
+    /// so large that its square rounds to zero or overflows in `f32`, but it must not be zero or
+    /// parallel to the viewing direction.
     pub up: Vec3,
     /// The vertical field of view, in radians.
     pub fov_y: f32,
@@ -44,8 +45,9 @@ impl Default for Camera {
 
 impl Camera {
     /// The view matrix: from world space to the camera's space. A `target` at `eye`, or so near it
-    /// that the square of their distance rounds to zero in `f32`, or an `up` that is zero or
-    /// parallel to the viewing direction, gives a matrix that is not finite and draws nothing.
+    /// that the square of their distance rounds to zero in `f32`, or an `up` that is zero,
+    /// parallel to the viewing direction or of an extreme length (see [`up`](Self::up)), gives a
+    /// matrix that is not finite and draws nothing.
     ///
     /// # Panics
     ///
