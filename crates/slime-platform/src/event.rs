@@ -66,7 +66,8 @@ pub enum Event {
     CursorEntered,
     /// The cursor left the window.
     CursorLeft,
-    /// A mouse wheel or a touchpad scrolled while the cursor was over the window.
+    /// A mouse wheel or a touchpad scrolled while the cursor was over the window, or outside it
+    /// while a button pressed over the window is held.
     MouseWheel(ScrollDelta),
 }
 
