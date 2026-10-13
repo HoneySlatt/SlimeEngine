@@ -257,15 +257,17 @@ mod tests {
         let gpu = gpu();
         let target = gpu.create_render_target("overlay target", 200, 200, FORMAT);
         let mut overlay = Overlay::new(&gpu, FORMAT, 1.0);
-        let black = slime_gfx::Color {
+        // Opaque, not black, and exact in sRGB: an overlay pass that cleared the target, to black or
+        // to transparent black, would not leave this colour around the panel.
+        let blue = slime_gfx::Color {
             r: 0.0,
             g: 0.0,
-            b: 0.0,
+            b: 1.0,
             a: 1.0,
         };
         let scene = RenderPassDescriptor {
             target: &target,
-            clear: Some(black),
+            clear: Some(blue),
             depth: None,
             timer: None,
         };
@@ -282,9 +284,9 @@ mod tests {
         }
 
         let image = gpu.read_render_target(&target).expect("read the target");
-        let pixel = |x: usize, y: usize| &image.pixels[(y * 200 + x) * 4..][..3];
-        assert_ne!(pixel(20, 20), [0, 0, 0], "the window is drawn");
-        assert_eq!(pixel(190, 190), [0, 0, 0], "the scene is kept around it");
+        let pixel = |x: usize, y: usize| &image.pixels[(y * 200 + x) * 4..][..4];
+        assert_ne!(pixel(20, 20), [0, 0, 255, 255], "the window is drawn");
+        assert_eq!(pixel(190, 190), [0, 0, 255, 255], "the scene is kept around it");
     }
 
     #[test]
