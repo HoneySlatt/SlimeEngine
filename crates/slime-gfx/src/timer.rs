@@ -235,13 +235,13 @@ mod tests {
         assert_eq!(in_flight(), SLOTS, "every slot waits for its time");
 
         gpu.wait_idle().expect("the GPU finishes the passes");
-        assert!(timer.latest(&gpu).is_some(), "the times have come back");
+        assert!(timer.latest().is_some(), "the times have come back");
         assert_eq!(in_flight(), 0, "reading them frees every slot");
 
         gpu.render(&pass, |_pass| {});
         assert_eq!(in_flight(), 1, "a freed slot times the next pass");
         gpu.wait_idle().expect("the GPU finishes the pass");
-        assert!(timer.latest(&gpu).is_some(), "its time comes back");
+        assert!(timer.latest().is_some(), "its time comes back");
         assert_eq!(in_flight(), 0, "and frees the slot again");
     }
 }
