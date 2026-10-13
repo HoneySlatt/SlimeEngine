@@ -17,6 +17,9 @@
 //! The other properties of materials are ignored without one, as the renderer has no use for
 //! them yet: every material is drawn opaque, and with its back faces culled even when the file
 //! marks it double-sided, as the sample asset does (its floor disappears when seen from below).
+//! A primitive that has normals and shares its vertex attributes with other primitives, as
+//! three.js writes a mesh of several materials, gets its own copy of every vertex they hold, even
+//! those its indices do not name: K such primitives over V vertices upload K × V vertices.
 //!
 //! The `gltf` crate's validation checks little more than that the file's objects name each other
 //! correctly, and its readers panic on some of what it lets through. The loader refuses, rather
