@@ -45,7 +45,9 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
   down when the window loses the keyboard focus is released just before `Focused(false)`, and a
   key already down when the window gains the focus is not reported until it is pressed again.
   winit differs here from one platform to the next, so the event loop keeps track of the keys
-  that are down. On Windows, Print Screen gives no event: Windows reports only its release.
+  that are down. On Windows, Print Screen gives no event: Windows reports only its release; and
+  while both Shift keys are down, Windows reports no release until both are up, so the one let
+  go of first is released only then, with the other.
   Mouse button events pair up too: a button still down when the window loses the keyboard focus
   is released just before `Focused(false)`, since on Windows its real release goes to another
   window, and a later real release is not reported.

@@ -1,7 +1,7 @@
 //! Events delivered to the application, and their translation from winit's.
 
 use winit::event::WindowEvent;
-use winit::keyboard::PhysicalKey;
+use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
 use crate::input::{self, ButtonState, KeyEvent, MouseButton, ScrollDelta};
 use crate::window::PhysicalSize;
@@ -41,7 +41,10 @@ pub enum Event {
     /// just before [`Focused(false)`](Self::Focused), even though the user lets go of it later, in
     /// another window. A key already down when the window gains the focus is not reported, its
     /// release included, until it is pressed again. On Windows, Print Screen gives no event:
-    /// Windows reports only its release.
+    /// Windows reports only its release. Windows also reports a single release for the two Shift
+    /// keys: while both are down, the one let go of first is released only when the other goes
+    /// up, and both are then released together. Windows may report the press of the second Shift
+    /// as an auto-repeat, in which case neither that press nor its release is reported.
     Key(KeyEvent),
     /// A mouse button went down over the window, or went up after going down there, possibly
     /// with the cursor outside the window by then.
@@ -131,7 +134,12 @@ impl Translator {
                 ..
             } => {
                 let physical = event.physical_key;
-                match self.key(physical, input::key_event(event), is_synthetic) {
+                let event = input::key_event(event);
+                // Windows sends one key-up for both Shift keys: see `release_other_shift`.
+                if cfg!(windows) && !is_synthetic && event.state == ButtonState::Released {
+                    self.release_other_shift(physical, &mut deliver);
+                }
+                match self.key(physical, event, is_synthetic) {
                     Some(key) => Event::Key(key),
                     None => return,
                 }
@@ -196,6 +204,30 @@ impl Translator {
         }
     }
 
+    /// Releases the other Shift key when `released`, the key of a release that Windows reports, is
+    /// a Shift key.
+    ///
+    /// Windows gives both Shift keys one key state: while both are down, letting go of one sends
+    /// no key-up, and letting go of the other then sends one key-up, for that other key only. So
+    /// on Windows a Shift key-up means that both are up, whether or not the engine delivered the
+    /// press of the one it names. On other platforms each Shift key has its own key-up.
+    fn release_other_shift(&mut self, released: PhysicalKey, deliver: &mut impl FnMut(Event)) {
+        let other = match released {
+            PhysicalKey::Code(WinitKeyCode::ShiftLeft) => {
+                PhysicalKey::Code(WinitKeyCode::ShiftRight)
+            }
+            PhysicalKey::Code(WinitKeyCode::ShiftRight) => {
+                PhysicalKey::Code(WinitKeyCode::ShiftLeft)
+            }
+            _ => return,
+        };
+        if let Some(index) = self.pressed.iter().position(|(key, _)| *key == other) {
+            let (_, press) = self.pressed.remove(index);
+            deliver(Event::Key(release_of(press)));
+        }
+        self.held_before_focus.retain(|key| *key != other);
+    }
+
     /// Whether to deliver a mouse button event that winit reports: a press of a button not down
     /// already, or a release of a button whose press was delivered.
     fn mouse_button(&mut self, button: MouseButton, state: ButtonState) -> bool {
@@ -216,13 +248,7 @@ impl Translator {
     /// Releases the keys and mouse buttons still down, because the window is losing the focus.
     fn release_all(&mut self, deliver: &mut impl FnMut(Event)) {
         for (_, press) in self.pressed.drain(..) {
-            deliver(Event::Key(KeyEvent {
-                physical: press.physical,
-                logical: press.logical,
-                text: None,
-                state: ButtonState::Released,
-                repeat: false,
-            }));
+            deliver(Event::Key(release_of(press)));
         }
         self.held_before_focus.clear();
         for button in self.buttons.drain(..) {
@@ -234,13 +260,24 @@ impl Translator {
     }
 }
 
+/// The release of a key whose press was delivered, made up by the engine.
+fn release_of(press: KeyEvent) -> KeyEvent {
+    KeyEvent {
+        physical: press.physical,
+        logical: press.logical,
+        text: None,
+        state: ButtonState::Released,
+        repeat: false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use winit::dpi::{PhysicalPosition, PhysicalSize as WinitSize};
     use winit::keyboard::{KeyCode as WinitKeyCode, NativeKeyCode};
 
     use super::*;
-    use crate::input::{Key, KeyCode};
+    use crate::input::{Key, KeyCode, NamedKey};
 
     /// Translates `event` with a translator that has seen nothing before, which gives at most one
     /// event.
@@ -328,6 +365,84 @@ mod tests {
         assert_eq!(
             translator.key(W, w(Pressed, false), false),
             Some(w(Pressed, false))
+        );
+    }
+
+    /// What `translate` delivers on Windows for a key event that winit reports. The cfg!(windows)
+    /// branch of `translate` is reproduced here, so that the test runs on every platform.
+    fn windows_key(
+        translator: &mut Translator,
+        physical: PhysicalKey,
+        event: KeyEvent,
+        synthetic: bool,
+    ) -> Vec<Event> {
+        let mut events = Vec::new();
+        if !synthetic && event.state == Released {
+            translator.release_other_shift(physical, &mut |event| events.push(event));
+        }
+        events.extend(translator.key(physical, event, synthetic).map(Event::Key));
+        events
+    }
+
+    #[test]
+    fn on_windows_a_shift_key_up_releases_both_shift_keys() {
+        let shift = |code, state, repeat| {
+            let (physical, engine) = match code {
+                WinitKeyCode::ShiftLeft => (PhysicalKey::Code(code), KeyCode::ShiftLeft),
+                _ => (PhysicalKey::Code(code), KeyCode::ShiftRight),
+            };
+            let event = KeyEvent {
+                physical: engine,
+                logical: Key::Named(NamedKey::Shift),
+                text: None,
+                state,
+                repeat,
+            };
+            (physical, event)
+        };
+        let (left, right) = (WinitKeyCode::ShiftLeft, WinitKeyCode::ShiftRight);
+        // Left Shift, then Right Shift go down; Left Shift goes up first, with no key-up; Right
+        // Shift goes up, with one key-up. Windows may mark the second press as a repeat, which
+        // the engine drops, and then the release of Right Shift too.
+        for second_press_repeats in [false, true] {
+            let mut translator = Translator::default();
+            let (physical, event) = shift(left, Pressed, false);
+            assert_eq!(
+                windows_key(&mut translator, physical, event.clone(), false),
+                [Event::Key(event)]
+            );
+            let (physical, event) = shift(right, Pressed, second_press_repeats);
+            windows_key(&mut translator, physical, event, false);
+            let (physical, event) = shift(right, Released, false);
+            let mut expected = vec![Event::Key(shift(left, Released, false).1)];
+            if !second_press_repeats {
+                expected.push(Event::Key(event.clone()));
+            }
+            assert_eq!(
+                windows_key(&mut translator, physical, event, false),
+                expected
+            );
+            assert_eq!(lose_focus(&mut translator), [Event::Focused(false)]);
+        }
+        // Left Shift was down before the window gained the focus; Right Shift goes down in it.
+        let mut translator = Translator::default();
+        let (physical, event) = shift(left, Pressed, false);
+        assert_eq!(windows_key(&mut translator, physical, event, true), []);
+        let (physical, event) = shift(right, Pressed, false);
+        assert_eq!(
+            windows_key(&mut translator, physical, event.clone(), false),
+            [Event::Key(event)]
+        );
+        let (physical, event) = shift(right, Released, false);
+        assert_eq!(
+            windows_key(&mut translator, physical, event.clone(), false),
+            [Event::Key(event)]
+        );
+        // Left Shift is up too: its next press is reported.
+        let (physical, event) = shift(left, Pressed, false);
+        assert_eq!(
+            windows_key(&mut translator, physical, event.clone(), false),
+            [Event::Key(event)]
         );
     }
 
