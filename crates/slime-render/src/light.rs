@@ -12,7 +12,9 @@ use glam::Vec3;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DirectionalLight {
     /// The direction the light travels in, in world space: down and to the side for a sun. Its
-    /// length does not matter, but it must not be zero.
+    /// length does not matter, but it must not be zero: the renderer would light the scene from
+    /// a direction that is not a number, or [`Renderer::render`](crate::Renderer::render) panic
+    /// inside glam when glam's assertions are on (see [`Camera`](crate::Camera)).
     pub direction: Vec3,
     /// The color and strength of the directional light: not negative.
     pub color: Vec3,

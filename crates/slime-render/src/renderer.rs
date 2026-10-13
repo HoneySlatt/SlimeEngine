@@ -387,6 +387,10 @@ impl Renderer {
     /// If `target` does not have the format the renderer was created for, or if the instances
     /// need a buffer larger than the device allows (256 MiB with the default limits: about a
     /// million instances): these are bugs in the caller.
+    ///
+    /// With glam's assertions on (see [`Camera`]), also for a camera or a light that would
+    /// otherwise draw nothing usable: as [`Camera::view_projection`] does, and for a zero
+    /// [`DirectionalLight::direction`].
     pub fn render(&mut self, gpu: &Gpu, target: &RenderTarget, scene: &Scene<'_>) -> RenderStats {
         let started = Instant::now();
         assert!(

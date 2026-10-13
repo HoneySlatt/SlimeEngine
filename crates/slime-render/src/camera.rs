@@ -46,6 +46,10 @@ impl Camera {
     /// The view matrix: from world space to the camera's space. A `target` at `eye`, or so near it
     /// that the square of their distance rounds to zero in `f32`, or an `up` that is zero or
     /// parallel to the viewing direction, gives a matrix that is not finite and draws nothing.
+    ///
+    /// # Panics
+    ///
+    /// Inside glam, for those cameras, when glam's assertions are on (see [`Camera`]).
     pub fn view(&self) -> Mat4 {
         // glam asks for an `up` of length one, and asserts it when its assertions are on.
         glam::camera::rh::view::look_at_mat4(self.eye, self.target, self.up.normalize())
@@ -56,11 +60,21 @@ impl Camera {
     /// and +Y up, the convention of WebGPU, which wgpu follows on every graphics API. A field of
     /// view outside (0, π), a `near` that is not positive and smaller than `far`, or a `far` that
     /// is not finite, gives a matrix that draws nothing usable.
+    ///
+    /// # Panics
+    ///
+    /// Inside glam, when glam's assertions are on (see [`Camera`]), for a field of view outside
+    /// (0, π), a `near` or `far` that is not positive, a `near` equal to `far`, or an `aspect` of
+    /// zero.
     pub fn projection(&self, aspect: f32) -> Mat4 {
         glam::camera::rh::proj::directx::perspective(self.fov_y, aspect, self.near, self.far)
     }
 
     /// The projection times the view: from world space to clip space.
+    ///
+    /// # Panics
+    ///
+    /// As [`view`](Self::view) and [`projection`](Self::projection) do.
     pub fn view_projection(&self, aspect: f32) -> Mat4 {
         self.projection(aspect) * self.view()
     }
