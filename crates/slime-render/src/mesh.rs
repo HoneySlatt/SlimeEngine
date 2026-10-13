@@ -23,8 +23,9 @@ pub struct MeshData {
 }
 
 impl MeshData {
-    /// Why the data cannot be drawn, if it cannot.
-    fn check(&self) -> Result<(), String> {
+    /// Why the data cannot be drawn, if it cannot, by a device whose largest buffer holds
+    /// `max_buffer_size` bytes.
+    fn check(&self, max_buffer_size: u64) -> Result<(), String> {
         let vertices = self.positions.len();
         if vertices == 0 {
             return Err("it has no vertex".to_owned());
@@ -42,6 +43,18 @@ impl MeshData {
                 "it has {} indices, which is not a multiple of 3",
                 self.indices.len()
             ));
+        }
+        for (count, what, size) in [
+            (vertices, "vertices", VERTEX_STRIDE),
+            (self.indices.len(), "indices", 4),
+        ] {
+            let bytes = count as u64 * size;
+            if bytes > max_buffer_size {
+                return Err(format!(
+                    "its {count} {what} take {bytes} bytes, more than the {max_buffer_size} \
+                     bytes of the largest buffer the device accepts"
+                ));
+            }
         }
         if let Some(index) = self
             .indices
@@ -85,10 +98,11 @@ impl Mesh {
 
     /// Checks `data` and uploads it.
     pub(crate) fn new(gpu: &Gpu, label: &str, data: &MeshData) -> Result<Self, RenderError> {
-        data.check().map_err(|reason| RenderError::InvalidMesh {
-            label: label.to_owned(),
-            reason,
-        })?;
+        data.check(MAX_BUFFER_SIZE)
+            .map_err(|reason| RenderError::InvalidMesh {
+                label: label.to_owned(),
+                reason,
+            })?;
         let vertices = gpu.create_vertex_buffer(&format!("{label} vertices"), &data.vertex_bytes());
         let indices = gpu.create_index_buffer(&format!("{label} indices"), &data.indices);
         Ok(Self { vertices, indices })
@@ -97,6 +111,11 @@ impl Mesh {
 
 /// The size of one vertex as the pipeline reads it: eight 32-bit floats.
 const VERTEX_STRIDE: u64 = 8 * 4;
+
+/// The size of the largest buffer the device accepts: 256 MiB, wgpu's default limit, since
+/// [`Gpu::new`](slime_gfx::Gpu::new) opens the device with the default limits. A larger vertex or
+/// index buffer would be a wgpu error, which panics.
+const MAX_BUFFER_SIZE: u64 = 256 << 20;
 
 /// How the pipeline reads the vertices of a mesh.
 pub(crate) const VERTEX_LAYOUT: VertexLayout<'static> = VertexLayout {
@@ -136,7 +155,7 @@ mod tests {
     #[test]
     fn consistent_data_is_accepted_and_interleaved() {
         let data = triangle();
-        assert_eq!(data.check(), Ok(()));
+        assert_eq!(data.check(MAX_BUFFER_SIZE), Ok(()));
         let bytes = data.vertex_bytes();
         assert_eq!(bytes.len(), 3 * 32);
         // The second vertex: position (1, 0, 0), normal (0, 0, 1), uv (1, 0).
@@ -151,31 +170,61 @@ mod tests {
     fn inconsistent_data_is_rejected_with_a_reason() {
         let mut no_vertex = triangle();
         no_vertex.positions.clear();
-        assert_eq!(no_vertex.check(), Err("it has no vertex".to_owned()));
+        assert_eq!(
+            no_vertex.check(MAX_BUFFER_SIZE),
+            Err("it has no vertex".to_owned())
+        );
 
         let mut fewer_normals = triangle();
         fewer_normals.normals.pop();
         assert_eq!(
-            fewer_normals.check(),
+            fewer_normals.check(MAX_BUFFER_SIZE),
             Err("it has 3 positions but 2 normals".to_owned())
         );
 
         let mut no_triangle = triangle();
         no_triangle.indices.clear();
-        assert_eq!(no_triangle.check(), Err("it has no triangle".to_owned()));
+        assert_eq!(
+            no_triangle.check(MAX_BUFFER_SIZE),
+            Err("it has no triangle".to_owned())
+        );
 
         let mut half_triangle = triangle();
         half_triangle.indices.push(0);
         assert_eq!(
-            half_triangle.check(),
+            half_triangle.check(MAX_BUFFER_SIZE),
             Err("it has 4 indices, which is not a multiple of 3".to_owned())
         );
 
         let mut out_of_range = triangle();
         out_of_range.indices[2] = 3;
         assert_eq!(
-            out_of_range.check(),
+            out_of_range.check(MAX_BUFFER_SIZE),
             Err("index 3 names no vertex: there are 3 vertices".to_owned())
+        );
+    }
+
+    #[test]
+    fn data_larger_than_the_largest_buffer_is_rejected_with_a_reason() {
+        // The triangle's vertices take 96 bytes, its indices 12.
+        assert_eq!(triangle().check(96), Ok(()));
+        assert_eq!(
+            triangle().check(95),
+            Err(
+                "its 3 vertices take 96 bytes, more than the 95 bytes of the largest buffer the \
+                 device accepts"
+                    .to_owned()
+            )
+        );
+        let mut many_indices = triangle();
+        many_indices.indices = [0, 1, 2].repeat(10);
+        assert_eq!(
+            many_indices.check(96),
+            Err(
+                "its 30 indices take 120 bytes, more than the 96 bytes of the largest buffer the \
+                 device accepts"
+                    .to_owned()
+            )
         );
     }
 }

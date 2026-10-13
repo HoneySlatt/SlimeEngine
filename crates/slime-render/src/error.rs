@@ -10,8 +10,8 @@ pub enum RenderError {
     /// the device was lost.
     #[error("the GPU layer failed")]
     Gfx(#[from] GfxError),
-    /// Mesh data that cannot be drawn: mismatched vertex arrays, no triangle, or an index that
-    /// names no vertex.
+    /// Mesh data that cannot be drawn: mismatched vertex arrays, no triangle, an index that names
+    /// no vertex, or more vertices or indices than a GPU buffer holds.
     #[error("mesh `{label}` is invalid: {reason}")]
     InvalidMesh {
         /// The label given to the mesh.
