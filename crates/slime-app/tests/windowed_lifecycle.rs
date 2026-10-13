@@ -1,8 +1,10 @@
 //! The lifecycle of a windowed run, checked in a Wayland compositor: what the application sees in
 //! `init`, the order of the calls, the stop conditions, the frame schedule after a burst of
-//! redraws, and the memory of a run whose frames draw nothing. `scripts/check.sh` runs it in a headless Weston with lavapipe (ADR-0024). It is not in
-//! the default run of `cargo test` (`test = false` in Cargo.toml), since it needs a compositor, and
-//! it has no harness, since the windowing library needs the main thread.
+//! redraws, the memory of a run whose frames draw nothing, a run whose GPU cannot open, and a
+//! window larger than the GPU can draw into. `scripts/check.sh` runs it in a headless Weston with
+//! lavapipe (ADR-0024). It is not in the default run of `cargo test` (`test = false` in
+//! Cargo.toml), since it needs a compositor, and it has no harness, since the windowing library
+//! needs the main thread.
 //!
 //! A process can run one windowed application, so each scenario runs in a child process: this
 //! program runs itself again with `SLIME_APP_TEST_SCENARIO` set, and checks what the child prints.
@@ -27,12 +29,13 @@ mod linux {
     use slime_platform::{Event, PlatformError, WindowConfig};
 
     const SCENARIO_ENV: &str = "SLIME_APP_TEST_SCENARIO";
-    const SCENARIOS: [&str; 5] = [
+    const SCENARIOS: [&str; 6] = [
         "calls",
         "init-error",
         "exit-in-init",
         "draws-nothing",
         "no-gpu",
+        "oversize",
     ];
 
     /// Frames of the `calls` scenario, and those in which the application asks for an extra redraw.
@@ -121,6 +124,16 @@ mod linux {
                 };
                 ctx.gpu().expect("windowed run").render(&pass, |_pass| {});
             }
+            if self.scenario == "oversize" {
+                let window = ctx.window().expect("windowed run").inner_size();
+                println!(
+                    "image {} {} window {} {}",
+                    target.width(),
+                    target.height(),
+                    window.width,
+                    window.height
+                );
+            }
             println!("call render {}", self.last_update);
         }
 
@@ -139,10 +152,23 @@ mod linux {
             frame_limit: Some(FRAME_LIMIT),
             ..AppConfig::default()
         };
-        if scenario == "draws-nothing" {
-            // Frames as fast as they come, so that many of them take a few seconds.
-            config.frame_limit = Some(UNDRAWN_FRAMES);
-            config.max_frame_rate = 1000;
+        match scenario {
+            "draws-nothing" => {
+                // Frames as fast as they come, so that many of them take a few seconds.
+                config.frame_limit = Some(UNDRAWN_FRAMES);
+                config.max_frame_rate = 1000;
+            }
+            "oversize" => {
+                // Wider than the largest image the device accepts (8192 pixels with the default
+                // limits); low, so that its images stay small for lavapipe.
+                config.window = Some(WindowConfig {
+                    title: "windowed lifecycle".to_owned(),
+                    width: 9000,
+                    height: 64,
+                });
+                config.frame_limit = Some(10);
+            }
+            _ => {}
         }
         config
     }
@@ -192,6 +218,7 @@ mod linux {
                 "exit-in-init" => check_exit_in_init(&lines),
                 "draws-nothing" => check_draws_nothing(&lines),
                 "no-gpu" => check_no_gpu(&lines),
+                "oversize" => check_oversize(&lines),
                 _ => unreachable!(),
             }
             println!("scenario {scenario} ... ok");
@@ -404,5 +431,34 @@ mod linux {
             calls.is_empty(),
             "a run that cannot open a GPU calls neither init nor anything after: {calls:?}"
         );
+    }
+
+    fn check_oversize(lines: &[&str]) {
+        // wgpu rejects a surface larger than the device's largest image, and its errors panic.
+        assert!(lines.contains(&"result Ok"), "the run succeeds: {lines:?}");
+        let sizes: Vec<Vec<u32>> = lines
+            .iter()
+            .filter_map(|line| line.strip_prefix("image "))
+            .map(|line| {
+                line.split_whitespace()
+                    .filter_map(|word| word.parse().ok())
+                    .collect()
+            })
+            .collect();
+        assert!(!sizes.is_empty(), "frames are drawn: {lines:?}");
+        for size in sizes {
+            let [width, height, window_width, window_height] = size[..] else {
+                panic!("an image's size and its window's: {size:?}");
+            };
+            assert!(
+                window_width > 8192,
+                "the compositor keeps the window wider than the device's largest image: {size:?}"
+            );
+            assert_eq!(
+                (width, height),
+                (8192, window_height),
+                "the image is as wide as the device allows, and as high as the window"
+            );
+        }
     }
 }
