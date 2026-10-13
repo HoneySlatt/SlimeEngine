@@ -20,6 +20,9 @@ tracing.workspace = true
 # subscriber also receive the records of the `log` crate, through which wgpu logs.
 tracing-subscriber = { workspace = true, features = ["tracing-log"] }
 
+[target.'cfg(windows)'.dependencies]
+nu-ansi-term.workspace = true
+
 # Runs on the main thread, which the windowing library requires: see the test's module comment.
 [[test]]
 name = "windowed_errors"

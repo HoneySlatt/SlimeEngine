@@ -30,6 +30,9 @@ gltf = { version = "1.4.1", default-features = false, features = ["names", "util
 # events. Upgrading wgpu waits for an egui release built against it.
 egui = "0.36.2"
 egui-wgpu = { version = "0.36.2", default-features = false }
+# Windows only: asks the console to interpret the escape sequences that color the log. Already
+# built as a dependency of tracing-subscriber.
+nu-ansi-term = "0.50.3"
 # Examples and tests only: writes and reads PNG files (reference images, the offscreen example).
 png = "0.18.1"
 # Waits for wgpu's requests, which are futures: opening the GPU, and the errors caught while a

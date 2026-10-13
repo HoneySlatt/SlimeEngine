@@ -103,6 +103,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- On Windows, a program started from Windows Terminal into a window of the older console host no
+  longer prints its log's colors as escape sequences. `slime-app` asks the console to interpret
+  them, through the new Windows-only dependency `nu-ansi-term`, and colors the log only when it
+  accepts; it used to rely on the `WT_SESSION` variable, which such a program inherits. The older
+  console host now shows colors too.
 - Closing the terminal of a run in the foreground no longer cuts its clean stop short. The shell and
   the kernel each send SIGHUP, less than a millisecond apart, and the second one ended the process
   as a second signal does. A signal that arrives less than half a second after the first now repeats

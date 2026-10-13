@@ -535,13 +535,6 @@ GitHub issues, linked from their entry; this list stays the reference.
   ignored: only SIGKILL, or closing the console on Windows, ends the process. The engine logs a
   warning that says so and gives the system's error. Restoring the default dispositions would need
   a direct dependency on libc or nix.
-- **On Windows, a program started from Windows Terminal into a window of the older console host
-  shows escape sequences as text in its log** (a change is proposed to the owner). Colors are
-  chosen when `WT_SESSION` is set, and child processes inherit it, also with `start` on systems
-  whose default terminal is the older console host. `NO_COLOR=1` avoids it. The proposed fix asks
-  the console to interpret the sequences with `nu_ansi_term::enable_ansi_support`: the crate is
-  already in `Cargo.lock` through tracing-subscriber, but `slime-app` would depend on it directly,
-  on Windows only, which needs the owner's approval.
 - **Any `trace` directive in `SLIME_LOG` makes wgpu build its per-command trace records.**
   tracing-subscriber sets the `log` crate's maximum level from the most verbose directive. With
   `slime_app=trace`, wgpu-core then formats and filters out about five records per draw while it

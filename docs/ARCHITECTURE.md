@@ -406,10 +406,10 @@ The engine targets Linux (`x86_64-unknown-linux-gnu`) and Windows (`x86_64-pc-wi
   describes how each platform behaves.
 - wgpu hides the graphics APIs; `slime-gfx` only chooses which one to ask for on each platform
   (`DEFAULT_BACKENDS` in `crates/slime-gfx/src/gpu.rs`).
-- `slime-app` colors its log on Windows only when `WT_SESSION` is set, as it is in Windows
-  Terminal (`use_colors` in `crates/slime-app/src/diagnostics.rs`): the older console host prints
-  escape sequences as text. A program started from Windows Terminal into a window of that older
-  host inherits the variable, so its log shows the sequences; `NO_COLOR=1` avoids it.
+- On Windows, `slime-app` asks the console to interpret the escape sequences that color its log,
+  through `nu-ansi-term`, and colors it only when the console accepts (`use_colors` in
+  `crates/slime-app/src/diagnostics.rs`): Windows Terminal interprets them already, and the older
+  console host once asked.
 - Tests that cannot run on a platform are compiled out with `#[cfg]`, and their file says why: the
   signal tests run on Unix only, and the two windowed test programs of `slime-app`
   (`windowed_errors.rs` and `windowed_lifecycle.rs`) on Linux only; having no test harness, they
