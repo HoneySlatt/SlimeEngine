@@ -69,7 +69,10 @@ The GPU layer uses Vulkan on Linux and Direct3D 12 on Windows
 - On Linux, the engine needs the Vulkan loader (`libvulkan`) and a Vulkan driver: Mesa's RADV
   (AMD), ANV (Intel) or NVK (NVIDIA), or NVIDIA's own driver. The Nix shell provides the loader.
 - On Windows, Direct3D 12 is part of the system. Without a GPU, for example in a virtual machine,
-  wgpu uses WARP, Microsoft's software driver.
+  wgpu uses WARP, Microsoft's software driver. On WARP, run the tests one at a time
+  (`cargo test --workspace -- --test-threads=1`), as the Windows CI job does: WARP's shader
+  compiler crashes the process now and then when several threads compile shaders at once (see
+  [Known debt](docs/PLAN.md#known-debt)).
 - `scripts/check.sh` runs the tests and the samples on lavapipe, Mesa's Vulkan driver that renders
   on the CPU, so that they give the same results on every machine and in CI. To run the GPU tests
   on your own GPU, run `cargo test` without `VK_DRIVER_FILES`; to reproduce the checks, run
