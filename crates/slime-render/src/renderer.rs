@@ -682,7 +682,7 @@ impl InstanceSlots {
 
 #[cfg(test)]
 mod tests {
-    use glam::{EulerRot, Quat};
+    use glam::{EulerRot, Quat, Vec4};
 
     use super::*;
 
@@ -819,7 +819,11 @@ mod tests {
                 false,
                 "flattened",
             ),
-            (Mat4::from_scale(Vec3::ZERO), false, "a point"),
+            (
+                Mat4::from_cols(Vec4::ZERO, Vec4::ZERO, Vec4::ZERO, Vec4::W),
+                false,
+                "a point",
+            ),
         ] {
             assert_eq!(is_mirrored(transform), mirrored, "{case}");
         }

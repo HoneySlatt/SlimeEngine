@@ -24,7 +24,7 @@ use slime_gfx::{
     AddressMode, Color, Filter, FloatImage, Gpu, RenderTarget, Sampler, SamplerDescriptor, Texture,
     TextureFormat,
 };
-use slime_render::glam::{DVec3, Mat4, Quat, Vec3};
+use slime_render::glam::{DVec3, Mat4, Quat, Vec3, Vec4};
 use slime_render::{
     AlphaMode, Camera, DirectionalLight, Instance, Material, MaterialData, Mesh, MeshData,
     Renderer, SampledTexture, Scene,
@@ -47,6 +47,9 @@ const WHITE: Surface = Surface {
     metallic: 0.0,
     roughness: 1.0,
 };
+/// A transform that flattens what it places to a point. Built column by column:
+/// `Mat4::from_scale` asserts, when glam's assertions are on, that the scale is not zero.
+const POINT: Mat4 = Mat4::from_cols(Vec4::ZERO, Vec4::ZERO, Vec4::ZERO, Vec4::W);
 /// A normal texture's texel tilted by about 30° towards the tangent: (0.498, 0.004, 0.867) once
 /// decoded and normalized.
 const TOWARDS_TANGENT: [u8; 4] = [191, 128, 238, 255];
@@ -616,7 +619,7 @@ fn a_mirrored_instance_keeps_its_front_faces_and_the_handedness_of_its_normal_te
     let image = setup.draw(
         camera(3.0),
         lighting(Vec3::Z, illuminance, 0.0),
-        &[(&single, Mat4::from_scale(Vec3::ZERO)), (&single, mirror)],
+        &[(&single, POINT), (&single, mirror)],
     );
     assert_shows(&image, CENTER, front, "single-sided and mirrored");
     let double = setup.material(&MaterialData {
