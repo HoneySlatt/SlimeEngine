@@ -1,6 +1,7 @@
-//! Sampling textures: nearest and linear filtering, the address modes, each set on its own for
-//! each direction and filter of a sampler, and the decoding of sRGB formats, checked by reading
-//! pixels back. Runs on whatever adapter the machine offers, like `device.rs`.
+//! Sampling textures: nearest and linear filtering, the address modes, set on their own for each
+//! direction of a sampler, a magnified texture read with the magnification filter rather than the
+//! minification one, and the decoding of sRGB formats, checked by reading pixels back. Runs on
+//! whatever adapter the machine offers, like `device.rs`.
 
 use slime_gfx::{
     AddressMode, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource,
@@ -270,14 +271,15 @@ fn address_modes_say_what_lies_beyond_the_texture() {
 }
 
 #[test]
-fn each_direction_and_each_filter_of_a_sampler_is_its_own() {
+fn each_direction_of_a_sampler_is_its_own_and_magnifying_uses_the_mag_filter() {
     let setup = Setup::new();
     let texture = setup.two_by_two(TextureFormat::Rgba8UnormSrgb);
 
     // Every field different from its pair. The texture is magnified, two target pixels per
     // texture pixel, and pixel (5, 5) reads (1.375, 1.375): repeated horizontally, 0.375, the
     // left column; clamped vertically, the bottom row: blue. Directions swapped would read green,
-    // and filters swapped, a linear blend of blue and white.
+    // and filters swapped, a linear blend of blue and white. Nothing is minified, so the
+    // minification filter is not read.
     let sampler = setup.gpu.create_sampler(
         "repeat u, clamp v",
         &SamplerDescriptor {
