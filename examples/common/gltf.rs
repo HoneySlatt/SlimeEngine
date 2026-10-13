@@ -1,7 +1,7 @@
 //! A temporary loader of glTF scenes for the `scene` example and its image test: GLB files that
-//! hold their buffer and PNG images in their binary chunk, drawn as they are (ADR-0029, ADR-0035).
-//! The asset pipeline of Stage 4 replaces it with an importer and deletes it. ADR-0035 holds these
-//! lists too.
+//! hold their buffer and PNG images in their binary chunk, drawn as they are (ADR-0029, ADR-0035,
+//! ADR-0037). The asset pipeline of Stage 4 replaces it with an importer and deletes it. ADR-0035
+//! holds these lists too, as ADR-0037 amends them.
 //!
 //! It reads triangle-list primitives: their positions; normals (when missing, each triangle gets
 //! the normal of its face, as glTF requires); tangents (when missing, computed per triangle from
@@ -18,26 +18,34 @@
 //! and uploaded once per format, with one sampler per texture, which follows the file's settings
 //! but for how levels of detail are read, which `slime-gfx` ties to the minification filter (see
 //! `sampler_descriptor`). It flattens the node hierarchy of the default scene, or of the first,
-//! into instances; the renderer keeps the front faces of a node whose transform mirrors.
+//! into instances; the renderer keeps the front faces of a node whose transform mirrors. It reads
+//! the lights that the nodes of that scene place (`KHR_lights_punctual`: directional, point and
+//! spot, with their color, intensity, range and cone angles), each at its node's origin and along
+//! its node's −Z axis in world space, whatever the node's scale.
 //!
 //! It refuses, with a clear error, what it cannot draw right: a file that is not valid glTF, which
-//! includes one that requires an extension other than `KHR_materials_emissive_strength` (the `gltf`
-//! crate refuses it); a file without a binary chunk; buffers and images in external files or in
-//! data URIs (it reads the binary chunk only); images that are not PNG, or larger than the GPU
-//! accepts; primitives that are not triangle lists, or have no positions; primitives whose vertices
-//! or indices need a larger buffer than the GPU accepts (one without normals has three vertices per
-//! triangle); mesh data that `Renderer::create_mesh` refuses (attributes of another length than the
-//! positions, indices that are not a multiple of 3 or that name no vertex); a texture read through
-//! another set of texture coordinates than the first, in any slot; a node hierarchy that is not a
-//! set of trees; a vertex that a node places at a point that is not finite (positions or
-//! transforms that are NaN or infinite, which glTF forbids, or whose product overflows), which
-//! would spoil the box around the scene; a file without a scene, or whose scene draws nothing. It
-//! warns about, and draws without: animations, skins, cameras, vertex colors, the extensions a
-//! file uses without requiring them that it does not read (`KHR_texture_transform` among them),
-//! and the blending of materials whose alpha mode is `BLEND`, which are drawn opaque. A primitive
-//! that has normals and shares its vertex attributes with other primitives, as three.js writes a
-//! mesh of several materials, gets its own copy of every vertex they hold, even those its indices
-//! do not name: K such primitives over V vertices upload K × V vertices. More generally, the loader
+//! includes one that requires an extension other than `KHR_lights_punctual` and
+//! `KHR_materials_emissive_strength` (the `gltf` crate refuses it); a file without a binary chunk;
+//! buffers and images in external files or in data URIs (it reads the binary chunk only); images
+//! that are not PNG, or larger than the GPU accepts; primitives that are not triangle lists, or
+//! have no positions; primitives whose vertices or indices need a larger buffer than the GPU
+//! accepts (one without normals has three vertices per triangle); mesh data that
+//! `Renderer::create_mesh` refuses (attributes of another length than the positions, indices that
+//! are not a multiple of 3 or that name no vertex); a texture read through another set of texture
+//! coordinates than the first, in any slot; a node hierarchy that is not a set of trees; a vertex
+//! that a node places at a point that is not finite (positions or transforms that are NaN or
+//! infinite, which glTF forbids, or whose product overflows), which would spoil the box around the
+//! scene; a file without a scene, or whose scene draws nothing; a light that glTF forbids (a color
+//! or an intensity that is negative or not finite, a range that is not positive and finite, a spot
+//! light's cone outside 0 ≤ inner < outer ≤ π/2, which refuses the equal angles that Blender
+//! writes for a spot whose blend is 0); a light whose node is placed at a point that is not finite
+//! or flattens its −Z axis; more lights than the renderer draws (`slime_render::MAX_LIGHTS`). It
+//! warns about, and draws without: animations, skins, cameras, vertex colors, the extensions a file
+//! uses without requiring them that it does not read (`KHR_texture_transform` among them), and the
+//! blending of materials whose alpha mode is `BLEND`, which are drawn opaque. A primitive that has
+//! normals and shares its vertex attributes with other primitives, as three.js writes a mesh of
+//! several materials, gets its own copy of every vertex they hold, even those its indices do not
+//! name: K such primitives over V vertices upload K × V vertices. More generally, the loader
 //! checks each primitive alone against the GPU's largest buffer, but sets no limit on the memory of
 //! the whole file: it reads every primitive of every mesh, placed or not, before placing any, and
 //! each primitive gets its own copy of what it reads, three vertices per triangle when it has no
@@ -52,19 +60,24 @@
 //! the binary chunk, has no MIME type or is missing; positions, normals, tangents, texture
 //! coordinates or indices stored in types glTF does not allow for them, in a sparse accessor
 //! (which the loader does not read), in an empty one, closer together than their size, or outside
-//! the binary chunk; a node hierarchy that is not a set of trees.
+//! the binary chunk; a node hierarchy that is not a set of trees. The crate's validation itself
+//! refuses a node that names a light the file does not have, a light of an unknown type, and a spot
+//! light without its `spot` object, on which its readers would panic.
 
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use std::f32::consts::FRAC_PI_2;
 use std::fmt;
 
 use gltf::Semantic;
 use gltf::accessor::{DataType, Dimensions};
+use gltf::khr_lights_punctual::Kind;
 use gltf::texture::{MagFilter, MinFilter, WrappingMode};
 use slime_gfx::{AddressMode, Filter, Gpu, Sampler, SamplerDescriptor, Texture, TextureFormat};
 use slime_render::glam::{Mat4, Vec2, Vec3};
 use slime_render::{
-    AlphaMode, Instance, Material, MaterialData, Mesh, MeshData, Renderer, SampledTexture,
+    AlphaMode, DirectionalLight, Instance, Light, MAX_LIGHTS, Material, MaterialData, Mesh,
+    MeshData, PointLight, Renderer, SampledTexture, SpotLight,
 };
 
 /// Why a file could not be loaded.
@@ -120,6 +133,9 @@ pub struct LoadedScene {
     placements: Vec<Placement>,
     /// The smallest box around every placed primitive.
     pub bounds: Bounds,
+    /// The lights that the nodes of the scene place, in world space, at most [`MAX_LIGHTS`]; none
+    /// for a file without `KHR_lights_punctual`.
+    pub lights: Vec<Light>,
 }
 
 impl LoadedScene {
@@ -144,7 +160,7 @@ struct LoadedPrimitive {
 }
 
 /// The extensions the loader reads; the `gltf` crate is built with their features.
-const READ_EXTENSIONS: [&str; 1] = ["KHR_materials_emissive_strength"];
+const READ_EXTENSIONS: [&str; 2] = ["KHR_lights_punctual", "KHR_materials_emissive_strength"];
 
 /// The label of a material: its name, or its index.
 fn material_label(material: &gltf::Material<'_>) -> String {
@@ -517,6 +533,7 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
         max: Vec3::splat(f32::NEG_INFINITY),
     };
     let mut reached = vec![false; document.nodes().len()];
+    let mut lights = Vec::new();
     for node in scene.nodes() {
         place(
             &node,
@@ -525,6 +542,7 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
             &mut reached,
             &mut placed,
             &mut bounds,
+            &mut lights,
         )?;
     }
     if placed.is_empty() {
@@ -562,6 +580,7 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
         materials = materials.len() - 1,
         textures = uploaded.len(),
         instances = placements.len(),
+        lights = lights.len(),
         "glTF scene loaded"
     );
     Ok(LoadedScene {
@@ -569,6 +588,7 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
         materials,
         placements,
         bounds,
+        lights,
     })
 }
 
@@ -595,7 +615,8 @@ fn check_positions_exist(json: &gltf::json::Root) -> Result<(), LoadError> {
 }
 
 /// Places the primitives of `node`, a node of the scene, and of its descendants: adds each to
-/// `placed`, as an index into `primitives` with its transform, and grows `bounds` with it.
+/// `placed`, as an index into `primitives` with its transform, and grows `bounds` with it; adds
+/// the light of each node that has one to `lights`, refusing more than [`MAX_LIGHTS`] in all.
 /// `reached` says which nodes were placed already.
 ///
 /// The walk goes depth first, in the file's order, with a stack of its own rather than by
@@ -611,6 +632,7 @@ fn place(
     reached: &mut [bool],
     placed: &mut Vec<(usize, Mat4)>,
     bounds: &mut Bounds,
+    lights: &mut Vec<Light>,
 ) -> Result<(), LoadError> {
     // The nodes left to place, the next one last, each with the transform of the node above it.
     let mut stack = vec![(node.clone(), Mat4::IDENTITY)];
@@ -641,12 +663,114 @@ fn place(
                 placed.push((index, transform));
             }
         }
+        if let Some(light) = node.light() {
+            if lights.len() == MAX_LIGHTS {
+                return Err(LoadError(format!(
+                    "the scene places more than {MAX_LIGHTS} lights, the most the renderer draws"
+                )));
+            }
+            lights.push(read_light(&light, transform, node.index())?);
+        }
         // Reversed on the stack, so that the first child and its descendants are placed next.
         let children = stack.len();
         stack.extend(node.children().map(|child| (child, transform)));
         stack[children..].reverse();
     }
     Ok(())
+}
+
+/// The light `light`, which node `node` places with `transform`, in world space: at the node's
+/// origin, along its −Z axis, whatever its scale (`KHR_lights_punctual`). It is refused if
+/// `KHR_lights_punctual` does not allow it, which the `gltf` crate does not check: a color or an
+/// intensity that is negative or not finite, a range that is not positive and finite, or a spot
+/// light's cone outside 0 ≤ inner < outer ≤ π / 2; or if the transform places it at a point that is
+/// not finite, or gives it no direction.
+fn read_light(
+    light: &gltf::khr_lights_punctual::Light<'_>,
+    transform: Mat4,
+    node: usize,
+) -> Result<Light, LoadError> {
+    let name = light
+        .name()
+        .map_or_else(|| format!("light {}", light.index()), str::to_owned);
+    let refused = |what: String| LoadError(format!("node {node}'s light `{name}` {what}"));
+    let color = light.color();
+    if !color
+        .iter()
+        .all(|channel| channel.is_finite() && *channel >= 0.0)
+    {
+        return Err(refused(format!(
+            "has a color of {color:?}; glTF requires channels of at least 0"
+        )));
+    }
+    let intensity = light.intensity();
+    if !(intensity.is_finite() && intensity >= 0.0) {
+        return Err(refused(format!(
+            "has an intensity of {intensity}; glTF requires at least 0"
+        )));
+    }
+    let range = light.range();
+    if let Some(range) = range
+        && !(range.is_finite() && range > 0.0)
+    {
+        return Err(refused(format!(
+            "has a range of {range}; glTF requires a positive range"
+        )));
+    }
+    let position = transform.transform_point3(Vec3::ZERO);
+    if !position.is_finite() {
+        return Err(refused(format!(
+            "is placed at {position}: the node's transform is not finite"
+        )));
+    }
+    // Scale changes the length of the axis, not the direction it gives.
+    let direction = transform
+        .transform_vector3(Vec3::NEG_Z)
+        .try_normalize()
+        .ok_or_else(|| {
+            refused(
+                "has no direction: the node's transform flattens its −Z axis or is not finite"
+                    .to_owned(),
+            )
+        })?;
+    let color = Vec3::from(color);
+    Ok(match light.kind() {
+        // A directional light has no range: glTF allows one on point and spot lights only.
+        Kind::Directional => Light::Directional(DirectionalLight {
+            direction,
+            color,
+            illuminance: intensity,
+        }),
+        Kind::Point => Light::Point(PointLight {
+            position,
+            color,
+            intensity,
+            range,
+        }),
+        Kind::Spot {
+            inner_cone_angle,
+            outer_cone_angle,
+        } => {
+            if !(0.0 <= inner_cone_angle
+                && inner_cone_angle < outer_cone_angle
+                && outer_cone_angle <= FRAC_PI_2)
+            {
+                return Err(refused(format!(
+                    "has cone angles of {inner_cone_angle} and {outer_cone_angle} radians; glTF \
+                     requires 0 ≤ inner < outer ≤ π/2"
+                )));
+            }
+            Light::Spot(SpotLight {
+                position,
+                direction,
+                color,
+                intensity,
+                range,
+                inner_cone_angle,
+                outer_cone_angle,
+            })
+        }
+    })
 }
 
 /// Checks that `accessor`, which holds the `what` of `label`, stores them as `dimensions` of one
@@ -987,6 +1111,67 @@ fn decode_png_data(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn lights_are_placed_in_world_space_along_the_node_s_negative_z_axis() {
+        use slime_render::glam::Quat;
+
+        let file = gltf::Gltf::from_slice(
+            br#"{
+                "asset": { "version": "2.0" },
+                "extensionsUsed": ["KHR_lights_punctual"],
+                "extensions": { "KHR_lights_punctual": { "lights": [
+                    { "type": "directional", "color": [1, 0.5, 0.25], "intensity": 3 },
+                    { "type": "point", "intensity": 2, "range": 5 },
+                    { "type": "spot", "intensity": 7,
+                      "spot": { "innerConeAngle": 0.1, "outerConeAngle": 0.2 } }
+                ] } }
+            }"#,
+        )
+        .expect("the JSON is valid glTF");
+        let lights: Vec<_> = file.lights().expect("the file has lights").collect();
+        // Turned by 90° about +Y, which turns −Z to −X, scaled unevenly and moved: the scale
+        // changes neither the direction nor the cone.
+        let transform = Mat4::from_scale_rotation_translation(
+            Vec3::new(2.0, 3.0, 0.5),
+            Quat::from_rotation_y(FRAC_PI_2),
+            Vec3::new(1.0, 2.0, 3.0),
+        );
+        let read: Vec<Light> = lights
+            .iter()
+            .map(|light| read_light(light, transform, 0).expect("the light is valid"))
+            .collect();
+        let close = |a: Vec3, b: Vec3| a.abs_diff_eq(b, 1e-6);
+        let Light::Directional(sun) = read[0] else {
+            panic!("{:?}", read[0])
+        };
+        assert!(close(sun.direction, Vec3::NEG_X), "{sun:?}");
+        assert_eq!(
+            (sun.color, sun.illuminance),
+            (Vec3::new(1.0, 0.5, 0.25), 3.0)
+        );
+        let Light::Point(bulb) = read[1] else {
+            panic!("{:?}", read[1])
+        };
+        assert_eq!(
+            bulb,
+            PointLight {
+                position: Vec3::new(1.0, 2.0, 3.0),
+                color: Vec3::ONE,
+                intensity: 2.0,
+                range: Some(5.0),
+            }
+        );
+        let Light::Spot(spot) = read[2] else {
+            panic!("{:?}", read[2])
+        };
+        assert!(close(spot.direction, Vec3::NEG_X), "{spot:?}");
+        assert_eq!(
+            (spot.position, spot.intensity, spot.range),
+            (Vec3::new(1.0, 2.0, 3.0), 7.0, None)
+        );
+        assert_eq!((spot.inner_cone_angle, spot.outer_cone_angle), (0.1, 0.2));
+    }
 
     #[test]
     fn meshes_larger_than_the_gpu_buffers_are_refused() {

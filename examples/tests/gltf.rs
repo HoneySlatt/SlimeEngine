@@ -14,9 +14,10 @@
 //!
 //! The other tests give the loader small GLB files built in memory, which hold what the asset
 //! does not: what the loader must refuse with an error rather than panic on; a mirrored node; the
-//! extensions a file requires; masked, blended and double-sided materials; a file's own tangents;
-//! a texture read both as colors and as data; and a node hierarchy deeper than a thread's stack
-//! holds calls of a recursive walk.
+//! extensions a file requires; lights that light the file instead of the sample's sun, lights that
+//! glTF forbids, and more lights than the renderer draws; masked, blended and double-sided
+//! materials; a file's own tangents; a texture read both as colors and as data; and a node
+//! hierarchy deeper than a thread's stack holds calls of a recursive walk.
 //! The unit tests of `common/gltf.rs` and `common/orbit.rs` run here too, the one test program
 //! that includes both.
 
@@ -31,7 +32,7 @@ use std::borrow::Cow;
 
 use gltf::json::Value;
 use slime_gfx::{Gpu, TextureFormat};
-use slime_render::glam::Vec3;
+use slime_render::glam::{Quat, Vec3};
 
 use sample_scene::SampleScene;
 
@@ -510,6 +511,142 @@ fn a_texture_read_through_another_coordinate_set_is_refused_in_any_slot() {
     );
 }
 
+#[test]
+fn a_file_that_requires_khr_lights_punctual_is_lit_by_its_own_lights_only() {
+    let gpu =
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+    // A white matte triangle, and a directional light as strong as the sample's sun on a node
+    // turned by `yaw` around the vertical axis: at 0 it travels down the node's −Z axis, onto the
+    // front of the triangle, which faces +Z.
+    const MATTE: &str = r#"{ "pbrMetallicRoughness": { "metallicFactor": 0 } }"#;
+    let lit_by = |yaw: f32, intensity: f32| {
+        let mut file = Glb::triangle().with_material(MATTE).with_light(
+            &format!(r#"{{ "type": "directional", "intensity": {intensity} }}"#),
+            Quat::from_rotation_y(yaw),
+        );
+        file.json["extensionsRequired"] = json(r#"["KHR_lights_punctual"]"#);
+        centre_and_corner(&gpu, &mut file, TRIANGLE_CENTRE, 0.0, 1.0)
+    };
+    let (towards, background) = lit_by(0.0, std::f32::consts::PI);
+    assert!(
+        brighter(towards, background),
+        "lit from the front: {towards:?} against {background:?}"
+    );
+    // Turned away, the light reaches the back of the triangle, and the sample adds no sun: the
+    // front shows the ambient light alone, as under a light of no intensity.
+    let (away, _) = lit_by(std::f32::consts::PI, std::f32::consts::PI);
+    let (dark, _) = lit_by(0.0, 0.0);
+    let mut without_lights = Glb::triangle().with_material(MATTE);
+    let (sunlit, _) = centre_and_corner(&gpu, &mut without_lights, TRIANGLE_CENTRE, 0.0, 1.0);
+    assert_eq!(away, dark, "lit from behind");
+    assert!(
+        brighter(sunlit, away),
+        "the sample's sun lights a file without lights: {sunlit:?} against {away:?}"
+    );
+}
+
+#[test]
+fn a_scene_with_more_lights_than_the_renderer_draws_is_refused() {
+    let gpu =
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+    // One light, placed by `count` nodes: each node gives the scene a light.
+    let with_lights = |count: usize| {
+        let mut file = Glb::triangle();
+        file.json["extensions"] = json(
+            r#"{ "KHR_lights_punctual": { "lights": [{ "type": "point", "intensity": 1000 }] } }"#,
+        );
+        for _ in 0..count {
+            let node = push(
+                &mut file.json["nodes"],
+                json(r#"{ "extensions": { "KHR_lights_punctual": { "light": 0 } } }"#),
+            );
+            push(&mut file.json["scenes"][0]["nodes"], node.into());
+        }
+        file
+    };
+    SampleScene::new(
+        &gpu,
+        TextureFormat::Rgba8UnormSrgb,
+        &with_lights(slime_render::MAX_LIGHTS).bytes(),
+    )
+    .expect("the most lights the renderer draws load");
+    let error = refusal(&gpu, &mut with_lights(slime_render::MAX_LIGHTS + 1));
+    let expected = format!(
+        "the scene places more than {} lights, the most the renderer draws",
+        slime_render::MAX_LIGHTS
+    );
+    assert!(error.contains(&expected), "{error}");
+}
+
+#[test]
+fn lights_that_gltf_does_not_allow_are_refused() {
+    let gpu =
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+    for (light, expected) in [
+        (
+            r#"{ "type": "point", "intensity": -1 }"#,
+            "has an intensity of -1; glTF requires at least 0",
+        ),
+        // 10³⁹ is beyond the largest 32-bit float: the `gltf` crate reads it as an infinity.
+        (
+            r#"{ "type": "point", "intensity": 1e39 }"#,
+            "has an intensity of inf",
+        ),
+        (
+            r#"{ "type": "directional", "color": [1, -0.5, 1] }"#,
+            "has a color of [1.0, -0.5, 1.0]",
+        ),
+        (
+            r#"{ "type": "directional", "color": [1e39, 1, 1] }"#,
+            "has a color of [inf, 1.0, 1.0]",
+        ),
+        (
+            r#"{ "type": "point", "range": 0 }"#,
+            "has a range of 0; glTF requires a positive range",
+        ),
+        // Equal angles, as Blender writes them for a spot whose blend is 0.
+        (
+            r#"{ "type": "spot", "spot": { "innerConeAngle": 0.5, "outerConeAngle": 0.5 } }"#,
+            "has cone angles of 0.5 and 0.5 radians",
+        ),
+        (
+            r#"{ "type": "spot", "spot": { "outerConeAngle": 2 } }"#,
+            "has cone angles of 0 and 2 radians",
+        ),
+        (
+            r#"{ "type": "spot", "spot": { "innerConeAngle": -0.1 } }"#,
+            "has cone angles of -0.1 and 0.7853982 radians",
+        ),
+        // What the `gltf` crate's validation refuses, before its readers would panic on it.
+        (r#"{ "type": "spot" }"#, "spot: Missing data"),
+        (r#"{ "type": "area" }"#, "type: Invalid value"),
+    ] {
+        let mut file = Glb::triangle().with_light(light, Quat::IDENTITY);
+        let error = refusal(&gpu, &mut file);
+        assert!(error.contains(expected), "{light}: {error}");
+    }
+    let mut file = Glb::triangle().with_light(r#"{ "type": "point" }"#, Quat::IDENTITY);
+    file.json["nodes"][1]["extensions"]["KHR_lights_punctual"]["light"] = 3.into();
+    let error = refusal(&gpu, &mut file);
+    assert!(
+        error.contains("nodes[1].extensions") && error.contains("light: Index out of bounds"),
+        "{error}"
+    );
+    // A node that flattens its −Z axis gives its light no direction.
+    let mut file = Glb::triangle().with_light(r#"{ "type": "directional" }"#, Quat::IDENTITY);
+    file.json["nodes"][1]["scale"] = json("[1, 1, 0]");
+    let error = refusal(&gpu, &mut file);
+    assert!(error.contains("has no direction"), "{error}");
+    // 10³⁹ is beyond the largest 32-bit float: a node there places its light at no finite point.
+    let mut file = Glb::triangle().with_light(r#"{ "type": "point" }"#, Quat::IDENTITY);
+    file.json["nodes"][1]["translation"] = json("[1e39, 0, 0]");
+    let error = refusal(&gpu, &mut file);
+    assert!(
+        error.contains("is placed at") && error.contains("the node's transform is not finite"),
+        "{error}"
+    );
+}
+
 /// A change that a test makes to a GLB file.
 type Change = fn(&mut Glb);
 
@@ -591,6 +728,25 @@ impl Glb {
     fn with_material(mut self, material: &str) -> Self {
         self.json["materials"] = json(&format!("[{material}]"));
         self.json["meshes"][0]["primitives"][0]["material"] = 0.into();
+        self
+    }
+
+    /// Adds `light`, a light of `KHR_lights_punctual` in JSON, the only one of the file, on a new
+    /// node of the scene turned by `rotation` and 1 unit in front of the triangle.
+    fn with_light(mut self, light: &str, rotation: Quat) -> Self {
+        self.json["extensionsUsed"] = json(r#"["KHR_lights_punctual"]"#);
+        self.json["extensions"] = json(&format!(
+            r#"{{ "KHR_lights_punctual": {{ "lights": [{light}] }} }}"#
+        ));
+        let [x, y, z, w] = rotation.to_array();
+        let node = push(
+            &mut self.json["nodes"],
+            json(&format!(
+                r#"{{ "translation": [0, 0, 1], "rotation": [{x}, {y}, {z}, {w}],
+                      "extensions": {{ "KHR_lights_punctual": {{ "light": 0 }} }} }}"#
+            )),
+        );
+        push(&mut self.json["scenes"][0]["nodes"], node.into());
         self
     }
 
@@ -679,10 +835,10 @@ fn png_of(width: u32, height: u32, pixels: &[u8]) -> Vec<u8> {
 /// The center of the triangle of [`Glb::triangle`].
 const TRIANGLE_CENTRE: Vec3 = Vec3::new(1.0 / 3.0, 1.0 / 3.0, 0.0);
 
-/// Draws `file` into a 64 × 64 sRGB target at `exposure`, under the samples' light, seen from 3
-/// units away from `centre`, turned by `yaw` around the vertical axis (0 looks from +Z), and
-/// returns the color of the pixel at the center of the image, and that of its corner, the
-/// background.
+/// Draws `file` into a 64 × 64 sRGB target at `exposure`, as the sample does: under the file's
+/// lights, or the sample's sun for a file without lights, seen from 3 units away from `centre`,
+/// turned by `yaw` around the vertical axis (0 looks from +Z). Returns the color of the pixel at
+/// the center of the image, and that of its corner, the background.
 fn centre_and_corner(
     gpu: &Gpu,
     file: &mut Glb,

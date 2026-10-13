@@ -1,5 +1,6 @@
 //! The glTF scene that the `scene` example and its image test draw: the asset of
-//! `examples/assets/scene.glb` by default, or any GLB file the loader reads, under one light.
+//! `examples/assets/scene.glb` by default, or any GLB file the loader reads, lit by the lights the
+//! file places, or by the sample's sun when it places none.
 
 #[path = "gltf.rs"]
 mod gltf;
@@ -24,9 +25,9 @@ pub const BACKGROUND: Color = Color {
     a: 1.0,
 };
 
-/// A slightly warm light from above, of π lux, under which a white matte surface facing it
-/// reflects about 0.97 nits (ADR-0035).
-const LIGHT: Light = Light::Directional(DirectionalLight {
+/// The sun that lights a file without lights: slightly warm, from above, of π lux, under which a
+/// white matte surface facing it reflects about 0.97 nits (ADR-0035).
+const SUN: Light = Light::Directional(DirectionalLight {
     direction: Vec3::new(-0.5, -1.0, -0.6),
     color: Vec3::new(1.0, 0.98, 0.9),
     illuminance: PI,
@@ -72,12 +73,17 @@ impl SampleScene {
         exposure: f32,
     ) -> RenderStats {
         let instances = self.loaded.instances();
+        let lights = if self.loaded.lights.is_empty() {
+            &[SUN][..]
+        } else {
+            &self.loaded.lights[..]
+        };
         self.renderer.render(
             gpu,
             target,
             &Scene {
                 camera,
-                lights: &[LIGHT],
+                lights,
                 ambient: AMBIENT,
                 clear: BACKGROUND,
                 exposure,
