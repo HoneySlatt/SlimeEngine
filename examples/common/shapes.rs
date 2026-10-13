@@ -1,6 +1,7 @@
-//! The shapes that the `scene` example and its image test draw: a unit cube and a smooth sphere,
-//! four materials, two of them with a checker texture, four instances that overlap from most
-//! viewpoints, a directional light, and a camera that orbits them with time.
+//! The shapes that the image test `tests/scene.rs` draws (the `scene` example draws a glTF scene
+//! instead): a unit cube and a smooth sphere, four materials, two of them with a checker texture,
+//! four instances that overlap from most viewpoints, a directional light, and a camera that orbits
+//! them with time.
 
 use std::f32::consts::{PI, TAU};
 

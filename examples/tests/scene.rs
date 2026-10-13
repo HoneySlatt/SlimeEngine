@@ -1,5 +1,6 @@
-//! The reference image test of Stage 3a: the shapes of the `scene` example, rendered offscreen at
-//! a fixed time, must match `tests/reference/shapes.png` within a tolerance (ADR-0018).
+//! A reference image test of Stage 3a: the shapes of `common/shapes.rs` (cubes and a sphere drawn
+//! by the renderer, two of them textured), rendered offscreen at a fixed time, must match
+//! `tests/reference/shapes.png` within a tolerance (ADR-0018).
 //!
 //! The reference was rendered with lavapipe, like the triangle's. To render it again, after a
 //! deliberate change of the shapes:
