@@ -66,7 +66,7 @@ impl Overlay {
     pub fn render(&mut self, gpu: &Gpu, target: &RenderTarget, ui: impl FnOnce(&egui::Context)) {
         let pixels_per_point = self.input.pixels_per_point();
         let size = [target.width(), target.height()];
-        let raw_input = egui::RawInput {
+        let mut raw_input = egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(
                 egui::Pos2::ZERO,
                 egui::vec2(
@@ -78,7 +78,14 @@ impl Overlay {
             events: self.input.take_events(),
             ..egui::RawInput::default()
         };
-        self.context.set_pixels_per_point(pixels_per_point);
+        // The scale factor is the screen's own, not a zoom: when its zoom changes, egui lays the
+        // frame out in the last frame's area rescaled, not in `screen_rect`, as if the window had
+        // kept its pixels, and moves the panels into that area for good.
+        raw_input
+            .viewports
+            .entry(egui::ViewportId::ROOT)
+            .or_default()
+            .native_pixels_per_point = Some(pixels_per_point);
         let mut ui = Some(ui);
         let output = self.context.run_ui(raw_input, |root| {
             if let Some(ui) = ui.take() {
@@ -120,5 +127,51 @@ impl Overlay {
         for id in std::mem::take(&mut textures.free) {
             self.renderer.free_texture(&id);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const FORMAT: TextureFormat = TextureFormat::Rgba8UnormSrgb;
+
+    fn gpu() -> Gpu {
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers")
+    }
+
+    /// Draws a frame with one window at `(200, 200)` points, egui's default 340 points wide, and
+    /// returns, as egui saw them, the area it laid the frame out in and the window's rectangle.
+    fn frame(overlay: &mut Overlay, gpu: &Gpu, target: &RenderTarget) -> (egui::Rect, egui::Rect) {
+        let mut seen = None;
+        overlay.render(gpu, target, |ctx| {
+            let window = egui::Window::new("panel")
+                .default_pos(egui::pos2(200.0, 200.0))
+                .show(ctx, |ui| ui.label("text"))
+                .expect("the window is open");
+            seen = Some((ctx.content_rect(), window.response.rect));
+        });
+        seen.expect("the panels were built")
+    }
+
+    #[test]
+    fn a_new_scale_factor_keeps_the_panels_in_place() {
+        let gpu = gpu();
+        let small = gpu.create_render_target("1x target", 800, 600, FORMAT);
+        let large = gpu.create_render_target("2x target", 1600, 1200, FORMAT);
+        let mut overlay = Overlay::new(&gpu, FORMAT, 1.0);
+        // egui sizes the window on the first frame and draws it from the second.
+        frame(&mut overlay, &gpu, &small);
+        let (_, before) = frame(&mut overlay, &gpu, &small);
+        assert!(
+            before.max.x > 400.0,
+            "the window reaches past half the screen"
+        );
+
+        // The window moves to a screen with twice the pixels: its logical size stays.
+        overlay.handle(&Event::ScaleFactorChanged { scale_factor: 2.0 });
+        let (screen, after) = frame(&mut overlay, &gpu, &large);
+        assert_eq!(screen.size(), egui::vec2(800.0, 600.0));
+        assert_eq!(after.min, before.min, "the window stays where it was");
     }
 }
