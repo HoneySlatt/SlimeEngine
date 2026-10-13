@@ -102,7 +102,9 @@ mod tests {
     }
 
     /// glam's `look_at_mat4` asks for an `up` of length one and asserts it when glam's assertions
-    /// are on, which `cargo test -p slime-render --features glam/debug-glam-assert` checks.
+    /// are on; with them off, it ignores the length. This test can therefore fail only with them
+    /// on, as in `cargo test -p slime-render --features glam/debug-glam-assert`, a command that
+    /// `scripts/check.sh` does not run.
     #[test]
     fn the_length_of_up_does_not_change_the_view() {
         let unit = Camera::default().view();

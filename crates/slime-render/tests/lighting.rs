@@ -12,7 +12,7 @@ mod tone_curve;
 use std::time::Duration;
 
 use slime_gfx::{Color, Gpu, Image, TextureFormat};
-use slime_render::glam::{Mat4, Vec3};
+use slime_render::glam::{Mat4, Vec3, Vec4};
 use slime_render::{
     Camera, DirectionalLight, Instance, Material, MaterialData, Mesh, MeshData, RenderStats,
     Renderer, Scene,
@@ -287,8 +287,9 @@ fn instances_beyond_the_first_instance_buffer_are_drawn_where_they_are() {
     );
     // A hundred instances, more than the 64 the instance buffer starts with: all but the last
     // are flattened to a point, so the center is lit only if the last one, in a slot of the grown
-    // buffer, gets its own transform.
-    let point = Mat4::from_scale(Vec3::ZERO);
+    // buffer, gets its own transform. Built column by column: `Mat4::from_scale` asserts, when
+    // glam's assertions are on, that the scale is not zero.
+    let point = Mat4::from_cols(Vec4::ZERO, Vec4::ZERO, Vec4::ZERO, Vec4::W);
     let mut transforms = vec![point; 99];
     transforms.push(Mat4::IDENTITY);
     let (red, stats) = setup.center_of(&transforms, (SIZE, SIZE));
