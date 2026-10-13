@@ -17,6 +17,7 @@ mod orbit;
 #[path = "common/sample_scene.rs"]
 mod sample_scene;
 
+use std::f32::consts::TAU;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -55,6 +56,8 @@ struct OrbitCamera {
     /// How far from `target` the scene reaches.
     radius: f32,
     distance: f32,
+    /// Kept within one turn: an `f32` that grew without end would round the steps of each frame
+    /// ever more coarsely, until the orbit stopped, after about five days.
     yaw: f32,
     pitch: f32,
     /// Whether the camera still orbits on its own: until the first drag.
@@ -92,7 +95,7 @@ impl OrbitCamera {
             }
             Event::CursorMoved { x, y } => {
                 if let (true, Some((last_x, last_y))) = (self.dragging, self.cursor) {
-                    self.yaw -= (x - last_x) as f32 * DRAG_SPEED;
+                    self.yaw = (self.yaw - (x - last_x) as f32 * DRAG_SPEED).rem_euclid(TAU);
                     self.pitch = (self.pitch + (y - last_y) as f32 * DRAG_SPEED)
                         .clamp(-PITCH_LIMIT, PITCH_LIMIT);
                 }
@@ -118,7 +121,7 @@ impl OrbitCamera {
     /// Turns the camera on its own by `seconds` of time, while the mouse has not taken over.
     fn advance(&mut self, seconds: f32) {
         if self.orbiting {
-            self.yaw += ORBIT_SPEED * seconds;
+            self.yaw = (self.yaw + ORBIT_SPEED * seconds).rem_euclid(TAU);
         }
     }
 
