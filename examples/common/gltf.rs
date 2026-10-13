@@ -149,7 +149,8 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
 
     let blob = file.blob.as_deref().ok_or_else(|| {
         LoadError(
-            "the file has no binary chunk: only GLB files with embedded buffers are supported"
+            "the file has no binary chunk: only GLB files that hold their buffer and PNG images \
+             in it are supported"
                 .to_owned(),
         )
     })?;

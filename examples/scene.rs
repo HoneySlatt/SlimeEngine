@@ -6,7 +6,7 @@
 //!
 //! ```sh
 //! cargo run --example scene                              # the scene of examples/assets/scene.glb
-//! cargo run --example scene -- --scene other.glb         # a GLB file with embedded buffers and PNG images
+//! cargo run --example scene -- --scene other.glb         # a GLB file holding its buffer and PNG images in its binary chunk
 //! cargo run --example scene -- --frames 120              # closes itself after 120 frames
 //! ```
 
