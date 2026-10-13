@@ -1,10 +1,10 @@
 //! The lifecycle of a windowed run, checked in a Wayland compositor: what the application sees in
 //! `init`, the order of the calls, the stop conditions, the frame schedule after a burst of
-//! redraws, the time each frame represents, the memory of a run whose frames draw nothing, a run
-//! whose GPU cannot open, and a window larger than the GPU can draw into. `scripts/check.sh` runs
-//! it in a headless Weston with lavapipe (ADR-0024). It is not in the default run of `cargo test`
-//! (`test = false` in Cargo.toml), since it needs a compositor, and it has no harness, since the
-//! windowing library needs the main thread.
+//! redraws, the time each frame represents, the profiling spans of each frame, the memory of a run
+//! whose frames draw nothing, a run whose GPU cannot open, and a window larger than the GPU can
+//! draw into. `scripts/check.sh` runs it in a headless Weston with lavapipe (ADR-0024). It is not
+//! in the default run of `cargo test` (`test = false` in Cargo.toml), since it needs a compositor,
+//! and it has no harness, since the windowing library needs the main thread.
 //!
 //! A process can run one windowed application, so each scenario runs in a child process: this
 //! program runs itself again with `SLIME_APP_TEST_SCENARIO` set, and checks what the child prints.
@@ -12,6 +12,9 @@
 //! Linux only, and compiled out elsewhere (ADR-0015): the check needs a Wayland compositor, and
 //! `main` does nothing on other platforms. On Windows, the windowed lifecycle is checked by hand
 //! in the virtual machine, with the `window` and `scene` examples.
+
+#[cfg(target_os = "linux")]
+mod common;
 
 fn main() {
     #[cfg(target_os = "linux")]
@@ -29,8 +32,9 @@ mod linux {
     use slime_platform::{Event, PlatformError, WindowConfig};
 
     const SCENARIO_ENV: &str = "SLIME_APP_TEST_SCENARIO";
-    const SCENARIOS: [&str; 6] = [
+    const SCENARIOS: [&str; 7] = [
         "calls",
+        "spans",
         "init-error",
         "exit-in-init",
         "draws-nothing",
@@ -38,7 +42,8 @@ mod linux {
         "oversize",
     ];
 
-    /// Frames of the `calls` scenario, and those in which the application asks for an extra redraw.
+    /// Frames of the `calls` and `spans` scenarios, and those in which the application asks for an
+    /// extra redraw.
     const FRAME_LIMIT: u64 = 50;
     const STORM: std::ops::Range<u64> = 10..40;
 
@@ -223,6 +228,7 @@ mod linux {
             let lines: Vec<&str> = stdout.lines().collect();
             match scenario {
                 "calls" => check_calls(&lines),
+                "spans" => check_spans(&lines),
                 "init-error" => check_init_error(&lines),
                 "exit-in-init" => check_exit_in_init(&lines),
                 "draws-nothing" => check_draws_nothing(&lines),
@@ -242,7 +248,16 @@ mod linux {
             start: None,
             last_update: 0,
         };
-        match slime_app::run(&mut app, &config(scenario)) {
+        let result = if scenario == "spans" {
+            // The event loop, and every frame with it, runs on this thread.
+            let subscriber = crate::common::span_log(|line| println!("span {line}"));
+            tracing::subscriber::with_default(subscriber, || {
+                slime_app::run(&mut app, &config(scenario))
+            })
+        } else {
+            slime_app::run(&mut app, &config(scenario))
+        };
+        match result {
             Ok(()) => println!("result Ok"),
             Err(RunError::Init(error)) => println!("result Init({error})"),
             Err(error) => println!("result {error:?}"),
@@ -394,6 +409,78 @@ mod linux {
             lines.contains(&"second SecondEventLoop"),
             "a second windowed run is refused: {lines:?}"
         );
+    }
+
+    /// Each frame is a `frame` span containing, in order, a `fixed_update` span per fixed step, an
+    /// `update` span, an `acquire` span and, when the frame is drawn, a `render` span, which
+    /// contains `submit`, and a `present` span. A span that ends too early is exited before the
+    /// call it should contain, and a span moved out of `frame` loses `frame/` from its path. Nothing
+    /// of the application runs in `acquire`, `submit` or `present`, so for these only the place is
+    /// checked.
+    fn check_spans(lines: &[&str]) {
+        const FIXED_STEP: [&str; 3] = [
+            "span enter frame/fixed_update",
+            "call fixed_update",
+            "span exit frame/fixed_update",
+        ];
+        const UPDATE_AND_ACQUIRE: [&str; 5] = [
+            "span enter frame/update",
+            "call update",
+            "span exit frame/update",
+            "span enter frame/acquire",
+            "span exit frame/acquire",
+        ];
+        const DRAWING: [&str; 7] = [
+            "span enter frame/render",
+            "span enter frame/render/submit",
+            "span exit frame/render/submit",
+            "call render",
+            "span exit frame/render",
+            "span enter frame/present",
+            "span exit frame/present",
+        ];
+        assert!(lines.contains(&"result Ok"), "the run succeeds: {lines:?}");
+
+        // The spans and the calls in the order they came, a call without its arguments:
+        // `call update 3 t=…` becomes `call update`.
+        let mut events = lines
+            .iter()
+            .filter(|line| line.starts_with("span ") || line.starts_with("call "))
+            .map(|line| match line.match_indices(' ').nth(1) {
+                Some((end, _)) if line.starts_with("call ") => &line[..end],
+                _ => line,
+            });
+        let mut frames = 0;
+        let mut drawn = 0;
+        while let Some(event) = events.next() {
+            if event.starts_with("call ") {
+                // Between frames: init, an event, shutdown.
+                continue;
+            }
+            assert_eq!(
+                event, "span enter frame",
+                "spans are entered within frames only"
+            );
+            let frame: Vec<&str> = events
+                .by_ref()
+                .take_while(|event| *event != "span exit frame")
+                .collect();
+            let mut rest = &frame[..];
+            while let Some(after) = rest.strip_prefix(&FIXED_STEP) {
+                rest = after;
+            }
+            let rest = rest
+                .strip_prefix(&UPDATE_AND_ACQUIRE)
+                .unwrap_or_else(|| panic!("frame {frames}: the update, then acquire: {frame:?}"));
+            match rest {
+                [] => {}
+                drawing if drawing == DRAWING => drawn += 1,
+                _ => panic!("frame {frames}: render with submit, then present: {frame:?}"),
+            }
+            frames += 1;
+        }
+        assert_eq!(frames, FRAME_LIMIT, "every frame is a span");
+        assert!(drawn >= FRAME_LIMIT / 2, "most frames are drawn: {drawn}");
     }
 
     fn check_init_error(lines: &[&str]) {
