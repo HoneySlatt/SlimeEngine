@@ -15,6 +15,7 @@ workspace = true
 gltf.workspace = true
 png.workspace = true
 slime-app.workspace = true
+slime-devui.workspace = true
 slime-gfx.workspace = true
 slime-platform.workspace = true
 slime-render.workspace = true

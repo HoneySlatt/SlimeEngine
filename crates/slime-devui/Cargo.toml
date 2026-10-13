@@ -1,0 +1,23 @@
+[package]
+name = "slime-devui"
+description = "SlimeEngine's dev overlay: egui drawn over the engine's frames, tooling until the engine has a UI of its own."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+egui.workspace = true
+egui-wgpu.workspace = true
+# The only crate besides slime-gfx that reaches wgpu, to draw egui with it (ADR-0031).
+slime-gfx = { workspace = true, features = ["wgpu"] }
+slime-platform.workspace = true
+tracing.workspace = true
+
+# The README's example implements an application.
+[dev-dependencies]
+slime-app.workspace = true

@@ -34,6 +34,13 @@ allow = [
 confidence-threshold = 0.8
 unused-allowed-license = "allow"
 
+# The default fonts of egui, drawn by the dev overlay: tooling that ships with no game
+# (ADR-0031). OFL-1.1 is OSI-approved; the Ubuntu Font Licence is not, hence an exception for
+# this one crate rather than an allowed license.
+[[licenses.exceptions]]
+crate = "epaint_default_fonts"
+allow = ["OFL-1.1", "Ubuntu-font-1.0"]
+
 [licenses.private]
 # Workspace crates are not published; their license is set once in the workspace Cargo.toml.
 ignore = true

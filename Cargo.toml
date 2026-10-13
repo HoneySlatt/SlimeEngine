@@ -24,6 +24,11 @@ glam = "0.34.1"
 # `import` feature, which would bring the `image` and `base64` crates: the loader reads GLB files
 # with embedded buffers and decodes their PNG images with `png`.
 gltf = { version = "1.4.1", default-features = false, features = ["names", "utils"] }
+# The dev overlay of Stage 3a, tooling only (ADR-0031): egui-wgpu without its default features,
+# which would enable every wgpu backend, and no egui-winit, since the engine translates its own
+# events. Upgrading wgpu waits for an egui release built against it.
+egui = "0.36.2"
+egui-wgpu = { version = "0.36.2", default-features = false }
 # Examples and tests only: writes and reads PNG files (reference images, the offscreen example).
 png = "0.18.1"
 # Waits for wgpu's requests, which are futures: opening the GPU, and the errors caught while a
@@ -44,6 +49,7 @@ winit = { version = "0.30.13", default-features = false, features = ["rwh_06", "
 
 # Workspace crates.
 slime-app = { path = "crates/slime-app" }
+slime-devui = { path = "crates/slime-devui" }
 slime-gfx = { path = "crates/slime-gfx" }
 slime-platform = { path = "crates/slime-platform" }
 slime-render = { path = "crates/slime-render" }

@@ -1,7 +1,7 @@
 //! Draws a glTF scene with the renderer, lit by a directional light, seen from a camera that
 //! orbits it until the mouse takes over: drag with the left button to turn around it, roll the
-//! wheel to come nearer or go farther. The sample of Stage 3a. Escape, closing the window or
-//! Ctrl+C quits.
+//! wheel to come nearer or go farther. A dev overlay shows what each frame costs; F1 hides and
+//! shows it. The sample of Stage 3a. Escape, closing the window or Ctrl+C quits.
 //!
 //! ```sh
 //! cargo run --example scene                              # the scene of examples/assets/scene.glb
@@ -21,6 +21,7 @@ use std::process::ExitCode;
 
 use slime_app::time::FrameTime;
 use slime_app::{App, AppConfig, AppError, Context};
+use slime_devui::{Overlay, egui};
 use slime_gfx::RenderTarget;
 use slime_platform::{
     ButtonState, Event, KeyCode, KeyEvent, MouseButton, ScrollDelta, WindowConfig,
@@ -120,6 +121,11 @@ struct SceneExample {
     bytes: Vec<u8>,
     scene: Option<SampleScene>,
     camera: OrbitCamera,
+    overlay: Option<Overlay>,
+    /// Whether the overlay is drawn; F1 toggles it.
+    show_overlay: bool,
+    /// The time between frames, smoothed, in milliseconds.
+    frame_ms: f32,
     /// How many frames drew the scene.
     drawn: u64,
     /// What the last frame cost.
@@ -128,36 +134,87 @@ struct SceneExample {
 
 impl App for SceneExample {
     fn init(&mut self, ctx: &mut Context) -> Result<(), AppError> {
-        let (Some(gpu), Some(format)) = (ctx.gpu(), ctx.surface_format()) else {
+        let (Some(gpu), Some(format), Some(window)) =
+            (ctx.gpu(), ctx.surface_format(), ctx.window())
+        else {
             return Err("the scene example needs a window".into());
         };
         let scene = SampleScene::new(gpu, format, &self.bytes)?;
         let bounds = scene.bounds();
         self.camera = OrbitCamera::new(bounds.center(), bounds.radius() * 2.2, 0.6, 0.45);
         self.scene = Some(scene);
+        self.overlay = Some(Overlay::new(gpu, format, window.scale_factor()));
         Ok(())
     }
 
     fn on_event(&mut self, ctx: &mut Context, event: &Event) {
-        self.camera.handle(event);
+        let over_a_panel = match &mut self.overlay {
+            Some(overlay) => {
+                overlay.handle(event);
+                self.show_overlay && overlay.wants_pointer()
+            }
+            None => false,
+        };
+        if !over_a_panel {
+            self.camera.handle(event);
+        }
         if let Event::Key(KeyEvent {
-            physical: KeyCode::Escape,
+            physical,
             state: ButtonState::Pressed,
+            repeat: false,
             ..
         }) = event
         {
-            ctx.request_exit();
+            match physical {
+                KeyCode::Escape => ctx.request_exit(),
+                KeyCode::F1 => self.show_overlay = !self.show_overlay,
+                _ => {}
+            }
         }
     }
 
     fn update(&mut self, _ctx: &mut Context, frame: &FrameTime) {
-        self.camera.advance(frame.delta().as_secs_f32());
+        let delta = frame.delta().as_secs_f32();
+        self.camera.advance(delta);
+        self.frame_ms = self.frame_ms * 0.9 + delta * 1000.0 * 0.1;
     }
 
     fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
-        if let (Some(gpu), Some(scene)) = (ctx.gpu(), &mut self.scene) {
-            self.stats = scene.render(gpu, target, self.camera.camera());
-            self.drawn += 1;
+        let (Some(gpu), Some(scene)) = (ctx.gpu(), &mut self.scene) else {
+            return;
+        };
+        self.stats = scene.render(gpu, target, self.camera.camera());
+        self.drawn += 1;
+        if let (true, Some(overlay)) = (self.show_overlay, &mut self.overlay) {
+            let adapter = gpu.adapter_name().to_owned();
+            let stats = self.stats;
+            let frame_ms = self.frame_ms;
+            let size = (target.width(), target.height());
+            overlay.render(gpu, target, |ctx| {
+                egui::Window::new("Statistics")
+                    .default_pos(egui::pos2(12.0, 12.0))
+                    .resizable(false)
+                    .show(ctx, |ui| {
+                        ui.label(adapter);
+                        ui.label(format!("frame: {frame_ms:.2} ms"));
+                        ui.label(format!(
+                            "render on the CPU: {:.2} ms",
+                            stats.cpu_time.as_secs_f64() * 1000.0
+                        ));
+                        ui.label(match stats.gpu_time {
+                            Some(time) => {
+                                format!("render on the GPU: {:.3} ms", time.as_secs_f64() * 1000.0)
+                            }
+                            None => "render on the GPU: not measured".to_owned(),
+                        });
+                        ui.label(format!(
+                            "{} draw calls, {} triangles",
+                            stats.draw_calls, stats.triangles
+                        ));
+                        ui.label(format!("{} × {} pixels", size.0, size.1));
+                        ui.label("F1 hides this");
+                    });
+            });
         }
     }
 
@@ -166,6 +223,8 @@ impl App for SceneExample {
             drawn = self.drawn,
             draw_calls = self.stats.draw_calls,
             triangles = self.stats.triangles,
+            cpu_time = ?self.stats.cpu_time,
+            gpu_time = ?self.stats.gpu_time,
             "shutdown"
         );
     }
@@ -202,6 +261,9 @@ fn main() -> ExitCode {
         bytes,
         scene: None,
         camera: OrbitCamera::new(Vec3::ZERO, 1.0, 0.0, 0.0),
+        overlay: None,
+        show_overlay: true,
+        frame_ms: 0.0,
         drawn: 0,
         stats: RenderStats::default(),
     };
