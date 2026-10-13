@@ -11,7 +11,9 @@ color, which a texture may modulate, lit by one directional light and an ambient
 reports what each frame cost on the CPU and, on adapters that can time their work, on the GPU.
 Surfaces are opaque: the alpha of a base color and of its texture is not used, and a surface
 leaves an alpha of 1 in the target. Instances are drawn in the order of the scene, neither sorted
-nor batched.
+nor batched. An instance whose transform mirrors it (a negative determinant, such as a scale of
+−1 along one axis) is drawn inside out: its front faces are culled and its back faces drawn,
+where glTF keeps the front faces of a mirrored node.
 
 ## Role
 

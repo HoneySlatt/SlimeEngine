@@ -37,7 +37,9 @@ pub struct Instance<'a> {
     pub mesh: &'a Mesh,
     /// How it looks.
     pub material: &'a Material,
-    /// From the mesh's space to world space.
+    /// From the mesh's space to world space. A transform that mirrors the mesh (a negative
+    /// determinant) turns its front faces clockwise on screen, so they are culled and its back
+    /// faces drawn: the instance is drawn inside out.
     pub transform: Mat4,
 }
 
