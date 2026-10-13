@@ -20,8 +20,9 @@ its blending: the panels look slightly lighter than egui's own demos.
   that keeps the frame. It is the only crate besides `slime-gfx` that reaches wgpu, through the
   `wgpu` feature of `slime-gfx`.
 - Translates the engine's events (`slime_platform::Event`) into egui's: the cursor and mouse
-  buttons in logical pixels (egui's points), the wheel, keys and the text they produce, focus, the
-  scale factor.
+  buttons in egui's points (logical pixels, divided by egui's zoom factor when the panels' code
+  zooms with `egui::Context::set_zoom_factor`), the wheel, keys and the text they produce, focus,
+  the scale factor.
   egui's own window integration (`egui-winit`) is not used: winit's types stay inside
   `slime-platform`.
 

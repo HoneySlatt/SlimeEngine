@@ -68,7 +68,7 @@ impl Overlay {
     /// all: otherwise the events pile up, and egui gets them all at once when the overlay is
     /// shown again, clicks included.
     pub fn handle(&mut self, event: &Event) {
-        self.input.handle(event);
+        self.input.handle(event, self.context.zoom_factor());
     }
 
     /// Whether the cursor is over a panel of the overlay, as of the last frame drawn: the
@@ -99,7 +99,13 @@ impl Overlay {
             target.label(),
             target.format()
         );
-        let pixels_per_point = self.input.pixels_per_point();
+        let scale_factor = self.input.scale_factor();
+        // egui draws a point as its zoom factor times the screen's scale, which the panels' code
+        // can change (`egui::Context::set_zoom_factor`, `set_pixels_per_point`): the area, like
+        // the cursor's position (`handle`), is in those points. A new zoom takes effect at the
+        // start of a frame, in which egui rescales the area itself and the events handled before
+        // it are still in the old points, as with egui's own window integration.
+        let pixels_per_point = scale_factor * self.context.zoom_factor();
         let size = [target.width(), target.height()];
         let mut raw_input = egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(
@@ -120,7 +126,7 @@ impl Overlay {
             .viewports
             .entry(egui::ViewportId::ROOT)
             .or_default()
-            .native_pixels_per_point = Some(pixels_per_point);
+            .native_pixels_per_point = Some(scale_factor);
         let output = self.context.run_ui(raw_input, |root| ui(root.ctx()));
         let primitives = self
             .context
@@ -220,6 +226,33 @@ mod tests {
     }
 
     #[test]
+    fn the_panels_follow_egui_zoom() {
+        let gpu = gpu();
+        let target = gpu.create_render_target("overlay target", 800, 600, FORMAT);
+        let mut overlay = Overlay::new(&gpu, FORMAT, 1.0);
+        overlay.render(&gpu, &target, |ctx| ctx.set_zoom_factor(2.0));
+        // egui applies the zoom on the next frame, the only one it lays out in an area of its own.
+        let mut area = egui::Rect::NOTHING;
+        for _ in 0..2 {
+            overlay.render(&gpu, &target, |ctx| area = ctx.content_rect());
+        }
+        assert_eq!(
+            area.size(),
+            egui::vec2(400.0, 300.0),
+            "the panels are laid out in the target, at twice the size"
+        );
+
+        overlay.handle(&Event::CursorMoved { x: 100.0, y: 100.0 });
+        let mut pointer = None;
+        overlay.render(&gpu, &target, |ctx| pointer = ctx.pointer_hover_pos());
+        assert_eq!(
+            pointer,
+            Some(egui::pos2(50.0, 50.0)),
+            "the cursor is where the panels are drawn"
+        );
+    }
+
+    #[test]
     fn a_frame_that_egui_lays_out_twice_still_draws_the_panels() {
         let gpu = gpu();
         let target = gpu.create_render_target("overlay target", 200, 200, FORMAT);
@@ -286,7 +319,11 @@ mod tests {
         let image = gpu.read_render_target(&target).expect("read the target");
         let pixel = |x: usize, y: usize| &image.pixels[(y * 200 + x) * 4..][..4];
         assert_ne!(pixel(20, 20), [0, 0, 255, 255], "the window is drawn");
-        assert_eq!(pixel(190, 190), [0, 0, 255, 255], "the scene is kept around it");
+        assert_eq!(
+            pixel(190, 190),
+            [0, 0, 255, 255],
+            "the scene is kept around it"
+        );
     }
 
     #[test]
