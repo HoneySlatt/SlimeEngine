@@ -186,7 +186,7 @@ impl App for SceneExample {
         self.stats = scene.render(gpu, target, self.camera.camera());
         self.drawn += 1;
         if let (true, Some(overlay)) = (self.show_overlay, &mut self.overlay) {
-            let adapter = gpu.adapter_name().to_owned();
+            let adapter = gpu.adapter_name();
             let stats = self.stats;
             let frame_ms = self.frame_ms;
             let size = (target.width(), target.height());

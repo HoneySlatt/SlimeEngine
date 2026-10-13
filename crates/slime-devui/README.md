@@ -76,7 +76,9 @@ impl App for Game {
   drawn, so that the application leaves clicks and the wheel to the overlay.
 - `Overlay::render(gpu, target, |ctx| ...)`: builds the panels with egui's `Context` and draws
   them over the target; `slime_devui::egui` is the egui the overlay uses. egui sizes a window
-  on the first frame that shows it and draws it from the next one.
+  on the first frame that shows it and draws it from the next one. egui may call the closure
+  twice in a frame, when it lays the frame out again (on the first frame of a grid or of a
+  window being resized), so the closure builds the same panels on every call.
 
 ## Dependencies
 

@@ -63,7 +63,11 @@ impl Overlay {
 
     /// Builds this frame's panels with `ui` and draws them over what `target` holds, in a pass
     /// that keeps it. The scene is drawn into the target first.
-    pub fn render(&mut self, gpu: &Gpu, target: &RenderTarget, ui: impl FnOnce(&egui::Context)) {
+    ///
+    /// egui may call `ui` twice in a frame: when the first layout asks to be discarded, as on the
+    /// first frame of a grid or of a window being resized, egui lays the frame out again and draws
+    /// only the second layout. `ui` therefore builds the same panels on every call.
+    pub fn render(&mut self, gpu: &Gpu, target: &RenderTarget, mut ui: impl FnMut(&egui::Context)) {
         let pixels_per_point = self.input.pixels_per_point();
         let size = [target.width(), target.height()];
         let mut raw_input = egui::RawInput {
@@ -86,12 +90,7 @@ impl Overlay {
             .entry(egui::ViewportId::ROOT)
             .or_default()
             .native_pixels_per_point = Some(pixels_per_point);
-        let mut ui = Some(ui);
-        let output = self.context.run_ui(raw_input, |root| {
-            if let Some(ui) = ui.take() {
-                ui(root.ctx());
-            }
-        });
+        let output = self.context.run_ui(raw_input, |root| ui(root.ctx()));
         let primitives = self
             .context
             .tessellate(output.shapes, output.pixels_per_point);
@@ -132,6 +131,8 @@ impl Overlay {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::Cell;
+
     use super::*;
 
     const FORMAT: TextureFormat = TextureFormat::Rgba8UnormSrgb;
@@ -173,5 +174,38 @@ mod tests {
         let (screen, after) = frame(&mut overlay, &gpu, &large);
         assert_eq!(screen.size(), egui::vec2(800.0, 600.0));
         assert_eq!(after.min, before.min, "the window stays where it was");
+    }
+
+    #[test]
+    fn a_frame_that_egui_lays_out_twice_still_draws_the_panels() {
+        let gpu = gpu();
+        let target = gpu.create_render_target("overlay target", 200, 200, FORMAT);
+        let mut overlay = Overlay::new(&gpu, FORMAT, 1.0);
+        overlay.handle(&Event::CursorMoved { x: 20.0, y: 20.0 });
+        let passes = Cell::new(0);
+        let discard = Cell::new(false);
+        let panels = |ctx: &egui::Context| {
+            passes.set(passes.get() + 1);
+            if discard.take() {
+                // What egui does itself when a grid first shows or a window starts resizing.
+                ctx.request_discard("test");
+            }
+            egui::Window::new("panel")
+                .default_pos(egui::pos2(10.0, 10.0))
+                .show(ctx, |ui| ui.label("text"));
+        };
+        for _ in 0..2 {
+            overlay.render(&gpu, &target, panels);
+        }
+        assert!(overlay.wants_pointer(), "the cursor is over the window");
+
+        passes.set(0);
+        discard.set(true);
+        overlay.render(&gpu, &target, panels);
+        assert_eq!(passes.get(), 2, "egui laid the frame out again");
+        assert!(
+            overlay.wants_pointer(),
+            "the window was drawn in the layout egui kept"
+        );
     }
 }
