@@ -210,6 +210,13 @@ impl Gpu {
         self.device.limits().min_uniform_buffer_offset_alignment as usize
     }
 
+    /// The largest width or height, in pixels, of a texture, a render target, a depth target or a
+    /// window's image (8192 with the default limits). A caller that creates textures from files
+    /// checks their size against it: [`Gpu::create_texture`] panics on a larger one.
+    pub fn max_texture_dimension(&self) -> u32 {
+        self.device.limits().max_texture_dimension_2d
+    }
+
     /// Submits an empty piece of work, then blocks until the GPU has finished everything submitted
     /// so far.
     ///

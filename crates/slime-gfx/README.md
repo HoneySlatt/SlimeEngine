@@ -113,11 +113,13 @@ fn main() -> Result<(), GfxError> {
     image cannot be sampled.
   - `Texture`: a two-dimensional image that shaders sample (`create_texture`, from its pixels in
     the byte order of its `TextureFormat`; sRGB formats are decoded to linear values when read,
-    `Rgba8Unorm` is read as it is), with mipmaps computed from its pixels when it is created, in
-    linear light for the sRGB formats; and `Sampler` (`create_sampler`, from a
-    `SamplerDescriptor`): how it is read, with nearest or linear `Filter`s, between the pixels of
-    the level of detail that fits and between two levels, and the `AddressMode` beyond its edges
-    (repeat, mirror, clamp). Both are bound through bind groups.
+    `Rgba8Unorm` is read as it is), at most `Gpu::max_texture_dimension()` pixels on a side (8192
+    with the default limits; a loader checks the images of a file against it), with mipmaps
+    computed from its pixels when it is created, in linear light for the sRGB formats; and
+    `Sampler` (`create_sampler`, from a `SamplerDescriptor`): how it is read, with nearest or
+    linear `Filter`s, between the pixels of the level of detail that fits and between two
+    levels, and the `AddressMode` beyond its edges (repeat, mirror, clamp). Both are bound
+    through bind groups.
   - `VertexBuffer`: vertex data, given as bytes (`create_vertex_buffer`): at least one byte, at
     most 256 MiB with the default limits.
   - `IndexBuffer`: 32-bit indices into a vertex buffer (`create_index_buffer`), for draws whose

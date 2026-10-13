@@ -52,8 +52,8 @@ impl Gpu {
     /// # Panics
     ///
     /// If `format` is `Rgba16Float`, a format of render targets only; if `width` or `height` is
-    /// zero or larger than the device allows (8192 with the default limits); or if `pixels` does
-    /// not hold `width * height * 4` bytes.
+    /// zero or larger than the device allows ([`Gpu::max_texture_dimension`], 8192 with the
+    /// default limits); or if `pixels` does not hold `width * height * 4` bytes.
     pub fn create_texture(
         &self,
         label: &str,

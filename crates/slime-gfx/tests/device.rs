@@ -42,3 +42,10 @@ fn no_graphics_api_means_no_adapter() {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+#[test]
+fn the_largest_texture_is_that_of_the_default_limits_on_every_adapter() {
+    let gpu = slime_gfx::Gpu::new()
+        .expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+    assert_eq!(gpu.max_texture_dimension(), 8192);
+}

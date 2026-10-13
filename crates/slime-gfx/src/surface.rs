@@ -165,7 +165,7 @@ impl Gpu {
             device_loss: Arc::clone(&gpu.loss),
             config,
             format,
-            max_dimension: gpu.device.limits().max_texture_dimension_2d,
+            max_dimension: gpu.max_texture_dimension(),
             oversize: false,
             stale: true,
             losses_in_a_row: 0,
