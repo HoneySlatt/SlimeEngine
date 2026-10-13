@@ -13,19 +13,19 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3b — Physically based renderer → 0.1: in progress. Planned on 2026-10-13 and validated by
-  the owner. M3b.1 is done; M3b.2 and M3b.3 pass on the three drivers and in the owner's Windows
-  virtual machine, and wait for the owner's look at the sample on niri. The
-  owner's decisions of 2026-10-13 on earlier proposals are applied, and the findings of rounds 4
-  and 5 of the audit of 0.0.3 (issue [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are
-  fixed or recorded below; next: M3b.4.
+  the owner. M3b.1, M3b.2 and M3b.3 are done. The owner's decisions of 2026-10-13 on earlier
+  proposals are applied, and the findings of rounds 4 and 5 of the audit of 0.0.3 (issue
+  [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are fixed or recorded below; next:
+  M3b.4, with the exposure applied in the scene pass (pre-exposure), which the owner chose on
+  2026-10-13.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
 | [M3b.1](#m3b1--gpu-layer-for-multi-pass-rendering) | GPU layer for multi-pass rendering | Done |
-| [M3b.2](#m3b2--hdr-rendering-and-tone-mapping) | HDR rendering and tone mapping | Awaiting the owner |
-| [M3b.3](#m3b3--physically-based-materials) | Physically based materials | Awaiting the owner |
+| [M3b.2](#m3b2--hdr-rendering-and-tone-mapping) | HDR rendering and tone mapping | Done |
+| [M3b.3](#m3b3--physically-based-materials) | Physically based materials | Done |
 | [M3b.4](#m3b4--light-types) | Light types | Planned |
 | [M3b.5](#m3b5--shadows) | Shadows | Planned |
 | [M3b.6](#m3b6--image-based-lighting) | Image-based lighting | Planned |
@@ -186,8 +186,9 @@ sample, tests included, and must stay small; upgrading wgpu still waits for egui
   job took 8 minutes 40 seconds, the Linux one 3 minutes 51 seconds. In the owner's Windows 11
   virtual machine (RX 6900 XT, Direct3D 12, display scale 150 % and 125 %), on 2026-10-13, after
   M3b.3: the image, the two GPU times, the exposure slider (Escape and F1 still work while it is
-  held) and the overlay at both scales are as expected. Not checked yet: the sample by eye on
-  niri.
+  held) and the overlay at both scales are as expected. The owner looked at the sample on
+  Hyprland, the other compositor of the owner's desktop, on 2026-10-13, after M3b.3: it looks
+  right.
 
 ### M3b.3 — Physically based materials
 
@@ -247,7 +248,8 @@ sample, tests included, and must stay small; upgrading wgpu still waits for egui
   XT, Direct3D 12, shaders compiled with FXC), on 2026-10-13, every element shows, without a stray
   pixel, the floor stays visible from below, and the passes take 0.090 ms (scene) and 0.102 ms
   (tone mapping); from below, the bottoms of the wall and the crates flicker where they touch the
-  floor (known debt). Not checked yet: the sample by eye on niri.
+  floor (known debt). The owner looked at the sample on Hyprland on 2026-10-13: it looks right;
+  the scene pass took 11.5 µs and the tone-mapping pass 6.8 µs there (RADV, 637 × 696).
 
 ### M3b.4 — Light types
 
@@ -260,8 +262,11 @@ sample, tests included, and must stay small; upgrading wgpu still waits for egui
   constant ambient light stays until IBL replaces it; the loader reads `KHR_lights_punctual`
   through the `gltf` feature of that name (`dependencies.md` updated, and the lists of ADR-0035
   amended), adds it to `READ_EXTENSIONS`, and a test loads a file that requires it; the asset
-  exports its sun and a point or spot light; the sample's exposure suits physical units. ADR:
-  lights and their units.
+  exports its sun and a point or spot light; the sample's exposure suits physical units. The
+  exposure is applied in the scene pass, before the HDR target is written (pre-exposure), so that
+  light in physical units stays within half precision; the tone-mapping pass no longer multiplies
+  by it (the owner's decision of 2026-10-13, amending ADR-0034). ADR: lights and their units, and
+  pre-exposure.
 - **Done when.** Tests that read pixels back: a point light gives a quarter of the light at twice
   the distance, and none beyond its range; a spot light lights fully inside its inner cone, not at
   all outside its outer cone, and in between smoothly; a scene with the maximum number of lights
@@ -641,17 +646,16 @@ GitHub issues, linked from their entry; this list stays the reference.
   ambient light alone lose up to 0.04 in every channel: a third to two thirds of their light at
   the samples' ambient light, and most of a channel much weaker than the others, which saturates
   them.
-- **Light beyond 65 504 is clamped in the HDR target** (ADR-0034, ADR-0035; a change is proposed
-  to the owner for M3b.4). The exposure is applied after the scene pass has written the
-  `Rgba16Float` target, whose largest value is 65 504. The scene shader writes brighter light as
-  65 504, rather than leave it to the driver, which may store an infinity that the tone curve
-  turns into NaN. The highlights of smooth metals under a light of π already reach it: about
-  61 000 at normal incidence for a roughness of 0.045, more at grazing angles; with the units of
-  M3b.4 (lux and candela), the sun's highlights exceed it by far. Clamped light loses its energy,
-  which a low exposure shows as a flat highlight and the bloom of M3b.7 would spread wrongly.
-  Applying the exposure in the scene pass instead (pre-exposure) keeps the target in range, but
-  departs from the plan as validated; it is to decide at M3b.4, and the clamp stays as a safety
-  net either way.
+- **Light beyond 65 504 is clamped in the HDR target** (ADR-0034, ADR-0035; M3b.4 applies the
+  exposure in the scene pass, as the owner chose on 2026-10-13). The exposure is applied after the
+  scene pass has written the `Rgba16Float` target, whose largest value is 65 504. The scene shader
+  writes brighter light as 65 504, rather than leave it to the driver, which may store an infinity
+  that the tone curve turns into NaN. The highlights of smooth metals under a light of π already
+  reach it: about 61 000 at normal incidence for a roughness of 0.045, more at grazing angles; with
+  the units of M3b.4 (lux and candela), the sun's highlights exceed it by far. Clamped light loses
+  its energy, which a low exposure shows as a flat highlight and the bloom of M3b.7 would spread
+  wrongly. Applying the exposure in the scene pass instead (pre-exposure) keeps the target in range;
+  the clamp stays as a safety net.
 - **Every draw of the scene pass runs a shader that can discard fragments** (ADR-0035). The `MASK`
   alpha mode discards in the one fragment shader that every material uses, opaque materials with a
   cutoff of 0. Some GPUs then test depth after the shader rather than before, for opaque draws
