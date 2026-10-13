@@ -332,6 +332,12 @@ justify a decision are also in its ADR.
 - **On Direct3D 12, a covered window or a locked session was not measured.** In `acquire`, wgpu
   waits on the swap chain's frame-latency object, up to one second, if the compositor stops taking
   images; whether Windows does so for such windows is unknown.
+- **WARP's shader compiler crashes the process, now and then, when several threads compile
+  shaders at once**, even on separate devices: an access violation inside `d3d10warp.dll`, which
+  no test can catch. Seen once in the Windows CI job, on 2026-10-13, in the texture tests of
+  `slime-gfx`, after about ten green runs; other projects that test on WARP report the same crash,
+  and that running the tests one at a time avoids it, which the Windows job does since. The
+  engine's own code is not involved.
 - **Client-side decorations run `dbus-send` twice when the window is created** (winit's
   sctk-adwaita, on compositors that do not draw decorations), each waiting up to 100 ms when the
   settings portal does not answer; the error they log when no session bus or portal answers is

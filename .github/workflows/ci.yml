@@ -43,14 +43,17 @@ jobs:
         run: rustup toolchain install
       - name: Clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      # The tests run one at a time: WARP's shader compiler crashes the process, now and then, when
+      # several threads compile shaders at once, even on separate devices (an access violation in
+      # d3d10warp.dll, which no test can catch; seen in other projects too).
       - name: Tests
-        run: cargo test --workspace --locked
+        run: cargo test --workspace --locked -- --test-threads=1
       # The image tests print the difference they measured against the reference, which only this
       # job can tell for WARP; the step above has run them already.
       - name: Image tests, printing their measurements
-        run: cargo test --locked -p slime-examples -- --nocapture
+        run: cargo test --locked -p slime-examples -- --nocapture --test-threads=1
       - name: GPU timing test, printing whether WARP can time its work
-        run: cargo test --locked -p slime-gfx --test timing -- --nocapture
+        run: cargo test --locked -p slime-gfx --test timing -- --nocapture --test-threads=1
       - name: Headless samples
         run: |
           cargo run --locked --example headless -- --frames 600

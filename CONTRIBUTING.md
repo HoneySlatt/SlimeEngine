@@ -151,7 +151,9 @@ CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push t
 pull request. A Linux job runs the same script; a Windows job runs clippy, the tests and the
 headless samples on Windows, runs the release build of the headless ones, and publishes the
 `hello`, `headless`, `window`, `offscreen` and `scene` examples built for Windows as an artifact named
-`slime-examples-windows`, to run by hand on a Windows machine.
+`slime-examples-windows`, to run by hand on a Windows machine. The Windows job runs the tests one
+at a time (`--test-threads=1`): WARP's shader compiler crashes the process, now and then, when
+several threads compile shaders at once.
 [ADR-0007](docs/adr/0007-documentation-tooling-and-ci.md) and
 [ADR-0015](docs/adr/0015-platforms-and-ci.md) explain the setup.
 
