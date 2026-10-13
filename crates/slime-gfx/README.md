@@ -205,7 +205,9 @@ fn main() -> Result<(), GfxError> {
     named `label` (in capture tools, the passes drawn into the image carry it, not the image
     itself), or `None` when the window cannot show a new image (a size of zero, an image not
     ready in time on Vulkan, an occluded surface, a lost surface, which is created again; on
-    Direct3D 12, wgpu waits up to one second for an image that is late, then returns it). Draw into
+    Direct3D 12, wgpu waits up to one second for an image that is late, then returns it; on
+    Windows with Vulkan, wgpu treats an image still not free one second after the driver handed
+    it out as the loss of the device, which stops a run built on `slime-app`). Draw into
     `SurfaceFrame::target()` with `Gpu::render`, then call `SurfaceFrame::present()`. Every frame
     acquired must be presented: on Vulkan, wgpu cannot give back an image dropped without being
     presented, so each such drop takes one of the window's images until the surface is configured

@@ -221,14 +221,15 @@ impl Surface {
     /// give a window's images. The engine passes `window, frame <index>`.
     ///
     /// It returns `None` while the window has a size of zero, when the next image is not ready
-    /// within wgpu's timeout (one second) on Vulkan, while the window is occluded (on platforms
-    /// that report it), when the surface is still outdated after being configured again, after the
-    /// surface was lost or could not be configured (the graphics API refused the window, which it
-    /// does when the window or the display goes away), in which case it is created again for the
-    /// next call (`docs/adr/0025-giving-up-a-lost-surface.md`), once the surface is
-    /// lost for good ([`check`](Self::check)), and once the device is lost. These cases are logged
-    /// at the `debug` level, except a size of zero and a surface lost for good (not logged again)
-    /// and the loss of the surface (`warn`, or `error` for the loss that gives it up).
+    /// within wgpu's timeout (one second) on Vulkan (on Windows, see below), while the window is
+    /// occluded (on platforms that report it), when the surface is still outdated after being
+    /// configured again, after the surface was lost or could not be configured (the graphics API
+    /// refused the window, which it does when the window or the display goes away), in which case
+    /// it is created again for the next call (`docs/adr/0025-giving-up-a-lost-surface.md`), once
+    /// the surface is lost for good ([`check`](Self::check)), and once the device is lost. These
+    /// cases are logged at the `debug` level, except a size of zero and a surface lost for good
+    /// (not logged again) and the loss of the surface (`warn`, or `error` for the loss that gives
+    /// it up).
     ///
     /// When it returns `None`, it submits an empty piece of work to the GPU, as
     /// [`SurfaceFrame::present`] does for an image that nothing drew into: wgpu keeps each write
@@ -240,7 +241,14 @@ impl Surface {
     /// display; with [`PresentMode::Mailbox`], it was measured not to (on niri with RADV, and in a
     /// headless Weston with lavapipe). On Direct3D 12, wgpu reports no timeout: it waits up to one
     /// second, then returns the image anyway, and the frame is drawn late rather than skipped,
-    /// without a log: the wait shows only in the time this call takes.
+    /// without a log: the wait shows only in the time this call takes. On Windows with Vulkan
+    /// (`WGPU_BACKEND=vulkan`), wgpu also waits, once the driver has handed out an image, until
+    /// that image is free, and treats a wait longer than one second as the loss of the device
+    /// rather than as a timeout: this call returns `None` and the device is lost
+    /// ([`Gpu::check`]), with a reason that blames the driver, so a run built on `slime-app`
+    /// stops instead of skipping the frame. A GPU frame that takes more than about one second, or
+    /// a compositor that holds the window's images that long, would cause it; neither was
+    /// measured.
     ///
     /// # Panics
     ///
