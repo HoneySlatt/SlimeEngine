@@ -313,6 +313,7 @@ impl Surface {
             texture,
             target,
             queue: self.queue.clone(),
+            device_loss: Arc::clone(&self.device_loss),
         })
     }
 
@@ -385,6 +386,8 @@ pub struct SurfaceFrame {
     texture: wgpu::SurfaceTexture,
     target: RenderTarget,
     queue: wgpu::Queue,
+    /// Why the device was lost, once it has been: the [`Gpu`]'s record.
+    device_loss: Arc<OnceLock<String>>,
 }
 
 impl SurfaceFrame {
@@ -399,7 +402,8 @@ impl SurfaceFrame {
     /// surface's [`PresentMode`] says. Call it after the work that draws into the target has been
     /// submitted, as [`Gpu::render`] does; an image that nothing drew into is shown cleared to
     /// black. With [`PresentMode::Fifo`], it can wait for the window (one second per frame for a
-    /// hidden window on niri).
+    /// hidden window on niri). Once the GPU device is lost, nothing is shown: the image is
+    /// released instead, so that the [`Surface`] can still be dropped.
     pub fn present(self) {
         if !self.target.drawn.load(Ordering::Relaxed) {
             // wgpu clears an image that nothing drew into when it is presented, and keeps that
@@ -407,6 +411,17 @@ impl SurfaceFrame {
             // GPU has finished. A frame that draws nothing must give it one, or that work piles up
             // at every frame for as long as the run lasts.
             self.queue.submit([]);
+        }
+        // Checked after this frame's submissions, which are where a loss is most often found.
+        if self.device_loss.get().is_some() {
+            // Once the device is lost, wgpu 30 refuses to present or discard the image and keeps
+            // it acquired. On Vulkan, dropping the surface would then panic: destroying the
+            // swapchain needs back the semaphores that the image still holds. Destroying the
+            // image's texture releases them. Dropping the frame then asks wgpu to discard the
+            // image, which it refuses silently, as it does every error that only repeats that
+            // the device is lost.
+            self.texture.texture.destroy();
+            return;
         }
         self.queue.present(self.texture);
     }
