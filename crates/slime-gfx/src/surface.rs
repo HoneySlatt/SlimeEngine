@@ -225,6 +225,12 @@ impl Surface {
     /// at the `debug` level, except a size of zero and a surface lost for good (not logged again)
     /// and the loss of the surface (`warn`, or `error` for the loss that gives it up).
     ///
+    /// When it returns `None`, it submits an empty piece of work to the GPU, as
+    /// [`SurfaceFrame::present`] does for an image that nothing drew into: wgpu keeps each write
+    /// to a buffer or a texture ([`Gpu::write_uniform_buffer`], [`Gpu::create_texture`]) until the
+    /// next submission, so the writes of frames that get no image, for as long as the window is
+    /// minimized for example, would otherwise pile up.
+    ///
     /// It can block until an image is free. With [`PresentMode::Fifo`], it does in step with the
     /// display; with [`PresentMode::Mailbox`], it was measured not to (on niri with RADV, and in a
     /// headless Weston with lavapipe). On Direct3D 12, wgpu reports no timeout: it waits up to one
@@ -236,6 +242,19 @@ impl Surface {
     /// If the [`SurfaceFrame`] of the previous call has neither been presented nor dropped: wgpu
     /// treats acquiring a second image as a misuse (ADR-0016).
     pub fn acquire(&mut self, label: &str) -> Option<SurfaceFrame> {
+        let image = self.next_image(label);
+        if image.is_none() {
+            // wgpu keeps each write to a buffer or a texture, with a staging buffer of its own,
+            // until a submission. A frame that draws gives it one, as does presenting an image
+            // that nothing drew into; a frame without an image must give it one too.
+            self.queue.submit([]);
+        }
+        image
+    }
+
+    /// The image of [`acquire`](Self::acquire), without the submission it makes when there is
+    /// none.
+    fn next_image(&mut self, label: &str) -> Option<SurfaceFrame> {
         if self.lost.is_some() || self.config.width == 0 || self.config.height == 0 {
             return None;
         }
