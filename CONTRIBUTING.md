@@ -82,7 +82,8 @@ The GPU layer uses Vulkan on Linux and Direct3D 12 on Windows
 - `WGPU_BACKEND` chooses another graphics API that the build supports (`WGPU_BACKEND=vulkan` on
   Windows), `WGPU_VALIDATION=1` turns on the validation layers of Vulkan or Direct3D 12, when
   they are installed, and `WGPU_DEBUG=1` passes the engine's labels and debug groups to the
-  driver in release builds, as debug builds always do.
+  Vulkan driver in release builds, as debug builds always do (Direct3D 12 receives them in every
+  build; `WGPU_DISCARD_HAL_LABELS=1` keeps them back).
 - Image tests compare a render with a reference image stored in `examples/tests/reference/`,
   within a tolerance that depends on the driver
   ([ADR-0018](docs/adr/0018-reference-image-tests.md), amended by

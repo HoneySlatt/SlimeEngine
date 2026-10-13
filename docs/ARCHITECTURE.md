@@ -323,8 +323,9 @@ can block a frame. The measurements behind this choice are in
 
 In GPU capture tools such as RenderDoc, each render pass is named after its target, so the window's
 pass of frame 42 appears as `window, frame 42`, and `RenderPass::debug_group` names groups of
-commands inside it; the samples' triangle is drawn in a group named `triangle`. Debug builds pass
-these names to the driver ([ADR-0016](adr/0016-gpu-layer-with-wgpu.md)).
+commands inside it; the samples' triangle is drawn in a group named `triangle`. On Vulkan, debug
+builds pass these names to the driver, and release builds do with `WGPU_DEBUG=1`; Direct3D 12
+receives them in every build ([ADR-0016](adr/0016-gpu-layer-with-wgpu.md)).
 
 ### Losing the GPU
 
