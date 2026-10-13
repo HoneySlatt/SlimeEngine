@@ -39,8 +39,9 @@
 //!
 //! The `gltf` crate's validation checks little more than that the file's objects name each other
 //! correctly, and its readers panic on some of what it lets through. The loader refuses, rather
-//! than panic on, such malformed files: images whose data lies outside the binary chunk, has no
-//! MIME type or is missing; positions, normals, tangents, texture coordinates or indices stored in
+//! than panic on, such malformed files: a GLB header that declares a length shorter than itself,
+//! on which the crate's parser panics in debug builds; images whose data lies outside the binary
+//! chunk, has no MIME type or is missing; positions, normals, tangents, texture coordinates or indices stored in
 //! types glTF does not allow for them, in a sparse accessor (which the loader does not read), in
 //! an empty one, closer together than their size, or outside the binary chunk; a node hierarchy
 //! that is not a set of trees.
@@ -196,6 +197,19 @@ fn texture_slots<'a>(material: &gltf::Material<'a>) -> [TextureSlot<'a>; 5] {
 
 /// Loads the GLB file `bytes` into GPU objects created through `renderer`.
 pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene, LoadError> {
+    // The `gltf` crate subtracts the header's 12 bytes from the length a GLB header declares
+    // without checking it first, an overflow that panics in debug builds. It refuses a header cut
+    // short itself.
+    let declared = bytes
+        .strip_prefix(b"glTF")
+        .and_then(|rest| rest.get(4..8))
+        .map(|length| u32::from_le_bytes(length.try_into().expect("4 bytes")));
+    if let Some(length @ 0..12) = declared {
+        return Err(LoadError(format!(
+            "the file is not valid glTF: its GLB header declares a length of {length} bytes, \
+             shorter than the header, 12 bytes"
+        )));
+    }
     let file = gltf::Gltf::from_slice(bytes)
         .map_err(|error| LoadError(format!("the file is not valid glTF: {error}")))?;
     let document = &file.document;

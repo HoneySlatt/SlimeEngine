@@ -98,6 +98,20 @@ fn images_whose_data_cannot_be_found_are_refused() {
 }
 
 #[test]
+fn a_glb_header_that_declares_a_length_shorter_than_itself_is_refused() {
+    let gpu =
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+    // A header alone: the magic, version 2, and a length of 0, from which the `gltf` crate
+    // subtracts the header's 12 bytes, an overflow that panics in debug builds.
+    let header = [b"glTF".as_slice(), &2u32.to_le_bytes(), &0u32.to_le_bytes()].concat();
+    let error = refusal_of(&gpu, &header);
+    assert!(
+        error.contains("declares a length of 0 bytes, shorter than the header"),
+        "{error}"
+    );
+}
+
+#[test]
 fn data_outside_the_binary_chunk_is_refused_without_quoting_data_uris() {
     let gpu =
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
@@ -675,7 +689,12 @@ fn brighter(drawn: [u8; 3], background: [u8; 3]) -> bool {
 
 /// The message of the error with which the loader refuses `file`.
 fn refusal(gpu: &Gpu, file: &mut Glb) -> String {
-    match SampleScene::new(gpu, TextureFormat::Rgba8UnormSrgb, &file.bytes()) {
+    refusal_of(gpu, &file.bytes())
+}
+
+/// The message of the error with which the loader refuses the file `bytes`.
+fn refusal_of(gpu: &Gpu, bytes: &[u8]) -> String {
+    match SampleScene::new(gpu, TextureFormat::Rgba8UnormSrgb, bytes) {
         Ok(_) => panic!("the loader accepted a file it must refuse"),
         Err(error) => error.to_string(),
     }
