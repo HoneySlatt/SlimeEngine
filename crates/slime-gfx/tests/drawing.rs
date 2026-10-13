@@ -1,7 +1,7 @@
 //! Drawing with the resources a renderer needs: indexed draws, a uniform buffer read through a
-//! bind group, a pass that keeps the image, depth testing and face culling, checked by reading
-//! pixels back. The colors are pure, whose sRGB encoding every driver gets exactly. Runs on
-//! whatever adapter the machine offers, like `device.rs`.
+//! bind group, a pass that keeps the image and its depth, depth testing and face culling, checked
+//! by reading pixels back. The colors are pure, whose sRGB encoding every driver gets exactly. Runs
+//! on whatever adapter the machine offers, like `device.rs`.
 
 use slime_gfx::{
     BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource, BindingType,
@@ -248,6 +248,44 @@ fn a_pass_without_a_clear_keeps_what_was_drawn_before() {
     let image = scene.image();
     assert_eq!(pixel(&image, BOTTOM_LEFT), [255, 255, 255], "kept");
     assert_eq!(pixel(&image, TOP_RIGHT), [255, 255, 255], "added");
+}
+
+#[test]
+fn a_pass_without_a_clear_keeps_the_depth_drawn_before() {
+    let scene = Scene::new();
+    let tested = scene.pipeline(
+        Some(DepthState {
+            compare: DepthCompare::Less,
+            write: true,
+            bias: DepthBias::default(),
+        }),
+        CullMode::None,
+    );
+    let near = scene.vertices(&full_screen(0.25, RED));
+    let far = scene.vertices(&full_screen(0.75, BLUE));
+
+    scene.render(true, |pass| {
+        pass.set_pipeline(&tested);
+        pass.set_vertex_buffer(0, &near);
+        pass.draw(0..3);
+    });
+    let pass = RenderPassDescriptor {
+        target: &scene.target,
+        clear: None,
+        depth: Some(&scene.depth),
+        timer: None,
+    };
+    scene.gpu.render(&pass, |pass| {
+        pass.set_bind_group(0, &scene.group, &[]);
+        pass.set_pipeline(&tested);
+        pass.set_vertex_buffer(0, &far);
+        pass.draw(0..3);
+    });
+    assert_eq!(
+        pixel(&scene.image(), CENTER),
+        [255, 0, 0],
+        "the second pass tests against the first pass's depth: the farther, blue one stays hidden"
+    );
 }
 
 #[test]
