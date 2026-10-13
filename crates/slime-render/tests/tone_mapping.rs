@@ -57,8 +57,9 @@ fn draw(
     )
 }
 
-/// Checks that every pixel of `image` shows `expected`, opaque, within one step of half precision
-/// below 1 (4.9 × 10^-4), which covers a driver that rounds toward zero.
+/// Checks that every pixel of `image` shows `expected`, opaque, within 10^-3: about two steps of
+/// half precision below 1 (one step is 4.9 × 10^-4), which covers a driver that rounds toward zero
+/// and the differences between the shader's arithmetic and the tests' copy of the curve.
 fn assert_every_pixel(image: &FloatImage, expected: [f32; 3], case: &str) {
     for pixel in image.pixels.chunks(4) {
         let close = pixel[..3]
@@ -134,11 +135,12 @@ fn the_targets_follow_the_size_of_the_output() {
         Renderer::new(&gpu, TextureFormat::Rgba16Float).expect("the renderer is created");
     // A group of the tone-mapping pass kept from the previous size would read the previous
     // target, and so the previous light; every pixel of an odd-sized output shows that the
-    // triangle covers it.
+    // triangle covers it. Only the height changes, then only the width, then both.
     for ((width, height), light, expected) in [
         ((4, 4), 2.0, 0.96),
-        ((7, 3), 0.5, 0.46),
-        ((4, 4), 4.0, 0.983_255_8),
+        ((4, 7), 0.5, 0.46),
+        ((7, 7), 4.0, 0.983_255_8),
+        ((4, 3), 2.0, 0.96),
     ] {
         let output = gpu.create_render_target("output", width, height, TextureFormat::Rgba16Float);
         draw(&gpu, &mut renderer, &output, [light; 3], 1.0);

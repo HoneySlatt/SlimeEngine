@@ -166,7 +166,7 @@ sample, tests included, and must stay small; upgrading wgpu still waits for egui
   exposure and the alternatives rejected. `crates/slime-render/tests/tone_mapping.rs` (the tests'
   copy of the curve against nine values derived by hand from the specification; the pass itself,
   read back from an `Rgba16Float` output within 0.001; the exposure applied before the curve; the
-  targets following the output through three sizes; an sRGB output encoding the tone-mapped
+  targets following the output through four sizes; an sRGB output encoding the tone-mapped
   light), the lighting and material tests, whose expected values now go through the curve, and
   the new lighting tests (the exposure scaling the light that surfaces reflect, the projection
   following a 64 × 32 output, the GPU time of each pass) pass on lavapipe and on the owner's
