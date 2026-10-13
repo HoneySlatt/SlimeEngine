@@ -325,11 +325,11 @@ impl Renderer {
     ///
     /// # Errors
     ///
-    /// [`RenderError::InvalidMesh`] if `data` cannot be drawn: a vertex array of another length
-    /// than the positions, no vertex, no triangle, a number of indices that is not a multiple of
-    /// three, an index that names no vertex, or vertices or indices that need a buffer larger than
-    /// the device accepts ([`Gpu::max_buffer_size`], 256 MiB with the default limits: 8 388 608
-    /// vertices, or 67 108 864 indices).
+    /// [`RenderError::InvalidMesh`] if `data` cannot be drawn: a vertex array (normals, uvs,
+    /// tangents) of another length than the positions, no vertex, no triangle, a number of indices
+    /// that is not a multiple of three, an index that names no vertex, or vertices or indices that
+    /// need a buffer larger than the device accepts ([`Gpu::max_buffer_size`], 256 MiB with the
+    /// default limits: 5 592 405 vertices, or 67 108 864 indices).
     pub fn create_mesh(
         &self,
         gpu: &Gpu,

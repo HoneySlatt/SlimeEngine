@@ -49,6 +49,7 @@ fn main() -> Result<(), RenderError> {
         positions: vec![[-1.0, -1.0, 0.0], [1.0, -1.0, 0.0], [0.0, 1.0, 0.0]],
         normals: vec![[0.0, 0.0, 1.0]; 3],
         uvs: vec![[0.0, 1.0], [1.0, 1.0], [0.5, 0.0]],
+        tangents: vec![[1.0, 0.0, 0.0, 1.0]; 3],
         indices: vec![0, 1, 2],
     })?;
     let red = renderer.create_material(

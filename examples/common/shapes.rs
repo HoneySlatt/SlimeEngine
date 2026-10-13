@@ -151,7 +151,7 @@ impl Shapes {
 }
 
 /// A cube of side 1 centred on the origin: four vertices per face, so that each face has its own
-/// normal and texture coordinates.
+/// normal, texture coordinates and tangent.
 pub fn cube() -> MeshData {
     // Each face: its normal, then its four corners counter-clockwise as seen from outside.
     const FACES: [([f32; 3], [[f32; 3]; 4]); 6] = [
@@ -217,11 +217,15 @@ pub fn cube() -> MeshData {
     let mut data = MeshData::default();
     for (face, (normal, corners)) in FACES.iter().enumerate() {
         let first = u32::try_from(face * 4).expect("a cube has 24 vertices");
+        // u grows from the first corner to the second, and the fourth is up the texture's image,
+        // where the bitangent cross(normal, tangent) points on every face: the handedness is 1.
+        let tangent = (Vec3::from(corners[1]) - Vec3::from(corners[0])).normalize();
         for (corner, uv) in corners.iter().zip(UVS) {
             data.positions
                 .push(corner.map(|coordinate| coordinate * 0.5));
             data.normals.push(*normal);
             data.uvs.push(uv);
+            data.tangents.push([tangent.x, tangent.y, tangent.z, 1.0]);
         }
         data.indices
             .extend([first, first + 1, first + 2, first, first + 2, first + 3]);
@@ -231,7 +235,9 @@ pub fn cube() -> MeshData {
 
 /// A sphere of radius `radius` centred on the origin, smooth: the normal of each vertex points
 /// away from the centre. `rings` bands go from the top pole to the bottom one and `segments`
-/// go around; the texture wraps around it once, its top row at the top pole.
+/// go around; the texture wraps around it once, its top row at the top pole. It is mirrored on the
+/// surface: u grows with the azimuth, and cross(normal, tangent) points down the image, so the
+/// handedness is −1.
 pub fn sphere(radius: f32, rings: u32, segments: u32) -> MeshData {
     let mut data = MeshData::default();
     for ring in 0..=rings {
@@ -245,6 +251,8 @@ pub fn sphere(radius: f32, rings: u32, segments: u32) -> MeshData {
             data.normals.push(normal);
             data.uvs
                 .push([segment as f32 / segments as f32, ring as f32 / rings as f32]);
+            data.tangents
+                .push([-azimuth.sin(), 0.0, azimuth.cos(), -1.0]);
         }
     }
     // Each ring is a row of `segments + 1` vertices, the last one repeating the first with the

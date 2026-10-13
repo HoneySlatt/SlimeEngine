@@ -134,7 +134,7 @@ fn accessors_the_loader_cannot_read_are_refused() {
     let gpu =
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
     // Each change of the triangle, and what the error says.
-    let cases: [(Change, &str); 8] = [
+    let cases: [(Change, &str); 9] = [
         (
             |file| {
                 let view = file.add_view(&[0.0f32, 1.0, 2.0].map(f32::to_le_bytes).concat());
@@ -150,6 +150,14 @@ fn accessors_the_loader_cannot_read_are_refused() {
                 file.json["meshes"][0]["primitives"][0]["attributes"]["TEXCOORD_0"] = uvs.into();
             },
             "stores its texture coordinates as I8 Vec2",
+        ),
+        (
+            |file| {
+                let view = file.add_view(&[0.0f32; 9].map(f32::to_le_bytes).concat());
+                let tangents = file.add_accessor(view, FLOAT, 3, "VEC3");
+                file.json["meshes"][0]["primitives"][0]["attributes"]["TANGENT"] = tangents.into();
+            },
+            "stores its tangents as F32 Vec3",
         ),
         (
             |file| file.json["accessors"][0]["componentType"] = UNSIGNED_SHORT.into(),
@@ -215,13 +223,34 @@ fn an_index_that_names_no_vertex_is_refused_in_a_primitive_without_normals() {
 }
 
 #[test]
+fn an_index_that_names_no_vertex_is_refused_in_a_primitive_with_normals() {
+    let gpu =
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+    // The tangents, computed from the triangles, skip the one that names no vertex: the renderer
+    // refuses it.
+    let mut file = Glb::triangle();
+    let view = file.add_view(
+        &[0.0f32, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0]
+            .map(f32::to_le_bytes)
+            .concat(),
+    );
+    let normals = file.add_accessor(view, FLOAT, 3, "VEC3");
+    file.json["meshes"][0]["primitives"][0]["attributes"]["NORMAL"] = normals.into();
+    let view = file.add_view(&[0, 1, 7].map(u16::to_le_bytes).concat());
+    let indices = file.add_accessor(view, UNSIGNED_SHORT, 3, "SCALAR");
+    file.json["meshes"][0]["primitives"][0]["indices"] = indices.into();
+    let error = refusal(&gpu, &mut file);
+    assert!(error.contains("index 7 names no vertex"), "{error}");
+}
+
+#[test]
 fn a_primitive_without_normals_too_large_for_the_gpu_is_refused() {
     let gpu =
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
     // The triangle drawn over and over, with 8-bit indices: a file of a few MiB, whose flat
-    // normals take three vertices of 32 bytes per triangle, one triangle more than the largest
+    // normals take three vertices of 48 bytes per triangle, one triangle more than the largest
     // vertex buffer holds.
-    let triangles = gpu.max_buffer_size() / (3 * 32) + 1;
+    let triangles = gpu.max_buffer_size() / (3 * 48) + 1;
     let mut file = Glb::triangle();
     let view = file.add_view(&[0, 1, 2].repeat(triangles as usize));
     let indices = file.add_accessor(view, UNSIGNED_BYTE, 3 * triangles as u32, "SCALAR");

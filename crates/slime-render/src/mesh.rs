@@ -7,7 +7,7 @@ use crate::error::RenderError;
 
 /// The data of a mesh, as an application or a loader produces it.
 ///
-/// The three vertex arrays have one entry per vertex. `indices` lists the triangles, three
+/// The four vertex arrays have one entry per vertex. `indices` lists the triangles, three
 /// indices each, into those arrays. Front faces wind counter-clockwise, as in glTF.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct MeshData {
@@ -18,6 +18,12 @@ pub struct MeshData {
     /// The texture coordinates of each vertex, (0, 0) being the top-left corner of a texture, as
     /// in glTF.
     pub uvs: Vec<[f32; 2]>,
+    /// The tangent of each vertex, as glTF defines it: xyz of length one, perpendicular to the
+    /// normal, pointing where the texture coordinate u grows; w, 1 or −1, the handedness: the
+    /// bitangent cross(normal, xyz) × w points where v shrinks, up the texture's image. Normal
+    /// textures are read in the frame these give; any unit vector perpendicular to the normal will
+    /// do for a mesh whose materials have none.
+    pub tangents: Vec<[f32; 4]>,
     /// The vertices of each triangle, as indices into the arrays above.
     pub indices: Vec<u32>,
 }
@@ -30,7 +36,11 @@ impl MeshData {
         if vertices == 0 {
             return Err("it has no vertex".to_owned());
         }
-        for (name, count) in [("normals", self.normals.len()), ("uvs", self.uvs.len())] {
+        for (name, count) in [
+            ("normals", self.normals.len()),
+            ("uvs", self.uvs.len()),
+            ("tangents", self.tangents.len()),
+        ] {
             if count != vertices {
                 return Err(format!("it has {vertices} positions but {count} {name}"));
             }
@@ -68,14 +78,21 @@ impl MeshData {
         Ok(())
     }
 
-    /// The vertices interleaved as the renderer's pipeline reads them: position, normal, texture
-    /// coordinates.
+    /// The vertices interleaved as the scene pipelines read them: position, normal, texture
+    /// coordinates, tangent.
     fn vertex_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::with_capacity(self.positions.len() * VERTEX_STRIDE as usize);
-        for ((position, normal), uv) in self.positions.iter().zip(&self.normals).zip(&self.uvs) {
+        for (((position, normal), uv), tangent) in self
+            .positions
+            .iter()
+            .zip(&self.normals)
+            .zip(&self.uvs)
+            .zip(&self.tangents)
+        {
             push_f32s(&mut bytes, position);
             push_f32s(&mut bytes, normal);
             push_f32s(&mut bytes, uv);
+            push_f32s(&mut bytes, tangent);
         }
         bytes
     }
@@ -109,10 +126,11 @@ impl Mesh {
     }
 }
 
-/// The size of one vertex as the pipeline reads it: eight 32-bit floats.
-const VERTEX_STRIDE: u64 = 8 * 4;
+/// The size of one vertex as the scene pipelines read it: twelve 32-bit floats: position, normal,
+/// texture coordinates, tangent.
+const VERTEX_STRIDE: u64 = 12 * 4;
 
-/// How the pipeline reads the vertices of a mesh.
+/// How the scene pipelines read the vertices of a mesh.
 pub(crate) const VERTEX_LAYOUT: VertexLayout<'static> = VertexLayout {
     stride: VERTEX_STRIDE,
     attributes: &[
@@ -131,6 +149,11 @@ pub(crate) const VERTEX_LAYOUT: VertexLayout<'static> = VertexLayout {
             offset: 6 * 4,
             format: VertexFormat::Float32x2,
         },
+        VertexAttribute {
+            location: 3,
+            offset: 8 * 4,
+            format: VertexFormat::Float32x4,
+        },
     ],
 };
 
@@ -146,6 +169,7 @@ mod tests {
             positions: vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
             normals: vec![[0.0, 0.0, 1.0]; 3],
             uvs: vec![[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]],
+            tangents: vec![[1.0, 0.0, 0.0, 1.0]; 3],
             indices: vec![0, 1, 2],
         }
     }
@@ -155,13 +179,16 @@ mod tests {
         let data = triangle();
         assert_eq!(data.check(MAX_BUFFER_SIZE), Ok(()));
         let bytes = data.vertex_bytes();
-        assert_eq!(bytes.len(), 3 * 32);
-        // The second vertex: position (1, 0, 0), normal (0, 0, 1), uv (1, 0).
-        let floats: Vec<f32> = bytes[32..64]
+        assert_eq!(bytes.len(), 3 * 48);
+        // The second vertex: position (1, 0, 0), normal (0, 0, 1), uv (1, 0), tangent (1, 0, 0, 1).
+        let floats: Vec<f32> = bytes[48..96]
             .chunks(4)
             .map(|bytes| f32::from_le_bytes(bytes.try_into().unwrap()))
             .collect();
-        assert_eq!(floats, [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0]);
+        assert_eq!(
+            floats,
+            [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0]
+        );
     }
 
     #[test]
@@ -178,6 +205,13 @@ mod tests {
         assert_eq!(
             fewer_normals.check(MAX_BUFFER_SIZE),
             Err("it has 3 positions but 2 normals".to_owned())
+        );
+
+        let mut fewer_tangents = triangle();
+        fewer_tangents.tangents.pop();
+        assert_eq!(
+            fewer_tangents.check(MAX_BUFFER_SIZE),
+            Err("it has 3 positions but 2 tangents".to_owned())
         );
 
         let mut no_triangle = triangle();
@@ -204,22 +238,22 @@ mod tests {
 
     #[test]
     fn data_larger_than_the_largest_buffer_is_rejected_with_a_reason() {
-        // The triangle's vertices take 96 bytes, its indices 12.
-        assert_eq!(triangle().check(96), Ok(()));
+        // The triangle's vertices take 144 bytes, its indices 12.
+        assert_eq!(triangle().check(144), Ok(()));
         assert_eq!(
-            triangle().check(95),
+            triangle().check(143),
             Err(
-                "its 3 vertices take 96 bytes, more than the 95 bytes of the largest buffer the \
+                "its 3 vertices take 144 bytes, more than the 143 bytes of the largest buffer the \
                  device accepts"
                     .to_owned()
             )
         );
         let mut many_indices = triangle();
-        many_indices.indices = [0, 1, 2].repeat(10);
+        many_indices.indices = [0, 1, 2].repeat(13);
         assert_eq!(
-            many_indices.check(96),
+            many_indices.check(144),
             Err(
-                "its 30 indices take 120 bytes, more than the 96 bytes of the largest buffer the \
+                "its 39 indices take 156 bytes, more than the 144 bytes of the largest buffer the \
                  device accepts"
                     .to_owned()
             )

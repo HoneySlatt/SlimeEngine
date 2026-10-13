@@ -48,6 +48,7 @@ fn the_base_color_texture_is_read_at_the_texture_coordinates_and_tints_the_base_
                 ],
                 normals: vec![[0.0, 0.0, 1.0]; 4],
                 uvs: vec![[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]],
+                tangents: vec![[1.0, 0.0, 0.0, 1.0]; 4],
                 indices: vec![0, 1, 2, 0, 2, 3],
             },
         )

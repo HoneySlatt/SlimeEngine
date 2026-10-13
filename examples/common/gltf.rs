@@ -35,7 +35,7 @@ use gltf::Semantic;
 use gltf::accessor::{DataType, Dimensions};
 use gltf::texture::{MagFilter, MinFilter, WrappingMode};
 use slime_gfx::{AddressMode, Filter, Gpu, Sampler, SamplerDescriptor, Texture, TextureFormat};
-use slime_render::glam::{Mat4, Vec3};
+use slime_render::glam::{Mat4, Vec2, Vec3};
 use slime_render::{Instance, Material, MaterialData, Mesh, MeshData, Renderer, SampledTexture};
 
 /// Why a file could not be loaded.
@@ -246,7 +246,7 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
             // The `gltf` crate's readers panic on some accessors its validation lets through, and
             // return nothing, as for an attribute the primitive does not have, when the data lies
             // outside the binary chunk: what they would read is checked first.
-            let accessors: [(_, _, _, &[_]); 4] = [
+            let accessors: [(_, _, _, &[_]); 5] = [
                 (
                     "positions",
                     primitive.get(&Semantic::Positions),
@@ -257,6 +257,12 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
                     "normals",
                     primitive.get(&Semantic::Normals),
                     Dimensions::Vec3,
+                    &[DataType::F32],
+                ),
+                (
+                    "tangents",
+                    primitive.get(&Semantic::Tangents),
+                    Dimensions::Vec4,
                     &[DataType::F32],
                 ),
                 (
@@ -305,14 +311,22 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
                 indices.len(),
                 gpu.max_buffer_size(),
             )?;
-            let data = match normals {
+            let has_normals = normals.is_some();
+            let mut data = match normals {
                 Some(normals) => MeshData {
                     positions,
                     normals: normals.collect(),
                     uvs,
+                    tangents: Vec::new(),
                     indices,
                 },
                 None => flat_shaded(&label, &positions, &uvs, &indices)?,
+            };
+            data.tangents = match reader.read_tangents() {
+                // glTF: a primitive without normals ignores its tangents, since its normals are
+                // computed.
+                Some(tangents) if has_normals => tangents.collect(),
+                _ => computed_tangents(&data),
             };
             own.push(primitives.len());
             primitives.push(LoadedPrimitive {
@@ -507,15 +521,16 @@ fn check_accessor(
 }
 
 /// Checks that a mesh of `vertices` vertices and `indices` indices, which `label` names, fits in
-/// buffers of `max_buffer_size` bytes, the GPU's largest: [`Renderer::create_mesh`] panics on a
-/// larger one. A vertex takes 32 bytes there, an index 4.
+/// buffers of `max_buffer_size` bytes, the GPU's largest. [`Renderer::create_mesh`] refuses a larger
+/// mesh too, but this check runs before `flat_shaded` copies three vertices per triangle. A vertex
+/// takes 48 bytes there (a position, a normal, texture coordinates and a tangent), an index 4.
 fn check_buffer_sizes(
     label: &str,
     vertices: usize,
     indices: usize,
     max_buffer_size: u64,
 ) -> Result<(), LoadError> {
-    for (count, what, size) in [(vertices, "vertices", 32), (indices, "indices", 4)] {
+    for (count, what, size) in [(vertices, "vertices", 48), (indices, "indices", 4)] {
         let bytes = (count as u64).saturating_mul(size);
         if bytes > max_buffer_size {
             return Err(LoadError(format!(
@@ -575,6 +590,59 @@ fn flat_shaded(
     data.indices =
         (0..u32::try_from(data.positions.len()).expect("fewer than 4 billion vertices")).collect();
     Ok(data)
+}
+
+/// Tangents for a primitive whose file has none (ADR-0035), computed per triangle: each
+/// triangle's directions of growing u and v, from its edges and texture coordinates (Lengyel's
+/// method), summed at its vertices, then the u direction made perpendicular to each vertex's
+/// normal; w is −1 where the texture is mirrored on the surface. glTF prescribes MikkTSpace, which
+/// the importer of Stage 4 will compute: the two differ where the triangles of a vertex disagree.
+/// A vertex whose triangles give no direction (texture coordinates without area) gets any
+/// direction perpendicular to its normal. Triangles that name a vertex the arrays lack are
+/// skipped: [`Renderer::create_mesh`] refuses the mesh afterwards.
+fn computed_tangents(data: &MeshData) -> Vec<[f32; 4]> {
+    let mut along_u = vec![Vec3::ZERO; data.positions.len()];
+    let mut along_v = vec![Vec3::ZERO; data.positions.len()];
+    for triangle in data.indices.as_chunks::<3>().0 {
+        let corners = triangle.map(|index| index as usize);
+        if corners
+            .iter()
+            .any(|&index| index >= data.positions.len() || index >= data.uvs.len())
+        {
+            continue;
+        }
+        let [p0, p1, p2] = corners.map(|index| Vec3::from(data.positions[index]));
+        let [t0, t1, t2] = corners.map(|index| Vec2::from(data.uvs[index]));
+        let (e1, e2, d1, d2) = (p1 - p0, p2 - p0, t1 - t0, t2 - t0);
+        let area = d1.perp_dot(d2);
+        if area == 0.0 || !area.is_finite() {
+            continue;
+        }
+        // Where the position goes as u grows, and as v grows (down the texture's image).
+        let u = (e1 * d2.y - e2 * d1.y) / area;
+        let v = (e2 * d1.x - e1 * d2.x) / area;
+        for index in corners {
+            along_u[index] += u;
+            along_v[index] += v;
+        }
+    }
+    data.normals
+        .iter()
+        .zip(along_u.iter().zip(&along_v))
+        .map(|(&normal, (&u, &v))| {
+            let normal = Vec3::from(normal);
+            let tangent = (u - normal * normal.dot(u))
+                .try_normalize()
+                .unwrap_or_else(|| normal.any_orthonormal_vector());
+            // glTF's bitangent, cross(normal, tangent) × w, points up the image, where v shrinks.
+            let w = if normal.cross(tangent).dot(v) > 0.0 {
+                -1.0
+            } else {
+                1.0
+            };
+            [tangent.x, tangent.y, tangent.z, w]
+        })
+        .collect()
 }
 
 /// The sampler settings of a glTF texture; glTF leaves the filters open, and linear is the usual
@@ -723,16 +791,68 @@ mod tests {
 
     #[test]
     fn meshes_larger_than_the_gpu_buffers_are_refused() {
-        // Buffers of 320 bytes: ten vertices, or eighty indices.
-        assert!(check_buffer_sizes("mesh", 10, 80, 320).is_ok());
-        let error = check_buffer_sizes("mesh", 11, 3, 320)
+        // Buffers of 480 bytes: ten vertices, or 120 indices.
+        assert!(check_buffer_sizes("mesh", 10, 120, 480).is_ok());
+        let error = check_buffer_sizes("mesh", 11, 3, 480)
             .unwrap_err()
             .to_string();
-        assert!(error.contains("11 vertices, 352 bytes"), "{error}");
-        let error = check_buffer_sizes("mesh", 3, 81, 320)
+        assert!(error.contains("11 vertices, 528 bytes"), "{error}");
+        let error = check_buffer_sizes("mesh", 3, 121, 480)
             .unwrap_err()
             .to_string();
-        assert!(error.contains("81 indices, 324 bytes"), "{error}");
+        assert!(error.contains("121 indices, 484 bytes"), "{error}");
+    }
+
+    #[test]
+    fn tangents_are_computed_where_the_file_has_none() {
+        // A square facing +Z, two triangles, with glTF's texture coordinates: u grows along +X,
+        // v down the image, along −Y.
+        let square = |uvs: [[f32; 2]; 4], normal: [f32; 3]| MeshData {
+            positions: vec![
+                [-1.0, -1.0, 0.0],
+                [1.0, -1.0, 0.0],
+                [1.0, 1.0, 0.0],
+                [-1.0, 1.0, 0.0],
+            ],
+            normals: vec![normal; 4],
+            uvs: uvs.to_vec(),
+            tangents: Vec::new(),
+            indices: vec![0, 1, 2, 0, 2, 3],
+        };
+        let upright = [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]];
+        let facing_z = [0.0, 0.0, 1.0];
+        assert_eq!(
+            computed_tangents(&square(upright, facing_z)),
+            vec![[1.0, 0.0, 0.0, 1.0]; 4]
+        );
+        // The texture mirrored along u: the tangent turns around, and so does the handedness.
+        let mirrored = [[1.0, 1.0], [0.0, 1.0], [0.0, 0.0], [1.0, 0.0]];
+        assert_eq!(
+            computed_tangents(&square(mirrored, facing_z)),
+            vec![[-1.0, 0.0, 0.0, -1.0]; 4]
+        );
+        // Normals that lean: the tangent is made perpendicular to them.
+        for tangent in computed_tangents(&square(upright, [0.6, 0.0, 0.8])) {
+            let expected = [0.8, 0.0, -0.6, 1.0];
+            assert!(
+                tangent
+                    .iter()
+                    .zip(expected)
+                    .all(|(actual, expected)| (actual - expected).abs() < 1e-6),
+                "{tangent:?}"
+            );
+        }
+        // Texture coordinates without area give no direction: any one perpendicular to the normal.
+        for [x, y, z, w] in computed_tangents(&square([[0.0; 2]; 4], facing_z)) {
+            let tangent = Vec3::new(x, y, z);
+            assert!((tangent.length() - 1.0).abs() < 1e-6, "{tangent}");
+            assert!(tangent.dot(Vec3::Z).abs() < 1e-6, "{tangent}");
+            assert_eq!(w, 1.0);
+        }
+        // A triangle that names no vertex is skipped, without a panic; `create_mesh` refuses it.
+        let mut broken = square(upright, facing_z);
+        broken.indices[5] = 9;
+        assert_eq!(computed_tangents(&broken).len(), 4);
     }
 
     #[test]
