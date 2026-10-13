@@ -65,3 +65,8 @@ Microsoft's WARP on Windows. The engine must still run without any GPU when it i
 - The Vulkan backend is compiled on Windows without being used by default.
 - A wgpu validation error panics in release builds too. Before games ship, this policy is to be
   reconsidered (logging the error and dropping the frame instead).
+
+## Corrections
+
+- 2026-10-13: the Debugging bullet holds on Vulkan only. On Direct3D 12, wgpu passes labels to the
+  driver in every build, release builds included.

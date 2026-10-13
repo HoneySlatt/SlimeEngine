@@ -62,3 +62,10 @@ GPU no longer uses it, even after the program drops it.
   explicit but costs some code at each step.
 - Moving to identifiers later, if a render graph needs them, changes `slime-gfx` and its callers
   (the samples now, the renderer later); before a renderer exists, the change is small.
+
+## Corrections
+
+- 2026-10-13: under "Errors at creation", a rejection by the graphics driver's compiler comes back
+  as `GfxError::Shader` or `GfxError::Pipeline` on Direct3D 12. On Vulkan, wgpu treats a driver
+  that fails to create a shader or a pipeline as a lost device, and the engine returns
+  `GfxError::DeviceLost`.

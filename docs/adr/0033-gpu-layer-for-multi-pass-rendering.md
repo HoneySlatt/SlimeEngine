@@ -145,3 +145,9 @@ This amends ADR-0017 (formats, readback, how passes run, what pipelines draw) an
   comparison halfway between a shadowed and a lit texel gives 0.5.
 - `Rgba16Float` textures uploaded from the CPU, cube and array textures, mip levels given by the
   caller, multisampling, blending and compute passes arrive with their first users.
+
+## Corrections
+
+- 2026-10-13: "The timer's API does not change" held when M3b.1 was done. `GpuTimer::latest` has
+  since lost its parameter: it no longer polls the device, and returns the latest time that came
+  back.
