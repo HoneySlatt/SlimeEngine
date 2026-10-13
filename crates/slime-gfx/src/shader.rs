@@ -18,8 +18,10 @@ impl Gpu {
     /// # Errors
     ///
     /// [`GfxError::Shader`] if the source does not compile, with the compiler's message, which
-    /// shows the line and column of each error; or if wgpu cannot translate it for the graphics
-    /// API, with wgpu's message. [`GfxError::DeviceLost`] once the device is lost
+    /// shows the line and column of each error; or, on Vulkan, if wgpu cannot translate it to
+    /// SPIR-V, with a generic message (wgpu's log has the cause). On Direct3D 12, the translation
+    /// happens when a pipeline is created, so its failure is a [`GfxError::Pipeline`] from
+    /// [`Gpu::create_render_pipeline`]. [`GfxError::DeviceLost`] once the device is lost
     /// ([`Gpu::check`]), including when creating the module loses it: on Vulkan, wgpu treats a
     /// driver that fails to create it as a lost device.
     pub fn create_shader_module(&self, label: &str, wgsl: &str) -> Result<ShaderModule, GfxError> {
