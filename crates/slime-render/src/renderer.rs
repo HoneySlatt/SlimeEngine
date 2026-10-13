@@ -344,8 +344,10 @@ impl Renderer {
 /// one axis stays visible, and keeps the normal of its plane. It is negated when the determinant
 /// is negative, so that the normals of a mirrored instance still point out of its surfaces (a
 /// zero determinant counts as positive), and divided by its largest value, so that its values
-/// stay within ±1 whatever the scale. A mesh flattened along two axes or three gets zero, but has
-/// no triangle left to draw.
+/// stay within ±1, which the shader normalizes without overflow or underflow. Its cofactors are
+/// products of two scales in f32, which bounds the uniform scales it handles to about 1e-19 to
+/// 1e19, far beyond those of the inverse (about 1e-13 to 7e12). A mesh flattened along two axes
+/// or three gets zero, but has no triangle left to draw.
 fn normal_matrix(transform: Mat4) -> Mat3 {
     let linear = Mat3::from_mat4(transform);
     let cofactor = Mat3::from_cols(
