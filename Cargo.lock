@@ -1945,7 +1945,6 @@ dependencies = [
  "slime-app",
  "slime-gfx",
  "slime-platform",
- "tracing",
 ]
 
 [[package]]

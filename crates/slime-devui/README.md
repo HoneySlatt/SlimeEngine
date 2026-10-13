@@ -81,7 +81,6 @@ impl App for Game {
   which would enable every wgpu backend.
 - `slime-gfx`, with its `wgpu` feature: the GPU, the render pass and wgpu itself.
 - `slime-platform`: the events to translate.
-- `tracing`: logging.
 
 ## Must not
 
