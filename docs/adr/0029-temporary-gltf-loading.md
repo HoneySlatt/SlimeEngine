@@ -20,16 +20,17 @@ in Blender for the asset.
   without touching the engine. It builds `MeshData`, materials and textures through
   `slime-render`'s and `slime-gfx`'s public API, and flattens the file's node hierarchy into a
   list of instances with their world transforms, since the renderer draws flat lists (ADR-0027).
-- **What it reads.** GLB files whose buffers are embedded, with the `gltf` crate without its
-  `import` feature, which would bring the `image` and `base64` crates (its other default features,
-  `names` and `utils`, stay on); PNG images are decoded with `png`, already used by the examples.
-  Triangle primitives with positions, with or without normals (computed from the faces when
-  missing), texture coordinates (zero when missing) and indices; materials' base color factor and
-  base color texture read with the file's sampler settings; the scene's node hierarchy. It stops
-  with a clear error on what it cannot draw right: an external buffer or image file, an image that
-  is not PNG, an extension the file requires, a texture read through another set of coordinates
-  than the first, a primitive that is not a triangle list. It warns about what it ignores and
-  draws without: animations, skins, cameras, extensions the file uses without requiring them.
+- **What it reads.** GLB files that hold their buffer and images in their binary chunk (data URIs
+  are refused), with the `gltf` crate without its `import` feature, which would bring the `image`
+  and `base64` crates (its other default features, `names` and `utils`, stay on); PNG images are
+  decoded with `png`, already used by the examples. Triangle primitives with positions, with or
+  without normals (computed from the faces when missing), texture coordinates (zero when missing)
+  and indices; materials' base color factor and base color texture read with the file's sampler
+  settings; the scene's node hierarchy. It stops with a clear error on what it cannot draw right: an
+  external buffer or image file, an image that is not PNG, an extension the file requires, a texture
+  read through another set of coordinates than the first, a primitive that is not a triangle list.
+  It warns about what it ignores and draws without: animations, skins, cameras, extensions the file
+  uses without requiring them.
 - **The asset.** `examples/assets/scene.glb` is built by `examples/assets/make_scene.py`, run in
   Blender 5.2, which draws its textures in code and exports the file; the script is the asset's
   source and provenance. The file is released under CC0 1.0, embedded in the `scene` example

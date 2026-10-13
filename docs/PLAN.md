@@ -388,8 +388,10 @@ GitHub issues, linked from their entry; this list stays the reference.
   another method logs it and requests an exit.
 - **Input not reported yet** (issue [#3](https://github.com/HoneySlatt/SlimeEngine/issues/3)):
   the state of the modifier keys as a whole, input-method text, touch, touchpad gestures,
-  gamepads, dropped files. The dev overlay feels it too: egui gets no modifiers, so shortcuts with
-  Ctrl or Shift, and selecting text with Shift, do not work in it.
+  gamepads, dropped files. The dev overlay feels it too: egui gets no modifiers and sees a shortcut
+  as its key alone, so shortcuts with Ctrl or Shift, and selecting text with Shift, do not work in
+  it; a key pressed while Ctrl is held types no text, so that a shortcut does not type its letter
+  into a text field.
 - **The interpolation factor is not passed to applications.** `FixedStep::alpha` computes it, but
   `run` keeps its `FixedStep` private, so an application cannot interpolate between fixed steps
   yet. To expose when a renderer needs it.
@@ -468,6 +470,57 @@ GitHub issues, linked from their entry; this list stays the reference.
   `RunError::Gfx(GfxError::DeviceLost)`) was checked by hand, with a lifecycle scenario that
   destroys the device. That scenario is not kept: it reaches wgpu outside `slime-gfx`, which only
   the dev overlay may do (ADR-0031), and the lifecycle test uses the public API only (ADR-0024).
+  The most likely loss in a windowed frame is one that a submission of `App::render` finds,
+  between `Surface::acquire` and `SurfaceFrame::present`: wgpu 30 then refuses to present the
+  image and keeps it, and on Vulkan, dropping the surface at the end of the run panicked in
+  wgpu-hal. `present` now destroys the image's texture instead, which releases what wgpu-hal holds
+  for it (it relies on wgpu-core 30's `Texture::destroy`, to check again when wgpu is upgraded).
+  This was checked by hand on 2026-10-13 in a headless Weston with lavapipe, with a temporary hook
+  that destroys the device from `App::render`: before the fix the run panicked, after it `run`
+  returns `DeviceLost`. A test cannot keep this check: a destroyed device records its loss only in
+  a poll, and that poll releases the image itself.
+- **A window frame dropped without being presented keeps one of the window's images on Vulkan.**
+  wgpu 30 discards such a frame with wgpu-hal's `discard_texture`, which does nothing on Vulkan.
+  The image stays acquired until the surface is configured again, and once none is left,
+  `Surface::acquire` waits one second and returns `None`. `SurfaceFrame` documents this as a
+  misuse, and nothing reports it; the engine always presents. A `Drop` that presents was rejected:
+  it would show a black or half-drawn frame instead of skipping it, and present during unwinding.
+- **An oversize window's surface is configured again at every frame on X11.** A window wider or
+  taller than the device's largest image (8192 pixels with the default limits) gets images of
+  that size, smaller than the window. On X11, Mesa's Vulkan drivers mark such a swapchain
+  suboptimal, and every image of it too. `Surface::acquire` treats each suboptimal image as a
+  reason to configure the surface again, at the same clamped size, so every frame waits for the
+  GPU to finish and rebuilds the window's images. The frames are correct, and only `debug` logs
+  show it; Wayland and Direct3D 12 are not affected. The fix is one line in the `Suboptimal` arm
+  of `Surface::next_image`: do not set `stale` while `oversize` is set. It was written, then
+  reverted for lack of a measurement. To measure, before and after: start Xvfb with a screen wider
+  than 9000 pixels; with `WAYLAND_DISPLAY` unset, `DISPLAY` set to it and lavapipe, run the child
+  of the `oversize` scenario of `crates/slime-app/tests/windowed_lifecycle.rs` with
+  `SLIME_LOG=wgpu_core=debug`; count wgpu-core's `configuring surface with` records (about one per
+  frame without the fix, one with it) and note the frame times.
+- **Termination signals are ignored for the rest of the process when `ctrlc` cannot start its
+  thread.** `ctrlc` installs its handlers, then starts the thread that waits for what they catch.
+  When that thread cannot start (a limit on threads reached when `run` installs the handler), the
+  handlers stay installed and SIGINT, SIGTERM and SIGHUP (Ctrl+C and Ctrl+Break on Windows) are
+  ignored: only SIGKILL, or closing the console on Windows, ends the process. The engine logs a
+  warning that says so and gives the system's error. Restoring the default dispositions would need
+  a direct dependency on libc or nix.
+- **On Windows, a program started from Windows Terminal into a window of the older console host
+  shows escape sequences as text in its log** (a change is proposed to the owner). Colors are
+  chosen when `WT_SESSION` is set, and child processes inherit it, also with `start` on systems
+  whose default terminal is the older console host. `NO_COLOR=1` avoids it. The proposed fix asks
+  the console to interpret the sequences with `nu_ansi_term::enable_ansi_support`: the crate is
+  already in `Cargo.lock` through tracing-subscriber, but `slime-app` would depend on it directly,
+  on Windows only, which needs the owner's approval.
+- **CI does not run the renderer's tests with glam's assertions on** (a change is proposed to the
+  owner). `camera::tests::the_length_of_up_does_not_change_the_view` can fail only when they are
+  on, since glam otherwise ignores the length of `up`, and `scripts/check.sh` runs the tests with
+  them off. `VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo test --locked -p slime-render --features
+  glam/debug-glam-assert` passes, and fails if `Camera::view` stops normalizing `up`. Proposed:
+  add that command to the Tests step of `scripts/check.sh` (a few seconds), and list it in
+  AGENTS.md and CONTRIBUTING.md. Enabling the feature in `slime-render`'s dev-dependencies was
+  rejected: feature unification would turn the assertions on for `cargo test --workspace` but not
+  for `cargo test -p slime-examples`.
 - **Any `trace` directive in `SLIME_LOG` makes wgpu build its per-command trace records.**
   tracing-subscriber sets the `log` crate's maximum level from the most verbose directive. With
   `slime_app=trace`, wgpu-core then formats and filters out about five records per draw while it
@@ -553,6 +606,16 @@ GitHub issues, linked from their entry; this list stays the reference.
   per texture. When M3b.3 creates textures per slot, cache the decoded images by image index. To
   measure: time `gltf::load` in a debug build on a PNG-only PBR asset with five 2048 × 2048 maps,
   before and after.
+- **The glTF loader copies shared vertex attributes into every primitive that uses them**
+  (`examples/common/gltf.rs`). Each primitive that has normals gets every vertex of its position,
+  normal and texture-coordinate accessors, including those its indices do not name. K primitives
+  that share one set of attributes over V vertices, each with its own indices (three.js writes a
+  mesh of several materials this way), therefore upload K × V vertices instead of about V, decode
+  the attributes K times and grow the bounds over K × V points. The sample asset does not share
+  attributes, and the importer of Stage 4 replaces the loader. The fix is to compact each
+  primitive to the vertices its indices name. To measure: load a three.js export of a mesh with
+  several materials, and compare the sum of `MeshData::positions.len()` over the meshes created,
+  and the load time, before and after.
 - **Double-sided and masked glTF materials are drawn back-face culled and opaque until M3b.3.**
   Every material of the sample asset is double-sided, and its floor disappears when the camera
   goes below it.

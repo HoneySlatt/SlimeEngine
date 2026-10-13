@@ -63,6 +63,18 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - `scripts/check.sh` also runs clippy on the windowed lifecycle test of `slime-app`, on Linux and
   for Windows. Because it is outside the default test run (`test = false`), `--all-targets` used
   to leave it out.
+- `KeyEvent::text` is the same for a named key on every platform. Only Enter, Tab, Backspace,
+  Escape and Space give text. On Wayland and X11, Delete gave `"\u{7f}"` and Clear `"\u{b}"`,
+  where Windows gave none; Shift+Tab gave no text there, where Windows gave `"\t"`. Space still
+  gives the character of a dead key pressed before it.
+- `Renderer::render`, `Camera::view`, `Camera::projection` and `Camera::view_projection` document
+  the values for which they panic when glam's assertions are on (glam's `glam-assert` feature, or
+  `debug-glam-assert` in a debug build). `DirectionalLight::direction` says what a zero direction
+  does, and `Camera::up` says which lengths do not work.
+- The examples' glTF loader, its error for a file without a binary chunk, the `scene` example's
+  help and the examples' READMEs say that it reads GLB files that hold their buffer and PNG images
+  in their binary chunk, rather than "embedded buffers", which in glTF also covers the data URIs
+  it refuses.
 
 ### Fixed
 
@@ -161,6 +173,38 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   Visual C++ Redistributable (`VCRUNTIME140.dll`), which a fresh Windows install lacks.
 - `CONTRIBUTING.md` tells contributors on WARP to run the tests one at a time
   (`--test-threads=1`), as the Windows CI job does.
+- A GPU device lost while a frame was being drawn into a window no longer makes the end of the
+  run panic on Vulkan ("Trying to destroy a SwapchainAcquireSemaphore that is still in use by a
+  SurfaceTexture"). Once the device is lost, `SurfaceFrame::present` releases the image instead of
+  presenting it, and `run` returns `RunError::Gfx(GfxError::DeviceLost)`. Checked by hand with a
+  simulated loss.
+- The documentation of `SurfaceFrame` said that dropping a frame without presenting it skips the
+  frame. On Vulkan, wgpu cannot give such an image back: each drop takes one of the window's
+  images until the surface is configured again, and once none is left, `Surface::acquire` waits
+  one second and returns `None`. It now says that every frame acquired must be presented.
+- When the engine cannot handle termination signals because `ctrlc` cannot start its thread, its
+  warning says that the signals can then be ignored, and gives the system's error, instead of
+  saying that they end the process.
+- The dev overlay no longer types the letter of a Ctrl shortcut (Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+Z)
+  into a focused text field: a key pressed while Ctrl is held types no text, as with egui's own
+  window integration.
+- The `ScrollDelta` documentation said that touchpads report pixels. It now says that only Wayland
+  reports pixels, that X11 and Windows report touchpads in lines, and that a `Lines` value can be
+  a fraction of a line, so one event is not one wheel notch.
+- `Camera::view` normalizes `up` before handing it to glam, whose `look_at_mat4` asserts an up of
+  length one when glam's assertions are on: a game that turned them on, through glam's
+  `glam-assert` feature or `debug-glam-assert` in a debug build, saw a camera whose up was not of
+  length one, such as (0, 2, 0), panic on its first frame.
+- The examples' glTF loader refuses a buffer or an image given as a data URI with a message that
+  says so. It called such data "an external file" and quoted the whole base64 payload.
+- The `slime-render` README lists every reason `Renderer::create_mesh` rejects a mesh, including a
+  mesh with no vertex and a number of indices that is not a multiple of three, and the rustdoc of
+  `RenderError::InvalidMesh` points to that list instead of keeping an incomplete copy.
+- `FixedStep::advance` says that a limited call drops the fraction of a step too.
+- Three tests could pass with what they check broken: the mipmap test of `slime-gfx` passed on a
+  texture without mipmaps, the timing tests accepted a pass that took no time, and the windowed
+  lifecycle test never checked the time each frame represents. The profiling spans of the main
+  loop, decided in ADR-0010 and ADR-0020, are now checked too.
 
 ## [0.0.3] - 2026-10-13
 

@@ -48,7 +48,8 @@ runs and draws.
 
 ## Consequences
 
-- The Weston step takes a few seconds more: three child processes, each opening lavapipe.
+- The Weston step takes a few seconds more: one child process per scenario, each opening
+  lavapipe.
 - A change to the order of calls, to what `Context` offers in `init`, to the stop conditions or to
   the schedule fails the Linux job.
 - The program's scenarios are where windowed checks that need no input go; input and what appears

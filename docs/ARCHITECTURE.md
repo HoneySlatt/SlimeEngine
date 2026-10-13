@@ -121,7 +121,10 @@ run. The frame in progress always finishes, and `app.shutdown` is always called 
 returns it as `RunError::Init`. The call order is checked by
 [`crates/slime-app/tests/lifecycle.rs`](../crates/slime-app/tests/lifecycle.rs) headless, and by
 [`crates/slime-app/tests/windowed_lifecycle.rs`](../crates/slime-app/tests/windowed_lifecycle.rs)
-with a window, which the checks run in a headless Weston compositor (ADR-0024).
+with a window, which the checks run in a headless Weston compositor (ADR-0024). The profiling
+spans of each frame are checked by
+[`crates/slime-app/tests/profiling_spans.rs`](../crates/slime-app/tests/profiling_spans.rs)
+headless, and by the `spans` scenario of `windowed_lifecycle.rs` with a window.
 
 **Headless driver** (`AppConfig::window` is `None`), in `app.rs`:
 
@@ -323,7 +326,7 @@ whether there is an image to draw:
 | Suboptimal image | Drawn and presented, then configured again |
 | Image not ready in time (Vulkan), window occluded | No image this frame; on Direct3D 12, wgpu waits up to one second for a late image, then returns it, and the frame is drawn late |
 | Surface lost | Created again from the window; no image this frame. Lost for good (it cannot be created again, or is lost again each time): no image, and the run stops before the next frame, like after a lost device |
-| Device lost (see [Losing the GPU](#losing-the-gpu)) | No image; the run stops before the next frame |
+| Device lost (see [Losing the GPU](#losing-the-gpu)) | No image; the run stops before the next frame. An image acquired before the loss was found is released instead of presented, so that the surface can be dropped |
 
 How the window shows the images is the *present mode* (`AppConfig::present_mode`). With Mailbox,
 the default, presenting never waits, and the frame scheduler alone paces frames, whether the
@@ -388,8 +391,10 @@ The engine targets Linux (`x86_64-unknown-linux-gnu`) and Windows (`x86_64-pc-wi
   describes how each platform behaves.
 - wgpu hides the graphics APIs; `slime-gfx` only chooses which one to ask for on each platform
   (`DEFAULT_BACKENDS` in `crates/slime-gfx/src/gpu.rs`).
-- `slime-app` colors its log on Windows only in Windows Terminal (`use_colors` in
-  `crates/slime-app/src/diagnostics.rs`): the older console host prints escape sequences as text.
+- `slime-app` colors its log on Windows only when `WT_SESSION` is set, as it is in Windows
+  Terminal (`use_colors` in `crates/slime-app/src/diagnostics.rs`): the older console host prints
+  escape sequences as text. A program started from Windows Terminal into a window of that older
+  host inherits the variable, so its log shows the sequences; `NO_COLOR=1` avoids it.
 - Tests that cannot run on a platform are compiled out with `#[cfg]`, and their file says why: the
   signal tests run on Unix only, and the two windowed test programs of `slime-app`
   (`windowed_errors.rs` and `windowed_lifecycle.rs`) on Linux only; having no test harness, they
