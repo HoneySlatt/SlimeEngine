@@ -69,7 +69,10 @@ if `DISPLAY` is. A `WAYLAND_SOCKET` that does not name an open file descriptor a
 since the Wayland library takes ownership of the descriptor before checking it, and gives
 `PlatformError::Connect` in release builds. Its libraries are loaded at run time, so a program that
 never creates an event loop runs without them: libxkbcommon for both; libwayland-client for
-Wayland; libX11, libX11-xcb, libXcursor, libXi, libxcb and libxkbcommon-x11 for X11.
+Wayland; libX11, libX11-xcb, libXcursor, libXi, libxcb and libxkbcommon-x11 for X11. Without the
+Wayland or X11 libraries, `run_event_loop` returns `PlatformError::Connect`; without libxkbcommon,
+or libxkbcommon-x11 on X11, the windowing library panics instead, on Wayland only when the
+compositor first reports a keyboard, which can happen while the loop runs.
 
 ## Dependencies
 

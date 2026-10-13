@@ -78,6 +78,11 @@ const MAX_WINDOW_SIZE: u32 = 16_384;
 /// If `config` asks for a width or height of zero or above 16 384 logical pixels, or for a title
 /// containing a NUL byte: the windowing library would panic on them later, less clearly. Also if
 /// the event loop is created from a thread other than the main thread.
+///
+/// On Linux, the windowing library also panics, instead of returning [`PlatformError::Connect`],
+/// when it cannot load libxkbcommon. On Wayland, that happens when the compositor first reports
+/// a keyboard, which can be after the window was created. On X11, it happens at once, and also
+/// when libxkbcommon-x11 cannot be loaded or the X server does not set up its XKB extension.
 pub fn run_event_loop(
     config: &WindowConfig,
     handler: &mut impl EventHandler,
