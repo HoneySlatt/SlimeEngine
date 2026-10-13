@@ -15,8 +15,9 @@
 //! correctly, and its readers panic on some of what it lets through. The loader refuses, rather
 //! than panic on, such malformed files: images whose data lies outside the binary chunk, has no
 //! MIME type or is missing; positions, normals, texture coordinates or indices stored in types
-//! glTF does not allow for them, in an empty accessor, closer together than their size, or
-//! outside the binary chunk. It also refuses sparse accessors for them, which it does not read.
+//! glTF does not allow for them, in a sparse accessor (which the loader does not read), in an
+//! empty one, closer together than their size, or outside the binary chunk; a node hierarchy
+//! that is not a set of trees.
 
 use std::fmt;
 
@@ -310,15 +311,17 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
         min: Vec3::splat(f32::INFINITY),
         max: Vec3::splat(f32::NEG_INFINITY),
     };
+    let mut reached = vec![false; document.nodes().len()];
     for node in scene.nodes() {
         place(
             &node,
             Mat4::IDENTITY,
             &primitives_of_mesh,
             &primitives,
+            &mut reached,
             &mut placements,
             &mut bounds,
-        );
+        )?;
     }
     if placements.is_empty() {
         return Err(LoadError(
@@ -341,15 +344,26 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
 }
 
 /// Places the primitives of `node` and of its descendants, under `parent`, the transform of the
-/// node above, and grows `bounds` with them.
+/// node above, and grows `bounds` with them. `reached` says which nodes were placed already.
+///
+/// Fails on a node reached a second time: glTF requires the node hierarchy to be a set of trees,
+/// which the `gltf` crate does not check, and a node that is its own descendant would otherwise
+/// be placed until the stack overflows.
 fn place(
     node: &gltf::Node<'_>,
     parent: Mat4,
     primitives_of_mesh: &[Vec<usize>],
     primitives: &[LoadedPrimitive],
+    reached: &mut [bool],
     placements: &mut Vec<Placement>,
     bounds: &mut Bounds,
-) {
+) -> Result<(), LoadError> {
+    if std::mem::replace(&mut reached[node.index()], true) {
+        return Err(LoadError(format!(
+            "node {} is reached twice: the node hierarchy must be a set of trees",
+            node.index()
+        )));
+    }
     let transform = parent * Mat4::from_cols_array_2d(&node.transform().matrix());
     if let Some(mesh) = node.mesh() {
         for &index in &primitives_of_mesh[mesh.index()] {
@@ -370,10 +384,12 @@ fn place(
             transform,
             primitives_of_mesh,
             primitives,
+            reached,
             placements,
             bounds,
-        );
+        )?;
     }
+    Ok(())
 }
 
 /// Checks that `accessor`, which holds the `what` of `label`, stores them as `dimensions` of one

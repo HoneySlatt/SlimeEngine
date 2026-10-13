@@ -168,6 +168,23 @@ fn an_index_that_names_no_vertex_is_refused_in_a_primitive_without_normals() {
     assert!(error.contains("index 7 names no vertex"), "{error}");
 }
 
+#[test]
+fn node_hierarchies_that_are_not_trees_are_refused() {
+    let gpu =
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+
+    let mut shared = Glb::triangle();
+    shared.json["nodes"] = json(r#"[{ "mesh": 0 }, { "children": [0] }, { "children": [0] }]"#);
+    shared.json["scenes"][0]["nodes"] = json("[1, 2]");
+    let error = refusal(&gpu, &mut shared);
+    assert!(error.contains("node 0 is reached twice"), "{error}");
+
+    let mut cycle = Glb::triangle();
+    cycle.json["nodes"][0]["children"] = json("[0]");
+    let error = refusal(&gpu, &mut cycle);
+    assert!(error.contains("node 0 is reached twice"), "{error}");
+}
+
 /// A change that a test makes to a GLB file.
 type Change = fn(&mut Glb);
 
