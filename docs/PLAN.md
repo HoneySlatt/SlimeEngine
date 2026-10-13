@@ -454,6 +454,13 @@ GitHub issues, linked from their entry; this list stays the reference.
   `perf record -g` and look for `tracing_log::LogTracer::log`, `EnvFilter::enabled` and
   `wgpu_core::resource::Labeled::error_ident`. Capping the `log` level needs `log` or
   `tracing-log` as a direct dependency (ADR-0006).
+- **No test covers the empty submission of frames without a window image.** When
+  `Surface::acquire` gives no image, it submits an empty batch, so that wgpu releases the writes
+  an application makes outside `App::render`. Without it, 2000 frames of a surface resized to
+  zero, each writing 64 KiB to a uniform buffer, grew the process by about 120 MiB (lavapipe in a
+  headless Weston, 2026-10-13), measured by a program kept out of the repository. The
+  `draws-nothing` scenario of `crates/slime-app/tests/windowed_lifecycle.rs` checks the same for
+  frames whose image nothing draws, not for frames without an image.
 - **A GPU time can read 0 once when the timestamp counter wraps.** On adapters whose timestamps
   have 36 valid bits (Intel's Vulkan driver, about once every one to one and a half hours), a
   timed pass that runs across the wrap ends before it starts. `GpuTimer::latest` then gives 0 for
