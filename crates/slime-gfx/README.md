@@ -69,7 +69,7 @@ fn main() -> Result<(), GfxError> {
     let vertices = gpu.create_vertex_buffer("triangle", &bytes);
 
     let black = Color { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
-    let pass = RenderPassDescriptor { target: &target, clear: Some(black), depth: None };
+    let pass = RenderPassDescriptor { target: &target, clear: Some(black), depth: None, timer: None };
     gpu.render(&pass, |pass| {
         pass.set_pipeline(&pipeline);
         pass.set_vertex_buffer(0, &vertices);
@@ -120,6 +120,10 @@ fn main() -> Result<(), GfxError> {
     of many draws.
   - `DepthTarget`: a texture holding the depth of what was drawn (`create_depth_target`), at the
     size of the render targets it is used with, for depth testing. It cannot be read back.
+  - `GpuTimer`: measures how long render passes take on the GPU (`create_timer`), on adapters
+    that support timestamp queries (`Gpu::can_time`; `None` otherwise). A pass that names it in
+    its descriptor is timed, and `GpuTimer::latest` gives the time of the last timed pass that
+    has come back, a few frames later, without waiting for the GPU.
   - `ShaderModule`: WGSL source compiled by wgpu (`create_shader_module`).
   - `RenderPipeline`: a shader's entry points, the layout of its vertices, the layouts of the bind
     groups its shaders read, its depth test (`DepthState`), its culling (`CullMode`) and the format
@@ -130,14 +134,15 @@ fn main() -> Result<(), GfxError> {
   They are cheap to clone, clones share the GPU object, and it is freed when the last one is
   dropped. Each belongs to the `Gpu` that created it: using it with another `Gpu` is a bug, which
   panics inside wgpu.
-- `Gpu::render(&RenderPassDescriptor { target, clear, depth }, record)` runs one render pass: it
-  clears the target to a color, and the depth target to the farthest depth, or keeps what both
-  hold when `clear` is `None`; lets `record` draw through a `RenderPass` (`set_pipeline`,
-  `set_bind_group` with the dynamic offsets of the group, `set_vertex_buffer`, `set_index_buffer`,
-  `draw`, `draw_indexed`); and sends the work to the GPU. A pass with a depth target takes pipelines with a depth test, and one
-  without takes pipelines without. The pass is named after the target's label in capture tools,
-  and `RenderPass::debug_group(label, record)` names a group of commands inside it. Labels and
-  groups reach the driver in debug builds, or with `WGPU_DEBUG=1`.
+- `Gpu::render(&RenderPassDescriptor { target, clear, depth, timer }, record)` runs one render
+  pass: it clears the target to a color, and the depth target to the farthest depth, or keeps
+  what both hold when `clear` is `None`; lets `record` draw through a `RenderPass`
+  (`set_pipeline`, `set_bind_group` with the dynamic offsets of the group, `set_vertex_buffer`,
+  `set_index_buffer`, `draw`, `draw_indexed`); and sends the work to the GPU, timed by `timer`
+  when there is one. A pass with a depth target takes pipelines with a depth test, and one without
+  takes pipelines without. The pass is named after the target's label in capture tools, and
+  `RenderPass::debug_group(label, record)` names a group of commands inside it. Labels and groups
+  reach the driver in debug builds, or with `WGPU_DEBUG=1`.
 - `Gpu::read_render_target(target)` waits for the GPU and copies a target into an `Image`: RGBA
   bytes, rows from top to bottom, whatever the byte order of the target's format.
 - `Gpu::new_for_window(window, width, height, present_mode)` opens the most capable GPU that can
@@ -177,8 +182,16 @@ fn main() -> Result<(), GfxError> {
 - `thiserror`: derives `GfxError`'s `Display` and `Error` implementations.
 - `tracing`: logging.
 
+## The `wgpu` feature
+
+For the engine's tooling only (`docs/adr/0031-dev-overlay-with-egui.md`): it re-exports wgpu
+and gives the wgpu objects behind the engine's types (`Gpu::wgpu_device`, `Gpu::wgpu_queue`,
+`RenderPass::wgpu_pass`, `TextureFormat::wgpu_format`), so that `slime-devui` draws egui with
+egui's own wgpu renderer. Games must not enable it.
+
 ## Must not
 
 - Depend on `slime-platform` or any windowing code: windows reach it as `raw-window-handle`
   traits, so that offscreen rendering works without a windowing system.
-- Expose wgpu's types in its public API.
+- Expose wgpu's types in its public API, except through the `wgpu` feature, to the engine's
+  tooling.

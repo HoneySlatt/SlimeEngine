@@ -37,7 +37,9 @@ impl Gpu {
     /// In debug builds, wgpu passes debug labels to the driver, so that capture tools such as
     /// RenderDoc show them. The graphics API's own validation layers stay off unless
     /// `WGPU_VALIDATION=1` is set; wgpu always validates how the engine uses it, and a use it
-    /// rejects is a bug that panics, except once the device is lost ([`Gpu::check`]).
+    /// rejects is a bug that panics, except once the device is lost ([`Gpu::check`]). The device
+    /// has the default limits, and the optional features the adapter offers among those the
+    /// engine uses: timestamp queries ([`Gpu::can_time`]).
     ///
     /// # Errors
     ///
@@ -68,8 +70,12 @@ impl Gpu {
             "GPU adapter"
         );
 
+        // Optional features are asked for only when the adapter offers them, and everything works
+        // without them (ADR-0031): timestamp queries, which time the GPU's work.
+        let required_features = adapter.features() & wgpu::Features::TIMESTAMP_QUERY;
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             label: Some("SlimeEngine device"),
+            required_features,
             ..Default::default()
         }))
         .map_err(|error| GfxError::RequestDevice(Box::new(error)))?;
@@ -144,6 +150,19 @@ impl Gpu {
     /// lavapipe.
     pub fn adapter_name(&self) -> &str {
         &self.adapter_name
+    }
+
+    /// The wgpu device behind the engine's, for the engine's tooling only (ADR-0031): it draws
+    /// with libraries built on wgpu, such as egui's renderer. Games must not use it.
+    #[cfg(feature = "wgpu")]
+    pub fn wgpu_device(&self) -> &wgpu::Device {
+        &self.device
+    }
+
+    /// The wgpu queue behind the engine's, for the engine's tooling only (ADR-0031).
+    #[cfg(feature = "wgpu")]
+    pub fn wgpu_queue(&self) -> &wgpu::Queue {
+        &self.queue
     }
 
     /// The alignment, in bytes, of the offsets given to
@@ -231,6 +250,7 @@ mod tests {
             target: &target,
             clear: Some(black),
             depth: None,
+            timer: None,
         };
         gpu.render(&pass, |_pass| {});
         for result in [

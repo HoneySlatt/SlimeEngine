@@ -1,5 +1,6 @@
 //! Render passes: drawing into a render target.
 
+use std::marker::PhantomData;
 use std::ops::Range;
 use std::sync::atomic::Ordering;
 
@@ -9,6 +10,7 @@ use crate::gpu::Gpu;
 use crate::index_buffer::IndexBuffer;
 use crate::pipeline::RenderPipeline;
 use crate::render_target::RenderTarget;
+use crate::timer::GpuTimer;
 use crate::vertex_buffer::VertexBuffer;
 
 /// A color with linear components, not sRGB-encoded, each from 0.0 to 1.0.
@@ -49,15 +51,27 @@ pub struct RenderPassDescriptor<'a> {
     /// pipelines with a depth test, and a pass without takes only pipelines without
     /// ([`RenderPipelineDescriptor::depth`](crate::RenderPipelineDescriptor::depth)).
     pub depth: Option<&'a DepthTarget>,
+    /// A timer that measures how long the pass takes on the GPU, read later through
+    /// [`GpuTimer::latest`]; `None` leaves the pass untimed.
+    pub timer: Option<&'a GpuTimer>,
 }
 
-/// The drawing commands of one render pass, recorded inside [`Gpu::render`].
+/// The drawing commands of one render pass, recorded inside [`Gpu::render`]. The lifetime is
+/// the closure's: a pass cannot be kept beyond it.
 #[derive(Debug)]
 pub struct RenderPass<'a> {
-    pass: wgpu::RenderPass<'a>,
+    pass: wgpu::RenderPass<'static>,
+    closure: PhantomData<&'a mut ()>,
 }
 
 impl RenderPass<'_> {
+    /// The wgpu pass behind this one, for the engine's tooling only (ADR-0031): it draws with
+    /// libraries built on wgpu, such as egui's renderer. Games must not use it.
+    #[cfg(feature = "wgpu")]
+    pub fn wgpu_pass(&mut self) -> &mut wgpu::RenderPass<'static> {
+        &mut self.pass
+    }
+
     /// Uses `pipeline` for the next draws.
     pub fn set_pipeline(&mut self, pipeline: &RenderPipeline) {
         self.pass.set_pipeline(&pipeline.pipeline);
@@ -140,6 +154,10 @@ impl Gpu {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some(&target.label),
             });
+        // A timer whose slots are all in flight leaves this pass untimed rather than waiting.
+        let timing = descriptor
+            .timer
+            .and_then(|timer| timer.reserve().map(|slot| (timer, slot)));
         {
             let pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some(&target.label),
@@ -169,14 +187,25 @@ impl Gpu {
                         stencil_ops: None,
                     }
                 }),
-                timestamp_writes: None,
+                timestamp_writes: timing.map(|(timer, slot)| timer.writes(slot)),
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            record(&mut RenderPass { pass });
+            // The pass ends when this block does, before the encoder is finished, which is what
+            // wgpu asks of a pass freed from the encoder's lifetime.
+            record(&mut RenderPass {
+                pass: pass.forget_lifetime(),
+                closure: PhantomData,
+            });
+        }
+        if let Some((timer, slot)) = timing {
+            timer.resolve(&mut encoder, slot);
         }
         let _span = tracing::trace_span!("submit").entered();
         self.queue.submit([encoder.finish()]);
+        if let Some((timer, slot)) = timing {
+            timer.map(slot);
+        }
         target.drawn.store(true, Ordering::Relaxed);
     }
 }

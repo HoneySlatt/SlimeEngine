@@ -65,7 +65,7 @@ impl App for Game {
     fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
         let gpu = ctx.gpu().expect("windowed runs have a GPU");
         let sky = Color { r: 0.1, g: 0.3, b: 0.8, a: 1.0 };
-        let pass = RenderPassDescriptor { target, clear: Some(sky), depth: None };
+        let pass = RenderPassDescriptor { target, clear: Some(sky), depth: None, timer: None };
         gpu.render(&pass, |_pass| {});
     }
 }

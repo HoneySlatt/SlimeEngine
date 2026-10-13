@@ -164,6 +164,7 @@ impl Setup {
             target: &self.target,
             clear: Some(BLACK),
             depth: None,
+            timer: None,
         };
         self.gpu.render(&pass, |pass| {
             pass.set_pipeline(&self.pipeline);

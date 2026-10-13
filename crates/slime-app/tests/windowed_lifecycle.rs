@@ -83,6 +83,7 @@ impl App for Recorder {
             target,
             clear: Some(grey),
             depth: None,
+            timer: None,
         };
         ctx.gpu().expect("windowed run").render(&pass, |_pass| {});
         println!("call render {}", self.last_update);

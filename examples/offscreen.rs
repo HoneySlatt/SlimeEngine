@@ -55,6 +55,7 @@ fn render_to_file(output: &std::path::Path) -> Result<(), Box<dyn std::error::Er
         target: &target,
         clear: Some(BACKGROUND),
         depth: None,
+        timer: None,
     };
     gpu.render(&pass, |pass| triangle.draw(pass));
     let image = gpu.read_render_target(&target)?;

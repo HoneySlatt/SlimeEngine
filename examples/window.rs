@@ -66,6 +66,7 @@ impl App for WindowExample {
                 target,
                 clear: Some(BACKGROUND),
                 depth: None,
+                timer: None,
             };
             gpu.render(&pass, |pass| triangle.draw(pass));
             self.drawn += 1;

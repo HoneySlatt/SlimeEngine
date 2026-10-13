@@ -24,6 +24,7 @@ fn readback_unpads_rows_and_orders_channels_for_every_size() {
                 target: &target,
                 clear: Some(CLEAR),
                 depth: None,
+                timer: None,
             };
             gpu.render(&pass, |_pass| {});
             let image = gpu

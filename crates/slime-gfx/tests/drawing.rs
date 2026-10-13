@@ -130,6 +130,7 @@ impl Scene {
             target: &self.target,
             clear: Some(BLACK),
             depth: with_depth.then_some(&self.depth),
+            timer: None,
         };
         self.gpu.render(&pass, |pass| {
             pass.set_bind_group(0, &self.group, &[]);
@@ -237,6 +238,7 @@ fn a_pass_without_a_clear_keeps_what_was_drawn_before() {
         target: &scene.target,
         clear: None,
         depth: None,
+        timer: None,
     };
     scene.gpu.render(&pass, |pass| {
         pass.set_bind_group(0, &scene.group, &[]);
@@ -344,6 +346,7 @@ fn a_depth_target_of_another_size_is_rejected() {
         target: &scene.target,
         clear: Some(BLACK),
         depth: Some(&small),
+        timer: None,
     };
     scene.gpu.render(&pass, |_pass| {});
 }
@@ -431,6 +434,7 @@ fn a_dynamic_offset_selects_the_values_of_each_draw() {
         target: &scene.target,
         clear: Some(BLACK),
         depth: None,
+        timer: None,
     };
     scene.gpu.render(&pass, |pass| {
         pass.set_pipeline(&pipeline);

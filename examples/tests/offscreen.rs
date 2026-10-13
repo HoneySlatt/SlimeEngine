@@ -49,6 +49,7 @@ fn check_triangle(format: TextureFormat, name: &str) {
         target: &target,
         clear: Some(BACKGROUND),
         depth: None,
+        timer: None,
     };
     gpu.render(&pass, |pass| triangle.draw(pass));
     let image = gpu

@@ -1,10 +1,12 @@
 //! The renderer: draws instances of meshes, seen from a camera and lit by a directional light,
 //! into a render target.
 
+use std::time::{Duration, Instant};
+
 use glam::{Mat3, Mat4};
 use slime_gfx::{
     BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource, BindingType,
-    Color, CullMode, DepthCompare, DepthState, DepthTarget, Gpu, RenderPassDescriptor,
+    Color, CullMode, DepthCompare, DepthState, DepthTarget, Gpu, GpuTimer, RenderPassDescriptor,
     RenderPipeline, RenderPipelineDescriptor, RenderTarget, Sampler, SamplerDescriptor,
     ShaderStages, Texture, TextureFormat, UniformBuffer,
 };
@@ -60,6 +62,13 @@ pub struct RenderStats {
     pub draw_calls: u32,
     /// Triangles submitted to the GPU, before culling.
     pub triangles: u64,
+    /// How long [`Renderer::render`] took on the CPU: packing the values, recording the pass and
+    /// submitting it.
+    pub cpu_time: Duration,
+    /// How long the GPU took to draw a scene: the latest time that has come back, a few frames
+    /// old. `None` on adapters that cannot time their work
+    /// ([`Gpu::can_time`](slime_gfx::Gpu::can_time)), and until the first time comes back.
+    pub gpu_time: Option<Duration>,
 }
 
 /// Draws scenes into render targets of one format.
@@ -79,6 +88,8 @@ pub struct Renderer {
     default_sampler: Sampler,
     instances: InstanceSlots,
     depth: Option<DepthTarget>,
+    /// Times the scene's pass on the GPU, when the adapter can.
+    timer: Option<GpuTimer>,
 }
 
 impl Renderer {
@@ -157,6 +168,10 @@ impl Renderer {
         );
         let default_sampler = gpu.create_sampler("default", &SamplerDescriptor::default());
         let instances = InstanceSlots::new(gpu, &instance_layout, INITIAL_INSTANCE_CAPACITY);
+        let timer = gpu.create_timer("scene");
+        if timer.is_none() {
+            tracing::info!("the adapter cannot time its work: the statistics have no GPU time");
+        }
         Ok(Self {
             format,
             pipeline,
@@ -168,6 +183,7 @@ impl Renderer {
             default_sampler,
             instances,
             depth: None,
+            timer,
         })
     }
 
@@ -233,6 +249,7 @@ impl Renderer {
     /// need a buffer larger than the device allows (256 MiB with the default limits: about a
     /// million instances): these are bugs in the caller.
     pub fn render(&mut self, gpu: &Gpu, target: &RenderTarget, scene: &Scene<'_>) -> RenderStats {
+        let started = Instant::now();
         assert!(
             target.format() == self.format,
             "the renderer draws into {:?} targets, not into `{}`, which is {:?}",
@@ -292,6 +309,7 @@ impl Renderer {
             target,
             clear: Some(scene.clear),
             depth: Some(depth),
+            timer: self.timer.as_ref(),
         };
         gpu.render(&pass, |pass| {
             pass.set_pipeline(&self.pipeline);
@@ -308,6 +326,8 @@ impl Renderer {
                 stats.triangles += u64::from(instance.mesh.triangle_count());
             }
         });
+        stats.gpu_time = self.timer.as_ref().and_then(|timer| timer.latest(gpu));
+        stats.cpu_time = started.elapsed();
         stats
     }
 }

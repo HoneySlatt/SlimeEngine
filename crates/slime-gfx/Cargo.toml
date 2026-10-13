@@ -10,6 +10,11 @@ publish.workspace = true
 [lints]
 workspace = true
 
+[features]
+# Gives the engine's tooling (slime-devui) wgpu itself and the wgpu objects behind the engine's
+# types, to draw with libraries built on wgpu (ADR-0031). Games must not enable it.
+wgpu = []
+
 [dependencies]
 pollster.workspace = true
 # `alloc`: the traits are implemented for `Arc`, which keeps the window to create its surface again.

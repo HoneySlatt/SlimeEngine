@@ -7,8 +7,8 @@ the GPU layer (`slime-gfx`).
 
 Partial: the first renderer of Stage 3a (`docs/PLAN.md`). It draws instances of meshes from a
 perspective camera, with a depth test and back-face culling, each with a material of one base
-color, which a texture may modulate, lit by one directional light and an ambient light. Statistics
-beyond counts come with a later milestone of the stage.
+color, which a texture may modulate, lit by one directional light and an ambient light, and
+reports what each frame cost on the CPU and on the GPU.
 
 ## Role
 
@@ -83,8 +83,10 @@ fn main() -> Result<(), RenderError> {
 - `Renderer::render(gpu, target, &Scene)` clears the target to the scene's color and draws its
   instances (`Instance`: a mesh, a material, a transform from the mesh's space to world space)
   from its `Camera`, lit by its `DirectionalLight`, with the depth test, so that nearer surfaces
-  hide farther ones whatever the order of the instances. It returns `RenderStats`: draw calls and
-  triangles.
+  hide farther ones whatever the order of the instances. It returns `RenderStats`: draw calls,
+  triangles, the CPU time of the call, and the GPU time of the scene's pass, measured with a
+  `slime_gfx::GpuTimer` on adapters that can time their work and read back a few frames later
+  (`None` otherwise, and until the first time comes back).
 - `Camera`: an eye, a target, an up direction, a vertical field of view in radians, and the near
   and far distances; `view`, `projection(aspect)` and `view_projection(aspect)` give its matrices.
 - `DirectionalLight`: the direction the light travels in, its color and the ambient light's
