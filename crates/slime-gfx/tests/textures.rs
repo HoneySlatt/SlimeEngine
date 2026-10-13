@@ -1,6 +1,6 @@
-//! Sampling textures: nearest and linear filtering, the address modes, and the decoding of sRGB
-//! formats, checked by reading pixels back. Runs on whatever adapter the machine offers, like
-//! `device.rs`.
+//! Sampling textures: nearest and linear filtering, the address modes, each set on its own for
+//! each direction and filter of a sampler, and the decoding of sRGB formats, checked by reading
+//! pixels back. Runs on whatever adapter the machine offers, like `device.rs`.
 
 use slime_gfx::{
     AddressMode, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource,
@@ -267,6 +267,43 @@ fn address_modes_say_what_lies_beyond_the_texture() {
         assert_eq!(pixel(&image, (5, 1)), rgb(expected[0]), "{case}");
         assert_eq!(pixel(&image, (7, 1)), rgb(expected[1]), "{case}");
     }
+}
+
+#[test]
+fn each_direction_and_each_filter_of_a_sampler_is_its_own() {
+    let setup = Setup::new();
+    let texture = setup.two_by_two(TextureFormat::Rgba8UnormSrgb);
+
+    // Every field different from its pair. The texture is magnified, two target pixels per
+    // texture pixel, and pixel (5, 5) reads (1.375, 1.375): repeated horizontally, 0.375, the
+    // left column; clamped vertically, the bottom row: blue. Directions swapped would read green,
+    // and filters swapped, a linear blend of blue and white.
+    let sampler = setup.gpu.create_sampler(
+        "repeat u, clamp v",
+        &SamplerDescriptor {
+            mag_filter: Filter::Nearest,
+            min_filter: Filter::Linear,
+            address_u: AddressMode::Repeat,
+            address_v: AddressMode::ClampToEdge,
+        },
+    );
+    let image = setup.draw(&texture, &sampler, [2.0, 2.0]);
+    assert_eq!(pixel(&image, (5, 5)), rgb(BLUE));
+
+    // Mirrored vertically: pixels (1, 5) and (1, 7) read 1.375 and 1.875, mirrored to 0.625 and
+    // 0.125: the bottom row, then the top one.
+    let sampler = setup.gpu.create_sampler(
+        "clamp u, mirror v",
+        &SamplerDescriptor {
+            mag_filter: Filter::Nearest,
+            min_filter: Filter::Nearest,
+            address_u: AddressMode::ClampToEdge,
+            address_v: AddressMode::MirrorRepeat,
+        },
+    );
+    let image = setup.draw(&texture, &sampler, [1.0, 2.0]);
+    assert_eq!(pixel(&image, (1, 5)), rgb(BLUE));
+    assert_eq!(pixel(&image, (1, 7)), rgb(RED));
 }
 
 #[test]
