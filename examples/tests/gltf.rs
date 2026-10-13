@@ -100,7 +100,7 @@ fn accessors_the_loader_cannot_read_are_refused() {
     let gpu =
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
     // Each change of the triangle, and what the error says.
-    let cases: [(Change, &str); 7] = [
+    let cases: [(Change, &str); 8] = [
         (
             |file| {
                 let view = file.add_view(&[0.0f32, 1.0, 2.0].map(f32::to_le_bytes).concat());
@@ -143,6 +143,12 @@ fn accessors_the_loader_cannot_read_are_refused() {
                 ));
             },
             "stores its positions in a sparse accessor",
+        ),
+        (
+            // Zeros: glTF allows an accessor that is neither sparse nor in a buffer view, but the
+            // `gltf` crate's validation refuses it before the loader's checks.
+            |file| remove(&mut file.json["accessors"][0], "bufferView"),
+            "accessors[0].bufferView: Missing data",
         ),
         (
             |file| {

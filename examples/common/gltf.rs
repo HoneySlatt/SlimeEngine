@@ -460,7 +460,8 @@ fn check_accessor(
         )));
     }
     // A sparse accessor needs no buffer view, and its reader then allocates at once as many
-    // elements as the file claims, which no data backs.
+    // elements as the file claims, which no data backs. An accessor that is neither sparse nor
+    // in a buffer view, zeros in glTF, never gets here: the `gltf` crate's validation refuses it.
     let (None, Some(view)) = (accessor.sparse(), accessor.view()) else {
         return Err(LoadError(format!(
             "{label} stores its {what} in a sparse accessor, which the loader does not read"
