@@ -1,8 +1,9 @@
-// The shader of the scene pass (ADR-0034, ADR-0035): vertices transformed by their instance and
-// the camera; surfaces shaded with glTF's metallic-roughness model, with the formulas of the
-// Khronos glTF Sample Viewer (glTF 2.0 specification, Appendix B), under the scene's directional
-// light, plus its constant ambient light and the material's emission; written into the
-// high-dynamic-range target, which the tone-mapping pass then maps to the output.
+// The shader of the scene pass (ADR-0034, ADR-0035, ADR-0037): vertices transformed by their
+// instance and the camera; surfaces shaded with glTF's metallic-roughness model, with the formulas
+// of the Khronos glTF Sample Viewer (glTF 2.0 specification, Appendix B), under the scene's
+// directional light, plus its constant ambient light and the material's emission; multiplied by
+// the exposure and written into the high-dynamic-range target, which the tone-mapping pass then
+// maps to the output.
 
 const PI: f32 = 3.141592653589793;
 // What a dielectric reflects at normal incidence: ((1.5 - 1) / (1.5 + 1))^2, glTF's index of
@@ -11,10 +12,10 @@ const DIELECTRIC_F0: f32 = 0.04;
 // The smoothest surface shaded, Filament's minimum for 32-bit floats: at a roughness of 0, the
 // distribution divides 0 by 0 at the center of a highlight.
 const MIN_ROUGHNESS: f32 = 0.045;
-// The largest value of the high-dynamic-range target's half-precision floats. Brighter light is
-// written as it rather than left to the driver, which may store an infinity that the tone curve
-// turns into NaN.
-const MAX_LIGHT: f32 = 65504.0;
+// The largest value of the high-dynamic-range target's half-precision floats. Brighter exposed
+// light is written as it rather than left to the driver, which may store an infinity that the tone
+// curve turns into NaN.
+const LARGEST_HALF: f32 = 65504.0;
 
 struct FrameUniform {
     // From world space to clip space.
@@ -25,8 +26,11 @@ struct FrameUniform {
     light_color: vec4<f32>,
     // The radiance of the ambient light, the same from every direction; w unused.
     ambient: vec4<f32>,
-    // Where the camera is, in world space; w unused.
-    camera_position: vec4<f32>,
+    // Where the camera is, in world space.
+    camera_position: vec3<f32>,
+    // What the light is multiplied by before it is written into the high-dynamic-range target
+    // (pre-exposure, ADR-0037).
+    exposure: f32,
 }
 @group(0) @binding(0) var<uniform> frame: FrameUniform;
 
@@ -128,7 +132,7 @@ fn fs_main(
     let metallic = clamp(material.metallic * metallic_roughness.b, 0.0, 1.0);
     let roughness = clamp(material.roughness * metallic_roughness.g, MIN_ROUGHNESS, 1.0);
     let normal = shading_normal(input.normal, input.tangent, encoded_normal, front_facing);
-    let to_camera = normalize(frame.camera_position.xyz - input.world_position);
+    let to_camera = normalize(frame.camera_position - input.world_position);
     let direct = frame.light_color.rgb
         * reflected(base.rgb, metallic, roughness, normal, frame.to_light.xyz, to_camera);
     // Until image-based lighting, the ambient light stands for even surroundings, which every
@@ -136,8 +140,11 @@ fn fs_main(
     // (glTF: indirect light).
     let ambient = frame.ambient.rgb * base.rgb
         * (1.0 + material.occlusion_strength * (occlusion - 1.0));
-    // Surfaces are opaque: the target's alpha is 1 wherever one is drawn.
-    return vec4<f32>(min(direct + ambient + emitted, vec3<f32>(MAX_LIGHT)), 1.0);
+    // Exposed here, in 32-bit floats, before the half-precision target: light in physical units
+    // reaches hundreds of thousands, which half precision does not hold (ADR-0037). Surfaces are
+    // opaque: the target's alpha is 1 wherever one is drawn.
+    let exposed = (direct + ambient + emitted) * frame.exposure;
+    return vec4<f32>(min(exposed, vec3<f32>(LARGEST_HALF)), 1.0);
 }
 
 // The unit normal a fragment is shaded with: the mesh's interpolated normal, tilted by the normal

@@ -1,17 +1,11 @@
-// The tone-mapping pass (ADR-0034): one triangle covers the output, and each pixel reads the
-// texel of the scene's high-dynamic-range target under it, multiplies it by the exposure, maps it
-// to the range a display shows with Khronos PBR Neutral, and writes it opaque. The output target's
-// format encodes the result (sRGB for a window).
+// The tone-mapping pass (ADR-0034, ADR-0037): one triangle covers the output, and each pixel reads
+// the texel of the scene's high-dynamic-range target under it, maps it to the range a display shows
+// with Khronos PBR Neutral, and writes it opaque. The scene pass has applied the exposure. The
+// output target's format encodes the result (sRGB for a window).
 
-// The scene's light, drawn by the scene pass at the output's size: linear, and may exceed 1.
+// The scene's exposed light, drawn by the scene pass at the output's size: linear, from 0 to
+// 65504.
 @group(0) @binding(0) var scene_light: texture_2d<f32>;
-
-struct ToneMappingUniform {
-    // What the scene's light is multiplied by before the curve; the other three floats pad the
-    // uniform to 16 bytes.
-    exposure: vec4<f32>,
-}
-@group(0) @binding(1) var<uniform> tone_mapping: ToneMappingUniform;
 
 // The corners (-1, -1), (3, -1) and (-1, 3), counter-clockwise: one triangle that covers the
 // target, built from the vertex index without a vertex buffer.
@@ -26,7 +20,7 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
     // A pixel's center is at (x + 0.5, y + 0.5): truncating gives its texel, since the scene's
     // target has the output's size.
     let light = textureLoad(scene_light, vec2<u32>(position.xy), 0).rgb;
-    return vec4<f32>(pbr_neutral(light * tone_mapping.exposure.x), 1.0);
+    return vec4<f32>(pbr_neutral(light), 1.0);
 }
 
 // Khronos PBR Neutral, written from the equations of its specification:

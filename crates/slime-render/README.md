@@ -10,13 +10,15 @@ draws instances of meshes from a perspective camera, with a depth test, each wit
 material, glTF's metallic-roughness model (a base color, metallic and roughness, normal, occlusion
 and emissive textures; opaque or masked; single- or double-sided), lit by one directional light,
 whose color is an illuminance, and an ambient light (`docs/adr/0035-physically-based-materials.md`).
-It draws the scene in high dynamic range, where light may exceed 1, then maps it to the output with
-an exposure and a tone-mapping operator, Khronos PBR Neutral
-(`docs/adr/0034-hdr-rendering-and-tone-mapping.md`). It reports what each frame cost on the CPU and,
-on adapters that can time their work, what each of its two passes cost on the GPU. Blended
-transparency is not drawn, and a surface leaves an alpha of 1 in the target. Instances are drawn in
-the order of the scene, neither sorted nor batched. An instance whose transform mirrors it (a
-negative determinant, such as a scale of −1 along one axis) keeps its front faces, as glTF does.
+It draws the scene in high dynamic range, where light may exceed 1, multiplied by an exposure before
+it is written, then maps it to the output with a tone-mapping operator, Khronos PBR Neutral
+(`docs/adr/0034-hdr-rendering-and-tone-mapping.md`,
+`docs/adr/0037-lights-in-physical-units-and-pre-exposure.md`). It reports what each frame cost on
+the CPU and, on adapters that can time their work, what each of its two passes cost on the GPU.
+Blended transparency is not drawn, and a surface leaves an alpha of 1 in the target. Instances are
+drawn in the order of the scene, neither sorted nor batched. An instance whose transform mirrors it
+(a negative determinant, such as a scale of −1 along one axis) keeps its front faces, as glTF
+does.
 
 ## Role
 
@@ -110,19 +112,19 @@ fn main() -> Result<(), RenderError> {
   opaque, single-sided, white matte dielectric. Meshes and materials are cheap to clone and shared
   by their clones.
 - `Renderer::render(gpu, target, &Scene)` draws a frame in two passes. The scene pass clears a
-  target of half-precision floats to the scene's background and draws its instances (`Instance`:
-  a mesh, a material, a transform from the mesh's space to world space) from its `Camera`, lit by
-  its `DirectionalLight`, with the depth test, so that nearer surfaces hide farther ones whatever
-  the order of the instances. The tone-mapping pass multiplies that light by the scene's
-  `exposure` (1 leaves it as it is, 2 is one photographic stop brighter) and maps it to the
-  output's range with Khronos PBR Neutral: colors whose channels lie between 0.08 and 0.8 come out
-  lowered by 0.04, darker ones less, and brighter ones are compressed towards 1 and turned towards
-  white, so that a surface reflecting a light of 1 shows at 0.87 (sRGB 240). It returns
+  target of half-precision floats to the scene's background and draws its instances (`Instance`: a
+  mesh, a material, a transform from the mesh's space to world space) from its `Camera`, lit by its
+  `DirectionalLight`, with the depth test, so that nearer surfaces hide farther ones whatever the
+  order of the instances. The light of both is multiplied by the scene's `exposure` (1 leaves it as
+  it is, 2 is one photographic stop brighter) before it is written: exposed light above 65 504, the
+  largest value of that target, is written as 65 504. The tone-mapping pass then maps that light to
+  the output's range with Khronos PBR Neutral: colors whose channels lie between 0.08 and 0.8 come
+  out lowered by 0.04, darker ones less, and brighter ones are compressed towards 1 and turned
+  towards white, so that a surface reflecting a light of 1 shows at 0.87 (sRGB 240). It returns
   `RenderStats`: the scene pass's draw calls and triangles, the CPU time of the call, and the GPU
   time of each pass (`scene_gpu_time`, `tone_mapping_gpu_time`), measured with a
-  `slime_gfx::GpuTimer` each on adapters that can time their work and read back a few frames
-  later (`None` otherwise, and until the first time comes back); the two can come from different
-  frames.
+  `slime_gfx::GpuTimer` each on adapters that can time their work and read back a few frames later
+  (`None` otherwise, and until the first time comes back); the two can come from different frames.
 - `Camera`: an eye, a target, an up direction, a vertical field of view in radians, and the near
   and far distances; `view`, `projection(aspect)` and `view_projection(aspect)` give its matrices.
 - `DirectionalLight`: the direction the light travels in, its color, the illuminance it gives a
@@ -133,8 +135,8 @@ fn main() -> Result<(), RenderError> {
   their instance and stay perpendicular to surfaces scaled unevenly, even flattened along one axis.
 - Conventions: world space is right-handed with +Y up, as in glTF; the camera looks down its −Z
   axis; front faces wind counter-clockwise; depth runs from 0 at the near plane to 1 at the far
-  plane; colors in materials and clear colors are linear; light before tone mapping is not
-  negative and may exceed 1, up to 65 504, the largest value of the high-dynamic-range target; an
+  plane; colors in materials and clear colors are linear; light is not negative and may exceed 1,
+  and once exposed, the high-dynamic-range target holds it up to 65 504, its largest value; an
   sRGB output encodes the tone-mapped values; tangents and normal textures follow glTF: x along
   increasing u, y up the image (the bitangent is cross(normal, tangent) × w), z along the normal;
   a mirrored instance keeps its front faces.

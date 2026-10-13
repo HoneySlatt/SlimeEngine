@@ -1,6 +1,6 @@
 //! The renderer: draws instances of meshes, seen from a camera and shaded with glTF's
 //! metallic-roughness materials under a directional light, into a render target, in two passes:
-//! the scene in high dynamic range, then tone mapping.
+//! the scene in high dynamic range, exposed, then tone mapping.
 
 use std::time::{Duration, Instant};
 
@@ -33,11 +33,13 @@ const BLACK: Color = Color {
     b: 0.0,
     a: 1.0,
 };
-/// The size of the values of the tone-mapping pass: the exposure, padded to 16 bytes.
-const TONE_MAPPING_VALUES_SIZE: usize = 16;
 /// The size of the values of a frame: the camera's `mat4x4<f32>` and four `vec4<f32>`: the
-/// direction to the light, its illuminance, the ambient light, and the camera's position.
+/// direction to the light, its illuminance, the ambient light, and the camera's position with the
+/// exposure.
 const FRAME_VALUES_SIZE: usize = 64 + 4 * 16;
+/// The largest value of the high-dynamic-range target's half-precision floats, to which the exposed
+/// background is limited, as the scene shader limits surfaces (`LARGEST_HALF` in `shader.wgsl`).
+const LARGEST_HALF: f64 = 65_504.0;
 /// The size of the values each instance has in the instance buffer: its `mat4x4<f32>` transform,
 /// the `mat3x3<f32>` that transforms its normals (three columns padded to 16 bytes), and its
 /// handedness, padded to 16 bytes.
@@ -67,25 +69,24 @@ pub struct Instance<'a> {
 
 /// What the renderer draws in one frame.
 ///
-/// The light that reaches each pixel before the exposure, the background's or a surface's, must
-/// stay at or below 65 504 in each channel, the largest value of the high-dynamic-range target.
-/// Beyond it, a driver stores 65 504 or an infinity: the pixel is clipped, or shows a color that
-/// has nothing to do with the scene (ADR-0034).
+/// The scene pass multiplies the scene's light, the background's included, by the exposure before
+/// it writes it into the high-dynamic-range target (pre-exposure, ADR-0037), whose half-precision
+/// floats reach 65 504: exposed light above it is written as 65 504, which clips it.
 #[derive(Clone, Copy, Debug)]
 pub struct Scene<'a> {
     /// Where the scene is seen from.
     pub camera: Camera,
     /// What lights the surfaces.
     pub light: DirectionalLight,
-    /// The light behind the scene, where no surface is drawn: linear, in the units of the light
-    /// (it may exceed 1, up to the bound above), not negative, and multiplied by the exposure and
-    /// tone mapped like the surfaces. Its alpha is not used: the output is opaque.
+    /// The light behind the scene, where no surface is drawn: linear, in the units of the light (it
+    /// may exceed 1), not negative, and exposed and tone mapped like the surfaces. Its alpha is not
+    /// used: the output is opaque.
     pub clear: Color,
-    /// What the scene's light, the background's included, is multiplied by before tone mapping
-    /// (ADR-0034): a linear factor. 1 leaves it as it is: light of 1 reflected towards the camera
-    /// shows at 0.87 (sRGB 240), and a white matte surface lit at normal incidence by a light of π
-    /// at 0.86 (sRGB 239); 2 is one photographic stop brighter; 0 gives black. Finite and not
-    /// negative.
+    /// What the scene's light, the background's included, is multiplied by before it is written
+    /// into the high-dynamic-range target, then tone mapped (ADR-0034, ADR-0037): a linear factor.
+    /// 1 leaves it as it is: light of 1 reflected towards the camera shows at 0.87 (sRGB 240), and
+    /// a white matte surface lit at normal incidence by a light of π at 0.86 (sRGB 239); 2 is one
+    /// photographic stop brighter; 0 gives black. Finite and not negative.
     pub exposure: f32,
     /// What to draw, in this order.
     pub instances: &'a [Instance<'a>],
@@ -115,14 +116,14 @@ pub struct RenderStats {
 
 /// Draws scenes into output targets of one format.
 ///
-/// Each frame takes two passes (ADR-0034): the scene pass draws the instances into a target of
-/// half-precision floats, where light may exceed 1, with a depth target; the tone-mapping pass then
-/// multiplies that light by the scene's exposure and maps it to the output's range with Khronos
-/// PBR Neutral. The renderer owns four pipelines: three for the scene pass, which differ by the
-/// faces they cull and among which each draw chooses (ADR-0035), and the tone-mapping pass's; the
-/// high-dynamic-range and depth targets, which it creates at the size of the output it draws into
-/// and again when that size changes; the buffer of the instances' values; and a GPU timer per
-/// pass.
+/// Each frame takes two passes (ADR-0034, ADR-0037): the scene pass draws the instances into a
+/// target of half-precision floats, where light may exceed 1, with a depth target, their light
+/// multiplied by the scene's exposure; the tone-mapping pass then maps that light to the output's
+/// range with Khronos PBR Neutral. The renderer owns four pipelines: three for the scene pass,
+/// which differ by the faces they cull and among which each draw chooses (ADR-0035), and the
+/// tone-mapping pass's; the high-dynamic-range and depth targets, which it creates at the size of
+/// the output it draws into and again when that size changes; the buffer of the instances' values;
+/// and a GPU timer per pass.
 pub struct Renderer {
     /// The output's format.
     format: TextureFormat,
@@ -130,13 +131,10 @@ pub struct Renderer {
     tone_mapping_pipeline: RenderPipeline,
     material_layout: BindGroupLayout,
     instance_layout: BindGroupLayout,
-    /// The layout of the group through which the tone-mapping pass reads the scene's target and
-    /// its own values.
+    /// The layout of the group through which the tone-mapping pass reads the scene's target.
     tone_mapping_layout: BindGroupLayout,
     frame_uniform: UniformBuffer,
     frame_group: BindGroup,
-    /// The exposure, read by the tone-mapping pass.
-    tone_mapping_uniform: UniformBuffer,
     /// One white pixel, bound in every texture slot that a material leaves empty: every slot reads
     /// it as 1 in each channel, since sRGB's 255 decodes to exactly 1.
     white: Texture,
@@ -162,28 +160,16 @@ struct SizedTargets {
 }
 
 impl SizedTargets {
-    fn new(
-        gpu: &Gpu,
-        layout: &BindGroupLayout,
-        uniform: &UniformBuffer,
-        width: u32,
-        height: u32,
-    ) -> Self {
+    fn new(gpu: &Gpu, layout: &BindGroupLayout, width: u32, height: u32) -> Self {
         let hdr = gpu.create_render_target("scene", width, height, HDR_FORMAT);
         let depth = gpu.create_depth_target("scene depth", width, height);
         let tone_mapping_group = gpu.create_bind_group(
             "tone mapping",
             layout,
-            &[
-                BindGroupEntry {
-                    binding: 0,
-                    resource: BindingResource::RenderTarget(&hdr),
-                },
-                BindGroupEntry {
-                    binding: 1,
-                    resource: BindingResource::UniformBuffer(uniform),
-                },
-            ],
+            &[BindGroupEntry {
+                binding: 0,
+                resource: BindingResource::RenderTarget(&hdr),
+            }],
         );
         Self {
             hdr,
@@ -266,20 +252,11 @@ impl Renderer {
         let tone_mapping_shader = gpu.create_shader_module("tone mapping", TONE_MAPPING_SHADER)?;
         let tone_mapping_layout = gpu.create_bind_group_layout(
             "tone mapping",
-            &[
-                BindGroupLayoutEntry {
-                    binding: 0,
-                    visible_to: ShaderStages::Fragment,
-                    ty: BindingType::Texture,
-                },
-                BindGroupLayoutEntry {
-                    binding: 1,
-                    visible_to: ShaderStages::Fragment,
-                    ty: BindingType::UniformBuffer {
-                        dynamic_offset: false,
-                    },
-                },
-            ],
+            &[BindGroupLayoutEntry {
+                binding: 0,
+                visible_to: ShaderStages::Fragment,
+                ty: BindingType::Texture,
+            }],
         );
         let tone_mapping_pipeline = gpu.create_render_pipeline(&RenderPipelineDescriptor {
             label: "tone mapping",
@@ -294,9 +271,6 @@ impl Renderer {
             depth: None,
             cull: CullMode::None,
         })?;
-        let tone_mapping_uniform =
-            gpu.create_uniform_buffer("tone mapping", &[0; TONE_MAPPING_VALUES_SIZE]);
-
         let frame_uniform = gpu.create_uniform_buffer("frame", &[0; FRAME_VALUES_SIZE]);
         let frame_group = gpu.create_bind_group(
             "frame",
@@ -329,7 +303,6 @@ impl Renderer {
             tone_mapping_layout,
             frame_uniform,
             frame_group,
-            tone_mapping_uniform,
             white,
             default_sampler,
             instances,
@@ -415,13 +388,13 @@ impl Renderer {
     }
 
     /// Draws `scene` into `target`, in two passes. The scene pass clears a high-dynamic-range
-    /// target to the scene's background, then draws every instance into it with the depth test,
-    /// so that nearer surfaces hide farther ones whatever their order, each surface shaded by the
-    /// scene's light with glTF's metallic-roughness model and its material's textures, and
-    /// culled or not as its material and its transform ask (ADR-0035). The tone-mapping pass
-    /// then multiplies that light by the scene's exposure, maps it to the range a display shows,
-    /// and writes it into `target`, opaque. The work runs on the GPU after this method returns, as
-    /// with [`Gpu::render`](slime_gfx::Gpu::render).
+    /// target to the scene's background, exposed, then draws every instance into it with the depth
+    /// test, so that nearer surfaces hide farther ones whatever their order, each surface shaded by
+    /// the scene's light with glTF's metallic-roughness model and its material's textures, and
+    /// culled or not as its material and its transform ask (ADR-0035), its light multiplied by the
+    /// scene's exposure (ADR-0037). The tone-mapping pass then maps that light to the range a
+    /// display shows, and writes it into `target`, opaque. The work runs on the GPU after this
+    /// method returns, as with [`Gpu::render`](slime_gfx::Gpu::render).
     ///
     /// The high-dynamic-range and depth targets are created at the size of `target` the first
     /// time, and again whenever that size changes; the instance buffer grows when a scene has more
@@ -459,7 +432,6 @@ impl Renderer {
             self.targets = Some(SizedTargets::new(
                 gpu,
                 &self.tone_mapping_layout,
-                &self.tone_mapping_uniform,
                 width,
                 height,
             ));
@@ -478,7 +450,7 @@ impl Renderer {
         let ambient = scene.light.ambient;
         push_f32s(&mut frame_bytes, &[ambient.x, ambient.y, ambient.z, 0.0]);
         let eye = scene.camera.eye;
-        push_f32s(&mut frame_bytes, &[eye.x, eye.y, eye.z, 0.0]);
+        push_f32s(&mut frame_bytes, &[eye.x, eye.y, eye.z, scene.exposure]);
         gpu.write_uniform_buffer(&self.frame_uniform, &frame_bytes);
 
         if self.instances.capacity < scene.instances.len() {
@@ -506,14 +478,10 @@ impl Renderer {
         }
         gpu.write_uniform_buffer(&self.instances.buffer, &instance_bytes);
 
-        let mut tone_mapping_bytes = Vec::with_capacity(TONE_MAPPING_VALUES_SIZE);
-        push_f32s(&mut tone_mapping_bytes, &[scene.exposure, 0.0, 0.0, 0.0]);
-        gpu.write_uniform_buffer(&self.tone_mapping_uniform, &tone_mapping_bytes);
-
         let mut stats = RenderStats::default();
         let scene_pass = RenderPassDescriptor {
             target: &targets.hdr,
-            clear: Some(scene.clear),
+            clear: Some(exposed_background(scene.clear, scene.exposure)),
             depth: Some(&targets.depth),
             timer: self.scene_timer.as_ref(),
         };
@@ -561,6 +529,20 @@ impl Renderer {
         stats.tone_mapping_gpu_time = self.tone_mapping_timer.as_ref().and_then(GpuTimer::latest);
         stats.cpu_time = started.elapsed();
         stats
+    }
+}
+
+/// The background the scene pass clears its target to: `clear` times `exposure`, as the scene
+/// shader exposes surfaces, and at most 65 504 per channel, as it limits them: a clear value reaches
+/// the driver unclamped (ADR-0033), and a driver may store an infinity beyond 65 504, which the tone
+/// curve turns into NaN. The alpha is kept, and not used.
+fn exposed_background(clear: Color, exposure: f32) -> Color {
+    let exposed = |channel: f64| (channel * f64::from(exposure)).min(LARGEST_HALF);
+    Color {
+        r: exposed(clear.r),
+        g: exposed(clear.g),
+        b: exposed(clear.b),
+        a: clear.a,
     }
 }
 
@@ -768,6 +750,26 @@ mod tests {
         assert!(matrix.is_finite(), "{matrix}");
         let normal = direction(matrix, Vec3::Z);
         assert!(normal.x.abs() < 1e-6 && normal.z.abs() < 1e-6, "{normal}");
+    }
+
+    #[test]
+    fn the_background_is_exposed_and_limited_to_the_largest_half_precision_value() {
+        let clear = Color {
+            r: 1e6,
+            g: 0.5,
+            b: 3.0,
+            a: 0.25,
+        };
+        assert_eq!(
+            exposed_background(clear, 0.5),
+            Color {
+                r: 65_504.0,
+                g: 0.25,
+                b: 1.5,
+                a: 0.25
+            }
+        );
+        assert_eq!(exposed_background(clear, 0.0).r, 0.0);
     }
 
     #[test]

@@ -1,11 +1,11 @@
 //! Lighting, checked by reading pixels back through the tone-mapping curve of the renderer
 //! (ADR-0034), on a white matte surface (ADR-0035): one facing the light is fully lit, one facing
 //! away gets the ambient light only, normals follow the rotation of an instance but not its scale,
-//! and the exposure multiplies the light, which surfaces reflect above 1 without clipping. Also
-//! what the renderer keeps from one frame to the next, with the same lit square: the targets follow
-//! the size of the output, the projection its aspect ratio, the instance buffer grows beyond its
-//! first size, and the statistics give the GPU time of each pass. Runs on whatever adapter the
-//! machine offers.
+//! and the exposure multiplies the light, which surfaces reflect above 1 without clipping, before
+//! the high-dynamic-range target is written (ADR-0037). Also what the renderer keeps from one frame
+//! to the next, with the same lit square: the targets follow the size of the output, the projection
+//! its aspect ratio, the instance buffer grows beyond its first size, and the statistics give the
+//! GPU time of each pass. Runs on whatever adapter the machine offers.
 
 #[path = "common/tone_curve.rs"]
 mod tone_curve;
@@ -254,6 +254,19 @@ fn the_exposure_multiplies_the_light_that_surfaces_reflect() {
         setup.exposed_center_red(bright, Mat4::IDENTITY, 0.25),
         setup.exposed_center_red(from_the_front(), Mat4::IDENTITY, 1.0),
         "a light of 4π at an exposure of 1/4 shows as a light of π at an exposure of 1"
+    );
+    // The exposure is applied before the high-dynamic-range target is written: under a light of
+    // 10⁶ π the square reflects about 970 000, far beyond the target's 65 504, and still shows at
+    // an exposure of 10⁻⁶ as under a light of π at 1. Exposed after the target, it would show the
+    // clamped light, 65 504 × 10⁻⁶, about 0.07.
+    let blinding = DirectionalLight {
+        color: Vec3::splat(1e6 * PI),
+        ..from_the_front()
+    };
+    assert_close(
+        setup.exposed_center_red(blinding, Mat4::IDENTITY, 1e-6),
+        fully_lit(),
+        "a light of 10⁶ π at an exposure of 10⁻⁶",
     );
 }
 

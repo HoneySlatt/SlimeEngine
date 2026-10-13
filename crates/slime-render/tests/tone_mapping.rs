@@ -1,8 +1,9 @@
 //! The scene drawn in high dynamic range and mapped to the output by the tone-mapping pass
 //! (ADR-0034), checked by reading back an `Rgba16Float` output. Known light reaches the
-//! tone-mapping pass as the background of a scene without instances (clear colors reach the
-//! driver unclamped, ADR-0033), and must come out as Khronos PBR Neutral gives it. Every input is
-//! exact in half precision. Runs on whatever adapter the machine offers.
+//! tone-mapping pass as the background of a scene without instances (clear colors reach the driver
+//! unclamped, ADR-0033), exposed by the renderer before the scene pass clears its target to it
+//! (ADR-0037), and must come out as Khronos PBR Neutral gives it. Every input is exact in half
+//! precision, but for the background beyond its range. Runs on whatever adapter the machine offers.
 
 #[path = "common/tone_curve.rs"]
 mod tone_curve;
@@ -126,6 +127,38 @@ fn the_exposure_multiplies_the_light_before_the_curve() {
             &format!("light {light} at an exposure of {exposure}"),
         );
     }
+}
+
+#[test]
+fn the_background_is_exposed_before_the_high_dynamic_range_target_and_kept_within_its_range() {
+    let gpu = gpu();
+    let mut renderer =
+        Renderer::new(&gpu, TextureFormat::Rgba16Float).expect("the renderer is created");
+    let output = gpu.create_render_target("output", 4, 4, TextureFormat::Rgba16Float);
+    // 10⁶, which half precision does not hold, at an exposure of 2⁻²⁰: 0.954, shown at 0.854.
+    // Exposed after the target, it would be stored as 65 504 and shown at 0.024, or stored as an
+    // infinity.
+    draw(&gpu, &mut renderer, &output, [1e6; 3], 2f32.powi(-20));
+    let image = gpu
+        .read_float_render_target(&output)
+        .expect("the image is read back");
+    let exposed = (1e6 * 2f64.powi(-20)) as f32;
+    assert_every_pixel(
+        &image,
+        tone_curve::tone_map([exposed; 3]),
+        "10⁶ at an exposure of 2⁻²⁰",
+    );
+    // Exposed light beyond 65 504 is stored as 65 504, as the scene shader writes surfaces, rather
+    // than left to the driver, which may store an infinity that the curve turns into NaN.
+    draw(&gpu, &mut renderer, &output, [1e5; 3], 1.0);
+    let image = gpu
+        .read_float_render_target(&output)
+        .expect("the image is read back");
+    assert_every_pixel(
+        &image,
+        tone_curve::tone_map([65_504.0; 3]),
+        "10⁵ at an exposure of 1",
+    );
 }
 
 #[test]
