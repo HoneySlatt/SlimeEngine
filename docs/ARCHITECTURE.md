@@ -17,7 +17,7 @@ it is built this way.
 │   ├── slime-devui/     dev overlay (egui), temporary tooling
 │   ├── slime-gfx/       GPU layer (wgpu)
 │   ├── slime-platform/  window, its events and input
-│   └── slime-render/    renderer: meshes, materials, camera, light, instances
+│   └── slime-render/    renderer: meshes, materials, camera, light, instances, HDR, tone mapping
 ├── deny.toml            dependency license, advisory and source rules
 ├── docs/                roadmap, plan, decisions (adr/), glossary, dependencies, this file
 ├── examples/            runnable examples, one per feature, with their tests (`slime-examples`)
@@ -43,7 +43,7 @@ is created only when code needs it.
 | [`slime-platform`](../crates/slime-platform/README.md) | The window, its events and keyboard and mouse input; the only crate that uses the windowing library (winit) | `winit`, `raw-window-handle`, `thiserror`, `tracing` | One window; window, keyboard and mouse events |
 | [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `slime-platform`, `slime-gfx`, `ctrlc`, `thiserror`, `tracing`, `tracing-subscriber` | Headless runs, and windowed runs drawn by the GPU |
 | [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu, apart from the dev overlay through its `wgpu` feature | `wgpu`, `pollster`, `raw-window-handle`, `thiserror`, `tracing` | Opens a GPU device; draws into offscreen images, 8-bit or 16-bit float, and reads them back; draws into a window; later passes sample what earlier ones drew; depth-only passes |
-| [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, lit by a directional light, seen from a camera, into render targets, and reports what a frame cost; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `glam`, `thiserror`, `tracing` | Meshes, materials with a base color and a texture, a perspective camera, the depth test, one directional light, statistics with the GPU time |
+| [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, lit by a directional light, seen from a camera, into render targets, and reports what a frame cost; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `glam`, `thiserror`, `tracing` | Meshes, materials with a base color and a texture, a perspective camera, the depth test, one directional light, the scene drawn in HDR and tone mapped with an exposure, statistics with the GPU time of each pass |
 | [`slime-devui`](../crates/slime-devui/README.md) | The dev overlay: egui drawn over the engine's frames, fed with the engine's events; temporary tooling until the editor's UI framework exists | `egui`, `egui-wgpu`, `slime-gfx` (with its `wgpu` feature), `slime-platform` | Panels over a frame; no modifier keys, clipboard or input methods |
 | [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `gltf`, `png`, `tracing` | `hello`, `headless`, `window`, `offscreen`, `scene`; the reference image tests; a temporary glTF loader |
 
@@ -254,32 +254,39 @@ reference PNG within a tolerance ([ADR-0018](adr/0018-reference-image-tests.md))
 
 `slime-render` draws meshes with the objects above. The application builds a `Scene` for each
 frame, a flat list of instances seen from a camera, and the renderer draws it into any render
-target, the window's image or an offscreen one
+target, the window's image or an offscreen one, in two passes: the scene in high dynamic range,
+then tone mapping into the target
 ([`crates/slime-render/src/renderer.rs`](../crates/slime-render/src/renderer.rs), rules:
-[ADR-0027](adr/0027-the-render-crate.md)):
+[ADR-0027](adr/0027-the-render-crate.md), [ADR-0034](adr/0034-hdr-rendering-and-tone-mapping.md)):
 
 ```text
-renderer = Renderer::new(&gpu, format)                 the shader, the pipeline (depth test, back-
-│                                                      face culling), the bind group layouts
+renderer = Renderer::new(&gpu, format)                 the output's format; two shaders and two
+│                                                      pipelines: the scene's (depth test, back-
+│                                                      face culling, into Rgba16Float) and the
+│                                                      tone-mapping's (a fullscreen triangle)
 ├── create_mesh(&gpu, label, &MeshData)                vertex and index buffers, after a check
 ├── create_material(&gpu, label, &MaterialData)        a uniform buffer, the texture and sampler
 │                                                      (one white pixel without), in a bind group
-└── render(&gpu, &target, &Scene { camera, light, clear, instances }) → RenderStats
-    ├── the depth target, created at the target's size, again when it changes
+└── render(&gpu, &target, &Scene { camera, light, clear, exposure, instances }) → RenderStats
+    ├── the HDR target (Rgba16Float), the depth target and the group that reads the HDR target,
+    │   created at the target's size, again together when it changes
     ├── the frame uniform ← camera.view_projection(aspect), the light  bind group 0
     ├── the instance buffer ← each instance's transform and normal     bind group 2, one dynamic
     │   matrix, one slot each, at the device's alignment; grows when   offset per instance
     │   a scene needs it
-    ├── one render pass, cleared, timed by a GpuTimer when the adapter
-    │   can: for each instance, its material's bind group 1, its
+    ├── the scene pass into the HDR target, cleared to the scene's background, timed by a
+    │   GpuTimer when the adapter can: for each instance, its material's bind group 1, its
     │   slot, its buffers, draw_indexed
-    └── RenderStats: draw calls, triangles, the CPU time of this call, and the GPU time of a
-        pass a few frames old, the latest that came back
+    ├── the tone-mapping pass into the target, timed by a GpuTimer of its own: one fullscreen
+    │   triangle reads each pixel's texel (textureLoad), multiplies it by the exposure, applies
+    │   Khronos PBR Neutral and writes it opaque; an sRGB target encodes it
+    └── RenderStats: the scene pass's draw calls and triangles, the CPU time of this call, and
+        the GPU time of each pass, a few frames old, the latest that came back
 ```
 
 The dev overlay ([`crates/slime-devui/src/lib.rs`](../crates/slime-devui/src/lib.rs),
-[ADR-0031](adr/0031-dev-overlay-with-egui.md)) draws after the scene, in a pass that keeps the
-target: the application hands it every window event, which it translates into egui's, and in
+[ADR-0031](adr/0031-dev-overlay-with-egui.md)) draws after the tone-mapping pass, in the output,
+in a pass that keeps the target: the application hands it every window event, which it translates into egui's, and in
 `render` builds its panels with egui and lets egui's wgpu renderer draw them, through the wgpu
 objects that the `wgpu` feature of `slime-gfx` gives.
 
@@ -289,12 +296,15 @@ cofactor matrix of its 3 × 3 part, proportional to the inverse transpose, so th
 perpendicular to surfaces scaled unevenly, and finite for a mesh flattened along one axis); each
 fragment is lit by the scene's directional light in proportion to the cosine between its normal
 and the direction to the light (Lambert), plus the ambient light, times its material's base color
-and its texture, read at the texture coordinates of the vertex. The examples' temporary glTF loader
+and its texture, read at the texture coordinates of the vertex; the tone-mapping shader
+([`tone_mapping.wgsl`](../crates/slime-render/src/tone_mapping.wgsl)) then multiplies that light
+by the exposure and maps it to the display's range. The examples' temporary glTF loader
 ([`examples/common/gltf.rs`](../examples/common/gltf.rs),
 [ADR-0029](adr/0029-temporary-gltf-loading.md)) builds `MeshData`, materials and textures from a
 GLB file this way, and flattens its node hierarchy into instances. Conventions: world space is
 right-handed with +Y up, the camera looks down −Z, front faces wind counter-clockwise, depth runs
-from 0 to 1, colors are linear and the sRGB target encodes them.
+from 0 to 1, colors are linear light, drawn in high dynamic range, tone mapped (ADR-0034), then
+encoded by the output's format.
 
 ### Rendering in a window
 

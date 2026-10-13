@@ -13,14 +13,14 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3b — Physically based renderer → 0.1: in progress. Planned on 2026-10-13 and validated by
-  the owner. M3b.1 is done; next: M3b.2.
+  the owner. M3b.1 is done; M3b.2 is implemented and waits for its Windows CI run.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
 | [M3b.1](#m3b1--gpu-layer-for-multi-pass-rendering) | GPU layer for multi-pass rendering | Done |
-| [M3b.2](#m3b2--hdr-rendering-and-tone-mapping) | HDR rendering and tone mapping | Planned |
+| [M3b.2](#m3b2--hdr-rendering-and-tone-mapping) | HDR rendering and tone mapping | In progress |
 | [M3b.3](#m3b3--physically-based-materials) | Physically based materials | Planned |
 | [M3b.4](#m3b4--light-types) | Light types | Planned |
 | [M3b.5](#m3b5--shadows) | Shadows | Planned |
@@ -161,6 +161,22 @@ sample, tests included, and must stay small; upgrading wgpu still waits for egui
   and in a screenshot of the headless Weston; the owner ran `scene.exe` in the Windows virtual
   machine.
 - **How to test.** `cargo run --example scene`; `cargo test -p slime-examples`.
+- **Checked** on 2026-10-13: ADR-0034 records the operator (Khronos PBR Neutral), the place of the
+  exposure and the alternatives rejected. `crates/slime-render/tests/tone_mapping.rs` (the tests'
+  copy of the curve against nine values derived by hand from the specification; the pass itself,
+  read back from an `Rgba16Float` output within 0.001; the exposure applied before the curve; the
+  targets following the output through three sizes; an sRGB output encoding the tone-mapped
+  light), the lighting and material tests, whose expected values now go through the curve, and
+  the new lighting tests (the exposure scaling the light that surfaces reflect, the projection
+  following a 64 × 32 output, the GPU time of each pass) pass on lavapipe and on the owner's
+  RX 6900 XT (RADV). The references of the image tests were rendered again on lavapipe and looked
+  at: lavapipe matches them with no channel off by more than 2. On RADV, `gltf-front` has 121
+  pixels off by more than 2 in a channel, 8 by more than 4, and differs by at most 7; `gltf-back` 26, 1, at
+  most 5; `shapes` 612, 302, 50 off by more than 8 (65 allowed, 14 at 0.0.3) and one by more than
+  16, at most 19: the curve steepens the differences in edge pixels that 0.0.3 already had. In the
+  lighting test, the scene pass took 7.2 µs and the tone-mapping pass 2.2 µs on RADV. The `scene`
+  example ran 400 frames in a headless Weston at 1280 × 720 on lavapipe, each pass taking 0.8 to
+  0.9 ms, and a screenshot of it was looked at; it was not run by eye on niri.
 
 ### M3b.3 — Physically based materials
 
@@ -404,8 +420,10 @@ GitHub issues, linked from their entry; this list stays the reference.
   of its own (ADR-0032). To move to the GPU, or to the asset pipeline of Stage 4, if textures
   grow.
 - **Every offscreen render target and depth target can be sampled** (ADR-0033): they all carry the
-  usage that allows it, which may cost some compression on some GPUs. Not measured; to compare
-  with the GPU times of 0.0.3 at M3b.2 and M3b.5.
+  usage that allows it, which may cost some compression on some GPUs. Not measured: from M3b.2
+  on, the scene is drawn into a target of 8 bytes per pixel instead of 4, so its GPU time no
+  longer isolates the cost of the usage. A measurement needs two builds that differ only by it;
+  to take at M3b.5, when the shadow map is the first depth target sampled.
 - **A pipeline that does not fit its pass, or a target sampled by the pass that draws into it,
   panics only when the pass ends** inside `Gpu::render` or `Gpu::render_depth`, with wgpu's
   message, rather than at the faulty call (ADR-0033).
@@ -532,6 +550,17 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **Double-sided and masked glTF materials are drawn back-face culled and opaque until M3b.3.**
   Every material of the sample asset is double-sided, and its floor disappears when the camera
   goes below it.
+- **Shadowed surfaces and the background look darker than authored until image-based lighting**
+  (ADR-0034). The tone-mapping curve lowers dark colors, on the assumption that every surface
+  reflects some of its surroundings, which image-based lighting adds at M3b.6. Until then, the
+  samples' background, (63, 69, 80) as authored, shows as (34, 44, 60), and surfaces lit by the
+  ambient light alone keep half of their light or less.
+- **Light beyond 65 504 overflows the HDR target** (ADR-0034; a change is proposed to the owner
+  for M3b.4). The exposure is applied after the scene pass has written the `Rgba16Float` target,
+  whose largest value is 65 504: a brighter channel is stored as an infinity, which the curve
+  turns into NaN. No light of the engine is that bright yet; with the units of M3b.4 (lux and
+  candela), a highlight of the sun is. Applying the exposure in the scene pass instead
+  (pre-exposure) keeps the target in range, but departs from the plan as validated.
 - **glTF minification filters are approximated.** `slime-gfx` ties mip blending to the
   minification filter and gives every texture mipmaps, so only `NEAREST_MIPMAP_NEAREST` and
   `LINEAR_MIPMAP_LINEAR` are exact (documented in the loader). Revisit when an engine-side user

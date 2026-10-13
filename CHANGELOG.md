@@ -21,9 +21,22 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   texture, a render target, a depth target or a window's image (8192 with the default limits),
   and the largest buffer (256 MiB). A loader checks the images and meshes of a file against them
   before creating them, as the examples' glTF loader does.
+- HDR rendering and tone mapping in `slime-render`
+  ([ADR-0034](docs/adr/0034-hdr-rendering-and-tone-mapping.md)): the scene is drawn into a 16-bit
+  floating-point target with its depth target, both following the output's size, then a
+  tone-mapping pass multiplies it by `Scene::exposure` and maps it to the output with Khronos PBR
+  Neutral, which keeps authored base colors and hues and compresses highlights instead of
+  clipping them. `RenderStats::scene_gpu_time` and `RenderStats::tone_mapping_gpu_time` give the
+  GPU time of each pass. The `scene` example shows both and has an exposure slider.
 
 ### Changed
 
+- `RenderStats::gpu_time` is replaced by `scene_gpu_time` and `tone_mapping_gpu_time`; `Scene`
+  has a new field, `exposure`; `Renderer::new` takes the output's format, any render-target
+  format. Images change: a white surface lit by a light of 1 shows as 240 instead of 255,
+  mid-tones lose 0.04 (0.5 shows as 181 instead of 188), highlights no longer clip, and dark
+  colors are darker and more saturated (the samples' background shows as (34, 44, 60) instead of
+  (63, 69, 80)).
 - `RenderPipelineDescriptor::vertex_layout` is an `Option`, and `fragment: Option<FragmentState>`
   replaces `fragment_entry_point` and `target_format`. `DepthState` gains `bias` and is no longer
   `Eq` or `Hash`. Offscreen render targets and depth targets carry the usage that lets shaders

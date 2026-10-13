@@ -80,6 +80,11 @@ GPU objects of `slime_gfx` hold wgpu's, `slime_platform::Window` holds winit's
 
 **Example.** A runnable program in the `examples/` directory that demonstrates one feature.
 
+**Exposure.** What the scene's light is multiplied by before *tone mapping*
+(`slime_render::Scene::exposure`): a linear factor; 1 leaves it as it is, 2 is one photographic
+stop brighter. The tone-mapping pass applies it
+([ADR-0034](adr/0034-hdr-rendering-and-tone-mapping.md)).
+
 **Fixed step.** A duration of time, constant for a run, in which code that must not depend on
 the frame rate advances (`slime_app::time::FixedStep`). A frame runs zero or more fixed steps.
 
@@ -103,7 +108,8 @@ the asset pipeline of Stage 4 will import them.
 **GPU time.** How long the GPU took to run a render pass, measured by timestamps written at its
 start and its end (`slime_gfx::GpuTimer`) and read back a few frames later; `None` on adapters
 without timestamp queries. Each timed pass has a `GpuTimer` of its own. The renderer's statistics
-report it with the CPU time of the call (`slime_render::RenderStats`).
+report one per pass (`scene_gpu_time`, `tone_mapping_gpu_time`) with the CPU time of the call
+(`slime_render::RenderStats`).
 
 **Graphics API.** The interface between programs and GPU drivers: Vulkan (the engine's choice on
 Linux) and Direct3D 12 (on Windows). wgpu translates the engine's calls into one of them.
@@ -116,8 +122,9 @@ values up to ±65 504. The channels of `Rgba16Float` render targets, which the e
 configuration, used by automated tests and, later, by dedicated servers.
 
 **High dynamic range (HDR).** Colors not limited to 0 to 1, such as the light a scene reflects
-before it is mapped to the display's range by tone mapping. The engine draws them into
-`Rgba16Float` render targets.
+before it is mapped to the display's range by *tone mapping*. The engine draws them into
+`Rgba16Float` render targets: the renderer draws the scene into one at the output's size, which
+its tone-mapping pass reads.
 
 **Image test.** A test that renders offscreen and compares the result with a *reference image*,
 pixel by pixel, within a tolerance that absorbs how drivers round colors and filter textures
@@ -228,8 +235,8 @@ one.
 edges (repeat, mirror or clamp) (`slime_gfx::Sampler`).
 
 **Scene (render).** What the renderer draws in one frame: a camera, a directional light, a
-clear color and *instances* (`slime_render::Scene`). Not a scene graph: the renderer keeps nothing between frames,
-and the world model of Stage 5 will produce such scenes.
+clear color, an *exposure* and *instances* (`slime_render::Scene`). Not a scene graph: the
+renderer keeps nothing between frames, and the world model of Stage 5 will produce such scenes.
 
 **Shadow map.** A *depth target* drawn from a light's point of view by a *depth-only pass*: a
 point is in shadow where something nearer to the light is stored at its place in the map.
@@ -262,6 +269,12 @@ stops a run cleanly; a second one ends the process at once
 two of them, around a render pass, give its *GPU time* (`slime_gfx::GpuTimer`). Optional: the
 device asks for it only when the adapter offers it (`Gpu::can_time`,
 [ADR-0031](adr/0031-dev-overlay-with-egui.md)).
+
+**Tone mapping.** Mapping the *HDR* colors of a scene to the range a display shows, 0 to 1, with a
+curve that compresses highlights instead of clipping them. The renderer's tone-mapping pass draws
+a *fullscreen triangle* that applies Khronos PBR Neutral, the default of the Khronos glTF Sample
+Viewer, which keeps authored base colors and hues
+([ADR-0034](adr/0034-hdr-rendering-and-tone-mapping.md)).
 
 **Tooling (engine's).** Code that serves development and ships with no game: the dev *overlay*
 today. It alone may reach wgpu, through the `wgpu` feature of `slime-gfx`

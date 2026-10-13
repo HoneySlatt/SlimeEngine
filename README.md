@@ -16,9 +16,10 @@ the GPU device is lost. Its first renderer, `slime-render`, draws instances of m
 camera, with a depth test, each with a material of one base color, which a texture with mipmaps
 may modulate, lit by a directional light, into the window or into offscreen images that image
 tests compare with references; the `scene` example draws a glTF scene under a camera driven by
-the mouse, with its frame, CPU and GPU times in a dev overlay. Stage 3b, the physically based
-renderer, is in progress. [`docs/PLAN.md`](docs/PLAN.md) lists what comes next and the known
-debt.
+the mouse, with its frame time, CPU time, the GPU time of each pass and an exposure slider in a
+dev overlay. Stage 3b, the physically based renderer, is in progress: the renderer draws the scene
+in high dynamic range and maps it to the display with a tone-mapping pass and an exposure.
+[`docs/PLAN.md`](docs/PLAN.md) lists what comes next and the known debt.
 
 ## Getting started
 
