@@ -175,7 +175,18 @@ sample, tests included, and must stay small; upgrading wgpu still waits for egui
   reads all of it, creates each texture in its slot's format, and reads tangents or computes them;
   `make_scene.py` draws the new textures and exports tangents; the shapes of the image test gain
   spheres of increasing metallic and roughness. ADR: physically based materials (amends 0027 and
-  0029).
+  0029). The pipeline is chosen per draw from the material's double-sidedness and from the sign of
+  the determinant of the instance's transform (no culling, or culling the back or the front
+  faces), so that mirrored instances keep their front faces, as glTF does; the examples' loader
+  then stops reversing the winding of mirrored nodes (see the known debt). The lists in ADR-0029
+  of what the loader reads, refuses and warns about predate several of its current checks: images
+  larger than the GPU accepts, primitives too large for its buffers, malformed image data and
+  accessors, node hierarchies that are not trees, the vertex-color warning, the reversed winding
+  of mirrored nodes, and the minification filters it approximates. Until this milestone's ADR
+  brings them up to date, the module comment of `examples/common/gltf.rs` is authoritative.
+  Tangents make the renderer's vertex larger than 32 bytes, so the `# Errors` section of
+  `Renderer::create_mesh`, which gives the largest mesh in vertices, and the loader's
+  `check_buffer_sizes`, which repeats that size, change with them.
 - **Done when.** Tests that read pixels back: a white dielectric lit at normal incidence gives the
   value the BRDF predicts, computed in the test; a rougher surface spreads its highlight; a metal
   reflects in its base color; a normal map tilts the shading as a tilted surface would; a masked
