@@ -1,11 +1,17 @@
 //! Lighting, checked by reading pixels back: a surface facing the light is fully lit, one facing
 //! away gets the ambient light only, and normals follow the rotation of an instance but not its
-//! scale. Runs on whatever adapter the machine offers.
+//! scale. Also what the renderer keeps from one frame to the next, with the same lit square: the
+//! depth target follows the size of the target, the instance buffer grows beyond its first
+//! size, and the statistics give the GPU time of a frame. Runs on whatever adapter the machine
+//! offers.
+
+use std::time::Duration;
 
 use slime_gfx::{Color, Gpu, Image, TextureFormat};
 use slime_render::glam::{Mat4, Vec3};
 use slime_render::{
-    Camera, DirectionalLight, Instance, Material, MaterialData, Mesh, MeshData, Renderer, Scene,
+    Camera, DirectionalLight, Instance, Material, MaterialData, Mesh, MeshData, RenderStats,
+    Renderer, Scene,
 };
 
 const SIZE: u32 = 16;
@@ -59,19 +65,34 @@ impl Setup {
     /// Draws the square with `transform` under `light`, seen from +Z, and returns the red channel
     /// of the center pixel, sRGB-encoded.
     fn center_red(&mut self, light: DirectionalLight, transform: Mat4) -> u8 {
+        self.draw(light, &[transform], (SIZE, SIZE)).0
+    }
+
+    /// Draws an instance of the square for each of `transforms` under `light`, seen from +Z, into
+    /// a target of `width` × `height` pixels, and returns the red channel of the center pixel,
+    /// sRGB-encoded, and the statistics of the frame.
+    fn draw(
+        &mut self,
+        light: DirectionalLight,
+        transforms: &[Mat4],
+        (width, height): (u32, u32),
+    ) -> (u8, RenderStats) {
         let target =
             self.gpu
-                .create_render_target("lighting", SIZE, SIZE, TextureFormat::Rgba8UnormSrgb);
+                .create_render_target("lighting", width, height, TextureFormat::Rgba8UnormSrgb);
         let camera = Camera {
             eye: Vec3::new(0.0, 0.0, 3.0),
             ..Camera::default()
         };
-        let instances = [Instance {
-            mesh: &self.square,
-            material: &self.white,
-            transform,
-        }];
-        self.renderer.render(
+        let instances: Vec<Instance<'_>> = transforms
+            .iter()
+            .map(|&transform| Instance {
+                mesh: &self.square,
+                material: &self.white,
+                transform,
+            })
+            .collect();
+        let stats = self.renderer.render(
             &self.gpu,
             &target,
             &Scene {
@@ -85,8 +106,8 @@ impl Setup {
             .gpu
             .read_render_target(&target)
             .expect("the image is read back");
-        let center = ((SIZE / 2 * SIZE + SIZE / 2) * 4) as usize;
-        image.pixels[center]
+        let center = ((height / 2 * width + width / 2) * 4) as usize;
+        (image.pixels[center], stats)
     }
 }
 
@@ -165,4 +186,63 @@ fn normals_follow_the_rotation_of_the_instance_but_not_its_scale() {
         255,
         "flattened along its normal",
     );
+}
+
+#[test]
+fn the_depth_target_follows_the_size_of_the_target() {
+    let mut setup = Setup::new();
+    // Only the height changes, then only the width, then both: a depth target of another size
+    // would make the pass panic.
+    for size in [(16, 16), (16, 8), (8, 8), (16, 16)] {
+        let (red, _) = setup.draw(from_the_front(), &[Mat4::IDENTITY], size);
+        assert_close(red, 255, &format!("a {size:?} target"));
+    }
+}
+
+#[test]
+fn instances_beyond_the_first_instance_buffer_are_drawn_where_they_are() {
+    let mut setup = Setup::new();
+    assert_close(
+        setup.center_red(from_the_front(), Mat4::IDENTITY),
+        255,
+        "one instance",
+    );
+    // A hundred instances, more than the 64 the instance buffer starts with: all but the last
+    // are flattened to a point, so the center is lit only if the last one, in a slot of the grown
+    // buffer, gets its own transform.
+    let point = Mat4::from_scale(Vec3::ZERO);
+    let mut transforms = vec![point; 99];
+    transforms.push(Mat4::IDENTITY);
+    let (red, stats) = setup.draw(from_the_front(), &transforms, (SIZE, SIZE));
+    assert_eq!(stats.draw_calls, 100);
+    assert_close(red, 255, "the last of 100 instances");
+    // Fewer instances again, in the grown buffer.
+    let (red, _) = setup.draw(
+        from_the_front(),
+        &[point, Mat4::IDENTITY, point],
+        (SIZE, SIZE),
+    );
+    assert_close(red, 255, "the second of 3 instances");
+}
+
+#[test]
+fn the_statistics_give_the_gpu_time_on_adapters_that_can_time_their_work() {
+    let mut setup = Setup::new();
+    let mut gpu_time = None;
+    for _frame in 0..8 {
+        let (_, stats) = setup.draw(from_the_front(), &[Mat4::IDENTITY], (SIZE, SIZE));
+        assert_eq!((stats.draw_calls, stats.triangles), (1, 2));
+        gpu_time = stats.gpu_time;
+        if gpu_time.is_some() {
+            break;
+        }
+        // Waiting is not needed to get a time back, but makes the test deterministic.
+        setup.gpu.wait_idle().expect("the GPU finishes the frame");
+    }
+    if setup.gpu.can_time() {
+        let time = gpu_time.expect("the GPU time of a frame comes back within a few frames");
+        assert!(time < Duration::from_secs(1), "{time:?}");
+    } else {
+        assert_eq!(gpu_time, None, "an adapter that cannot time gives no time");
+    }
 }
