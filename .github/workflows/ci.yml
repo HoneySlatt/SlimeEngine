@@ -69,10 +69,10 @@ jobs:
           RUSTFLAGS: -C target-feature=+crt-static
       - name: Check that the examples do not import the Visual C++ runtime
         run: |
-          if (Select-String -Path target/release/examples/*.exe -Pattern 'VCRUNTIME140' -SimpleMatch -Quiet) {
-            Write-Error 'an example imports VCRUNTIME140.dll'
+          if grep -l -a -i 'vcruntime140' target/release/examples/*.exe; then
+            echo 'these examples import VCRUNTIME140.dll'
             exit 1
-          }
+          fi
       - name: Run the headless samples of the release build
         run: |
           target/release/examples/headless.exe --frames 600
