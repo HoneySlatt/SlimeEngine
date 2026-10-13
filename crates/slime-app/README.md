@@ -145,12 +145,16 @@ if let Err(error) = slime_app::run(&mut Game, &config) {
 
 Engine code and games log through the `tracing` macros. The conventions for errors, log levels and
 assertions are in `docs/adr/0008-errors-logging-and-assertions.md`; why the engine owns the main
-loop is in `docs/adr/0010-main-loop-ownership.md`. With `SLIME_LOG=trace`, each frame's profiling
-spans are logged with the time spent in them: `frame`, containing `fixed_update`, `update`, and
-with a window `acquire` (waiting for the window's image), `render` (with `submit`, recorded by
-`slime-gfx`) and `present`. In GPU capture tools such as RenderDoc, the render passes that draw
-the window's image of each frame, and their command buffers, are named `window, frame <index>`,
-the index of the `frame` span; the image itself keeps the name the graphics API gives it.
+loop is in `docs/adr/0010-main-loop-ownership.md`. With
+`SLIME_LOG=slime_app=trace,slime_gfx=trace`, each frame's profiling spans are logged with the time
+spent in them: `frame`, containing `fixed_update`, `update`, and with a window `acquire` (waiting
+for the window's image), `render` (with `submit`, recorded by `slime-gfx`) and `present`. A bare
+`SLIME_LOG=trace` logs them too, but also turns on the trace logs of wgpu and of its shader
+compiler, among them a line for each command of each draw, written while a pass is encoded: they
+flood standard error, and the time spent writing them counts in the spans. In GPU capture tools
+such as RenderDoc, the render passes that draw the window's image of each frame, and their command
+buffers, are named `window, frame <index>`, the index of the `frame` span; the image itself keeps
+the name the graphics API gives it.
 
 ## Dependencies
 
