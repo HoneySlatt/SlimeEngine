@@ -13,10 +13,10 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3b — Physically based renderer → 0.1: in progress. Planned on 2026-10-13 and validated by
-  the owner. M3b.1, M3b.2 and M3b.3 are done. The owner's decisions of 2026-10-13 on earlier
-  proposals are applied, and the findings of rounds 4 and 5 of the audit of 0.0.3 (issue
-  [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are fixed or recorded below. M3b.4 is
-  implemented and checked (ADR-0037) and awaits the owner's look at the sample; next: M3b.5.
+  the owner. M3b.1 to M3b.4 are done. The owner's decisions of 2026-10-13 on earlier proposals are
+  applied, and the findings of rounds 4 and 5 of the audit of 0.0.3 (issue
+  [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are fixed or recorded below; next:
+  M3b.5.
 
 ## Status
 
@@ -25,7 +25,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M3b.1](#m3b1--gpu-layer-for-multi-pass-rendering) | GPU layer for multi-pass rendering | Done |
 | [M3b.2](#m3b2--hdr-rendering-and-tone-mapping) | HDR rendering and tone mapping | Done |
 | [M3b.3](#m3b3--physically-based-materials) | Physically based materials | Done |
-| [M3b.4](#m3b4--light-types) | Light types | Awaiting the owner |
+| [M3b.4](#m3b4--light-types) | Light types | Done |
 | [M3b.5](#m3b5--shadows) | Shadows | Planned |
 | [M3b.6](#m3b6--image-based-lighting) | Image-based lighting | Planned |
 | [M3b.7](#m3b7--bloom) | Bloom | Planned |
@@ -302,7 +302,12 @@ sample, tests included, and must stay small; upgrading wgpu still waits for egui
   `make_scene.py`, is 128 400 bytes and holds the three lights as designed. The `scene` example ran
   400 frames in a headless Weston at 1280 × 720 on lavapipe (scene pass 1.7 ms, tone mapping 1.0
   ms), and a screenshot was looked at: the ring's teal light on the floor, the crate and the pillar,
-  the spot on the wall, the slider at EV100 14.7.
+  the spot on the wall, the slider at EV100 14.7. In the Windows CI job, on WARP, every test passes,
+  so FXC compiles the loop over the lights, and the references differ by at most 4 (`gltf-front`: 48
+  pixels off by more than 2, none by more than 4; `gltf-back`: 15 and 0; `shapes`: 48 and 0); the
+  job took 7 minutes 12 seconds, the Linux one 3 minutes 22 seconds. The owner looked at the sample
+  on the desktop on 2026-10-13: it looks right; the scene pass took 0.090 ms and the tone-mapping
+  pass 0.036 ms there (RADV, 3816 × 2082).
 
 ### M3b.5 — Shadows
 
