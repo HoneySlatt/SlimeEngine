@@ -286,10 +286,14 @@ justify a decision are also in its ADR.
 
 ## Known debt
 
-- **Frames are not synchronized with the display's refresh** (ADR-0021). With Mailbox, the
-  default, the schedule alone paces frames: on a 60 Hz display, an image is now and then shown
-  twice while the next one is dropped. Aligning frames on the compositor's frame callbacks is to
-  reconsider when a renderer draws real scenes.
+Limitations known and accepted for now. The ones that a contributor could take on alone are also
+GitHub issues, linked from their entry; this list stays the reference.
+
+- **Frames are not synchronized with the display's refresh** (ADR-0021; issue
+  [#1](https://github.com/HoneySlatt/SlimeEngine/issues/1)). With Mailbox, the default, the
+  schedule alone paces frames: on a 60 Hz display, an image is now and then shown twice while the
+  next one is dropped. Aligning frames on the compositor's frame callbacks is to reconsider when a
+  renderer draws real scenes.
 - **Without Mailbox, presenting can still stall the loop.** Windows that do not offer it, and
   applications that choose `PresentMode::Fifo`, wait for the display: one frame per second for a
   hidden window on niri. In a headless Weston with lavapipe, `acquire` waits for Weston's frame
@@ -306,8 +310,9 @@ justify a decision are also in its ADR.
   the loss of the device (ADR-0022). The engine avoids the rejections that the environment can
   cause: a window larger than the device's largest image is drawn at that size (`Surface::resize`),
   and a shader or pipeline that the driver rejects is returned as an error.
-- **A lost GPU device is not replaced** (ADR-0022): the run stops with an error, and since winit
-  allows one event loop per process, carrying on means starting the process again.
+- **A lost GPU device is not replaced** (ADR-0022; issue
+  [#2](https://github.com/HoneySlatt/SlimeEngine/issues/2)): the run stops with an error, and
+  since winit allows one event loop per process, carrying on means starting the process again.
 - **Captures in RenderDoc were not tried on Windows** (Direct3D 12).
 - **Frames pause on Windows while the user moves the window, holds its title bar or a border, or
   opens the system menu**: the system then runs a loop of its own, in which no redraw arrives and
@@ -321,9 +326,10 @@ justify a decision are also in its ADR.
   crate (ADR-0011).
 - **Only `App::init` can return an error** (ADR-0020). An application that hits an error in
   another method logs it and requests an exit.
-- **Input not reported yet:** the state of the modifier keys as a whole, input-method text,
-  touch, touchpad gestures, gamepads, dropped files. The dev overlay feels it too: egui gets no
-  modifiers, so shortcuts with Ctrl or Shift, and selecting text with Shift, do not work in it.
+- **Input not reported yet** (issue [#3](https://github.com/HoneySlatt/SlimeEngine/issues/3)):
+  the state of the modifier keys as a whole, input-method text, touch, touchpad gestures,
+  gamepads, dropped files. The dev overlay feels it too: egui gets no modifiers, so shortcuts with
+  Ctrl or Shift, and selecting text with Shift, do not work in it.
 - **The interpolation factor is not passed to applications.** `FixedStep::alpha` computes it, but
   `run` keeps its `FixedStep` private, so an application cannot interpolate between fixed steps
   yet. To expose when a renderer needs it.
