@@ -19,10 +19,11 @@ and someone must compute them: the caller, the engine on the CPU, or the engine 
   to one pixel. A sampler reads the level that fits; with linear filtering it blends the two
   nearest levels, with nearest filtering it picks one (`Filter`, `SamplerDescriptor`).
 - **The engine computes them on the CPU when the texture is created** (`Gpu::create_texture`):
-  each pixel of a level is the average of the four it replaces in the level before, computed in
-  linear light for the sRGB formats (decoded, averaged, encoded again), and every level is
-  uploaded with the texture. The caller gives the base level only and cannot give levels of its
-  own.
+  each pixel of a level is the average of the pixels it replaces in the level before (four, or,
+  along a side of odd length, three in that direction, weighted by how much of each it covers),
+  computed in linear light for the sRGB formats (decoded, averaged, encoded again), and every
+  level is uploaded with the texture. The caller gives the base level only and cannot give levels
+  of its own.
 
 This amends [ADR-0026](0026-resource-binding-and-depth.md): the textures it left to the
 milestone that needed them come with mipmaps that the engine computes.
@@ -42,8 +43,8 @@ milestone that needed them come with mipmaps that the engine computes.
 ## Consequences
 
 - Creating a texture does work proportional to its pixels on the calling thread: the levels
-  together hold a third as many pixels as the base level, each read from four. Recorded in the
-  known debt of `docs/PLAN.md`.
+  together hold a third as many pixels as the base level, each read from four (up to nine where
+  a side has an odd length). Recorded in the known debt of `docs/PLAN.md`.
 - Drivers blend levels differently where a minified texture changes level: the image tests
   differ more from the lavapipe references on other drivers, which is why
   [ADR-0030](0030-image-tests-strict-on-the-reference-driver.md) loosened their tolerance there.

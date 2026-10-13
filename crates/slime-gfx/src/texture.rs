@@ -44,9 +44,10 @@ impl Gpu {
     /// Creates a texture of `width` × `height` pixels holding `pixels`: rows from top to bottom,
     /// 4 bytes per pixel in the byte order of `format` (red, green, blue, alpha for the RGBA
     /// formats). Shaders read sRGB formats decoded to linear values, and linear formats as they
-    /// are. The levels of detail are computed from `pixels`, each pixel the average of four of the
-    /// level before, in linear light for the sRGB formats. `label` names the texture in error
-    /// messages and in GPU capture tools.
+    /// are. The levels of detail are computed from `pixels`, each pixel the average of the pixels
+    /// it covers in the level before, in linear light for the sRGB formats: four, or, where a side
+    /// of that level has an odd length, three along that side, weighted by how much of each it
+    /// covers. `label` names the texture in error messages and in GPU capture tools.
     ///
     /// # Panics
     ///
@@ -137,44 +138,80 @@ struct Level<'a> {
 }
 
 impl Level<'_> {
-    /// The next level: half the size, each pixel the average of the four it replaces (of the
-    /// pixel itself and its neighbours, at an odd edge). sRGB values are averaged in linear light.
+    /// The next level: half the size, rounded down, as wgpu sizes levels; each pixel the average
+    /// of the pixels of this level it covers, each counted by how much of it is covered (see
+    /// [`footprints`]), so that every pixel of this level counts. sRGB values are averaged in
+    /// linear light.
     fn halved(&self, srgb: bool) -> Level<'static> {
-        let (width, height) = ((self.width / 2).max(1), (self.height / 2).max(1));
-        let mut pixels = Vec::with_capacity(width as usize * height as usize * 4);
-        for y in 0..height {
-            for x in 0..width {
+        let columns = footprints(self.width);
+        let rows = footprints(self.height);
+        let mut pixels = Vec::with_capacity(columns.len() * rows.len() * 4);
+        for row in &rows {
+            for column in &columns {
                 let mut sum = [0.0f32; 4];
-                for (dx, dy) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
-                    let source_x = (2 * x + dx).min(self.width - 1);
-                    let source_y = (2 * y + dy).min(self.height - 1);
-                    let start = ((source_y * self.width + source_x) * 4) as usize;
-                    let pixel = &self.pixels[start..start + 4];
-                    for (total, &value) in sum.iter_mut().zip(pixel).take(3) {
-                        *total += if srgb {
-                            SRGB_TO_LINEAR[value as usize]
-                        } else {
-                            f32::from(value) / 255.0
-                        };
+                for &(source_y, weight_y) in row {
+                    for &(source_x, weight_x) in column {
+                        let weight = weight_x * weight_y;
+                        let start = ((source_y * self.width + source_x) * 4) as usize;
+                        let pixel = &self.pixels[start..start + 4];
+                        for (total, &value) in sum.iter_mut().zip(pixel).take(3) {
+                            *total += weight
+                                * if srgb {
+                                    SRGB_TO_LINEAR[value as usize]
+                                } else {
+                                    f32::from(value) / 255.0
+                                };
+                        }
+                        sum[3] += weight * f32::from(pixel[3]) / 255.0;
                     }
-                    sum[3] += f32::from(pixel[3]) / 255.0;
                 }
-                for &total in &sum[..3] {
-                    let average = total / 4.0;
+                for &average in &sum[..3] {
                     pixels.push(if srgb {
                         linear_to_srgb(average)
                     } else {
                         unit_to_byte(average)
                     });
                 }
-                pixels.push(unit_to_byte(sum[3] / 4.0));
+                pixels.push(unit_to_byte(sum[3]));
             }
         }
         Level {
-            width,
-            height,
+            width: columns.len() as u32,
+            height: rows.len() as u32,
             pixels: Cow::Owned(pixels),
         }
+    }
+}
+
+/// Along one side of a level, `size` pixels long: for each pixel of the next level, the pixels of
+/// this one it covers, with their weights, which add up to 1. The next level has `size / 2`
+/// pixels, and at least one.
+///
+/// A pixel of the next level spans `size / (size / 2)` pixels of this one, each weighted by the
+/// part of the span it fills. Along an even side the span is two pixels: pixel `i` is the average
+/// of pixels `2i` and `2i + 1`. Along an odd side of `2k + 1` pixels it is `2 + 1 / k` pixels:
+/// pixel `i` takes pixels `2i`, `2i + 1` and `2i + 2`, weighted `k - i`, `k` and `i + 1` out of
+/// `2k + 1`, so that the last pixel counts as much as the others. Along a side of one pixel, it
+/// is that pixel.
+fn footprints(size: u32) -> Vec<Vec<(u32, f32)>> {
+    let half = size / 2;
+    if size == 1 {
+        vec![vec![(0, 1.0)]]
+    } else if size.is_multiple_of(2) {
+        (0..half)
+            .map(|i| vec![(2 * i, 0.5), (2 * i + 1, 0.5)])
+            .collect()
+    } else {
+        let weight = |share: u32| share as f32 / size as f32;
+        (0..half)
+            .map(|i| {
+                vec![
+                    (2 * i, weight(half - i)),
+                    (2 * i + 1, weight(half)),
+                    (2 * i + 2, weight(i + 1)),
+                ]
+            })
+            .collect()
     }
 }
 
@@ -224,8 +261,9 @@ mod tests {
     }
 
     #[test]
-    fn an_odd_edge_repeats_its_last_pixel() {
-        // Three pixels wide: the second output pixel averages the third pixel with itself.
+    fn an_odd_side_is_filtered_over_all_its_pixels() {
+        // Three pixels wide, one high: the one pixel of the next level covers all three, a third
+        // each.
         let level = Level {
             width: 3,
             height: 1,
@@ -233,6 +271,47 @@ mod tests {
         };
         let halved = level.halved(false);
         assert_eq!((halved.width, halved.height), (1, 1));
-        assert_eq!(&*halved.pixels, &[50, 50, 50, 255]);
+        assert_eq!(&*halved.pixels, &[100, 100, 100, 255]);
+    }
+
+    #[test]
+    fn the_last_row_and_column_of_an_odd_level_count() {
+        // 3 × 3, white but for a black last column and last row: four ninths of white, 113.
+        let mut pixels = Vec::new();
+        for y in 0..3 {
+            for x in 0..3 {
+                let value = if x < 2 && y < 2 { 255 } else { 0 };
+                pixels.extend([value, value, value, 255]);
+            }
+        }
+        let level = Level {
+            width: 3,
+            height: 3,
+            pixels: Cow::Owned(pixels),
+        };
+        let halved = level.halved(false);
+        assert_eq!((halved.width, halved.height), (1, 1));
+        assert_eq!(&*halved.pixels, &[113, 113, 113, 255]);
+    }
+
+    #[test]
+    fn each_pixel_of_an_odd_side_counts_by_how_much_of_it_is_covered() {
+        // Five pixels wide: the two pixels of the next level cover two and a half each. The
+        // first takes the first two pixels wholly and half of the third; the second, the other
+        // half and the last two. Weights 2/5, 2/5, 1/5 and 1/5, 2/5, 2/5.
+        let values = [0, 50, 100, 150, 250];
+        let pixels: Vec<u8> = values
+            .iter()
+            .flat_map(|&value| [value, value, value, 255])
+            .collect();
+        let level = Level {
+            width: 5,
+            height: 1,
+            pixels: Cow::Owned(pixels),
+        };
+        let halved = level.halved(false);
+        assert_eq!((halved.width, halved.height), (2, 1));
+        // (0 * 2 + 50 * 2 + 100) / 5 = 40 and (100 + 150 * 2 + 250 * 2) / 5 = 180.
+        assert_eq!(&*halved.pixels, &[40, 40, 40, 255, 180, 180, 180, 255]);
     }
 }
