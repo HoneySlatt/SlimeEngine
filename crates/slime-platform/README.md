@@ -56,10 +56,12 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
 - `PlatformError` says why the event loop could not run: `Connect` (no windowing system can be
   reached), `SecondEventLoop` (one was already requested in this process), `CreateWindow` or
   `EventLoop`; winit's own error is its `source()`. When the window could not be created, no
-  `EventHandler` method is called. A compositor or X server that dies while the loop runs ends it
+  `EventHandler` method is called. A Wayland compositor that dies while the loop runs ends it
   cleanly (`exiting` is called) with `PlatformError::EventLoop`, whose source says only
   `Exit Failure: <code>`; the cause appears in lines that the Wayland library prints to standard
-  error itself.
+  error itself. An X server that dies or closes the connection ends the process instead: the X11
+  library (Xlib) prints that the X connection is broken and exits with status 1, so neither
+  `exiting` nor anything after it runs.
 
 On Linux, the windowing system is chosen from the environment, with no fallback from one to the
 other: Wayland if `WAYLAND_DISPLAY` or `WAYLAND_SOCKET` is set to a non-empty value, otherwise X11
