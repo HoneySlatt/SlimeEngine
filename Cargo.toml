@@ -20,10 +20,11 @@ ctrlc = { version = "3.5.2", features = ["termination"] }
 # Vectors, matrices and quaternions for the renderer; its types are part of slime-render's API
 # (ADR-0027).
 glam = "0.34.1"
-# Examples only: reads glTF files for the temporary loader of Stage 3a (ADR-0029). Without the
-# `import` feature, which would bring the `image` and `base64` crates: the loader reads GLB files
-# that hold their buffer and PNG images in their binary chunk, and decodes the images with `png`.
-gltf = { version = "1.4.1", default-features = false, features = ["names", "utils"] }
+# Examples only: reads glTF files for the temporary loader of Stage 3a (ADR-0029, ADR-0035).
+# Without the `import` feature, which would bring the `image` and `base64` crates: the loader reads
+# GLB files that hold their buffer and PNG images in their binary chunk, and decodes the images
+# with `png`. With `KHR_materials_emissive_strength`, which adds no crate.
+gltf = { version = "1.4.1", default-features = false, features = ["names", "utils", "KHR_materials_emissive_strength"] }
 # The dev overlay of Stage 3a, tooling only (ADR-0031): egui-wgpu without its default features,
 # which would enable every wgpu backend, and no egui-winit, since the engine translates its own
 # events. Upgrading wgpu waits for an egui release built against it.

@@ -13,8 +13,10 @@
 //! ```
 //!
 //! The other tests give the loader small GLB files built in memory, which hold what the asset
-//! does not: what the loader must refuse with an error rather than panic on, a mirrored node, and
-//! a node hierarchy deeper than a thread's stack holds calls of a recursive walk.
+//! does not: what the loader must refuse with an error rather than panic on; a mirrored node; the
+//! extensions a file requires; masked, blended and double-sided materials; a file's own tangents;
+//! a texture read both as colors and as data; and a node hierarchy deeper than a thread's stack
+//! holds calls of a recursive walk.
 //! The unit tests of `common/gltf.rs` and `common/orbit.rs` run here too, the one test program
 //! that includes both.
 
@@ -301,35 +303,167 @@ fn a_node_hierarchy_deeper_than_the_stack_holds_calls_is_placed() {
 fn a_mirrored_node_shows_the_same_faces_as_the_node_it_mirrors() {
     let gpu =
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-    let target = gpu.create_render_target("mirrored", 64, 64, TextureFormat::Rgba8UnormSrgb);
-    // The triangle faces +Z, and so does its mirror image across the plane x = 0, which glTF
-    // draws with its triangles wound the other way.
+    // The triangle faces +Z, and so does its mirror image across the plane x = 0, whose triangles
+    // wind the other way on screen: the renderer keeps their front faces, as glTF does.
     for scale_x in [1.0, -1.0] {
         let mut file = Glb::triangle();
         file.json["nodes"][0]["scale"] = json(&format!("[{scale_x}, 1, 1]"));
-        let mut scene =
-            SampleScene::new(&gpu, target.format(), &file.bytes()).expect("the triangle loads");
-        // Seen from +Z, at the center of the image: the center of the triangle.
-        let center = Vec3::new(scale_x / 3.0, 1.0 / 3.0, 0.0);
-        scene.render(
-            &gpu,
-            &target,
-            orbit::camera_at(center, 1.0, 3.0, 0.0, 0.0),
-            1.0,
-        );
-        let image = gpu
-            .read_render_target(&target)
-            .expect("the image is read back");
-        let pixel = |x: usize, y: usize| &image.pixels[(y * 64 + x) * 4..][..3];
-        let (middle, corner) = (pixel(32, 32), pixel(0, 0));
+        let centre = TRIANGLE_CENTRE * Vec3::new(scale_x, 1.0, 1.0);
+        let (middle, corner) = centre_and_corner(&gpu, &mut file, centre, 0.0, 1.0);
         assert!(
-            middle
-                .iter()
-                .zip(corner)
-                .all(|(lit, background)| *lit > background + 50),
+            brighter(middle, corner),
             "scale x {scale_x}: the triangle {middle:?} is not lit above the background {corner:?}"
         );
     }
+}
+
+#[test]
+fn extensions_are_refused_when_required_unless_the_loader_reads_them() {
+    let gpu =
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+    let mut file = Glb::triangle();
+    file.json["extensionsUsed"] = json(r#"["KHR_texture_transform"]"#);
+    file.json["extensionsRequired"] = json(r#"["KHR_texture_transform"]"#);
+    let error = refusal(&gpu, &mut file);
+    assert!(
+        error.contains(r#"extensionsRequired[0] = "KHR_texture_transform": Unsupported extension"#),
+        "{error}"
+    );
+    // A black surface that emits, whose emission an exposure of 1/8 keeps below white: four times
+    // brighter with the strength of KHR_materials_emissive_strength, which a file may require.
+    let emitting = |strength: &str, required: bool| {
+        let mut file = Glb::triangle().with_material(&format!(
+            r#"{{ "pbrMetallicRoughness": {{ "baseColorFactor": [0, 0, 0, 1], "metallicFactor": 0 }},
+                  "emissiveFactor": [1, 0.5, 0.25] {strength} }}"#
+        ));
+        file.json["extensionsUsed"] = json(r#"["KHR_materials_emissive_strength"]"#);
+        if required {
+            file.json["extensionsRequired"] = json(r#"["KHR_materials_emissive_strength"]"#);
+        }
+        centre_and_corner(&gpu, &mut file, TRIANGLE_CENTRE, 0.0, 1.0 / 8.0).0
+    };
+    let strong = emitting(
+        r#", "extensions": { "KHR_materials_emissive_strength": { "emissiveStrength": 4 } }"#,
+        true,
+    );
+    let plain = emitting("", false);
+    assert!(strong[0] > plain[0] + 50, "{strong:?} against {plain:?}");
+}
+
+#[test]
+fn a_masked_material_draws_nothing_below_its_cutoff_and_a_blended_one_is_drawn_opaque() {
+    let gpu =
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+    let shown = |material: &str| {
+        let mut file = Glb::triangle().with_material(material);
+        centre_and_corner(&gpu, &mut file, TRIANGLE_CENTRE, 0.0, 1.0)
+    };
+    // glTF's default cutoff, 0.5, is above the alpha of 0.25.
+    let (middle, corner) = shown(
+        r#"{ "alphaMode": "MASK", "pbrMetallicRoughness": { "baseColorFactor": [1, 1, 1, 0.25] } }"#,
+    );
+    assert!(
+        middle.iter().zip(corner).all(|(a, b)| a.abs_diff(b) <= 2),
+        "masked: {middle:?} against {corner:?}"
+    );
+    for (material, case) in [
+        (
+            r#"{ "alphaMode": "MASK", "alphaCutoff": 0.2,
+                 "pbrMetallicRoughness": { "baseColorFactor": [1, 1, 1, 0.25] } }"#,
+            "masked, above a cutoff of 0.2",
+        ),
+        (
+            r#"{ "alphaMode": "BLEND", "pbrMetallicRoughness": { "baseColorFactor": [1, 1, 1, 0.25] } }"#,
+            "blended",
+        ),
+    ] {
+        let (middle, corner) = shown(material);
+        assert!(
+            brighter(middle, corner),
+            "{case}: {middle:?} against {corner:?}"
+        );
+    }
+}
+
+#[test]
+fn a_double_sided_material_is_drawn_from_behind() {
+    let gpu =
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+    // Seen from −Z, behind the triangle: the light comes from the other side, and only the ambient
+    // light reaches the back face.
+    let shown = |material: &str| {
+        let mut file = Glb::triangle().with_material(material);
+        centre_and_corner(&gpu, &mut file, TRIANGLE_CENTRE, std::f32::consts::PI, 1.0)
+    };
+    let (middle, corner) = shown("{}");
+    assert!(
+        middle.iter().zip(corner).all(|(a, b)| a.abs_diff(b) <= 2),
+        "single-sided: {middle:?} against {corner:?}"
+    );
+    let (middle, corner) = shown(r#"{ "doubleSided": true }"#);
+    assert!(
+        brighter(middle, corner),
+        "double-sided: {middle:?} against {corner:?}"
+    );
+}
+
+#[test]
+fn a_file_s_tangents_are_used_rather_than_computed() {
+    let gpu =
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+    // A normal texture that tilts the normal by 45° towards the tangent. The texture coordinates
+    // grow along +X, where the computed tangents point; the file's point along +Y, closer to the
+    // light, which comes from above.
+    let file = || {
+        Glb::triangle()
+            .with_attribute(
+                "NORMAL",
+                "VEC3",
+                &[0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0],
+            )
+            .with_attribute("TEXCOORD_0", "VEC2", &[0.0, 1.0, 1.0, 1.0, 0.0, 0.0])
+            .with_image(&png_of(1, 1, &[218, 128, 218, 255]))
+            .with_material(
+                r#"{ "normalTexture": { "index": 0 },
+                     "pbrMetallicRoughness": { "metallicFactor": 0 } }"#,
+            )
+    };
+    let mut with_tangents = file().with_attribute(
+        "TANGENT",
+        "VEC4",
+        &[0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0],
+    );
+    let (towards_y, _) = centre_and_corner(&gpu, &mut with_tangents, TRIANGLE_CENTRE, 0.0, 1.0);
+    let (towards_x, _) = centre_and_corner(&gpu, &mut file(), TRIANGLE_CENTRE, 0.0, 1.0);
+    assert!(
+        towards_y[0] > towards_x[0] + 10,
+        "{towards_y:?} with the file's tangents, {towards_x:?} with computed ones"
+    );
+}
+
+#[test]
+fn a_texture_read_as_a_color_and_as_data_is_created_in_both_formats() {
+    let gpu =
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+    // The renderer panics on an sRGB texture in the occlusion slot.
+    let mut file = Glb::triangle().with_texture(&png(2, 2));
+    file.json["materials"][0]["occlusionTexture"] = json(r#"{ "index": 0 }"#);
+    SampleScene::new(&gpu, TextureFormat::Rgba8UnormSrgb, &file.bytes())
+        .expect("the triangle loads");
+}
+
+#[test]
+fn a_texture_read_through_another_coordinate_set_is_refused_in_any_slot() {
+    let gpu =
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+    let mut file = Glb::triangle()
+        .with_image(&png(2, 2))
+        .with_material(r#"{ "normalTexture": { "index": 0, "texCoord": 1 } }"#);
+    let error = refusal(&gpu, &mut file);
+    assert!(
+        error.contains("reads its normal texture through coordinate set 1"),
+        "{error}"
+    );
 }
 
 /// A change that a test makes to a GLB file.
@@ -394,15 +528,38 @@ impl Glb {
 
     /// Gives the triangle a material whose base color texture is the PNG image `png`, embedded
     /// in the file.
-    fn with_texture(mut self, png: &[u8]) -> Self {
+    fn with_texture(self, png: &[u8]) -> Self {
+        self.with_image(png)
+            .with_material(r#"{ "pbrMetallicRoughness": { "baseColorTexture": { "index": 0 } } }"#)
+    }
+
+    /// Embeds the PNG image `png` in the file as its only image, read by its only texture.
+    fn with_image(mut self, png: &[u8]) -> Self {
         let view = self.add_view(png);
         self.json["images"] = json(&format!(
             r#"[{{ "bufferView": {view}, "mimeType": "image/png" }}]"#
         ));
         self.json["textures"] = json(r#"[{ "source": 0 }]"#);
-        self.json["materials"] =
-            json(r#"[{ "pbrMetallicRoughness": { "baseColorTexture": { "index": 0 } } }]"#);
+        self
+    }
+
+    /// Gives the triangle `material`, a glTF material in JSON, the only one of the file.
+    fn with_material(mut self, material: &str) -> Self {
+        self.json["materials"] = json(&format!("[{material}]"));
         self.json["meshes"][0]["primitives"][0]["material"] = 0.into();
+        self
+    }
+
+    /// Gives the triangle's three vertices the attribute `semantic`, of type `kind` (`"VEC3"`,
+    /// ...), from `values`, floats.
+    fn with_attribute(mut self, semantic: &str, kind: &str, values: &[f32]) -> Self {
+        let bytes: Vec<u8> = values
+            .iter()
+            .flat_map(|value| value.to_le_bytes())
+            .collect();
+        let view = self.add_view(&bytes);
+        let accessor = self.add_accessor(view, FLOAT, 3, kind);
+        self.json["meshes"][0]["primitives"][0]["attributes"][semantic] = accessor.into();
         self
     }
 
@@ -454,16 +611,66 @@ fn index(value: &Value) -> usize {
 
 /// A white PNG image of `width` × `height` pixels.
 fn png(width: u32, height: u32) -> Vec<u8> {
+    png_of(
+        width,
+        height,
+        &vec![255; width as usize * height as usize * 4],
+    )
+}
+
+/// A PNG image of `width` × `height` pixels, `pixels` in RGBA, rows from the top.
+fn png_of(width: u32, height: u32, pixels: &[u8]) -> Vec<u8> {
     let mut bytes = Vec::new();
     let mut encoder = png::Encoder::new(&mut bytes, width, height);
     encoder.set_color(png::ColorType::Rgba);
     encoder.set_depth(png::BitDepth::Eight);
     let mut writer = encoder.write_header().expect("the PNG header is written");
     writer
-        .write_image_data(&vec![255; width as usize * height as usize * 4])
+        .write_image_data(pixels)
         .expect("the PNG image is written");
     writer.finish().expect("the PNG image is finished");
     bytes
+}
+
+/// The center of the triangle of [`Glb::triangle`].
+const TRIANGLE_CENTRE: Vec3 = Vec3::new(1.0 / 3.0, 1.0 / 3.0, 0.0);
+
+/// Draws `file` into a 64 × 64 sRGB target at `exposure`, under the samples' light, seen from 3
+/// units away from `centre`, turned by `yaw` around the vertical axis (0 looks from +Z), and
+/// returns the color of the pixel at the center of the image, and that of its corner, the
+/// background.
+fn centre_and_corner(
+    gpu: &Gpu,
+    file: &mut Glb,
+    centre: Vec3,
+    yaw: f32,
+    exposure: f32,
+) -> ([u8; 3], [u8; 3]) {
+    let target = gpu.create_render_target("triangle", 64, 64, TextureFormat::Rgba8UnormSrgb);
+    let mut scene =
+        SampleScene::new(gpu, target.format(), &file.bytes()).expect("the triangle loads");
+    scene.render(
+        gpu,
+        &target,
+        orbit::camera_at(centre, 1.0, 3.0, yaw, 0.0),
+        exposure,
+    );
+    let image = gpu
+        .read_render_target(&target)
+        .expect("the image is read back");
+    let pixel = |x: usize, y: usize| {
+        let start = (y * 64 + x) * 4;
+        [0, 1, 2].map(|channel| image.pixels[start + channel])
+    };
+    (pixel(32, 32), pixel(0, 0))
+}
+
+/// Whether every channel of `drawn` is well above that of `background`.
+fn brighter(drawn: [u8; 3], background: [u8; 3]) -> bool {
+    drawn
+        .iter()
+        .zip(background)
+        .all(|(drawn, background)| *drawn > background + 50)
 }
 
 /// The message of the error with which the loader refuses `file`.

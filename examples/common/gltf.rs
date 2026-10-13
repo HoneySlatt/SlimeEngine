@@ -1,34 +1,52 @@
 //! A temporary loader of glTF scenes for the `scene` example and its image test: GLB files that
-//! hold their buffer and PNG images in their binary chunk, drawn as they are (ADR-0029). The asset
-//! pipeline of Stage 4 replaces it with an importer and deletes it.
+//! hold their buffer and PNG images in their binary chunk, drawn as they are (ADR-0029, ADR-0035).
+//! The asset pipeline of Stage 4 replaces it with an importer and deletes it. ADR-0035 holds these
+//! lists too.
 //!
-//! It reads triangle primitives with positions, normals (when missing, each triangle gets the
-//! normal of its face, as glTF requires), the first set of texture coordinates (zero when
-//! missing) and indices; the base color factor and texture of materials, with the file's sampler
-//! settings, but for how levels of detail are read, which `slime-gfx` ties to the minification
-//! filter (see `sampler_descriptor`); and the node hierarchy of the default scene, flattened into
-//! instances (the renderer keeps the front faces of a node whose transform mirrors, as glTF
-//! prescribes). It refuses, with a clear error, what it cannot draw right: buffers and images in
-//! external files or in data URIs (it reads the binary chunk only), images that are not PNG,
-//! images larger than the GPU accepts, primitives whose vertices or indices need a larger buffer
-//! than it accepts (one without normals has three vertices per triangle), required extensions,
-//! other coordinate sets, other primitive modes. It ignores, with a warning, animations, skins,
-//! cameras, vertex colors and extensions the file uses without requiring them.
-//! The other properties of materials are ignored without one, as the renderer has no use for
-//! them yet: every material is drawn opaque, and with its back faces culled even when the file
-//! marks it double-sided, as the sample asset does (its floor disappears when seen from below).
-//! A primitive that has normals and shares its vertex attributes with other primitives, as
-//! three.js writes a mesh of several materials, gets its own copy of every vertex they hold, even
-//! those its indices do not name: K such primitives over V vertices upload K × V vertices.
+//! It reads triangle-list primitives: their positions; normals (when missing, each triangle gets
+//! the normal of its face, as glTF requires); tangents (when missing, computed per triangle from
+//! the texture coordinates, not with MikkTSpace as glTF prescribes; ignored, as glTF requires,
+//! when the normals are missing); the first set of texture coordinates (zero when missing); and
+//! indices (the vertices in order when missing). It reads materials with glTF's
+//! metallic-roughness model: the base color, metallic, roughness and emissive factors, the
+//! emissive strength of `KHR_materials_emissive_strength`, the normal texture's scale and the
+//! occlusion texture's strength, the alpha mode (`OPAQUE`, and `MASK` with its cutoff, 0.5 when
+//! missing) and double-sidedness, and gives glTF's default material (white, fully metallic, fully
+//! rough) to primitives without one. Their base color, metallic-roughness, normal, occlusion and
+//! emissive textures are each created in their slot's format (sRGB for the base color and
+//! emissive, linear for the others): only the images that a material reads, each decoded once
+//! and uploaded once per format, with one sampler per texture, which follows the file's settings
+//! but for how levels of detail are read, which `slime-gfx` ties to the minification filter (see
+//! `sampler_descriptor`). It flattens the node hierarchy of the default scene, or of the first,
+//! into instances; the renderer keeps the front faces of a node whose transform mirrors.
+//!
+//! It refuses, with a clear error, what it cannot draw right: a file that is not valid glTF, which
+//! includes one that requires an extension other than `KHR_materials_emissive_strength` (the `gltf`
+//! crate refuses it); a file without a binary chunk; buffers and images in external files or in
+//! data URIs (it reads the binary chunk only); images that are not PNG, or larger than the GPU
+//! accepts; primitives that are not triangle lists, or have no positions; primitives whose vertices
+//! or indices need a larger buffer than the GPU accepts (one without normals has three vertices per
+//! triangle); mesh data that `Renderer::create_mesh` refuses (attributes of another length than the
+//! positions, indices that are not a multiple of 3 or that name no vertex); a texture read through
+//! another set of texture coordinates than the first, in any slot; a node hierarchy that is not a
+//! set of trees; a file without a scene, or whose scene draws nothing. It warns about, and draws
+//! without: animations, skins, cameras, vertex colors, the extensions a file uses without requiring
+//! them that it does not read (`KHR_texture_transform` among them), and the blending of materials
+//! whose alpha mode is `BLEND`, which are drawn opaque. A primitive that has normals and shares its
+//! vertex attributes with other primitives, as three.js writes a mesh of several materials, gets
+//! its own copy of every vertex they hold, even those its indices do not name: K such primitives
+//! over V vertices upload K × V vertices.
 //!
 //! The `gltf` crate's validation checks little more than that the file's objects name each other
 //! correctly, and its readers panic on some of what it lets through. The loader refuses, rather
 //! than panic on, such malformed files: images whose data lies outside the binary chunk, has no
-//! MIME type or is missing; positions, normals, texture coordinates or indices stored in types
-//! glTF does not allow for them, in a sparse accessor (which the loader does not read), in an
-//! empty one, closer together than their size, or outside the binary chunk; a node hierarchy
+//! MIME type or is missing; positions, normals, tangents, texture coordinates or indices stored in
+//! types glTF does not allow for them, in a sparse accessor (which the loader does not read), in
+//! an empty one, closer together than their size, or outside the binary chunk; a node hierarchy
 //! that is not a set of trees.
 
+use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::fmt;
 
 use gltf::Semantic;
@@ -36,7 +54,9 @@ use gltf::accessor::{DataType, Dimensions};
 use gltf::texture::{MagFilter, MinFilter, WrappingMode};
 use slime_gfx::{AddressMode, Filter, Gpu, Sampler, SamplerDescriptor, Texture, TextureFormat};
 use slime_render::glam::{Mat4, Vec2, Vec3};
-use slime_render::{Instance, Material, MaterialData, Mesh, MeshData, Renderer, SampledTexture};
+use slime_render::{
+    AlphaMode, Instance, Material, MaterialData, Mesh, MeshData, Renderer, SampledTexture,
+};
 
 /// Why a file could not be loaded.
 #[derive(Debug)]
@@ -85,7 +105,8 @@ struct Placement {
 pub struct LoadedScene {
     /// One per primitive that a node places.
     meshes: Vec<Mesh>,
-    /// One per material of the file, then the default material of glTF, white.
+    /// One per material of the file, then glTF's default material: white, fully metallic, fully
+    /// rough.
     materials: Vec<Material>,
     placements: Vec<Placement>,
     /// The smallest box around every placed primitive.
@@ -113,33 +134,98 @@ struct LoadedPrimitive {
     material: usize,
 }
 
+/// The extensions the loader reads; the `gltf` crate is built with their features.
+const READ_EXTENSIONS: [&str; 1] = ["KHR_materials_emissive_strength"];
+
+/// The label of a material: its name, or its index.
+fn material_label(material: &gltf::Material<'_>) -> String {
+    material.name().map_or_else(
+        || format!("material {}", material.index().unwrap_or(0)),
+        str::to_owned,
+    )
+}
+
+/// A texture slot of a material: its name, the texture it reads with its set of texture
+/// coordinates, if any, and the format its texture is created in.
+type TextureSlot<'a> = (
+    &'static str,
+    Option<(gltf::Texture<'a>, u32)>,
+    TextureFormat,
+);
+
+/// The texture slots of `material` in the renderer's order (ADR-0035), each created in its
+/// slot's format: sRGB for colors, linear for data.
+fn texture_slots<'a>(material: &gltf::Material<'a>) -> [TextureSlot<'a>; 5] {
+    let pbr = material.pbr_metallic_roughness();
+    [
+        (
+            "base color",
+            pbr.base_color_texture()
+                .map(|info| (info.texture(), info.tex_coord())),
+            TextureFormat::Rgba8UnormSrgb,
+        ),
+        (
+            "metallic-roughness",
+            pbr.metallic_roughness_texture()
+                .map(|info| (info.texture(), info.tex_coord())),
+            TextureFormat::Rgba8Unorm,
+        ),
+        (
+            "normal",
+            material
+                .normal_texture()
+                .map(|normal| (normal.texture(), normal.tex_coord())),
+            TextureFormat::Rgba8Unorm,
+        ),
+        (
+            "occlusion",
+            material
+                .occlusion_texture()
+                .map(|occlusion| (occlusion.texture(), occlusion.tex_coord())),
+            TextureFormat::Rgba8Unorm,
+        ),
+        (
+            "emissive",
+            material
+                .emissive_texture()
+                .map(|info| (info.texture(), info.tex_coord())),
+            TextureFormat::Rgba8UnormSrgb,
+        ),
+    ]
+}
+
 /// Loads the GLB file `bytes` into GPU objects created through `renderer`.
 pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene, LoadError> {
     let file = gltf::Gltf::from_slice(bytes)
         .map_err(|error| LoadError(format!("the file is not valid glTF: {error}")))?;
     let document = &file.document;
 
-    let required: Vec<&str> = document.extensions_required().collect();
-    if !required.is_empty() {
-        return Err(LoadError(format!(
-            "the file requires extensions the loader does not support: {}",
-            required.join(", ")
-        )));
-    }
-    let used: Vec<&str> = document.extensions_used().collect();
-    if !used.is_empty() {
-        tracing::warn!(extensions = ?used, "the file uses extensions that the loader ignores");
+    // The `gltf` crate refuses a file that requires an extension it is not built to read.
+    let ignored: Vec<&str> = document
+        .extensions_used()
+        .filter(|name| !READ_EXTENSIONS.contains(name))
+        .collect();
+    if !ignored.is_empty() {
+        tracing::warn!(extensions = ?ignored, "the file uses extensions that the loader ignores");
     }
     let colored = document
         .meshes()
         .flat_map(|mesh| mesh.primitives())
         .filter(|primitive| primitive.get(&Semantic::Colors(0)).is_some())
         .count();
+    let blended = document
+        .materials()
+        .filter(|material| material.alpha_mode() == gltf::material::AlphaMode::Blend)
+        .count();
     for (count, what) in [
         (document.animations().len(), "animations"),
         (document.skins().len(), "skins"),
         (document.cameras().len(), "cameras"),
         (colored, "primitives with vertex colors"),
+        (
+            blended,
+            "materials whose alpha mode is BLEND (drawn opaque)",
+        ),
     ] {
         if count > 0 {
             tracing::warn!(count, "the file has {what}, which the loader ignores");
@@ -166,66 +252,121 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
         gltf::buffer::Source::Uri(_) => None,
     };
 
-    let textures: Vec<(Texture, Sampler)> = document
-        .textures()
-        .map(|texture| {
-            let image = decode_png(
-                document,
-                texture.source(),
-                blob,
-                gpu.max_texture_dimension(),
-            )?;
-            let label = texture
-                .name()
-                .or(texture.source().name())
-                .map_or_else(|| format!("texture {}", texture.index()), str::to_owned);
-            let gpu_texture = gpu.create_texture(
-                &label,
-                image.width,
-                image.height,
-                TextureFormat::Rgba8UnormSrgb,
-                &image.pixels,
-            );
-            let sampler = gpu.create_sampler(&label, &sampler_descriptor(&texture.sampler()));
-            Ok((gpu_texture, sampler))
-        })
-        .collect::<Result<_, LoadError>>()?;
+    // The textures that materials read: each image decoded once and uploaded once per format it
+    // is read in, each glTF texture's sampler created once. Images that no material reads are not
+    // decoded.
+    let mut decoded: HashMap<usize, DecodedImage> = HashMap::new();
+    let mut uploaded: HashMap<(usize, TextureFormat), Texture> = HashMap::new();
+    let mut samplers: HashMap<usize, Sampler> = HashMap::new();
+    for material in document.materials() {
+        for (slot, texture, format) in texture_slots(&material) {
+            let Some((texture, tex_coord)) = texture else {
+                continue;
+            };
+            if tex_coord != 0 {
+                return Err(LoadError(format!(
+                    "material `{}` reads its {slot} texture through coordinate set {tex_coord}; \
+                     only the first set is supported",
+                    material_label(&material)
+                )));
+            }
+            let image = texture.source();
+            if let Entry::Vacant(entry) = uploaded.entry((image.index(), format)) {
+                let pixels = match decoded.entry(image.index()) {
+                    Entry::Occupied(found) => found.into_mut(),
+                    Entry::Vacant(missing) => missing.insert(decode_png(
+                        document,
+                        image.clone(),
+                        blob,
+                        gpu.max_texture_dimension(),
+                    )?),
+                };
+                let name = image
+                    .name()
+                    .map_or_else(|| format!("image {}", image.index()), str::to_owned);
+                let label = format!(
+                    "{name}, {}",
+                    if format.is_srgb() { "sRGB" } else { "linear" }
+                );
+                entry.insert(gpu.create_texture(
+                    &label,
+                    pixels.width,
+                    pixels.height,
+                    format,
+                    &pixels.pixels,
+                ));
+            }
+            samplers.entry(texture.index()).or_insert_with(|| {
+                let label = texture
+                    .name()
+                    .map_or_else(|| format!("texture {}", texture.index()), str::to_owned);
+                gpu.create_sampler(&label, &sampler_descriptor(&texture.sampler()))
+            });
+        }
+    }
+    drop(decoded);
 
     let mut materials: Vec<Material> = document
         .materials()
         .map(|material| {
-            let label = material.name().map_or_else(
-                || format!("material {}", material.index().unwrap_or(0)),
-                str::to_owned,
-            );
-            let pbr = material.pbr_metallic_roughness();
-            let base_color_texture = pbr
-                .base_color_texture()
-                .map(|info| {
-                    if info.tex_coord() != 0 {
-                        return Err(LoadError(format!(
-                            "material `{label}` reads its texture through coordinate set {}; only \
-                             the first set is supported",
-                            info.tex_coord()
-                        )));
-                    }
-                    let (texture, sampler) = &textures[info.texture().index()];
-                    Ok(SampledTexture { texture, sampler })
+            let [
+                base_color_texture,
+                metallic_roughness_texture,
+                normal_texture,
+                occlusion_texture,
+                emissive_texture,
+            ] = texture_slots(&material).map(|(_, texture, format)| {
+                texture.map(|(texture, _)| SampledTexture {
+                    texture: &uploaded[&(texture.source().index(), format)],
+                    sampler: &samplers[&texture.index()],
                 })
-                .transpose()?;
-            Ok(renderer.create_material(
+            });
+            let pbr = material.pbr_metallic_roughness();
+            let alpha_mode = match material.alpha_mode() {
+                // Blending is not drawn: warned about above.
+                gltf::material::AlphaMode::Opaque | gltf::material::AlphaMode::Blend => {
+                    AlphaMode::Opaque
+                }
+                gltf::material::AlphaMode::Mask => AlphaMode::Mask {
+                    cutoff: material.alpha_cutoff().unwrap_or(0.5),
+                },
+            };
+            renderer.create_material(
                 gpu,
-                &label,
+                &material_label(&material),
                 &MaterialData {
                     base_color: pbr.base_color_factor(),
                     base_color_texture,
-                    ..MaterialData::default()
+                    metallic: pbr.metallic_factor(),
+                    roughness: pbr.roughness_factor(),
+                    metallic_roughness_texture,
+                    normal_texture,
+                    normal_scale: material
+                        .normal_texture()
+                        .map_or(1.0, |normal| normal.scale()),
+                    occlusion_texture,
+                    occlusion_strength: material
+                        .occlusion_texture()
+                        .map_or(1.0, |occlusion| occlusion.strength()),
+                    emissive: material.emissive_factor(),
+                    emissive_strength: material.emissive_strength().unwrap_or(1.0),
+                    emissive_texture,
+                    alpha_mode,
+                    double_sided: material.double_sided(),
                 },
-            ))
+            )
         })
-        .collect::<Result<_, LoadError>>()?;
+        .collect();
     let default_material = materials.len();
-    materials.push(renderer.create_material(gpu, "default", &MaterialData::default()));
+    // glTF's default material: white, fully metallic, fully rough, opaque, single-sided.
+    materials.push(renderer.create_material(
+        gpu,
+        "default",
+        &MaterialData {
+            metallic: 1.0,
+            ..MaterialData::default()
+        },
+    ));
 
     let mut primitives = Vec::new();
     // The primitives of each mesh of the file, as indices into `primitives`.
@@ -392,7 +533,7 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
     tracing::info!(
         meshes = meshes.len(),
         materials = materials.len() - 1,
-        textures = textures.len(),
+        textures = uploaded.len(),
         instances = placements.len(),
         "glTF scene loaded"
     );
