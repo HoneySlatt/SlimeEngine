@@ -24,7 +24,9 @@ Every material but `tiles` is single-sided. The other objects are closed, so the
 never seen. The script turns on Blender's backface culling for their materials, and the exporter
 writes that as `doubleSided` false.
 
-Three lights of `KHR_lights_punctual` light the scene, in its physical units. None casts shadows.
+Three lights of `KHR_lights_punctual` light the scene, in its physical units
+([ADR-0037](../../docs/adr/0037-lights-in-physical-units-and-pre-exposure.md)). None casts
+shadows.
 
 | Light | Kind and place | Strength | What it exercises |
 |---|---|---|---|

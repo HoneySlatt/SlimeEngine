@@ -15,9 +15,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 - Stage 3b — Physically based renderer → 0.1: in progress. Planned on 2026-10-13 and validated by
   the owner. M3b.1, M3b.2 and M3b.3 are done. The owner's decisions of 2026-10-13 on earlier
   proposals are applied, and the findings of rounds 4 and 5 of the audit of 0.0.3 (issue
-  [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are fixed or recorded below; next:
-  M3b.4, with the exposure applied in the scene pass (pre-exposure), which the owner chose on
-  2026-10-13.
+  [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are fixed or recorded below. M3b.4 is
+  implemented and checked (ADR-0037) and awaits the owner's look at the sample; next: M3b.5.
 
 ## Status
 
@@ -26,7 +25,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M3b.1](#m3b1--gpu-layer-for-multi-pass-rendering) | GPU layer for multi-pass rendering | Done |
 | [M3b.2](#m3b2--hdr-rendering-and-tone-mapping) | HDR rendering and tone mapping | Done |
 | [M3b.3](#m3b3--physically-based-materials) | Physically based materials | Done |
-| [M3b.4](#m3b4--light-types) | Light types | Planned |
+| [M3b.4](#m3b4--light-types) | Light types | Awaiting the owner |
 | [M3b.5](#m3b5--shadows) | Shadows | Planned |
 | [M3b.6](#m3b6--image-based-lighting) | Image-based lighting | Planned |
 | [M3b.7](#m3b7--bloom) | Bloom | Planned |
@@ -273,6 +272,37 @@ sample, tests included, and must stay small; upgrading wgpu still waits for egui
   draws, and one with more is refused as documented. The image tests pass on the three drivers;
   the sample looks right by eye.
 - **How to test.** As M3b.2.
+- **Checked** on 2026-10-13: ADR-0037 records the lights' API and units, the values the shader
+  reads, the falloff and the cone, pre-exposure, what the loader reads and refuses, and the sample's
+  values; the owner chose how a light's strength is written (a color apart from it), the maximum
+  (16, a documented panic beyond), the sample's sun (100 000 lux) and its two other lights (a point
+  light in the ring and a spot light on the wall). `crates/slime-render/tests/lights.rs` reads
+  `Rgba16Float` outputs back and compares them within 2 × 10⁻³ with what the CPU copy of the
+  BRDF predicts under the extension's formulas, written in the test: a point light gives a quarter
+  of its light at twice the distance, and exactly nothing at and beyond its range; a spot light is
+  full within its inner cone, exactly dark beyond its outer one, and decreasing between; 16 lights
+  of every kind, each of which adds at least 0.01, draw; 17 panic; a light on the surface it lights
+  gives no infinity, and one 1 mm above it what it gives at 1 cm; a point light and an emission far
+  above 65 504 are exposed before the target. `lighting.rs` checks the same for a directional light,
+  `tone_mapping.rs` for the background, which the renderer also bounds by 65 504 (a unit test). The
+  loader's tests load a file that requires `KHR_lights_punctual` and is lit by its own light only,
+  place lights in world space along their node's −Z axis whatever its scale, and refuse the lights
+  glTF forbids, the files the `gltf` crate would panic on, and 17 lights. A prototype of the same
+  design was checked against 20 mutations of the shading and 7 of the loader, all caught but two
+  that lavapipe and RADV cannot show: the background's bound, which the unit test catches, and the
+  guard of a fragment on a light, kept because WGSL leaves NaN undefined. Every test passes on
+  lavapipe, with glam's assertions on, and on the owner's RX 6900 XT (RADV). The shapes' and the
+  renderer's tests kept their values: a directional light of π lux at an exposure of 1 draws the
+  shapes' reference exactly. The glTF references were rendered again on lavapipe and looked at; on
+  RADV, `gltf-front` has 218 pixels off by more than 2, 83 by more than 4, 3 by more than 8 (65
+  allowed), largest 26; `gltf-back` 25, 0, 0, largest 4; `shapes` 588, 278, 36, largest 18, as at
+  M3b.3. The scene pass took 18.5 µs without a light, 36.8 µs with 1, 97.2 µs with 4, 177.3 µs
+  with 8 and 337.6 µs with 16, for a square covering a 1920 × 1080 output on RADV (release build,
+  median of 40 frames): about 20 µs per light. The asset, regenerated with Blender 5.2 from
+  `make_scene.py`, is 128 400 bytes and holds the three lights as designed. The `scene` example ran
+  400 frames in a headless Weston at 1280 × 720 on lavapipe (scene pass 1.7 ms, tone mapping 1.0
+  ms), and a screenshot was looked at: the ring's teal light on the floor, the crate and the pillar,
+  the spot on the wall, the slider at EV100 14.7.
 
 ### M3b.5 — Shadows
 
@@ -298,12 +328,12 @@ sample, tests included, and must stay small; upgrading wgpu still waits for egui
 - **Crates.** `slime-gfx` (cube textures, mip levels given by the caller, `Rgba16Float` textures
   uploaded from the CPU); `slime-render`; `examples`.
 - **Delivers.** `slime-gfx`: cube textures, and textures whose mip levels the caller gives, in
-  `Rgba16Float` among other formats, with half-precision floats converted by hand (amends
-  ADR-0032). `slime-render`: a procedural sky (a gradient and a sun) drawn on the CPU into a small
-  cube map, its irradiance and its prefiltered specular levels, and the table of the BRDF's scale
-  and bias, computed at startup; a sky pass draws the environment behind the scene instead of the
-  clear color; IBL replaces the constant ambient light. ADR: image-based lighting computed on the
-  CPU.
+  `Rgba16Float` among other formats, with half-precision floats converted by hand (amends ADR-0032).
+  `slime-render`: a procedural sky (a gradient and a sun) drawn on the CPU into a small cube map,
+  its irradiance and its prefiltered specular levels, and the table of the BRDF's scale and bias,
+  computed at startup; a sky pass draws the environment behind the scene instead of the clear color,
+  its light exposed as the scene pass exposes surfaces (ADR-0037); IBL replaces the constant ambient
+  light. ADR: image-based lighting computed on the CPU.
 - **Done when.** Tests that read pixels back: a white rough sphere inside a uniform environment
   reflects that environment's radiance (the furnace test); a mirror sphere reflects the sky; the
   CPU precomputation of the sample stays under a budget measured and recorded here. The image
@@ -634,20 +664,28 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **Shadowed surfaces and the background look darker than authored until image-based lighting**
   (ADR-0034). The tone-mapping curve lowers dark colors, on the assumption that every surface
   reflects some of its surroundings, which image-based lighting adds at M3b.6. Until then, the
-  samples' background, (63, 69, 80) as authored, shows as (34, 44, 60), and surfaces lit by the
-  ambient light alone lose up to 0.04 in every channel: a third to two thirds of their light at
-  the samples' ambient light, and most of a channel much weaker than the others, which saturates
-  them.
-- **Light beyond 65 504 is clamped in the HDR target** (ADR-0034, ADR-0035; M3b.4 applies the
-  exposure in the scene pass, as the owner chose on 2026-10-13). The exposure is applied after the
-  scene pass has written the `Rgba16Float` target, whose largest value is 65 504. The scene shader
-  writes brighter light as 65 504, rather than leave it to the driver, which may store an infinity
-  that the tone curve turns into NaN. The highlights of smooth metals under a light of π already
-  reach it: about 61 000 at normal incidence for a roughness of 0.045, more at grazing angles; with
-  the units of M3b.4 (lux and candela), the sun's highlights exceed it by far. Clamped light loses
-  its energy, which a low exposure shows as a flat highlight and the bloom of M3b.7 would spread
-  wrongly. Applying the exposure in the scene pass instead (pre-exposure) keeps the target in range;
-  the clamp stays as a safety net.
+  samples' background, (0.05, 0.06, 0.08) once exposed, (63, 69, 80) in sRGB, shows as (34, 44, 60),
+  and surfaces lit by the ambient light alone lose up to 0.04 in every channel: a third to two
+  thirds of their light at the samples' ambient light, and most of a channel much weaker than the
+  others, which saturates them.
+- **Exposed light beyond 65 504 is clamped** (ADR-0035, ADR-0037). The scene shader writes exposed
+  light above 65 504, the largest value of the `Rgba16Float` target, as 65 504, and the renderer
+  bounds the exposed background the same way, rather than leave it to the driver, which may store an
+  infinity that the tone curve turns into NaN. Pre-exposure keeps the sample far below it: at its
+  exposure, π / 100 000, it writes at most 21.8 over 360 camera poses (348 four stops brighter),
+  and at least 1.0 × 10⁻³ above zero, normal half-precision values (measured on lavapipe with
+  the tone curve replaced by the identity, 2026-10-13). The clamp still catches the sun's highlights
+  on metals smoother than a roughness of about 0.125 seen near grazing incidence, emission or a
+  background above 65 504 / exposure, and any light once the exposure is raised about 7.5 stops
+  above the sample's. Clamped light loses its energy, which the bloom of M3b.7 would spread wrongly.
+- **Every fragment evaluates every light of the scene** (ADR-0037). The scene pass has no light
+  culling: its cost grows with the number of lights, about 20 µs per light for a screen of 1920 ×
+  1080 fragments on an RX 6900 XT (2026-10-13), 338 µs for 16, the most a scene holds, and 10 to 20
+  times more on an integrated GPU; a light's range saves no work. More lights would need clustered
+  or tiled culling and a storage buffer, a measured decision of a later stage.
+- **Point and spot lights cast no shadows, and light what objects hide** (ADR-0037; M3b.5 shadows
+  the first directional light only). The sample's spot light is aimed up, so that the light the wall
+  would stop goes into the sky; its ring light reaches 4 m, and gives little beyond a metre.
 - **Every draw of the scene pass runs a shader that can discard fragments** (ADR-0035). The `MASK`
   alpha mode discards in the one fragment shader that every material uses, opaque materials with a
   cutoff of 0. Some GPUs then test depth after the shader rather than before, for opaque draws

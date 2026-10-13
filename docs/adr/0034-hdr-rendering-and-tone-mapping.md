@@ -1,6 +1,6 @@
 # 0034. HDR rendering and tone mapping
 
-- Status: Accepted; amended by [0035](0035-physically-based-materials.md) (light above 65 504 is written as 65 504)
+- Status: Accepted; amended by [0035](0035-physically-based-materials.md) (light above 65 504 is written as 65 504) and by [0037](0037-lights-in-physical-units-and-pre-exposure.md) (the exposure is applied by the scene pass, before the HDR target is written; the tone-mapping pass no longer multiplies by it)
 - Date: 2026-10-13
 
 ## Context

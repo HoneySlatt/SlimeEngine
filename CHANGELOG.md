@@ -23,8 +23,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   before creating them, as the examples' glTF loader does.
 - HDR rendering and tone mapping in `slime-render`
   ([ADR-0034](docs/adr/0034-hdr-rendering-and-tone-mapping.md)): the scene is drawn into a 16-bit
-  floating-point target with its depth target, both following the output's size, then a
-  tone-mapping pass multiplies it by `Scene::exposure` and maps it to the output with Khronos PBR
+  floating-point target with its depth target, both following the output's size, its light
+  multiplied by `Scene::exposure`, then a tone-mapping pass maps it to the output with Khronos PBR
   Neutral, which keeps hues and compresses highlights instead of clipping them.
   `RenderStats::scene_gpu_time` and `RenderStats::tone_mapping_gpu_time` give the
   GPU time of each pass. The `scene` example shows both and has an exposure slider.
@@ -39,6 +39,19 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   has none), and `KHR_materials_emissive_strength`. The sample asset has normal, occlusion,
   metallic-roughness and emissive textures and tangents; the shapes of the image test have six
   spheres of increasing roughness, dielectric and metal.
+- Lights in physical units in `slime-render`
+  ([ADR-0037](docs/adr/0037-lights-in-physical-units-and-pre-exposure.md)): `Scene::lights` holds
+  up to `MAX_LIGHTS` (16) lights of glTF's `KHR_lights_punctual`, each a `Light`: a
+  `DirectionalLight` with an illuminance in lux, or a `PointLight` or `SpotLight` with an intensity
+  in candelas and an optional range, and for spot lights inner and outer cone angles; each with its
+  color apart from its strength. Point and spot lights fall off with the inverse square of the
+  distance, brought smoothly to zero at their range, and spot lights fade between their cones, as
+  the extension recommends. `Scene::ambient` takes the ambient light.
+- The examples' glTF loader reads `KHR_lights_punctual`: the lights that the scene's nodes place,
+  at their world position and along their −Z axis. The sample asset has a sun of 100 000 lux, a
+  point light in its glowing ring and a spot light on its wall, and requires the extension. The
+  sample draws in physical units at the exposure of a sunny day, EV100 14.7, and lights a file
+  without lights with its sun; the `scene` example's slider moves in exposure values.
 
 ### Changed
 
@@ -49,13 +62,21 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - The Windows examples that CI publishes link the C runtime statically: they start on a Windows
   without the Visual C++ Redistributable, such as a fresh install or Windows Sandbox.
 - `MeshData::tangents` is required, and a vertex takes 48 bytes: the largest mesh is 5 592 405
-  vertices with the default limits. `DirectionalLight::color` is an illuminance: a white matte
-  surface facing the light and the camera reflects 0.97/π of it, and the default light is π.
-  `Renderer::create_material` panics on a texture in the wrong kind of format for its slot (sRGB
+  vertices with the default limits. A white matte surface facing a light and the camera reflects
+  0.97/π of the illuminance it receives, glTF's BRDF. `Renderer::create_material` panics on a texture in the wrong kind of format for its slot (sRGB
   for colors, `Rgba8Unorm` for data). `Renderer::new` builds four pipelines. Images change. The
   examples' loader leaves unsupported required extensions to the `gltf` crate's validation, draws
   `BLEND` materials opaque with a warning, and decodes only the images that materials read, each
   once.
+- The scene pass applies the exposure before it writes the HDR target, so that light in physical
+  units fits half precision (pre-exposure,
+  [ADR-0037](docs/adr/0037-lights-in-physical-units-and-pre-exposure.md)); the renderer exposes the
+  background too, and writes exposed light above 65 504, the background's included, as 65 504. The
+  tone-mapping pass no longer multiplies by the exposure. `Scene::light` is replaced by
+  `Scene::lights` and `Scene::ambient`; `DirectionalLight` has a `color` and an `illuminance` in
+  lux, no ambient light, and glTF's default strength, 1 lux; `Scene::clear` and `Scene::ambient`
+  are in nits. A scene under a directional light of π lux at an exposure of 1 looks as it did
+  under the former light of π.
 - `RenderStats::gpu_time` is replaced by `scene_gpu_time` and `tone_mapping_gpu_time`; `Scene`
   has a new field, `exposure`; `Renderer::new` takes the output's format, any render-target
   format. `Scene::clear` is light, exposed and tone mapped like surfaces, and its alpha is no

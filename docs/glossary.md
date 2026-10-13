@@ -12,6 +12,10 @@ records one decision: its context, the decision, the alternatives rejected and t
 **Alpha mask.** Not drawing the fragments of a surface whose alpha falls below a cutoff, so that
 a texture can cut shapes out of it: glTF's `MASK` alpha mode (`slime_render::AlphaMode`).
 
+**Ambient light.** A constant light that reaches every surface from every direction, a stand-in for
+the light of the surroundings until image-based lighting (M3b.6): `Scene::ambient`, a radiance in
+*nits*, which surfaces reflect times their base color and their occlusion.
+
 **Application time.** The sum of the deltas of all frames so far (`FrameTime::elapsed`). It
 falls behind wall-clock time when a frame delta is limited, for example after a pause.
 
@@ -23,6 +27,9 @@ falls behind wall-clock time when a frame delta is limited, for example after a 
 **BRDF (bidirectional reflectance distribution function).** How much of the light arriving at a
 surface from one direction it reflects towards another: what the *metallic-roughness model*
 computes.
+
+**Candela (cd).** The unit of luminous intensity, lumens per steradian: the strength of a point or
+spot light (`intensity`). A surface facing such a light d metres away receives intensity / d² *lux*.
 
 **Checks (the).** The automated checks of the *definition of done*, which `scripts/check.sh` runs
 and the Linux CI job runs unchanged: formatting, clippy (for Windows too), the build, the tests on
@@ -84,7 +91,7 @@ as a multiple of `Gpu::uniform_offset_alignment`. One buffer and one group then 
 one range each: the renderer's instances ([ADR-0027](adr/0027-the-render-crate.md)).
 
 **Emission.** The light a surface gives off, added to the light it reflects: glTF's emissive
-factor, its strength (`KHR_materials_emissive_strength`) and its texture.
+factor, its strength (`KHR_materials_emissive_strength`) and its texture, in *nits*.
 
 **Engine-owned type.** A type of an engine crate that holds an object of a third-party library and
 exposes only what the engine needs, so that the library's types never appear in a public API: the
@@ -94,10 +101,16 @@ GPU objects of `slime_gfx` hold wgpu's, `slime_platform::Window` holds winit's
 
 **Example.** A runnable program in the `examples/` directory that demonstrates one feature.
 
-**Exposure.** What the scene's light is multiplied by before *tone mapping*
-(`slime_render::Scene::exposure`): a linear factor; 1 leaves it as it is, 2 is one photographic
-stop brighter. The tone-mapping pass applies it
-([ADR-0034](adr/0034-hdr-rendering-and-tone-mapping.md)).
+**Exposure.** What the scene's light is multiplied by before it is written into the *HDR* target,
+then tone mapped (`slime_render::Scene::exposure`): a linear factor; 1 leaves it as it is, 2 is one
+photographic stop brighter. The scene pass applies it (*pre-exposure*,
+[ADR-0037](adr/0037-lights-in-physical-units-and-pre-exposure.md)).
+
+**Exposure value (EV100).** A photographer's measure of an *exposure*, in stops, at the
+sensitivity ISO 100: log2(N² / t) for an aperture N and a shutter time t in seconds; one more is
+one stop darker. About 15 for direct sunlight, 7 for a lit room. Its exposure is
+1 / (1.2 × 2^EV100), the convention of Frostbite and Filament; the `scene` example's slider moves in
+it.
 
 **Fixed step.** A duration of time, constant for a run, in which code that must not depend on
 the frame rate advances (`slime_app::time::FixedStep`). A frame runs zero or more fixed steps.
@@ -140,8 +153,9 @@ before it is mapped to the display's range by *tone mapping*. The engine draws t
 `Rgba16Float` render targets: the renderer draws the scene into one at the output's size, which
 its tone-mapping pass reads.
 
-**Illuminance.** The light a surface facing a light receives from it, which the *BRDF* turns into
-the light the surface reflects: what `DirectionalLight::color` gives (ADR-0035).
+**Illuminance.** The light a surface facing a light receives from it, in *lux*, which the *BRDF*
+turns into the light the surface reflects: a `DirectionalLight`'s `illuminance`, and what a point
+or spot light gives at a distance (ADR-0035, ADR-0037).
 
 **Image test.** A test that renders offscreen and compares the result with a *reference image*,
 pixel by pixel, within a tolerance that absorbs how drivers round colors and filter textures
@@ -176,6 +190,9 @@ the logical key `"a"`. Suits shortcuts and text. See also *physical key*.
 display's, it covers. The sizes of `WindowConfig` are logical; `Window::inner_size`,
 `Event::CursorMoved` and render targets are physical. egui calls logical pixels *points*.
 
+**Lux (lx).** The unit of *illuminance*, lumens per square metre: the strength of a directional
+light (`illuminance`); about 100 000 for direct sunlight, 400 at sunrise.
+
 **Material.** How a surface looks, with glTF's *metallic-roughness model*: a base color,
 metallic and roughness, normal, occlusion and emissive textures each read with a *sampler*, an
 alpha mode and double-sidedness (`slime_render::Material`, from `MaterialData`;
@@ -200,6 +217,10 @@ faces so that it keeps its front ones, as glTF does (ADR-0035).
 *levels of detail* among which a *sampler* chooses by the size the texture is drawn at, so that a
 minified texture does not alias. The engine computes them on the CPU when the texture is created
 (`Gpu::create_texture`), in linear light for the sRGB formats; linear filtering blends two levels.
+
+**Nit (cd/m²).** The unit of luminance, candelas per square metre: the light that surfaces reflect
+and emit, the ambient light and the background, as the renderer computes them before the
+*exposure*.
 
 **Normal matrix.** The matrix by which the renderer transforms an instance's normals so that they
 stay perpendicular to surfaces scaled unevenly: the cofactor matrix of the transform's 3 × 3 part,
@@ -236,6 +257,10 @@ letter key of the top row is `KeyQ` on every layout, whether it is labelled Q (Q
 
 **Physical pixel.** A pixel of the display. See *logical pixel*.
 
+**Pre-exposure.** Multiplying the scene's light by the *exposure* in the scene pass, before the
+*HDR* target is written, so that light in physical units fits *half precision*
+([ADR-0037](adr/0037-lights-in-physical-units-and-pre-exposure.md)).
+
 **Present (an image).** Hand a drawn image to the window, which shows it at one of the display's
 next refreshes, as the *present mode* says.
 
@@ -243,6 +268,13 @@ next refreshes, as the *present mode* says.
 *Mailbox*, the engine's default, each image replaces the one waiting to be shown and presenting
 never waits; with *FIFO*, every image is shown in order, one per refresh, and presenting waits
 while earlier images are still to be shown ([ADR-0021](adr/0021-frame-pacing.md)).
+
+**Punctual light.** A light without size, from one direction or one point, as glTF's
+`KHR_lights_punctual` defines it (`slime_render::Light`): a directional light, whose strength is an
+*illuminance*; a point light, whose strength is an intensity in *candelas*, shining in every
+direction; and a spot light, a point light in a cone, full within its inner angle and dark beyond
+its outer one. A point or spot light's optional range is the distance at which its light reaches
+zero, smoothly.
 
 **Redraw request.** A notice from the windowing system that the window should be drawn now:
 either the engine asked for it (`Window::request_redraw`), or the system did on its own, for
@@ -268,8 +300,8 @@ one.
 **Sampler.** How shaders read a texture: nearest or linear filtering, and what lies beyond its
 edges (repeat, mirror or clamp) (`slime_gfx::Sampler`).
 
-**Scene (render).** What the renderer draws in one frame: a camera, a directional light, a
-clear color, an *exposure* and *instances* (`slime_render::Scene`). Not a scene graph: the
+**Scene (render).** What the renderer draws in one frame: a camera, *punctual lights*, an ambient
+light, a clear color, an *exposure* and *instances* (`slime_render::Scene`). Not a scene graph: the
 renderer keeps nothing between frames, and the world model of Stage 5 will produce such scenes.
 
 **Shadow map.** A *depth target* drawn from a light's point of view by a *depth-only pass*: a
@@ -310,10 +342,10 @@ device asks for it only when the adapter offers it (`Gpu::can_time`,
 [ADR-0031](adr/0031-dev-overlay-with-egui.md)).
 
 **Tone mapping.** Mapping the *HDR* colors of a scene to the range a display shows, 0 to 1, with a
-curve that compresses highlights instead of clipping them. The renderer's tone-mapping pass draws
-a *fullscreen triangle* that applies Khronos PBR Neutral, the default of the Khronos glTF Sample
-Viewer, which keeps hues and lowers dark and mid tones by up to 0.04, an offset meant to balance
-the reflection of their surroundings that surfaces get from image-based lighting
+curve that compresses highlights instead of clipping them. The renderer's tone-mapping pass draws a
+*fullscreen triangle* that applies to the exposed light Khronos PBR Neutral, the default of the
+Khronos glTF Sample Viewer, which keeps hues and lowers dark and mid tones by up to 0.04, an offset
+meant to balance the reflection of their surroundings that surfaces get from image-based lighting
 ([ADR-0034](adr/0034-hdr-rendering-and-tone-mapping.md)).
 
 **Tooling (engine's).** Code that serves development and ships with no game: the dev *overlay*
