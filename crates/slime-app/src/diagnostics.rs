@@ -39,10 +39,11 @@ pub const DEFAULT_LOG_FILTER: &str =
 ///   already and the older console host does once asked. Records that dependencies emit through the
 ///   `log` crate reach the same subscriber. When a span that the filter lets through closes, a line
 ///   records how long it was busy and idle, which makes the profiling spans of the main loop
-///   visible with `SLIME_LOG=slime_app=trace,slime_gfx=trace` (a bare `trace` also turns on wgpu's
-///   own trace logs, a line per command of each draw, whose writing counts in the spans). An event
-///   that cannot be written, because the reader of standard error exited or the terminal closed, is
-///   dropped and the process goes on.
+///   visible with `SLIME_LOG=slime_app=trace,slime_gfx=trace`. That line is written while the
+///   enclosing span is still entered, so a span's busy time includes writing the lines of the spans
+///   it contains; a bare `trace` also turns on wgpu's own trace logs, a line per command of each
+///   draw, whose writing counts in the spans too. An event that cannot be written, because the
+///   reader of standard error exited or the terminal closed, is dropped and the process goes on.
 /// - If the process already has a global subscriber, for example because the game installed its
 ///   own, that subscriber is kept and receives the engine's events. A `log` logger installed before
 ///   this call keeps receiving the records that dependencies emit through `log`.
