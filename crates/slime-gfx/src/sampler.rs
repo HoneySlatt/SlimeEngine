@@ -1,6 +1,7 @@
-//! Samplers: how shaders read textures.
+//! Samplers: how shaders read textures, and how they compare depths with a depth target's.
 
 use crate::gpu::Gpu;
+use crate::pipeline::DepthCompare;
 
 /// How a texture is read between its pixels.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -76,7 +77,48 @@ pub struct Sampler {
     pub(crate) sampler: wgpu::Sampler,
 }
 
+/// How shaders compare a reference depth with the depths of a
+/// [`DepthTarget`](crate::DepthTarget) (`sampler_comparison` in WGSL, read with
+/// `textureSampleCompare`): each pixel read gives 1.0 where `reference <compare> stored` holds and
+/// 0.0 where it does not, and linear filtering blends the results of the four nearest pixels
+/// (percentage-closer filtering, done by the GPU). With [`DepthCompare::LessEqual`] and the depth
+/// of a point seen from a light as the reference, 1.0 means lit: nothing nearer to the light is
+/// stored there. Coordinates outside 0 to 1 read the nearest edge. Bound at a
+/// [`BindingType::ComparisonSampler`](crate::BindingType::ComparisonSampler) binding
+/// ([`BindingResource::ComparisonSampler`](crate::BindingResource::ComparisonSampler)).
+///
+/// Clones refer to the same sampler.
+#[derive(Clone, Debug)]
+pub struct ComparisonSampler {
+    pub(crate) sampler: wgpu::Sampler,
+}
+
 impl Gpu {
+    /// Creates a comparison sampler that compares with `compare` and reads between pixels with
+    /// `filter`, magnified or minified alike. `label` names it in error messages and in GPU
+    /// capture tools.
+    pub fn create_comparison_sampler(
+        &self,
+        label: &str,
+        compare: DepthCompare,
+        filter: Filter,
+    ) -> ComparisonSampler {
+        // Clamped to the edge, so that a lookup beyond a shadow map does not wrap around to its
+        // other side.
+        let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some(label),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: filter.to_wgpu(),
+            min_filter: filter.to_wgpu(),
+            mipmap_filter: wgpu::MipmapFilterMode::Nearest,
+            compare: Some(compare.to_wgpu()),
+            ..wgpu::SamplerDescriptor::default()
+        });
+        ComparisonSampler { sampler }
+    }
+
     /// Creates a sampler. `label` names it in error messages and in GPU capture tools.
     pub fn create_sampler(&self, label: &str, descriptor: &SamplerDescriptor) -> Sampler {
         let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {

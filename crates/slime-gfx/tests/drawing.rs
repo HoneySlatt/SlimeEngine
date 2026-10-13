@@ -5,9 +5,10 @@
 
 use slime_gfx::{
     BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource, BindingType,
-    Color, CullMode, DepthCompare, DepthState, DepthTarget, Gpu, Image, RenderPass,
-    RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, RenderTarget, ShaderStages,
-    TextureFormat, UniformBuffer, VertexAttribute, VertexBuffer, VertexFormat, VertexLayout,
+    Color, CullMode, DepthBias, DepthCompare, DepthState, DepthTarget, FragmentState, Gpu, Image,
+    RenderPass, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, RenderTarget,
+    ShaderStages, TextureFormat, UniformBuffer, VertexAttribute, VertexBuffer, VertexFormat,
+    VertexLayout,
 };
 
 /// Vertices with a position in clip space and a color; a uniform offset moves them all.
@@ -258,6 +259,7 @@ fn the_depth_test_keeps_the_nearest_triangle_whatever_the_order() {
         Some(DepthState {
             compare: DepthCompare::Less,
             write: true,
+            bias: DepthBias::default(),
         }),
         CullMode::None,
     );
@@ -367,8 +369,7 @@ fn pipeline_for(
         label: "drawing",
         shader: &shader,
         vertex_entry_point: "vs_main",
-        fragment_entry_point: "fs_main",
-        vertex_layout: VertexLayout {
+        vertex_layout: Some(VertexLayout {
             stride: 6 * 4,
             attributes: &[
                 VertexAttribute {
@@ -382,11 +383,14 @@ fn pipeline_for(
                     format: VertexFormat::Float32x3,
                 },
             ],
-        },
+        }),
+        fragment: Some(FragmentState {
+            entry_point: "fs_main",
+            target_format: format,
+        }),
         bind_group_layouts: &[layout],
         depth,
         cull,
-        target_format: format,
     })
     .expect("the pipeline is valid")
 }

@@ -4,9 +4,9 @@
 
 use slime_gfx::{
     AddressMode, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource,
-    BindingType, Color, CullMode, Filter, Gpu, Image, RenderPassDescriptor, RenderPipeline,
-    RenderPipelineDescriptor, RenderTarget, Sampler, SamplerDescriptor, ShaderStages, Texture,
-    TextureFormat, VertexAttribute, VertexFormat, VertexLayout,
+    BindingType, Color, CullMode, Filter, FragmentState, Gpu, Image, RenderPassDescriptor,
+    RenderPipeline, RenderPipelineDescriptor, RenderTarget, Sampler, SamplerDescriptor,
+    ShaderStages, Texture, TextureFormat, VertexAttribute, VertexFormat, VertexLayout,
 };
 
 /// Draws the texture at group 0 with the texture coordinates of the vertices.
@@ -81,8 +81,7 @@ impl Setup {
                 label: "textures",
                 shader: &shader,
                 vertex_entry_point: "vs_main",
-                fragment_entry_point: "fs_main",
-                vertex_layout: VertexLayout {
+                vertex_layout: Some(VertexLayout {
                     stride: 4 * 4,
                     attributes: &[
                         VertexAttribute {
@@ -96,11 +95,14 @@ impl Setup {
                             format: VertexFormat::Float32x2,
                         },
                     ],
-                },
+                }),
+                fragment: Some(FragmentState {
+                    entry_point: "fs_main",
+                    target_format: target.format(),
+                }),
                 bind_group_layouts: &[&layout],
                 depth: None,
                 cull: CullMode::None,
-                target_format: target.format(),
             })
             .expect("the pipeline is valid");
         Self {

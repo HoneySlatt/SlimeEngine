@@ -1,9 +1,10 @@
 //! Errors from creating GPU objects: they are returned, readable, and name the object's label;
-//! and the misuses that are caught at creation, which panic with the label.
+//! and the misuses that are caught at creation or when reading back, which panic with the label.
 
 use slime_gfx::{
-    CullMode, GfxError, Gpu, RenderPipelineDescriptor, TextureFormat, VertexAttribute,
-    VertexFormat, VertexLayout,
+    BindGroupLayoutEntry, BindingType, CullMode, FragmentState, GfxError, Gpu,
+    RenderPipelineDescriptor, ShaderStages, TextureFormat, VertexAttribute, VertexFormat,
+    VertexLayout,
 };
 
 const SHADER: &str = "
@@ -73,12 +74,14 @@ fn a_pipeline_error_names_the_pipeline() {
             label: "pipeline with a missing entry point",
             shader: &shader,
             vertex_entry_point: "does_not_exist",
-            fragment_entry_point: "fs_main",
-            vertex_layout: POSITION_ONLY,
+            vertex_layout: Some(POSITION_ONLY),
+            fragment: Some(FragmentState {
+                entry_point: "fs_main",
+                target_format: TextureFormat::Rgba8UnormSrgb,
+            }),
             bind_group_layouts: &[],
             depth: None,
             cull: CullMode::None,
-            target_format: TextureFormat::Rgba8UnormSrgb,
         })
         .expect_err("a missing entry point must be rejected");
     let GfxError::Pipeline { message, .. } = &error else {
@@ -101,12 +104,14 @@ fn a_pipeline_whose_shader_bindings_are_not_in_its_layouts_is_rejected() {
             label: "pipeline without the layout of its uniform",
             shader: &shader,
             vertex_entry_point: "vs_main",
-            fragment_entry_point: "fs_main",
-            vertex_layout: POSITION_ONLY,
+            vertex_layout: Some(POSITION_ONLY),
+            fragment: Some(FragmentState {
+                entry_point: "fs_main",
+                target_format: TextureFormat::Rgba8UnormSrgb,
+            }),
             bind_group_layouts: &[],
             depth: None,
             cull: CullMode::None,
-            target_format: TextureFormat::Rgba8UnormSrgb,
         })
         .expect_err("a binding that no layout holds must be rejected");
     let GfxError::Pipeline { label, message } = &error else {
@@ -150,4 +155,156 @@ fn a_write_of_another_size_than_the_uniform_buffer_is_rejected() {
     let buffer = gpu.create_uniform_buffer("offset", &[0; 16]);
     assert_eq!(buffer.size(), 16);
     gpu.write_uniform_buffer(&buffer, &[0; 8]);
+}
+
+/// The pipeline error of `descriptor`, which must be rejected.
+fn pipeline_error(gpu: &Gpu, descriptor: &RenderPipelineDescriptor<'_>) -> String {
+    let error = gpu
+        .create_render_pipeline(descriptor)
+        .expect_err("the pipeline must be rejected");
+    let GfxError::Pipeline { label, message } = error else {
+        panic!("expected a pipeline error, got {error:?}");
+    };
+    assert_eq!(label, descriptor.label);
+    message
+}
+
+#[test]
+fn pipelines_without_what_their_shaders_or_passes_need_are_rejected() {
+    let gpu = gpu();
+    let shader = gpu
+        .create_shader_module("white", SHADER)
+        .expect("the shader compiles");
+    let fragment = Some(FragmentState {
+        entry_point: "fs_main",
+        target_format: TextureFormat::Rgba8UnormSrgb,
+    });
+    // The vertex shader reads a position at `@location(0)`, which no vertex buffer provides.
+    let message = pipeline_error(
+        &gpu,
+        &RenderPipelineDescriptor {
+            label: "pipeline without vertices",
+            shader: &shader,
+            vertex_entry_point: "vs_main",
+            vertex_layout: None,
+            fragment,
+            bind_group_layouts: &[],
+            depth: None,
+            cull: CullMode::None,
+        },
+    );
+    assert!(
+        message.contains("not provided"),
+        "the message says what is missing: {message}"
+    );
+    // Neither a fragment stage nor a depth test: nothing to draw into.
+    let message = pipeline_error(
+        &gpu,
+        &RenderPipelineDescriptor {
+            label: "pipeline drawing into nothing",
+            shader: &shader,
+            vertex_entry_point: "vs_main",
+            vertex_layout: Some(POSITION_ONLY),
+            fragment: None,
+            bind_group_layouts: &[],
+            depth: None,
+            cull: CullMode::None,
+        },
+    );
+    assert!(
+        message.contains("no render target"),
+        "the message says what is missing: {message}"
+    );
+}
+
+#[test]
+fn bindings_declared_as_another_kind_than_their_layout_are_rejected() {
+    let gpu = gpu();
+    let fullscreen = "
+        @vertex
+        fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {
+            return vec4<f32>(f32((i & 1u) * 4u) - 1.0, f32((i & 2u) * 2u) - 1.0, 0.0, 1.0);
+        }
+    ";
+    let entry = |binding, ty| BindGroupLayoutEntry {
+        binding,
+        visible_to: ShaderStages::Fragment,
+        ty,
+    };
+    let cases = [
+        (
+            "a float texture at a depth binding",
+            "@group(0) @binding(0) var depth_map: texture_2d<f32>;
+             @fragment
+             fn fs_main(@builtin(position) p: vec4<f32>) -> @location(0) vec4<f32> {
+                 return textureLoad(depth_map, vec2<i32>(p.xy), 0);
+             }",
+            vec![entry(0, BindingType::DepthTexture)],
+        ),
+        (
+            "a comparison sampler at a filtering binding",
+            "@group(0) @binding(0) var depth_map: texture_depth_2d;
+             @group(0) @binding(1) var compare: sampler_comparison;
+             @fragment
+             fn fs_main(@builtin(position) p: vec4<f32>) -> @location(0) vec4<f32> {
+                 return vec4<f32>(textureSampleCompare(depth_map, compare, p.xy / 8.0, 0.5));
+             }",
+            vec![
+                entry(0, BindingType::DepthTexture),
+                entry(1, BindingType::Sampler),
+            ],
+        ),
+    ];
+    for (label, fragment, entries) in cases {
+        let shader = gpu
+            .create_shader_module(label, &format!("{fullscreen}{fragment}"))
+            .expect("the shader compiles");
+        let layout = gpu.create_bind_group_layout(label, &entries);
+        let message = pipeline_error(
+            &gpu,
+            &RenderPipelineDescriptor {
+                label,
+                shader: &shader,
+                vertex_entry_point: "vs_main",
+                vertex_layout: None,
+                fragment: Some(FragmentState {
+                    entry_point: "fs_main",
+                    target_format: TextureFormat::Rgba16Float,
+                }),
+                bind_group_layouts: &[&layout],
+                depth: None,
+                cull: CullMode::None,
+            },
+        );
+        assert!(
+            message.contains("doesn't match the shader"),
+            "{label}: the message says the binding does not match: {message}"
+        );
+    }
+}
+
+#[test]
+#[should_panic(
+    expected = "render target `hdr` is Rgba16Float: read it with Gpu::read_float_render_target"
+)]
+fn a_float_target_is_not_read_as_bytes() {
+    let gpu = gpu();
+    let target = gpu.create_render_target("hdr", 1, 1, TextureFormat::Rgba16Float);
+    let _ = gpu.read_render_target(&target);
+}
+
+#[test]
+#[should_panic(
+    expected = "render target `image` is Rgba8UnormSrgb: read it with Gpu::read_render_target"
+)]
+fn an_8_bit_target_is_not_read_as_floats() {
+    let gpu = gpu();
+    let target = gpu.create_render_target("image", 1, 1, TextureFormat::Rgba8UnormSrgb);
+    let _ = gpu.read_float_render_target(&target);
+}
+
+#[test]
+#[should_panic(expected = "texture `hdr`: Rgba16Float is a format of render targets only")]
+fn a_float_texture_is_rejected_at_creation() {
+    gpu().create_texture("hdr", 1, 1, TextureFormat::Rgba16Float, &[0; 8]);
 }

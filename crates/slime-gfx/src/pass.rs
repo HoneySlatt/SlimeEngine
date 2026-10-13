@@ -13,7 +13,8 @@ use crate::render_target::RenderTarget;
 use crate::timer::GpuTimer;
 use crate::vertex_buffer::VertexBuffer;
 
-/// A color with linear components, not sRGB-encoded, each from 0.0 to 1.0.
+/// A color with linear components, not sRGB-encoded. 8-bit targets keep each component between 0
+/// and 1; `Rgba16Float` targets keep the nearest half-precision value, beyond 0 to 1 included.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Color {
     /// Red.
@@ -37,7 +38,8 @@ impl Color {
     }
 }
 
-/// What a render pass draws into ([`Gpu::render`]).
+/// What a render pass draws into ([`Gpu::render`]). A pass without a render target is described
+/// by a [`DepthPassDescriptor`].
 #[derive(Clone, Copy, Debug)]
 pub struct RenderPassDescriptor<'a> {
     /// The image to draw into.
@@ -56,8 +58,20 @@ pub struct RenderPassDescriptor<'a> {
     pub timer: Option<&'a GpuTimer>,
 }
 
-/// The drawing commands of one render pass, recorded inside [`Gpu::render`]. The lifetime is
-/// the closure's: a pass cannot be kept beyond it.
+/// What a render pass without a render target draws into ([`Gpu::render_depth`]): a depth target
+/// only, for pipelines that write depth only.
+#[derive(Clone, Copy, Debug)]
+pub struct DepthPassDescriptor<'a> {
+    /// The depth target to draw into, cleared to the farthest depth (1.0) when the pass starts. It
+    /// can have any size.
+    pub depth: &'a DepthTarget,
+    /// A timer that measures how long the pass takes on the GPU, read later through
+    /// [`GpuTimer::latest`]; `None` leaves the pass untimed.
+    pub timer: Option<&'a GpuTimer>,
+}
+
+/// The drawing commands of one render pass, recorded inside [`Gpu::render`] or
+/// [`Gpu::render_depth`]. The lifetime is the closure's: a pass cannot be kept beyond it.
 #[derive(Debug)]
 pub struct RenderPass<'a> {
     pass: wgpu::RenderPass<'static>,
@@ -98,7 +112,9 @@ impl RenderPass<'_> {
             .set_index_buffer(buffer.buffer.slice(..), wgpu::IndexFormat::Uint32);
     }
 
-    /// Draws the vertices of the range `vertices`, three by three as triangles.
+    /// Draws the vertices of the range `vertices`, three by three as triangles. A pipeline
+    /// without a vertex layout reads no vertex buffer: its vertex shader gets each index of the
+    /// range as `@builtin(vertex_index)`.
     pub fn draw(&mut self, vertices: Range<u32>) {
         self.pass.draw(vertices, 0..1);
     }
@@ -129,8 +145,12 @@ impl Gpu {
     /// # Panics
     ///
     /// If the depth target does not have the size of the render target, or if wgpu rejects a
-    /// command that `record` gave, for example a pipeline built for another target format or
-    /// without the depth test the pass needs: these are bugs in the caller.
+    /// command that `record` gave, which it reports when the pass is finished inside this method:
+    /// a pipeline built for another target format, or without the depth test the pass needs; a
+    /// pipeline without a fragment stage (it draws only with [`Gpu::render_depth`]); a draw with
+    /// a pipeline that has a vertex layout and no vertex buffer set; a bind group that holds the
+    /// pass's own target or depth target, since a pass cannot sample what it draws into. These
+    /// are bugs in the caller.
     pub fn render(
         &self,
         descriptor: &RenderPassDescriptor<'_>,
@@ -149,44 +169,106 @@ impl Gpu {
                 target.height()
             );
         }
+        let color = wgpu::RenderPassColorAttachment {
+            view: &target.view,
+            depth_slice: None,
+            resolve_target: None,
+            ops: wgpu::Operations {
+                load: match descriptor.clear {
+                    Some(color) => wgpu::LoadOp::Clear(color.to_wgpu()),
+                    None => wgpu::LoadOp::Load,
+                },
+                store: wgpu::StoreOp::Store,
+            },
+        };
+        let depth = descriptor
+            .depth
+            .map(|depth| wgpu::RenderPassDepthStencilAttachment {
+                view: &depth.view,
+                depth_ops: Some(wgpu::Operations {
+                    load: if descriptor.clear.is_some() {
+                        wgpu::LoadOp::Clear(1.0)
+                    } else {
+                        wgpu::LoadOp::Load
+                    },
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            });
+        self.run_pass(&target.label, Some(color), depth, descriptor.timer, record);
+        target.drawn.store(true, Ordering::Relaxed);
+    }
+
+    /// Runs one render pass without a render target: clears `descriptor.depth` to the farthest
+    /// depth, lets `record` draw with pipelines that have a depth test and no fragment stage
+    /// ([`RenderPipelineDescriptor::fragment`](crate::RenderPipelineDescriptor::fragment) is
+    /// `None`), such as a shadow map's, then submits the work, timed by `descriptor.timer` when
+    /// there is one. Later passes can then sample the depth target
+    /// ([`BindingResource::DepthTarget`](crate::BindingResource::DepthTarget)).
+    ///
+    /// The pass and its commands are named after the depth target's label in capture tools. The
+    /// work runs on the GPU after this function returns; submitting it is recorded as a
+    /// `trace`-level profiling span named `submit`.
+    ///
+    /// # Panics
+    ///
+    /// If wgpu rejects a command that `record` gave, which it reports when the pass is finished
+    /// inside this method: a pipeline with a fragment stage (it draws only with
+    /// [`Gpu::render`]), a pipeline without a depth test, a draw with a pipeline that has a
+    /// vertex layout and no vertex buffer set, or a bind group that holds `descriptor.depth`.
+    /// These are bugs in the caller.
+    pub fn render_depth(
+        &self,
+        descriptor: &DepthPassDescriptor<'_>,
+        record: impl FnOnce(&mut RenderPass<'_>),
+    ) {
+        let depth = wgpu::RenderPassDepthStencilAttachment {
+            view: &descriptor.depth.view,
+            depth_ops: Some(wgpu::Operations {
+                load: wgpu::LoadOp::Clear(1.0),
+                store: wgpu::StoreOp::Store,
+            }),
+            stencil_ops: None,
+        };
+        self.run_pass(
+            &descriptor.depth.label,
+            None,
+            Some(depth),
+            descriptor.timer,
+            record,
+        );
+    }
+
+    /// Records one render pass into its own command encoder, with `color` and `depth` as its
+    /// attachments, timed by `timer` when it has a free slot, and submits it.
+    fn run_pass(
+        &self,
+        label: &str,
+        color: Option<wgpu::RenderPassColorAttachment<'_>>,
+        depth: Option<wgpu::RenderPassDepthStencilAttachment<'_>>,
+        timer: Option<&GpuTimer>,
+        record: impl FnOnce(&mut RenderPass<'_>),
+    ) {
         let mut encoder = self
             .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some(&target.label),
-            });
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some(label) });
         // A timer whose slots are all in flight leaves this pass untimed rather than waiting.
-        let timing = descriptor
-            .timer
-            .and_then(|timer| timer.reserve().map(|slot| (timer, slot)));
+        let timing = timer.and_then(|timer| timer.reserve().map(|slot| (timer, slot)));
+        // A pass without a render target has no color attachment at all, not one empty slot:
+        // wgpu compares this list with the pipelines' targets exactly, and a depth-only pipeline
+        // has none.
+        let color_attachments = [color];
+        let color_attachments: &[Option<wgpu::RenderPassColorAttachment<'_>>] =
+            if color_attachments[0].is_some() {
+                &color_attachments
+            } else {
+                &[]
+            };
         {
             let pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some(&target.label),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &target.view,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: match descriptor.clear {
-                            Some(color) => wgpu::LoadOp::Clear(color.to_wgpu()),
-                            None => wgpu::LoadOp::Load,
-                        },
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: descriptor.depth.map(|depth| {
-                    wgpu::RenderPassDepthStencilAttachment {
-                        view: &depth.view,
-                        depth_ops: Some(wgpu::Operations {
-                            load: if descriptor.clear.is_some() {
-                                wgpu::LoadOp::Clear(1.0)
-                            } else {
-                                wgpu::LoadOp::Load
-                            },
-                            store: wgpu::StoreOp::Store,
-                        }),
-                        stencil_ops: None,
-                    }
-                }),
+                label: Some(label),
+                color_attachments,
+                depth_stencil_attachment: depth,
                 timestamp_writes: timing.map(|(timer, slot)| timer.writes(slot)),
                 occlusion_query_set: None,
                 multiview_mask: None,
@@ -206,6 +288,5 @@ impl Gpu {
         if let Some((timer, slot)) = timing {
             timer.map(slot);
         }
-        target.drawn.store(true, Ordering::Relaxed);
     }
 }

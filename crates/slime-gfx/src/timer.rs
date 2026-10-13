@@ -13,11 +13,20 @@ const SLOTS: usize = 4;
 const QUERIES_PER_SLOT: u32 = 2;
 
 /// Measures how long render passes take on the GPU: a timestamp is written when a pass that
-/// uses the timer ([`RenderPassDescriptor::timer`](crate::RenderPassDescriptor::timer)) starts
-/// and ends, and read back a few frames later, so that nothing waits for the GPU.
+/// uses the timer ([`RenderPassDescriptor::timer`](crate::RenderPassDescriptor::timer),
+/// [`DepthPassDescriptor::timer`](crate::DepthPassDescriptor::timer)) starts and ends, and read
+/// back a few frames later, so that nothing waits for the GPU.
 ///
 /// [`Gpu::create_timer`] gives one only when the adapter supports timestamp queries;
 /// [`Gpu::can_time`] tells.
+///
+/// A timer measures one pass at a time. To time several passes of a frame, give each its own
+/// timer and read each with [`latest`](Self::latest): its slots, query set and readbacks are its
+/// own. The times of different timers come back independently, so they can come from different
+/// frames. On Vulkan, wgpu writes both timestamps once the work before them is done, so a pass's
+/// time runs from the end of the previous work to the end of the pass: the sum of a frame's pass
+/// times leaves out the gaps between submissions, and is not a frame time. A timer named by
+/// several passes of one frame reports whichever of them came back last.
 pub struct GpuTimer {
     query_set: wgpu::QuerySet,
     slots: Vec<Slot>,

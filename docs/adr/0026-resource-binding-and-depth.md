@@ -1,6 +1,6 @@
 # 0026. Resource binding and depth in `slime-gfx`
 
-- Status: Accepted; amended by [0032](0032-mipmaps-computed-at-texture-creation.md) (mipmaps)
+- Status: Accepted; amended by [0032](0032-mipmaps-computed-at-texture-creation.md) (mipmaps) and [0033](0033-gpu-layer-for-multi-pass-rendering.md) (binding kinds, sampled depth targets, the pipeline descriptor, depth bias)
 - Date: 2026-10-12
 
 ## Context

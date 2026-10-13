@@ -2,8 +2,10 @@
 
 use std::num::NonZeroU64;
 
+use crate::depth_target::DepthTarget;
 use crate::gpu::Gpu;
-use crate::sampler::Sampler;
+use crate::render_target::RenderTarget;
+use crate::sampler::{ComparisonSampler, Sampler};
 use crate::texture::Texture;
 use crate::uniform_buffer::UniformBuffer;
 
@@ -40,10 +42,16 @@ pub enum BindingType {
         /// [`BindingResource::UniformBufferRange`].
         dynamic_offset: bool,
     },
-    /// A [`Texture`], declared `texture_2d<f32>` in WGSL and read with a [`Sampler`].
+    /// A [`Texture`], or a [`RenderTarget`] that an earlier pass drew into, declared
+    /// `texture_2d<f32>` in WGSL and read with a [`Sampler`].
     Texture,
     /// A [`Sampler`], declared `sampler` in WGSL.
     Sampler,
+    /// A [`DepthTarget`], declared `texture_depth_2d` in WGSL: read with `textureLoad`, or
+    /// compared with a reference depth through a [`ComparisonSampler`] (`textureSampleCompare`).
+    DepthTexture,
+    /// A [`ComparisonSampler`], declared `sampler_comparison` in WGSL.
+    ComparisonSampler,
 }
 
 /// One binding of a [`BindGroupLayout`]: its number in the shaders and what it holds.
@@ -85,6 +93,16 @@ pub enum BindingResource<'a> {
     Texture(&'a Texture),
     /// A sampler.
     Sampler(&'a Sampler),
+    /// A render target created by [`Gpu::create_render_target`], for a
+    /// [`BindingType::Texture`] binding: shaders read what earlier passes drew into it. A pass
+    /// that binds it cannot draw into it, and the image of a window cannot be bound. The group
+    /// keeps this target: a target created again (at a new size) needs a new group.
+    RenderTarget(&'a RenderTarget),
+    /// A depth target, for a [`BindingType::DepthTexture`] binding. A pass that binds it cannot
+    /// draw into it. The group keeps this depth target, as above.
+    DepthTarget(&'a DepthTarget),
+    /// A comparison sampler, for a [`BindingType::ComparisonSampler`] binding.
+    ComparisonSampler(&'a ComparisonSampler),
 }
 
 /// One binding of a [`BindGroup`]: its number and the resource it holds.
@@ -138,6 +156,14 @@ impl Gpu {
                     BindingType::Sampler => {
                         wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering)
                     }
+                    BindingType::DepthTexture => wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Depth,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    BindingType::ComparisonSampler => {
+                        wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison)
+                    }
                 },
                 count: None,
             })
@@ -157,7 +183,11 @@ impl Gpu {
     /// # Panics
     ///
     /// If a range has a size of zero or larger than its buffer, or if the entries do not match the
-    /// layout (a binding missing, or of another kind): these are bugs in the caller (ADR-0016).
+    /// layout: a binding missing, or a resource of another kind than its entry declares, such as a
+    /// depth target at a `Texture` binding, a render target or texture at a `DepthTexture`
+    /// binding, or a [`Sampler`] at a `ComparisonSampler` binding or the reverse. Also if a render
+    /// target is the image of a window, which cannot be sampled. These are bugs in the caller,
+    /// which wgpu rejects (ADR-0016).
     pub fn create_bind_group(
         &self,
         label: &str,
@@ -189,6 +219,15 @@ impl Gpu {
                     BindingResource::Sampler(sampler) => {
                         wgpu::BindingResource::Sampler(&sampler.sampler)
                     }
+                    BindingResource::RenderTarget(target) => {
+                        wgpu::BindingResource::TextureView(&target.view)
+                    }
+                    BindingResource::DepthTarget(depth) => {
+                        wgpu::BindingResource::TextureView(&depth.view)
+                    }
+                    BindingResource::ComparisonSampler(sampler) => {
+                        wgpu::BindingResource::Sampler(&sampler.sampler)
+                    }
                 },
             })
             .collect();
@@ -198,5 +237,51 @@ impl Gpu {
             entries: &entries,
         });
         BindGroup { group }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::TextureFormat;
+
+    #[test]
+    #[should_panic(expected = "TEXTURE_BINDING")]
+    fn a_window_image_cannot_be_bound() {
+        let gpu =
+            Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+        // What a window's image is: a texture with the one usage that `Surface` configures
+        // (surface.rs), wrapped as the render target of a frame.
+        let texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("window, frame 1"),
+            size: wgpu::Extent3d {
+                width: 4,
+                height: 4,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Bgra8UnormSrgb,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+        let image = RenderTarget::new(texture, "window, frame 1", TextureFormat::Bgra8UnormSrgb);
+        let layout = gpu.create_bind_group_layout(
+            "window image",
+            &[BindGroupLayoutEntry {
+                binding: 0,
+                visible_to: ShaderStages::Fragment,
+                ty: BindingType::Texture,
+            }],
+        );
+        gpu.create_bind_group(
+            "window image",
+            &layout,
+            &[BindGroupEntry {
+                binding: 0,
+                resource: BindingResource::RenderTarget(&image),
+            }],
+        );
     }
 }

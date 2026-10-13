@@ -9,6 +9,7 @@ pub use wgpu;
 mod bind_group;
 mod depth_target;
 mod error;
+mod float16;
 mod gpu;
 mod image;
 mod index_buffer;
@@ -30,15 +31,15 @@ pub use bind_group::{
 pub use depth_target::DepthTarget;
 pub use error::GfxError;
 pub use gpu::Gpu;
-pub use image::Image;
+pub use image::{FloatImage, Image};
 pub use index_buffer::IndexBuffer;
-pub use pass::{Color, RenderPass, RenderPassDescriptor};
+pub use pass::{Color, DepthPassDescriptor, RenderPass, RenderPassDescriptor};
 pub use pipeline::{
-    CullMode, DepthCompare, DepthState, RenderPipeline, RenderPipelineDescriptor, VertexAttribute,
-    VertexFormat, VertexLayout,
+    CullMode, DepthBias, DepthCompare, DepthState, FragmentState, RenderPipeline,
+    RenderPipelineDescriptor, VertexAttribute, VertexFormat, VertexLayout,
 };
 pub use render_target::{RenderTarget, TextureFormat};
-pub use sampler::{AddressMode, Filter, Sampler, SamplerDescriptor};
+pub use sampler::{AddressMode, ComparisonSampler, Filter, Sampler, SamplerDescriptor};
 pub use shader::ShaderModule;
 pub use surface::{PresentMode, Surface, SurfaceFrame};
 pub use texture::Texture;

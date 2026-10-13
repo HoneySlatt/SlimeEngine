@@ -84,7 +84,7 @@ the ADR linking to it.
 | [0014](0014-amend-roadmap-for-stage-2-and-windows.md) | Amend the roadmap for Stage 2 and for Windows | Accepted |
 | [0015](0015-platforms-and-ci.md) | Platforms and CI on Linux and Windows | Accepted |
 | [0016](0016-gpu-layer-with-wgpu.md) | The GPU layer: wgpu behind `slime-gfx` | Accepted; amended by 0022, 0031 |
-| [0017](0017-gpu-resource-types.md) | GPU resource types | Accepted; amended by 0026 |
+| [0017](0017-gpu-resource-types.md) | GPU resource types | Accepted; amended by 0026, 0033 |
 | [0018](0018-reference-image-tests.md) | Reference image tests | Accepted; amended by 0028, 0030 |
 | [0019](0019-default-log-filter.md) | Default log filter | Accepted |
 | [0020](0020-rendering-in-the-main-loop.md) | Rendering in the main loop, and application errors | Accepted; amended by 0021, 0022, 0025 |
@@ -93,10 +93,11 @@ the ADR linking to it.
 | [0023](0023-dependency-checks-for-the-supported-targets.md) | Check the dependencies of the supported targets only | Accepted |
 | [0024](0024-windowed-lifecycle-check-in-weston.md) | Windowed lifecycle check in the headless compositor | Accepted |
 | [0025](0025-giving-up-a-lost-surface.md) | Giving up a window's surface that is lost for good | Accepted |
-| [0026](0026-resource-binding-and-depth.md) | Resource binding and depth in `slime-gfx` | Accepted; amended by 0032 |
+| [0026](0026-resource-binding-and-depth.md) | Resource binding and depth in `slime-gfx` | Accepted; amended by 0032, 0033 |
 | [0027](0027-the-render-crate.md) | The render crate, what it draws, and glam | Accepted |
 | [0028](0028-image-tests-tolerate-a-few-pixels.md) | Image tests tolerate a few differing pixels | Accepted; amended by 0030 |
 | [0029](0029-temporary-gltf-loading.md) | Temporary glTF loading, in the examples | Accepted |
 | [0030](0030-image-tests-strict-on-the-reference-driver.md) | Image tests: strict on the reference driver, loose on the others | Accepted |
 | [0031](0031-dev-overlay-with-egui.md) | The dev overlay with egui, and wgpu for the engine's tooling | Accepted |
 | [0032](0032-mipmaps-computed-at-texture-creation.md) | Mipmaps computed by the engine when a texture is created | Accepted |
+| [0033](0033-gpu-layer-for-multi-pass-rendering.md) | The GPU layer for multi-pass rendering | Accepted |

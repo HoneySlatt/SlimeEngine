@@ -50,20 +50,23 @@ pub struct VertexLayout<'a> {
     pub attributes: &'a [VertexAttribute],
 }
 
-/// How a pipeline compares the depth of what it draws with the depth already in the depth target.
+/// How a depth is compared with the one stored in a depth target, passing where
+/// `new <op> stored`. For a pipeline's depth test, the new depth is a fragment's; for a
+/// [`ComparisonSampler`](crate::ComparisonSampler), it is the reference the shader gives.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum DepthCompare {
-    /// Draw where the new depth is less than the stored one: nearer, with the usual projections.
+    /// Passes where the new depth is less than the stored one: nearer, with the usual
+    /// projections.
     Less,
-    /// Draw where the new depth is less than or equal to the stored one.
+    /// Passes where the new depth is less than or equal to the stored one.
     LessEqual,
-    /// Draw whatever the stored depth.
+    /// Passes whatever the stored depth.
     Always,
 }
 
 impl DepthCompare {
-    fn to_wgpu(self) -> wgpu::CompareFunction {
+    pub(crate) fn to_wgpu(self) -> wgpu::CompareFunction {
         match self {
             Self::Less => wgpu::CompareFunction::Less,
             Self::LessEqual => wgpu::CompareFunction::LessEqual,
@@ -73,12 +76,35 @@ impl DepthCompare {
 }
 
 /// The depth test of a pipeline: how it uses the depth target of the pass it draws in.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DepthState {
     /// The comparison that decides whether a fragment is drawn.
     pub compare: DepthCompare,
     /// Whether the depth of what is drawn is written to the depth target.
     pub write: bool,
+    /// How far the depth of what the pipeline draws is pushed back before the test and the write;
+    /// [`DepthBias::default()`] pushes nothing.
+    pub bias: DepthBias,
+}
+
+/// An offset added to the depth of each fragment a pipeline draws, before the depth test:
+/// `constant` × r + `slope_scale` × m, where
+///
+/// - r is the smallest depth difference the depth target resolves at the triangle's depth:
+///   2^(e − 23) for its 32-bit floats, e being the exponent of the triangle's largest depth
+///   (2^-24 for depths from 0.5 to 1);
+/// - m is the triangle's depth slope: how much its depth changes from one pixel to the next,
+///   along its steepest direction.
+///
+/// Positive values push surfaces away. A shadow map is drawn with one, so that a surface does not
+/// shadow itself where its depth and the stored one differ only by rounding (shadow acne). The
+/// offset is not clamped. The default, zero, is no bias.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct DepthBias {
+    /// The constant part, in units of r.
+    pub constant: i32,
+    /// The part proportional to the depth slope m.
+    pub slope_scale: f32,
 }
 
 /// Which faces of the triangles are not drawn. A face is front-facing when its vertices wind
@@ -106,20 +132,26 @@ impl CullMode {
 
 /// What [`Gpu::create_render_pipeline`] needs to build a pipeline.
 ///
-/// The pipeline draws lists of triangles, without blending, from one vertex buffer, into one
-/// render target of `target_format`.
+/// The pipeline draws lists of triangles, without blending, from at most one vertex buffer, into
+/// one render target of its fragment stage's format, or into a depth target only.
 #[derive(Clone, Copy, Debug)]
 pub struct RenderPipelineDescriptor<'a> {
     /// Names the pipeline in error messages and in GPU capture tools.
     pub label: &'a str,
-    /// The module holding both entry points.
+    /// The module holding the entry points.
     pub shader: &'a ShaderModule,
     /// The name of the vertex shader's entry point.
     pub vertex_entry_point: &'a str,
-    /// The name of the fragment shader's entry point.
-    pub fragment_entry_point: &'a str,
-    /// The layout of the vertex buffer bound at slot 0.
-    pub vertex_layout: VertexLayout<'a>,
+    /// The layout of the vertex buffer bound at slot 0, or `None` for a pipeline that reads no
+    /// vertex buffer: its vertex shader builds each vertex from `@builtin(vertex_index)`, as a
+    /// fullscreen triangle does, and its draws set no vertex buffer. A vertex shader with
+    /// `@location` inputs needs a layout.
+    pub vertex_layout: Option<VertexLayout<'a>>,
+    /// The fragment shader and the format of the render targets it writes, or `None` for a
+    /// pipeline that writes depth only: it has no fragment shader, needs a depth test
+    /// ([`depth`](Self::depth)), and draws only in passes without a render target
+    /// ([`Gpu::render_depth`]).
+    pub fragment: Option<FragmentState<'a>>,
     /// The layouts of the bind groups the shaders read, by `@group` index. A binding that the
     /// shaders declare and that no layout holds is rejected.
     pub bind_group_layouts: &'a [&'a BindGroupLayout],
@@ -129,6 +161,14 @@ pub struct RenderPipelineDescriptor<'a> {
     pub depth: Option<DepthState>,
     /// Which faces are not drawn.
     pub cull: CullMode,
+}
+
+/// The fragment stage of a pipeline: its entry point, and the format of the render targets it
+/// draws into.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct FragmentState<'a> {
+    /// The name of the fragment shader's entry point, in the pipeline's shader module.
+    pub entry_point: &'a str,
     /// The format of the render targets the pipeline draws into.
     pub target_format: TextureFormat,
 }
@@ -147,10 +187,14 @@ impl Gpu {
     /// # Errors
     ///
     /// [`GfxError::Pipeline`] if wgpu rejects the pipeline, for example because an entry point
-    /// does not exist in the shader, its inputs do not match the vertex layout, or the shaders
-    /// declare a binding that the bind group layouts do not hold; or if the graphics driver
-    /// rejects it. The message names the pipeline's label. [`GfxError::DeviceLost`] once the
-    /// device is lost ([`Gpu::check`]).
+    /// does not exist in the shader, its inputs do not match the vertex layout (or the vertex
+    /// shader reads `@location` inputs without one), the pipeline has neither a fragment stage nor
+    /// a depth test, or the shaders declare a binding that the bind group layouts do not hold or
+    /// hold as another kind (a `texture_depth_2d` or `sampler_comparison` against a layout entry
+    /// that is not a [`BindingType::DepthTexture`](crate::BindingType::DepthTexture) or
+    /// [`BindingType::ComparisonSampler`](crate::BindingType::ComparisonSampler), or the reverse);
+    /// or if the graphics driver rejects it. The message names the pipeline's label.
+    /// [`GfxError::DeviceLost`] once the device is lost ([`Gpu::check`]).
     pub fn create_render_pipeline(
         &self,
         descriptor: &RenderPipelineDescriptor<'_>,
@@ -158,12 +202,36 @@ impl Gpu {
         self.check()?;
         let attributes: Vec<wgpu::VertexAttribute> = descriptor
             .vertex_layout
-            .attributes
             .iter()
+            .flat_map(|layout| layout.attributes)
             .map(|attribute| wgpu::VertexAttribute {
                 format: attribute.format.to_wgpu(),
                 offset: attribute.offset,
                 shader_location: attribute.location,
+            })
+            .collect();
+        // A pipeline without a vertex layout declares no vertex buffer at all: one declared without
+        // attributes would still have to be bound at every draw.
+        let vertex_buffers: Vec<Option<wgpu::VertexBufferLayout<'_>>> = descriptor
+            .vertex_layout
+            .iter()
+            .map(|layout| {
+                Some(wgpu::VertexBufferLayout {
+                    array_stride: layout.stride,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes: &attributes,
+                })
+            })
+            .collect();
+        let color_targets: Vec<Option<wgpu::ColorTargetState>> = descriptor
+            .fragment
+            .iter()
+            .map(|fragment| {
+                Some(wgpu::ColorTargetState {
+                    format: fragment.target_format.to_wgpu(),
+                    blend: None,
+                    write_mask: wgpu::ColorWrites::ALL,
+                })
             })
             .collect();
         let bind_group_layouts: Vec<Option<&wgpu::BindGroupLayout>> = descriptor
@@ -187,11 +255,7 @@ impl Gpu {
                         module: &descriptor.shader.module,
                         entry_point: Some(descriptor.vertex_entry_point),
                         compilation_options: wgpu::PipelineCompilationOptions::default(),
-                        buffers: &[Some(wgpu::VertexBufferLayout {
-                            array_stride: descriptor.vertex_layout.stride,
-                            step_mode: wgpu::VertexStepMode::Vertex,
-                            attributes: &attributes,
-                        })],
+                        buffers: &vertex_buffers,
                     },
                     primitive: wgpu::PrimitiveState {
                         cull_mode: descriptor.cull.to_wgpu(),
@@ -202,18 +266,19 @@ impl Gpu {
                         depth_write_enabled: Some(depth.write),
                         depth_compare: Some(depth.compare.to_wgpu()),
                         stencil: wgpu::StencilState::default(),
-                        bias: wgpu::DepthBiasState::default(),
+                        // A clamp would need a downlevel flag, and nothing needs one.
+                        bias: wgpu::DepthBiasState {
+                            constant: depth.bias.constant,
+                            slope_scale: depth.bias.slope_scale,
+                            clamp: 0.0,
+                        },
                     }),
                     multisample: wgpu::MultisampleState::default(),
-                    fragment: Some(wgpu::FragmentState {
+                    fragment: descriptor.fragment.map(|fragment| wgpu::FragmentState {
                         module: &descriptor.shader.module,
-                        entry_point: Some(descriptor.fragment_entry_point),
+                        entry_point: Some(fragment.entry_point),
                         compilation_options: wgpu::PipelineCompilationOptions::default(),
-                        targets: &[Some(wgpu::ColorTargetState {
-                            format: descriptor.target_format.to_wgpu(),
-                            blend: None,
-                            write_mask: wgpu::ColorWrites::ALL,
-                        })],
+                        targets: &color_targets,
                     }),
                     multiview_mask: None,
                     cache: None,

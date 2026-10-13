@@ -6,6 +6,7 @@ use std::sync::atomic::AtomicBool;
 use crate::gpu::Gpu;
 
 /// The formats of the engine's textures: those it renders into, and those shaders sample.
+/// `Rgba16Float` is a format of render targets only.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum TextureFormat {
@@ -18,6 +19,12 @@ pub enum TextureFormat {
     /// Red, green, blue and alpha, 8 bits each, linear: for data that is not a color, such as a
     /// normal map, which shaders read as it is.
     Rgba8Unorm,
+    /// Red, green, blue and alpha, each a 16-bit (half-precision) floating-point number, linear:
+    /// values beyond 0 to 1, up to ±65 504 with 11 significant bits, such as the light of a scene
+    /// before tone mapping (high dynamic range). A format of render targets only: shaders sample
+    /// them, [`Gpu::read_float_render_target`] reads them back, and [`Gpu::create_texture`] does
+    /// not take it.
+    Rgba16Float,
 }
 
 impl TextureFormat {
@@ -37,6 +44,7 @@ impl TextureFormat {
             Self::Rgba8UnormSrgb => wgpu::TextureFormat::Rgba8UnormSrgb,
             Self::Bgra8UnormSrgb => wgpu::TextureFormat::Bgra8UnormSrgb,
             Self::Rgba8Unorm => wgpu::TextureFormat::Rgba8Unorm,
+            Self::Rgba16Float => wgpu::TextureFormat::Rgba16Float,
         }
     }
 
@@ -46,13 +54,15 @@ impl TextureFormat {
             wgpu::TextureFormat::Rgba8UnormSrgb => Some(Self::Rgba8UnormSrgb),
             wgpu::TextureFormat::Bgra8UnormSrgb => Some(Self::Bgra8UnormSrgb),
             wgpu::TextureFormat::Rgba8Unorm => Some(Self::Rgba8Unorm),
+            wgpu::TextureFormat::Rgba16Float => Some(Self::Rgba16Float),
             _ => None,
         }
     }
 }
 
-/// A texture that render passes draw into: an offscreen image, or the image of a window for one
-/// frame ([`SurfaceFrame::target`](crate::SurfaceFrame::target)).
+/// A texture that render passes draw into: an offscreen image ([`Gpu::create_render_target`]),
+/// which can be read back and sampled by later passes, or the image of a window for one frame
+/// ([`SurfaceFrame::target`](crate::SurfaceFrame::target)), which can be neither.
 ///
 /// Clones refer to the same texture, which is freed when the last clone is dropped and the GPU no
 /// longer uses it.
@@ -93,6 +103,11 @@ impl Gpu {
     /// Creates a render target of `width` × `height` pixels. `label` names it in error messages
     /// and in GPU capture tools.
     ///
+    /// Shaders of later passes sample it through a bind group
+    /// ([`BindingResource::RenderTarget`](crate::BindingResource::RenderTarget) at a
+    /// [`BindingType::Texture`](crate::BindingType::Texture) binding); a pass cannot sample the
+    /// target it draws into. Until a pass draws into it, it reads as zeros.
+    ///
     /// # Panics
     ///
     /// If `width` or `height` is zero or larger than the device allows (8192 with the default
@@ -115,7 +130,9 @@ impl Gpu {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: format.to_wgpu(),
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         });
         RenderTarget::new(texture, label, format)

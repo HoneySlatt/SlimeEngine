@@ -3,13 +3,14 @@
 use std::sync::mpsc;
 
 use crate::error::GfxError;
+use crate::float16::f16_to_f32;
 use crate::gpu::Gpu;
 use crate::render_target::{RenderTarget, TextureFormat};
 
 /// An image in CPU memory: `width` × `height` pixels, rows from top to bottom, 4 bytes per pixel
 /// in the order red, green, blue, alpha, whatever the byte order of the texture it was read from,
-/// and encoded as that texture's format says: sRGB-encoded for the sRGB formats, linear for the
-/// others.
+/// and encoded as that texture's format says: sRGB-encoded for the sRGB formats, linear for
+/// `Rgba8Unorm`. `Rgba16Float` targets are read as a [`FloatImage`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Image {
     /// Width in pixels.
@@ -20,8 +21,22 @@ pub struct Image {
     pub pixels: Vec<u8>,
 }
 
+/// An image of floating-point values in CPU memory, read from an `Rgba16Float` render target
+/// ([`Gpu::read_float_render_target`]): `width` × `height` pixels, rows from top to bottom.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FloatImage {
+    /// Width in pixels.
+    pub width: u32,
+    /// Height in pixels.
+    pub height: u32,
+    /// `width * height * 4` values: the red, green, blue and alpha of each pixel, each exactly the
+    /// half-precision value the target holds (`f32` represents every one, subnormals, infinities
+    /// and NaN included).
+    pub pixels: Vec<f32>,
+}
+
 impl Gpu {
-    /// Copies the content of `target` to the CPU. It waits for the GPU to finish the work
+    /// Copies the content of an 8-bit `target` to the CPU. It waits for the GPU to finish the work
     /// submitted before, so the image shows everything rendered into `target` so far.
     ///
     /// # Errors
@@ -31,11 +46,71 @@ impl Gpu {
     ///
     /// # Panics
     ///
-    /// If `target` is the image of a window
-    /// ([`SurfaceFrame::target`](crate::SurfaceFrame::target)): only targets created by
-    /// [`Gpu::create_render_target`] can be read back. Also if the wait for the GPU is what finds
-    /// the device lost: wgpu treats that as fatal.
+    /// If `target` is `Rgba16Float`, which [`Gpu::read_float_render_target`] reads; if `target` is
+    /// the image of a window ([`SurfaceFrame::target`](crate::SurfaceFrame::target)): only targets
+    /// created by [`Gpu::create_render_target`] can be read back. Also if the wait for the GPU is
+    /// what finds the device lost: wgpu treats that as fatal.
     pub fn read_render_target(&self, target: &RenderTarget) -> Result<Image, GfxError> {
+        assert!(
+            target.format() != TextureFormat::Rgba16Float,
+            "render target `{}` is Rgba16Float: read it with Gpu::read_float_render_target",
+            target.label
+        );
+        let mut pixels = self.read_texels(target, 4)?;
+        if target.format() == TextureFormat::Bgra8UnormSrgb {
+            for pixel in pixels.as_chunks_mut::<4>().0 {
+                pixel.swap(0, 2);
+            }
+        }
+        Ok(Image {
+            width: target.width(),
+            height: target.height(),
+            pixels,
+        })
+    }
+
+    /// Copies the content of an `Rgba16Float` `target` to the CPU, as
+    /// [`read_render_target`](Self::read_render_target) does for 8-bit targets: it waits for the
+    /// GPU to finish the work submitted before. The half-precision values are converted to `f32`
+    /// exactly.
+    ///
+    /// # Errors
+    ///
+    /// [`GfxError::DeviceLost`] once the device is lost ([`Gpu::check`]); [`GfxError::Readback`] if
+    /// waiting for the GPU or reading its memory fails.
+    ///
+    /// # Panics
+    ///
+    /// If `target` is not `Rgba16Float` (the image of a window never is). Also if the wait for the
+    /// GPU is what finds the device lost: wgpu treats that as fatal.
+    pub fn read_float_render_target(&self, target: &RenderTarget) -> Result<FloatImage, GfxError> {
+        assert!(
+            target.format() == TextureFormat::Rgba16Float,
+            "render target `{}` is {:?}: read it with Gpu::read_render_target",
+            target.label,
+            target.format()
+        );
+        let bytes = self.read_texels(target, 8)?;
+        let pixels = bytes
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|&half| f16_to_f32(u16::from_le_bytes(half)))
+            .collect();
+        Ok(FloatImage {
+            width: target.width(),
+            height: target.height(),
+            pixels,
+        })
+    }
+
+    /// Copies the texels of `target`, `bytes_per_pixel` each, to the CPU, rows from top to
+    /// bottom, without the padding that GPU copies add to rows.
+    fn read_texels(
+        &self,
+        target: &RenderTarget,
+        bytes_per_pixel: u32,
+    ) -> Result<Vec<u8>, GfxError> {
         self.check()?;
         let readback_error =
             |source: Box<dyn std::error::Error + Send + Sync>| GfxError::Readback {
@@ -43,7 +118,7 @@ impl Gpu {
                 source,
             };
         let (width, height) = (target.width(), target.height());
-        let row_bytes = width * 4;
+        let row_bytes = width * bytes_per_pixel;
         // Copies from a texture to a buffer need rows aligned to 256 bytes.
         let padded_row_bytes = row_bytes.next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
         let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
@@ -97,21 +172,12 @@ impl Gpu {
         let mapped = buffer
             .get_mapped_range(..)
             .map_err(|error| readback_error(Box::new(error)))?;
-        let mut pixels = Vec::with_capacity(row_bytes as usize * height as usize);
+        let mut texels = Vec::with_capacity(row_bytes as usize * height as usize);
         for row in mapped.chunks(padded_row_bytes as usize) {
-            pixels.extend_from_slice(&row[..row_bytes as usize]);
+            texels.extend_from_slice(&row[..row_bytes as usize]);
         }
         drop(mapped);
         buffer.unmap();
-        if target.format() == TextureFormat::Bgra8UnormSrgb {
-            for pixel in pixels.as_chunks_mut::<4>().0 {
-                pixel.swap(0, 2);
-            }
-        }
-        Ok(Image {
-            width,
-            height,
-            pixels,
-        })
+        Ok(texels)
     }
 }

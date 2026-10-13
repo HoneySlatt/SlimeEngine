@@ -6,10 +6,19 @@ drivers.
 ## Status
 
 Partial. It opens a GPU device, with or without a window, draws into offscreen images and reads
-them back, and draws into a window. It draws lists of triangles from vertex and index buffers,
-reading uniform buffers, textures and samplers through bind groups, with a depth test and face
-culling, into 8-bit sRGB or linear images, and times its render passes on adapters that have
-timestamp queries. Blending is not there yet.
+them back, and draws into a window:
+
+- It draws lists of triangles from vertex and index buffers, or from the vertex index alone (a
+  fullscreen triangle).
+- Its shaders read uniform buffers, textures, samplers and comparison samplers through bind
+  groups, with a depth test, a depth bias and face culling.
+- It draws into 8-bit sRGB or linear images, into 16-bit floating-point ones (high dynamic range),
+  or into a depth target only.
+- Later passes sample the render and depth targets that earlier ones drew into.
+- It times each render pass with a timer of its own, on adapters that have timestamp queries.
+
+Not there yet: blending, multisampling, cube and array textures, and float textures created from
+the CPU.
 
 ## Role
 
@@ -26,8 +35,8 @@ Drawing a triangle into an offscreen image and reading it back:
 
 ```rust
 use slime_gfx::{
-    Color, CullMode, GfxError, Gpu, RenderPassDescriptor, RenderPipelineDescriptor, TextureFormat,
-    VertexAttribute, VertexFormat, VertexLayout,
+    Color, CullMode, FragmentState, GfxError, Gpu, RenderPassDescriptor, RenderPipelineDescriptor,
+    TextureFormat, VertexAttribute, VertexFormat, VertexLayout,
 };
 
 const SHADER: &str = "
@@ -50,19 +59,21 @@ fn main() -> Result<(), GfxError> {
         label: "white triangles",
         shader: &shader,
         vertex_entry_point: "vs_main",
-        fragment_entry_point: "fs_main",
-        vertex_layout: VertexLayout {
+        vertex_layout: Some(VertexLayout {
             stride: 8,
             attributes: &[VertexAttribute {
                 location: 0,
                 offset: 0,
                 format: VertexFormat::Float32x2,
             }],
-        },
+        }),
+        fragment: Some(FragmentState {
+            entry_point: "fs_main",
+            target_format: target.format(),
+        }),
         bind_group_layouts: &[],
         depth: None,
         cull: CullMode::None,
-        target_format: target.format(),
     })?;
     // Three corners as (x, y) pairs of f32, in the GPU's byte order (little-endian).
     let corners: [f32; 6] = [0.0, 0.5, -0.5, -0.5, 0.5, -0.5];
@@ -95,7 +106,11 @@ fn main() -> Result<(), GfxError> {
   GPU capture tools (`docs/adr/0017-gpu-resource-types.md`):
   - `RenderTarget`: an image the GPU draws into (`create_render_target`), in one of the
     `TextureFormat`s: `Rgba8UnormSrgb` or `Bgra8UnormSrgb`, the same 8-bit sRGB colors in two byte
-    orders, or `Rgba8Unorm`, linear.
+    orders; `Rgba8Unorm`, linear; or `Rgba16Float`, a 16-bit floating-point number per channel,
+    linear, for colors beyond 0 to 1 (`create_texture` does not take it). A later pass samples a
+    render target through a bind group (`BindingResource::RenderTarget` at a
+    `BindingType::Texture` binding). A pass cannot sample the target it draws into, and a window's
+    image cannot be sampled.
   - `Texture`: a two-dimensional image that shaders sample (`create_texture`, from its pixels in
     the byte order of its `TextureFormat`; sRGB formats are decoded to linear values when read,
     `Rgba8Unorm` is read as it is), with mipmaps computed from its pixels when it is created, in
@@ -113,25 +128,37 @@ fn main() -> Result<(), GfxError> {
   - `BindGroupLayout` and `BindGroup`: the resources a pipeline's shaders read, bound together at
     one `@group` index (`docs/adr/0026-resource-binding-and-depth.md`). A layout
     (`create_bind_group_layout`) lists its bindings as `BindGroupLayoutEntry`s: a binding number,
-    the `ShaderStages` that read it and a `BindingType` (a uniform buffer, a texture or a
-    sampler); a group
-    (`create_bind_group`) gives the `BindingResource` of each binding of a layout: a whole uniform
-    buffer, or a range of one whose start is given each time the group is bound (a *dynamic
-    offset*, a multiple of `Gpu::uniform_offset_alignment`), so that one buffer holds the values
-    of many draws; a texture; or a sampler.
+    the `ShaderStages` that read it and a `BindingType` (a uniform buffer, a texture, a depth
+    texture, a sampler or a comparison sampler); a group (`create_bind_group`) gives the
+    `BindingResource` of each binding of a layout: a whole uniform buffer, or a range of one whose
+    start is given each time the group is bound (a *dynamic offset*, a multiple of
+    `Gpu::uniform_offset_alignment`), so that one buffer holds the values of many draws; a texture
+    or a render target; a depth target; a sampler or a comparison sampler. A group keeps the
+    targets it holds: a target created again, at a new size, needs a new group.
   - `DepthTarget`: a texture holding the depth of what was drawn (`create_depth_target`), at the
-    size of the render targets it is used with, for depth testing. It cannot be read back.
+    size of the render targets it is used with, for depth testing, or of its own size for a
+    depth-only pass. Later passes read it through a bind group (`BindingResource::DepthTarget` at a
+    `BindingType::DepthTexture` binding, `texture_depth_2d` in WGSL), with `textureLoad` or through
+    a `ComparisonSampler`, as a shadow map is read. It cannot be read back.
+  - `ComparisonSampler` (`create_comparison_sampler(label, compare, filter)`): compares a reference
+    depth with a depth target's, giving 1 where the `DepthCompare` holds and 0 where it does not.
+    With `Filter::Linear`, the GPU blends the four nearest results (percentage-closer filtering).
+    It clamps to the edges.
   - `GpuTimer`: measures how long render passes take on the GPU (`create_timer`), on adapters
     that support timestamp queries (`Gpu::can_time`; `None` otherwise). A pass that names it in
     its descriptor is timed, and `GpuTimer::latest` gives the time of the last timed pass that
     has come back, a few frames later, without waiting for the GPU. At most four timed passes can
-    be in flight: while all four wait for their times, further passes go untimed.
+    be in flight: while all four wait for their times, further passes go untimed. Give each timed
+    pass of a frame its own timer and read each with `latest`; the times come back independently,
+    so those of different timers can come from different frames.
   - `ShaderModule`: WGSL source compiled by wgpu (`create_shader_module`).
-  - `RenderPipeline`: a shader's entry points, the layout of its vertices, the layouts of the bind
-    groups its shaders read, its depth test (`DepthState`), its culling (`CullMode`) and the format
-    of the target it draws into (`create_render_pipeline`, from a `RenderPipelineDescriptor`). It
+  - `RenderPipeline` (`create_render_pipeline`, from a `RenderPipelineDescriptor`): a vertex entry
+    point and the layout of its vertex buffer, or none when the vertex shader builds its vertices
+    from `@builtin(vertex_index)`; its fragment stage (`FragmentState`: entry point and target
+    format), or none for a pipeline that writes depth only; the layouts of the bind groups its
+    shaders read; its depth test (`DepthState`, with a `DepthBias`); its culling (`CullMode`). It
     draws lists of triangles, without blending. A binding that the shaders declare and that no
-    layout holds is rejected.
+    layout holds, or holds as another kind, is rejected.
 
   Except the timer, they are cheap to clone, clones share the GPU object, and it is freed when
   the last one is dropped. Each belongs to the `Gpu` that created it: using it with another `Gpu`
@@ -142,11 +169,18 @@ fn main() -> Result<(), GfxError> {
   (`set_pipeline`, `set_bind_group` with the dynamic offsets of the group, `set_vertex_buffer`,
   `set_index_buffer`, `draw`, `draw_indexed`); and sends the work to the GPU, timed by `timer`
   when there is one. A pass with a depth target takes pipelines with a depth test, and one without
-  takes pipelines without. The pass is named after the target's label in capture tools, and
+  takes pipelines without; a pass takes only pipelines whose fragment stage has its target's
+  format. The pass is named after the target's label in capture tools, and
   `RenderPass::debug_group(label, record)` names a group of commands inside it. Labels and groups
   reach the driver in debug builds, or with `WGPU_DEBUG=1`.
-- `Gpu::read_render_target(target)` waits for the GPU and copies a target into an `Image`: RGBA
-  bytes, rows from top to bottom, whatever the byte order of the target's format.
+- `Gpu::render_depth(&DepthPassDescriptor { depth, timer }, record)` runs one pass without a render
+  target: it clears the depth target to the farthest depth and lets `record` draw with pipelines
+  that have no fragment stage and do have a depth test, such as a shadow map's.
+- `Gpu::read_render_target(target)` waits for the GPU and copies an 8-bit target into an `Image`:
+  RGBA bytes, rows from top to bottom, whatever the byte order of the target's format.
+  `Gpu::read_float_render_target(target)` copies an `Rgba16Float` target into a `FloatImage` of
+  `f32` values, each exactly the half-precision value the target holds (converted by hand, without
+  a dependency).
 - `Gpu::new_for_window(window, width, height, present_mode)` opens the most capable GPU that can
   draw into a window, and returns it with the window's `Surface`
   (`docs/adr/0020-rendering-in-the-main-loop.md`):

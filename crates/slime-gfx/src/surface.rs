@@ -343,8 +343,9 @@ pub struct SurfaceFrame {
 }
 
 impl SurfaceFrame {
-    /// The target to draw into. It is valid until the frame is presented, and cannot be read back
-    /// ([`Gpu::read_render_target`] panics on it).
+    /// The target to draw into. It is valid until the frame is presented, and can neither be read
+    /// back ([`Gpu::read_render_target`] panics on it) nor sampled ([`Gpu::create_bind_group`]
+    /// panics on it).
     pub fn target(&self) -> &RenderTarget {
         &self.target
     }

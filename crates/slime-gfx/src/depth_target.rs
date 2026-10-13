@@ -6,9 +6,15 @@ use crate::gpu::Gpu;
 /// every driver, which image tests prefer to the driver-dependent precision of `Depth24Plus`.
 pub(crate) const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
-/// A texture holding the depth of each pixel drawn, with which a render pass keeps the nearest of
-/// the surfaces drawn at a pixel whatever their order
-/// ([`RenderPassDescriptor::depth`](crate::RenderPassDescriptor::depth)). It cannot be read back.
+/// A texture holding the depth of each pixel drawn. A render pass keeps the nearest surface at
+/// each pixel with it, whatever the order the surfaces are drawn in
+/// ([`RenderPassDescriptor::depth`](crate::RenderPassDescriptor::depth)), or writes depth only
+/// into it ([`Gpu::render_depth`]). Shaders of later passes read it through a bind group
+/// ([`BindingResource::DepthTarget`](crate::BindingResource::DepthTarget) at a
+/// [`BindingType::DepthTexture`](crate::BindingType::DepthTexture) binding, `texture_depth_2d` in
+/// WGSL): texel by texel with `textureLoad`, or compared with a reference depth through a
+/// [`ComparisonSampler`](crate::ComparisonSampler), as a shadow map is read. A pass cannot read
+/// the depth target it draws into. It cannot be read back to the CPU.
 ///
 /// Clones refer to the same texture, which is freed when the last clone is dropped and the GPU no
 /// longer uses it.
@@ -52,7 +58,7 @@ impl Gpu {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: DEPTH_FORMAT,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         });
         // The view keeps the texture alive.

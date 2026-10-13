@@ -50,8 +50,9 @@ impl Gpu {
     ///
     /// # Panics
     ///
-    /// If `width` or `height` is zero or larger than the device allows (8192 with the default
-    /// limits), or if `pixels` does not hold `width * height * 4` bytes.
+    /// If `format` is `Rgba16Float`, a format of render targets only; if `width` or `height` is
+    /// zero or larger than the device allows (8192 with the default limits); or if `pixels` does
+    /// not hold `width * height * 4` bytes.
     pub fn create_texture(
         &self,
         label: &str,
@@ -60,6 +61,10 @@ impl Gpu {
         format: TextureFormat,
         pixels: &[u8],
     ) -> Texture {
+        assert!(
+            format != TextureFormat::Rgba16Float,
+            "texture `{label}`: Rgba16Float is a format of render targets only"
+        );
         let expected = width as usize * height as usize * 4;
         assert!(
             pixels.len() == expected,

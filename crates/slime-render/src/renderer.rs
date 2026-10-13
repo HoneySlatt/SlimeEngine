@@ -6,9 +6,9 @@ use std::time::{Duration, Instant};
 use glam::{Mat3, Mat4};
 use slime_gfx::{
     BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource, BindingType,
-    Color, CullMode, DepthCompare, DepthState, DepthTarget, Gpu, GpuTimer, RenderPassDescriptor,
-    RenderPipeline, RenderPipelineDescriptor, RenderTarget, Sampler, SamplerDescriptor,
-    ShaderStages, Texture, TextureFormat, UniformBuffer,
+    Color, CullMode, DepthBias, DepthCompare, DepthState, DepthTarget, FragmentState, Gpu,
+    GpuTimer, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, RenderTarget,
+    Sampler, SamplerDescriptor, ShaderStages, Texture, TextureFormat, UniformBuffer,
 };
 
 use crate::bytes::{push_f32s, push_mat3, push_mat4};
@@ -139,15 +139,18 @@ impl Renderer {
             label: "scene",
             shader: &shader,
             vertex_entry_point: "vs_main",
-            fragment_entry_point: "fs_main",
-            vertex_layout: VERTEX_LAYOUT,
+            vertex_layout: Some(VERTEX_LAYOUT),
+            fragment: Some(FragmentState {
+                entry_point: "fs_main",
+                target_format: format,
+            }),
             bind_group_layouts: &[&frame_layout, &material_layout, &instance_layout],
             depth: Some(DepthState {
                 compare: DepthCompare::Less,
                 write: true,
+                bias: DepthBias::default(),
             }),
             cull: CullMode::Back,
-            target_format: format,
         })?;
 
         let frame_uniform = gpu.create_uniform_buffer("frame", &[0; FRAME_VALUES_SIZE]);

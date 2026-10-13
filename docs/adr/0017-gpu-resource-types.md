@@ -1,6 +1,6 @@
 # 0017. GPU resource types
 
-- Status: Accepted; amended by [0026](0026-resource-binding-and-depth.md) (buffers, bind groups, depth)
+- Status: Accepted; amended by [0026](0026-resource-binding-and-depth.md) (buffers, bind groups, depth) and [0033](0033-gpu-layer-for-multi-pass-rendering.md) (float targets, sampled targets, depth-only passes)
 - Date: 2026-10-12
 
 ## Context
