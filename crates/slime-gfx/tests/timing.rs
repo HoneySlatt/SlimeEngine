@@ -15,6 +15,23 @@ const BLACK: Color = Color {
     a: 1.0,
 };
 
+/// Checks that `time` is one that a pass of these tests can take: more than nothing and less than
+/// a second. A timer whose timestamps are written in the wrong order, or not read at all, gives 0;
+/// passes like these took at least 1 µs on lavapipe, RADV and WARP. The only true 0 is a
+/// pass that runs across a wrap of the timestamp counter, about once an hour on Intel's Vulkan
+/// driver (`docs/PLAN.md`, known debt), which passes this short are very unlikely to meet.
+#[track_caller]
+fn assert_plausible(time: Duration) {
+    assert!(
+        !time.is_zero(),
+        "a timed pass takes some time; 0 means the timer measured nothing"
+    );
+    assert!(
+        time < Duration::from_secs(1),
+        "a pass that clears 64x64 pixels takes less than a second: {time:?}"
+    );
+}
+
 #[test]
 fn a_timed_pass_reports_how_long_it_took_when_the_adapter_can_tell() {
     let gpu =
@@ -50,11 +67,7 @@ fn a_timed_pass_reports_how_long_it_took_when_the_adapter_can_tell() {
             break;
         }
     }
-    let time = measured.expect("the time of a timed pass comes back within a few frames");
-    assert!(
-        time < Duration::from_secs(1),
-        "a pass that clears 64x64 pixels takes less than a second: {time:?}"
-    );
+    assert_plausible(measured.expect("the time of a timed pass comes back within a few frames"));
 }
 
 #[test]
@@ -88,8 +101,9 @@ fn a_time_comes_back_with_later_frames_without_waiting() {
         }
         std::thread::sleep(Duration::from_millis(1));
     }
-    let time = measured.unwrap_or_else(|| panic!("no time came back within {frames} frames"));
-    assert!(time < Duration::from_secs(1), "{time:?}");
+    assert_plausible(
+        measured.unwrap_or_else(|| panic!("no time came back within {frames} frames")),
+    );
 }
 
 #[test]
@@ -141,7 +155,6 @@ fn three_passes_timed_in_one_frame_each_get_their_own_time() {
         gpu.adapter_name()
     );
     for time in times {
-        let time = time.expect("each timed pass gets its time back within a few frames");
-        assert!(time < Duration::from_secs(1), "{time:?}");
+        assert_plausible(time.expect("each timed pass gets its time back within a few frames"));
     }
 }
