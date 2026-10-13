@@ -14,8 +14,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 
 - Stage 3b — Physically based renderer → 0.1: in progress. Planned on 2026-10-13 and validated by
   the owner. M3b.1 is done; M3b.2 and M3b.3 pass on the three drivers and wait for the owner's
-  checks on niri and in the Windows virtual machine, which the owner runs together later; next:
-  the decisions the owner took on 2026-10-13 about earlier proposals, then M3b.4.
+  checks on niri and in the Windows virtual machine, which the owner runs together later. The
+  owner's decisions of 2026-10-13 on earlier proposals are applied; next: the audit findings of
+  issue [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4), then M3b.4.
 
 ## Status
 
