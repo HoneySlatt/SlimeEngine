@@ -25,6 +25,7 @@ use std::borrow::Cow;
 
 use gltf::json::Value;
 use slime_gfx::{Gpu, TextureFormat};
+use slime_render::glam::Vec3;
 
 use sample_scene::SampleScene;
 
@@ -183,6 +184,36 @@ fn node_hierarchies_that_are_not_trees_are_refused() {
     cycle.json["nodes"][0]["children"] = json("[0]");
     let error = refusal(&gpu, &mut cycle);
     assert!(error.contains("node 0 is reached twice"), "{error}");
+}
+
+#[test]
+fn a_mirrored_node_shows_the_same_faces_as_the_node_it_mirrors() {
+    let gpu =
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+    let target = gpu.create_render_target("mirrored", 64, 64, TextureFormat::Rgba8UnormSrgb);
+    // The triangle faces +Z, and so does its mirror image across the plane x = 0, which glTF
+    // draws with its triangles wound the other way.
+    for scale_x in [1.0, -1.0] {
+        let mut file = Glb::triangle();
+        file.json["nodes"][0]["scale"] = json(&format!("[{scale_x}, 1, 1]"));
+        let mut scene =
+            SampleScene::new(&gpu, target.format(), &file.bytes()).expect("the triangle loads");
+        // Seen from +Z, at the center of the image: the center of the triangle.
+        let center = Vec3::new(scale_x / 3.0, 1.0 / 3.0, 0.0);
+        scene.render(&gpu, &target, orbit::camera_at(center, 3.0, 0.0, 0.0));
+        let image = gpu
+            .read_render_target(&target)
+            .expect("the image is read back");
+        let pixel = |x: usize, y: usize| &image.pixels[(y * 64 + x) * 4..][..3];
+        let (middle, corner) = (pixel(32, 32), pixel(0, 0));
+        assert!(
+            middle
+                .iter()
+                .zip(corner)
+                .all(|(lit, background)| *lit > background + 50),
+            "scale x {scale_x}: the triangle {middle:?} is not lit above the background {corner:?}"
+        );
+    }
 }
 
 /// A change that a test makes to a GLB file.

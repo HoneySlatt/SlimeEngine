@@ -5,11 +5,12 @@
 //! It reads triangle primitives with positions, normals (when missing, each triangle gets the
 //! normal of its face, as glTF requires), the first set of texture coordinates (zero when
 //! missing) and indices; the base color factor and texture of materials, with the file's sampler
-//! settings; and the node hierarchy of the default scene, flattened into instances. It refuses,
-//! with a clear error, what it cannot draw right: external files, images that are not PNG, images
-//! larger than the GPU accepts, required extensions, other coordinate sets, other primitive modes.
-//! It ignores, with a warning, animations, skins, cameras and extensions the file uses without
-//! requiring them.
+//! settings; and the node hierarchy of the default scene, flattened into instances (a node whose
+//! transform mirrors draws its primitives with their triangles wound the other way, as glTF
+//! prescribes). It refuses, with a clear error, what it cannot draw right: external files, images
+//! that are not PNG, images larger than the GPU accepts, required extensions, other coordinate
+//! sets, other primitive modes. It ignores, with a warning, animations, skins, cameras and
+//! extensions the file uses without requiring them.
 //!
 //! The `gltf` crate's validation checks little more than that the file's objects name each other
 //! correctly, and its readers panic on some of what it lets through. The loader refuses, rather
@@ -79,7 +80,8 @@ struct Placement {
 
 /// A glTF scene on the GPU: its meshes, its materials, and where to draw them.
 pub struct LoadedScene {
-    /// One per primitive of the file.
+    /// One per primitive that a node places, and another for a primitive that a node places
+    /// mirrored, with its triangles wound the other way.
     meshes: Vec<Mesh>,
     /// One per material of the file, then the default material of glTF, white.
     materials: Vec<Material>,
@@ -102,11 +104,11 @@ impl LoadedScene {
     }
 }
 
-/// A primitive uploaded to the GPU, with its positions kept to compute the bounds.
+/// A primitive read from the file, uploaded to the GPU once a node places it.
 struct LoadedPrimitive {
-    mesh: usize,
+    label: String,
+    data: MeshData,
     material: usize,
-    positions: Vec<[f32; 3]>,
 }
 
 /// Loads the GLB file `bytes` into GPU objects created through `renderer`.
@@ -214,7 +216,6 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
     let default_material = materials.len();
     materials.push(renderer.create_material(gpu, "default", &MaterialData::default()));
 
-    let mut meshes = Vec::new();
     let mut primitives = Vec::new();
     // The primitives of each mesh of the file, as indices into `primitives`.
     let mut primitives_of_mesh = Vec::new();
@@ -288,16 +289,12 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
                 },
                 None => flat_shaded(&label, &positions, &uvs, &indices)?,
             };
-            let gpu_mesh = renderer
-                .create_mesh(gpu, &label, &data)
-                .map_err(|error| LoadError(error.to_string()))?;
             own.push(primitives.len());
             primitives.push(LoadedPrimitive {
-                mesh: meshes.len(),
+                label,
+                data,
                 material: primitive.material().index().unwrap_or(default_material),
-                positions: data.positions,
             });
-            meshes.push(gpu_mesh);
         }
         primitives_of_mesh.push(own);
     }
@@ -306,7 +303,8 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
         .default_scene()
         .or_else(|| document.scenes().next())
         .ok_or_else(|| LoadError("the file has no scene".to_owned()))?;
-    let mut placements = Vec::new();
+    // Each primitive placed, as an index into `primitives`, with its transform.
+    let mut placed = Vec::new();
     let mut bounds = Bounds {
         min: Vec3::splat(f32::INFINITY),
         max: Vec3::splat(f32::NEG_INFINITY),
@@ -319,14 +317,52 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
             &primitives_of_mesh,
             &primitives,
             &mut reached,
-            &mut placements,
+            &mut placed,
             &mut bounds,
         )?;
     }
-    if placements.is_empty() {
+    if placed.is_empty() {
         return Err(LoadError(
             "the scene draws nothing: no node has a mesh".to_owned(),
         ));
+    }
+
+    let mut meshes = Vec::new();
+    // The mesh of each primitive, as an index into `meshes`, once a placement needs it: as the
+    // file winds its triangles, then wound the other way.
+    let mut mesh_of = vec![[None; 2]; primitives.len()];
+    let mut placements = Vec::with_capacity(placed.len());
+    for (index, transform) in placed {
+        let primitive = &primitives[index];
+        // A transform that mirrors turns the counter-clockwise front faces clockwise, as glTF
+        // says, and the renderer would cull them: a mirrored placement draws a copy whose
+        // triangles wind the other way. Its normals need no change: the renderer transforms them
+        // by the inverse transpose, which mirrors them too.
+        let mirrored = transform.determinant() < 0.0;
+        let mesh = match mesh_of[index][usize::from(mirrored)] {
+            Some(mesh) => mesh,
+            None => {
+                let mesh = if mirrored {
+                    let mut data = primitive.data.clone();
+                    for triangle in data.indices.as_chunks_mut::<3>().0 {
+                        triangle.swap(1, 2);
+                    }
+                    let label = format!("{}, mirrored", primitive.label);
+                    renderer.create_mesh(gpu, &label, &data)
+                } else {
+                    renderer.create_mesh(gpu, &primitive.label, &primitive.data)
+                }
+                .map_err(|error| LoadError(error.to_string()))?;
+                meshes.push(mesh);
+                mesh_of[index][usize::from(mirrored)] = Some(meshes.len() - 1);
+                meshes.len() - 1
+            }
+        };
+        placements.push(Placement {
+            mesh,
+            material: primitive.material,
+            transform,
+        });
     }
     tracing::info!(
         meshes = meshes.len(),
@@ -344,7 +380,8 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
 }
 
 /// Places the primitives of `node` and of its descendants, under `parent`, the transform of the
-/// node above, and grows `bounds` with them. `reached` says which nodes were placed already.
+/// node above: adds each to `placed`, as an index into `primitives` with its transform, and grows
+/// `bounds` with it. `reached` says which nodes were placed already.
 ///
 /// Fails on a node reached a second time: glTF requires the node hierarchy to be a set of trees,
 /// which the `gltf` crate does not check, and a node that is its own descendant would otherwise
@@ -355,7 +392,7 @@ fn place(
     primitives_of_mesh: &[Vec<usize>],
     primitives: &[LoadedPrimitive],
     reached: &mut [bool],
-    placements: &mut Vec<Placement>,
+    placed: &mut Vec<(usize, Mat4)>,
     bounds: &mut Bounds,
 ) -> Result<(), LoadError> {
     if std::mem::replace(&mut reached[node.index()], true) {
@@ -367,15 +404,10 @@ fn place(
     let transform = parent * Mat4::from_cols_array_2d(&node.transform().matrix());
     if let Some(mesh) = node.mesh() {
         for &index in &primitives_of_mesh[mesh.index()] {
-            let primitive = &primitives[index];
-            for position in &primitive.positions {
+            for position in &primitives[index].data.positions {
                 bounds.grow(transform.transform_point3(Vec3::from(*position)));
             }
-            placements.push(Placement {
-                mesh: primitive.mesh,
-                material: primitive.material,
-                transform,
-            });
+            placed.push((index, transform));
         }
     }
     for child in node.children() {
@@ -385,7 +417,7 @@ fn place(
             primitives_of_mesh,
             primitives,
             reached,
-            placements,
+            placed,
             bounds,
         )?;
     }
