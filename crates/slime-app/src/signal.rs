@@ -12,9 +12,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 /// Set by the first termination signal and never cleared: a signal asks the whole process to stop.
 static RECEIVED: AtomicBool = AtomicBool::new(false);
 
-/// Installs the process-wide signal handler, once. The first signal only sets a flag, which the
-/// drivers check between frames; a second one ends the process at once, with exit code 130, in
-/// case the application no longer reaches the end of a frame.
+/// Installs the process-wide signal handler, once. The first signal sets a flag, which the drivers
+/// check between frames, and logs that it was received; a second one ends the process at
+/// once, with exit code 130 and without a log line, in case the application no longer reaches the
+/// end of a frame.
 ///
 /// The handler replaces whatever the process had set for these signals: another library's
 /// handlers, or an inherited "ignore" (as under `nohup`, or for a command started in the
@@ -25,15 +26,23 @@ static RECEIVED: AtomicBool = AtomicBool::new(false);
 pub(crate) fn install_handler() {
     static INSTALL: Once = Once::new();
     INSTALL.call_once(|| {
+        // `ctrlc` runs this on one thread, which waits for the next signal only once it returns.
+        // Writing to standard error can block, when it is a pipe that nobody reads, so a log line
+        // written here could keep the second signal from ever being handled: the second signal
+        // writes nothing, and the first one's line is written from a thread of its own (lost if
+        // that thread cannot start).
         let installed = ctrlc::set_handler(|| {
             if RECEIVED.swap(true, Ordering::SeqCst) {
-                tracing::warn!("second termination signal, quitting immediately");
                 std::process::exit(130);
             }
-            tracing::info!(
-                "termination signal received, stopping after the current frame (send it again \
-                 to quit immediately)"
-            );
+            let _ = std::thread::Builder::new()
+                .name("signal log".to_owned())
+                .spawn(|| {
+                    tracing::info!(
+                        "termination signal received, stopping after the current frame (send it \
+                         again to quit immediately)"
+                    );
+                });
         });
         match installed {
             Ok(()) => {}

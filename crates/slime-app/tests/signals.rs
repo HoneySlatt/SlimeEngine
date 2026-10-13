@@ -21,11 +21,13 @@ use slime_app::{App, AppConfig, AppError, Context, run};
 const CHILD_ENV: &str = "SLIME_APP_TEST_CHILD";
 const TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Prints its lifecycle on standard output; optionally blocks during the first frame, or sleeps
-/// in every frame so that a run lasts long enough to receive a signal.
+/// Prints its lifecycle on standard output; optionally blocks during the first frame, by sleeping
+/// or by logging without end, or sleeps in every frame so that a run lasts long enough to receive a
+/// signal.
 #[derive(Default)]
 struct Announcer {
     block_first_frame: bool,
+    log_in_first_frame: bool,
     sleep_per_frame: Duration,
     frames: u64,
 }
@@ -39,6 +41,12 @@ impl App for Announcer {
     fn update(&mut self, _ctx: &mut Context, frame: &FrameTime) {
         if self.block_first_frame && frame.index() == 0 {
             thread::sleep(Duration::from_secs(30));
+        }
+        if self.log_in_first_frame && frame.index() == 0 {
+            // Blocks once standard error is full, when nobody reads it.
+            loop {
+                tracing::info!("a line of the first frame");
+            }
         }
         thread::sleep(self.sleep_per_frame);
         self.frames += 1;
@@ -64,8 +72,9 @@ fn run_child_app(block_first_frame: bool) {
 /// Starts the test named `test` in a child process and waits until its application is running.
 /// Returns the child and the lines it prints on standard output from then on. With
 /// `sigint_ignored`, the child inherits SIGINT set to "ignore", as a process started in the
-/// background by a shell script does.
-fn spawn_child(test: &str, sigint_ignored: bool) -> (Child, Receiver<String>) {
+/// background by a shell script does. The child's standard error goes to `stderr`; a pipe is kept
+/// open, unread, until the child is waited for.
+fn spawn_child(test: &str, sigint_ignored: bool, stderr: Stdio) -> (Child, Receiver<String>) {
     let exe = std::env::current_exe().expect("test binary path");
     let arguments = ["--exact", test, "--nocapture", "--test-threads=1"];
     let mut command = if sigint_ignored {
@@ -84,7 +93,7 @@ fn spawn_child(test: &str, sigint_ignored: bool) -> (Child, Receiver<String>) {
         .env(CHILD_ENV, "1")
         .env_remove(slime_app::LOG_ENV_VAR)
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(stderr)
         .spawn()
         .expect("child test process starts");
     let stdout = child.stdout.take().expect("piped stdout");
@@ -138,7 +147,7 @@ fn wait_for_end(mut child: Child, lines: &Receiver<String>) -> (ExitStatus, Stri
 }
 
 fn assert_clean_stop_on(signal: &str, test: &str, sigint_ignored: bool) {
-    let (child, lines) = spawn_child(test, sigint_ignored);
+    let (child, lines) = spawn_child(test, sigint_ignored, Stdio::null());
     send_signal(&child, signal);
     let (status, output) = wait_for_end(child, &lines);
     assert!(
@@ -182,7 +191,11 @@ fn a_second_signal_ends_a_stuck_process_at_once() {
     if is_child() {
         return run_child_app(true);
     }
-    let (child, lines) = spawn_child("a_second_signal_ends_a_stuck_process_at_once", false);
+    let (child, lines) = spawn_child(
+        "a_second_signal_ends_a_stuck_process_at_once",
+        false,
+        Stdio::null(),
+    );
     send_signal(&child, "INT");
     thread::sleep(Duration::from_millis(200));
     send_signal(&child, "INT");
@@ -195,6 +208,41 @@ fn a_second_signal_ends_a_stuck_process_at_once() {
     assert!(
         !output.contains("shutdown"),
         "a forced exit does not run App::shutdown; output: {output}"
+    );
+}
+
+/// The log can be what blocks a stuck process: its standard error is a full pipe that nobody reads,
+/// and a frame waits to write a line. The first signal's own log line then waits as well, which
+/// must not keep the second signal from ending the process.
+#[test]
+fn a_second_signal_ends_a_process_whose_log_is_blocked() {
+    if is_child() {
+        let mut app = Announcer {
+            log_in_first_frame: true,
+            ..Announcer::default()
+        };
+        run(&mut app, &AppConfig::default()).expect("this application starts");
+        return;
+    }
+    let (child, lines) = spawn_child(
+        "a_second_signal_ends_a_process_whose_log_is_blocked",
+        false,
+        Stdio::piped(),
+    );
+    // Leaves the first frame time to fill the pipe.
+    thread::sleep(Duration::from_millis(200));
+    send_signal(&child, "INT");
+    thread::sleep(Duration::from_millis(200));
+    send_signal(&child, "INT");
+    let (status, output) = wait_for_end(child, &lines);
+    assert_eq!(
+        status.code(),
+        Some(130),
+        "a second signal must exit with code 130"
+    );
+    assert!(
+        !output.contains("shutdown"),
+        "the frames were blocked, so App::shutdown cannot have run; output: {output}"
     );
 }
 
@@ -213,7 +261,11 @@ fn a_signal_stops_every_later_run_in_the_process() {
         println!("second run frames={}", second.frames);
         return;
     }
-    let (child, lines) = spawn_child("a_signal_stops_every_later_run_in_the_process", false);
+    let (child, lines) = spawn_child(
+        "a_signal_stops_every_later_run_in_the_process",
+        false,
+        Stdio::null(),
+    );
     send_signal(&child, "INT");
     let (status, output) = wait_for_end(child, &lines);
     assert!(status.success(), "{status}");
@@ -243,6 +295,7 @@ fn a_handler_installed_through_ctrlc_before_run_is_kept() {
     let (child, lines) = spawn_child(
         "a_handler_installed_through_ctrlc_before_run_is_kept",
         false,
+        Stdio::null(),
     );
     send_signal(&child, "INT");
     let (status, output) = wait_for_end(child, &lines);
