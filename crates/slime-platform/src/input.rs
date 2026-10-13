@@ -26,14 +26,24 @@ pub struct KeyEvent {
     /// The position of the key on the keyboard, independent of the layout.
     pub physical: KeyCode,
     /// What the key means with the current layout and modifiers.
+    ///
+    /// The press of a character key right after a dead key reports what the two keys make
+    /// together, but its release does not. When they combine, the press is the composed character
+    /// (`"ê"` for `^` then `e` on a French layout) and the release the plain one (`"e"`). When
+    /// they do not, the press is [`Key::Unidentified`] on Wayland and X11, and the plain
+    /// character on Windows (`"q"` for `^` then `q`); the release is the plain character. The
+    /// logical values of a press and of its release can therefore differ: use
+    /// [`physical`](Self::physical) to track which keys are down.
     pub logical: Key,
     /// The text the key produces when pressed, if any. A character key gives its character, with
     /// dead keys applied: pressing `^` then `e` on a French layout gives the text `"ê"` on the
-    /// second press. Four named keys give a control character: Enter `"\r"`, Tab `"\t"` (with
-    /// Shift too), Backspace `"\u{8}"` and Escape `"\u{1b}"`. Space gives `" "`, or after a dead
-    /// key the dead key's character (`"^"` for `^` then Space). The other named keys, such as
-    /// Delete, the arrows and the modifiers, give `None`, as does a release. This holds on every
-    /// platform.
+    /// second press. When the dead key and the next character key do not combine, that press gives
+    /// no text on Wayland and X11, and both characters on Windows (`"^q"` for `^` then `q`). Four
+    /// named keys give a control character: Enter `"\r"`, Tab `"\t"` (with Shift too), Backspace
+    /// `"\u{8}"` and Escape `"\u{1b}"`. Space gives `" "`, or after a dead key the dead key's
+    /// character (`"^"` for `^` then Space). The other named keys, such as Delete, the arrows and
+    /// the modifiers, give `None`, as does a release. The text of named keys is the same on every
+    /// platform, after a dead key too.
     pub text: Option<String>,
     /// Whether the key went down or up.
     pub state: ButtonState,
@@ -53,7 +63,9 @@ pub enum Key {
     /// A dead key, which modifies the next key pressed (for example `^` before `e`). It holds the
     /// character the dead key would add on its own, when the platform knows it.
     Dead(Option<char>),
-    /// A key that the engine does not name. Use [`KeyEvent::physical`] to identify it.
+    /// A key that the engine does not name. Use [`KeyEvent::physical`] to identify it. On Wayland
+    /// and X11, the press of a character key after a dead key that it does not combine with is
+    /// reported so too (see [`KeyEvent::logical`]).
     Unidentified,
 }
 
