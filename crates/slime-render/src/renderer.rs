@@ -328,7 +328,7 @@ impl Renderer {
                 stats.triangles += u64::from(instance.mesh.triangle_count());
             }
         });
-        stats.gpu_time = self.timer.as_ref().and_then(|timer| timer.latest(gpu));
+        stats.gpu_time = self.timer.as_ref().and_then(GpuTimer::latest);
         stats.cpu_time = started.elapsed();
         stats
     }

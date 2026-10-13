@@ -57,4 +57,6 @@ This amends ADR-0016: wgpu's errors still panic, except after the device was los
   every other error that wgpu reports outside an error scope.
 - A loss that a wait for the GPU is the first to find, in `Gpu::wait_idle` or
   `Gpu::read_render_target`, still panics inside wgpu, whose `Device::poll` treats it as fatal; the
-  windowed loop never waits, so only applications that read back or wait are exposed.
+  windowed loop never polls the device (`GpuTimer::latest`, called at every frame, leaves the
+  times of finished passes to be collected when work is submitted, which reports a loss without
+  panicking), so only applications that read back or wait are exposed.

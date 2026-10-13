@@ -101,11 +101,14 @@ impl Gpu {
 
 impl GpuTimer {
     /// The time the GPU took for the last timed pass whose time has come back: `None` until the
-    /// first one does, a few frames after it was submitted. Reading takes no time worth measuring
+    /// first one does. A time comes back once wgpu has seen that the GPU finished the pass, which
+    /// it checks whenever work is submitted (by the next frame's passes, for example) and in
+    /// [`Gpu::wait_idle`]: a frame or more after the pass. Reading takes no time worth measuring
     /// and never waits for the GPU.
-    pub fn latest(&self, gpu: &Gpu) -> Option<Duration> {
-        // Lets wgpu run the callbacks of the readbacks that have completed.
-        let _ = gpu.device.poll(wgpu::PollType::Poll);
+    pub fn latest(&self) -> Option<Duration> {
+        // The callbacks of the readbacks run when work is submitted. Polling the device here would
+        // run them sooner, but wgpu treats a poll that finds a lost Vulkan device as fatal, and
+        // panics, where a submission only reports the loss (ADR-0022).
         while let Ok(index) = self.mapped.try_recv() {
             let slot = &self.slots[index];
             let timestamps = slot.readback.get_mapped_range(..).ok().map(|mapped| {

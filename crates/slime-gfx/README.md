@@ -147,7 +147,8 @@ fn main() -> Result<(), GfxError> {
   - `GpuTimer`: measures how long render passes take on the GPU (`create_timer`), on adapters
     that support timestamp queries (`Gpu::can_time`; `None` otherwise). A pass that names it in
     its descriptor is timed, and `GpuTimer::latest` gives the time of the last timed pass that
-    has come back, a few frames later, without waiting for the GPU. At most four timed passes can
+    has come back, a few frames later, without waiting for the GPU: wgpu collects the times of
+    finished passes when later work is submitted, or in `wait_idle`. At most four timed passes can
     be in flight: while all four wait for their times, further passes go untimed. Give each timed
     pass of a frame its own timer and read each with `latest`; the times come back independently,
     so those of different timers can come from different frames.

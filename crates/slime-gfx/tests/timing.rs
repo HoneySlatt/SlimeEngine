@@ -28,7 +28,7 @@ fn a_timed_pass_reports_how_long_it_took_when_the_adapter_can_tell() {
         assert!(!gpu.can_time(), "an adapter that can time gives a timer");
         return;
     };
-    assert!(timer.latest(&gpu).is_none(), "nothing has been timed yet");
+    assert!(timer.latest().is_none(), "nothing has been timed yet");
 
     let target = gpu.create_render_target("timed", 64, 64, TextureFormat::Rgba8UnormSrgb);
     let mut measured = None;
@@ -42,7 +42,7 @@ fn a_timed_pass_reports_how_long_it_took_when_the_adapter_can_tell() {
         gpu.render(&pass, |_pass| {});
         // Waiting is not needed to get a time back, but makes the test deterministic.
         gpu.wait_idle().expect("the GPU finishes the pass");
-        measured = timer.latest(&gpu);
+        measured = timer.latest();
         if measured.is_some() {
             eprintln!(
                 "time of a pass that clears 64x64 pixels, read at frame {frame}: {measured:?}"
@@ -95,7 +95,7 @@ fn three_passes_timed_in_one_frame_each_get_their_own_time() {
         // Waiting is not needed to get the times back, but makes the test deterministic.
         gpu.wait_idle().expect("the GPU finishes the passes");
         for (time, timer) in times.iter_mut().zip([&shadow, &scene, &tone_mapping]) {
-            *time = time.or(timer.latest(&gpu));
+            *time = time.or(timer.latest());
         }
         if times.iter().all(Option::is_some) {
             break;
