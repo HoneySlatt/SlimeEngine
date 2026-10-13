@@ -28,6 +28,11 @@ impl Overlay {
     /// Creates an overlay for targets of `format`, the window's, on a window with `scale_factor`
     /// physical pixels per logical pixel (`slime_platform::Window::scale_factor`), which sizes
     /// the text.
+    ///
+    /// # Panics
+    ///
+    /// If the device is already lost ([`Gpu::check`]): egui's renderer creates its buffers with a
+    /// wgpu call that panics then.
     pub fn new(gpu: &Gpu, format: TextureFormat, scale_factor: f64) -> Self {
         let renderer = egui_wgpu::Renderer::new(
             gpu.wgpu_device(),
@@ -67,6 +72,13 @@ impl Overlay {
     /// egui may call `ui` twice in a frame: when the first layout asks to be discarded, as on the
     /// first frame of a grid or of a window being resized, egui lays the frame out again and draws
     /// only the second layout. `ui` therefore builds the same panels on every call.
+    ///
+    /// A device lost before the overlay uploads the panels, for example when the scene's work
+    /// found the loss, makes it skip the frame.
+    ///
+    /// # Panics
+    ///
+    /// If the upload of the panels is what finds the device lost: egui's renderer panics then.
     pub fn render(&mut self, gpu: &Gpu, target: &RenderTarget, mut ui: impl FnMut(&egui::Context)) {
         let pixels_per_point = self.input.pixels_per_point();
         let size = [target.width(), target.height()];
@@ -106,6 +118,13 @@ impl Overlay {
             for delta in deltas {
                 self.renderer.update_texture(device, queue, id, &delta);
             }
+        }
+        // egui's renderer panics when it uploads its buffers to a lost device. A loss found
+        // earlier in the frame, by the scene's work or the uploads above, stops the run at its
+        // next check (ADR-0022), so this frame is dropped.
+        if gpu.check().is_err() {
+            textures.clear();
+            return;
         }
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("dev overlay"),
@@ -207,5 +226,22 @@ mod tests {
             overlay.wants_pointer(),
             "the window was drawn in the layout egui kept"
         );
+    }
+
+    #[test]
+    fn a_device_lost_earlier_in_the_frame_drops_the_frame() {
+        let gpu = gpu();
+        let target = gpu.create_render_target("overlay target", 200, 200, FORMAT);
+        let mut overlay = Overlay::new(&gpu, FORMAT, 1.0);
+        let panels = |ctx: &egui::Context| {
+            egui::Window::new("panel").show(ctx, |ui| ui.label("text"));
+        };
+        overlay.render(&gpu, &target, panels);
+
+        // As when the scene's work, submitted earlier in the frame, finds the device lost.
+        gpu.wgpu_device().destroy();
+        let _ = gpu.wgpu_device().poll(wgpu::PollType::wait_indefinitely());
+        assert!(gpu.check().is_err(), "the loss is reported");
+        overlay.render(&gpu, &target, panels);
     }
 }
