@@ -58,6 +58,11 @@ pub struct Instance<'a> {
 }
 
 /// What the renderer draws in one frame.
+///
+/// The light that reaches each pixel before the exposure, the background's or a surface's, must
+/// stay at or below 65 504 in each channel, the largest value of the high-dynamic-range target.
+/// Beyond it, a driver stores 65 504 or an infinity: the pixel is clipped, or shows a color that
+/// has nothing to do with the scene (ADR-0034).
 #[derive(Clone, Copy, Debug)]
 pub struct Scene<'a> {
     /// Where the scene is seen from.
@@ -65,8 +70,8 @@ pub struct Scene<'a> {
     /// What lights the surfaces.
     pub light: DirectionalLight,
     /// The light behind the scene, where no surface is drawn: linear, in the units of the light
-    /// (it may exceed 1), not negative, and multiplied by the exposure and tone mapped like the
-    /// surfaces. Its alpha is not used: the output is opaque.
+    /// (it may exceed 1, up to the bound above), not negative, and multiplied by the exposure and
+    /// tone mapped like the surfaces. Its alpha is not used: the output is opaque.
     pub clear: Color,
     /// What the scene's light, the background's included, is multiplied by before tone mapping
     /// (ADR-0034): a linear factor. 1 leaves it as it is, which shows a white surface lit at

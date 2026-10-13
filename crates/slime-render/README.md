@@ -118,8 +118,9 @@ fn main() -> Result<(), RenderError> {
   scaled unevenly, even flattened along one axis.
 - Conventions: world space is right-handed with +Y up, as in glTF; the camera looks down its −Z
   axis; front faces wind counter-clockwise; depth runs from 0 at the near plane to 1 at the far
-  plane; colors in materials and clear colors are linear, light before tone mapping may exceed 1,
-  and an sRGB output encodes the tone-mapped values.
+  plane; colors in materials and clear colors are linear; light before tone mapping is not
+  negative and may exceed 1, up to 65 504, the largest value of the high-dynamic-range target; an
+  sRGB output encodes the tone-mapped values.
 - `slime_render::glam` re-exports the math crate the API uses (`Mat4`, `Vec3`, `Quat`), so that
   callers use the same version.
 - `RenderError`: an invalid mesh, or a failure of the GPU layer (`GfxError` as its source).

@@ -7,15 +7,16 @@ use glam::Vec3;
 ///
 /// A surface is lit in proportion to the cosine of the angle between its normal and the
 /// direction to the light (Lambert's law), plus the ambient light; both are multiplied by the
-/// material's base color. Colors are linear, and may exceed 1 to light more strongly.
+/// material's base color. Colors are linear, not negative, and may exceed 1 to light more
+/// strongly; [`Scene`](crate::Scene) bounds the light that reaches a pixel.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DirectionalLight {
     /// The direction the light travels in, in world space: down and to the side for a sun. Its
     /// length does not matter, but it must not be zero.
     pub direction: Vec3,
-    /// The color and strength of the directional light.
+    /// The color and strength of the directional light: not negative.
     pub color: Vec3,
-    /// The color and strength of the ambient light.
+    /// The color and strength of the ambient light: not negative.
     pub ambient: Vec3,
 }
 
