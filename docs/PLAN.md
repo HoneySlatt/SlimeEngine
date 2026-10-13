@@ -645,12 +645,6 @@ GitHub issues, linked from their entry; this list stays the reference.
   minification filter and gives every texture mipmaps, so only `NEAREST_MIPMAP_NEAREST` and
   `LINEAR_MIPMAP_LINEAR` are exact (documented in the loader). Revisit when an engine-side user
   needs a separate mipmap filter or a base-level-only read.
-- **The Windows examples artifact needs the Visual C++ Redistributable** (ADR-0015; a change is
-  proposed to the owner). CI builds `slime-examples-windows` with the MSVC C runtime linked
-  dynamically, the default, so the executables import `VCRUNTIME140.dll`. A fresh Windows install
-  and Windows Sandbox do not have it, and there the programs fail to start; `examples/README.md`
-  says so. How shipped games link the C runtime belongs to packaging (Stage 9).
-
 ## Notes
 
 - CI build cache: not added yet. With wgpu, the Linux job takes about 2.5 minutes and the Windows

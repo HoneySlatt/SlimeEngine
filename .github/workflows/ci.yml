@@ -60,8 +60,19 @@ jobs:
           cargo run --locked --example headless -- --frames 600
           cargo run --locked --example window -- --headless --frames 600
           cargo run --locked --example offscreen -- --output target/triangle.png
+      # The C runtime is linked statically, so that the published examples start on a Windows
+      # without the Visual C++ Redistributable (a fresh install, Windows Sandbox). How shipped games
+      # link it is decided with their packaging (Stage 9).
       - name: Build the examples for checks by hand
         run: cargo build --locked --release --examples
+        env:
+          RUSTFLAGS: -C target-feature=+crt-static
+      - name: Check that the examples do not import the Visual C++ runtime
+        run: |
+          if (Select-String -Path target/release/examples/*.exe -Pattern 'VCRUNTIME140' -SimpleMatch -Quiet) {
+            Write-Error 'an example imports VCRUNTIME140.dll'
+            exit 1
+          }
       - name: Run the headless samples of the release build
         run: |
           target/release/examples/headless.exe --frames 600

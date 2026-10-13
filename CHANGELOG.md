@@ -42,6 +42,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- The Windows examples that CI publishes link the C runtime statically: they start on a Windows
+  without the Visual C++ Redistributable, such as a fresh install or Windows Sandbox.
 - `MeshData::tangents` is required, and a vertex takes 48 bytes: the largest mesh is 5 592 405
   vertices with the default limits. `DirectionalLight::color` is an illuminance: a white matte
   surface facing the light and the camera reflects 0.97/π of it, and the default light is π.
