@@ -394,38 +394,39 @@ upgrading wgpu still waits for egui.
 - **Checked** on 2026-10-13: ADR-0039 records the sky, the precomputation, the binding, the sky
   pass, the shading and the alternatives rejected, from three prototyped designs; the owner chose a
   sun disc and its glow described in the sky, a clear blue sky over dark soil for the sample, and
-  faces of 128 texels. The budget: the sample's environment and the BRDF table take at most 50 ms
-  on every core in a release build on the owner's machine (Ryzen 7 5800X, 16 threads); measured
-  with its desktop busy, 23 ms (20 to 28) and 15 ms, 162 ms and 135 ms on one core, with
-  `cargo test --release -p slime-render --lib -- --ignored --nocapture`. Unit tests compare the
-  sky's formula with values computed by hand, the glow's integral and the disc's radiance with
-  their closed forms, every prefiltered level with an integral over every texel of the first (2.2,
-  1.4, 1.1 and 0.31 % at most, the largest in the sun's glow), the roughest level with the
-  irradiance of a linear sky and of the sample's (0.43 %), the BRDF table with a Gauss-Legendre
-  quadrature, the uniform sky's shortcut with the computation, and the cube's faces with the GPU,
-  texel by texel. `crates/slime-render/tests/environment.rs` reads every pixel back from an
-  `Rgba16Float` output: white spheres of roughness 0 to 1, metal and dielectric, vanish into a
-  uniform sky (the furnace test, within 2.8 × 10⁻⁴); a black dielectric and a grey metal reflect
-  what the split sum predicts from an independent integration (2.8 × 10⁻³); a mirror sphere
-  reflects the sky's formula (8.7 × 10⁻⁴); a matte sphere shows the sky's irradiance (1.9 ×
-  10⁻³); rough metals show the sky under their lobe (3.9 × 10⁻³); the sky pass shows the sky and
-  the sun's glow along every view ray (5.1 × 10⁻⁴), the same on lavapipe and RADV.
-  `tone_mapping.rs` checks that the sky is exposed before the target and clamped, and that the
-  sun's disc is drawn once at its radiance. `slime-gfx` checks every half and every midpoint
-  between halves through `f32_to_f16`, half-precision levels read back exactly, and every texel of
-  a cube in its documented direction. A prototype of the design, with another sky, was checked
-  against 43 mutations: 42 were caught, and the sky pass's clamp at 65 504 cannot be shown on
-  lavapipe and RADV, which clamp themselves. Every test passes on lavapipe, with glam's assertions
-  on, and on RADV. The references were rendered again on lavapipe and looked at (the sky, blue
-  shadows, metals reflecting it); on RADV, `gltf-front` has 223 pixels off by more than 2, 82 by
-  more than 4, 4 by more than 8 (65 allowed), largest 25; `gltf-back` 25, 1, 0, largest 5;
-  `shapes` 554, 284, 49, largest 19: ADR-0030's tolerance stands, `shapes` nearer its limit (49
-  of 65, 36 at M3b.5), where its metal spheres reflect the sky. On RADV at 1920 × 1080, the
-  sample's passes take 9.0 µs (shadow), 21.6 µs (scene), 14.6 µs (sky) and 10.2 µs (tone mapping)
-  from the start pose, 9.0, 14.6, 15.2 and 10.0 µs from a low pose. The `scene` example ran 400
-  frames in a headless Weston at 1280 × 720 on lavapipe (sky computed in 179 ms in a debug build;
-  shadow pass 2.0 ms, scene 3.0 ms, sky 1.1 ms, tone mapping 0.9 ms), and a screenshot was looked
-  at: the sky, the blue shadows, the overlay's sky lines.
+  faces of 128 texels. The budget: the sample's environment and the BRDF table take at most 50 ms on
+  every core in a release build on the owner's machine (Ryzen 7 5800X, 16 threads); measured with
+  its desktop busy, 23 ms (20 to 28) and 15 ms, 162 ms and 135 ms on one core, with `cargo test
+  --release -p slime-render --lib -- --ignored --nocapture`. Unit tests compare the sky's formula
+  with values computed by hand, the glow's integral and the disc's radiance with their closed forms,
+  every prefiltered level with an integral over every texel of the first (2.2, 1.4, 1.1 and 0.31 %
+  at most, the largest in the sun's glow), the roughest level with the irradiance of a linear sky
+  and of the sample's (0.43 %), the BRDF table with a Gauss-Legendre quadrature, the uniform sky's
+  shortcut with the computation, and the texels' directions with the table of
+  `Gpu::create_cube_texture`. `crates/slime-render/tests/environment.rs` reads every pixel back from
+  an `Rgba16Float` output: white spheres of roughness 0 to 1, metal and dielectric, vanish into a
+  uniform sky (the furnace test, within 2.8 × 10⁻⁴); a black dielectric and a grey metal
+  reflect what the split sum predicts from an independent integration (2.8 × 10⁻³); a mirror
+  sphere reflects the sky's formula (8.7 × 10⁻⁴); a matte sphere shows the sky's irradiance
+  (1.9 × 10⁻³); rough metals show the sky under their lobe (3.9 × 10⁻³); the sky pass shows
+  the sky and the sun's glow along every view ray (5.1 × 10⁻⁴), the same on lavapipe and RADV;
+  an environment draws the same with another renderer, and a scene without one is black.
+  `tone_mapping.rs` checks that the sky is exposed before the target, its value beyond 65 504, and
+  that the sun's disc is drawn once at its radiance and hidden below the horizon. `slime-gfx` checks
+  every half and every midpoint between halves through `f32_to_f16`, half-precision levels read back
+  exactly, and every texel of a cube in its documented direction. A prototype of the design, with
+  another sky and not kept, was checked against 43 mutations: 42 were caught, and the sky pass's
+  clamp at 65 504 cannot be shown on lavapipe and RADV, which clamp themselves. Every test passes on
+  lavapipe, with glam's assertions on, and on RADV. The references were rendered again on lavapipe
+  and looked at (the sky, blue shadows, metals reflecting it); on RADV, `gltf-front` has 223 pixels
+  off by more than 2, 82 by more than 4, 4 by more than 8 (65 allowed), largest 25; `gltf-back` 25,
+  1, 0, largest 5; `shapes` 554, 284, 49, largest 19: ADR-0030's tolerance stands, `shapes` nearer
+  its limit (49 of 65, 36 at M3b.5), where its metal spheres reflect the sky. On RADV at 1920 ×
+  1080, the sample's passes take 9.0 µs (shadow), 21.6 µs (scene), 14.6 µs (sky) and 10.2 µs
+  (tone mapping) from the start pose, 9.0, 14.6, 15.2 and 10.0 µs from a low pose. The `scene`
+  example ran 400 frames in a headless Weston at 1280 × 720 on lavapipe (sky computed in 179 ms in
+  a debug build; shadow pass 2.0 ms, scene 3.0 ms, sky 1.1 ms, tone mapping 0.9 ms), and a
+  screenshot was looked at: the sky, the blue shadows, the overlay's sky lines.
 
 ### M3b.7 — Bloom
 

@@ -115,7 +115,7 @@ fn main() -> Result<(), RenderError> {
   changes.
 - `Renderer::create_environment(gpu, &Sky)` computes a sky's `Environment` on the CPU, on every
   core, and uploads it: a cube map of 128 × 128 texels per face and four levels prefiltered for
-  roughnesses 0.25 to 1, in half-precision floats (1.05 MiB), the last also the light a matte
+  roughnesses 0.25 to 1, in half-precision floats (1.0 MiB), the last also the light a matte
   surface diffuses. It takes tens of milliseconds (a sky of one radiance without a sun almost
   none): create one per sky, not per frame. A `Sky` holds the radiances of the zenith, the horizon
   and the ground, in nits, at most 65 504 each (more panics), and an optional sun, a

@@ -140,13 +140,13 @@ fn main() -> Result<(), GfxError> {
   - `BindGroupLayout` and `BindGroup`: the resources a pipeline's shaders read, bound together at
     one `@group` index (`docs/adr/0026-resource-binding-and-depth.md`). A layout
     (`create_bind_group_layout`) lists its bindings as `BindGroupLayoutEntry`s: a binding number,
-    the `ShaderStages` that read it and a `BindingType` (a uniform buffer, a texture, a depth
-    texture, a sampler or a comparison sampler); a group (`create_bind_group`) gives the
-    `BindingResource` of each binding of a layout: a whole uniform buffer, or a range of one whose
-    start is given each time the group is bound (a *dynamic offset*, a multiple of
-    `Gpu::uniform_offset_alignment`), so that one buffer holds the values of many draws; a texture
-    or a render target; a depth target; a sampler or a comparison sampler. A group keeps the
-    targets it holds: a target created again, at a new size, needs a new group.
+    the `ShaderStages` that read it and a `BindingType` (a uniform buffer, a texture, a cube
+    texture, a depth texture, a sampler or a comparison sampler); a group (`create_bind_group`)
+    gives the `BindingResource` of each binding of a layout: a whole uniform buffer, or a range of
+    one whose start is given each time the group is bound (a *dynamic offset*, a multiple of
+    `Gpu::uniform_offset_alignment`), so that one buffer holds the values of many draws; a texture,
+    flat or cube, or a render target; a depth target; a sampler or a comparison sampler. A group
+    keeps the targets it holds: a target created again, at a new size, needs a new group.
   - `DepthTarget`: a texture holding the depth of what was drawn (`create_depth_target`), at the
     size of the render targets it is used with, for depth testing, or of its own size for a
     depth-only pass. Later passes read it through a bind group (`BindingResource::DepthTarget` at a

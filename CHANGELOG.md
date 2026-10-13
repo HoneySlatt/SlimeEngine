@@ -46,7 +46,7 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   in candelas and an optional range, and for spot lights inner and outer cone angles; each with its
   color apart from its strength. Point and spot lights fall off with the inverse square of the
   distance, brought smoothly to zero at their range, and spot lights fade between their cones, as
-  the extension recommends. `Scene::ambient` takes the ambient light.
+  the extension recommends.
 - The examples' glTF loader reads `KHR_lights_punctual`: the lights that the scene's nodes place,
   at their world position and along their −Z axis. The sample asset has a sun of 100 000 lux, a
   point light in its glowing ring and a spot light on its wall, and requires the extension. The
@@ -93,33 +93,29 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   materials read, each once.
 - The scene pass applies the exposure before it writes the HDR target, so that light in physical
   units fits half precision (pre-exposure,
-  [ADR-0037](docs/adr/0037-lights-in-physical-units-and-pre-exposure.md)); the renderer exposes the
-  background too, and writes exposed light above 65 504, the background's included, as 65 504. The
-  tone-mapping pass no longer multiplies by the exposure. `Scene::light` is replaced by
-  `Scene::lights` and `Scene::ambient`; `DirectionalLight` has a `color` and an `illuminance` in
-  lux, no ambient light, and glTF's default strength, 1 lux; `Scene::clear` and `Scene::ambient`
-  are in nits. A scene under a directional light of π lux at an exposure of 1 looks as it did
-  under the former light of π.
-- A frame of `Renderer::render` takes three passes, the shadow pass first; `Renderer::new` builds
-  six pipelines and a 16 MiB shadow map; a `DirectionalLight` written in full names
-  `casts_shadows`; images of scenes lit by a directional light show its shadows.
-- `Scene::environment` replaces `Scene::ambient` and `Scene::clear`: a scene without an
-  environment is black around its surfaces and lit by its lights alone. A frame takes four passes,
-  the sky's after the scene's, and `Renderer::new` builds seven pipelines. Images change: the
-  samples show a sky, their shadows are blue, and their metals reflect the sky.
+  [ADR-0037](docs/adr/0037-lights-in-physical-units-and-pre-exposure.md)), and writes exposed light
+  above 65 504 as 65 504. The tone-mapping pass no longer multiplies by the exposure. `Scene::light`
+  is replaced by `Scene::lights`; `DirectionalLight` has a `color` and an `illuminance` in lux, and
+  glTF's default strength, 1 lux. A scene under a directional light of π lux at an exposure of 1
+  looks as it did under the former light of π.
+- A frame of `Renderer::render` takes four passes: the shadow map, the scene, the sky, then tone
+  mapping; `Renderer::new` builds seven pipelines and a 16 MiB shadow map; a `DirectionalLight`
+  written in full names `casts_shadows`. `Scene::environment` replaces `Scene::clear` and the
+  renderer's fixed ambient light: a scene without an environment is black around its surfaces and
+  lit by its lights alone. Images change: scenes lit by a directional light show its shadows, and
+  the samples show a sky, which blues their shadows and which their metals reflect.
 - `RenderStats::gpu_time` is replaced by `scene_gpu_time` and `tone_mapping_gpu_time`; `Scene`
   has a new field, `exposure`; `Renderer::new` takes the output's format, any render-target
-  format. `Scene::clear` is light, exposed and tone mapped like surfaces, and its alpha is no
-  longer used: the output is opaque, where the background of an offscreen image kept the clear
-  color's alpha. Images change: a white surface lit by a light of 1 shows as 240 instead of 255,
-  mid-tones lose 0.04 (0.5 shows as 181 instead of 188), highlights no longer clip, and dark
-  colors are darker and more saturated (the samples' background shows as (34, 44, 60) instead of
-  (63, 69, 80)).
+  format. The output is opaque, where the background of an offscreen image kept the clear color's
+  alpha. Images change: a white surface lit by a light of 1 shows as 240 instead of 255, mid-tones
+  lose 0.04 (0.5 shows as 181 instead of 188), highlights no longer clip, and dark colors are
+  darker and more saturated.
 - `RenderPipelineDescriptor::vertex_layout` is an `Option`, and `fragment: Option<FragmentState>`
   replaces `fragment_entry_point` and `target_format`. `DepthState` gains `bias` and is no longer
   `Eq` or `Hash`. Offscreen render targets and depth targets carry the usage that lets shaders
-  sample them. `Gpu::create_texture` and `Gpu::read_render_target` panic on `Rgba16Float`, a
-  format of render targets only, read with `Gpu::read_float_render_target`.
+  sample them. `Gpu::create_texture` panics on `Rgba16Float`, whose textures take the levels their
+  caller gives, and `Gpu::read_render_target` on its targets, read with
+  `Gpu::read_float_render_target`.
 - `GpuTimer::latest` takes no argument and no longer polls the device. Times come back when later
   work is submitted (the next frame) or in `Gpu::wait_idle`.
 - The `submit` profiling span covers only the queue submission. wgpu's validation and encoding of

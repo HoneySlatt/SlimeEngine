@@ -62,18 +62,18 @@ described in the sky; that the sample's sky is a clear blue over dark soil; and 
 - `Scene::environment: Option<&Environment>` replaces `Scene::ambient` and `Scene::clear`. `None`
   is a black sky: only the lights and emission light surfaces, and the background is black.
 - The sun's disc is in no level of the environment. The sky pass draws it: a disc of angular radius
-  0.2665°, of radiance `color × illuminance / Ω`, Ω = 4π sin²(r / 2) = 6.7967 × 10⁻⁵ sr, which gives
-  a surface facing it the sun's illuminance; its edge is blended over a pixel. The sun's light
-  reaches surfaces only through the same light in `Scene::lights`, which casts shadows: nothing is
-  counted twice, and a shadow removes the sun's light and keeps the sky's, as outdoors. A game
-  gives the sky and the scene the same light; the sample takes it from the file's first
-  directional light.
+  0.2665°, of radiance `color × illuminance / Ω`, Ω = 4π sin²(r / 2) = 6.7967 × 10⁻⁵ sr,
+  which gives a surface facing it the sun's illuminance; its edge is blended over a pixel, and below
+  the horizon the ground's haze hides it. The sun's light reaches surfaces only through the same
+  light in `Scene::lights`, which casts shadows: nothing is counted twice, and a shadow removes the
+  sun's light and keeps the sky's, as outdoors. A game gives the sky and the scene the same light;
+  the sample takes it from the file's first directional light.
 - `RenderStats::sky_gpu_time`, under the rules of the other GPU times.
 
 ### The precomputation
 
-- Level 0: the sky in a cube of 128 × 128 texels per face (0.70° per texel at a face's centre),
-  each texel the average of 2 × 2 points of it.
+- Level 0: the sky in a cube of 128 × 128 texels per face (0.90° per texel at a face's centre,
+  0.45° at its edges), each texel the average of 2 × 2 points of it.
 - Levels 1 to 4, faces of 64, 32, 16 and 8 texels: Karis's prefilter for roughness 0.25, 0.5, 0.75
   and 1, Σ L(l)(n·l) / Σ (n·l) with n = v = r, from 64, 128, 256 and 2 048 GGX directions of a
   Hammersley set, the same around every texel, each read from a box-filtered chain of level 0 at
@@ -146,19 +146,23 @@ described in the sky; that the sample's sky is a clear blue over dark soil; and 
   furnace test); a black dielectric and a grey metal reflect what the split sum predicts from an
   independent integration of the BRDF; a mirror sphere reflects the sky's formula; a white matte
   sphere shows the sky's irradiance; rough metals show the sky averaged under their lobe, and
-  between two levels; the sky pass shows the sky, with its glow, along every view ray. Tolerances
-  are about 1.5 times the largest differences measured on lavapipe and RADV.
+  between two levels; the sky pass shows the sky, with its glow, along every view ray; an
+  environment draws the same with a renderer that did not make it, and a scene without one, drawn
+  after it, is black. Tolerances are about 1.5 times the largest differences measured on lavapipe
+  and RADV.
 - Unit tests: the sky's formula at elevations computed by hand; the glow's integral and peak; the
   disc's radiance; every level against an integral over every texel of level 0; level 4 against
   the irradiance of a linear sky and of the sample's; the table against a Gauss-Legendre
-  quadrature; the uniform sky's shortcut against the computation; the cube's orientation on the
-  GPU; the WGSL constants against Rust's. `tone_mapping.rs` checks the sky's exposure and clamp,
-  and that the sun's disc is drawn once, at its radiance.
+  quadrature; the uniform sky's shortcut against the computation; the texels' directions against
+  the table of `Gpu::create_cube_texture`; the WGSL constants against Rust's. `tone_mapping.rs`
+  checks the sky's exposure and its value beyond 65 504, that the sun's disc is drawn once, at its
+  radiance, and that the ground hides it below the horizon.
 - `slime-gfx`: every half and every midpoint between halves through `f32_to_f16`; levels given in
   `Rgba16Float` read back exactly; every texel of a cube in the documented direction.
-- A prototype was checked against 43 mutations (conversion, upload, orientation, sky, prefilter,
-  table, shader, sky pass): 42 were caught. The sky pass's clamp at 65 504 cannot be shown on
-  lavapipe and RADV, which clamp themselves, as for the scene shader's (ADR-0037).
+- A prototype of the design, with another sky and not kept in the repository, was checked against
+  43 mutations (conversion, upload, orientation, sky, prefilter, table, shader, sky pass): 42 were
+  caught. The sky pass's clamp at 65 504 cannot be shown on lavapipe and RADV, which clamp
+  themselves, as for the scene shader's (ADR-0037).
 
 This amends:
 - **ADR-0027:** a scene is a camera, lights, an environment, an exposure and instances; a frame
@@ -216,7 +220,7 @@ This amends:
   once; a debug build takes about eight times longer (180 ms for the sample's sky while the other
   tests run), which every test that creates a sky with a sun or a gradient pays. A sky that changes
   needs a new environment.
-- An environment takes 1.05 MiB on the GPU, the table 8 KiB per renderer.
+- An environment takes 1.0 MiB on the GPU, the table 8 KiB per renderer.
 - The sky pass and the environment's lookups cost a few microseconds on an RX 6900 XT, a few
   milliseconds on lavapipe (`docs/PLAN.md`, M3b.6).
 - The sky's light is not shadowed nor occluded but by occlusion textures: the inside of a box is
