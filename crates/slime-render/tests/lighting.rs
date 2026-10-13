@@ -233,11 +233,14 @@ fn the_exposure_multiplies_the_light_that_surfaces_reflect() {
 #[test]
 fn the_targets_follow_the_size_of_the_output() {
     let mut setup = Setup::new();
-    // Only the height changes, then only the width, then both: a depth target of another size
-    // would make the pass panic, and a stale high-dynamic-range target would leave pixels unlit.
+    // Only the height changes, then only the width, then both. Each frame must be the one that a
+    // renderer drawing first at that size draws: a high-dynamic-range target kept from another
+    // size would frame the square differently, and a depth target of another size would make the
+    // pass panic.
     for size in [(16, 16), (16, 8), (8, 8), (16, 16)] {
-        let (red, _) = setup.center_of(&[Mat4::IDENTITY], size);
-        assert_close(red, fully_lit(), &format!("a {size:?} target"));
+        let (image, _) = setup.draw(from_the_front(), &[Mat4::IDENTITY], size, 1.0);
+        let (expected, _) = Setup::new().draw(from_the_front(), &[Mat4::IDENTITY], size, 1.0);
+        assert!(image.pixels == expected.pixels, "a {size:?} target");
     }
 }
 
