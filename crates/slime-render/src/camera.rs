@@ -9,7 +9,7 @@ use glam::{Mat4, Vec3};
 pub struct Camera {
     /// Where the camera is, in world space.
     pub eye: Vec3,
-    /// The point it looks at.
+    /// The point it looks at, which must differ from `eye`.
     pub target: Vec3,
     /// Which way is up, usually [`Vec3::Y`]. It must not be parallel to the viewing direction.
     pub up: Vec3,
@@ -17,7 +17,7 @@ pub struct Camera {
     pub fov_y: f32,
     /// The distance of the nearest visible point, positive.
     pub near: f32,
-    /// The distance of the farthest visible point, greater than `near`.
+    /// The distance of the farthest visible point, finite and greater than `near`.
     pub far: f32,
 }
 
@@ -37,7 +37,9 @@ impl Default for Camera {
 }
 
 impl Camera {
-    /// The view matrix: from world space to the camera's space.
+    /// The view matrix: from world space to the camera's space. A `target` at `eye`, or so near it
+    /// that the square of their distance rounds to zero in `f32`, or an `up` parallel to the
+    /// viewing direction, gives a matrix that is not finite and draws nothing.
     pub fn view(&self) -> Mat4 {
         glam::camera::rh::view::look_at_mat4(self.eye, self.target, self.up)
     }
@@ -45,8 +47,8 @@ impl Camera {
     /// The projection matrix for a target `aspect` times as wide as it is high: from the camera's
     /// space to clip space, with depth from 0 at [`near`](Self::near) to 1 at [`far`](Self::far)
     /// and +Y up, the convention of WebGPU, which wgpu follows on every graphics API. A field of
-    /// view outside (0, π), or a `near` that is not positive and smaller than `far`, gives a
-    /// matrix that draws nothing usable.
+    /// view outside (0, π), a `near` that is not positive and smaller than `far`, or a `far` that
+    /// is not finite, gives a matrix that draws nothing usable.
     pub fn projection(&self, aspect: f32) -> Mat4 {
         glam::camera::rh::proj::directx::perspective(self.fov_y, aspect, self.near, self.far)
     }
