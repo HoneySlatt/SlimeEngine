@@ -1,10 +1,10 @@
 //! Lighting, checked by reading pixels back through the tone-mapping curve of the renderer
 //! (ADR-0034): a surface facing the light is fully lit, one facing away gets the ambient light
 //! only, normals follow the rotation of an instance but not its scale, and the exposure multiplies
-//! the light. Also what the renderer keeps from one frame to the next, with the same lit square:
-//! the targets follow the size of the output, the projection its aspect ratio, the instance buffer
-//! grows beyond its first size, and the statistics give the GPU time of each pass. Runs on
-//! whatever adapter the machine offers.
+//! the light, which surfaces reflect above 1 without clipping. Also what the renderer keeps from
+//! one frame to the next, with the same lit square: the targets follow the size of the output, the
+//! projection its aspect ratio, the instance buffer grows beyond its first size, and the statistics
+//! give the GPU time of each pass. Runs on whatever adapter the machine offers.
 
 #[path = "common/tone_curve.rs"]
 mod tone_curve;
@@ -227,6 +227,22 @@ fn the_exposure_multiplies_the_light_that_surfaces_reflect() {
         setup.exposed_center_red(from_the_front(), Mat4::IDENTITY, 0.5),
         displayed([0.5; 3])[0],
         "a light of 1 at an exposure of 0.5",
+    );
+    // Light above 1 reaches the curve unclipped: a light of 4 shows compressed rather than as a
+    // light of 1, and brought back to exactly 1 by an exposure of 1/4, as a light of 1.
+    let bright = DirectionalLight {
+        color: Vec3::splat(4.0),
+        ..from_the_front()
+    };
+    assert_close(
+        setup.center_red(bright, Mat4::IDENTITY),
+        displayed([4.0; 3])[0],
+        "a light of 4",
+    );
+    assert_eq!(
+        setup.exposed_center_red(bright, Mat4::IDENTITY, 0.25),
+        setup.exposed_center_red(from_the_front(), Mat4::IDENTITY, 1.0),
+        "a light of 4 at an exposure of 1/4 shows as a light of 1 at an exposure of 1"
     );
 }
 
