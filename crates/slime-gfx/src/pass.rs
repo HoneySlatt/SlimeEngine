@@ -144,7 +144,8 @@ impl Gpu {
     /// into it, then submits the work to the GPU.
     ///
     /// The work runs on the GPU after this function returns; reading the target back waits for
-    /// it. Submitting it is recorded as a `trace`-level profiling span named `submit`.
+    /// it. Submitting it is recorded as a `trace`-level profiling span named `submit`; wgpu's
+    /// validation and encoding of the recorded commands, just before, are not part of it.
     ///
     /// # Panics
     ///
@@ -213,7 +214,8 @@ impl Gpu {
     ///
     /// The pass and its commands are named after the depth target's label in capture tools. The
     /// work runs on the GPU after this function returns; submitting it is recorded as a
-    /// `trace`-level profiling span named `submit`.
+    /// `trace`-level profiling span named `submit`, which wgpu's validation and encoding of the
+    /// recorded commands, just before, are not part of.
     ///
     /// # Panics
     ///
@@ -288,8 +290,11 @@ impl Gpu {
         if let Some((timer, slot)) = timing {
             timer.resolve(&mut encoder, slot);
         }
+        // Finishing the encoder is where wgpu validates and encodes every command `record` gave,
+        // work that grows with the draws: it stays out of the span, which times the submission.
+        let commands = encoder.finish();
         let _span = tracing::trace_span!("submit").entered();
-        self.queue.submit([encoder.finish()]);
+        self.queue.submit([commands]);
         if let Some((timer, slot)) = timing {
             timer.map(slot);
         }
