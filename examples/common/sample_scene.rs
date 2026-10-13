@@ -4,11 +4,13 @@
 #[path = "gltf.rs"]
 mod gltf;
 
+use std::error::Error;
+
 use slime_gfx::{Color, Gpu, RenderTarget, TextureFormat};
 use slime_render::glam::Vec3;
 use slime_render::{Camera, DirectionalLight, RenderStats, Renderer, Scene};
 
-pub use gltf::{Bounds, LoadError};
+pub use gltf::Bounds;
 
 /// The sample asset, made in Blender by `examples/assets/make_scene.py`.
 pub const ASSET: &[u8] = include_bytes!("../assets/scene.glb");
@@ -36,9 +38,17 @@ pub struct SampleScene {
 
 impl SampleScene {
     /// Loads the GLB file `bytes` for targets of `format`.
-    pub fn new(gpu: &Gpu, format: TextureFormat, bytes: &[u8]) -> Result<Self, LoadError> {
-        let renderer =
-            Renderer::new(gpu, format).map_err(|error| LoadError::new(error.to_string()))?;
+    ///
+    /// # Errors
+    ///
+    /// The renderer's error when it cannot be created, with its cause (the driver's message, or
+    /// why the device was lost); the loader's when the file cannot be drawn.
+    pub fn new(
+        gpu: &Gpu,
+        format: TextureFormat,
+        bytes: &[u8],
+    ) -> Result<Self, Box<dyn Error + Send + Sync>> {
+        let renderer = Renderer::new(gpu, format)?;
         let loaded = gltf::load(gpu, &renderer, bytes)?;
         Ok(Self { renderer, loaded })
     }
