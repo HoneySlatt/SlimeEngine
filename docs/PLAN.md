@@ -500,7 +500,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   it. CI most likely runs FXC.
 - **Mirrored instances are drawn inside out** (ADR-0027; a change is proposed to the owner). An
   instance whose transform has a negative determinant (a scale of −1 along one axis, or a glTF
-  node mirrored by its parents) winds its triangles clockwise on screen. The renderer's only
+  node mirrored by its parents) winds its triangles clockwise on screen. The renderer's scene
   pipeline culls those faces, so the instance's front faces are culled and its back faces drawn,
   where glTF keeps the front faces. The examples' glTF loader works around it: a mirrored node
   draws a copy of its mesh whose triangles are wound the other way. M3b.3, whose double-sided
@@ -531,9 +531,10 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **The dev overlay leaves egui's focus flag set.** `slime-devui` sends egui the window's focus
   changes as events only (`WindowFocused`) and leaves `RawInput::focused` at egui's default,
   `true`. A focused text field therefore keeps its caret blinking after the window loses the
-  focus. The effect is cosmetic: the engine redraws every frame anyway, and the scene example has no
-  text field (its exposure slider shows its value as a label). Fix: keep a `focused` flag in `slime-devui`'s `input::Input`, updated on
-  `Event::Focused`, and set `RawInput::focused` from it in `Overlay::render`.
+  focus. The effect is cosmetic: the engine redraws every frame anyway, and the scene example has
+  no text field (its exposure slider shows its value as a label). Fix: keep a `focused` flag in
+  `slime-devui`'s `input::Input`, updated on `Event::Focused`, and set `RawInput::focused` from
+  it in `Overlay::render`.
 - **The dev overlay can still panic on a lost device** (ADR-0022). `Overlay::render` skips the
   frame when the device was lost earlier in it, but two cases panic inside egui-wgpu or wgpu: a
   loss that egui-wgpu's own buffer upload is the first to find, and `Overlay::new` on a device
@@ -559,13 +560,16 @@ GitHub issues, linked from their entry; this list stays the reference.
   (ADR-0034). The tone-mapping curve lowers dark colors, on the assumption that every surface
   reflects some of its surroundings, which image-based lighting adds at M3b.6. Until then, the
   samples' background, (63, 69, 80) as authored, shows as (34, 44, 60), and surfaces lit by the
-  ambient light alone keep half of their light or less.
-- **Light beyond 65 504 overflows the HDR target** (ADR-0034; a change is proposed to the owner
-  for M3b.4). The exposure is applied after the scene pass has written the `Rgba16Float` target,
-  whose largest value is 65 504: a brighter channel is stored as an infinity, which the curve
-  turns into NaN. No light of the engine is that bright yet; with the units of M3b.4 (lux and
-  candela), a highlight of the sun is. Applying the exposure in the scene pass instead
-  (pre-exposure) keeps the target in range, but departs from the plan as validated.
+  ambient light alone lose up to 0.04 in every channel: a third to two thirds of their light at
+  the samples' ambient light, and most of a channel much weaker than the others, which saturates
+  them.
+- **Light beyond 65 504 overflows the HDR target** (ADR-0034; a change is proposed to the owner for
+  M3b.4). The exposure is applied after the scene pass has written the `Rgba16Float` target, whose
+  largest value is 65 504: a brighter channel is stored as 65 504 or as an infinity, depending on
+  the driver; the first clips it, the curve turns the second into NaN, which shows as a color that
+  has nothing to do with the scene. No light of the engine is that bright yet; with the units of
+  M3b.4 (lux and candela), a highlight of the sun is. Applying the exposure in the scene pass
+  instead (pre-exposure) keeps the target in range, but departs from the plan as validated.
 - **glTF minification filters are approximated.** `slime-gfx` ties mip blending to the
   minification filter and gives every texture mipmaps, so only `NEAREST_MIPMAP_NEAREST` and
   `LINEAR_MIPMAP_LINEAR` are exact (documented in the loader). Revisit when an engine-side user

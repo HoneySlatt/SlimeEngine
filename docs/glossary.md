@@ -273,7 +273,8 @@ device asks for it only when the adapter offers it (`Gpu::can_time`,
 **Tone mapping.** Mapping the *HDR* colors of a scene to the range a display shows, 0 to 1, with a
 curve that compresses highlights instead of clipping them. The renderer's tone-mapping pass draws
 a *fullscreen triangle* that applies Khronos PBR Neutral, the default of the Khronos glTF Sample
-Viewer, which keeps authored base colors and hues
+Viewer, which keeps hues and lowers dark and mid tones by up to 0.04, an offset meant to balance
+the reflection of their surroundings that surfaces get from image-based lighting
 ([ADR-0034](adr/0034-hdr-rendering-and-tone-mapping.md)).
 
 **Tooling (engine's).** Code that serves development and ships with no game: the dev *overlay*

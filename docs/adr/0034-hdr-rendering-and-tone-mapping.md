@@ -100,10 +100,10 @@ dynamic range, multiplied by the exposure, tone mapped, then encoded by the outp
   sky and the bloom, and every overdrawn fragment is tone mapped.
 - **The exposure applied by the scene pass, before the HDR target is written (pre-exposure).** It
   keeps the HDR target within half precision whatever the units of the lights, which the plan's
-  wording does not: with lights in lux and candela (M3b.4), a white surface under a 100 000-lux
-  sun reflects about 31 800 cd/m², a highlight of the sun far more, and beyond 65 504 a driver
-  stores an infinity, which the curve turns into NaN. It departs from the plan as validated, so
-  it is proposed to the owner for M3b.4, where it becomes necessary.
+  wording does not: with lights in lux and candela (M3b.4), a white surface under a 100 000-lux sun
+  reflects about 31 800 cd/m², a highlight of the sun far more, and beyond 65 504 a driver stores
+  65 504, which clips the highlight, or an infinity, which the curve turns into NaN. It departs from
+  the plan as validated, so it is proposed to the owner for M3b.4, where it becomes necessary.
 - **The lights multiplied by the exposure on the CPU, as Filament does.** The same headroom, but
   emission and the sky also need it in shaders: two ways to apply it.
 - **The exposure in `Camera`.** The camera gives matrices; the exposure goes with the lighting,
@@ -144,7 +144,8 @@ dynamic range, multiplied by the exposure, tone mapped, then encoded by the outp
 - Each frame takes one more pass, submission and draw call, and 8 more bytes of GPU memory per
   pixel. The times of the two passes can come from different frames.
 - The output is opaque.
-- Light above 65 504 overflows the HDR target and becomes NaN through the curve: the scene must
-  stay within that range before the exposure, which lights in physical units will not.
+- Light above 65 504 overflows the HDR target: it clips, or becomes NaN through the curve on a
+  driver that stores an infinity. The scene must stay within that range before the exposure,
+  which lights in physical units will not.
 - The darkest tones differ slightly from the Sample Viewer, which encodes with pow(1/2.2).
 - `RenderStats::gpu_time` is gone: callers read the time of each pass.
