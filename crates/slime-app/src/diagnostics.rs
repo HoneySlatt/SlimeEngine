@@ -34,14 +34,18 @@ pub const DEFAULT_LOG_FILTER: &str =
 ///
 /// - Installs a global [`tracing`] subscriber that writes events to standard error with a
 ///   timestamp, the level and the module that emitted them, filtered by [`LOG_ENV_VAR`]. Colors
-///   are used only when standard error is a terminal and `NO_COLOR` is unset or empty (on Windows,
-///   only in Windows Terminal: the older console host prints the escape sequences as text). Records that
-///   dependencies emit through the `log` crate reach the same subscriber. When a span that the
-///   filter lets through closes, a line records how long it was busy and idle, which makes the
-///   profiling spans of the main loop visible with `SLIME_LOG=slime_app=trace,slime_gfx=trace`
-///   (a bare `trace` also turns on wgpu's own trace logs, a line per command of each draw, whose
-///   writing counts in the spans). An event that cannot be written, because the reader of
-///   standard error exited or the terminal closed, is dropped and the process goes on.
+///   are used only when standard error is a terminal and `NO_COLOR` is unset or empty, and on
+///   Windows only when `WT_SESSION` is set, as it is in Windows Terminal: the older console host
+///   prints the escape sequences as text. Programs inherit that variable, also when started from
+///   Windows Terminal into a console window of their own (`start`, on systems whose default
+///   terminal is the older console host); their log then shows the sequences as text, which
+///   `NO_COLOR=1` avoids. Records that dependencies emit through the `log` crate reach the same
+///   subscriber. When a span that the filter lets through closes, a line records how long it was
+///   busy and idle, which makes the profiling spans of the main loop visible with
+///   `SLIME_LOG=slime_app=trace,slime_gfx=trace` (a bare `trace` also turns on wgpu's own trace
+///   logs, a line per command of each draw, whose writing counts in the spans). An event that
+///   cannot be written, because the reader of standard error exited or the terminal closed, is
+///   dropped and the process goes on.
 /// - If the process already has a global subscriber, for example because the game installed its
 ///   own, that subscriber is kept and receives the engine's events. A `log` logger installed before
 ///   this call keeps receiving the records that dependencies emit through `log`.
@@ -116,7 +120,10 @@ fn with_default_level(value: &str) -> Option<String> {
 /// Escape sequences only make sense on a terminal that interprets them, and `NO_COLOR`
 /// (<https://no-color.org>) turns them off when it is set to a non-empty value. On Windows, only
 /// Windows Terminal, which sets `WT_SESSION`, is assumed to interpret them: the console host that
-/// `cmd.exe` opens on older systems prints them as text unless a program turns that on.
+/// `cmd.exe` opens on older systems prints them as text unless a program turns that on. The
+/// variable stands in for the console, which it does not always describe: a program started from
+/// Windows Terminal into a console window of that older host inherits it. Asking the console to
+/// interpret the sequences, and using colors when it accepts, would need a Win32 call.
 fn use_colors() -> bool {
     std::io::stderr().is_terminal()
         && std::env::var_os("NO_COLOR").is_none_or(|value| value.is_empty())
