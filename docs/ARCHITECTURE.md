@@ -280,10 +280,11 @@ objects that the `wgpu` feature of `slime-gfx` gives.
 
 The shader ([`shader.wgsl`](../crates/slime-render/src/shader.wgsl)) transforms each vertex by
 its instance's matrix then the camera's, and its normal by the instance's normal matrix (the
-inverse transpose, so that normals stay perpendicular to surfaces scaled unevenly); each fragment
-is lit by the scene's directional light in proportion to the cosine between its normal and the
-direction to the light (Lambert), plus the ambient light, times its material's base color and
-its texture, read at the texture coordinates of the vertex. The examples' temporary glTF loader
+cofactor matrix of its 3 × 3 part, proportional to the inverse transpose, so that normals stay
+perpendicular to surfaces scaled unevenly, and finite for a mesh flattened along one axis); each
+fragment is lit by the scene's directional light in proportion to the cosine between its normal
+and the direction to the light (Lambert), plus the ambient light, times its material's base color
+and its texture, read at the texture coordinates of the vertex. The examples' temporary glTF loader
 ([`examples/common/gltf.rs`](../examples/common/gltf.rs),
 [ADR-0029](adr/0029-temporary-gltf-loading.md)) builds `MeshData`, materials and textures from a
 GLB file this way, and flattens its node hierarchy into instances. Conventions: world space is

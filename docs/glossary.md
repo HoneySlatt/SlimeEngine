@@ -168,8 +168,10 @@ M1.3.
 minified texture does not alias. The engine computes them on the CPU when the texture is created
 (`Gpu::create_texture`), in linear light for the sRGB formats; linear filtering blends two levels.
 
-**Normal matrix.** The inverse transpose of an instance's transform, by which the renderer
-transforms its normals so that they stay perpendicular to surfaces scaled unevenly.
+**Normal matrix.** The matrix by which the renderer transforms an instance's normals so that they
+stay perpendicular to surfaces scaled unevenly: the cofactor matrix of the transform's 3 × 3 part,
+proportional to its inverse transpose, which, unlike the inverse, stays finite for a mesh
+flattened along one axis.
 
 **Offscreen rendering.** Drawing into an image that no window shows, a *render target*, for
 example to read it back to the CPU. Image tests render this way, without a windowing system.
