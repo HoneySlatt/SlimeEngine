@@ -111,8 +111,7 @@ impl Gpu {
         target: &RenderTarget,
         bytes_per_pixel: u32,
     ) -> Result<Vec<u8>, GfxError> {
-        let largest_buffer = self.device.limits().max_buffer_size;
-        self.read_texels_in_bands(target, bytes_per_pixel, largest_buffer)
+        self.read_texels_in_bands(target, bytes_per_pixel, self.max_buffer_size())
     }
 
     /// [`read_texels`](Self::read_texels), copying the rows in bands, each into a buffer of at

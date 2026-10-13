@@ -217,6 +217,13 @@ impl Gpu {
         self.device.limits().max_texture_dimension_2d
     }
 
+    /// The largest size, in bytes, of a buffer (256 MiB with the default limits). A caller that
+    /// creates buffers from files checks their size against it: [`Gpu::create_vertex_buffer`] and
+    /// [`Gpu::create_index_buffer`] panic on a larger one.
+    pub fn max_buffer_size(&self) -> u64 {
+        self.device.limits().max_buffer_size
+    }
+
     /// Submits an empty piece of work, then blocks until the GPU has finished everything submitted
     /// so far.
     ///

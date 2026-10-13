@@ -121,9 +121,11 @@ fn main() -> Result<(), GfxError> {
     levels, and the `AddressMode` beyond its edges (repeat, mirror, clamp). Both are bound
     through bind groups.
   - `VertexBuffer`: vertex data, given as bytes (`create_vertex_buffer`): at least one byte, at
-    most 256 MiB with the default limits.
-  - `IndexBuffer`: 32-bit indices into a vertex buffer (`create_index_buffer`), for draws whose
-    triangles share vertices; it knows its `count`.
+    most `Gpu::max_buffer_size()` bytes (256 MiB with the default limits; a loader checks the
+    meshes of a file against it).
+  - `IndexBuffer`: 32-bit indices into a vertex buffer (`create_index_buffer`), at most
+    `Gpu::max_buffer_size()` bytes of them, for draws whose triangles share vertices; it knows its
+    `count`.
   - `UniformBuffer`: values that a whole draw reads, given as bytes laid out as the shader's
     uniform declares (`create_uniform_buffer`: at least 4 bytes, in multiples of 4), and written
     again with `Gpu::write_uniform_buffer`, always with the same size.
