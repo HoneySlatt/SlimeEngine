@@ -86,7 +86,7 @@ impl Gpu {
     pub fn read_float_render_target(&self, target: &RenderTarget) -> Result<FloatImage, GfxError> {
         assert!(
             target.format() == TextureFormat::Rgba16Float,
-            "render target `{}` is {:?}: read it with Gpu::read_render_target",
+            "render target `{}` is {:?}, not Rgba16Float",
             target.label,
             target.format()
         );
@@ -111,6 +111,19 @@ impl Gpu {
         target: &RenderTarget,
         bytes_per_pixel: u32,
     ) -> Result<Vec<u8>, GfxError> {
+        let largest_buffer = self.device.limits().max_buffer_size;
+        self.read_texels_in_bands(target, bytes_per_pixel, largest_buffer)
+    }
+
+    /// [`read_texels`](Self::read_texels), copying the rows in bands, each into a buffer of at
+    /// most `largest_buffer` bytes, so that any target can be read back: a float target of
+    /// 8192 × 8192 pixels needs 512 MiB, twice the largest buffer of the default limits.
+    fn read_texels_in_bands(
+        &self,
+        target: &RenderTarget,
+        bytes_per_pixel: u32,
+        largest_buffer: u64,
+    ) -> Result<Vec<u8>, GfxError> {
         self.check()?;
         let readback_error =
             |source: Box<dyn std::error::Error + Send + Sync>| GfxError::Readback {
@@ -121,63 +134,140 @@ impl Gpu {
         let row_bytes = width * bytes_per_pixel;
         // Copies from a texture to a buffer need rows aligned to 256 bytes.
         let padded_row_bytes = row_bytes.next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
+        // A row always fits: the widest one, 8192 float pixels, takes 64 KiB.
+        let band_rows =
+            (largest_buffer / u64::from(padded_row_bytes)).min(u64::from(height)) as u32;
         let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some(&format!("{} readback", target.label)),
-            size: u64::from(padded_row_bytes) * u64::from(height),
+            size: u64::from(padded_row_bytes) * u64::from(band_rows),
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
             mapped_at_creation: false,
         });
 
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some(&format!("{} readback", target.label)),
-            });
-        encoder.copy_texture_to_buffer(
-            wgpu::TexelCopyTextureInfo {
-                texture: &target.texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::TexelCopyBufferInfo {
-                buffer: &buffer,
-                layout: wgpu::TexelCopyBufferLayout {
-                    offset: 0,
-                    bytes_per_row: Some(padded_row_bytes),
-                    rows_per_image: Some(height),
-                },
-            },
-            wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
-        );
-        self.queue.submit([encoder.finish()]);
-
-        let (sender, receiver) = mpsc::channel();
-        buffer.map_async(wgpu::MapMode::Read, .., move |result| {
-            // The receiver waits below; it cannot be gone.
-            let _ = sender.send(result);
-        });
-        self.device
-            .poll(wgpu::PollType::wait_indefinitely())
-            .map_err(|error| readback_error(Box::new(error)))?;
-        receiver
-            .recv()
-            .map_err(|error| readback_error(Box::new(error)))?
-            .map_err(|error| readback_error(Box::new(error)))?;
-
-        let mapped = buffer
-            .get_mapped_range(..)
-            .map_err(|error| readback_error(Box::new(error)))?;
         let mut texels = Vec::with_capacity(row_bytes as usize * height as usize);
-        for row in mapped.chunks(padded_row_bytes as usize) {
-            texels.extend_from_slice(&row[..row_bytes as usize]);
+        for first_row in (0..height).step_by(band_rows as usize) {
+            let rows = band_rows.min(height - first_row);
+            let mut encoder = self
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some(&format!("{} readback", target.label)),
+                });
+            encoder.copy_texture_to_buffer(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &target.texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d {
+                        x: 0,
+                        y: first_row,
+                        z: 0,
+                    },
+                    aspect: wgpu::TextureAspect::All,
+                },
+                wgpu::TexelCopyBufferInfo {
+                    buffer: &buffer,
+                    layout: wgpu::TexelCopyBufferLayout {
+                        offset: 0,
+                        bytes_per_row: Some(padded_row_bytes),
+                        rows_per_image: Some(rows),
+                    },
+                },
+                wgpu::Extent3d {
+                    width,
+                    height: rows,
+                    depth_or_array_layers: 1,
+                },
+            );
+            self.queue.submit([encoder.finish()]);
+
+            let (sender, receiver) = mpsc::channel();
+            buffer.map_async(wgpu::MapMode::Read, .., move |result| {
+                // The receiver waits below; it cannot be gone.
+                let _ = sender.send(result);
+            });
+            self.device
+                .poll(wgpu::PollType::wait_indefinitely())
+                .map_err(|error| readback_error(Box::new(error)))?;
+            receiver
+                .recv()
+                .map_err(|error| readback_error(Box::new(error)))?
+                .map_err(|error| readback_error(Box::new(error)))?;
+
+            let mapped = buffer
+                .get_mapped_range(..)
+                .map_err(|error| readback_error(Box::new(error)))?;
+            for row in mapped.chunks(padded_row_bytes as usize).take(rows as usize) {
+                texels.extend_from_slice(&row[..row_bytes as usize]);
+            }
+            drop(mapped);
+            buffer.unmap();
         }
-        drop(mapped);
-        buffer.unmap();
         Ok(texels)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{CullMode, FragmentState, RenderPassDescriptor, RenderPipelineDescriptor};
+
+    #[test]
+    fn rows_read_in_bands_come_back_in_order() {
+        let gpu =
+            Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+        let target = gpu.create_render_target("bands", 3, 5, TextureFormat::Rgba16Float);
+        let shader = gpu
+            .create_shader_module(
+                "bands",
+                "@vertex
+                 fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {
+                     return vec4<f32>(f32((i & 1u) * 4u) - 1.0, f32((i & 2u) * 2u) - 1.0, 0.0, 1.0);
+                 }
+                 @fragment
+                 fn fs_main(@builtin(position) p: vec4<f32>) -> @location(0) vec4<f32> {
+                     return vec4<f32>(p.x, p.y, 0.0, 1.0);
+                 }",
+            )
+            .expect("the shader compiles");
+        let pipeline = gpu
+            .create_render_pipeline(&RenderPipelineDescriptor {
+                label: "bands",
+                shader: &shader,
+                vertex_entry_point: "vs_main",
+                vertex_layout: None,
+                fragment: Some(FragmentState {
+                    entry_point: "fs_main",
+                    target_format: TextureFormat::Rgba16Float,
+                }),
+                bind_group_layouts: &[],
+                depth: None,
+                cull: CullMode::None,
+            })
+            .expect("the pipeline is valid");
+        let pass = RenderPassDescriptor {
+            target: &target,
+            clear: None,
+            depth: None,
+            timer: None,
+        };
+        gpu.render(&pass, |pass| {
+            pass.set_pipeline(&pipeline);
+            pass.draw(0..3);
+        });
+        let whole = gpu
+            .read_texels(&target, 8)
+            .expect("the target is read back");
+        // Two padded rows of 256 bytes per band: bands of 2, 2 and 1 rows.
+        let banded = gpu
+            .read_texels_in_bands(&target, 8, 512)
+            .expect("the target is read back");
+        assert_eq!(banded, whole);
+        let image = gpu
+            .read_float_render_target(&target)
+            .expect("the target is read back");
+        assert_eq!(&image.pixels[..4], [0.5, 0.5, 0.0, 1.0]);
+        assert_eq!(
+            &image.pixels[image.pixels.len() - 4..],
+            [2.5, 4.5, 0.0, 1.0]
+        );
     }
 }

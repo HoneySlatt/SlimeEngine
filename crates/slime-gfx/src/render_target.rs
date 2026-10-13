@@ -21,7 +21,8 @@ pub enum TextureFormat {
     Rgba8Unorm,
     /// Red, green, blue and alpha, each a 16-bit (half-precision) floating-point number, linear:
     /// values beyond 0 to 1, up to ±65 504 with 11 significant bits, such as the light of a scene
-    /// before tone mapping (high dynamic range). A format of render targets only: shaders sample
+    /// before tone mapping (high dynamic range); a shader that writes more gets ±65 504 or an
+    /// infinity, depending on the driver. A format of render targets only: shaders sample
     /// them, [`Gpu::read_float_render_target`] reads them back, and [`Gpu::create_texture`] does
     /// not take it.
     Rgba16Float,

@@ -291,8 +291,9 @@ fn a_second_pass_samples_the_target_a_first_pass_drew_into() {
 fn a_depth_only_pass_is_read_through_a_comparison_sampler() {
     let gpu = gpu();
     let size = 8;
-    // The occluder covers the left half of the shadow map at depth 0.25: its right edge, x = 0,
-    // lies between columns 3 and 4; its left edge stays left of the target on every row.
+    // The shadow map has twice the size of the target that reads it: a depth-only pass takes its
+    // size from its depth target alone. The occluder covers its left half at depth 0.25: its right
+    // edge, x = 0, lies between columns 7 and 8; its left edge stays left of the map on every row.
     let occluder = depth_pipeline(
         &gpu,
         "occluder",
@@ -307,7 +308,7 @@ fn a_depth_only_pass_is_read_through_a_comparison_sampler() {
             bias: DepthBias::default(),
         },
     );
-    let shadow_map = gpu.create_depth_target("shadow map", size, size);
+    let shadow_map = gpu.create_depth_target("shadow map", 2 * size, 2 * size);
     gpu.render_depth(
         &DepthPassDescriptor {
             depth: &shadow_map,
@@ -364,8 +365,10 @@ fn a_depth_only_pass_is_read_through_a_comparison_sampler() {
             },
         ],
     );
-    // Red compares a reference of 0.5 at texel centers, green one of 0.1, and blue 0.5 halfway
-    // between two texels, horizontally, with linear filtering.
+    // Each pixel of the lookup covers 2 × 2 texels of the shadow map, which hold the same depth.
+    // Red compares a reference of 0.5 there, green one of 0.1, blue 0.5 halfway between texels 2x
+    // + 1 and 2x + 2, horizontally, with linear filtering, and alpha the very depth stored there,
+    // which LessEqual finds equal and Less would not.
     let lookup = fullscreen_pipeline(
         &gpu,
         "shadow lookup",
@@ -381,7 +384,12 @@ fn a_depth_only_pass_is_read_through_a_comparison_sampler() {
                  textureSampleCompare(shadow_map, nearest_compare, uv, 0.5),
                  textureSampleCompare(shadow_map, nearest_compare, uv, 0.1),
                  textureSampleCompare(shadow_map, linear_compare, between, 0.5),
-                 1.0,
+                 textureSampleCompare(
+                     shadow_map,
+                     nearest_compare,
+                     uv,
+                     textureLoad(shadow_map, vec2<i32>(p.xy) * 2, 0),
+                 ),
              );
          }",
         &[&layout],
@@ -411,7 +419,8 @@ fn a_depth_only_pass_is_read_through_a_comparison_sampler() {
     for y in 0..size {
         for x in 0..size {
             let [r, g, b, a] = pixel(&image, x, y);
-            // 0.5 <= 0.25 fails where the occluder is, and 0.5 <= 1.0 (cleared) holds elsewhere.
+            // 0.5 <= 0.25 fails where the occluder is, and 0.5 <= 1.0 (cleared) holds elsewhere;
+            // a stored depth is less than or equal to itself.
             let lit = if x <= 3 { 0.0 } else { 1.0 };
             assert_eq!((r, g, a), (lit, 1.0, 1.0), "pixel ({x}, {y})");
             // Filtering weights are fixed-point numbers on some GPUs.
@@ -427,9 +436,11 @@ fn a_depth_only_pass_is_read_through_a_comparison_sampler() {
 fn a_depth_bias_moves_the_depth_by_the_expected_amount() {
     let gpu = gpu();
     let size = 8;
+    // At depth 0.375, whose exponent is -2, the unit r of the constant bias is 2^-25: a driver
+    // that used 2^-24, the unit of depths from 0.5 to 1, would measure twice the expected amount.
     let flat = "@vertex
         fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {
-            return vec4<f32>(corner(i), 0.5, 1.0);
+            return vec4<f32>(corner(i), 0.375, 1.0);
         }";
     // 0.25 at x = -1 and 0.75 at x = 3: 1/32 more per pixel of an 8-pixel target, along x only.
     let tilted = "@vertex
@@ -442,8 +453,8 @@ fn a_depth_bias_moves_the_depth_by_the_expected_amount() {
         write: true,
         bias,
     };
-    // A constant bias of 16 384 units, each 2^-24 at depths from 0.5 to 1: 2^-10. A slope-scaled
-    // bias of 2 times the slope of 1/32 per pixel: 1/16.
+    // A constant bias of 16 384 units of 2^-25: 2^-11. A slope-scaled bias of 2 times the slope of
+    // 1/32 per pixel: 1/16.
     let cases = [
         ("plain flat", flat, DepthBias::default()),
         (
@@ -516,7 +527,7 @@ fn a_depth_bias_moves_the_depth_by_the_expected_amount() {
              let flat_depth = textureLoad(plain_flat, c, 0);
              let tilted_depth = textureLoad(plain_tilted, c, 0);
              return vec4<f32>(
-                 (textureLoad(biased_flat, c, 0) - flat_depth) * 1024.0,
+                 (textureLoad(biased_flat, c, 0) - flat_depth) * 2048.0,
                  (textureLoad(biased_tilted, c, 0) - tilted_depth) * 16.0,
                  flat_depth,
                  tilted_depth,
@@ -557,7 +568,7 @@ fn a_depth_bias_moves_the_depth_by_the_expected_amount() {
                 (slope - 1.0).abs() <= 1.0 / 256.0,
                 "pixel ({x}, {y}): slope-scaled bias {slope}"
             );
-            assert_eq!(flat_depth, 0.5, "pixel ({x}, {y})");
+            assert_eq!(flat_depth, 0.375, "pixel ({x}, {y})");
             let expected = (2.0 * x as f32 + 17.0) / 64.0;
             assert!(
                 (tilted_depth - expected).abs() <= 1.0 / 1024.0,
@@ -623,4 +634,125 @@ fn a_depth_only_pipeline_does_not_draw_in_a_pass_with_a_render_target() {
         timer: None,
     };
     gpu.render(&pass, |pass| pass.set_pipeline(&pipeline));
+}
+
+#[test]
+#[should_panic(expected = "Incompatible color attachments")]
+fn a_pipeline_with_a_fragment_stage_does_not_draw_in_a_depth_only_pass() {
+    let gpu = gpu();
+    let pipeline = fullscreen_pipeline(
+        &gpu,
+        "color",
+        "@fragment
+         fn fs_main() -> @location(0) vec4<f32> {
+             return vec4<f32>(1.0);
+         }",
+        &[],
+        TextureFormat::Rgba16Float,
+    );
+    let depth = gpu.create_depth_target("depth", 8, 8);
+    gpu.render_depth(
+        &DepthPassDescriptor {
+            depth: &depth,
+            timer: None,
+        },
+        |pass| pass.set_pipeline(&pipeline),
+    );
+}
+
+/// A bind group holding `depth`, at a depth-texture binding.
+fn depth_group(gpu: &Gpu, depth: &slime_gfx::DepthTarget) -> slime_gfx::BindGroup {
+    let layout = gpu.create_bind_group_layout(
+        "depth",
+        &[BindGroupLayoutEntry {
+            binding: 0,
+            visible_to: ShaderStages::Fragment,
+            ty: BindingType::DepthTexture,
+        }],
+    );
+    gpu.create_bind_group(
+        "depth",
+        &layout,
+        &[BindGroupEntry {
+            binding: 0,
+            resource: BindingResource::DepthTarget(depth),
+        }],
+    )
+}
+
+#[test]
+#[should_panic(expected = "conflicting usages")]
+fn a_depth_only_pass_cannot_sample_the_depth_target_it_draws_into() {
+    let gpu = gpu();
+    let depth = gpu.create_depth_target("shadow map", 8, 8);
+    let group = depth_group(&gpu, &depth);
+    gpu.render_depth(
+        &DepthPassDescriptor {
+            depth: &depth,
+            timer: None,
+        },
+        |pass| pass.set_bind_group(0, &group, &[]),
+    );
+}
+
+#[test]
+#[should_panic(expected = "conflicting usages")]
+fn a_pass_cannot_sample_the_depth_target_it_tests_against() {
+    let gpu = gpu();
+    let target = gpu.create_render_target("color", 8, 8, TextureFormat::Rgba16Float);
+    let depth = gpu.create_depth_target("depth", 8, 8);
+    let group = depth_group(&gpu, &depth);
+    let pass = RenderPassDescriptor {
+        target: &target,
+        clear: Some(BLACK),
+        depth: Some(&depth),
+        timer: None,
+    };
+    gpu.render(&pass, |pass| pass.set_bind_group(0, &group, &[]));
+}
+
+#[test]
+#[should_panic(expected = "sample type")]
+fn a_depth_target_cannot_be_bound_as_a_float_texture() {
+    let gpu = gpu();
+    let depth = gpu.create_depth_target("depth", 8, 8);
+    let layout = gpu.create_bind_group_layout(
+        "float texture",
+        &[BindGroupLayoutEntry {
+            binding: 0,
+            visible_to: ShaderStages::Fragment,
+            ty: BindingType::Texture,
+        }],
+    );
+    gpu.create_bind_group(
+        "float texture",
+        &layout,
+        &[BindGroupEntry {
+            binding: 0,
+            resource: BindingResource::DepthTarget(&depth),
+        }],
+    );
+}
+
+#[test]
+#[should_panic(expected = "comparison")]
+fn a_filtering_sampler_cannot_be_bound_as_a_comparison_sampler() {
+    let gpu = gpu();
+    let sampler = gpu.create_sampler("filtering", &SamplerDescriptor::default());
+    let layout = gpu.create_bind_group_layout(
+        "comparison",
+        &[BindGroupLayoutEntry {
+            binding: 0,
+            visible_to: ShaderStages::Fragment,
+            ty: BindingType::ComparisonSampler,
+        }],
+    );
+    gpu.create_bind_group(
+        "comparison",
+        &layout,
+        &[BindGroupEntry {
+            binding: 0,
+            resource: BindingResource::Sampler(&sampler),
+        }],
+    );
 }

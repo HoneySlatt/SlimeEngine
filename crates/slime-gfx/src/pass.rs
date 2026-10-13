@@ -14,7 +14,9 @@ use crate::timer::GpuTimer;
 use crate::vertex_buffer::VertexBuffer;
 
 /// A color with linear components, not sRGB-encoded. 8-bit targets keep each component between 0
-/// and 1; `Rgba16Float` targets keep the nearest half-precision value, beyond 0 to 1 included.
+/// and 1. `Rgba16Float` targets keep a half-precision value next to each component, beyond 0 to 1
+/// included: the driver rounds to the nearest value or toward zero, and a magnitude beyond 65 504
+/// becomes ±65 504 or an infinity.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Color {
     /// Red.
@@ -146,7 +148,8 @@ impl Gpu {
     ///
     /// If the depth target does not have the size of the render target, or if wgpu rejects a
     /// command that `record` gave, which it reports when the pass is finished inside this method:
-    /// a pipeline built for another target format, or without the depth test the pass needs; a
+    /// a pipeline built for another target format, or whose depth test does not match the pass
+    /// (a depth test in a pass without a depth target, or none in a pass with one); a
     /// pipeline without a fragment stage (it draws only with [`Gpu::render_depth`]); a draw with
     /// a pipeline that has a vertex layout and no vertex buffer set; a bind group that holds the
     /// pass's own target or depth target, since a pass cannot sample what it draws into. These

@@ -1,4 +1,5 @@
-//! Depth targets: textures holding the depth of what was drawn, for depth testing.
+//! Depth targets: textures holding the depth of what was drawn, for depth testing and for later
+//! passes to sample.
 
 use crate::gpu::Gpu;
 
@@ -14,7 +15,9 @@ pub(crate) const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth3
 /// [`BindingType::DepthTexture`](crate::BindingType::DepthTexture) binding, `texture_depth_2d` in
 /// WGSL): texel by texel with `textureLoad`, or compared with a reference depth through a
 /// [`ComparisonSampler`](crate::ComparisonSampler), as a shadow map is read. A pass cannot read
-/// the depth target it draws into. It cannot be read back to the CPU.
+/// the depth target it draws into. Until a pass draws into it, it holds depth 0, the nearest:
+/// a comparison sampler then finds every reference depth behind it. It cannot be read back to the
+/// CPU.
 ///
 /// Clones refer to the same texture, which is freed when the last clone is dropped and the GPU no
 /// longer uses it.
@@ -39,8 +42,9 @@ impl DepthTarget {
 }
 
 impl Gpu {
-    /// Creates a depth target of `width` × `height` pixels, the size of the render targets it is
-    /// used with. `label` names it in error messages and in GPU capture tools.
+    /// Creates a depth target of `width` × `height` pixels: the size of the render target of the
+    /// passes that test depth with it ([`Gpu::render`] asserts it), or any size for a depth-only
+    /// pass ([`Gpu::render_depth`]). `label` names it in error messages and in GPU capture tools.
     ///
     /// # Panics
     ///

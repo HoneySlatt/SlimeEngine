@@ -254,6 +254,28 @@ fn bindings_declared_as_another_kind_than_their_layout_are_rejected() {
                 entry(1, BindingType::Sampler),
             ],
         ),
+        (
+            "a depth texture at a float binding",
+            "@group(0) @binding(0) var depth_map: texture_depth_2d;
+             @fragment
+             fn fs_main(@builtin(position) p: vec4<f32>) -> @location(0) vec4<f32> {
+                 return vec4<f32>(textureLoad(depth_map, vec2<i32>(p.xy), 0));
+             }",
+            vec![entry(0, BindingType::Texture)],
+        ),
+        (
+            "a filtering sampler at a comparison binding",
+            "@group(0) @binding(0) var image: texture_2d<f32>;
+             @group(0) @binding(1) var linear: sampler;
+             @fragment
+             fn fs_main(@builtin(position) p: vec4<f32>) -> @location(0) vec4<f32> {
+                 return textureSample(image, linear, p.xy / 8.0);
+             }",
+            vec![
+                entry(0, BindingType::Texture),
+                entry(1, BindingType::ComparisonSampler),
+            ],
+        ),
     ];
     for (label, fragment, entries) in cases {
         let shader = gpu
@@ -294,9 +316,7 @@ fn a_float_target_is_not_read_as_bytes() {
 }
 
 #[test]
-#[should_panic(
-    expected = "render target `image` is Rgba8UnormSrgb: read it with Gpu::read_render_target"
-)]
+#[should_panic(expected = "render target `image` is Rgba8UnormSrgb, not Rgba16Float")]
 fn an_8_bit_target_is_not_read_as_floats() {
     let gpu = gpu();
     let target = gpu.create_render_target("image", 1, 1, TextureFormat::Rgba8UnormSrgb);

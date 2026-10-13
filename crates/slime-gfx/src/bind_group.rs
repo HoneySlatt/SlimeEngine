@@ -245,13 +245,9 @@ mod tests {
     use super::*;
     use crate::TextureFormat;
 
-    #[test]
-    #[should_panic(expected = "TEXTURE_BINDING")]
-    fn a_window_image_cannot_be_bound() {
-        let gpu =
-            Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-        // What a window's image is: a texture with the one usage that `Surface` configures
-        // (surface.rs), wrapped as the render target of a frame.
+    /// A stand-in for the image of a window: a texture with the usage that `Surface` configures,
+    /// wrapped as the render target of a frame.
+    fn window_image(gpu: &Gpu) -> RenderTarget {
         let texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("window, frame 1"),
             size: wgpu::Extent3d {
@@ -263,10 +259,26 @@ mod tests {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Bgra8UnormSrgb,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            usage: crate::surface::WINDOW_IMAGE_USAGE,
             view_formats: &[],
         });
-        let image = RenderTarget::new(texture, "window, frame 1", TextureFormat::Bgra8UnormSrgb);
+        RenderTarget::new(texture, "window, frame 1", TextureFormat::Bgra8UnormSrgb)
+    }
+
+    #[test]
+    #[should_panic(expected = "COPY_SRC")]
+    fn a_window_image_cannot_be_read_back() {
+        let gpu =
+            Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+        let _ = gpu.read_render_target(&window_image(&gpu));
+    }
+
+    #[test]
+    #[should_panic(expected = "TEXTURE_BINDING")]
+    fn a_window_image_cannot_be_bound() {
+        let gpu =
+            Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+        let image = window_image(&gpu);
         let layout = gpu.create_bind_group_layout(
             "window image",
             &[BindGroupLayoutEntry {

@@ -37,6 +37,10 @@ pub enum PresentMode {
 /// one that is lost again at once every time will not come back.
 const MAX_LOSSES_IN_A_ROW: u32 = 3;
 
+/// The usage of a window's images: the GPU draws into them, and nothing else. They can neither be
+/// sampled nor read back (ADR-0033); a test of `bind_group.rs` relies on this very value.
+pub(crate) const WINDOW_IMAGE_USAGE: wgpu::TextureUsages = wgpu::TextureUsages::RENDER_ATTACHMENT;
+
 /// The wgpu present mode for `requested`, among those the window offers. Every window offers
 /// FIFO.
 fn choose_present_mode(requested: PresentMode, offered: &[wgpu::PresentMode]) -> wgpu::PresentMode {
@@ -138,7 +142,7 @@ impl Gpu {
             "what the window's surface supports"
         );
         let config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            usage: WINDOW_IMAGE_USAGE,
             format: format.to_wgpu(),
             color_space: wgpu::SurfaceColorSpace::Auto,
             // Set by `resize` below, which limits the size to what the device accepts.

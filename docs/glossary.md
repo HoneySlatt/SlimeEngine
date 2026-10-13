@@ -110,7 +110,7 @@ Linux) and Direct3D 12 (on Windows). wgpu translates the engine's calls into one
 
 **Half-precision float.** A 16-bit floating-point number (IEEE 754 binary16): 11 significant bits,
 values up to ±65 504. The channels of `Rgba16Float` render targets, which the engine converts to
-and from `f32` by hand.
+`f32` by hand when it reads them back (`Gpu::read_float_render_target`).
 
 **Headless.** Running the engine without a window, renderer or audio output. It is a normal
 configuration, used by automated tests and, later, by dedicated servers.

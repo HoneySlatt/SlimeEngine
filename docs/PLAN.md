@@ -13,13 +13,14 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3b — Physically based renderer → 0.1: in progress. Planned on 2026-10-13 and validated by
-  the owner. M3b.1 is done; next: M3b.2.
+  the owner. M3b.1 is in progress: done on lavapipe and RADV, waiting for the Windows CI job on
+  WARP.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
-| [M3b.1](#m3b1--gpu-layer-for-multi-pass-rendering) | GPU layer for multi-pass rendering | Done |
+| [M3b.1](#m3b1--gpu-layer-for-multi-pass-rendering) | GPU layer for multi-pass rendering | In progress |
 | [M3b.2](#m3b2--hdr-rendering-and-tone-mapping) | HDR rendering and tone mapping | Planned |
 | [M3b.3](#m3b3--physically-based-materials) | Physically based materials | Planned |
 | [M3b.4](#m3b4--light-types) | Light types | Planned |
@@ -125,19 +126,22 @@ sample, tests included, and must stay small; upgrading wgpu still waits for egui
   which gives 0 on one side of the reference depth and 1 on the other; a depth bias moves a
   surface's depth by the expected amount; three passes timed in one frame each get a time.
 - **How to test.** `VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo test -p slime-gfx`.
-- **Checked** on 2026-10-13: ADR-0033 records the API, chosen from four independent designs.
+- **Checked** on 2026-10-13: ADR-0033 records the API and the alternatives rejected.
   `crates/slime-gfx/tests/passes.rs` (a fullscreen triangle without a vertex buffer covering a
   67 × 5 float target; a pass sampling a float target an earlier pass drew, mirrored, then copied
-  into an sRGB target; a depth-only pass read through comparison samplers, with the value at a
-  shadow's edge; the constant and slope-scaled depth biases; a pass sampling its own target, and a
-  depth-only pipeline in a pass with a render target, both refused), `readback.rs` (float targets
-  of six sizes cleared to values beyond 0 to 1), `timing.rs` (three passes of a frame, one of them
-  depth-only, timed each) and `errors.rs` (pipelines without vertices or without a target, bindings
-  of another kind than their layout, the read and texture asserts) pass on lavapipe and on the
-  owner's RX 6900 XT (RADV). On both, the biases are exactly the amounts the formula gives, and a
-  comparison halfway between a shadowed and a lit texel gives 0.5. The passes of the timing test
-  took 241, 165 and 133 µs on lavapipe, 2.4, 1.2 and 1.1 µs on RADV. No example uses these
-  features yet: the `scene` example does from M3b.2 on.
+  into an sRGB target; a depth-only pass into a shadow map twice the size of the target that reads
+  it through comparison samplers, with the value at a shadow's edge and a reference equal to the
+  stored depth; the constant bias at a depth whose exponent matters, and the slope-scaled bias;
+  the misuses that wgpu refuses: a pass sampling its own target or depth target, a pipeline in a
+  pass of the other kind, a resource bound at a binding of another kind), `readback.rs` (float
+  targets of six sizes cleared to values beyond 0 to 1), a unit test of `image.rs` (rows read back
+  in bands, as targets larger than the largest buffer are), `timing.rs` (three passes of a frame,
+  one of them depth-only, timed each) and `errors.rs` (pipelines without vertices or without a
+  target, bindings of another kind than their layout in both directions, the read and texture
+  asserts) pass on lavapipe and on the owner's RX 6900 XT (RADV). On both, the biases are exactly
+  the amounts the formula gives, and a comparison halfway between a shadowed and a lit texel gives
+  0.5. The passes of the timing test took 241, 165 and 133 µs on lavapipe, 2.4, 1.2 and 1.1 µs on
+  RADV. No example uses these features yet: the `scene` example does from M3b.2 on.
 
 ### M3b.2 — HDR rendering and tone mapping
 

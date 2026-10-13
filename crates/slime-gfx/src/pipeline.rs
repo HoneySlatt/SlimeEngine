@@ -93,12 +93,14 @@ pub struct DepthState {
 /// - r is the smallest depth difference the depth target resolves at the triangle's depth:
 ///   2^(e − 23) for its 32-bit floats, e being the exponent of the triangle's largest depth
 ///   (2^-24 for depths from 0.5 to 1);
-/// - m is the triangle's depth slope: how much its depth changes from one pixel to the next,
-///   along its steepest direction.
+/// - m is the triangle's depth slope, in depth per pixel: at least the larger of its slopes along
+///   x and along y, at most the length of its gradient (Direct3D 12 takes the former, Vulkan
+///   drivers either).
 ///
 /// Positive values push surfaces away. A shadow map is drawn with one, so that a surface does not
 /// shadow itself where its depth and the stored one differ only by rounding (shadow acne). The
-/// offset is not clamped. The default, zero, is no bias.
+/// offset is not clamped, and `slope_scale` must be finite: wgpu passes it to the driver
+/// unchecked, and a NaN or an infinity gives undefined depths. The default, zero, is no bias.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct DepthBias {
     /// The constant part, in units of r.
