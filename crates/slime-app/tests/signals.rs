@@ -9,7 +9,7 @@
 //! child process from a test. On Windows, Ctrl+C is checked by hand.
 #![cfg(unix)]
 
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read};
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::mpsc::{self, Receiver};
 use std::thread;
@@ -73,8 +73,13 @@ fn run_child_app(block_first_frame: bool) {
 /// Returns the child and the lines it prints on standard output from then on. With
 /// `sigint_ignored`, the child inherits SIGINT set to "ignore", as a process started in the
 /// background by a shell script does. The child's standard error goes to `stderr`; a pipe is kept
-/// open, unread, until the child is waited for.
-fn spawn_child(test: &str, sigint_ignored: bool, stderr: Stdio) -> (Child, Receiver<String>) {
+/// open, unread, until the child is waited for. `env` adds variables to the child's environment.
+fn spawn_child(
+    test: &str,
+    sigint_ignored: bool,
+    stderr: Stdio,
+    env: &[(&str, &str)],
+) -> (Child, Receiver<String>) {
     let exe = std::env::current_exe().expect("test binary path");
     let arguments = ["--exact", test, "--nocapture", "--test-threads=1"];
     let mut command = if sigint_ignored {
@@ -90,6 +95,7 @@ fn spawn_child(test: &str, sigint_ignored: bool, stderr: Stdio) -> (Child, Recei
         command
     };
     let mut child = command
+        .envs(env.iter().copied())
         .env(CHILD_ENV, "1")
         .env_remove(slime_app::LOG_ENV_VAR)
         .stdout(Stdio::piped())
@@ -147,7 +153,7 @@ fn wait_for_end(mut child: Child, lines: &Receiver<String>) -> (ExitStatus, Stri
 }
 
 fn assert_clean_stop_on(signal: &str, test: &str, sigint_ignored: bool) {
-    let (child, lines) = spawn_child(test, sigint_ignored, Stdio::null());
+    let (child, lines) = spawn_child(test, sigint_ignored, Stdio::null(), &[]);
     send_signal(&child, signal);
     let (status, output) = wait_for_end(child, &lines);
     assert!(
@@ -195,6 +201,7 @@ fn a_second_signal_ends_a_stuck_process_at_once() {
         "a_second_signal_ends_a_stuck_process_at_once",
         false,
         Stdio::null(),
+        &[],
     );
     send_signal(&child, "INT");
     thread::sleep(Duration::from_millis(200));
@@ -228,6 +235,7 @@ fn a_second_signal_ends_a_process_whose_log_is_blocked() {
         "a_second_signal_ends_a_process_whose_log_is_blocked",
         false,
         Stdio::piped(),
+        &[],
     );
     // Leaves the first frame time to fill the pipe.
     thread::sleep(Duration::from_millis(200));
@@ -265,6 +273,7 @@ fn a_signal_stops_every_later_run_in_the_process() {
         "a_signal_stops_every_later_run_in_the_process",
         false,
         Stdio::null(),
+        &[],
     );
     send_signal(&child, "INT");
     let (status, output) = wait_for_end(child, &lines);
@@ -296,6 +305,7 @@ fn a_handler_installed_through_ctrlc_before_run_is_kept() {
         "a_handler_installed_through_ctrlc_before_run_is_kept",
         false,
         Stdio::null(),
+        &[],
     );
     send_signal(&child, "INT");
     let (status, output) = wait_for_end(child, &lines);
@@ -307,5 +317,56 @@ fn a_handler_installed_through_ctrlc_before_run_is_kept() {
     assert!(
         output.contains("shutdown frames=40"),
         "the run goes on to its frame limit; output: {output}"
+    );
+}
+
+/// `ctrlc` installs its handlers, then starts the thread that waits for what they catch. When that
+/// thread cannot start, here because the stack asked for every new thread through `RUST_MIN_STACK`
+/// (1 EiB) is larger than any address space, the handlers stay installed and nothing reads what
+/// they catch: signals are ignored. The engine's warning must say so, and give the system's error.
+#[test]
+fn a_signal_thread_that_cannot_start_is_reported_with_its_cause() {
+    if is_child() {
+        let mut app = Announcer {
+            sleep_per_frame: Duration::from_millis(50),
+            ..Announcer::default()
+        };
+        let config = AppConfig {
+            frame_limit: Some(20),
+            ..AppConfig::default()
+        };
+        run(&mut app, &config).expect("this application starts");
+        return;
+    }
+    // The test harness runs the child's test on its main thread when it cannot start one.
+    let (mut child, lines) = spawn_child(
+        "a_signal_thread_that_cannot_start_is_reported_with_its_cause",
+        false,
+        Stdio::piped(),
+        &[("RUST_MIN_STACK", "1152921504606846976")],
+    );
+    let mut stderr = child.stderr.take().expect("piped stderr");
+    send_signal(&child, "TERM");
+    let (status, output) = wait_for_end(child, &lines);
+    let mut log = String::new();
+    stderr
+        .read_to_string(&mut log)
+        .expect("the child's standard error");
+    assert!(status.success(), "SIGTERM is ignored: {status}");
+    assert!(
+        output.contains("shutdown frames=20"),
+        "the run goes on to its frame limit; output: {output}"
+    );
+    let warning = log
+        .lines()
+        .find(|line| line.contains("cannot handle termination signals"))
+        .unwrap_or_else(|| panic!("a warning says that signals are not handled: {log}"));
+    assert!(
+        warning.contains("ignored"),
+        "the warning says that signals can be ignored: {warning}"
+    );
+    assert!(
+        warning.contains("os error"),
+        "the warning gives the system's error: {warning}"
     );
 }

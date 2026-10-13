@@ -52,11 +52,19 @@ pub(crate) fn install_handler() {
                 "termination signals are already handled through the ctrlc crate, probably by the \
                  game: the engine leaves them to that handler, so they do not stop runs cleanly"
             ),
-            Err(error) => tracing::warn!(
-                %error,
-                "cannot handle termination signals: they will end the process without a clean \
-                 shutdown"
+            // `ctrlc` installs its handlers, then starts the thread that waits for what they catch.
+            // When the thread cannot start (a limit on threads is reached), the handlers stay and
+            // what they catch reaches nobody, so the signals are ignored; when the handlers cannot
+            // be installed, the signals keep their previous effect. The error does not say which
+            // step failed. Its `Display` only names its kind: the cause is the error it holds.
+            Err(ctrlc::Error::System(cause)) => tracing::warn!(
+                %cause,
+                "cannot handle termination signals: Ctrl+C, SIGTERM and SIGHUP either keep their \
+                 previous effect, usually ending the process without a clean shutdown, or are \
+                 ignored from now on (SIGKILL, or closing the console on Windows, still ends the \
+                 process)"
             ),
+            Err(error) => tracing::warn!(%error, "cannot handle termination signals"),
         }
     });
 }
