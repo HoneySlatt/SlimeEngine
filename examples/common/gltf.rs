@@ -12,6 +12,9 @@
 //! external files, images that are not PNG, images larger than the GPU accepts, required
 //! extensions, other coordinate sets, other primitive modes. It ignores, with a warning,
 //! animations, skins, cameras, vertex colors and extensions the file uses without requiring them.
+//! The other properties of materials are ignored without one, as the renderer has no use for
+//! them yet: every material is drawn opaque, and with its back faces culled even when the file
+//! marks it double-sided, as the sample asset does (its floor disappears when seen from below).
 //!
 //! The `gltf` crate's validation checks little more than that the file's objects name each other
 //! correctly, and its readers panic on some of what it lets through. The loader refuses, rather
