@@ -346,9 +346,9 @@ The engine targets Linux (`x86_64-unknown-linux-gnu`) and Windows (`x86_64-pc-wi
 - `slime-app` colors its log on Windows only in Windows Terminal (`use_colors` in
   `crates/slime-app/src/diagnostics.rs`): the older console host prints escape sequences as text.
 - Tests that cannot run on a platform are compiled out with `#[cfg]`, and their file says why: the
-  signal tests run on Unix only. The two windowed test programs of `slime-app`
-  (`windowed_errors.rs` and `windowed_lifecycle.rs`), which have no test harness and so need a
-  `main` on every platform, instead return at once on other platforms, printing `skipped`.
+  signal tests run on Unix only, and the two windowed test programs of `slime-app`
+  (`windowed_errors.rs` and `windowed_lifecycle.rs`) on Linux only; having no test harness, they
+  keep a `main` that does nothing elsewhere.
 
 `scripts/check.sh` compiles the whole workspace for Windows on Linux, and CI runs the tests and
 the headless samples on a Windows runner.
