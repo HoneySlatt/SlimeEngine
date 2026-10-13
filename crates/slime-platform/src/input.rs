@@ -159,16 +159,23 @@ pub enum MouseButton {
 
 /// How far a mouse wheel or a touchpad scrolled. Positive `y` scrolls up (content moves down),
 /// positive `x` scrolls left.
+///
+/// The unit depends on the platform as much as on the device. Wayland reports the notches of a
+/// wheel in [`Lines`](Self::Lines), and touchpads and the movement of a high-resolution wheel
+/// between two notches in [`Pixels`](Self::Pixels). X11 and Windows report every device in lines,
+/// touchpads included.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ScrollDelta {
-    /// In lines (or rows and columns), as reported by most mouse wheels.
+    /// In lines (or rows and columns). A notch of a usual mouse wheel is one line. The value can
+    /// be a fraction: on X11 and Windows, a touchpad or a high-resolution wheel reports many small
+    /// fractions of a line per movement, so one event is not one notch.
     Lines {
         /// Horizontal lines.
         x: f32,
         /// Vertical lines.
         y: f32,
     },
-    /// In physical pixels, as reported by touchpads and some precise wheels.
+    /// In physical pixels. Only Wayland reports them.
     Pixels {
         /// Horizontal pixels.
         x: f64,
