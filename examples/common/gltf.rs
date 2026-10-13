@@ -13,10 +13,14 @@
 //! The `gltf` crate's validation checks little more than that the file's objects name each other
 //! correctly, and its readers panic on some of what it lets through. The loader refuses, rather
 //! than panic on, such malformed files: images whose data lies outside the binary chunk, has no
-//! MIME type or is missing.
+//! MIME type or is missing; positions, normals, texture coordinates or indices stored in types
+//! glTF does not allow for them, in an empty accessor, closer together than their size, or
+//! outside the binary chunk. It also refuses sparse accessors for them, which it does not read.
 
 use std::fmt;
 
+use gltf::Semantic;
+use gltf::accessor::{DataType, Dimensions};
 use gltf::texture::{MagFilter, MinFilter, WrappingMode};
 use slime_gfx::{AddressMode, Filter, Gpu, Sampler, SamplerDescriptor, Texture, TextureFormat};
 use slime_render::glam::{Mat4, Vec3};
@@ -225,6 +229,40 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
                     primitive.mode()
                 )));
             }
+            // The `gltf` crate's readers panic on some accessors its validation lets through, and
+            // return nothing, as for an attribute the primitive does not have, when the data lies
+            // outside the binary chunk: what they would read is checked first.
+            let accessors: [(_, _, _, &[_]); 4] = [
+                (
+                    "positions",
+                    primitive.get(&Semantic::Positions),
+                    Dimensions::Vec3,
+                    &[DataType::F32],
+                ),
+                (
+                    "normals",
+                    primitive.get(&Semantic::Normals),
+                    Dimensions::Vec3,
+                    &[DataType::F32],
+                ),
+                (
+                    "texture coordinates",
+                    primitive.get(&Semantic::TexCoords(0)),
+                    Dimensions::Vec2,
+                    &[DataType::F32, DataType::U8, DataType::U16],
+                ),
+                (
+                    "indices",
+                    primitive.indices(),
+                    Dimensions::Scalar,
+                    &[DataType::U8, DataType::U16, DataType::U32],
+                ),
+            ];
+            for (what, accessor, dimensions, data_types) in accessors {
+                if let Some(accessor) = accessor {
+                    check_accessor(&label, what, &accessor, dimensions, data_types, blob.len())?;
+                }
+            }
             let reader = primitive.reader(buffer_data);
             let positions: Vec<[f32; 3]> = reader
                 .read_positions()
@@ -336,6 +374,65 @@ fn place(
             bounds,
         );
     }
+}
+
+/// Checks that `accessor`, which holds the `what` of `label`, stores them as `dimensions` of one
+/// of `data_types`, laid out so that the `gltf` crate reads them without panicking, inside the
+/// binary chunk of `blob_length` bytes.
+fn check_accessor(
+    label: &str,
+    what: &str,
+    accessor: &gltf::Accessor<'_>,
+    dimensions: Dimensions,
+    data_types: &[DataType],
+    blob_length: usize,
+) -> Result<(), LoadError> {
+    let data_type = accessor.data_type();
+    if accessor.dimensions() != dimensions || !data_types.contains(&data_type) {
+        return Err(LoadError(format!(
+            "{label} stores its {what} as {data_type:?} {:?}, which the loader does not read",
+            accessor.dimensions()
+        )));
+    }
+    // A sparse accessor needs no buffer view, and its reader then allocates at once as many
+    // elements as the file claims, which no data backs.
+    let (None, Some(view)) = (accessor.sparse(), accessor.view()) else {
+        return Err(LoadError(format!(
+            "{label} stores its {what} in a sparse accessor, which the loader does not read"
+        )));
+    };
+    let count = accessor.count();
+    if count == 0 {
+        return Err(LoadError(format!(
+            "{label} has an empty accessor of {what}"
+        )));
+    }
+    let size = accessor.size();
+    let stride = view.stride().unwrap_or(size);
+    if stride < size {
+        return Err(LoadError(format!(
+            "{label} lays out its {what} {stride} bytes apart, closer than their size, {size} bytes"
+        )));
+    }
+    if view
+        .offset()
+        .checked_add(view.length())
+        .is_none_or(|end| end > blob_length)
+    {
+        return Err(LoadError(format!(
+            "{label} has {what} in a buffer view that runs past the file's binary chunk"
+        )));
+    }
+    let end = (count - 1)
+        .checked_mul(stride)
+        .and_then(|bytes| bytes.checked_add(accessor.offset()))
+        .and_then(|bytes| bytes.checked_add(size));
+    if end.is_none_or(|end| end > view.length()) {
+        return Err(LoadError(format!(
+            "{label} has {what} that run past the end of their buffer view"
+        )));
+    }
+    Ok(())
 }
 
 /// Normals for a primitive that has none: each vertex gets the average of the normals of the

@@ -89,6 +89,76 @@ fn images_whose_data_cannot_be_found_are_refused() {
     assert!(error.contains("no data"), "{error}");
 }
 
+#[test]
+fn accessors_the_loader_cannot_read_are_refused() {
+    let gpu =
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+    // Each change of the triangle, and what the error says.
+    let cases: [(Change, &str); 7] = [
+        (
+            |file| {
+                let view = file.add_view(&[0.0f32, 1.0, 2.0].map(f32::to_le_bytes).concat());
+                let indices = file.add_accessor(view, FLOAT, 3, "SCALAR");
+                file.json["meshes"][0]["primitives"][0]["indices"] = indices.into();
+            },
+            "stores its indices as F32 Scalar",
+        ),
+        (
+            |file| {
+                let view = file.add_view(&[0; 6]);
+                let uvs = file.add_accessor(view, BYTE, 3, "VEC2");
+                file.json["meshes"][0]["primitives"][0]["attributes"]["TEXCOORD_0"] = uvs.into();
+            },
+            "stores its texture coordinates as I8 Vec2",
+        ),
+        (
+            |file| file.json["accessors"][0]["componentType"] = UNSIGNED_SHORT.into(),
+            "stores its positions as U16 Vec3",
+        ),
+        (
+            |file| file.json["bufferViews"][0]["byteStride"] = 4.into(),
+            "lays out its positions 4 bytes apart",
+        ),
+        (
+            |file| file.json["accessors"][0]["count"] = 0.into(),
+            "has an empty accessor of positions",
+        ),
+        (
+            // Zeros but for one vertex: a sparse accessor without a buffer view, whose count no
+            // data backs.
+            |file| {
+                let indices = file.add_view(&2u32.to_le_bytes());
+                let values = file.add_view(&[0.0f32, 1.0, 0.0].map(f32::to_le_bytes).concat());
+                remove(&mut file.json["accessors"][0], "bufferView");
+                file.json["accessors"][0]["sparse"] = json(&format!(
+                    r#"{{ "count": 1,
+                          "indices": {{ "bufferView": {indices}, "componentType": 5125 }},
+                          "values": {{ "bufferView": {values} }} }}"#
+                ));
+            },
+            "stores its positions in a sparse accessor",
+        ),
+        (
+            |file| {
+                let view = file.add_view(&[0, 1, 2].map(u16::to_le_bytes).concat());
+                let indices = file.add_accessor(view, UNSIGNED_SHORT, 3, "SCALAR");
+                file.json["meshes"][0]["primitives"][0]["indices"] = indices.into();
+                file.json["bufferViews"][view]["byteOffset"] = file.bin.len().into();
+            },
+            "has indices in a buffer view that runs past the file's binary chunk",
+        ),
+    ];
+    for (change, expected) in cases {
+        let mut file = Glb::triangle();
+        change(&mut file);
+        let error = refusal(&gpu, &mut file);
+        assert!(error.contains(expected), "{error}");
+    }
+}
+
+/// A change that a test makes to a GLB file.
+type Change = fn(&mut Glb);
+
 /// A GLB file built in memory: one triangle facing +Z, with positions only, in the one node of
 /// the default scene, which each test changes.
 struct Glb {
@@ -178,7 +248,10 @@ impl Glb {
     }
 }
 
-/// The component type of 32-bit floating-point numbers, in glTF.
+/// Component types of glTF: 8-bit signed integers, 16-bit unsigned integers and 32-bit
+/// floating-point numbers.
+const BYTE: u32 = 5120;
+const UNSIGNED_SHORT: u32 = 5123;
 const FLOAT: u32 = 5126;
 
 fn json(text: &str) -> Value {
