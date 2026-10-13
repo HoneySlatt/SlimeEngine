@@ -19,11 +19,11 @@ static FIRST: OnceLock<Instant> = OnceLock::new();
 const REPEAT_WINDOW: Duration = Duration::from_millis(500);
 
 /// Installs the process-wide signal handler, once. The first signal records when it arrived, which
-/// the drivers check between frames, and logs that it was received, from another thread: the line
-/// can come after lines the run writes later, and is lost if the process ends first. A second
-/// signal, half a second or more after the first, ends the process at once, with exit code 130 and
-/// without a log line, in case the application no longer reaches the end of a frame; one that
-/// comes sooner repeats the first and is ignored.
+/// the drivers check between frames and `Context::exit_requested` reports at once, and logs that it
+/// was received, from another thread: the line can come after lines the run writes later, and is
+/// lost if the process ends first. A second signal, half a second or more after the first, ends
+/// the process at once, with exit code 130 and without a log line, in case the application no
+/// longer reaches the end of a frame; one that comes sooner repeats the first and is ignored.
 ///
 /// The handler replaces whatever the process had set for these signals: another library's
 /// handlers, or an inherited "ignore" (as under `nohup`, or for a command started in the

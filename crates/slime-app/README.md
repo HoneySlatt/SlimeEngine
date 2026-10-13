@@ -130,7 +130,8 @@ if let Err(error) = slime_app::run(&mut Game, &config) {
 - `Context`: what an application can ask from the engine: the window (`Context::window`), the GPU
   that draws into it (`Context::gpu`) and the format of its images (`Context::surface_format`),
   all `None` when headless; stopping the run (`Context::request_exit`); and whether it is going
-  to stop (`Context::exit_requested`).
+  to stop (`Context::exit_requested`), which reports a termination signal as soon as it arrives,
+  even during `init` or in the middle of a frame.
 - `time`: `FrameClock` turns the time between frames into a `FrameTime` (index, delta, elapsed
   time) and limits how much time one frame can represent; `FixedStep` splits frame time into
   steps of a fixed duration. Both take durations rather than reading a clock

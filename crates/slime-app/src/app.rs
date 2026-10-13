@@ -157,8 +157,12 @@ impl Context {
     /// Whether the run is going to stop: the application requested an exit, the window was closed,
     /// the process received a termination signal, the GPU device was lost, or the window's surface
     /// was lost for good.
+    ///
+    /// A termination signal shows here as soon as it is received, even during [`App::init`] or in
+    /// the middle of a frame, so that a long loading or a long update that checks it can stop
+    /// early. The loss of the GPU device or of the surface is noticed only between frames.
     pub fn exit_requested(&self) -> bool {
-        self.exit.is_some()
+        self.exit.is_some() || signal::received()
     }
 
     /// The window of the application, or `None` when it runs headless.
@@ -321,7 +325,8 @@ impl Frames {
 
     /// Why no further frame must run, if that is the case. A termination signal received since the
     /// last check, or the loss of the GPU or of the window's `surface`, is recorded in `ctx` first,
-    /// so that the application sees it as an exit request.
+    /// as the reason the run stops. From then on, the application also sees a loss as an exit
+    /// request; it sees a signal as one as soon as it arrives (`Context::exit_requested`).
     pub(crate) fn check_stop(
         &self,
         ctx: &mut Context,

@@ -21,11 +21,15 @@ use slime_app::{App, AppConfig, AppError, Context, run};
 const CHILD_ENV: &str = "SLIME_APP_TEST_CHILD";
 const TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Prints its lifecycle on standard output; optionally blocks during the first frame, by sleeping
-/// or by logging without end, or sleeps in every frame so that a run lasts long enough to receive a
-/// signal.
+/// How long an `init` that waits for an exit request waits before giving up.
+const INIT_WAIT: Duration = Duration::from_secs(5);
+
+/// Prints its lifecycle on standard output; optionally waits in `init` for an exit request, as a
+/// long loading would check between files, blocks during the first frame, by sleeping or by logging
+/// without end, or sleeps in every frame so that a run lasts long enough to receive a signal.
 #[derive(Default)]
 struct Announcer {
+    wait_for_exit_in_init: bool,
     block_first_frame: bool,
     log_in_first_frame: bool,
     sleep_per_frame: Duration,
@@ -33,8 +37,19 @@ struct Announcer {
 }
 
 impl App for Announcer {
-    fn init(&mut self, _ctx: &mut Context) -> Result<(), AppError> {
+    fn init(&mut self, ctx: &mut Context) -> Result<(), AppError> {
         println!("ready");
+        if self.wait_for_exit_in_init {
+            let deadline = Instant::now() + INIT_WAIT;
+            while !ctx.exit_requested() && Instant::now() < deadline {
+                thread::sleep(Duration::from_millis(10));
+            }
+            if ctx.exit_requested() {
+                println!("init cancelled");
+            } else {
+                println!("init timed out");
+            }
+        }
         Ok(())
     }
 
@@ -282,6 +297,33 @@ fn a_second_signal_ends_a_process_whose_log_is_blocked() {
     assert!(
         !output.contains("shutdown"),
         "the frames were blocked, so App::shutdown cannot have run; output: {output}"
+    );
+}
+
+/// An application sees a signal through `Context::exit_requested` as soon as it arrives, even in a
+/// long `init`, which can then stop early: no frame runs and `shutdown` is called.
+#[test]
+fn a_signal_received_during_init_is_seen_by_exit_requested() {
+    if is_child() {
+        let mut app = Announcer {
+            wait_for_exit_in_init: true,
+            ..Announcer::default()
+        };
+        run(&mut app, &AppConfig::default()).expect("this application starts");
+        return;
+    }
+    let (child, lines) = spawn_child(
+        "a_signal_received_during_init_is_seen_by_exit_requested",
+        false,
+        Stdio::null(),
+        &[],
+    );
+    send_signal(&child, "INT");
+    let (status, output) = wait_for_end(child, &lines);
+    assert!(status.success(), "{status}");
+    assert!(
+        output.contains("init cancelled\nshutdown frames=0"),
+        "init must see the signal, then the run must stop before its first frame; output: {output}"
     );
 }
 
