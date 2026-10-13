@@ -11,9 +11,10 @@ use crate::window::PhysicalSize;
 /// Keys arrive while the window has the keyboard focus. Mouse input arrives while the cursor is
 /// over the window, and outside it while a button pressed over the window is held (see
 /// [`CursorMoved`](Self::CursorMoved)). The engine does not report yet: the state of modifier
-/// keys as a whole (track the `Shift`, `Control`, `Alt` and `Super` keys instead), text composed
-/// by input methods (used for Chinese, Japanese or Korean), touch screens, touchpad gestures, or
-/// files dropped on the window.
+/// keys as a whole (track the `Shift`, `Control`, `Alt` and `Super` keys instead; a modifier
+/// already held when the window gains the focus is not seen until it is pressed again, as
+/// [`Key`](Self::Key) says), text composed by input methods (used for Chinese, Japanese or
+/// Korean), touch screens, touchpad gestures, or files dropped on the window.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum Event {
@@ -38,7 +39,8 @@ pub enum Event {
     /// [`KeyEvent::repeat`]). A key still down when the window loses the keyboard focus is released
     /// just before [`Focused(false)`](Self::Focused), even though the user lets go of it later, in
     /// another window. A key already down when the window gains the focus is not reported, its
-    /// release included, until it is pressed again.
+    /// release included, until it is pressed again. On Windows, Print Screen gives no event:
+    /// Windows reports only its release.
     Key(KeyEvent),
     /// A mouse button went down over the window, or went up after going down there, possibly
     /// with the cursor outside the window by then.
