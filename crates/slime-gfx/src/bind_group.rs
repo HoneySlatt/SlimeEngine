@@ -43,7 +43,8 @@ pub enum BindingType {
         dynamic_offset: bool,
     },
     /// A [`Texture`], or a [`RenderTarget`] that an earlier pass drew into, declared
-    /// `texture_2d<f32>` in WGSL and read with a [`Sampler`].
+    /// `texture_2d<f32>` in WGSL: sampled through a [`Sampler`] (`textureSample`), or read texel by
+    /// texel with `textureLoad`.
     Texture,
     /// A [`Sampler`], declared `sampler` in WGSL.
     Sampler,
