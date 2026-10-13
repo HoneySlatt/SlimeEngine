@@ -1040,6 +1040,47 @@ mod tests {
     }
 
     #[test]
+    fn samplers_follow_the_file_on_each_axis() {
+        use AddressMode::{ClampToEdge, MirrorRepeat, Repeat};
+        use Filter::{Linear, Nearest};
+
+        // glTF's codes: wraps 33071 CLAMP_TO_EDGE and 33648 MIRRORED_REPEAT; filters 9728 NEAREST,
+        // 9729 LINEAR, 9984 NEAREST_MIPMAP_NEAREST, 9985 LINEAR_MIPMAP_NEAREST and 9986
+        // NEAREST_MIPMAP_LINEAR. Missing fields default to REPEAT, and to linear filters here.
+        let file = gltf::Gltf::from_slice(
+            br#"{
+                "asset": { "version": "2.0" },
+                "samplers": [
+                    { "wrapS": 33071, "wrapT": 33648, "magFilter": 9728, "minFilter": 9984 },
+                    { "wrapS": 33648, "wrapT": 33071, "magFilter": 9729, "minFilter": 9985 },
+                    { "minFilter": 9986 },
+                    {}
+                ]
+            }"#,
+        )
+        .expect("the JSON is valid glTF");
+        let descriptors: Vec<_> = file
+            .samplers()
+            .map(|sampler| sampler_descriptor(&sampler))
+            .collect();
+        let descriptor = |address_u, address_v, mag_filter, min_filter| SamplerDescriptor {
+            mag_filter,
+            min_filter,
+            address_u,
+            address_v,
+        };
+        assert_eq!(
+            descriptors,
+            [
+                descriptor(ClampToEdge, MirrorRepeat, Nearest, Nearest),
+                descriptor(MirrorRepeat, ClampToEdge, Linear, Linear),
+                descriptor(Repeat, Repeat, Linear, Nearest),
+                descriptor(Repeat, Repeat, Linear, Linear),
+            ]
+        );
+    }
+
+    #[test]
     fn a_cube_of_shared_vertices_without_normals_gets_flat_faces() {
         // The corners of a unit cube, numbered by their coordinates: x + 2y + 4z.
         let positions: Vec<[f32; 3]> = (0..8u8)
