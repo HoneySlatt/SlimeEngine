@@ -46,6 +46,9 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
   key already down when the window gains the focus is not reported until it is pressed again.
   winit differs here from one platform to the next, so the event loop keeps track of the keys
   that are down. On Windows, Print Screen gives no event: Windows reports only its release.
+  Mouse button events pair up too: a button still down when the window loses the keyboard focus
+  is released just before `Focused(false)`, since on Windows its real release goes to another
+  window, and a later real release is not reported.
 - Input types: `KeyEvent` describes a key twice: by `physical` position, whatever the layout
   (`KeyCode`, named after the W3C UI Events `code` values such as `KeyQ` or `Escape`, with a few
   exceptions listed in its rustdoc), and by `logical` meaning with the current layout (`Key`: a

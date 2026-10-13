@@ -29,8 +29,9 @@ pub enum Event {
         /// The new number of physical pixels per logical pixel.
         scale_factor: f64,
     },
-    /// The window gained (`true`) or lost (`false`) the keyboard focus. The keys still down when
-    /// the focus is lost are released just before: see [`Key`](Self::Key).
+    /// The window gained (`true`) or lost (`false`) the keyboard focus. The keys and mouse buttons
+    /// still down when the focus is lost are released just before: see [`Key`](Self::Key) and
+    /// [`MouseButton`](Self::MouseButton).
     Focused(bool),
     /// A key went down or up.
     ///
@@ -44,6 +45,15 @@ pub enum Event {
     Key(KeyEvent),
     /// A mouse button went down over the window, or went up after going down there, possibly
     /// with the cursor outside the window by then.
+    ///
+    /// The events of a button come in pairs, as those of a key do: a release always follows a
+    /// press of the same button, and a button is not pressed twice in a row. A button still down
+    /// when the window loses the keyboard focus is released just before
+    /// [`Focused(false)`](Self::Focused), even if the user lets go of it later, over the window or
+    /// in another one; its real release is then not reported. One case is not covered: on
+    /// Wayland, a compositor that takes the pointer away during a press without taking the
+    /// keyboard focus leaves the button down until the button is next released over the window,
+    /// or until the window loses the focus.
     MouseButton {
         /// Which button.
         button: MouseButton,
@@ -73,12 +83,14 @@ pub enum Event {
 
 /// Translates winit's window events into the engine's.
 ///
-/// It keeps track of the keys that are down, so that key events pair up the same way on every
-/// platform, as [`Event::Key`] says. winit leaves focus changes to each platform: on X11 and
-/// Windows, it reports the keys already down when the window gains the focus as new presses
-/// (marked as synthetic, a mark the engine does not pass on), and releases the keys still down
-/// when the window loses the focus; on Wayland, it does neither, so a key let go of in another
-/// window would stay down.
+/// It keeps track of the keys and mouse buttons that are down, so that their events pair up the
+/// same way on every platform, as [`Event::Key`] and [`Event::MouseButton`] say. winit leaves
+/// focus changes to each platform: on X11 and Windows, it reports the keys already down when the
+/// window gains the focus as new presses (marked as synthetic, a mark the engine does not pass
+/// on), and releases the keys still down when the window loses the focus; on Wayland, it does
+/// neither, so a key let go of in another window would stay down. It releases no mouse button on
+/// any platform, and the release of a button let go of in another window never comes on Windows,
+/// nor on Wayland when the compositor takes the pointer away during the press.
 #[derive(Debug, Default)]
 pub(crate) struct Translator {
     /// The keys whose press was delivered and whose release was not, with that press, in the
@@ -87,6 +99,9 @@ pub(crate) struct Translator {
     /// The keys already down when the window gained the focus. Their events are dropped until
     /// they are released.
     held_before_focus: Vec<PhysicalKey>,
+    /// The mouse buttons whose press was delivered and whose release was not, in the order they
+    /// went down.
+    buttons: Vec<MouseButton>,
 }
 
 impl Translator {
@@ -121,10 +136,14 @@ impl Translator {
                     None => return,
                 }
             }
-            WindowEvent::MouseInput { state, button, .. } => Event::MouseButton {
-                button: input::mouse_button(button),
-                state: input::button_state(state),
-            },
+            WindowEvent::MouseInput { state, button, .. } => {
+                let button = input::mouse_button(button);
+                let state = input::button_state(state);
+                if !self.mouse_button(button, state) {
+                    return;
+                }
+                Event::MouseButton { button, state }
+            }
             WindowEvent::CursorMoved { position, .. } => Event::CursorMoved {
                 x: position.x,
                 y: position.y,
@@ -177,7 +196,24 @@ impl Translator {
         }
     }
 
-    /// Releases the keys still down, because the window is losing the focus.
+    /// Whether to deliver a mouse button event that winit reports: a press of a button not down
+    /// already, or a release of a button whose press was delivered.
+    fn mouse_button(&mut self, button: MouseButton, state: ButtonState) -> bool {
+        let down = self.buttons.iter().position(|held| *held == button);
+        match (state, down) {
+            (ButtonState::Pressed, None) => self.buttons.push(button),
+            (ButtonState::Released, Some(index)) => {
+                self.buttons.remove(index);
+            }
+            // A second press would break the pairing. A release of a button that is not down
+            // comes after `release_all` released it: on X11, the grab that a press gives the
+            // window can outlast the focus, so the real release still arrives.
+            (ButtonState::Pressed, Some(_)) | (ButtonState::Released, None) => return false,
+        }
+        true
+    }
+
+    /// Releases the keys and mouse buttons still down, because the window is losing the focus.
     fn release_all(&mut self, deliver: &mut impl FnMut(Event)) {
         for (_, press) in self.pressed.drain(..) {
             deliver(Event::Key(KeyEvent {
@@ -189,6 +225,12 @@ impl Translator {
             }));
         }
         self.held_before_focus.clear();
+        for button in self.buttons.drain(..) {
+            deliver(Event::MouseButton {
+                button,
+                state: ButtonState::Released,
+            });
+        }
     }
 }
 
@@ -287,6 +329,44 @@ mod tests {
             translator.key(W, w(Pressed, false), false),
             Some(w(Pressed, false))
         );
+    }
+
+    #[test]
+    fn mouse_buttons_still_down_are_released_when_the_focus_is_lost() {
+        use winit::event::{DeviceId, ElementState, MouseButton as WinitButton};
+
+        let left = |state| WindowEvent::MouseInput {
+            device_id: DeviceId::dummy(),
+            state,
+            button: WinitButton::Left,
+        };
+        let mut translator = Translator::default();
+        let mut events = Vec::new();
+        translator.translate(left(ElementState::Pressed), |event| events.push(event));
+        // A second press of a button already down breaks the pairing: it is dropped.
+        translator.translate(left(ElementState::Pressed), |event| events.push(event));
+        assert_eq!(
+            events,
+            [Event::MouseButton {
+                button: MouseButton::Left,
+                state: Pressed,
+            }]
+        );
+        assert_eq!(
+            lose_focus(&mut translator),
+            [
+                Event::MouseButton {
+                    button: MouseButton::Left,
+                    state: Released,
+                },
+                Event::Focused(false)
+            ]
+        );
+        // On X11, the real release can still come after the focus is lost; it is dropped.
+        let mut events = Vec::new();
+        translator.translate(left(ElementState::Released), |event| events.push(event));
+        assert_eq!(events, []);
+        assert_eq!(lose_focus(&mut translator), [Event::Focused(false)]);
     }
 
     #[test]
