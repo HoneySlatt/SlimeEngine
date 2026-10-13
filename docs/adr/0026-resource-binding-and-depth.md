@@ -1,6 +1,6 @@
 # 0026. Resource binding and depth in `slime-gfx`
 
-- Status: Accepted
+- Status: Accepted; amended by [0032](0032-mipmaps-computed-at-texture-creation.md) (mipmaps)
 - Date: 2026-10-12
 
 ## Context
