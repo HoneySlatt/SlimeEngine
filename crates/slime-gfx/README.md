@@ -172,8 +172,9 @@ fn main() -> Result<(), GfxError> {
   when there is one. A pass with a depth target takes pipelines with a depth test, and one without
   takes pipelines without; a pass takes only pipelines whose fragment stage has its target's
   format. The pass is named after the target's label in capture tools, and
-  `RenderPass::debug_group(label, record)` names a group of commands inside it. Labels and groups
-  reach the driver in debug builds, or with `WGPU_DEBUG=1`.
+  `RenderPass::debug_group(label, record)` names a group of commands inside it. On Vulkan, labels
+  and groups reach the driver in debug builds, or with `WGPU_DEBUG=1`; on Direct3D 12, in every
+  build, unless `WGPU_DISCARD_HAL_LABELS=1` is set.
 - `Gpu::render_depth(&DepthPassDescriptor { depth, timer }, record)` runs one pass without a render
   target: it clears the depth target to the farthest depth and lets `record` draw with pipelines
   that have no fragment stage and do have a depth test, such as a shadow map's.

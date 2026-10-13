@@ -128,8 +128,10 @@ impl RenderPass<'_> {
     }
 
     /// Groups the commands that `record` gives under `label`, for GPU capture tools such as
-    /// RenderDoc, which show the group as a named section of the pass. Groups can be nested. They
-    /// reach the driver when wgpu's debug labels are on: in debug builds, or with `WGPU_DEBUG=1`.
+    /// RenderDoc, which show the group as a named section of the pass. Groups can be nested. On
+    /// Vulkan, they reach the driver only when wgpu's debug labels are on: in debug builds, or with
+    /// `WGPU_DEBUG=1`. On Direct3D 12, they do in every build, unless `WGPU_DISCARD_HAL_LABELS=1`
+    /// is set.
     pub fn debug_group(&mut self, label: &str, record: impl FnOnce(&mut Self)) {
         self.pass.push_debug_group(label);
         record(self);

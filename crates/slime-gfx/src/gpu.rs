@@ -34,11 +34,12 @@ impl Gpu {
     /// other is available, for example when `VK_DRIVER_FILES` restricts the Vulkan loader to
     /// lavapipe. The chosen adapter is logged at the `info` level.
     ///
-    /// In debug builds, wgpu passes debug labels to the driver, so that capture tools such as
-    /// RenderDoc show them. The graphics API's own validation layers stay off unless
-    /// `WGPU_VALIDATION=1` is set; wgpu always validates how the engine uses it, and a use it
-    /// rejects is a bug that panics, except once the device is lost ([`Gpu::check`]). The device
-    /// has the default limits, and the optional features the adapter offers among those the
+    /// wgpu passes debug labels to the driver, so that capture tools such as RenderDoc show them:
+    /// on Vulkan in debug builds (or with `WGPU_DEBUG=1`), on Direct3D 12 in every build (unless
+    /// `WGPU_DISCARD_HAL_LABELS=1` is set). The graphics API's own validation layers stay off
+    /// unless `WGPU_VALIDATION=1` is set; wgpu always validates how the engine uses it, and a use
+    /// it rejects is a bug that panics, except once the device is lost ([`Gpu::check`]). The
+    /// device has the default limits, and the optional features the adapter offers among those the
     /// engine uses: timestamp queries ([`Gpu::can_time`]).
     ///
     /// # Errors
@@ -245,9 +246,10 @@ pub(crate) fn create_instance() -> wgpu::Instance {
     wgpu::Instance::new(descriptor)
 }
 
-/// Debug labels in debug builds; validation layers of the graphics API only on request
-/// (`WGPU_VALIDATION=1`), because they are slow and not always installed. Indirect draw arguments
-/// are always validated, as wgpu recommends.
+/// Debug labels in debug builds, which Vulkan needs to receive them (Direct3D 12 receives them in
+/// every build, since only `DISCARD_HAL_LABELS` keeps them back); validation layers of the
+/// graphics API only on request (`WGPU_VALIDATION=1`), because they are slow and not always
+/// installed. Indirect draw arguments are always validated, as wgpu recommends.
 fn instance_flags() -> wgpu::InstanceFlags {
     let mut flags = wgpu::InstanceFlags::VALIDATION_INDIRECT_CALL;
     if cfg!(debug_assertions) {
