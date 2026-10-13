@@ -15,6 +15,6 @@ pub use glam;
 pub use camera::Camera;
 pub use error::RenderError;
 pub use light::DirectionalLight;
-pub use material::{Material, MaterialData, SampledTexture};
+pub use material::{AlphaMode, Material, MaterialData, SampledTexture};
 pub use mesh::{Mesh, MeshData};
 pub use renderer::{Instance, RenderStats, Renderer, Scene};

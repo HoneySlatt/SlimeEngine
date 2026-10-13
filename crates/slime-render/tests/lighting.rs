@@ -1,14 +1,16 @@
 //! Lighting, checked by reading pixels back through the tone-mapping curve of the renderer
-//! (ADR-0034): a surface facing the light is fully lit, one facing away gets the ambient light
-//! only, normals follow the rotation of an instance but not its scale, and the exposure multiplies
-//! the light, which surfaces reflect above 1 without clipping. Also what the renderer keeps from
-//! one frame to the next, with the same lit square: the targets follow the size of the output, the
-//! projection its aspect ratio, the instance buffer grows beyond its first size, and the statistics
-//! give the GPU time of each pass. Runs on whatever adapter the machine offers.
+//! (ADR-0034), on a white matte surface (ADR-0035): one facing the light is fully lit, one facing
+//! away gets the ambient light only, normals follow the rotation of an instance but not its scale,
+//! and the exposure multiplies the light, which surfaces reflect above 1 without clipping. Also
+//! what the renderer keeps from one frame to the next, with the same lit square: the targets follow
+//! the size of the output, the projection its aspect ratio, the instance buffer grows beyond its
+//! first size, and the statistics give the GPU time of each pass. Runs on whatever adapter the
+//! machine offers.
 
 #[path = "common/tone_curve.rs"]
 mod tone_curve;
 
+use std::f32::consts::PI;
 use std::time::Duration;
 
 use slime_gfx::{Color, Gpu, Image, TextureFormat};
@@ -139,16 +141,24 @@ impl Setup {
     }
 }
 
-/// What the center of the square shows when it faces the light fully, at an exposure of 1.
-fn fully_lit() -> u8 {
-    displayed([1.0; 3])[0]
+/// What the white matte square reflects towards the camera under a light of π that comes from the
+/// camera's side, where its normal makes an angle of cosine `cosine` with both: 0.96 of the light
+/// it diffuses, Lambert's cosine times what its specular layer lets through, and 0.01 from that
+/// layer, the same at every angle for a roughness of 1 seen from the light (ADR-0035).
+fn lit(cosine: f32) -> f32 {
+    0.96 * cosine + 0.01
 }
 
-/// A light travelling towards −Z: it comes from the camera's side.
+/// What the center of the square shows when it faces the light fully, at an exposure of 1.
+fn fully_lit() -> u8 {
+    displayed([lit(1.0); 3])[0]
+}
+
+/// A light of π travelling towards −Z: it comes from the camera's side.
 fn from_the_front() -> DirectionalLight {
     DirectionalLight {
         direction: Vec3::new(0.0, 0.0, -1.0),
-        color: Vec3::ONE,
+        color: Vec3::splat(PI),
         ambient: Vec3::ZERO,
     }
 }
@@ -170,7 +180,7 @@ fn a_surface_facing_the_light_is_fully_lit_and_one_facing_away_gets_the_ambient_
     );
     let from_behind = DirectionalLight {
         direction: Vec3::new(0.0, 0.0, 1.0),
-        color: Vec3::ONE,
+        color: Vec3::splat(PI),
         ambient: Vec3::splat(0.5),
     };
     assert_close(
@@ -187,7 +197,7 @@ fn normals_follow_the_rotation_of_the_instance_but_not_its_scale() {
     let turned = Mat4::from_rotation_y(60f32.to_radians());
     assert_close(
         setup.center_red(from_the_front(), turned),
-        displayed([60f32.to_radians().cos(); 3])[0],
+        displayed([lit(60f32.to_radians().cos()); 3])[0],
         "turned by 60°",
     );
     // Turned by 45° about Y, then stretched four times along the world's X axis: the surface
@@ -198,7 +208,7 @@ fn normals_follow_the_rotation_of_the_instance_but_not_its_scale() {
     let normal = Vec3::new(1.0 / 4.0, 0.0, 1.0).normalize();
     assert_close(
         setup.center_red(from_the_front(), stretched),
-        displayed([normal.z; 3])[0],
+        displayed([lit(normal.z); 3])[0],
         "turned by 45° and stretched along X",
     );
     // Flattened along Z, the axis of its normal, the square is unchanged and still faces the
@@ -215,35 +225,35 @@ fn normals_follow_the_rotation_of_the_instance_but_not_its_scale() {
 fn the_exposure_multiplies_the_light_that_surfaces_reflect() {
     let mut setup = Setup::new();
     let half = DirectionalLight {
-        color: Vec3::splat(0.5),
+        color: Vec3::splat(PI / 2.0),
         ..from_the_front()
     };
-    // Both are exactly 1 before the curve: scaling by a power of two is exact in f32 and f16.
+    // Both reflect the same before the curve: scaling by a power of two is exact in f32 and f16.
     assert_eq!(
         setup.exposed_center_red(half, Mat4::IDENTITY, 2.0),
         setup.exposed_center_red(from_the_front(), Mat4::IDENTITY, 1.0),
-        "a light of 0.5 at an exposure of 2 shows as a light of 1 at an exposure of 1"
+        "a light of π/2 at an exposure of 2 shows as a light of π at an exposure of 1"
     );
     assert_close(
         setup.exposed_center_red(from_the_front(), Mat4::IDENTITY, 0.5),
-        displayed([0.5; 3])[0],
-        "a light of 1 at an exposure of 0.5",
+        displayed([lit(1.0) / 2.0; 3])[0],
+        "a light of π at an exposure of 0.5",
     );
-    // Light above 1 reaches the curve unclipped: a light of 4 shows compressed rather than as a
-    // light of 1, and brought back to exactly 1 by an exposure of 1/4, as a light of 1.
+    // Light above 1 reaches the curve unclipped: a light of 4π shows compressed rather than as a
+    // reflected light of 1, and brought back by an exposure of 1/4, as a light of π.
     let bright = DirectionalLight {
-        color: Vec3::splat(4.0),
+        color: Vec3::splat(4.0 * PI),
         ..from_the_front()
     };
     assert_close(
         setup.center_red(bright, Mat4::IDENTITY),
-        displayed([4.0; 3])[0],
-        "a light of 4",
+        displayed([4.0 * lit(1.0); 3])[0],
+        "a light of 4π",
     );
     assert_eq!(
         setup.exposed_center_red(bright, Mat4::IDENTITY, 0.25),
         setup.exposed_center_red(from_the_front(), Mat4::IDENTITY, 1.0),
-        "a light of 4 at an exposure of 1/4 shows as a light of 1 at an exposure of 1"
+        "a light of 4π at an exposure of 1/4 shows as a light of π at an exposure of 1"
     );
 }
 

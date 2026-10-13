@@ -7,13 +7,13 @@
 //! missing) and indices; the base color factor and texture of materials, with the file's sampler
 //! settings, but for how levels of detail are read, which `slime-gfx` ties to the minification
 //! filter (see `sampler_descriptor`); and the node hierarchy of the default scene, flattened into
-//! instances (a node whose transform mirrors draws its primitives with their triangles wound the
-//! other way, as glTF prescribes). It refuses, with a clear error, what it cannot draw right:
-//! buffers and images in external files or in data URIs (it reads the binary chunk only), images
-//! that are not PNG, images larger than the GPU accepts, primitives whose vertices or indices
-//! need a larger buffer than it accepts (one without normals has three vertices per triangle),
-//! required extensions, other coordinate sets, other primitive modes. It ignores, with a warning,
-//! animations, skins, cameras, vertex colors and extensions the file uses without requiring them.
+//! instances (the renderer keeps the front faces of a node whose transform mirrors, as glTF
+//! prescribes). It refuses, with a clear error, what it cannot draw right: buffers and images in
+//! external files or in data URIs (it reads the binary chunk only), images that are not PNG,
+//! images larger than the GPU accepts, primitives whose vertices or indices need a larger buffer
+//! than it accepts (one without normals has three vertices per triangle), required extensions,
+//! other coordinate sets, other primitive modes. It ignores, with a warning, animations, skins,
+//! cameras, vertex colors and extensions the file uses without requiring them.
 //! The other properties of materials are ignored without one, as the renderer has no use for
 //! them yet: every material is drawn opaque, and with its back faces culled even when the file
 //! marks it double-sided, as the sample asset does (its floor disappears when seen from below).
@@ -83,8 +83,7 @@ struct Placement {
 
 /// A glTF scene on the GPU: its meshes, its materials, and where to draw them.
 pub struct LoadedScene {
-    /// One per primitive that a node places as the file winds it, and one per primitive that a
-    /// node places mirrored, with its triangles wound the other way.
+    /// One per primitive that a node places.
     meshes: Vec<Mesh>,
     /// One per material of the file, then the default material of glTF, white.
     materials: Vec<Material>,
@@ -220,6 +219,7 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
                 &MaterialData {
                     base_color: pbr.base_color_factor(),
                     base_color_texture,
+                    ..MaterialData::default()
                 },
             ))
         })
@@ -366,33 +366,20 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
     }
 
     let mut meshes = Vec::new();
-    // The mesh of each primitive, as an index into `meshes`, once a placement needs it: as the
-    // file winds its triangles, then wound the other way.
-    let mut mesh_of = vec![[None; 2]; primitives.len()];
+    // The mesh of each primitive, as an index into `meshes`, once a placement needs it. A node
+    // whose transform mirrors places the same mesh: the renderer keeps its front faces (ADR-0035).
+    let mut mesh_of = vec![None; primitives.len()];
     let mut placements = Vec::with_capacity(placed.len());
     for (index, transform) in placed {
         let primitive = &primitives[index];
-        // A transform that mirrors turns the counter-clockwise front faces clockwise, as glTF
-        // says, and the renderer would cull them: a mirrored placement draws a copy whose
-        // triangles wind the other way. Its normals need no change: the renderer transforms them
-        // by the inverse transpose, which mirrors them too.
-        let mirrored = transform.determinant() < 0.0;
-        let mesh = match mesh_of[index][usize::from(mirrored)] {
+        let mesh = match mesh_of[index] {
             Some(mesh) => mesh,
             None => {
-                let mesh = if mirrored {
-                    let mut data = primitive.data.clone();
-                    for triangle in data.indices.as_chunks_mut::<3>().0 {
-                        triangle.swap(1, 2);
-                    }
-                    let label = format!("{}, mirrored", primitive.label);
-                    renderer.create_mesh(gpu, &label, &data)
-                } else {
-                    renderer.create_mesh(gpu, &primitive.label, &primitive.data)
-                }
-                .map_err(|error| LoadError(error.to_string()))?;
+                let mesh = renderer
+                    .create_mesh(gpu, &primitive.label, &primitive.data)
+                    .map_err(|error| LoadError(error.to_string()))?;
                 meshes.push(mesh);
-                mesh_of[index][usize::from(mirrored)] = Some(meshes.len() - 1);
+                mesh_of[index] = Some(meshes.len() - 1);
                 meshes.len() - 1
             }
         };

@@ -59,10 +59,11 @@ fn main() -> Result<(), RenderError> {
     );
 
     let camera = Camera { eye: Vec3::new(0.0, 0.0, 3.0), ..Camera::default() };
-    // A light shining straight at the triangle, which faces +Z, and no ambient light.
+    // A light of π shining straight at the triangle, which faces +Z, and no ambient light: the
+    // matte red surface reflects 0.97 of it in red, 0.01 in green and blue.
     let light = DirectionalLight {
         direction: Vec3::new(0.0, 0.0, -1.0),
-        color: Vec3::ONE,
+        color: Vec3::splat(std::f32::consts::PI),
         ambient: Vec3::ZERO,
     };
     let instances = [Instance { mesh: &triangle, material: &red, transform: Mat4::IDENTITY }];
@@ -73,10 +74,10 @@ fn main() -> Result<(), RenderError> {
 
     let image = gpu.read_render_target(&target)?;
     let center = (32 * 64 + 32) * 4;
-    // Tone mapping compresses light towards 1 and turns it towards white: a red of 1 shows as
-    // about (241, 33, 33), not (255, 0, 0).
+    // Tone mapping compresses light towards 1 and turns it towards white: that red shows as about
+    // (240, 29, 29), not (255, 0, 0).
     let [red, green, blue] = [0, 1, 2].map(|channel| image.pixels[center + channel]);
-    assert!(red.abs_diff(241) <= 1 && green.abs_diff(33) <= 1 && blue.abs_diff(33) <= 1);
+    assert!(red.abs_diff(240) <= 1 && green.abs_diff(29) <= 1 && blue.abs_diff(29) <= 1);
     Ok(())
 }
 ```

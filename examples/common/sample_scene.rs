@@ -5,6 +5,7 @@
 mod gltf;
 
 use std::error::Error;
+use std::f32::consts::PI;
 
 use slime_gfx::{Color, Gpu, RenderTarget, TextureFormat};
 use slime_render::glam::Vec3;
@@ -23,10 +24,11 @@ pub const BACKGROUND: Color = Color {
     a: 1.0,
 };
 
-/// A slightly warm light from above, with a slightly cold ambient light.
+/// A slightly warm light from above, of about π, under which a white matte surface facing it
+/// reflects about 0.97 (ADR-0035), with a slightly cold ambient light.
 const LIGHT: DirectionalLight = DirectionalLight {
     direction: Vec3::new(-0.5, -1.0, -0.6),
-    color: Vec3::new(1.0, 0.98, 0.9),
+    color: Vec3::new(PI, 0.98 * PI, 0.9 * PI),
     ambient: Vec3::new(0.18, 0.19, 0.23),
 };
 

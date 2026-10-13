@@ -1,10 +1,12 @@
 //! Materials, checked by reading pixels back through the tone-mapping curve of the renderer
 //! (ADR-0034): a base color texture is read at the texture coordinates of the mesh and multiplied
-//! with the base color, and surfaces are opaque whatever the alpha of their base color. Runs on
-//! whatever adapter the machine offers.
+//! with the base color, and an opaque material ignores the alpha of its base color (masks are in
+//! `shading.rs`). Runs on whatever adapter the machine offers.
 
 #[path = "common/tone_curve.rs"]
 mod tone_curve;
+
+use std::f32::consts::PI;
 
 use slime_gfx::{AddressMode, Color, Filter, Gpu, Image, SamplerDescriptor, TextureFormat};
 use slime_render::glam::{Mat4, Vec3};
@@ -90,12 +92,14 @@ fn the_base_color_texture_is_read_at_the_texture_coordinates_and_tints_the_base_
         &MaterialData {
             base_color: [0.5, 0.5, 0.5, 1.0],
             base_color_texture: Some(sampled),
+            ..MaterialData::default()
         },
     );
-    // Lit straight on, without ambient light, so that the light changes nothing.
+    // Lit straight on by a light of π, without ambient light: a matte surface seen from the light
+    // reflects 0.96 of its color, diffused, and 0.01, reflected by its specular layer (ADR-0035).
     let light = DirectionalLight {
         direction: Vec3::new(0.0, 0.0, -1.0),
-        color: Vec3::ONE,
+        color: Vec3::splat(PI),
         ambient: Vec3::ZERO,
     };
     let camera = Camera {
@@ -110,14 +114,14 @@ fn the_base_color_texture_is_read_at_the_texture_coordinates_and_tints_the_base_
         &MaterialData {
             base_color: [1.0, 1.0, 1.0, 0.5],
             base_color_texture: Some(sampled),
+            ..MaterialData::default()
         },
     );
 
     // The pixels at 5 and 10 are inside the square's quarters, away from the texture's edges:
-    // red, green, blue and white texels, lit fully, so that what shows is the tone-mapped texel
-    // times the base color. With a white base color, about (241, 33, 33) for each primary and
-    // 240 for white; with half of it, 188 for each primary, which the curve leaves alone (no
-    // channel above 0.76, none at an offset), and 181 for white.
+    // red, green, blue and white texels, lit fully, so that what shows is the tone-mapped light
+    // that the texel times the base color reflects. With a white base color, about (240, 29, 29)
+    // for each primary and 239 for white; with half of it, (184, 2, 2) and 179.
     let quarters: [[f32; 3]; 4] = [
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
@@ -126,7 +130,8 @@ fn the_base_color_texture_is_read_at_the_texture_coordinates_and_tints_the_base_
     ];
     let shown = |base: f32| {
         quarters.map(|texel| {
-            let [r, g, b] = tone_curve::displayed(texel.map(|channel| channel * base));
+            let [r, g, b] =
+                tone_curve::displayed(texel.map(|channel| channel * base * 0.96 + 0.01));
             [r, g, b, 255]
         })
     };

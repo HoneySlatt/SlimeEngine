@@ -1,9 +1,10 @@
-//! The renderer: draws instances of meshes, seen from a camera and lit by a directional light,
-//! into a render target, in two passes: the scene in high dynamic range, then tone mapping.
+//! The renderer: draws instances of meshes, seen from a camera and shaded with glTF's
+//! metallic-roughness materials under a directional light, into a render target, in two passes:
+//! the scene in high dynamic range, then tone mapping.
 
 use std::time::{Duration, Instant};
 
-use glam::{Mat3, Mat4};
+use glam::{Mat3, Mat4, Vec3};
 use slime_gfx::{
     BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource, BindingType,
     Color, CullMode, DepthBias, DepthCompare, DepthState, DepthTarget, FragmentState, Gpu,
@@ -34,12 +35,19 @@ const BLACK: Color = Color {
 };
 /// The size of the values of the tone-mapping pass: the exposure, padded to 16 bytes.
 const TONE_MAPPING_VALUES_SIZE: usize = 16;
-/// The size of the values of a frame: the camera's `mat4x4<f32>` and the light's three
-/// `vec4<f32>`.
-const FRAME_VALUES_SIZE: usize = 64 + 3 * 16;
-/// The size of the values each instance has in the instance buffer: its `mat4x4<f32>` transform
-/// and the `mat3x3<f32>` that transforms its normals, three columns padded to 16 bytes.
-const INSTANCE_VALUES_SIZE: usize = 64 + 3 * 16;
+/// The size of the values of a frame: the camera's `mat4x4<f32>` and four `vec4<f32>`: the
+/// direction to the light, its illuminance, the ambient light, and the camera's position.
+const FRAME_VALUES_SIZE: usize = 64 + 4 * 16;
+/// The size of the values each instance has in the instance buffer: its `mat4x4<f32>` transform,
+/// the `mat3x3<f32>` that transforms its normals (three columns padded to 16 bytes), and its
+/// handedness, padded to 16 bytes.
+const INSTANCE_VALUES_SIZE: usize = 64 + 3 * 16 + 16;
+/// The texture slots of a material, each a texture and its sampler: base color,
+/// metallic-roughness, normal, occlusion, emissive (ADR-0035).
+const MATERIAL_TEXTURE_SLOTS: u32 = 5;
+/// How far below zero the determinant of a transform's normalized columns must be for the
+/// transform to mirror (see `is_mirrored`).
+const MIRROR_THRESHOLD: f32 = 1e-5;
 /// How many instances the instance buffer holds when the renderer is created; it doubles whenever
 /// a scene has more.
 const INITIAL_INSTANCE_CAPACITY: usize = 64;
@@ -52,8 +60,8 @@ pub struct Instance<'a> {
     /// How it looks.
     pub material: &'a Material,
     /// From the mesh's space to world space. A transform that mirrors the mesh (a negative
-    /// determinant) turns its front faces clockwise on screen, so they are culled and its back
-    /// faces drawn: the instance is drawn inside out.
+    /// determinant, beyond rounding) keeps the mesh's front faces, as glTF does: the renderer
+    /// culls its other faces.
     pub transform: Mat4,
 }
 
@@ -74,9 +82,10 @@ pub struct Scene<'a> {
     /// tone mapped like the surfaces. Its alpha is not used: the output is opaque.
     pub clear: Color,
     /// What the scene's light, the background's included, is multiplied by before tone mapping
-    /// (ADR-0034): a linear factor. 1 leaves it as it is, which shows a white surface lit at
-    /// normal incidence by a light of 1 at 0.87 (sRGB 240); 2 is one photographic stop brighter;
-    /// 0 gives black. Finite and not negative.
+    /// (ADR-0034): a linear factor. 1 leaves it as it is: light of 1 reflected towards the camera
+    /// shows at 0.87 (sRGB 240), and a white matte surface lit at normal incidence by a light of π
+    /// at 0.86 (sRGB 239); 2 is one photographic stop brighter; 0 gives black. Finite and not
+    /// negative.
     pub exposure: f32,
     /// What to draw, in this order.
     pub instances: &'a [Instance<'a>],
@@ -109,13 +118,15 @@ pub struct RenderStats {
 /// Each frame takes two passes (ADR-0034): the scene pass draws the instances into a target of
 /// half-precision floats, where light may exceed 1, with a depth target; the tone-mapping pass then
 /// multiplies that light by the scene's exposure and maps it to the output's range with Khronos
-/// PBR Neutral. The renderer owns both pipelines; the high-dynamic-range and depth targets, which
-/// it creates at the size of the output it draws into and again when that size changes; the buffer
-/// of the instances' values; and a GPU timer per pass.
+/// PBR Neutral. The renderer owns four pipelines: three for the scene pass, which differ by the
+/// faces they cull and among which each draw chooses (ADR-0035), and the tone-mapping pass's; the
+/// high-dynamic-range and depth targets, which it creates at the size of the output it draws into
+/// and again when that size changes; the buffer of the instances' values; and a GPU timer per
+/// pass.
 pub struct Renderer {
     /// The output's format.
     format: TextureFormat,
-    scene_pipeline: RenderPipeline,
+    scene_pipelines: ScenePipelines,
     tone_mapping_pipeline: RenderPipeline,
     material_layout: BindGroupLayout,
     instance_layout: BindGroupLayout,
@@ -126,7 +137,8 @@ pub struct Renderer {
     frame_group: BindGroup,
     /// The exposure, read by the tone-mapping pass.
     tone_mapping_uniform: UniformBuffer,
-    /// One white pixel, bound as the texture of materials that have none.
+    /// One white pixel, bound in every texture slot that a material leaves empty: every slot reads
+    /// it as 1 in each channel, since sRGB's 255 decodes to exactly 1.
     white: Texture,
     /// The sampler of that pixel.
     default_sampler: Sampler,
@@ -190,7 +202,7 @@ impl Renderer {
     /// # Errors
     ///
     /// [`RenderError::Gfx`] if the graphics driver rejects one of the renderer's two shaders or
-    /// two pipelines, or if the device is lost.
+    /// four pipelines, or if the device is lost.
     pub fn new(gpu: &Gpu, format: TextureFormat) -> Result<Self, RenderError> {
         let shader = gpu.create_shader_module("scene", SCENE_SHADER)?;
         let uniform = |label: &str, dynamic_offset: bool| {
@@ -204,46 +216,52 @@ impl Renderer {
             )
         };
         let frame_layout = uniform("frame", false);
-        let material_layout = gpu.create_bind_group_layout(
-            "material",
-            &[
-                BindGroupLayoutEntry {
-                    binding: 0,
+        // The material's values, then each texture slot: a texture and its sampler.
+        let mut material_entries = vec![BindGroupLayoutEntry {
+            binding: 0,
+            visible_to: ShaderStages::Fragment,
+            ty: BindingType::UniformBuffer {
+                dynamic_offset: false,
+            },
+        }];
+        for slot in 0..MATERIAL_TEXTURE_SLOTS {
+            for (binding, ty) in [
+                (1 + 2 * slot, BindingType::Texture),
+                (2 + 2 * slot, BindingType::Sampler),
+            ] {
+                material_entries.push(BindGroupLayoutEntry {
+                    binding,
                     visible_to: ShaderStages::Fragment,
-                    ty: BindingType::UniformBuffer {
-                        dynamic_offset: false,
-                    },
-                },
-                BindGroupLayoutEntry {
-                    binding: 1,
-                    visible_to: ShaderStages::Fragment,
-                    ty: BindingType::Texture,
-                },
-                BindGroupLayoutEntry {
-                    binding: 2,
-                    visible_to: ShaderStages::Fragment,
-                    ty: BindingType::Sampler,
-                },
-            ],
-        );
+                    ty,
+                });
+            }
+        }
+        let material_layout = gpu.create_bind_group_layout("material", &material_entries);
         let instance_layout = uniform("instance", true);
-        let scene_pipeline = gpu.create_render_pipeline(&RenderPipelineDescriptor {
-            label: "scene",
-            shader: &shader,
-            vertex_entry_point: "vs_main",
-            vertex_layout: Some(VERTEX_LAYOUT),
-            fragment: Some(FragmentState {
-                entry_point: "fs_main",
-                target_format: HDR_FORMAT,
-            }),
-            bind_group_layouts: &[&frame_layout, &material_layout, &instance_layout],
-            depth: Some(DepthState {
-                compare: DepthCompare::Less,
-                write: true,
-                bias: DepthBias::default(),
-            }),
-            cull: CullMode::Back,
-        })?;
+        let scene_pipeline = |label: &str, cull: CullMode| {
+            gpu.create_render_pipeline(&RenderPipelineDescriptor {
+                label,
+                shader: &shader,
+                vertex_entry_point: "vs_main",
+                vertex_layout: Some(VERTEX_LAYOUT),
+                fragment: Some(FragmentState {
+                    entry_point: "fs_main",
+                    target_format: HDR_FORMAT,
+                }),
+                bind_group_layouts: &[&frame_layout, &material_layout, &instance_layout],
+                depth: Some(DepthState {
+                    compare: DepthCompare::Less,
+                    write: true,
+                    bias: DepthBias::default(),
+                }),
+                cull,
+            })
+        };
+        let scene_pipelines = ScenePipelines {
+            back_culled: scene_pipeline("scene, back faces culled", CullMode::Back)?,
+            front_culled: scene_pipeline("scene, front faces culled", CullMode::Front)?,
+            unculled: scene_pipeline("scene, no face culled", CullMode::None)?,
+        };
 
         let tone_mapping_shader = gpu.create_shader_module("tone mapping", TONE_MAPPING_SHADER)?;
         let tone_mapping_layout = gpu.create_bind_group_layout(
@@ -304,7 +322,7 @@ impl Renderer {
         }
         Ok(Self {
             format,
-            scene_pipeline,
+            scene_pipelines,
             tone_mapping_pipeline,
             material_layout,
             instance_layout,
@@ -340,40 +358,67 @@ impl Renderer {
     }
 
     /// Creates a material. `label` names it in error messages and in GPU capture tools. The
-    /// material keeps its texture and sampler alive.
+    /// material keeps its textures and samplers alive.
+    ///
+    /// # Panics
+    ///
+    /// If a texture's format does not suit its slot: the base color and emissive textures hold
+    /// colors and need an sRGB format; the metallic-roughness, normal and occlusion textures hold
+    /// data and need a format without sRGB encoding, `Rgba8Unorm`. Read in the other kind of
+    /// format, their values would be wrong: this is a bug in the caller.
     pub fn create_material(&self, gpu: &Gpu, label: &str, data: &MaterialData<'_>) -> Material {
-        let mut bytes = Vec::new();
-        push_f32s(&mut bytes, &data.base_color);
-        let uniform = gpu.create_uniform_buffer(label, &bytes);
-        let (texture, sampler) = match data.base_color_texture {
-            Some(sampled) => (sampled.texture, sampled.sampler),
-            None => (&self.white, &self.default_sampler),
-        };
-        let group = gpu.create_bind_group(
-            label,
-            &self.material_layout,
-            &[
-                BindGroupEntry {
-                    binding: 0,
-                    resource: BindingResource::UniformBuffer(&uniform),
-                },
-                BindGroupEntry {
-                    binding: 1,
-                    resource: BindingResource::Texture(texture),
-                },
-                BindGroupEntry {
-                    binding: 2,
-                    resource: BindingResource::Sampler(sampler),
-                },
-            ],
-        );
-        Material { group }
+        let uniform = gpu.create_uniform_buffer(label, &data.values());
+        // Each slot: its name, its texture, and whether it holds colors (sRGB) rather than data.
+        let slots = [
+            ("base color", data.base_color_texture, true),
+            ("metallic-roughness", data.metallic_roughness_texture, false),
+            ("normal", data.normal_texture, false),
+            ("occlusion", data.occlusion_texture, false),
+            ("emissive", data.emissive_texture, true),
+        ];
+        let mut entries = vec![BindGroupEntry {
+            binding: 0,
+            resource: BindingResource::UniformBuffer(&uniform),
+        }];
+        for (binding, (slot, sampled, colors)) in (1u32..).step_by(2).zip(slots) {
+            let (texture, sampler) = match sampled {
+                Some(sampled) => {
+                    let format = sampled.texture.format();
+                    assert!(
+                        format.is_srgb() == colors,
+                        "material `{label}`: its {slot} texture is {format:?}, but the {slot} \
+                         slot reads {}",
+                        if colors {
+                            "colors, from an sRGB format"
+                        } else {
+                            "data, from Rgba8Unorm"
+                        }
+                    );
+                    (sampled.texture, sampled.sampler)
+                }
+                None => (&self.white, &self.default_sampler),
+            };
+            entries.push(BindGroupEntry {
+                binding,
+                resource: BindingResource::Texture(texture),
+            });
+            entries.push(BindGroupEntry {
+                binding: binding + 1,
+                resource: BindingResource::Sampler(sampler),
+            });
+        }
+        let group = gpu.create_bind_group(label, &self.material_layout, &entries);
+        Material {
+            group,
+            double_sided: data.double_sided,
+        }
     }
 
     /// Draws `scene` into `target`, in two passes. The scene pass clears a high-dynamic-range
     /// target to the scene's background, then draws every instance into it with the depth test,
-    /// so that nearer surfaces hide farther ones whatever their order, each surface lit by the
-    /// scene's light according to its normal and colored by its material. The tone-mapping pass
+    /// so that nearer surfaces hide farther ones whatever their order, each surface shaded by the
+    /// scene's light with glTF's metallic-roughness model and its material's textures, and
+    /// culled or not as its material and its transform ask (ADR-0035). The tone-mapping pass
     /// then multiplies that light by the scene's exposure, maps it to the range a display shows,
     /// and writes it into `target`, opaque. The work runs on the GPU after this method returns, as
     /// with [`Gpu::render`](slime_gfx::Gpu::render).
@@ -432,6 +477,8 @@ impl Renderer {
         push_f32s(&mut frame_bytes, &[color.x, color.y, color.z, 0.0]);
         let ambient = scene.light.ambient;
         push_f32s(&mut frame_bytes, &[ambient.x, ambient.y, ambient.z, 0.0]);
+        let eye = scene.camera.eye;
+        push_f32s(&mut frame_bytes, &[eye.x, eye.y, eye.z, 0.0]);
         gpu.write_uniform_buffer(&self.frame_uniform, &frame_bytes);
 
         if self.instances.capacity < scene.instances.len() {
@@ -448,6 +495,12 @@ impl Renderer {
             let mut bytes = Vec::with_capacity(INSTANCE_VALUES_SIZE);
             push_mat4(&mut bytes, instance.transform);
             push_mat3(&mut bytes, normal_matrix(instance.transform));
+            let handedness = if is_mirrored(instance.transform) {
+                -1.0
+            } else {
+                1.0
+            };
+            push_f32s(&mut bytes, &[handedness, 0.0, 0.0, 0.0]);
             instance_bytes[slot * stride..slot * stride + INSTANCE_VALUES_SIZE]
                 .copy_from_slice(&bytes);
         }
@@ -465,9 +518,19 @@ impl Renderer {
             timer: self.scene_timer.as_ref(),
         };
         gpu.render(&scene_pass, |pass| {
-            pass.set_pipeline(&self.scene_pipeline);
             pass.set_bind_group(0, &self.frame_group, &[]);
+            // The three pipelines share their layouts, so the bound groups stay bound when one
+            // replaces another; it is set only when a draw needs another.
+            let mut bound = None;
             for (slot, instance) in scene.instances.iter().enumerate() {
+                let cull = cull_mode(
+                    instance.material.double_sided,
+                    is_mirrored(instance.transform),
+                );
+                if bound != Some(cull) {
+                    pass.set_pipeline(self.scene_pipelines.get(cull));
+                    bound = Some(cull);
+                }
                 let offset = u32::try_from(slot * stride)
                     .expect("the instance buffer is smaller than the device allows");
                 pass.set_bind_group(1, &instance.material.group, &[]);
@@ -508,12 +571,13 @@ impl Renderer {
 /// normals perpendicular to surfaces scaled unevenly, times the determinant. It turns normals the
 /// same way where the inverse exists, and stays finite where it does not: a mesh flattened along
 /// one axis stays visible, and keeps the normal of its plane. It is negated when the determinant
-/// is negative, so that the normals of a mirrored instance still point out of its surfaces (a
-/// zero determinant counts as positive), and divided by its largest value, so that its values
-/// stay within ±1, which the shader normalizes without overflow or underflow. Its cofactors are
-/// products of two scales in f32, which bounds the uniform scales it handles to about 1e-19 to
-/// 1e19, far beyond those of the inverse (about 1e-13 to 7e12). A mesh flattened along two axes
-/// or three gets zero, but has no triangle left to draw.
+/// is negative, so that the normals of a mirrored instance still point out of its surfaces (the
+/// sign is decided by `is_mirrored`, which also decides the instance's culling and handedness, so
+/// that a determinant of rounding noise counts as positive), and divided by its largest value, so
+/// that its values stay within ±1, which the shader normalizes without overflow or underflow. Its
+/// cofactors are products of two scales in f32, which bounds the uniform scales it handles to
+/// about 1e-19 to 1e19, far beyond those of the inverse (about 1e-13 to 7e12). A mesh flattened
+/// along two axes or three gets zero, but has no triangle left to draw.
 fn normal_matrix(transform: Mat4) -> Mat3 {
     let linear = Mat3::from_mat4(transform);
     let cofactor = Mat3::from_cols(
@@ -529,8 +593,56 @@ fn normal_matrix(transform: Mat4) -> Mat3 {
     if largest == 0.0 {
         return cofactor;
     }
-    let determinant = linear.x_axis.dot(cofactor.x_axis);
-    cofactor / if determinant < 0.0 { -largest } else { largest }
+    cofactor
+        / if is_mirrored(transform) {
+            -largest
+        } else {
+            largest
+        }
+}
+
+/// The scene pass's pipelines, which differ only by the faces they cull (ADR-0035).
+struct ScenePipelines {
+    /// Back faces culled: single-sided materials.
+    back_culled: RenderPipeline,
+    /// Front faces culled: single-sided materials on mirrored instances, whose front faces wind
+    /// clockwise on screen.
+    front_culled: RenderPipeline,
+    /// No face culled: double-sided materials.
+    unculled: RenderPipeline,
+}
+
+impl ScenePipelines {
+    fn get(&self, cull: CullMode) -> &RenderPipeline {
+        match cull {
+            CullMode::Back => &self.back_culled,
+            CullMode::Front => &self.front_culled,
+            CullMode::None => &self.unculled,
+        }
+    }
+}
+
+/// The faces a draw culls (ADR-0035): none for a double-sided material; otherwise the instance's
+/// back faces, which wind clockwise on screen, unless its transform mirrors it and turns its front
+/// faces clockwise: its counter-clockwise faces are then the back ones.
+fn cull_mode(double_sided: bool, mirrored: bool) -> CullMode {
+    match (double_sided, mirrored) {
+        (true, _) => CullMode::None,
+        (false, false) => CullMode::Back,
+        (false, true) => CullMode::Front,
+    }
+}
+
+/// Whether `transform` mirrors what it places, turning its front faces clockwise on screen: the
+/// determinant of its 3 × 3 part is negative beyond rounding. The determinant of the columns
+/// normalized is compared with −10⁻⁵. A mesh flattened between two rotations has columns in one
+/// plane up to rounding, a determinant of noise of either sign, about 10⁻⁷ at most, which does
+/// not count as mirrored, nor does a column of zero length. Uniform scales between about 10⁻¹⁹ and
+/// 10¹⁹ are told apart, as by `normal_matrix`.
+fn is_mirrored(transform: Mat4) -> bool {
+    let linear = Mat3::from_mat4(transform);
+    let [x, y, z] = [linear.x_axis, linear.y_axis, linear.z_axis].map(Vec3::normalize_or_zero);
+    x.dot(y.cross(z)) < -MIRROR_THRESHOLD
 }
 
 /// The uniform buffer holding the values of every instance of a frame, one slot per instance at
@@ -570,7 +682,7 @@ impl InstanceSlots {
 
 #[cfg(test)]
 mod tests {
-    use glam::{EulerRot, Quat, Vec3};
+    use glam::{EulerRot, Quat};
 
     use super::*;
 
@@ -656,5 +768,77 @@ mod tests {
         assert!(matrix.is_finite(), "{matrix}");
         let normal = direction(matrix, Vec3::Z);
         assert!(normal.x.abs() < 1e-6 && normal.z.abs() < 1e-6, "{normal}");
+    }
+
+    #[test]
+    fn each_draw_culls_the_faces_its_material_and_mirroring_ask_for() {
+        assert_eq!(cull_mode(false, false), CullMode::Back);
+        assert_eq!(cull_mode(false, true), CullMode::Front);
+        assert_eq!(cull_mode(true, false), CullMode::None);
+        assert_eq!(cull_mode(true, true), CullMode::None);
+    }
+
+    #[test]
+    fn a_transform_mirrors_when_its_determinant_is_negative_beyond_rounding() {
+        let rotation = Quat::from_euler(EulerRot::XYZ, 0.3, -1.1, 2.0);
+        let mirror = Mat4::from_scale(Vec3::new(-1.0, 1.0, 1.0));
+        for (transform, mirrored, case) in [
+            (Mat4::IDENTITY, false, "identity"),
+            (mirror, true, "mirrored along X"),
+            (
+                Mat4::from_scale(Vec3::new(-1.0, -1.0, 1.0)),
+                false,
+                "turned by a half turn",
+            ),
+            (
+                Mat4::from_scale(Vec3::new(-1e-3, 1.0, 1.0)),
+                true,
+                "mirrored and almost flattened",
+            ),
+            (
+                Mat4::from_scale_rotation_translation(
+                    Vec3::new(4.0, 0.5, 2.0),
+                    rotation,
+                    Vec3::ONE,
+                ),
+                false,
+                "scaled unevenly",
+            ),
+            (
+                Mat4::from_scale(Vec3::splat(1e15)) * mirror,
+                true,
+                "mirrored and scaled up a lot",
+            ),
+            (
+                Mat4::from_scale(Vec3::splat(1e-15)) * mirror,
+                true,
+                "mirrored and scaled down a lot",
+            ),
+            (
+                Mat4::from_scale(Vec3::new(1.0, 1.0, 0.0)),
+                false,
+                "flattened",
+            ),
+            (Mat4::from_scale(Vec3::ZERO), false, "a point"),
+        ] {
+            assert_eq!(is_mirrored(transform), mirrored, "{case}");
+        }
+    }
+
+    #[test]
+    fn a_mesh_flattened_between_two_rotations_is_not_mirrored() {
+        // Its determinant is rounding noise, of either sign: neither the culling nor the normals
+        // may follow that sign, or the mesh would be culled or lit from either side at random.
+        for i in 0..60 {
+            for j in 0..60 {
+                let (i, j) = (i as f32, j as f32);
+                let child = Mat4::from_euler(EulerRot::XYZ, 0.1 * i, 0.37 * i + 0.2, 0.23 * i);
+                let parent =
+                    Mat4::from_euler(EulerRot::XYZ, 0.11 * j + 0.3, 0.29 * j, 0.17 * j + 0.5);
+                let transform = parent * Mat4::from_scale(Vec3::new(1.0, 0.0, 1.0)) * child;
+                assert!(!is_mirrored(transform), "{transform}");
+                assert!(normal_matrix(transform).is_finite(), "{transform}");
+            }
+        }
     }
 }

@@ -1,5 +1,6 @@
-//! A reference image test of Stage 3a: the shapes of `common/shapes.rs` (cubes and a sphere drawn
-//! by the renderer, two of them textured), rendered offscreen at a fixed time, must match
+//! A reference image test of Stages 3a and 3b: the shapes of `common/shapes.rs` (cubes and a
+//! sphere drawn by the renderer, two of them textured, and six small spheres of increasing
+//! roughness, three dielectrics and three metals), rendered offscreen at a fixed time, must match
 //! `tests/reference/shapes.png` within a tolerance (ADR-0018).
 //!
 //! The reference was rendered with lavapipe, like the triangle's. To render it again, after a
@@ -35,7 +36,8 @@ fn the_shapes_match_their_reference_image() {
     );
     let mut shapes = Shapes::new(&gpu, target.format()).expect("the shapes' GPU objects are valid");
     let stats = shapes.render(&gpu, &target, TIME);
-    assert_eq!((stats.draw_calls, stats.triangles), (4, 756));
+    // Three cubes of 12 triangles and seven spheres of 720.
+    assert_eq!((stats.draw_calls, stats.triangles), (10, 5076));
     let image = gpu
         .read_render_target(&target)
         .expect("the image is read back");

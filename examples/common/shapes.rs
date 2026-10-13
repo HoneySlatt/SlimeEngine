@@ -1,7 +1,8 @@
 //! The shapes that the image test `tests/scene.rs` draws (the `scene` example draws a glTF scene
 //! instead): a unit cube and a smooth sphere, four materials, two of them with a checker texture,
-//! four instances that overlap from most viewpoints, a directional light, and a camera that orbits
-//! them with time.
+//! four instances that overlap from most viewpoints, and in front of them six small spheres, a
+//! row of dielectrics and a row of metals of increasing roughness (ADR-0035); a directional light,
+//! and a camera that orbits them with time.
 
 use std::f32::consts::{PI, TAU};
 
@@ -20,11 +21,12 @@ pub const BACKGROUND: Color = Color {
     a: 1.0,
 };
 
-/// A slightly warm light from above and from the side the camera starts on, with a slightly cold
-/// ambient light.
+/// A slightly warm light of about π from above and from the side the camera starts on, under which
+/// a white matte surface facing it reflects about 0.97 (ADR-0035), with a slightly cold ambient
+/// light.
 const LIGHT: DirectionalLight = DirectionalLight {
     direction: Vec3::new(-0.6, -1.0, -0.5),
-    color: Vec3::new(1.0, 0.98, 0.9),
+    color: Vec3::new(PI, 0.98 * PI, 0.9 * PI),
     ambient: Vec3::new(0.15, 0.16, 0.2),
 };
 
@@ -33,6 +35,10 @@ const ORBIT_RADIUS: f32 = 4.0;
 const ORBIT_HEIGHT: f32 = 1.8;
 /// How fast the camera orbits, in radians per second.
 const ORBIT_SPEED: f32 = 0.5;
+
+/// The color of the small spheres, and the roughness of each column of them.
+const SPHERE_COLOR: [f32; 4] = [0.9, 0.6, 0.3, 1.0];
+const SPHERE_ROUGHNESS: [f32; 3] = [0.3, 0.55, 0.8];
 
 /// The side of the checker texture, in pixels, and of its squares.
 const CHECKER_SIZE: u32 = 64;
@@ -47,6 +53,9 @@ pub struct Shapes {
     blue: Material,
     checkered: Material,
     checkered_green: Material,
+    /// The small spheres' materials: a row of dielectrics, then a row of metals, each from the
+    /// smoothest to the roughest.
+    spheres: [[Material; 3]; 2],
 }
 
 impl Shapes {
@@ -75,6 +84,7 @@ impl Shapes {
                 &MaterialData {
                     base_color,
                     base_color_texture,
+                    ..MaterialData::default()
                 },
             )
         };
@@ -82,6 +92,20 @@ impl Shapes {
         let blue = material("blue", [0.15, 0.4, 0.9, 1.0], None);
         let checkered = material("checkered", [1.0, 1.0, 1.0, 1.0], checkered_by);
         let checkered_green = material("checkered green", [0.45, 0.9, 0.55, 1.0], checkered_by);
+        let spheres = [0.0, 1.0].map(|metallic| {
+            SPHERE_ROUGHNESS.map(|roughness| {
+                renderer.create_material(
+                    gpu,
+                    &format!("sphere, metallic {metallic}, roughness {roughness}"),
+                    &MaterialData {
+                        base_color: SPHERE_COLOR,
+                        metallic,
+                        roughness,
+                        ..MaterialData::default()
+                    },
+                )
+            })
+        });
         Ok(Self {
             renderer,
             cube,
@@ -90,6 +114,7 @@ impl Shapes {
             blue,
             checkered,
             checkered_green,
+            spheres,
         })
     }
 
@@ -106,7 +131,7 @@ impl Shapes {
             target: Vec3::ZERO,
             ..Camera::default()
         };
-        let instances = [
+        let mut instances = vec![
             Instance {
                 mesh: &self.cube,
                 material: &self.checkered,
@@ -136,6 +161,20 @@ impl Shapes {
                 transform: Mat4::from_translation(Vec3::new(0.0, 1.0, 0.0)),
             },
         ];
+        // In front of the cubes, two rows of three, the metals nearer.
+        for (row, materials) in self.spheres.iter().enumerate() {
+            for (column, material) in materials.iter().enumerate() {
+                instances.push(Instance {
+                    mesh: &self.sphere,
+                    material,
+                    transform: Mat4::from_scale_rotation_translation(
+                        Vec3::splat(0.4),
+                        Quat::IDENTITY,
+                        Vec3::new(0.6 * column as f32 - 0.6, -0.6, 1.2 + 0.6 * row as f32),
+                    ),
+                });
+            }
+        }
         self.renderer.render(
             gpu,
             target,
