@@ -13,14 +13,15 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3b — Physically based renderer → 0.1: in progress. Planned on 2026-10-13 and validated by
-  the owner. M3b.1 is done; M3b.2 is implemented and waits for its Windows CI run.
+  the owner. M3b.1 is done; M3b.2 passes on the three drivers and waits for the owner's
+  checks on niri and in the Windows virtual machine; next: M3b.3.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
 | [M3b.1](#m3b1--gpu-layer-for-multi-pass-rendering) | GPU layer for multi-pass rendering | Done |
-| [M3b.2](#m3b2--hdr-rendering-and-tone-mapping) | HDR rendering and tone mapping | In progress |
+| [M3b.2](#m3b2--hdr-rendering-and-tone-mapping) | HDR rendering and tone mapping | Awaiting the owner |
 | [M3b.3](#m3b3--physically-based-materials) | Physically based materials | Planned |
 | [M3b.4](#m3b4--light-types) | Light types | Planned |
 | [M3b.5](#m3b5--shadows) | Shadows | Planned |
@@ -171,12 +172,16 @@ sample, tests included, and must stay small; upgrading wgpu still waits for egui
   following a 64 × 32 output, the GPU time of each pass) pass on lavapipe and on the owner's
   RX 6900 XT (RADV). The references of the image tests were rendered again on lavapipe and looked
   at: lavapipe matches them with no channel off by more than 2. On RADV, `gltf-front` has 121
-  pixels off by more than 2 in a channel, 8 by more than 4, and differs by at most 7; `gltf-back` 26, 1, at
-  most 5; `shapes` 612, 302, 50 off by more than 8 (65 allowed, 14 at 0.0.3) and one by more than
-  16, at most 19: the curve steepens the differences in edge pixels that 0.0.3 already had. In the
-  lighting test, the scene pass took 7.2 µs and the tone-mapping pass 2.2 µs on RADV. The `scene`
-  example ran 400 frames in a headless Weston at 1280 × 720 on lavapipe, each pass taking 0.8 to
-  0.9 ms, and a screenshot of it was looked at; it was not run by eye on niri.
+  pixels off by more than 2 in a channel, 8 by more than 4, and differs by at most 7;
+  `gltf-back` 26, 1, at most 5; `shapes` 612, 302, 50 off by more than 8 (65 allowed, 14 at
+  0.0.3) and one by more than 16, at most 19: the curve steepens the differences in edge pixels
+  that 0.0.3 already had. In the lighting test, the scene pass took 7.2 µs and the tone-mapping
+  pass 2.2 µs on RADV. The `scene` example ran 400 frames in a headless Weston at 1280 × 720 on
+  lavapipe, each pass taking 0.8 to 0.9 ms, and a screenshot of it was looked at. In the Windows
+  CI job, on WARP, every test passes and the references differ by at most 5 (`gltf-front`: 42
+  pixels off by more than 2, 3 by more than 4; `gltf-back`: 20 and 0; `shapes`: 82 and 0); the
+  job took 8 minutes 40 seconds, the Linux one 3 minutes 51 seconds. Not checked yet: the sample
+  by eye on niri, and `scene.exe` in the Windows virtual machine, which the owner runs.
 
 ### M3b.3 — Physically based materials
 
