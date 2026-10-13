@@ -13,11 +13,10 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3b — Physically based renderer → 0.1: in progress. Planned on 2026-10-13 and validated by
-  the owner. M3b.1 to M3b.4 are done. The owner's decisions of 2026-10-13 on earlier proposals are
+  the owner. M3b.1 to M3b.5 are done. The owner's decisions of 2026-10-13 on earlier proposals are
   applied, and the findings of rounds 4 and 5 of the audit of 0.0.3 (issue
-  [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are fixed or recorded below. M3b.5 is
-  implemented and checked (ADR-0038) and awaits the owner's run of `scene.exe` in the Windows
-  virtual machine; next: M3b.6.
+  [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are fixed or recorded below; next:
+  M3b.6.
 
 ## Status
 
@@ -27,7 +26,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M3b.2](#m3b2--hdr-rendering-and-tone-mapping) | HDR rendering and tone mapping | Done |
 | [M3b.3](#m3b3--physically-based-materials) | Physically based materials | Done |
 | [M3b.4](#m3b4--light-types) | Light types | Done |
-| [M3b.5](#m3b5--shadows) | Shadows | Awaiting the owner |
+| [M3b.5](#m3b5--shadows) | Shadows | Done |
 | [M3b.6](#m3b6--image-based-lighting) | Image-based lighting | Planned |
 | [M3b.7](#m3b7--bloom) | Bloom | Planned |
 | [M3b.8](#m3b8--render-graph) | Render graph | Planned |
@@ -356,7 +355,18 @@ included, and must stay small; upgrading wgpu still waits for egui.
   (ADR-0033's correction). The `scene` example ran 400 frames in a headless Weston at 1280 × 720
   on lavapipe (shadow pass 2.6 ms, scene pass 5.4 ms, tone mapping 2.0 ms), and a screenshot was
   looked at: the shadows of the crates, the sphere and the wall, and the overlay's shadow time and
-  draw calls.
+  draw calls. In the Windows CI job, on WARP, every test passes, so FXC compiles the shadow lookup,
+  and the references differ by at most 4 (`gltf-front`: 49 pixels off by more than 2, none by
+  more than 4; `gltf-back`: 15 and 0; `shapes`: 48 and 0); the shadow, scene and tone-mapping
+  passes of the statistics test took 29.9, 34.8 and 20.6 µs; the job took 10 minutes 3 seconds,
+  the Linux one 4 minutes 24 seconds. In the owner's Windows 11 virtual machine (RX 6900 XT,
+  Direct3D 12, FXC, display scale 150 % and 125 %), on 2026-10-13: the shadows of the crates, the
+  sphere, the pillar and the wall touch their objects, show no acne from far, near or grazing
+  views, and their softened edges do not flicker while the camera turns; the ring's teal light
+  and the warm spot show; the overlay gives the three GPU times (shadow 0.063 to 0.066 ms, scene
+  0.32 ms, tone mapping 0.10 ms) and 7 draw calls for shadows, and is sharp at both scales; the
+  exposure slider, F1 and Escape work, and `--frames 300` ends the process with code 0. Through
+  Vulkan on the same machine, the shadows are the same (shadow pass 53 µs).
 
 ### M3b.6 — Image-based lighting
 
