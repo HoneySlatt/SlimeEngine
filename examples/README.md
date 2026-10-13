@@ -53,7 +53,8 @@ The log level of every example is set by the `SLIME_LOG` environment variable, f
   ([`tests/reference/gltf-front.png`](tests/reference/gltf-front.png) and
   [`tests/reference/gltf-back.png`](tests/reference/gltf-back.png)). Their module comments
   explain how to render a reference again after a deliberate change; the tests print the
-  difference they measured with `--nocapture`.
+  difference they measured with `--nocapture`. `tests/gltf.rs` also gives the glTF loader small
+  GLB files built in memory, to check what it refuses.
 
 To add an example, put its source in this directory, declare it as an `[[example]]` in
 [`Cargo.toml`](Cargo.toml), give it a module comment saying what it shows and how to run it, and

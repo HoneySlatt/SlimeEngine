@@ -6,9 +6,9 @@
 //! the first set of texture coordinates (zero when missing) and indices; the base color factor
 //! and texture of materials, with the file's sampler settings; and the node hierarchy of the
 //! default scene, flattened into instances. It refuses, with a clear error, what it cannot draw
-//! right: external files, images that are not PNG, required extensions, other coordinate sets,
-//! other primitive modes. It ignores, with a warning, animations, skins, cameras and extensions
-//! the file uses without requiring them.
+//! right: external files, images that are not PNG, images larger than the GPU accepts, required
+//! extensions, other coordinate sets, other primitive modes. It ignores, with a warning,
+//! animations, skins, cameras and extensions the file uses without requiring them.
 
 use std::fmt;
 
@@ -146,7 +146,7 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
     let textures: Vec<(Texture, Sampler)> = document
         .textures()
         .map(|texture| {
-            let image = decode_png(texture.source(), blob)?;
+            let image = decode_png(texture.source(), blob, gpu.max_texture_dimension())?;
             let label = texture
                 .name()
                 .or(texture.source().name())
@@ -377,8 +377,13 @@ struct DecodedImage {
     pixels: Vec<u8>,
 }
 
-/// Decodes a PNG image embedded in the file.
-fn decode_png(image: gltf::Image<'_>, blob: &[u8]) -> Result<DecodedImage, LoadError> {
+/// Decodes a PNG image embedded in the file, if neither of its sides is longer than
+/// `max_dimension`, the GPU's largest texture.
+fn decode_png(
+    image: gltf::Image<'_>,
+    blob: &[u8],
+    max_dimension: u32,
+) -> Result<DecodedImage, LoadError> {
     let name = image
         .name()
         .map_or_else(|| format!("image {}", image.index()), str::to_owned);
@@ -403,6 +408,15 @@ fn decode_png(image: gltf::Image<'_>, blob: &[u8]) -> Result<DecodedImage, LoadE
     // 8 bits per channel, palettes expanded, whatever the file stores.
     decoder.set_transformations(png::Transformations::normalize_to_color8());
     let mut reader = decoder.read_info().map_err(|e| error(&e.to_string()))?;
+    // Checked before the pixels are allocated, which the header alone sizes: the GPU would refuse
+    // the texture anyway, and a header can claim gigabytes.
+    let (width, height) = reader.info().size();
+    if width.max(height) > max_dimension {
+        return Err(LoadError(format!(
+            "{name} is {width}x{height} pixels; the GPU accepts images up to {max_dimension} \
+             pixels on a side"
+        )));
+    }
     let mut buffer = vec![
         0;
         reader
