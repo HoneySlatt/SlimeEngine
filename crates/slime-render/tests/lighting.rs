@@ -157,4 +157,12 @@ fn normals_follow_the_rotation_of_the_instance_but_not_its_scale() {
         srgb(normal.z),
         "turned by 45° and stretched along X",
     );
+    // Flattened along Z, the axis of its normal, the square is unchanged and still faces the
+    // light, although the transform has no inverse.
+    let flattened = Mat4::from_scale(Vec3::new(1.0, 1.0, 0.0));
+    assert_close(
+        setup.center_red(from_the_front(), flattened),
+        255,
+        "flattened along its normal",
+    );
 }

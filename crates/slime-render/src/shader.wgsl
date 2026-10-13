@@ -24,8 +24,8 @@ struct MaterialUniform {
 struct InstanceUniform {
     // From the mesh's space to world space.
     model: mat4x4<f32>,
-    // For normals: the inverse transpose of the model's rotation and scale, so that normals stay
-    // perpendicular to surfaces scaled unevenly.
+    // For normals: proportional to the inverse transpose of the model's rotation and scale, so
+    // that normals stay perpendicular to surfaces scaled unevenly. It gives directions only.
     normal: mat3x3<f32>,
 }
 @group(2) @binding(0) var<uniform> instance: InstanceUniform;
@@ -38,7 +38,8 @@ struct VertexInput {
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
-    // In world space, interpolated across the triangle, so of a length below one.
+    // In world space, of any length: the normal matrix gives directions only, and interpolation
+    // across the triangle shortens it.
     @location(0) normal: vec3<f32>,
     @location(1) uv: vec2<f32>,
 }

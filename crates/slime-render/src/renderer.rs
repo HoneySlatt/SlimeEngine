@@ -297,11 +297,7 @@ impl Renderer {
         for (slot, instance) in scene.instances.iter().enumerate() {
             let mut bytes = Vec::with_capacity(INSTANCE_VALUES_SIZE);
             push_mat4(&mut bytes, instance.transform);
-            // Normals are transformed by the inverse transpose, so that they stay perpendicular
-            // to surfaces scaled unevenly. A transform that flattens the mesh (a scale of zero)
-            // has no inverse and gives unusable normals, but draws nothing visible anyway.
-            let normal_matrix = Mat3::from_mat4(instance.transform).inverse().transpose();
-            push_mat3(&mut bytes, normal_matrix);
+            push_mat3(&mut bytes, normal_matrix(instance.transform));
             instance_bytes[slot * stride..slot * stride + INSTANCE_VALUES_SIZE]
                 .copy_from_slice(&bytes);
         }
@@ -333,6 +329,36 @@ impl Renderer {
         stats.cpu_time = started.elapsed();
         stats
     }
+}
+
+/// The matrix that transforms the normals of an instance placed by `transform`. It gives
+/// directions only: the shader normalizes the normals.
+///
+/// It is the cofactor matrix of the transform's 3 × 3 part: the inverse transpose, which keeps
+/// normals perpendicular to surfaces scaled unevenly, times the determinant. It turns normals the
+/// same way where the inverse exists, and stays finite where it does not: a mesh flattened along
+/// one axis stays visible, and keeps the normal of its plane. It is negated when the determinant
+/// is negative, so that the normals of a mirrored instance still point out of its surfaces (a
+/// zero determinant counts as positive), and divided by its largest value, so that its values
+/// stay within ±1 whatever the scale. A mesh flattened along two axes or three gets zero, but has
+/// no triangle left to draw.
+fn normal_matrix(transform: Mat4) -> Mat3 {
+    let linear = Mat3::from_mat4(transform);
+    let cofactor = Mat3::from_cols(
+        linear.y_axis.cross(linear.z_axis),
+        linear.z_axis.cross(linear.x_axis),
+        linear.x_axis.cross(linear.y_axis),
+    );
+    let largest = cofactor
+        .abs()
+        .to_cols_array()
+        .into_iter()
+        .fold(0.0, f32::max);
+    if largest == 0.0 {
+        return cofactor;
+    }
+    let determinant = linear.x_axis.dot(cofactor.x_axis);
+    cofactor / if determinant < 0.0 { -largest } else { largest }
 }
 
 /// The uniform buffer holding the values of every instance of a frame, one slot per instance at
@@ -367,5 +393,96 @@ impl InstanceSlots {
             capacity,
             stride,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use glam::{EulerRot, Quat, Vec3};
+
+    use super::*;
+
+    /// Where `matrix` sends `normal`, normalized as the shader does.
+    fn direction(matrix: Mat3, normal: Vec3) -> Vec3 {
+        (matrix * normal).normalize()
+    }
+
+    fn assert_close(actual: Vec3, expected: Vec3, case: &str) {
+        assert!(
+            actual.abs_diff_eq(expected, 1e-5),
+            "{case}: expected {expected}, got {actual}"
+        );
+    }
+
+    #[test]
+    fn normals_turn_as_the_inverse_transpose_turns_them_where_it_exists() {
+        let rotation = Quat::from_euler(EulerRot::XYZ, 0.3, -1.1, 2.0);
+        for (transform, case) in [
+            (Mat4::IDENTITY, "identity"),
+            (
+                Mat4::from_rotation_translation(rotation, Vec3::new(4.0, -2.0, 7.0)),
+                "turned and moved",
+            ),
+            (
+                Mat4::from_scale_rotation_translation(
+                    Vec3::new(4.0, 0.5, 2.0),
+                    rotation,
+                    Vec3::ONE,
+                ),
+                "scaled unevenly",
+            ),
+            (Mat4::from_scale(Vec3::new(-1.0, 1.0, 1.0)), "mirrored"),
+            (
+                Mat4::from_scale(Vec3::splat(1e15)) * Mat4::from_quat(rotation),
+                "scaled up a lot",
+            ),
+            (
+                Mat4::from_scale(Vec3::splat(1e-15)) * Mat4::from_quat(rotation),
+                "scaled down a lot",
+            ),
+        ] {
+            let matrix = normal_matrix(transform);
+            let largest = matrix.abs().to_cols_array().into_iter().fold(0.0, f32::max);
+            assert!(
+                (largest - 1.0).abs() < 1e-6,
+                "{case}: the largest value is {largest}"
+            );
+            // The inverse transpose, in f64 so that the extreme scales do not overflow it.
+            let inverse_transpose = Mat3::from_mat4(transform).as_dmat3().inverse().transpose();
+            for normal in [
+                Vec3::X,
+                Vec3::Y,
+                Vec3::Z,
+                Vec3::new(1.0, -2.0, 3.0).normalize(),
+            ] {
+                let expected = (inverse_transpose * normal.as_dvec3())
+                    .normalize()
+                    .as_vec3();
+                assert_close(direction(matrix, normal), expected, case);
+            }
+        }
+    }
+
+    #[test]
+    fn a_mirrored_instance_keeps_its_normals_pointing_out() {
+        // Mirrored along X, a surface facing +Z still faces +Z, and one facing +X faces −X.
+        let matrix = normal_matrix(Mat4::from_scale(Vec3::new(-1.0, 1.0, 1.0)));
+        assert_close(direction(matrix, Vec3::Z), Vec3::Z, "facing +Z");
+        assert_close(direction(matrix, Vec3::X), -Vec3::X, "facing +X");
+    }
+
+    #[test]
+    fn a_mesh_flattened_along_one_axis_keeps_the_normal_of_its_plane() {
+        // A surface in the plane z = 0, flattened along Z, is unchanged: it still faces +Z.
+        let matrix = normal_matrix(Mat4::from_scale(Vec3::new(1.0, 1.0, 0.0)));
+        assert!(matrix.is_finite(), "{matrix}");
+        assert_close(direction(matrix, Vec3::Z), Vec3::Z, "flattened along Z");
+        // Turned, then flattened along the world's Y axis: the surface now lies in the plane
+        // y = 0, so its normal is along Y.
+        let turned = Mat4::from_scale(Vec3::new(1.0, 0.0, 1.0)) * Mat4::from_rotation_x(0.5);
+        let matrix = normal_matrix(turned);
+        assert!(matrix.is_finite(), "{matrix}");
+        let normal = direction(matrix, Vec3::Z);
+        assert!(normal.x.abs() < 1e-6 && normal.z.abs() < 1e-6, "{normal}");
     }
 }

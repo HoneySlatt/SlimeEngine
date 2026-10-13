@@ -95,7 +95,7 @@ fn main() -> Result<(), RenderError> {
   color, all in world space and linear. A surface is lit by the cosine of the angle between its
   normal and the direction to the light (Lambert), plus the ambient light, times its material's
   base color. Normals follow the rotation of their instance and stay perpendicular to surfaces
-  scaled unevenly.
+  scaled unevenly, even flattened along one axis.
 - Conventions: world space is right-handed with +Y up, as in glTF; the camera looks down its −Z
   axis; front faces wind counter-clockwise; depth runs from 0 at the near plane to 1 at the far
   plane; colors in materials and clear colors are linear, and the sRGB target encodes them.
