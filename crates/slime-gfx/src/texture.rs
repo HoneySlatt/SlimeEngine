@@ -45,9 +45,10 @@ impl Gpu {
     /// 4 bytes per pixel in the byte order of `format` (red, green, blue, alpha for the RGBA
     /// formats). Shaders read sRGB formats decoded to linear values, and linear formats as they
     /// are. The levels of detail are computed from `pixels`, each pixel the average of the pixels
-    /// it covers in the level before, in linear light for the sRGB formats: four, or, where a side
-    /// of that level has an odd length, three along that side, weighted by how much of each it
-    /// covers. `label` names the texture in error messages and in GPU capture tools.
+    /// it covers in the level before, in linear light for the sRGB formats: two along a side of
+    /// even length, three along a side of odd length (one along a side of one pixel), each
+    /// weighted by how much of it the pixel covers. `label` names the texture in error messages
+    /// and in GPU capture tools.
     ///
     /// # Panics
     ///
