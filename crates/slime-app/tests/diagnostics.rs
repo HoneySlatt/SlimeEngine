@@ -170,6 +170,27 @@ fn modules_without_a_level_of_their_own_record_info() {
     );
 }
 
+/// wgpu logs through the `log` crate, not through `tracing`; its records reach the engine's log.
+#[test]
+fn records_of_the_log_crate_reach_the_log() {
+    if is_child() {
+        slime_app::init_diagnostics();
+        // wgpu logs at `debug` which graphics APIs it could start, whether a GPU opens or not.
+        let _ = slime_gfx::Gpu::new();
+        return;
+    }
+
+    let output = run_child(
+        "records_of_the_log_crate_reach_the_log",
+        Some("wgpu_core=debug"),
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains(" wgpu_core::"),
+        "wgpu's records must be logged\n{stderr}"
+    );
+}
+
 #[test]
 fn a_panic_payload_that_is_not_a_string_is_logged() {
     if is_child() {

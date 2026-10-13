@@ -157,7 +157,8 @@ the index of the `frame` span; the image itself keeps the name the graphics API 
 - `slime-platform`: the window and its events, for windowed runs.
 - `thiserror`: derives `RunError`'s `Display` and `Error` implementations.
 - `tracing`: the logging macros and profiling spans.
-- `tracing-subscriber`: the subscriber that formats, filters and writes log events.
+- `tracing-subscriber`: the subscriber that formats, filters and writes log events, including the
+  records that dependencies such as wgpu emit through the `log` crate (feature `tracing-log`).
 
 ## Must not
 

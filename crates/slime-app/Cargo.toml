@@ -16,7 +16,9 @@ slime-gfx.workspace = true
 slime-platform.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
-tracing-subscriber.workspace = true
+# `tracing-log`, a default feature, is named because `init_diagnostics` relies on it: it makes the
+# subscriber also receive the records of the `log` crate, through which wgpu logs.
+tracing-subscriber = { workspace = true, features = ["tracing-log"] }
 
 # Runs on the main thread, which the windowing library requires: see the test's module comment.
 [[test]]
