@@ -339,6 +339,13 @@ justify a decision are also in its ADR.
 Limitations known and accepted for now. The ones that a contributor could take on alone are also
 GitHub issues, linked from their entry; this list stays the reference.
 
+- **Findings confirmed by rounds 4 and 5 of the audit of 0.0.3 are not fixed yet** (issue
+  [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)): 22 findings, from mouse buttons left
+  down after a focus change to loader inputs that panic inside the `gltf` crate, each upheld by at
+  least two of three independent reviews against commit 6f251f3. The issue lists them; each fix
+  that leaves a limit behind adds its entry here. The audit stopped during round 6, before two
+  rounds in a row without a confirmed finding.
+
 - **Frames are not synchronized with the display's refresh** (ADR-0021; issue
   [#1](https://github.com/HoneySlatt/SlimeEngine/issues/1)). With Mailbox, the default, the
   schedule alone paces frames: on a 60 Hz display, an image is now and then shown twice while the
