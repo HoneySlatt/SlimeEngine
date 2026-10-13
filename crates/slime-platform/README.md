@@ -43,7 +43,10 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
 - `Event` is what happened to the window, or input it received. It is `#[non_exhaustive]`: new
   kinds of events will be added. Key events pair up the same way on every platform: a key still
   down when the window loses the keyboard focus is released just before `Focused(false)`, and a
-  key already down when the window gains the focus is not reported until it is pressed again.
+  key already down when the window gains the focus is not reported until it is pressed again. On
+  X11 and Windows, "already down" is judged when the event loop handles the focus gain, which on
+  X11 can come after the application has initialized, so a key pressed in between is not
+  reported either.
   winit differs here from one platform to the next, so the event loop keeps track of the keys
   that are down. On Windows, Print Screen gives no event: Windows reports only its release; and
   while both Shift keys are down, Windows reports no release until both are up, so the one let

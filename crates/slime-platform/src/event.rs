@@ -40,7 +40,14 @@ pub enum Event {
     /// [`KeyEvent::repeat`]). A key still down when the window loses the keyboard focus is released
     /// just before [`Focused(false)`](Self::Focused), even though the user lets go of it later, in
     /// another window. A key already down when the window gains the focus is not reported, its
-    /// release included, until it is pressed again. On Windows, Print Screen gives no event:
+    /// release included, until it is pressed again. On X11 and Windows, "already down" is judged
+    /// when the event loop handles the focus gain, which can be later than the focus changed:
+    /// after a long frame, and on X11 after
+    /// [`EventHandler::window_created`](crate::EventHandler::window_created) returns if the window
+    /// gains the focus while it runs (`slime-app` initializes the application there). A key
+    /// pressed in between is not reported either. On Wayland, a new window gains the focus only
+    /// once it shows its first frame, so a key held while the application initializes is not
+    /// reported there either. On Windows, Print Screen gives no event:
     /// Windows reports only its release. Windows also reports a single release for the two Shift
     /// keys: while both are down, the one let go of first is released only when the other goes
     /// up, and both are then released together. Windows may report the press of the second Shift
@@ -350,7 +357,8 @@ mod tests {
     fn keys_already_down_when_the_focus_is_gained_are_not_reported() {
         let mut translator = Translator::default();
         // X11 and Windows: a synthetic press, auto-repeats (the first one not marked as such on
-        // X11), then the release.
+        // X11), then the release. The unmarked press may also be the real press of a key that
+        // went down after the focus changed but before the loop handled it: it is dropped too.
         for (event, synthetic) in [
             (w(Pressed, false), true),
             (w(Pressed, false), false),
