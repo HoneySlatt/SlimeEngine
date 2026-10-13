@@ -22,6 +22,8 @@ pub struct Overlay {
     renderer: egui_wgpu::Renderer,
     input: input::Input,
     started: Instant,
+    /// The format of the targets egui's pipeline draws into.
+    format: TextureFormat,
 }
 
 impl Overlay {
@@ -49,6 +51,7 @@ impl Overlay {
             renderer,
             input: input::Input::new(scale_factor),
             started: Instant::now(),
+            format,
         }
     }
 
@@ -78,8 +81,16 @@ impl Overlay {
     ///
     /// # Panics
     ///
-    /// If the upload of the panels is what finds the device lost: egui's renderer panics then.
+    /// If `target` does not have the format the overlay was created for: a bug in the caller. Also
+    /// if the upload of the panels is what finds the device lost: egui's renderer panics then.
     pub fn render(&mut self, gpu: &Gpu, target: &RenderTarget, mut ui: impl FnMut(&egui::Context)) {
+        assert!(
+            target.format() == self.format,
+            "the overlay draws into {:?} targets, not into `{}`, which is {:?}",
+            self.format,
+            target.label(),
+            target.format()
+        );
         let pixels_per_point = self.input.pixels_per_point();
         let size = [target.width(), target.height()];
         let mut raw_input = egui::RawInput {
@@ -243,5 +254,14 @@ mod tests {
         let _ = gpu.wgpu_device().poll(wgpu::PollType::wait_indefinitely());
         assert!(gpu.check().is_err(), "the loss is reported");
         overlay.render(&gpu, &target, panels);
+    }
+
+    #[test]
+    #[should_panic(expected = "the overlay draws into Bgra8UnormSrgb targets")]
+    fn a_target_of_another_format_is_refused() {
+        let gpu = gpu();
+        let target = gpu.create_render_target("overlay target", 4, 4, FORMAT);
+        let mut overlay = Overlay::new(&gpu, TextureFormat::Bgra8UnormSrgb, 1.0);
+        overlay.render(&gpu, &target, |_| {});
     }
 }
