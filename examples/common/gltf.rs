@@ -29,7 +29,9 @@
 //! triangle); mesh data that `Renderer::create_mesh` refuses (attributes of another length than the
 //! positions, indices that are not a multiple of 3 or that name no vertex); a texture read through
 //! another set of texture coordinates than the first, in any slot; a node hierarchy that is not a
-//! set of trees; a file without a scene, or whose scene draws nothing. It warns about, and draws
+//! set of trees; a vertex that a node places at a point that is not finite (positions or
+//! transforms that are NaN or infinite, which glTF forbids, or whose product overflows), which
+//! would spoil the box around the scene; a file without a scene, or whose scene draws nothing. It warns about, and draws
 //! without: animations, skins, cameras, vertex colors, the extensions a file uses without requiring
 //! them that it does not read (`KHR_texture_transform` among them), and the blending of materials
 //! whose alpha mode is `BLEND`, which are drawn opaque. A primitive that has normals and shares its
@@ -595,7 +597,8 @@ fn check_positions_exist(json: &gltf::json::Root) -> Result<(), LoadError> {
 /// recursion: a valid file can nest nodes deeper than a thread's stack holds calls. It fails on a
 /// node reached a second time: glTF requires the node hierarchy to be a set of trees, which the
 /// `gltf` crate does not check, and a node that is its own descendant would otherwise be placed
-/// without end.
+/// without end. It fails on a vertex placed at a point that is not finite: NaN or infinite
+/// positions or transforms, which glTF forbids, or finite ones whose product overflows.
 fn place(
     node: &gltf::Node<'_>,
     primitives_of_mesh: &[Vec<usize>],
@@ -617,7 +620,18 @@ fn place(
         if let Some(mesh) = node.mesh() {
             for &index in &primitives_of_mesh[mesh.index()] {
                 for position in &primitives[index].data.positions {
-                    bounds.grow(transform.transform_point3(Vec3::from(*position)));
+                    // A point that is not finite would not grow the box but replace it, so that
+                    // the box would hold only the points after it, or be NaN if it came last.
+                    let point = transform.transform_point3(Vec3::from(*position));
+                    if !point.is_finite() {
+                        return Err(LoadError(format!(
+                            "node {} places {} at {point}: its positions or its transform are \
+                             not finite numbers, which glTF forbids, or their product overflows",
+                            node.index(),
+                            primitives[index].label
+                        )));
+                    }
+                    bounds.grow(point);
                 }
                 placed.push((index, transform));
             }

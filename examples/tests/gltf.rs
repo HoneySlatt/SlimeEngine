@@ -311,6 +311,21 @@ fn node_hierarchies_that_are_not_trees_are_refused() {
 }
 
 #[test]
+fn a_vertex_placed_at_a_point_that_is_not_finite_is_refused() {
+    let gpu =
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+    // The second corner's x is NaN, which glTF forbids and its validation, which reads no binary
+    // data, lets through: the box around the scene would cover only the corners after it.
+    let mut file = Glb::triangle();
+    file.bin[12..16].copy_from_slice(&f32::NAN.to_le_bytes());
+    let error = refusal(&gpu, &mut file);
+    assert!(
+        error.contains("node 0 places mesh 0 primitive 0 at [NaN, NaN, NaN]"),
+        "{error}"
+    );
+}
+
+#[test]
 fn a_node_hierarchy_deeper_than_the_stack_holds_calls_is_placed() {
     let gpu =
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
