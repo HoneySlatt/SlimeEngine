@@ -12,11 +12,13 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 
 ## Current
 
-- Stage 3a — First renderer → 0.0.3: in progress. Planned on 2026-10-12 and validated by the
-  owner. M3.1 to M3.6 are done; next: M3.7.
+- Stage 3a — First renderer → 0.0.3: done and released (tag `v0.0.3`). Its milestones stay below
+  until the next stage is planned.
+- Next: planning Stage 3b with the owner (see [`ROADMAP.md`](ROADMAP.md)). No code is written
+  for it before its plan is validated.
 - Between 0.0.2 and this stage, a stabilization pass on 2026-10-12 corrected what an audit of
-  0.0.2 found: the corrections are listed in [`CHANGELOG.md`](../CHANGELOG.md) under
-  *Unreleased*, and what was found without being corrected is in [Known debt](#known-debt).
+  0.0.2 found: the corrections are listed in [`CHANGELOG.md`](../CHANGELOG.md) under *0.0.3*,
+  and what was found without being corrected is in [Known debt](#known-debt).
 
 ## Status
 
@@ -28,7 +30,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M3.4](#m34--textures-and-samplers) | Textures and samplers | Done |
 | [M3.5](#m35--a-gltf-scene-and-camera-control) | A glTF scene and camera control | Done |
 | [M3.6](#m36--statistics-gpu-timings-and-the-dev-overlay) | Statistics, GPU timings and the dev overlay | Done |
-| [M3.7](#m37--windows-check-documentation-release-003) | Windows check, documentation, release 0.0.3 | Planned |
+| [M3.7](#m37--windows-check-documentation-release-003) | Windows check, documentation, release 0.0.3 | Done |
 
 Stages 0, 1 and 2 are done; see [Completed stages](#completed-stages).
 
@@ -127,10 +129,10 @@ it:
   `scene` example drew 300 frames on niri (the owner's Wayland compositor) with RADV (3 draw calls
   and 36 triangles per frame), and `scene --frames 120` draws in the headless Weston (the
   compositor without a screen that the checks start) with lavapipe in the checks. The owner's
-  run of `scene.exe` in the Windows virtual machine, which the CI artifact now contains, is
-  pending. Dynamic offsets joined `slime-gfx` with the instances, as ADR-0026 planned; the
-  material of one color came with this milestone rather than M3.3, since instances need a color
-  from the start.
+  run of `scene.exe` in the Windows virtual machine, which the CI artifact now contains, took
+  place at M3.7 (see there). Dynamic offsets joined `slime-gfx` with the instances, as ADR-0026
+  planned; the material of one color came with this milestone rather than M3.3, since instances
+  need a color from the start.
 
 ### M3.3 — Directional light and material
 
@@ -219,9 +221,9 @@ it:
   ADR-0030 therefore keeps the strict rule on lavapipe and loosens it on other drivers. On WARP,
   as the Windows CI job printed, 30 and 13 pixels of the glTF views and 30 of the shapes differ by
   more than 2, none by more than 4. The `scene` example drew 300 frames on niri
-  with RADV (7 draw calls, 2 274 triangles per frame) and 120 in the headless Weston. Not done:
-  the owner's run of `scene.exe` in the Windows virtual machine (the artifact contains it). The
-  Khronos sample model `BoxTextured.glb` (downloaded with the owner's agreement, not kept) loads
+  with RADV (7 draw calls, 2 274 triangles per frame) and 120 in the headless Weston. The owner's
+  run of `scene.exe` in the Windows virtual machine took place at M3.7 (see there). The Khronos
+  sample model `BoxTextured.glb` (downloaded with the owner's agreement, not kept) loads
   with `--scene`: one mesh of 12 triangles, one texture, 120 frames drawn.
 
 ### M3.6 — Statistics, GPU timings and the dev overlay
@@ -248,9 +250,10 @@ it:
   14 µs on the GPU per frame (7 draw calls, 2 274 triangles), and 240 in the headless Weston with
   lavapipe, 2.4 ms on the CPU and 1.1 ms on the GPU; the overlay appears in a screenshot of that
   compositor. The image tests are unchanged: the overlay is not drawn offscreen. The owner's run
-  of `scene.exe` in the Windows virtual machine, with the GPU time on Direct3D 12, is pending.
-  egui warns once that the framebuffer is sRGB (it prefers a linear one for its blending): the
-  overlay looks slightly lighter than egui's own demos, which is harmless for tooling.
+  of `scene.exe` in the Windows virtual machine, with the GPU time on Direct3D 12, took place at
+  M3.7 (see there). egui warns once that the framebuffer is sRGB (it prefers a linear one for its
+  blending): the overlay looks slightly lighter than egui's own demos, which is harmless for
+  tooling.
 
 ### M3.7 — Windows check, documentation, release 0.0.3
 
@@ -258,11 +261,26 @@ it:
 - **Crates.** All; CI.
 - **Delivers.** The Windows checklist run by the owner in the virtual machine (`scene.exe`: window,
   resize, camera, overlay, GPU time); `scene.exe` in the CI artifact; the documentation reread by
-  a reviewing agent (`ARCHITECTURE.md`, the glossary, `dependencies.md`, the crate READMEs);
-  `CHANGELOG.md`; the duration of CI measured; the `v0.0.3` tag on a commit whose CI is green on
-  both platforms.
+  reviewing agents (`ARCHITECTURE.md`, the crate READMEs, the glossary, `dependencies.md`,
+  `README.md`, `CONTRIBUTING.md`, the ADRs, `CHANGELOG.md`, this file); the duration of CI
+  measured; the `v0.0.3` tag on a commit whose CI is green on both platforms.
 - **Done when.** The checks are green on both platforms; the tag is pushed.
 - **How to test.** Push and read the CI run; the Windows artifact in the virtual machine.
+- **Checked** on 2026-10-13: the owner ran `scene.exe` from the CI artifact of the commit "Record
+  the CI durations after M3.6" in the Windows virtual machine, where the adapter is WARP: the
+  window opens with the glTF scene and follows resizes, minimizing and restoring; the camera
+  orbits on its own, then follows the mouse (drag) and the wheel; the overlay shows the adapter,
+  the frame time, the CPU and GPU times (the GPU time is measured on WARP, through Direct3D 12),
+  7 draw calls and 2 274 triangles, and F1 hides it; Escape, the close button and Ctrl+C stop the
+  run cleanly. This also closes the runs that M3.2, M3.5 and M3.6 left pending. Three reviewing
+  agents reread the documentation against the code (one for `ARCHITECTURE.md` and the crate
+  READMEs, one for the glossary, `dependencies.md`, `README.md`, `CONTRIBUTING.md` and the ADRs,
+  one for `CHANGELOG.md` and this file); what they found is corrected in the commits from "Drop
+  the unused tracing dependency of slime-devui" to "Complete the changelog and correct the plan
+  before 0.0.3", and the mipmap decision of M3.5 is recorded in ADR-0032, as M3.4 had planned.
+  One drift from an ADR is left to the owner: the two windowed test programs of `slime-app`
+  return at once on other platforms instead of being compiled out, as ADR-0015 asks. The CI
+  durations are in [Notes](#notes). Released as 0.0.3 (see [Releasing](#releasing)).
 
 ## Releasing
 
@@ -277,7 +295,8 @@ A release is an annotated git tag on a commit whose CI run is green on Linux and
 
 0.0.1 was released on 2026-10-12, before Windows joined CI: the tag `v0.0.1` is on the commit
 "Release 0.0.1". 0.0.2 was released the same way on 2026-10-12: the tag `v0.0.2` is on the
-commit "Release 0.0.2".
+commit "Release 0.0.2", and 0.0.3 on 2026-10-13: the tag `v0.0.3` is on the commit
+"Release 0.0.3".
 
 ## Completed stages
 
@@ -286,6 +305,7 @@ commit "Release 0.0.2".
 | 0 — Foundations | M0.1 repository and ADR process; M0.2 Nix environment; M0.3 workspace, lints, crate skeletons; M0.4 dependency policy and CI | Done. CI green on the first push to GitHub (2026-10-12). |
 | 1 — Core and platform → 0.0.1 | M1.1 logging and diagnostics; M1.2 frame timing; M1.3 lifecycle and headless mode; M1.4 window; M1.5 input; M1.6 clean shutdown | Done; released as 0.0.1 (tag `v0.0.1`). Content listed in [`CHANGELOG.md`](../CHANGELOG.md). |
 | 2 — GPU layer → 0.0.2 | M2.0 Windows in CI; M2.1 GPU device without a window; M2.2 offscreen triangle and reference image; M2.3 the triangle in the window; M2.4 frame pacing; M2.5 debug markers, robustness, release | Done; released as 0.0.2 (tag `v0.0.2`). Content listed in [`CHANGELOG.md`](../CHANGELOG.md). |
+| 3a — First renderer → 0.0.3 | M3.1 GPU resources for a renderer; M3.2 the render crate; M3.3 directional light and material; M3.4 textures and samplers; M3.5 a glTF scene and camera control; M3.6 statistics, GPU timings and the dev overlay; M3.7 Windows check, documentation, release | Done; released as 0.0.3 (tag `v0.0.3`). Content listed in [`CHANGELOG.md`](../CHANGELOG.md). |
 
 The details of each completed milestone (what it delivered, how it was checked, what was measured)
 are in the history of this file and in the commits that implemented it; the measurements that
@@ -372,4 +392,7 @@ justify a decision are also in its ADR.
   it: each milestone that adds one records the new duration here. With glam and the render crate
   (M3.2, 2026-10-13): Linux 2 minutes 49 seconds, Windows 4 minutes 59 seconds. With gltf and
   egui (M3.6, 2026-10-13): Linux 3 minutes 22 seconds, Windows 5 minutes 42 seconds, and 6 minutes
-  2 seconds once its tests ran one at a time.
+  2 seconds once its tests ran one at a time. At the release (M3.7, 2026-10-13), over the ten
+  green runs before it: Linux from 2 minutes 35 seconds to 3 minutes 38 seconds, Windows from
+  3 minutes 12 seconds to 7 minutes 10 seconds; the Windows runner's speed varies from one run to
+  the next more than the code changes between them.

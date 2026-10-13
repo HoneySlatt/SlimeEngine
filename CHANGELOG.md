@@ -6,6 +6,13 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ## [Unreleased]
 
+## [0.0.3] - 2026-10-13
+
+The third release, which closes Stage 3a of the roadmap: the first renderer. The engine draws a
+glTF scene with textured materials, a depth test and a directional light under a camera the mouse
+moves, measures what each frame costs on the CPU and on the GPU and shows it in a dev overlay, and
+covers the renderer with image tests that run on lavapipe, WARP and hardware GPUs.
+
 ### Added
 
 - `slime-render`, the first renderer: `Renderer` draws a `Scene` (a camera, a directional light,
@@ -126,6 +133,18 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   near `Duration::MAX`): it saturates.
 - Logging to a standard error that is gone (a pipe whose reader exited, a closed terminal) no
   longer aborts the process: the events are dropped and the run goes on.
+
+### Known limitations
+
+See the known debt in [`docs/PLAN.md`](docs/PLAN.md#known-debt). In short: the renderer is a first
+one (no physically based materials, shadows, HDR, post-processing, multisampling, transparency,
+animation or glTF extensions; they come with Stage 3b and later); glTF files are read by a
+temporary loader in the examples, which takes GLB files with embedded buffers and PNG images only;
+the dev overlay is temporary tooling that gets no modifier keys; mipmaps are computed on the CPU;
+upgrading wgpu waits for egui; and the limitations of 0.0.2 remain: frames are not synchronized
+with the display's refresh, presenting can still stall where Mailbox is not offered, frames pause
+on Windows while the window is moved, wgpu's errors panic in release builds too, a lost GPU device
+is not replaced, and modifier state, input methods, touch, gestures and gamepads are not reported.
 
 ## [0.0.2] - 2026-10-12
 
