@@ -40,6 +40,8 @@ const DRAG_SPEED: f32 = 0.005;
 const ORBIT_SPEED: f32 = 0.3;
 /// How much one line of the wheel brings the camera nearer, as a fraction of its distance.
 const ZOOM_STEP: f32 = 0.1;
+/// The nearest and farthest the wheel brings the camera, in radii of the scene.
+const ZOOM_RANGE: (f32, f32) = (0.1, 20.0);
 /// Pixels of scrolling that count as one line, for touchpads and precise wheels.
 const PIXELS_PER_LINE: f64 = 60.0;
 /// The steepest angles above and below the target, in radians.
@@ -49,6 +51,8 @@ const PITCH_LIMIT: f32 = 1.45;
 /// button turns it, the wheel brings it nearer or farther.
 struct OrbitCamera {
     target: Vec3,
+    /// How far from `target` the scene reaches.
+    radius: f32,
     distance: f32,
     yaw: f32,
     pitch: f32,
@@ -61,9 +65,10 @@ struct OrbitCamera {
 }
 
 impl OrbitCamera {
-    fn new(target: Vec3, distance: f32, yaw: f32, pitch: f32) -> Self {
+    fn new(target: Vec3, radius: f32, distance: f32, yaw: f32, pitch: f32) -> Self {
         Self {
             target,
+            radius,
             distance,
             yaw,
             pitch,
@@ -98,7 +103,12 @@ impl OrbitCamera {
                     ScrollDelta::Lines { y, .. } => *y,
                     ScrollDelta::Pixels { y, .. } => (*y / PIXELS_PER_LINE) as f32,
                 };
-                self.distance *= (1.0 - ZOOM_STEP).powf(lines);
+                // Kept in a range, from which the wheel can always bring the camera back; `max`
+                // and `min` rather than `clamp`, which panics on the NaN of a degenerate scene.
+                let (nearest, farthest) = ZOOM_RANGE;
+                self.distance = (self.distance * (1.0 - ZOOM_STEP).powf(lines))
+                    .max(nearest * self.radius)
+                    .min(farthest * self.radius);
             }
             _ => {}
         }
@@ -112,7 +122,13 @@ impl OrbitCamera {
     }
 
     fn camera(&self) -> Camera {
-        orbit::camera_at(self.target, self.distance, self.yaw, self.pitch)
+        orbit::camera_at(
+            self.target,
+            self.radius,
+            self.distance,
+            self.yaw,
+            self.pitch,
+        )
     }
 }
 
@@ -140,8 +156,8 @@ impl App for SceneExample {
             return Err("the scene example needs a window".into());
         };
         let scene = SampleScene::new(gpu, format, &self.bytes)?;
-        let bounds = scene.bounds();
-        self.camera = OrbitCamera::new(bounds.center(), bounds.radius() * 2.2, 0.6, 0.45);
+        let (center, radius) = (scene.bounds().center(), scene.bounds().radius());
+        self.camera = OrbitCamera::new(center, radius, radius * 2.2, 0.6, 0.45);
         self.scene = Some(scene);
         self.overlay = Some(Overlay::new(gpu, format, window.scale_factor()));
         Ok(())
@@ -266,7 +282,7 @@ fn main() -> ExitCode {
     let mut example = SceneExample {
         bytes,
         scene: None,
-        camera: OrbitCamera::new(Vec3::ZERO, 1.0, 0.0, 0.0),
+        camera: OrbitCamera::new(Vec3::ZERO, 1.0, 1.0, 0.0, 0.0),
         overlay: None,
         show_overlay: true,
         frame_ms: 0.0,
