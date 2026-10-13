@@ -1,10 +1,10 @@
 //! The lifecycle of a windowed run, checked in a Wayland compositor: what the application sees in
 //! `init`, the order of the calls, the stop conditions, the frame schedule after a burst of
-//! redraws, the memory of a run whose frames draw nothing, a run whose GPU cannot open, and a
-//! window larger than the GPU can draw into. `scripts/check.sh` runs it in a headless Weston with
-//! lavapipe (ADR-0024). It is not in the default run of `cargo test` (`test = false` in
-//! Cargo.toml), since it needs a compositor, and it has no harness, since the windowing library
-//! needs the main thread.
+//! redraws, the time each frame represents, the memory of a run whose frames draw nothing, a run
+//! whose GPU cannot open, and a window larger than the GPU can draw into. `scripts/check.sh` runs
+//! it in a headless Weston with lavapipe (ADR-0024). It is not in the default run of `cargo test`
+//! (`test = false` in Cargo.toml), since it needs a compositor, and it has no harness, since the
+//! windowing library needs the main thread.
 //!
 //! A process can run one windowed application, so each scenario runs in a child process: this
 //! program runs itself again with `SLIME_APP_TEST_SCENARIO` set, and checks what the child prints.
@@ -42,6 +42,12 @@ mod linux {
     const FRAME_LIMIT: u64 = 50;
     const STORM: std::ops::Range<u64> = 10..40;
 
+    /// How far the time a frame represents can be from the time the application measures between
+    /// its updates. The two measurements are a few microseconds apart, more when the process is
+    /// preempted between them; a frame whose time did not come from the clock would be off by
+    /// several milliseconds during the storm, where frames come less than 10 ms apart.
+    const DELTA_TOLERANCE_MICROS: u64 = 5_000;
+
     /// Frames of the `draws-nothing` scenario, whose memory is measured once the run has settled,
     /// after `SETTLED` frames, then at its last frame. Presenting images that nothing drew into
     /// once made a run grow by about 173 KiB per frame: 121 320 KiB between the two measurements
@@ -54,6 +60,7 @@ mod linux {
     /// Prints every call it receives, with the time of each frame.
     struct Recorder {
         scenario: &'static str,
+        /// When `init` returned, which the times of the frames count from.
         start: Option<Instant>,
         last_update: u64,
     }
@@ -71,6 +78,7 @@ mod linux {
                 "exit-in-init" => ctx.request_exit(),
                 _ => {}
             }
+            self.start = Some(Instant::now());
             Ok(())
         }
 
@@ -89,12 +97,13 @@ mod linux {
 
         fn update(&mut self, ctx: &mut Context, frame: &FrameTime) {
             let now = Instant::now();
-            let start = *self.start.get_or_insert(now);
+            let start = self.start.expect("init returned before the first frame");
             self.last_update = frame.index();
             println!(
-                "call update {} t={}",
+                "call update {} t={} delta={}",
                 frame.index(),
-                (now - start).as_micros()
+                (now - start).as_micros(),
+                frame.delta().as_micros()
             );
             if STORM.contains(&frame.index()) {
                 ctx.window().expect("windowed run").request_redraw();
@@ -288,16 +297,20 @@ mod linux {
         // event in between. Frames are counted by their updates.
         let mut frames = 0;
         let mut times = Vec::new();
+        let mut deltas = Vec::new();
         for (i, call) in calls.iter().enumerate() {
             match call[0] {
                 "update" => {
                     assert_eq!(call[1], frames.to_string(), "frames are numbered in order");
                     frames += 1;
-                    let micros: u64 = call[2]
-                        .strip_prefix("t=")
-                        .and_then(|t| t.parse().ok())
-                        .expect("update time");
-                    times.push(micros);
+                    let micros = |field: &str, name: &str| -> u64 {
+                        field
+                            .strip_prefix(name)
+                            .and_then(|value| value.parse().ok())
+                            .unwrap_or_else(|| panic!("{name} in microseconds: {call:?}"))
+                    };
+                    times.push(micros(call[2], "t="));
+                    deltas.push(micros(call[3], "delta="));
                     let next = calls.get(i + 1).map(|next| next[0]);
                     assert!(
                         matches!(
@@ -352,6 +365,29 @@ mod linux {
             after < 100,
             "the first scheduled frame after the storm comes within one period: {after} ms"
         );
+
+        // Each frame represents the time since the previous one, which the engine measures just
+        // before the frame's fixed steps, and the application here at the start of `update`: the
+        // two agree up to what runs in between. The first frame counts from the end of `init`, so
+        // it cannot represent more than what the application measured since; counting the opening
+        // of the window and the GPU as well would make it larger.
+        assert!(
+            deltas[0] <= times[0],
+            "the first frame represents the time since init returned: {} µs, {} µs measured",
+            deltas[0],
+            times[0]
+        );
+        let max_delta = config("calls").max_frame_delta.as_micros();
+        let max_delta = u64::try_from(max_delta).expect("microseconds");
+        for i in 1..times.len() {
+            let measured = (times[i] - times[i - 1]).min(max_delta);
+            assert!(
+                deltas[i].abs_diff(measured) <= DELTA_TOLERANCE_MICROS,
+                "frame {i} represents the time since the previous frame: {} µs, {measured} µs \
+                 measured",
+                deltas[i]
+            );
+        }
 
         assert!(lines.contains(&"result Ok"), "the run succeeds: {lines:?}");
         assert!(
