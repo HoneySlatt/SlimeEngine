@@ -1,6 +1,6 @@
 //! The lifecycle of a windowed run, checked in a Wayland compositor: what the application sees in
-//! `init`, the order of the calls, the stop conditions, and the frame schedule after a burst of
-//! redraws. `scripts/check.sh` runs it in a headless Weston with lavapipe (ADR-0024). It is not in
+//! `init`, the order of the calls, the stop conditions, the frame schedule after a burst of
+//! redraws, and the memory of a run whose frames draw nothing. `scripts/check.sh` runs it in a headless Weston with lavapipe (ADR-0024). It is not in
 //! the default run of `cargo test` (`test = false` in Cargo.toml), since it needs a compositor, and
 //! it has no harness, since the windowing library needs the main thread.
 //!
@@ -27,11 +27,20 @@ mod linux {
     use slime_platform::{Event, PlatformError, WindowConfig};
 
     const SCENARIO_ENV: &str = "SLIME_APP_TEST_SCENARIO";
-    const SCENARIOS: [&str; 3] = ["calls", "init-error", "exit-in-init"];
+    const SCENARIOS: [&str; 4] = ["calls", "init-error", "exit-in-init", "draws-nothing"];
 
     /// Frames of the `calls` scenario, and those in which the application asks for an extra redraw.
     const FRAME_LIMIT: u64 = 50;
     const STORM: std::ops::Range<u64> = 10..40;
+
+    /// Frames of the `draws-nothing` scenario, whose memory is measured once the run has settled,
+    /// after `SETTLED` frames, then at its last frame. Presenting images that nothing drew into
+    /// once made a run grow by about 173 KiB per frame: 121 320 KiB between the two measurements
+    /// on 2026-10-13, against none with the fix (`SurfaceFrame::present`). The test fails beyond
+    /// a quarter of that growth.
+    const UNDRAWN_FRAMES: u64 = 1000;
+    const SETTLED: u64 = 300;
+    const MAX_GROWTH_KIB: u64 = 30_000;
 
     /// Prints every call it receives, with the time of each frame.
     struct Recorder {
@@ -81,22 +90,31 @@ mod linux {
             if STORM.contains(&frame.index()) {
                 ctx.window().expect("windowed run").request_redraw();
             }
+            if self.scenario == "draws-nothing"
+                && [SETTLED, UNDRAWN_FRAMES - 1].contains(&frame.index())
+            {
+                println!("memory {} {}", frame.index(), resident_kib());
+            }
         }
 
         fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
-            let grey = Color {
-                r: 0.2,
-                g: 0.2,
-                b: 0.2,
-                a: 1.0,
-            };
-            let pass = RenderPassDescriptor {
-                target,
-                clear: Some(grey),
-                depth: None,
-                timer: None,
-            };
-            ctx.gpu().expect("windowed run").render(&pass, |_pass| {});
+            // In `draws-nothing`, the image is presented without anything drawn into it, as with
+            // the default `render`.
+            if self.scenario != "draws-nothing" {
+                let grey = Color {
+                    r: 0.2,
+                    g: 0.2,
+                    b: 0.2,
+                    a: 1.0,
+                };
+                let pass = RenderPassDescriptor {
+                    target,
+                    clear: Some(grey),
+                    depth: None,
+                    timer: None,
+                };
+                ctx.gpu().expect("windowed run").render(&pass, |_pass| {});
+            }
             println!("call render {}", self.last_update);
         }
 
@@ -105,8 +123,8 @@ mod linux {
         }
     }
 
-    fn config() -> AppConfig {
-        AppConfig {
+    fn config(scenario: &str) -> AppConfig {
+        let mut config = AppConfig {
             window: Some(WindowConfig {
                 title: "windowed lifecycle".to_owned(),
                 width: 320,
@@ -114,7 +132,24 @@ mod linux {
             }),
             frame_limit: Some(FRAME_LIMIT),
             ..AppConfig::default()
+        };
+        if scenario == "draws-nothing" {
+            // Frames as fast as they come, so that many of them take a few seconds.
+            config.frame_limit = Some(UNDRAWN_FRAMES);
+            config.max_frame_rate = 1000;
         }
+        config
+    }
+
+    /// The memory the process occupies, in KiB (`VmRSS`).
+    fn resident_kib() -> u64 {
+        std::fs::read_to_string("/proc/self/status")
+            .expect("the process's status")
+            .lines()
+            .find_map(|line| line.strip_prefix("VmRSS:"))
+            .and_then(|value| value.trim().strip_suffix(" kB"))
+            .and_then(|value| value.parse().ok())
+            .expect("VmRSS, in kB")
     }
 
     pub fn main() {
@@ -145,6 +180,7 @@ mod linux {
                 "calls" => check_calls(&lines),
                 "init-error" => check_init_error(&lines),
                 "exit-in-init" => check_exit_in_init(&lines),
+                "draws-nothing" => check_draws_nothing(&lines),
                 _ => unreachable!(),
             }
             println!("scenario {scenario} ... ok");
@@ -159,13 +195,13 @@ mod linux {
             start: None,
             last_update: 0,
         };
-        match slime_app::run(&mut app, &config()) {
+        match slime_app::run(&mut app, &config(scenario)) {
             Ok(()) => println!("result Ok"),
             Err(RunError::Init(error)) => println!("result Init({error})"),
             Err(error) => println!("result {error:?}"),
         }
         if scenario == "calls" {
-            match slime_app::run(&mut app, &config()) {
+            match slime_app::run(&mut app, &config(scenario)) {
                 Err(RunError::Platform(PlatformError::SecondEventLoop)) => {
                     println!("second SecondEventLoop");
                 }
@@ -311,5 +347,35 @@ mod linux {
         );
         assert_eq!(calls.last().expect("shutdown")[1], "exit_requested=true");
         assert!(lines.contains(&"result Ok"), "{lines:?}");
+    }
+
+    fn check_draws_nothing(lines: &[&str]) {
+        // wgpu's errors panic, so the run succeeds only if presenting undrawn images is valid.
+        assert!(lines.contains(&"result Ok"), "the run succeeds: {lines:?}");
+        let presented = calls(lines)
+            .iter()
+            .filter(|call| call[0] == "render")
+            .count();
+        assert!(
+            u64::try_from(presented).expect("count") >= UNDRAWN_FRAMES / 2,
+            "most frames are presented: {presented}"
+        );
+        let memory: Vec<u64> = lines
+            .iter()
+            .filter_map(|line| line.strip_prefix("memory "))
+            .map(|line| {
+                let kib = line.split_whitespace().nth(1).expect("memory in KiB");
+                kib.parse().expect("memory in KiB")
+            })
+            .collect();
+        let [settled, last] = memory[..] else {
+            panic!("the memory is measured twice: {lines:?}");
+        };
+        let growth = last.saturating_sub(settled);
+        assert!(
+            growth < MAX_GROWTH_KIB,
+            "memory stays flat when frames draw nothing: {growth} KiB more over the last {} frames",
+            UNDRAWN_FRAMES - 1 - SETTLED
+        );
     }
 }
