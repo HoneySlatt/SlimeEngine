@@ -2,9 +2,13 @@
 //! stopping the process (SIGTERM), or the terminal closing (SIGHUP).
 //!
 //! On Windows, the same handler receives the console's events: Ctrl+C and Ctrl+Break stop the run
-//! cleanly. Closing the console window, logging off or shutting down also reach it, but Windows
-//! ends the process as soon as the handler returns, which it does at once, so these get no clean
-//! shutdown. A program without a console (a Windows game) receives none of these events.
+//! cleanly. Closing the console window also reaches it, but Windows ends the process as soon as the
+//! handler returns, which it does at once, so this gets no clean shutdown. Logging off and shutting
+//! down never reach it: Windows does not send these events to a process that has loaded user32.dll,
+//! and every engine process loads it, through the windowing library that `run` links in, windowed
+//! or not. A window receives them as end-session messages instead, which the windowing library does
+//! not report, so they get no clean shutdown either. A program without a console (a Windows game)
+//! receives none of the console's events.
 
 use std::sync::{Once, OnceLock};
 use std::time::{Duration, Instant};

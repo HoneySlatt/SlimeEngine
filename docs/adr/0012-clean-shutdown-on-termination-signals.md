@@ -61,3 +61,12 @@ and a future dedicated server cannot leave cleanly. The engine's lifecycle promi
 - A game cannot install its own `ctrlc` handler after `run` has started; if games need custom
   signal handling, the engine will need an API for it.
 - Reversing the decision means removing one module of `slime-app` and the `ctrlc` dependency.
+
+## Corrections
+
+- 2026-10-13: in the Windows consequence, only Ctrl+C, Ctrl+Break and the console being closed
+  reach the handler. Windows does not call console handlers for a logoff or a shutdown in a process
+  that has loaded user32.dll, and every engine process loads it through winit, which `run` links in
+  whether the run is windowed or not. A window receives a logoff or a shutdown as the
+  `WM_QUERYENDSESSION` and `WM_ENDSESSION` messages, which winit 0.30 does not report. The outcome
+  is the one stated: neither gets a clean shutdown.
