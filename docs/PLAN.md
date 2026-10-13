@@ -40,10 +40,11 @@ the overlay, covered by image tests.
 
 Out of scope, left to the stages that need them: physically based materials, shadows, HDR and
 post-processing, a render graph, multisampling, transparency, animation and skinning, glTF
-extensions (Stage 3b and later); mipmaps, unless the image tests or the sample show aliasing that
-the tolerance cannot absorb; and a scene model, which comes with the world of Stage 5: the
+extensions (Stage 3b and later); and a scene model, which comes with the world of Stage 5: the
 renderer draws a flat list of instances that the application builds, and the temporary glTF loader
-flattens the file's node hierarchy into such a list.
+flattens the file's node hierarchy into such a list. Mipmaps were left out unless the image tests
+or the sample showed aliasing that the tolerance could not absorb; the floor of the glTF scene did,
+and M3.5 added them ([ADR-0032](adr/0032-mipmaps-computed-at-texture-creation.md)).
 
 Decisions taken when this stage was planned, each recorded as an ADR in the milestone that applies
 it:
@@ -58,7 +59,7 @@ it:
   descriptor that says whether the target is cleared or kept (amends ADR-0017).
 - Math. `glam`; its types appear in `slime-render`'s API, the exception that ADR-0006 allows for a
   dependency whose purpose it is.
-- glTF. The `gltf` crate without its default features (neither `image` nor `base64`), in the
+- glTF. The `gltf` crate without its `import` feature (neither `image` nor `base64`), in the
   examples only: GLB files with embedded buffers, PNG images decoded with `png`. The loader is
   deleted in Stage 4.
 - Overlay. `egui` and `egui-wgpu`, the latter without its default features (they would enable
@@ -70,7 +71,8 @@ it:
 - Sample asset. A small scene made in Blender under CC0, under 500 kB, embedded in the sample;
   `--scene <file>` loads another GLB file. A Khronos sample model under CC-BY 4.0 was the
   alternative.
-- No `bytemuck`: bytes are produced with `to_le_bytes`, as ADR-0017 chose; no `image` crate.
+- No `bytemuck` in the engine's code: bytes are produced with `to_le_bytes`, as ADR-0017 chose
+  (the crate is still compiled, as a dependency of wgpu and egui); no `image` crate.
 - Windows: the Windows CI job runs the tests and the headless samples at every milestone; the owner
   checks windowed behaviour in the virtual machine at M3.2, M3.5 and M3.6.
 
@@ -118,11 +120,13 @@ it:
   owner ran `scene.exe` in the Windows virtual machine.
 - **How to test.** `cargo run --example scene`; `cargo test -p slime-examples --test scene`.
 - **Checked** on 2026-10-13: the image test of the cubes (`examples/tests/scene.rs`, reference
-  `cubes.png`, three cubes of two flat colors, the orange one in front of the blue one) passes on
-  lavapipe, which rendered the reference, and on the owner's RX 6900 XT (RADV) with no pixel
+  `cubes.png`, since replaced by `shapes.png` when M3.3 added the sphere; three cubes of two flat
+  colors, the orange one in front of the blue one) passes on lavapipe, which rendered the
+  reference, and on the owner's RX 6900 XT (RADV, Mesa's Vulkan driver for AMD GPUs) with no pixel
   differing at all, flat colors leaving nothing to round; the Windows CI job runs it on WARP. The
-  `scene` example drew 300 frames on niri with RADV (3 draw calls and 36 triangles per frame),
-  and `scene --frames 120` draws in the headless Weston with lavapipe in the checks. The owner's
+  `scene` example drew 300 frames on niri (the owner's Wayland compositor) with RADV (3 draw calls
+  and 36 triangles per frame), and `scene --frames 120` draws in the headless Weston (the
+  compositor without a screen that the checks start) with lavapipe in the checks. The owner's
   run of `scene.exe` in the Windows virtual machine, which the CI artifact now contains, is
   pending. Dynamic offsets joined `slime-gfx` with the instances, as ADR-0026 planned; the
   material of one color came with this milestone rather than M3.3, since instances need a color
@@ -142,7 +146,8 @@ it:
 - **Done when.** The image test passes on the three drivers; the lit shapes look right by eye.
 - **How to test.** As M3.2.
 - **Checked** on 2026-10-13: the image test of the shapes (reference `shapes.png`: the lit cubes
-  and a green sphere of 720 triangles sitting on the orange cube) passes on lavapipe, which
+  and a green sphere of 720 triangles sitting on the orange cube, the center one, textured since
+  M3.4) passes on lavapipe, which
   rendered the reference, and on the owner's RX 6900 XT (RADV), where the largest difference is
   1 out of 255, on the sphere, and no pixel exceeds the tolerance; the Windows CI job runs it on
   WARP. Two tests in `crates/slime-render/tests/lighting.rs` read pixels back: a surface facing
@@ -174,9 +179,9 @@ it:
   of 65 536 differing by 3 out of 255, where two texels blend: more than ADR-0018 allowed, so
   ADR-0028 lets 0.1 % of the pixels exceed the per-channel tolerance. On WARP, as the Windows CI
   job printed, no pixel exceeds it and the largest difference is 2 (1 on the triangle). No
-  mipmaps: the sphere's checker aliases where it is minified,
-  which shows as shimmering when the camera moves; recorded in the known debt, to settle with
-  the glTF asset of M3.5.
+  mipmaps yet: the sphere's checker aliased where it was minified, which showed as shimmering
+  when the camera moved; M3.5 added them
+  ([ADR-0032](adr/0032-mipmaps-computed-at-texture-creation.md)).
 
 ### M3.5 — A glTF scene and camera control
 
@@ -193,17 +198,21 @@ it:
   around the scene's bounds, orbit with the left button, zoom with the wheel. The image test
   `tests/gltf.rs` renders the asset at fixed camera poses. ADR: temporary glTF loading, and its
   removal in Stage 4.
-- **Done when.** The sample shows the asset on niri, through Xwayland and in the Windows virtual
+- **Done when.** The sample shows the asset on niri, through Xwayland (X11 on a Wayland desktop)
+  and in the Windows virtual
   machine; the image test passes on the three drivers; a Khronos sample model loads with
   `--scene`.
 - **How to test.** `cargo run --example scene -- --scene <file.glb>`; the image test.
 - **Checked** on 2026-10-13: the asset (`examples/assets/scene.glb`, 94 kB: 7 primitives, 2 274
   triangles, three textures of 128 × 128 pixels) was built by `make_scene.py` in the owner's
-  Blender 5.2.2, driven through its MCP add-on, and exported with Blender's defaults but
-  animations, skins, cameras and lights left out. `tests/gltf.rs` renders it from two poses: on
+  Blender 5.2.2 and exported by the script with modifiers applied and animations, skins, morph
+  targets, cameras, lights and extras left out, Blender's defaults otherwise. `tests/gltf.rs`
+  renders it from two poses: on
   lavapipe, which rendered the references, no pixel differs; on RADV, 92 and 21 pixels differ by
   more than 2, 4 and 1 by more than 4, none by more than 8 (largest difference 5). Mipmaps came
-  with this milestone, as M3.4 planned: without them the floor aliased (42 pixels of the front
+  with this milestone, as M3.4 planned
+  ([ADR-0032](adr/0032-mipmaps-computed-at-texture-creation.md)): without them the floor aliased
+  (42 pixels of the front
   view differed by more than 2 on RADV, by 8 at most) and shimmered. With them, the checkered
   sphere of `tests/scene.rs` differs on RADV by more than 4 on 233 pixels, by more than 8 on 14
   and by more than 16 on 1 (largest 18), where the levels of its checker blend differently;
@@ -333,8 +342,9 @@ justify a decision are also in its ADR.
   waits on the swap chain's frame-latency object, up to one second, if the compositor stops taking
   images; whether Windows does so for such windows is unknown.
 - **WARP's shader compiler crashes the process, now and then, when several threads compile
-  shaders at once**, even on separate devices: an access violation inside `d3d10warp.dll`, which
-  no test can catch. Seen once in the Windows CI job, on 2026-10-13, in the texture tests of
+  shaders at once**, even on separate devices: an access violation (`STATUS_ACCESS_VIOLATION`)
+  that other projects trace to `d3d10warp.dll`, and that no test can catch. Seen once in the
+  Windows CI job, on 2026-10-13, in the texture tests of
   `slime-gfx`, after about ten green runs; other projects that test on WARP report the same crash,
   and that running the tests one at a time avoids it, which the Windows job does since. The
   engine's own code is not involved.
@@ -342,6 +352,16 @@ justify a decision are also in its ADR.
   sctk-adwaita, on compositors that do not draw decorations), each waiting up to 100 ms when the
   settings portal does not answer; the error they log when no session bus or portal answers is
   hidden by the default log filter (ADR-0019).
+- **Upgrading wgpu waits for egui** while `slime-devui` exists: `egui-wgpu` is built against one
+  wgpu version (egui 0.36 against wgpu 30 today), so wgpu moves only once egui follows
+  (ADR-0031). Ends when the overlay is deleted.
+- **The dev overlay blends in an sRGB framebuffer.** egui prefers a linear one for its blending,
+  warns once at startup, and its panels look slightly lighter than egui's own demos (ADR-0031).
+  Harmless for tooling.
+- **Mipmaps are computed on the CPU when a texture is created** (`Gpu::create_texture`), on the
+  calling thread, in work proportional to the texture's pixels, and a caller cannot supply levels
+  of its own (ADR-0032). To move to the GPU, or to the asset pipeline of Stage 4, if textures
+  grow.
 
 ## Notes
 

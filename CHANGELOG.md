@@ -10,23 +10,24 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 - `slime-render`, the first renderer: `Renderer` draws a `Scene` (a camera, a directional light,
   a clear color and instances of meshes with their materials) into any render target, with a
-  depth test and back-face culling, and returns the draw-call and triangle counts; meshes come
-  from positions, normals, texture coordinates and indices, materials have one base color,
-  `Camera` gives its matrices in WebGPU's convention, and `glam` is re-exported for the math
-  ([ADR-0027](docs/adr/0027-the-render-crate.md)). `DirectionalLight` lights surfaces in
-  proportion to the cosine between their normal and the direction to the light, plus an ambient
-  light; normals follow the rotation of their instance and stay perpendicular to surfaces scaled
-  unevenly.
+  depth test and back-face culling, and returns `RenderStats` (draw calls, triangles, the CPU time
+  of the call and, on adapters that can time their work, the GPU time of its pass); meshes come
+  from positions, normals, texture coordinates and indices, materials have a base color, which a
+  texture may modulate, `Camera` gives its matrices in WebGPU's convention, and `glam` is
+  re-exported for the math ([ADR-0027](docs/adr/0027-the-render-crate.md)). `DirectionalLight`
+  lights surfaces in proportion to the cosine between their normal and the direction to the light,
+  plus an ambient light; normals follow the rotation of their instance and stay perpendicular to
+  surfaces scaled unevenly.
 - The `scene` example, the sample of Stage 3a: a glTF scene drawn by the renderer, lit by a
   directional light, seen from a camera that orbits it until the mouse takes over (dragging turns
   it, the wheel zooms). It draws `examples/assets/scene.glb`, made in Blender by
   `examples/assets/make_scene.py` and released under CC0, or any GLB file with embedded buffers
   and PNG images given with `--scene`, through a temporary loader in the examples
-  ([ADR-0029](docs/adr/0029-temporary-gltf-loading.md)). Two image tests, compared with
+  ([ADR-0029](docs/adr/0029-temporary-gltf-loading.md)). `--frames <count>` closes it after that
+  many frames and fails if none of them drew the scene, which lets `scripts/check.sh` run it in
+  the headless Weston. Two image tests, compared with
   references rendered with lavapipe: the sample scene from two camera poses, and shapes drawn by
   the renderer (cubes and a smooth sphere, two of them with a checker texture).
-- Textures have mipmaps, computed on the CPU when they are created, in linear light for the sRGB
-  formats; samplers read the level of detail that fits, and linear filtering blends two levels.
 - `slime-devui`, a temporary crate: `Overlay` draws egui panels over the engine's frames, fed
   with the engine's events, through a new `wgpu` feature of `slime-gfx` that gives the engine's
   tooling the wgpu objects behind its types ([ADR-0031](docs/adr/0031-dev-overlay-with-egui.md)).
@@ -34,8 +35,7 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   and triangles in an overlay; F1 hides it.
 - GPU timing: `Gpu::create_timer` gives a `GpuTimer` on adapters with timestamp queries, which a
   render pass uses to measure how long it takes on the GPU, read back a few frames later without
-  waiting; `Gpu::can_time` tells. `RenderStats` gains the CPU time of `Renderer::render` and the
-  GPU time of the scene's pass.
+  waiting; `Gpu::can_time` tells.
 - The GPU resources a renderer needs, in `slime-gfx`: index buffers and indexed draws, uniform
   buffers written through `Gpu::write_uniform_buffer`, bind group layouts and bind groups that
   pipelines declare and render passes bind, with dynamic offsets so that one uniform buffer holds
@@ -45,13 +45,16 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   ([ADR-0026](docs/adr/0026-resource-binding-and-depth.md)). `RenderTarget::label` gives a
   target's label back.
 - Textures and samplers in `slime-gfx`: `Gpu::create_texture` uploads an image that shaders
-  sample, in an sRGB format (decoded when read) or in the new linear `TextureFormat::Rgba8Unorm`;
-  `Gpu::create_sampler` sets the filters and the address modes that glTF samplers express; both
-  are bound through bind groups. A material of `slime-render` can have a base color texture,
-  multiplied with its base color.
+  sample, in an sRGB format (decoded when read) or in the new linear `TextureFormat::Rgba8Unorm`,
+  which `TextureFormat::is_srgb` tells apart; `Gpu::create_sampler` sets the filters and the
+  address modes that glTF samplers express; both are bound through bind groups.
+- Textures have mipmaps, computed on the CPU when they are created, in linear light for the sRGB
+  formats; samplers read the level of detail that fits, and linear filtering blends two levels
+  ([ADR-0032](docs/adr/0032-mipmaps-computed-at-texture-creation.md)).
 - `Surface::check` and `GfxError::SurfaceLost`: a window's surface that is lost for good (it cannot
   be created again, or is lost again each time) stops the run like a lost device, instead of an
-  error logged at every frame while the run went on without drawing (ADR-0025).
+  error logged at every frame while the run went on without drawing
+  ([ADR-0025](docs/adr/0025-giving-up-a-lost-surface.md)).
 
 ### Changed
 
@@ -63,15 +66,22 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   they measured with `--nocapture` (how many pixels differ by more than 2, 4, 8 and 16), and the
   Windows CI job runs them that way.
 - `Gpu::render` takes a `RenderPassDescriptor` (the target, whether to clear it, an optional depth
-  target) instead of a target and a clear color. `RenderPipelineDescriptor` gains
-  `bind_group_layouts`, `depth` and `cull`, and pipeline layouts are always explicit: a shader
-  binding that no layout holds is rejected as `GfxError::Pipeline`.
+  target, an optional `GpuTimer`) instead of a target and a clear color.
+  `RenderPipelineDescriptor` gains `bind_group_layouts`, `depth` and `cull`, and pipeline layouts
+  are always explicit: a shader binding that no layout holds is rejected as `GfxError::Pipeline`.
 - The default log filter also hides the error that winit's client-side decorations log when no
-  session bus or desktop portal answers (`sctk_adwaita::config=off`, ADR-0019).
-- The Windows CI artifact also contains `offscreen.exe` and `scene.exe`, and the Windows job runs
-  the release build of the headless samples.
+  session bus or desktop portal answers (`sctk_adwaita::config=off`,
+  [ADR-0019](docs/adr/0019-default-log-filter.md)).
+- The Windows CI artifact also contains `offscreen.exe` and `scene.exe`; the Windows job runs the
+  release build of the headless samples, and runs the tests one at a time, since WARP's shader
+  compiler crashes now and then when several threads compile shaders at once.
+- `scripts/check.sh` also runs the `scene` example and the windowed lifecycle test of `slime-app`
+  in the headless Weston ([ADR-0024](docs/adr/0024-windowed-lifecycle-check-in-weston.md)), and
+  `cargo deny` checks the dependencies of the supported targets only
+  ([ADR-0023](docs/adr/0023-dependency-checks-for-the-supported-targets.md)).
 - The `window` example exits with a failure when a run limited by `--frames` drew nothing, so
-  that the windowed check in a headless Weston proves that frames are drawn, as ADR-0013 says.
+  that the windowed check in a headless Weston proves that frames are drawn, as
+  [ADR-0013](docs/adr/0013-windowed-smoke-test-in-weston.md) says.
 
 ### Removed
 
