@@ -217,16 +217,18 @@ impl Surface {
     /// give a window's images. The engine passes `window, frame <index>`.
     ///
     /// It returns `None` while the window has a size of zero, when the next image is not ready
-    /// within wgpu's timeout (one second), while the window is occluded (on platforms that report
-    /// it), when the surface is still outdated after being configured again, after the surface was
-    /// lost, in which case it is created again for the next call, once the surface is lost for good
-    /// ([`check`](Self::check)), and once the device is lost. These cases are logged at the `debug`
-    /// level, except a size of zero and a surface lost for good (not logged again) and the loss of
-    /// the surface (`warn`).
+    /// within wgpu's timeout (one second) on Vulkan, while the window is occluded (on platforms
+    /// that report it), when the surface is still outdated after being configured again, after the
+    /// surface was lost, in which case it is created again for the next call, once the surface is
+    /// lost for good ([`check`](Self::check)), and once the device is lost. These cases are logged
+    /// at the `debug` level, except a size of zero and a surface lost for good (not logged again)
+    /// and the loss of the surface (`warn`).
     ///
     /// It can block until an image is free. With [`PresentMode::Fifo`], it does in step with the
     /// display; with [`PresentMode::Mailbox`], it was measured not to (on niri with RADV, and in a
-    /// headless Weston with lavapipe).
+    /// headless Weston with lavapipe). On Direct3D 12, wgpu reports no timeout: it waits up to one
+    /// second, then returns the image anyway, and the frame is drawn late rather than skipped,
+    /// without a log: the wait shows only in the time this call takes.
     ///
     /// # Panics
     ///

@@ -67,7 +67,8 @@ pub trait App {
     ///
     /// Only windowed runs call it, and only in frames where the window can show a new image: not
     /// while the window has a size of zero (minimized), nor when its next image is not ready in
-    /// time (see [`Surface::acquire`]). The fixed steps and the update of such frames still run.
+    /// time on Vulkan (see [`Surface::acquire`]; Direct3D 12 waits for it instead). The fixed
+    /// steps and the update of such frames still run.
     /// A frame that draws nothing into `target`, as this default does, shows it cleared to black.
     fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
         let _ = (ctx, target);

@@ -193,7 +193,8 @@ fn main() -> Result<(), GfxError> {
   - `Surface::acquire(label)` returns the `SurfaceFrame` to draw the next frame into, its target
     named `label` (in capture tools, the passes drawn into the image carry it, not the image
     itself), or `None` when the window cannot show a new image (a size of zero, an image not
-    ready in time, an occluded surface, a lost surface, which is created again). Draw into
+    ready in time on Vulkan, an occluded surface, a lost surface, which is created again; on
+    Direct3D 12, wgpu waits up to one second for an image that is late, then returns it). Draw into
     `SurfaceFrame::target()` with `Gpu::render`, then call `SurfaceFrame::present()`. Window images
     cannot be read back.
   - `Surface::check()` returns `GfxError::SurfaceLost` once the surface is lost for good: it could
