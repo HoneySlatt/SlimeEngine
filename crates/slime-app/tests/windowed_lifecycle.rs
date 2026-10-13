@@ -27,7 +27,13 @@ mod linux {
     use slime_platform::{Event, PlatformError, WindowConfig};
 
     const SCENARIO_ENV: &str = "SLIME_APP_TEST_SCENARIO";
-    const SCENARIOS: [&str; 4] = ["calls", "init-error", "exit-in-init", "draws-nothing"];
+    const SCENARIOS: [&str; 5] = [
+        "calls",
+        "init-error",
+        "exit-in-init",
+        "draws-nothing",
+        "no-gpu",
+    ];
 
     /// Frames of the `calls` scenario, and those in which the application asks for an extra redraw.
     const FRAME_LIMIT: u64 = 50;
@@ -163,11 +169,15 @@ mod linux {
         }
 
         for scenario in SCENARIOS {
-            let output = Command::new(std::env::current_exe().expect("test binary path"))
+            let mut command = Command::new(std::env::current_exe().expect("test binary path"));
+            command
                 .env(SCENARIO_ENV, scenario)
-                .env_remove(slime_app::LOG_ENV_VAR)
-                .output()
-                .expect("child test process runs");
+                .env_remove(slime_app::LOG_ENV_VAR);
+            if scenario == "no-gpu" {
+                // A graphics API this build does not have: no adapter at all, whatever the drivers.
+                command.env("WGPU_BACKEND", "gl");
+            }
+            let output = command.output().expect("child test process runs");
             let stdout = String::from_utf8_lossy(&output.stdout);
             let stderr = String::from_utf8_lossy(&output.stderr);
             assert!(
@@ -181,6 +191,7 @@ mod linux {
                 "init-error" => check_init_error(&lines),
                 "exit-in-init" => check_exit_in_init(&lines),
                 "draws-nothing" => check_draws_nothing(&lines),
+                "no-gpu" => check_no_gpu(&lines),
                 _ => unreachable!(),
             }
             println!("scenario {scenario} ... ok");
@@ -376,6 +387,22 @@ mod linux {
             growth < MAX_GROWTH_KIB,
             "memory stays flat when frames draw nothing: {growth} KiB more over the last {} frames",
             UNDRAWN_FRAMES - 1 - SETTLED
+        );
+    }
+
+    fn check_no_gpu(lines: &[&str]) {
+        // Without any graphics API, wgpu cannot even create the window's surface; the engine then
+        // names the missing adapter rather than the surface.
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.starts_with("result Gfx(NoAdapter(")),
+            "a run that cannot open a GPU returns why: {lines:?}"
+        );
+        let calls = calls(lines);
+        assert!(
+            calls.is_empty(),
+            "a run that cannot open a GPU calls neither init nor anything after: {calls:?}"
         );
     }
 }
