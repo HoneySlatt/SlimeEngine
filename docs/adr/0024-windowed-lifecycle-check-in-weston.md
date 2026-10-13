@@ -54,3 +54,9 @@ runs and draws.
   the schedule fails the Linux job.
 - The program's scenarios are where windowed checks that need no input go; input and what appears
   on screen remain manual checks, as ADR-0013 says.
+
+## Corrections
+
+- 2026-10-13: "It uses the public API only" no longer holds for one scenario: `device-lost`
+  destroys the GPU device through `slime-gfx`'s `wgpu` feature, which ADR-0031 now allows the
+  engine's own tests to enable. Every other scenario uses the public API only.

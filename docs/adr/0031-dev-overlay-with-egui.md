@@ -1,6 +1,6 @@
 # 0031. The dev overlay with egui, and wgpu for the engine's tooling
 
-- Status: Accepted
+- Status: Accepted; its rule on the `wgpu` feature is widened to the engine's own tests (2026-10-13)
 - Date: 2026-10-13
 
 ## Context
@@ -31,6 +31,10 @@ temporary crate for the overlay, and timestamp queries written by the engine.
   public API, and `slime-render` written against the engine's types only. The lifetime of the
   engine's render pass is freed from the encoder's (wgpu's `forget_lifetime`), which egui's
   renderer requires; the pass still ends inside the closure that records it.
+- **The engine's own tests may enable it too** (added on 2026-10-13 by the owner's decision), as a
+  dev-dependency, to do what no engine API offers: the windowed lifecycle test of `slime-app`
+  destroys the GPU device in the middle of a run, to check that the run stops as ADR-0022 says.
+  Engine crates still never enable it in their dependencies.
 - **No `egui-winit`.** `slime-devui` translates the engine's events into egui's: the cursor and
   the mouse buttons in logical points, the wheel, keys and the text they produce, the window's
   focus, the scale factor. What the engine does not report (the state of the modifier keys, the

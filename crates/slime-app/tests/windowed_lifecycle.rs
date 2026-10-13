@@ -1,8 +1,8 @@
 //! The lifecycle of a windowed run, checked in a Wayland compositor: what the application sees in
 //! `init`, the order of the calls, the stop conditions, the frame schedule after a burst of
 //! redraws, the time each frame represents, the profiling spans of each frame, the memory of a run
-//! whose frames draw nothing, a run whose GPU cannot open, and a window larger than the GPU can
-//! draw into. `scripts/check.sh` runs it in a headless Weston with lavapipe (ADR-0024). It is not
+//! whose frames draw nothing, a run whose GPU cannot open, a window larger than the GPU can draw
+//! into, and a GPU device lost in the middle of a frame. `scripts/check.sh` runs it in a headless Weston with lavapipe (ADR-0024). It is not
 //! in the default run of `cargo test` (`test = false` in Cargo.toml), since it needs a compositor,
 //! and it has no harness, since the windowing library needs the main thread.
 //!
@@ -32,7 +32,7 @@ mod linux {
     use slime_platform::{Event, PlatformError, WindowConfig};
 
     const SCENARIO_ENV: &str = "SLIME_APP_TEST_SCENARIO";
-    const SCENARIOS: [&str; 7] = [
+    const SCENARIOS: [&str; 8] = [
         "calls",
         "spans",
         "init-error",
@@ -40,7 +40,10 @@ mod linux {
         "draws-nothing",
         "no-gpu",
         "oversize",
+        "device-lost",
     ];
+    /// The frame in whose `render` the `device-lost` scenario destroys the GPU device.
+    const LOSS_FRAME: u64 = 5;
 
     /// Frames of the `calls` and `spans` scenarios, and those in which the application asks for an
     /// extra redraw.
@@ -136,7 +139,19 @@ mod linux {
                     depth: None,
                     timer: None,
                 };
-                ctx.gpu().expect("windowed run").render(&pass, |_pass| {});
+                let gpu = ctx.gpu().expect("windowed run");
+                if self.scenario == "device-lost" && self.last_update == LOSS_FRAME {
+                    // A loss that the frame's own submission finds, between acquiring the
+                    // window's image and presenting it, as a driver reset would. Destroying the
+                    // device needs wgpu, which the engine keeps inside slime-gfx: its tests reach it
+                    // through the `wgpu` feature (ADR-0031). wgpu records the loss when it is
+                    // polled.
+                    gpu.wgpu_device().destroy();
+                    let _ = gpu
+                        .wgpu_device()
+                        .poll(slime_gfx::wgpu::PollType::wait_indefinitely());
+                }
+                gpu.render(&pass, |_pass| {});
             }
             if self.scenario == "oversize" {
                 let window = ctx.window().expect("windowed run").inner_size();
@@ -234,6 +249,7 @@ mod linux {
                 "draws-nothing" => check_draws_nothing(&lines),
                 "no-gpu" => check_no_gpu(&lines),
                 "oversize" => check_oversize(&lines),
+                "device-lost" => check_device_lost(&lines),
                 _ => unreachable!(),
             }
             println!("scenario {scenario} ... ok");
@@ -583,5 +599,40 @@ mod linux {
                 "the image is as wide as the device allows, and as high as the window"
             );
         }
+    }
+
+    /// The run stops after the frame that lost the device: no frame is drawn after it, `shutdown`
+    /// is called once, with the exit requested, and `run` returns `DeviceLost`. The poll that
+    /// records the loss also releases the frame's image, so this does not reach the release that
+    /// `SurfaceFrame::present` makes for a loss found by a submission (checked by hand, see the
+    /// known debt in `docs/PLAN.md`).
+    fn check_device_lost(lines: &[&str]) {
+        let calls = calls(lines);
+        let rendered: Vec<u64> = calls
+            .iter()
+            .filter(|call| call[0] == "render")
+            .map(|call| call[1].parse().expect("frame index"))
+            .collect();
+        assert!(
+            rendered.contains(&LOSS_FRAME),
+            "the frame that loses the device is drawn: {lines:?}"
+        );
+        assert!(
+            rendered.iter().all(|&frame| frame <= LOSS_FRAME),
+            "no frame is drawn after the loss: {rendered:?}"
+        );
+        let shutdowns: Vec<&Vec<&str>> =
+            calls.iter().filter(|call| call[0] == "shutdown").collect();
+        assert_eq!(
+            shutdowns,
+            [&vec!["shutdown", "exit_requested=true"]],
+            "shutdown once, with the exit requested: {lines:?}"
+        );
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.starts_with("result Gfx(DeviceLost")),
+            "the run returns DeviceLost: {lines:?}"
+        );
     }
 }

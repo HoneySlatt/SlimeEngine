@@ -490,13 +490,10 @@ GitHub issues, linked from their entry; this list stays the reference.
   ends the process, with exit code 130. This matters for a program that keeps working after
   `run`, for example under a service manager, which waits out its stop timeout. Ending the process
   at once when no run is active would amend ADR-0012.
-- **A GPU device lost during a windowed run is not tested** (ADR-0022; a change is proposed to the
-  owner). Only the unit test of `slime-gfx` loses a device, by destroying it outside any run. The
-  windowed path (the run stops, `shutdown` is called once, and `run` returns
-  `RunError::Gfx(GfxError::DeviceLost)`) was checked by hand, with a lifecycle scenario that
-  destroys the device. That scenario is not kept: it reaches wgpu outside `slime-gfx`, which only
-  the dev overlay may do (ADR-0031), and the lifecycle test uses the public API only (ADR-0024).
-  The most likely loss in a windowed frame is one that a submission of `App::render` finds,
+- **A GPU device lost by a frame's own submission is checked by hand only** (ADR-0022). The
+  `device-lost` scenario of `crates/slime-app/tests/windowed_lifecycle.rs` destroys the device in
+  the middle of a frame and checks that the run stops: no frame drawn after it, `shutdown` called
+  once, and `run` returning `RunError::Gfx(GfxError::DeviceLost)`. The most likely loss in a windowed frame is one that a submission of `App::render` finds,
   between `Surface::acquire` and `SurfaceFrame::present`: wgpu 30 then refuses to present the
   image and keeps it, and on Vulkan, dropping the surface at the end of the run panicked in
   wgpu-hal. `present` now destroys the image's texture instead, which releases what wgpu-hal holds

@@ -67,7 +67,9 @@ slime-examples ──▶ slime-app ──┬──▶ slime-platform ──▶ w
   creates its `Renderer` in `init`, from the GPU of its `Context`, and calls it in `render`.
 - `slime-devui` is the one crate besides `slime-gfx` that reaches wgpu, through the `wgpu` feature
   of `slime-gfx`, to draw egui with egui's own renderer ([ADR-0031](adr/0031-dev-overlay-with-egui.md)).
-  It is tooling, a client of the engine like the examples: no engine crate depends on it, and
+  The engine's own tests may enable the feature too, as `slime-app`'s windowed lifecycle test
+  does to destroy the GPU device. `slime-devui` is tooling, a client of the engine like the
+  examples: no engine crate depends on it, and
   games do not enable the feature.
 - Only `slime-platform` uses winit, and winit's types never appear in a public API
   ([ADR-0011](adr/0011-windowing-with-winit.md)). `slime_platform::Window` exposes the

@@ -247,4 +247,4 @@ egui's own wgpu renderer. Games must not enable it.
 - Depend on `slime-platform` or any windowing code: windows reach it as `raw-window-handle`
   traits, so that offscreen rendering works without a windowing system.
 - Expose wgpu's types in its public API, except through the `wgpu` feature, to the engine's
-  tooling.
+  tooling and the engine's own tests.
