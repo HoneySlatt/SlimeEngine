@@ -318,8 +318,10 @@ mod tests {
         );
     }
 
-    /// Keyboard and scale-factor events cannot be built outside winit; their translation is
-    /// covered by the tests of `input.rs`.
+    /// Keyboard and scale-factor events cannot be built outside winit: their payloads have no
+    /// public constructor. What happens to key events is tested above through `Translator::key`,
+    /// and their conversion piece by piece in `input.rs`; the scale-factor arm, a copy of the
+    /// value, is not tested.
     #[test]
     fn mouse_events_are_translated() {
         use winit::event::{
