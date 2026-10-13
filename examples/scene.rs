@@ -185,12 +185,18 @@ impl App for SceneExample {
         };
         self.stats = scene.render(gpu, target, self.camera.camera());
         self.drawn += 1;
-        if let (true, Some(overlay)) = (self.show_overlay, &mut self.overlay) {
+        if let Some(overlay) = &mut self.overlay {
+            let show = self.show_overlay;
             let adapter = gpu.adapter_name();
             let stats = self.stats;
             let frame_ms = self.frame_ms;
             let size = (target.width(), target.height());
+            // Drawn with no panel while hidden, so that egui still takes the events handed to the
+            // overlay as they come, not all at once when it is shown again.
             overlay.render(gpu, target, |ctx| {
+                if !show {
+                    return;
+                }
                 egui::Window::new("Statistics")
                     .default_pos(egui::pos2(12.0, 12.0))
                     .resizable(false)

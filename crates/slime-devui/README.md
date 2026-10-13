@@ -78,7 +78,9 @@ impl App for Game {
   them over the target; `slime_devui::egui` is the egui the overlay uses. egui sizes a window
   on the first frame that shows it and draws it from the next one. egui may call the closure
   twice in a frame, when it lays the frame out again (on the first frame of a grid or of a
-  window being resized), so the closure builds the same panels on every call.
+  window being resized), so the closure builds the same panels on every call. `render` is also
+  what hands egui the events given to `handle`, which the overlay keeps until then: to hide the
+  overlay, call `render` with no panel rather than not at all.
 
 ## Dependencies
 

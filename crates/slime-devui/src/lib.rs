@@ -59,6 +59,11 @@ impl Overlay {
     /// mouse buttons and wheel, keys and the text they produce, the window's focus and its scale
     /// factor. Modifier keys are not reported by the engine yet, so shortcuts with them do not
     /// reach the overlay.
+    ///
+    /// The overlay keeps the events until the next [`render`](Self::render), which hands them to
+    /// egui. To hide the overlay, an application calls `render` with no panel rather than not at
+    /// all: otherwise the events pile up, and egui gets them all at once when the overlay is
+    /// shown again, clicks included.
     pub fn handle(&mut self, event: &Event) {
         self.input.handle(event);
     }
