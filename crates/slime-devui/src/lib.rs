@@ -84,7 +84,8 @@ impl Overlay {
     /// first frame of a grid or of a window being resized, egui lays the frame out again and draws
     /// only the second layout. `ui` therefore builds the same panels on every call.
     ///
-    /// A device lost before the overlay uploads the panels, for example when the scene's work
+    /// A frame with no panel, as while the application hides the overlay, submits no work to the
+    /// GPU. A device lost before the overlay uploads the panels, for example when the scene's work
     /// found the loss, makes it skip the frame.
     ///
     /// # Panics
@@ -151,27 +152,31 @@ impl Overlay {
             textures.clear();
             return;
         }
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("dev overlay"),
-        });
-        let uploads =
-            self.renderer
-                .update_buffers(device, queue, &mut encoder, &primitives, &screen);
-        // Only egui's paint callbacks, which the overlay has none of, record into the encoder or
-        // return command buffers. The buffer uploads are queued writes, which wgpu submits ahead
-        // of the overlay's pass below: a submission of their own would be an empty one.
-        if !uploads.is_empty() {
-            queue.submit(uploads.into_iter().chain([encoder.finish()]));
+        // A frame with no panel, as while the application hides the overlay, records and submits
+        // no pass: the texture uploads above are queued writes, which the next submission takes.
+        if !primitives.is_empty() {
+            let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("dev overlay"),
+            });
+            let uploads =
+                self.renderer
+                    .update_buffers(device, queue, &mut encoder, &primitives, &screen);
+            // Only egui's paint callbacks, which the overlay has none of, record into the encoder
+            // or return command buffers. The buffer uploads are queued writes, which wgpu submits
+            // ahead of the overlay's pass below: a submission of their own would be an empty one.
+            if !uploads.is_empty() {
+                queue.submit(uploads.into_iter().chain([encoder.finish()]));
+            }
+            let pass = RenderPassDescriptor {
+                target,
+                clear: None,
+                depth: None,
+                timer: None,
+            };
+            gpu.render(&pass, |pass| {
+                self.renderer.render(pass.wgpu_pass(), &primitives, &screen);
+            });
         }
-        let pass = RenderPassDescriptor {
-            target,
-            clear: None,
-            depth: None,
-            timer: None,
-        };
-        gpu.render(&pass, |pass| {
-            self.renderer.render(pass.wgpu_pass(), &primitives, &screen);
-        });
         for id in std::mem::take(&mut textures.free) {
             self.renderer.free_texture(&id);
         }
@@ -324,6 +329,28 @@ mod tests {
             [0, 0, 255, 255],
             "the scene is kept around it"
         );
+    }
+
+    #[test]
+    fn panels_shown_after_a_hidden_frame_are_drawn() {
+        let gpu = gpu();
+        let target = gpu.create_render_target("overlay target", 200, 200, FORMAT);
+        let mut overlay = Overlay::new(&gpu, FORMAT, 1.0);
+        // egui hands its font texture over on its first frame, which draws nothing here: the
+        // panels drawn later sample it.
+        overlay.render(&gpu, &target, |_| {});
+        for _ in 0..2 {
+            overlay.render(&gpu, &target, |ctx| {
+                ctx.all_styles_mut(|style| style.animation_time = 0.0);
+                egui::Window::new("panel")
+                    .default_pos(egui::pos2(10.0, 10.0))
+                    .show(ctx, |ui| ui.label("text"));
+            });
+        }
+
+        let image = gpu.read_render_target(&target).expect("read the target");
+        let pixel = &image.pixels[(20 * 200 + 20) * 4..][..4];
+        assert_ne!(pixel, [0, 0, 0, 0], "the window is drawn");
     }
 
     #[test]

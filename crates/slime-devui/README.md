@@ -83,7 +83,8 @@ impl App for Game {
   twice in a frame, when it lays the frame out again (on the first frame of a grid or of a
   window being resized), so the closure builds the same panels on every call. `render` is also
   what hands egui the events given to `handle`, which the overlay keeps until then: to hide the
-  overlay, call `render` with no panel rather than not at all.
+  overlay, call `render` with no panel rather than not at all; such a frame submits no work to
+  the GPU.
 
 ## Dependencies
 
