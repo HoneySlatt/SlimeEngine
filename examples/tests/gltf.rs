@@ -156,6 +156,18 @@ fn accessors_the_loader_cannot_read_are_refused() {
     }
 }
 
+#[test]
+fn an_index_that_names_no_vertex_is_refused_in_a_primitive_without_normals() {
+    let gpu =
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+    let mut file = Glb::triangle();
+    let view = file.add_view(&[0, 1, 7].map(u16::to_le_bytes).concat());
+    let indices = file.add_accessor(view, UNSIGNED_SHORT, 3, "SCALAR");
+    file.json["meshes"][0]["primitives"][0]["indices"] = indices.into();
+    let error = refusal(&gpu, &mut file);
+    assert!(error.contains("index 7 names no vertex"), "{error}");
+}
+
 /// A change that a test makes to a GLB file.
 type Change = fn(&mut Glb);
 

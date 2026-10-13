@@ -2,13 +2,14 @@
 //! embedded buffers and PNG images, drawn as they are (ADR-0029). The asset pipeline of Stage 4
 //! replaces it with an importer and deletes it.
 //!
-//! It reads triangle primitives with positions, normals (computed from the faces when missing),
-//! the first set of texture coordinates (zero when missing) and indices; the base color factor
-//! and texture of materials, with the file's sampler settings; and the node hierarchy of the
-//! default scene, flattened into instances. It refuses, with a clear error, what it cannot draw
-//! right: external files, images that are not PNG, images larger than the GPU accepts, required
-//! extensions, other coordinate sets, other primitive modes. It ignores, with a warning,
-//! animations, skins, cameras and extensions the file uses without requiring them.
+//! It reads triangle primitives with positions, normals (when missing, each triangle gets the
+//! normal of its face, as glTF requires), the first set of texture coordinates (zero when
+//! missing) and indices; the base color factor and texture of materials, with the file's sampler
+//! settings; and the node hierarchy of the default scene, flattened into instances. It refuses,
+//! with a clear error, what it cannot draw right: external files, images that are not PNG, images
+//! larger than the GPU accepts, required extensions, other coordinate sets, other primitive modes.
+//! It ignores, with a warning, animations, skins, cameras and extensions the file uses without
+//! requiring them.
 //!
 //! The `gltf` crate's validation checks little more than that the file's objects name each other
 //! correctly, and its readers panic on some of what it lets through. The loader refuses, rather
@@ -273,19 +274,18 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
                 None => (0..u32::try_from(positions.len()).expect("fewer than 4 billion vertices"))
                     .collect(),
             };
-            let normals: Vec<[f32; 3]> = match reader.read_normals() {
-                Some(normals) => normals.collect(),
-                None => face_normals(&positions, &indices),
-            };
             let uvs: Vec<[f32; 2]> = match reader.read_tex_coords(0) {
                 Some(uvs) => uvs.into_f32().collect(),
                 None => vec![[0.0, 0.0]; positions.len()],
             };
-            let data = MeshData {
-                positions: positions.clone(),
-                normals,
-                uvs,
-                indices,
+            let data = match reader.read_normals() {
+                Some(normals) => MeshData {
+                    positions,
+                    normals: normals.collect(),
+                    uvs,
+                    indices,
+                },
+                None => flat_shaded(&label, &positions, &uvs, &indices)?,
             };
             let gpu_mesh = renderer
                 .create_mesh(gpu, &label, &data)
@@ -294,7 +294,7 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
             primitives.push(LoadedPrimitive {
                 mesh: meshes.len(),
                 material: primitive.material().index().unwrap_or(default_material),
-                positions,
+                positions: data.positions,
             });
             meshes.push(gpu_mesh);
         }
@@ -435,20 +435,54 @@ fn check_accessor(
     Ok(())
 }
 
-/// Normals for a primitive that has none: each vertex gets the average of the normals of the
-/// faces that use it, which shades flat surfaces flat and curved ones smoothly enough.
-fn face_normals(positions: &[[f32; 3]], indices: &[u32]) -> Vec<[f32; 3]> {
-    let mut sums = vec![Vec3::ZERO; positions.len()];
-    for triangle in indices.as_chunks::<3>().0 {
-        let [a, b, c] = triangle.map(|i| Vec3::from(positions[i as usize]));
-        let normal = (b - a).cross(c - a);
+/// The mesh of a primitive that has no normals, with the flat normals glTF requires of it: each
+/// triangle gets three vertices of its own, which take the normal of its face.
+///
+/// What [`Renderer::create_mesh`] would refuse is refused here, before the vertices are copied in
+/// the order of the triangles: texture coordinates that are not one per position, indices that
+/// are not a multiple of 3, an index that names no vertex.
+fn flat_shaded(
+    label: &str,
+    positions: &[[f32; 3]],
+    uvs: &[[f32; 2]],
+    indices: &[u32],
+) -> Result<MeshData, LoadError> {
+    if uvs.len() != positions.len() {
+        return Err(LoadError(format!(
+            "{label} has {} positions but {} texture coordinates",
+            positions.len(),
+            uvs.len()
+        )));
+    }
+    let (triangles, rest) = indices.as_chunks::<3>();
+    if !rest.is_empty() {
+        return Err(LoadError(format!(
+            "{label} has {} indices, which is not a multiple of 3",
+            indices.len()
+        )));
+    }
+    let mut data = MeshData::default();
+    for triangle in triangles {
+        if let Some(index) = triangle
+            .iter()
+            .find(|&&index| index as usize >= positions.len())
+        {
+            return Err(LoadError(format!(
+                "{label}: index {index} names no vertex: there are {} vertices",
+                positions.len()
+            )));
+        }
+        let [a, b, c] = triangle.map(|index| Vec3::from(positions[index as usize]));
+        let normal = (b - a).cross(c - a).try_normalize().unwrap_or(Vec3::Y);
         for &index in triangle {
-            sums[index as usize] += normal;
+            data.positions.push(positions[index as usize]);
+            data.normals.push(normal.to_array());
+            data.uvs.push(uvs[index as usize]);
         }
     }
-    sums.into_iter()
-        .map(|sum| sum.try_normalize().unwrap_or(Vec3::Y).to_array())
-        .collect()
+    data.indices =
+        (0..u32::try_from(data.positions.len()).expect("fewer than 4 billion vertices")).collect();
+    Ok(data)
 }
 
 /// The sampler settings of a glTF texture; glTF leaves the filters open, and linear is the usual
@@ -574,4 +608,41 @@ fn decode_png(
         height: info.height,
         pixels,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_cube_of_shared_vertices_without_normals_gets_flat_faces() {
+        // The corners of a unit cube, numbered by their coordinates: x + 2y + 4z.
+        let positions: Vec<[f32; 3]> = (0..8u8)
+            .map(|i| [i & 1, (i >> 1) & 1, (i >> 2) & 1].map(f32::from))
+            .collect();
+        let uvs = vec![[0.0, 0.0]; positions.len()];
+        // Two triangles per face, counter-clockwise seen from outside.
+        let indices = [
+            0, 2, 1, 1, 2, 3, 4, 5, 6, 5, 7, 6, 0, 4, 2, 2, 4, 6, 1, 3, 5, 3, 7, 5, 0, 1, 4, 1, 5,
+            4, 2, 6, 3, 3, 6, 7,
+        ];
+        let data = flat_shaded("cube", &positions, &uvs, &indices).expect("the cube is valid");
+        assert_eq!(data.indices, (0..36).collect::<Vec<_>>());
+        assert_eq!(data.uvs.len(), 36);
+        let center = Vec3::splat(0.5);
+        for (corners, normals) in data
+            .positions
+            .as_chunks::<3>()
+            .0
+            .iter()
+            .zip(data.normals.as_chunks::<3>().0)
+        {
+            // The triangle's face points out of the cube along the axis on which its center lies
+            // farthest from the cube's: its normal, the same for its three vertices.
+            let [a, b, c] = corners.map(Vec3::from);
+            let face = (((a + b + c) / 3.0 - center) * 2.0).round();
+            assert_eq!(face.length(), 1.0, "{corners:?}");
+            assert_eq!(*normals, [face.to_array(); 3], "{corners:?}");
+        }
+    }
 }
