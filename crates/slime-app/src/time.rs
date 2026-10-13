@@ -153,7 +153,8 @@ impl FixedStep {
     /// Adds a frame's delta and returns how many steps to run for that frame.
     ///
     /// The result is at most [`max_steps_per_frame`](Self::max_steps_per_frame). When it is
-    /// limited, the time of the steps that did not run is dropped.
+    /// limited, the whole backlog is dropped, the fraction of a step already accumulated included:
+    /// the next frame starts from an empty accumulator, and [`alpha`](Self::alpha) reads 0.0.
     pub fn advance(&mut self, delta: Duration) -> u32 {
         self.accumulator = self.accumulator.saturating_add(delta);
         let mut steps = 0;
@@ -251,6 +252,12 @@ mod tests {
         assert_eq!(fixed.alpha(), 0.0);
         // The 70 ms that did not run are gone: the next frame does not try to catch up.
         assert_eq!(fixed.advance(10 * MS), 1);
+
+        // A fraction of a step left over by a limited frame is dropped with the rest.
+        let mut fixed = FixedStep::new(10 * MS, 3);
+        assert_eq!(fixed.advance(105 * MS), 3);
+        assert_eq!(fixed.alpha(), 0.0);
+        assert_eq!(fixed.advance(5 * MS), 0);
     }
 
     #[test]
