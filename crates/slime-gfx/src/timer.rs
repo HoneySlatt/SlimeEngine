@@ -49,8 +49,9 @@ struct Slot {
 }
 
 impl Gpu {
-    /// Whether the adapter can time its work: whether it supports timestamp queries. lavapipe
-    /// and WARP are measured in `docs/PLAN.md`.
+    /// Whether the adapter can time its work: whether it supports timestamp queries. lavapipe,
+    /// RADV and WARP do; `crates/slime-gfx/tests/timing.rs` prints the answer for the adapter it
+    /// runs on.
     pub fn can_time(&self) -> bool {
         self.device
             .features()
