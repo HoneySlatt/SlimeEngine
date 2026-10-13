@@ -257,11 +257,15 @@ impl App for SceneExample {
                         ));
                         ui.label(format!("{} × {} pixels", size.0, size.1));
                         // Logarithmic, so that equal drags are equal photographic stops: from
-                        // 1/16 to 16, four stops each way.
+                        // 1/16 to 16, four stops each way. Its value is shown as a label rather
+                        // than in a field that takes the keyboard, so that Escape and F1 keep
+                        // their meaning.
+                        let shown = *exposure;
                         ui.add(
                             egui::Slider::new(exposure, 1.0 / 16.0..=16.0)
                                 .logarithmic(true)
-                                .text("exposure"),
+                                .show_value(false)
+                                .text(format!("exposure {shown:.3}")),
                         );
                         ui.label("F1 hides this");
                     });

@@ -531,8 +531,8 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **The dev overlay leaves egui's focus flag set.** `slime-devui` sends egui the window's focus
   changes as events only (`WindowFocused`) and leaves `RawInput::focused` at egui's default,
   `true`. A focused text field therefore keeps its caret blinking after the window loses the
-  focus. The effect is cosmetic: the engine redraws every frame anyway, and the scene example shows
-  labels only. Fix: keep a `focused` flag in `slime-devui`'s `input::Input`, updated on
+  focus. The effect is cosmetic: the engine redraws every frame anyway, and the scene example has no
+  text field (its exposure slider shows its value as a label). Fix: keep a `focused` flag in `slime-devui`'s `input::Input`, updated on
   `Event::Focused`, and set `RawInput::focused` from it in `Overlay::render`.
 - **The dev overlay can still panic on a lost device** (ADR-0022). `Overlay::render` skips the
   frame when the device was lost earlier in it, but two cases panic inside egui-wgpu or wgpu: a
