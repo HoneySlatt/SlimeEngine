@@ -146,7 +146,7 @@ impl<H: EventHandler> ApplicationHandler for WinitAdapter<'_, H> {
             }
             Err(error) => {
                 self.error = Some(PlatformError::CreateWindow(Box::new(error)));
-                event_loop.exit();
+                end(event_loop);
             }
         }
     }
@@ -164,14 +164,16 @@ impl<H: EventHandler> ApplicationHandler for WinitAdapter<'_, H> {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        if self.window.is_none() {
+        // On Windows, winit calls this once more after the loop was asked to end, just before
+        // `exiting`.
+        if self.window.is_none() || event_loop.exiting() {
             return;
         }
         match self.handler.about_to_wait() {
             LoopControl::WaitUntil(instant) => {
                 event_loop.set_control_flow(ControlFlow::WaitUntil(instant));
             }
-            LoopControl::Exit => event_loop.exit(),
+            LoopControl::Exit => end(event_loop),
         }
     }
 
@@ -182,6 +184,14 @@ impl<H: EventHandler> ApplicationHandler for WinitAdapter<'_, H> {
         // Drop the window while the connection to the windowing system is still open.
         self.window = None;
     }
+}
+
+/// Ends the event loop. On Windows, winit only notices the request after waiting as the control
+/// flow says: `Poll` makes that wait return at once, instead of lasting until the last deadline,
+/// or without limit before the first one.
+fn end(event_loop: &ActiveEventLoop) {
+    event_loop.set_control_flow(ControlFlow::Poll);
+    event_loop.exit();
 }
 
 #[cfg(target_os = "linux")]
