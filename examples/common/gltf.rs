@@ -9,9 +9,11 @@
 //! filter (see `sampler_descriptor`); and the node hierarchy of the default scene, flattened into
 //! instances (a node whose transform mirrors draws its primitives with their triangles wound the
 //! other way, as glTF prescribes). It refuses, with a clear error, what it cannot draw right:
-//! external files, images that are not PNG, images larger than the GPU accepts, required
-//! extensions, other coordinate sets, other primitive modes. It ignores, with a warning,
-//! animations, skins, cameras, vertex colors and extensions the file uses without requiring them.
+//! external files, images that are not PNG, images larger than the GPU accepts, primitives whose
+//! vertices or indices need a larger buffer than it accepts (one without normals has three
+//! vertices per triangle), required extensions, other coordinate sets, other primitive modes. It
+//! ignores, with a warning, animations, skins, cameras, vertex colors and extensions the file uses
+//! without requiring them.
 //! The other properties of materials are ignored without one, as the renderer has no use for
 //! them yet: every material is drawn opaque, and with its back faces culled even when the file
 //! marks it double-sided, as the sample asset does (its floor disappears when seen from below).
@@ -284,7 +286,21 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
                 Some(uvs) => uvs.into_f32().collect(),
                 None => vec![[0.0, 0.0]; positions.len()],
             };
-            let data = match reader.read_normals() {
+            let normals = reader.read_normals();
+            // Checked before `flat_shaded` gives each triangle three vertices of its own, so that
+            // a small file that makes them too many, three positions and millions of 8-bit
+            // indices, is refused before they are copied.
+            check_buffer_sizes(
+                &label,
+                if normals.is_some() {
+                    positions.len()
+                } else {
+                    indices.len()
+                },
+                indices.len(),
+                gpu.max_buffer_size(),
+            )?;
+            let data = match normals {
                 Some(normals) => MeshData {
                     positions,
                     normals: normals.collect(),
@@ -487,6 +503,27 @@ fn check_accessor(
     Ok(())
 }
 
+/// Checks that a mesh of `vertices` vertices and `indices` indices, which `label` names, fits in
+/// buffers of `max_buffer_size` bytes, the GPU's largest: [`Renderer::create_mesh`] panics on a
+/// larger one. A vertex takes 32 bytes there, an index 4.
+fn check_buffer_sizes(
+    label: &str,
+    vertices: usize,
+    indices: usize,
+    max_buffer_size: u64,
+) -> Result<(), LoadError> {
+    for (count, what, size) in [(vertices, "vertices", 32), (indices, "indices", 4)] {
+        let bytes = (count as u64).saturating_mul(size);
+        if bytes > max_buffer_size {
+            return Err(LoadError(format!(
+                "{label} needs {count} {what}, {bytes} bytes; the GPU accepts buffers of up to \
+                 {max_buffer_size} bytes"
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// The mesh of a primitive that has no normals, with the flat normals glTF requires of it: each
 /// triangle gets three vertices of its own, which take the normal of its face.
 ///
@@ -672,6 +709,20 @@ fn decode_png(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn meshes_larger_than_the_gpu_buffers_are_refused() {
+        // Buffers of 320 bytes: ten vertices, or eighty indices.
+        assert!(check_buffer_sizes("mesh", 10, 80, 320).is_ok());
+        let error = check_buffer_sizes("mesh", 11, 3, 320)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("11 vertices, 352 bytes"), "{error}");
+        let error = check_buffer_sizes("mesh", 3, 81, 320)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("81 indices, 324 bytes"), "{error}");
+    }
 
     #[test]
     fn a_cube_of_shared_vertices_without_normals_gets_flat_faces() {

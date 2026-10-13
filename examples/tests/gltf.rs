@@ -174,6 +174,25 @@ fn an_index_that_names_no_vertex_is_refused_in_a_primitive_without_normals() {
 }
 
 #[test]
+fn a_primitive_without_normals_too_large_for_the_gpu_is_refused() {
+    let gpu =
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+    // The triangle drawn over and over, with 8-bit indices: a file of a few MiB, whose flat
+    // normals take three vertices of 32 bytes per triangle, one triangle more than the largest
+    // vertex buffer holds.
+    let triangles = gpu.max_buffer_size() / (3 * 32) + 1;
+    let mut file = Glb::triangle();
+    let view = file.add_view(&[0, 1, 2].repeat(triangles as usize));
+    let indices = file.add_accessor(view, UNSIGNED_BYTE, 3 * triangles as u32, "SCALAR");
+    file.json["meshes"][0]["primitives"][0]["indices"] = indices.into();
+    let error = refusal(&gpu, &mut file);
+    assert!(
+        error.contains(&format!("{} vertices", 3 * triangles)),
+        "{error}"
+    );
+}
+
+#[test]
 fn node_hierarchies_that_are_not_trees_are_refused() {
     let gpu =
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
@@ -312,9 +331,10 @@ impl Glb {
     }
 }
 
-/// Component types of glTF: 8-bit signed integers, 16-bit unsigned integers and 32-bit
-/// floating-point numbers.
+/// Component types of glTF: 8-bit signed and unsigned integers, 16-bit unsigned integers and
+/// 32-bit floating-point numbers.
 const BYTE: u32 = 5120;
+const UNSIGNED_BYTE: u32 = 5121;
 const UNSIGNED_SHORT: u32 = 5123;
 const FLOAT: u32 = 5126;
 
