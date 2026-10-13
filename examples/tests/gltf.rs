@@ -1,7 +1,8 @@
 //! The reference image test of the glTF scene: the asset of `examples/assets/scene.glb`, loaded by
 //! the examples' loader and rendered offscreen from two fixed camera poses, must match
 //! `tests/reference/gltf-front.png` and `tests/reference/gltf-back.png` within the tolerance of
-//! ADR-0018 and ADR-0028.
+//! the driver that renders them (ADR-0018, amended by ADR-0028 and ADR-0030; the numbers are in
+//! `common/reference_image.rs`).
 //!
 //! The references were rendered with lavapipe, like the others. To render them again, after a
 //! deliberate change of the asset or of the renderer:
