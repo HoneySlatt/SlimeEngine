@@ -47,6 +47,8 @@ pub struct PhysicalSize {
 /// A `Window` is a cheap handle: clones refer to the same window, which is destroyed when the
 /// last clone is dropped. The event loop drops its own handle when it ends, so an application
 /// that keeps a clone, for example inside a drawing surface, should drop it when it shuts down.
+/// On Windows, the windowing library destroys windows from inside the event loop, so the window
+/// still open when the loop ends is hidden then, and released only when the process exits.
 ///
 /// It implements the [`raw-window-handle`](raw_window_handle) traits, through which graphics
 /// libraries draw into a window without knowing the windowing library that created it.
@@ -86,6 +88,11 @@ impl Window {
     /// resized.
     pub fn request_redraw(&self) {
         self.inner.request_redraw();
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn hide(&self) {
+        self.inner.set_visible(false);
     }
 }
 

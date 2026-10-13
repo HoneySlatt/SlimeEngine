@@ -181,6 +181,13 @@ impl<H: EventHandler> ApplicationHandler for WinitAdapter<'_, H> {
         if self.window.is_some() {
             self.handler.exiting();
         }
+        // On Windows, dropping the window only posts a message, and the window is destroyed when
+        // the loop handles it; the loop handles no message after this call, so the window would
+        // stay on screen, unresponsive, until the process exits. Hiding it takes effect at once.
+        #[cfg(windows)]
+        if let Some(window) = &self.window {
+            window.hide();
+        }
         // Drop the window while the connection to the windowing system is still open.
         self.window = None;
     }
