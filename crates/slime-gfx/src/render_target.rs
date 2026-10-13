@@ -93,8 +93,9 @@ impl RenderTarget {
         self.format
     }
 
-    /// The label given at creation, which names the target in error messages and in GPU capture
-    /// tools.
+    /// The label given at creation. It names the target in error messages and, in GPU capture
+    /// tools, the render passes drawn into it and their command buffers, and also the texture of a
+    /// target from [`Gpu::create_render_target`], but not a window's image.
     pub fn label(&self) -> &str {
         &self.label
     }

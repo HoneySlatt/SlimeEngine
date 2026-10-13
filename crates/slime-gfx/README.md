@@ -191,7 +191,8 @@ fn main() -> Result<(), GfxError> {
     (8192 pixels in each dimension with the default limits), with a warning when the window is
     larger.
   - `Surface::acquire(label)` returns the `SurfaceFrame` to draw the next frame into, its target
-    named `label`, or `None` when the window cannot show a new image (a size of zero, an image not
+    named `label` (in capture tools, the passes drawn into the image carry it, not the image
+    itself), or `None` when the window cannot show a new image (a size of zero, an image not
     ready in time, an occluded surface, a lost surface, which is created again). Draw into
     `SurfaceFrame::target()` with `Gpu::render`, then call `SurfaceFrame::present()`. Window images
     cannot be read back.

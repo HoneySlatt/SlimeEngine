@@ -145,8 +145,9 @@ assertions are in `docs/adr/0008-errors-logging-and-assertions.md`; why the engi
 loop is in `docs/adr/0010-main-loop-ownership.md`. With `SLIME_LOG=trace`, each frame's profiling
 spans are logged with the time spent in them: `frame`, containing `fixed_update`, `update`, and
 with a window `acquire` (waiting for the window's image), `render` (with `submit`, recorded by
-`slime-gfx`) and `present`. In GPU capture tools such as RenderDoc, the window's image of each
-frame is named `window, frame <index>`, the index of the `frame` span.
+`slime-gfx`) and `present`. In GPU capture tools such as RenderDoc, the render passes that draw
+the window's image of each frame, and their command buffers, are named `window, frame <index>`,
+the index of the `frame` span; the image itself keeps the name the graphics API gives it.
 
 ## Dependencies
 

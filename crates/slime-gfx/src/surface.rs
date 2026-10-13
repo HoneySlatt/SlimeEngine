@@ -212,8 +212,9 @@ impl Surface {
 
     /// The image to draw the next frame into, or `None` when the window cannot show a new image
     /// now; the frame is then not drawn, and the next call tries again. `label` names the image's
-    /// target in error messages and in GPU capture tools, where it also names the render passes
-    /// drawn into it; the engine passes `window, frame <index>`.
+    /// target in error messages and, in GPU capture tools, the render passes drawn into the image
+    /// and their command buffers; the image itself keeps the name that wgpu and the graphics API
+    /// give a window's images. The engine passes `window, frame <index>`.
     ///
     /// It returns `None` while the window has a size of zero, when the next image is not ready
     /// within wgpu's timeout (one second), while the window is occluded (on platforms that report
