@@ -27,6 +27,15 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   the renderer (cubes and a smooth sphere, two of them with a checker texture).
 - Textures have mipmaps, computed on the CPU when they are created, in linear light for the sRGB
   formats; samplers read the level of detail that fits, and linear filtering blends two levels.
+- `slime-devui`, a temporary crate: `Overlay` draws egui panels over the engine's frames, fed
+  with the engine's events, through a new `wgpu` feature of `slime-gfx` that gives the engine's
+  tooling the wgpu objects behind its types ([ADR-0031](docs/adr/0031-dev-overlay-with-egui.md)).
+  The `scene` example shows the frame time, the CPU and GPU times of its render, its draw calls
+  and triangles in an overlay; F1 hides it.
+- GPU timing: `Gpu::create_timer` gives a `GpuTimer` on adapters with timestamp queries, which a
+  render pass uses to measure how long it takes on the GPU, read back a few frames later without
+  waiting; `Gpu::can_time` tells. `RenderStats` gains the CPU time of `Renderer::render` and the
+  GPU time of the scene's pass.
 - The GPU resources a renderer needs, in `slime-gfx`: index buffers and indexed draws, uniform
   buffers written through `Gpu::write_uniform_buffer`, bind group layouts and bind groups that
   pipelines declare and render passes bind, with dynamic offsets so that one uniform buffer holds

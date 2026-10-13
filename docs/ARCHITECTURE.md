@@ -13,9 +13,10 @@ it is built this way.
 ├── Cargo.toml           virtual workspace: shared metadata, lints and dependency versions
 ├── crates/              engine crates, one directory per crate, named after the package
 │   ├── slime-app/       application lifecycle and main loop
+│   ├── slime-devui/     dev overlay (egui), temporary tooling
 │   ├── slime-gfx/       GPU layer (wgpu)
 │   ├── slime-platform/  window, its events and input
-│   └── slime-render/    renderer: meshes, materials, camera, instances
+│   └── slime-render/    renderer: meshes, materials, camera, light, instances
 ├── deny.toml            dependency license, advisory and source rules
 ├── docs/                roadmap, plan, decisions (adr/), glossary, dependencies, this file
 ├── examples/            runnable examples, one per feature, with their tests (`slime-examples`)
@@ -36,8 +37,9 @@ is created only when code needs it.
 | [`slime-platform`](../crates/slime-platform/README.md) | The window, its events and keyboard and mouse input; the only crate that uses the windowing library (winit) | `winit`, `raw-window-handle`, `thiserror`, `tracing` | One window; window, keyboard and mouse events |
 | [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `slime-platform`, `slime-gfx`, `ctrlc`, `thiserror`, `tracing`, `tracing-subscriber` | Headless runs, and windowed runs drawn by the GPU |
 | [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu | `wgpu`, `pollster`, `raw-window-handle`, `thiserror`, `tracing` | Opens a GPU device, draws into offscreen images and reads them back, draws into a window |
-| [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, seen from a camera, into render targets; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `glam`, `thiserror`, `tracing` | Meshes, materials of one color, a perspective camera, the depth test, one directional light; textures to come |
-| [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-gfx`, `slime-platform`, `slime-render`, `gltf`, `png`, `tracing` | `hello`, `headless`, `window`, `offscreen`, `scene`; the reference image tests; a temporary glTF loader |
+| [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, lit by a directional light, seen from a camera, into render targets, and reports what a frame cost; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `glam`, `thiserror`, `tracing` | Meshes, materials with a base color and a texture, a perspective camera, the depth test, one directional light, statistics with the GPU time |
+| [`slime-devui`](../crates/slime-devui/README.md) | The dev overlay: egui drawn over the engine's frames, fed with the engine's events; temporary tooling until the editor's UI framework exists | `egui`, `egui-wgpu`, `slime-gfx` (with its `wgpu` feature), `slime-platform`, `tracing` | Panels over a frame; no modifier keys, clipboard or input methods |
+| [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `gltf`, `png`, `tracing` | `hello`, `headless`, `window`, `offscreen`, `scene`; the reference image tests; a temporary glTF loader |
 
 ## Dependency rules
 
@@ -45,6 +47,8 @@ is created only when code needs it.
 slime-examples ──▶ slime-app ──┬──▶ slime-platform ──▶ winit
        │                       └──▶ slime-gfx ──────▶ wgpu
        ├──▶ slime-render ──────────▶ slime-gfx
+       ├──▶ slime-devui ───┬───────▶ slime-gfx (feature wgpu) ──▶ wgpu, egui-wgpu
+       │                   └───────▶ slime-platform (events)
        └──▶ slime-platform, slime-gfx (their types: events, GPU objects)
 ```
 
@@ -54,6 +58,10 @@ slime-examples ──▶ slime-app ──┬──▶ slime-platform ──▶ w
 - `slime-render` depends on `slime-gfx` only and does not use wgpu
   ([ADR-0027](adr/0027-the-render-crate.md)). `slime-app` does not depend on it: an application
   creates its `Renderer` in `init`, from the GPU of its `Context`, and calls it in `render`.
+- `slime-devui` is the one crate besides `slime-gfx` that reaches wgpu, through the `wgpu` feature
+  of `slime-gfx`, to draw egui with egui's own renderer ([ADR-0031](adr/0031-dev-overlay-with-egui.md)).
+  It is tooling, a client of the engine like the examples: no engine crate depends on it, and
+  games do not enable the feature.
 - Only `slime-platform` uses winit, and winit's types never appear in a public API
   ([ADR-0011](adr/0011-windowing-with-winit.md)). `slime_platform::Window` exposes the
   `raw-window-handle` traits so that graphics libraries can draw into it.
@@ -217,15 +225,24 @@ renderer = Renderer::new(&gpu, format)                 the shader, the pipeline 
 ├── create_mesh(&gpu, label, &MeshData)                vertex and index buffers, after a check
 ├── create_material(&gpu, label, &MaterialData)        a uniform buffer, the texture and sampler
 │                                                      (one white pixel without), in a bind group
-└── render(&gpu, &target, &Scene { camera, clear, instances }) → RenderStats
+└── render(&gpu, &target, &Scene { camera, light, clear, instances }) → RenderStats
     ├── the depth target, created at the target's size, again when it changes
     ├── the frame uniform ← camera.view_projection(aspect), the light  bind group 0
     ├── the instance buffer ← each instance's transform and normal     bind group 2, one dynamic
     │   matrix, one slot each, at the device's alignment; grows when   offset per instance
     │   a scene needs it
-    └── one render pass, cleared: for each instance, its material's
-        bind group 1, its slot, its buffers, draw_indexed
+    ├── one render pass, cleared, timed by a GpuTimer when the adapter
+    │   can: for each instance, its material's bind group 1, its
+    │   slot, its buffers, draw_indexed
+    └── RenderStats: draw calls, triangles, the CPU time of this call, and the GPU time of a
+        pass a few frames old, the latest that came back
 ```
+
+The dev overlay ([`crates/slime-devui/src/lib.rs`](../crates/slime-devui/src/lib.rs),
+[ADR-0031](adr/0031-dev-overlay-with-egui.md)) draws after the scene, in a pass that keeps the
+target: the application hands it every window event, which it translates into egui's, and in
+`render` builds its panels with egui and lets egui's wgpu renderer draw them, through the wgpu
+objects that the `wgpu` feature of `slime-gfx` gives.
 
 The shader ([`shader.wgsl`](../crates/slime-render/src/shader.wgsl)) transforms each vertex by
 its instance's matrix then the camera's, and its normal by the instance's normal matrix (the

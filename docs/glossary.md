@@ -60,6 +60,11 @@ hierarchy, as a JSON file with binary buffers, or as one GLB file with everythin
 examples load GLB files with a temporary loader ([ADR-0029](adr/0029-temporary-gltf-loading.md));
 the asset pipeline of Stage 4 will import them.
 
+**GPU time.** How long the GPU took to run a render pass, measured by timestamps written at its
+start and its end (`slime_gfx::GpuTimer`) and read back a few frames later; `None` on adapters
+without timestamp queries. The renderer's statistics report it with the CPU time of the call
+(`slime_render::RenderStats`).
+
 **Graphics API.** The interface between programs and GPU drivers: Vulkan (the engine's choice on
 Linux) and Direct3D 12 (on Windows). wgpu translates the engine's calls into one of them.
 
@@ -106,6 +111,11 @@ M1.3.
 
 **Offscreen rendering.** Drawing into an image that no window shows, a *render target*, for
 example to read it back to the CPU. Image tests render this way, without a windowing system.
+
+**Overlay (dev).** Panels drawn over the engine's frames with egui, to show statistics and
+tooling while the engine has no UI framework of its own (`slime_devui::Overlay`,
+[ADR-0031](adr/0031-dev-overlay-with-egui.md)). Temporary: the editor's UI framework of Stage 6
+replaces it.
 
 **Owner.** The person who validates the project's direction and its architecture decisions.
 

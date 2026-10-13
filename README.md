@@ -15,8 +15,8 @@ checked against a reference image, paces frames with its own schedule and the Ma
 mode by default, names its GPU work for capture tools, and stops cleanly when the GPU device is
 lost. Stage 3a, the first renderer, is in progress: `slime-render` draws instances of meshes from
 a camera, with a depth test, each with a material of one color or a texture, lit by a
-directional light, and the `scene` example draws a glTF scene under a camera driven by the mouse;
-render statistics and a dev overlay come with its next milestone. [`docs/PLAN.md`](docs/PLAN.md) lists what comes next and the
+directional light, and the `scene` example draws a glTF scene under a camera driven by the
+mouse, with its frame, CPU and GPU times in a dev overlay. The stage ends with the 0.0.3 release. [`docs/PLAN.md`](docs/PLAN.md) lists what comes next and the
 known debt.
 
 ## Getting started

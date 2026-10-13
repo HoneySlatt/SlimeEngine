@@ -89,6 +89,23 @@ The GPU layer uses Vulkan on Linux and Direct3D 12 on Windows
       cargo test -p slime-examples
   ```
 
+#### Looking at a window without a display
+
+The checks run the windowed samples in a headless Weston. To see what such a window shows, run
+Weston with a renderer that keeps an image and with its debug protocol, which authorizes the
+screenshot client, start the sample in it, and take the screenshot while it runs:
+
+```sh
+runtime=$(mktemp -d)
+XDG_RUNTIME_DIR=$runtime weston --backend=headless --renderer=pixman --debug \
+    --socket=slime-shot --idle-time=0 &
+XDG_RUNTIME_DIR=$runtime WAYLAND_DISPLAY=slime-shot VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+    cargo run --example scene -- --frames 600 &
+sleep 5 && (cd "$runtime" && XDG_RUNTIME_DIR=$runtime WAYLAND_DISPLAY=slime-shot weston-screenshooter)
+```
+
+The screenshot is written in the runtime directory as `wayland-screenshot-<date>.png`.
+
 #### Capturing a frame in RenderDoc
 
 Debug builds give GPU capture tools the names of the engine's GPU work: each render pass is named

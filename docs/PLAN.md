@@ -13,7 +13,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3a — First renderer → 0.0.3: in progress. Planned on 2026-10-12 and validated by the
-  owner. M3.1 to M3.5 are done; next: M3.6.
+  owner. M3.1 to M3.6 are done; next: M3.7.
 - Between 0.0.2 and this stage, a stabilization pass on 2026-10-12 corrected what an audit of
   0.0.2 found: the corrections are listed in [`CHANGELOG.md`](../CHANGELOG.md) under
   *Unreleased*, and what was found without being corrected is in [Known debt](#known-debt).
@@ -27,7 +27,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M3.3](#m33--directional-light-and-material) | Directional light and material | Done |
 | [M3.4](#m34--textures-and-samplers) | Textures and samplers | Done |
 | [M3.5](#m35--a-gltf-scene-and-camera-control) | A glTF scene and camera control | Done |
-| [M3.6](#m36--statistics-gpu-timings-and-the-dev-overlay) | Statistics, GPU timings and the dev overlay | Planned |
+| [M3.6](#m36--statistics-gpu-timings-and-the-dev-overlay) | Statistics, GPU timings and the dev overlay | Done |
 | [M3.7](#m37--windows-check-documentation-release-003) | Windows check, documentation, release 0.0.3 | Planned |
 
 Stages 0, 1 and 2 are done; see [Completed stages](#completed-stages).
@@ -211,9 +211,9 @@ it:
   as the Windows CI job printed, 30 and 13 pixels of the glTF views and 30 of the shapes differ by
   more than 2, none by more than 4. The `scene` example drew 300 frames on niri
   with RADV (7 draw calls, 2 274 triangles per frame) and 120 in the headless Weston. Not done:
-  the owner's run of `scene.exe` in the Windows virtual machine (the artifact contains it), and
-  the check of a Khronos sample model with `--scene`, which needs a file the repository does not
-  hold.
+  the owner's run of `scene.exe` in the Windows virtual machine (the artifact contains it). The
+  Khronos sample model `BoxTextured.glb` (downloaded with the owner's agreement, not kept) loads
+  with `--scene`: one mesh of 12 triangles, one texture, 120 frames drawn.
 
 ### M3.6 — Statistics, GPU timings and the dev overlay
 
@@ -232,6 +232,16 @@ it:
   Windows virtual machine; the GPU time shows on RADV and on Direct3D 12; whether lavapipe and WARP
   offer timestamps is measured and recorded here; the image tests are unchanged.
 - **How to test.** `cargo run --example scene`, then F1.
+- **Checked** on 2026-10-13: lavapipe and RADV both support timestamp queries
+  (`crates/slime-gfx/tests/timing.rs` prints it, and WARP's answer comes from the Windows CI job,
+  below). The time of a pass that clears 64 × 64 pixels: 812 µs on lavapipe, 1 µs on RADV. The
+  `scene` example drew 300 frames on niri with RADV, its render taking 1.0 ms on the CPU and
+  14 µs on the GPU per frame (7 draw calls, 2 274 triangles), and 240 in the headless Weston with
+  lavapipe, 2.4 ms on the CPU and 1.1 ms on the GPU; the overlay appears in a screenshot of that
+  compositor. The image tests are unchanged: the overlay is not drawn offscreen. The owner's run
+  of `scene.exe` in the Windows virtual machine, with the GPU time on Direct3D 12, is pending.
+  egui warns once that the framebuffer is sRGB (it prefers a linear one for its blending): the
+  overlay looks slightly lighter than egui's own demos, which is harmless for tooling.
 
 ### M3.7 — Windows check, documentation, release 0.0.3
 
@@ -310,7 +320,8 @@ justify a decision are also in its ADR.
 - **Only `App::init` can return an error** (ADR-0020). An application that hits an error in
   another method logs it and requests an exit.
 - **Input not reported yet:** the state of the modifier keys as a whole, input-method text,
-  touch, touchpad gestures, gamepads, dropped files.
+  touch, touchpad gestures, gamepads, dropped files. The dev overlay feels it too: egui gets no
+  modifiers, so shortcuts with Ctrl or Shift, and selecting text with Shift, do not work in it.
 - **The interpolation factor is not passed to applications.** `FixedStep::alpha` computes it, but
   `run` keeps its `FixedStep` private, so an application cannot interpolate between fixed steps
   yet. To expose when a renderer needs it.
