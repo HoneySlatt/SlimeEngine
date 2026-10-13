@@ -60,12 +60,11 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
   exceptions listed in its rustdoc), and by `logical` meaning with the current layout (`Key`: a
   character such as `"a"`, a `NamedKey` such as `Enter`, a dead key, or `Unidentified`; `KeyCode`
   has `Unidentified` too, for keys without a code the engine knows). It also gives the `text` the
-  key produces and whether it is a repeat. Use the physical code for movement keys and the
-  logical key for shortcuts and text. The press of a key right after a dead key reports what the
-  two keys make together (on Wayland and X11, `Unidentified` and no text when they do not
-  combine) and its release does not, so a press and its release can have different logical
-  values: track which keys are down by physical code. `MouseButton`, `ButtonState` and `ScrollDelta` describe the
-  mouse.
+  key produces and whether it is a repeat. Use the physical code for movement keys and the logical
+  key for shortcuts and text. The press of a key right after a dead key reports what the two keys
+  make together (on Wayland and X11, `Unidentified` and no text when they do not combine) and its
+  release does not, so a press and its release can have different logical values: track which keys
+  are down by physical code. `MouseButton`, `ButtonState` and `ScrollDelta` describe the mouse.
 - `PlatformError` says why the event loop could not run: `Connect` (no windowing system can be
   reached), `SecondEventLoop` (one was already requested in this process), `CreateWindow` or
   `EventLoop`; winit's own error is its `source()`. When the window could not be created, no
