@@ -34,7 +34,7 @@ use gltf::json::Value;
 use slime_gfx::{Gpu, TextureFormat};
 use slime_render::glam::{Quat, Vec3};
 
-use sample_scene::SampleScene;
+use sample_scene::{EXPOSURE, SampleScene};
 
 const SIZE: u32 = 256;
 
@@ -51,7 +51,7 @@ fn the_gltf_scene_matches_its_reference_images() {
     for (name, yaw, pitch) in [("gltf-front", 0.6, 0.45), ("gltf-back", 3.6, 0.25)] {
         let radius = bounds.radius();
         let camera = orbit::camera_at(bounds.center(), radius, radius * 2.2, yaw, pitch);
-        let stats = scene.render(&gpu, &target, camera, 1.0);
+        let stats = scene.render(&gpu, &target, camera, EXPOSURE);
         assert_eq!((stats.draw_calls, stats.triangles), (7, 2274));
         let image = gpu
             .read_render_target(&target)
@@ -354,7 +354,7 @@ fn a_mirrored_node_shows_the_same_faces_as_the_node_it_mirrors() {
         let mut file = Glb::triangle();
         file.json["nodes"][0]["scale"] = json(&format!("[{scale_x}, 1, 1]"));
         let centre = TRIANGLE_CENTRE * Vec3::new(scale_x, 1.0, 1.0);
-        let (middle, corner) = centre_and_corner(&gpu, &mut file, centre, 0.0, 1.0);
+        let (middle, corner) = centre_and_corner(&gpu, &mut file, centre, 0.0);
         assert!(
             brighter(middle, corner),
             "scale x {scale_x}: the triangle {middle:?} is not lit above the background {corner:?}"
@@ -374,8 +374,9 @@ fn extensions_are_refused_when_required_unless_the_loader_reads_them() {
         error.contains(r#"extensionsRequired[0] = "KHR_texture_transform": Unsupported extension"#),
         "{error}"
     );
-    // A black surface that emits, whose emission an exposure of 1/8 keeps below white: four times
-    // brighter with the strength of KHR_materials_emissive_strength, which a file may require.
+    // A black surface that emits: with the strength of KHR_materials_emissive_strength, which a
+    // file may require, 0.5 / EXPOSURE nits in red, which the sample shows at 0.46; without it,
+    // 1 nit, which the sample shows as black.
     let emitting = |strength: &str, required: bool| {
         let mut file = Glb::triangle().with_material(&format!(
             r#"{{ "pbrMetallicRoughness": {{ "baseColorFactor": [0, 0, 0, 1], "metallicFactor": 0 }},
@@ -385,10 +386,13 @@ fn extensions_are_refused_when_required_unless_the_loader_reads_them() {
         if required {
             file.json["extensionsRequired"] = json(r#"["KHR_materials_emissive_strength"]"#);
         }
-        centre_and_corner(&gpu, &mut file, TRIANGLE_CENTRE, 0.0, 1.0 / 8.0).0
+        centre_and_corner(&gpu, &mut file, TRIANGLE_CENTRE, 0.0).0
     };
     let strong = emitting(
-        r#", "extensions": { "KHR_materials_emissive_strength": { "emissiveStrength": 4 } }"#,
+        &format!(
+            r#", "extensions": {{ "KHR_materials_emissive_strength": {{ "emissiveStrength": {} }} }}"#,
+            0.5 / EXPOSURE
+        ),
         true,
     );
     let plain = emitting("", false);
@@ -401,7 +405,7 @@ fn a_masked_material_draws_nothing_below_its_cutoff_and_a_blended_one_is_drawn_o
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
     let shown = |material: &str| {
         let mut file = Glb::triangle().with_material(material);
-        centre_and_corner(&gpu, &mut file, TRIANGLE_CENTRE, 0.0, 1.0)
+        centre_and_corner(&gpu, &mut file, TRIANGLE_CENTRE, 0.0)
     };
     // glTF's default cutoff, 0.5, is above the alpha of 0.25.
     let (middle, corner) = shown(
@@ -438,7 +442,7 @@ fn a_double_sided_material_is_drawn_from_behind() {
     // light reaches the back face.
     let shown = |material: &str| {
         let mut file = Glb::triangle().with_material(material);
-        centre_and_corner(&gpu, &mut file, TRIANGLE_CENTRE, std::f32::consts::PI, 1.0)
+        centre_and_corner(&gpu, &mut file, TRIANGLE_CENTRE, std::f32::consts::PI)
     };
     let (middle, corner) = shown("{}");
     assert!(
@@ -478,8 +482,8 @@ fn a_file_s_tangents_are_used_rather_than_computed() {
         "VEC4",
         &[0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0],
     );
-    let (towards_y, _) = centre_and_corner(&gpu, &mut with_tangents, TRIANGLE_CENTRE, 0.0, 1.0);
-    let (towards_x, _) = centre_and_corner(&gpu, &mut file(), TRIANGLE_CENTRE, 0.0, 1.0);
+    let (towards_y, _) = centre_and_corner(&gpu, &mut with_tangents, TRIANGLE_CENTRE, 0.0);
+    let (towards_x, _) = centre_and_corner(&gpu, &mut file(), TRIANGLE_CENTRE, 0.0);
     assert!(
         towards_y[0] > towards_x[0] + 10,
         "{towards_y:?} with the file's tangents, {towards_x:?} with computed ones"
@@ -525,19 +529,19 @@ fn a_file_that_requires_khr_lights_punctual_is_lit_by_its_own_lights_only() {
             Quat::from_rotation_y(yaw),
         );
         file.json["extensionsRequired"] = json(r#"["KHR_lights_punctual"]"#);
-        centre_and_corner(&gpu, &mut file, TRIANGLE_CENTRE, 0.0, 1.0)
+        centre_and_corner(&gpu, &mut file, TRIANGLE_CENTRE, 0.0)
     };
-    let (towards, background) = lit_by(0.0, std::f32::consts::PI);
+    let (towards, background) = lit_by(0.0, 100_000.0);
     assert!(
         brighter(towards, background),
         "lit from the front: {towards:?} against {background:?}"
     );
     // Turned away, the light reaches the back of the triangle, and the sample adds no sun: the
     // front shows the ambient light alone, as under a light of no intensity.
-    let (away, _) = lit_by(std::f32::consts::PI, std::f32::consts::PI);
+    let (away, _) = lit_by(std::f32::consts::PI, 100_000.0);
     let (dark, _) = lit_by(0.0, 0.0);
     let mut without_lights = Glb::triangle().with_material(MATTE);
-    let (sunlit, _) = centre_and_corner(&gpu, &mut without_lights, TRIANGLE_CENTRE, 0.0, 1.0);
+    let (sunlit, _) = centre_and_corner(&gpu, &mut without_lights, TRIANGLE_CENTRE, 0.0);
     assert_eq!(away, dark, "lit from behind");
     assert!(
         brighter(sunlit, away),
@@ -835,17 +839,11 @@ fn png_of(width: u32, height: u32, pixels: &[u8]) -> Vec<u8> {
 /// The center of the triangle of [`Glb::triangle`].
 const TRIANGLE_CENTRE: Vec3 = Vec3::new(1.0 / 3.0, 1.0 / 3.0, 0.0);
 
-/// Draws `file` into a 64 × 64 sRGB target at `exposure`, as the sample does: under the file's
-/// lights, or the sample's sun for a file without lights, seen from 3 units away from `centre`,
-/// turned by `yaw` around the vertical axis (0 looks from +Z). Returns the color of the pixel at
-/// the center of the image, and that of its corner, the background.
-fn centre_and_corner(
-    gpu: &Gpu,
-    file: &mut Glb,
-    centre: Vec3,
-    yaw: f32,
-    exposure: f32,
-) -> ([u8; 3], [u8; 3]) {
+/// Draws `file` into a 64 × 64 sRGB target as the sample does: under the file's lights, or the
+/// sample's sun for a file without lights, at the sample's exposure, seen from 3 units away from
+/// `centre`, turned by `yaw` around the vertical axis (0 looks from +Z). Returns the color of the
+/// pixel at the center of the image, and that of its corner, the background.
+fn centre_and_corner(gpu: &Gpu, file: &mut Glb, centre: Vec3, yaw: f32) -> ([u8; 3], [u8; 3]) {
     let target = gpu.create_render_target("triangle", 64, 64, TextureFormat::Rgba8UnormSrgb);
     let mut scene =
         SampleScene::new(gpu, target.format(), &file.bytes()).expect("the triangle loads");
@@ -853,7 +851,7 @@ fn centre_and_corner(
         gpu,
         &target,
         orbit::camera_at(centre, 1.0, 3.0, yaw, 0.0),
-        exposure,
+        EXPOSURE,
     );
     let image = gpu
         .read_render_target(&target)

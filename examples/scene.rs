@@ -1,8 +1,10 @@
-//! Draws a glTF scene with the renderer, lit by a directional light, seen from a camera that
-//! orbits it until the mouse takes over: drag with the left button to turn around it, roll the
-//! wheel to come nearer or go farther. A dev overlay shows what each frame costs, with the GPU
-//! time of each pass, and a slider that changes the exposure; F1 hides and shows it. The sample of
-//! Stages 3a and 3b. Escape, closing the window or Ctrl+C quits.
+//! Draws a glTF scene with the renderer, lit in physical units by the lights of the file (the
+//! asset's sun, the light of its glowing ring and a spot light), or by the sample's sun for a file
+//! without lights, seen from a camera that orbits it until the mouse takes over: drag with the left
+//! button to turn around it, roll the wheel to come nearer or go farther. A dev overlay shows what
+//! each frame costs, with the GPU time of each pass, and a slider that changes the exposure, as a
+//! photographer's exposure value; F1 hides and shows it. The sample of Stages 3a and 3b. Escape,
+//! closing the window or Ctrl+C quits.
 //!
 //! ```sh
 //! cargo run --example scene                              # the scene of examples/assets/scene.glb
@@ -18,6 +20,7 @@ mod orbit;
 mod sample_scene;
 
 use std::f32::consts::TAU;
+use std::ops::RangeInclusive;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -32,7 +35,7 @@ use slime_render::glam::Vec3;
 use slime_render::{Camera, RenderStats};
 
 use error_chain::error_chain;
-use sample_scene::SampleScene;
+use sample_scene::{EXPOSURE, SampleScene};
 
 const USAGE: &str = "usage: scene [--scene <file.glb>] [--frames <count>]";
 
@@ -48,6 +51,24 @@ const ZOOM_RANGE: (f32, f32) = (0.1, 20.0);
 const PIXELS_PER_LINE: f64 = 60.0;
 /// The steepest angles above and below the target, in radians.
 const PITCH_LIMIT: f32 = 1.45;
+/// The exposure values the slider covers (see [`ev100`]), from beyond direct sunlight to a dim
+/// room, so that files lit at other scales than the sample can be exposed too. A higher exposure
+/// value is darker, so the range runs from high to low: dragging to the right brightens the image.
+const EV100_RANGE: RangeInclusive<f32> = 18.0..=0.0;
+
+/// The exposure value at ISO 100 (EV100) that gives `exposure`, in the convention that Frostbite
+/// and Filament follow (Lagarde and de Rousiers, "Moving Frostbite to Physically Based Rendering",
+/// 2014): the luminance 1.2 × 2^EV100 nits is exposed to 1, so exposure = 1 / (1.2 × 2^EV100). A
+/// photographer exposes direct sunlight at EV100 15 ("sunny 16"), a lit room at about 7; one more
+/// is one stop darker.
+fn ev100(exposure: f32) -> f32 {
+    (1.0 / (1.2 * exposure)).log2()
+}
+
+/// The exposure of the exposure value `ev100` (see [`ev100`]).
+fn exposure(ev100: f32) -> f32 {
+    1.0 / (1.2 * ev100.exp2())
+}
 
 /// A camera that orbits the scene on its own until the mouse takes over: dragging with the left
 /// button turns it, the wheel brings it nearer or farther.
@@ -150,9 +171,9 @@ struct SceneExample {
     drawn: u64,
     /// What the last frame cost.
     stats: RenderStats,
-    /// What the scene's light is multiplied by before tone mapping; the overlay's slider changes
-    /// it.
-    exposure: f32,
+    /// The exposure the scene is drawn at, as an exposure value at ISO 100 (see [`ev100`]); the
+    /// overlay's slider changes it.
+    ev100: f32,
 }
 
 impl App for SceneExample {
@@ -216,7 +237,7 @@ impl App for SceneExample {
         let (Some(gpu), Some(scene)) = (ctx.gpu(), &mut self.scene) else {
             return;
         };
-        self.stats = scene.render(gpu, target, self.camera.camera(), self.exposure);
+        self.stats = scene.render(gpu, target, self.camera.camera(), exposure(self.ev100));
         self.drawn += 1;
         if let Some(overlay) = &mut self.overlay {
             let show = self.show_overlay;
@@ -225,7 +246,7 @@ impl App for SceneExample {
             let frame_ms = self.frame_ms;
             let size = (target.width(), target.height());
             // The overlay's slider changes it; the scene is drawn with it from the next frame.
-            let exposure = &mut self.exposure;
+            let chosen = &mut self.ev100;
             // Drawn with no panel while hidden, so that egui still takes the events handed to the
             // overlay as they come, not all at once when it is shown again.
             overlay.render(gpu, target, |ctx| {
@@ -259,16 +280,14 @@ impl App for SceneExample {
                             stats.draw_calls, stats.triangles
                         ));
                         ui.label(format!("{} × {} pixels", size.0, size.1));
-                        // Logarithmic, so that equal drags are equal photographic stops: from
-                        // 1/16 to 16, four stops each way. Its value is shown as a label rather
-                        // than in a field that takes the keyboard, so that Escape and F1 keep
-                        // their meaning.
-                        let shown = *exposure;
+                        // In exposure values, so that equal drags are equal photographic stops.
+                        // Its value is shown as a label rather than in a field that takes the
+                        // keyboard, so that Escape and F1 keep their meaning.
+                        let shown = *chosen;
                         ui.add(
-                            egui::Slider::new(exposure, 1.0 / 16.0..=16.0)
-                                .logarithmic(true)
+                            egui::Slider::new(chosen, EV100_RANGE)
                                 .show_value(false)
-                                .text(format!("exposure {shown:.3}")),
+                                .text(format!("EV100 {shown:.1}")),
                         );
                         ui.label("F1 hides this");
                     });
@@ -322,7 +341,7 @@ fn main() -> ExitCode {
         camera: OrbitCamera::new(Vec3::ZERO, 1.0, 1.0, 0.0, 0.0),
         overlay: None,
         show_overlay: true,
-        exposure: 1.0,
+        ev100: ev100(EXPOSURE),
         frame_ms: 0.0,
         drawn: 0,
         stats: RenderStats::default(),

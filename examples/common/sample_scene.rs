@@ -1,6 +1,6 @@
 //! The glTF scene that the `scene` example and its image test draw: the asset of
 //! `examples/assets/scene.glb` by default, or any GLB file the loader reads, lit by the lights the
-//! file places, or by the sample's sun when it places none.
+//! file places, or by the sample's sun when it places none, in physical units (ADR-0037).
 
 #[path = "gltf.rs"]
 mod gltf;
@@ -17,23 +17,35 @@ pub use gltf::Bounds;
 /// The sample asset, made in Blender by `examples/assets/make_scene.py`.
 pub const ASSET: &[u8] = include_bytes!("../assets/scene.glb");
 
-/// The color behind the scene.
+/// The illuminance of the sample's sun, in lux: direct sunlight. The asset's sun has it too
+/// (`make_scene.py`).
+const SUN_ILLUMINANCE: f32 = 100_000.0;
+
+/// The exposure the sample is drawn at: under it, a white matte surface facing the sun reflects
+/// 0.97 (ADR-0035), shown at sRGB 239. A photographer's exposure value of 14.7 at ISO 100, near the
+/// 15 of the "sunny 16" rule for direct sunlight.
+pub const EXPOSURE: f32 = PI / SUN_ILLUMINANCE;
+
+/// The color behind the scene, in nits: a dark blue-grey, (0.05, 0.06, 0.08) once exposed. Not a
+/// sky: image-based lighting brings one.
 pub const BACKGROUND: Color = Color {
-    r: 0.05,
-    g: 0.06,
-    b: 0.08,
+    r: 1592.0,
+    g: 1910.0,
+    b: 2546.0,
     a: 1.0,
 };
 
-/// The sun that lights a file without lights: slightly warm, from above, of π lux, under which a
-/// white matte surface facing it reflects about 0.97 nits (ADR-0035).
+/// A slightly cold ambient light, in nits: about the luminance of a clear sky, whose light from
+/// every direction would give a surface π × 6 000 ≈ 19 000 lux; (0.18, 0.19, 0.23) once exposed.
+const AMBIENT: Vec3 = Vec3::new(5730.0, 6048.0, 7321.0);
+
+/// The sun that lights a file without lights: slightly warm, from above. The asset's sun is the
+/// same light.
 const SUN: Light = Light::Directional(DirectionalLight {
     direction: Vec3::new(-0.5, -1.0, -0.6),
     color: Vec3::new(1.0, 0.98, 0.9),
-    illuminance: PI,
+    illuminance: SUN_ILLUMINANCE,
 });
-/// A slightly cold ambient light, in nits.
-const AMBIENT: Vec3 = Vec3::new(0.18, 0.19, 0.23);
 
 /// A loaded glTF scene and the renderer that draws it, for targets of one format.
 pub struct SampleScene {
@@ -63,8 +75,8 @@ impl SampleScene {
         &self.loaded.bounds
     }
 
-    /// Draws the scene into `target` as `camera` sees it, its light multiplied by `exposure` (1
-    /// leaves it as it is) before tone mapping.
+    /// Draws the scene into `target` as `camera` sees it, its light multiplied by `exposure`
+    /// ([`EXPOSURE`] for the sample) before tone mapping.
     pub fn render(
         &mut self,
         gpu: &Gpu,

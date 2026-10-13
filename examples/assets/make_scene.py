@@ -5,13 +5,14 @@ Run it inside Blender (5.2 was used), from the repository root:
     blender --background --python examples/assets/make_scene.py -- examples/assets/scene.glb
 
 The scene is small on purpose: a tiled floor, two wooden crates (the small one a child of the big
-one), a sphere and a pillar under a turned empty, a brick wall and a ring, so that the loader
-meets textured and plain materials, smooth and flat shading, nested transforms, and glTF's
-physically based properties: metallic-roughness, normal, occlusion and emissive textures, an
-emissive strength above 1, metals and dielectrics of several roughnesses, single- and
-double-sided materials, and tangents. Its textures are drawn here with numpy and embedded in the
-file as PNG images. Everything the script produces is released under CC0 1.0 (public domain); see
-README.md in this directory.
+one), a sphere and a pillar under a turned empty, a brick wall and a ring, lit by a sun, a point
+light in the ring and a spot light, so that the loader meets textured and plain materials, smooth
+and flat shading, nested transforms, glTF's physically based properties (metallic-roughness,
+normal, occlusion and emissive textures, an emissive strength above 1, metals and dielectrics of
+several roughnesses, single- and double-sided materials, tangents) and lights in physical units
+(KHR_lights_punctual). Its textures are drawn here with numpy and embedded in the file as PNG
+images. Everything the script produces is released under CC0 1.0 (public domain); see README.md in
+this directory.
 """
 
 import math
@@ -24,6 +25,29 @@ from mathutils import Vector
 
 SIZE = 128
 BRICK_HEIGHT, BRICK_WIDTH = 16, 32
+# The ring's major and minor radii, in metres.
+RING_RADII = (0.4, 0.12)
+
+# Light in physical units, as KHR_lights_punctual and the engine read it (ADR-0037): lux for the
+# sun, candelas for the point and spot lights, nits (candelas per square metre) for the ring's
+# emission. The engine's sample draws it at an exposure of pi / SUN_LUX
+# (examples/common/sample_scene.rs).
+SUN_LUX = 100_000  # direct sunlight
+# Four times what a white matte surface facing the sun reflects: 4 x 100 000 / pi nits.
+RING_NITS = 4 * SUN_LUX / math.pi
+# A point light at the ring's center stands for its glow. The glowing segments, 10 of every 16
+# columns of their texture (ring_glow), cover 0.625 of the torus, whose area is 4 pi^2 R r. A
+# surface that glows evenly at L nits over A square metres emits pi L A lumens, as much as a point
+# light of L A / 4 candelas: about 37 700 candelas, in the color of the glowing texels, (120, 255,
+# 235) in sRGB, (0.1878, 1, 0.8308) in linear light.
+RING_LIGHT_CANDELAS = RING_NITS * 0.625 * 4 * math.pi ** 2 * RING_RADII[0] * RING_RADII[1] / 4
+RING_LIGHT_COLOR = (0.1878, 1.0, 0.8308)
+SPOT_CANDELAS = 80_000  # a stage spotlight, bright enough to show beside the sun
+# Blender's exporter turns watts into these units in its standard lighting mode, "SPEC"
+# (io_scene_gltf2/blender/exp/lights.py): a sun's strength, in W/m^2, times 683 lm/W gives lux; a
+# point or spot light's power, in W, times 683 / (4 pi) gives candelas. Emission strengths are
+# written as they are.
+LUMENS_PER_WATT = 683
 
 
 def output_path():
@@ -235,6 +259,21 @@ def add_normal_map(mat, img):
     mat.node_tree.links.new(normal.outputs["Normal"], mat.node_tree.nodes["Principled BSDF"].inputs["Normal"])
 
 
+def add_light(name, kind, energy, location, target=None, color=(1.0, 1.0, 1.0)):
+    """Adds a light of `kind` ("SUN", "POINT" or "SPOT") of `energy` (Blender's strength or power)
+    at `location`, pointing at `target` when given: Blender's lights, like glTF's, shine down their
+    local -Z axis, which the exporter keeps when it turns Z up into glTF's Y up."""
+    bpy.ops.object.light_add(type=kind, location=location)
+    obj = bpy.context.active_object
+    obj.name = name
+    obj.data.name = name
+    obj.data.energy = energy
+    obj.data.color = color
+    if target is not None:
+        obj.rotation_euler = (Vector(target) - Vector(location)).to_track_quat("-Z", "Y").to_euler()
+    return obj
+
+
 def add_emission(mat, img, strength):
     """Makes `img` times `strength` the light `mat` emits: the exporter writes an emissive factor
     of 1 and, for a strength above 1, the strength as `KHR_materials_emissive_strength`."""
@@ -295,7 +334,7 @@ def build():
     red = material("red", (0.80, 0.15, 0.10), roughness=0.35)
     grey = material("grey", (0.72, 0.72, 0.70), roughness=0.4, metallic=1.0)
     teal = material("teal", (0.10, 0.60, 0.60))
-    add_emission(teal, image("ring glow", ring_glow()), strength=4.0)
+    add_emission(teal, image("ring glow", ring_glow()), strength=RING_NITS)
 
     bpy.ops.mesh.primitive_plane_add(size=6.0)
     floor = add("floor", floor_material, (0.0, 0.0, 0.0))
@@ -323,19 +362,41 @@ def build():
     wall.scale = (3.0, 0.3, 1.0)
     box_uvs(wall, repeat_u=3.0, repeat_v=1.0)
 
-    bpy.ops.mesh.primitive_torus_add(major_radius=0.4, minor_radius=0.12, major_segments=48,
-                                     minor_segments=12)
-    add("ring", teal, (1.8, -0.6, 0.12), smooth=True)
+    bpy.ops.mesh.primitive_torus_add(major_radius=RING_RADII[0], minor_radius=RING_RADII[1],
+                                     major_segments=48, minor_segments=12)
+    ring = add("ring", teal, (1.8, -0.6, 0.12), smooth=True)
 
-    # A camera and a sun, to look at the scene in Blender; neither is exported.
+    # A camera, to look at the scene in Blender; it is not exported.
     bpy.ops.object.camera_add(location=(5.5, -5.5, 3.6),
                               rotation=(math.radians(66), 0.0, math.radians(45)))
     bpy.context.scene.camera = bpy.context.active_object
-    bpy.ops.object.light_add(type="SUN", location=(2.0, -2.0, 6.0),
-                             rotation=(math.radians(35), math.radians(20), 0.0))
+
+    # A slightly warm sun from above, travelling along (-0.5, 0.6, -1.0): (-0.5, -1.0, -0.6) in
+    # glTF's axes. Where a sun is placed does not matter.
+    add_light("sun", "SUN", SUN_LUX / LUMENS_PER_WATT, (2.0, -2.0, 6.0), (1.5, -1.4, 5.0),
+              color=(1.0, 0.98, 0.9))
+    # The ring's glow (see RING_LIGHT_CANDELAS), at its center and moving with it, up to 4 m, where
+    # it would give a surface facing it about 2 400 lux.
+    glow = add_light("ring light", "POINT", RING_LIGHT_CANDELAS * 4 * math.pi / LUMENS_PER_WATT,
+                     (0.0, 0.0, 0.0), color=RING_LIGHT_COLOR)
+    glow.parent = ring
+    glow.data.use_custom_distance = True
+    glow.data.cutoff_distance = 4.0
+    # A warm spot light on the floor, in front of the wall, aimed up at the side that the sun leaves
+    # in the shade. Nothing casts shadows: aimed up, the light that the wall would stop goes on
+    # into the sky instead of onto the floor behind the wall.
+    spot = add_light("spot", "SPOT", SPOT_CANDELAS * 4 * math.pi / LUMENS_PER_WATT,
+                     (0.6, -0.9, 0.05), (0.6, -2.05, 0.5), color=(1.0, 0.8, 0.55))
+    # Full within 18 degrees of its axis, nothing beyond 30: the exporter writes the outer angle as
+    # spot_size / 2 and the inner one as spot_size / 2 x (1 - spot_blend).
+    spot.data.spot_size = math.radians(60.0)
+    spot.data.spot_blend = 0.4
 
 
 def export(path):
+    # Under any other render engine, the exporter reads a light's strength from its node tree, where
+    # a sun's is 1 whatever its `energy`: it would write the sun as 683 lux.
+    bpy.context.scene.render.engine = "BLENDER_EEVEE"
     bpy.ops.export_scene.gltf(
         filepath=path,
         export_format="GLB",
@@ -350,7 +411,9 @@ def export(path):
         export_skins=False,
         export_morph=False,
         export_cameras=False,
-        export_lights=False,
+        export_lights=True,
+        # Physical units: lux for the sun, candelas for the point and spot lights (LUMENS_PER_WATT).
+        export_import_convert_lighting_mode="SPEC",
         export_extras=False,
         use_selection=False,
     )
