@@ -87,9 +87,9 @@ fn main() -> Result<(), RenderError> {
   shaders and builds the two pipelines; the high-dynamic-range target and the depth target are
   created at the size of the first output drawn into, and again when the size changes.
 - `Renderer::create_mesh(gpu, label, &MeshData)` uploads positions, normals, texture coordinates
-  and indices as a `Mesh`; data that cannot be drawn (arrays of different lengths, no triangle, an
-  index that names no vertex, more vertices or indices than a GPU buffer holds) is returned as
-  `RenderError::InvalidMesh`.
+  and indices as a `Mesh`; data that cannot be drawn (arrays of different lengths, no vertex, no
+  triangle, a number of indices that is not a multiple of three, an index that names no vertex,
+  more vertices or indices than a GPU buffer holds) is returned as `RenderError::InvalidMesh`.
   `Renderer::create_material(gpu, label, &MaterialData)` creates a `Material`: a base color, and
   a `SampledTexture` (a `slime_gfx::Texture` and the `Sampler` that reads it, created with
   `Gpu::create_texture` and `Gpu::create_sampler`) multiplied with it where the material has one,

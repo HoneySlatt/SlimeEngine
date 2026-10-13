@@ -10,8 +10,8 @@ pub enum RenderError {
     /// pipelines (the scene pass's or the tone-mapping pass's), or the device was lost.
     #[error("the GPU layer failed")]
     Gfx(#[from] GfxError),
-    /// Mesh data that cannot be drawn: mismatched vertex arrays, no triangle, an index that names
-    /// no vertex, or more vertices or indices than a GPU buffer holds.
+    /// Mesh data that cannot be drawn, for one of the reasons that
+    /// [`Renderer::create_mesh`](crate::Renderer::create_mesh) lists; `reason` says which.
     #[error("mesh `{label}` is invalid: {reason}")]
     InvalidMesh {
         /// The label given to the mesh.
