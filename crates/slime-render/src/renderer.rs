@@ -241,7 +241,7 @@ impl Renderer {
                 vertex_layout: Some(VERTEX_LAYOUT),
                 fragment: Some(FragmentState {
                     entry_point: "fs_main",
-                    target_format: HDR_FORMAT,
+                    target_format: Some(HDR_FORMAT),
                 }),
                 bind_group_layouts: &[&frame_layout, &material_layout, &instance_layout],
                 depth: Some(DepthState {
@@ -274,7 +274,7 @@ impl Renderer {
             vertex_layout: None,
             fragment: Some(FragmentState {
                 entry_point: "fs_main",
-                target_format: format,
+                target_format: Some(format),
             }),
             bind_group_layouts: &[&tone_mapping_layout],
             depth: None,

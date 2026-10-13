@@ -77,7 +77,7 @@ fn a_pipeline_error_names_the_pipeline() {
             vertex_layout: Some(POSITION_ONLY),
             fragment: Some(FragmentState {
                 entry_point: "fs_main",
-                target_format: TextureFormat::Rgba8UnormSrgb,
+                target_format: Some(TextureFormat::Rgba8UnormSrgb),
             }),
             bind_group_layouts: &[],
             depth: None,
@@ -107,7 +107,7 @@ fn a_pipeline_whose_shader_bindings_are_not_in_its_layouts_is_rejected() {
             vertex_layout: Some(POSITION_ONLY),
             fragment: Some(FragmentState {
                 entry_point: "fs_main",
-                target_format: TextureFormat::Rgba8UnormSrgb,
+                target_format: Some(TextureFormat::Rgba8UnormSrgb),
             }),
             bind_group_layouts: &[],
             depth: None,
@@ -177,7 +177,7 @@ fn pipelines_without_what_their_shaders_or_passes_need_are_rejected() {
         .expect("the shader compiles");
     let fragment = Some(FragmentState {
         entry_point: "fs_main",
-        target_format: TextureFormat::Rgba8UnormSrgb,
+        target_format: Some(TextureFormat::Rgba8UnormSrgb),
     });
     // The vertex shader reads a position at `@location(0)`, which no vertex buffer provides.
     let message = pipeline_error(
@@ -291,7 +291,7 @@ fn bindings_declared_as_another_kind_than_their_layout_are_rejected() {
                 vertex_layout: None,
                 fragment: Some(FragmentState {
                     entry_point: "fs_main",
-                    target_format: TextureFormat::Rgba16Float,
+                    target_format: Some(TextureFormat::Rgba16Float),
                 }),
                 bind_group_layouts: &[&layout],
                 depth: None,

@@ -99,7 +99,7 @@ impl Setup {
                 }),
                 fragment: Some(FragmentState {
                     entry_point: "fs_main",
-                    target_format: target.format(),
+                    target_format: Some(target.format()),
                 }),
                 bind_group_layouts: &[&layout],
                 depth: None,

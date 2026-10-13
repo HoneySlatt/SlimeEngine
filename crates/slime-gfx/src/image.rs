@@ -235,7 +235,7 @@ mod tests {
                 vertex_layout: None,
                 fragment: Some(FragmentState {
                     entry_point: "fs_main",
-                    target_format: TextureFormat::Rgba16Float,
+                    target_format: Some(TextureFormat::Rgba16Float),
                 }),
                 bind_group_layouts: &[],
                 depth: None,

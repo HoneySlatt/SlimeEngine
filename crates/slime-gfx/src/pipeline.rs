@@ -171,8 +171,10 @@ pub struct RenderPipelineDescriptor<'a> {
 pub struct FragmentState<'a> {
     /// The name of the fragment shader's entry point, in the pipeline's shader module.
     pub entry_point: &'a str,
-    /// The format of the render targets the pipeline draws into.
-    pub target_format: TextureFormat,
+    /// The format of the render targets the pipeline draws into, or `None` for a fragment stage
+    /// that writes no color and only discards fragments, in a pass without a render target
+    /// ([`Gpu::render_depth`]).
+    pub target_format: Option<TextureFormat>,
 }
 
 /// A render pipeline, ready to be set in a [`RenderPass`](crate::RenderPass).
@@ -231,9 +233,10 @@ impl Gpu {
         let color_targets: Vec<Option<wgpu::ColorTargetState>> = descriptor
             .fragment
             .iter()
-            .map(|fragment| {
+            .filter_map(|fragment| fragment.target_format)
+            .map(|format| {
                 Some(wgpu::ColorTargetState {
-                    format: fragment.target_format.to_wgpu(),
+                    format: format.to_wgpu(),
                     blend: None,
                     write_mask: wgpu::ColorWrites::ALL,
                 })

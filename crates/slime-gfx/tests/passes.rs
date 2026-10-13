@@ -1,9 +1,9 @@
 //! Drawing in several passes: a fullscreen triangle without a vertex buffer, a pass that samples
 //! what an earlier one drew into a 16-bit float target, a depth-only pass read through comparison
-//! samplers, depth bias, and the misuses that several passes make easy. Values are chosen to be
-//! exact in half precision whichever way the driver rounds, samples land on texel centers or
-//! exactly halfway between two, and no pixel center lies on a triangle's edge. Runs on whatever
-//! adapter the machine offers, like `device.rs`.
+//! samplers, a depth-only pass whose fragment stage discards, depth bias, and the misuses that
+//! several passes make easy. Values are chosen to be exact in half precision whichever way the
+//! driver rounds, samples land on texel centers or exactly halfway between two, and no pixel center
+//! lies on a triangle's edge. Runs on whatever adapter the machine offers, like `device.rs`.
 
 use slime_gfx::{
     BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, Color, CullMode, DepthBias,
@@ -55,7 +55,7 @@ fn fullscreen_pipeline(
         vertex_layout: None,
         fragment: Some(FragmentState {
             entry_point: "fs_main",
-            target_format,
+            target_format: Some(target_format),
         }),
         bind_group_layouts: layouts,
         depth: None,
@@ -428,6 +428,115 @@ fn a_depth_only_pass_is_read_through_a_comparison_sampler() {
                 (b - filtered[x as usize]).abs() <= 1.0 / 256.0,
                 "pixel ({x}, {y}): {b}"
             );
+        }
+    }
+}
+
+#[test]
+fn a_fragment_stage_without_a_render_target_discards_in_a_depth_only_pass() {
+    let gpu = gpu();
+    let size = 8;
+    // A triangle covering the target at depth 0.25, whose fragment stage writes no color and
+    // discards the left half: as a shadow pass cuts out what masked materials discard.
+    let module = gpu
+        .create_shader_module(
+            "cut out",
+            &format!(
+                "{FULLSCREEN}
+                 @vertex
+                 fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {{
+                     return vec4<f32>(corner(i), 0.25, 1.0);
+                 }}
+
+                 @fragment
+                 fn fs_main(@builtin(position) p: vec4<f32>) {{
+                     if p.x < 4.0 {{
+                         discard;
+                     }}
+                 }}"
+            ),
+        )
+        .expect("the shader compiles");
+    let cut_out = gpu
+        .create_render_pipeline(&RenderPipelineDescriptor {
+            label: "cut out",
+            shader: &module,
+            vertex_entry_point: "vs_main",
+            vertex_layout: None,
+            fragment: Some(FragmentState {
+                entry_point: "fs_main",
+                target_format: None,
+            }),
+            bind_group_layouts: &[],
+            depth: Some(DepthState {
+                compare: DepthCompare::Less,
+                write: true,
+                bias: DepthBias::default(),
+            }),
+            cull: CullMode::None,
+        })
+        .expect("the pipeline is valid");
+    let depth = gpu.create_depth_target("depth", size, size);
+    gpu.render_depth(
+        &DepthPassDescriptor {
+            depth: &depth,
+            timer: None,
+        },
+        |pass| {
+            pass.set_pipeline(&cut_out);
+            pass.draw(0..3);
+        },
+    );
+
+    // Each pixel shows the depth stored under it: the cleared 1 where the fragment was
+    // discarded, 0.25 elsewhere.
+    let layout = gpu.create_bind_group_layout(
+        "depth",
+        &[BindGroupLayoutEntry {
+            binding: 0,
+            visible_to: ShaderStages::Fragment,
+            ty: BindingType::DepthTexture,
+        }],
+    );
+    let group = gpu.create_bind_group(
+        "depth",
+        &layout,
+        &[BindGroupEntry {
+            binding: 0,
+            resource: BindingResource::DepthTarget(&depth),
+        }],
+    );
+    let show = fullscreen_pipeline(
+        &gpu,
+        "show depth",
+        "@group(0) @binding(0) var depth: texture_depth_2d;
+
+         @fragment
+         fn fs_main(@builtin(position) p: vec4<f32>) -> @location(0) vec4<f32> {
+             return vec4<f32>(textureLoad(depth, vec2<i32>(p.xy), 0), 0.0, 0.0, 1.0);
+         }",
+        &[&layout],
+        TextureFormat::Rgba16Float,
+    );
+    let shown = gpu.create_render_target("shown", size, size, TextureFormat::Rgba16Float);
+    let pass = RenderPassDescriptor {
+        target: &shown,
+        clear: Some(BLACK),
+        depth: None,
+        timer: None,
+    };
+    gpu.render(&pass, |pass| {
+        pass.set_pipeline(&show);
+        pass.set_bind_group(0, &group, &[]);
+        pass.draw(0..3);
+    });
+    let image = gpu
+        .read_float_render_target(&shown)
+        .expect("the image is read back");
+    for y in 0..size {
+        for x in 0..size {
+            let expected = if x < 4 { 1.0 } else { 0.25 };
+            assert_eq!(pixel(&image, x, y)[0], expected, "pixel ({x}, {y})");
         }
     }
 }

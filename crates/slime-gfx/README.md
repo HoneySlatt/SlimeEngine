@@ -69,7 +69,7 @@ fn main() -> Result<(), GfxError> {
         }),
         fragment: Some(FragmentState {
             entry_point: "fs_main",
-            target_format: target.format(),
+            target_format: Some(target.format()),
         }),
         bind_group_layouts: &[],
         depth: None,
@@ -162,10 +162,11 @@ fn main() -> Result<(), GfxError> {
   - `RenderPipeline` (`create_render_pipeline`, from a `RenderPipelineDescriptor`): a vertex entry
     point and the layout of its vertex buffer, or none when the vertex shader builds its vertices
     from `@builtin(vertex_index)`; its fragment stage (`FragmentState`: entry point and target
-    format), or none for a pipeline that writes depth only; the layouts of the bind groups its
-    shaders read; its depth test (`DepthState`, with a `DepthBias`); its culling (`CullMode`). It
-    draws lists of triangles, without blending. A binding that the shaders declare and that no
-    layout holds, or holds as another kind, is rejected.
+    format, or no target format for a stage that writes no color and only discards fragments, in a
+    pass without a render target), or none for a pipeline that writes depth only; the layouts of the
+    bind groups its shaders read; its depth test (`DepthState`, with a `DepthBias`); its culling
+    (`CullMode`). It draws lists of triangles, without blending. A binding that the shaders declare
+    and that no layout holds, or holds as another kind, is rejected.
 
   Except the timer, they are cheap to clone, clones share the GPU object, and it is freed when
   the last one is dropped. Each belongs to the `Gpu` that created it: using it with another `Gpu`
@@ -187,7 +188,8 @@ fn main() -> Result<(), GfxError> {
   build, unless `WGPU_DISCARD_HAL_LABELS=1` is set.
 - `Gpu::render_depth(&DepthPassDescriptor { depth, timer }, record)` runs one pass without a render
   target: it clears the depth target to the farthest depth and lets `record` draw with pipelines
-  that have no fragment stage and do have a depth test, such as a shadow map's.
+  that have a depth test and no fragment stage, or one without a target format, which may discard
+  fragments: a shadow map's, whose masked materials cast the shadow of what they keep.
 - `Gpu::read_render_target(target)` waits for the GPU and copies an 8-bit target into an `Image`:
   RGBA bytes, rows from top to bottom, whatever the byte order of the target's format.
   `Gpu::read_float_render_target(target)` copies an `Rgba16Float` target into a `FloatImage` of

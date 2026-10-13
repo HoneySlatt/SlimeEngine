@@ -53,7 +53,7 @@ impl Triangle {
             }),
             fragment: Some(FragmentState {
                 entry_point: "fs_main",
-                target_format: format,
+                target_format: Some(format),
             }),
             bind_group_layouts: &[],
             depth: None,
