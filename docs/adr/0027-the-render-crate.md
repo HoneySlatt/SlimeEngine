@@ -1,6 +1,6 @@
 # 0027. The render crate, what it draws, and glam
 
-- Status: Accepted; amended by [0034](0034-hdr-rendering-and-tone-mapping.md) (two passes, the scene in HDR, the exposure, tone mapping), by [0035](0035-physically-based-materials.md) (three scene pipelines chosen per draw, physically based materials, tangents) and by [0037](0037-lights-in-physical-units-and-pre-exposure.md) (a scene's lights and ambient light, light in physical units, lengths in metres)
+- Status: Accepted; amended by [0034](0034-hdr-rendering-and-tone-mapping.md) (two passes, the scene in HDR, the exposure, tone mapping), by [0035](0035-physically-based-materials.md) (three scene pipelines chosen per draw, physically based materials, tangents), by [0037](0037-lights-in-physical-units-and-pre-exposure.md) (a scene's lights and ambient light, light in physical units, lengths in metres) and by [0038](0038-shadow-mapping.md) (a shadow pass before the scene pass, the shadow map at a fourth bind group, meshes keep their box)
 - Date: 2026-10-13
 
 ## Context

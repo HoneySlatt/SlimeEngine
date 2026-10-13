@@ -15,8 +15,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 - Stage 3b — Physically based renderer → 0.1: in progress. Planned on 2026-10-13 and validated by
   the owner. M3b.1 to M3b.4 are done. The owner's decisions of 2026-10-13 on earlier proposals are
   applied, and the findings of rounds 4 and 5 of the audit of 0.0.3 (issue
-  [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are fixed or recorded below; next:
-  M3b.5.
+  [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are fixed or recorded below. M3b.5 is
+  implemented and checked (ADR-0038) and awaits the owner's run of `scene.exe` in the Windows
+  virtual machine; next: M3b.6.
 
 ## Status
 
@@ -26,7 +27,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M3b.2](#m3b2--hdr-rendering-and-tone-mapping) | HDR rendering and tone mapping | Done |
 | [M3b.3](#m3b3--physically-based-materials) | Physically based materials | Done |
 | [M3b.4](#m3b4--light-types) | Light types | Done |
-| [M3b.5](#m3b5--shadows) | Shadows | Planned |
+| [M3b.5](#m3b5--shadows) | Shadows | Awaiting the owner |
 | [M3b.6](#m3b6--image-based-lighting) | Image-based lighting | Planned |
 | [M3b.7](#m3b7--bloom) | Bloom | Planned |
 | [M3b.8](#m3b8--render-graph) | Render graph | Planned |
@@ -104,9 +105,10 @@ it:
 
 Risks, to measure as the stage goes: shadows flip whole pixels where drivers rasterize an edge
 differently, which the per-channel tolerance of the image tests cannot absorb (ADR-0028), so the
-tolerance may need a measured amendment at M3b.5; every image test renders more passes on lavapipe
-and WARP, which lengthens CI; the CPU precomputation of IBL runs in every process that draws the
-sample, tests included, and must stay small; upgrading wgpu still waits for egui.
+tolerance may need a measured amendment at M3b.5 (measured at M3b.5: they do not, and ADR-0030's
+tolerance stands, ADR-0038); every image test renders more passes on lavapipe and WARP, which
+lengthens CI; the CPU precomputation of IBL runs in every process that draws the sample, tests
+included, and must stay small; upgrading wgpu still waits for egui.
 
 ### M3b.1 — GPU layer for multi-pass rendering
 
@@ -326,6 +328,35 @@ sample, tests included, and must stay small; upgrading wgpu still waits for egui
   by a measured ADR if shadow edges require it; the sample looks right by eye; the owner ran
   `scene.exe` in the Windows virtual machine.
 - **How to test.** As M3b.2.
+- **Checked** on 2026-10-13: ADR-0038 records the projection, the map, the pass, the bias, the
+  filter and the alternatives rejected; the owner chose cut-out shadows for masked materials, every
+  face blocking the light, a `casts_shadows` switch on directional lights, and to keep the
+  sample's sun. `crates/slime-render/tests/shadows.rs` compares every pixel of an `Rgba16Float`
+  output with values computed from the geometry: a square 1.5 m above a floor, lit 45° from the
+  normal, shadows the expected square, its edges ramping linearly over three texels, whether it
+  faces the light or not, within 5.3 × 10⁻⁴ on lavapipe and 5.6 × 10⁻⁴ on RADV; a floor lit up to
+  85° from its normal, along and across the map's axes, turned and 46 m from the origin, does not
+  shadow itself; the first directional light that casts shadows casts them, and no other, and
+  without one no shadow pass runs; a masked square casts no shadow where it discards. Unit tests
+  check the projection's fit and its degenerate cases, and a test of `slime-gfx` draws a depth-only
+  pass whose fragment stage discards. The bias was chosen by measurement: a slope scale of 2 left
+  floors darkened by up to 0.054 where the light comes diagonally to the map's axes, 4 leaves
+  half-precision rounding (5.3 × 10⁻⁴), the same on lavapipe and RADV; with the light-space
+  position computed per vertex, as the shadow pass computes it, a constant of 4 already removes
+  every speck, and 16 is kept. A prototype of the design was checked against 21 mutations (bias,
+  filter, map orientation, light chosen, culling, projection), each caught. Every test passes on
+  lavapipe, with glam's assertions on, and on the owner's RX 6900 XT (RADV). The references were
+  rendered again on lavapipe and looked at (the shadows of the crates, the sphere, the pillar and
+  the wall); on RADV, `gltf-front` has 219 pixels off by more than 2, 83 by more than 4, 3 by more
+  than 8 (65 allowed), largest 26; `gltf-back` 25, 0, 0, largest 4; `shapes` 589, 278, 36, largest
+  18: one pixel more than without shadows, so ADR-0030's tolerance stands. On RADV, in a prototype,
+  the shadow pass took 8.9 µs for the sample at 1280 × 720, the scene pass's lookups 11.4 µs over a
+  1920 × 1080 output (about half a light), and masked materials' shadow pipeline 28.5 µs instead of
+  6.5 µs for a square covering the map; the sampling usage of depth targets cost nothing measurable
+  (ADR-0033's correction). The `scene` example ran 400 frames in a headless Weston at 1280 × 720
+  on lavapipe (shadow pass 2.6 ms, scene pass 5.4 ms, tone mapping 2.0 ms), and a screenshot was
+  looked at: the shadows of the crates, the sphere and the wall, and the overlay's shadow time and
+  draw calls.
 
 ### M3b.6 — Image-based lighting
 
@@ -338,7 +369,8 @@ sample, tests included, and must stay small; upgrading wgpu still waits for egui
   its irradiance and its prefiltered specular levels, and the table of the BRDF's scale and bias,
   computed at startup; a sky pass draws the environment behind the scene instead of the clear color,
   its light exposed as the scene pass exposes surfaces (ADR-0037); IBL replaces the constant ambient
-  light. ADR: image-based lighting computed on the CPU.
+  light. Bind group 3 holds the shadow map, the last of wgpu's default four (ADR-0038): the
+  environment's textures join group 3 or group 0. ADR: image-based lighting computed on the CPU.
 - **Done when.** Tests that read pixels back: a white rough sphere inside a uniform environment
   reflects that environment's radiance (the furnace test); a mirror sphere reflects the sky; the
   CPU precomputation of the sample stays under a budget measured and recorded here. The image
@@ -500,10 +532,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   of its own (ADR-0032). To move to the GPU, or to the asset pipeline of Stage 4, if textures
   grow.
 - **Every offscreen render target and depth target can be sampled** (ADR-0033): they all carry the
-  usage that allows it, which may cost some compression on some GPUs. Not measured: from M3b.2
-  on, the scene is drawn into a target of 8 bytes per pixel instead of 4, so its GPU time no
-  longer isolates the cost of the usage. A measurement needs two builds that differ only by it;
-  to take at M3b.5, when the shadow map is the first depth target sampled.
+  usage that allows it, which may cost some compression on some GPUs. Measured at M3b.5 on an RX
+  6900 XT (RADV), with two builds that differ only by it: no cost (the scene pass took 43.9 µs
+  with it and 44.0 µs without at 1920 × 1080, ADR-0033's correction). Other GPUs are not measured.
 - **A pipeline that does not fit its pass, or a target sampled by the pass that draws into it,
   panics only when the pass ends** inside `Gpu::render` or `Gpu::render_depth`, with wgpu's
   message, rather than at the faulty call (ADR-0033).
@@ -688,9 +719,24 @@ GitHub issues, linked from their entry; this list stays the reference.
   1080 fragments on an RX 6900 XT (2026-10-13), 338 µs for 16, the most a scene holds, and 10 to 20
   times more on an integrated GPU; a light's range saves no work. More lights would need clustered
   or tiled culling and a storage buffer, a measured decision of a later stage.
-- **Point and spot lights cast no shadows, and light what objects hide** (ADR-0037; M3b.5 shadows
-  the first directional light only). The sample's spot light is aimed up, so that the light the wall
-  would stop goes into the sky; its ring light reaches 4 m, and gives little beyond a metre.
+- **Point and spot lights cast no shadows, and light what objects hide** (ADR-0037, ADR-0038: only
+  the first directional light that casts shadows casts them). The sample's spot light is aimed up,
+  so that the light the wall would stop goes into the sky; its ring light reaches 4 m, and gives
+  little beyond a metre.
+- **One shadow map covers every instance** (ADR-0038). Its texels are the instances' extent across
+  the light divided by 2048, 3 mm for the sample: a terrain of a few kilometres would get texels of
+  a metre, and objects smaller than a texel cast nothing. Cascades, or a region that the game
+  chooses, are left to a later stage. The map takes 16 MiB per renderer, even for scenes without a
+  directional light.
+- **Shadow edges crawl when the instances' extent changes** (ADR-0038). The map is fitted to the
+  instances again every frame, without texel snapping: an instance that moves at the edge of the
+  scene shifts or rescales its texels. A static floor larger than the moving objects, as in the
+  sample, avoids it.
+- **Thin objects close to a surface lose their shadow (peter-panning)** (ADR-0038). The
+  slope-scaled bias pushes stored depths back by about four texels' slope: 10 mm on the sample's
+  floor, more under grazing light. A sheet lying a centimetre above a floor casts nothing.
+- **Every instance casts and receives shadows.** A game cannot exclude a sky mesh or a fog card;
+  it can only turn a directional light's shadows off (`DirectionalLight::casts_shadows`).
 - **Every draw of the scene pass runs a shader that can discard fragments** (ADR-0035). The `MASK`
   alpha mode discards in the one fragment shader that every material uses, opaque materials with a
   cutoff of 0. Some GPUs then test depth after the shader rather than before, for opaque draws

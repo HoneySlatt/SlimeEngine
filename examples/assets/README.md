@@ -25,8 +25,9 @@ never seen. The script turns on Blender's backface culling for their materials, 
 writes that as `doubleSided` false.
 
 Three lights of `KHR_lights_punctual` light the scene, in its physical units
-([ADR-0037](../../docs/adr/0037-lights-in-physical-units-and-pre-exposure.md)). None casts
-shadows.
+([ADR-0037](../../docs/adr/0037-lights-in-physical-units-and-pre-exposure.md)). The sun casts
+shadows ([ADR-0038](../../docs/adr/0038-shadow-mapping.md)); the ring light and the spot light cast
+none.
 
 | Light | Kind and place | Strength | What it exercises |
 |---|---|---|---|

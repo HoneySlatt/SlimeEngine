@@ -53,6 +53,16 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   sample draws in physical units at the exposure of a sunny day, EV100 14.7, and lights a file
   without lights with its sun; the `scene` example's slider moves in exposure values.
 
+- Shadows in `slime-render` ([ADR-0038](docs/adr/0038-shadow-mapping.md)): the first directional
+  light of a scene that casts shadows (`DirectionalLight::casts_shadows`, true by default) casts
+  them, through a 2048 × 2048 shadow map drawn each frame by a depth-only pass from an
+  orthographic projection that covers the instances, and read by the scene pass at 3 × 3 points,
+  so that their edges fade over three of the map's texels. Masked materials cast the shadow of
+  what they keep. `RenderStats::shadow_draw_calls` and `RenderStats::shadow_gpu_time` describe the
+  shadow pass, which the `scene` example's overlay shows.
+- `FragmentState::target_format` in `slime-gfx` is optional: a fragment stage without a target
+  format writes no color and may discard fragments, in a pass without a render target.
+
 ### Changed
 
 - On Direct3D 12, shaders are compiled with FXC, which is part of Windows, on every machine
@@ -63,11 +73,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   without the Visual C++ Redistributable, such as a fresh install or Windows Sandbox.
 - `MeshData::tangents` is required, and a vertex takes 48 bytes: the largest mesh is 5 592 405
   vertices with the default limits. A white matte surface facing a light and the camera reflects
-  0.97/π of the illuminance it receives, glTF's BRDF. `Renderer::create_material` panics on a texture in the wrong kind of format for its slot (sRGB
-  for colors, `Rgba8Unorm` for data). `Renderer::new` builds four pipelines. Images change. The
-  examples' loader leaves unsupported required extensions to the `gltf` crate's validation, draws
-  `BLEND` materials opaque with a warning, and decodes only the images that materials read, each
-  once.
+  0.97/π of the illuminance it receives, glTF's BRDF. `Renderer::create_material` panics on a
+  texture in the wrong kind of format for its slot (sRGB for colors, `Rgba8Unorm` for data). Images
+  change. The examples' loader leaves unsupported required extensions to the `gltf` crate's
+  validation, draws `BLEND` materials opaque with a warning, and decodes only the images that
+  materials read, each once.
 - The scene pass applies the exposure before it writes the HDR target, so that light in physical
   units fits half precision (pre-exposure,
   [ADR-0037](docs/adr/0037-lights-in-physical-units-and-pre-exposure.md)); the renderer exposes the
@@ -77,6 +87,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   lux, no ambient light, and glTF's default strength, 1 lux; `Scene::clear` and `Scene::ambient`
   are in nits. A scene under a directional light of π lux at an exposure of 1 looks as it did
   under the former light of π.
+- A frame of `Renderer::render` takes three passes, the shadow pass first; `Renderer::new` builds
+  six pipelines and a 16 MiB shadow map; a `DirectionalLight` written in full names
+  `casts_shadows`; images of scenes lit by a directional light show its shadows.
 - `RenderStats::gpu_time` is replaced by `scene_gpu_time` and `tone_mapping_gpu_time`; `Scene`
   has a new field, `exposure`; `Renderer::new` takes the output's format, any render-target
   format. `Scene::clear` is light, exposed and tone mapped like surfaces, and its alpha is no

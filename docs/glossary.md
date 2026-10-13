@@ -248,7 +248,12 @@ replaces it.
 **Percentage-closer filtering (PCF).** Reading a *shadow map* by comparing a point's depth with
 several stored depths around it and averaging the results, so that the edges of shadows are soft
 instead of blocky. A *comparison sampler* with linear filtering does it over 2 × 2 pixels in the
-GPU.
+GPU; the renderer makes 3 × 3 such comparisons one texel apart, so that a shadow's edge fades
+over three texels ([ADR-0038](adr/0038-shadow-mapping.md)).
+
+**Peter-panning.** A shadow that starts a little away from the object that casts it, because the
+*depth bias* pushes the stored depths back: the renderer's loses thin objects within about a
+centimetre of a surface at the sample's scale, more under grazing light.
 
 **Physical key.** The position of a key on the keyboard, whatever the layout
 (`slime_platform::KeyCode`), named after the character it produces on a US keyboard: the first
@@ -304,8 +309,15 @@ edges (repeat, mirror or clamp) (`slime_gfx::Sampler`).
 light, a clear color, an *exposure* and *instances* (`slime_render::Scene`). Not a scene graph: the
 renderer keeps nothing between frames, and the world model of Stage 5 will produce such scenes.
 
+**Shadow acne.** Speckles of shadow that a surface casts on itself where its depth and the one
+stored in the *shadow map* differ only by rounding or by the map's texels; a *depth bias* removes
+them.
+
 **Shadow map.** A *depth target* drawn from a light's point of view by a *depth-only pass*: a
-point is in shadow where something nearer to the light is stored at its place in the map.
+point is in shadow where something nearer to the light is stored at its place in the map. The
+renderer's is 2048 × 2048, drawn each frame for the first directional light that casts shadows,
+through an orthographic projection that covers the boxes around the instances
+([ADR-0038](adr/0038-shadow-mapping.md)).
 
 **Simulated time.** Frame deltas supplied as a constant duration instead of being measured, so
 that a run gives the same results on every machine. Headless runs use it.

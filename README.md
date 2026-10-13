@@ -15,13 +15,14 @@ Mailbox present mode by default, names its GPU work for capture tools, and stops
 GPU device is lost. Its first renderer, `slime-render`, draws instances of meshes from a camera,
 with a depth test, each with a physically based material (glTF's metallic-roughness model, with base
 color, metallic-roughness, normal, occlusion and emissive textures), lit by directional, point and
-spot lights in physical units (lux and candelas), into the window or into offscreen images that
-image tests compare with references; the `scene` example draws a glTF scene and its lights under a
-camera driven by the mouse, with its frame time, CPU time, the GPU time of each pass and an exposure
-slider in a dev overlay. Stage 3b, the physically based renderer, is in progress: the renderer draws
-the scene in high dynamic range, shades it with glTF's metallic-roughness materials under lights in
-physical units, exposes it, and maps it to the display with a tone-mapping pass.
-[`docs/PLAN.md`](docs/PLAN.md) lists what comes next and the known debt.
+spot lights in physical units (lux and candelas), a sun casting shadows, into the window or into
+offscreen images that image tests compare with references; the `scene` example draws a glTF scene
+and its lights under a camera driven by the mouse, with its frame time, CPU time, the GPU time of
+each pass and an exposure slider in a dev overlay. Stage 3b, the physically based renderer, is in
+progress: the renderer draws the scene in high dynamic range, shades it with glTF's
+metallic-roughness materials under lights in physical units and the shadows of its sun, exposes it,
+and maps it to the display with a tone-mapping pass. [`docs/PLAN.md`](docs/PLAN.md) lists what comes
+next and the known debt.
 
 ## Getting started
 

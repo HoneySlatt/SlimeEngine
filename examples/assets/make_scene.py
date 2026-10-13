@@ -383,7 +383,7 @@ def build():
     glow.data.use_custom_distance = True
     glow.data.cutoff_distance = 4.0
     # A warm spot light on the floor, in front of the wall, aimed up at the side that the sun leaves
-    # in the shade. Nothing casts shadows: aimed up, the light that the wall would stop goes on
+    # in the shade. Only the sun casts shadows: aimed up, the light that the wall would stop goes on
     # into the sky instead of onto the floor behind the wall.
     spot = add_light("spot", "SPOT", SPOT_CANDELAS * 4 * math.pi / LUMENS_PER_WATT,
                      (0.6, -0.9, 0.05), (0.6, -2.05, 0.5), color=(1.0, 0.8, 0.55))

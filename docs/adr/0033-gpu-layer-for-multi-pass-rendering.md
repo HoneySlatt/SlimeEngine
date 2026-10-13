@@ -1,6 +1,6 @@
 # 0033. The GPU layer for multi-pass rendering
 
-- Status: Accepted
+- Status: Accepted; amended by [0038](0038-shadow-mapping.md) (a fragment stage may have no target format)
 - Date: 2026-10-13
 
 ## Context
@@ -151,3 +151,10 @@ This amends ADR-0017 (formats, readback, how passes run, what pipelines draw) an
 - 2026-10-13: "The timer's API does not change" held when M3b.1 was done. `GpuTimer::latest` has
   since lost its parameter: it no longer polls the device, and returns the latest time that came
   back.
+
+## Corrections
+
+- 2026-10-13: the consequence "this is not measured" about the sampling usage was measured at
+  M3b.5, on an RX 6900 XT (RADV), with two builds that differ only by it: the scene pass took
+  43.9 µs with the usage and 44.0 µs without at 1920 × 1080, 306.7 and 306.8 µs with 8 layers drawn
+  back to front, 51.3 µs either way front to back. Other GPUs are not measured.

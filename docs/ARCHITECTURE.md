@@ -17,7 +17,7 @@ it is built this way.
 │   ├── slime-devui/     dev overlay (egui), temporary tooling
 │   ├── slime-gfx/       GPU layer (wgpu)
 │   ├── slime-platform/  window, its events and input
-│   └── slime-render/    renderer: meshes, PBR materials, camera, lights, instances, HDR, tone mapping
+│   └── slime-render/    renderer: meshes, PBR materials, camera, lights, shadows, HDR, tone mapping
 ├── deny.toml            dependency license, advisory and source rules
 ├── docs/                roadmap, plan, decisions (adr/), glossary, dependencies, this file
 ├── examples/            runnable examples, one per feature, with their tests (`slime-examples`)
@@ -43,7 +43,7 @@ is created only when code needs it.
 | [`slime-platform`](../crates/slime-platform/README.md) | The window, its events and keyboard and mouse input; the only crate that uses the windowing library (winit) | `winit`, `raw-window-handle`, `thiserror`, `tracing` | One window; window, keyboard and mouse events |
 | [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `slime-platform`, `slime-gfx`, `ctrlc`, `thiserror`, `tracing`, `tracing-subscriber` | Headless runs, and windowed runs drawn by the GPU |
 | [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu, apart from the dev overlay through its `wgpu` feature | `wgpu`, `pollster`, `raw-window-handle`, `thiserror`, `tracing` | Opens a GPU device; draws into offscreen images, 8-bit or 16-bit float, and reads them back; draws into a window; later passes sample what earlier ones drew; depth-only passes |
-| [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, lit by directional, point and spot lights, seen from a camera, into render targets, and reports what a frame cost; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `glam`, `thiserror`, `tracing` | Meshes with tangents, glTF's metallic-roughness materials (five textures, masks, double-sided), a perspective camera, the depth test, up to 16 directional, point and spot lights in physical units (`KHR_lights_punctual`) and an ambient light, mirrored instances drawn with their front faces, the scene drawn in HDR with its light exposed, then tone mapped, statistics with the GPU time of each pass |
+| [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, lit by directional, point and spot lights, seen from a camera, into render targets, and reports what a frame cost; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `glam`, `thiserror`, `tracing` | Meshes with tangents, glTF's metallic-roughness materials (five textures, masks, double-sided), a perspective camera, the depth test, up to 16 directional, point and spot lights in physical units (`KHR_lights_punctual`) and an ambient light, the shadows of the first directional light that casts them (one shadow map, 3 × 3 PCF), mirrored instances drawn with their front faces, the scene drawn in HDR with its light exposed, then tone mapped, statistics with the GPU time of each pass |
 | [`slime-devui`](../crates/slime-devui/README.md) | The dev overlay: egui drawn over the engine's frames, fed with the engine's events; temporary tooling until the editor's UI framework exists | `egui`, `egui-wgpu`, `slime-gfx` (with its `wgpu` feature), `slime-platform` | Panels over a frame; no modifier keys, clipboard or input methods |
 | [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `gltf`, `png`, `tracing` | `hello`, `headless`, `window`, `offscreen`, `scene`; the reference image tests; a temporary glTF loader |
 
@@ -264,16 +264,22 @@ then tone mapping into the target
 ([`crates/slime-render/src/renderer.rs`](../crates/slime-render/src/renderer.rs), rules:
 [ADR-0027](adr/0027-the-render-crate.md), [ADR-0034](adr/0034-hdr-rendering-and-tone-mapping.md),
 [ADR-0035](adr/0035-physically-based-materials.md),
-[ADR-0037](adr/0037-lights-in-physical-units-and-pre-exposure.md)):
+[ADR-0037](adr/0037-lights-in-physical-units-and-pre-exposure.md),
+[ADR-0038](adr/0038-shadow-mapping.md)):
 
 ```text
-renderer = Renderer::new(&gpu, format)                 the output's format; two shaders and four
-│                                                      pipelines: three for the scene (depth
-│                                                      test, into Rgba16Float), culling back
-│                                                      faces, front faces or none, and the
-│                                                      tone-mapping one (a fullscreen triangle)
+renderer = Renderer::new(&gpu, format)                 the output's format; two shaders and six
+│                                                      pipelines: two depth-only ones for the
+│                                                      shadow pass (the second discards what
+│                                                      masked materials discard), three for the
+│                                                      scene (depth test, into Rgba16Float),
+│                                                      culling back faces, front faces or none,
+│                                                      and the tone-mapping one (a fullscreen
+│                                                      triangle); the 2048 × 2048 shadow map and
+│                                                      the group that reads it, bind group 3
 ├── create_mesh(&gpu, label, &MeshData)                vertex and index buffers, after a check;
-│                                                      48-byte vertices with their tangent
+│                                                      48-byte vertices with their tangent; the
+│                                                      box around the positions
 ├── create_material(&gpu, label, &MaterialData)        a 48-byte uniform buffer and five texture
 │                                                      and sampler pairs (one white pixel for
 │                                                      each slot left empty) in a bind group; a
@@ -283,20 +289,28 @@ renderer = Renderer::new(&gpu, format)                 the output's format; two 
     │                                                  → RenderStats; panics beyond 16 lights
     ├── the HDR target (Rgba16Float), the depth target and the group that reads the HDR target,
     │   created at the target's size, again together when it changes
+    ├── the light-space matrix of the first directional light that casts shadows: an orthographic
+    │   projection covering the instances' boxes as that light sees them
     ├── the frame uniform ← camera.view_projection(aspect), the camera's position, the exposure,
-    │   the ambient light and the lights (64 bytes each, at most 16), bind group 0
+    │   the ambient light, the light-space matrix and the shadowed light's index, and the lights
+    │   (64 bytes each, at most 16), bind group 0
     ├── the instance buffer ← each instance's transform, normal        bind group 2, one dynamic
     │   matrix and handedness (−1 when it mirrors), one slot each, at  offset per instance
     │   the device's alignment; grows when a scene needs it
+    ├── the shadow pass into the shadow map, a depth-only pass skipped when no light casts
+    │   shadows, timed by a GpuTimer of its own: for each instance, the shadow pipeline its
+    │   material asks for (masked or not), its bind groups and buffers, draw_indexed
     ├── the scene pass into the HDR target, cleared to the scene's background times the exposure
-    │   (at most 65 504), timed by a GpuTimer when the adapter can: for each instance, the pipeline
-    │   that its material's double-sidedness and its transform's mirroring choose (set when it
-    │   changes), its material's bind group 1, its slot, its buffers, draw_indexed
+    │   (at most 65 504), timed by a GpuTimer when the adapter can, the shadow map's group bound at
+    │   group 3: for each instance, the pipeline that its material's double-sidedness and its
+    │   transform's mirroring choose (set when it changes), its material's bind group 1, its slot,
+    │   its buffers, draw_indexed
     ├── the tone-mapping pass into the target, timed by a GpuTimer of its own: one fullscreen
     │   triangle reads each pixel's texel (textureLoad), applies Khronos PBR Neutral and writes it
     │   opaque; an sRGB target encodes it
-    └── RenderStats: the scene pass's draw calls and triangles, the CPU time of this call, and
-        the GPU time of each pass, a few frames old, the latest that came back
+    └── RenderStats: the scene pass's draw calls and triangles, the shadow pass's draw calls, the
+        CPU time of this call, and the GPU time of each pass, a few frames old, the latest that
+        came back
 ```
 
 The dev overlay ([`crates/slime-devui/src/lib.rs`](../crates/slime-devui/src/lib.rs),
@@ -313,17 +327,19 @@ shaded with glTF's metallic-roughness model (ADR-0035): the GGX distribution, Sm
 Schlick's Fresnel under each of the scene's lights (ADR-0037), whose illuminance at the fragment is
 a directional light's illuminance, or a point or spot light's intensity over the square of the
 distance (as at 1 cm within 1 cm), brought to zero at its range and, for a spot light, times its
-cone's attenuation, as `KHR_lights_punctual` recommends; the ambient light times the base color and
-the occlusion; the emission added; the normal tilted by the normal texture in the frame of the
-tangent, which follows the model matrix, and of its bitangent, rebuilt per fragment; back faces of
-double-sided materials shaded with the normal reversed; fragments of masked materials below their
-cutoff discarded; the sum multiplied by the exposure, and light above 65 504 written as 65 504. The
-material's textures are read at the texture coordinates of the vertex. The tone-mapping shader
-([`tone_mapping.wgsl`](../crates/slime-render/src/tone_mapping.wgsl)) then maps that light to the
-display's range. The examples' temporary glTF loader
+cone's attenuation, as `KHR_lights_punctual` recommends; the shadowed light times the share of the
+shadow map's 3 × 3 comparisons, one texel apart, that find the fragment lit, at the position in the
+map that the vertex shader computes as the shadow pass does (ADR-0038); the ambient light times the
+base color and the occlusion; the emission added; the normal tilted by the normal texture in the
+frame of the tangent, which follows the model matrix, and of its bitangent, rebuilt per fragment;
+back faces of double-sided materials shaded with the normal reversed; fragments of masked materials
+below their cutoff discarded; the sum multiplied by the exposure, and light above 65 504 written as
+65 504. The material's textures are read at the texture coordinates of the vertex. The tone-mapping
+shader ([`tone_mapping.wgsl`](../crates/slime-render/src/tone_mapping.wgsl)) then maps that light to
+the display's range. The examples' temporary glTF loader
 ([`examples/common/gltf.rs`](../examples/common/gltf.rs),
-[ADR-0029](adr/0029-temporary-gltf-loading.md), ADR-0035, ADR-0037) builds `MeshData` (tangents read or
-computed), materials and textures, each in its slot's format, and the lights of
+[ADR-0029](adr/0029-temporary-gltf-loading.md), ADR-0035, ADR-0037) builds `MeshData` (tangents read
+or computed), materials and textures, each in its slot's format, and the lights of
 `KHR_lights_punctual` from a GLB file, and flattens its node hierarchy into instances and lights;
 mirrored nodes keep their front faces through the renderer. Conventions: world space is right-handed
 with +Y up, distances are in metres and light in physical units (lux, candelas, and nits for the
