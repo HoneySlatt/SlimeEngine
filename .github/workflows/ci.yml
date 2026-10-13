@@ -45,9 +45,10 @@ jobs:
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       # The tests run one at a time: WARP's shader compiler crashes the process, now and then, when
       # several threads compile shaders at once, even on separate devices (an access violation in
-      # d3d10warp.dll, which no test can catch; seen in other projects too).
+      # d3d10warp.dll, which no test can catch; seen in other projects too). Without failing fast,
+      # every image test runs, and the last step publishes the image of each one that fails.
       - name: Tests
-        run: cargo test --workspace --locked -- --test-threads=1
+        run: cargo test --workspace --locked --no-fail-fast -- --test-threads=1
       # The image tests print the difference they measured against the reference, which only this
       # job can tell for WARP; the step above has run them already.
       - name: Image tests, printing their measurements
@@ -75,4 +76,14 @@ jobs:
             target/release/examples/offscreen.exe
             target/release/examples/scene.exe
           if-no-files-found: error
+          retention-days: 14
+      # An image test that fails writes the image it rendered in target/tmp (CARGO_TARGET_TMPDIR).
+      # Only this job can show what WARP drew, and the runner is discarded with that image.
+      - name: Publish the images rendered by the image tests that failed
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: image-test-failures-windows
+          path: target/tmp/*.actual.png
+          if-no-files-found: ignore
           retention-days: 14

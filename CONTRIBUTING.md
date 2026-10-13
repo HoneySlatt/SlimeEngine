@@ -164,7 +164,9 @@ the headless ones, and publishes the `hello`, `headless`, `window`, `offscreen` 
 examples built for Windows as an artifact named `slime-examples-windows`, to run by hand on a
 Windows machine. The Windows job runs the tests one
 at a time (`--test-threads=1`): WARP's shader compiler crashes the process, now and then, when
-several threads compile shaders at once.
+several threads compile shaders at once. It does not stop at the first test program that fails,
+and when a step fails, it publishes instead the images that the failing image tests rendered on
+WARP, as an artifact named `image-test-failures-windows`.
 [ADR-0007](docs/adr/0007-documentation-tooling-and-ci.md) and
 [ADR-0015](docs/adr/0015-platforms-and-ci.md) explain the setup.
 
