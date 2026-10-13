@@ -9,8 +9,8 @@
 //! transform mirrors draws its primitives with their triangles wound the other way, as glTF
 //! prescribes). It refuses, with a clear error, what it cannot draw right: external files, images
 //! that are not PNG, images larger than the GPU accepts, required extensions, other coordinate
-//! sets, other primitive modes. It ignores, with a warning, animations, skins, cameras and
-//! extensions the file uses without requiring them.
+//! sets, other primitive modes. It ignores, with a warning, animations, skins, cameras, vertex
+//! colors and extensions the file uses without requiring them.
 //!
 //! The `gltf` crate's validation checks little more than that the file's objects name each other
 //! correctly, and its readers panic on some of what it lets through. The loader refuses, rather
@@ -128,10 +128,16 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
     if !used.is_empty() {
         tracing::warn!(extensions = ?used, "the file uses extensions that the loader ignores");
     }
+    let colored = document
+        .meshes()
+        .flat_map(|mesh| mesh.primitives())
+        .filter(|primitive| primitive.get(&Semantic::Colors(0)).is_some())
+        .count();
     for (count, what) in [
         (document.animations().len(), "animations"),
         (document.skins().len(), "skins"),
         (document.cameras().len(), "cameras"),
+        (colored, "primitives with vertex colors"),
     ] {
         if count > 0 {
             tracing::warn!(count, "the file has {what}, which the loader ignores");
