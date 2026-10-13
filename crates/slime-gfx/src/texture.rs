@@ -81,59 +81,21 @@ impl Gpu {
             pixels.len()
         );
         // One level per halving of the larger side, down to one pixel.
-        let levels = u32::BITS - width.max(height).leading_zeros();
-        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some(label),
-            size: wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: levels,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: format.to_wgpu(),
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[],
-        });
-        let mut level = Level {
+        let count = u32::BITS - width.max(height).leading_zeros();
+        let mut levels = vec![Level {
             width,
             height,
             pixels: Cow::Borrowed(pixels),
-        };
-        for index in 0..levels {
-            // Unlike copies recorded in a command encoder, this write needs no row alignment.
-            self.queue.write_texture(
-                wgpu::TexelCopyTextureInfo {
-                    texture: &texture,
-                    mip_level: index,
-                    origin: wgpu::Origin3d::ZERO,
-                    aspect: wgpu::TextureAspect::All,
-                },
-                &level.pixels,
-                wgpu::TexelCopyBufferLayout {
-                    offset: 0,
-                    bytes_per_row: Some(level.width * 4),
-                    rows_per_image: Some(level.height),
-                },
-                wgpu::Extent3d {
-                    width: level.width,
-                    height: level.height,
-                    depth_or_array_layers: 1,
-                },
-            );
-            if index + 1 < levels {
-                level = level.halved(format.is_srgb());
-            }
+        }];
+        while levels.len() < count as usize {
+            let next = levels
+                .last()
+                .expect("the full-size level is there")
+                .halved(format.is_srgb());
+            levels.push(next);
         }
-        // The view keeps the texture alive.
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        Texture {
-            view,
-            width,
-            height,
-            format,
-        }
+        let levels: Vec<&[u8]> = levels.iter().map(|level| &*level.pixels).collect();
+        self.create_texture_from_levels(label, (width, height), 1, format, &levels)
     }
 
     /// Creates a two-dimensional texture of `width` × `height` pixels whose levels of detail the
@@ -265,6 +227,7 @@ impl Gpu {
             }),
             ..wgpu::TextureViewDescriptor::default()
         });
+        // The view keeps the texture alive.
         Texture {
             view,
             width,
