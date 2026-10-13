@@ -171,7 +171,17 @@ impl App for SceneExample {
             }
             None => false,
         };
-        if !over_a_panel {
+        // Presses and the wheel over a panel are the overlay's. Releases and motion still reach
+        // the camera: a drag that starts on the scene ends wherever the button is released.
+        let for_the_overlay = over_a_panel
+            && matches!(
+                event,
+                Event::MouseButton {
+                    state: ButtonState::Pressed,
+                    ..
+                } | Event::MouseWheel(_)
+            );
+        if !for_the_overlay {
             self.camera.handle(event);
         }
         if let Event::Key(KeyEvent {
