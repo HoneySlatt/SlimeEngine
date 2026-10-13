@@ -8,7 +8,8 @@ drivers.
 Partial. It opens a GPU device, with or without a window, draws into offscreen images and reads
 them back, and draws into a window. It draws lists of triangles from vertex and index buffers,
 reading uniform buffers, textures and samplers through bind groups, with a depth test and face
-culling, into 8-bit sRGB or linear images. Blending is not there yet.
+culling, into 8-bit sRGB or linear images, and times its render passes on adapters that have
+timestamp queries. Blending is not there yet.
 
 ## Role
 
@@ -117,13 +118,14 @@ fn main() -> Result<(), GfxError> {
     (`create_bind_group`) gives the `BindingResource` of each binding of a layout: a whole uniform
     buffer, or a range of one whose start is given each time the group is bound (a *dynamic
     offset*, a multiple of `Gpu::uniform_offset_alignment`), so that one buffer holds the values
-    of many draws.
+    of many draws; a texture; or a sampler.
   - `DepthTarget`: a texture holding the depth of what was drawn (`create_depth_target`), at the
     size of the render targets it is used with, for depth testing. It cannot be read back.
   - `GpuTimer`: measures how long render passes take on the GPU (`create_timer`), on adapters
     that support timestamp queries (`Gpu::can_time`; `None` otherwise). A pass that names it in
     its descriptor is timed, and `GpuTimer::latest` gives the time of the last timed pass that
-    has come back, a few frames later, without waiting for the GPU.
+    has come back, a few frames later, without waiting for the GPU. At most four timed passes can
+    be in flight: while all four wait for their times, further passes go untimed.
   - `ShaderModule`: WGSL source compiled by wgpu (`create_shader_module`).
   - `RenderPipeline`: a shader's entry points, the layout of its vertices, the layouts of the bind
     groups its shaders read, its depth test (`DepthState`), its culling (`CullMode`) and the format
@@ -131,9 +133,9 @@ fn main() -> Result<(), GfxError> {
     draws lists of triangles, without blending. A binding that the shaders declare and that no
     layout holds is rejected.
 
-  They are cheap to clone, clones share the GPU object, and it is freed when the last one is
-  dropped. Each belongs to the `Gpu` that created it: using it with another `Gpu` is a bug, which
-  panics inside wgpu.
+  Except the timer, they are cheap to clone, clones share the GPU object, and it is freed when
+  the last one is dropped. Each belongs to the `Gpu` that created it: using it with another `Gpu`
+  is a bug, which panics inside wgpu.
 - `Gpu::render(&RenderPassDescriptor { target, clear, depth, timer }, record)` runs one render
   pass: it clears the target to a color, and the depth target to the farthest depth, or keeps
   what both hold when `clear` is `None`; lets `record` draw through a `RenderPass`
@@ -178,7 +180,8 @@ fn main() -> Result<(), GfxError> {
 - `wgpu`: access to the GPU through Vulkan and Direct3D 12, and the WGSL shader compiler.
 - `pollster`: waits for wgpu's requests, which are futures.
 - `raw-window-handle`: the standard traits through which a window, created by another crate, is
-  drawn into.
+  drawn into; with its `alloc` feature, for the implementations on `Arc`, in which the surface
+  keeps the window to create itself again.
 - `thiserror`: derives `GfxError`'s `Display` and `Error` implementations.
 - `tracing`: logging.
 

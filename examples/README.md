@@ -12,9 +12,9 @@ cargo run --example <name> [-- <arguments>]
 |---|---|---|
 | [`hello`](hello.rs) | Diagnostics: logging through `tracing`, the `SLIME_LOG` filter, panic reporting | `--panic` panics on purpose |
 | [`headless`](headless.rs) | An application without a window: frames back to back with simulated time, exit at a frame limit, profiling spans (`SLIME_LOG=trace`) | `--frames <count>` (default 600) |
-| [`window`](window.rs) | A window in which the GPU draws the samples' triangle, which follows resizes; its events logged (window, keys, mouse; cursor motion with `SLIME_LOG=debug`); Escape, closing it or Ctrl+C quits cleanly. The sample of Stage 2 | `--frames <count>` closes it after that many frames, and fails if none of them drew the triangle; `--headless` runs the same program without a window; `--present-mode mailbox|fifo` chooses how images are shown (default `mailbox`) |
+| [`window`](window.rs) | A window in which the GPU draws the samples' triangle, which follows resizes; its events logged (window, keys, mouse; cursor motion with `SLIME_LOG=debug`); Escape, closing it or Ctrl+C quits cleanly. The sample of Stage 2 | `--frames <count>` closes it after that many frames and, with a window, fails if none of them drew the triangle; `--headless` runs the same program without a window; `--present-mode mailbox|fifo` chooses how images are shown (default `mailbox`) |
 | [`offscreen`](offscreen.rs) | Rendering without a window: the GPU draws a triangle into an image, which is read back and written to a PNG file; works on software drivers (lavapipe, WARP) | `--output <file>` (default `triangle.png`) |
-| [`scene`](scene.rs) | A glTF scene drawn by the renderer (`slime-render`): [`assets/scene.glb`](assets/README.md), or any GLB file with embedded buffers and PNG images, lit by a directional light, seen from a camera that orbits it until the mouse takes over (drag with the left button to turn, roll the wheel to come nearer or farther), with a dev overlay showing the frame time, the CPU and GPU times of the render, the draw calls and triangles (F1 hides it); Escape, closing the window or Ctrl+C quits cleanly. The sample of Stage 3a, which grows with it | `--scene <file.glb>` draws another file; `--frames <count>` closes it after that many frames, and fails if none of them drew the scene |
+| [`scene`](scene.rs) | A glTF scene drawn by the renderer (`slime-render`): [`assets/scene.glb`](assets/README.md), or any GLB file with embedded buffers and PNG images, lit by a directional light, seen from a camera that orbits it until the mouse takes over (drag with the left button to turn, roll the wheel to come nearer or farther), with a dev overlay showing the frame time, the CPU and GPU times of the render, the draw calls and triangles (F1 hides it); Escape, closing the window or Ctrl+C quits cleanly. The sample of Stage 3a | `--scene <file.glb>` draws another file; `--frames <count>` closes it after that many frames, and fails if none of them drew the scene |
 
 On Windows, the same commands work with the toolchain described in
 [`CONTRIBUTING.md`](../CONTRIBUTING.md#on-windows). Each CI run on GitHub also publishes
@@ -54,4 +54,5 @@ The log level of every example is set by the `SLIME_LOG` environment variable, f
 
 To add an example, put its source in this directory, declare it as an `[[example]]` in
 [`Cargo.toml`](Cargo.toml), give it a module comment saying what it shows and how to run it, and
-add it to the table above.
+add it to the table above; to publish it for Windows too, add it to the artifact's list in
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) and to the list of executables above.

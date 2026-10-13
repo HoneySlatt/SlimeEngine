@@ -6,10 +6,9 @@ The engine's link to the operating system's windowing and input services.
 
 Partial. It opens one window, on Wayland or X11 (Linux) and on Windows, reports its events (close
 requested, resized, scale factor changed, focus, keys, mouse buttons, cursor motion, the cursor
-entering and leaving, and scrolling)
-and its redraw requests. It does not report yet: the state of the modifier keys as a whole, text
-composed by input methods (Chinese, Japanese, Korean), touch screens, touchpad gestures, gamepads,
-or files dropped on the window.
+entering and leaving, and scrolling) and its redraw requests. It does not report yet: the state of
+the modifier keys as a whole, text composed by input methods (Chinese, Japanese, Korean), touch
+screens, touchpad gestures, gamepads, or files dropped on the window.
 
 ## Role
 
@@ -29,6 +28,9 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
   one attempt per process, even a failed one. It panics on an invalid configuration (a zero size,
   a size above 16 384 logical pixels, a title with a NUL byte) before touching the windowing
   system.
+- `WindowConfig`: the window's title (`"SlimeEngine"` by default) and the requested width and
+  height of its content area, in logical pixels (1280 × 720 by default); compositors may choose
+  another size.
 - `EventHandler` is what the event loop calls back: `window_created` once, then `event` for each
   event, `redraw_requested` when the window should be drawn, and `about_to_wait` whenever all
   pending events are handled, then `exiting` once. `about_to_wait` returns a `LoopControl`: wait
@@ -42,22 +44,26 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
 - Input types: `KeyEvent` describes a key twice: by `physical` position, whatever the layout
   (`KeyCode`, named after the W3C UI Events `code` values such as `KeyQ` or `Escape`, with a few
   exceptions listed in its rustdoc), and by `logical` meaning with the current layout (`Key`: a
-  character such as `"a"`, a `NamedKey` such as `Enter`, or a dead key). It also gives the `text`
-  the key produces and whether it is a repeat. Use the physical code for movement keys and the
+  character such as `"a"`, a `NamedKey` such as `Enter`, a dead key, or `Unidentified`; `KeyCode`
+  has `Unidentified` too, for keys without a code the engine knows). It also gives the `text` the
+  key produces and whether it is a repeat. Use the physical code for movement keys and the
   logical key for shortcuts and text. `MouseButton`, `ButtonState` and `ScrollDelta` describe the
   mouse.
-- `PlatformError` says why the event loop could not run; winit's own error is its `source()`.
-  A compositor or X server that dies while the loop runs ends it cleanly (`exiting` is called) with
-  `PlatformError::EventLoop`, whose source says only `Exit Failure: 1`; the cause appears in lines
-  that the Wayland library prints to standard error itself.
+- `PlatformError` says why the event loop could not run: `Connect` (no windowing system can be
+  reached), `SecondEventLoop` (one was already requested in this process), `CreateWindow` or
+  `EventLoop`; winit's own error is its `source()`. When the window could not be created, no
+  `EventHandler` method is called. A compositor or X server that dies while the loop runs ends it
+  cleanly (`exiting` is called) with `PlatformError::EventLoop`, whose source says only
+  `Exit Failure: <code>`; the cause appears in lines that the Wayland library prints to standard
+  error itself.
 
 On Linux, the windowing system is chosen from the environment, with no fallback from one to the
 other: Wayland if `WAYLAND_DISPLAY` or `WAYLAND_SOCKET` is set to a non-empty value, otherwise X11
 if `DISPLAY` is. A `WAYLAND_SOCKET` that does not name an open file descriptor aborts debug builds,
 since the Wayland library takes ownership of the descriptor before checking it, and gives
 `PlatformError::Connect` in release builds. Its libraries are loaded at run time, so a program that
-never creates an event loop runs without them: libxkbcommon for both; libwayland-client for Wayland; libX11, libX11-xcb,
-libXcursor, libXi, libxcb and libxkbcommon-x11 for X11.
+never creates an event loop runs without them: libxkbcommon for both; libwayland-client for
+Wayland; libX11, libX11-xcb, libXcursor, libXi, libxcb and libxkbcommon-x11 for X11.
 
 ## Dependencies
 

@@ -8,7 +8,9 @@ the GPU layer (`slime-gfx`).
 Partial: the first renderer of Stage 3a (`docs/PLAN.md`). It draws instances of meshes from a
 perspective camera, with a depth test and back-face culling, each with a material of one base
 color, which a texture may modulate, lit by one directional light and an ambient light, and
-reports what each frame cost on the CPU and on the GPU.
+reports what each frame cost on the CPU and, on adapters that can time their work, on the GPU.
+Surfaces are opaque: the alpha of a base color reaches the shader but is not used. Instances are
+drawn in the order of the scene, neither sorted nor batched.
 
 ## Role
 

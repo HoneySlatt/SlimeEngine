@@ -8,7 +8,9 @@ statistics and tooling while the engine has no UI framework of its own.
 Temporary, tooling only (`docs/adr/0031-dev-overlay-with-egui.md`). The editor's UI framework
 (Stage 6 of `docs/ROADMAP.md`) replaces it, and this crate is deleted then. It draws egui panels
 over a frame and feeds egui the window's events; it does not report modifier keys, since the
-engine does not yet, nor the clipboard, cursor icons or input methods.
+engine does not yet, nor the clipboard, cursor icons or input methods. egui warns once at startup
+that the framebuffer is sRGB, since it prefers a linear one for its blending: the panels look
+slightly lighter than egui's own demos.
 
 ## Role
 
@@ -16,7 +18,8 @@ engine does not yet, nor the clipboard, cursor icons or input methods.
   that keeps the frame. It is the only crate besides `slime-gfx` that reaches wgpu, through the
   `wgpu` feature of `slime-gfx`.
 - Translates the engine's events (`slime_platform::Event`) into egui's: the cursor and mouse
-  buttons in logical points, the wheel, keys and the text they produce, focus, the scale factor.
+  buttons in logical pixels (egui's points), the wheel, keys and the text they produce, focus, the
+  scale factor.
   egui's own window integration (`egui-winit`) is not used: winit's types stay inside
   `slime-platform`.
 
@@ -67,10 +70,10 @@ impl App for Game {
 ```
 
 - `Overlay::new(gpu, format, scale_factor)`: for targets of the window's format; the scale
-  factor sizes the text in logical points.
+  factor sizes the text in logical pixels.
 - `Overlay::handle(&event)`: every event of the window, before the application reads it;
-  `Overlay::wants_pointer()` then says whether the cursor is over a panel, so that the application
-  leaves clicks and the wheel to the overlay.
+  `Overlay::wants_pointer()` then says whether the cursor is over a panel, as of the last frame
+  drawn, so that the application leaves clicks and the wheel to the overlay.
 - `Overlay::render(gpu, target, |ctx| ...)`: builds the panels with egui's `Context` and draws
   them over the target; `slime_devui::egui` is the egui the overlay uses. egui sizes a window
   on the first frame that shows it and draws it from the next one.

@@ -11,6 +11,7 @@ it is built this way.
 .
 ├── .github/workflows/   CI: scripts/check.sh on Linux; tests and samples on Windows
 ├── Cargo.toml           virtual workspace: shared metadata, lints and dependency versions
+├── Cargo.lock           the exact version of every dependency, checked in
 ├── crates/              engine crates, one directory per crate, named after the package
 │   ├── slime-app/       application lifecycle and main loop
 │   ├── slime-devui/     dev overlay (egui), temporary tooling
@@ -21,9 +22,14 @@ it is built this way.
 ├── docs/                roadmap, plan, decisions (adr/), glossary, dependencies, this file
 ├── examples/            runnable examples, one per feature, with their tests (`slime-examples`)
 ├── flake.nix            Nix development shell
+├── flake.lock           pinned inputs of the development shell
 ├── rust-toolchain.toml  pinned Rust toolchain
 ├── scripts/check.sh     every automated check, as CI runs them
-└── AGENTS.md            rules for every contributor
+├── AGENTS.md            rules for every contributor
+├── CHANGELOG.md         notable changes, per release
+├── CONTRIBUTING.md      environment, checks, how a change is made and reviewed
+├── LICENSE              MPL-2.0
+└── README.md            what the project is, its state, where to read next
 ```
 
 [ADR-0004](adr/0004-workspace-layout-and-crate-naming.md) sets the layout and naming rules: the
@@ -36,7 +42,7 @@ is created only when code needs it.
 |---|---|---|---|
 | [`slime-platform`](../crates/slime-platform/README.md) | The window, its events and keyboard and mouse input; the only crate that uses the windowing library (winit) | `winit`, `raw-window-handle`, `thiserror`, `tracing` | One window; window, keyboard and mouse events |
 | [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `slime-platform`, `slime-gfx`, `ctrlc`, `thiserror`, `tracing`, `tracing-subscriber` | Headless runs, and windowed runs drawn by the GPU |
-| [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu | `wgpu`, `pollster`, `raw-window-handle`, `thiserror`, `tracing` | Opens a GPU device, draws into offscreen images and reads them back, draws into a window |
+| [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu, apart from the dev overlay through its `wgpu` feature | `wgpu`, `pollster`, `raw-window-handle`, `thiserror`, `tracing` | Opens a GPU device, draws into offscreen images and reads them back, draws into a window |
 | [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, lit by a directional light, seen from a camera, into render targets, and reports what a frame cost; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `glam`, `thiserror`, `tracing` | Meshes, materials with a base color and a texture, a perspective camera, the depth test, one directional light, statistics with the GPU time |
 | [`slime-devui`](../crates/slime-devui/README.md) | The dev overlay: egui drawn over the engine's frames, fed with the engine's events; temporary tooling until the editor's UI framework exists | `egui`, `egui-wgpu`, `slime-gfx` (with its `wgpu` feature), `slime-platform` | Panels over a frame; no modifier keys, clipboard or input methods |
 | [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `gltf`, `png`, `tracing` | `hello`, `headless`, `window`, `offscreen`, `scene`; the reference image tests; a temporary glTF loader |
@@ -47,7 +53,8 @@ is created only when code needs it.
 slime-examples ──▶ slime-app ──┬──▶ slime-platform ──▶ winit
        │                       └──▶ slime-gfx ──────▶ wgpu
        ├──▶ slime-render ──────────▶ slime-gfx
-       ├──▶ slime-devui ───┬───────▶ slime-gfx (feature wgpu) ──▶ wgpu, egui-wgpu
+       ├──▶ slime-devui ───┬───────▶ slime-gfx (feature wgpu) ──▶ wgpu
+       │                   ├───────▶ egui, egui-wgpu ──────────▶ wgpu
        │                   └───────▶ slime-platform (events)
        └──▶ slime-platform, slime-gfx (their types: events, GPU objects)
 ```
@@ -66,8 +73,9 @@ slime-examples ──▶ slime-app ──┬──▶ slime-platform ──▶ w
   ([ADR-0011](adr/0011-windowing-with-winit.md)). `slime_platform::Window` exposes the
   `raw-window-handle` traits so that graphics libraries can draw into it.
 - Only `slime-gfx` uses wgpu, and wgpu's types never appear in a public API
-  ([ADR-0016](adr/0016-gpu-layer-with-wgpu.md)). `slime-gfx` depends on no other engine crate,
-  so that it works without a windowing system.
+  ([ADR-0016](adr/0016-gpu-layer-with-wgpu.md)), except through its `wgpu` feature, for the dev
+  overlay (above). `slime-gfx` depends on no other engine crate, so that it works without a
+  windowing system.
 - A headless run never touches the windowing system or the GPU: it does not create an event loop
   or open a device, so the windowing libraries and the Vulkan loader, which are loaded at run
   time, are not even needed. The checks run the headless sample with no display server to prove
@@ -139,7 +147,8 @@ slime_app::run
     ├── winit "window_event"     translate (event.rs) → driver.event
     │                            → Resized: surface.resize; app.on_event(ctx, &event);
     │                              CloseRequested → stop
-    ├── winit "RedrawRequested"  → driver.redraw_requested → frame with the measured delta
+    ├── winit "window_event"     RedrawRequested → driver.redraw_requested → frame with the
+    │                            measured delta
     ├── winit "about_to_wait"    → driver.about_to_wait
     │                            → if the next frame is due: window.request_redraw();
     │                              return WaitUntil(next frame) or Exit
@@ -163,8 +172,8 @@ system then runs its own loop, in which `about_to_wait` is not called.
 Linux, Direct3D 12 on Windows), asks for the high-performance adapter, logs it, and opens its
 device and queue ([`crates/slime-gfx/src/gpu.rs`](../crates/slime-gfx/src/gpu.rs),
 [ADR-0016](adr/0016-gpu-layer-with-wgpu.md)). Without a GPU, the adapter is a software one:
-lavapipe on Linux when `VK_DRIVER_FILES` points at it, WARP on Windows. Headless runs never open
-the GPU.
+lavapipe on Linux, WARP on Windows; the checks force lavapipe on machines that have a GPU by
+restricting the Vulkan loader to it with `VK_DRIVER_FILES`. Headless runs never open the GPU.
 
 `slime_gfx::Gpu::new_for_window(window, width, height, present_mode)` does the same for a window:
 it creates the window's surface from the window's `raw-window-handle` traits first, asks only for
@@ -195,10 +204,15 @@ gpu = Gpu::new()
 ├── create_texture(label, width, height, format, pixels) an image that shaders sample
 ├── create_sampler(label, &descriptor)                   how they read it
 ├── create_bind_group(label, &layout, entries)           the resources, bound together
-├── render(&RenderPassDescriptor { target, clear, depth }, |pass| ...)
+├── uniform_offset_alignment()                           the step of a bind group's dynamic
+│                                                        offsets into a uniform buffer
+├── create_timer(label)                                  a GpuTimer, when can_time() says the
+│                                                        adapter has timestamp queries
+├── render(&RenderPassDescriptor { target, clear, depth, timer }, |pass| ...)
 │                                                        one command encoder and render pass; the
 │                                                        closure sets the pipeline, the bind groups
-│                                                        and the buffers, and draws; then submitted
+│                                                        and the buffers, and draws; then submitted,
+│                                                        timed by the timer when there is one
 └── read_render_target(&target)                          copy into a buffer, wait for the GPU,
                                                          map it → Image (RGBA, top row first)
 ```
@@ -252,8 +266,9 @@ direction to the light (Lambert), plus the ambient light, times its material's b
 its texture, read at the texture coordinates of the vertex. The examples' temporary glTF loader
 ([`examples/common/gltf.rs`](../examples/common/gltf.rs),
 [ADR-0029](adr/0029-temporary-gltf-loading.md)) builds `MeshData`, materials and textures from a
-GLB file this way, and flattens its node hierarchy into instances. Conventions: world space is right-handed with +Y up, the camera looks down −Z, front faces wind
-counter-clockwise, depth runs from 0 to 1, colors are linear and the sRGB target encodes them.
+GLB file this way, and flattens its node hierarchy into instances. Conventions: world space is
+right-handed with +Y up, the camera looks down −Z, front faces wind counter-clockwise, depth runs
+from 0 to 1, colors are linear and the sRGB target encodes them.
 
 ### Rendering in a window
 
@@ -328,8 +343,12 @@ The engine targets Linux (`x86_64-unknown-linux-gnu`) and Windows (`x86_64-pc-wi
   describes how each platform behaves.
 - wgpu hides the graphics APIs; `slime-gfx` only chooses which one to ask for on each platform
   (`DEFAULT_BACKENDS` in `crates/slime-gfx/src/gpu.rs`).
+- `slime-app` colors its log on Windows only in Windows Terminal (`use_colors` in
+  `crates/slime-app/src/diagnostics.rs`): the older console host prints escape sequences as text.
 - Tests that cannot run on a platform are compiled out with `#[cfg]`, and their file says why: the
-  signal tests run on Unix only.
+  signal tests run on Unix only. The two windowed test programs of `slime-app`
+  (`windowed_errors.rs` and `windowed_lifecycle.rs`), which have no test harness and so need a
+  `main` on every platform, instead return at once on other platforms, printing `skipped`.
 
 `scripts/check.sh` compiles the whole workspace for Windows on Linux, and CI runs the tests and
 the headless samples on a Windows runner.
