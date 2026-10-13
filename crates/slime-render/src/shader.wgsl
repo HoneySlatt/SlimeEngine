@@ -61,6 +61,12 @@ struct FrameUniform {
     ambient: vec3<f32>,
     // How many entries of `lights` hold the scene's lights, from 0 to MAX_LIGHTS.
     light_count: u32,
+    // From world space to the shadow map's clip space (ADR-0038): x and y from -1 to 1 across the
+    // map, depth from 0 to 1 away from the light. Orthographic: w stays 1.
+    light_view_proj: mat4x4<f32>,
+    // The index in `lights` of the light that the shadow map shadows, the scene's first
+    // directional light that casts shadows; light_count or more when none is.
+    shadowed_light: u32,
     lights: array<Light, MAX_LIGHTS>,
 }
 @group(0) @binding(0) var<uniform> frame: FrameUniform;
@@ -106,6 +112,12 @@ struct InstanceUniform {
 }
 @group(2) @binding(0) var<uniform> instance: InstanceUniform;
 
+// The depths of what the shadowed light reaches first, drawn by the shadow pass, and the sampler
+// that compares a depth with them: 1 where the depth is at most the stored one (lit), blending the
+// 2 x 2 nearest texels.
+@group(3) @binding(0) var shadow_map: texture_depth_2d;
+@group(3) @binding(1) var shadow_sampler: sampler_comparison;
+
 struct VertexInput {
     @location(0) position: vec3<f32>,
     @location(1) normal: vec3<f32>,
@@ -123,6 +135,9 @@ struct VertexOutput {
     @location(2) world_position: vec3<f32>,
     // xyz in world space, of any length; w: the bitangent's sign times the handedness.
     @location(3) tangent: vec4<f32>,
+    // Where the shadowed light sees the vertex, in the shadow map's clip space, computed as the
+    // shadow pass computes it, so that both round alike.
+    @location(4) light_position: vec3<f32>,
 }
 
 @vertex
@@ -131,6 +146,7 @@ fn vs_main(input: VertexInput) -> VertexOutput {
     let world = instance.model * vec4<f32>(input.position, 1.0);
     output.clip_position = frame.view_proj * world;
     output.world_position = world.xyz;
+    output.light_position = (frame.light_view_proj * world).xyz;
     output.normal = instance.normal * input.normal;
     output.uv = input.uv;
     // A tangent lies in the surface: the model matrix carries it as it carries the surface. A
@@ -140,6 +156,27 @@ fn vs_main(input: VertexInput) -> VertexOutput {
         input.tangent.w * instance.handedness,
     );
     return output;
+}
+
+// The shadow pass (ADR-0038): each vertex where the shadowed light sees it. The pipeline of opaque
+// materials has no fragment stage: it writes depth only; masked materials' runs `fs_shadow`.
+struct ShadowVertex {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+}
+
+@vertex
+fn vs_shadow(@location(0) position: vec3<f32>, @location(2) uv: vec2<f32>) -> ShadowVertex {
+    return ShadowVertex(frame.light_view_proj * (instance.model * vec4<f32>(position, 1.0)), uv);
+}
+
+// The shadow pass of masked materials: below the cutoff, no depth is written, as in the scene pass.
+@fragment
+fn fs_shadow(@location(0) uv: vec2<f32>) {
+    let alpha = material.base_color.a * textureSample(base_color_texture, base_color_sampler, uv).a;
+    if alpha < material.alpha_cutoff {
+        discard;
+    }
 }
 
 @fragment
@@ -164,13 +201,20 @@ fn fs_main(
     let roughness = clamp(material.roughness * metallic_roughness.g, MIN_ROUGHNESS, 1.0);
     let normal = shading_normal(input.normal, input.tangent, encoded_normal, front_facing);
     let to_camera = normalize(frame.camera_position - input.world_position);
+    // Read once, outside the loop over the lights, whose bound the shader compiler of Direct3D 12
+    // cannot unroll.
+    var shadow = 1.0;
+    if frame.shadowed_light < frame.light_count {
+        shadow = light_reaching(input.light_position);
+    }
     // The loop's bound and each light are the same for every fragment: control flow stays
     // uniform, and every light is evaluated whatever lies around it.
     var direct = vec3<f32>(0.0);
     for (var i = 0u; i < frame.light_count; i += 1u) {
         let light = frame.lights[i];
         var l = -light.direction;
-        var attenuation = 1.0;
+        // The shadowed light is directional: nothing else attenuates it.
+        var attenuation = select(1.0, shadow, i == frame.shadowed_light);
         if light.kind != DIRECTIONAL {
             let to_light = light.position - input.world_position;
             let distance_squared = dot(to_light, to_light);
@@ -202,6 +246,25 @@ fn fs_main(
     // opaque: the target's alpha is 1 wherever one is drawn.
     let exposed = (direct + ambient + emitted) * frame.exposure;
     return vec4<f32>(min(exposed, vec3<f32>(LARGEST_HALF)), 1.0);
+}
+
+// The share of the shadowed light that reaches `position`, from 0 in shadow to 1: its depth seen
+// from the light compared with the shadow map's at 3 x 3 points one texel apart, each comparison
+// blending the 2 x 2 texels nearest to it (percentage-closer filtering), so that a shadow's edge
+// fades over three texels. Sampled at level 0, without derivatives: allowed outside uniform
+// control flow.
+fn light_reaching(seen: vec3<f32>) -> f32 {
+    // Clip space has y up, texture coordinates y down.
+    let uv = seen.xy * vec2<f32>(0.5, -0.5) + 0.5;
+    let texel = 1.0 / vec2<f32>(textureDimensions(shadow_map));
+    var lit = 0.0;
+    for (var y = -1; y <= 1; y += 1) {
+        for (var x = -1; x <= 1; x += 1) {
+            let at = uv + vec2<f32>(f32(x), f32(y)) * texel;
+            lit += textureSampleCompareLevel(shadow_map, shadow_sampler, at, seen.z);
+        }
+    }
+    return lit / 9.0;
 }
 
 // The unit normal a fragment is shaded with: the mesh's interpolated normal, tilted by the normal

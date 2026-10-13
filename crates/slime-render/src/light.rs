@@ -53,15 +53,22 @@ pub struct DirectionalLight {
     /// The illuminance the light gives a surface facing it, in lux (lumens per square metre):
     /// about 100 000 for the sun on a clear day, 400 at sunrise. Finite and not negative.
     pub illuminance: f32,
+    /// Whether the light casts shadows. The renderer has one shadow map (ADR-0038): the first
+    /// directional light of the scene that casts shadows casts them, and the others light
+    /// everything they face, as point and spot lights do. A scene whose directional lights all
+    /// set it to `false` draws no shadow, and skips the shadow pass.
+    pub casts_shadows: bool,
 }
 
 impl Default for DirectionalLight {
-    /// A white light of 1 lux, glTF's default, from above and in front of the default camera.
+    /// A white light of 1 lux, glTF's default, from above and in front of the default camera,
+    /// casting shadows.
     fn default() -> Self {
         Self {
             direction: Vec3::new(-0.5, -1.0, -0.4),
             color: Vec3::ONE,
             illuminance: 1.0,
+            casts_shadows: true,
         }
     }
 }

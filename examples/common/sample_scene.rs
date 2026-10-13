@@ -45,6 +45,7 @@ const SUN: Light = Light::Directional(DirectionalLight {
     direction: Vec3::new(-0.5, -1.0, -0.6),
     color: Vec3::new(1.0, 0.98, 0.9),
     illuminance: SUN_ILLUMINANCE,
+    casts_shadows: true,
 });
 
 /// A loaded glTF scene and the renderer that draws it, for targets of one format.

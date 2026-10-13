@@ -29,6 +29,7 @@ const LIGHT: Light = Light::Directional(DirectionalLight {
     direction: Vec3::new(-0.6, -1.0, -0.5),
     color: Vec3::new(1.0, 0.98, 0.9),
     illuminance: PI,
+    casts_shadows: true,
 });
 /// A slightly cold ambient light, in nits.
 const AMBIENT: Vec3 = Vec3::new(0.15, 0.16, 0.2);

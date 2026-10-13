@@ -1,5 +1,6 @@
 //! Meshes: triangles, given as vertices and indices, uploaded to the GPU.
 
+use glam::Vec3;
 use slime_gfx::{Gpu, IndexBuffer, VertexAttribute, VertexBuffer, VertexFormat, VertexLayout};
 
 use crate::bytes::push_f32s;
@@ -78,6 +79,18 @@ impl MeshData {
         Ok(())
     }
 
+    /// The smallest and the largest coordinates of the positions along each axis: the corners of
+    /// the smallest box around them, which the shadow map is fitted to (ADR-0038).
+    fn bounds(&self) -> (Vec3, Vec3) {
+        self.positions
+            .iter()
+            .map(|&position| Vec3::from(position))
+            .fold(
+                (Vec3::INFINITY, Vec3::NEG_INFINITY),
+                |(min, max), position| (min.min(position), max.max(position)),
+            )
+    }
+
     /// The vertices interleaved as the scene pipelines read them: position, normal, texture
     /// coordinates, tangent.
     fn vertex_bytes(&self) -> Vec<u8> {
@@ -105,6 +118,10 @@ impl MeshData {
 pub struct Mesh {
     pub(crate) vertices: VertexBuffer,
     pub(crate) indices: IndexBuffer,
+    /// The center of the smallest box around the positions, in the mesh's own space.
+    pub(crate) center: Vec3,
+    /// Half the size of that box along each axis.
+    pub(crate) half_size: Vec3,
 }
 
 impl Mesh {
@@ -122,7 +139,13 @@ impl Mesh {
             })?;
         let vertices = gpu.create_vertex_buffer(&format!("{label} vertices"), &data.vertex_bytes());
         let indices = gpu.create_index_buffer(&format!("{label} indices"), &data.indices);
-        Ok(Self { vertices, indices })
+        let (min, max) = data.bounds();
+        Ok(Self {
+            vertices,
+            indices,
+            center: (min + max) / 2.0,
+            half_size: (max - min) / 2.0,
+        })
     }
 }
 
@@ -188,6 +211,16 @@ mod tests {
         assert_eq!(
             floats,
             [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0]
+        );
+    }
+
+    #[test]
+    fn the_bounds_are_the_smallest_box_around_the_positions() {
+        let mut data = triangle();
+        data.positions[1] = [-2.0, 5.0, 0.5];
+        assert_eq!(
+            data.bounds(),
+            (Vec3::new(-2.0, 0.0, 0.0), Vec3::new(0.0, 5.0, 0.5))
         );
     }
 

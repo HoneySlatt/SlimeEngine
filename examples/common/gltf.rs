@@ -740,6 +740,7 @@ fn read_light(
             direction,
             color,
             illuminance: intensity,
+            casts_shadows: true,
         }),
         Kind::Point => Light::Point(PointLight {
             position,

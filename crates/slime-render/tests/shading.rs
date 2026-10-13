@@ -184,6 +184,7 @@ fn lighting(to_light: Vec3, illuminance: f32, ambient: f32) -> Lighting {
         direction: -to_light,
         color: Vec3::ONE,
         illuminance,
+        casts_shadows: true,
     };
     (light, ambient)
 }

@@ -1,15 +1,17 @@
 //! The renderer: draws instances of meshes, seen from a camera and shaded with glTF's
-//! metallic-roughness materials under a scene's lights, into a render target, in two passes: the
-//! scene in high dynamic range, exposed, then tone mapping.
+//! metallic-roughness materials under a scene's lights, into a render target, in three passes: the
+//! shadow map of the first directional light that casts shadows, the scene in high dynamic range,
+//! exposed, then tone mapping.
 
 use std::time::{Duration, Instant};
 
 use glam::{Mat3, Mat4, Vec3};
 use slime_gfx::{
     BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource, BindingType,
-    Color, CullMode, DepthBias, DepthCompare, DepthState, DepthTarget, FragmentState, Gpu,
-    GpuTimer, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, RenderTarget,
-    Sampler, SamplerDescriptor, ShaderStages, Texture, TextureFormat, UniformBuffer,
+    Color, CullMode, DepthBias, DepthCompare, DepthPassDescriptor, DepthState, DepthTarget, Filter,
+    FragmentState, Gpu, GpuTimer, RenderPass, RenderPassDescriptor, RenderPipeline,
+    RenderPipelineDescriptor, RenderTarget, Sampler, SamplerDescriptor, ShaderStages, Texture,
+    TextureFormat, UniformBuffer,
 };
 
 use crate::bytes::{push_f32s, push_mat3, push_mat4, push_u32s};
@@ -18,6 +20,7 @@ use crate::error::RenderError;
 use crate::light::{LIGHT_VALUES_SIZE, Light, MAX_LIGHTS};
 use crate::material::{Material, MaterialData};
 use crate::mesh::{Mesh, MeshData, VERTEX_LAYOUT};
+use crate::shadow::{SHADOW_BIAS, SHADOW_MAP_SIZE, light_view_projection};
 
 /// The shader of the scene pass.
 const SCENE_SHADER: &str = include_str!("shader.wgsl");
@@ -35,8 +38,11 @@ const BLACK: Color = Color {
 };
 /// The size of the values of a frame, as `FrameUniform` in `shader.wgsl` lays them out: the
 /// camera's `mat4x4<f32>`, its position and the exposure (16 bytes), the ambient light and the
-/// number of lights (16 bytes), then room for [`MAX_LIGHTS`] lights: 1 120 bytes.
-const FRAME_VALUES_SIZE: usize = 64 + 2 * 16 + MAX_LIGHTS * LIGHT_VALUES_SIZE;
+/// number of lights (16 bytes), the shadow map's `mat4x4<f32>` and the index of the light it
+/// shadows (16 bytes), then room for [`MAX_LIGHTS`] lights: 1 200 bytes.
+const FRAME_VALUES_SIZE: usize = 64 + 2 * 16 + 64 + 16 + MAX_LIGHTS * LIGHT_VALUES_SIZE;
+/// The index of the shadowed light when the shadow map shadows none: no light has it.
+const NO_SHADOWED_LIGHT: u32 = u32::MAX;
 /// The largest value of the high-dynamic-range target's half-precision floats, to which the exposed
 /// background is limited, as the scene shader limits surfaces (`LARGEST_HALF` in `shader.wgsl`).
 const LARGEST_HALF: f64 = 65_504.0;
@@ -110,8 +116,8 @@ pub struct RenderStats {
     pub draw_calls: u32,
     /// Triangles the scene pass submitted to the GPU, before culling.
     pub triangles: u64,
-    /// How long [`Renderer::render`] took on the CPU: packing the values, recording both passes
-    /// and submitting them.
+    /// How long [`Renderer::render`] took on the CPU: packing the values, recording the passes and
+    /// submitting them.
     pub cpu_time: Duration,
     /// How long the GPU took to draw the scene into the high-dynamic-range target: the latest time
     /// that has come back, a few frames old. `None` on adapters that cannot time their work
@@ -121,18 +127,29 @@ pub struct RenderStats {
     /// another frame than `scene_gpu_time`, and their sum is not the GPU time of a frame
     /// (ADR-0033).
     pub tone_mapping_gpu_time: Option<Duration>,
+    /// Draw calls of the shadow pass, which draws the shadows of the scene's first directional
+    /// light that casts shadows (ADR-0038): one per instance. None when no directional light of
+    /// the scene casts shadows, or when every instance is flattened to a point, which casts
+    /// nothing: the pass is then skipped.
+    pub shadow_draw_calls: u32,
+    /// How long the GPU took to draw the shadow map, under the same rules as `scene_gpu_time`;
+    /// `None` too for a frame that skipped the shadow pass.
+    pub shadow_gpu_time: Option<Duration>,
 }
 
 /// Draws scenes into output targets of one format.
 ///
-/// Each frame takes two passes (ADR-0034, ADR-0037): the scene pass draws the instances into a
-/// target of half-precision floats, where light may exceed 1, with a depth target, their light
-/// multiplied by the scene's exposure; the tone-mapping pass then maps that light to the output's
-/// range with Khronos PBR Neutral. The renderer owns four pipelines: three for the scene pass,
-/// which differ by the faces they cull and among which each draw chooses (ADR-0035), and the
-/// tone-mapping pass's; the high-dynamic-range and depth targets, which it creates at the size of
-/// the output it draws into and again when that size changes; the buffer of the instances' values;
-/// and a GPU timer per pass.
+/// Each frame takes three passes (ADR-0034, ADR-0037, ADR-0038): the shadow pass draws the depths
+/// of the instances, as the scene's first directional light that casts shadows sees them, into the
+/// shadow map; the scene pass draws the instances into a target of half-precision floats, where
+/// light may exceed 1, with a depth target, their light multiplied by the scene's exposure, that
+/// light's only where the shadow map shows nothing nearer to it; the tone-mapping pass then maps
+/// that light to the output's range with Khronos PBR Neutral. The renderer owns six pipelines: two
+/// for the shadow pass (the second discards what masked materials discard), three for the scene
+/// pass, which differ by the faces they cull and among which each draw chooses (ADR-0035), and the
+/// tone-mapping pass's; the shadow map, 2048 × 2048 depths created with the renderer; the
+/// high-dynamic-range and depth targets, which it creates at the size of the output it draws into
+/// and again when that size changes; the buffer of the instances' values; and a GPU timer per pass.
 pub struct Renderer {
     /// The output's format.
     format: TextureFormat,
@@ -152,9 +169,19 @@ pub struct Renderer {
     instances: InstanceSlots,
     /// Created by the first `render`, and again when the output's size changes.
     targets: Option<SizedTargets>,
+    /// Draws the instances' depths as the shadowed light sees them, culling no face.
+    shadow_pipeline: RenderPipeline,
+    /// The same, discarding what masked materials discard.
+    masked_shadow_pipeline: RenderPipeline,
+    /// The depths the shadow pass draws, which the scene pass compares with: created with the
+    /// renderer, at a size of its own.
+    shadow_map: DepthTarget,
+    /// The shadow map and its comparison sampler, bound at group 3 of the scene pass.
+    shadow_group: BindGroup,
     /// Time each pass on the GPU, when the adapter can.
     scene_timer: Option<GpuTimer>,
     tone_mapping_timer: Option<GpuTimer>,
+    shadow_timer: Option<GpuTimer>,
 }
 
 /// The targets that follow the output's size: what the scene pass draws into, and the group
@@ -197,7 +224,7 @@ impl Renderer {
     /// # Errors
     ///
     /// [`RenderError::Gfx`] if the graphics driver rejects one of the renderer's two shaders or
-    /// four pipelines, or if the device is lost.
+    /// six pipelines, or if the device is lost.
     pub fn new(gpu: &Gpu, format: TextureFormat) -> Result<Self, RenderError> {
         let shader = gpu.create_shader_module("scene", SCENE_SHADER)?;
         let uniform = |label: &str, dynamic_offset: bool| {
@@ -233,6 +260,23 @@ impl Renderer {
         }
         let material_layout = gpu.create_bind_group_layout("material", &material_entries);
         let instance_layout = uniform("instance", true);
+        // Apart from the frame's group, which the shadow pass binds: a pass cannot bind what it
+        // draws into.
+        let shadow_layout = gpu.create_bind_group_layout(
+            "shadow map",
+            &[
+                BindGroupLayoutEntry {
+                    binding: 0,
+                    visible_to: ShaderStages::Fragment,
+                    ty: BindingType::DepthTexture,
+                },
+                BindGroupLayoutEntry {
+                    binding: 1,
+                    visible_to: ShaderStages::Fragment,
+                    ty: BindingType::ComparisonSampler,
+                },
+            ],
+        );
         let scene_pipeline = |label: &str, cull: CullMode| {
             gpu.create_render_pipeline(&RenderPipelineDescriptor {
                 label,
@@ -243,7 +287,12 @@ impl Renderer {
                     entry_point: "fs_main",
                     target_format: Some(HDR_FORMAT),
                 }),
-                bind_group_layouts: &[&frame_layout, &material_layout, &instance_layout],
+                bind_group_layouts: &[
+                    &frame_layout,
+                    &material_layout,
+                    &instance_layout,
+                    &shadow_layout,
+                ],
                 depth: Some(DepthState {
                     compare: DepthCompare::Less,
                     write: true,
@@ -252,6 +301,49 @@ impl Renderer {
                 cull,
             })
         };
+        // Every face casts, whichever way it faces the light: a single-sided surface stops light
+        // from behind too, and mirrored instances need no other pipeline.
+        let shadow_pipeline = |label: &str, fragment: Option<FragmentState<'_>>| {
+            gpu.create_render_pipeline(&RenderPipelineDescriptor {
+                label,
+                shader: &shader,
+                vertex_entry_point: "vs_shadow",
+                vertex_layout: Some(VERTEX_LAYOUT),
+                fragment,
+                bind_group_layouts: &[&frame_layout, &material_layout, &instance_layout],
+                depth: Some(DepthState {
+                    compare: DepthCompare::Less,
+                    write: true,
+                    bias: SHADOW_BIAS,
+                }),
+                cull: CullMode::None,
+            })
+        };
+        let masked_shadow_pipeline = shadow_pipeline(
+            "shadow, masked",
+            Some(FragmentState {
+                entry_point: "fs_shadow",
+                target_format: None,
+            }),
+        )?;
+        let shadow_pipeline = shadow_pipeline("shadow", None)?;
+        let shadow_map = gpu.create_depth_target("shadow map", SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
+        let shadow_sampler =
+            gpu.create_comparison_sampler("shadow map", DepthCompare::LessEqual, Filter::Linear);
+        let shadow_group = gpu.create_bind_group(
+            "shadow map",
+            &shadow_layout,
+            &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: BindingResource::DepthTarget(&shadow_map),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: BindingResource::ComparisonSampler(&shadow_sampler),
+                },
+            ],
+        );
         let scene_pipelines = ScenePipelines {
             back_culled: scene_pipeline("scene, back faces culled", CullMode::Back)?,
             front_culled: scene_pipeline("scene, front faces culled", CullMode::Front)?,
@@ -300,6 +392,7 @@ impl Renderer {
         let instances = InstanceSlots::new(gpu, &instance_layout, INITIAL_INSTANCE_CAPACITY);
         let scene_timer = gpu.create_timer("scene");
         let tone_mapping_timer = gpu.create_timer("tone mapping");
+        let shadow_timer = gpu.create_timer("shadow");
         if scene_timer.is_none() {
             tracing::info!("the adapter cannot time its work: the statistics have no GPU time");
         }
@@ -316,8 +409,13 @@ impl Renderer {
             default_sampler,
             instances,
             targets: None,
+            shadow_pipeline,
+            masked_shadow_pipeline,
+            shadow_map,
+            shadow_group,
             scene_timer,
             tone_mapping_timer,
+            shadow_timer,
         })
     }
 
@@ -393,21 +491,30 @@ impl Renderer {
         Material {
             group,
             double_sided: data.double_sided,
+            masked: matches!(data.alpha_mode, crate::material::AlphaMode::Mask { .. }),
         }
     }
 
-    /// Draws `scene` into `target`, in two passes. The scene pass clears a high-dynamic-range
-    /// target to the scene's background, exposed, then draws every instance into it with the depth
-    /// test, so that nearer surfaces hide farther ones whatever their order, each surface shaded by
-    /// the scene's light with glTF's metallic-roughness model and its material's textures, and
-    /// culled or not as its material and its transform ask (ADR-0035), its light multiplied by the
-    /// scene's exposure (ADR-0037). The tone-mapping pass then maps that light to the range a
+    /// Draws `scene` into `target`, in three passes. The shadow pass draws into the shadow map the
+    /// depths of every instance, all their faces (the parts that masked materials discard
+    /// excepted), as the first directional light of `scene.lights` that casts shadows sees them,
+    /// through an orthographic projection that covers the boxes around the instances' meshes
+    /// (ADR-0038); it is skipped when no directional light casts shadows. The scene pass clears a
+    /// high-dynamic-range target to the scene's background, exposed, then draws every instance into
+    /// it with the depth test, so that nearer surfaces hide farther ones whatever their order, each
+    /// surface shaded by the scene's light with glTF's metallic-roughness model and its material's
+    /// textures, the shadowed light's only where the shadow map holds nothing nearer to it, its
+    /// edges blended over three of the map's texels, and culled or not as its material and its
+    /// transform ask (ADR-0035), its light multiplied by the scene's exposure (ADR-0037). Point and
+    /// spot lights cast no shadows. The tone-mapping pass then maps that light to the range a
     /// display shows, and writes it into `target`, opaque. The work runs on the GPU after this
     /// method returns, as with [`Gpu::render`](slime_gfx::Gpu::render).
     ///
     /// The high-dynamic-range and depth targets are created at the size of `target` the first
     /// time, and again whenever that size changes; the instance buffer grows when a scene has more
-    /// instances than before.
+    /// instances than before. The shadow map keeps its size: its texels are the extent of the
+    /// instances across the light divided by 2048, so that a scene that spreads wider gets coarser
+    /// shadows.
     ///
     /// # Panics
     ///
@@ -453,6 +560,27 @@ impl Renderer {
         }
         let targets = self.targets.as_ref().expect("created above");
 
+        // The first directional light that casts shadows casts them, when an instance has a box
+        // to cast them (ADR-0038).
+        let shadow = scene
+            .lights
+            .iter()
+            .enumerate()
+            .find_map(|(index, light)| match light {
+                Light::Directional(light) if light.casts_shadows => Some((index, light.direction)),
+                _ => None,
+            })
+            .and_then(|(index, direction)| {
+                let boxes = scene.instances.iter().map(|instance| {
+                    (
+                        instance.transform,
+                        instance.mesh.center,
+                        instance.mesh.half_size,
+                    )
+                });
+                Some((index, light_view_projection(direction, boxes)?))
+            });
+
         let mut frame_bytes = Vec::with_capacity(FRAME_VALUES_SIZE);
         push_mat4(
             &mut frame_bytes,
@@ -465,6 +593,12 @@ impl Renderer {
             &mut frame_bytes,
             &[u32::try_from(scene.lights.len()).expect("checked above")],
         );
+        let (shadowed, light_view_proj) = shadow
+            .map_or((NO_SHADOWED_LIGHT, Mat4::IDENTITY), |(index, matrix)| {
+                (u32::try_from(index).expect("checked above"), matrix)
+            });
+        push_mat4(&mut frame_bytes, light_view_proj);
+        push_u32s(&mut frame_bytes, &[shadowed, 0, 0, 0]);
         for light in scene.lights {
             light.push_values(&mut frame_bytes);
         }
@@ -498,6 +632,30 @@ impl Renderer {
         gpu.write_uniform_buffer(&self.instances.buffer, &instance_bytes);
 
         let mut stats = RenderStats::default();
+        if shadow.is_some() {
+            let shadow_pass = DepthPassDescriptor {
+                depth: &self.shadow_map,
+                timer: self.shadow_timer.as_ref(),
+            };
+            gpu.render_depth(&shadow_pass, |pass| {
+                pass.set_bind_group(0, &self.frame_group, &[]);
+                let mut bound = None;
+                for (slot, instance) in scene.instances.iter().enumerate() {
+                    let masked = instance.material.masked;
+                    if bound != Some(masked) {
+                        pass.set_pipeline(if masked {
+                            &self.masked_shadow_pipeline
+                        } else {
+                            &self.shadow_pipeline
+                        });
+                        bound = Some(masked);
+                    }
+                    self.instances.draw(pass, slot, instance);
+                    stats.shadow_draw_calls += 1;
+                }
+            });
+            stats.shadow_gpu_time = self.shadow_timer.as_ref().and_then(GpuTimer::latest);
+        }
         let scene_pass = RenderPassDescriptor {
             target: &targets.hdr,
             clear: Some(exposed_background(scene.clear, scene.exposure)),
@@ -506,6 +664,7 @@ impl Renderer {
         };
         gpu.render(&scene_pass, |pass| {
             pass.set_bind_group(0, &self.frame_group, &[]);
+            pass.set_bind_group(3, &self.shadow_group, &[]);
             // The three pipelines share their layouts, so the bound groups stay bound when one
             // replaces another; it is set only when a draw needs another.
             let mut bound = None;
@@ -518,13 +677,7 @@ impl Renderer {
                     pass.set_pipeline(self.scene_pipelines.get(cull));
                     bound = Some(cull);
                 }
-                let offset = u32::try_from(slot * stride)
-                    .expect("the instance buffer is smaller than the device allows");
-                pass.set_bind_group(1, &instance.material.group, &[]);
-                pass.set_bind_group(2, &self.instances.group, &[offset]);
-                pass.set_vertex_buffer(0, &instance.mesh.vertices);
-                pass.set_index_buffer(&instance.mesh.indices);
-                pass.draw_indexed(0..instance.mesh.indices.count());
+                self.instances.draw(pass, slot, instance);
                 stats.draw_calls += 1;
                 stats.triangles += u64::from(instance.mesh.triangle_count());
             }
@@ -678,6 +831,18 @@ impl InstanceSlots {
             capacity,
             stride,
         }
+    }
+
+    /// Draws `instance`, whose values are in slot `slot`, with the pipeline that `pass` has set:
+    /// binds its material at group 1 and its slot at group 2, then its mesh.
+    fn draw(&self, pass: &mut RenderPass<'_>, slot: usize, instance: &Instance<'_>) {
+        let offset = u32::try_from(slot * self.stride)
+            .expect("the instance buffer is smaller than the device allows");
+        pass.set_bind_group(1, &instance.material.group, &[]);
+        pass.set_bind_group(2, &self.group, &[offset]);
+        pass.set_vertex_buffer(0, &instance.mesh.vertices);
+        pass.set_index_buffer(&instance.mesh.indices);
+        pass.draw_indexed(0..instance.mesh.indices.count());
     }
 }
 

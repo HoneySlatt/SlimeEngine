@@ -5,7 +5,7 @@
 //! the high-dynamic-range target is written (ADR-0037). Also what the renderer keeps from one frame
 //! to the next, with the same lit square: the targets follow the size of the output, the projection
 //! its aspect ratio, the instance buffer grows beyond its first size, and the statistics give the
-//! GPU time of each pass. Runs on whatever adapter the machine offers.
+//! GPU time of each pass, the shadow pass's included. Runs on whatever adapter the machine offers.
 
 #[path = "common/tone_curve.rs"]
 mod tone_curve;
@@ -163,6 +163,7 @@ fn from_the_front() -> DirectionalLight {
         direction: Vec3::new(0.0, 0.0, -1.0),
         color: Vec3::ONE,
         illuminance: PI,
+        casts_shadows: true,
     }
 }
 
@@ -335,25 +336,30 @@ fn instances_beyond_the_first_instance_buffer_are_drawn_where_they_are() {
 #[test]
 fn the_statistics_give_the_gpu_time_of_each_pass_on_adapters_that_can_time_their_work() {
     let mut setup = Setup::new();
-    let mut times = (None, None);
+    let mut times = (None, None, None);
     for _frame in 0..8 {
         let (_, stats) = setup.center_of(&[Mat4::IDENTITY], (SIZE, SIZE));
-        assert_eq!((stats.draw_calls, stats.triangles), (1, 2));
+        // The scene's directional light casts shadows: the shadow pass draws the instance too.
+        assert_eq!(
+            (stats.draw_calls, stats.triangles, stats.shadow_draw_calls),
+            (1, 2, 1)
+        );
         times = (
             times.0.or(stats.scene_gpu_time),
             times.1.or(stats.tone_mapping_gpu_time),
+            times.2.or(stats.shadow_gpu_time),
         );
-        if times.0.is_some() && times.1.is_some() {
+        if times.0.is_some() && times.1.is_some() && times.2.is_some() {
             break;
         }
         // Waiting is not needed to get the times back, but makes the test deterministic.
         setup.gpu.wait_idle().expect("the GPU finishes the frame");
     }
     eprintln!(
-        "adapter `{}`: scene and tone-mapping passes timed {times:?}",
+        "adapter `{}`: scene, tone-mapping and shadow passes timed {times:?}",
         setup.gpu.adapter_name()
     );
-    for time in [times.0, times.1] {
+    for time in [times.0, times.1, times.2] {
         if setup.gpu.can_time() {
             let time = time.expect("the GPU time of each pass comes back within a few frames");
             assert!(time < Duration::from_secs(1), "{time:?}");

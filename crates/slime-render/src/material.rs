@@ -156,6 +156,8 @@ pub struct Material {
     pub(crate) group: BindGroup,
     /// Whether its draws cull no face (ADR-0035).
     pub(crate) double_sided: bool,
+    /// Whether its shadow is cut out where it discards fragments (ADR-0038).
+    pub(crate) masked: bool,
 }
 
 #[cfg(test)]
