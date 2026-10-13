@@ -301,7 +301,7 @@ are stored (`MeshData::tangents`, glTF's convention).
 
 **Termination signal.** A request from outside the process to stop it: SIGINT (Ctrl+C in a
 terminal), SIGTERM (a service manager or `kill`) or SIGHUP (the terminal closing). The first one
-stops a run cleanly; a second one ends the process at once
+stops a run cleanly; a second one, half a second or more later, ends the process at once
 ([ADR-0012](adr/0012-clean-shutdown-on-termination-signals.md)).
 
 **Timestamp query.** A GPU feature that writes the GPU's clock at a point of its command stream;

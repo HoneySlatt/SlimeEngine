@@ -204,7 +204,8 @@ fn a_second_signal_ends_a_stuck_process_at_once() {
         &[],
     );
     send_signal(&child, "INT");
-    thread::sleep(Duration::from_millis(200));
+    // Beyond the half second within which a signal only repeats the first.
+    thread::sleep(Duration::from_millis(700));
     send_signal(&child, "INT");
     let (status, output) = wait_for_end(child, &lines);
     assert_eq!(
@@ -215,6 +216,35 @@ fn a_second_signal_ends_a_stuck_process_at_once() {
     assert!(
         !output.contains("shutdown"),
         "a forced exit does not run App::shutdown; output: {output}"
+    );
+}
+
+/// A terminal that closes sends SIGHUP twice, from the shell and then from the kernel, about a
+/// millisecond apart: the repeat must not end the process before the run stops cleanly.
+#[test]
+fn a_repeated_sighup_stops_the_run_cleanly() {
+    if is_child() {
+        let mut app = Announcer {
+            sleep_per_frame: Duration::from_millis(50),
+            ..Announcer::default()
+        };
+        run(&mut app, &AppConfig::default()).expect("this application starts");
+        return;
+    }
+    let (child, lines) = spawn_child(
+        "a_repeated_sighup_stops_the_run_cleanly",
+        false,
+        Stdio::null(),
+        &[],
+    );
+    send_signal(&child, "HUP");
+    thread::sleep(Duration::from_millis(2));
+    send_signal(&child, "HUP");
+    let (status, output) = wait_for_end(child, &lines);
+    assert!(status.success(), "{status}");
+    assert!(
+        output.contains("shutdown"),
+        "App::shutdown must run; output: {output}"
     );
 }
 
@@ -240,7 +270,8 @@ fn a_second_signal_ends_a_process_whose_log_is_blocked() {
     // Leaves the first frame time to fill the pipe.
     thread::sleep(Duration::from_millis(200));
     send_signal(&child, "INT");
-    thread::sleep(Duration::from_millis(200));
+    // Beyond the half second within which a signal only repeats the first.
+    thread::sleep(Duration::from_millis(700));
     send_signal(&child, "INT");
     let (status, output) = wait_for_end(child, &lines);
     assert_eq!(

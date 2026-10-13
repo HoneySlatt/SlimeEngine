@@ -373,8 +373,9 @@ is: `Surface::check` reports it, and the run stops the same way with `GfxError::
 thread of its own: it sets a flag and hands its log line to another thread, so that a blocked
 standard error cannot keep a second signal from being handled; before each frame, the driver
 records the flag in the `Context` as an exit request, so the run stops like any other: the frame
-in progress finishes and `app.shutdown` runs. A second signal ends the process at once with exit
-code 130
+in progress finishes and `app.shutdown` runs. A second signal, half a second or more after the
+first, ends the process at once with exit code 130; one that comes sooner (a closing terminal sends
+SIGHUP twice) is ignored
 ([ADR-0012](adr/0012-clean-shutdown-on-termination-signals.md)).
 
 ### Frame timing

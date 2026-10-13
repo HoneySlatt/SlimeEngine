@@ -25,6 +25,10 @@ and a future dedicated server cannot leave cleanly. The engine's lifecycle promi
   window's first configuration.
 - A second signal ends the process at once with exit code 130, without `shutdown`. Without it, an
   application stuck in a frame could not be stopped with Ctrl+C.
+- A signal that arrives less than half a second after the first repeats it and is ignored: a
+  terminal that closes sends SIGHUP twice, from the shell and then from the kernel, less than a
+  millisecond apart, and the second one must not cut the clean stop short. (Added on 2026-10-13 by
+  the owner's decision, after it was measured.)
 - The flag is never cleared: a signal asks the whole process to stop, so later runs in the same
   process stop immediately too.
 - If the process already has a `ctrlc` handler, for example one installed by the game, the

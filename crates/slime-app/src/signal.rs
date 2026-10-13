@@ -6,17 +6,24 @@
 //! ends the process as soon as the handler returns, which it does at once, so these get no clean
 //! shutdown. A program without a console (a Windows game) receives none of these events.
 
-use std::sync::Once;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Once, OnceLock};
+use std::time::{Duration, Instant};
 
-/// Set by the first termination signal and never cleared: a signal asks the whole process to stop.
-static RECEIVED: AtomicBool = AtomicBool::new(false);
+/// When the first termination signal arrived; set once and never cleared: a signal asks the whole
+/// process to stop.
+static FIRST: OnceLock<Instant> = OnceLock::new();
 
-/// Installs the process-wide signal handler, once. The first signal sets a flag, which the drivers
-/// check between frames, and logs that it was received, from another thread: the line can come
-/// after lines the run writes later, and is lost if the process ends first. A second signal ends
-/// the process at once, with exit code 130 and without a log line, in case the application no
-/// longer reaches the end of a frame.
+/// Signals that arrive within this time of the first one repeat it rather than insist: a terminal
+/// that closes sends SIGHUP twice, from the shell and then from the kernel, less than a millisecond
+/// apart (ADR-0012).
+const REPEAT_WINDOW: Duration = Duration::from_millis(500);
+
+/// Installs the process-wide signal handler, once. The first signal records when it arrived, which
+/// the drivers check between frames, and logs that it was received, from another thread: the line
+/// can come after lines the run writes later, and is lost if the process ends first. A second
+/// signal, half a second or more after the first, ends the process at once, with exit code 130 and
+/// without a log line, in case the application no longer reaches the end of a frame; one that
+/// comes sooner repeats the first and is ignored.
 ///
 /// The handler replaces whatever the process had set for these signals: another library's
 /// handlers, or an inherited "ignore" (as under `nohup`, or for a command started in the
@@ -34,15 +41,20 @@ pub(crate) fn install_handler() {
         // not waited for. The line can therefore come after the run's own lines, and is lost if
         // the process ends before that thread writes it, or if the thread cannot start.
         let installed = ctrlc::set_handler(|| {
-            if RECEIVED.swap(true, Ordering::SeqCst) {
-                std::process::exit(130);
+            // Only this thread sets it, so nothing can set it between the two calls.
+            if let Some(first) = FIRST.get() {
+                if first.elapsed() >= REPEAT_WINDOW {
+                    std::process::exit(130);
+                }
+                return;
             }
+            let _ = FIRST.set(Instant::now());
             let _ = std::thread::Builder::new()
                 .name("signal log".to_owned())
                 .spawn(|| {
                     tracing::info!(
                         "termination signal received, stopping after the current frame (send it \
-                         again to quit immediately)"
+                         again, half a second later or more, to quit immediately)"
                     );
                 });
         });
@@ -71,5 +83,5 @@ pub(crate) fn install_handler() {
 
 /// Whether a termination signal was received since the handler was installed.
 pub(crate) fn received() -> bool {
-    RECEIVED.load(Ordering::SeqCst)
+    FIRST.get().is_some()
 }

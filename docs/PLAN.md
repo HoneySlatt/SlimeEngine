@@ -494,12 +494,6 @@ GitHub issues, linked from their entry; this list stays the reference.
   ends the process, with exit code 130. This matters for a program that keeps working after
   `run`, for example under a service manager, which waits out its stop timeout. Ending the process
   at once when no run is active would amend ADR-0012.
-- **Closing the terminal of a foreground run can end it without `shutdown`** (ADR-0012; a change
-  is proposed to the owner). The shell and then the kernel each send SIGHUP, less than a
-  millisecond apart. The second one counts as the "second signal" and forces exit code 130 before
-  the loop has noticed the first. Measured on 2026-10-13 with the `window` example in a headless
-  Weston: two SIGHUPs 1 ms apart end it with code 130, and `shutdown` does not run or is cut
-  short.
 - **A GPU device lost during a windowed run is not tested** (ADR-0022; a change is proposed to the
   owner). Only the unit test of `slime-gfx` loses a device, by destroying it outside any run. The
   windowed path (the run stops, `shutdown` is called once, and `run` returns

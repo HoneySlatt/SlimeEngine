@@ -99,6 +99,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- Closing the terminal of a run in the foreground no longer cuts its clean stop short. The shell and
+  the kernel each send SIGHUP, less than a millisecond apart, and the second one ended the process
+  as a second signal does. A signal that arrives less than half a second after the first now repeats
+  it and is ignored ([ADR-0012](docs/adr/0012-clean-shutdown-on-termination-signals.md)).
 - Mirrored instances are no longer drawn inside out: the renderer keeps their front faces, and
   the examples' loader no longer copies mirrored meshes with their triangles wound the other way.
   A mesh flattened between two rotations is no longer lit from the wrong side. The sample scene's

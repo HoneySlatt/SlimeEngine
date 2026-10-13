@@ -93,8 +93,10 @@ if let Err(error) = slime_app::run(&mut Game, &config) {
 - `run(&mut app, &config)`: sets up diagnostics and a handler for termination signals, then runs
   the application until it calls `Context::request_exit`, the window is closed, the process
   receives SIGINT (Ctrl+C), SIGTERM or SIGHUP, or `AppConfig::frame_limit` is reached. In every
-  case the frame in progress finishes and `shutdown` runs; a second signal ends the process at
-  once (exit code 130) for an application that no longer finishes its frames
+  case the frame in progress finishes and `shutdown` runs; a second signal, half a second or more
+  after the first, ends the process at once (exit code 130) for an application that no longer
+  finishes its frames; one that comes sooner, as when a closing terminal sends SIGHUP twice, is
+  ignored
   (`docs/adr/0012-clean-shutdown-on-termination-signals.md`).
   - Headless: frames run back to back with simulated time: each frame represents one fixed step,
     so runs are deterministic. Neither the windowing system nor the GPU is touched.
