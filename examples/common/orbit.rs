@@ -5,14 +5,16 @@ use slime_render::glam::Vec3;
 
 /// A camera at `distance` from `target`, looking at it, turned by `yaw` around the vertical axis
 /// (0 looks from +Z) and raised by `pitch` above it (0 is level with it), both in radians, for a
-/// scene that lies within `radius` of `target`: its near and far planes enclose that sphere,
-/// whatever the scene's size.
+/// scene that lies within `radius` of `target`. While the camera is more than about 1.002 ×
+/// `radius` from `target`, outside that sphere, its near and far planes enclose the sphere,
+/// whatever the scene's size. Nearer, and inside the sphere, the near plane stays at a thousandth
+/// of the far one, which the precision of the depth buffer allows, and what lies nearer the eye
+/// than that is clipped.
 pub fn camera_at(target: Vec3, radius: f32, distance: f32, yaw: f32, pitch: f32) -> Camera {
     let (sin_yaw, cos_yaw) = yaw.sin_cos();
     let (sin_pitch, cos_pitch) = pitch.sin_cos();
     let direction = Vec3::new(cos_pitch * sin_yaw, sin_pitch, cos_pitch * cos_yaw);
-    // With a margin for rounding. Inside the sphere, the near plane stays a thousandth of the far
-    // one, which the precision of the depth buffer allows.
+    // With a margin for rounding.
     let far = (distance + radius) * 1.01;
     let near = ((distance - radius) * 0.99).max(far / 1000.0);
     Camera {
