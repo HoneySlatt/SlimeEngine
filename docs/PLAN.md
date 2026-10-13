@@ -397,15 +397,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   cause: a window larger than the device's largest image is drawn at that size (`Surface::resize`),
   and a shader or pipeline that the driver rejects is returned as an error (`GfxError::Shader` or
   `GfxError::Pipeline` on Direct3D 12; on Vulkan, wgpu treats the driver's failure as a lost
-  device, `GfxError::DeviceLost`). A window's surface that cannot be configured still panics, as
-  the next entry says.
-- **A window's surface that cannot be configured panics** (ADR-0025; a change is proposed to the
-  owner). `Surface::acquire` configures the surface outside a wgpu error scope, so a failed
-  configuration is a validation error, which panics while the device is alive. On Vulkan, a
-  surface gone for good (an X11 window destroyed by another client, for example) fails its
-  configuration this way before the limit of ADR-0025 is reached, since a surface created again
-  is configured before its first image; on Direct3D 12, a swap chain that cannot be created does
-  the same.
+  device, `GfxError::DeviceLost`); a window's surface that the graphics API refuses to configure
+  counts as lost (ADR-0025). The refusal of a configuration is not tested: nothing the tests
+  control makes a conformant driver refuse one.
 - **A lost GPU device is not replaced** (ADR-0022; issue
   [#2](https://github.com/HoneySlatt/SlimeEngine/issues/2)): the run stops with an error, and
   since winit allows one event loop per process, carrying on means starting the process again.

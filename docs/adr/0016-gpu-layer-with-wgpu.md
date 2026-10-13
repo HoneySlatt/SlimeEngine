@@ -1,6 +1,6 @@
 # 0016. The GPU layer: wgpu behind `slime-gfx`
 
-- Status: Accepted; amended by [0022](0022-losing-the-gpu-device.md) (errors after a loss), [0031](0031-dev-overlay-with-egui.md) (wgpu for the tooling, optional features) and [0036](0036-direct3d-12-shader-compiler.md) (FXC on Direct3D 12)
+- Status: Accepted; amended by [0022](0022-losing-the-gpu-device.md) (errors after a loss), [0031](0031-dev-overlay-with-egui.md) (wgpu for the tooling, optional features), [0025](0025-giving-up-a-lost-surface.md) (a surface that cannot be configured counts as lost) and [0036](0036-direct3d-12-shader-compiler.md) (FXC on Direct3D 12)
 - Date: 2026-10-12
 
 ## Context

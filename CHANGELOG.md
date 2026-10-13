@@ -103,6 +103,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- A window's surface that the graphics API refuses to configure (a window or a display gone, a
+  swap chain that cannot be created) no longer panics: it counts as lost, is created again, and is
+  given up with wgpu's message after the losses that ADR-0025 allows, which stops the run with
+  `GfxError::SurfaceLost`. Acquiring an image while the previous frame is still held now panics
+  with a message of the engine's.
 - On Windows, a program started from Windows Terminal into a window of the older console host no
   longer prints its log's colors as escape sequences. `slime-app` asks the console to interpret
   them, through the new Windows-only dependency `nu-ansi-term`, and colors the log only when it

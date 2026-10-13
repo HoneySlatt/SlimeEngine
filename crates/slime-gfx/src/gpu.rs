@@ -147,14 +147,9 @@ impl Gpu {
         &self,
         create: impl FnOnce() -> T,
     ) -> Result<(T, Option<wgpu::Error>), GfxError> {
-        let validation = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
-        let internal = self.device.push_error_scope(wgpu::ErrorFilter::Internal);
-        let created = create();
-        // Scopes are popped in the reverse order of their pushes.
-        let internal = pollster::block_on(internal.pop());
-        let validation = pollster::block_on(validation.pop());
+        let (created, error) = within_error_scopes(&self.device, create);
         self.check()?;
-        Ok((created, internal.or(validation)))
+        Ok((created, error))
     }
 
     /// Creates a buffer of `usage` holding `contents`, which must not be empty. On a lost device,
@@ -250,6 +245,22 @@ impl Gpu {
             .expect("an indefinite wait neither times out nor names a submission");
         Ok(())
     }
+}
+
+/// Runs `run` inside a validation and an internal error scope of `device`, and returns what it
+/// gave, with the error wgpu reported in either scope, if any; errors of other kinds reach the
+/// error handler.
+pub(crate) fn within_error_scopes<T>(
+    device: &wgpu::Device,
+    run: impl FnOnce() -> T,
+) -> (T, Option<wgpu::Error>) {
+    let validation = device.push_error_scope(wgpu::ErrorFilter::Validation);
+    let internal = device.push_error_scope(wgpu::ErrorFilter::Internal);
+    let result = run();
+    // Scopes are popped in the reverse order of their pushes.
+    let internal = pollster::block_on(internal.pop());
+    let validation = pollster::block_on(validation.pop());
+    (result, internal.or(validation))
 }
 
 /// The wgpu instance, limited to the platform's graphics API unless `WGPU_BACKEND` chooses another,

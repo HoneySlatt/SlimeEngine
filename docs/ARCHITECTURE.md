@@ -339,7 +339,7 @@ whether there is an image to draw:
 | Outdated configuration | Configured again, then one more try; no image this frame if still outdated |
 | Suboptimal image | Drawn and presented, then configured again |
 | Image not ready in time (Vulkan), window occluded | No image this frame; on Direct3D 12, wgpu waits up to one second for a late image, then returns it, and the frame is drawn late |
-| Surface lost | Created again from the window; no image this frame. Lost for good (it cannot be created again, or is lost again each time): no image, and the run stops before the next frame, like after a lost device |
+| Surface lost, or a configuration the graphics API refuses | Created again from the window; no image this frame. Lost for good (it cannot be created again, or is lost again each time): no image, and the run stops before the next frame, like after a lost device |
 | Device lost (see [Losing the GPU](#losing-the-gpu)) | No image; the run stops before the next frame. An image acquired before the loss was found is released instead of presented, so that the surface can be dropped |
 
 How the window shows the images is the *present mode* (`AppConfig::present_mode`). With Mailbox,

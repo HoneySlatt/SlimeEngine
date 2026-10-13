@@ -25,6 +25,14 @@ this from the engine's code and wgpu's sources.
   to stop: the run stops like after an exit request, `shutdown` is called, and `run` returns
   `RunError::Gfx` with `GfxError::SurfaceLost`.
 
+- A configuration of the surface that the graphics API refuses counts as a loss: the surface is
+  created again, counted toward the same limit, and given up with wgpu's message when the limit is
+  passed. The surface is configured inside wgpu error scopes for that, an exception to ADR-0016's
+  rule that wgpu's errors panic: this one comes from the window's environment (a window or a
+  display gone, a swap chain that cannot be created), not from a bug. Acquiring an image while the
+  previous frame is still held stays a panic, checked by the surface itself, so that the scope does
+  not turn that bug into a lost surface. (Added on 2026-10-13 by the owner's decision.)
+
 This amends ADR-0020 (a lost surface is not created again without end) and ADR-0022 (the loss of
 the surface stops the run as the loss of the device does).
 

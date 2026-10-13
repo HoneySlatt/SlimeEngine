@@ -1,13 +1,13 @@
 //! Drawing into a window: its surface, and the image of each frame.
 
 use std::fmt;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 use crate::error::GfxError;
-use crate::gpu::Gpu;
+use crate::gpu::{Gpu, within_error_scopes};
 use crate::render_target::{RenderTarget, TextureFormat};
 
 /// What a window must provide to be drawn into: the `raw-window-handle` traits, and being usable
@@ -82,6 +82,8 @@ pub struct Surface {
     /// Why the surface is lost for good, once it is: it could not be created again, or was lost
     /// again each time it was.
     lost: Option<String>,
+    /// Whether the [`SurfaceFrame`] of the last image acquired still exists.
+    frame_outstanding: Arc<AtomicBool>,
 }
 
 impl Gpu {
@@ -170,6 +172,7 @@ impl Gpu {
             stale: true,
             losses_in_a_row: 0,
             lost: None,
+            frame_outstanding: Arc::new(AtomicBool::new(false)),
         };
         surface.resize(width, height);
         Ok((gpu, surface))
@@ -220,7 +223,9 @@ impl Surface {
     /// It returns `None` while the window has a size of zero, when the next image is not ready
     /// within wgpu's timeout (one second) on Vulkan, while the window is occluded (on platforms
     /// that report it), when the surface is still outdated after being configured again, after the
-    /// surface was lost, in which case it is created again for the next call, once the surface is
+    /// surface was lost or could not be configured (the graphics API refused the window, which it
+    /// does when the window or the display goes away), in which case it is created again for the
+    /// next call (`docs/adr/0025-giving-up-a-lost-surface.md`), once the surface is
     /// lost for good ([`check`](Self::check)), and once the device is lost. These cases are logged
     /// at the `debug` level, except a size of zero and a surface lost for good (not logged again)
     /// and the loss of the surface (`warn`, or `error` for the loss that gives it up).
@@ -239,9 +244,9 @@ impl Surface {
     ///
     /// # Panics
     ///
-    /// If the [`SurfaceFrame`] of the previous call still exists: wgpu treats acquiring a second
-    /// image while one is held as a misuse (ADR-0016). Present each frame before the next call;
-    /// dropping it instead is a misuse too ([`SurfaceFrame`] says why).
+    /// If the [`SurfaceFrame`] of the previous call still exists: acquiring a second image, or
+    /// configuring the surface, while one is held is a misuse (ADR-0016). Present each frame before
+    /// the next call; dropping it instead is a misuse too ([`SurfaceFrame`] says why).
     pub fn acquire(&mut self, label: &str) -> Option<SurfaceFrame> {
         let image = self.next_image(label);
         if image.is_none() {
@@ -256,16 +261,18 @@ impl Surface {
     /// The image of [`acquire`](Self::acquire), without the submission it makes when there is
     /// none.
     fn next_image(&mut self, label: &str) -> Option<SurfaceFrame> {
+        assert!(
+            !self.frame_outstanding.load(Ordering::Relaxed),
+            "the window's previous image ({label} asked for the next one) is still held: present \
+             each SurfaceFrame before acquiring the next image"
+        );
         if self.lost.is_some() || self.config.width == 0 || self.config.height == 0 {
             return None;
         }
-        if self.stale {
-            self.surface.configure(&self.device, &self.config);
-            self.stale = false;
+        if self.stale && !self.configure() {
+            return None;
         }
-        // Configuring fails once the device is lost, and can be what finds the loss, since it waits
-        // for the GPU. wgpu then treats the acquisition of an image from a surface never configured
-        // (the first one, or one created again) as fatal, and panics.
+        // Acquiring an image once the device is lost can be fatal in wgpu, as for configuring.
         if self.device_loss.get().is_some() {
             tracing::debug!("frame not drawn: the GPU device is lost");
             return None;
@@ -274,7 +281,10 @@ impl Surface {
         if matches!(current, wgpu::CurrentSurfaceTexture::Outdated) {
             // The window changed since the surface was configured, typically a resize that has
             // not been reported yet: configure again and retry once.
-            self.surface.configure(&self.device, &self.config);
+            self.stale = true;
+            if !self.configure() {
+                return None;
+            }
             current = self.surface.get_current_texture();
         }
         let texture = match current {
@@ -297,7 +307,7 @@ impl Surface {
                 return None;
             }
             wgpu::CurrentSurfaceTexture::Lost => {
-                self.recreate();
+                self.recreate(None);
                 return None;
             }
             wgpu::CurrentSurfaceTexture::Validation => {
@@ -309,12 +319,38 @@ impl Surface {
         };
         self.losses_in_a_row = 0;
         let target = RenderTarget::new(texture.texture.clone(), label, self.format);
+        self.frame_outstanding.store(true, Ordering::Relaxed);
         Some(SurfaceFrame {
             texture,
             target,
             queue: self.queue.clone(),
             device_loss: Arc::clone(&self.device_loss),
+            _outstanding: Outstanding(Arc::clone(&self.frame_outstanding)),
         })
+    }
+
+    /// Applies `config` to the surface, and whether an image can be acquired from it next. Not
+    /// when the device is lost: configuring then fails, and can be what finds the loss, since it
+    /// waits for the GPU, and wgpu treats acquiring an image from a surface never configured (the
+    /// first one, or one created again) as fatal. Not either when the graphics API refuses the
+    /// configuration, which the window's environment causes rather than the engine (the window or
+    /// the display went away, a swap chain that cannot be created): the surface then counts as
+    /// lost, and is created again, or given up (`docs/adr/0025-giving-up-a-lost-surface.md`).
+    fn configure(&mut self) -> bool {
+        let ((), error) = within_error_scopes(&self.device, || {
+            self.surface.configure(&self.device, &self.config);
+        });
+        if self.device_loss.get().is_some() {
+            tracing::debug!("frame not drawn: the GPU device is lost");
+            return false;
+        }
+        if let Some(error) = error {
+            tracing::warn!(%error, "the window's surface cannot be configured");
+            self.recreate(Some(error.to_string()));
+            return false;
+        }
+        self.stale = false;
+        true
     }
 
     /// Whether the surface can still show images. It cannot once it is lost for good: after a loss,
@@ -336,13 +372,19 @@ impl Surface {
 
     /// Creates the surface again after a loss, or gives it up when that fails or when the losses
     /// follow one another without an image in between: a surface lost at every frame would
-    /// otherwise be created again, with a warning, at every frame.
-    fn recreate(&mut self) {
+    /// otherwise be created again, with a warning, at every frame. `refusal` is wgpu's message
+    /// when the loss is a configuration that the graphics API refused.
+    fn recreate(&mut self, refusal: Option<String>) {
         self.losses_in_a_row += 1;
         if self.losses_in_a_row > MAX_LOSSES_IN_A_ROW {
-            self.give_up(format!(
-                "it was lost again {MAX_LOSSES_IN_A_ROW} times after being created again"
-            ));
+            let mut message =
+                format!("it was lost again {MAX_LOSSES_IN_A_ROW} times after being created again");
+            if let Some(refusal) = refusal {
+                message.push_str(&format!(
+                    ", the last time because it cannot be configured: {refusal}"
+                ));
+            }
+            self.give_up(message);
             return;
         }
         match self.instance.create_surface(Arc::clone(&self.window)) {
@@ -388,6 +430,20 @@ pub struct SurfaceFrame {
     queue: wgpu::Queue,
     /// Why the device was lost, once it has been: the [`Gpu`]'s record.
     device_loss: Arc<OnceLock<String>>,
+    /// Tells the surface that the frame is gone, when it is presented or dropped.
+    _outstanding: Outstanding,
+}
+
+/// The surface's flag that a [`SurfaceFrame`] exists, cleared when the frame is presented or
+/// dropped: [`Surface::acquire`] panics while it is set, rather than let wgpu refuse to configure
+/// the surface, which it would then take for a surface the environment broke.
+#[derive(Debug)]
+struct Outstanding(Arc<AtomicBool>);
+
+impl Drop for Outstanding {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Relaxed);
+    }
 }
 
 impl SurfaceFrame {

@@ -210,6 +210,8 @@ fn main() -> Result<(), GfxError> {
   - `Surface::check()` returns `GfxError::SurfaceLost` once the surface is lost for good: it could
     not be created again, or was lost again each time it was; `acquire` then returns `None` without
     logging, and a run built on `slime-app` stops (`docs/adr/0025-giving-up-a-lost-surface.md`).
+    A surface that the graphics API refuses to configure (the window or the display went away)
+    counts as lost, with wgpu's message in the reason when it is given up.
 
   `PresentMode` says how the window shows the images (`docs/adr/0021-frame-pacing.md`): with
   `Mailbox`, the default, each image replaces the one waiting to be shown and presenting never
