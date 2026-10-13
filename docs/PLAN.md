@@ -228,16 +228,18 @@ sample, tests included, and must stay small; upgrading wgpu still waits for egui
   material's packing, the tangents of a mesh, `cull_mode` and `is_mirrored` (3600 meshes flattened
   between two rotations, none mirrored); the loader's tests check computed and read tangents, masks,
   blending, double sides, required extensions, a texture in two slots and coordinate sets in every
-  slot. They pass on lavapipe and on the owner's RX 6900 XT (RADV), and on lavapipe with glam's
-  assertions on. The references were rendered again on lavapipe and looked at. On RADV, `gltf-front`
-  has 222 pixels off by more than 2, 78 by more than 4, 7 by more than 8 (65 allowed), largest 26;
-  `gltf-back` 25, 0, 0, largest 4; `shapes` 588, 278, 36 (50 at M3b.2), largest 18. The scene pass
-  took 5.8 µs on RADV in the lighting test. The asset, regenerated with Blender 5.2 from
-  `make_scene.py`, is 127 296 bytes, and every item that the design checks in it was found. The
-  `scene` example ran 400 frames in a headless Weston on lavapipe, and a screenshot was looked at:
-  the glowing ring, the iron frames of the crates, the metal pillar, the bricks' relief. Not checked
-  yet: the sample by eye on niri, and `scene.exe` in the Windows virtual machine, which the owner
-  runs.
+  slot. They pass on lavapipe, on the owner's RX 6900 XT (RADV), on WARP in the Windows CI job, and
+  on lavapipe with glam's assertions on. The references were rendered again on lavapipe and looked
+  at. On RADV, `gltf-front` has 222 pixels off by more than 2, 78 by more than 4, 7 by more than 8
+  (65 allowed), largest 26; `gltf-back` 25, 0, 0, largest 4; `shapes` 588, 278, 36 (50 at M3b.2),
+  largest 18. On WARP, the references differ by at most 5 (`gltf-front`: 52 pixels off by more than
+  2, 1 by more than 4; `gltf-back`: 15 and 0; `shapes`: 48 and 0); the Windows job took 8 minutes 28
+  seconds, the Linux one 3 minutes 51 seconds. The scene pass took 5.8 µs on RADV in the lighting
+  test. The asset, regenerated with Blender 5.2 from `make_scene.py`, is 127 296 bytes, and every
+  item that the design checks in it was found. The `scene` example ran 400 frames in a headless
+  Weston on lavapipe, and a screenshot was looked at: the glowing ring, the iron frames of the
+  crates, the metal pillar, the bricks' relief. Not checked yet: the sample by eye on niri, and
+  `scene.exe` in the Windows virtual machine, which the owner runs.
 
 ### M3b.4 — Light types
 
