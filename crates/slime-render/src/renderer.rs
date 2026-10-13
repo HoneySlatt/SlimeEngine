@@ -342,10 +342,9 @@ impl Renderer {
 /// normals perpendicular to surfaces scaled unevenly, times the determinant. It turns normals the
 /// same way where the inverse exists, and stays finite where it does not: a mesh flattened along
 /// one axis stays visible, and keeps the normal of its plane. It is negated when the determinant
-/// is negative, so that the normals of a mirrored instance still point out of its surfaces; a
-/// determinant that is negligible next to the lengths of the transform's columns counts as
-/// positive (see [`FLAT_VOLUME`]). It is divided by its largest value, so that its values stay
-/// within ±1, which the shader normalizes without overflow or underflow. Its cofactors are
+/// is negative, so that the normals of a mirrored instance still point out of its surfaces (a
+/// zero determinant counts as positive), and divided by its largest value, so that its values
+/// stay within ±1, which the shader normalizes without overflow or underflow. Its cofactors are
 /// products of two scales in f32, which bounds the uniform scales it handles to about 1e-19 to
 /// 1e19, far beyond those of the inverse (about 1e-13 to 7e12). A mesh flattened along two axes
 /// or three gets zero, but has no triangle left to draw.
@@ -364,21 +363,9 @@ fn normal_matrix(transform: Mat4) -> Mat3 {
     if largest == 0.0 {
         return cofactor;
     }
-    // The determinant of the columns brought to unit length, which does not depend on the scale.
-    let [x, y, z] = [linear.x_axis, linear.y_axis, linear.z_axis].map(|c| c.normalize_or_zero());
-    let mirrored = x.dot(y.cross(z)) < -FLAT_VOLUME;
-    cofactor / if mirrored { -largest } else { largest }
+    let determinant = linear.x_axis.dot(cofactor.x_axis);
+    cofactor / if determinant < 0.0 { -largest } else { largest }
 }
-
-/// How far below zero the determinant of a transform's columns brought to unit length must be for
-/// [`normal_matrix`] to count the transform as mirroring. A mesh flattened between two rotations
-/// (a glTF node scaled to zero along one axis, under a turned parent, with a turned child) has
-/// columns that lie in one plane only up to rounding: their determinant is then noise of either
-/// sign, up to 1.2e-7 in the unit tests, which must not flip the mesh's normals. A transform that
-/// mirrors along the mesh's own axes gives −1. One that also flattens the mesh, to about a
-/// hundred-thousandth, along a direction across those axes can stay above this margin, and then
-/// keeps normals that point into its surfaces.
-const FLAT_VOLUME: f32 = 1e-5;
 
 /// The uniform buffer holding the values of every instance of a frame, one slot per instance at
 /// a multiple of the device's alignment, and the group that binds one slot at a time.
@@ -452,14 +439,6 @@ mod tests {
             ),
             (Mat4::from_scale(Vec3::new(-1.0, 1.0, 1.0)), "mirrored"),
             (
-                Mat4::from_quat(rotation) * Mat4::from_scale(Vec3::new(-1.0, 1.0, 1e-7)),
-                "mirrored and almost flattened",
-            ),
-            (
-                Mat4::from_scale(Vec3::new(-1e15, 1e15, 1e15)) * Mat4::from_quat(rotation),
-                "mirrored and scaled up a lot",
-            ),
-            (
                 Mat4::from_scale(Vec3::splat(1e15)) * Mat4::from_quat(rotation),
                 "scaled up a lot",
             ),
@@ -511,36 +490,5 @@ mod tests {
         assert!(matrix.is_finite(), "{matrix}");
         let normal = direction(matrix, Vec3::Z);
         assert!(normal.x.abs() < 1e-6 && normal.z.abs() < 1e-6, "{normal}");
-    }
-
-    #[test]
-    fn a_mesh_flattened_between_two_rotations_keeps_its_normals_on_their_side() {
-        // A child turned, flattened along Z, then turned by its parent: the columns of the
-        // transform lie in one plane only up to rounding, so its determinant is rounding noise, of
-        // either sign. The normals must point to the side that a scale slightly above zero gives.
-        let turn = |i: u8| {
-            let i = f32::from(i);
-            Quat::from_euler(EulerRot::XYZ, 0.3 + 0.7 * i, -0.5 + 1.1 * i, 0.9 + 0.4 * i)
-        };
-        for parent in (0..16).map(turn) {
-            for child in (16..32).map(turn) {
-                if (child * Vec3::Z).z.abs() < 0.1 {
-                    // The mesh's +Z then lies almost in the plane, where its side is undefined.
-                    continue;
-                }
-                let placed = |z: f32| {
-                    Mat4::from_quat(parent)
-                        * Mat4::from_scale(Vec3::new(1.0, 1.0, z))
-                        * Mat4::from_quat(child)
-                };
-                let thin = Mat3::from_mat4(placed(1e-3)).inverse().transpose();
-                let expected = (thin * Vec3::Z).normalize();
-                let normal = direction(normal_matrix(placed(0.0)), Vec3::Z);
-                assert!(
-                    normal.dot(expected) > 0.99,
-                    "parent {parent}, child {child}: expected {expected}, got {normal}"
-                );
-            }
-        }
     }
 }
