@@ -13,8 +13,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3b — Physically based renderer → 0.1: in progress. Planned on 2026-10-13 and validated by
-  the owner. M3b.1 is done; M3b.2 and M3b.3 pass on the three drivers and wait for the owner's
-  checks on niri and in the Windows virtual machine, which the owner runs together later. The
+  the owner. M3b.1 is done; M3b.2 and M3b.3 pass on the three drivers and in the owner's Windows
+  virtual machine, and wait for the owner's look at the sample on niri. The
   owner's decisions of 2026-10-13 on earlier proposals are applied, and the findings of rounds 4
   and 5 of the audit of 0.0.3 (issue [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are
   fixed or recorded below; next: M3b.4.
@@ -183,8 +183,11 @@ sample, tests included, and must stay small; upgrading wgpu still waits for egui
   lavapipe, each pass taking 0.8 to 0.9 ms, and a screenshot of it was looked at. In the Windows
   CI job, on WARP, every test passes and the references differ by at most 5 (`gltf-front`: 42
   pixels off by more than 2, 3 by more than 4; `gltf-back`: 20 and 0; `shapes`: 82 and 0); the
-  job took 8 minutes 40 seconds, the Linux one 3 minutes 51 seconds. Not checked yet: the sample
-  by eye on niri, and `scene.exe` in the Windows virtual machine, which the owner runs.
+  job took 8 minutes 40 seconds, the Linux one 3 minutes 51 seconds. In the owner's Windows 11
+  virtual machine (RX 6900 XT, Direct3D 12, display scale 150 % and 125 %), on 2026-10-13, after
+  M3b.3: the image, the two GPU times, the exposure slider (Escape and F1 still work while it is
+  held) and the overlay at both scales are as expected. Not checked yet: the sample by eye on
+  niri.
 
 ### M3b.3 — Physically based materials
 
@@ -240,8 +243,11 @@ sample, tests included, and must stay small; upgrading wgpu still waits for egui
   test. The asset, regenerated with Blender 5.2 from `make_scene.py`, is 127 296 bytes, and every
   item that the design checks in it was found. The `scene` example ran 400 frames in a headless
   Weston on lavapipe, and a screenshot was looked at: the glowing ring, the iron frames of the
-  crates, the metal pillar, the bricks' relief. Not checked yet: the sample by eye on niri, and
-  `scene.exe` in the Windows virtual machine, which the owner runs.
+  crates, the metal pillar, the bricks' relief. In the owner's Windows 11 virtual machine (RX 6900
+  XT, Direct3D 12, shaders compiled with FXC), on 2026-10-13, every element shows, without a stray
+  pixel, the floor stays visible from below, and the passes take 0.090 ms (scene) and 0.102 ms
+  (tone mapping); from below, the bottoms of the wall and the crates flicker where they touch the
+  floor (known debt). Not checked yet: the sample by eye on niri.
 
 ### M3b.4 — Light types
 
@@ -472,13 +478,11 @@ GitHub issues, linked from their entry; this list stays the reference.
   X server's XKB extension. On Wayland it panics when the compositor first reports a keyboard,
   which can be in the middle of a run. Turning it into an error would mean probing the libraries
   before winit does.
-- **Two Windows changes to the event loop were not checked on Windows** (2026-10-13). First,
-  ending the loop sets `ControlFlow::Poll`, so that winit does not wait for the last deadline, and
-  `about_to_wait` is no longer passed to the handler after `LoopControl::Exit`. Second, the window
-  is hidden when the loop ends, because winit destroys windows only from inside the loop. To check
-  in the Windows virtual machine: close the `window` example and see the `stopping:` line come at
-  once. Then add a sleep after `run` returns in an example and see the window disappear as soon as
-  it is closed.
+- **Hiding the window when the event loop ends was not seen on Windows** (2026-10-13). winit
+  destroys windows only from inside the loop, so the engine hides the window when the loop ends.
+  In the owner's Windows 11 virtual machine, closing an example ends the process in about 150 ms,
+  too soon to tell the hiding from the end of the process. To see it: add a sleep after `run`
+  returns in an example and check that the window disappears as soon as it is closed.
 - **A termination signal received after `run` has returned no longer ends the process by itself**
   (ADR-0012). `ctrlc` cannot remove the handler that `run` installs. A first signal received then
   only stops later runs, and logs that the run stops after the current frame; only a second one
@@ -541,8 +545,14 @@ GitHub issues, linked from their entry; this list stays the reference.
   wgpu-core treats as the loss of the device. A GPU frame longer than about one second, or a
   compositor that holds the window's images that long (a covered window, a locked session), then
   stops the run with `GfxError::DeviceLost`, with a reason that blames the driver; on Linux the
-  frame is skipped instead. Not measured. To report to wgpu: that wait's timeout should give
+  frame is skipped instead. Not reproduced: in the owner's Windows 11 virtual machine with an AMD
+  driver, the `scene` example kept running with its window covered for six seconds and with the
+  session locked (2026-10-13). To report to wgpu: that wait's timeout should give
   `SurfaceError::Timeout`, as its other waits do.
+- **Seen from below, the sample scene's walls and crates flicker where they touch the floor.** Their
+  bottom faces lie in the floor's plane, and since M3b.3 the floor is double-sided, so from below
+  both are drawn at the same depth (z-fighting). Lifting them by a few millimetres in
+  `examples/assets/make_scene.py` fixes it, at the cost of rendering the glTF references again.
 - **A mouse button can stay down on Wayland when the compositor takes the pointer away during a
   press without taking the keyboard focus.** winit 0.30 reports only `CursorLeft` then, and
   `Translator` (`crates/slime-platform/src/event.rs`) releases held buttons only when the focus is
@@ -550,9 +560,10 @@ GitHub issues, linked from their entry; this list stays the reference.
   cursor leaves the window during an ordinary drag.
 - **On Windows, the first of two held Shift keys let go of is released late.** Windows sends a
   single key-up for both Shift keys, so the engine releases the first one only when the second
-  goes up. If Windows marks the second Shift's press as a repeat, neither its press nor its release
-  is reported. Polling `GetKeyState`, as GLFW and SDL do, would remove the delay, but needs
-  `windows-sys` as a direct dependency. Not checked on Windows yet.
+  goes up. Windows 11 marks the second Shift's press as a repeat, so neither its press nor its
+  release is reported (seen in the owner's virtual machine on 2026-10-13). Polling `GetKeyState`,
+  as GLFW and SDL do, would remove the delay and report both keys, but needs `windows-sys` as a
+  direct dependency.
 - **After a dead key, a press and its release report different logical keys.** On Wayland and
   X11, a character key that does not combine with a pending dead key is reported as
   `Key::Unidentified` with no text; when the keys combine, the press is the composed character and

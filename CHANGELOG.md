@@ -152,10 +152,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   reports only the release of Print Screen, that key now gives no event.
 - On Windows, ending the event loop no longer waits for the last frame's deadline, and no longer
   calls `EventHandler::about_to_wait` once more before `exiting`. After a failed window creation,
-  the loop no longer waits for a message without limit before returning the error. Not checked on
-  Windows yet.
+  the loop no longer waits for a message without limit before returning the error: closing the
+  `window` example stops it in about 150 ms in the owner's Windows 11 virtual machine.
 - On Windows, the window is hidden when the event loop ends, instead of staying on screen,
-  unresponsive, until the process exits. Not checked on Windows yet.
+  unresponsive, until the process exits.
 - On X11, a window whose size times the scale factor exceeds 65 535 physical pixels no longer
   panics inside winit. That is 16 384 logical pixels at a scale factor of 4, and 65 535 is the
   most the protocol allows. The size is now limited to 65 535 physical pixels per side.

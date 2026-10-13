@@ -50,8 +50,9 @@ pub enum Event {
     /// reported there either. On Windows, Print Screen gives no event:
     /// Windows reports only its release. Windows also reports a single release for the two Shift
     /// keys: while both are down, the one let go of first is released only when the other goes
-    /// up, and both are then released together. Windows may report the press of the second Shift
-    /// as an auto-repeat, in which case neither that press nor its release is reported.
+    /// up, and both are then released together. Windows 11 was seen to report the press of the
+    /// second Shift as an auto-repeat, in which case neither that press nor its release is
+    /// reported: the first Shift's press and its release, at the last key-up, are.
     Key(KeyEvent),
     /// A mouse button went down over the window, or went up after going down there, possibly
     /// with the cursor outside the window by then.
