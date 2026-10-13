@@ -33,8 +33,9 @@ pub enum PresentMode {
     Fifo,
 }
 
-/// Losses in a row after which the surface is given up: each loss creates the surface again, and
-/// one that is lost again at once every time will not come back.
+/// How many losses in a row the surface is created again after; the next loss in a row, with no
+/// image acquired in between, gives it up: a surface lost again at once every time will not come
+/// back.
 const MAX_LOSSES_IN_A_ROW: u32 = 3;
 
 /// The usage of a window's images: the GPU draws into them, and nothing else. They can neither be
@@ -222,7 +223,7 @@ impl Surface {
     /// surface was lost, in which case it is created again for the next call, once the surface is
     /// lost for good ([`check`](Self::check)), and once the device is lost. These cases are logged
     /// at the `debug` level, except a size of zero and a surface lost for good (not logged again)
-    /// and the loss of the surface (`warn`).
+    /// and the loss of the surface (`warn`, or `error` for the loss that gives it up).
     ///
     /// It can block until an image is free. With [`PresentMode::Fifo`], it does in step with the
     /// display; with [`PresentMode::Mailbox`], it was measured not to (on niri with RADV, and in a
