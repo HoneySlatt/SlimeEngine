@@ -37,7 +37,12 @@
 //! and the blending of materials whose alpha mode is `BLEND`, which are drawn opaque. A primitive
 //! that has normals and shares its vertex attributes with other primitives, as three.js writes a
 //! mesh of several materials, gets its own copy of every vertex they hold, even those its indices
-//! do not name: K such primitives over V vertices upload K × V vertices.
+//! do not name: K such primitives over V vertices upload K × V vertices. More generally, the loader
+//! checks each primitive alone against the GPU's largest buffer, but sets no limit on the memory of
+//! the whole file: it reads every primitive of every mesh, placed or not, before placing any, and
+//! each primitive gets its own copy of what it reads, three vertices per triangle when it has no
+//! normals. A file of a few megabytes that lists the same primitive many times can therefore ask
+//! for tens of gigabytes, and the process runs out of memory rather than refusing it.
 //!
 //! The `gltf` crate's validation checks little more than that the file's objects name each other
 //! correctly, and its readers panic on some of what it lets through. The loader refuses, rather
