@@ -1,16 +1,15 @@
 //! The scene drawn in high dynamic range and mapped to the output by the tone-mapping pass
 //! (ADR-0034), checked by reading back an `Rgba16Float` output. Known light reaches the
-//! tone-mapping pass as the background of a scene without instances (clear colors reach the driver
-//! unclamped, ADR-0033), exposed by the renderer before the scene pass clears its target to it
-//! (ADR-0037), and must come out as Khronos PBR Neutral gives it. Every input is exact in half
-//! precision, but for the background beyond its range. Runs on whatever adapter the machine offers.
+//! tone-mapping pass as the uniform sky of a scene without instances, which the sky pass exposes
+//! (ADR-0037, ADR-0039), and must come out as Khronos PBR Neutral gives it. Every input is exact in
+//! half precision. Runs on whatever adapter the machine offers.
 
 #[path = "common/tone_curve.rs"]
 mod tone_curve;
 
-use slime_gfx::{Color, FloatImage, Gpu, RenderTarget, TextureFormat};
+use slime_gfx::{FloatImage, Gpu, RenderTarget, TextureFormat};
 use slime_render::glam::Vec3;
-use slime_render::{Camera, RenderStats, Renderer, Scene};
+use slime_render::{Camera, DirectionalLight, Light, RenderStats, Renderer, Scene, Sky};
 
 /// Light, and what Khronos PBR Neutral makes of it, each derived by hand from the specification's
 /// equations (K_s = 0.76 where compression starts, K_d = 0.15, F90 = 0.04).
@@ -36,8 +35,8 @@ fn gpu() -> Gpu {
     Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers")
 }
 
-/// Draws a scene without instances, whose background is `light`, into `output` at `exposure`.
-/// The background's alpha is 0, which the output must not show: it is opaque (ADR-0034).
+/// Draws a scene without instances under a uniform sky of radiance `light`, into `output` at
+/// `exposure`.
 fn draw(
     gpu: &Gpu,
     renderer: &mut Renderer,
@@ -45,15 +44,23 @@ fn draw(
     light: [f32; 3],
     exposure: f32,
 ) -> RenderStats {
-    let [r, g, b] = light.map(f64::from);
+    let uniform = Vec3::from(light);
+    let environment = renderer.create_environment(
+        gpu,
+        &Sky {
+            zenith: uniform,
+            horizon: uniform,
+            ground: uniform,
+            sun: None,
+        },
+    );
     renderer.render(
         gpu,
         output,
         &Scene {
             camera: Camera::default(),
             lights: &[],
-            ambient: Vec3::ZERO,
-            clear: Color { r, g, b, a: 0.0 },
+            environment: Some(&environment),
             exposure,
             instances: &[],
         },
@@ -132,34 +139,72 @@ fn the_exposure_multiplies_the_light_before_the_curve() {
 }
 
 #[test]
-fn the_background_is_exposed_before_the_high_dynamic_range_target_and_kept_within_its_range() {
+fn the_sky_is_exposed_before_the_high_dynamic_range_target_and_kept_within_its_range() {
     let gpu = gpu();
     let mut renderer =
         Renderer::new(&gpu, TextureFormat::Rgba16Float).expect("the renderer is created");
     let output = gpu.create_render_target("output", 4, 4, TextureFormat::Rgba16Float);
-    // 10⁶, which half precision does not hold, at an exposure of 2⁻²⁰: 0.954, shown at 0.854.
-    // Exposed after the target, it would be stored as 65 504 and shown at 0.024, or stored as an
-    // infinity.
-    draw(&gpu, &mut renderer, &output, [1e6; 3], 2f32.powi(-20));
-    let image = gpu
-        .read_float_render_target(&output)
-        .expect("the image is read back");
-    let exposed = (1e6 * 2f64.powi(-20)) as f32;
-    assert_every_pixel(
-        &image,
-        tone_curve::tone_map([exposed; 3]),
-        "10⁶ at an exposure of 2⁻²⁰",
-    );
     // Exposed light beyond 65 504 is stored as 65 504, as the scene shader writes surfaces, rather
     // than left to the driver, which may store an infinity that the curve turns into NaN.
-    draw(&gpu, &mut renderer, &output, [1e5; 3], 1.0);
+    draw(&gpu, &mut renderer, &output, [32_768.0; 3], 4.0);
     let image = gpu
         .read_float_render_target(&output)
         .expect("the image is read back");
     assert_every_pixel(
         &image,
         tone_curve::tone_map([65_504.0; 3]),
-        "10⁵ at an exposure of 1",
+        "32 768 at an exposure of 4",
+    );
+    // The disc of a sun of 100 000 lux has 100 000 / Ω = 1.47 × 10⁹ nits, beyond half precision,
+    // exposed in the shader to 0.5 here, and to 65 504 at an exposure of 1. Seen along the light,
+    // every pixel of a narrow view is in the disc, where the sun's glow adds 14 324 nits, 5 × 10⁻⁶
+    // once exposed. The same light in the scene lights surfaces but draws no second disc.
+    let solid_angle = 2.0 * std::f64::consts::PI * (1.0 - (0.533_f64 / 2.0).to_radians().cos());
+    let sun = DirectionalLight {
+        direction: -Vec3::Z,
+        illuminance: 100_000.0,
+        ..DirectionalLight::default()
+    };
+    let environment = renderer.create_environment(
+        &gpu,
+        &Sky {
+            zenith: Vec3::ZERO,
+            horizon: Vec3::ZERO,
+            ground: Vec3::ZERO,
+            sun: Some(sun),
+        },
+    );
+    let narrow = Camera {
+        eye: Vec3::ZERO,
+        target: Vec3::Z,
+        fov_y: 0.001,
+        ..Camera::default()
+    };
+    let mut disc = |exposure: f32| {
+        renderer.render(
+            &gpu,
+            &output,
+            &Scene {
+                camera: narrow,
+                lights: &[Light::Directional(sun)],
+                environment: Some(&environment),
+                exposure,
+                instances: &[],
+            },
+        );
+        gpu.read_float_render_target(&output)
+            .expect("the image is read back")
+    };
+    assert_every_pixel(
+        &disc((0.5 * solid_angle / 100_000.0) as f32),
+        tone_curve::tone_map([0.5; 3]),
+        "the sun's disc",
+    );
+    // Exposed at 1, it would be 1.47 × 10⁹: stored as 65 504.
+    assert_every_pixel(
+        &disc(1.0),
+        tone_curve::tone_map([65_504.0; 3]),
+        "the sun's disc at an exposure of 1",
     );
 }
 

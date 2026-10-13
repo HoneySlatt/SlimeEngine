@@ -243,6 +243,7 @@ impl App for SceneExample {
             let show = self.show_overlay;
             let adapter = gpu.adapter_name();
             let stats = self.stats;
+            let environment_time = scene.environment_time();
             let frame_ms = self.frame_ms;
             let size = (target.width(), target.height());
             // The overlay's slider changes it; the scene is drawn with it from the next frame.
@@ -266,6 +267,7 @@ impl App for SceneExample {
                         for (pass, time) in [
                             ("shadow", stats.shadow_gpu_time),
                             ("scene", stats.scene_gpu_time),
+                            ("sky", stats.sky_gpu_time),
                             ("tone mapping", stats.tone_mapping_gpu_time),
                         ] {
                             ui.label(match time {
@@ -279,6 +281,10 @@ impl App for SceneExample {
                         ui.label(format!(
                             "{} draw calls, {} triangles; {} draw calls for shadows",
                             stats.draw_calls, stats.triangles, stats.shadow_draw_calls
+                        ));
+                        ui.label(format!(
+                            "sky computed on the CPU at startup: {:.1} ms",
+                            environment_time.as_secs_f64() * 1000.0
                         ));
                         ui.label(format!("{} × {} pixels", size.0, size.1));
                         // In exposure values, so that equal drags are equal photographic stops.
@@ -305,6 +311,7 @@ impl App for SceneExample {
             cpu_time = ?self.stats.cpu_time,
             shadow_gpu_time = ?self.stats.shadow_gpu_time,
             scene_gpu_time = ?self.stats.scene_gpu_time,
+            sky_gpu_time = ?self.stats.sky_gpu_time,
             tone_mapping_gpu_time = ?self.stats.tone_mapping_gpu_time,
             "shutdown"
         );

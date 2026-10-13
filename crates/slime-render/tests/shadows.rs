@@ -25,11 +25,11 @@ mod tone_curve;
 
 use std::f32::consts::PI;
 
-use slime_gfx::{Color, FloatImage, Gpu, RenderTarget, TextureFormat};
+use slime_gfx::{FloatImage, Gpu, RenderTarget, TextureFormat};
 use slime_render::glam::{DVec3, EulerRot, Mat4, Vec3};
 use slime_render::{
-    AlphaMode, Camera, DirectionalLight, Instance, Light, Material, MaterialData, Mesh, MeshData,
-    PointLight, RenderStats, Renderer, Scene,
+    AlphaMode, Camera, DirectionalLight, Environment, Instance, Light, Material, MaterialData,
+    Mesh, MeshData, PointLight, RenderStats, Renderer, Scene, Sky,
 };
 
 use brdf::Surface;
@@ -38,19 +38,13 @@ use shown::assert_shows;
 /// The shadow map's width in texels: `SHADOW_MAP_SIZE` in `crates/slime-render/src/shadow.rs`.
 const SHADOW_MAP_SIZE: f64 = 2048.0;
 const SIZE: u32 = 64;
-const BLACK: Color = Color {
-    r: 0.0,
-    g: 0.0,
-    b: 0.0,
-    a: 1.0,
-};
 const WHITE: Surface = Surface {
     base_color: [1.0; 3],
     metallic: 0.0,
     roughness: 1.0,
 };
-/// The radiance of the ambient light: what a white surface in shadow reflects.
-const AMBIENT: f64 = 0.125;
+/// The radiance of a uniform sky: what a white surface in shadow reflects.
+const SKY: f64 = 0.125;
 
 /// The renderer, a 64 × 64 `Rgba16Float` output, a white matte square two units wide facing +Z,
 /// centred on the origin, and its material.
@@ -60,6 +54,8 @@ struct Setup {
     output: RenderTarget,
     square: Mesh,
     white: Material,
+    /// A uniform sky of radiance `SKY`.
+    sky: Environment,
 }
 
 impl Setup {
@@ -88,7 +84,18 @@ impl Setup {
             )
             .expect("the square is valid");
         let white = renderer.create_material(&gpu, "white", &MaterialData::default());
+        let uniform = Vec3::splat(SKY as f32);
+        let sky = renderer.create_environment(
+            &gpu,
+            &Sky {
+                zenith: uniform,
+                horizon: uniform,
+                ground: uniform,
+                sun: None,
+            },
+        );
         Self {
+            sky,
             gpu,
             renderer,
             output,
@@ -98,7 +105,7 @@ impl Setup {
     }
 
     /// Draws the square once for each material and transform of `squares`, seen from `camera`
-    /// under `lights` and the ambient light, against black, at an exposure of 1, and reads the
+    /// under `lights` and the uniform sky, at an exposure of 1, and reads the
     /// output back.
     fn draw(
         &mut self,
@@ -120,8 +127,7 @@ impl Setup {
             &Scene {
                 camera,
                 lights,
-                ambient: Vec3::splat(AMBIENT as f32),
-                clear: BLACK,
+                environment: Some(&self.sky),
                 exposure: 1.0,
                 instances: &instances,
             },
@@ -174,7 +180,7 @@ fn sun(degrees: f64, reflected: f64) -> (DirectionalLight, DVec3) {
 }
 
 /// What a white matte floor reflects towards `camera` at `pixel`, lit by `light` arriving from
-/// `to_light`, of which `lit` reaches it, plus the ambient light.
+/// `to_light`, of which `lit` reaches it, plus the sky's light.
 fn floor_shows(
     camera: &Camera,
     pixel: (u32, u32),
@@ -183,7 +189,7 @@ fn floor_shows(
 ) -> [f64; 3] {
     let to_camera = brdf::to_camera(camera, (SIZE, SIZE), pixel, 0.0);
     brdf::reflected(WHITE, DVec3::Z, to_light, to_camera)
-        .map(|channel| channel * f64::from(light.illuminance) * lit + AMBIENT)
+        .map(|channel| channel * f64::from(light.illuminance) * lit + SKY)
 }
 
 /// The share of a shadow at `u`, in texels, along an axis where it covers the texels from `from`
@@ -381,7 +387,7 @@ fn only_the_first_directional_light_that_casts_shadows_casts_them() {
     let from_lamp = brdf::reflected(WHITE, DVec3::Z, (lamp_at - point).normalize(), to_camera)
         .map(|channel| channel * 4.0 / (lamp_at - point).length_squared());
     // What each directional light alone adds there.
-    let reflected = |sun| floor_shows(&camera, center, sun, 1.0).map(|c| c - AMBIENT);
+    let reflected = |sun| floor_shows(&camera, center, sun, 1.0).map(|c| c - SKY);
     let no_shadows = |light: DirectionalLight| DirectionalLight {
         casts_shadows: false,
         ..light
@@ -433,7 +439,7 @@ fn only_the_first_directional_light_that_casts_shadows_casts_them() {
         let lit = if shadowed { 0.0 } else { 1.0 };
         let (from_slanted, from_above) = (reflected(slanted), reflected(above));
         let light: [f64; 3] = std::array::from_fn(|channel| {
-            from_lamp[channel] + from_above[channel] + lit * from_slanted[channel] + AMBIENT
+            from_lamp[channel] + from_above[channel] + lit * from_slanted[channel] + SKY
         });
         assert_shows(&image, center, light, case);
     }
@@ -443,7 +449,7 @@ fn only_the_first_directional_light_that_casts_shadows_casts_them() {
     assert_shows(
         &image,
         center,
-        from_lamp.map(|channel| channel + AMBIENT),
+        from_lamp.map(|channel| channel + SKY),
         "a point light alone",
     );
 }

@@ -25,7 +25,7 @@ mod tone_curve;
 
 use std::f32::consts::PI;
 
-use slime_gfx::{Color, FloatImage, Gpu, RenderTarget, TextureFormat};
+use slime_gfx::{FloatImage, Gpu, RenderTarget, TextureFormat};
 use slime_render::glam::{DVec3, Mat4, Vec3};
 use slime_render::{
     Camera, DirectionalLight, Instance, Light, MAX_LIGHTS, Material, MaterialData, Mesh, MeshData,
@@ -38,12 +38,6 @@ use shown::assert_shows;
 const SIZE: u32 = 9;
 /// The pixel on the camera's axis.
 const CENTER: (u32, u32) = (4, 4);
-const BLACK: Color = Color {
-    r: 0.0,
-    g: 0.0,
-    b: 0.0,
-    a: 1.0,
-};
 /// A white matte dielectric, the default material.
 const WHITE: Surface = Surface {
     base_color: [1.0; 3],
@@ -97,8 +91,8 @@ impl Setup {
         }
     }
 
-    /// Draws the square with `material` (white when `None`) under `lights`, without ambient
-    /// light, against black, at `exposure`, and reads the output back.
+    /// Draws the square with `material` (white when `None`) under `lights`, without an
+    /// environment, against black, at `exposure`, and reads the output back.
     fn draw_with(
         &mut self,
         material: Option<&Material>,
@@ -116,8 +110,7 @@ impl Setup {
             &Scene {
                 camera: camera(),
                 lights,
-                ambient: Vec3::ZERO,
-                clear: BLACK,
+                environment: None,
                 exposure,
                 instances: &instances,
             },

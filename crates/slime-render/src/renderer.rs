@@ -1,21 +1,22 @@
 //! The renderer: draws instances of meshes, seen from a camera and shaded with glTF's
-//! metallic-roughness materials under a scene's lights, into a render target, in three passes: the
-//! shadow map of the first directional light that casts shadows, the scene in high dynamic range,
-//! exposed, then tone mapping.
+//! metallic-roughness materials under a scene's lights and its environment, into a render target,
+//! in four passes: the shadow map of the first directional light that casts shadows, the scene in
+//! high dynamic range, exposed, the sky behind it, then tone mapping.
 
 use std::time::{Duration, Instant};
 
 use glam::{Mat3, Mat4, Vec3};
 use slime_gfx::{
-    BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource, BindingType,
-    Color, CullMode, DepthBias, DepthCompare, DepthPassDescriptor, DepthState, DepthTarget, Filter,
-    FragmentState, Gpu, GpuTimer, RenderPass, RenderPassDescriptor, RenderPipeline,
-    RenderPipelineDescriptor, RenderTarget, Sampler, SamplerDescriptor, ShaderStages, Texture,
-    TextureFormat, UniformBuffer,
+    AddressMode, BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource,
+    BindingType, Color, CullMode, DepthBias, DepthCompare, DepthPassDescriptor, DepthState,
+    DepthTarget, Filter, FragmentState, Gpu, GpuTimer, RenderPass, RenderPassDescriptor,
+    RenderPipeline, RenderPipelineDescriptor, RenderTarget, Sampler, SamplerDescriptor,
+    ShaderStages, Texture, TextureFormat, UniformBuffer,
 };
 
 use crate::bytes::{push_f32s, push_mat3, push_mat4, push_u32s};
 use crate::camera::Camera;
+use crate::environment::{Environment, Sky, brdf_table};
 use crate::error::RenderError;
 use crate::light::{LIGHT_VALUES_SIZE, Light, MAX_LIGHTS};
 use crate::material::{Material, MaterialData};
@@ -37,15 +38,13 @@ const BLACK: Color = Color {
     a: 1.0,
 };
 /// The size of the values of a frame, as `FrameUniform` in `shader.wgsl` lays them out: the
-/// camera's `mat4x4<f32>`, its position and the exposure (16 bytes), the ambient light and the
-/// number of lights (16 bytes), the shadow map's `mat4x4<f32>` and the index of the light it
-/// shadows (16 bytes), then room for [`MAX_LIGHTS`] lights: 1 200 bytes.
-const FRAME_VALUES_SIZE: usize = 64 + 2 * 16 + 64 + 16 + MAX_LIGHTS * LIGHT_VALUES_SIZE;
+/// camera's two `mat4x4<f32>`, its position and the exposure (16 bytes), the shadow map's
+/// `mat4x4<f32>`, the number of lights and the index of the light the map shadows (16 bytes), the
+/// direction towards the sun's disc and its radiance (16 bytes each), then room for
+/// [`MAX_LIGHTS`] lights: 1 280 bytes.
+const FRAME_VALUES_SIZE: usize = 2 * 64 + 16 + 64 + 16 + 2 * 16 + MAX_LIGHTS * LIGHT_VALUES_SIZE;
 /// The index of the shadowed light when the shadow map shadows none: no light has it.
 const NO_SHADOWED_LIGHT: u32 = u32::MAX;
-/// The largest value of the high-dynamic-range target's half-precision floats, to which the exposed
-/// background is limited, as the scene shader limits surfaces (`LARGEST_HALF` in `shader.wgsl`).
-const LARGEST_HALF: f64 = 65_504.0;
 /// The size of the values each instance has in the instance buffer: its `mat4x4<f32>` transform,
 /// the `mat3x3<f32>` that transforms its normals (three columns padded to 16 bytes), and its
 /// handedness, padded to 16 bytes.
@@ -76,7 +75,7 @@ pub struct Instance<'a> {
 /// What the renderer draws in one frame.
 ///
 /// Light is in physical units (ADR-0037): lights in lux and candelas, the light that surfaces
-/// reflect and emit, the ambient light and the background in nits (candelas per square metre),
+/// reflect and emit and the environment's in nits (candelas per square metre),
 /// distances in metres. The scene pass multiplies that light by the exposure before it writes it
 /// into the high-dynamic-range target (pre-exposure), whose half-precision floats reach 65 504:
 /// exposed light above it is written as 65 504, which clips it.
@@ -86,15 +85,12 @@ pub struct Scene<'a> {
     pub camera: Camera,
     /// What lights the surfaces, at most [`MAX_LIGHTS`]: [`Renderer::render`] panics on more.
     pub lights: &'a [Light],
-    /// The radiance of the ambient light, in nits, the same from every direction: a stand-in for
-    /// the light that the surroundings reflect, which the renderer does not compute until
-    /// image-based lighting replaces it. Every surface reflects it times its base color and its
-    /// occlusion, whatever its metallic and roughness. Linear, not negative.
-    pub ambient: Vec3,
-    /// The light behind the scene, where no surface is drawn, in nits: linear, not negative, and
-    /// exposed and tone mapped like the surfaces. Its alpha is not used: the output is opaque.
-    pub clear: Color,
-    /// What the scene's light, the background's included, is multiplied by before it is written
+    /// What surrounds the scene (ADR-0039): its light reaches every surface, reflected as glTF's
+    /// materials reflect it (image-based lighting), and it shows where no surface is drawn, with
+    /// its sun's disc. `None` is a black sky: only the lights and emission light surfaces, and the
+    /// background is black. Created by [`Renderer::create_environment`].
+    pub environment: Option<&'a Environment>,
+    /// What the scene's light, the sky's included, is multiplied by before it is written
     /// into the high-dynamic-range target, then tone mapped (ADR-0034, ADR-0037): a linear factor,
     /// the inverse of the luminance, in nits, that shows as about 0.87 (sRGB 240). 2 is one
     /// photographic stop brighter; 0 gives black. A white matte surface facing a light of E lux
@@ -135,19 +131,24 @@ pub struct RenderStats {
     /// How long the GPU took to draw the shadow map, under the same rules as `scene_gpu_time`;
     /// `None` too for a frame that skipped the shadow pass.
     pub shadow_gpu_time: Option<Duration>,
+    /// How long the GPU took to draw the sky behind the scene, under the same rules as
+    /// `scene_gpu_time`.
+    pub sky_gpu_time: Option<Duration>,
 }
 
 /// Draws scenes into output targets of one format.
 ///
-/// Each frame takes three passes (ADR-0034, ADR-0037, ADR-0038): the shadow pass draws the depths
-/// of the instances, as the scene's first directional light that casts shadows sees them, into the
-/// shadow map; the scene pass draws the instances into a target of half-precision floats, where
-/// light may exceed 1, with a depth target, their light multiplied by the scene's exposure, that
-/// light's only where the shadow map shows nothing nearer to it; the tone-mapping pass then maps
-/// that light to the output's range with Khronos PBR Neutral. The renderer owns six pipelines: two
-/// for the shadow pass (the second discards what masked materials discard), three for the scene
-/// pass, which differ by the faces they cull and among which each draw chooses (ADR-0035), and the
-/// tone-mapping pass's; the shadow map, 2048 × 2048 depths created with the renderer; the
+/// Each frame takes four passes (ADR-0034, ADR-0037, ADR-0038, ADR-0039): the shadow pass draws the
+/// depths of the instances, as the scene's first directional light that casts shadows sees them,
+/// into the shadow map; the scene pass draws the instances into a target of half-precision floats,
+/// where light may exceed 1, with a depth target, their light multiplied by the scene's exposure,
+/// that light's only where the shadow map shows nothing nearer to it, and the environment's; the
+/// sky pass draws the environment where no surface is; the tone-mapping pass then maps that light
+/// to the output's range with Khronos PBR Neutral. The renderer owns seven pipelines: two for the
+/// shadow pass (the second discards what masked materials discard), three for the scene pass, which
+/// differ by the faces they cull and among which each draw chooses (ADR-0035), the sky pass's and
+/// the tone-mapping pass's; the table of the BRDF's scale and bias and a black environment for
+/// scenes without one; the shadow map, 2048 × 2048 depths created with the renderer; the
 /// high-dynamic-range and depth targets, which it creates at the size of the output it draws into
 /// and again when that size changes; the buffer of the instances' values; and a GPU timer per pass.
 pub struct Renderer {
@@ -160,7 +161,18 @@ pub struct Renderer {
     /// The layout of the group through which the tone-mapping pass reads the scene's target.
     tone_mapping_layout: BindGroupLayout,
     frame_uniform: UniformBuffer,
-    frame_group: BindGroup,
+    /// The layout of the frame's group: the frame's values, the environment, the BRDF table and
+    /// their sampler.
+    frame_layout: BindGroupLayout,
+    /// The environment the frame's group was last built with, kept alive by it, and that group.
+    frame_group: (Environment, BindGroup),
+    /// One black texel, the environment of scenes without one.
+    no_environment: Environment,
+    brdf_table: Texture,
+    /// Reads the environment and the BRDF table.
+    environment_sampler: Sampler,
+    /// Draws the environment where no surface is.
+    sky_pipeline: RenderPipeline,
     /// One white pixel, bound in every texture slot that a material leaves empty: every slot reads
     /// it as 1 in each channel, since sRGB's 255 decodes to exactly 1.
     white: Texture,
@@ -182,6 +194,7 @@ pub struct Renderer {
     scene_timer: Option<GpuTimer>,
     tone_mapping_timer: Option<GpuTimer>,
     shadow_timer: Option<GpuTimer>,
+    sky_timer: Option<GpuTimer>,
 }
 
 /// The targets that follow the output's size: what the scene pass draws into, and the group
@@ -224,7 +237,7 @@ impl Renderer {
     /// # Errors
     ///
     /// [`RenderError::Gfx`] if the graphics driver rejects one of the renderer's two shaders or
-    /// six pipelines, or if the device is lost.
+    /// seven pipelines, or if the device is lost.
     pub fn new(gpu: &Gpu, format: TextureFormat) -> Result<Self, RenderError> {
         let shader = gpu.create_shader_module("scene", SCENE_SHADER)?;
         let uniform = |label: &str, dynamic_offset: bool| {
@@ -237,7 +250,34 @@ impl Renderer {
                 }],
             )
         };
-        let frame_layout = uniform("frame", false);
+        // The frame's values, then the environment, the BRDF table and the sampler that reads both.
+        let frame_layout = gpu.create_bind_group_layout(
+            "frame",
+            &[
+                BindGroupLayoutEntry {
+                    binding: 0,
+                    visible_to: ShaderStages::VertexAndFragment,
+                    ty: BindingType::UniformBuffer {
+                        dynamic_offset: false,
+                    },
+                },
+                BindGroupLayoutEntry {
+                    binding: 1,
+                    visible_to: ShaderStages::Fragment,
+                    ty: BindingType::CubeTexture,
+                },
+                BindGroupLayoutEntry {
+                    binding: 2,
+                    visible_to: ShaderStages::Fragment,
+                    ty: BindingType::Texture,
+                },
+                BindGroupLayoutEntry {
+                    binding: 3,
+                    visible_to: ShaderStages::Fragment,
+                    ty: BindingType::Sampler,
+                },
+            ],
+        );
         // The material's values, then each texture slot: a texture and its sampler.
         let mut material_entries = vec![BindGroupLayoutEntry {
             binding: 0,
@@ -349,6 +389,24 @@ impl Renderer {
             front_culled: scene_pipeline("scene, front faces culled", CullMode::Front)?,
             unculled: scene_pipeline("scene, no face culled", CullMode::None)?,
         };
+        // Where the depth target still holds the farthest depth, which the sky's triangle has.
+        let sky_pipeline = gpu.create_render_pipeline(&RenderPipelineDescriptor {
+            label: "sky",
+            shader: &shader,
+            vertex_entry_point: "vs_sky",
+            vertex_layout: None,
+            fragment: Some(FragmentState {
+                entry_point: "fs_sky",
+                target_format: Some(HDR_FORMAT),
+            }),
+            bind_group_layouts: &[&frame_layout],
+            depth: Some(DepthState {
+                compare: DepthCompare::LessEqual,
+                write: false,
+                bias: DepthBias::default(),
+            }),
+            cull: CullMode::None,
+        })?;
 
         let tone_mapping_shader = gpu.create_shader_module("tone mapping", TONE_MAPPING_SHADER)?;
         let tone_mapping_layout = gpu.create_bind_group_layout(
@@ -373,13 +431,23 @@ impl Renderer {
             cull: CullMode::None,
         })?;
         let frame_uniform = gpu.create_uniform_buffer("frame", &[0; FRAME_VALUES_SIZE]);
-        let frame_group = gpu.create_bind_group(
-            "frame",
+        let no_environment = Environment::black(gpu);
+        let brdf_table = brdf_table(gpu);
+        let environment_sampler = gpu.create_sampler(
+            "environment",
+            &SamplerDescriptor {
+                address_u: AddressMode::ClampToEdge,
+                address_v: AddressMode::ClampToEdge,
+                ..SamplerDescriptor::default()
+            },
+        );
+        let frame_group = frame_group(
+            gpu,
             &frame_layout,
-            &[BindGroupEntry {
-                binding: 0,
-                resource: BindingResource::UniformBuffer(&frame_uniform),
-            }],
+            &frame_uniform,
+            &no_environment,
+            &brdf_table,
+            &environment_sampler,
         );
         let white = gpu.create_texture(
             "white",
@@ -393,6 +461,7 @@ impl Renderer {
         let scene_timer = gpu.create_timer("scene");
         let tone_mapping_timer = gpu.create_timer("tone mapping");
         let shadow_timer = gpu.create_timer("shadow");
+        let sky_timer = gpu.create_timer("sky");
         if scene_timer.is_none() {
             tracing::info!("the adapter cannot time its work: the statistics have no GPU time");
         }
@@ -404,7 +473,12 @@ impl Renderer {
             instance_layout,
             tone_mapping_layout,
             frame_uniform,
-            frame_group,
+            frame_layout,
+            frame_group: (no_environment.clone(), frame_group),
+            no_environment,
+            brdf_table,
+            environment_sampler,
+            sky_pipeline,
             white,
             default_sampler,
             instances,
@@ -416,7 +490,24 @@ impl Renderer {
             scene_timer,
             tone_mapping_timer,
             shadow_timer,
+            sky_timer,
         })
+    }
+
+    /// Computes the environment of `sky` on the CPU and uploads it (ADR-0039): the sky drawn into
+    /// a cube map of 128 × 128 texels per face, each the average of 2 × 2 points of it, then
+    /// prefiltered for roughnesses 0.25, 0.5, 0.75 and 1 into faces of 64, 32, 16 and 8 texels.
+    /// This takes tens of milliseconds, on every core: create an environment once per sky, not per
+    /// frame. A sky of one radiance in every direction, without a sun, takes almost none. The
+    /// environment is not tied to this renderer.
+    ///
+    /// # Panics
+    ///
+    /// If the zenith's, the horizon's or the ground's radiance is negative, not finite, or above
+    /// 65 504 nits, the largest value of the environment's half-precision texels: this is a bug in
+    /// the caller. A clear sky stays below about 30 000 nits away from the sun.
+    pub fn create_environment(&self, gpu: &Gpu, sky: &Sky) -> Environment {
+        Environment::new(gpu, sky)
     }
 
     /// Uploads a mesh. `label` names its buffers in error messages and in GPU capture tools.
@@ -495,20 +586,22 @@ impl Renderer {
         }
     }
 
-    /// Draws `scene` into `target`, in three passes. The shadow pass draws into the shadow map the
+    /// Draws `scene` into `target`, in four passes. The shadow pass draws into the shadow map the
     /// depths of every instance, all their faces (the parts that masked materials discard
     /// excepted), as the first directional light of `scene.lights` that casts shadows sees them,
     /// through an orthographic projection that covers the boxes around the instances' meshes
-    /// (ADR-0038); it is skipped when no directional light casts shadows. The scene pass clears a
-    /// high-dynamic-range target to the scene's background, exposed, then draws every instance into
-    /// it with the depth test, so that nearer surfaces hide farther ones whatever their order, each
-    /// surface shaded by the scene's light with glTF's metallic-roughness model and its material's
-    /// textures, the shadowed light's only where the shadow map holds nothing nearer to it, its
-    /// edges blended over three of the map's texels, and culled or not as its material and its
-    /// transform ask (ADR-0035), its light multiplied by the scene's exposure (ADR-0037). Point and
-    /// spot lights cast no shadows. The tone-mapping pass then maps that light to the range a
-    /// display shows, and writes it into `target`, opaque. The work runs on the GPU after this
-    /// method returns, as with [`Gpu::render`](slime_gfx::Gpu::render).
+    /// (ADR-0038); it is skipped when no directional light casts shadows. The scene pass draws
+    /// every instance into a high-dynamic-range target with the depth test, so that nearer surfaces
+    /// hide farther ones whatever their order, each surface shaded by the scene's light with glTF's
+    /// metallic-roughness model and its material's textures, the shadowed light's only where the
+    /// shadow map holds nothing nearer to it, its edges blended over three of the map's texels, and
+    /// culled or not as its material and its transform ask (ADR-0035), the scene's environment
+    /// reflected as its material reflects it (ADR-0039), its light multiplied by the scene's
+    /// exposure (ADR-0037). Point and spot lights cast no shadows. The sky pass draws the
+    /// environment, exposed, where no surface was drawn, with its sun's disc. The tone-mapping pass
+    /// then maps that light to the range a display shows, and writes it into `target`, opaque. The
+    /// work runs on the GPU after this method returns, as with
+    /// [`Gpu::render`](slime_gfx::Gpu::render).
     ///
     /// The high-dynamic-range and depth targets are created at the size of `target` the first
     /// time, and again whenever that size changes; the instance buffer grows when a scene has more
@@ -581,30 +674,56 @@ impl Renderer {
                 Some((index, light_view_projection(direction, boxes)?))
             });
 
+        let aspect = width as f32 / height as f32;
         let mut frame_bytes = Vec::with_capacity(FRAME_VALUES_SIZE);
+        push_mat4(&mut frame_bytes, scene.camera.view_projection(aspect));
+        // Directions only: the view without the camera's position, which also keeps the inverse
+        // away from the rounding of large coordinates.
+        let rotation = Mat4::from_mat3(Mat3::from_mat4(scene.camera.view()));
         push_mat4(
             &mut frame_bytes,
-            scene.camera.view_projection(width as f32 / height as f32),
+            (scene.camera.projection(aspect) * rotation).inverse(),
         );
         let eye = scene.camera.eye;
         push_f32s(&mut frame_bytes, &[eye.x, eye.y, eye.z, scene.exposure]);
-        push_f32s(&mut frame_bytes, &scene.ambient.to_array());
-        push_u32s(
-            &mut frame_bytes,
-            &[u32::try_from(scene.lights.len()).expect("checked above")],
-        );
         let (shadowed, light_view_proj) = shadow
             .map_or((NO_SHADOWED_LIGHT, Mat4::IDENTITY), |(index, matrix)| {
                 (u32::try_from(index).expect("checked above"), matrix)
             });
         push_mat4(&mut frame_bytes, light_view_proj);
-        push_u32s(&mut frame_bytes, &[shadowed, 0, 0, 0]);
+        push_u32s(
+            &mut frame_bytes,
+            &[
+                u32::try_from(scene.lights.len()).expect("checked above"),
+                shadowed,
+                0,
+                0,
+            ],
+        );
+        let environment = scene.environment.unwrap_or(&self.no_environment);
+        let (to_sun, sun) = (environment.to_sun, environment.sun_radiance);
+        push_f32s(&mut frame_bytes, &[to_sun.x, to_sun.y, to_sun.z, 0.0]);
+        push_f32s(&mut frame_bytes, &[sun.x, sun.y, sun.z, 0.0]);
         for light in scene.lights {
             light.push_values(&mut frame_bytes);
         }
         // The slots of the lights the scene does not have: the shader does not read them.
         frame_bytes.resize(FRAME_VALUES_SIZE, 0);
         gpu.write_uniform_buffer(&self.frame_uniform, &frame_bytes);
+        if !self.frame_group.0.is(environment) {
+            self.frame_group = (
+                environment.clone(),
+                frame_group(
+                    gpu,
+                    &self.frame_layout,
+                    &self.frame_uniform,
+                    environment,
+                    &self.brdf_table,
+                    &self.environment_sampler,
+                ),
+            );
+        }
+        let frame_group = &self.frame_group.1;
 
         if self.instances.capacity < scene.instances.len() {
             let mut capacity = self.instances.capacity.max(1);
@@ -638,7 +757,7 @@ impl Renderer {
                 timer: self.shadow_timer.as_ref(),
             };
             gpu.render_depth(&shadow_pass, |pass| {
-                pass.set_bind_group(0, &self.frame_group, &[]);
+                pass.set_bind_group(0, frame_group, &[]);
                 let mut bound = None;
                 for (slot, instance) in scene.instances.iter().enumerate() {
                     let masked = instance.material.masked;
@@ -658,12 +777,13 @@ impl Renderer {
         }
         let scene_pass = RenderPassDescriptor {
             target: &targets.hdr,
-            clear: Some(exposed_background(scene.clear, scene.exposure)),
+            // The sky pass draws every pixel that no surface covers.
+            clear: Some(BLACK),
             depth: Some(&targets.depth),
             timer: self.scene_timer.as_ref(),
         };
         gpu.render(&scene_pass, |pass| {
-            pass.set_bind_group(0, &self.frame_group, &[]);
+            pass.set_bind_group(0, frame_group, &[]);
             pass.set_bind_group(3, &self.shadow_group, &[]);
             // The three pipelines share their layouts, so the bound groups stay bound when one
             // replaces another; it is set only when a draw needs another.
@@ -682,6 +802,19 @@ impl Renderer {
                 stats.triangles += u64::from(instance.mesh.triangle_count());
             }
         });
+        // Over the scene, keeping its light and its depths: the sky is drawn only where the depth
+        // target still holds the farthest depth, where no surface was drawn.
+        let sky_pass = RenderPassDescriptor {
+            target: &targets.hdr,
+            clear: None,
+            depth: Some(&targets.depth),
+            timer: self.sky_timer.as_ref(),
+        };
+        gpu.render(&sky_pass, |pass| {
+            pass.set_pipeline(&self.sky_pipeline);
+            pass.set_bind_group(0, frame_group, &[]);
+            pass.draw(0..3);
+        });
         // The tone-mapping pass clears rather than keeps the output: its triangle covers every
         // pixel, and a clear does not read what the window's image held before.
         let tone_mapping_pass = RenderPassDescriptor {
@@ -699,23 +832,43 @@ impl Renderer {
         });
         stats.scene_gpu_time = self.scene_timer.as_ref().and_then(GpuTimer::latest);
         stats.tone_mapping_gpu_time = self.tone_mapping_timer.as_ref().and_then(GpuTimer::latest);
+        stats.sky_gpu_time = self.sky_timer.as_ref().and_then(GpuTimer::latest);
         stats.cpu_time = started.elapsed();
         stats
     }
 }
 
-/// The background the scene pass clears its target to: `clear` times `exposure`, as the scene
-/// shader exposes surfaces, and at most 65 504 per channel, as it limits them: a clear value reaches
-/// the driver unclamped (ADR-0033), and a driver may store an infinity beyond 65 504, which the tone
-/// curve turns into NaN. The alpha is kept, and not used.
-fn exposed_background(clear: Color, exposure: f32) -> Color {
-    let exposed = |channel: f64| (channel * f64::from(exposure)).min(LARGEST_HALF);
-    Color {
-        r: exposed(clear.r),
-        g: exposed(clear.g),
-        b: exposed(clear.b),
-        a: clear.a,
-    }
+/// The frame's group: the frame's values, `environment`, the BRDF table and their sampler.
+fn frame_group(
+    gpu: &Gpu,
+    layout: &BindGroupLayout,
+    uniform: &UniformBuffer,
+    environment: &Environment,
+    brdf_table: &Texture,
+    sampler: &Sampler,
+) -> BindGroup {
+    gpu.create_bind_group(
+        "frame",
+        layout,
+        &[
+            BindGroupEntry {
+                binding: 0,
+                resource: BindingResource::UniformBuffer(uniform),
+            },
+            BindGroupEntry {
+                binding: 1,
+                resource: BindingResource::Texture(&environment.texture),
+            },
+            BindGroupEntry {
+                binding: 2,
+                resource: BindingResource::Texture(brdf_table),
+            },
+            BindGroupEntry {
+                binding: 3,
+                resource: BindingResource::Sampler(sampler),
+            },
+        ],
+    )
 }
 
 /// The matrix that transforms the normals of an instance placed by `transform`. It gives
@@ -851,6 +1004,7 @@ mod tests {
     use glam::{EulerRot, Quat, Vec4};
 
     use super::*;
+    use crate::environment::{BRDF_TABLE_SIZE, ENVIRONMENT_LEVELS, SUN_ANGULAR_RADIUS};
 
     /// Where `matrix` sends `normal`, normalized as the shader does.
     fn direction(matrix: Mat3, normal: Vec3) -> Vec3 {
@@ -946,24 +1100,35 @@ mod tests {
         );
     }
 
+    /// The value of the WGSL constant `name` in the scene shader.
+    fn shader_constant(name: &str) -> f64 {
+        let start = format!("const {name}: f32 = ");
+        let line = SCENE_SHADER
+            .lines()
+            .find_map(|line| line.strip_prefix(&start))
+            .unwrap_or_else(|| panic!("shader.wgsl lacks `{start}`"));
+        line.trim_end_matches(';').parse().expect("a number")
+    }
+
     #[test]
-    fn the_background_is_exposed_and_limited_to_the_largest_half_precision_value() {
-        let clear = Color {
-            r: 1e6,
-            g: 0.5,
-            b: 3.0,
-            a: 0.25,
-        };
+    fn the_scene_shader_reads_the_environment_and_the_table_the_renderer_computes() {
         assert_eq!(
-            exposed_background(clear, 0.5),
-            Color {
-                r: 65_504.0,
-                g: 0.25,
-                b: 1.5,
-                a: 0.25
-            }
+            shader_constant("ROUGHEST_LEVEL"),
+            (ENVIRONMENT_LEVELS - 1) as f64
         );
-        assert_eq!(exposed_background(clear, 0.0).r, 0.0);
+        assert_eq!(
+            shader_constant("BRDF_TABLE_SIZE"),
+            f64::from(BRDF_TABLE_SIZE)
+        );
+    }
+
+    #[test]
+    fn the_sky_shader_draws_the_sun_s_disc_at_the_size_the_environment_computes_it_for() {
+        // The chord from the disc's centre to its edge on the unit sphere, 2 sin(r / 2), for the
+        // sun's mean apparent diameter, 0.533°.
+        let chord = 2.0 * (SUN_ANGULAR_RADIUS / 2.0).sin();
+        assert!((SUN_ANGULAR_RADIUS - 0.533_f64.to_radians() / 2.0).abs() < 1e-12);
+        assert!((shader_constant("SUN_CHORD") / chord - 1.0).abs() < 1e-6);
     }
 
     #[test]

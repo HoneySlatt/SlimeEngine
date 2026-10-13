@@ -2,6 +2,7 @@
 
 mod bytes;
 mod camera;
+mod environment;
 mod error;
 mod light;
 mod material;
@@ -14,6 +15,7 @@ mod shadow;
 pub use glam;
 
 pub use camera::Camera;
+pub use environment::{Environment, Sky};
 pub use error::RenderError;
 pub use light::{DirectionalLight, Light, MAX_LIGHTS, PointLight, SpotLight};
 pub use material::{AlphaMode, Material, MaterialData, SampledTexture};

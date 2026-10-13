@@ -1,11 +1,12 @@
 //! Lighting, checked by reading pixels back through the tone-mapping curve of the renderer
 //! (ADR-0034), on a white matte surface (ADR-0035): one facing the light is fully lit, one facing
-//! away gets the ambient light only, normals follow the rotation of an instance but not its scale,
-//! and the exposure multiplies the light, which surfaces reflect above 1 without clipping, before
-//! the high-dynamic-range target is written (ADR-0037). Also what the renderer keeps from one frame
-//! to the next, with the same lit square: the targets follow the size of the output, the projection
-//! its aspect ratio, the instance buffer grows beyond its first size, and the statistics give the
-//! GPU time of each pass, the shadow pass's included. Runs on whatever adapter the machine offers.
+//! away gets the light of a uniform sky only, normals follow the rotation of an instance but not
+//! its scale, and the exposure multiplies the light, which surfaces reflect above 1 without
+//! clipping, before the high-dynamic-range target is written (ADR-0037). Also what the renderer
+//! keeps from one frame to the next, with the same lit square: the targets follow the size of the
+//! output, the projection its aspect ratio, the instance buffer grows beyond its first size, and
+//! the statistics give the GPU time of each pass, the shadow and sky passes' included. Runs on
+//! whatever adapter the machine offers.
 
 #[path = "common/tone_curve.rs"]
 mod tone_curve;
@@ -13,22 +14,16 @@ mod tone_curve;
 use std::f32::consts::PI;
 use std::time::Duration;
 
-use slime_gfx::{Color, Gpu, Image, TextureFormat};
+use slime_gfx::{Gpu, Image, TextureFormat};
 use slime_render::glam::{Mat4, Vec3, Vec4};
 use slime_render::{
     Camera, DirectionalLight, Instance, Light, Material, MaterialData, Mesh, MeshData, RenderStats,
-    Renderer, Scene,
+    Renderer, Scene, Sky,
 };
 
 use tone_curve::displayed;
 
 const SIZE: u32 = 16;
-const BLACK: Color = Color {
-    r: 0.0,
-    g: 0.0,
-    b: 0.0,
-    a: 1.0,
-};
 
 /// The renderer and a white square facing +Z, two units wide, centred on the origin.
 struct Setup {
@@ -71,32 +66,33 @@ impl Setup {
         }
     }
 
-    /// Draws the square with `transform` under `light` and an ambient light of `ambient`, seen
-    /// from +Z, at an exposure of 1, and returns the red channel of the center pixel, sRGB-encoded.
-    fn center_red(&mut self, light: DirectionalLight, ambient: f32, transform: Mat4) -> u8 {
-        self.exposed_center_red(light, ambient, transform, 1.0)
+    /// Draws the square with `transform` under `light` and a uniform sky of radiance `sky`,
+    /// seen from +Z, at an exposure of 1, and returns the red channel of the center pixel,
+    /// sRGB-encoded.
+    fn center_red(&mut self, light: DirectionalLight, sky: f32, transform: Mat4) -> u8 {
+        self.exposed_center_red(light, sky, transform, 1.0)
     }
 
     /// The same, at `exposure`.
     fn exposed_center_red(
         &mut self,
         light: DirectionalLight,
-        ambient: f32,
+        sky: f32,
         transform: Mat4,
         exposure: f32,
     ) -> u8 {
-        let (image, _) = self.draw(light, ambient, &[transform], (SIZE, SIZE), exposure);
+        let (image, _) = self.draw(light, sky, &[transform], (SIZE, SIZE), exposure);
         let center = ((SIZE / 2 * SIZE + SIZE / 2) * 4) as usize;
         image.pixels[center]
     }
 
-    /// Draws an instance of the square for each of `transforms` under `light` and an ambient
-    /// light of `ambient`, seen from +Z, into a target of `width` × `height` pixels at
+    /// Draws an instance of the square for each of `transforms` under `light` and a uniform sky of
+    /// radiance `sky` (none at 0), seen from +Z, into a target of `width` × `height` pixels at
     /// `exposure`, and returns the image, sRGB-encoded, and the statistics of the frame.
     fn draw(
         &mut self,
         light: DirectionalLight,
-        ambient: f32,
+        sky: f32,
         transforms: &[Mat4],
         (width, height): (u32, u32),
         exposure: f32,
@@ -116,14 +112,25 @@ impl Setup {
                 transform,
             })
             .collect();
+        let uniform = Vec3::splat(sky);
+        let environment = (sky > 0.0).then(|| {
+            self.renderer.create_environment(
+                &self.gpu,
+                &Sky {
+                    zenith: uniform,
+                    horizon: uniform,
+                    ground: uniform,
+                    sun: None,
+                },
+            )
+        });
         let stats = self.renderer.render(
             &self.gpu,
             &target,
             &Scene {
                 camera,
                 lights: &[Light::Directional(light)],
-                ambient: Vec3::splat(ambient),
-                clear: BLACK,
+                environment: environment.as_ref(),
                 exposure,
                 instances: &instances,
             },
@@ -175,7 +182,7 @@ fn assert_close(actual: u8, expected: u8, case: &str) {
 }
 
 #[test]
-fn a_surface_facing_the_light_is_fully_lit_and_one_facing_away_gets_the_ambient_light() {
+fn a_surface_facing_the_light_is_fully_lit_and_one_facing_away_gets_the_sky_s_light() {
     let mut setup = Setup::new();
     assert_close(
         setup.center_red(from_the_front(), 0.0, Mat4::IDENTITY),
@@ -189,7 +196,7 @@ fn a_surface_facing_the_light_is_fully_lit_and_one_facing_away_gets_the_ambient_
     assert_close(
         setup.center_red(from_behind, 0.5, Mat4::IDENTITY),
         displayed([0.5; 3])[0],
-        "facing away, ambient light only",
+        "facing away, the sky's light only",
     );
 }
 
@@ -336,7 +343,7 @@ fn instances_beyond_the_first_instance_buffer_are_drawn_where_they_are() {
 #[test]
 fn the_statistics_give_the_gpu_time_of_each_pass_on_adapters_that_can_time_their_work() {
     let mut setup = Setup::new();
-    let mut times = (None, None, None);
+    let mut times = (None, None, None, None);
     for _frame in 0..8 {
         let (_, stats) = setup.center_of(&[Mat4::IDENTITY], (SIZE, SIZE));
         // The scene's directional light casts shadows: the shadow pass draws the instance too.
@@ -348,18 +355,19 @@ fn the_statistics_give_the_gpu_time_of_each_pass_on_adapters_that_can_time_their
             times.0.or(stats.scene_gpu_time),
             times.1.or(stats.tone_mapping_gpu_time),
             times.2.or(stats.shadow_gpu_time),
+            times.3.or(stats.sky_gpu_time),
         );
-        if times.0.is_some() && times.1.is_some() && times.2.is_some() {
+        if times.0.is_some() && times.1.is_some() && times.2.is_some() && times.3.is_some() {
             break;
         }
         // Waiting is not needed to get the times back, but makes the test deterministic.
         setup.gpu.wait_idle().expect("the GPU finishes the frame");
     }
     eprintln!(
-        "adapter `{}`: scene, tone-mapping and shadow passes timed {times:?}",
+        "adapter `{}`: scene, tone-mapping, shadow and sky passes timed {times:?}",
         setup.gpu.adapter_name()
     );
-    for time in [times.0, times.1, times.2] {
+    for time in [times.0, times.1, times.2, times.3] {
         if setup.gpu.can_time() {
             let time = time.expect("the GPU time of each pass comes back within a few frames");
             assert!(time < Duration::from_secs(1), "{time:?}");

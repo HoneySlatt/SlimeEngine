@@ -13,7 +13,7 @@ each property the loader reads:
 
 | Material | Drawn on | What it exercises |
 |---|---|---|
-| `tiles` | The floor | A base color texture, `tiles`. An occlusion texture, `tiles occlusion`: all of the ambient light reaches the tiles, 0.6 of it the grout. The only double-sided material: the floor is a single plane, which can be seen from below. A rough dielectric: roughness 0.8, metallic 0. |
+| `tiles` | The floor | A base color texture, `tiles`. An occlusion texture, `tiles occlusion`: all of the sky's light reaches the tiles, 0.6 of it the grout. The only double-sided material: the floor is a single plane, which can be seen from below. A rough dielectric: roughness 0.8, metallic 0. |
 | `planks` | Both crates | A base color texture, `planks`: wooden planks in an iron-grey frame. One packed texture, `planks ORM`, is both the occlusion texture and the metallic-roughness texture. Its red channel is the occlusion: 0.5 in the gaps between planks, 1 elsewhere. Green is the roughness: 0.7 on the wood, 0.4 on the frame. Blue is the metallic: 0 on the wood, 1 on the frame. Both factors are 1. |
 | `bricks` | The wall | A base color texture, `bricks`. A tangent-space normal texture, `bricks normal`: the bricks stand above their mortar, with rounded edges. It follows glTF's convention: red points right, green up the image, blue out of the surface. The flat inside of a brick is (128, 128, 255). Roughness 0.8, metallic 0. |
 | `red` | The sphere | A plain dielectric with roughness 0.35, which gives a sharper highlight than the other materials. |

@@ -46,6 +46,11 @@ fn the_gltf_scene_matches_its_reference_images() {
         gpu.create_render_target("reference glTF", SIZE, SIZE, TextureFormat::Rgba8UnormSrgb);
     let mut scene = SampleScene::new(&gpu, target.format(), sample_scene::ASSET)
         .expect("the sample asset loads");
+    // The budget of the plan is for release builds; this is a debug build's, among other tests.
+    println!(
+        "the sky's environment took {:?} on the CPU",
+        scene.environment_time()
+    );
     let bounds = *scene.bounds();
     // Seven primitives, one per object of the asset, and the triangles of their meshes.
     for (name, yaw, pitch) in [("gltf-front", 0.6, 0.45), ("gltf-back", 3.6, 0.25)] {
@@ -354,10 +359,11 @@ fn a_mirrored_node_shows_the_same_faces_as_the_node_it_mirrors() {
         let mut file = Glb::triangle();
         file.json["nodes"][0]["scale"] = json(&format!("[{scale_x}, 1, 1]"));
         let centre = TRIANGLE_CENTRE * Vec3::new(scale_x, 1.0, 1.0);
-        let (middle, corner) = centre_and_corner(&gpu, &mut file, centre, 0.0);
+        let (middle, behind) = centre_and_sky_behind(&gpu, &mut file, centre, 0.0);
         assert!(
-            brighter(middle, corner),
-            "scale x {scale_x}: the triangle {middle:?} is not lit above the background {corner:?}"
+            brighter(middle, behind),
+            "scale x {scale_x}: the triangle {middle:?} is not lit above the sky behind it \
+             {behind:?}"
         );
     }
 }
@@ -386,7 +392,7 @@ fn extensions_are_refused_when_required_unless_the_loader_reads_them() {
         if required {
             file.json["extensionsRequired"] = json(r#"["KHR_materials_emissive_strength"]"#);
         }
-        centre_and_corner(&gpu, &mut file, TRIANGLE_CENTRE, 0.0).0
+        centre_and_sky_behind(&gpu, &mut file, TRIANGLE_CENTRE, 0.0).0
     };
     let strong = emitting(
         &format!(
@@ -405,15 +411,15 @@ fn a_masked_material_draws_nothing_below_its_cutoff_and_a_blended_one_is_drawn_o
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
     let shown = |material: &str| {
         let mut file = Glb::triangle().with_material(material);
-        centre_and_corner(&gpu, &mut file, TRIANGLE_CENTRE, 0.0)
+        centre_and_sky_behind(&gpu, &mut file, TRIANGLE_CENTRE, 0.0)
     };
     // glTF's default cutoff, 0.5, is above the alpha of 0.25.
-    let (middle, corner) = shown(
+    let (middle, behind) = shown(
         r#"{ "alphaMode": "MASK", "pbrMetallicRoughness": { "baseColorFactor": [1, 1, 1, 0.25] } }"#,
     );
     assert!(
-        middle.iter().zip(corner).all(|(a, b)| a.abs_diff(b) <= 2),
-        "masked: {middle:?} against {corner:?}"
+        middle.iter().zip(behind).all(|(a, b)| a.abs_diff(b) <= 2),
+        "masked: {middle:?} against {behind:?}"
     );
     for (material, case) in [
         (
@@ -426,10 +432,10 @@ fn a_masked_material_draws_nothing_below_its_cutoff_and_a_blended_one_is_drawn_o
             "blended",
         ),
     ] {
-        let (middle, corner) = shown(material);
+        let (middle, behind) = shown(material);
         assert!(
-            brighter(middle, corner),
-            "{case}: {middle:?} against {corner:?}"
+            brighter(middle, behind),
+            "{case}: {middle:?} against {behind:?}"
         );
     }
 }
@@ -438,21 +444,23 @@ fn a_masked_material_draws_nothing_below_its_cutoff_and_a_blended_one_is_drawn_o
 fn a_double_sided_material_is_drawn_from_behind() {
     let gpu =
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-    // Seen from −Z, behind the triangle: the light comes from the other side, and only the ambient
-    // light reaches the back face.
+    // Seen from −Z, behind the triangle, lit by a sun on that side, which travels along +Z.
     let shown = |material: &str| {
-        let mut file = Glb::triangle().with_material(material);
-        centre_and_corner(&gpu, &mut file, TRIANGLE_CENTRE, std::f32::consts::PI)
+        let mut file = Glb::triangle().with_material(material).with_light(
+            r#"{ "type": "directional", "intensity": 100000 }"#,
+            Quat::from_rotation_y(std::f32::consts::PI),
+        );
+        centre_and_sky_behind(&gpu, &mut file, TRIANGLE_CENTRE, std::f32::consts::PI)
     };
-    let (middle, corner) = shown("{}");
+    let (middle, behind) = shown("{}");
     assert!(
-        middle.iter().zip(corner).all(|(a, b)| a.abs_diff(b) <= 2),
-        "single-sided: {middle:?} against {corner:?}"
+        middle.iter().zip(behind).all(|(a, b)| a.abs_diff(b) <= 2),
+        "single-sided: {middle:?} against {behind:?}"
     );
-    let (middle, corner) = shown(r#"{ "doubleSided": true }"#);
+    let (middle, behind) = shown(r#"{ "doubleSided": true }"#);
     assert!(
-        brighter(middle, corner),
-        "double-sided: {middle:?} against {corner:?}"
+        brighter(middle, behind),
+        "double-sided: {middle:?} against {behind:?}"
     );
 }
 
@@ -482,8 +490,8 @@ fn a_file_s_tangents_are_used_rather_than_computed() {
         "VEC4",
         &[0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0],
     );
-    let (towards_y, _) = centre_and_corner(&gpu, &mut with_tangents, TRIANGLE_CENTRE, 0.0);
-    let (towards_x, _) = centre_and_corner(&gpu, &mut file(), TRIANGLE_CENTRE, 0.0);
+    let (towards_y, _) = centre_and_sky_behind(&gpu, &mut with_tangents, TRIANGLE_CENTRE, 0.0);
+    let (towards_x, _) = centre_and_sky_behind(&gpu, &mut file(), TRIANGLE_CENTRE, 0.0);
     assert!(
         towards_y[0] > towards_x[0] + 10,
         "{towards_y:?} with the file's tangents, {towards_x:?} with computed ones"
@@ -529,7 +537,7 @@ fn a_file_that_requires_khr_lights_punctual_is_lit_by_its_own_lights_only() {
             Quat::from_rotation_y(yaw),
         );
         file.json["extensionsRequired"] = json(r#"["KHR_lights_punctual"]"#);
-        centre_and_corner(&gpu, &mut file, TRIANGLE_CENTRE, 0.0)
+        centre_and_sky_behind(&gpu, &mut file, TRIANGLE_CENTRE, 0.0)
     };
     let (towards, background) = lit_by(0.0, 100_000.0);
     assert!(
@@ -537,11 +545,12 @@ fn a_file_that_requires_khr_lights_punctual_is_lit_by_its_own_lights_only() {
         "lit from the front: {towards:?} against {background:?}"
     );
     // Turned away, the light reaches the back of the triangle, and the sample adds no sun: the
-    // front shows the ambient light alone, as under a light of no intensity.
+    // front shows the sky's light alone, as under a light of no intensity (the light's glow in the
+    // sky lies behind the triangle, too faint there to change a pixel).
     let (away, _) = lit_by(std::f32::consts::PI, 100_000.0);
     let (dark, _) = lit_by(0.0, 0.0);
     let mut without_lights = Glb::triangle().with_material(MATTE);
-    let (sunlit, _) = centre_and_corner(&gpu, &mut without_lights, TRIANGLE_CENTRE, 0.0);
+    let (sunlit, _) = centre_and_sky_behind(&gpu, &mut without_lights, TRIANGLE_CENTRE, 0.0);
     assert_eq!(away, dark, "lit from behind");
     assert!(
         brighter(sunlit, away),
@@ -840,35 +849,47 @@ fn png_of(width: u32, height: u32, pixels: &[u8]) -> Vec<u8> {
 const TRIANGLE_CENTRE: Vec3 = Vec3::new(1.0 / 3.0, 1.0 / 3.0, 0.0);
 
 /// Draws `file` into a 64 × 64 sRGB target as the sample does: under the file's lights, or the
-/// sample's sun for a file without lights, at the sample's exposure, seen from 3 units away from
-/// `centre`, turned by `yaw` around the vertical axis (0 looks from +Z). Returns the color of the
-/// pixel at the center of the image, and that of its corner, the background.
-fn centre_and_corner(gpu: &Gpu, file: &mut Glb, centre: Vec3, yaw: f32) -> ([u8; 3], [u8; 3]) {
-    let target = gpu.create_render_target("triangle", 64, 64, TextureFormat::Rgba8UnormSrgb);
-    let mut scene =
-        SampleScene::new(gpu, target.format(), &file.bytes()).expect("the triangle loads");
-    scene.render(
-        gpu,
-        &target,
-        orbit::camera_at(centre, 1.0, 3.0, yaw, 0.0),
-        EXPOSURE,
-    );
-    let image = gpu
-        .read_render_target(&target)
-        .expect("the image is read back");
-    let pixel = |x: usize, y: usize| {
-        let start = (y * 64 + x) * 4;
+/// sample's sun for a file without lights, and the sample's sky, at the sample's exposure, seen
+/// from 3 units away from `centre`, turned by `yaw` around the vertical axis (0 looks from +Z).
+/// Returns the color of the pixel at the center of the image, and the color it has once every
+/// node of `file` is moved 1 km aside: the sky behind it.
+fn centre_and_sky_behind(gpu: &Gpu, file: &mut Glb, centre: Vec3, yaw: f32) -> ([u8; 3], [u8; 3]) {
+    let shown = |bytes: &[u8]| {
+        let target = gpu.create_render_target("triangle", 64, 64, TextureFormat::Rgba8UnormSrgb);
+        let mut scene = SampleScene::new(gpu, target.format(), bytes).expect("the triangle loads");
+        scene.render(
+            gpu,
+            &target,
+            orbit::camera_at(centre, 1.0, 3.0, yaw, 0.0),
+            EXPOSURE,
+        );
+        let image = gpu
+            .read_render_target(&target)
+            .expect("the image is read back");
+        let start = (32 * 64 + 32) * 4;
         [0, 1, 2].map(|channel| image.pixels[start + channel])
     };
-    (pixel(32, 32), pixel(0, 0))
+    let drawn = shown(&file.bytes());
+    let mut aside = Glb {
+        json: file.json.clone(),
+        bin: file.bin.clone(),
+    };
+    let roots = aside.json["scenes"][0]["nodes"].clone();
+    for root in roots.as_array().expect("a list of nodes") {
+        aside.json["nodes"][index(root)]["translation"] = json("[1000, 0, 0]");
+    }
+    let background = shown(&aside.bytes());
+    (drawn, background)
 }
 
-/// Whether every channel of `drawn` is well above that of `background`.
+/// Whether every channel of `drawn` is clearly above that of `background`: by more than 10, where a
+/// white surface that the sample's sun lights at 62° from its normal is 15 to 25 above the sky's
+/// horizon behind it, and drivers differ by a few at most.
 fn brighter(drawn: [u8; 3], background: [u8; 3]) -> bool {
     drawn
         .iter()
         .zip(background)
-        .all(|(drawn, background)| *drawn > background + 50)
+        .all(|(drawn, background)| *drawn > background + 10)
 }
 
 /// The message of the error with which the loader refuses `file`.

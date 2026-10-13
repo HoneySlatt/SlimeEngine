@@ -6,33 +6,31 @@
 
 use std::f32::consts::{PI, TAU};
 
-use slime_gfx::{Color, Gpu, RenderTarget, SamplerDescriptor, TextureFormat};
+use slime_gfx::{Gpu, RenderTarget, SamplerDescriptor, TextureFormat};
 use slime_render::glam::{Mat4, Quat, Vec3};
 use slime_render::{
-    Camera, DirectionalLight, Instance, Light, Material, MaterialData, Mesh, MeshData, RenderError,
-    RenderStats, Renderer, SampledTexture, Scene,
-};
-
-/// The color behind the shapes.
-pub const BACKGROUND: Color = Color {
-    r: 0.05,
-    g: 0.06,
-    b: 0.08,
-    a: 1.0,
+    Camera, DirectionalLight, Environment, Instance, Light, Material, MaterialData, Mesh, MeshData,
+    RenderError, RenderStats, Renderer, SampledTexture, Scene, Sky,
 };
 
 /// A slightly warm light of π lux from above and from the side the camera starts on, under which a
 /// white matte surface facing it reflects about 0.97 nits (ADR-0035), shown as they are at an
 /// exposure of 1. Light in these units keeps the image of this test as it was before lights had
 /// physical units: it checks the shapes and their materials, not the units.
-const LIGHT: Light = Light::Directional(DirectionalLight {
+const SUN: DirectionalLight = DirectionalLight {
     direction: Vec3::new(-0.6, -1.0, -0.5),
     color: Vec3::new(1.0, 0.98, 0.9),
     illuminance: PI,
     casts_shadows: true,
-});
-/// A slightly cold ambient light, in nits.
-const AMBIENT: Vec3 = Vec3::new(0.15, 0.16, 0.2);
+};
+/// The sample's clear sky (`sample_scene.rs`) at the scale of this light: its radiances times
+/// π / 100 000, as it shows at the sample's exposure, around this light.
+const SKY: Sky = Sky {
+    zenith: Vec3::new(0.0534, 0.1225, 0.3142),
+    horizon: Vec3::new(0.2388, 0.3016, 0.3833),
+    ground: Vec3::new(0.0974, 0.0927, 0.0848),
+    sun: Some(SUN),
+};
 
 /// How far the camera orbits from the origin, and how high above it.
 const ORBIT_RADIUS: f32 = 4.0;
@@ -60,6 +58,7 @@ pub struct Shapes {
     /// The small spheres' materials: a row of dielectrics, then a row of metals, each from the
     /// smoothest to the roughest.
     spheres: [[Material; 3]; 2],
+    environment: Environment,
 }
 
 impl Shapes {
@@ -110,7 +109,9 @@ impl Shapes {
                 )
             })
         });
+        let environment = renderer.create_environment(gpu, &SKY);
         Ok(Self {
+            environment,
             renderer,
             cube,
             sphere,
@@ -184,9 +185,8 @@ impl Shapes {
             target,
             &Scene {
                 camera,
-                lights: &[LIGHT],
-                ambient: AMBIENT,
-                clear: BACKGROUND,
+                lights: &[Light::Directional(SUN)],
+                environment: Some(&self.environment),
                 exposure: 1.0,
                 instances: &instances,
             },

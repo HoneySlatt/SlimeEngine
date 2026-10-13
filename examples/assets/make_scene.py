@@ -135,7 +135,7 @@ def planks_orm():
 
 
 def tiles_occlusion():
-    """How much ambient light reaches the floor: all of it on the tiles, 0.6 of it in the grout."""
+    """How much of the sky's light reaches the floor: all on the tiles, 0.6 in the grout."""
     occlusion = np.full((SIZE, SIZE, 3), 255, dtype=np.uint8)
     for line in range(0, SIZE, 32):
         occlusion[line:line + 2, :] = round(0.6 * 255)

@@ -1,9 +1,11 @@
 // The shader of the scene pass (ADR-0034, ADR-0035, ADR-0037): vertices transformed by their
 // instance and the camera; surfaces shaded with glTF's metallic-roughness model, with the formulas
 // of the Khronos glTF Sample Viewer (glTF 2.0 specification, Appendix B), under the scene's lights
-// (KHR_lights_punctual), plus its constant ambient light and the material's emission; multiplied by
-// the exposure and written into the high-dynamic-range target, which the tone-mapping pass then
-// maps to the output.
+// (KHR_lights_punctual), plus the light of its environment (image-based lighting, ADR-0039) and the
+// material's emission; multiplied by the exposure and written into the high-dynamic-range target,
+// which the tone-mapping pass then maps to the output. Also the shadow pass's stages (ADR-0038),
+// and the sky pass's, which draw the environment and its sun's disc where no surface is
+// (ADR-0039).
 
 const PI: f32 = 3.141592653589793;
 // What a dielectric reflects at normal incidence: ((1.5 - 1) / (1.5 + 1))^2, glTF's index of
@@ -28,6 +30,16 @@ const MIN_DISTANCE_SQUARED: f32 = 1e-4;
 // The square of the distance, 1 µm squared, within which a fragment has no direction to a point or
 // spot light: positions in 32-bit floats a few metres from the origin are about that precise.
 const DIRECTIONLESS_SQUARED: f32 = 1e-12;
+// The environment's last level, prefiltered for a roughness of 1, which is also the irradiance
+// divided by pi: ENVIRONMENT_LEVELS - 1 in environment.rs, which a unit test compares with it.
+const ROUGHEST_LEVEL: f32 = 4.0;
+// The BRDF table's size along each axis: BRDF_TABLE_SIZE in environment.rs, which a unit test
+// compares with it. Its texels' centres lie on n.v and roughness 0 and 1.
+const BRDF_TABLE_SIZE: f32 = 32.0;
+// The chord from the centre of the sun's disc to its edge on the unit sphere, 2 sin(r / 2) for its
+// angular radius r, 0.2665 degrees (SUN_ANGULAR_RADIUS in environment.rs, which a unit test
+// compares with it).
+const SUN_CHORD: f32 = 0.0046512983;
 
 // One light, in world space, as Light::push_values in light.rs packs it.
 struct Light {
@@ -52,24 +64,38 @@ struct Light {
 struct FrameUniform {
     // From world space to clip space.
     view_proj: mat4x4<f32>,
+    // From clip space to directions from the camera in world space: the inverse of view_proj
+    // without the camera's position. A point (x, y, 1, 1) of the far plane gives (d, w), and d / w
+    // is the direction it is seen in.
+    sky_from_clip: mat4x4<f32>,
     // Where the camera is, in world space.
     camera_position: vec3<f32>,
     // What the light is multiplied by before it is written into the high-dynamic-range target
     // (pre-exposure, ADR-0037).
     exposure: f32,
-    // The radiance of the ambient light, in nits, the same from every direction.
-    ambient: vec3<f32>,
-    // How many entries of `lights` hold the scene's lights, from 0 to MAX_LIGHTS.
-    light_count: u32,
     // From world space to the shadow map's clip space (ADR-0038): x and y from -1 to 1 across the
     // map, depth from 0 to 1 away from the light. Orthographic: w stays 1.
     light_view_proj: mat4x4<f32>,
+    // How many entries of `lights` hold the scene's lights, from 0 to MAX_LIGHTS.
+    light_count: u32,
     // The index in `lights` of the light that the shadow map shadows, the scene's first
     // directional light that casts shadows; light_count or more when none is.
     shadowed_light: u32,
+    // The unit direction towards the centre of the environment's sun's disc, and the disc's
+    // radiance, in nits: 0 without a sun (ADR-0039).
+    to_sun: vec3<f32>,
+    sun_radiance: vec3<f32>,
     lights: array<Light, MAX_LIGHTS>,
 }
 @group(0) @binding(0) var<uniform> frame: FrameUniform;
+// The scene's environment, in nits (ADR-0039): level 0 the sky, level i prefiltered for a
+// roughness of i / 4, the last also the irradiance divided by pi. One black texel without an
+// environment.
+@group(0) @binding(1) var environment: texture_cube<f32>;
+// The BRDF's scale (red) and bias (green) for image-based lighting, n.v across, roughness down.
+@group(0) @binding(2) var brdf_table: texture_2d<f32>;
+// Linear, between levels too, clamped to the edge.
+@group(0) @binding(3) var environment_sampler: sampler;
 
 struct MaterialUniform {
     // Linear; alpha is compared with the cutoff.
@@ -94,7 +120,7 @@ struct MaterialUniform {
 // Tangent-space normals, each component from -1 to 1 stored as 0 to 1.
 @group(1) @binding(5) var normal_texture: texture_2d<f32>;
 @group(1) @binding(6) var normal_sampler: sampler;
-// Red: the share of the ambient light that reaches the surface.
+// Red: the share of the environment's light that reaches the surface.
 @group(1) @binding(7) var occlusion_texture: texture_2d<f32>;
 @group(1) @binding(8) var occlusion_sampler: sampler;
 @group(1) @binding(9) var emissive_texture: texture_2d<f32>;
@@ -236,16 +262,100 @@ fn fs_main(
         direct += light.color * attenuation
             * reflected(base.rgb, metallic, roughness, normal, l, to_camera);
     }
-    // Until image-based lighting, the ambient light stands for even surroundings, which every
-    // surface reflects in its base color, metal or not; occlusion darkens it, and it alone
-    // (glTF: indirect light).
-    let ambient = frame.ambient * base.rgb
+    // The environment's light, which occlusion darkens, and it alone (glTF: indirect light). Its
+    // level is read from the material's roughness itself: the shading's lower bound avoids 0 / 0
+    // in the distribution, which a lookup does not compute, and a mirror reads level 0.
+    let surroundings = clamp(material.roughness * metallic_roughness.g, 0.0, 1.0);
+    let indirect = environment_light(base.rgb, metallic, surroundings, normal, to_camera)
         * (1.0 + material.occlusion_strength * (occlusion - 1.0));
     // Exposed here, in 32-bit floats, before the half-precision target: light in physical units
     // reaches hundreds of thousands, which half precision does not hold (ADR-0037). Surfaces are
     // opaque: the target's alpha is 1 wherever one is drawn.
-    let exposed = (direct + ambient + emitted) * frame.exposure;
+    let exposed = (direct + indirect + emitted) * frame.exposure;
     return vec4<f32>(min(exposed, vec3<f32>(LARGEST_HALF)), 1.0);
+}
+
+// What a surface reflects towards v of its environment (image-based lighting, ADR-0039), as the
+// Khronos glTF Sample Viewer computes it: the split sum of Karis, the diffuse light read along the
+// normal from the roughest level, the specular light along the reflection from the level of the
+// roughness, each weighted by a Fresnel term from the BRDF table that accounts for multiple
+// scattering (Fdez-Aguera), and mixed as the direct light is (glTF 2.0, Appendix B).
+fn environment_light(
+    base: vec3<f32>,
+    metallic: f32,
+    roughness: f32,
+    n: vec3<f32>,
+    v: vec3<f32>,
+) -> vec3<f32> {
+    let n_dot_v = clamp(dot(n, v), 0.0, 1.0);
+    let diffuse = textureSampleLevel(environment, environment_sampler, n, ROUGHEST_LEVEL).rgb;
+    let specular = textureSampleLevel(
+        environment,
+        environment_sampler,
+        reflect(-v, n),
+        roughness * ROUGHEST_LEVEL,
+    ).rgb;
+    // Texel centres on 0 and 1: the end points are read exactly.
+    let at = (vec2<f32>(n_dot_v, roughness) * (BRDF_TABLE_SIZE - 1.0) + 0.5) / BRDF_TABLE_SIZE;
+    let scale_bias = textureSampleLevel(brdf_table, environment_sampler, at, 0.0).rg;
+    let dielectric = mix(
+        diffuse * base,
+        specular,
+        environment_fresnel(vec3<f32>(DIELECTRIC_F0), n_dot_v, roughness, scale_bias),
+    );
+    let metal = environment_fresnel(base, n_dot_v, roughness, scale_bias) * specular;
+    return mix(dielectric, metal, metallic);
+}
+
+// The share of a uniform environment that a surface reflecting f0 at normal incidence reflects
+// specularly: Fdez-Aguera's roughness-dependent Fresnel times the BRDF table's scale and bias
+// (single scattering), plus the light that scatters more than once between microfacets. For f0 = 1
+// it is exactly 1: a white metal loses no light.
+fn environment_fresnel(
+    f0: vec3<f32>,
+    n_dot_v: f32,
+    roughness: f32,
+    scale_bias: vec2<f32>,
+) -> vec3<f32> {
+    let x = 1.0 - n_dot_v;
+    let x2 = x * x;
+    let rough_fresnel = f0 + (max(vec3<f32>(1.0 - roughness), f0) - f0) * (x2 * x2 * x);
+    let single = rough_fresnel * scale_bias.x + scale_bias.y;
+    let lost = 1.0 - (scale_bias.x + scale_bias.y);
+    let average = f0 + (1.0 - f0) / 21.0;
+    return single + lost * single * average / (1.0 - average * lost);
+}
+
+// The sky pass (ADR-0039): one triangle covering the target at the far plane, which the depth test
+// keeps where no surface was drawn.
+struct SkyVertex {
+    @builtin(position) clip_position: vec4<f32>,
+    // The direction of the pixel, homogeneous: interpolated linearly, since w is 1 at every corner.
+    @location(0) direction: vec4<f32>,
+}
+
+@vertex
+fn vs_sky(@builtin(vertex_index) index: u32) -> SkyVertex {
+    // The corners (-1, -1), (3, -1) and (-1, 3), as the tone-mapping pass's.
+    let corner = vec2<f32>(f32((index & 1u) * 4u) - 1.0, f32((index & 2u) * 2u) - 1.0);
+    return SkyVertex(
+        vec4<f32>(corner, 1.0, 1.0),
+        frame.sky_from_clip * vec4<f32>(corner, 1.0, 1.0),
+    );
+}
+
+@fragment
+fn fs_sky(input: SkyVertex) -> @location(0) vec4<f32> {
+    let direction = normalize(input.direction.xyz / input.direction.w);
+    var light = textureSampleLevel(environment, environment_sampler, direction, 0.0).rgb;
+    // The sun's disc, which is in no level of the environment, so that surfaces receive the sun's
+    // light once, through the scene's light, which casts shadows. Its edge is blended over a
+    // pixel; the distance from its centre is the chord, which keeps its precision where the
+    // cosine of so small an angle would not.
+    let from_centre = length(direction - frame.to_sun);
+    let covered = saturate((SUN_CHORD - from_centre) / max(fwidth(from_centre), 1e-7) + 0.5);
+    light += frame.sun_radiance * covered;
+    return vec4<f32>(min(light * frame.exposure, vec3<f32>(LARGEST_HALF)), 1.0);
 }
 
 // The share of the shadowed light that reaches `position`, from 0 in shadow to 1: its depth seen

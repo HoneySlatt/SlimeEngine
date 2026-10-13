@@ -23,13 +23,13 @@ mod tone_curve;
 use std::f32::consts::PI;
 
 use slime_gfx::{
-    AddressMode, Color, Filter, FloatImage, Gpu, RenderTarget, Sampler, SamplerDescriptor, Texture,
+    AddressMode, Filter, FloatImage, Gpu, RenderTarget, Sampler, SamplerDescriptor, Texture,
     TextureFormat,
 };
 use slime_render::glam::{DVec3, Mat4, Quat, Vec3, Vec4};
 use slime_render::{
     AlphaMode, Camera, DirectionalLight, Instance, Light, Material, MaterialData, Mesh, MeshData,
-    Renderer, SampledTexture, Scene,
+    Renderer, SampledTexture, Scene, Sky,
 };
 
 use brdf::Surface;
@@ -38,12 +38,6 @@ use shown::assert_shows;
 const SIZE: u32 = 9;
 /// The pixel on the camera's axis.
 const CENTER: (u32, u32) = (4, 4);
-const BLACK: Color = Color {
-    r: 0.0,
-    g: 0.0,
-    b: 0.0,
-    a: 1.0,
-};
 /// A white matte dielectric, the default material.
 const WHITE: Surface = Surface {
     base_color: [1.0; 3],
@@ -133,11 +127,11 @@ impl Setup {
     }
 
     /// Draws the square once for each of `instances`, with its material and transform, in this
-    /// order, seen from `camera` under `lighting`, against black, and reads the output back.
+    /// order, seen from `camera` under `lighting`, and reads the output back.
     fn draw(
         &mut self,
         camera: Camera,
-        (light, ambient): Lighting,
+        (light, sky): Lighting,
         instances: &[(&Material, Mat4)],
     ) -> FloatImage {
         let instances: Vec<Instance<'_>> = instances
@@ -148,14 +142,25 @@ impl Setup {
                 transform,
             })
             .collect();
+        let uniform = Vec3::splat(sky);
+        let environment = (sky > 0.0).then(|| {
+            self.renderer.create_environment(
+                &self.gpu,
+                &Sky {
+                    zenith: uniform,
+                    horizon: uniform,
+                    ground: uniform,
+                    sun: None,
+                },
+            )
+        });
         self.renderer.render(
             &self.gpu,
             &self.output,
             &Scene {
                 camera,
                 lights: &[Light::Directional(light)],
-                ambient: Vec3::splat(ambient),
-                clear: BLACK,
+                environment: environment.as_ref(),
                 exposure: 1.0,
                 instances: &instances,
             },
@@ -174,19 +179,19 @@ fn camera(z: f32) -> Camera {
     }
 }
 
-/// A white directional light, and the radiance of the ambient light.
+/// A white directional light, and the radiance of a uniform sky (none at 0).
 type Lighting = (DirectionalLight, f32);
 
-/// A directional light that arrives from `to_light`, of `illuminance`, with an ambient light of
-/// `ambient`.
-fn lighting(to_light: Vec3, illuminance: f32, ambient: f32) -> Lighting {
+/// A directional light that arrives from `to_light`, of `illuminance`, under a uniform sky of
+/// radiance `sky`.
+fn lighting(to_light: Vec3, illuminance: f32, sky: f32) -> Lighting {
     let light = DirectionalLight {
         direction: -to_light,
         color: Vec3::ONE,
         illuminance,
         casts_shadows: true,
     };
-    (light, ambient)
+    (light, sky)
 }
 
 /// What `surface`, of normal `normal`, reflects towards the camera at `z` from the center of the
@@ -568,10 +573,15 @@ fn a_double_sided_material_shows_its_back_faces_lit_from_their_side() {
         double_sided: true,
         ..MaterialData::default()
     });
-    // Seen from behind, from −Z, with an ambient light of 0.25.
+    // Seen from behind, from −Z, under a uniform sky of 0.25.
     let from_the_camera = lighting(-Vec3::Z, PI / 2.0, 0.25);
     let image = setup.draw(camera(-3.0), from_the_camera, &[(&single, Mat4::IDENTITY)]);
-    assert_shows(&image, CENTER, [0.0; 3], "single-sided: culled");
+    assert_shows(
+        &image,
+        CENTER,
+        [0.25; 3],
+        "single-sided: culled, the sky behind it",
+    );
     // The back face is shaded with its normal turned around, towards the camera.
     let back = expected(WHITE, -DVec3::Z, -Vec3::Z, PI / 2.0, -3.0).map(|light| light + 0.25);
     let image = setup.draw(camera(-3.0), from_the_camera, &[(&double, Mat4::IDENTITY)]);
@@ -581,7 +591,7 @@ fn a_double_sided_material_shows_its_back_faces_lit_from_their_side() {
         back,
         "double-sided, lit from the camera's side",
     );
-    // Lit from the other side, it gets the ambient light only. The light comes from exactly
+    // Lit from the other side, it gets the sky's light only. The light comes from exactly
     // opposite the camera there: the half vector has no direction.
     let image = setup.draw(
         camera(-3.0),
@@ -669,7 +679,7 @@ fn a_mirrored_instance_keeps_its_front_faces_and_the_handedness_of_its_normal_te
 }
 
 #[test]
-fn occlusion_darkens_the_ambient_light_only() {
+fn occlusion_darkens_the_light_of_the_environment_only() {
     let mut setup = Setup::new();
     // 51 / 255 is exactly 0.2.
     let texture = setup.texture(TextureFormat::Rgba8Unorm, 1, &[[51, 0, 0, 255]]);
@@ -685,12 +695,12 @@ fn occlusion_darkens_the_ambient_light_only() {
             &[(&material, Mat4::IDENTITY)],
         )
     };
-    // At a strength of 0.5, the ambient light is multiplied by 1 + 0.5 × (0.2 − 1) = 0.6.
+    // At a strength of 0.5, the sky's light is multiplied by 1 + 0.5 × (0.2 − 1) = 0.6.
     assert_shows(
         &draw(&mut setup, 0.5, 0.0),
         CENTER,
         [0.3; 3],
-        "ambient light only",
+        "the sky's light only",
     );
     let direct = expected(WHITE, DVec3::Z, Vec3::Z, PI / 2.0, 3.0);
     assert_shows(
@@ -705,7 +715,7 @@ fn occlusion_darkens_the_ambient_light_only() {
         [0.5; 3],
         "a strength of 0",
     );
-    // A texel of 0 takes all the ambient light, but not the emitted light.
+    // A texel of 0 takes all the sky's light, but not the emitted light.
     let none = setup.texture(TextureFormat::Rgba8Unorm, 1, &[[0, 0, 0, 255]]);
     let material = setup.material(&MaterialData {
         occlusion_texture: Some(setup.sampled(&none)),

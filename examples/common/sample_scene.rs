@@ -1,16 +1,20 @@
 //! The glTF scene that the `scene` example and its image test draw: the asset of
 //! `examples/assets/scene.glb` by default, or any GLB file the loader reads, lit by the lights the
-//! file places, or by the sample's sun when it places none, in physical units (ADR-0037).
+//! file places, or by the sample's sun when it places none, and by its sky, in physical units
+//! (ADR-0037, ADR-0039).
 
 #[path = "gltf.rs"]
 mod gltf;
 
 use std::error::Error;
 use std::f32::consts::PI;
+use std::time::{Duration, Instant};
 
-use slime_gfx::{Color, Gpu, RenderTarget, TextureFormat};
+use slime_gfx::{Gpu, RenderTarget, TextureFormat};
 use slime_render::glam::Vec3;
-use slime_render::{Camera, DirectionalLight, Light, RenderStats, Renderer, Scene};
+use slime_render::{
+    Camera, DirectionalLight, Environment, Light, RenderStats, Renderer, Scene, Sky,
+};
 
 pub use gltf::Bounds;
 
@@ -26,32 +30,33 @@ const SUN_ILLUMINANCE: f32 = 100_000.0;
 /// 15 of the "sunny 16" rule for direct sunlight.
 pub const EXPOSURE: f32 = PI / SUN_ILLUMINANCE;
 
-/// The color behind the scene, in nits: a dark blue-grey, (0.05, 0.06, 0.08) once exposed. Not a
-/// sky: image-based lighting brings one.
-pub const BACKGROUND: Color = Color {
-    r: 1592.0,
-    g: 1910.0,
-    b: 2546.0,
-    a: 1.0,
+/// A clear day's sky around the sun, in nits: a blue zenith of luminance 3 900 and a whiter horizon
+/// of 9 400, and dark soil below them, of albedo about 0.1, lit by the sun 52° high and by the sky:
+/// 0.1 × (100 000 × sin 52° + 18 000) / π ≈ 3 100. Once exposed: (0.053, 0.123, 0.314),
+/// (0.239, 0.302, 0.383) and (0.097, 0.093, 0.085). Without its sun, which [`SampleScene`] gives
+/// it from the file's lights.
+pub const SKY: Sky = Sky {
+    zenith: Vec3::new(1700.0, 3900.0, 10_000.0),
+    horizon: Vec3::new(7600.0, 9600.0, 12_200.0),
+    ground: Vec3::new(3100.0, 2950.0, 2700.0),
+    sun: None,
 };
-
-/// A slightly cold ambient light, in nits: about the luminance of a clear sky, whose light from
-/// every direction would give a surface π × 6 000 ≈ 19 000 lux; (0.18, 0.19, 0.23) once exposed.
-const AMBIENT: Vec3 = Vec3::new(5730.0, 6048.0, 7321.0);
 
 /// The sun that lights a file without lights: slightly warm, from above. The asset's sun is the
 /// same light.
-const SUN: Light = Light::Directional(DirectionalLight {
+const SUN: DirectionalLight = DirectionalLight {
     direction: Vec3::new(-0.5, -1.0, -0.6),
     color: Vec3::new(1.0, 0.98, 0.9),
     illuminance: SUN_ILLUMINANCE,
     casts_shadows: true,
-});
+};
 
-/// A loaded glTF scene and the renderer that draws it, for targets of one format.
+/// A loaded glTF scene, its sky and the renderer that draws them, for targets of one format.
 pub struct SampleScene {
     renderer: Renderer,
     loaded: gltf::LoadedScene,
+    environment: Environment,
+    environment_time: Duration,
 }
 
 impl SampleScene {
@@ -68,7 +73,32 @@ impl SampleScene {
     ) -> Result<Self, Box<dyn Error + Send + Sync>> {
         let renderer = Renderer::new(gpu, format)?;
         let loaded = gltf::load(gpu, &renderer, bytes)?;
-        Ok(Self { renderer, loaded })
+        // The sky's sun is the scene's: the file's first directional light, or the sample's sun
+        // for a file without lights, so that its disc and glow lie where the light and its shadows
+        // come from.
+        let sun = loaded
+            .lights
+            .iter()
+            .find_map(|light| match light {
+                Light::Directional(light) => Some(*light),
+                _ => None,
+            })
+            .or(loaded.lights.is_empty().then_some(SUN));
+        let started = Instant::now();
+        let environment = renderer.create_environment(gpu, &Sky { sun, ..SKY });
+        let environment_time = started.elapsed();
+        tracing::info!(?environment_time, "the sky's environment is computed");
+        Ok(Self {
+            renderer,
+            loaded,
+            environment,
+            environment_time,
+        })
+    }
+
+    /// How long the CPU took to compute the sky's environment, when the scene was loaded.
+    pub fn environment_time(&self) -> Duration {
+        self.environment_time
     }
 
     /// The smallest box around the scene, which the camera orbits.
@@ -86,8 +116,9 @@ impl SampleScene {
         exposure: f32,
     ) -> RenderStats {
         let instances = self.loaded.instances();
+        let sun = [Light::Directional(SUN)];
         let lights = if self.loaded.lights.is_empty() {
-            &[SUN][..]
+            &sun[..]
         } else {
             &self.loaded.lights[..]
         };
@@ -97,8 +128,7 @@ impl SampleScene {
             &Scene {
                 camera,
                 lights,
-                ambient: AMBIENT,
-                clear: BACKGROUND,
+                environment: Some(&self.environment),
                 exposure,
                 instances: &instances,
             },

@@ -66,8 +66,8 @@ pub struct MaterialData<'a> {
     /// Multiplies the x and y of the normal texture's normals: 0 keeps the mesh's normal. Not used
     /// without a normal texture.
     pub normal_scale: f32,
-    /// Its red channel is how much of the ambient light reaches the surface, from 0 (none) to 1
-    /// (all); the directional light is not affected. `Rgba8Unorm`.
+    /// Its red channel is how much of the environment's light reaches the surface, from 0 (none)
+    /// to 1 (all); the lights are not affected. `Rgba8Unorm`.
     pub occlusion_texture: Option<SampledTexture<'a>>,
     /// How much the occlusion texture counts, from 0 (not at all) to 1. Not used without one.
     pub occlusion_strength: f32,
