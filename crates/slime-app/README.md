@@ -74,8 +74,9 @@ let config = AppConfig {
     window: Some(WindowConfig::default()),
     ..AppConfig::default()
 };
-if let Err(error) = slime_app::run(&mut Game, &config) {
-    eprintln!("cannot run the game: {error}");
+// A failed run has been logged, with each of its causes: the caller only reports the failure.
+if slime_app::run(&mut Game, &config).is_err() {
+    std::process::exit(1);
 }
 ```
 
@@ -118,7 +119,9 @@ if let Err(error) = slime_app::run(&mut Game, &config) {
     the window or when the GPU device or the window's surface is lost for good during the run. After
     a loss, the run stops like after an exit request, `shutdown` included
     (`docs/adr/0022-losing-the-gpu-device.md`, `docs/adr/0025-giving-up-a-lost-surface.md`). Only
-    one windowed run, or attempt, is possible per process.
+    one windowed run, or attempt, is possible per process. A failed run is logged at the `error`
+    level with each of its causes (`the run failed: cannot draw into the window: no GPU adapter is
+    available: ...`), which the error's own message, the most general, does not give.
   - The signal handler replaces any other handler the process had for these signals, except one
     installed earlier through the `ctrlc` crate, which is kept. It stays installed after `run`
     returns: a signal then no longer ends the process by itself, and only the second one received

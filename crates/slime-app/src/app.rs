@@ -265,7 +265,9 @@ pub(crate) enum ExitReason {
 ///   `shutdown` is called.
 ///
 /// When the window or the GPU could not be opened, neither `init` nor `shutdown` is called.
-/// Headless runs fail only when `init` does.
+/// Headless runs fail only when `init` does. A failed run is logged at the `error` level, with
+/// the message of each of the error's causes in turn (`the run failed: cannot draw into the window:
+/// no GPU adapter is available: ...`), so that a caller only has to exit with a failure.
 ///
 /// # Panics
 ///
@@ -278,10 +280,22 @@ pub(crate) enum ExitReason {
 pub fn run(app: &mut impl App, config: &AppConfig) -> Result<(), RunError> {
     init_diagnostics();
     signal::install_handler();
-    match &config.window {
+    let result = match &config.window {
         None => run_headless(app, config),
         Some(window) => run_windowed(app, config, window),
+    };
+    if let Err(error) = &result {
+        // The error's own message is the most general one: the cause is in its sources.
+        let mut message = error.to_string();
+        let mut source = std::error::Error::source(error);
+        while let Some(cause) = source {
+            message.push_str(": ");
+            message.push_str(&cause.to_string());
+            source = cause.source();
+        }
+        tracing::error!("the run failed: {message}");
     }
+    result
 }
 
 fn run_headless(app: &mut impl App, config: &AppConfig) -> Result<(), RunError> {

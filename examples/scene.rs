@@ -12,8 +12,6 @@
 //! cargo run --example scene -- --frames 120              # closes itself after 120 frames
 //! ```
 
-#[path = "common/error_chain.rs"]
-mod error_chain;
 #[path = "common/orbit.rs"]
 mod orbit;
 #[path = "common/sample_scene.rs"]
@@ -34,7 +32,6 @@ use slime_platform::{
 use slime_render::glam::Vec3;
 use slime_render::{Camera, RenderStats};
 
-use error_chain::error_chain;
 use sample_scene::{BLOOM, EXPOSURE, SampleScene};
 
 const USAGE: &str = "usage: scene [--scene <file.glb>] [--frames <count>]";
@@ -389,10 +386,8 @@ fn main() -> ExitCode {
             }
         }
         Ok(()) => ExitCode::SUCCESS,
-        Err(error) => {
-            tracing::error!("run failed: {}", error_chain(&error));
-            ExitCode::FAILURE
-        }
+        // `run` has logged the error with its causes.
+        Err(_) => ExitCode::FAILURE,
     }
 }
 

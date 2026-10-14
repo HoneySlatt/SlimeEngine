@@ -173,6 +173,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- A failed `slime_app::run` is logged at the `error` level with each of its causes (`the run
+  failed: cannot draw into the window: no GPU adapter is available: ...`); the README's pattern,
+  which printed only the most general message, now only exits with a failure.
 - `Renderer::render` draws the first `MAX_LIGHTS` (16) lights of a scene that has more, and logs a
   warning once per renderer, instead of panicking, in release builds too, on data a game loads
   ([ADR-0042](docs/adr/0042-lights-beyond-the-most-drawn-and-checked-scene-values.md)). It panics

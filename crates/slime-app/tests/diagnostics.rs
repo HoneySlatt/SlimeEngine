@@ -205,3 +205,57 @@ fn a_panic_payload_that_is_not_a_string_is_logged() {
         "the payload's absence must be logged\n{stderr}"
     );
 }
+
+#[test]
+fn a_failed_run_is_logged_with_every_cause() {
+    if is_child() {
+        /// An application whose `init` fails with an error that has a cause of its own.
+        struct FailingInit;
+
+        #[derive(Debug)]
+        struct Missing;
+
+        impl std::fmt::Display for Missing {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("the save file is missing")
+            }
+        }
+
+        impl std::error::Error for Missing {}
+
+        #[derive(Debug)]
+        struct CannotLoad(Missing);
+
+        impl std::fmt::Display for CannotLoad {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("cannot load the game")
+            }
+        }
+
+        impl std::error::Error for CannotLoad {
+            fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+                Some(&self.0)
+            }
+        }
+
+        impl slime_app::App for FailingInit {
+            fn init(&mut self, _ctx: &mut slime_app::Context) -> Result<(), slime_app::AppError> {
+                Err(Box::new(CannotLoad(Missing)))
+            }
+        }
+
+        let result = slime_app::run(&mut FailingInit, &slime_app::AppConfig::default());
+        assert!(result.is_err());
+        return;
+    }
+
+    let output = run_child("a_failed_run_is_logged_with_every_cause", None);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains(
+            "ERROR slime_app::app: the run failed: the application failed to start: cannot load \
+             the game: the save file is missing"
+        ),
+        "the failure must be logged with its causes\n{stderr}"
+    );
+}

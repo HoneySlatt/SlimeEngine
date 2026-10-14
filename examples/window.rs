@@ -12,8 +12,6 @@
 //! cargo run --example window -- --present-mode fifo        # every image shown, one per refresh
 //! ```
 
-#[path = "common/error_chain.rs"]
-mod error_chain;
 #[path = "common/triangle.rs"]
 mod triangle;
 
@@ -24,7 +22,6 @@ use slime_app::{App, AppConfig, AppError, Context};
 use slime_gfx::{PresentMode, RenderPassDescriptor, RenderTarget};
 use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, WindowConfig};
 
-use error_chain::error_chain;
 use triangle::{BACKGROUND, Triangle};
 
 const USAGE: &str = "usage: window [--headless] [--frames <count>] [--present-mode mailbox|fifo]";
@@ -110,10 +107,8 @@ fn main() -> ExitCode {
             }
         }
         Ok(()) => ExitCode::SUCCESS,
-        Err(error) => {
-            tracing::error!("run failed: {}", error_chain(&error));
-            ExitCode::FAILURE
-        }
+        // `run` has logged the error with its causes.
+        Err(_) => ExitCode::FAILURE,
     }
 }
 
