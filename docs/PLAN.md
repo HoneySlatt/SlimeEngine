@@ -13,11 +13,10 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3b — Physically based renderer → 0.1: in progress. Planned on 2026-10-13 and validated by
-  the owner. M3b.1 to M3b.6 are done. The owner's decisions of 2026-10-13 on earlier proposals are
+  the owner. M3b.1 to M3b.7 are done. The owner's decisions of 2026-10-13 on earlier proposals are
   applied, and the findings of rounds 4 and 5 of the audit of 0.0.3 (issue
-  [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are fixed or recorded below. M3b.7 is
-  implemented and checked (ADR-0040) and awaits the Windows CI job and the owner's look at the
-  sample; next: M3b.8.
+  [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are fixed or recorded below; next:
+  M3b.8, then a pass over the known debt that users of 0.1 would meet, before M3b.9.
 
 ## Status
 
@@ -29,7 +28,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M3b.4](#m3b4--light-types) | Light types | Done |
 | [M3b.5](#m3b5--shadows) | Shadows | Done |
 | [M3b.6](#m3b6--image-based-lighting) | Image-based lighting | Done |
-| [M3b.7](#m3b7--bloom) | Bloom | Awaiting the owner |
+| [M3b.7](#m3b7--bloom) | Bloom | Done |
 | [M3b.8](#m3b8--render-graph) | Render graph | Planned |
 | [M3b.9](#m3b9--windows-check-documentation-release-01) | Windows check, documentation, release 0.1 | Planned |
 
@@ -478,7 +477,13 @@ upgrading wgpu still waits for egui.
   of `render` grows by 0.51 and 0.63 ms, the passes' submissions and timers. The workspace's tests
   take 26.2 s on lavapipe (23.9 s at M3b.6). The `scene` example ran 400 frames in a headless Weston
   at 1280 × 720 on lavapipe, and a screenshot was looked at: the ring's glow, the overlay's bloom
-  time and slider.
+  time and slider. A reviewing agent read the milestone against `AGENTS.md`: the edges' figures
+  were too optimistic and a frame too small for a chain was untested; both were corrected, with
+  the pipelines' count. In the Windows CI job, on WARP, every test passes, so FXC compiles the
+  bloom's shaders, and the references differ by at most 4 (`gltf-front`: 40 pixels off by more than
+  2, none by more than 4; `gltf-back`: 13 and 0; `shapes`: 37 and 0); the job took 11 minutes 48
+  seconds, the Linux one 4 minutes 41 seconds. The owner looked at the sample on the desktop on
+  2026-10-14: the glow and the sun look right.
 
 ### M3b.8 — Render graph
 
