@@ -1,6 +1,7 @@
 # 0030. Image tests: strict on the reference driver, loose on the others
 
-- Status: Accepted
+- Status: Accepted; amended by [0054](0054-image-tests-allow-0-2-percent-on-other-drivers.md)
+  (0.2 % of the pixels)
 - Date: 2026-10-13
 
 ## Context

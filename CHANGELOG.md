@@ -116,6 +116,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- The image tests let 0.2 % of the pixels differ by more than 8 out of 255 on drivers other than
+  lavapipe, which renders the references, where they let 0.1 %
+  ([ADR-0054](docs/adr/0054-image-tests-allow-0-2-percent-on-other-drivers.md)): the drivers
+  filter a texture seen at a grazing angle differently. On lavapipe, nothing changes.
 - One color type, `slime_gfx::LinearColor`, for every color of the API
   ([ADR-0045](docs/adr/0045-one-linear-color-type.md)): red, green, blue and alpha in linear light,
   as `f32`s. It replaces `slime_gfx::Color` for clears, the arrays of `MaterialData::base_color`

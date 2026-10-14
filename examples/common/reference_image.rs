@@ -1,5 +1,6 @@
 //! Comparing a rendered image with a reference PNG stored in `tests/reference/`, within the
-//! tolerances of ADR-0018, ADR-0028 and ADR-0030, and rendering the references again on request.
+//! tolerances of ADR-0018, ADR-0028, ADR-0030 and ADR-0054, and rendering the references again on
+//! request.
 
 #[path = "png_file.rs"]
 mod png_file;
@@ -24,10 +25,11 @@ const ON_REFERENCE_DRIVER: Tolerance = Tolerance {
     channel: 2,
     pixels: 0.0,
 };
-/// On other drivers, which filter textures and place edges differently (ADR-0028, ADR-0030).
+/// On other drivers, which filter textures and place edges differently (ADR-0028, ADR-0030,
+/// ADR-0054).
 const ON_OTHER_DRIVERS: Tolerance = Tolerance {
     channel: 8,
-    pixels: 0.001,
+    pixels: 0.002,
 };
 
 /// Whether the references are to be rendered again instead of being compared with:

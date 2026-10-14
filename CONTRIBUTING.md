@@ -98,8 +98,9 @@ The GPU layer uses Vulkan on Linux and Direct3D 12 on Windows
 - Image tests compare a render with a reference image stored in `examples/tests/reference/`,
   within a tolerance that depends on the driver
   ([ADR-0018](docs/adr/0018-reference-image-tests.md), amended by
-  [ADR-0028](docs/adr/0028-image-tests-tolerate-a-few-pixels.md) and
-  [ADR-0030](docs/adr/0030-image-tests-strict-on-the-reference-driver.md)). When one fails, it
+  [ADR-0028](docs/adr/0028-image-tests-tolerate-a-few-pixels.md),
+  [ADR-0030](docs/adr/0030-image-tests-strict-on-the-reference-driver.md) and
+  [ADR-0054](docs/adr/0054-image-tests-allow-0-2-percent-on-other-drivers.md)). When one fails, it
   prints the path of the image it rendered; compare the two by eye. If your change alters what a
   test draws on purpose, render the reference again on lavapipe, look at the new image, and commit
   it with the change (this renders the references of every image test; each test names its
