@@ -70,11 +70,13 @@ levels are freed while the bloom is off. The rest was common to the designs or m
   clearing it and the others keeping it; a pass that samples a target runs after every pass that
   draws into it. Kahn's algorithm, taking the earliest added pass among those ready: the order
   depends on the declarations alone, and is the order of addition whenever that order is valid.
-- **Refusals.** As `GraphError` values naming the passes and targets: a pass that samples a
-  transient target no pass draws into, or is the first to draw into one and keeps it; a pass that
-  clears a target an earlier pass drew into; a pass that samples what it draws into; a cycle; a
-  transient target no pass uses. The renderer panics on one: its frame comes from its own code and
-  no user data, so a refusal is a bug in it ([ADR-0008](0008-errors-logging-and-assertions.md)).
+- **Refusals.** As `GraphError` values naming the passes and targets: two transient targets with
+  one label, since the graph of the next shape finds the targets it reuses by label; a pass that
+  samples a transient target no pass draws into, or is the first to draw into one and keeps it; a
+  pass that clears a target an earlier pass drew into; a pass that samples what it draws into; a
+  cycle; a transient target no pass uses. The renderer panics on one: its frame comes from its own
+  code and no user data, so a refusal is a bug in it
+  ([ADR-0008](0008-errors-logging-and-assertions.md)).
 - **When the graph is built.** Once per frame *shape*: the output's size, whether the shadow pass
   runs, whether the bloom's passes do. The renderer compares the shape every frame; on a change it
   declares the frame again, the graph orders it, creates the transient targets and the timers, and

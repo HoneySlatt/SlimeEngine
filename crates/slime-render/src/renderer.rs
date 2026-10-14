@@ -897,7 +897,11 @@ impl Renderer {
             },
         );
         fold_gpu_times(
-            frame.graph.passes(),
+            frame
+                .graph
+                .declarations()
+                .iter()
+                .map(|declaration| declaration.pass),
             |index| frame.graph.gpu_time(index),
             &mut stats,
         );
@@ -1672,7 +1676,12 @@ mod tests {
                     expected.extend((0..levels).map(Pass::BloomDown));
                     expected.extend((0..levels.saturating_sub(1)).rev().map(Pass::BloomUp));
                     expected.push(Pass::ToneMapping);
-                    assert_eq!(graph.passes().collect::<Vec<_>>(), expected, "{shape:?}");
+                    let passes: Vec<Pass> = graph
+                        .declarations()
+                        .iter()
+                        .map(|declaration| declaration.pass)
+                        .collect();
+                    assert_eq!(passes, expected, "{shape:?}");
                 }
             }
         }

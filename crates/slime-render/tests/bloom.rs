@@ -352,6 +352,47 @@ fn the_chain_follows_the_size_of_the_output() {
 }
 
 #[test]
+fn a_renderer_whose_frame_changes_shape_draws_what_a_new_one_draws_and_times_it_again() {
+    // The bloom stops and resumes, the output grows and shrinks back: each change builds the
+    // frame's graph again, with new targets and timers (ADR-0041).
+    let shapes = [
+        ((64, 48), 0.3),
+        ((64, 48), 0.0),
+        ((64, 48), 0.3),
+        ((96, 48), 0.3),
+        ((64, 48), 0.3),
+    ];
+    let mut scene = Pixel::new(200.0);
+    for (index, &(size, bloom)) in shapes.iter().enumerate() {
+        let (image, _) = scene.draw(size, (20, 20), bloom);
+        let (fresh, _) = Pixel::new(200.0).draw(size, (20, 20), bloom);
+        assert!(
+            image.pixels == fresh.pixels,
+            "change {index}, {size:?} at {bloom}: not what a new renderer draws"
+        );
+        if !scene.gpu.can_time() {
+            continue;
+        }
+        let mut timed = false;
+        for _ in 0..8 {
+            scene.gpu.wait_idle().expect("the GPU finishes the frame");
+            let (_, stats) = scene.draw(size, (20, 20), bloom);
+            timed = stats.scene_gpu_time.is_some()
+                && stats.sky_gpu_time.is_some()
+                && stats.tone_mapping_gpu_time.is_some()
+                && (bloom == 0.0 || stats.bloom_gpu_time.is_some());
+            if timed {
+                break;
+            }
+        }
+        assert!(
+            timed,
+            "change {index}: the GPU times come back within a few frames"
+        );
+    }
+}
+
+#[test]
 fn the_statistics_give_the_bloom_s_gpu_time_on_adapters_that_can_time_their_work() {
     let mut scene = Pixel::new(200.0);
     let mut time = None;

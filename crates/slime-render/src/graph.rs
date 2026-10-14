@@ -165,6 +165,9 @@ pub(crate) enum GraphError {
     Cycle { passes: Vec<Pass> },
     /// No pass uses a transient target, which would cost memory for nothing.
     Unused { target: String },
+    /// Two transient targets have one label: the graph of the next shape finds the targets it
+    /// reuses by their labels, and would give both the same texture.
+    DuplicateTarget { target: String },
 }
 
 impl fmt::Display for GraphError {
@@ -189,6 +192,9 @@ impl fmt::Display for GraphError {
                 write!(f, "passes {passes:?} depend on each other in a cycle")
             }
             Self::Unused { target } => write!(f, "no pass uses target `{target}`"),
+            Self::DuplicateTarget { target } => {
+                write!(f, "two transient targets are labelled `{target}`")
+            }
         }
     }
 }
@@ -210,11 +216,22 @@ pub(crate) fn scaled_side(side: u32, shift: u32) -> u32 {
 ///
 /// # Errors
 ///
-/// The first refusal met, checking the passes in the order they were added, then the cycle, then
-/// the targets (see [`GraphError`]).
+/// The first refusal met: two transient targets with one label, then the passes checked in the
+/// order they were added, then a cycle, then a target no pass uses (see [`GraphError`]).
 fn order(targets: &[Target], passes: &[PassDeclaration]) -> Result<Vec<usize>, GraphError> {
     let label = |target: TargetId| targets[target.0].label.clone();
     let transient = |target: TargetId| matches!(targets[target.0].source, Source::Transient { .. });
+    for (index, target) in targets.iter().enumerate() {
+        let named_before = targets[..index]
+            .iter()
+            .enumerate()
+            .any(|(other, earlier)| earlier.label == target.label && transient(TargetId(other)));
+        if named_before && transient(TargetId(index)) {
+            return Err(GraphError::DuplicateTarget {
+                target: target.label.clone(),
+            });
+        }
+    }
     // For each target, the passes that draw into it, in the order they were added.
     let mut writers: Vec<Vec<usize>> = vec![Vec::new(); targets.len()];
     for (index, pass) in passes.iter().enumerate() {
@@ -404,11 +421,11 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// A frame that cannot be drawn ([`GraphError`]): a pass that samples a transient target no
-    /// pass draws into, or is the first to draw into one and keeps it; a pass that clears a target
-    /// an earlier pass drew into; a pass that samples what it draws into; passes that depend on
-    /// each other in a cycle; a transient target that no pass uses. The graph is then left as it
-    /// was.
+    /// A frame that cannot be drawn ([`GraphError`]): two transient targets with one label; a pass
+    /// that samples a transient target no pass draws into, or is the first to draw into one and
+    /// keeps it; a pass that clears a target an earlier pass drew into; a pass that samples what it
+    /// draws into; passes that depend on each other in a cycle; a transient target that no pass
+    /// uses. The graph is then left as it was.
     pub(crate) fn compile(&mut self) -> Result<(), GraphError> {
         let ordered = order(&self.targets, &self.passes)?;
         self.passes = ordered
@@ -485,11 +502,6 @@ impl Graph {
             Some(Created::Color(created)) => created,
             _ => panic!("`{}` is not a created render target", target.label),
         }
-    }
-
-    /// The passes, in the order they run once compiled.
-    pub(crate) fn passes(&self) -> impl ExactSizeIterator<Item = Pass> + '_ {
-        self.passes.iter().map(|pass| pass.pass)
     }
 
     /// The passes' declarations, in the order they run once compiled.
@@ -574,7 +586,16 @@ impl Graph {
     /// The GPU time of the pass at `index` in the order the passes run, from the latest of its
     /// submissions whose times have come back: `None` until one has, and on adapters that cannot
     /// time their work.
+    ///
+    /// # Panics
+    ///
+    /// If `index` is not below the number of passes.
     pub(crate) fn gpu_time(&self, index: usize) -> Option<Duration> {
+        assert!(
+            index < self.passes.len(),
+            "pass {index} of a graph of {} passes",
+            self.passes.len()
+        );
         self.timers
             .get(index / PASSES_PER_SUBMISSION)?
             .latest(index % PASSES_PER_SUBMISSION)
@@ -609,7 +630,7 @@ mod tests {
 
     fn order_of(graph: &mut Graph) -> Vec<Pass> {
         graph.compile().expect("the graph is valid");
-        graph.passes().collect()
+        graph.declarations().iter().map(|pass| pass.pass).collect()
     }
 
     /// The renderer's frame with a shadow pass and a bloom of two levels, declared backwards.
@@ -844,6 +865,88 @@ mod tests {
     #[should_panic(expected = "transient target `tiny` would be empty: 3x2 divided by 2^3")]
     fn an_empty_transient_target_is_refused() {
         Graph::new(3, 2).transient_color("tiny", HDR, 3);
+    }
+
+    #[test]
+    fn two_transient_targets_with_one_label_are_refused() {
+        let mut graph = Graph::new(8, 8);
+        let first = graph.transient_color("level", HDR, 1);
+        let second = graph.transient_color("level", HDR, 2);
+        graph.add_pass(pass(Pass::BloomDown(0), color(first, true), &[]));
+        graph.add_pass(pass(
+            Pass::BloomDown(1),
+            color(second, true),
+            &[first.into()],
+        ));
+        assert_eq!(
+            graph.compile(),
+            Err(GraphError::DuplicateTarget {
+                target: "level".to_owned()
+            })
+        );
+    }
+
+    /// The graph of a new shape keeps the targets of the previous one that have its label, format
+    /// and size, and creates the others: a kept target still holds what the previous graph's frame
+    /// cleared it to, opaque black, where a new one holds zeros.
+    #[test]
+    fn the_next_shape_reuses_the_targets_of_the_same_label_format_and_size() {
+        let gpu =
+            Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+        let declare = |width, height, format| {
+            let mut graph = Graph::new(width, height);
+            let output = graph.import_color("output");
+            let kept = graph.transient_color("kept", HDR, 0);
+            let other = graph.transient_color("other", format, 0);
+            graph.add_pass(pass(Pass::BloomDown(0), color(kept, true), &[]));
+            graph.add_pass(pass(Pass::BloomDown(1), color(other, true), &[]));
+            graph.add_pass(pass(
+                Pass::ToneMapping,
+                color(output, true),
+                &[kept.into(), other.into()],
+            ));
+            graph.compile().expect("the graph is valid");
+            (graph, kept, other)
+        };
+        let alpha = |target: &RenderTarget| {
+            if target.format() == HDR {
+                let image = gpu.read_float_render_target(target).expect("read back");
+                image.pixels[3]
+            } else {
+                let image = gpu.read_render_target(target).expect("read back");
+                f32::from(image.pixels[3]) / 255.0
+            }
+        };
+
+        let (mut first, kept, other) = declare(8, 8, HDR);
+        first.create(&gpu, None);
+        let output = gpu.create_render_target("output", 8, 8, TextureFormat::Rgba8UnormSrgb);
+        first.record(&gpu, "frame", &[Imported::Color(&output)], |_, _, _| {});
+        assert_eq!(
+            (alpha(first.color(kept)), alpha(first.color(other))),
+            (1.0, 1.0)
+        );
+
+        // The same size, "other" in another format.
+        let (mut second, kept, other) = declare(8, 8, TextureFormat::Rgba8Unorm);
+        second.create(&gpu, Some(&first));
+        assert_eq!(
+            alpha(second.color(kept)),
+            1.0,
+            "the same label, format and size: kept"
+        );
+        assert_eq!(
+            alpha(second.color(other)),
+            0.0,
+            "another format: created again"
+        );
+
+        // Another size.
+        let (mut third, kept, _) = declare(8, 4, HDR);
+        third.create(&gpu, Some(&second));
+        let created = third.color(kept);
+        assert_eq!((created.width(), created.height()), (8, 4));
+        assert_eq!(alpha(created), 0.0, "another size: created again");
     }
 
     /// Records a frame of six passes, two submissions, the reader added before the pass that draws
