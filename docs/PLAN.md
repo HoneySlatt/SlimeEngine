@@ -15,8 +15,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 - Stage 3b — Physically based renderer → 0.1: in progress. Planned on 2026-10-13 and validated by
   the owner. M3b.1 to M3b.6 are done. The owner's decisions of 2026-10-13 on earlier proposals are
   applied, and the findings of rounds 4 and 5 of the audit of 0.0.3 (issue
-  [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are fixed or recorded below; next:
-  M3b.7.
+  [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are fixed or recorded below. M3b.7 is
+  implemented and checked (ADR-0040) and awaits the Windows CI job and the owner's look at the
+  sample; next: M3b.8.
 
 ## Status
 
@@ -28,7 +29,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M3b.4](#m3b4--light-types) | Light types | Done |
 | [M3b.5](#m3b5--shadows) | Shadows | Done |
 | [M3b.6](#m3b6--image-based-lighting) | Image-based lighting | Done |
-| [M3b.7](#m3b7--bloom) | Bloom | Planned |
+| [M3b.7](#m3b7--bloom) | Bloom | Awaiting the owner |
 | [M3b.8](#m3b8--render-graph) | Render graph | Planned |
 | [M3b.9](#m3b9--windows-check-documentation-release-01) | Windows check, documentation, release 0.1 | Planned |
 
@@ -86,7 +87,9 @@ it:
   M3b.6, ADR-0039: the roughest level is the irradiance; the sun's disc is drawn by the sky pass,
   its light carried by the scene's directional light.)
 - Post-processing. The tone-mapping pass with its exposure, and a bloom: a chain of downsampled HDR
-  targets, upsampled and added in the tone-mapping pass, so that no blending is needed.
+  targets, upsampled and added in the tone-mapping pass, so that no blending is needed. (Done at
+  M3b.7, ADR-0040: energy-conserving, without a threshold, the upsampled chain a running average
+  in a second chain of targets.)
 - Render graph. Extracted at the end of the stage from the passes that exist then (shadow, scene,
   sky, bloom, tone mapping), as the roadmap asks: passes declare the targets they read and write,
   the graph owns the targets that live for one frame and orders the passes; no memory aliasing, no
@@ -449,6 +452,32 @@ upgrading wgpu still waits for egui.
   and a dark image is unchanged. The image tests pass on the three drivers; the sample looks right
   by eye.
 - **How to test.** As M3b.2.
+- **Checked** on 2026-10-14: ADR-0040 records the strength, the chain, the filters, the edges, the
+  headroom of the high-dynamic-range target and the alternatives rejected, from three prototyped
+  designs and a model of the chain that compared their treatments of the image's edges; the owner
+  chose a strength of 0.04 for the samples and to keep light beyond 65 504 for the bloom. The asset
+  does not change: its ring glows faintly at 0.04, and a brighter ring whitens and floods the floor
+  rather than glowing. `crates/slime-render/tests/bloom.rs` reads `Rgba16Float` outputs back: a
+  single bright pixel's halo is symmetric about its diagonals, and two neighbouring pixels' halos
+  mirror each other within 10⁻³; on a 257 × 131 output the halo falls with the distance and keeps
+  its shape, within 3 %, as the pixel moves; it does not wrap around; uniform images of light 0 to
+  4 are unchanged at a strength of 1 from 1 × 1 to 64 × 64; a strength of 0 skips the passes; the
+  chain follows the output's size; every pixel of a halo, inside and at corners of 256 × 256,
+  257 × 131 and 64 × 64 outputs, matches a CPU model of the chain within 3.9 × 10⁻³ relative, the
+  same on lavapipe and RADV; the model keeps a pixel's light at every edge of a 64 × 64 output
+  within 3 × 10⁻³; a pixel of 4 × 65 536 keeps its halo. Clamping the sampler to the edge, and
+  removing the headroom, each fail a test. Prototypes of the designs were checked against 16 and 30
+  mutations (all but a threshold of 0.01, invisible, caught). Every test passes on lavapipe, with
+  glam's assertions on, and on RADV. The references were rendered again on lavapipe and looked at
+  (a soft glow around the ring and bright edges); on RADV, `gltf-front` has 200 pixels off by more
+  than 2, 72 by more than 4, 3 by more than 8 (65 allowed), largest 24; `gltf-back` 19, 0, 0,
+  largest 4; `shapes` 540, 259, 33, largest 18: the bloom averages the drivers' edge differences,
+  and `shapes` is back from 49 to 33. On RADV, the sample's bloom takes 34 µs at 1280 × 720 and
+  51 µs at 1920 × 1080, and the tone-mapping pass 9 and 20 µs more; on lavapipe 5.3 and 10.1 ms,
+  and 3.4 and 7.4 ms; the CPU time of `render` grows by 0.51 and 0.63 ms, the passes' submissions
+  and timers. The workspace's tests take 26.2 s on lavapipe (23.9 s at M3b.6). The `scene` example
+  ran 400 frames in a headless Weston at 1280 × 720 on lavapipe, and a screenshot was looked at:
+  the ring's glow, the overlay's bloom time and slider.
 
 ### M3b.8 — Render graph
 
@@ -756,20 +785,18 @@ GitHub issues, linked from their entry; this list stays the reference.
   primitive to the vertices its indices name. To measure: load a three.js export of a mesh with
   several materials, and compare the sum of `MeshData::positions.len()` over the meshes created,
   and the load time, before and after.
-- **Exposed light beyond 65 504 is clamped** (ADR-0035, ADR-0037, ADR-0039). The scene and sky
-  shaders write exposed light above 65 504, the largest value of the `Rgba16Float` target, as
-  65 504, rather than leave it to the driver, which may store an infinity that the tone curve turns
-  into NaN; lavapipe and RADV clamp it themselves, so that no test can show either clamp. The sun's
-  disc, 1.47 × 10⁹ nits for the sample's sun, is clamped from an exposure of 4.46 × 10⁻⁵, half a
-  stop above the sample's. A sky's radiance is at most 65 504 nits before the exposure: brighter
-  zenith, horizon or ground is refused, and a brighter glow kept within it. Pre-exposure keeps the
-  sample far below it: at its
-  exposure, π / 100 000, it writes at most 21.8 over 360 camera poses (348 four stops brighter),
-  and at least 1.0 × 10⁻³ above zero, normal half-precision values (measured on lavapipe with
-  the tone curve replaced by the identity, 2026-10-13). The clamp still catches the sun's highlights
-  on metals smoother than a roughness of about 0.125 seen near grazing incidence, emission above
-  65 504 / exposure, and any light once the exposure is raised about 7.5 stops
-  above the sample's. Clamped light loses its energy, which the bloom of M3b.7 would spread wrongly.
+- **Exposed light beyond 64 × 65 504 is clamped** (ADR-0035, ADR-0037, ADR-0039, ADR-0040). The
+  scene and sky shaders write exposed light divided by 64 into the `Rgba16Float` target, and light
+  above 64 × 65 504 as 65 504, the largest half, rather than leave it to the driver, which may store
+  an infinity that the tone curve turns into NaN; lavapipe and RADV clamp it themselves, so that no
+  test can show either clamp. The sun's disc, 1.47 × 10⁹ nits for the sample's sun, is clamped from
+  an exposure of 2.85 × 10⁻³, six and a half stops above the sample's; emission above
+  64 × 65 504 / exposure, and any light once the exposure is raised about 13.5 stops above the
+  sample's, are clamped too, and the bloom spreads them with the energy they keep. A sky's radiance
+  is at most 65 504 nits before the exposure: brighter zenith, horizon or ground is refused, and a
+  brighter glow kept within it. Divided by 64, exposed light below 64 × 2⁻¹⁴, about 0.004, is
+  stored in half precision's subnormals, in steps of 64 × 2⁻²⁴: black on an 8-bit display, whose
+  darkest step is about 0.007 exposed; an output of higher precision would show its steps.
 - **Every fragment evaluates every light of the scene** (ADR-0037). The scene pass has no light
   culling: its cost grows with the number of lights, about 20 µs per light for a screen of 1920 ×
   1080 fragments on an RX 6900 XT (2026-10-13), 338 µs for 16, the most a scene holds, and 10 to 20
@@ -830,11 +857,27 @@ GitHub issues, linked from their entry; this list stays the reference.
   levels are 0.25 apart, and a lobe in between is approximated by mixing the nearest two, the split
   sum's usual approximation; each level is within 2.2 % of its own lobe's average.
 - **Smooth gradients band on 8-bit outputs.** The sky's gradient shows steps one sRGB level apart,
-  20 to 40 pixels wide, as an 8-bit output does without dithering; not visible in the sample at
-  normal contrast.
-- **The `shapes` image test uses 49 of the 65 pixels that RADV may have off by more than 8**
-  (ADR-0030): the metal spheres' reflections of the sky. A change that adds reflective detail may
-  exceed it; measure it again then.
+  20 to 40 pixels wide, as an 8-bit output does without dithering, and the sun's halo steps 2 to 9
+  pixels wide near the sun; not visible in the sample at normal contrast.
+- **The `shapes` image test uses 33 of the 65 pixels that RADV may have off by more than 8**
+  (ADR-0030): edges and the metal spheres' reflections of the sky (49 at M3b.6, before the bloom).
+  A change that adds reflective detail may exceed it; measure it again then.
+- **Every pass is its own submission** (ADR-0033, ADR-0040). The bloom's 11 to 13 passes cost 0.51
+  to 0.63 ms of CPU per frame on the owner's machine, each pass an encoder, a submission and a
+  timer. M3b.8's graph is to record a frame in one submission; to measure: `RenderStats::cpu_time`
+  before and after, at 1280 × 720 and 1920 × 1080.
+- **Tiny, very bright sources blink in the bloom** (ADR-0040). Without a firefly filter (Karis's
+  average dims the sun's halo and makes it flicker, measured), a highlight smaller than a pixel
+  blooms as its coverage of the pixel changes from frame to frame. Temporal anti-aliasing, or a cap
+  on the light a pixel brings to the chain, belong to a later stage.
+- **The bloom has one shape** (ADR-0040): every level the same weight, down to a side of 8 texels;
+  no radius, threshold or tint for a game to set. A window resized across a power of two adds or
+  removes a level: the glow's reach changes a little while the edge is dragged.
+- **Light near the right and bottom edges blooms a little more or less** (ADR-0040). Where an
+  output's side is not a multiple of 2^levels, the coarse levels' last texels straddle the edge: a
+  pixel's halo there holds 0.82 to 1.19 of its light at the sizes measured, 1.85 at a corner of
+  1023 × 767; inside the image and at the top and left edges, its light exactly. To measure: the
+  CPU model of `tests/bloom.rs` at the size in question.
 - **glTF minification filters are approximated.** `slime-gfx` ties mip blending to the
   minification filter and gives every texture mipmaps, so only `NEAREST_MIPMAP_NEAREST` and
   `LINEAR_MIPMAP_LINEAR` are exact (documented in the loader). Revisit when an engine-side user

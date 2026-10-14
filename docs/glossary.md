@@ -24,6 +24,15 @@ falls behind wall-clock time when a frame delta is limited, for example after a 
 *bind group layout* says which bindings it has and what each holds (`slime_gfx::BindGroupLayout`,
 [ADR-0026](adr/0026-resource-binding-and-depth.md)).
 
+**Bloom.** The light a lens or the eye scatters around where it lands, which the renderer adds by
+spreading a share of each pixel's exposed light, its strength (`Scene::bloom`), into a halo that
+falls with the square of the distance; energy-conserving: the light is taken from where it lands,
+so that a uniform image is unchanged ([ADR-0040](adr/0040-bloom.md)).
+
+**Bloom chain.** The levels of the *bloom*, each half the size of the one before: the scene's light
+filtered down into them, then averaged back up into a blurred copy that the tone-mapping pass
+mixes in.
+
 **BRDF (bidirectional reflectance distribution function).** How much of the light arriving at a
 surface from one direction it reflects towards another: what the *metallic-roughness model*
 computes.
@@ -129,6 +138,10 @@ it.
 a blurred level of it whose texels cover the solid angle the sample stands for, which removes the
 noise of sharp features with few samples (Křivánek and Colbert); the *prefiltered levels* are
 computed so.
+
+**Firefly.** A tiny, very bright pixel, such as a highlight smaller than a pixel, whose *bloom*
+blinks as its coverage of the pixel changes from frame to frame. The renderer does not filter them
+(ADR-0040).
 
 **Fixed step.** A duration of time, constant for a run, in which code that must not depend on
 the frame rate advances (`slime_app::time::FixedStep`). A frame runs zero or more fixed steps.
@@ -297,7 +310,9 @@ letter key of the top row is `KeyQ` on every layout, whether it is labelled Q (Q
 
 **Pre-exposure.** Multiplying the scene's light by the *exposure* in the scene pass, before the
 *HDR* target is written, so that light in physical units fits *half precision*
-([ADR-0037](adr/0037-lights-in-physical-units-and-pre-exposure.md)).
+([ADR-0037](adr/0037-lights-in-physical-units-and-pre-exposure.md)); the target holds that light
+divided by 64, so that up to 64 × 65 504 keeps its energy for the *bloom*
+([ADR-0040](adr/0040-bloom.md)).
 
 **Prefiltered levels.** The levels of an *environment*'s *cube texture* past the first: the sky
 averaged under the reflection lobe of a growing roughness, so that one lookup gives what a rough

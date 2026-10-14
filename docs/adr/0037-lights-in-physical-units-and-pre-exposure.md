@@ -2,9 +2,10 @@
 
 - Status: Accepted; amends [0027](0027-the-render-crate.md),
   [0034](0034-hdr-rendering-and-tone-mapping.md) and [0035](0035-physically-based-materials.md);
-  amended by [0038](0038-shadow-mapping.md) (the frame's values; `DirectionalLight::casts_shadows`)
-  and by [0039](0039-image-based-lighting-computed-on-the-cpu.md) (`Scene::environment` replaces
-  `Scene::ambient` and `Scene::clear`; the frame's values)
+  amended by [0038](0038-shadow-mapping.md) (the frame's values; `DirectionalLight::casts_shadows`),
+  by [0039](0039-image-based-lighting-computed-on-the-cpu.md) (`Scene::environment` replaces
+  `Scene::ambient` and `Scene::clear`; the frame's values) and by [0040](0040-bloom.md) (the
+  high-dynamic-range target holds exposed light divided by 64; the tone-mapping pass has a uniform)
 - Date: 2026-10-13
 
 ## Context

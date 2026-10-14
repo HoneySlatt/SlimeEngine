@@ -75,6 +75,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   (`Gpu::create_texture_with_levels`), cube textures (`Gpu::create_cube_texture`,
   `BindingType::CubeTexture`), and `f32_to_f16`, which converts to the half-precision floats of
   `Rgba16Float` texels.
+- A bloom in `slime-render` ([ADR-0040](docs/adr/0040-bloom.md)): `Scene::bloom` spreads that share
+  of each pixel's light into a halo that falls with the square of the distance, before tone
+  mapping, without adding light; 0 skips it. `RenderStats::bloom_gpu_time` gives its passes' time.
+  The samples bloom at 0.04, so that the sun glares and the ring glows, and the `scene` example's
+  overlay shows the bloom's time and has a strength slider.
 
 ### Changed
 
@@ -93,17 +98,19 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   materials read, each once.
 - The scene pass applies the exposure before it writes the HDR target, so that light in physical
   units fits half precision (pre-exposure,
-  [ADR-0037](docs/adr/0037-lights-in-physical-units-and-pre-exposure.md)), and writes exposed light
-  above 65 504 as 65 504. The tone-mapping pass no longer multiplies by the exposure. `Scene::light`
-  is replaced by `Scene::lights`; `DirectionalLight` has a `color` and an `illuminance` in lux, and
-  glTF's default strength, 1 lux. A scene under a directional light of π lux at an exposure of 1
-  looks as it did under the former light of π.
-- A frame of `Renderer::render` takes four passes: the shadow map, the scene, the sky, then tone
-  mapping; `Renderer::new` builds seven pipelines and a 16 MiB shadow map; a `DirectionalLight`
-  written in full names `casts_shadows`. `Scene::environment` replaces `Scene::clear` and the
-  renderer's fixed ambient light: a scene without an environment is black around its surfaces and
-  lit by its lights alone. Images change: scenes lit by a directional light show its shadows, and
-  the samples show a sky, which blues their shadows and which their metals reflect.
+  [ADR-0037](docs/adr/0037-lights-in-physical-units-and-pre-exposure.md)), divided by 64, so that
+  half precision holds exposed light up to 64 × 65 504, and writes brighter light as that
+  ([ADR-0040](docs/adr/0040-bloom.md)). The tone-mapping pass no longer multiplies by the exposure,
+  but by 64. `Scene::light` is replaced by `Scene::lights`; `DirectionalLight` has a `color` and an
+  `illuminance` in lux, and glTF's default strength, 1 lux. A scene under a directional light of π
+  lux at an exposure of 1 looks as it did under the former light of π.
+- A frame of `Renderer::render` takes these passes: the shadow map, the scene, the sky, the bloom's
+  chain, then tone mapping; `Renderer::new` builds ten pipelines and a 16 MiB shadow map; `Scene`
+  has a `bloom` field; a `DirectionalLight` written in full names `casts_shadows`.
+  `Scene::environment` replaces `Scene::clear` and the renderer's fixed ambient light: a scene
+  without an environment is black around its surfaces and lit by its lights alone. Images change:
+  scenes lit by a directional light show its shadows, and the samples show a sky, which blues their
+  shadows and which their metals reflect, and a bloom.
 - `RenderStats::gpu_time` is replaced by `scene_gpu_time` and `tone_mapping_gpu_time`; `Scene`
   has a new field, `exposure`; `Renderer::new` takes the output's format, any render-target
   format. The output is opaque, where the background of an offscreen image kept the clear color's

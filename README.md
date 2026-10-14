@@ -21,9 +21,9 @@ tests compare with references; the `scene` example draws a glTF scene and its li
 driven by the mouse, with its frame time, CPU time, the GPU time of each pass and an exposure slider
 in a dev overlay. Stage 3b, the physically based renderer, is in progress: the renderer draws the
 scene in high dynamic range, shades it with glTF's metallic-roughness materials under lights in
-physical units, the shadows of its sun and the light of its sky, exposes it, and maps it to the
-display with a tone-mapping pass. [`docs/PLAN.md`](docs/PLAN.md) lists what comes next and the known
-debt.
+physical units, the shadows of its sun and the light of its sky, exposes it, spreads a bloom around
+bright light, and maps it to the display with a tone-mapping pass. [`docs/PLAN.md`](docs/PLAN.md)
+lists what comes next and the known debt.
 
 ## Getting started
 
