@@ -121,26 +121,14 @@ impl Setup {
     ) -> (FloatImage, RenderStats) {
         let instances: Vec<Instance<'_>> = squares
             .iter()
-            .map(|&(material, transform)| Instance {
-                mesh: &self.square,
-                material,
-                transform,
-            })
+            .map(|&(material, transform)| Instance::new(&self.square, material, transform))
             .collect();
+        let mut scene = Scene::new(camera, &instances);
+        scene.lights = lights;
+        scene.environment = Some(&self.sky);
         let stats = self
             .renderer
-            .render(
-                &self.gpu,
-                &self.output,
-                &Scene {
-                    camera,
-                    lights,
-                    environment: Some(&self.sky),
-                    exposure: 1.0,
-                    bloom: 0.0,
-                    instances: &instances,
-                },
-            )
+            .render(&self.gpu, &self.output, &scene)
             .expect("the frame is drawn");
         let image = self
             .gpu

@@ -148,24 +148,12 @@ fn the_base_color_texture_is_read_at_the_texture_coordinates_and_tints_the_base_
         (&dimmed, shown(0.5), "half base color"),
         (&translucent, shown(1.0), "half alpha"),
     ] {
-        let instances = [Instance {
-            mesh: &square,
-            material,
-            transform: Mat4::IDENTITY,
-        }];
+        let instances = [Instance::new(&square, material, Mat4::IDENTITY)];
+        let lights = [light];
+        let mut scene = Scene::new(camera, &instances);
+        scene.lights = &lights;
         renderer
-            .render(
-                &gpu,
-                &target,
-                &Scene {
-                    camera,
-                    lights: &[light],
-                    environment: None,
-                    exposure: 1.0,
-                    bloom: 0.0,
-                    instances: &instances,
-                },
-            )
+            .render(&gpu, &target, &scene)
             .expect("the frame is drawn");
         let image = gpu
             .read_render_target(&target)

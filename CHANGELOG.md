@@ -105,6 +105,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   `Sky::horizon` and `Sky::ground`. `LinearColor::from_srgb8` decodes the sRGB-encoded bytes of a
   color picker or a web color, which were easy to pass as linear values by mistake. Images do not
   change.
+- `Instance` and `Scene` are made with `Instance::new(mesh, material, transform)` and
+  `Scene::new(camera, &instances)`, then their public fields are set
+  ([ADR-0046](docs/adr/0046-constructors-for-the-structs-a-game-fills-in.md)): both are
+  `#[non_exhaustive]`, so that the fields they gain later do not break games. A new scene has no
+  lights, no environment, an exposure of 1 and no bloom.
 - Every method of `Gpu` that creates a GPU object returns a `Result`
   ([ADR-0044](docs/adr/0044-running-out-of-gpu-memory.md)): the new `GfxError::OutOfMemory` when
   the GPU's memory cannot hold it, where the engine panicked, so that a game can free memory or ask

@@ -143,11 +143,7 @@ impl Setup {
     ) -> FloatImage {
         let instances: Vec<Instance<'_>> = instances
             .iter()
-            .map(|&(material, transform)| Instance {
-                mesh: &self.square,
-                material,
-                transform,
-            })
+            .map(|&(material, transform)| Instance::new(&self.square, material, transform))
             .collect();
         let uniform = LinearColor::rgb(sky, sky, sky);
         let environment = (sky > 0.0).then(|| {
@@ -163,19 +159,12 @@ impl Setup {
                 )
                 .expect("the GPU has memory for it")
         });
+        let lights = [Light::Directional(light)];
+        let mut scene = Scene::new(camera, &instances);
+        scene.lights = &lights;
+        scene.environment = environment.as_ref();
         self.renderer
-            .render(
-                &self.gpu,
-                &self.output,
-                &Scene {
-                    camera,
-                    lights: &[Light::Directional(light)],
-                    environment: environment.as_ref(),
-                    exposure: 1.0,
-                    bloom: 0.0,
-                    instances: &instances,
-                },
-            )
+            .render(&self.gpu, &self.output, &scene)
             .expect("the frame is drawn");
         self.gpu
             .read_float_render_target(&self.output)

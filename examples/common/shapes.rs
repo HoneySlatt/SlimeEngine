@@ -159,61 +159,51 @@ impl Shapes {
             ..Camera::default()
         };
         let mut instances = vec![
-            Instance {
-                mesh: &self.cube,
-                material: &self.checkered,
-                transform: Mat4::IDENTITY,
-            },
-            Instance {
-                mesh: &self.cube,
-                material: &self.blue,
-                transform: Mat4::from_rotation_translation(
+            Instance::new(&self.cube, &self.checkered, Mat4::IDENTITY),
+            Instance::new(
+                &self.cube,
+                &self.blue,
+                Mat4::from_rotation_translation(
                     Quat::from_rotation_y(35f32.to_radians()),
                     Vec3::new(1.2, 0.3, -0.6),
                 ),
-            },
-            Instance {
-                mesh: &self.cube,
-                material: &self.orange,
-                transform: Mat4::from_scale_rotation_translation(
+            ),
+            Instance::new(
+                &self.cube,
+                &self.orange,
+                Mat4::from_scale_rotation_translation(
                     Vec3::splat(0.6),
                     Quat::from_rotation_x(20f32.to_radians()),
                     Vec3::new(-1.3, -0.2, 0.4),
                 ),
-            },
+            ),
             // The sphere sits on the first cube.
-            Instance {
-                mesh: &self.sphere,
-                material: &self.checkered_green,
-                transform: Mat4::from_translation(Vec3::new(0.0, 1.0, 0.0)),
-            },
+            Instance::new(
+                &self.sphere,
+                &self.checkered_green,
+                Mat4::from_translation(Vec3::new(0.0, 1.0, 0.0)),
+            ),
         ];
         // In front of the cubes, two rows of three, the metals nearer.
         for (row, materials) in self.spheres.iter().enumerate() {
             for (column, material) in materials.iter().enumerate() {
-                instances.push(Instance {
-                    mesh: &self.sphere,
+                instances.push(Instance::new(
+                    &self.sphere,
                     material,
-                    transform: Mat4::from_scale_rotation_translation(
+                    Mat4::from_scale_rotation_translation(
                         Vec3::splat(0.4),
                         Quat::IDENTITY,
                         Vec3::new(0.6 * column as f32 - 0.6, -0.6, 1.2 + 0.6 * row as f32),
                     ),
-                });
+                ));
             }
         }
-        self.renderer.render(
-            gpu,
-            target,
-            &Scene {
-                camera,
-                lights: &[Light::Directional(SUN)],
-                environment: Some(&self.environment),
-                exposure: 1.0,
-                bloom: BLOOM,
-                instances: &instances,
-            },
-        )
+        let lights = [Light::Directional(SUN)];
+        let mut scene = Scene::new(camera, &instances);
+        scene.lights = &lights;
+        scene.environment = Some(&self.environment);
+        scene.bloom = BLOOM;
+        self.renderer.render(gpu, target, &scene)
     }
 }
 

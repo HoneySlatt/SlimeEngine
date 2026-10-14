@@ -23,14 +23,8 @@ fn creations_on_a_lost_device_return_the_loss() {
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
     let mut renderer = Renderer::new(&gpu, FORMAT).expect("the renderer is created");
     let (small, larger) = (target(&gpu, 32), target(&gpu, 64));
-    let scene = Scene {
-        camera: Camera::default(),
-        lights: &[],
-        environment: None,
-        exposure: 1.0,
-        bloom: 0.5,
-        instances: &[],
-    };
+    let mut scene = Scene::new(Camera::default(), &[]);
+    scene.bloom = 0.5;
     renderer
         .render(&gpu, &small, &scene)
         .expect("the frame is drawn");

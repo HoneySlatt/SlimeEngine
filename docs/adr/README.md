@@ -113,3 +113,4 @@ the ADR linking to it.
 | [0043](0043-application-errors-during-a-run.md) | Application errors during a run | Accepted |
 | [0044](0044-running-out-of-gpu-memory.md) | Running out of GPU memory | Accepted |
 | [0045](0045-one-linear-color-type.md) | One linear color type | Accepted |
+| [0046](0046-constructors-for-the-structs-a-game-fills-in.md) | Constructors for the structs a game fills in | Accepted |

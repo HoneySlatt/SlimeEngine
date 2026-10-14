@@ -61,7 +61,11 @@ const MIRROR_THRESHOLD: f32 = 1e-5;
 const INITIAL_INSTANCE_CAPACITY: usize = 64;
 
 /// One thing to draw: a mesh, its material, and where it is.
+///
+/// Made by [`Instance::new`], so that a field added later does not break the code that makes one
+/// (ADR-0046); the fields can then be changed.
 #[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
 pub struct Instance<'a> {
     /// What to draw.
     pub mesh: &'a Mesh,
@@ -73,6 +77,18 @@ pub struct Instance<'a> {
     pub transform: Mat4,
 }
 
+impl<'a> Instance<'a> {
+    /// `mesh` drawn with `material`, placed by `transform`.
+    #[must_use]
+    pub fn new(mesh: &'a Mesh, material: &'a Material, transform: Mat4) -> Self {
+        Self {
+            mesh,
+            material,
+            transform,
+        }
+    }
+}
+
 /// What the renderer draws in one frame.
 ///
 /// Light is in physical units (ADR-0037): lights in lux and candelas, the light that surfaces
@@ -81,7 +97,19 @@ pub struct Instance<'a> {
 /// into the high-dynamic-range target (pre-exposure), divided by 64 so that its half-precision
 /// floats, which reach 65 504, hold exposed light up to 64 × 65 504 (ADR-0040): exposed light above
 /// it is clipped to it.
+///
+/// Made by [`Scene::new`], so that a field added later does not break the code that makes one
+/// (ADR-0046), then filled in by changing the fields:
+///
+/// ```
+/// # use slime_render::{Camera, DirectionalLight, Light, Scene};
+/// let sun = [Light::Directional(DirectionalLight::default())];
+/// let mut scene = Scene::new(Camera::default(), &[]);
+/// scene.lights = &sun;
+/// scene.exposure = 0.5;
+/// ```
 #[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
 pub struct Scene<'a> {
     /// Where the scene is seen from.
     pub camera: Camera,
@@ -119,6 +147,22 @@ pub struct Scene<'a> {
     pub bloom: f32,
     /// What to draw, in this order.
     pub instances: &'a [Instance<'a>],
+}
+
+impl<'a> Scene<'a> {
+    /// `instances` seen from `camera`, without lights or environment, at an exposure of 1 and
+    /// without bloom: only the instances' emission lights the frame, as it is, on black.
+    #[must_use]
+    pub fn new(camera: Camera, instances: &'a [Instance<'a>]) -> Self {
+        Self {
+            camera,
+            lights: &[],
+            environment: None,
+            exposure: 1.0,
+            bloom: 0.0,
+            instances,
+        }
+    }
 }
 
 /// What drawing a scene took.

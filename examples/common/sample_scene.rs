@@ -133,17 +133,11 @@ impl SampleScene {
         } else {
             &self.loaded.lights[..]
         };
-        self.renderer.render(
-            gpu,
-            target,
-            &Scene {
-                camera,
-                lights,
-                environment: Some(&self.environment),
-                exposure,
-                bloom,
-                instances: &instances,
-            },
-        )
+        let mut scene = Scene::new(camera, &instances);
+        scene.lights = lights;
+        scene.environment = Some(&self.environment);
+        scene.exposure = exposure;
+        scene.bloom = bloom;
+        self.renderer.render(gpu, target, &scene)
     }
 }

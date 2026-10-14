@@ -109,11 +109,7 @@ impl Setup {
         };
         let instances: Vec<Instance<'_>> = transforms
             .iter()
-            .map(|&transform| Instance {
-                mesh: &self.square,
-                material: &self.white,
-                transform,
-            })
+            .map(|&transform| Instance::new(&self.square, &self.white, transform))
             .collect();
         let uniform = LinearColor::rgb(sky, sky, sky);
         let environment = (sky > 0.0).then(|| {
@@ -129,20 +125,14 @@ impl Setup {
                 )
                 .expect("the GPU has memory for it")
         });
+        let lights = [Light::Directional(light)];
+        let mut scene = Scene::new(camera, &instances);
+        scene.lights = &lights;
+        scene.environment = environment.as_ref();
+        scene.exposure = exposure;
         let stats = self
             .renderer
-            .render(
-                &self.gpu,
-                &target,
-                &Scene {
-                    camera,
-                    lights: &[Light::Directional(light)],
-                    environment: environment.as_ref(),
-                    exposure,
-                    bloom: 0.0,
-                    instances: &instances,
-                },
-            )
+            .render(&self.gpu, &target, &scene)
             .expect("the frame is drawn");
         let image = self
             .gpu

@@ -104,25 +104,12 @@ impl Pixel {
             .renderer
             .create_mesh(&self.gpu, "pixel", &pixel_square(width, height, at))
             .expect("the square is valid");
-        let instances = [Instance {
-            mesh: &mesh,
-            material: &self.emitter,
-            transform: Mat4::IDENTITY,
-        }];
+        let instances = [Instance::new(&mesh, &self.emitter, Mat4::IDENTITY)];
+        let mut scene = Scene::new(camera(), &instances);
+        scene.bloom = bloom;
         let stats = self
             .renderer
-            .render(
-                &self.gpu,
-                &output,
-                &Scene {
-                    camera: camera(),
-                    lights: &[],
-                    environment: None,
-                    exposure: 1.0,
-                    bloom,
-                    instances: &instances,
-                },
-            )
+            .render(&self.gpu, &output, &scene)
             .expect("the frame is drawn");
         let image = self
             .gpu
@@ -248,19 +235,11 @@ fn uniform(
             },
         )
         .expect("the GPU has memory for it");
+    let mut scene = Scene::new(Camera::default(), &[]);
+    scene.environment = Some(&environment);
+    scene.bloom = bloom;
     let stats = renderer
-        .render(
-            gpu,
-            &output,
-            &Scene {
-                camera: Camera::default(),
-                lights: &[],
-                environment: Some(&environment),
-                exposure: 1.0,
-                bloom,
-                instances: &[],
-            },
-        )
+        .render(gpu, &output, &scene)
         .expect("the frame is drawn");
     (
         gpu.read_float_render_target(&output)

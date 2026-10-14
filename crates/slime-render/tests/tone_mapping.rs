@@ -57,19 +57,11 @@ fn draw(
             },
         )
         .expect("the GPU has memory for it");
+    let mut scene = Scene::new(Camera::default(), &[]);
+    scene.environment = Some(&environment);
+    scene.exposure = exposure;
     renderer
-        .render(
-            gpu,
-            output,
-            &Scene {
-                camera: Camera::default(),
-                lights: &[],
-                environment: Some(&environment),
-                exposure,
-                bloom: 0.0,
-                instances: &[],
-            },
-        )
+        .render(gpu, output, &scene)
         .expect("the frame is drawn")
 }
 
@@ -200,19 +192,13 @@ fn the_sky_is_exposed_before_the_high_dynamic_range_target_and_kept_within_its_r
             fov_y: 0.001,
             ..Camera::default()
         };
+        let lights = [Light::Directional(sun)];
+        let mut scene = Scene::new(narrow, &[]);
+        scene.lights = &lights;
+        scene.environment = Some(&environment);
+        scene.exposure = exposure;
         renderer
-            .render(
-                &gpu,
-                &output,
-                &Scene {
-                    camera: narrow,
-                    lights: &[Light::Directional(sun)],
-                    environment: Some(&environment),
-                    exposure,
-                    bloom: 0.0,
-                    instances: &[],
-                },
-            )
+            .render(&gpu, &output, &scene)
             .expect("the frame is drawn");
         gpu.read_float_render_target(&output)
             .expect("the image is read back")

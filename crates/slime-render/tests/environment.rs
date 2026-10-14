@@ -143,26 +143,14 @@ impl Setup {
         exposure: f32,
     ) -> FloatImage {
         let instances: Vec<Instance<'_>> = material
-            .map(|material| Instance {
-                mesh: &self.sphere,
-                material,
-                transform: Mat4::IDENTITY,
-            })
+            .map(|material| Instance::new(&self.sphere, material, Mat4::IDENTITY))
             .into_iter()
             .collect();
+        let mut scene = Scene::new(camera, &instances);
+        scene.environment = Some(environment);
+        scene.exposure = exposure;
         self.renderer
-            .render(
-                &self.gpu,
-                &self.output,
-                &Scene {
-                    camera,
-                    lights: &[],
-                    environment: Some(environment),
-                    exposure,
-                    bloom: 0.0,
-                    instances: &instances,
-                },
-            )
+            .render(&self.gpu, &self.output, &scene)
             .expect("the frame is drawn");
         self.gpu
             .read_float_render_target(&self.output)
@@ -561,19 +549,9 @@ fn an_environment_draws_with_any_renderer_and_a_scene_without_one_is_black() {
     let made_here = setup.draw(camera, &environment, Some(&material), 1.0);
     let mut other =
         Renderer::new(&setup.gpu, TextureFormat::Rgba16Float).expect("the renderer is created");
-    let instances = [Instance {
-        mesh: &setup.sphere,
-        material: &material,
-        transform: Mat4::IDENTITY,
-    }];
-    let mut scene = Scene {
-        camera,
-        lights: &[],
-        environment: Some(&environment),
-        exposure: 1.0,
-        bloom: 0.0,
-        instances: &instances,
-    };
+    let instances = [Instance::new(&setup.sphere, &material, Mat4::IDENTITY)];
+    let mut scene = Scene::new(camera, &instances);
+    scene.environment = Some(&environment);
     other
         .render(&setup.gpu, &setup.output, &scene)
         .expect("the frame is drawn");

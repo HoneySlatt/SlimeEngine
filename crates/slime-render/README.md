@@ -89,16 +89,13 @@ fn main() -> Result<(), RenderError> {
         illuminance: 100_000.0,
         casts_shadows: true,
     });
-    let instances = [Instance { mesh: &triangle, material: &red, transform: Mat4::IDENTITY }];
-    let scene = Scene {
-        camera,
-        lights: &[sun],
-        environment: None,
-        exposure: PI / 100_000.0,
-        // No bloom, which would spread a little of the triangle's light around its edges.
-        bloom: 0.0,
-        instances: &instances,
-    };
+    let instances = [Instance::new(&triangle, &red, Mat4::IDENTITY)];
+    let lights = [sun];
+    // A scene starts without lights, environment or bloom (which would spread a little of the
+    // triangle's light around its edges); its fields are then set.
+    let mut scene = Scene::new(camera, &instances);
+    scene.lights = &lights;
+    scene.exposure = PI / 100_000.0;
     let stats = renderer.render(&gpu, &target, &scene)?;
     assert_eq!((stats.draw_calls, stats.triangles), (1, 1));
 
@@ -151,6 +148,10 @@ fn main() -> Result<(), RenderError> {
   empty reads one white pixel, so that its factor counts alone. `MaterialData::default()` is an
   opaque, single-sided, white matte dielectric. Meshes and materials are cheap to clone and shared
   by their clones.
+- `Scene::new(camera, &instances)` and `Instance::new(mesh, material, transform)` make what a frame
+  draws. Both are `#[non_exhaustive]`, so that a field added later does not break the games that
+  make them (ADR-0046); their fields are public, and changed once made. A new scene has no lights,
+  no environment, an exposure of 1 and no bloom.
 - `Renderer::render(gpu, target, &Scene)` draws a frame in passes. The shadow pass draws the depths
   of every instance, all their faces but what masked materials discard, as the first directional
   light that casts shadows sees them, into the shadow map, through an orthographic projection that

@@ -160,10 +160,12 @@ impl LoadedScene {
     pub fn instances(&self) -> Vec<Instance<'_>> {
         self.placements
             .iter()
-            .map(|placement| Instance {
-                mesh: &self.meshes[placement.mesh],
-                material: &self.materials[placement.material],
-                transform: placement.transform,
+            .map(|placement| {
+                Instance::new(
+                    &self.meshes[placement.mesh],
+                    &self.materials[placement.material],
+                    placement.transform,
+                )
             })
             .collect()
     }

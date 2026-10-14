@@ -103,24 +103,16 @@ impl Setup {
         lights: &[Light],
         exposure: f32,
     ) -> FloatImage {
-        let instances = [Instance {
-            mesh: &self.square,
-            material: material.unwrap_or(&self.white),
-            transform: Mat4::IDENTITY,
-        }];
+        let instances = [Instance::new(
+            &self.square,
+            material.unwrap_or(&self.white),
+            Mat4::IDENTITY,
+        )];
+        let mut scene = Scene::new(camera(), &instances);
+        scene.lights = lights;
+        scene.exposure = exposure;
         self.renderer
-            .render(
-                &self.gpu,
-                &self.output,
-                &Scene {
-                    camera: camera(),
-                    lights,
-                    environment: None,
-                    exposure,
-                    bloom: 0.0,
-                    instances: &instances,
-                },
-            )
+            .render(&self.gpu, &self.output, &scene)
             .expect("the frame is drawn");
         self.gpu
             .read_float_render_target(&self.output)
