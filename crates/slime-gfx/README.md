@@ -95,176 +95,30 @@ fn main() -> Result<(), GfxError> {
 }
 ```
 
-- `Gpu::new()` opens the most capable adapter of the machine and its device, and logs the adapter.
-  The `WGPU_BACKEND` environment variable can choose another graphics API, and `VK_DRIVER_FILES`
-  can restrict Vulkan to one driver, such as lavapipe. On Direct3D 12, shaders are compiled with
-  FXC, which is part of Windows, unless `WGPU_DX12_COMPILER=dxc` asks for DXC
-  (`docs/adr/0036-direct3d-12-shader-compiler.md`).
-- `Gpu::adapter_name()` names the adapter in use; `Gpu::wait_idle()` blocks until the GPU has
-  finished its work; `Gpu::check()` returns `GfxError::DeviceLost` once the device is lost (the
-  driver crashed or was reset, the GPU was removed, or it ran out of memory): the methods that
-  return a `Result` then return that error, and the others do nothing
-  (`docs/adr/0022-losing-the-gpu-device.md`). A loss that a wait for the GPU is the first to find
-  panics inside wgpu, which treats it as fatal.
-- Every method that creates a GPU object returns a `Result`: `GfxError::OutOfMemory` when the
-  GPU's memory cannot hold the object, so that a game can react, by freeing memory or asking for
-  less (a texture of lower resolution, a smaller part of a world), and `GfxError::DeviceLost` once
-  the device is lost; nothing is created then. Memory that runs out where wgpu cannot recover, or
-  in a creation that a library built on wgpu makes, loses the device. A mistake in the arguments,
-  such as an empty buffer, is a bug and panics. The `SLIME_GPU_MEMORY_BUDGET` environment
-  variable lowers the memory that creations may use, to a percentage of what the driver allows
-  the process, to try a game as on a GPU with less memory
-  (`docs/adr/0044-running-out-of-gpu-memory.md`).
-- GPU objects, each created by a method of `Gpu` with a label that names it in error messages and
-  GPU capture tools (`docs/adr/0017-gpu-resource-types.md`):
-  - `RenderTarget`: an image the GPU draws into (`create_render_target`), in one of the
-    `TextureFormat`s: `Rgba8UnormSrgb` or `Bgra8UnormSrgb`, the same 8-bit sRGB colors in two byte
-    orders; `Rgba8Unorm`, linear; or `Rgba16Float`, a 16-bit floating-point number per channel,
-    linear, for colors beyond 0 to 1 (`create_texture` does not take it; the next item does). A
-    later pass samples a render target through a bind group (`BindingResource::RenderTarget` at a
-    `BindingType::Texture` binding). A pass cannot sample the target it draws into, and a window's
-    image cannot be sampled.
-  - `Texture`: a two-dimensional image that shaders sample (`create_texture`, from its pixels in
-    the byte order of its `TextureFormat`; sRGB formats are decoded to linear values when read,
-    `Rgba8Unorm` is read as it is), at most `Gpu::max_texture_dimension()` pixels on a side (8192
-    with the default limits; a loader checks the images of a file against it), with mipmaps
-    computed from its pixels when it is created, in linear light for the sRGB formats; and
-    `Sampler` (`create_sampler`, from a `SamplerDescriptor`): how it is read, with nearest or
-    linear `Filter`s, between the pixels of the level of detail that fits and between two
-    levels, and the `AddressMode` beyond its edges (repeat, mirror, clamp). Both are bound
-    through bind groups. `create_texture_with_levels` takes the levels of detail from the
-    caller instead, in any `TextureFormat`, `Rgba16Float` included, whose half-precision
-    channels `f32_to_f16` converts, rounding to the nearest; `create_cube_texture` takes a cube's
-    six square faces, level by level, in wgpu's order and orientation (documented on it), which
-    shaders read by direction (`texture_cube<f32>`, `BindingType::CubeTexture`)
-    (`docs/adr/0039-image-based-lighting-computed-on-the-cpu.md`).
-  - `VertexBuffer`: vertex data, given as bytes (`create_vertex_buffer`): at least one byte, at
-    most `Gpu::max_buffer_size()` bytes (256 MiB with the default limits; a loader checks the
-    meshes of a file against it).
-  - `IndexBuffer`: 32-bit indices into a vertex buffer (`create_index_buffer`), at most
-    `Gpu::max_buffer_size()` bytes of them, for draws whose triangles share vertices; it knows its
-    `count`.
-  - `UniformBuffer`: values that a whole draw reads, given as bytes laid out as the shader's
-    uniform declares (`create_uniform_buffer`: at least 4 bytes, in multiples of 4), and written
-    again with `Gpu::write_uniform_buffer`, always with the same size.
-  - `BindGroupLayout` and `BindGroup`: the resources a pipeline's shaders read, bound together at
-    one `@group` index (`docs/adr/0026-resource-binding-and-depth.md`). A layout
-    (`create_bind_group_layout`) lists its bindings as `BindGroupLayoutEntry`s: a binding number,
-    the `ShaderStages` that read it and a `BindingType` (a uniform buffer, a texture, a cube
-    texture, a depth texture, a sampler or a comparison sampler); a group (`create_bind_group`)
-    gives the `BindingResource` of each binding of a layout: a whole uniform buffer, or a range of
-    one whose start is given each time the group is bound (a *dynamic offset*, a multiple of
-    `Gpu::uniform_offset_alignment`), so that one buffer holds the values of many draws; a texture,
-    flat or cube, or a render target; a depth target; a sampler or a comparison sampler. A group
-    keeps the targets it holds: a target created again, at a new size, needs a new group.
-  - `DepthTarget`: a texture holding the depth of what was drawn (`create_depth_target`), at the
-    size of the render targets it is used with, for depth testing, or of its own size for a
-    depth-only pass. Later passes read it through a bind group (`BindingResource::DepthTarget` at a
-    `BindingType::DepthTexture` binding, `texture_depth_2d` in WGSL), with `textureLoad` or through
-    a `ComparisonSampler`, as a shadow map is read. It cannot be read back. Depth is reversed
-    (`docs/adr/0047-reversed-depth-with-an-infinite-far-plane.md`): it runs from 1, the nearest, to
-    0, the farthest, to which passes clear depth targets, so that a depth test keeps the nearer
-    surface with `DepthCompare::Greater` and a depth bias pushes a surface away when negative.
-  - `ComparisonSampler` (`create_comparison_sampler(label, compare, filter)`): compares a reference
-    depth with a depth target's, giving 1 where the `DepthCompare` holds and 0 where it does not.
-    With `Filter::Linear`, the GPU blends the four nearest results (percentage-closer filtering).
-    It clamps to the edges.
-  - `GpuTimer`: measures how long render passes take on the GPU (`create_timer(label, passes)`),
-    on adapters that support timestamp queries (`Gpu::can_time`; `None` otherwise). The passes
-    of one submission that name it in their descriptors are timed, numbered from 0 in the order
-    they are recorded, up to `passes` of them (the next go untimed); `GpuTimer::latest(pass)`
-    gives pass `pass`'s time in the latest submission whose times have come back, a few frames
-    later, without waiting for the GPU: wgpu collects the times of finished work when later work
-    is submitted, or in `wait_idle`. A timer's times all come from one submission; the times of
-    different timers come back independently, so they can come from different frames. At most four
-    timed submissions can be in flight: while all four wait for their times, further passes go
-    untimed.
-  - `ShaderModule`: WGSL source compiled by wgpu (`create_shader_module`).
-  - `RenderPipeline` (`create_render_pipeline`, from a `RenderPipelineDescriptor`): a vertex entry
-    point and the layout of its vertex buffer, or none when the vertex shader builds its vertices
-    from `@builtin(vertex_index)`; its fragment stage (`FragmentState`: entry point and target
-    format, or no target format for a stage that writes no color and only discards fragments, in a
-    pass without a render target), or none for a pipeline that writes depth only; the layouts of the
-    bind groups its shaders read; its depth test (`DepthState`, with a `DepthBias`); its culling
-    (`CullMode`). It draws lists of triangles, without blending. A binding that the shaders declare
-    and that no layout holds, or holds as another kind, is rejected.
+- `Gpu::new()` opens the most capable GPU of the machine, without a window, and
+  `Gpu::new_for_window(window, width, height, present_mode)` one that can draw into a window,
+  together with the window's `Surface` (ADR-0020). `Gpu::check()` says whether the device was lost;
+  once it is, the methods that return a `Result` return `GfxError::DeviceLost` (ADR-0022).
+- Every method that creates a GPU object returns a `Result`: a buffer, texture or timer that the
+  GPU's memory cannot hold is `GfxError::OutOfMemory`, so that a game can free memory or ask for
+  less (ADR-0044).
+- The GPU objects, each created by a method of `Gpu` with a label that names it in error messages
+  and capture tools, are handles that their clones share (ADR-0017): `RenderTarget` and
+  `DepthTarget`, which passes draw into and later passes sample; `Texture`, `Sampler` and
+  `ComparisonSampler`; `VertexBuffer`, `IndexBuffer` and `UniformBuffer`; `BindGroupLayout` and
+  `BindGroup`, the resources a pipeline's shaders read (ADR-0026); `ShaderModule` and
+  `RenderPipeline`; and `GpuTimer`, which times passes on the GPU.
+- `Gpu::render` and `Gpu::render_depth` run one pass, through a `RenderPass`, and `Gpu::submit`
+  records several into one submission (ADR-0033). `Gpu::read_render_target` and
+  `Gpu::read_float_render_target` copy a target back to the CPU.
+- `Surface::acquire` gives the `SurfaceFrame` to draw a window's next image into, and
+  `SurfaceFrame::present` shows it, as its `PresentMode` says (ADR-0021). Applications built on
+  `slime-app` do not call these: the engine does.
+- `LinearColor`: the color type of every API of the engine (ADR-0045).
+- `GfxError`: why the GPU could not be opened or used.
 
-  Except the timer, they are cheap to clone, clones share the GPU object, and it is freed when
-  the last one is dropped. Each belongs to the `Gpu` that created it: using it with another `Gpu`
-  is a bug that neither the engine nor wgpu reliably catches. Each `Gpu` opens its own wgpu
-  instance, and wgpu finds an object by an index that every instance numbers from zero, so the
-  call may panic inside wgpu, or silently act on an unrelated object of the `Gpu` it was used
-  with, one that has the same index: a render target of one `Gpu` read back with another can
-  return the pixels of the second one's target.
-- `Gpu::render(&RenderPassDescriptor { target, clear, depth, timer }, record)` runs one render
-  pass: it clears the target to a `LinearColor`, and the depth target to the farthest depth, or
-  keeps what both hold when `clear` is `None`; lets `record` draw through a `RenderPass`
-  (`set_pipeline`, `set_bind_group` with the dynamic offsets of the group, `set_vertex_buffer`,
-  `set_index_buffer`, `draw`, `draw_indexed`); and sends the work to the GPU, timed by `timer`
-  when there is one. A pass with a depth target takes pipelines with a depth test, and one without
-  takes pipelines without; a pass takes only pipelines whose fragment stage has its target's
-  format. The pass is named after the target's label in capture tools, and
-  `RenderPass::debug_group(label, record)` names a group of commands inside it. On Vulkan, labels
-  and groups reach the driver in debug builds, or with `WGPU_DEBUG=1`; on Direct3D 12, in every
-  build, unless `WGPU_DISCARD_HAL_LABELS=1` is set.
-- `LinearColor`, the color type of every API of the engine (ADR-0045): red, green and blue in
-  linear light, without upper bound, and a straight (not premultiplied) alpha, as `f32`s. `rgb`,
-  `rgba`, `BLACK` and `WHITE` make one from linear values; `from_srgb8(r, g, b)` decodes the
-  sRGB-encoded bytes that color pickers and web colors give (`#E8A33D` is
-  `from_srgb8(0xE8, 0xA3, 0x3D)`).
-- `Gpu::render_depth(&DepthPassDescriptor { depth, timer }, record)` runs one pass without a render
-  target: it clears the depth target to the farthest depth and lets `record` draw with pipelines
-  that have a depth test and no fragment stage, or one without a target format, which may discard
-  fragments: a shadow map's, whose masked materials cast the shadow of what they keep.
-- `Gpu::submit(label, |commands| ...)` records several passes, through `Commands::render` and
-  `Commands::render_depth` (which take the descriptors above), one after another into one command
-  buffer named `label`, and sends them to the GPU at once: one *submission*, the unit of work the
-  GPU receives. Each pass sees what the passes recorded before it drew. `Gpu::render` and
-  `Gpu::render_depth` are a submission of one pass. A command that wgpu rejects is reported when
-  the commands are finished, inside `submit`, with a message naming the pass; a target counts as
-  drawn into (for `SurfaceFrame::present`) once its pass is submitted.
-- `Gpu::read_render_target(target)` waits for the GPU and copies an 8-bit target into an `Image`:
-  RGBA bytes, rows from top to bottom, whatever the byte order of the target's format.
-  `Gpu::read_float_render_target(target)` copies an `Rgba16Float` target into a `FloatImage` of
-  `f32` values, each exactly the half-precision value the target holds (converted by hand, without
-  a dependency).
-- `Gpu::new_for_window(window, width, height, present_mode)` opens the most capable GPU that can
-  draw into a window, and returns it with the window's `Surface`
-  (`docs/adr/0020-rendering-in-the-main-loop.md`):
-  - `Surface::format()` is the format of the window's images, the first 8-bit sRGB format the
-    window offers; pipelines that draw into the window are created for it.
-  - `Surface::resize(width, height)` follows the window's size, limited to what the device accepts
-    (8192 pixels in each dimension with the default limits), with a warning when the window is
-    larger.
-  - `Surface::acquire(label)` returns the `SurfaceFrame` to draw the next frame into, its target
-    named `label` (in capture tools, the passes drawn into the image carry it, not the image
-    itself), or `None` when the window cannot show a new image (a size of zero, an image not
-    ready in time on Vulkan, an occluded surface, a lost surface, which is created again; on
-    Direct3D 12, wgpu waits up to one second for an image that is late, then returns it; on
-    Windows with Vulkan, wgpu treats an image still not free one second after the driver handed
-    it out as the loss of the device, which stops a run built on `slime-app`). Draw into
-    `SurfaceFrame::target()` with `Gpu::render`, then call `SurfaceFrame::present()`. Every frame
-    acquired must be presented: on Vulkan, wgpu cannot give back an image dropped without being
-    presented, so each such drop takes one of the window's images until the surface is configured
-    again, and once none is left, `acquire` waits one second and returns `None`. Window images
-    cannot be read back.
-  - `Surface::check()` returns `GfxError::SurfaceLost` once the surface is lost for good: it could
-    not be created again, or was lost again each time it was; `acquire` then returns `None` without
-    logging, and a run built on `slime-app` stops (`docs/adr/0025-giving-up-a-lost-surface.md`).
-    A surface that the graphics API refuses to configure (the window or the display went away)
-    counts as lost, with wgpu's message in the reason when it is given up.
-
-  `PresentMode` says how the window shows the images (`docs/adr/0021-frame-pacing.md`): with
-  `Mailbox`, the default, each image replaces the one waiting to be shown and presenting never
-  waits; windows that do not offer it use `Fifo`, which shows every image, one per refresh, and
-  makes `acquire` or `present` wait, up to one second per frame on compositors that rarely show a
-  hidden window. Applications built on `slime-app` do not call these: the engine does.
-- `GfxError` says why the GPU could not be opened or used. A rejected shader or pipeline is
-  returned as `GfxError::Shader` or `GfxError::Pipeline`, with wgpu's message, which for WGSL
-  gives the line and column of the error; so is one that Direct3D 12's shader compiler or driver
-  rejects. On Vulkan, wgpu treats a driver that fails to create one as a lost device, returned as
-  `GfxError::DeviceLost`. Other misuses of wgpu are bugs and panic, except once the device is
-  lost: errors then only repeat that it is gone, and are logged at the `debug` level.
+The documentation of each item holds its contracts: its formats, limits, errors and panics, and
+how it behaves on each graphics API.
 
 ## Dependencies
 

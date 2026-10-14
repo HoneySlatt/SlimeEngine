@@ -15,6 +15,12 @@ const DEFAULT_BACKENDS: wgpu::Backends = wgpu::Backends::VULKAN;
 ///
 /// [`Gpu::new`] opens it without a window, so that it can render offscreen and run in tests;
 /// [`Gpu::new_for_window`] opens it together with the surface of a window.
+///
+/// Every object a `Gpu` creates belongs to it: using one with another `Gpu` is a bug that neither
+/// the engine nor wgpu reliably catches. Each `Gpu` opens its own wgpu instance, whose objects are
+/// numbered from zero, so the call may panic inside wgpu, or act on the object of the other `Gpu`
+/// that has the same number: a render target read back with another `Gpu` can return the pixels
+/// of that `Gpu`'s own target.
 #[derive(Debug)]
 pub struct Gpu {
     pub(crate) device: wgpu::Device,
@@ -42,6 +48,10 @@ impl Gpu {
     /// that runs out is not a bug: see [`GfxError::OutOfMemory`]. The device has the default
     /// limits, and the optional features the adapter offers among those the engine uses:
     /// timestamp queries ([`Gpu::can_time`]).
+    ///
+    /// On Direct3D 12, shaders are compiled with FXC, which is part of Windows, unless
+    /// `WGPU_DX12_COMPILER=dxc` asks for DXC, loaded from a `dxcompiler.dll` that the caller
+    /// provides (ADR-0036).
     ///
     /// The `SLIME_GPU_MEMORY_BUDGET` environment variable ([`MEMORY_BUDGET_ENV_VAR`]), a percentage
     /// from 1 to 100, makes the creation of buffers, textures and timers fail with
@@ -138,7 +148,9 @@ impl Gpu {
     /// Whether the device can still be used. It cannot once it is lost: the driver crashed or was
     /// reset, the GPU was removed, or it ran out of memory. The methods of this crate that return a
     /// `Result` then return [`GfxError::DeviceLost`]; the others do nothing, since wgpu ignores
-    /// every use of a lost device, and the objects they return cannot be used.
+    /// every use of a lost device, and the objects they return cannot be used. The errors wgpu
+    /// raises for those uses only repeat that the device is gone: they are logged at the `debug`
+    /// level, where other wgpu errors panic.
     ///
     /// # Errors
     ///

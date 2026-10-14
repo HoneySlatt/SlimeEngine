@@ -153,7 +153,7 @@ impl Gpu {
     ///
     /// As [`Commands::render`] and [`Commands::render_depth`] say: a pass whose depth target does
     /// not fit when it is recorded, a command wgpu rejects when the commands are finished, inside
-    /// this method.
+    /// this method, with a message that names the pass.
     pub fn submit(&self, label: &str, record: impl FnOnce(&mut Commands)) {
         let mut commands = Commands {
             encoder: self

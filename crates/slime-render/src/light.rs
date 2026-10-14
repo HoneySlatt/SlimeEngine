@@ -63,10 +63,11 @@ pub struct DirectionalLight {
     pub casts_shadows: bool,
     /// How far from the camera the light casts shadows, in metres, when it is the one that casts
     /// them (ADR-0050). The shadow map covers the sphere around what the camera sees from its near
-    /// plane to that distance, its 2 048 texels spread across the sphere: at the default 50 m, with
-    /// a 60° field of view and a 16:9 output, a texel covers 6 cm and a shadow's edge fades over
-    /// three. Beyond the map, nothing is shadowed. A shorter distance gives sharper shadows over
-    /// less ground. Positive and finite.
+    /// plane to that distance, its 2 048 texels spread across the sphere on a grid fixed in the
+    /// world, so that shadows do not shimmer as the camera moves: at the default 50 m, with a 60°
+    /// field of view and a 16:9 output, a texel covers 6 cm and a shadow's edge fades over three.
+    /// Beyond the map, nothing is shadowed. A shorter distance gives sharper shadows over less
+    /// ground. Positive and finite.
     pub shadow_distance: f32,
 }
 

@@ -68,7 +68,8 @@ pub enum GfxError {
     /// was lost again each time it was. Nothing can be drawn into the window any more.
     #[error("the window's surface was lost for good: {message}")]
     SurfaceLost {
-        /// Why: the error of creating it again, or the losses that followed.
+        /// Why: the error of creating it again, or the losses that followed; wgpu's message when
+        /// the graphics API refused to configure it.
         message: String,
     },
     /// Reading a render target back to the CPU failed.

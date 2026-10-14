@@ -75,7 +75,8 @@ pub struct Instance<'a> {
     pub material: &'a Material,
     /// From the mesh's space to world space. A transform that mirrors the mesh (a negative
     /// determinant, beyond rounding) keeps the mesh's front faces, as glTF does: the renderer
-    /// culls its other faces.
+    /// culls its other faces. Normals follow its rotation and stay perpendicular to the surfaces it
+    /// scales unevenly, even when it flattens them along one axis.
     pub transform: Mat4,
     /// Whether it casts shadows (ADR-0038, ADR-0049); it receives them either way. An instance that
     /// casts none is left out of the shadow pass, which it would otherwise cost a draw call, and of
@@ -132,9 +133,12 @@ pub struct Scene<'a> {
     /// on a drawn light with a value outside the range its documentation gives.
     pub lights: &'a [Light],
     /// What surrounds the scene (ADR-0039): its light reaches every surface, reflected as glTF's
-    /// materials reflect it (image-based lighting), and it shows where no surface is drawn, with
-    /// its sun's disc. `None` is a black sky: only the lights and emission light surfaces, and the
-    /// background is black. Created by [`Renderer::create_environment`].
+    /// materials reflect it (image-based lighting, with the split sum and the light that rough
+    /// surfaces scatter more than once, as the Khronos glTF Sample Viewer does: a white surface of
+    /// any roughness, metal or not, inside a uniform sky shows the sky's radiance), and it shows
+    /// where no surface is drawn, with its sun's disc. `None` is a black sky: only the lights and
+    /// emission light surfaces, and the background is black. Created by
+    /// [`Renderer::create_environment`].
     pub environment: Option<&'a Environment>,
     /// What the scene's light, the sky's included, is multiplied by before it is written
     /// into the high-dynamic-range target, then tone mapped (ADR-0034, ADR-0037): a linear factor,
@@ -242,11 +246,14 @@ pub struct RenderStats {
 /// discard), three for the scene pass, which differ by the faces they cull and among which each
 /// draw chooses (ADR-0035), the sky pass's, the bloom's two (down and up) and the tone-mapping
 /// pass's; the table of the BRDF's scale and bias and a black environment for scenes without one;
-/// the shadow map, 2048 × 2048 depths created with the renderer; the buffer of the instances'
-/// values; and the frame's render graph (ADR-0041): its passes in order, the high-dynamic-range and
-/// depth targets and the bloom's levels at the size of the output it draws into, the groups that
-/// read them and GPU timers for its submissions, built again when the frame's shape changes (the
-/// output's size, the shadow pass or the bloom turned on or off).
+/// the shadow map, 2048 × 2048 depths (16 MiB) created with the renderer; the buffer of the
+/// instances' values; and the frame's render graph (ADR-0041): its passes in order, the
+/// high-dynamic-range and depth targets and the bloom's levels at the size of the output it draws
+/// into, the groups that read them and GPU timers for its submissions, built again when the frame's
+/// shape changes (the output's size, the shadow pass or the bloom turned on or off). A renderer
+/// draws best into outputs of one size: drawing into outputs of two sizes in turn creates its
+/// targets again at every call, and reports no tone-mapping or bloom time; use one renderer per
+/// output size.
 ///
 /// It does not yet smooth the edges of triangles (anti-aliasing), blend transparent surfaces, or
 /// leave out the instances that the camera does not see: every instance costs one draw call in the
@@ -696,10 +703,11 @@ impl Renderer {
 
     /// Computes the environment of `sky` on the CPU and uploads it (ADR-0039): the sky drawn into a
     /// cube map of 128 × 128 texels per face, each the average of 2 × 2 points of it, then
-    /// prefiltered for roughnesses 0.25, 0.5, 0.75 and 1 into faces of 64, 32, 16 and 8 texels.
-    /// This takes tens of milliseconds on every core in a release build, about five times as long
-    /// in a debug build: create an environment once per sky, not per frame. A sky of one radiance
-    /// in every direction, without a sun, takes almost none. The environment is not tied to this
+    /// prefiltered for roughnesses 0.25, 0.5, 0.75 and 1 into faces of 64, 32, 16 and 8 texels, the
+    /// last also the light that matte surfaces diffuse: 1.0 MiB of half-precision floats. This
+    /// takes tens of milliseconds on every core in a release build, about five times as long in a
+    /// debug build: create an environment once per sky, not per frame. A sky of one radiance in
+    /// every direction, without a sun, takes almost none. The environment is not tied to this
     /// renderer.
     ///
     /// # Errors
@@ -716,7 +724,8 @@ impl Renderer {
         Ok(Environment::new(gpu, sky)?)
     }
 
-    /// Uploads a mesh. `label` names its buffers in error messages and in GPU capture tools.
+    /// Uploads a mesh: 48 bytes per vertex and 4 per index. `label` names its buffers in error
+    /// messages and in GPU capture tools.
     ///
     /// # Errors
     ///
@@ -816,19 +825,23 @@ impl Renderer {
     /// whatever their order, each surface shaded by the scene's light with glTF's
     /// metallic-roughness model and its material's textures, the shadowed light's only where the
     /// shadow map holds nothing nearer to it, looked up at most 3 texels off the surface along its
-    /// normal, its edges blended over three of the map's texels, and culled or not as its material
-    /// and its transform ask (ADR-0035), the scene's environment reflected as its material reflects
-    /// it (ADR-0039), its light multiplied by the scene's exposure (ADR-0037). Point and spot
-    /// lights cast no shadows. The sky pass draws the environment, exposed, where no surface was
-    /// drawn, with its sun's disc. Unless `scene.bloom` is 0 or `target` is smaller than 15 × 15,
-    /// the bloom's passes filter that light down into levels of half the size of the one before, to
-    /// a side of at least 8 texels, with Jimenez's 13-tap filter, then average them back up through
-    /// 3 × 3 tents, every level with the same weight, into a blurred copy (ADR-0040): 11 passes at
-    /// 1280 × 720, 13 at 1920 × 1080. The tone-mapping pass then mixes the blurred copy in by
-    /// `scene.bloom`, maps that light to the range a display shows, dithers it when `target` has 8
-    /// bits per channel (ADR-0051), and writes it into `target`, opaque. A render graph orders the
-    /// passes, and they are recorded in that order, four to a submission named after `target`
-    /// (ADR-0041); the work runs on the GPU after this method returns.
+    /// normal, compared at 3 × 3 points one texel apart so that its edges fade over three texels,
+    /// and culled or not as its material and its transform ask (ADR-0035), the scene's environment
+    /// reflected as its material reflects it (ADR-0039), its light multiplied by the scene's
+    /// exposure (ADR-0037). Point and spot lights cast no shadows. The sky pass draws the
+    /// environment, exposed, where no surface was drawn, with its sun's disc. Unless `scene.bloom`
+    /// is 0 or `target` is smaller than 15 × 15, the bloom's passes filter that light down into
+    /// levels of half the size of the one before, to a side of at least 8 texels, with Jimenez's
+    /// 13-tap filter, then average them back up through 3 × 3 tents, every level with the same
+    /// weight, into a blurred copy (ADR-0040): 11 passes at 1280 × 720, 13 at 1920 × 1080. The
+    /// tone-mapping pass then mixes the blurred copy in by `scene.bloom`, maps that light to the
+    /// range a display shows with Khronos PBR Neutral, which lowers channels between 0.08 and 0.8
+    /// by 0.04, darker ones less, and compresses brighter ones towards 1 and turns them towards
+    /// white, dithers it when `target` has 8 bits per channel, with noise of up to one step that
+    /// keeps its average and leaves black and white as they are (ADR-0051), and writes it into
+    /// `target`, opaque. A render graph orders the passes, and they are recorded in that order,
+    /// four to a submission named after `target` (ADR-0041); the work runs on the GPU after this
+    /// method returns.
     ///
     /// The high-dynamic-range and depth targets are created at the size of `target` the first
     /// time, and again whenever that size changes; the bloom's levels (4.7 MiB at 1280 × 720,

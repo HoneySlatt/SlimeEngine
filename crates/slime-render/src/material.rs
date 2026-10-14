@@ -8,7 +8,9 @@ use crate::bytes::push_f32s;
 /// color (16 bytes), the emission (12) and five numbers (20).
 pub(crate) const MATERIAL_VALUES_SIZE: usize = 48;
 
-/// A texture and the sampler that reads it.
+/// A texture and the sampler that reads it, made with
+/// [`Gpu::create_texture`](slime_gfx::Gpu::create_texture) and
+/// [`Gpu::create_sampler`](slime_gfx::Gpu::create_sampler).
 #[derive(Clone, Copy, Debug)]
 pub struct SampledTexture<'a> {
     /// The texture.

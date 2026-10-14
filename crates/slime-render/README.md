@@ -5,30 +5,13 @@ the GPU layer (`slime-gfx`).
 
 ## Status
 
-Partial: the renderer of Stage 3b, physically based by the end of the stage (`docs/PLAN.md`). It
-draws instances of meshes from a perspective camera, with a depth test, each with a physically based
-material, glTF's metallic-roughness model (a base color, metallic and roughness, normal, occlusion
-and emissive textures; opaque or masked; single- or double-sided), lit by up to 16 directional,
-point and spot lights in physical units, lux and candelas, as glTF's `KHR_lights_punctual` defines
-them (`docs/adr/0035-physically-based-materials.md`,
-`docs/adr/0037-lights-in-physical-units-and-pre-exposure.md`), and by their surroundings: a
-procedural daytime sky with a sun, computed on the CPU into an environment that surfaces reflect as
-their material does (image-based lighting) and that is drawn behind them, with the sun's disc
-(`docs/adr/0039-image-based-lighting-computed-on-the-cpu.md`). The first directional light that
-casts shadows casts them, up to its shadow distance from the camera, through a shadow map that
-follows the camera, its edges blended over three of the map's texels
-(`docs/adr/0038-shadow-mapping.md`, `docs/adr/0050-a-shadow-region-that-follows-the-camera.md`);
-the sky's light is not shadowed. It draws the scene in high dynamic range, where light may
-exceed 1, multiplied by an exposure before it is written, then maps it to the output with a
-tone-mapping operator, Khronos PBR Neutral (`docs/adr/0034-hdr-rendering-and-tone-mapping.md`,
-`docs/adr/0037-lights-in-physical-units-and-pre-exposure.md`), after mixing in a bloom: a share of
-the light spread around where it lands, as a lens spreads it, which makes the sun's disc glow
-(`docs/adr/0040-bloom.md`). It reports what each frame cost on the CPU and, on adapters that can
-time their work, what each of its passes cost on the GPU, the bloom's counted together.
-Blended transparency is not drawn, and a surface leaves an alpha of 1 in the target. Instances are
-drawn in the order of the scene, neither sorted nor batched. An instance whose transform mirrors it
-(a negative determinant, such as a scale of −1 along one axis) keeps its front faces, as glTF
-does.
+Partial: the physically based renderer of Stage 3b (`docs/PLAN.md`). It draws instances of meshes
+from a perspective camera, each with a material in glTF's metallic-roughness model, lit by up to 16
+directional, point and spot lights in physical units and by a procedural sky that surfaces reflect
+and that shows behind them, with the shadows of one directional light around the camera. It draws
+in high dynamic range, then exposes the light, spreads a bloom around it, tone maps it and dithers
+it into the output, and reports what each frame cost on the CPU and the GPU. It does not yet
+anti-alias, blend transparent surfaces or leave out what the camera does not see.
 
 ## Role
 
@@ -110,131 +93,45 @@ fn main() -> Result<(), RenderError> {
 }
 ```
 
-- `Renderer::new(gpu, format)` creates a renderer for output targets of one `TextureFormat`, the
-  window's for a windowed application (`Context::surface_format` in `slime-app`). An sRGB format
-  encodes the tone-mapped light for display; `Rgba16Float` holds the tone-mapped values themselves;
-  `Rgba8Unorm` stores them unencoded, which displays too dark. It compiles the three shaders, builds
-  the nine pipelines (two for the shadow pass, the second for masked materials, three for the
-  scene, which differ by the faces they cull, the sky's, the bloom's two and the tone-mapping
-  one), uploads the table of the BRDF's scale and bias, which the first renderer of a process
-  computes on the CPU, and creates the shadow map, 2048 × 2048 depths (16 MiB); the
-  high-dynamic-range and depth targets are created at the size of the first output drawn into, and
-  again when the size changes, and the bloom's levels (4.7 MiB at 1280 × 720) likewise, only while
-  the bloom runs: they are freed when it stops and created again when it resumes. A renderer draws
-  best into outputs of one size: one that draws into outputs of two sizes in turn creates its
-  targets again at every call and reports no tone-mapping or bloom time; use one per output size.
-- `Renderer::create_environment(gpu, &Sky)` computes a sky's `Environment` on the CPU, on every
-  core, and uploads it: a cube map of 128 × 128 texels per face and four levels prefiltered for
-  roughnesses 0.25 to 1, in half-precision floats (1.0 MiB), the last also the light a matte
-  surface diffuses. It takes tens of milliseconds (a sky of one radiance without a sun almost
-  none): create one per sky, not per frame. A `Sky` holds the radiances of the zenith, the horizon
-  and the ground, in nits, at most 65 504 each (more panics), and an optional sun, a
-  `DirectionalLight`, whose glow the sky holds and whose disc the sky pass draws; the sun's light
-  itself reaches surfaces through the same light in the scene's `lights`, which casts shadows. An
-  environment is shared by its clones and not tied to the renderer that made it.
-- `Renderer::create_mesh(gpu, label, &MeshData)` uploads positions, normals, texture coordinates,
-  tangents and indices as a `Mesh`, 48 bytes per vertex; data that cannot be drawn (arrays of
-  different lengths, no vertex, no triangle, a number of indices that is not a multiple of three, an
-  index that names no vertex, a vertex value that is not finite, more vertices or indices than a
-  GPU buffer holds) is returned as
-  `RenderError::InvalidMesh`. `Renderer::create_material(gpu, label, &MaterialData)` creates a
-  `Material` from glTF's metallic-roughness model: a base color, metallic and roughness factors, a
-  normal scale, an occlusion strength, an emission and its strength, an `AlphaMode` (`Opaque`, or
-  `Mask` with a cutoff below which nothing is drawn) and double-sidedness, and five texture slots,
-  each an optional `SampledTexture` (a `slime_gfx::Texture` and the `Sampler` that reads it, created
-  with `Gpu::create_texture` and `Gpu::create_sampler`) read at the texture coordinates of the mesh,
-  whose (0, 0) is the texture's top left. The base color and emissive textures hold colors in an
-  sRGB format; the metallic-roughness (green: roughness, blue: metallic), normal and occlusion (red)
-  textures hold data in `Rgba8Unorm`; a texture in the other kind of format panics. A slot left
-  empty reads one white pixel, so that its factor counts alone. `MaterialData::default()` is an
-  opaque, single-sided, white matte dielectric. Meshes and materials are cheap to clone and shared
-  by their clones.
-- `Scene::new(camera, &instances)` and `Instance::new(mesh, material, transform)` make what a frame
-  draws. Both are `#[non_exhaustive]`, so that a field added later does not break the games that
-  make them (ADR-0046); their fields are public, and changed once made. A new scene has no lights,
-  no environment, an exposure of 1 and no bloom.
-- `Renderer::render(gpu, target, &Scene)` draws a frame in passes. The shadow pass draws the depths
-  of every instance that casts shadows, all their faces but what masked materials discard, as the
-  first directional light that casts shadows sees them, into the shadow map, through an orthographic
-  projection that covers the sphere around what the camera sees up to the light's `shadow_distance`,
-  its texels on a grid fixed in the world so that shadows do not shimmer as the camera moves, and
-  along the light the instances that cast shadows across it (ADR-0050); it is skipped when no
-  directional light or no such instance casts shadows. What lies beyond the map is lit: shadows end
-  there. The scene pass draws its instances (`Instance`: a mesh, a material, a transform from the
-  mesh's space to world space, and whether it casts shadows: a vast floor or a sky dome that casts
-  none leaves the map's texels to what does, ADR-0049) into a target of half-precision floats from
-  its `Camera`, lit by its `lights` and its `environment` (none is a black sky), with the depth
-  test, so that nearer surfaces hide farther ones whatever the order of the instances, the shadowed
-  light only where the shadow map holds nothing nearer to it, compared at 3 × 3 points one texel
-  apart, so that a shadow's edge fades over three texels; a scene with more than `MAX_LIGHTS` lights
-  has its first ones drawn, with a warning logged once per renderer, and a value of the exposure,
-  the bloom or a light outside the range its documentation gives panics, naming it. The sky pass
-  then draws the environment, and its sun's disc, where no surface was drawn. The light of both is
-  multiplied by the scene's `exposure` (1 leaves it as it is, 2 is one photographic stop brighter)
-  before it is written, divided by 64, so that the target's half-precision floats, whose largest
-  value is 65 504, hold exposed light up to 64 × 65 504; brighter light is written as that largest
-  value. Unless the scene's `bloom` is 0, the bloom's passes then filter that light down into a
-  chain of levels, each half the size of the one before, to a side of 8 texels (six levels at
-  1280 × 720, seven at 1920 × 1080, none below 15 × 15), and average them back up into a blurred
-  copy, every level with the same weight. The tone-mapping pass mixes the blurred copy in by
-  `bloom`, the share of each pixel's light spread around it (0.04 in the samples; a uniform image is
-  unchanged, light is moved and never added), then maps that light to the output's range with
-  Khronos PBR Neutral: colors whose channels lie between 0.08 and 0.8 come out lowered by 0.04,
-  darker ones less, and brighter ones are compressed towards 1 and turned towards white, so that a
-  surface reflecting a light of 1 shows at 0.87 (sRGB 240); an 8-bit output is dithered, with noise
-  of up to one of its steps that keeps the light's average and turns the bands of slow gradients
-  into an even grain, black and white kept as they are (ADR-0051). It returns `RenderStats`, or an
-  error when the GPU's memory cannot hold what the frame creates (the targets of a new size, the
-  bloom's levels when it resumes, a larger instance buffer) or the device is lost: nothing is drawn
-  then, and the next call tries again. `RenderStats` holds the scene pass's draw calls and
-  triangles, the shadow pass's draw calls (`shadow_draw_calls`), the CPU time of the call, and the
-  GPU time of each pass (`shadow_gpu_time`, `scene_gpu_time`, `sky_gpu_time`,
-  `tone_mapping_gpu_time`, and `bloom_gpu_time` for the bloom's passes together), measured with a
-  `slime_gfx::GpuTimer` per submission of four passes on adapters that can time their work and read
-  back a few frames later (`None` otherwise, until the first time comes back, and for a few frames
-  after the output's size changes or the shadow pass or the bloom starts or stops); times from
-  different submissions can come from different frames, usually consecutive ones.
-- `Camera`: an eye, a target, an up direction, a vertical field of view in radians, and the near
-  distance; nothing is too far to be seen, as the far plane is at infinity. `view`,
-  `projection(aspect)` and `view_projection(aspect)` give its matrices.
-- `Light`: one of the punctual lights of glTF's `KHR_lights_punctual`, each with a linear color and
-  a strength in its physical unit, and glTF's defaults. A `DirectionalLight` comes from one
-  direction everywhere with an illuminance in lux; it casts shadows unless its `casts_shadows` is
-  `false`, up to its `shadow_distance` from the camera (50 m by default: texels of about 6 cm with
-  a 60° field of view and a 16:9 output), and only the first of the scene's directional lights
-  that casts shadows casts them. Point
-  and spot lights cast none. A `PointLight` shines from a position with an intensity in candelas: a
-  surface facing it d metres away receives intensity / d² lux, brought smoothly to zero at its
-  optional range, and nearer than 1 cm what it would receive at 1 cm. A `SpotLight` is a point light
-  with a direction, full within its inner cone angle, dark beyond its outer one, and fading in
-  between with the square of a ramp linear in the cosine. Surfaces reflect each light with glTF's
-  metallic-roughness model, so that a white matte surface facing a light and the camera reflects
-  0.97/π of the illuminance it receives, and reflect their environment as the Khronos glTF Sample
-  Viewer does (the split sum, with the light that rough surfaces scatter more than once), times
-  their occlusion: a white surface of any roughness, metal or not, inside a uniform sky shows the
-  sky's radiance. The renderer draws at most `MAX_LIGHTS` (16) lights, every one of which every
-  fragment evaluates. Normals follow the rotation of their instance and stay perpendicular to
-  surfaces scaled unevenly, even flattened along one axis.
-- Conventions: world space is right-handed with +Y up, as in glTF; distances are in metres and light
-  is in physical units, as in glTF: lux, candelas, and nits (candelas per square metre) for the
-  light that surfaces reflect and emit and for the sky; the camera looks down its −Z axis; front
-  faces wind counter-clockwise; depth is reversed, from 1 at the near plane to 0 at infinity
-  (ADR-0047), so that 32-bit float depths keep their precision at every distance; the
-  colors of materials, lights and skies are `slime-gfx`'s `LinearColor`s, linear (ADR-0045); light
-  is not negative and may exceed 1, and once exposed, the high-dynamic-range target holds it,
-  divided by 64, up to 64 × 65 504; an sRGB output encodes the tone-mapped values; tangents and
-  normal textures follow glTF: x along increasing u, y up the image (the bitangent is
-  cross(normal, tangent) × w), z along the normal; a mirrored instance keeps its front faces;
-  positions are in world space, as `f32`s, and the renderer moves them by −`camera.eye` in `f64`
-  before they reach the GPU (ADR-0048), so that what is near the camera is drawn as precisely
-  10 km from the origin as at the origin, though an `f32` holds world positions only in steps of
-  1 mm at 10 km.
+- `Renderer::new(gpu, format)` creates a renderer for output targets of one format: the window's
+  for a windowed application (`Context::surface_format` in `slime-app`). Use one renderer per output
+  size.
+- `Renderer::create_environment(gpu, &Sky)` computes, on the CPU, the `Environment` that lights a
+  scene and shows behind it: a procedural sky of a zenith, a horizon, a ground and an optional sun.
+  It takes tens of milliseconds in a release build: create one per sky, not per frame.
+- `Renderer::create_mesh(gpu, label, &MeshData)` uploads a `Mesh`; mesh data that cannot be drawn
+  is returned as `RenderError::InvalidMesh`. `Renderer::create_material(gpu, label,
+  &MaterialData)` creates a `Material` with glTF's metallic-roughness model, its textures given as
+  `SampledTexture`s. Meshes, materials and environments are shared by their clones.
+- `Scene::new(camera, &instances)` and `Instance::new(mesh, material, transform)` make what a
+  frame draws; their other fields, such as the scene's `lights`, `environment`, `exposure` and
+  `bloom`, or whether an instance casts shadows, are set once they are made (ADR-0046).
+- `Renderer::render(gpu, target, &scene)` draws a frame in passes (shadows, scene, sky, bloom,
+  tone mapping) and returns its `RenderStats`: draw calls, triangles, and the CPU and GPU time of
+  its passes.
+- `Camera`: where the scene is seen from. `Light`: one of glTF's punctual lights, a
+  `DirectionalLight`, the first of which casts the scene's shadows, a `PointLight` or a
+  `SpotLight`; a scene has at most `MAX_LIGHTS` of them drawn.
+- `RenderError`: an invalid mesh, or a failure of the GPU layer (`GfxError`): a shader or pipeline
+  the driver rejects, memory that runs out, or a lost device.
 - `slime_render::glam` re-exports the math crate the API uses (`Mat4`, `Vec3`, `Quat`), so that
   callers use the same version.
-- `RenderError`: an invalid mesh, or a failure of the GPU layer (`GfxError` as its source): a
-  shader or pipeline the driver rejects, memory that runs out (`GfxError::OutOfMemory`), or a lost
-  device. Every method that creates GPU objects returns it: `Renderer::new`, `create_environment`,
-  `create_mesh`, `create_material` and `render` (`docs/adr/0044-running-out-of-gpu-memory.md`).
+
+The documentation of each item holds its contracts: what it draws, its limits, its costs and its
+errors.
+
+## Conventions
+
+- World space is right-handed with +Y up, as in glTF; the camera looks down its −Z axis; front
+  faces wind counter-clockwise, and an instance that mirrors its mesh keeps its front faces.
+- Distances are in metres, and light in physical units, as in glTF: lux, candelas, and nits for the
+  light that surfaces reflect and emit and for the sky.
+- Colors are `slime-gfx`'s `LinearColor`s, linear (ADR-0045). Light is not negative and may
+  exceed 1 until it is tone mapped.
+- Depth is reversed, from 1 at the near plane to 0 at infinity (ADR-0047).
+- Tangents and normal textures follow glTF.
+- Positions are world positions, as `f32`s; the renderer draws them relative to the camera, in
+  `f64` until they reach the GPU (ADR-0048).
 
 ## Dependencies
 

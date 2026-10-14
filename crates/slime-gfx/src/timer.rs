@@ -36,6 +36,9 @@ static NEXT_ID: AtomicU64 = AtomicU64::new(0);
 /// work before them is done, so a pass's time runs from the end of the previous work to the end of
 /// the pass: the sum of a frame's pass times leaves out the gaps between submissions, and is not a
 /// frame time.
+///
+/// At most four submissions can wait for their times: while four do, the passes of the next ones go
+/// untimed.
 pub struct GpuTimer {
     /// Tells this timer apart from the others in a submission.
     id: u64,

@@ -67,8 +67,9 @@ impl Camera {
     /// The projection matrix for a target `aspect` times as wide as it is high: from the camera's
     /// space to clip space, +Y up, the convention of WebGPU, which wgpu follows on every graphics
     /// API, with depth reversed (ADR-0047): 1 at [`near`](Self::near), falling towards 0 as the
-    /// distance d grows, as `near` / d, without reaching it: the far plane is at infinity. A field
-    /// of view outside (0, π) or a `near` that is not positive gives a matrix that draws nothing
+    /// distance d grows, as `near` / d, without reaching it: the far plane is at infinity, and
+    /// 32-bit float depths keep about the same relative precision at every distance. A field of
+    /// view outside (0, π) or a `near` that is not positive gives a matrix that draws nothing
     /// usable.
     ///
     /// # Panics
