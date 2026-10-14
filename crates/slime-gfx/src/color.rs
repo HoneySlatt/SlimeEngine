@@ -55,7 +55,7 @@ impl LinearColor {
     /// use slime_gfx::LinearColor;
     ///
     /// let amber = LinearColor::from_srgb8(0xE8, 0xA3, 0x3D);
-    /// // The middle of the byte range is about a fifth of the light of white.
+    /// // 0xA3, 163, is about 0.366 in linear light, not 163 / 255 = 0.639.
     /// assert!((amber.g - 0.366).abs() < 0.001);
     /// ```
     #[must_use]

@@ -84,7 +84,8 @@ impl Gpu {
     ///
     /// # Panics
     ///
-    /// If `passes` is 0 or more than 512, the most that wgpu's query sets hold.
+    /// If `passes` is 0 or more than 512: wgpu's query sets hold at most 4096 queries, two per pass
+    /// in each of the four submissions a timer can have in flight.
     pub fn create_timer(&self, label: &str, passes: u32) -> Result<Option<GpuTimer>, GfxError> {
         assert!(
             (1..=MAX_PASSES).contains(&passes),

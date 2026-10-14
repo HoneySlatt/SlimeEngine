@@ -16,9 +16,9 @@ pub(crate) const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth3
 /// [`BindingType::DepthTexture`](crate::BindingType::DepthTexture) binding, `texture_depth_2d` in
 /// WGSL): texel by texel with `textureLoad`, or compared with a reference depth through a
 /// [`ComparisonSampler`](crate::ComparisonSampler), as a shadow map is read. A pass cannot read
-/// the depth target it draws into. Until a pass draws into it, it holds depth 0, the nearest:
-/// a comparison sampler then finds every reference depth behind it. It cannot be read back to the
-/// CPU.
+/// the depth target it draws into. Until a pass draws into it, it holds depth 0, the farthest
+/// (depth is reversed, ADR-0047): a comparison sampler then finds every reference depth in front
+/// of it. It cannot be read back to the CPU.
 ///
 /// Clones refer to the same texture, which is freed when the last clone is dropped and the GPU no
 /// longer uses it.

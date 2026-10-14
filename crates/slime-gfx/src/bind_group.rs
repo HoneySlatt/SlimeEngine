@@ -73,7 +73,8 @@ pub struct BindGroupLayoutEntry {
 /// The layout of a bind group: which bindings it has and what each holds. Pipelines list the
 /// layouts of the groups their shaders read, and bind groups are created from them.
 ///
-/// Clones refer to the same layout.
+/// Clones refer to the same layout, which is freed when the last clone is dropped and the GPU no
+/// longer uses it.
 #[derive(Clone, Debug)]
 pub struct BindGroupLayout {
     pub(crate) layout: wgpu::BindGroupLayout,

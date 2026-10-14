@@ -72,7 +72,8 @@ pub struct SamplerDescriptor {
 /// How shaders read a texture, bound next to it in a bind group
 /// ([`BindingResource::Sampler`](crate::BindingResource::Sampler)).
 ///
-/// Clones refer to the same sampler.
+/// Clones refer to the same sampler, which is freed when the last clone is dropped and the GPU no
+/// longer uses it.
 #[derive(Clone, Debug)]
 pub struct Sampler {
     pub(crate) sampler: wgpu::Sampler,
@@ -88,7 +89,8 @@ pub struct Sampler {
 /// [`BindingType::ComparisonSampler`](crate::BindingType::ComparisonSampler) binding
 /// ([`BindingResource::ComparisonSampler`](crate::BindingResource::ComparisonSampler)).
 ///
-/// Clones refer to the same sampler.
+/// Clones refer to the same sampler, which is freed when the last clone is dropped and the GPU no
+/// longer uses it.
 #[derive(Clone, Debug)]
 pub struct ComparisonSampler {
     pub(crate) sampler: wgpu::Sampler,

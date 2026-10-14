@@ -77,10 +77,11 @@ pub struct Instance<'a> {
     /// determinant, beyond rounding) keeps the mesh's front faces, as glTF does: the renderer
     /// culls its other faces.
     pub transform: Mat4,
-    /// Whether it casts shadows (ADR-0038); it receives them either way. An instance that casts
-    /// none is left out of the shadow pass and of the shadow map's fit: a vast floor, a sky dome or
-    /// a distant mountain that nothing needs to shade would otherwise spread the map's texels over
-    /// their whole extent, and blur every shadow.
+    /// Whether it casts shadows (ADR-0038, ADR-0049); it receives them either way. An instance that
+    /// casts none is left out of the shadow pass, which it would otherwise cost a draw call, and of
+    /// the depths the shadow map spans along the light (ADR-0050): a vast floor or a sky dome that
+    /// nothing needs to shade would otherwise stretch them, and coarsen the depths the map tells
+    /// apart.
     pub casts_shadows: bool,
 }
 
@@ -182,7 +183,7 @@ impl<'a> Scene<'a> {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct RenderStats {
-    /// Draw calls of the scene pass: one per instance. The single draws of the sky and
+    /// Draw calls of the scene pass: one per instance. The draws of the sky, bloom and
     /// tone-mapping passes are not counted.
     pub draw_calls: u32,
     /// Triangles the scene pass submitted to the GPU, before culling.
@@ -210,8 +211,9 @@ pub struct RenderStats {
     pub tone_mapping_gpu_time: Option<Duration>,
     /// Draw calls of the shadow pass, which draws the shadows of the scene's first directional
     /// light that casts shadows (ADR-0038): one per instance that casts shadows. None when no
-    /// directional light of the scene casts shadows, or when no instance casts shadows, or every
-    /// one that does is flattened to a point, which casts nothing: the pass is then skipped.
+    /// directional light of the scene casts shadows, when no instance that casts shadows reaches
+    /// the region the shadow map covers or every one that does is flattened to a point, which casts
+    /// nothing, or when the camera sees nothing: the pass is then skipped.
     pub shadow_draw_calls: u32,
     /// How long the GPU took to draw the shadow map, under the same rules as `scene_gpu_time`;
     /// `None` too for a frame that skipped the shadow pass.
@@ -723,7 +725,9 @@ impl Renderer {
     /// that is not a multiple of three, an index that names no vertex, a vertex value (position,
     /// normal, uv or tangent) that is not finite, or vertices or indices that need a buffer larger
     /// than the device accepts ([`Gpu::max_buffer_size`], 256 MiB with the
-    /// default limits: 5 592 405 vertices, or 67 108 864 indices).
+    /// default limits: 5 592 405 vertices, or 67 108 864 indices). [`RenderError::Gfx`] with
+    /// [`GfxError::OutOfMemory`] if the GPU's memory cannot hold the mesh, or with
+    /// [`GfxError::DeviceLost`] once the device is lost.
     pub fn create_mesh(
         &self,
         gpu: &Gpu,
@@ -745,8 +749,8 @@ impl Renderer {
     ///
     /// If a texture's format does not suit its slot: the base color and emissive textures hold
     /// colors and need an sRGB format; the metallic-roughness, normal and occlusion textures hold
-    /// data and need a format without sRGB encoding, `Rgba8Unorm`. Read in the other kind of
-    /// format, their values would be wrong: this is a bug in the caller.
+    /// data and need a format without sRGB encoding, such as `Rgba8Unorm`. Read in the other kind
+    /// of format, their values would be wrong: this is a bug in the caller.
     pub fn create_material(
         &self,
         gpu: &Gpu,
@@ -835,12 +839,12 @@ impl Renderer {
     ///
     /// # Errors
     ///
-    /// [`RenderError::Gfx`] with [`GfxError::OutOfMemory`] when the GPU's memory cannot hold
-    /// what the frame creates: the targets of a new size, the bloom's levels when it resumes, or a
-    /// larger instance buffer; or with [`GfxError::DeviceLost`] once the device is lost, whether
-    /// the frame creates anything or not. Nothing is drawn then, and the renderer keeps what it
-    /// had: the next call tries again, so that a game can free memory, or draw into a smaller
-    /// target, in between.
+    /// [`RenderError::Gfx`] with [`GfxError::OutOfMemory`] when the GPU's memory cannot hold what
+    /// the frame creates: the targets of a new size, the bloom's levels when it resumes, the
+    /// instance buffer when it grows or shrinks, or the bindings of a new environment; or with
+    /// [`GfxError::DeviceLost`] once the device is lost, whether the frame creates anything or not.
+    /// Nothing is drawn then, and the renderer keeps what it had: the next call tries again, so
+    /// that a game can free memory, or draw into a smaller target, in between.
     ///
     /// # Panics
     ///

@@ -57,8 +57,9 @@ pub struct RenderPass<'a> {
 }
 
 impl RenderPass<'_> {
-    /// The wgpu pass behind this one, for the engine's tooling only (ADR-0031): it draws with
-    /// libraries built on wgpu, such as egui's renderer. Games must not use it.
+    /// The wgpu pass behind this one, for the engine's tooling only, through the `wgpu` feature
+    /// (ADR-0031): it draws with libraries built on wgpu, such as egui's renderer. Games must not
+    /// use it.
     #[cfg(feature = "wgpu")]
     pub fn wgpu_pass(&mut self) -> &mut wgpu::RenderPass<'static> {
         &mut self.pass
@@ -287,13 +288,13 @@ impl Commands {
         self.drawn.push(Arc::clone(&target.drawn));
     }
 
-    /// Records one render pass without a render target: clears `descriptor.depth` to the
-    /// farthest depth, lets `record` draw with pipelines that have a depth test and no fragment
-    /// stage ([`RenderPipelineDescriptor::fragment`](crate::RenderPipelineDescriptor::fragment) is
-    /// `None`), such as a shadow map's, timed by `descriptor.timer` when there is one. Later
-    /// passes can then sample the depth target
-    /// ([`BindingResource::DepthTarget`](crate::BindingResource::DepthTarget)). The pass is named
-    /// after the depth target in capture tools.
+    /// Records one render pass without a render target: clears `descriptor.depth` to the farthest
+    /// depth, lets `record` draw with pipelines that have a depth test and either no fragment stage
+    /// ([`RenderPipelineDescriptor::fragment`](crate::RenderPipelineDescriptor::fragment) is
+    /// `None`) or one without a target format, which may only discard fragments, such as a shadow
+    /// map's, timed by `descriptor.timer` when there is one. Later passes can then sample the depth
+    /// target ([`BindingResource::DepthTarget`](crate::BindingResource::DepthTarget)). The pass is
+    /// named after the depth target in capture tools.
     ///
     /// # Panics
     ///

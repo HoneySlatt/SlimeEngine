@@ -44,7 +44,7 @@ impl TextureFormat {
         }
     }
 
-    /// The wgpu format, for the engine's tooling only (ADR-0031).
+    /// The wgpu format, for the engine's tooling only, through the `wgpu` feature (ADR-0031).
     #[cfg(feature = "wgpu")]
     pub fn wgpu_format(self) -> wgpu::TextureFormat {
         self.to_wgpu()

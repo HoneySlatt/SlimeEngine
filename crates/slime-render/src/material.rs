@@ -38,7 +38,7 @@ pub enum AlphaMode {
 /// ([`MeshData::uvs`](crate::MeshData::uvs)) and multiplies the factor of its slot, the normal
 /// texture excepted. Textures of colors (base color, emissive) must have an sRGB format, which the
 /// GPU decodes to linear values; textures of data (metallic-roughness, normal, occlusion) must have
-/// a format without sRGB encoding, `Rgba8Unorm`, read as stored
+/// a format without sRGB encoding, such as `Rgba8Unorm`, read as stored
 /// ([`Renderer::create_material`](crate::Renderer::create_material) panics otherwise). A slot left
 /// empty reads 1 in every channel: its factor alone counts.
 #[derive(Clone, Copy, Debug)]

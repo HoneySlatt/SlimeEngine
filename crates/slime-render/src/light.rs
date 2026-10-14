@@ -29,8 +29,9 @@ const SPOT: u32 = 2;
 /// reaches a surface facing it, its illuminance, times the BRDF and the cosine of incidence. A
 /// white matte surface facing a light and the camera reflects 0.97 / π of the illuminance it
 /// receives, in nits (candelas per square metre) for an illuminance in lux. Distances are in
-/// metres, as in glTF. [`Renderer::render`](crate::Renderer::render) panics on a light with a value
-/// outside the range its documentation gives.
+/// metres, as in glTF. [`Renderer::render`](crate::Renderer::render) panics on a light it draws
+/// (the first [`MAX_LIGHTS`](crate::MAX_LIGHTS) of a scene) with a value outside the range its
+/// documentation gives.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Light {
     /// A light from one direction everywhere, like the sun.

@@ -5,7 +5,8 @@ use crate::gpu::Gpu;
 
 /// A compiled shader module, holding the entry points that pipelines use.
 ///
-/// Clones refer to the same module.
+/// Clones refer to the same module, which is freed when the last clone is dropped and the GPU no
+/// longer uses it.
 #[derive(Clone, Debug)]
 pub struct ShaderModule {
     pub(crate) module: wgpu::ShaderModule,

@@ -102,8 +102,9 @@ pub struct DepthState {
 ///
 /// Negative values push surfaces away, towards 0, the farthest depth. A shadow map is drawn with
 /// one, so that a surface does not shadow itself where its depth and the stored one differ only by
-/// rounding (shadow acne). The offset is not clamped, and `slope_scale` must be finite: wgpu passes it to the driver
-/// unchecked, and a NaN or an infinity gives undefined depths. The default, zero, is no bias.
+/// rounding (shadow acne). The offset is not clamped, and `slope_scale` must be finite: wgpu passes
+/// it to the driver unchecked, and a NaN or an infinity gives undefined depths. The default, zero,
+/// is no bias.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct DepthBias {
     /// The constant part, in units of r.
@@ -182,7 +183,8 @@ pub struct FragmentState<'a> {
 
 /// A render pipeline, ready to be set in a [`RenderPass`](crate::RenderPass).
 ///
-/// Clones refer to the same pipeline.
+/// Clones refer to the same pipeline, which is freed when the last clone is dropped and the GPU no
+/// longer uses it.
 #[derive(Clone, Debug)]
 pub struct RenderPipeline {
     pub(crate) pipeline: wgpu::RenderPipeline,

@@ -228,14 +228,16 @@ impl Gpu {
         &self.adapter_name
     }
 
-    /// The wgpu device behind the engine's, for the engine's tooling only (ADR-0031): it draws
-    /// with libraries built on wgpu, such as egui's renderer. Games must not use it.
+    /// The wgpu device behind the engine's, for the engine's tooling only, through the `wgpu`
+    /// feature (ADR-0031): it draws with libraries built on wgpu, such as egui's renderer. Games
+    /// must not use it.
     #[cfg(feature = "wgpu")]
     pub fn wgpu_device(&self) -> &wgpu::Device {
         &self.device
     }
 
-    /// The wgpu queue behind the engine's, for the engine's tooling only (ADR-0031).
+    /// The wgpu queue behind the engine's, for the engine's tooling only, through the `wgpu`
+    /// feature (ADR-0031).
     #[cfg(feature = "wgpu")]
     pub fn wgpu_queue(&self) -> &wgpu::Queue {
         &self.queue

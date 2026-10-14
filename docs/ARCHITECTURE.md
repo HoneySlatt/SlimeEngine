@@ -263,12 +263,12 @@ Each GPU object is an engine-owned type holding its wgpu object
 [ADR-0026](adr/0026-resource-binding-and-depth.md); float and sampled targets, depth-only passes:
 [ADR-0033](adr/0033-gpu-layer-for-multi-pass-rendering.md)). Shader modules and pipelines are
 created inside a wgpu error scope, so that a rejection comes back as an error with wgpu's message,
-and every creation inside an out-of-memory scope, so that memory that runs out comes back as
-`GfxError::OutOfMemory` and the caller can react
-([ADR-0044](adr/0044-running-out-of-gpu-memory.md)); any other wgpu error is a bug and panics
-([ADR-0016](adr/0016-gpu-layer-with-wgpu.md)). The test
-[`examples/tests/offscreen.rs`](../examples/tests/offscreen.rs) compares the image with a
-reference PNG within a tolerance ([ADR-0018](adr/0018-reference-image-tests.md)).
+and every other creation inside an out-of-memory scope, so that a buffer, texture or query set that
+the memory cannot hold comes back as `GfxError::OutOfMemory` and the caller can react, while memory
+that runs out elsewhere loses the device ([ADR-0044](adr/0044-running-out-of-gpu-memory.md)); any
+other wgpu error is a bug and panics ([ADR-0016](adr/0016-gpu-layer-with-wgpu.md)). The test
+[`examples/tests/offscreen.rs`](../examples/tests/offscreen.rs) compares the image with a reference
+PNG within a tolerance ([ADR-0018](adr/0018-reference-image-tests.md)).
 
 ### Rendering a scene
 
