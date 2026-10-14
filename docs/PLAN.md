@@ -588,6 +588,16 @@ upgrading wgpu still waits for egui.
     through, and on lavapipe and WARP (known debt).
   - CI on 2026-10-14 (ceb7670): the Linux job 5 min 40 s, the Windows job 11 min 32 s, of which
     the tests take 4 min 31 s and the release build of the examples 3 min 24 s.
+  - The Windows checklist, run on 2026-10-14 in the owner's Windows 11 virtual machine, whose RX
+    6900 XT is passed through, on the examples that CI built from 970b87a: Direct3D 12 with FXC,
+    and Vulkan; the sky without bands; the shadows in place, without acne, steady as the camera
+    turns; the overlay and its sliders, the modifier keys reaching egui; scales of 125 % and 150 %,
+    resizes, a minimized window; a window covered for 12 s and a session locked for 4 s, during
+    which the example kept drawing, without a log line; the window gone 110 ms after its close
+    button was clicked, before the process ended; exit codes of 0; a capture in RenderDoc on
+    Direct3D 12. Two items of the list did not apply: the sun's disc lies above what the `scene`
+    example's camera can see, and its overlay has no text field. It also found the bricks of the
+    asset's wall turned by 90°, fixed since.
   - The owner's decisions on 2026-10-14: CI stays as it is, the repository being public and its
     minutes free, to reconsider past 20 minutes; a release carries the Windows examples that the CI
     run of its commit builds, attached by hand to its GitHub release (see Releasing).
@@ -645,6 +655,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   development machine): the engine cannot tell on Wayland whether its window is visible. winit
   reports occlusion on X11, which the engine ignores: under a compositing manager, Xwayland
   included, the X server reports windows as visible anyway.
+  On Windows, a window covered by another keeps drawing too; a minimized one, of size zero, draws
+  nothing (M3b.9).
 - **wgpu's errors panic, in release builds too** (ADR-0016): a use of wgpu that it rejects is
   treated as a bug. Before games ship, logging the error and dropping the frame is to be
   considered. Running out of GPU memory is not such a use: creations return
@@ -660,7 +672,10 @@ GitHub issues, linked from their entry; this list stays the reference.
   [#2](https://github.com/HoneySlatt/SlimeEngine/issues/2)): the run stops with an error, and
   since winit allows one event loop per process, carrying on means starting the process again.
   Recovering from a loss is planned for Stage 4 (ADR-0052).
-- **Captures in RenderDoc were not tried on Windows** (Direct3D 12).
+- **In capture tools, the sky pass shows as a second `scene`.** A pass is named after the target it
+  draws into, and the sky pass draws into the scene's high-dynamic-range target, after the scene
+  pass (`declare_frame` in `crates/slime-render/src/renderer.rs`); only its pipeline is named `sky`.
+  Seen in RenderDoc on Direct3D 12 (M3b.9).
 - **Frames pause on Windows while the user moves the window, holds its title bar or a border, or
   opens the system menu**: the system then runs a loop of its own, in which no redraw arrives and
   the engine's loop does not wake, so frames and the check for termination signals pause until it
@@ -682,12 +697,6 @@ GitHub issues, linked from their entry; this list stays the reference.
   window of it with end-session messages, which winit does not report, and sends no console event
   to a process that has loaded `user32.dll`, as every engine process has
   (`crates/slime-app/src/signal.rs`): what a game saves in `shutdown` is lost then.
-- **On Direct3D 12, a covered window or a locked session was not measured.** In `acquire`, wgpu
-  waits on the swap chain's frame-latency object, up to one second, if the compositor stops taking
-  images; whether Windows does so for such windows is unknown. After that wait wgpu hands out the
-  image anyway rather than reporting a timeout, so the frame is drawn late instead of skipped, and
-  no debug line marks it: the stall shows only as a long `acquire` span
-  (`SLIME_LOG=slime_app=trace`).
 - **WARP's shader compiler crashes the process, now and then, when several threads compile
   shaders at once**, even on separate devices: an access violation (`STATUS_ACCESS_VIOLATION`)
   that other projects trace to `d3d10warp.dll`, and that no test can catch. Seen once in the
@@ -730,11 +739,6 @@ GitHub issues, linked from their entry; this list stays the reference.
   X server's XKB extension. On Wayland it panics when the compositor first reports a keyboard,
   which can be in the middle of a run. Turning it into an error would mean probing the libraries
   before winit does.
-- **Hiding the window when the event loop ends was not seen on Windows** (2026-10-13). winit
-  destroys windows only from inside the loop, so the engine hides the window when the loop ends.
-  In the owner's Windows 11 virtual machine, closing an example ends the process in about 150 ms,
-  too soon to tell the hiding from the end of the process. To see it: add a sleep after `run`
-  returns in an example and check that the window disappears as soon as it is closed.
 - **A termination signal received after `run` has returned no longer ends the process by itself**
   (ADR-0012). `ctrlc` cannot remove the handler that `run` installs. A first signal received then
   only stops later runs, and logs that the run stops after the current frame; only a second one
