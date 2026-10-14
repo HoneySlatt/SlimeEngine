@@ -4,6 +4,7 @@ mod bytes;
 mod camera;
 mod environment;
 mod error;
+mod graph;
 mod light;
 mod material;
 mod mesh;

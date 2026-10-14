@@ -9,16 +9,16 @@ use std::time::{Duration, Instant};
 use glam::{Mat3, Mat4, Vec3};
 use slime_gfx::{
     AddressMode, BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource,
-    BindingType, Color, CullMode, DepthBias, DepthCompare, DepthPassDescriptor, DepthState,
-    DepthTarget, Filter, FragmentState, Gpu, GpuTimer, RenderPass, RenderPassDescriptor,
-    RenderPipeline, RenderPipelineDescriptor, RenderTarget, Sampler, SamplerDescriptor,
-    ShaderStages, Texture, TextureFormat, UniformBuffer,
+    BindingType, CullMode, DepthBias, DepthCompare, DepthState, DepthTarget, Filter, FragmentState,
+    Gpu, RenderPass, RenderPipeline, RenderPipelineDescriptor, RenderTarget, Sampler,
+    SamplerDescriptor, ShaderStages, Texture, TextureFormat, UniformBuffer,
 };
 
 use crate::bytes::{push_f32s, push_mat3, push_mat4, push_u32s};
 use crate::camera::Camera;
 use crate::environment::{Environment, Sky, brdf_table};
 use crate::error::RenderError;
+use crate::graph::{ColorId, Draws, Graph, Imported, PassDeclaration, scaled_side};
 use crate::light::{LIGHT_VALUES_SIZE, Light, MAX_LIGHTS};
 use crate::material::{Material, MaterialData};
 use crate::mesh::{Mesh, MeshData, VERTEX_LAYOUT};
@@ -37,13 +37,6 @@ const BLOOM_SMALLEST_SIDE: u32 = 8;
 /// The format the scene pass draws into: half-precision floats, which keep light above 1
 /// (ADR-0034).
 const HDR_FORMAT: TextureFormat = TextureFormat::Rgba16Float;
-/// What the tone-mapping pass clears the output to; its triangle then covers every pixel.
-const BLACK: Color = Color {
-    r: 0.0,
-    g: 0.0,
-    b: 0.0,
-    a: 1.0,
-};
 /// The size of the values of a frame, as `FrameUniform` in `shader.wgsl` lays them out: the
 /// camera's two `mat4x4<f32>`, its position and the exposure (16 bytes), the shadow map's
 /// `mat4x4<f32>`, the number of lights and the index of the light the map shadows (16 bytes), the
@@ -134,15 +127,23 @@ pub struct RenderStats {
     /// Triangles the scene pass submitted to the GPU, before culling.
     pub triangles: u64,
     /// How long [`Renderer::render`] took on the CPU: packing the values, recording the passes and
-    /// submitting them.
+    /// submitting them, four to a submission (ADR-0041). It includes any wait inside a submission:
+    /// lavapipe runs a submission only once the previous one is done, so on lavapipe it holds the
+    /// GPU work of the frame's earlier submissions, and in a windowed run the wait for the previous
+    /// frame.
     pub cpu_time: Duration,
     /// How long the GPU took to draw the scene into the high-dynamic-range target: the latest time
-    /// that has come back, a few frames old. `None` on adapters that cannot time their work
-    /// ([`Gpu::can_time`](slime_gfx::Gpu::can_time)), and until the first time comes back.
+    /// that has come back, a few frames old. The passes of a frame are timed four to a submission
+    /// (ADR-0041): the times of the passes of one submission come from the same frame, those of
+    /// different submissions can come from consecutive frames. `None` on adapters that cannot
+    /// time their work
+    /// ([`Gpu::can_time`](slime_gfx::Gpu::can_time)), until the first time comes back, and for
+    /// the two or three frames after the frame's passes or targets change (the output's size, the
+    /// shadow pass or the bloom turned on or off).
     pub scene_gpu_time: Option<Duration>,
-    /// How long the GPU took for the tone-mapping pass, under the same rules. It may come from
-    /// another frame than `scene_gpu_time`, and their sum is not the GPU time of a frame
-    /// (ADR-0033).
+    /// How long the GPU took for the tone-mapping pass, under the same rules. On Vulkan, each time
+    /// runs from the end of the work before the pass to its end, so the times of a frame do not
+    /// add up to its GPU time (ADR-0033).
     pub tone_mapping_gpu_time: Option<Duration>,
     /// Draw calls of the shadow pass, which draws the shadows of the scene's first directional
     /// light that casts shadows (ADR-0038): one per instance. None when no directional light of
@@ -155,9 +156,8 @@ pub struct RenderStats {
     /// How long the GPU took to draw the sky behind the scene, under the same rules as
     /// `scene_gpu_time`.
     pub sky_gpu_time: Option<Duration>,
-    /// How long the GPU took for the bloom's passes (ADR-0040): the sum of the latest time of each,
-    /// measured by a timer of its own, under the same rules as `scene_gpu_time`; the passes' times
-    /// may come from different frames. `None` too for a frame that skipped the bloom (a strength
+    /// How long the GPU took for the bloom's passes (ADR-0040): the sum of their times, under the
+    /// same rules as `scene_gpu_time`. `None` too for a frame that skipped the bloom (a strength
     /// of 0, or an output smaller than 15 × 15), and until every pass's time has come back.
     pub bloom_gpu_time: Option<Duration>,
 }
@@ -177,9 +177,11 @@ pub struct RenderStats {
 /// discard), three for the scene pass, which differ by the faces they cull and among which each
 /// draw chooses (ADR-0035), the sky pass's, the bloom's two (down and up) and the tone-mapping
 /// pass's; the table of the BRDF's scale and bias and a black environment for scenes without one;
-/// the shadow map, 2048 × 2048 depths created with the renderer; the high-dynamic-range and depth
-/// targets and the bloom's levels, which it creates at the size of the output it draws into and
-/// again when that size changes; the buffer of the instances' values; and a GPU timer per pass.
+/// the shadow map, 2048 × 2048 depths created with the renderer; the buffer of the instances'
+/// values; and the frame's render graph (ADR-0041): its passes in order, the high-dynamic-range and
+/// depth targets and the bloom's levels at the size of the output it draws into, the groups that
+/// read them and GPU timers for its submissions, built again when the frame's shape changes (the
+/// output's size, the shadow pass or the bloom turned on or off).
 pub struct Renderer {
     /// The output's format.
     format: TextureFormat,
@@ -208,8 +210,9 @@ pub struct Renderer {
     /// The sampler of that pixel.
     default_sampler: Sampler,
     instances: InstanceSlots,
-    /// Created by the first `render`, and again when the output's size changes.
-    targets: Option<SizedTargets>,
+    /// The frame's graph and what reads its targets: created by the first `render`, and again
+    /// when the frame's shape changes.
+    frame: Option<Frame>,
     /// Draws the instances' depths as the shadowed light sees them, culling no face.
     shadow_pipeline: RenderPipeline,
     /// The same, discarding what masked materials discard.
@@ -219,14 +222,6 @@ pub struct Renderer {
     shadow_map: DepthTarget,
     /// The shadow map and its comparison sampler, bound at group 3 of the scene pass.
     shadow_group: BindGroup,
-    /// Time each pass on the GPU, when the adapter can.
-    scene_timer: Option<GpuTimer>,
-    tone_mapping_timer: Option<GpuTimer>,
-    shadow_timer: Option<GpuTimer>,
-    sky_timer: Option<GpuTimer>,
-    /// One per pass of the bloom, as many as the longest chain drawn so far needed: a resize keeps
-    /// them, and their times.
-    bloom_timers: Vec<GpuTimer>,
     /// Filters a level down from the one above, the scene's light for the first.
     bloom_down_pipeline: RenderPipeline,
     /// Averages a level with the coarser ones.
@@ -242,48 +237,60 @@ pub struct Renderer {
     bloom_strength: UniformBuffer,
 }
 
-/// The targets that follow the output's size: what the scene pass draws into, the bloom's levels,
-/// and the groups through which the bloom's passes and the tone-mapping pass read them. They are
-/// created together, and again together when the size changes, since a group keeps the target it
-/// was created with (ADR-0033).
-struct SizedTargets {
-    /// The scene's light, in high dynamic range. Labelled "scene", which names the scene pass in
-    /// capture tools.
-    hdr: RenderTarget,
-    depth: DepthTarget,
-    tone_mapping_group: BindGroup,
-    /// From the finest, half the output's size, to the coarsest; empty for outputs smaller than
-    /// 15 × 15.
-    bloom: Vec<BloomLevel>,
+/// The passes of the renderer's frame (ADR-0041), as its graph names them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Pass {
+    /// The depths of the instances as the shadowed light sees them, into the shadow map.
+    Shadow,
+    /// The instances, shaded, into the high-dynamic-range target.
+    Scene,
+    /// The environment where no surface is.
+    Sky,
+    /// The bloom's level of this index (from 0, the finest), filtered down from the one above.
+    BloomDown(usize),
+    /// The average of the bloom's level of this index and the coarser ones.
+    BloomUp(usize),
+    /// The light mapped to the output's range, the bloom mixed in.
+    ToneMapping,
 }
 
-/// One level of the bloom's chain (ADR-0040).
-struct BloomLevel {
-    /// The level above filtered down to this one's size: the scene's light for the first level.
-    down: RenderTarget,
-    /// Reads the level above.
-    down_group: BindGroup,
-    /// The average of this level's light and the coarser levels', and the group that reads both
-    /// and the level's weight; the coarsest level has none, its average being its own light.
-    up: Option<(RenderTarget, BindGroup)>,
+/// What decides the passes and targets of a frame: the output's size, whether the shadow pass
+/// runs, and whether the bloom's passes do.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Shape {
+    width: u32,
+    height: u32,
+    shadow: bool,
+    bloom: bool,
 }
 
-/// The sizes of the bloom's levels for an output of `width` × `height` pixels: level i (from 1) is
-/// the output divided by 2^i, rounded to the nearest, while both sides keep at least
-/// [`BLOOM_SMALLEST_SIDE`] texels. Empty below 15 × 15. Each side is then half the one before,
-/// rounded down or up, so that a pixel's position doubled or halved falls where it should; and each
-/// level's edge stays within half a texel of the output's: where the output's sides are not
-/// multiples of 2^i, a pixel's halo at the right and bottom edges holds 0.83 to 1.37 of its light,
-/// up to 1.9 at the far corner (ADR-0040), against 0.2 or ten times its light with levels rounded
-/// down or up.
-fn bloom_sizes(width: u32, height: u32) -> Vec<(u32, u32)> {
-    let level = |side: u32, index: u32| (side + (1 << (index - 1))) >> index;
+/// The frame's graph for one [`Shape`], with the groups that read its targets. Built again,
+/// together, when the shape changes, since a group keeps the targets it was created with
+/// (ADR-0033).
+struct Frame {
+    shape: Shape,
+    graph: Graph,
+    /// For each pass, in the graph's order, the group through which it reads the transient targets
+    /// it declares, created from that declaration so that the two cannot differ; `None` for the
+    /// passes that read none (shadow, scene and sky).
+    groups: Vec<Option<BindGroup>>,
+}
+
+/// How many levels the bloom's chain has for an output of `width` × `height` pixels: the level
+/// of index i, from 1, is the output divided by 2^i, rounded to the nearest (`scaled_side`), while
+/// both sides keep at least [`BLOOM_SMALLEST_SIDE`] texels; none below 15 × 15. Each side is then
+/// half the one before, rounded down or up, so that a pixel's position doubled or halved falls
+/// where it should; and each level's edge stays within half a texel of the output's: where the
+/// output's sides are not multiples of 2^i, a pixel's halo at the right and bottom edges holds
+/// 0.83 to 1.37 of its light, up to 1.9 at the far corner (ADR-0040), against 0.2 or ten times its
+/// light with levels rounded down or up.
+fn bloom_levels(width: u32, height: u32) -> usize {
     (1..)
-        .map(|index| (level(width, index), level(height, index)))
-        .take_while(|&(level_width, level_height)| {
-            level_width >= BLOOM_SMALLEST_SIDE && level_height >= BLOOM_SMALLEST_SIDE
+        .take_while(|&index| {
+            scaled_side(width, index) >= BLOOM_SMALLEST_SIDE
+                && scaled_side(height, index) >= BLOOM_SMALLEST_SIDE
         })
-        .collect()
+        .count()
 }
 
 impl Renderer {
@@ -575,11 +582,7 @@ impl Renderer {
         );
         let default_sampler = gpu.create_sampler("default", &SamplerDescriptor::default());
         let instances = InstanceSlots::new(gpu, &instance_layout, INITIAL_INSTANCE_CAPACITY);
-        let scene_timer = gpu.create_timer("scene", 1);
-        let tone_mapping_timer = gpu.create_timer("tone mapping", 1);
-        let shadow_timer = gpu.create_timer("shadow", 1);
-        let sky_timer = gpu.create_timer("sky", 1);
-        if scene_timer.is_none() {
+        if !gpu.can_time() {
             tracing::info!("the adapter cannot time its work: the statistics have no GPU time");
         }
         Ok(Self {
@@ -599,16 +602,11 @@ impl Renderer {
             white,
             default_sampler,
             instances,
-            targets: None,
+            frame: None,
             shadow_pipeline,
             masked_shadow_pipeline,
             shadow_map,
             shadow_group,
-            scene_timer,
-            tone_mapping_timer,
-            shadow_timer,
-            sky_timer,
-            bloom_timers: Vec::new(),
             bloom_down_pipeline,
             bloom_up_pipeline,
             bloom_down_layout,
@@ -728,15 +726,17 @@ impl Renderer {
     /// 13-tap filter, then average them back up through 3 × 3 tents, every level with the same
     /// weight, into a blurred copy (ADR-0040): 11 passes at 1280 × 720, 13 at 1920 × 1080. The
     /// tone-mapping pass then mixes the blurred copy in by `scene.bloom`, maps that light to the
-    /// range a display shows, and writes it into `target`, opaque. The work runs on the GPU after
-    /// this method returns, as with [`Gpu::render`](slime_gfx::Gpu::render).
+    /// range a display shows, and writes it into `target`, opaque. A render graph orders the
+    /// passes, and they are recorded in that order, four to a submission named after `target`
+    /// (ADR-0041); the work runs on the GPU after this method returns.
     ///
-    /// The high-dynamic-range and depth targets and the bloom's levels (4.7 MiB at 1280 × 720,
-    /// 10.5 MiB at 1920 × 1080) are created at the size of `target` the first time, and again
-    /// whenever that size changes; the instance buffer grows when a scene has more
-    /// instances than before. The shadow map keeps its size: its texels are the extent of the
-    /// instances across the light divided by 2048, so that a scene that spreads wider gets coarser
-    /// shadows.
+    /// The high-dynamic-range and depth targets are created at the size of `target` the first
+    /// time, and again whenever that size changes; the bloom's levels (4.7 MiB at 1280 × 720,
+    /// 10.5 MiB at 1920 × 1080) likewise, and only while the bloom runs: they are freed when it
+    /// stops, and created again, in one frame, when it resumes. The instance buffer grows when a
+    /// scene has more instances than before. The shadow map keeps its size: its texels are the
+    /// extent of the instances across the light divided by 2048, so that a scene that spreads wider
+    /// gets coarser shadows.
     ///
     /// # Panics
     ///
@@ -763,31 +763,7 @@ impl Renderer {
             target.format()
         );
         let (width, height) = (target.width(), target.height());
-        if self
-            .targets
-            .as_ref()
-            .is_none_or(|targets| (targets.hdr.width(), targets.hdr.height()) != (width, height))
-        {
-            tracing::debug!(
-                width,
-                height,
-                "creating the high-dynamic-range, depth and bloom targets"
-            );
-            self.targets = Some(self.create_sized_targets(gpu, width, height));
-        }
-        let targets = self.targets.as_ref().expect("created above");
-        // The bloom's passes: one per level down, one per level but the coarsest up.
-        let bloom_passes = (2 * targets.bloom.len()).saturating_sub(1);
-        let bloom = scene.bloom > 0.0 && bloom_passes > 0;
-        // On adapters that cannot time their work, no timer is ever made.
-        if bloom && gpu.can_time() {
-            while self.bloom_timers.len() < bloom_passes {
-                match gpu.create_timer(&format!("bloom {}", self.bloom_timers.len()), 1) {
-                    Some(timer) => self.bloom_timers.push(timer),
-                    None => break,
-                }
-            }
-        }
+        let bloom = scene.bloom > 0.0 && bloom_levels(width, height) > 0;
         let mut strength = Vec::with_capacity(16);
         push_f32s(
             &mut strength,
@@ -892,260 +868,318 @@ impl Renderer {
         }
         gpu.write_uniform_buffer(&self.instances.buffer, &instance_bytes);
 
+        let shape = Shape {
+            width,
+            height,
+            shadow: shadow.is_some(),
+            bloom,
+        };
+        if self.frame.as_ref().is_none_or(|frame| frame.shape != shape) {
+            tracing::debug!(?shape, "building the frame's graph");
+            let previous = self.frame.take();
+            self.frame = Some(self.build_frame(gpu, shape, previous.as_ref()));
+        }
+        let frame = self.frame.as_ref().expect("built above");
+
         let mut stats = RenderStats::default();
-        if shadow.is_some() {
-            let shadow_pass = DepthPassDescriptor {
-                depth: &self.shadow_map,
-                timer: self.shadow_timer.as_ref(),
-            };
-            gpu.render_depth(&shadow_pass, |pass| {
-                pass.set_bind_group(0, frame_group, &[]);
+        // In the order `declare_frame` imports them.
+        let imported = [Imported::Color(target), Imported::Depth(&self.shadow_map)];
+        // The submissions are named after the output, so that capture tools show which it drew.
+        frame.graph.record(
+            gpu,
+            target.label(),
+            &imported,
+            |index, pass, render_pass| {
+                let group = frame.groups[index].as_ref();
+                self.record(pass, render_pass, group, frame_group, scene, &mut stats);
+            },
+        );
+        fold_gpu_times(
+            frame.graph.passes(),
+            |index| frame.graph.gpu_time(index),
+            &mut stats,
+        );
+        stats.cpu_time = started.elapsed();
+        stats
+    }
+
+    /// Records `pass`, which reads its transient targets through `group`, drawing `scene`, and
+    /// counts its draws in `stats`.
+    fn record(
+        &self,
+        pass: Pass,
+        render_pass: &mut RenderPass<'_>,
+        group: Option<&BindGroup>,
+        frame_group: &BindGroup,
+        scene: &Scene<'_>,
+        stats: &mut RenderStats,
+    ) {
+        match pass {
+            Pass::Shadow => {
+                render_pass.set_bind_group(0, frame_group, &[]);
                 let mut bound = None;
                 for (slot, instance) in scene.instances.iter().enumerate() {
                     let masked = instance.material.masked;
                     if bound != Some(masked) {
-                        pass.set_pipeline(if masked {
+                        render_pass.set_pipeline(if masked {
                             &self.masked_shadow_pipeline
                         } else {
                             &self.shadow_pipeline
                         });
                         bound = Some(masked);
                     }
-                    self.instances.draw(pass, slot, instance);
+                    self.instances.draw(render_pass, slot, instance);
                     stats.shadow_draw_calls += 1;
                 }
-            });
-            stats.shadow_gpu_time = self.shadow_timer.as_ref().and_then(|timer| timer.latest(0));
-        }
-        let scene_pass = RenderPassDescriptor {
-            target: &targets.hdr,
-            // The sky pass draws every pixel that no surface covers.
-            clear: Some(BLACK),
-            depth: Some(&targets.depth),
-            timer: self.scene_timer.as_ref(),
-        };
-        gpu.render(&scene_pass, |pass| {
-            pass.set_bind_group(0, frame_group, &[]);
-            pass.set_bind_group(3, &self.shadow_group, &[]);
-            // The three pipelines share their layouts, so the bound groups stay bound when one
-            // replaces another; it is set only when a draw needs another.
-            let mut bound = None;
-            for (slot, instance) in scene.instances.iter().enumerate() {
-                let cull = cull_mode(
-                    instance.material.double_sided,
-                    is_mirrored(instance.transform),
-                );
-                if bound != Some(cull) {
-                    pass.set_pipeline(self.scene_pipelines.get(cull));
-                    bound = Some(cull);
-                }
-                self.instances.draw(pass, slot, instance);
-                stats.draw_calls += 1;
-                stats.triangles += u64::from(instance.mesh.triangle_count());
             }
-        });
-        // Over the scene, keeping its light and its depths: the sky is drawn only where the depth
-        // target still holds the farthest depth, where no surface was drawn.
-        let sky_pass = RenderPassDescriptor {
-            target: &targets.hdr,
-            clear: None,
-            depth: Some(&targets.depth),
-            timer: self.sky_timer.as_ref(),
-        };
-        gpu.render(&sky_pass, |pass| {
-            pass.set_pipeline(&self.sky_pipeline);
-            pass.set_bind_group(0, frame_group, &[]);
-            pass.draw(0..3);
-        });
-        if bloom {
-            self.draw_bloom(gpu, targets, &mut stats, bloom_passes);
-        }
-        // The tone-mapping pass clears rather than keeps the output: its triangle covers every
-        // pixel, and a clear does not read what the window's image held before.
-        let tone_mapping_pass = RenderPassDescriptor {
-            target,
-            clear: Some(BLACK),
-            depth: None,
-            timer: self.tone_mapping_timer.as_ref(),
-        };
-        gpu.render(&tone_mapping_pass, |pass| {
-            pass.debug_group("tone mapping", |pass| {
-                pass.set_pipeline(&self.tone_mapping_pipeline);
-                pass.set_bind_group(0, &targets.tone_mapping_group, &[]);
-                pass.draw(0..3);
-            });
-        });
-        stats.scene_gpu_time = self.scene_timer.as_ref().and_then(|timer| timer.latest(0));
-        stats.tone_mapping_gpu_time = self
-            .tone_mapping_timer
-            .as_ref()
-            .and_then(|timer| timer.latest(0));
-        stats.sky_gpu_time = self.sky_timer.as_ref().and_then(|timer| timer.latest(0));
-        stats.cpu_time = started.elapsed();
-        stats
-    }
-
-    /// The targets and groups for an output of `width` × `height` pixels (see [`SizedTargets`]).
-    fn create_sized_targets(&self, gpu: &Gpu, width: u32, height: u32) -> SizedTargets {
-        let hdr = gpu.create_render_target("scene", width, height, HDR_FORMAT);
-        let depth = gpu.create_depth_target("scene depth", width, height);
-        let sizes = bloom_sizes(width, height);
-        let downs: Vec<RenderTarget> = (0..)
-            .zip(&sizes)
-            .map(|(index, &(level_width, level_height))| {
-                let label = format!("bloom down {index}");
-                gpu.create_render_target(&label, level_width, level_height, HDR_FORMAT)
-            })
-            .collect();
-        // From the coarsest up: each average reads the coarser one, or the coarsest level's own
-        // light, and mixes in its level by 1 / (the levels from it to the coarsest), so that each
-        // level ends with the same share of the blurred copy, and no average exceeds the light it
-        // averages, which a sum would beyond half precision near the sun.
-        let mut ups: Vec<Option<(RenderTarget, BindGroup)>> = sizes.iter().map(|_| None).collect();
-        for index in (0..sizes.len().saturating_sub(1)).rev() {
-            let (level_width, level_height) = sizes[index];
-            let label = format!("bloom up {index}");
-            let average = gpu.create_render_target(&label, level_width, level_height, HDR_FORMAT);
-            let coarser = ups[index + 1]
-                .as_ref()
-                .map_or(&downs[index + 1], |(average, _)| average);
-            let mut weight = Vec::with_capacity(16);
-            push_f32s(
-                &mut weight,
-                &[1.0 / (sizes.len() - index) as f32, 0.0, 0.0, 0.0],
-            );
-            let weight = gpu.create_uniform_buffer(&label, &weight);
-            let group = gpu.create_bind_group(
-                &label,
-                &self.bloom_up_layout,
-                &[
-                    BindGroupEntry {
-                        binding: 0,
-                        resource: BindingResource::RenderTarget(coarser),
-                    },
-                    BindGroupEntry {
-                        binding: 1,
-                        resource: BindingResource::Sampler(&self.bloom_sampler),
-                    },
-                    BindGroupEntry {
-                        binding: 2,
-                        resource: BindingResource::RenderTarget(&downs[index]),
-                    },
-                    BindGroupEntry {
-                        binding: 3,
-                        resource: BindingResource::UniformBuffer(&weight),
-                    },
-                ],
-            );
-            ups[index] = Some((average, group));
-        }
-        let bloom: Vec<BloomLevel> = (0..downs.len())
-            .zip(ups)
-            .map(|(index, up)| {
-                let above = if index == 0 { &hdr } else { &downs[index - 1] };
-                let down_group = gpu.create_bind_group(
-                    &format!("bloom down {index}"),
-                    &self.bloom_down_layout,
-                    &[
-                        BindGroupEntry {
-                            binding: 0,
-                            resource: BindingResource::RenderTarget(above),
-                        },
-                        BindGroupEntry {
-                            binding: 1,
-                            resource: BindingResource::Sampler(&self.bloom_sampler),
-                        },
-                    ],
-                );
-                BloomLevel {
-                    down: downs[index].clone(),
-                    down_group,
-                    up,
+            Pass::Scene => {
+                render_pass.set_bind_group(0, frame_group, &[]);
+                render_pass.set_bind_group(3, &self.shadow_group, &[]);
+                // The three pipelines share their layouts, so the bound groups stay bound when one
+                // replaces another; it is set only when a draw needs another.
+                let mut bound = None;
+                for (slot, instance) in scene.instances.iter().enumerate() {
+                    let cull = cull_mode(
+                        instance.material.double_sided,
+                        is_mirrored(instance.transform),
+                    );
+                    if bound != Some(cull) {
+                        render_pass.set_pipeline(self.scene_pipelines.get(cull));
+                        bound = Some(cull);
+                    }
+                    self.instances.draw(render_pass, slot, instance);
+                    stats.draw_calls += 1;
+                    stats.triangles += u64::from(instance.mesh.triangle_count());
                 }
-            })
-            .collect();
-        // The blurred copy, or the scene's light itself when there is no chain: any texture does,
-        // since the tone-mapping pass then mixes it in by 0.
-        let blurred = match bloom.first() {
-            Some(BloomLevel {
-                up: Some((average, _)),
-                ..
-            }) => average,
-            Some(BloomLevel { down, .. }) => down,
-            None => &hdr,
-        };
-        let tone_mapping_group = gpu.create_bind_group(
-            "tone mapping",
-            &self.tone_mapping_layout,
-            &[
-                BindGroupEntry {
-                    binding: 0,
-                    resource: BindingResource::RenderTarget(&hdr),
-                },
-                BindGroupEntry {
-                    binding: 1,
-                    resource: BindingResource::RenderTarget(blurred),
-                },
-                BindGroupEntry {
-                    binding: 2,
-                    resource: BindingResource::Sampler(&self.bloom_sampler),
-                },
-                BindGroupEntry {
-                    binding: 3,
-                    resource: BindingResource::UniformBuffer(&self.bloom_strength),
-                },
-            ],
-        );
-        SizedTargets {
-            hdr,
-            depth,
-            tone_mapping_group,
-            bloom,
+            }
+            Pass::Sky => {
+                render_pass.set_pipeline(&self.sky_pipeline);
+                render_pass.set_bind_group(0, frame_group, &[]);
+                render_pass.draw(0..3);
+            }
+            Pass::BloomDown(_) | Pass::BloomUp(_) => {
+                render_pass.set_pipeline(if matches!(pass, Pass::BloomDown(_)) {
+                    &self.bloom_down_pipeline
+                } else {
+                    &self.bloom_up_pipeline
+                });
+                render_pass.set_bind_group(0, group.expect("a bloom pass reads its levels"), &[]);
+                render_pass.draw(0..3);
+            }
+            Pass::ToneMapping => render_pass.debug_group("tone mapping", |render_pass| {
+                render_pass.set_pipeline(&self.tone_mapping_pipeline);
+                render_pass.set_bind_group(0, group.expect("tone mapping reads the scene"), &[]);
+                render_pass.draw(0..3);
+            }),
         }
     }
 
-    /// Draws the bloom's chain (ADR-0040): each level filtered down from the one above, the first
-    /// from the scene's light, then each average from the coarser one, from the coarsest up; each
-    /// pass draws one triangle over its target, timed by its own timer when the adapter can time,
-    /// and the sum of their latest times goes into `stats`. `passes` is the number of the chain's
-    /// passes.
-    fn draw_bloom(
-        &self,
-        gpu: &Gpu,
-        targets: &SizedTargets,
-        stats: &mut RenderStats,
-        passes: usize,
-    ) {
-        let mut timers = self.bloom_timers.iter();
-        let mut draw = |target: &RenderTarget, pipeline: &RenderPipeline, group: &BindGroup| {
-            let pass = RenderPassDescriptor {
-                target,
-                // The triangle covers every texel; a clear reads nothing back on GPUs that keep
-                // targets in tiles.
-                clear: Some(BLACK),
-                depth: None,
-                timer: timers.next(),
-            };
-            gpu.render(&pass, |pass| {
-                pass.set_pipeline(pipeline);
-                pass.set_bind_group(0, group, &[]);
-                pass.draw(0..3);
-            });
-        };
-        for level in &targets.bloom {
-            draw(&level.down, &self.bloom_down_pipeline, &level.down_group);
+    /// The frame of `shape`: its graph, compiled, with its transient targets created (those of
+    /// `previous` reused where they match) and its timers, and the groups that read the targets.
+    fn build_frame(&self, gpu: &Gpu, shape: Shape, previous: Option<&Frame>) -> Frame {
+        let mut graph = declare_frame(shape);
+        // `declare_frame` builds every shape from the same rules, which the tests compile.
+        if let Err(error) = graph.compile() {
+            panic!("the renderer declared a frame it cannot draw: {error}");
         }
-        for level in targets.bloom.iter().rev() {
-            if let Some((average, group)) = &level.up {
-                draw(average, &self.bloom_up_pipeline, group);
+        graph.create(gpu, previous.map(|frame| &frame.graph));
+        let levels = bloom_levels_of(shape);
+        let groups = graph
+            .declarations()
+            .iter()
+            .map(|declaration| {
+                // The transient render target the pass declares at `slot` of its reads.
+                let read = |slot: usize| declaration.reads[slot].map(|target| graph.color(target));
+                let entries = match declaration.pass {
+                    Pass::Shadow | Pass::Scene | Pass::Sky => return None,
+                    // The level above: the scene's light for the first.
+                    Pass::BloomDown(level) => (
+                        format!("bloom down {level}"),
+                        &self.bloom_down_layout,
+                        vec![
+                            BindingResource::RenderTarget(read(0).expect("declared")),
+                            BindingResource::Sampler(&self.bloom_sampler),
+                        ],
+                        None,
+                    ),
+                    // The coarser average (the coarsest level's own light for the last), and the
+                    // level's own light, mixed in by 1 / (the levels from it to the coarsest), so
+                    // that each level ends with the same share of the blurred copy, and no average
+                    // exceeds the light it averages, which a sum would beyond half precision near
+                    // the sun.
+                    Pass::BloomUp(level) => {
+                        let mut weight = Vec::with_capacity(16);
+                        push_f32s(&mut weight, &[1.0 / (levels - level) as f32, 0.0, 0.0, 0.0]);
+                        (
+                            format!("bloom up {level}"),
+                            &self.bloom_up_layout,
+                            vec![
+                                BindingResource::RenderTarget(read(0).expect("declared")),
+                                BindingResource::Sampler(&self.bloom_sampler),
+                                BindingResource::RenderTarget(read(1).expect("declared")),
+                            ],
+                            Some(weight),
+                        )
+                    }
+                    // The scene's light and the blurred copy; without the bloom, the scene's light
+                    // again: any texture does, since the pass then mixes it in by 0.
+                    Pass::ToneMapping => {
+                        let hdr = read(0).expect("declared");
+                        (
+                            "tone mapping".to_owned(),
+                            &self.tone_mapping_layout,
+                            vec![
+                                BindingResource::RenderTarget(hdr),
+                                BindingResource::RenderTarget(read(1).unwrap_or(hdr)),
+                                BindingResource::Sampler(&self.bloom_sampler),
+                                BindingResource::UniformBuffer(&self.bloom_strength),
+                            ],
+                            None,
+                        )
+                    }
+                };
+                let (label, layout, mut resources, weight) = entries;
+                let weight = weight.map(|weight| gpu.create_uniform_buffer(&label, &weight));
+                if let Some(weight) = &weight {
+                    resources.push(BindingResource::UniformBuffer(weight));
+                }
+                let entries: Vec<BindGroupEntry<'_>> = (0..)
+                    .zip(resources)
+                    .map(|(binding, resource)| BindGroupEntry { binding, resource })
+                    .collect();
+                Some(gpu.create_bind_group(&label, layout, &entries))
+            })
+            .collect();
+        Frame {
+            shape,
+            graph,
+            groups,
+        }
+    }
+}
+
+/// Folds the GPU time of each pass of `passes`, in order (`time(k)` for the k-th), into
+/// `stats`: each kind of pass into its field, the bloom's passes summed, `None` when one of them
+/// has no time, or when the frame has none.
+fn fold_gpu_times(
+    passes: impl Iterator<Item = Pass>,
+    time: impl Fn(usize) -> Option<Duration>,
+    stats: &mut RenderStats,
+) {
+    let mut bloom: Option<Option<Duration>> = None;
+    for (index, pass) in passes.enumerate() {
+        let time = time(index);
+        match pass {
+            Pass::Shadow => stats.shadow_gpu_time = time,
+            Pass::Scene => stats.scene_gpu_time = time,
+            Pass::Sky => stats.sky_gpu_time = time,
+            Pass::BloomDown(_) | Pass::BloomUp(_) => {
+                bloom = Some(match bloom {
+                    None => time,
+                    Some(sum) => sum.zip(time).map(|(sum, time)| sum + time),
+                });
             }
+            Pass::ToneMapping => stats.tone_mapping_gpu_time = time,
         }
-        if self.bloom_timers.len() >= passes {
-            stats.bloom_gpu_time = self.bloom_timers[..passes]
-                .iter()
-                .map(|timer| timer.latest(0))
-                .sum();
-        }
+    }
+    stats.bloom_gpu_time = bloom.flatten();
+}
+
+/// The graph of a frame of `shape`, declared in the order the passes run, not compiled yet.
+fn declare_frame(shape: Shape) -> Graph {
+    let mut graph = Graph::new(shape.width, shape.height);
+    // Given to `Graph::record` in this order.
+    let output = graph.import_color("output");
+    let shadow_map = graph.import_depth("shadow map");
+    // Labelled "scene", which names the scene pass in capture tools.
+    let hdr = graph.transient_color("scene", HDR_FORMAT, 0);
+    let depth = graph.transient_depth("scene depth", 0);
+    let pass = |pass, draws, reads| PassDeclaration { pass, draws, reads };
+    // Each pass that draws one triangle over its target clears it: a clear reads nothing back on
+    // GPUs that keep targets in tiles.
+    let cleared = |target| Draws::Color {
+        target,
+        depth: None,
+        clear: true,
+    };
+    if shape.shadow {
+        graph.add_pass(pass(Pass::Shadow, Draws::Depth(shadow_map), [None, None]));
+    }
+    // The sky pass draws every pixel that no surface covers. Without a shadow pass, the scene pass
+    // still binds the shadow map, which its shader then does not read.
+    graph.add_pass(pass(
+        Pass::Scene,
+        Draws::Color {
+            target: hdr,
+            depth: Some(depth),
+            clear: true,
+        },
+        [Some(shadow_map.into()), None],
+    ));
+    // Over the scene, keeping its light and its depths: the sky is drawn only where the depth
+    // target still holds the farthest depth, where no surface was drawn.
+    graph.add_pass(pass(
+        Pass::Sky,
+        Draws::Color {
+            target: hdr,
+            depth: Some(depth),
+            clear: false,
+        },
+        [None, None],
+    ));
+    let levels = bloom_levels_of(shape);
+    let level_shift = |index: usize| u32::try_from(index + 1).expect("a few levels");
+    let bloom_down: Vec<ColorId> = (0..levels)
+        .map(|index| {
+            graph.transient_color(
+                format!("bloom down {index}"),
+                HDR_FORMAT,
+                level_shift(index),
+            )
+        })
+        .collect();
+    let bloom_up: Vec<ColorId> = (0..levels.saturating_sub(1))
+        .map(|index| {
+            graph.transient_color(format!("bloom up {index}"), HDR_FORMAT, level_shift(index))
+        })
+        .collect();
+    for (index, &level) in bloom_down.iter().enumerate() {
+        let above = if index == 0 {
+            hdr
+        } else {
+            bloom_down[index - 1]
+        };
+        graph.add_pass(pass(
+            Pass::BloomDown(index),
+            cleared(level),
+            [Some(above.into()), None],
+        ));
+    }
+    for (index, &average) in bloom_up.iter().enumerate().rev() {
+        let coarser = bloom_up.get(index + 1).unwrap_or(&bloom_down[index + 1]);
+        graph.add_pass(pass(
+            Pass::BloomUp(index),
+            cleared(average),
+            [Some((*coarser).into()), Some(bloom_down[index].into())],
+        ));
+    }
+    // The tone-mapping pass clears rather than keeps the output: its triangle covers every pixel,
+    // and a clear does not read what the window's image held before.
+    let blurred = bloom_up.first().or(bloom_down.first()).copied();
+    graph.add_pass(pass(
+        Pass::ToneMapping,
+        cleared(output),
+        [Some(hdr.into()), blurred.map(Into::into)],
+    ));
+    graph
+}
+
+/// How many levels the bloom's chain has in a frame of `shape`: none without the bloom.
+fn bloom_levels_of(shape: Shape) -> usize {
+    if shape.bloom {
+        bloom_levels(shape.width, shape.height)
+    } else {
+        0
     }
 }
 
@@ -1459,6 +1493,13 @@ mod tests {
         assert_eq!(shader_constant("GROUND_HAZE") as f32, GROUND_HAZE);
     }
 
+    /// The sizes of the bloom's levels, as the frame's graph creates them.
+    fn bloom_sizes(width: u32, height: u32) -> Vec<(u32, u32)> {
+        (1..=bloom_levels(width, height) as u32)
+            .map(|index| (scaled_side(width, index), scaled_side(height, index)))
+            .collect()
+    }
+
     #[test]
     fn the_bloom_s_levels_halve_down_to_a_side_of_8_texels() {
         assert_eq!(bloom_sizes(1, 1), []);
@@ -1599,5 +1640,91 @@ mod tests {
                 assert!(normal_matrix(transform).is_finite(), "{transform}");
             }
         }
+    }
+
+    #[test]
+    fn every_shape_of_the_frame_runs_its_passes_in_the_order_they_draw_and_read() {
+        for (width, height) in [(1920, 1080), (1280, 720), (15, 15), (14, 14), (1, 1)] {
+            for shadow in [false, true] {
+                for bloom in [false, true] {
+                    let shape = Shape {
+                        width,
+                        height,
+                        shadow,
+                        bloom: bloom && bloom_levels(width, height) > 0,
+                    };
+                    let mut graph = declare_frame(shape);
+                    if let Err(error) = graph.compile() {
+                        panic!("{shape:?}: {error}");
+                    }
+                    let levels = if shape.bloom {
+                        bloom_levels(width, height)
+                    } else {
+                        0
+                    };
+                    let mut expected = Vec::new();
+                    if shadow {
+                        expected.push(Pass::Shadow);
+                    }
+                    expected.extend([Pass::Scene, Pass::Sky]);
+                    expected.extend((0..levels).map(Pass::BloomDown));
+                    expected.extend((0..levels.saturating_sub(1)).rev().map(Pass::BloomUp));
+                    expected.push(Pass::ToneMapping);
+                    assert_eq!(graph.passes().collect::<Vec<_>>(), expected, "{shape:?}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn each_pass_s_gpu_time_goes_to_its_field_and_the_bloom_s_are_summed() {
+        let millis = |k: u64| Duration::from_millis(k);
+        let passes = [
+            Pass::Shadow,
+            Pass::Scene,
+            Pass::Sky,
+            Pass::BloomDown(0),
+            Pass::BloomDown(1),
+            Pass::BloomUp(0),
+            Pass::ToneMapping,
+        ];
+        let mut stats = RenderStats::default();
+        fold_gpu_times(
+            passes.into_iter(),
+            |k| Some(millis(k as u64 + 1)),
+            &mut stats,
+        );
+        assert_eq!(
+            (
+                stats.shadow_gpu_time,
+                stats.scene_gpu_time,
+                stats.sky_gpu_time,
+                stats.bloom_gpu_time,
+                stats.tone_mapping_gpu_time
+            ),
+            (
+                Some(millis(1)),
+                Some(millis(2)),
+                Some(millis(3)),
+                Some(millis(4 + 5 + 6)),
+                Some(millis(7))
+            )
+        );
+        // A bloom pass without a time leaves the sum unknown, and a frame without the bloom's
+        // passes has none.
+        let mut stats = RenderStats::default();
+        fold_gpu_times(
+            passes.into_iter(),
+            |k| (k != 4).then(|| millis(1)),
+            &mut stats,
+        );
+        assert_eq!(stats.bloom_gpu_time, None);
+        let mut stats = RenderStats::default();
+        fold_gpu_times(
+            [Pass::Scene, Pass::Sky, Pass::ToneMapping].into_iter(),
+            |_| Some(millis(1)),
+            &mut stats,
+        );
+        assert_eq!((stats.bloom_gpu_time, stats.shadow_gpu_time), (None, None));
     }
 }

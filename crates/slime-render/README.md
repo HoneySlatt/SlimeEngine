@@ -35,6 +35,11 @@ does.
   camera's matrices, the values the shaders read (per frame, per material, per instance) and
   their layout, the high-dynamic-range and depth targets, and the buffer of the instances'
   values.
+- Orders and records its frame's passes with a render graph (`src/graph.rs`, private;
+  `docs/adr/0041-render-graph.md`): each pass declares the targets it draws into and the ones it
+  samples, the graph orders the passes by them, creates the targets that live for one frame at the
+  output's size or a fraction of it, and records the passes in order, four to a submission. The
+  graph is the renderer's own: games that draw with `slime-gfx` order their passes themselves.
 - Is built on `slime-gfx`'s engine-owned types only: it does not use wgpu
   (`docs/adr/0027-the-render-crate.md`).
 - Draws what it is given: a flat list of instances that the application builds for each frame.
@@ -168,9 +173,10 @@ fn main() -> Result<(), RenderError> {
   calls and triangles, the shadow pass's draw calls (`shadow_draw_calls`), the CPU time of the call,
   and the GPU time of each pass (`shadow_gpu_time`, `scene_gpu_time`, `sky_gpu_time`,
   `tone_mapping_gpu_time`, and `bloom_gpu_time` for the bloom's passes together), measured with a
-  `slime_gfx::GpuTimer` per pass on adapters that can time their work and read back a few frames
-  later (`None` otherwise, and until the first time comes back); they can come from different
-  frames.
+  `slime_gfx::GpuTimer` per submission of four passes on adapters that can time their work and
+  read back a few frames later (`None` otherwise, until the first time comes back, and for two or
+  three frames after the output's size changes or the shadow pass or the bloom starts or stops);
+  times from different submissions can come from consecutive frames.
 - `Camera`: an eye, a target, an up direction, a vertical field of view in radians, and the near
   and far distances; `view`, `projection(aspect)` and `view_projection(aspect)` give its matrices.
 - `Light`: one of the punctual lights of glTF's `KHR_lights_punctual`, each with a linear color and
