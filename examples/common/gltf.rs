@@ -74,7 +74,8 @@ use gltf::accessor::{DataType, Dimensions};
 use gltf::khr_lights_punctual::Kind;
 use gltf::texture::{MagFilter, MinFilter, WrappingMode};
 use slime_gfx::{
-    AddressMode, Filter, GfxError, Gpu, Sampler, SamplerDescriptor, Texture, TextureFormat,
+    AddressMode, Filter, GfxError, Gpu, LinearColor, Sampler, SamplerDescriptor, Texture,
+    TextureFormat,
 };
 use slime_render::glam::{Mat4, Vec2, Vec3};
 use slime_render::{
@@ -394,7 +395,10 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
                 gpu,
                 &material_label(&material),
                 &MaterialData {
-                    base_color: pbr.base_color_factor(),
+                    base_color: {
+                        let [r, g, b, a] = pbr.base_color_factor();
+                        LinearColor::rgba(r, g, b, a)
+                    },
                     base_color_texture,
                     metallic: pbr.metallic_factor(),
                     roughness: pbr.roughness_factor(),
@@ -407,7 +411,10 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
                     occlusion_strength: material
                         .occlusion_texture()
                         .map_or(1.0, |occlusion| occlusion.strength()),
-                    emissive: material.emissive_factor(),
+                    emissive: {
+                        let [r, g, b] = material.emissive_factor();
+                        LinearColor::rgb(r, g, b)
+                    },
                     emissive_strength: material.emissive_strength().unwrap_or(1.0),
                     emissive_texture,
                     alpha_mode,
@@ -754,7 +761,7 @@ fn read_light(
                     .to_owned(),
             )
         })?;
-    let color = Vec3::from(color);
+    let color = LinearColor::rgb(color[0], color[1], color[2]);
     Ok(match light.kind() {
         // A directional light has no range: glTF allows one on point and spot lights only.
         Kind::Directional => Light::Directional(DirectionalLight {
@@ -1170,7 +1177,7 @@ mod tests {
         assert!(close(sun.direction, Vec3::NEG_X), "{sun:?}");
         assert_eq!(
             (sun.color, sun.illuminance),
-            (Vec3::new(1.0, 0.5, 0.25), 3.0)
+            (LinearColor::rgb(1.0, 0.5, 0.25), 3.0)
         );
         let Light::Point(bulb) = read[1] else {
             panic!("{:?}", read[1])
@@ -1179,7 +1186,7 @@ mod tests {
             bulb,
             PointLight {
                 position: Vec3::new(1.0, 2.0, 3.0),
-                color: Vec3::ONE,
+                color: LinearColor::WHITE,
                 intensity: 2.0,
                 range: Some(5.0),
             }

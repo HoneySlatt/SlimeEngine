@@ -5,7 +5,7 @@
 
 use slime_gfx::{
     AddressMode, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource,
-    BindingType, Color, CullMode, Filter, FragmentState, Gpu, Image, RenderPassDescriptor,
+    BindingType, CullMode, Filter, FragmentState, Gpu, Image, LinearColor, RenderPassDescriptor,
     RenderPipeline, RenderPipelineDescriptor, RenderTarget, Sampler, SamplerDescriptor,
     ShaderStages, Texture, TextureFormat, VertexAttribute, VertexFormat, VertexLayout,
 };
@@ -35,12 +35,6 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 ";
 
 const SIZE: u32 = 8;
-const BLACK: Color = Color {
-    r: 0.0,
-    g: 0.0,
-    b: 0.0,
-    a: 1.0,
-};
 const RED: [u8; 4] = [255, 0, 0, 255];
 const GREEN: [u8; 4] = [0, 255, 0, 255];
 const BLUE: [u8; 4] = [0, 0, 255, 255];
@@ -181,7 +175,7 @@ impl Setup {
             .expect("the GPU has memory for it");
         let pass = RenderPassDescriptor {
             target: &self.target,
-            clear: Some(BLACK),
+            clear: Some(LinearColor::BLACK),
             depth: None,
             timer: None,
         };

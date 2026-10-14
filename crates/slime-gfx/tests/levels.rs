@@ -5,8 +5,8 @@
 //! adapter the machine offers, like `device.rs`.
 
 use slime_gfx::{
-    BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, Color, CullMode, Filter,
-    FloatImage, FragmentState, Gpu, RenderPassDescriptor, RenderPipelineDescriptor,
+    BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, CullMode, Filter,
+    FloatImage, FragmentState, Gpu, LinearColor, RenderPassDescriptor, RenderPipelineDescriptor,
     SamplerDescriptor, ShaderStages, Texture, TextureFormat, f32_to_f16,
 };
 
@@ -141,12 +141,7 @@ fn sample(
         .expect("the GPU has memory for it");
     let pass = RenderPassDescriptor {
         target: &target,
-        clear: Some(Color {
-            r: 0.0,
-            g: 0.0,
-            b: 0.0,
-            a: 0.0,
-        }),
+        clear: Some(LinearColor::rgba(0.0, 0.0, 0.0, 0.0)),
         depth: None,
         timer: None,
     };

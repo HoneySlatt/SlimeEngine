@@ -21,7 +21,7 @@ mod tone_curve;
 
 use std::f64::consts::PI;
 
-use slime_gfx::{FloatImage, Gpu, RenderTarget, TextureFormat};
+use slime_gfx::{FloatImage, Gpu, LinearColor, RenderTarget, TextureFormat};
 use slime_render::glam::{DVec3, Mat4, Vec3};
 use slime_render::{
     Camera, DirectionalLight, Environment, Instance, Material, MaterialData, Mesh, MeshData,
@@ -49,9 +49,9 @@ const LOBE_TOLERANCE: f32 = 6e-3;
 /// A sky of three distinct colours, the zenith's blue, the horizon's white, the ground's brown,
 /// within the linear part of the tone curve once exposed at 1.
 const SKY: Sky = Sky {
-    zenith: Vec3::new(0.1, 0.2, 0.6),
-    horizon: Vec3::new(0.6, 0.6, 0.6),
-    ground: Vec3::new(0.4, 0.25, 0.1),
+    zenith: LinearColor::rgb(0.1, 0.2, 0.6),
+    horizon: LinearColor::rgb(0.6, 0.6, 0.6),
+    ground: LinearColor::rgb(0.4, 0.25, 0.1),
     sun: None,
 };
 
@@ -59,17 +59,22 @@ const SKY: Sky = Sky {
 const SUNNY_SKY: Sky = Sky {
     sun: Some(DirectionalLight {
         direction: Vec3::new(0.0, -0.642_787_6, -0.766_044_4),
-        color: Vec3::ONE,
+        color: LinearColor::WHITE,
         illuminance: 2.0,
         casts_shadows: true,
     }),
     ..SKY
 };
 
+/// The red, green and blue of `color`, its alpha dropped.
+fn rgb(color: LinearColor) -> DVec3 {
+    DVec3::new(color.r.into(), color.g.into(), color.b.into())
+}
+
 /// The radiance of `sky` along the unit vector `d`, computed here from its definition (`Sky`): the
 /// CIE clear sky's gradation above the horizon, the haze below it, and the sun's glow.
 fn radiance(sky: &Sky, d: DVec3) -> DVec3 {
-    let [zenith, horizon, ground] = [sky.zenith, sky.horizon, sky.ground].map(Vec3::as_dvec3);
+    let [zenith, horizon, ground] = [sky.zenith, sky.horizon, sky.ground].map(rgb);
     let gradation = |y: f64| 1.0 - (-0.32 / y).exp();
     let haze = (d.y / 0.03).exp();
     let gradient = if d.y > 0.0 {
@@ -85,7 +90,7 @@ fn radiance(sky: &Sky, d: DVec3) -> DVec3 {
         let g: f64 = 0.8;
         let phase = (1.0 - g * g) / (4.0 * PI * (1.0 + g * g - 2.0 * g * cosine).powf(1.5));
         let seen = if d.y > 0.0 { 1.0 } else { haze };
-        sun.color.as_dvec3() * f64::from(sun.illuminance) * 0.04 * phase * seen
+        rgb(sun.color) * f64::from(sun.illuminance) * 0.04 * phase * seen
     });
     gradient + glow
 }
@@ -171,7 +176,7 @@ impl Setup {
                 &self.gpu,
                 "sphere",
                 &MaterialData {
-                    base_color: [r, g, b, 1.0],
+                    base_color: LinearColor::rgb(r, g, b),
                     metallic,
                     roughness,
                     ..MaterialData::default()
@@ -347,9 +352,9 @@ fn a_white_sphere_inside_a_uniform_environment_reflects_its_radiance() {
     // computed from it are exact in half precision; a step is 4.9 × 10⁻⁴ there.
     let mut setup = Setup::new();
     let uniform = setup.environment(&Sky {
-        zenith: Vec3::splat(0.5),
-        horizon: Vec3::splat(0.5),
-        ground: Vec3::splat(0.5),
+        zenith: LinearColor::rgb(0.5, 0.5, 0.5),
+        horizon: LinearColor::rgb(0.5, 0.5, 0.5),
+        ground: LinearColor::rgb(0.5, 0.5, 0.5),
         sun: None,
     });
     let camera = camera(Vec3::new(0.3, 0.4, 1.0));
@@ -404,9 +409,9 @@ fn a_coloured_sphere_inside_a_uniform_environment_reflects_what_the_split_sum_pr
     // `environment.rs`), at radiance 1.
     let mut setup = Setup::new();
     let uniform = setup.environment(&Sky {
-        zenith: Vec3::ONE,
-        horizon: Vec3::ONE,
-        ground: Vec3::ONE,
+        zenith: LinearColor::WHITE,
+        horizon: LinearColor::WHITE,
+        ground: LinearColor::WHITE,
         sun: None,
     });
     let camera = camera(Vec3::new(-0.2, 0.5, 1.0));

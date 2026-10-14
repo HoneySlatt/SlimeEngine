@@ -10,7 +10,7 @@ use std::error::Error;
 use std::f32::consts::PI;
 use std::time::{Duration, Instant};
 
-use slime_gfx::{Gpu, RenderTarget, TextureFormat};
+use slime_gfx::{Gpu, LinearColor, RenderTarget, TextureFormat};
 use slime_render::glam::Vec3;
 use slime_render::{
     Camera, DirectionalLight, Environment, Light, RenderError, RenderStats, Renderer, Scene, Sky,
@@ -41,9 +41,9 @@ pub const BLOOM: f32 = 0.04;
 /// (0.239, 0.302, 0.383) and (0.097, 0.093, 0.085). Without its sun, which [`SampleScene`] gives
 /// it from the file's lights.
 pub const SKY: Sky = Sky {
-    zenith: Vec3::new(1700.0, 3900.0, 10_000.0),
-    horizon: Vec3::new(7600.0, 9600.0, 12_200.0),
-    ground: Vec3::new(3100.0, 2950.0, 2700.0),
+    zenith: LinearColor::rgb(1700.0, 3900.0, 10_000.0),
+    horizon: LinearColor::rgb(7600.0, 9600.0, 12_200.0),
+    ground: LinearColor::rgb(3100.0, 2950.0, 2700.0),
     sun: None,
 };
 
@@ -51,7 +51,7 @@ pub const SKY: Sky = Sky {
 /// same light.
 const SUN: DirectionalLight = DirectionalLight {
     direction: Vec3::new(-0.5, -1.0, -0.6),
-    color: Vec3::new(1.0, 0.98, 0.9),
+    color: LinearColor::rgb(1.0, 0.98, 0.9),
     illuminance: SUN_ILLUMINANCE,
     casts_shadows: true,
 };

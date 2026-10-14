@@ -2,18 +2,13 @@
 //! shader, its vertices and the commands that draw it.
 
 use slime_gfx::{
-    Color, CullMode, FragmentState, GfxError, Gpu, RenderPass, RenderPipeline,
+    CullMode, FragmentState, GfxError, Gpu, LinearColor, RenderPass, RenderPipeline,
     RenderPipelineDescriptor, TextureFormat, VertexAttribute, VertexBuffer, VertexFormat,
     VertexLayout,
 };
 
 /// The color behind the triangle.
-pub const BACKGROUND: Color = Color {
-    r: 0.02,
-    g: 0.06,
-    b: 0.04,
-    a: 1.0,
-};
+pub const BACKGROUND: LinearColor = LinearColor::rgb(0.02, 0.06, 0.04);
 
 /// For each corner: position in clip space (x, y), then color (red, green, blue).
 const VERTICES: [[f32; 5]; 3] = [

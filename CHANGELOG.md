@@ -98,6 +98,13 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- One color type, `slime_gfx::LinearColor`, for every color of the API
+  ([ADR-0045](docs/adr/0045-one-linear-color-type.md)): red, green, blue and alpha in linear light,
+  as `f32`s. It replaces `slime_gfx::Color` for clears, the arrays of `MaterialData::base_color`
+  and `MaterialData::emissive`, and the `Vec3` of the lights' `color` and of `Sky::zenith`,
+  `Sky::horizon` and `Sky::ground`. `LinearColor::from_srgb8` decodes the sRGB-encoded bytes of a
+  color picker or a web color, which were easy to pass as linear values by mistake. Images do not
+  change.
 - Every method of `Gpu` that creates a GPU object returns a `Result`
   ([ADR-0044](docs/adr/0044-running-out-of-gpu-memory.md)): the new `GfxError::OutOfMemory` when
   the GPU's memory cannot hold it, where the engine panicked, so that a game can free memory or ask

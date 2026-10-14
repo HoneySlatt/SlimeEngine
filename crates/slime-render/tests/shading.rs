@@ -23,8 +23,8 @@ mod tone_curve;
 use std::f32::consts::PI;
 
 use slime_gfx::{
-    AddressMode, Filter, FloatImage, Gpu, RenderTarget, Sampler, SamplerDescriptor, Texture,
-    TextureFormat,
+    AddressMode, Filter, FloatImage, Gpu, LinearColor, RenderTarget, Sampler, SamplerDescriptor,
+    Texture, TextureFormat,
 };
 use slime_render::glam::{DVec3, Mat4, Quat, Vec3, Vec4};
 use slime_render::{
@@ -149,7 +149,7 @@ impl Setup {
                 transform,
             })
             .collect();
-        let uniform = Vec3::splat(sky);
+        let uniform = LinearColor::rgb(sky, sky, sky);
         let environment = (sky > 0.0).then(|| {
             self.renderer
                 .create_environment(
@@ -199,7 +199,7 @@ type Lighting = (DirectionalLight, f32);
 fn lighting(to_light: Vec3, illuminance: f32, sky: f32) -> Lighting {
     let light = DirectionalLight {
         direction: -to_light,
-        color: Vec3::ONE,
+        color: LinearColor::WHITE,
         illuminance,
         casts_shadows: true,
     };
@@ -386,7 +386,7 @@ fn a_metal_reflects_in_its_base_color() {
         (0.5, [0.384, 0.198, 0.105]),
     ] {
         let material = setup.material(&MaterialData {
-            base_color: [1.0, 0.5, 0.25, 1.0],
+            base_color: LinearColor::rgb(1.0, 0.5, 0.25),
             metallic,
             roughness: 0.5,
             ..MaterialData::default()
@@ -538,7 +538,7 @@ fn a_masked_material_discards_fragments_below_its_cutoff() {
         (0.49, AlphaMode::Opaque, near_shown, "opaque"),
     ] {
         let near = setup.material(&MaterialData {
-            base_color: [0.0, 0.0, 0.0, alpha],
+            base_color: LinearColor::rgba(0.0, 0.0, 0.0, alpha),
             alpha_mode,
             ..MaterialData::default()
         });
@@ -556,7 +556,7 @@ fn a_masked_material_discards_fragments_below_its_cutoff() {
         &[[255, 255, 255, 0], [255, 255, 255, 255]],
     );
     let near = setup.material(&MaterialData {
-        base_color: [0.0, 0.0, 0.0, 1.0],
+        base_color: LinearColor::BLACK,
         base_color_texture: Some(setup.sampled(&texture)),
         alpha_mode: AlphaMode::Mask { cutoff: 0.5 },
         ..MaterialData::default()
@@ -731,7 +731,7 @@ fn occlusion_darkens_the_light_of_the_environment_only() {
     let none = setup.texture(TextureFormat::Rgba8Unorm, 1, &[[0, 0, 0, 255]]);
     let material = setup.material(&MaterialData {
         occlusion_texture: Some(setup.sampled(&none)),
-        emissive: [0.1; 3],
+        emissive: LinearColor::rgb(0.1, 0.1, 0.1),
         ..MaterialData::default()
     });
     let image = setup.draw(
@@ -751,7 +751,7 @@ fn occlusion_darkens_the_light_of_the_environment_only() {
 fn emitted_light_is_added_whatever_lights_the_surface() {
     let mut setup = Setup::new();
     let dark = lighting(Vec3::Z, 0.0, 0.0);
-    let black = [0.0, 0.0, 0.0, 1.0];
+    let black = LinearColor::BLACK;
     let draw = |setup: &mut Setup, data: &MaterialData<'_>| {
         let material = setup.material(data);
         setup.draw(camera(3.0), dark, &[(&material, Mat4::IDENTITY)])
@@ -760,7 +760,7 @@ fn emitted_light_is_added_whatever_lights_the_surface() {
         &mut setup,
         &MaterialData {
             base_color: black,
-            emissive: [1.0, 0.5, 0.25],
+            emissive: LinearColor::rgb(1.0, 0.5, 0.25),
             emissive_strength: 0.4,
             ..MaterialData::default()
         },
@@ -776,7 +776,7 @@ fn emitted_light_is_added_whatever_lights_the_surface() {
         &mut setup,
         &MaterialData {
             base_color: black,
-            emissive: [0.25, 0.125, 0.0625],
+            emissive: LinearColor::rgb(0.25, 0.125, 0.0625),
             emissive_strength: 4.0,
             ..MaterialData::default()
         },
@@ -785,7 +785,7 @@ fn emitted_light_is_added_whatever_lights_the_surface() {
     let texture = setup.texture(TextureFormat::Rgba8UnormSrgb, 1, &[[255, 255, 0, 255]]);
     let material = setup.material(&MaterialData {
         base_color: black,
-        emissive: [1.0, 0.5, 0.25],
+        emissive: LinearColor::rgb(1.0, 0.5, 0.25),
         emissive_strength: 0.4,
         emissive_texture: Some(setup.sampled(&texture)),
         ..MaterialData::default()
@@ -798,8 +798,8 @@ fn emitted_light_is_added_whatever_lights_the_surface() {
 fn light_beyond_the_range_of_the_hdr_target_is_stored_as_its_largest_value() {
     let mut setup = Setup::new();
     let material = setup.material(&MaterialData {
-        base_color: [0.0, 0.0, 0.0, 1.0],
-        emissive: [1.0, 0.0, 0.0],
+        base_color: LinearColor::BLACK,
+        emissive: LinearColor::rgb(1.0, 0.0, 0.0),
         emissive_strength: 1e7,
         ..MaterialData::default()
     });

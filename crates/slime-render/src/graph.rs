@@ -11,7 +11,7 @@ use std::fmt;
 use std::time::Duration;
 
 use slime_gfx::{
-    Color, DepthPassDescriptor, DepthTarget, GfxError, Gpu, GpuTimer, RenderPass,
+    DepthPassDescriptor, DepthTarget, GfxError, Gpu, GpuTimer, LinearColor, RenderPass,
     RenderPassDescriptor, RenderTarget, TextureFormat,
 };
 
@@ -24,14 +24,6 @@ use crate::renderer::Pass;
 /// 8 ms in the kernel in one frame of ten, where submissions of up to six passes never did
 /// (ADR-0041).
 const PASSES_PER_SUBMISSION: usize = 4;
-/// What a pass that clears its render target clears it to.
-const BLACK: Color = Color {
-    r: 0.0,
-    g: 0.0,
-    b: 0.0,
-    a: 1.0,
-};
-
 /// A target of a graph, render or depth target: what a pass samples.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct TargetId(usize);
@@ -577,7 +569,7 @@ impl Graph {
                         } => commands.render(
                             &RenderPassDescriptor {
                                 target: color(target),
-                                clear: clear.then_some(BLACK),
+                                clear: clear.then_some(LinearColor::BLACK),
                                 depth: depth_target.map(depth),
                                 timer,
                             },

@@ -25,7 +25,7 @@ mod tone_curve;
 
 use std::f32::consts::PI;
 
-use slime_gfx::{FloatImage, Gpu, RenderTarget, TextureFormat};
+use slime_gfx::{FloatImage, Gpu, LinearColor, RenderTarget, TextureFormat};
 use slime_render::glam::{DVec3, EulerRot, Mat4, Vec3};
 use slime_render::{
     AlphaMode, Camera, DirectionalLight, Environment, Instance, Light, Material, MaterialData,
@@ -88,7 +88,7 @@ impl Setup {
         let white = renderer
             .create_material(&gpu, "white", &MaterialData::default())
             .expect("the GPU has memory for it");
-        let uniform = Vec3::splat(SKY as f32);
+        let uniform = LinearColor::rgb(SKY as f32, SKY as f32, SKY as f32);
         let sky = renderer
             .create_environment(
                 &gpu,
@@ -182,7 +182,7 @@ fn sun(degrees: f64, reflected: f64) -> (DirectionalLight, DVec3) {
     let to_light = DVec3::new(-angle.sin(), 0.0, angle.cos());
     let light = DirectionalLight {
         direction: (-to_light).as_vec3(),
-        color: Vec3::ONE,
+        color: LinearColor::WHITE,
         illuminance: (reflected * std::f64::consts::PI / angle.cos()) as f32,
         casts_shadows: true,
     };

@@ -31,7 +31,7 @@ mod linux {
 
     use slime_app::time::FrameTime;
     use slime_app::{App, AppConfig, AppError, Context, RunError};
-    use slime_gfx::{Color, RenderPassDescriptor, RenderTarget};
+    use slime_gfx::{LinearColor, RenderPassDescriptor, RenderTarget};
     use slime_platform::{Event, PlatformError, WindowConfig};
 
     const SCENARIO_ENV: &str = "SLIME_APP_TEST_SCENARIO";
@@ -138,12 +138,7 @@ mod linux {
             // In `draws-nothing`, the image is presented without anything drawn into it, as with
             // the default `render`.
             if self.scenario != "draws-nothing" {
-                let grey = Color {
-                    r: 0.2,
-                    g: 0.2,
-                    b: 0.2,
-                    a: 1.0,
-                };
+                let grey = LinearColor::rgb(0.2, 0.2, 0.2);
                 let pass = RenderPassDescriptor {
                     target,
                     clear: Some(grey),

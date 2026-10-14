@@ -3,8 +3,7 @@
 //! cause, is checked in `slime-gfx`, whose tests can make the memory scarce. Runs on whatever
 //! adapter the machine offers.
 
-use slime_gfx::{GfxError, Gpu, RenderTarget, TextureFormat};
-use slime_render::glam::Vec3;
+use slime_gfx::{GfxError, Gpu, LinearColor, RenderTarget, TextureFormat};
 use slime_render::{Camera, MaterialData, RenderError, Renderer, Scene, Sky};
 
 const FORMAT: TextureFormat = TextureFormat::Rgba8UnormSrgb;
@@ -48,9 +47,9 @@ fn creations_on_a_lost_device_return_the_loss() {
     let material = renderer.create_material(&gpu, "lost", &MaterialData::default());
     assert!(is_lost(&material), "{material:?}");
     let grey = Sky {
-        zenith: Vec3::splat(1000.0),
-        horizon: Vec3::splat(1000.0),
-        ground: Vec3::splat(1000.0),
+        zenith: LinearColor::rgb(1000.0, 1000.0, 1000.0),
+        horizon: LinearColor::rgb(1000.0, 1000.0, 1000.0),
+        ground: LinearColor::rgb(1000.0, 1000.0, 1000.0),
         sun: None,
     };
     let environment = renderer.create_environment(&gpu, &grey);

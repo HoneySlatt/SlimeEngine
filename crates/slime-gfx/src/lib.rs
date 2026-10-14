@@ -7,6 +7,7 @@
 pub use wgpu;
 
 mod bind_group;
+mod color;
 mod depth_target;
 mod error;
 mod float16;
@@ -28,13 +29,14 @@ pub use bind_group::{
     BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource, BindingType,
     ShaderStages,
 };
+pub use color::LinearColor;
 pub use depth_target::DepthTarget;
 pub use error::GfxError;
 pub use float16::f32_to_f16;
 pub use gpu::{Gpu, MEMORY_BUDGET_ENV_VAR};
 pub use image::{FloatImage, Image};
 pub use index_buffer::IndexBuffer;
-pub use pass::{Color, Commands, DepthPassDescriptor, RenderPass, RenderPassDescriptor};
+pub use pass::{Commands, DepthPassDescriptor, RenderPass, RenderPassDescriptor};
 pub use pipeline::{
     CullMode, DepthBias, DepthCompare, DepthState, FragmentState, RenderPipeline,
     RenderPipelineDescriptor, VertexAttribute, VertexFormat, VertexLayout,

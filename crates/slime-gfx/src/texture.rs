@@ -350,7 +350,7 @@ fn footprints(size: u32) -> Vec<Vec<(u32, f32)>> {
 }
 
 /// The linear value of each sRGB-encoded byte.
-static SRGB_TO_LINEAR: LazyLock<[f32; 256]> = LazyLock::new(|| {
+pub(crate) static SRGB_TO_LINEAR: LazyLock<[f32; 256]> = LazyLock::new(|| {
     std::array::from_fn(|byte| {
         let encoded = byte as f32 / 255.0;
         if encoded <= 0.04045 {

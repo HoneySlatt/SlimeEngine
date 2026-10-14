@@ -6,6 +6,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::bind_group::BindGroup;
+use crate::color::LinearColor;
 use crate::depth_target::DepthTarget;
 use crate::gpu::Gpu;
 use crate::index_buffer::IndexBuffer;
@@ -13,33 +14,6 @@ use crate::pipeline::RenderPipeline;
 use crate::render_target::RenderTarget;
 use crate::timer::{GpuTimer, TimedSubmission};
 use crate::vertex_buffer::VertexBuffer;
-
-/// A color with linear components, not sRGB-encoded. 8-bit targets keep each component between 0
-/// and 1. `Rgba16Float` targets keep a half-precision value next to each component, beyond 0 to 1
-/// included: the driver rounds to the nearest value or toward zero, and a magnitude beyond 65 504
-/// becomes ±65 504 or an infinity.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Color {
-    /// Red.
-    pub r: f64,
-    /// Green.
-    pub g: f64,
-    /// Blue.
-    pub b: f64,
-    /// Alpha (opacity).
-    pub a: f64,
-}
-
-impl Color {
-    fn to_wgpu(self) -> wgpu::Color {
-        wgpu::Color {
-            r: self.r,
-            g: self.g,
-            b: self.b,
-            a: self.a,
-        }
-    }
-}
 
 /// What a render pass draws into ([`Gpu::render`], [`Commands::render`]). A pass without a render
 /// target is described by a [`DepthPassDescriptor`].
@@ -50,7 +24,7 @@ pub struct RenderPassDescriptor<'a> {
     /// `Some(color)` clears the target to that color before drawing, and the depth target, if
     /// there is one, to the farthest depth; `None` keeps what both hold, so that the pass draws
     /// over an earlier one.
-    pub clear: Option<Color>,
+    pub clear: Option<LinearColor>,
     /// The depth target that pipelines with a depth test read and write, or `None` for a pass
     /// without one. It must have the size of `target`. A pass with a depth target takes only
     /// pipelines with a depth test, and a pass without takes only pipelines without

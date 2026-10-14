@@ -8,7 +8,7 @@ mod tone_curve;
 
 use std::f32::consts::PI;
 
-use slime_gfx::{AddressMode, Filter, Gpu, Image, SamplerDescriptor, TextureFormat};
+use slime_gfx::{AddressMode, Filter, Gpu, Image, LinearColor, SamplerDescriptor, TextureFormat};
 use slime_render::glam::{Mat4, Vec3};
 use slime_render::{
     Camera, DirectionalLight, Instance, Light, MaterialData, MeshData, Renderer, SampledTexture,
@@ -94,7 +94,7 @@ fn the_base_color_texture_is_read_at_the_texture_coordinates_and_tints_the_base_
             &gpu,
             "textured and dimmed",
             &MaterialData {
-                base_color: [0.5, 0.5, 0.5, 1.0],
+                base_color: LinearColor::rgb(0.5, 0.5, 0.5),
                 base_color_texture: Some(sampled),
                 ..MaterialData::default()
             },
@@ -104,7 +104,7 @@ fn the_base_color_texture_is_read_at_the_texture_coordinates_and_tints_the_base_
     // reflects 0.96 of its color, diffused, and 0.01, reflected by its specular layer (ADR-0035).
     let light = Light::Directional(DirectionalLight {
         direction: Vec3::new(0.0, 0.0, -1.0),
-        color: Vec3::ONE,
+        color: LinearColor::WHITE,
         illuminance: PI,
         casts_shadows: true,
     });
@@ -119,7 +119,7 @@ fn the_base_color_texture_is_read_at_the_texture_coordinates_and_tints_the_base_
             &gpu,
             "textured and translucent",
             &MaterialData {
-                base_color: [1.0, 1.0, 1.0, 0.5],
+                base_color: LinearColor::rgba(1.0, 1.0, 1.0, 0.5),
                 base_color_texture: Some(sampled),
                 ..MaterialData::default()
             },

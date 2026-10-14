@@ -25,7 +25,7 @@ mod tone_curve;
 
 use std::f32::consts::PI;
 
-use slime_gfx::{FloatImage, Gpu, RenderTarget, TextureFormat};
+use slime_gfx::{FloatImage, Gpu, LinearColor, RenderTarget, TextureFormat};
 use slime_render::glam::{DVec3, Mat4, Vec3};
 use slime_render::{
     Camera, DirectionalLight, Instance, Light, MAX_LIGHTS, Material, MaterialData, Mesh, MeshData,
@@ -145,7 +145,9 @@ fn camera() -> Camera {
 /// clamp(1 − (d / range)⁴, 0, 1), and its cone, (clamp((cos − cos outer) / (cos inner − cos
 /// outer), 0, 1))².
 fn arriving(light: &Light, at: DVec3) -> ([f64; 3], DVec3) {
-    let per_channel = |color: Vec3, amount: f64| color.as_dvec3().to_array().map(|c| c * amount);
+    let per_channel = |color: LinearColor, amount: f64| {
+        [color.r, color.g, color.b].map(|c| f64::from(c) * amount)
+    };
     match *light {
         Light::Directional(light) => (
             per_channel(light.color, f64::from(light.illuminance)),
@@ -303,21 +305,22 @@ fn a_spot_light_is_full_inside_its_inner_cone_dark_outside_its_outer_cone_and_sm
 /// The most lights a scene holds, of every kind, each of which adds at least 0.01 to one channel
 /// at the center: one missing, or read from the wrong place, shows.
 fn many_lights() -> Vec<Light> {
-    let red = Vec3::X;
-    let green = Vec3::Y;
-    let blue = Vec3::Z;
-    let spot = |position: Vec3, degrees: f32, color: Vec3, intensity: f32, range: Option<f32>| {
-        let angle = degrees.to_radians();
-        Light::Spot(SpotLight {
-            position,
-            direction: Vec3::new(angle.sin(), 0.0, -angle.cos()),
-            color,
-            intensity,
-            range,
-            inner_cone_angle: 0.1,
-            outer_cone_angle: 0.4,
-        })
-    };
+    let red = LinearColor::rgb(1.0, 0.0, 0.0);
+    let green = LinearColor::rgb(0.0, 1.0, 0.0);
+    let blue = LinearColor::rgb(0.0, 0.0, 1.0);
+    let spot =
+        |position: Vec3, degrees: f32, color: LinearColor, intensity: f32, range: Option<f32>| {
+            let angle = degrees.to_radians();
+            Light::Spot(SpotLight {
+                position,
+                direction: Vec3::new(angle.sin(), 0.0, -angle.cos()),
+                color,
+                intensity,
+                range,
+                inner_cone_angle: 0.1,
+                outer_cone_angle: 0.4,
+            })
+        };
     let lights = vec![
         Light::Directional(DirectionalLight {
             direction: Vec3::NEG_Z,
@@ -340,7 +343,7 @@ fn many_lights() -> Vec<Light> {
         }),
         Light::Point(PointLight {
             position: Vec3::new(0.0, 0.0, 1.0),
-            color: Vec3::ONE,
+            color: LinearColor::WHITE,
             intensity: 0.05,
             range: None,
         }),
@@ -364,7 +367,7 @@ fn many_lights() -> Vec<Light> {
         }),
         Light::Point(PointLight {
             position: Vec3::new(0.0, 0.0, 0.5),
-            color: Vec3::new(1.0, 0.5, 0.0),
+            color: LinearColor::rgb(1.0, 0.5, 0.0),
             intensity: 0.01,
             range: None,
         }),
@@ -372,10 +375,16 @@ fn many_lights() -> Vec<Light> {
         spot(Vec3::new(0.0, 0.0, 2.0), 0.0, green, 0.2, Some(3.0)),
         // Between its cones.
         spot(Vec3::new(0.0, 0.0, 1.5), 15.0, blue, 0.3, None),
-        spot(Vec3::new(0.0, 0.0, 1.0), 10.0, Vec3::ONE, 0.06, Some(2.0)),
+        spot(
+            Vec3::new(0.0, 0.0, 1.0),
+            10.0,
+            LinearColor::WHITE,
+            0.06,
+            Some(2.0),
+        ),
         Light::Directional(DirectionalLight {
             direction: Vec3::new(1.0, 0.0, -2.0),
-            color: Vec3::new(0.0, 0.5, 1.0),
+            color: LinearColor::rgb(0.0, 0.5, 1.0),
             illuminance: 0.1,
             casts_shadows: true,
         }),
@@ -504,8 +513,8 @@ fn the_exposure_applies_before_the_high_dynamic_range_target() {
             &setup.gpu,
             "glowing",
             &MaterialData {
-                base_color: [0.0, 0.0, 0.0, 1.0],
-                emissive: [1.0, 0.0, 0.0],
+                base_color: LinearColor::BLACK,
+                emissive: LinearColor::rgb(1.0, 0.0, 0.0),
                 emissive_strength: 1e8,
                 ..MaterialData::default()
             },

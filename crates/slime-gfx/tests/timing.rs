@@ -6,14 +6,7 @@
 
 use std::time::Duration;
 
-use slime_gfx::{Color, DepthPassDescriptor, Gpu, RenderPassDescriptor, TextureFormat};
-
-const BLACK: Color = Color {
-    r: 0.0,
-    g: 0.0,
-    b: 0.0,
-    a: 1.0,
-};
+use slime_gfx::{DepthPassDescriptor, Gpu, LinearColor, RenderPassDescriptor, TextureFormat};
 
 /// Checks that `time` is one that a pass of these tests can take: more than nothing and less than
 /// a second. A timer whose timestamps are written in the wrong order, or not read at all, gives 0;
@@ -57,7 +50,7 @@ fn a_timed_pass_reports_how_long_it_took_when_the_adapter_can_tell() {
     for frame in 0..8 {
         let pass = RenderPassDescriptor {
             target: &target,
-            clear: Some(BLACK),
+            clear: Some(LinearColor::BLACK),
             depth: None,
             timer: Some(&timer),
         };
@@ -94,7 +87,7 @@ fn a_time_comes_back_with_later_frames_without_waiting() {
         .expect("the GPU has memory for it");
     let pass = RenderPassDescriptor {
         target: &target,
-        clear: Some(BLACK),
+        clear: Some(LinearColor::BLACK),
         depth: None,
         timer: Some(&timer),
     };
@@ -158,7 +151,7 @@ fn three_passes_timed_in_one_frame_each_get_their_own_time() {
         for (target, timer) in [(&hdr, &scene), (&output, &tone_mapping)] {
             let pass = RenderPassDescriptor {
                 target,
-                clear: Some(BLACK),
+                clear: Some(LinearColor::BLACK),
                 depth: None,
                 timer: Some(timer),
             };
@@ -217,7 +210,7 @@ fn three_passes_of_one_submission_each_get_their_own_time_from_one_timer() {
             for target in [&hdr, &output] {
                 let pass = RenderPassDescriptor {
                     target,
-                    clear: Some(BLACK),
+                    clear: Some(LinearColor::BLACK),
                     depth: None,
                     timer: Some(&timer),
                 };

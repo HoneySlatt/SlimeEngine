@@ -12,9 +12,9 @@ use std::f32::consts::{PI, TAU};
 use std::sync::{Arc, LazyLock};
 
 use glam::Vec3;
-use slime_gfx::{GfxError, Gpu, Texture, TextureFormat, f32_to_f16};
+use slime_gfx::{GfxError, Gpu, LinearColor, Texture, TextureFormat, f32_to_f16};
 
-use crate::light::DirectionalLight;
+use crate::light::{DirectionalLight, rgb};
 
 /// The width of the faces of the environment's first level, in texels: 0.90° per texel at a face's
 /// centre, 0.45° at its edges.
@@ -79,13 +79,15 @@ const SMALLEST_N_DOT_V: f32 = 1e-4;
 /// [`Scene`]: crate::Scene
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Sky {
-    /// The radiance straight up, in nits.
-    pub zenith: Vec3,
-    /// The radiance at the horizon, in nits, usually brighter and whiter than the zenith's.
-    pub horizon: Vec3,
+    /// The radiance straight up, in nits; alpha is ignored.
+    pub zenith: LinearColor,
+    /// The radiance at the horizon, in nits, usually brighter and whiter than the zenith's; alpha
+    /// is ignored.
+    pub horizon: LinearColor,
     /// The radiance of the ground below the horizon, in nits: for flat ground of albedo a lit by
     /// E lux (the sun's illuminance times the sine of its elevation, plus the sky's), a × E / π.
-    pub ground: Vec3,
+    /// Alpha is ignored.
+    pub ground: LinearColor,
     /// The sun: the direction its light travels in, its color and its illuminance place its glow
     /// and its disc (`casts_shadows` means nothing here). Give the scene the same light, so that
     /// the disc and the glow lie where the light and its shadows come from. `None` for a sky
@@ -101,9 +103,9 @@ impl Sky {
         let gradient = if y > 0.0 {
             let gradation = 1.0 - (-0.32 / y).exp();
             let t = (gradation - GRADATION_AT_ZENITH) / (1.0 - GRADATION_AT_ZENITH);
-            self.zenith.lerp(self.horizon, t)
+            rgb(self.zenith).lerp(rgb(self.horizon), t)
         } else {
-            self.ground.lerp(self.horizon, haze)
+            rgb(self.ground).lerp(rgb(self.horizon), haze)
         };
         let glow = self.sun.map_or(Vec3::ZERO, |sun| {
             let cosine = direction.dot(-sun.direction.normalize());
@@ -111,7 +113,7 @@ impl Sky {
             // Henyey and Greenstein's phase function, whose integral over every direction is 1.
             let phase = (1.0 - g * g) / (2.0 * TAU * (1.0 + g * g - 2.0 * g * cosine).powf(1.5));
             let seen = if y > 0.0 { 1.0 } else { haze };
-            sun.color * (sun.illuminance * GLOW_SHARE * phase * seen)
+            rgb(sun.color) * (sun.illuminance * GLOW_SHARE * phase * seen)
         });
         (gradient + glow).min(Vec3::splat(LARGEST_HALF))
     }
@@ -126,7 +128,7 @@ impl Sky {
             let solid_angle = 4.0 * std::f64::consts::PI * (SUN_ANGULAR_RADIUS / 2.0).sin().powi(2);
             (
                 -sun.direction.normalize(),
-                sun.color * (f64::from(sun.illuminance) / solid_angle) as f32,
+                rgb(sun.color) * (f64::from(sun.illuminance) / solid_angle) as f32,
             )
         })
     }
@@ -223,11 +225,8 @@ fn halves(values: &[f32]) -> Vec<u8> {
 /// If the zenith's, the horizon's or the ground's radiance is negative, not finite, or above
 /// 65 504.
 pub(crate) fn environment_levels(sky: &Sky) -> Vec<Vec<f32>> {
-    for (name, radiance) in [
-        ("zenith", sky.zenith),
-        ("horizon", sky.horizon),
-        ("ground", sky.ground),
-    ] {
+    let [zenith, horizon, ground] = [sky.zenith, sky.horizon, sky.ground].map(rgb);
+    for (name, radiance) in [("zenith", zenith), ("horizon", horizon), ("ground", ground)] {
         assert!(
             radiance.is_finite()
                 && radiance.cmpge(Vec3::ZERO).all()
@@ -235,8 +234,8 @@ pub(crate) fn environment_levels(sky: &Sky) -> Vec<Vec<f32>> {
             "the sky's {name} radiance is {radiance}: each channel must be from 0 to 65 504 nits"
         );
     }
-    if sky.sun.is_none() && sky.zenith == sky.horizon && sky.horizon == sky.ground {
-        let texel = [sky.zenith.x, sky.zenith.y, sky.zenith.z, 1.0];
+    if sky.sun.is_none() && zenith == horizon && horizon == ground {
+        let texel = [zenith.x, zenith.y, zenith.z, 1.0];
         return (0..ENVIRONMENT_LEVELS)
             .map(|level| {
                 let size = (ENVIRONMENT_SIZE >> level) as usize;
@@ -572,12 +571,12 @@ mod tests {
 
     /// The sample's sky (`examples/common/sample_scene.rs`), in nits, with its sun.
     const SAMPLE_SKY: Sky = Sky {
-        zenith: Vec3::new(1700.0, 3900.0, 10_000.0),
-        horizon: Vec3::new(7600.0, 9600.0, 12_200.0),
-        ground: Vec3::new(3100.0, 2950.0, 2700.0),
+        zenith: LinearColor::rgb(1700.0, 3900.0, 10_000.0),
+        horizon: LinearColor::rgb(7600.0, 9600.0, 12_200.0),
+        ground: LinearColor::rgb(3100.0, 2950.0, 2700.0),
         sun: Some(DirectionalLight {
             direction: Vec3::new(-0.5, -1.0, -0.6),
-            color: Vec3::new(1.0, 0.98, 0.9),
+            color: LinearColor::rgb(1.0, 0.98, 0.9),
             illuminance: 100_000.0,
             casts_shadows: true,
         }),
@@ -627,7 +626,7 @@ mod tests {
     }
 
     fn uniform_sky(radiance: f32) -> Sky {
-        let radiance = Vec3::splat(radiance);
+        let radiance = LinearColor::rgb(radiance, radiance, radiance);
         Sky {
             zenith: radiance,
             horizon: radiance,
@@ -645,14 +644,14 @@ mod tests {
     #[test]
     fn the_sky_is_the_zenith_overhead_turning_to_the_horizon_and_the_ground_below() {
         let sky = Sky {
-            zenith: Vec3::new(1.0, 2.0, 3.0),
-            horizon: Vec3::new(17.0, 18.0, 19.0),
-            ground: Vec3::new(5.0, 6.0, 7.0),
+            zenith: LinearColor::rgb(1.0, 2.0, 3.0),
+            horizon: LinearColor::rgb(17.0, 18.0, 19.0),
+            ground: LinearColor::rgb(5.0, 6.0, 7.0),
             sun: None,
         };
-        assert!(sky.radiance(Vec3::Y).abs_diff_eq(sky.zenith, 1e-5));
-        assert_eq!(sky.radiance(Vec3::X), sky.horizon);
-        assert!(sky.radiance(-Vec3::Y).abs_diff_eq(sky.ground, 1e-5));
+        assert!(sky.radiance(Vec3::Y).abs_diff_eq(rgb(sky.zenith), 1e-5));
+        assert_eq!(sky.radiance(Vec3::X), rgb(sky.horizon));
+        assert!(sky.radiance(-Vec3::Y).abs_diff_eq(rgb(sky.ground), 1e-5));
         // The share of the way from the zenith to the horizon, by the CIE gradation, computed by
         // hand: 0.124 at 45°, 0.460 at 20°, 0.782 at 10°, 0.965 at 5°.
         for (elevation, share) in [
@@ -661,7 +660,7 @@ mod tests {
             (10.0, 0.781_90),
             (5.0, 0.964_97),
         ] {
-            let expected = sky.zenith.lerp(sky.horizon, share);
+            let expected = rgb(sky.zenith).lerp(rgb(sky.horizon), share);
             assert!(
                 sky.radiance(at_elevation(elevation))
                     .abs_diff_eq(expected, 1e-4),
@@ -671,7 +670,7 @@ mod tests {
         // Below the horizon, the haze: e^(sin(−1°) / 0.03) = 0.559 of the horizon at 1°, 0.055 at
         // 5°.
         for (elevation, share) in [(-1.0, 0.558_92), (-5.0, 0.054_74)] {
-            let expected = sky.ground.lerp(sky.horizon, share);
+            let expected = rgb(sky.ground).lerp(rgb(sky.horizon), share);
             assert!(
                 sky.radiance(at_elevation(elevation))
                     .abs_diff_eq(expected, 1e-4),
@@ -687,7 +686,7 @@ mod tests {
         let sky = Sky {
             sun: Some(DirectionalLight {
                 direction: -Vec3::Y,
-                color: Vec3::ONE,
+                color: LinearColor::WHITE,
                 illuminance: 1000.0,
                 casts_shadows: true,
             }),
@@ -1044,7 +1043,7 @@ mod tests {
     #[should_panic(expected = "the sky's horizon radiance is")]
     fn a_sky_brighter_than_half_precision_holds_is_refused() {
         let _ = environment_levels(&Sky {
-            horizon: Vec3::new(1.0, 70_000.0, 1.0),
+            horizon: LinearColor::rgb(1.0, 70_000.0, 1.0),
             ..SAMPLE_SKY
         });
     }
@@ -1053,7 +1052,7 @@ mod tests {
     #[should_panic(expected = "the sky's ground radiance is")]
     fn a_negative_or_undefined_sky_is_refused() {
         let _ = environment_levels(&Sky {
-            ground: Vec3::new(1.0, f32::NAN, -1.0),
+            ground: LinearColor::rgb(1.0, f32::NAN, -1.0),
             ..SAMPLE_SKY
         });
     }

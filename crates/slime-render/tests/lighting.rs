@@ -14,7 +14,7 @@ mod tone_curve;
 use std::f32::consts::PI;
 use std::time::Duration;
 
-use slime_gfx::{Gpu, Image, TextureFormat};
+use slime_gfx::{Gpu, Image, LinearColor, TextureFormat};
 use slime_render::glam::{Mat4, Vec3, Vec4};
 use slime_render::{
     Camera, DirectionalLight, Instance, Light, Material, MaterialData, Mesh, MeshData, RenderStats,
@@ -115,7 +115,7 @@ impl Setup {
                 transform,
             })
             .collect();
-        let uniform = Vec3::splat(sky);
+        let uniform = LinearColor::rgb(sky, sky, sky);
         let environment = (sky > 0.0).then(|| {
             self.renderer
                 .create_environment(
@@ -177,7 +177,7 @@ fn fully_lit() -> u8 {
 fn from_the_front() -> DirectionalLight {
     DirectionalLight {
         direction: Vec3::new(0.0, 0.0, -1.0),
-        color: Vec3::ONE,
+        color: LinearColor::WHITE,
         illuminance: PI,
         casts_shadows: true,
     }

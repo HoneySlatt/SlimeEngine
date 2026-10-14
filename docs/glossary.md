@@ -227,6 +227,11 @@ creation method of `slime_gfx::Gpu`. Error messages and GPU capture tools show i
 that GPU tests give the same results on every machine, including machines without a GPU. It is
 the *reference driver* of the image tests.
 
+**Linear color.** A color whose values are proportional to the light they stand for, so that
+light adds and multiplies them as they are: twice the value is twice the light. Displays and
+image files store colors *sRGB-encoded* instead. Every color of the engine's API is linear, a
+`slime_gfx::LinearColor` ([ADR-0045](adr/0045-one-linear-color-type.md)).
+
 **Logical key.** What a key means with the current keyboard layout and modifiers
 (`slime_platform::Key`): on a French AZERTY keyboard, the first letter key of the top row gives
 the logical key `"a"`. Suits shortcuts and text. See also *physical key*.
@@ -406,6 +411,12 @@ steps per frame and dropping the rest.
 
 **Split sum.** Karis's approximation of what a surface reflects of its *environment*: a
 *prefiltered level* read along the reflection, times a Fresnel term from the *BRDF table*.
+
+**sRGB encoding.** The transfer function of the sRGB standard (IEC 61966-2-1), which spends more
+of a byte's 256 values on dark colors than on bright ones, as the eye distinguishes them: the
+values of displays, image files, color pickers and web colors. A *linear color* of 0.216 is
+encoded as 128 out of 255. The GPU decodes the texels of sRGB textures and encodes what it writes
+into sRGB targets; `LinearColor::from_srgb8` decodes bytes on the CPU.
 
 **Stage.** A step of [`docs/ROADMAP.md`](ROADMAP.md), ordered by dependency, with a goal and an
 exit criterion. Stages are numbered from 0; a stage may be split (Stage 3a and 3b).

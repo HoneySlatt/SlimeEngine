@@ -1,6 +1,6 @@
 //! Materials: how a surface looks, with glTF's metallic-roughness model (ADR-0035).
 
-use slime_gfx::{BindGroup, Sampler, Texture};
+use slime_gfx::{BindGroup, LinearColor, Sampler, Texture};
 
 use crate::bytes::push_f32s;
 
@@ -43,10 +43,10 @@ pub enum AlphaMode {
 /// empty reads 1 in every channel: its factor alone counts.
 #[derive(Clone, Copy, Debug)]
 pub struct MaterialData<'a> {
-    /// Red, green, blue and alpha, linear, each from 0 to 1: the color a dielectric diffuses and a
-    /// metal reflects. Alpha is compared with the cutoff of [`AlphaMode::Mask`], and otherwise
+    /// The color a dielectric diffuses and a metal reflects: red, green and blue each from 0 to 1.
+    /// Alpha, from 0 to 1, is compared with the cutoff of [`AlphaMode::Mask`], and otherwise
     /// ignored.
-    pub base_color: [f32; 4],
+    pub base_color: LinearColor,
     /// Multiplies `base_color`, alpha included. An sRGB format.
     pub base_color_texture: Option<SampledTexture<'a>>,
     /// 0 for a dielectric (plastic, wood, stone), 1 for a metal; clamped to 0 to 1 once multiplied
@@ -71,9 +71,9 @@ pub struct MaterialData<'a> {
     pub occlusion_texture: Option<SampledTexture<'a>>,
     /// How much the occlusion texture counts, from 0 (not at all) to 1. Not used without one.
     pub occlusion_strength: f32,
-    /// The light the surface emits, linear, each channel from 0 to 1 (glTF's emissive factor),
-    /// added to the light it reflects.
-    pub emissive: [f32; 3],
+    /// The light the surface emits, added to the light it reflects: red, green and blue each from
+    /// 0 to 1 (glTF's emissive factor). Alpha is ignored.
+    pub emissive: LinearColor,
     /// Multiplies `emissive`; not negative, and above 1 for a surface brighter than white
     /// (glTF's `KHR_materials_emissive_strength`).
     pub emissive_strength: f32,
@@ -92,7 +92,7 @@ impl Default for MaterialData<'_> {
     /// emission.
     fn default() -> Self {
         Self {
-            base_color: [1.0; 4],
+            base_color: LinearColor::WHITE,
             base_color_texture: None,
             metallic: 0.0,
             roughness: 1.0,
@@ -101,7 +101,7 @@ impl Default for MaterialData<'_> {
             normal_scale: 1.0,
             occlusion_texture: None,
             occlusion_strength: 1.0,
-            emissive: [0.0; 3],
+            emissive: LinearColor::BLACK,
             emissive_strength: 1.0,
             emissive_texture: None,
             alpha_mode: AlphaMode::Opaque,
@@ -115,13 +115,13 @@ impl MaterialData<'_> {
     /// them (ADR-0035).
     pub(crate) fn values(&self) -> Vec<u8> {
         let mut bytes = Vec::with_capacity(MATERIAL_VALUES_SIZE);
-        push_f32s(&mut bytes, &self.base_color);
+        let LinearColor { r, g, b, a } = self.base_color;
+        push_f32s(&mut bytes, &[r, g, b, a]);
         // The emission times its strength fills a vec3<f32>; metallic completes its 16 bytes.
+        let (emissive, strength) = (self.emissive, self.emissive_strength);
         push_f32s(
             &mut bytes,
-            &self
-                .emissive
-                .map(|channel| channel * self.emissive_strength),
+            &[emissive.r, emissive.g, emissive.b].map(|channel| channel * strength),
         );
         // A scale of 0 keeps the mesh's normals exactly; a cutoff of 0 keeps every fragment.
         let normal_scale = if self.normal_texture.is_some() {
@@ -174,13 +174,14 @@ mod tests {
     #[test]
     fn the_values_are_packed_as_the_shader_reads_them() {
         let data = MaterialData {
-            base_color: [0.1, 0.2, 0.3, 0.4],
+            base_color: LinearColor::rgba(0.1, 0.2, 0.3, 0.4),
             metallic: 0.5,
             roughness: 0.6,
             // Without a normal texture, the scale is packed as 0.
             normal_scale: 2.0,
             occlusion_strength: 0.7,
-            emissive: [1.0, 0.5, 0.25],
+            // Its alpha is ignored.
+            emissive: LinearColor::rgba(1.0, 0.5, 0.25, 0.0),
             emissive_strength: 4.0,
             alpha_mode: AlphaMode::Mask { cutoff: 0.3 },
             ..MaterialData::default()

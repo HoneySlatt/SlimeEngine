@@ -51,7 +51,7 @@ does.
 Drawing a red triangle into an offscreen image:
 
 ```rust
-use slime_gfx::{Gpu, TextureFormat};
+use slime_gfx::{Gpu, LinearColor, TextureFormat};
 use slime_render::glam::{Mat4, Vec3};
 use slime_render::{
     Camera, DirectionalLight, Instance, Light, MaterialData, MeshData, RenderError, Renderer, Scene,
@@ -75,7 +75,7 @@ fn main() -> Result<(), RenderError> {
     let red = renderer.create_material(
         &gpu,
         "red",
-        &MaterialData { base_color: [1.0, 0.0, 0.0, 1.0], ..MaterialData::default() },
+        &MaterialData { base_color: LinearColor::rgb(1.0, 0.0, 0.0), ..MaterialData::default() },
     )?;
 
     let camera = Camera { eye: Vec3::new(0.0, 0.0, 3.0), ..Camera::default() };
@@ -85,7 +85,7 @@ fn main() -> Result<(), RenderError> {
     // brings to 0.97 and 0.01.
     let sun = Light::Directional(DirectionalLight {
         direction: Vec3::new(0.0, 0.0, -1.0),
-        color: Vec3::ONE,
+        color: LinearColor::WHITE,
         illuminance: 100_000.0,
         casts_shadows: true,
     });
@@ -207,12 +207,12 @@ fn main() -> Result<(), RenderError> {
 - Conventions: world space is right-handed with +Y up, as in glTF; distances are in metres and light
   is in physical units, as in glTF: lux, candelas, and nits (candelas per square metre) for the
   light that surfaces reflect and emit and for the sky; the camera looks down its −Z axis; front
-  faces wind counter-clockwise; depth runs from 0 at the near plane to 1 at the far plane; colors in
-  materials and skies are linear; light is not negative and may exceed 1, and once exposed, the
-  high-dynamic-range target holds it, divided by 64, up to 64 × 65 504; an sRGB output encodes the
-  tone-mapped values; tangents and normal textures follow glTF: x along increasing u, y up the image
-  (the bitangent is cross(normal, tangent) × w), z along the normal; a mirrored instance keeps its
-  front faces.
+  faces wind counter-clockwise; depth runs from 0 at the near plane to 1 at the far plane; the
+  colors of materials, lights and skies are `slime-gfx`'s `LinearColor`s, linear (ADR-0045); light
+  is not negative and may exceed 1, and once exposed, the high-dynamic-range target holds it,
+  divided by 64, up to 64 × 65 504; an sRGB output encodes the tone-mapped values; tangents and
+  normal textures follow glTF: x along increasing u, y up the image (the bitangent is
+  cross(normal, tangent) × w), z along the normal; a mirrored instance keeps its front faces.
 - `slime_render::glam` re-exports the math crate the API uses (`Mat4`, `Vec3`, `Quat`), so that
   callers use the same version.
 - `RenderError`: an invalid mesh, or a failure of the GPU layer (`GfxError` as its source): a

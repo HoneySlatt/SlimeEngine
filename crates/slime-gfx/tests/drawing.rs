@@ -5,10 +5,10 @@
 
 use slime_gfx::{
     BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource, BindingType,
-    Color, CullMode, DepthBias, DepthCompare, DepthState, DepthTarget, FragmentState, Gpu, Image,
-    RenderPass, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, RenderTarget,
-    ShaderStages, TextureFormat, UniformBuffer, VertexAttribute, VertexBuffer, VertexFormat,
-    VertexLayout,
+    CullMode, DepthBias, DepthCompare, DepthState, DepthTarget, FragmentState, Gpu, Image,
+    LinearColor, RenderPass, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor,
+    RenderTarget, ShaderStages, TextureFormat, UniformBuffer, VertexAttribute, VertexBuffer,
+    VertexFormat, VertexLayout,
 };
 
 /// Vertices with a position in clip space and a color; a uniform offset moves them all.
@@ -38,12 +38,6 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 ";
 
 const SIZE: u32 = 8;
-const BLACK: Color = Color {
-    r: 0.0,
-    g: 0.0,
-    b: 0.0,
-    a: 1.0,
-};
 const WHITE: [f32; 3] = [1.0, 1.0, 1.0];
 const RED: [f32; 3] = [1.0, 0.0, 0.0];
 const BLUE: [f32; 3] = [0.0, 0.0, 1.0];
@@ -141,7 +135,7 @@ impl Scene {
     fn render(&self, with_depth: bool, draw: impl FnOnce(&mut RenderPass<'_>)) -> Image {
         let pass = RenderPassDescriptor {
             target: &self.target,
-            clear: Some(BLACK),
+            clear: Some(LinearColor::BLACK),
             depth: with_depth.then_some(&self.depth),
             timer: None,
         };
@@ -402,7 +396,7 @@ fn a_depth_target_of_another_size_is_rejected() {
         .expect("the GPU has memory for it");
     let pass = RenderPassDescriptor {
         target: &scene.target,
-        clear: Some(BLACK),
+        clear: Some(LinearColor::BLACK),
         depth: Some(&small),
         timer: None,
     };
@@ -501,7 +495,7 @@ fn a_dynamic_offset_selects_the_values_of_each_draw() {
 
     let pass = RenderPassDescriptor {
         target: &scene.target,
-        clear: Some(BLACK),
+        clear: Some(LinearColor::BLACK),
         depth: None,
         timer: None,
     };

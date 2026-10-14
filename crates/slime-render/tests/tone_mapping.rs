@@ -7,7 +7,7 @@
 #[path = "common/tone_curve.rs"]
 mod tone_curve;
 
-use slime_gfx::{FloatImage, Gpu, RenderTarget, TextureFormat};
+use slime_gfx::{FloatImage, Gpu, LinearColor, RenderTarget, TextureFormat};
 use slime_render::glam::Vec3;
 use slime_render::{Camera, DirectionalLight, Light, RenderStats, Renderer, Scene, Sky};
 
@@ -44,7 +44,8 @@ fn draw(
     light: [f32; 3],
     exposure: f32,
 ) -> RenderStats {
-    let uniform = Vec3::from(light);
+    let [r, g, b] = light;
+    let uniform = LinearColor::rgb(r, g, b);
     let environment = renderer
         .create_environment(
             gpu,
@@ -186,9 +187,9 @@ fn the_sky_is_exposed_before_the_high_dynamic_range_target_and_kept_within_its_r
             .create_environment(
                 &gpu,
                 &Sky {
-                    zenith: Vec3::ZERO,
-                    horizon: Vec3::ZERO,
-                    ground: Vec3::ZERO,
+                    zenith: LinearColor::BLACK,
+                    horizon: LinearColor::BLACK,
+                    ground: LinearColor::BLACK,
                     sun: Some(sun),
                 },
             )

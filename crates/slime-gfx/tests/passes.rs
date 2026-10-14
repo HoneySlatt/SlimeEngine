@@ -6,9 +6,9 @@
 //! lies on a triangle's edge. Runs on whatever adapter the machine offers, like `device.rs`.
 
 use slime_gfx::{
-    BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, Color, CullMode, DepthBias,
+    BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, CullMode, DepthBias,
     DepthCompare, DepthPassDescriptor, DepthState, Filter, FloatImage, FragmentState, Gpu,
-    RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, SamplerDescriptor,
+    LinearColor, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, SamplerDescriptor,
     ShaderStages, TextureFormat,
 };
 
@@ -24,13 +24,6 @@ fn vs_fullscreen(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> 
     return vec4<f32>(corner(i), 0.0, 1.0);
 }
 ";
-
-const BLACK: Color = Color {
-    r: 0.0,
-    g: 0.0,
-    b: 0.0,
-    a: 1.0,
-};
 
 fn gpu() -> Gpu {
     Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers")
@@ -110,12 +103,7 @@ fn a_fullscreen_triangle_without_a_vertex_buffer_covers_every_pixel() {
     );
     let pass = RenderPassDescriptor {
         target: &target,
-        clear: Some(Color {
-            r: -1.0,
-            g: -1.0,
-            b: -1.0,
-            a: -1.0,
-        }),
+        clear: Some(LinearColor::rgba(-1.0, -1.0, -1.0, -1.0)),
         depth: None,
         timer: None,
     };
@@ -164,7 +152,7 @@ fn a_second_pass_samples_the_target_a_first_pass_drew_into() {
     );
     let pass = |target| RenderPassDescriptor {
         target,
-        clear: Some(BLACK),
+        clear: Some(LinearColor::BLACK),
         depth: None,
         timer: None,
     };
@@ -423,7 +411,7 @@ fn a_depth_only_pass_is_read_through_a_comparison_sampler() {
         .expect("the GPU has memory for it");
     let pass = RenderPassDescriptor {
         target: &lit,
-        clear: Some(BLACK),
+        clear: Some(LinearColor::BLACK),
         depth: None,
         timer: None,
     };
@@ -554,7 +542,7 @@ fn a_fragment_stage_without_a_render_target_discards_in_a_depth_only_pass() {
         .expect("the GPU has memory for it");
     let pass = RenderPassDescriptor {
         target: &shown,
-        clear: Some(BLACK),
+        clear: Some(LinearColor::BLACK),
         depth: None,
         timer: None,
     };
@@ -689,7 +677,7 @@ fn a_depth_bias_moves_the_depth_by_the_expected_amount() {
         .expect("the GPU has memory for it");
     let pass = RenderPassDescriptor {
         target: &measured,
-        clear: Some(BLACK),
+        clear: Some(LinearColor::BLACK),
         depth: None,
         timer: None,
     };
@@ -757,7 +745,7 @@ fn a_pass_cannot_sample_the_target_it_draws_into() {
         .expect("the GPU has memory for it");
     let pass = RenderPassDescriptor {
         target: &hdr,
-        clear: Some(BLACK),
+        clear: Some(LinearColor::BLACK),
         depth: None,
         timer: None,
     };
@@ -789,7 +777,7 @@ fn a_depth_only_pipeline_does_not_draw_in_a_pass_with_a_render_target() {
         .expect("the GPU has memory for it");
     let pass = RenderPassDescriptor {
         target: &target,
-        clear: Some(BLACK),
+        clear: Some(LinearColor::BLACK),
         depth: Some(&depth),
         timer: None,
     };
@@ -875,7 +863,7 @@ fn a_pass_cannot_sample_the_depth_target_it_tests_against() {
     let group = depth_group(&gpu, &depth);
     let pass = RenderPassDescriptor {
         target: &target,
-        clear: Some(BLACK),
+        clear: Some(LinearColor::BLACK),
         depth: Some(&depth),
         timer: None,
     };
@@ -1002,7 +990,7 @@ fn the_passes_of_one_submission_run_in_the_order_they_were_recorded() {
     );
     let pass = |target| RenderPassDescriptor {
         target,
-        clear: Some(BLACK),
+        clear: Some(LinearColor::BLACK),
         depth: None,
         timer: None,
     };

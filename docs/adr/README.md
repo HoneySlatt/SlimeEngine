@@ -112,3 +112,4 @@ the ADR linking to it.
 | [0042](0042-lights-beyond-the-most-drawn-and-checked-scene-values.md) | Lights beyond the most drawn, and checked scene values | Accepted |
 | [0043](0043-application-errors-during-a-run.md) | Application errors during a run | Accepted |
 | [0044](0044-running-out-of-gpu-memory.md) | Running out of GPU memory | Accepted |
+| [0045](0045-one-linear-color-type.md) | One linear color type | Accepted |

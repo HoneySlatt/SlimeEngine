@@ -4,6 +4,7 @@
 use std::f32::consts::FRAC_PI_4;
 
 use glam::Vec3;
+use slime_gfx::LinearColor;
 
 use crate::bytes::{push_f32s, push_u32s};
 
@@ -47,9 +48,10 @@ pub struct DirectionalLight {
     /// The direction the light travels in, in world space: down and to the side for a sun. Its
     /// length does not matter, but it is finite and not zero.
     pub direction: Vec3,
-    /// Linear, not negative: what `illuminance` is multiplied by in each channel. glTF keeps each
-    /// channel within 0 and 1, so that `illuminance` alone sets the strength.
-    pub color: Vec3,
+    /// What `illuminance` is multiplied by in each of red, green and blue: finite and not negative.
+    /// glTF keeps each within 0 and 1, so that `illuminance` alone sets the strength. Alpha is
+    /// ignored.
+    pub color: LinearColor,
     /// The illuminance the light gives a surface facing it, in lux (lumens per square metre):
     /// about 100 000 for the sun on a clear day, 400 at sunrise. Finite and not negative.
     pub illuminance: f32,
@@ -66,7 +68,7 @@ impl Default for DirectionalLight {
     fn default() -> Self {
         Self {
             direction: Vec3::new(-0.5, -1.0, -0.4),
-            color: Vec3::ONE,
+            color: LinearColor::WHITE,
             illuminance: 1.0,
             casts_shadows: true,
         }
@@ -85,9 +87,10 @@ impl Default for DirectionalLight {
 pub struct PointLight {
     /// Where the light is, in world space. Finite.
     pub position: Vec3,
-    /// Linear, not negative: what `intensity` is multiplied by in each channel. glTF keeps each
-    /// channel within 0 and 1, so that `intensity` alone sets the strength.
-    pub color: Vec3,
+    /// What `intensity` is multiplied by in each of red, green and blue: finite and not negative.
+    /// glTF keeps each within 0 and 1, so that `intensity` alone sets the strength. Alpha is
+    /// ignored.
+    pub color: LinearColor,
     /// The luminous intensity, in candelas (lumens per steradian): the illuminance, in lux, of a
     /// surface facing the light 1 metre away. About 1 for a candle, 64 for a household bulb of
     /// 800 lumens. Finite and not negative.
@@ -102,7 +105,7 @@ impl Default for PointLight {
     fn default() -> Self {
         Self {
             position: Vec3::ZERO,
-            color: Vec3::ONE,
+            color: LinearColor::WHITE,
             intensity: 1.0,
             range: None,
         }
@@ -124,7 +127,7 @@ pub struct SpotLight {
     /// not matter, but it is finite and not zero, as for [`DirectionalLight::direction`].
     pub direction: Vec3,
     /// As [`PointLight::color`].
-    pub color: Vec3,
+    pub color: LinearColor,
     /// The luminous intensity inside the inner cone, in candelas. Finite and not negative.
     pub intensity: f32,
     /// As [`PointLight::range`].
@@ -143,7 +146,7 @@ impl Default for SpotLight {
         Self {
             position: Vec3::ZERO,
             direction: Vec3::NEG_Z,
-            color: Vec3::ONE,
+            color: LinearColor::WHITE,
             intensity: 1.0,
             range: None,
             inner_cone_angle: 0.0,
@@ -158,7 +161,8 @@ impl Light {
     /// direction that is zero or not finite, a range that is not positive and finite, or a spot's
     /// cones out of order or wider than π / 2.
     pub(crate) fn invalid(&self) -> Option<String> {
-        let color = |color: Vec3| {
+        let color = |color: LinearColor| {
+            let color = rgb(color);
             (!color.is_finite() || color.min_element() < 0.0)
                 .then(|| format!("its color {color} is not finite and not negative"))
         };
@@ -237,7 +241,7 @@ impl Light {
                 cone_scale_and_offset(light.inner_cone_angle, light.outer_cone_angle),
             ),
         };
-        let strength = color * intensity;
+        let strength = rgb(color) * intensity;
         push_f32s(bytes, &strength.to_array());
         push_u32s(bytes, &[kind]);
         // 1 / range², so that the shader's (d / range)⁴ is (d² / range²)², and 0 for no range.
@@ -260,6 +264,12 @@ fn cone_scale_and_offset(inner: f32, outer: f32) -> (f32, f32) {
     (scale, -cos_outer * scale)
 }
 
+/// The red, green and blue of `color`, its alpha dropped: for the colors whose alpha is ignored,
+/// the lights' and the sky's, in the vector math that light goes through.
+pub(crate) fn rgb(color: LinearColor) -> Vec3 {
+    Vec3::new(color.r, color.g, color.b)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -279,7 +289,7 @@ mod tests {
         let cases = [
             (
                 Light::Directional(DirectionalLight {
-                    color: Vec3::new(1.0, -0.1, 1.0),
+                    color: LinearColor::rgb(1.0, -0.1, 1.0),
                     ..directional
                 }),
                 "its color [1, -0.1, 1] is not finite and not negative",
@@ -364,7 +374,7 @@ mod tests {
         Light::Spot(SpotLight {
             position: Vec3::new(1.0, 2.0, 3.0),
             direction: Vec3::new(0.0, -2.0, 0.0),
-            color: Vec3::new(1.0, 0.5, 0.25),
+            color: LinearColor::rgb(1.0, 0.5, 0.25),
             intensity: 8.0,
             range: Some(4.0),
             inner_cone_angle: 0.0,

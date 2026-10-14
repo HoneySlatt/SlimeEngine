@@ -6,7 +6,7 @@
 
 use std::f32::consts::{PI, TAU};
 
-use slime_gfx::{Gpu, RenderTarget, SamplerDescriptor, TextureFormat};
+use slime_gfx::{Gpu, LinearColor, RenderTarget, SamplerDescriptor, TextureFormat};
 use slime_render::glam::{Mat4, Quat, Vec3};
 use slime_render::{
     Camera, DirectionalLight, Environment, Instance, Light, Material, MaterialData, Mesh, MeshData,
@@ -19,16 +19,16 @@ use slime_render::{
 /// physical units: it checks the shapes and their materials, not the units.
 const SUN: DirectionalLight = DirectionalLight {
     direction: Vec3::new(-0.6, -1.0, -0.5),
-    color: Vec3::new(1.0, 0.98, 0.9),
+    color: LinearColor::rgb(1.0, 0.98, 0.9),
     illuminance: PI,
     casts_shadows: true,
 };
 /// The sample's clear sky (`sample_scene.rs`) at the scale of this light: its radiances times
 /// π / 100 000, as it shows at the sample's exposure, around this light.
 const SKY: Sky = Sky {
-    zenith: Vec3::new(0.0534, 0.1225, 0.3142),
-    horizon: Vec3::new(0.2388, 0.3016, 0.3833),
-    ground: Vec3::new(0.0974, 0.0927, 0.0848),
+    zenith: LinearColor::rgb(0.0534, 0.1225, 0.3142),
+    horizon: LinearColor::rgb(0.2388, 0.3016, 0.3833),
+    ground: LinearColor::rgb(0.0974, 0.0927, 0.0848),
     sun: Some(SUN),
 };
 
@@ -43,7 +43,7 @@ const ORBIT_HEIGHT: f32 = 1.8;
 const ORBIT_SPEED: f32 = 0.5;
 
 /// The color of the small spheres, and the roughness of each column of them.
-const SPHERE_COLOR: [f32; 4] = [0.9, 0.6, 0.3, 1.0];
+const SPHERE_COLOR: LinearColor = LinearColor::rgb(0.9, 0.6, 0.3);
 const SPHERE_ROUGHNESS: [f32; 3] = [0.3, 0.55, 0.8];
 
 /// The side of the checker texture, in pixels, and of its squares.
@@ -84,7 +84,7 @@ impl Shapes {
             texture: &checker,
             sampler: &sampler,
         });
-        let material = |label: &str, base_color: [f32; 4], base_color_texture| {
+        let material = |label: &str, base_color: LinearColor, base_color_texture| {
             renderer.create_material(
                 gpu,
                 label,
@@ -95,10 +95,14 @@ impl Shapes {
                 },
             )
         };
-        let orange = material("orange", [0.9, 0.45, 0.1, 1.0], None)?;
-        let blue = material("blue", [0.15, 0.4, 0.9, 1.0], None)?;
-        let checkered = material("checkered", [1.0, 1.0, 1.0, 1.0], checkered_by)?;
-        let checkered_green = material("checkered green", [0.45, 0.9, 0.55, 1.0], checkered_by)?;
+        let orange = material("orange", LinearColor::rgb(0.9, 0.45, 0.1), None)?;
+        let blue = material("blue", LinearColor::rgb(0.15, 0.4, 0.9), None)?;
+        let checkered = material("checkered", LinearColor::WHITE, checkered_by)?;
+        let checkered_green = material(
+            "checkered green",
+            LinearColor::rgb(0.45, 0.9, 0.55),
+            checkered_by,
+        )?;
         let spheres = [0.0, 1.0].map(|metallic| {
             SPHERE_ROUGHNESS
                 .iter()

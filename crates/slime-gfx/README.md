@@ -37,8 +37,8 @@ Drawing a triangle into an offscreen image and reading it back:
 
 ```rust
 use slime_gfx::{
-    Color, CullMode, FragmentState, GfxError, Gpu, RenderPassDescriptor, RenderPipelineDescriptor,
-    TextureFormat, VertexAttribute, VertexFormat, VertexLayout,
+    CullMode, FragmentState, GfxError, Gpu, LinearColor, RenderPassDescriptor,
+    RenderPipelineDescriptor, TextureFormat, VertexAttribute, VertexFormat, VertexLayout,
 };
 
 const SHADER: &str = "
@@ -82,7 +82,7 @@ fn main() -> Result<(), GfxError> {
     let bytes: Vec<u8> = corners.iter().flat_map(|value| value.to_le_bytes()).collect();
     let vertices = gpu.create_vertex_buffer("triangle", &bytes)?;
 
-    let black = Color { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
+    let black = LinearColor::BLACK;
     let pass = RenderPassDescriptor { target: &target, clear: Some(black), depth: None, timer: None };
     gpu.render(&pass, |pass| {
         pass.set_pipeline(&pipeline);
@@ -194,8 +194,8 @@ fn main() -> Result<(), GfxError> {
   with, one that has the same index: a render target of one `Gpu` read back with another can
   return the pixels of the second one's target.
 - `Gpu::render(&RenderPassDescriptor { target, clear, depth, timer }, record)` runs one render
-  pass: it clears the target to a color, and the depth target to the farthest depth, or keeps
-  what both hold when `clear` is `None`; lets `record` draw through a `RenderPass`
+  pass: it clears the target to a `LinearColor`, and the depth target to the farthest depth, or
+  keeps what both hold when `clear` is `None`; lets `record` draw through a `RenderPass`
   (`set_pipeline`, `set_bind_group` with the dynamic offsets of the group, `set_vertex_buffer`,
   `set_index_buffer`, `draw`, `draw_indexed`); and sends the work to the GPU, timed by `timer`
   when there is one. A pass with a depth target takes pipelines with a depth test, and one without
@@ -204,6 +204,11 @@ fn main() -> Result<(), GfxError> {
   `RenderPass::debug_group(label, record)` names a group of commands inside it. On Vulkan, labels
   and groups reach the driver in debug builds, or with `WGPU_DEBUG=1`; on Direct3D 12, in every
   build, unless `WGPU_DISCARD_HAL_LABELS=1` is set.
+- `LinearColor`, the color type of every API of the engine (ADR-0045): red, green and blue in
+  linear light, without upper bound, and a straight (not premultiplied) alpha, as `f32`s. `rgb`,
+  `rgba`, `BLACK` and `WHITE` make one from linear values; `from_srgb8(r, g, b)` decodes the
+  sRGB-encoded bytes that color pickers and web colors give (`#E8A33D` is
+  `from_srgb8(0xE8, 0xA3, 0x3D)`).
 - `Gpu::render_depth(&DepthPassDescriptor { depth, timer }, record)` runs one pass without a render
   target: it clears the depth target to the farthest depth and lets `record` draw with pipelines
   that have a depth test and no fragment stage, or one without a target format, which may discard

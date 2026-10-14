@@ -11,7 +11,7 @@
 )]
 mod tone_curve;
 
-use slime_gfx::{FloatImage, Gpu, TextureFormat};
+use slime_gfx::{FloatImage, Gpu, LinearColor, TextureFormat};
 use slime_render::glam::{Mat4, Vec3};
 use slime_render::{
     Camera, Instance, Material, MaterialData, Mesh, MeshData, RenderStats, Renderer, Scene, Sky,
@@ -75,8 +75,8 @@ impl Pixel {
                 &gpu,
                 "emitter",
                 &MaterialData {
-                    base_color: [0.0, 0.0, 0.0, 1.0],
-                    emissive: [1.0; 3],
+                    base_color: LinearColor::BLACK,
+                    emissive: LinearColor::WHITE,
                     emissive_strength: emission,
                     ..MaterialData::default()
                 },
@@ -241,9 +241,9 @@ fn uniform(
         .create_environment(
             gpu,
             &Sky {
-                zenith: Vec3::splat(light),
-                horizon: Vec3::splat(light),
-                ground: Vec3::splat(light),
+                zenith: LinearColor::rgb(light, light, light),
+                horizon: LinearColor::rgb(light, light, light),
+                ground: LinearColor::rgb(light, light, light),
                 sun: None,
             },
         )

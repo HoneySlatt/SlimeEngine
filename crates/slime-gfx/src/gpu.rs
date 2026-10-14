@@ -365,7 +365,7 @@ fn instance_flags() -> wgpu::InstanceFlags {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Color, RenderPassDescriptor, RenderTarget, TextureFormat};
+    use crate::{LinearColor, RenderPassDescriptor, RenderTarget, TextureFormat};
 
     #[test]
     fn direct3d_12_compiles_shaders_with_fxc_unless_dxc_is_asked_for() {
@@ -410,12 +410,7 @@ mod tests {
             "the loss is reported"
         );
 
-        let black = Color {
-            r: 0.0,
-            g: 0.0,
-            b: 0.0,
-            a: 1.0,
-        };
+        let black = LinearColor::BLACK;
         let pass = RenderPassDescriptor {
             target: &target,
             clear: Some(black),
@@ -581,12 +576,7 @@ mod tests {
         let small = gpu
             .create_render_target("small", 4, 4, TextureFormat::Rgba8UnormSrgb)
             .expect("a small target fits");
-        let red = Color {
-            r: 1.0,
-            g: 0.0,
-            b: 0.0,
-            a: 1.0,
-        };
+        let red = LinearColor::rgb(1.0, 0.0, 0.0);
         gpu.render(
             &RenderPassDescriptor {
                 target: &small,

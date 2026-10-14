@@ -285,7 +285,7 @@ impl std::fmt::Debug for GpuTimer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Color, RenderPassDescriptor, TextureFormat};
+    use crate::{LinearColor, RenderPassDescriptor, TextureFormat};
 
     #[test]
     fn passes_beyond_the_slots_go_untimed_until_reading_frees_them() {
@@ -303,12 +303,7 @@ mod tests {
             .expect("the GPU has memory for it");
         let pass = RenderPassDescriptor {
             target: &target,
-            clear: Some(Color {
-                r: 0.0,
-                g: 0.0,
-                b: 0.0,
-                a: 1.0,
-            }),
+            clear: Some(LinearColor::BLACK),
             depth: None,
             timer: Some(&timer),
         };
@@ -356,12 +351,7 @@ mod tests {
             .expect("the GPU has memory for it");
         let pass = RenderPassDescriptor {
             target: &target,
-            clear: Some(Color {
-                r: 0.0,
-                g: 0.0,
-                b: 0.0,
-                a: 1.0,
-            }),
+            clear: Some(LinearColor::BLACK),
             depth: None,
             timer: Some(&timer),
         };
