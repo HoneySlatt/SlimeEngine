@@ -11,8 +11,8 @@ use std::fmt;
 use std::time::Duration;
 
 use slime_gfx::{
-    Color, DepthPassDescriptor, DepthTarget, Gpu, GpuTimer, RenderPass, RenderPassDescriptor,
-    RenderTarget, TextureFormat,
+    Color, DepthPassDescriptor, DepthTarget, GfxError, Gpu, GpuTimer, RenderPass,
+    RenderPassDescriptor, RenderTarget, TextureFormat,
 };
 
 use crate::renderer::Pass;
@@ -440,7 +440,13 @@ impl Graph {
     /// label, format and size, so that a frame whose shape changes but not its size keeps its
     /// high-dynamic-range target; then the timers of the passes, one per submission, on adapters
     /// that can time their work.
-    pub(crate) fn create(&mut self, gpu: &Gpu, previous: Option<&Graph>) {
+    ///
+    /// # Errors
+    ///
+    /// The first error of a creation, as [`Gpu::create_render_target`] gives them: the GPU's
+    /// memory cannot hold a target or a timer, or the device is lost. The graph is then dropped:
+    /// its renderer keeps the frame it had.
+    pub(crate) fn create(&mut self, gpu: &Gpu, previous: Option<&Graph>) -> Result<(), GfxError> {
         for index in 0..self.targets.len() {
             let Source::Transient { format, shift } = self.targets[index].source else {
                 continue;
@@ -461,31 +467,33 @@ impl Graph {
                     _ => None,
                 })
             });
-            let created = reused.unwrap_or_else(|| match format {
-                Some(format) => Created::Color(
-                    gpu.create_render_target(&target.label, size.0, size.1, format)
-                        .expect("the renderer's GPU objects fit in memory"),
-                ),
-                None => Created::Depth(
-                    gpu.create_depth_target(&target.label, size.0, size.1)
-                        .expect("the renderer's GPU objects fit in memory"),
-                ),
-            });
+            let created = match (reused, format) {
+                (Some(reused), _) => reused,
+                (None, Some(format)) => Created::Color(gpu.create_render_target(
+                    &target.label,
+                    size.0,
+                    size.1,
+                    format,
+                )?),
+                (None, None) => {
+                    Created::Depth(gpu.create_depth_target(&target.label, size.0, size.1)?)
+                }
+            };
             self.targets[index].created = Some(created);
         }
         let passes = self.passes.len();
-        self.timers = (0..passes)
-            .step_by(PASSES_PER_SUBMISSION)
-            .enumerate()
-            .map_while(|(submission, first)| {
-                let timed = (passes - first).min(PASSES_PER_SUBMISSION);
-                gpu.create_timer(
-                    &format!("frame {submission}"),
-                    u32::try_from(timed).expect("at most PASSES_PER_SUBMISSION"),
-                )
-                .expect("the renderer's GPU objects fit in memory")
-            })
-            .collect();
+        self.timers.clear();
+        for (submission, first) in (0..passes).step_by(PASSES_PER_SUBMISSION).enumerate() {
+            let timed = (passes - first).min(PASSES_PER_SUBMISSION);
+            let timer = gpu.create_timer(
+                &format!("frame {submission}"),
+                u32::try_from(timed).expect("at most PASSES_PER_SUBMISSION"),
+            )?;
+            // An adapter that cannot time gives no timer to any submission.
+            let Some(timer) = timer else { break };
+            self.timers.push(timer);
+        }
+        Ok(())
     }
 
     /// The size of a transient target `shift` halvings below the output's.
@@ -924,7 +932,7 @@ mod tests {
         };
 
         let (mut first, kept, other) = declare(8, 8, HDR);
-        first.create(&gpu, None);
+        first.create(&gpu, None).expect("the GPU has memory for it");
         let output = gpu
             .create_render_target("output", 8, 8, TextureFormat::Rgba8UnormSrgb)
             .expect("the GPU has memory for it");
@@ -936,7 +944,9 @@ mod tests {
 
         // The same size, "other" in another format.
         let (mut second, kept, other) = declare(8, 8, TextureFormat::Rgba8Unorm);
-        second.create(&gpu, Some(&first));
+        second
+            .create(&gpu, Some(&first))
+            .expect("the GPU has memory for it");
         assert_eq!(
             alpha(second.color(kept)),
             1.0,
@@ -950,7 +960,9 @@ mod tests {
 
         // Another size.
         let (mut third, kept, _) = declare(8, 4, HDR);
-        third.create(&gpu, Some(&second));
+        third
+            .create(&gpu, Some(&second))
+            .expect("the GPU has memory for it");
         let created = third.color(kept);
         assert_eq!((created.width(), created.height()), (8, 4));
         assert_eq!(alpha(created), 0.0, "another size: created again");
@@ -974,7 +986,7 @@ mod tests {
             graph.add_pass(pass(Pass::BloomUp(index), color(level, true), &[]));
         }
         graph.compile().expect("the graph is valid");
-        graph.create(&gpu, None);
+        graph.create(&gpu, None).expect("the GPU has memory for it");
         let created = graph.color(half);
         assert_eq!((created.width(), created.height()), (4, 3), "7x5 halved");
 

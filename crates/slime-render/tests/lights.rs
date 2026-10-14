@@ -83,7 +83,9 @@ impl Setup {
                 },
             )
             .expect("the square is valid");
-        let white = renderer.create_material(&gpu, "white", &MaterialData::default());
+        let white = renderer
+            .create_material(&gpu, "white", &MaterialData::default())
+            .expect("the GPU has memory for it");
         Self {
             gpu,
             renderer,
@@ -106,18 +108,20 @@ impl Setup {
             material: material.unwrap_or(&self.white),
             transform: Mat4::IDENTITY,
         }];
-        self.renderer.render(
-            &self.gpu,
-            &self.output,
-            &Scene {
-                camera: camera(),
-                lights,
-                environment: None,
-                exposure,
-                bloom: 0.0,
-                instances: &instances,
-            },
-        );
+        self.renderer
+            .render(
+                &self.gpu,
+                &self.output,
+                &Scene {
+                    camera: camera(),
+                    lights,
+                    environment: None,
+                    exposure,
+                    bloom: 0.0,
+                    instances: &instances,
+                },
+            )
+            .expect("the frame is drawn");
         self.gpu
             .read_float_render_target(&self.output)
             .expect("the image is read back")
@@ -494,16 +498,19 @@ fn the_exposure_applies_before_the_high_dynamic_range_target() {
         "a light of 10⁸ candelas 1 m away",
     );
     // Emission is exposed too: 10⁸ nits at 5 × 10⁻⁹.
-    let glowing = setup.renderer.create_material(
-        &setup.gpu,
-        "glowing",
-        &MaterialData {
-            base_color: [0.0, 0.0, 0.0, 1.0],
-            emissive: [1.0, 0.0, 0.0],
-            emissive_strength: 1e8,
-            ..MaterialData::default()
-        },
-    );
+    let glowing = setup
+        .renderer
+        .create_material(
+            &setup.gpu,
+            "glowing",
+            &MaterialData {
+                base_color: [0.0, 0.0, 0.0, 1.0],
+                emissive: [1.0, 0.0, 0.0],
+                emissive_strength: 1e8,
+                ..MaterialData::default()
+            },
+        )
+        .expect("the GPU has memory for it");
     assert_shows(
         &setup.draw_with(Some(&glowing), &[], 5e-9),
         CENTER,

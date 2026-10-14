@@ -12,7 +12,7 @@ use std::f32::consts::{PI, TAU};
 use std::sync::{Arc, LazyLock};
 
 use glam::Vec3;
-use slime_gfx::{Gpu, Texture, TextureFormat, f32_to_f16};
+use slime_gfx::{GfxError, Gpu, Texture, TextureFormat, f32_to_f16};
 
 use crate::light::DirectionalLight;
 
@@ -154,12 +154,16 @@ pub struct Environment {
 impl Environment {
     /// Computes the environment of `sky` and uploads it.
     ///
+    /// # Errors
+    ///
+    /// As [`Gpu::create_cube_texture`].
+    ///
     /// # Panics
     ///
     /// As [`environment_levels`].
-    pub(crate) fn new(gpu: &Gpu, sky: &Sky) -> Self {
+    pub(crate) fn new(gpu: &Gpu, sky: &Sky) -> Result<Self, GfxError> {
         let (to_sun, sun_radiance) = sky.sun_disc();
-        Self {
+        Ok(Self {
             to_sun,
             sun_radiance,
             ..Self::upload(
@@ -167,28 +171,30 @@ impl Environment {
                 "environment",
                 ENVIRONMENT_SIZE,
                 &environment_levels(sky),
-            )
-        }
+            )?
+        })
     }
 
     /// One black texel and no sun: the environment of scenes without one.
-    pub(crate) fn black(gpu: &Gpu) -> Self {
+    pub(crate) fn black(gpu: &Gpu) -> Result<Self, GfxError> {
         Self::upload(gpu, "no environment", 1, &[[0.0, 0.0, 0.0, 1.0].repeat(6)])
     }
 
     /// Uploads `levels`, each six faces of RGBA values, the first `size` texels wide, as
     /// half-precision floats.
-    fn upload(gpu: &Gpu, label: &str, size: u32, levels: &[Vec<f32>]) -> Self {
+    fn upload(gpu: &Gpu, label: &str, size: u32, levels: &[Vec<f32>]) -> Result<Self, GfxError> {
         let levels: Vec<Vec<u8>> = levels.iter().map(|level| halves(level)).collect();
         let levels: Vec<&[u8]> = levels.iter().map(Vec::as_slice).collect();
-        Self {
-            texture: Arc::new(
-                gpu.create_cube_texture(label, size, TextureFormat::Rgba16Float, &levels)
-                    .expect("the renderer's GPU objects fit in memory"),
-            ),
+        Ok(Self {
+            texture: Arc::new(gpu.create_cube_texture(
+                label,
+                size,
+                TextureFormat::Rgba16Float,
+                &levels,
+            )?),
             to_sun: Vec3::Y,
             sun_radiance: Vec3::ZERO,
-        }
+        })
     }
 
     /// Whether `other` refers to the same textures.
@@ -550,7 +556,7 @@ fn smith_lambda(cosine: f32, alpha: f32) -> f32 {
 }
 
 /// The BRDF table as a texture.
-pub(crate) fn brdf_table(gpu: &Gpu) -> Texture {
+pub(crate) fn brdf_table(gpu: &Gpu) -> Result<Texture, GfxError> {
     gpu.create_texture_with_levels(
         "BRDF scale and bias",
         BRDF_TABLE_SIZE,
@@ -558,7 +564,6 @@ pub(crate) fn brdf_table(gpu: &Gpu) -> Texture {
         TextureFormat::Rgba16Float,
         &[&halves(&BRDF_TABLE)],
     )
-    .expect("the renderer's GPU objects fit in memory")
 }
 
 #[cfg(test)]

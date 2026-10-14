@@ -312,7 +312,8 @@ renderer = Renderer::new(&gpu, format)                 the output's format; thre
 │                                                      texture in the wrong format for its slot
 │                                                      panics
 └── render(&gpu, &target, &Scene { camera, lights, environment, exposure, bloom, instances })
-    │                                                  → RenderStats; draws the first 16 lights
+    │                                                  → RenderStats, or the error of a creation
+    │                                                  (ADR-0044); draws the first 16 lights
     ├── the light-space matrix of the first directional light that casts shadows: an orthographic
     │   projection covering the instances' boxes as that light sees them
     ├── the frame uniform ← camera.view_projection(aspect), the sky's directions from clip space,

@@ -37,7 +37,9 @@ fn the_shapes_match_their_reference_image() {
         )
         .expect("the GPU has memory for it");
     let mut shapes = Shapes::new(&gpu, target.format()).expect("the shapes' GPU objects are valid");
-    let stats = shapes.render(&gpu, &target, TIME);
+    let stats = shapes
+        .render(&gpu, &target, TIME)
+        .expect("the frame is drawn");
     // Three cubes of 12 triangles and seven spheres of 720.
     assert_eq!((stats.draw_calls, stats.triangles), (10, 5076));
     let image = gpu

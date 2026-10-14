@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 use slime_gfx::{Gpu, RenderTarget, TextureFormat};
 use slime_render::glam::Vec3;
 use slime_render::{
-    Camera, DirectionalLight, Environment, Light, RenderStats, Renderer, Scene, Sky,
+    Camera, DirectionalLight, Environment, Light, RenderError, RenderStats, Renderer, Scene, Sky,
 };
 
 pub use gltf::Bounds;
@@ -90,7 +90,7 @@ impl SampleScene {
             })
             .or(loaded.lights.is_empty().then_some(SUN));
         let started = Instant::now();
-        let environment = renderer.create_environment(gpu, &Sky { sun, ..SKY });
+        let environment = renderer.create_environment(gpu, &Sky { sun, ..SKY })?;
         let environment_time = started.elapsed();
         tracing::info!(?environment_time, "the sky's environment is computed");
         Ok(Self {
@@ -114,6 +114,10 @@ impl SampleScene {
     /// Draws the scene into `target` as `camera` sees it, its light multiplied by `exposure`
     /// ([`EXPOSURE`] for the sample), with a bloom of strength `bloom` ([`BLOOM`] for the sample)
     /// mixed in before tone mapping.
+    ///
+    /// # Errors
+    ///
+    /// As [`Renderer::render`].
     pub fn render(
         &mut self,
         gpu: &Gpu,
@@ -121,7 +125,7 @@ impl SampleScene {
         camera: Camera,
         exposure: f32,
         bloom: f32,
-    ) -> RenderStats {
+    ) -> Result<RenderStats, RenderError> {
         let instances = self.loaded.instances();
         let sun = [Light::Directional(SUN)];
         let lights = if self.loaded.lights.is_empty() {

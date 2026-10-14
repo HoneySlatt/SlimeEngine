@@ -243,13 +243,22 @@ impl App for SceneExample {
         let (Some(gpu), Some(scene)) = (ctx.gpu(), &mut self.scene) else {
             return;
         };
-        self.stats = scene.render(
+        match scene.render(
             gpu,
             target,
             self.camera.camera(),
             exposure(self.ev100),
             self.bloom,
-        );
+        ) {
+            Ok(stats) => self.stats = stats,
+            // The GPU's memory cannot hold the targets of the window's new size, or the device was
+            // lost: the example stops with the error, which `run` logs with its causes. A game could
+            // instead draw at a lower resolution.
+            Err(error) => {
+                ctx.exit_with_error(error);
+                return;
+            }
+        }
         self.drawn += 1;
         if let Some(overlay) = &mut self.overlay {
             let show = self.show_overlay;

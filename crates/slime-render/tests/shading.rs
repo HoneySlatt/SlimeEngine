@@ -112,7 +112,9 @@ impl Setup {
     }
 
     fn material(&self, data: &MaterialData<'_>) -> Material {
-        self.renderer.create_material(&self.gpu, "material", data)
+        self.renderer
+            .create_material(&self.gpu, "material", data)
+            .expect("the GPU has memory for it")
     }
 
     /// A texture of `width` × `height` pixels of `format`, from `pixels`, rows from the top.
@@ -149,28 +151,32 @@ impl Setup {
             .collect();
         let uniform = Vec3::splat(sky);
         let environment = (sky > 0.0).then(|| {
-            self.renderer.create_environment(
+            self.renderer
+                .create_environment(
+                    &self.gpu,
+                    &Sky {
+                        zenith: uniform,
+                        horizon: uniform,
+                        ground: uniform,
+                        sun: None,
+                    },
+                )
+                .expect("the GPU has memory for it")
+        });
+        self.renderer
+            .render(
                 &self.gpu,
-                &Sky {
-                    zenith: uniform,
-                    horizon: uniform,
-                    ground: uniform,
-                    sun: None,
+                &self.output,
+                &Scene {
+                    camera,
+                    lights: &[Light::Directional(light)],
+                    environment: environment.as_ref(),
+                    exposure: 1.0,
+                    bloom: 0.0,
+                    instances: &instances,
                 },
             )
-        });
-        self.renderer.render(
-            &self.gpu,
-            &self.output,
-            &Scene {
-                camera,
-                lights: &[Light::Directional(light)],
-                environment: environment.as_ref(),
-                exposure: 1.0,
-                bloom: 0.0,
-                instances: &instances,
-            },
-        );
+            .expect("the frame is drawn");
         self.gpu
             .read_float_render_target(&self.output)
             .expect("the image is read back")

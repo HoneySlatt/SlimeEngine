@@ -85,17 +85,21 @@ impl Setup {
                 },
             )
             .expect("the square is valid");
-        let white = renderer.create_material(&gpu, "white", &MaterialData::default());
+        let white = renderer
+            .create_material(&gpu, "white", &MaterialData::default())
+            .expect("the GPU has memory for it");
         let uniform = Vec3::splat(SKY as f32);
-        let sky = renderer.create_environment(
-            &gpu,
-            &Sky {
-                zenith: uniform,
-                horizon: uniform,
-                ground: uniform,
-                sun: None,
-            },
-        );
+        let sky = renderer
+            .create_environment(
+                &gpu,
+                &Sky {
+                    zenith: uniform,
+                    horizon: uniform,
+                    ground: uniform,
+                    sun: None,
+                },
+            )
+            .expect("the GPU has memory for it");
         Self {
             sky,
             gpu,
@@ -123,18 +127,21 @@ impl Setup {
                 transform,
             })
             .collect();
-        let stats = self.renderer.render(
-            &self.gpu,
-            &self.output,
-            &Scene {
-                camera,
-                lights,
-                environment: Some(&self.sky),
-                exposure: 1.0,
-                bloom: 0.0,
-                instances: &instances,
-            },
-        );
+        let stats = self
+            .renderer
+            .render(
+                &self.gpu,
+                &self.output,
+                &Scene {
+                    camera,
+                    lights,
+                    environment: Some(&self.sky),
+                    exposure: 1.0,
+                    bloom: 0.0,
+                    instances: &instances,
+                },
+            )
+            .expect("the frame is drawn");
         let image = self
             .gpu
             .read_float_render_target(&self.output)
@@ -484,18 +491,21 @@ fn a_masked_material_casts_no_shadow_where_it_discards() {
             },
         )
         .expect("the GPU has memory for it");
-    let half = setup.renderer.create_material(
-        &setup.gpu,
-        "half",
-        &MaterialData {
-            base_color_texture: Some(slime_render::SampledTexture {
-                texture: &texture,
-                sampler: &nearest,
-            }),
-            alpha_mode: AlphaMode::Mask { cutoff: 0.5 },
-            ..MaterialData::default()
-        },
-    );
+    let half = setup
+        .renderer
+        .create_material(
+            &setup.gpu,
+            "half",
+            &MaterialData {
+                base_color_texture: Some(slime_render::SampledTexture {
+                    texture: &texture,
+                    sampler: &nearest,
+                }),
+                alpha_mode: AlphaMode::Mask { cutoff: 0.5 },
+                ..MaterialData::default()
+            },
+        )
+        .expect("the GPU has memory for it");
     let side = (SHADOW_MAP_SIZE / 8.0) as f32;
     let camera = camera_above(1.5, 0.0);
     let sun = sun(45.0, 0.4);

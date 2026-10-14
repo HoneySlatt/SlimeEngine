@@ -79,7 +79,7 @@ use slime_gfx::{
 use slime_render::glam::{Mat4, Vec2, Vec3};
 use slime_render::{
     AlphaMode, DirectionalLight, Instance, Light, MAX_LIGHTS, Material, MaterialData, Mesh,
-    MeshData, PointLight, Renderer, SampledTexture, SpotLight,
+    MeshData, PointLight, RenderError, Renderer, SampledTexture, SpotLight,
 };
 
 /// Why a file could not be loaded.
@@ -98,6 +98,14 @@ impl std::error::Error for LoadError {}
 /// was lost.
 fn gpu_error(error: GfxError) -> LoadError {
     LoadError(error.to_string())
+}
+
+/// A material or mesh of the file that the renderer could not create, with the cause.
+fn render_error(error: RenderError) -> LoadError {
+    match error {
+        RenderError::Gfx(error) => gpu_error(error),
+        error => LoadError(error.to_string()),
+    }
 }
 
 /// The smallest box around a loaded scene, in world space.
@@ -407,17 +415,22 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
                 },
             )
         })
-        .collect();
+        .collect::<Result<_, _>>()
+        .map_err(render_error)?;
     let default_material = materials.len();
     // glTF's default material: white, fully metallic, fully rough, opaque, single-sided.
-    materials.push(renderer.create_material(
-        gpu,
-        "default",
-        &MaterialData {
-            metallic: 1.0,
-            ..MaterialData::default()
-        },
-    ));
+    materials.push(
+        renderer
+            .create_material(
+                gpu,
+                "default",
+                &MaterialData {
+                    metallic: 1.0,
+                    ..MaterialData::default()
+                },
+            )
+            .map_err(render_error)?,
+    );
 
     let mut primitives = Vec::new();
     // The primitives of each mesh of the file, as indices into `primitives`.
@@ -571,7 +584,7 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
             None => {
                 let mesh = renderer
                     .create_mesh(gpu, &primitive.label, &primitive.data)
-                    .map_err(|error| LoadError(error.to_string()))?;
+                    .map_err(render_error)?;
                 meshes.push(mesh);
                 mesh_of[index] = Some(meshes.len() - 1);
                 meshes.len() - 1

@@ -61,7 +61,7 @@ use std::f32::consts::PI;
 
 fn main() -> Result<(), RenderError> {
     let gpu = Gpu::new()?;
-    let target = gpu.create_render_target("image", 64, 64, TextureFormat::Rgba8UnormSrgb).expect("the GPU has memory for it");
+    let target = gpu.create_render_target("image", 64, 64, TextureFormat::Rgba8UnormSrgb)?;
     let mut renderer = Renderer::new(&gpu, target.format())?;
     let triangle = renderer.create_mesh(&gpu, "triangle", &MeshData {
         positions: vec![[-1.0, -1.0, 0.0], [1.0, -1.0, 0.0], [0.0, 1.0, 0.0]],
@@ -76,7 +76,7 @@ fn main() -> Result<(), RenderError> {
         &gpu,
         "red",
         &MaterialData { base_color: [1.0, 0.0, 0.0, 1.0], ..MaterialData::default() },
-    );
+    )?;
 
     let camera = Camera { eye: Vec3::new(0.0, 0.0, 3.0), ..Camera::default() };
     // The sun of a clear day, 100 000 lux, shining straight at the triangle, which faces +Z, and no
@@ -99,7 +99,7 @@ fn main() -> Result<(), RenderError> {
         bloom: 0.0,
         instances: &instances,
     };
-    let stats = renderer.render(&gpu, &target, &scene);
+    let stats = renderer.render(&gpu, &target, &scene)?;
     assert_eq!((stats.draw_calls, stats.triangles), (1, 1));
 
     let image = gpu.read_render_target(&target)?;
@@ -175,14 +175,17 @@ fn main() -> Result<(), RenderError> {
   light is moved and never added), then maps that light to the output's range with Khronos PBR
   Neutral: colors whose channels lie between 0.08 and 0.8 come out lowered by 0.04, darker ones
   less, and brighter ones are compressed towards 1 and turned towards white, so that a surface
-  reflecting a light of 1 shows at 0.87 (sRGB 240). It returns `RenderStats`: the scene pass's draw
-  calls and triangles, the shadow pass's draw calls (`shadow_draw_calls`), the CPU time of the call,
-  and the GPU time of each pass (`shadow_gpu_time`, `scene_gpu_time`, `sky_gpu_time`,
-  `tone_mapping_gpu_time`, and `bloom_gpu_time` for the bloom's passes together), measured with a
-  `slime_gfx::GpuTimer` per submission of four passes on adapters that can time their work and
-  read back a few frames later (`None` otherwise, until the first time comes back, and for a few
-  frames after the output's size changes or the shadow pass or the bloom starts or stops); times
-  from different submissions can come from different frames, usually consecutive ones.
+  reflecting a light of 1 shows at 0.87 (sRGB 240). It returns `RenderStats`, or an error when the
+  GPU's memory cannot hold what the frame creates (the targets of a new size, the bloom's levels
+  when it resumes, a larger instance buffer) or the device is lost: nothing is drawn then, and the
+  next call tries again. `RenderStats` holds the scene pass's draw calls and triangles, the shadow
+  pass's draw calls (`shadow_draw_calls`), the CPU time of the call, and the GPU time of each pass
+  (`shadow_gpu_time`, `scene_gpu_time`, `sky_gpu_time`, `tone_mapping_gpu_time`, and
+  `bloom_gpu_time` for the bloom's passes together), measured with a `slime_gfx::GpuTimer` per
+  submission of four passes on adapters that can time their work and read back a few frames later
+  (`None` otherwise, until the first time comes back, and for a few frames after the output's size
+  changes or the shadow pass or the bloom starts or stops); times from different submissions can
+  come from different frames, usually consecutive ones.
 - `Camera`: an eye, a target, an up direction, a vertical field of view in radians, and the near
   and far distances; `view`, `projection(aspect)` and `view_projection(aspect)` give its matrices.
 - `Light`: one of the punctual lights of glTF's `KHR_lights_punctual`, each with a linear color and
@@ -212,7 +215,10 @@ fn main() -> Result<(), RenderError> {
   front faces.
 - `slime_render::glam` re-exports the math crate the API uses (`Mat4`, `Vec3`, `Quat`), so that
   callers use the same version.
-- `RenderError`: an invalid mesh, or a failure of the GPU layer (`GfxError` as its source).
+- `RenderError`: an invalid mesh, or a failure of the GPU layer (`GfxError` as its source): a
+  shader or pipeline the driver rejects, memory that runs out (`GfxError::OutOfMemory`), or a lost
+  device. Every method that creates GPU objects returns it: `Renderer::new`, `create_environment`,
+  `create_mesh`, `create_material` and `render` (`docs/adr/0044-running-out-of-gpu-memory.md`).
 
 ## Dependencies
 

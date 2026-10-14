@@ -57,7 +57,9 @@ fn the_gltf_scene_matches_its_reference_images() {
     for (name, yaw, pitch) in [("gltf-front", 0.6, 0.45), ("gltf-back", 3.6, 0.25)] {
         let radius = bounds.radius();
         let camera = orbit::camera_at(bounds.center(), radius, radius * 2.2, yaw, pitch);
-        let stats = scene.render(&gpu, &target, camera, EXPOSURE, BLOOM);
+        let stats = scene
+            .render(&gpu, &target, camera, EXPOSURE, BLOOM)
+            .expect("the frame is drawn");
         assert_eq!((stats.draw_calls, stats.triangles), (7, 2274));
         let image = gpu
             .read_render_target(&target)
@@ -860,14 +862,16 @@ fn centre_and_sky_behind(gpu: &Gpu, file: &mut Glb, centre: Vec3, yaw: f32) -> (
             .create_render_target("triangle", 64, 64, TextureFormat::Rgba8UnormSrgb)
             .expect("the GPU has memory for it");
         let mut scene = SampleScene::new(gpu, target.format(), bytes).expect("the triangle loads");
-        scene.render(
-            gpu,
-            &target,
-            orbit::camera_at(centre, 1.0, 3.0, yaw, 0.0),
-            EXPOSURE,
-            // Without bloom, which would spread the disc of a sun behind the triangle onto it.
-            0.0,
-        );
+        scene
+            .render(
+                gpu,
+                &target,
+                orbit::camera_at(centre, 1.0, 3.0, yaw, 0.0),
+                EXPOSURE,
+                // Without bloom, which would spread the disc of a sun behind the triangle onto it.
+                0.0,
+            )
+            .expect("the frame is drawn");
         let image = gpu
             .read_render_target(&target)
             .expect("the image is read back");

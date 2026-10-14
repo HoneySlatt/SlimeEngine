@@ -15,3 +15,8 @@ glam.workspace = true
 slime-gfx.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+
+# The tests that lose the GPU device destroy it, which needs wgpu: the engine's own tests may reach
+# it through slime-gfx's `wgpu` feature (ADR-0031).
+[dev-dependencies]
+slime-gfx = { workspace = true, features = ["wgpu"] }

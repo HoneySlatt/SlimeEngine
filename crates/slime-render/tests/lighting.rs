@@ -57,7 +57,9 @@ impl Setup {
                 },
             )
             .expect("the square is valid");
-        let white = renderer.create_material(&gpu, "white", &MaterialData::default());
+        let white = renderer
+            .create_material(&gpu, "white", &MaterialData::default())
+            .expect("the GPU has memory for it");
         Self {
             gpu,
             renderer,
@@ -115,28 +117,33 @@ impl Setup {
             .collect();
         let uniform = Vec3::splat(sky);
         let environment = (sky > 0.0).then(|| {
-            self.renderer.create_environment(
+            self.renderer
+                .create_environment(
+                    &self.gpu,
+                    &Sky {
+                        zenith: uniform,
+                        horizon: uniform,
+                        ground: uniform,
+                        sun: None,
+                    },
+                )
+                .expect("the GPU has memory for it")
+        });
+        let stats = self
+            .renderer
+            .render(
                 &self.gpu,
-                &Sky {
-                    zenith: uniform,
-                    horizon: uniform,
-                    ground: uniform,
-                    sun: None,
+                &target,
+                &Scene {
+                    camera,
+                    lights: &[Light::Directional(light)],
+                    environment: environment.as_ref(),
+                    exposure,
+                    bloom: 0.0,
+                    instances: &instances,
                 },
             )
-        });
-        let stats = self.renderer.render(
-            &self.gpu,
-            &target,
-            &Scene {
-                camera,
-                lights: &[Light::Directional(light)],
-                environment: environment.as_ref(),
-                exposure,
-                bloom: 0.0,
-                instances: &instances,
-            },
-        );
+            .expect("the frame is drawn");
         let image = self
             .gpu
             .read_render_target(&target)

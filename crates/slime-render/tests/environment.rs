@@ -123,7 +123,9 @@ impl Setup {
     }
 
     fn environment(&self, sky: &Sky) -> Environment {
-        self.renderer.create_environment(&self.gpu, sky)
+        self.renderer
+            .create_environment(&self.gpu, sky)
+            .expect("the GPU has memory for it")
     }
 
     /// Draws the unit sphere at the origin with `material` (none when `None`), seen from `camera`,
@@ -143,18 +145,20 @@ impl Setup {
             })
             .into_iter()
             .collect();
-        self.renderer.render(
-            &self.gpu,
-            &self.output,
-            &Scene {
-                camera,
-                lights: &[],
-                environment: Some(environment),
-                exposure,
-                bloom: 0.0,
-                instances: &instances,
-            },
-        );
+        self.renderer
+            .render(
+                &self.gpu,
+                &self.output,
+                &Scene {
+                    camera,
+                    lights: &[],
+                    environment: Some(environment),
+                    exposure,
+                    bloom: 0.0,
+                    instances: &instances,
+                },
+            )
+            .expect("the frame is drawn");
         self.gpu
             .read_float_render_target(&self.output)
             .expect("the image is read back")
@@ -162,16 +166,18 @@ impl Setup {
 
     fn material(&self, base_color: [f32; 3], metallic: f32, roughness: f32) -> Material {
         let [r, g, b] = base_color;
-        self.renderer.create_material(
-            &self.gpu,
-            "sphere",
-            &MaterialData {
-                base_color: [r, g, b, 1.0],
-                metallic,
-                roughness,
-                ..MaterialData::default()
-            },
-        )
+        self.renderer
+            .create_material(
+                &self.gpu,
+                "sphere",
+                &MaterialData {
+                    base_color: [r, g, b, 1.0],
+                    metallic,
+                    roughness,
+                    ..MaterialData::default()
+                },
+            )
+            .expect("the GPU has memory for it")
     }
 }
 
@@ -563,14 +569,18 @@ fn an_environment_draws_with_any_renderer_and_a_scene_without_one_is_black() {
         bloom: 0.0,
         instances: &instances,
     };
-    other.render(&setup.gpu, &setup.output, &scene);
+    other
+        .render(&setup.gpu, &setup.output, &scene)
+        .expect("the frame is drawn");
     let drawn_elsewhere = setup
         .gpu
         .read_float_render_target(&setup.output)
         .expect("the image is read back");
     assert_eq!(drawn_elsewhere.pixels, made_here.pixels);
     scene.environment = None;
-    other.render(&setup.gpu, &setup.output, &scene);
+    other
+        .render(&setup.gpu, &setup.output, &scene)
+        .expect("the frame is drawn");
     let black = setup
         .gpu
         .read_float_render_target(&setup.output)

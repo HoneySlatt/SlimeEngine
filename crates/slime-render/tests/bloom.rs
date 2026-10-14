@@ -70,16 +70,18 @@ impl Pixel {
         let gpu = gpu();
         let renderer =
             Renderer::new(&gpu, TextureFormat::Rgba16Float).expect("the renderer is created");
-        let emitter = renderer.create_material(
-            &gpu,
-            "emitter",
-            &MaterialData {
-                base_color: [0.0, 0.0, 0.0, 1.0],
-                emissive: [1.0; 3],
-                emissive_strength: emission,
-                ..MaterialData::default()
-            },
-        );
+        let emitter = renderer
+            .create_material(
+                &gpu,
+                "emitter",
+                &MaterialData {
+                    base_color: [0.0, 0.0, 0.0, 1.0],
+                    emissive: [1.0; 3],
+                    emissive_strength: emission,
+                    ..MaterialData::default()
+                },
+            )
+            .expect("the GPU has memory for it");
         Self {
             gpu,
             renderer,
@@ -107,18 +109,21 @@ impl Pixel {
             material: &self.emitter,
             transform: Mat4::IDENTITY,
         }];
-        let stats = self.renderer.render(
-            &self.gpu,
-            &output,
-            &Scene {
-                camera: camera(),
-                lights: &[],
-                environment: None,
-                exposure: 1.0,
-                bloom,
-                instances: &instances,
-            },
-        );
+        let stats = self
+            .renderer
+            .render(
+                &self.gpu,
+                &output,
+                &Scene {
+                    camera: camera(),
+                    lights: &[],
+                    environment: None,
+                    exposure: 1.0,
+                    bloom,
+                    instances: &instances,
+                },
+            )
+            .expect("the frame is drawn");
         let image = self
             .gpu
             .read_float_render_target(&output)
@@ -232,27 +237,31 @@ fn uniform(
     let output = gpu
         .create_render_target("output", width, height, TextureFormat::Rgba16Float)
         .expect("the GPU has memory for it");
-    let environment = renderer.create_environment(
-        gpu,
-        &Sky {
-            zenith: Vec3::splat(light),
-            horizon: Vec3::splat(light),
-            ground: Vec3::splat(light),
-            sun: None,
-        },
-    );
-    let stats = renderer.render(
-        gpu,
-        &output,
-        &Scene {
-            camera: Camera::default(),
-            lights: &[],
-            environment: Some(&environment),
-            exposure: 1.0,
-            bloom,
-            instances: &[],
-        },
-    );
+    let environment = renderer
+        .create_environment(
+            gpu,
+            &Sky {
+                zenith: Vec3::splat(light),
+                horizon: Vec3::splat(light),
+                ground: Vec3::splat(light),
+                sun: None,
+            },
+        )
+        .expect("the GPU has memory for it");
+    let stats = renderer
+        .render(
+            gpu,
+            &output,
+            &Scene {
+                camera: Camera::default(),
+                lights: &[],
+                environment: Some(&environment),
+                exposure: 1.0,
+                bloom,
+                instances: &[],
+            },
+        )
+        .expect("the frame is drawn");
     (
         gpu.read_float_render_target(&output)
             .expect("the image is read back"),

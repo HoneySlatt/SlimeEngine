@@ -104,7 +104,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   for less; and `GfxError::DeviceLost` on a lost device, where it returned an object that could not
   be used. Memory that runs out in a creation the engine does not make, in egui's renderer for
   example, gives the device up and stops the run cleanly. The `SLIME_GPU_MEMORY_BUDGET`
-  environment variable lowers the memory that creations may use, to try a game with less.
+  environment variable lowers the memory that creations may use, to try a game with less. The
+  renderer's `create_environment`, `create_material` and `render` return a `Result` too: a frame
+  whose new targets do not fit draws nothing, and the next one tries again.
 - On Direct3D 12, shaders are compiled with FXC, which is part of Windows, on every machine
   ([ADR-0036](docs/adr/0036-direct3d-12-shader-compiler.md)). wgpu used any `dxcompiler.dll` that
   Windows found, whatever its version, so the same program could compile its shaders differently,

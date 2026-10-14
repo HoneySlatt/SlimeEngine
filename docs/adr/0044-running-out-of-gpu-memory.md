@@ -36,6 +36,12 @@ error and reacts, as streaming a world needs.
   told of, made by a library built on wgpu, such as egui's renderer (ADR-0031). It is logged, and
   the device is given up as if it were lost: `Gpu::check` returns `DeviceLost`, whose message says
   that the memory ran out, and the run stops cleanly instead of panicking.
+- The renderer passes these errors on, as `RenderError::Gfx`, from every method that creates GPU
+  objects: `Renderer::new`, `create_environment`, `create_mesh`, `create_material`, and `render`,
+  which creates its targets when the output's size changes, the bloom's levels when the bloom
+  resumes, and a larger instance buffer when a scene needs one. A frame that fails draws nothing,
+  and the renderer keeps the targets it had: the next call tries again, after the game has freed
+  memory or with a smaller output.
 - Other wgpu errors remain bugs, which panic. A creation's invalid arguments, such as an empty
   buffer or a texture larger than the device allows, still panic before anything is created.
 - The `SLIME_GPU_MEMORY_BUDGET` environment variable, a percentage from 1 to 100, sets wgpu's

@@ -61,7 +61,7 @@ pub struct Shapes {
     checkered_green: Material,
     /// The small spheres' materials: a row of dielectrics, then a row of metals, each from the
     /// smoothest to the roughest.
-    spheres: [[Material; 3]; 2],
+    spheres: [Vec<Material>; 2],
     environment: Environment,
 }
 
@@ -95,25 +95,30 @@ impl Shapes {
                 },
             )
         };
-        let orange = material("orange", [0.9, 0.45, 0.1, 1.0], None);
-        let blue = material("blue", [0.15, 0.4, 0.9, 1.0], None);
-        let checkered = material("checkered", [1.0, 1.0, 1.0, 1.0], checkered_by);
-        let checkered_green = material("checkered green", [0.45, 0.9, 0.55, 1.0], checkered_by);
+        let orange = material("orange", [0.9, 0.45, 0.1, 1.0], None)?;
+        let blue = material("blue", [0.15, 0.4, 0.9, 1.0], None)?;
+        let checkered = material("checkered", [1.0, 1.0, 1.0, 1.0], checkered_by)?;
+        let checkered_green = material("checkered green", [0.45, 0.9, 0.55, 1.0], checkered_by)?;
         let spheres = [0.0, 1.0].map(|metallic| {
-            SPHERE_ROUGHNESS.map(|roughness| {
-                renderer.create_material(
-                    gpu,
-                    &format!("sphere, metallic {metallic}, roughness {roughness}"),
-                    &MaterialData {
-                        base_color: SPHERE_COLOR,
-                        metallic,
-                        roughness,
-                        ..MaterialData::default()
-                    },
-                )
-            })
+            SPHERE_ROUGHNESS
+                .iter()
+                .map(|&roughness| {
+                    renderer.create_material(
+                        gpu,
+                        &format!("sphere, metallic {metallic}, roughness {roughness}"),
+                        &MaterialData {
+                            base_color: SPHERE_COLOR,
+                            metallic,
+                            roughness,
+                            ..MaterialData::default()
+                        },
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()
         });
-        let environment = renderer.create_environment(gpu, &SKY);
+        let [dielectrics, metals] = spheres;
+        let spheres = [dielectrics?, metals?];
+        let environment = renderer.create_environment(gpu, &SKY)?;
         Ok(Self {
             environment,
             renderer,
@@ -129,7 +134,16 @@ impl Shapes {
 
     /// Draws the shapes into `target` as the camera sees them `time` seconds after the start: it
     /// has orbited them by then.
-    pub fn render(&mut self, gpu: &Gpu, target: &RenderTarget, time: f32) -> RenderStats {
+    ///
+    /// # Errors
+    ///
+    /// As [`Renderer::render`].
+    pub fn render(
+        &mut self,
+        gpu: &Gpu,
+        target: &RenderTarget,
+        time: f32,
+    ) -> Result<RenderStats, RenderError> {
         let angle = time * ORBIT_SPEED;
         let camera = Camera {
             eye: Vec3::new(

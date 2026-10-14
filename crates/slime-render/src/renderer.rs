@@ -10,7 +10,7 @@ use glam::{Mat3, Mat4, Vec3};
 use slime_gfx::{
     AddressMode, BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource,
     BindingType, CullMode, DepthBias, DepthCompare, DepthState, DepthTarget, Filter, FragmentState,
-    Gpu, RenderPass, RenderPipeline, RenderPipelineDescriptor, RenderTarget, Sampler,
+    GfxError, Gpu, RenderPass, RenderPipeline, RenderPipelineDescriptor, RenderTarget, Sampler,
     SamplerDescriptor, ShaderStages, Texture, TextureFormat, UniformBuffer,
 };
 
@@ -564,8 +564,8 @@ impl Renderer {
             cull: CullMode::None,
         })?;
         let frame_uniform = gpu.create_uniform_buffer("frame", &[0; FRAME_VALUES_SIZE])?;
-        let no_environment = Environment::black(gpu);
-        let brdf_table = brdf_table(gpu);
+        let no_environment = Environment::black(gpu)?;
+        let brdf_table = brdf_table(gpu)?;
         let environment_sampler = gpu.create_sampler(
             "environment",
             &SamplerDescriptor {
@@ -581,7 +581,7 @@ impl Renderer {
             &no_environment,
             &brdf_table,
             &environment_sampler,
-        );
+        )?;
         let white = gpu.create_texture(
             "white",
             1,
@@ -590,7 +590,7 @@ impl Renderer {
             &[255, 255, 255, 255],
         )?;
         let default_sampler = gpu.create_sampler("default", &SamplerDescriptor::default())?;
-        let instances = InstanceSlots::new(gpu, &instance_layout, INITIAL_INSTANCE_CAPACITY);
+        let instances = InstanceSlots::new(gpu, &instance_layout, INITIAL_INSTANCE_CAPACITY)?;
         if !gpu.can_time() {
             tracing::info!("the adapter cannot time its work: the statistics have no GPU time");
         }
@@ -633,13 +633,18 @@ impl Renderer {
     /// frame. A sky of one radiance in every direction, without a sun, takes almost none. The
     /// environment is not tied to this renderer.
     ///
+    /// # Errors
+    ///
+    /// [`RenderError::Gfx`] with [`GfxError::OutOfMemory`] when the GPU's memory cannot hold it,
+    /// or [`GfxError::DeviceLost`] once the device is lost: nothing is created then.
+    ///
     /// # Panics
     ///
     /// If the zenith's, the horizon's or the ground's radiance is negative, not finite, or above
     /// 65 504 nits, the largest value of the environment's half-precision texels: this is a bug in
     /// the caller. A clear sky stays below about 30 000 nits away from the sun.
-    pub fn create_environment(&self, gpu: &Gpu, sky: &Sky) -> Environment {
-        Environment::new(gpu, sky)
+    pub fn create_environment(&self, gpu: &Gpu, sky: &Sky) -> Result<Environment, RenderError> {
+        Ok(Environment::new(gpu, sky)?)
     }
 
     /// Uploads a mesh. `label` names its buffers in error messages and in GPU capture tools.
@@ -664,16 +669,24 @@ impl Renderer {
     /// Creates a material. `label` names it in error messages and in GPU capture tools. The
     /// material keeps its textures and samplers alive.
     ///
+    /// # Errors
+    ///
+    /// [`RenderError::Gfx`] with [`GfxError::OutOfMemory`] when the GPU's memory cannot hold it,
+    /// or [`GfxError::DeviceLost`] once the device is lost: nothing is created then.
+    ///
     /// # Panics
     ///
     /// If a texture's format does not suit its slot: the base color and emissive textures hold
     /// colors and need an sRGB format; the metallic-roughness, normal and occlusion textures hold
     /// data and need a format without sRGB encoding, `Rgba8Unorm`. Read in the other kind of
     /// format, their values would be wrong: this is a bug in the caller.
-    pub fn create_material(&self, gpu: &Gpu, label: &str, data: &MaterialData<'_>) -> Material {
-        let uniform = gpu
-            .create_uniform_buffer(label, &data.values())
-            .expect("the renderer's GPU objects fit in memory");
+    pub fn create_material(
+        &self,
+        gpu: &Gpu,
+        label: &str,
+        data: &MaterialData<'_>,
+    ) -> Result<Material, RenderError> {
+        let uniform = gpu.create_uniform_buffer(label, &data.values())?;
         // Each slot: its name, its texture, and whether it holds colors (sRGB) rather than data.
         let slots = [
             ("base color", data.base_color_texture, true),
@@ -713,14 +726,12 @@ impl Renderer {
                 resource: BindingResource::Sampler(sampler),
             });
         }
-        let group = gpu
-            .create_bind_group(label, &self.material_layout, &entries)
-            .expect("the renderer's GPU objects fit in memory");
-        Material {
+        let group = gpu.create_bind_group(label, &self.material_layout, &entries)?;
+        Ok(Material {
             group,
             double_sided: data.double_sided,
             masked: matches!(data.alpha_mode, crate::material::AlphaMode::Mask { .. }),
-        }
+        })
     }
 
     /// Draws `scene` into `target`, in passes. The shadow pass draws into the shadow map the
@@ -753,6 +764,14 @@ impl Renderer {
     /// or less. The shadow map keeps its size: its texels are the extent of the instances across
     /// the light divided by 2048, so that a scene that spreads wider gets coarser shadows.
     ///
+    /// # Errors
+    ///
+    /// [`RenderError::Gfx`] with [`GfxError::OutOfMemory`] when the GPU's memory cannot hold
+    /// what the frame creates: the targets of a new size, the bloom's levels when it resumes, or a
+    /// larger instance buffer; or with [`GfxError::DeviceLost`] once the device is lost. Nothing is drawn then, and the renderer
+    /// keeps what it had: the next call tries again, so that a game can free memory, or draw
+    /// into a smaller target, in between.
+    ///
     /// # Panics
     ///
     /// If `target` does not have the format the renderer was created for; if the scene's exposure
@@ -763,7 +782,12 @@ impl Renderer {
     ///
     /// With glam's assertions on (see [`Camera`]), also for a camera that would otherwise draw
     /// nothing usable, as [`Camera::view_projection`] does.
-    pub fn render(&mut self, gpu: &Gpu, target: &RenderTarget, scene: &Scene<'_>) -> RenderStats {
+    pub fn render(
+        &mut self,
+        gpu: &Gpu,
+        target: &RenderTarget,
+        scene: &Scene<'_>,
+    ) -> Result<RenderStats, RenderError> {
         let started = Instant::now();
         assert!(
             scene.exposure.is_finite() && scene.exposure >= 0.0,
@@ -864,24 +888,22 @@ impl Renderer {
         frame_bytes.resize(FRAME_VALUES_SIZE, 0);
         gpu.write_uniform_buffer(&self.frame_uniform, &frame_bytes);
         if !self.frame_group.0.is(environment) {
-            self.frame_group = (
-                environment.clone(),
-                frame_group(
-                    gpu,
-                    &self.frame_layout,
-                    &self.frame_uniform,
-                    environment,
-                    &self.brdf_table,
-                    &self.environment_sampler,
-                ),
-            );
+            let group = frame_group(
+                gpu,
+                &self.frame_layout,
+                &self.frame_uniform,
+                environment,
+                &self.brdf_table,
+                &self.environment_sampler,
+            )?;
+            self.frame_group = (environment.clone(), group);
         }
         let frame_group = &self.frame_group.1;
 
         let capacity = instance_capacity(self.instances.capacity, scene.instances.len());
         if capacity != self.instances.capacity {
             tracing::debug!(capacity, "resizing the instance buffer");
-            self.instances = InstanceSlots::new(gpu, &self.instance_layout, capacity);
+            self.instances = InstanceSlots::new(gpu, &self.instance_layout, capacity)?;
         }
         let stride = self.instances.stride;
         // The slots are written one after another, each padded to the stride, and the slots no
@@ -909,8 +931,7 @@ impl Renderer {
         };
         if self.frame.as_ref().is_none_or(|frame| frame.shape != shape) {
             tracing::debug!(?shape, "building the frame's graph");
-            let previous = self.frame.take();
-            self.frame = Some(self.build_frame(gpu, shape, previous.as_ref()));
+            self.frame = Some(self.build_frame(gpu, shape, self.frame.as_ref())?);
         }
         let frame = self.frame.as_ref().expect("built above");
 
@@ -937,7 +958,7 @@ impl Renderer {
             &mut stats,
         );
         stats.cpu_time = started.elapsed();
-        stats
+        Ok(stats)
     }
 
     /// Records `pass`, which reads its transient targets through `group`, drawing `scene`, and
@@ -1013,13 +1034,18 @@ impl Renderer {
 
     /// The frame of `shape`: its graph, compiled, with its transient targets created (those of
     /// `previous` reused where they match) and its timers, and the groups that read the targets.
-    fn build_frame(&self, gpu: &Gpu, shape: Shape, previous: Option<&Frame>) -> Frame {
+    fn build_frame(
+        &self,
+        gpu: &Gpu,
+        shape: Shape,
+        previous: Option<&Frame>,
+    ) -> Result<Frame, GfxError> {
         let mut graph = declare_frame(shape);
         // `declare_frame` builds every shape from the same rules, which the tests compile.
         if let Err(error) = graph.compile() {
             panic!("the renderer declared a frame it cannot draw: {error}");
         }
-        graph.create(gpu, previous.map(|frame| &frame.graph));
+        graph.create(gpu, previous.map(|frame| &frame.graph))?;
         let levels = bloom_levels_of(shape);
         let groups = graph
             .declarations()
@@ -1028,7 +1054,7 @@ impl Renderer {
                 // The transient render target the pass declares at `slot` of its reads.
                 let read = |slot: usize| declaration.reads[slot].map(|target| graph.color(target));
                 let entries = match declaration.pass {
-                    Pass::Shadow | Pass::Scene | Pass::Sky => return None,
+                    Pass::Shadow | Pass::Scene | Pass::Sky => return Ok(None),
                     // The level above: the scene's light for the first.
                     Pass::BloomDown(level) => (
                         format!("bloom down {level}"),
@@ -1076,10 +1102,9 @@ impl Renderer {
                     }
                 };
                 let (label, layout, mut resources, weight) = entries;
-                let weight = weight.map(|weight| {
-                    gpu.create_uniform_buffer(&label, &weight)
-                        .expect("the renderer's GPU objects fit in memory")
-                });
+                let weight = weight
+                    .map(|weight| gpu.create_uniform_buffer(&label, &weight))
+                    .transpose()?;
                 if let Some(weight) = &weight {
                     resources.push(BindingResource::UniformBuffer(weight));
                 }
@@ -1087,17 +1112,14 @@ impl Renderer {
                     .zip(resources)
                     .map(|(binding, resource)| BindGroupEntry { binding, resource })
                     .collect();
-                Some(
-                    gpu.create_bind_group(&label, layout, &entries)
-                        .expect("the renderer's GPU objects fit in memory"),
-                )
+                gpu.create_bind_group(&label, layout, &entries).map(Some)
             })
-            .collect();
-        Frame {
+            .collect::<Result<_, _>>()?;
+        Ok(Frame {
             shape,
             graph,
             groups,
-        }
+        })
     }
 }
 
@@ -1234,7 +1256,7 @@ fn frame_group(
     environment: &Environment,
     brdf_table: &Texture,
     sampler: &Sampler,
-) -> BindGroup {
+) -> Result<BindGroup, GfxError> {
     gpu.create_bind_group(
         "frame",
         layout,
@@ -1257,7 +1279,6 @@ fn frame_group(
             },
         ],
     )
-    .expect("the renderer's GPU objects fit in memory")
 }
 
 /// The matrix that transforms the normals of an instance placed by `transform`. It gives
@@ -1374,30 +1395,26 @@ struct InstanceSlots {
 }
 
 impl InstanceSlots {
-    fn new(gpu: &Gpu, layout: &BindGroupLayout, capacity: usize) -> Self {
+    fn new(gpu: &Gpu, layout: &BindGroupLayout, capacity: usize) -> Result<Self, GfxError> {
         let stride = INSTANCE_VALUES_SIZE.next_multiple_of(gpu.uniform_offset_alignment());
-        let buffer = gpu
-            .create_uniform_buffer("instances", &vec![0; capacity * stride])
-            .expect("the renderer's GPU objects fit in memory");
-        let group = gpu
-            .create_bind_group(
-                "instances",
-                layout,
-                &[BindGroupEntry {
-                    binding: 0,
-                    resource: BindingResource::UniformBufferRange {
-                        buffer: &buffer,
-                        size: INSTANCE_VALUES_SIZE,
-                    },
-                }],
-            )
-            .expect("the renderer's GPU objects fit in memory");
-        Self {
+        let buffer = gpu.create_uniform_buffer("instances", &vec![0; capacity * stride])?;
+        let group = gpu.create_bind_group(
+            "instances",
+            layout,
+            &[BindGroupEntry {
+                binding: 0,
+                resource: BindingResource::UniformBufferRange {
+                    buffer: &buffer,
+                    size: INSTANCE_VALUES_SIZE,
+                },
+            }],
+        )?;
+        Ok(Self {
             buffer,
             group,
             capacity,
             stride,
-        }
+        })
     }
 
     /// Draws `instance`, whose values are in slot `slot`, with the pipeline that `pass` has set:

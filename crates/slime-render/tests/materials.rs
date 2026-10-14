@@ -79,23 +79,27 @@ fn the_base_color_texture_is_read_at_the_texture_coordinates_and_tints_the_base_
         texture: &texture,
         sampler: &sampler,
     };
-    let plain = renderer.create_material(
-        &gpu,
-        "textured",
-        &MaterialData {
-            base_color_texture: Some(sampled),
-            ..MaterialData::default()
-        },
-    );
-    let dimmed = renderer.create_material(
-        &gpu,
-        "textured and dimmed",
-        &MaterialData {
-            base_color: [0.5, 0.5, 0.5, 1.0],
-            base_color_texture: Some(sampled),
-            ..MaterialData::default()
-        },
-    );
+    let plain = renderer
+        .create_material(
+            &gpu,
+            "textured",
+            &MaterialData {
+                base_color_texture: Some(sampled),
+                ..MaterialData::default()
+            },
+        )
+        .expect("the GPU has memory for it");
+    let dimmed = renderer
+        .create_material(
+            &gpu,
+            "textured and dimmed",
+            &MaterialData {
+                base_color: [0.5, 0.5, 0.5, 1.0],
+                base_color_texture: Some(sampled),
+                ..MaterialData::default()
+            },
+        )
+        .expect("the GPU has memory for it");
     // Lit straight on by a light of π, without an environment: a matte surface seen from the light
     // reflects 0.96 of its color, diffused, and 0.01, reflected by its specular layer (ADR-0035).
     let light = Light::Directional(DirectionalLight {
@@ -110,15 +114,17 @@ fn the_base_color_texture_is_read_at_the_texture_coordinates_and_tints_the_base_
     };
 
     // Half transparent, which an opaque surface ignores.
-    let translucent = renderer.create_material(
-        &gpu,
-        "textured and translucent",
-        &MaterialData {
-            base_color: [1.0, 1.0, 1.0, 0.5],
-            base_color_texture: Some(sampled),
-            ..MaterialData::default()
-        },
-    );
+    let translucent = renderer
+        .create_material(
+            &gpu,
+            "textured and translucent",
+            &MaterialData {
+                base_color: [1.0, 1.0, 1.0, 0.5],
+                base_color_texture: Some(sampled),
+                ..MaterialData::default()
+            },
+        )
+        .expect("the GPU has memory for it");
 
     // The pixels at 5 and 10 are inside the square's quarters, away from the texture's edges:
     // red, green, blue and white texels, lit fully, so that what shows is the tone-mapped light
@@ -147,18 +153,20 @@ fn the_base_color_texture_is_read_at_the_texture_coordinates_and_tints_the_base_
             material,
             transform: Mat4::IDENTITY,
         }];
-        renderer.render(
-            &gpu,
-            &target,
-            &Scene {
-                camera,
-                lights: &[light],
-                environment: None,
-                exposure: 1.0,
-                bloom: 0.0,
-                instances: &instances,
-            },
-        );
+        renderer
+            .render(
+                &gpu,
+                &target,
+                &Scene {
+                    camera,
+                    lights: &[light],
+                    environment: None,
+                    exposure: 1.0,
+                    bloom: 0.0,
+                    instances: &instances,
+                },
+            )
+            .expect("the frame is drawn");
         let image = gpu
             .read_render_target(&target)
             .expect("the image is read back");

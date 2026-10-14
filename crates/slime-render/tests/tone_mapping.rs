@@ -45,27 +45,31 @@ fn draw(
     exposure: f32,
 ) -> RenderStats {
     let uniform = Vec3::from(light);
-    let environment = renderer.create_environment(
-        gpu,
-        &Sky {
-            zenith: uniform,
-            horizon: uniform,
-            ground: uniform,
-            sun: None,
-        },
-    );
-    renderer.render(
-        gpu,
-        output,
-        &Scene {
-            camera: Camera::default(),
-            lights: &[],
-            environment: Some(&environment),
-            exposure,
-            bloom: 0.0,
-            instances: &[],
-        },
-    )
+    let environment = renderer
+        .create_environment(
+            gpu,
+            &Sky {
+                zenith: uniform,
+                horizon: uniform,
+                ground: uniform,
+                sun: None,
+            },
+        )
+        .expect("the GPU has memory for it");
+    renderer
+        .render(
+            gpu,
+            output,
+            &Scene {
+                camera: Camera::default(),
+                lights: &[],
+                environment: Some(&environment),
+                exposure,
+                bloom: 0.0,
+                instances: &[],
+            },
+        )
+        .expect("the frame is drawn")
 }
 
 /// Checks that every pixel of `image` shows `expected`, opaque, within 10^-3: about two steps of
@@ -178,33 +182,37 @@ fn the_sky_is_exposed_before_the_high_dynamic_range_target_and_kept_within_its_r
             illuminance: 100_000.0,
             ..DirectionalLight::default()
         };
-        let environment = renderer.create_environment(
-            &gpu,
-            &Sky {
-                zenith: Vec3::ZERO,
-                horizon: Vec3::ZERO,
-                ground: Vec3::ZERO,
-                sun: Some(sun),
-            },
-        );
+        let environment = renderer
+            .create_environment(
+                &gpu,
+                &Sky {
+                    zenith: Vec3::ZERO,
+                    horizon: Vec3::ZERO,
+                    ground: Vec3::ZERO,
+                    sun: Some(sun),
+                },
+            )
+            .expect("the GPU has memory for it");
         let narrow = Camera {
             eye: Vec3::ZERO,
             target: -direction,
             fov_y: 0.001,
             ..Camera::default()
         };
-        renderer.render(
-            &gpu,
-            &output,
-            &Scene {
-                camera: narrow,
-                lights: &[Light::Directional(sun)],
-                environment: Some(&environment),
-                exposure,
-                bloom: 0.0,
-                instances: &[],
-            },
-        );
+        renderer
+            .render(
+                &gpu,
+                &output,
+                &Scene {
+                    camera: narrow,
+                    lights: &[Light::Directional(sun)],
+                    environment: Some(&environment),
+                    exposure,
+                    bloom: 0.0,
+                    instances: &[],
+                },
+            )
+            .expect("the frame is drawn");
         gpu.read_float_render_target(&output)
             .expect("the image is read back")
     };
