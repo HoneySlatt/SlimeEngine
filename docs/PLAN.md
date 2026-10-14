@@ -12,207 +12,18 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 
 ## Current
 
-- Stage 3c — A first game: in progress. Planned on 2026-10-14 and validated by the owner. M3c.1,
-  M3c.2 and M3c.3 are done, the game played by the owner on Linux and in the Windows virtual
-  machine; M3c.4 puts the findings to the owner.
-- Next: Stage 3d, anti-aliasing and the shadows of spot lights, decided by the owner from what the
-  game showed ([ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md)).
+- Stage 3c — A first game: done on 2026-10-15. *Nightwatch* is played to its objective and
+  restarted, on Linux and on Windows, through the public API only, and the owner decided where each
+  of the findings it met goes
+  ([ADR-0057](adr/0057-what-the-first-game-asks-of-the-next-stages.md)).
+- Next: Stage 3d, anti-aliasing and the shadows of spot lights
+  ([ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md)), with the cost of the
+  scene pass measured on Direct3D 12 (ADR-0057). Its plan is to be proposed to the owner.
 
 ## Status
 
-| Milestone | Goal | Status |
-|---|---|---|
-| [M3c.1](#m3c1--skeleton) | The courtyard, the camera, the player's movement and collisions | Done |
-| [M3c.2](#m3c2--guards-detection-and-the-objective) | Guards, detection, the switch, the exit: the game is won and lost | Done |
-| [M3c.3](#m3c3--night-feel-and-the-windows-check) | The night's mood, the feel, played on Linux and Windows | Done |
-| [M3c.4](#m3c4--findings-for-stages-4-and-5) | What the game found hard, as proposals for Stages 4 and 5 | In progress |
-
-Stages 0, 1, 2, 3a and 3b are done; see [Completed stages](#completed-stages).
-
-## Stage 3c — A first game
-
-Exit criterion (see [`ROADMAP.md`](ROADMAP.md#stage-3c--a-first-game)): the game is played to its
-objective and restarted, on Linux and on Windows, through the public API only.
-
-The stage uses the engine as a game does, before the asset formats (Stage 4) and the world model
-(Stage 5) are designed, so that what a game finds hard shapes them
-([ADR-0052](adr/0052-amend-roadmap-before-0-1.md)). The game is *Nightwatch*, a small stealth
-game: at night, in a courtyard closed by walls, the player crosses from the entrance to the exit
-gate past guards who patrol with flashlights and past fixed floodlights. Staying out of their light
-keeps the player hidden; a guard who sees the player ends the game, which starts again at once. A
-switch turns a floodlight off. Reaching the gate wins: the courtyard lights up, then a new game
-starts; a key restarts at any time. There is no text, sound or physics: what the player needs to
-know is shown by light. The game's README describes it in full once it exists.
-
-Out of scope: text and a HUD, sound, a physics engine (the game moves and collides on its own,
-on a flat ground, without jumping), animation beyond motion computed in code, the shadows of spot
-lights (the engine has none until Stage 9a), guards that do more than follow their paths and look,
-saved games, several levels, gamepads and a captured mouse.
-
-Decisions taken when the stage was planned, by the owner on 2026-10-14:
-
-- **Where the game lives.** A crate of the workspace, `games/nightwatch/`: a binary, not published,
-  that depends on the engine's crates by path and uses their public API only, built and run by
-  `scripts/check.sh` and CI. It is the sample that every later stage grows. An ADR amends ADR-0004's
-  layout in M3c.1.
-- **Its assets.** Meshes built in code: boxes, spheres, cylinders, with their normals, texture
-  coordinates and tangents. The temporary glTF loader is example code, which a game cannot use;
-  that it has no way to load a model is a finding for Stage 4.
-- **The engine during the stage.** A bug of the engine that the game finds is fixed, with a test. A
-  missing feature is worked around in the game and recorded below as a finding. A gap that blocks
-  the game stops the work and goes to the owner.
-- **The findings.** Recorded in [Findings](#findings) as the game meets them: what the game needed,
-  what it did instead, and a proposal with the stage it belongs to.
-- **Tests.** The game's rules live in a module that needs no GPU: unit tests cover movement,
-  collisions, sight and the switch; scripted games reach the exit, are caught and start again, and
-  check that a new game starts from the same state. The game also runs in `scripts/check.sh`'s
-  headless Weston for a number of frames, and CI builds it for Windows with the examples. No image
-  test: what the game draws changes at every stage.
-- **Flashlights without shadows.** Spot lights cast no shadows in the engine
-  ([ADR-0037](adr/0037-lights-in-physical-units-and-pre-exposure.md)), so a flashlight lights what
-  stands behind a crate. Whether a guard sees the player is the game's own computation, with a line
-  of sight that walls and crates block; the picture shows light that the rules ignore. The moon, a
-  directional light, casts the shadows the player hides in, flashlights reach a few metres, and the
-  courtyard keeps their cones off most obstacles. Recorded as a finding.
-- **Windows.** The Windows CI job builds and tests the game at every milestone; the owner plays it
-  in the virtual machine at M3c.3.
-
-Risks: light leaking through obstacles may confuse the player more than expected; the scene holds
-at most `MAX_LIGHTS` lights, flashlights and floodlights included; a camera that follows the player
-can end up behind a wall; collisions written for the game can let the player through a corner at
-a large step; and the fun of a stealth game depends on tuning that tests cannot judge.
-
-### M3c.1 — Skeleton
-
-- **Goal.** Nightwatch runs: the player moves through the courtyard, blocked by its walls and
-  crates.
-- **Crates.** `games/nightwatch` (new); the engine's crates only for bugs the game finds.
-- **Delivers.** The ADR on games in the workspace; the crate, its README describing the game, and
-  its place in the documents (`README.md`, `ARCHITECTURE.md`, `CONTRIBUTING.md`, `AGENTS.md`); the
-  courtyard built in code (ground, walls, crates); the player, moved with the keyboard relative to
-  the camera at the fixed step, sliding along what it meets; a camera above and behind the player
-  that follows it; the moon and a night sky; the rules in a module without GPU; the game in
-  `scripts/check.sh`'s headless Weston, and in the Windows examples that CI builds.
-- **Done when.** Unit tests show the player moving at its speed, stopped by walls and crates,
-  sliding along them, and never through a corner at the fixed step; the game runs on Linux and in
-  the headless Weston; CI is green on both platforms.
-- **How to test.** `cargo test -p nightwatch`; `cargo run -p nightwatch`.
-- **Checked** on 2026-10-14: ADR-0055; the crate, its README and its place in the documents; 13
-  tests of the rules, the meshes, the controls and the camera; the game drawn 120 frames in
-  `scripts/check.sh`'s headless Weston, and looked at offscreen; CI green on Linux and Windows, with
-  `nightwatch.exe` in the Windows artifact. Seen while looking: the camera, from the entrance, stood
-  behind the west wall; raised then, and kept clear of walls at M3c.3.
-
-### M3c.2 — Guards, detection and the objective
-
-- **Goal.** The game can be won and lost.
-- **Crates.** `games/nightwatch`.
-- **Delivers.** Guards that follow their paths with a flashlight, a spot light that turns with
-  them; fixed floodlights; sight: the player is seen inside a lit cone, within its range, with a
-  clear line of sight; a guard who sees the player ends the game, which starts again; a switch, used
-  with a key next to it, that turns a floodlight off; the gate, which wins when reached and lights
-  the courtyard before a new game; a key that restarts at any time. A new game resets the rules'
-  state and keeps the GPU objects.
-- **Done when.** Tests: a scripted game reaches the gate; one that walks into a cone is caught and
-  starts again; a guard does not see the player behind a crate; a switched-off floodlight sees
-  nothing; a new game starts from the same state as the first; restarting creates no GPU object.
-- **How to test.** `cargo test -p nightwatch`; playing it.
-- **Checked** on 2026-10-14: three guards, two floodlights and a switch in the courtyard; 27 tests,
-  among them a scripted game that crosses the courtyard to the gate in 33 s, one that walks straight
-  into a light and is caught, and a new game that starts from the state of the first. The switch,
-  first placed in the south of the east part, could only be reached through the light it turns off:
-  it stands on the north wall. Looked at offscreen; CI green on Linux and Windows. A new game
-  touches the rules only, which hold no GPU object.
-
-### M3c.3 — Night, feel and the Windows check
-
-- **Goal.** A game played with pleasure for a few minutes, on Linux and on Windows.
-- **Crates.** `games/nightwatch`.
-- **Delivers.** The night's mood: the sky, the moon, the exposure, lamps whose emission glows
-  through the bloom; a camera that follows smoothly and keeps out of the walls; what moves drawn
-  between its last two fixed steps (`Context::fixed_step_alpha`); the dev overlay on F1 with the
-  frame's statistics; the frame's cost measured on the development machine; the owner plays the
-  game on Linux and in the Windows virtual machine.
-- **Done when.** The owner's reports from Linux and Windows; the checks and CI are green.
-- **How to test.** Playing it; `--frames` in the headless Weston.
-- **Checked** on 2026-10-14 and 2026-10-15: the night darker, its lamps lighting pools that do not
-  wash it out; what moves drawn between its last two steps; the camera kept clear of walls, by a
-  test; the dev overlay on F1. In a release build on the development machine's RX 6900 XT, a frame
-  takes 0.59 ms of CPU time and about 1.1 ms on the GPU (32 draw calls, 3 216 triangles). The owner
-  played it on Linux: the controls, the switch and the gate work, the game is readable and very
-  easy, which is fine; the light that goes through walls and the jagged edges were its defects,
-  which Stage 3d will remove (ADR-0056). In the Windows virtual machine, on the same GPU, with the
-  build of CI: the game runs on Direct3D 12 and on Vulkan, plays through to the switch, the gate and
-  a new game, follows the window as it is resized, maximized, minimized and restored, and closes on
-  Escape and after `--frames`, with no error and one warning, known: the dev overlay's sRGB
-  framebuffer ([Known debt](#known-debt)). Its scene pass costs more on Direct3D 12 than on Vulkan,
-  a finding.
-
-### M3c.4 — Findings for Stages 4 and 5
-
-- **Goal.** What the game found hard becomes proposals for the stages that follow.
-- **Crates.** None, unless a proposal the owner accepts is small enough to apply now.
-- **Delivers.** [Findings](#findings) completed and reread; each proposal put to the owner, and
-  those accepted recorded where they belong (the roadmap and an ADR for a change of direction, the
-  plan of Stage 4 or 5 otherwise); `CHANGELOG.md`; Stage 3c marked done. It has no release of its
-  own: the game is released with 0.2.
-- **Done when.** The owner has decided on every proposal; the documents are reread as a newcomer
-  would.
-- **How to test.** Reading.
-
-### Findings
-
-What the game needed and the engine did not give, as met. Each entry says what the game did
-instead, and proposes a change with the stage it belongs to.
-
-- **Spot lights cast no shadows** (ADR-0037, ADR-0038). A flashlight lights what stands behind a
-  crate, while the game's rules say it does not reach there. The owner, who played it on Linux,
-  found it the game's main defect. Decided: the shadows of spot lights in Stage 3d, right after this
-  stage ([ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md)).
-- **Edges are jagged** (M3c.3). The renderer has no anti-aliasing: a nearly horizontal edge, the top
-  of a wall, steps by a pixel at long intervals, which the owner saw as teeth. Decided: multisample
-  anti-aliasing in Stage 3d (ADR-0056).
-- **No model can be loaded outside the examples** (M3c.1). The temporary glTF loader is example
-  code (ADR-0029), so the game draws shapes made in code: a cube and a sphere, its own until
-  M3c.4, the engine's since. Decided (M3c.4): Stage 4's pipeline gives a game its models, as
-  Stage 4's exit asks already.
-- **A mesh needs tangents, even without a normal texture** (M3c.1). `MeshData::tangents` is
-  required, so the game computed them for its cube and sphere, which no material of it uses; the
-  engine's shapes carry them now. Decided (M3c.4): the engine computes the tangents of a mesh that
-  has none, with MikkTSpace, as glTF asks, at Stage 4, whose importer must compute them anyway.
-- **The engine had no simple shapes** (M3c.1). The game, the examples and the renderer's tests
-  each made their own: two cubes, three spheres and five squares. Done (M3c.4), as the owner
-  decided, before Stage 3d, whose tests need them: `MeshData::cube`, `MeshData::sphere` and
-  `MeshData::square`, which all of them use now.
-- **The engine reports keys going down and up, not the keys held** (M3c.1). The game keeps which of
-  its keys are held (`games/nightwatch/src/controls.rs`). Proposal: the keys and buttons held, kept
-  by the engine, with the input action mapping of Stage 7, or sooner if the next findings ask.
-- **A frame's instances are rebuilt from the game's own state** (M3c.1). The game keeps its blocks
-  and its player, and turns them into a list of `Instance`s at every frame, with their transforms.
-  Proposal: none yet; the world model of Stage 5 decides where the things drawn live.
-- **A material cannot change** (M3c.2). The switch's button glows red, brighter within reach, and
-  green once used: three materials made at the start, between which the game picks at each frame,
-  as it does for the caught slime and the floodlights' lamps. Proposal: values a game sets per
-  instance or changes on a material, such as an emission, with the material graph of Stage 9b, or
-  sooner if more findings ask.
-- **Nothing asks the engine what stands between two points** (M3c.3). The camera keeps a wall
-  from standing between it and the player by testing its line of sight against the game's own
-  blocks, as the rules do for the lights' sight (`games/nightwatch/src/camera.rs`,
-  `games/nightwatch/src/sight.rs`). Proposal: queries on the world, a ray or a segment against
-  what it holds, with the world model of Stage 5 or the physics of Stage 7.
-- **The game keeps where things were at the last step** (M3c.3). To draw what moves between its
-  last two fixed steps, as `Context::fixed_step_alpha` allows, the rules keep the player's and the
-  guards' previous places. Proposal: transforms that the world model of Stage 5 keeps at both
-  steps, so that a game does not.
-- **The scene pass costs more than twice as much on Direct3D 12 as on Vulkan** (M3c.3). In the
-  Windows virtual machine, on the RX 6900 XT, with the view the game starts on and the dev overlay
-  open, it took 2.9 ms on Direct3D 12 and 1.2 ms on Vulkan (0.8 ms on Linux, with RADV); the other
-  passes cost about the same on both. That is well within a frame at 60 Hz, but the scene pass is
-  the one Stage 3d makes heavier. The cause is not measured: the code of shaders compiled by FXC
-  ([ADR-0036](adr/0036-direct3d-12-shader-compiler.md)), which may be slower than DXC's, or the
-  GPU's clock under a light load, which would also explain one frame measured at 10.3 ms on
-  Direct3D 12, the last before the game closed. Proposal: measure with DXC
-  (`WGPU_DX12_COMPILER=dxc`) in Stage 3d, when the cost of MSAA on the scene pass is measured.
+Stage 3d is not planned yet. Stages 0, 1, 2, 3a, 3b and 3c are done; see
+[Completed stages](#completed-stages).
 
 ## Releasing
 
@@ -246,6 +57,7 @@ and its GitHub release carries the Windows examples that CI built from that comm
 | 2 — GPU layer → 0.0.2 | M2.0 Windows in CI; M2.1 GPU device without a window; M2.2 offscreen triangle and reference image; M2.3 the triangle in the window; M2.4 frame pacing; M2.5 debug markers, robustness, release | Done; released as 0.0.2 (tag `v0.0.2`). Content listed in [`CHANGELOG.md`](../CHANGELOG.md). |
 | 3a — First renderer → 0.0.3 | M3.1 GPU resources for a renderer; M3.2 the render crate; M3.3 directional light and material; M3.4 textures and samplers; M3.5 a glTF scene and camera control; M3.6 statistics, GPU timings and the dev overlay; M3.7 Windows check, documentation, release | Done; released as 0.0.3 (tag `v0.0.3`). Content listed in [`CHANGELOG.md`](../CHANGELOG.md). |
 | 3b — Physically based renderer → 0.1 | M3b.1 GPU layer for multi-pass rendering; M3b.2 HDR rendering and tone mapping; M3b.3 physically based materials; M3b.4 light types; M3b.5 shadows; M3b.6 image-based lighting; M3b.7 bloom; M3b.8 render graph; a pass over the known debt; M3b.9 Windows check, documentation, release | Done; released as 0.1 (tag `v0.1.0`), with the Windows examples on its GitHub release. Content listed in [`CHANGELOG.md`](../CHANGELOG.md). |
+| 3c — A first game | M3c.1 skeleton; M3c.2 guards, detection and the objective; M3c.3 night, feel and the Windows check; M3c.4 findings for the next stages | Done; no release of its own: its game, *Nightwatch*, is released with 0.2. The stage each of its findings goes to is in [ADR-0057](adr/0057-what-the-first-game-asks-of-the-next-stages.md), and the two that became Stage 3d in [ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md). |
 
 The details of each completed milestone (what it delivered, how it was checked, what was measured)
 are in the history of this file and in the commits that implemented it; the measurements that

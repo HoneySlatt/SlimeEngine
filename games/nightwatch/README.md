@@ -20,9 +20,10 @@ a red light, and a new game starts a moment later. The switch on the north wall 
 turns the second floodlight off: its button glows red, brighter within reach, and green once used.
 Reaching the gate wins: the courtyard lights up under a green light, and a new game starts.
 
-The engine's spot lights cast no shadows, so a flashlight seems to light what stands behind a
-crate: the rules, which decide who sees the player, know better than the picture (a finding of
-Stage 3c, `docs/PLAN.md`).
+The engine's spot lights cast no shadows, so a flashlight seems to light what stands behind a crate:
+the rules, which decide who sees the player, know better than the picture. Stage 3d gives spot
+lights their shadows
+([ADR-0056](../../docs/adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md)).
 
 There is no text, sound or physics: the engine has none of them yet. The game moves the player
 and stops it at walls and crates on its own, on a flat ground, without jumping.
@@ -66,8 +67,9 @@ the last one (`Context::fixed_step_alpha`), so that it moves smoothly at any fra
 camera turns at the frame's rate. The rules need no GPU, so that their tests run anywhere: among
 them, scripted games that cross the courtyard to the gate, and that walk straight into a light.
 
-What the game needed and the engine did not give is recorded, as it is met, in the findings of
-Stage 3c in [`docs/PLAN.md`](../../docs/PLAN.md#findings).
+What the game needed and the engine did not give was recorded as the findings of Stage 3c; the
+stage each one goes to is in
+[ADR-0057](../../docs/adr/0057-what-the-first-game-asks-of-the-next-stages.md).
 
 ## Dependencies
 

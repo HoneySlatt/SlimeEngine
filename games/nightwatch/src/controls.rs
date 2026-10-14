@@ -1,7 +1,7 @@
 //! The keys the player holds, and what they ask for. The engine reports each key's presses and
-//! releases, not which keys are down: the game keeps that itself (a finding of Stage 3c,
-//! `docs/PLAN.md`). Keys are read by their position on the keyboard, so that W, A, S and D are Z,
-//! Q, S and D on a French layout.
+//! releases, not which keys are down: the game keeps that itself, until Stage 6 or 7
+//! (ADR-0057). Keys are read by their position on the keyboard, so that W, A, S and D are Z, Q, S
+//! and D on a French layout.
 
 use slime_platform::{ButtonState, KeyCode, KeyEvent};
 use slime_render::glam::Vec2;

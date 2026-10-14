@@ -186,6 +186,7 @@ The stage comes right after 0.1 (it was added by ADR-0052) and has no release of
 
 - Multisample anti-aliasing (four samples) on the scene pass
 - Shadow maps for spot lights: at most four of a scene's spot lights cast shadows, each through a map of its own
+- The cost of the scene pass on Direct3D 12, measured with FXC and with DXC against Vulkan's (ADR-0057)
 
 The stage comes right after Stage 3c and has no release of its own; what it delivers is released with 0.2.
 
@@ -198,9 +199,10 @@ The stage comes right after Stage 3c and has no release of its own; what it deli
 - Stable asset IDs (the path is not the identity)
 - Metadata, dependency tracking
 - Importers: glTF, images, then audio
+- Tangents computed, with MikkTSpace, for a mesh that has none (ADR-0057)
 - Cooked cache, incremental rebuilds
 - Asynchronous loading on a basic task pool; loading threads create GPU objects through the `Gpu` they share
-- Hot reload
+- Hot reload, and materials whose values change in place, for it and for a game (ADR-0057)
 - Recovering from a lost GPU device: the GPU objects are created again from their sources, where the run stops today (ADR-0022)
 
 **Exit.** The game loads its scenes from cooked assets and the temporary loader is deleted. Moving a source file breaks no reference. A texture and a shader hot-reload at runtime.
@@ -212,6 +214,7 @@ The stage comes right after Stage 3c and has no release of its own; what it deli
 - Type registry and reflection (derive macro)
 - Serialization with format versioning
 - Entity model (decided here), components, transform hierarchy
+- The world keeps what is drawn, and the transforms of what moves at its last two fixed steps, drawn between them: a game changes only what moves (ADR-0057)
 - The precision of world positions (decided here): the API's positions are `f32`, which the renderer draws relative to the camera (ADR-0048)
 - Worlds, scenes, prefabs
 - Entity lifetime and stable references
@@ -226,6 +229,7 @@ The stage comes right after Stage 3c and has no release of its own; what it deli
 - Viewport, hierarchy, inspector (driven by reflection), asset browser
 - Command and transaction system: every edit is undoable
 - Play in editor
+- The keys and buttons held, kept by the engine, if the viewport's camera moves with them, with the keyboard shared between the editor's UI and the game; at Stage 7 otherwise (ADR-0057)
 
 **Exit.** A level of the game is built, saved and reloaded entirely in the editor, with undo/redo on every operation. The editor uses no private engine API.
 
@@ -236,9 +240,9 @@ The stage comes right after Stage 3c and has no release of its own; what it deli
 - Job system: work stealing, dependencies, priorities
 - Memory: frame, arena and pool allocators where measurements justify them; allocation tracking
 - Visual profiler: CPU, jobs, memory, GPU, frames, from a trace stream
-- Physics behind an engine abstraction: bodies, colliders, constraints, queries, character controller
+- Physics behind an engine abstraction: bodies, colliders, constraints, queries (a ray or a segment against the world, ADR-0057), character controller
 - Audio: sources, listener, spatialization, buses, mixing, streaming
-- Input action mapping
+- Input action mapping, and the keys and buttons held if Stage 6 did not need them
 - UI of games: text, menus, HUD, on the framework decided at Stage 6
 
 **Exit.** The game has a character in a physical level, with sound and a UI, and is profiled end to end.
@@ -277,7 +281,7 @@ Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b nee
 **Goal.** A team can produce a narrative game.
 
 - Animation: skeletons, skinning, clips, blending, state machines, blend trees, IK, retargeting, root motion
-- Material graph → IR → shader generation; variants, permutation cache, async compilation
+- Material graph → IR → shader generation; values set per instance (ADR-0057); variants, permutation cache, async compilation
 - Sequencer: camera, animation, audio, event and VFX tracks
 - VFX: CPU and GPU particles
 - Navigation: navmesh, pathfinding, spatial queries
