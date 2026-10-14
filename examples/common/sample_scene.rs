@@ -48,12 +48,13 @@ pub const SKY: Sky = Sky {
 };
 
 /// The sun that lights a file without lights: slightly warm, from above. The asset's sun is the
-/// same light.
+/// same light. Its shadow distance is set each frame (see [`SampleScene::render`]).
 const SUN: DirectionalLight = DirectionalLight {
     direction: Vec3::new(-0.5, -1.0, -0.6),
     color: LinearColor::rgb(1.0, 0.98, 0.9),
     illuminance: SUN_ILLUMINANCE,
     casts_shadows: true,
+    shadow_distance: 50.0,
 };
 
 /// A loaded glTF scene, its sky and the renderer that draws them, for targets of one format.
@@ -113,7 +114,9 @@ impl SampleScene {
 
     /// Draws the scene into `target` as `camera` sees it, its light multiplied by `exposure`
     /// ([`EXPOSURE`] for the sample), with a bloom of strength `bloom` ([`BLOOM`] for the sample)
-    /// mixed in before tone mapping.
+    /// mixed in before tone mapping. The directional lights cast shadows as far as the far side of
+    /// the scene's bounds from the camera, and no farther: the shadow map covers the scene and
+    /// nothing beyond it, as a game sets the distance for its own scenes (ADR-0050).
     ///
     /// # Errors
     ///
@@ -133,8 +136,20 @@ impl SampleScene {
         } else {
             &self.loaded.lights[..]
         };
+        let bounds = &self.loaded.bounds;
+        let reach = camera.eye.distance(bounds.center()) + bounds.radius();
+        let lights: Vec<Light> = lights
+            .iter()
+            .map(|&light| match light {
+                Light::Directional(light) => Light::Directional(DirectionalLight {
+                    shadow_distance: reach,
+                    ..light
+                }),
+                other => other,
+            })
+            .collect();
         let mut scene = Scene::new(camera, &instances);
-        scene.lights = lights;
+        scene.lights = &lights;
         scene.environment = Some(&self.environment);
         scene.exposure = exposure;
         scene.bloom = bloom;

@@ -22,7 +22,9 @@ use crate::graph::{ColorId, Draws, Graph, Imported, PassDeclaration, scaled_side
 use crate::light::{LIGHT_VALUES_SIZE, Light, MAX_LIGHTS};
 use crate::material::{Material, MaterialData};
 use crate::mesh::{Mesh, MeshData, VERTEX_LAYOUT};
-use crate::shadow::{SHADOW_BIAS, SHADOW_MAP_SIZE, light_view_projection};
+use crate::shadow::{
+    SHADOW_BIAS, SHADOW_MAP_SIZE, light_view_projection, texel_width, view_sphere,
+};
 
 /// The shader of the scene pass.
 const SCENE_SHADER: &str = include_str!("shader.wgsl");
@@ -893,14 +895,15 @@ impl Renderer {
         let origin = scene.camera.eye;
         // The first directional light that casts shadows casts them, when an instance that casts
         // shadows has a box to cast them (ADR-0038, ADR-0049).
+        let aspect = width as f32 / height as f32;
         let shadow = lights
             .iter()
             .enumerate()
             .find_map(|(index, light)| match light {
-                Light::Directional(light) if light.casts_shadows => Some((index, light.direction)),
+                Light::Directional(light) if light.casts_shadows => Some((index, light)),
                 _ => None,
             })
-            .and_then(|(index, direction)| {
+            .and_then(|(index, light)| {
                 let casters = scene
                     .instances
                     .iter()
@@ -912,20 +915,30 @@ impl Renderer {
                         instance.mesh.half_size,
                     )
                 });
-                Some((index, light_view_projection(direction, boxes)?))
+                let matrix = light_view_projection(
+                    light.direction,
+                    &scene.camera,
+                    aspect,
+                    light.shadow_distance,
+                    boxes,
+                )?;
+                let (_, radius) = view_sphere(&scene.camera, aspect, light.shadow_distance);
+                Some((index, matrix, texel_width(radius) as f32))
             });
 
-        let aspect = width as f32 / height as f32;
         let mut frame_bytes = Vec::with_capacity(FRAME_VALUES_SIZE);
         let view_projection = scene.camera.projection(aspect) * scene.camera.view_from_eye();
         push_mat4(&mut frame_bytes, view_projection);
         // Without the camera's position, its inverse gives directions from the camera.
         push_mat4(&mut frame_bytes, view_projection.inverse());
-        push_f32s(&mut frame_bytes, &[scene.exposure, 0.0, 0.0, 0.0]);
-        let (shadowed, light_view_proj) = shadow
-            .map_or((NO_SHADOWED_LIGHT, Mat4::IDENTITY), |(index, matrix)| {
-                (u32::try_from(index).expect("below MAX_LIGHTS"), matrix)
-            });
+        let (shadowed, light_view_proj, shadow_texel) = shadow.map_or(
+            (NO_SHADOWED_LIGHT, Mat4::IDENTITY, 0.0),
+            |(index, matrix, texel)| {
+                let index = u32::try_from(index).expect("below MAX_LIGHTS");
+                (index, matrix, texel)
+            },
+        );
+        push_f32s(&mut frame_bytes, &[scene.exposure, shadow_texel, 0.0, 0.0]);
         push_mat4(&mut frame_bytes, light_view_proj);
         push_u32s(
             &mut frame_bytes,

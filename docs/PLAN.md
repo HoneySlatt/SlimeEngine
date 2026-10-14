@@ -843,19 +843,16 @@ GitHub issues, linked from their entry; this list stays the reference.
   the first directional light that casts shadows casts them). The sample's spot light is aimed up,
   so that the light the wall would stop goes into the sky; its ring light reaches 4 m, and gives
   little beyond a metre.
-- **One shadow map covers every instance that casts shadows** (ADR-0038, ADR-0049). Its texels are
-  their extent across the light divided by 2048, 3 mm for the sample: a terrain of a few kilometres
-  would get texels of a metre, and objects smaller than a texel cast nothing, unless the terrain
-  casts no shadow (`Instance::casts_shadows`). Cascades, or a region that the game chooses, are
-  left to a later stage. The map takes 16 MiB per renderer, even for scenes without a directional
-  light.
-- **Shadow edges crawl when the instances' extent changes** (ADR-0038). The map is fitted to the
-  instances again every frame, without texel snapping: an instance that moves at the edge of the
-  scene shifts or rescales its texels. A static floor larger than the moving objects, as in the
-  sample, avoids it.
-- **Thin objects close to a surface lose their shadow (peter-panning)** (ADR-0038). The
-  slope-scaled bias pushes stored depths back by about four texels' slope: 10 mm on the sample's
-  floor, more under grazing light. A sheet lying a centimetre above a floor casts nothing.
+- **One shadow map, without cascades** (ADR-0050). It covers what the camera sees up to the light's
+  shadow distance, in 2048 texels across the sphere around it: 6 cm each at the default 50 m with a
+  60° field of view and a 16:9 output. What is near the camera gets the texels of what is far,
+  and shadows end at the map's edge, without fading. Cascades are left to a later stage. The map
+  takes 16 MiB per renderer, even for scenes without a directional light.
+- **Shadows shift, and thin objects close to a surface lose theirs (peter-panning)** (ADR-0050).
+  The normal offset that keeps surfaces from shadowing themselves looks a point up 3 texels × the
+  sine of the light's incidence off its surface: at the default distance, 13 cm under a light 45°
+  from the normal, 18 cm at grazing. A shadow shifts by up to that much, and a sheet lying closer
+  than that above a floor casts nothing on it.
 - **Every draw of the scene pass runs a shader that can discard fragments** (ADR-0035). The `MASK`
   alpha mode discards in the one fragment shader that every material uses, opaque materials with a
   cutoff of 0. Some GPUs then test depth after the shader rather than before, for opaque draws

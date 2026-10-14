@@ -1,6 +1,7 @@
 # 0049. Instances that cast no shadow
 
-- Status: Accepted; amends [0038](0038-shadow-mapping.md)
+- Status: Accepted; amends [0038](0038-shadow-mapping.md); amended by
+  [0050](0050-a-shadow-region-that-follows-the-camera.md) (the casters set the map's depths only)
 - Date: 2026-10-14
 
 ## Context

@@ -16,12 +16,15 @@ use slime_render::{
 /// A slightly warm light of π lux from above and from the side the camera starts on, under which a
 /// white matte surface facing it reflects about 0.97 nits (ADR-0035), shown as they are at an
 /// exposure of 1. Light in these units keeps the image of this test as it was before lights had
-/// physical units: it checks the shapes and their materials, not the units.
+/// physical units: it checks the shapes and their materials, not the units. It casts shadows as far
+/// as the shapes reach from the orbiting camera, about 7 m, so that the shadow map covers them and
+/// little else (ADR-0050).
 const SUN: DirectionalLight = DirectionalLight {
     direction: Vec3::new(-0.6, -1.0, -0.5),
     color: LinearColor::rgb(1.0, 0.98, 0.9),
     illuminance: PI,
     casts_shadows: true,
+    shadow_distance: 7.0,
 };
 /// The sample's clear sky (`sample_scene.rs`) at the scale of this light: its radiances times
 /// π / 100 000, as it shows at the sample's exposure, around this light.

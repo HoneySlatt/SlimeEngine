@@ -15,11 +15,12 @@ them (`docs/adr/0035-physically-based-materials.md`,
 procedural daytime sky with a sun, computed on the CPU into an environment that surfaces reflect as
 their material does (image-based lighting) and that is drawn behind them, with the sun's disc
 (`docs/adr/0039-image-based-lighting-computed-on-the-cpu.md`). The first directional light that
-casts shadows casts them, through a shadow map that covers the instances that cast shadows, its
-edges blended over three of the map's texels (`docs/adr/0038-shadow-mapping.md`); the sky's
-light is not shadowed. It draws the scene in high dynamic range, where light may exceed 1,
-multiplied by an exposure before it is written, then maps it to the output with a tone-mapping
-operator, Khronos PBR Neutral (`docs/adr/0034-hdr-rendering-and-tone-mapping.md`,
+casts shadows casts them, up to its shadow distance from the camera, through a shadow map that
+follows the camera, its edges blended over three of the map's texels
+(`docs/adr/0038-shadow-mapping.md`, `docs/adr/0050-a-shadow-region-that-follows-the-camera.md`);
+the sky's light is not shadowed. It draws the scene in high dynamic range, where light may
+exceed 1, multiplied by an exposure before it is written, then maps it to the output with a
+tone-mapping operator, Khronos PBR Neutral (`docs/adr/0034-hdr-rendering-and-tone-mapping.md`,
 `docs/adr/0037-lights-in-physical-units-and-pre-exposure.md`), after mixing in a bloom: a share of
 the light spread around where it lands, as a lens spreads it, which makes the sun's disc glow
 (`docs/adr/0040-bloom.md`). It reports what each frame cost on the CPU and, on adapters that can
@@ -87,7 +88,7 @@ fn main() -> Result<(), RenderError> {
         direction: Vec3::new(0.0, 0.0, -1.0),
         color: LinearColor::WHITE,
         illuminance: 100_000.0,
-        casts_shadows: true,
+        ..DirectionalLight::default()
     });
     let instances = [Instance::new(&triangle, &red, Mat4::IDENTITY)];
     let lights = [sun];
@@ -155,8 +156,11 @@ fn main() -> Result<(), RenderError> {
 - `Renderer::render(gpu, target, &Scene)` draws a frame in passes. The shadow pass draws the depths
   of every instance that casts shadows, all their faces but what masked materials discard, as the
   first directional light that casts shadows sees them, into the shadow map, through an orthographic
-  projection that covers the boxes around their meshes; it is skipped when no directional light or
-  no instance casts shadows. What lies beyond the map's sides is lit. The scene pass draws its
+  projection that covers the sphere around what the camera sees up to the light's
+  `shadow_distance`, its texels on a grid fixed in the world so that shadows do not shimmer as the
+  camera moves, and along the light the instances that cast shadows across it (ADR-0050); it is
+  skipped when no directional light or no such instance casts shadows. What lies beyond the map is
+  lit: shadows end there. The scene pass draws its
   instances (`Instance`: a mesh, a material, a transform from the mesh's space to world space, and
   whether it casts shadows: a vast floor or a sky dome that casts none leaves the map's texels to
   what does, ADR-0049) into a target of half-precision floats from its `Camera`, lit by its `lights`
@@ -194,7 +198,9 @@ fn main() -> Result<(), RenderError> {
 - `Light`: one of the punctual lights of glTF's `KHR_lights_punctual`, each with a linear color and
   a strength in its physical unit, and glTF's defaults. A `DirectionalLight` comes from one
   direction everywhere with an illuminance in lux; it casts shadows unless its `casts_shadows` is
-  `false`, and only the first of the scene's directional lights that casts shadows casts them. Point
+  `false`, up to its `shadow_distance` from the camera (50 m by default: texels of about 6 cm with
+  a 60° field of view and a 16:9 output), and only the first of the scene's directional lights
+  that casts shadows casts them. Point
   and spot lights cast none. A `PointLight` shines from a position with an intensity in candelas: a
   surface facing it d metres away receives intensity / d² lux, brought smoothly to zero at its
   optional range, and nearer than 1 cm what it would receive at 1 cm. A `SpotLight` is a point light

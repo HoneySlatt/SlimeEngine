@@ -12,6 +12,13 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   instance that casts no shadow, a vast floor or a sky dome, is left out of the shadow pass and of
   the shadow map's fit, so that it no longer spreads the map's texels over its extent and blurs
   every shadow; it still receives shadows. What lies beyond the map is lit.
+- `DirectionalLight::shadow_distance`, 50 m by default
+  ([ADR-0050](docs/adr/0050-a-shadow-region-that-follows-the-camera.md)): the shadow map covers
+  what the camera sees up to that distance, instead of every instance, its texels on a grid fixed
+  in the world, so that shadows work in levels and open worlds and their edges no longer shimmer
+  as the camera or the instances move. A point is looked up in the map moved off its surface along
+  its normal, which keeps curved surfaces from shadowing themselves, instead of the slope-scaled
+  depth bias. The samples' shadows are slightly softer, and their reference images changed.
 - `Event::ModifiersChanged`: the modifier keys held as a whole (`Modifiers`: Shift, Control, Alt,
   Super), once per change, released when the window loses the focus. The dev overlay feeds them
   to egui, so its shortcuts with Ctrl, and selecting text with Shift, work.

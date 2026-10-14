@@ -60,17 +60,25 @@ pub struct DirectionalLight {
     /// everything they face, as point and spot lights do. A scene whose directional lights all
     /// set it to `false` draws no shadow, and skips the shadow pass.
     pub casts_shadows: bool,
+    /// How far from the camera the light casts shadows, in metres, when it is the one that casts
+    /// them (ADR-0050). The shadow map covers the sphere around what the camera sees from its near
+    /// plane to that distance, its 2 048 texels spread across the sphere: at the default 50 m, with
+    /// a 60° field of view and a 16:9 output, a texel covers 6 cm and a shadow's edge fades over
+    /// three. Beyond the map, nothing is shadowed. A shorter distance gives sharper shadows over
+    /// less ground. Positive and finite.
+    pub shadow_distance: f32,
 }
 
 impl Default for DirectionalLight {
     /// A white light of 1 lux, glTF's default, from above and in front of the default camera,
-    /// casting shadows.
+    /// casting shadows up to 50 m from the camera.
     fn default() -> Self {
         Self {
             direction: Vec3::new(-0.5, -1.0, -0.4),
             color: LinearColor::WHITE,
             illuminance: 1.0,
             casts_shadows: true,
+            shadow_distance: 50.0,
         }
     }
 }
@@ -158,8 +166,8 @@ impl Default for SpotLight {
 impl Light {
     /// Which value of the light is outside the range its documentation gives, if one is: a color
     /// or a strength that is not finite or is negative, a position that is not finite, a
-    /// direction that is zero or not finite, a range that is not positive and finite, or a spot's
-    /// cones out of order or wider than π / 2.
+    /// direction that is zero or not finite, a range or a shadow distance that is not positive and
+    /// finite, or a spot's cones out of order or wider than π / 2.
     pub(crate) fn invalid(&self) -> Option<String> {
         let color = |color: LinearColor| {
             let color = rgb(color);
@@ -193,7 +201,13 @@ impl Light {
         match *self {
             Self::Directional(light) => color(light.color)
                 .or_else(|| strength("illuminance", light.illuminance))
-                .or_else(|| direction(light.direction)),
+                .or_else(|| direction(light.direction))
+                .or_else(|| {
+                    let distance = light.shadow_distance;
+                    (!(distance.is_finite() && distance > 0.0)).then(|| {
+                        format!("its shadow distance {distance} is not positive and finite")
+                    })
+                }),
             Self::Point(light) => color(light.color)
                 .or_else(|| strength("intensity", light.intensity))
                 .or_else(|| position(light.position))
@@ -209,8 +223,8 @@ impl Light {
 
     /// Appends the values the scene shader reads for this light, laid out as `Light` in
     /// `shader.wgsl`: [`LIGHT_VALUES_SIZE`] bytes. What a kind of light does not use is zero, but
-    /// for the cone: a scale of 0 and an offset of 1 leave a point light's light whole. The position
-    /// is relative to `origin`, the camera's eye (ADR-0048), computed in `f64`.
+    /// for the cone: a scale of 0 and an offset of 1 leave a point light's light whole. The
+    /// position is relative to `origin`, the camera's eye (ADR-0048), computed in `f64`.
     pub(crate) fn push_values(&self, bytes: &mut Vec<u8>, origin: Vec3) {
         let start = bytes.len();
         let (kind, color, intensity, position, range, direction, cone) = match *self {
@@ -309,6 +323,13 @@ mod tests {
                     ..directional
                 }),
                 "its direction [0, 0, 0] is zero or not finite",
+            ),
+            (
+                Light::Directional(DirectionalLight {
+                    shadow_distance: 0.0,
+                    ..directional
+                }),
+                "its shadow distance 0 is not positive and finite",
             ),
             (
                 Light::Point(PointLight {

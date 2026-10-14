@@ -83,8 +83,11 @@ struct FrameUniform {
     // view_proj. A point (x, y, 0, 1) at infinity gives (d, 0), d the direction it is seen in.
     sky_from_clip: mat4x4<f32>,
     // What the light is multiplied by before it is written into the high-dynamic-range target
-    // (pre-exposure, ADR-0037). The 12 bytes after it are padding: a matrix is aligned on 16.
+    // (pre-exposure, ADR-0037).
     exposure: f32,
+    // The width of the shadow map's texels, in metres (ADR-0050); 0 without a shadowed light. The
+    // 8 bytes after it are padding: a matrix is aligned on 16.
+    shadow_texel: f32,
     // From the frame's space to the shadow map's clip space (ADR-0038): x and y from -1 to 1
     // across the map, depth from 1 near the light to 0 away from it (reversed, ADR-0047).
     // Orthographic: w stays 1.
@@ -175,8 +178,8 @@ struct VertexOutput {
     @location(2) position: vec3<f32>,
     // xyz with world space's axes, of any length; w: the bitangent's sign times the handedness.
     @location(3) tangent: vec4<f32>,
-    // Where the shadowed light sees the vertex, in the shadow map's clip space, computed as the
-    // shadow pass computes it, so that both round alike.
+    // Where the shadowed light sees the vertex, moved off its surface (`shadow_lookup`), in the
+    // shadow map's clip space.
     @location(4) light_position: vec3<f32>,
 }
 
@@ -186,8 +189,8 @@ fn vs_main(input: VertexInput) -> VertexOutput {
     let position = instance.model * vec4<f32>(input.position, 1.0);
     output.clip_position = frame.view_proj * position;
     output.position = position.xyz;
-    output.light_position = (frame.light_view_proj * position).xyz;
     output.normal = instance.normal * input.normal;
+    output.light_position = shadow_lookup(position.xyz, output.normal);
     output.uv = input.uv;
     // A tangent lies in the surface: the model matrix carries it as it carries the surface. A
     // mirror reverses the cross product that gives the bitangent, which the handedness undoes.
@@ -196,6 +199,32 @@ fn vs_main(input: VertexInput) -> VertexOutput {
         input.tangent.w * instance.handedness,
     );
     return output;
+}
+
+// How many of the shadow map's texels a surface is looked up away from itself, along its normal,
+// times the sine of the shadowed light's incidence (ADR-0050). The filter compares a point with
+// texels up to two texels away along each axis of the map, 2.83 diagonally, where a surface tilted
+// by an angle t from facing the light lies up to 2.83 tan(t) texels' depth nearer to the light;
+// moved by 3 sin(t) texels along its normal, the point lies 3 tan(t) texels' depth nearer than
+// its own surface, whatever t: no surface shadows itself, flat or curved, while a shadow moves by
+// at most 3 texels.
+const NORMAL_OFFSET_TEXELS: f32 = 3.0;
+
+// Where the shadowed light sees the point `position` of a surface whose normal is `normal`, of any
+// length, in the shadow map's clip space: the point moved towards the light along the normal by
+// NORMAL_OFFSET_TEXELS texels times the sine of the light's incidence, on the side of the surface
+// the light reaches (normal offset). Nothing without a shadowed light.
+fn shadow_lookup(position: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
+    if frame.shadowed_light >= frame.light_count {
+        return vec3<f32>(0.0);
+    }
+    let length_squared = dot(normal, normal);
+    // A normal flattened to nothing moves the point nowhere.
+    let n = select(vec3<f32>(0.0), normal * inverseSqrt(length_squared), length_squared > 0.0);
+    let cosine = dot(n, -frame.lights[frame.shadowed_light].direction);
+    let sine = sqrt(max(1.0 - cosine * cosine, 0.0));
+    let offset = n * (sign(cosine) * NORMAL_OFFSET_TEXELS * frame.shadow_texel * sine);
+    return (frame.light_view_proj * vec4<f32>(position + offset, 1.0)).xyz;
 }
 
 // The shadow pass (ADR-0038): each vertex where the shadowed light sees it. The pipeline of opaque

@@ -106,7 +106,7 @@ fn the_base_color_texture_is_read_at_the_texture_coordinates_and_tints_the_base_
         direction: Vec3::new(0.0, 0.0, -1.0),
         color: LinearColor::WHITE,
         illuminance: PI,
-        casts_shadows: true,
+        ..DirectionalLight::default()
     });
     let camera = Camera {
         eye: Vec3::new(0.0, 0.0, 3.0),

@@ -316,13 +316,16 @@ renderer = Renderer::new(&gpu, format)                 the output's format; thre
     │                                                  (ADR-0044); draws the first 16 lights
     ├── every position moved by −camera.eye, in f64 (ADR-0048): the GPU draws relative to the
     │   camera, so that what is near it keeps its precision however far from the origin
-    ├── the light-space matrix of the first directional light that casts shadows: an orthographic
-    │   projection covering the boxes of the instances that cast shadows as that light sees them
+    ├── the light-space matrix of the first directional light that casts shadows (shadow.rs,
+    │   ADR-0050): an orthographic projection across the light covering the sphere around what
+    │   the camera sees up to the light's shadow distance, moved to a texel grid fixed in the
+    │   world, and along it the boxes of the instances that cast shadows across that square
     ├── the frame uniform ← the camera's projection times its rotation, the sky's directions from
-    │   clip space (its inverse), the exposure, the light-space matrix, the number of lights and the
-    │   shadowed light's index, the sun's disc (direction, radiance), and the lights (64 bytes
-    │   each, at most 16); bind group 0, with the environment, the BRDF table and their sampler,
-    │   built again when the scene names another environment (a black one for none)
+    │   clip space (its inverse), the exposure, the width of the shadow map's texels, the
+    │   light-space matrix, the number of lights and the shadowed light's index, the sun's disc
+    │   (direction, radiance), and the lights (64 bytes each, at most 16); bind group 0, with the
+    │   environment, the BRDF table and their sampler, built again when the scene names another
+    │   environment (a black one for none)
     ├── the instance buffer ← each instance's relative transform,     bind group 2, one dynamic
     │   normal matrix and handedness (−1 when it mirrors), one slot    offset per instance
     │   each, at the device's alignment; grows when a scene needs it, shrinks back after a peak
@@ -373,8 +376,9 @@ a directional light's illuminance, or a point or spot light's intensity over the
 distance (as at 1 cm within 1 cm), brought to zero at its range and, for a spot light, times its
 cone's attenuation, as `KHR_lights_punctual` recommends; the shadowed light times the share of the
 shadow map's 3 × 3 comparisons, one texel apart, that find the fragment lit, at the position in the
-map that the vertex shader computes as the shadow pass does (ADR-0038); the environment's light
-(ADR-0039), the diffuse light read from its roughest level along the normal and the specular light
+map that the vertex shader computes for the vertex moved off its surface along its normal by three
+texels times the sine of the light's incidence (ADR-0050); the environment's light (ADR-0039),
+the diffuse light read from its roughest level along the normal and the specular light
 from the level of the roughness along the reflection, weighted by the split sum's Fresnel from the
 BRDF table with the light that rough surfaces scatter more than once, times the occlusion; the
 emission added; the normal tilted by the normal texture in the frame of the tangent, which follows

@@ -190,7 +190,7 @@ fn lighting(to_light: Vec3, illuminance: f32, sky: f32) -> Lighting {
         direction: -to_light,
         color: LinearColor::WHITE,
         illuminance,
-        casts_shadows: true,
+        ..DirectionalLight::default()
     };
     (light, sky)
 }

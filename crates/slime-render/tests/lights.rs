@@ -318,20 +318,20 @@ fn many_lights() -> Vec<Light> {
             direction: Vec3::NEG_Z,
             color: red,
             illuminance: 0.1,
-            casts_shadows: true,
+            ..DirectionalLight::default()
         }),
         // Turned by 60° from the normal, two units long.
         Light::Directional(DirectionalLight {
             direction: Vec3::new(-3f32.sqrt(), 0.0, -1.0),
             color: green,
             illuminance: 0.2,
-            casts_shadows: true,
+            ..DirectionalLight::default()
         }),
         Light::Directional(DirectionalLight {
             direction: Vec3::new(0.0, -1.0, -1.0),
             color: blue,
             illuminance: 0.15,
-            casts_shadows: true,
+            ..DirectionalLight::default()
         }),
         Light::Point(PointLight {
             position: Vec3::new(0.0, 0.0, 1.0),
@@ -378,7 +378,7 @@ fn many_lights() -> Vec<Light> {
             direction: Vec3::new(1.0, 0.0, -2.0),
             color: LinearColor::rgb(0.0, 0.5, 1.0),
             illuminance: 0.1,
-            casts_shadows: true,
+            ..DirectionalLight::default()
         }),
         Light::Point(PointLight {
             position: Vec3::new(-0.3, 0.4, 1.2),

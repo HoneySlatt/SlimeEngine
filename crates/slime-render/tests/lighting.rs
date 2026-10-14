@@ -169,7 +169,7 @@ fn from_the_front() -> DirectionalLight {
         direction: Vec3::new(0.0, 0.0, -1.0),
         color: LinearColor::WHITE,
         illuminance: PI,
-        casts_shadows: true,
+        ..DirectionalLight::default()
     }
 }
 

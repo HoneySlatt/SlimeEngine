@@ -579,6 +579,7 @@ mod tests {
             color: LinearColor::rgb(1.0, 0.98, 0.9),
             illuminance: 100_000.0,
             casts_shadows: true,
+            shadow_distance: 50.0,
         }),
     };
 
@@ -688,7 +689,7 @@ mod tests {
                 direction: -Vec3::Y,
                 color: LinearColor::WHITE,
                 illuminance: 1000.0,
-                casts_shadows: true,
+                ..DirectionalLight::default()
             }),
             ..uniform_sky(0.0)
         };

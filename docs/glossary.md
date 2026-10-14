@@ -289,6 +289,12 @@ proportional to its inverse transpose, which, unlike the inverse, stays finite f
 flattened along one axis. It is negated for a *mirrored instance*, by the same test that chooses
 the culling.
 
+**Normal offset.** Looking a point up in the *shadow map* moved off its surface along its normal,
+towards the light, rather than pushing the stored depths back: the renderer moves it by three of
+the map's texels times the sine of the light's incidence, which keeps flat and curved surfaces from
+shadowing themselves while a shadow moves by at most three texels
+([ADR-0050](adr/0050-a-shadow-region-that-follows-the-camera.md)).
+
 **Normal texture.** A texture of normals in *tangent space*, which replace a mesh's normals to give
 it detail without more triangles: red along the tangent, green up the image, blue along the
 normal, each from −1 to 1 stored as 0 to 1 (glTF).
@@ -313,8 +319,8 @@ GPU; the renderer makes 3 × 3 such comparisons one texel apart, so that a shado
 over three texels ([ADR-0038](adr/0038-shadow-mapping.md)).
 
 **Peter-panning.** A shadow that starts a little away from the object that casts it, because the
-*depth bias* pushes the stored depths back: the renderer's loses thin objects within about a
-centimetre of a surface at the sample's scale, more under grazing light.
+*depth bias* pushes the stored depths back, or the *normal offset* moves the point looked up: in
+the renderer, by up to three of the shadow map's texels.
 
 **Physical key.** The position of a key on the keyboard, whatever the layout
 (`slime_platform::KeyCode`), named after the character it produces on a US keyboard: the first
@@ -390,14 +396,15 @@ edges (repeat, mirror or clamp) (`slime_gfx::Sampler`).
 renderer keeps nothing between frames, and the world model of Stage 5 will produce such scenes.
 
 **Shadow acne.** Speckles of shadow that a surface casts on itself where its depth and the one
-stored in the *shadow map* differ only by rounding or by the map's texels; a *depth bias* removes
-them.
+stored in the *shadow map* differ only by rounding or by the map's texels; a *depth bias* and a
+*normal offset* remove them.
 
 **Shadow map.** A *depth target* drawn from a light's point of view by a *depth-only pass*: a
 point is in shadow where something nearer to the light is stored at its place in the map. The
 renderer's is 2048 × 2048, drawn each frame for the first directional light that casts shadows,
-through an orthographic projection that covers the boxes around the instances that cast shadows
-([ADR-0038](adr/0038-shadow-mapping.md), [ADR-0049](adr/0049-instances-that-cast-no-shadow.md)).
+through an orthographic projection that covers what the camera sees up to the light's shadow
+distance, its texels on a grid fixed in the world ([ADR-0038](adr/0038-shadow-mapping.md),
+[ADR-0050](adr/0050-a-shadow-region-that-follows-the-camera.md)).
 
 **Shape (of a frame).** What decides the renderer's passes and targets: the output's size, whether
 the shadow pass runs and whether the bloom's passes do. The *render graph* is built again, and its

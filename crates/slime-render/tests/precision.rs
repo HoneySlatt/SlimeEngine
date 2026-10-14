@@ -2,7 +2,7 @@
 //! the same scene at the origin. Runs on whatever adapter the machine offers.
 //!
 //! The scene is small and seen from close, where a millimetre is a pixel: a floor a metre wide, a
-//! square leaning over it that casts a shadow under the sun, and a bulb a few centimetres above
+//! square leaning over it, lit by the sun without shadows and by a bulb a few centimetres above
 //! the floor, seen from 30 cm away. Every position is a multiple of 2⁻¹⁰ m, which a 32-bit float
 //! holds exactly up to 16 km from the origin: moved 10 km away, the scene is exactly the same
 //! scene, and only how the renderer computes can tell them apart.
@@ -71,9 +71,13 @@ fn draw(offset: Vec3) -> FloatImage {
         Instance::new(&square, &glossy, moved * leaning),
     ];
     let lights = [
+        // Without shadows: the shadow map's texels lie on a grid fixed in the world (ADR-0050),
+        // which the moved scene meets elsewhere across a texel. `shadows.rs` checks that surfaces
+        // far from the origin do not shadow themselves.
         Light::Directional(DirectionalLight {
             direction: Vec3::new(-0.3, -1.0, -0.2),
             illuminance: 3.0,
+            casts_shadows: false,
             ..DirectionalLight::default()
         }),
         Light::Point(PointLight {
