@@ -583,10 +583,14 @@ upgrading wgpu still waits for egui.
     time and at most 0.3 ms on the GPU; loading takes 0.5 to 2.8 s in a release build, for 5 to 68
     textures of 1024 or 2048 pixels a side, decoded and given their levels of detail on the CPU
     (known debt).
-  - No other GPU was available: none but RADV, lavapipe and WARP has run the engine (known debt).
+  - No other GPU was available: the engine has run on the development machine's AMD GPU alone,
+    with RADV on Linux and AMD's driver in the owner's Windows virtual machine, which passes the GPU
+    through, and on lavapipe and WARP (known debt).
   - CI on 2026-10-14 (ceb7670): the Linux job 5 min 40 s, the Windows job 11 min 32 s, of which
     the tests take 4 min 31 s and the release build of the examples 3 min 24 s.
-
+  - The owner's decisions on 2026-10-14: CI stays as it is, the repository being public and its
+    minutes free, to reconsider past 20 minutes; a release carries the Windows examples that the CI
+    run of its commit builds, attached by hand to its GitHub release (see Releasing).
 ## Releasing
 
 A release is an annotated git tag on a commit whose CI run is green on Linux and Windows
@@ -596,8 +600,9 @@ A release is an annotated git tag on a commit whose CI run is green on Linux and
    SlimeEngine in a game" names, rename the `[Unreleased]` section of `CHANGELOG.md` to
    `[<version>] - <date>`, and update this plan.
 2. Push that commit and wait for its CI run to pass.
-3. Tag that commit, not a later one, then push the tag:
-   `git tag -a v<version> -m "SlimeEngine <version>" <commit>`.
+. From 0.1 on, create the GitHub release of the tag, its `CHANGELOG.md` section as its notes,
+   with the `slime-examples-windows` artifact of that commit's CI run attached as
+   `slime-examples-windows-<version>.zip`: CI keeps its artifacts 14 days, a release keeps them.
 
 0.0.1 was released on 2026-10-12, before Windows joined CI: the tag `v0.0.1` is on the commit
 "Release 0.0.1". 0.0.2 was released the same way on 2026-10-12: the tag `v0.0.2` is on the
@@ -922,9 +927,10 @@ GitHub issues, linked from their entry; this list stays the reference.
   `KHR_materials_volume`, and warns that it does: the renderer neither lets light through a surface
   nor blends one (Khronos's FlightHelmet and ABeautifulGame, M3b.9). Transparency is left to
   Stage 9a (ADR-0052).
-- **Only RADV, lavapipe and WARP have run the engine.** The image tests' tolerances (ADR-0030),
-  the measurements of this plan and the samples' looks come from AMD's Vulkan driver, Mesa's CPU
-  driver and Microsoft's software one: NVIDIA's and Intel's drivers, and Direct3D 12 on a GPU, are untried.
+- **One GPU, an AMD, and two CPU drivers have run the engine.** The image tests' tolerances
+  (ADR-0030), the measurements of this plan and the samples' looks come from an RX 6900 XT, with
+  RADV on Linux and AMD's driver on Windows, from lavapipe and from WARP: NVIDIA's and Intel's GPUs
+  are untried.
 - **The environment is computed on the CPU, in every process that draws a sky** (ADR-0039): 23 ms
   in a release build on the owner's 16 threads, 162 ms on one core, and the BRDF table once (15
   ms); about eight times longer in a debug build, which every test that draws a sky with a gradient
