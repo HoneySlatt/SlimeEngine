@@ -166,6 +166,15 @@ instead, and proposes a change with the stage it belongs to.
   as it does for the caught slime and the floodlights' lamps. Proposal: values a game sets per
   instance or changes on a material, such as an emission, with the material graph of Stage 9b, or
   sooner if more findings ask.
+- **Nothing asks the engine what stands between two points** (M3c.3). The camera keeps a wall
+  from standing between it and the player by testing its line of sight against the game's own
+  blocks, as the rules do for the lights' sight (`games/nightwatch/src/camera.rs`,
+  `games/nightwatch/src/sight.rs`). Proposal: queries on the world, a ray or a segment against
+  what it holds, with the world model of Stage 5 or the physics of Stage 7.
+- **The game keeps where things were at the last step** (M3c.3). To draw what moves between its
+  last two fixed steps, as `Context::fixed_step_alpha` allows, the rules keep the player's and the
+  guards' previous places. Proposal: transforms that the world model of Stage 5 keeps at both
+  steps, so that a game does not.
 
 ## Releasing
 

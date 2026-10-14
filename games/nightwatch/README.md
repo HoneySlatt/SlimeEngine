@@ -40,6 +40,7 @@ cargo run -p nightwatch -- --frames 120     # closes itself after 120 frames
 | Left and right arrows | Turn the camera around the player |
 | E | Use a switch within reach |
 | R | Start a new game |
+| F1 | Show or hide what each frame costs, in the engine's dev overlay |
 | Escape | Quit |
 
 Keys are read by their position on the keyboard, so that the four movement keys sit in the same
@@ -55,12 +56,15 @@ the `slime-examples-windows` artifact of each run.
 | `sight.rs` | What a light sees: a cone on the ground, its reach, and the line of sight that blocks cut |
 | `courtyard.rs` | The courtyard: its blocks, the guards' rounds, the floodlights, the switch, its entrance and its exit |
 | `controls.rs` | Which of the game's keys are held |
-| `camera.rs` | The camera that follows the player |
+| `camera.rs` | The camera that follows the player, looking down more steeply, or coming nearer, when a wall would stand between them |
 | `view.rs` | What the player sees: the renderer, the meshes, the materials, the moon and the night sky, the guards' flashlights and the floodlights as spot lights, and how a game ends, in light |
 | `meshes.rs` | The meshes, built in code: a cube and a sphere |
+| `statistics.rs` | The dev overlay that shows what each frame costs |
 
 The rules run at the engine's fixed step, 1/60 s, so that a game plays the same on every machine;
-the camera turns at the frame's rate. The rules need no GPU, so that their tests run anywhere: among
+what moves is drawn between its last two steps, by the share of a step that the frame comes after
+the last one (`Context::fixed_step_alpha`), so that it moves smoothly at any frame rate, and the
+camera turns at the frame's rate. The rules need no GPU, so that their tests run anywhere: among
 them, scripted games that cross the courtyard to the gate, and that walk straight into a light.
 
 What the game needed and the engine did not give is recorded, as it is met, in the findings of
@@ -68,10 +72,11 @@ Stage 3c in [`docs/PLAN.md`](../../docs/PLAN.md#findings).
 
 ## Dependencies
 
-The engine's crates only: `slime-app`, `slime-gfx`, `slime-platform`, `slime-render`; and
-`tracing` for the log.
+The engine's crates only: `slime-app`, `slime-gfx`, `slime-platform`, `slime-render`, and
+`slime-devui` for the dev overlay, engine tooling that turns `slime-gfx`'s `wgpu` feature on for
+itself (the game uses no wgpu type); and `tracing` for the log.
 
 ## Must not
 
-- Use anything but the engine's public API: no `wgpu` feature, no code of the examples.
+- Use anything but the engine's public API: no `wgpu` feature of its own, no code of the examples.
 - Be a dependency of an engine crate.

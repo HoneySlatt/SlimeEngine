@@ -13,6 +13,8 @@ workspace = true
 # The engine's crates, through their public API only (ADR-0055).
 [dependencies]
 slime-app.workspace = true
+# The engine's dev overlay, for the frame's statistics on F1: tooling.
+slime-devui.workspace = true
 slime-gfx.workspace = true
 slime-platform.workspace = true
 slime-render.workspace = true

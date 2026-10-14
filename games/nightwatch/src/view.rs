@@ -33,28 +33,29 @@ const NIGHT: Sky = Sky {
     sun: Some(MOON),
 };
 /// What the scene's light is multiplied by: a white surface facing the moon reflects about
-/// 0.09 nits, which this exposure shows at about a third of white's light, as eyes used to the dark
-/// would see it.
-const EXPOSURE: f32 = 4.0;
+/// 0.09 nits, which this exposure shows at about a fifth of white's light, dark but readable, as
+/// eyes used to the dark would see it.
+const EXPOSURE: f32 = 2.5;
 /// How much brighter the courtyard shows once the game is won, reached over a second.
 const WON_BRIGHTENING: f32 = 6.0;
 /// The bloom's strength, as in the engine's samples.
 const BLOOM: f32 = 0.04;
 
-/// A flashlight: a warm light of 60 candelas from a guard's chest, tilted down a little. A
-/// surface 4 m away receives about 4 lux, a dozen times the moon.
+/// A flashlight: a warm light of 25 candelas from a guard's chest, tilted down a little. A
+/// surface 4 m away receives about 1.5 lux, five times the moon: a pool of light that stands out of
+/// the night without washing it out.
 const FLASHLIGHT_HEIGHT: f32 = 1.3;
 const FLASHLIGHT_TILT: f32 = 0.2;
-const FLASHLIGHT_INTENSITY: f32 = 60.0;
-/// A floodlight: 200 candelas from the top of its pole, aimed at the ground 5 m ahead, which receives
-/// about 5 lux.
+const FLASHLIGHT_INTENSITY: f32 = 25.0;
+/// A floodlight: 80 candelas from the top of its pole, aimed at the ground 5 m ahead, which receives
+/// about 2 lux.
 const FLOODLIGHT_AIM: f32 = 5.0;
-const FLOODLIGHT_INTENSITY: f32 = 200.0;
+const FLOODLIGHT_INTENSITY: f32 = 80.0;
 const LAMP_COLOR: LinearColor = LinearColor::rgb(1.0, 0.9, 0.72);
 /// The light that marks how a game ends, above the player when caught and above the gate when
 /// won.
 const ENDING_HEIGHT: f32 = 2.5;
-const ENDING_INTENSITY: f32 = 60.0;
+const ENDING_INTENSITY: f32 = 20.0;
 
 /// The renderer and the GPU objects of the courtyard, for targets of one format.
 pub struct View {
@@ -153,12 +154,14 @@ impl View {
         })
     }
 
-    /// Draws `game` into `target` as `camera` sees it.
+    /// Draws `game` into `target` as `camera` sees it, what moves `alpha` of the way between its last
+    /// two fixed steps ([`Game::player_between`]).
     pub fn draw(
         &mut self,
         gpu: &Gpu,
         target: &RenderTarget,
         game: &Game,
+        alpha: f32,
         camera: Camera,
     ) -> Result<RenderStats, RenderError> {
         let (cube, sphere, materials) = (&self.cube, &self.sphere, &self.materials);
@@ -254,7 +257,7 @@ impl View {
         }
 
         // The guards: a body, a head, and the flashlight they hold.
-        for guard in game.guards() {
+        for guard in game.guards_between(alpha) {
             let facing = guard.facing();
             instances.push(Instance::new(
                 cube,
@@ -289,7 +292,7 @@ impl View {
         }
 
         // The player, red once caught.
-        let player = game.player();
+        let player = game.player_between(alpha);
         instances.push(Instance::new(
             sphere,
             if matches!(state, State::Caught { .. }) {

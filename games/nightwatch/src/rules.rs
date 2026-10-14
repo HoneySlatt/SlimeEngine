@@ -138,10 +138,14 @@ fn angle_of(direction: Vec2) -> f32 {
     direction.y.atan2(direction.x)
 }
 
+/// The turn from the angle `from` to the angle `to`, the shorter way, from −π to π radians.
+fn shortest_turn(from: f32, to: f32) -> f32 {
+    (to - from + PI).rem_euclid(TAU) - PI
+}
+
 /// `from` turned towards `to` by at most `by` radians, the shorter way.
 fn turn_towards(from: f32, to: f32, by: f32) -> f32 {
-    let difference = (to - from + PI).rem_euclid(TAU) - PI;
-    from + difference.clamp(-by, by)
+    from + shortest_turn(from, to).clamp(-by, by)
 }
 
 /// A game in progress.
@@ -150,6 +154,10 @@ pub struct Game {
     /// The player's place on the ground: x and z, in metres.
     player: Vec2,
     guards: Vec<Guard>,
+    /// Where the player and the guards were before the last step, so that what moves is drawn
+    /// between its last two steps.
+    previous_player: Vec2,
+    previous_guards: Vec<Guard>,
     /// Whether each floodlight is on.
     floodlights_on: Vec<bool>,
     state: State,
@@ -163,6 +171,8 @@ impl Game {
             courtyard,
             player: Vec2::ZERO,
             guards: Vec::new(),
+            previous_player: Vec2::ZERO,
+            previous_guards: Vec::new(),
             floodlights_on: Vec::new(),
             state: State::Playing,
         };
@@ -176,17 +186,43 @@ impl Game {
         self.guards = self.courtyard.patrols.iter().map(Guard::new).collect();
         self.floodlights_on = vec![true; self.courtyard.floodlights.len()];
         self.state = State::Playing;
+        self.previous_player = self.player;
+        self.previous_guards.clone_from(&self.guards);
+    }
+
+    /// Where the player is drawn `alpha` of the way, from 0 to 1, between where the last step
+    /// started and where it ended: the share of a step that the frame comes after it
+    /// (`Context::fixed_step_alpha`), so that it moves smoothly at any frame rate.
+    pub fn player_between(&self, alpha: f32) -> Vec2 {
+        self.previous_player.lerp(self.player, alpha)
+    }
+
+    /// The guards as they are drawn `alpha` of the way between their last two steps, as for
+    /// [`Game::player_between`].
+    pub fn guards_between(&self, alpha: f32) -> impl Iterator<Item = Guard> + '_ {
+        self.previous_guards
+            .iter()
+            .zip(&self.guards)
+            .map(move |(before, after)| Guard {
+                position: before.position.lerp(after.position, alpha),
+                heading: before.heading + shortest_turn(before.heading, after.heading) * alpha,
+                ..*after
+            })
     }
 
     pub fn courtyard(&self) -> &Courtyard {
         &self.courtyard
     }
 
-    /// The player's place on the ground: x and z, in metres.
+    /// The player's place on the ground after the last step: x and z, in metres. The game draws
+    /// [`Game::player_between`] instead; the tests read this.
+    #[cfg(test)]
     pub fn player(&self) -> Vec2 {
         self.player
     }
 
+    /// The guards after the last step; the game draws [`Game::guards_between`] instead.
+    #[cfg(test)]
     pub fn guards(&self) -> &[Guard] {
         &self.guards
     }
@@ -237,6 +273,8 @@ impl Game {
     /// exit and loses when a light sees it or a guard comes too near. A game won or lost shows
     /// for a moment, then a new game starts.
     pub fn step(&mut self, direction: Vec2, step: f32) {
+        self.previous_player = self.player;
+        self.previous_guards.clone_from(&self.guards);
         match &mut self.state {
             State::Playing => {}
             State::Caught { time, .. } => {
@@ -731,5 +769,33 @@ mod tests {
         assert_eq!(game.guards(), first.guards());
         assert_eq!(game.floodlights_on, first.floodlights_on);
         assert_eq!(game.state(), first.state());
+    }
+
+    #[test]
+    fn what_moves_is_drawn_between_its_last_two_steps() {
+        let mut game = Game::new(Courtyard {
+            patrols: vec![walking_east()],
+            ..courtyard([0.0, 40.0], &[])
+        });
+        game.step(Vec2::X, 0.1);
+        let middle = game.player_between(0.5);
+        assert!((middle.x - PLAYER_SPEED * 0.05).abs() < 1e-4, "{middle}");
+        let guard = game.guards_between(0.5).next().expect("one guard");
+        assert!(
+            (guard.position.x - GUARD_SPEED * 0.05).abs() < 1e-4,
+            "{guard:?}"
+        );
+        // A new game is drawn where it starts, whatever the share.
+        game.restart();
+        assert_eq!(game.player_between(0.3), game.courtyard().entrance);
+    }
+
+    #[test]
+    fn a_turn_goes_the_shorter_way_across_a_half_turn() {
+        // From just below π to just above −π is a small turn, not a whole one.
+        let turn = shortest_turn(3.0, -3.0);
+        assert!((turn - (TAU - 6.0)).abs() < 1e-5, "{turn}");
+        assert!((shortest_turn(-3.0, 3.0) + (TAU - 6.0)).abs() < 1e-5);
+        assert_eq!(turn_towards(0.0, 1.0, 0.25), 0.25);
     }
 }

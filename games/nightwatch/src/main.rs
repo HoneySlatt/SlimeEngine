@@ -8,7 +8,8 @@
 //! ```
 //!
 //! W, A, S and D move (Z, Q, S and D on a French keyboard), the left and right arrows turn the
-//! camera, E uses a switch within reach, R starts a new game, Escape quits.
+//! camera, E uses a switch within reach, R starts a new game, F1 shows what each frame costs,
+//! Escape quits.
 
 mod camera;
 mod controls;
@@ -16,6 +17,7 @@ mod courtyard;
 mod meshes;
 mod rules;
 mod sight;
+mod statistics;
 mod view;
 
 use std::process::ExitCode;
@@ -25,11 +27,13 @@ use slime_app::time::FrameTime;
 use slime_app::{App, AppConfig, AppError, Context};
 use slime_gfx::RenderTarget;
 use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, WindowConfig};
+use slime_render::RenderStats;
 
 use camera::FollowCamera;
 use controls::Controls;
 use courtyard::Courtyard;
 use rules::Game;
+use statistics::Statistics;
 use view::View;
 
 const USAGE: &str = "usage: nightwatch [--frames <count>]";
@@ -40,6 +44,10 @@ struct Nightwatch {
     controls: Controls,
     camera: FollowCamera,
     view: Option<View>,
+    /// The dev overlay, shown with F1.
+    statistics: Option<Statistics>,
+    /// What the last frame cost.
+    stats: RenderStats,
     /// How many frames were drawn.
     drawn: u64,
     /// Whether a run that drew nothing has failed: the automated checks run the game for a number
@@ -49,14 +57,20 @@ struct Nightwatch {
 
 impl App for Nightwatch {
     fn init(&mut self, ctx: &mut Context) -> Result<(), AppError> {
-        let (Some(gpu), Some(format)) = (ctx.gpu(), ctx.surface_format()) else {
+        let (Some(gpu), Some(format), Some(window)) =
+            (ctx.gpu(), ctx.surface_format(), ctx.window())
+        else {
             return Err("Nightwatch needs a window".into());
         };
         self.view = Some(View::new(gpu, format)?);
+        self.statistics = Some(Statistics::new(gpu, format, window.scale_factor()));
         Ok(())
     }
 
     fn on_event(&mut self, ctx: &mut Context, event: &Event) {
+        if let Some(statistics) = &mut self.statistics {
+            statistics.handle(event);
+        }
         let Event::Key(key) = event else {
             return;
         };
@@ -72,6 +86,11 @@ impl App for Nightwatch {
                 KeyCode::Escape => ctx.request_exit(),
                 KeyCode::KeyE => self.game.interact(),
                 KeyCode::KeyR => self.game.restart(),
+                KeyCode::F1 => {
+                    if let Some(statistics) = &mut self.statistics {
+                        statistics.toggle();
+                    }
+                }
                 _ => {}
             }
         }
@@ -83,17 +102,30 @@ impl App for Nightwatch {
     }
 
     fn update(&mut self, _ctx: &mut Context, frame: &FrameTime) {
-        self.camera
-            .turn(self.controls.turn(), frame.delta().as_secs_f32());
+        let seconds = frame.delta().as_secs_f32();
+        self.camera.turn(self.controls.turn(), seconds);
+        if let Some(statistics) = &mut self.statistics {
+            statistics.frame(seconds);
+        }
     }
 
     fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
         let (Some(gpu), Some(view)) = (ctx.gpu(), &mut self.view) else {
             return;
         };
-        let camera = self.camera.camera(self.game.player());
-        match view.draw(gpu, target, &self.game, camera) {
-            Ok(_) => self.drawn += 1,
+        // What moves is drawn between its last two fixed steps, the share of a step this frame comes
+        // after the last one.
+        let alpha = ctx.fixed_step_alpha() as f32;
+        let player = self.game.player_between(alpha);
+        let camera = self.camera.camera(player, &self.game.courtyard().blocks);
+        match view.draw(gpu, target, &self.game, alpha, camera) {
+            Ok(stats) => {
+                self.stats = stats;
+                self.drawn += 1;
+                if let Some(statistics) = &mut self.statistics {
+                    statistics.draw(gpu, target, &self.stats);
+                }
+            }
             // The GPU's memory cannot hold the targets of the window's new size, or the device was
             // lost: the game stops with the error, which `run` logs with its causes.
             Err(error) => ctx.exit_with_error(error),
@@ -101,7 +133,19 @@ impl App for Nightwatch {
     }
 
     fn shutdown(&mut self, ctx: &mut Context) {
-        tracing::info!(drawn = self.drawn, "shutdown");
+        tracing::info!(
+            drawn = self.drawn,
+            draw_calls = self.stats.draw_calls,
+            shadow_draw_calls = self.stats.shadow_draw_calls,
+            triangles = self.stats.triangles,
+            cpu_time = ?self.stats.cpu_time,
+            shadow_gpu_time = ?self.stats.shadow_gpu_time,
+            scene_gpu_time = ?self.stats.scene_gpu_time,
+            sky_gpu_time = ?self.stats.sky_gpu_time,
+            bloom_gpu_time = ?self.stats.bloom_gpu_time,
+            tone_mapping_gpu_time = ?self.stats.tone_mapping_gpu_time,
+            "shutdown"
+        );
         if self.must_draw && self.drawn == 0 {
             ctx.exit_with_error("no frame drew the game");
         }
@@ -132,6 +176,8 @@ fn main() -> ExitCode {
         controls: Controls::default(),
         camera,
         view: None,
+        statistics: None,
+        stats: RenderStats::default(),
         drawn: 0,
         must_draw: frame_limit.is_some_and(|limit| limit > 0),
     };
