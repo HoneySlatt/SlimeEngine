@@ -236,7 +236,7 @@ impl Light {
                 light.illuminance,
                 Vec3::ZERO,
                 None,
-                light.direction.normalize(),
+                unit(light.direction),
                 (0.0, 1.0),
             ),
             Self::Point(light) => (
@@ -254,7 +254,7 @@ impl Light {
                 light.intensity,
                 light.position,
                 light.range,
-                light.direction.normalize(),
+                unit(light.direction),
                 cone_scale_and_offset(light.inner_cone_angle, light.outer_cone_angle),
             ),
         };
@@ -280,6 +280,13 @@ fn cone_scale_and_offset(inner: f32, outer: f32) -> (f32, f32) {
     let (cos_inner, cos_outer) = (inner.cos(), outer.cos());
     let scale = 1.0 / (cos_inner - cos_outer).max(0.001);
     (scale, -cos_outer * scale)
+}
+
+/// `direction` scaled to a length of one, computed in `f64`: in `f32`, the square of a direction
+/// shorter than about 4 × 10⁻²³ rounds to zero, and that of one longer than about 2 × 10¹⁹
+/// overflows, though both are finite and not zero, as the lights' directions must be.
+pub(crate) fn unit(direction: Vec3) -> Vec3 {
+    direction.as_dvec3().normalize().as_vec3()
 }
 
 /// The red, green and blue of `color`, its alpha dropped: for the colors whose alpha is ignored,
@@ -463,5 +470,37 @@ mod tests {
             (scale - 1000.0).abs() < 0.01 && offset.is_finite(),
             "{scale} {offset}"
         );
+    }
+
+    #[test]
+    fn a_direction_of_any_finite_length_is_packed_of_length_one() {
+        // In `f32`, the square of the first length rounds to zero and that of the second overflows.
+        for length in [1e-30, 1e20] {
+            let direction = Vec3::new(0.0, -length, 0.0);
+            assert_eq!(
+                Light::Directional(DirectionalLight {
+                    direction,
+                    ..DirectionalLight::default()
+                })
+                .invalid(),
+                None,
+                "{direction} is a valid direction"
+            );
+            for light in [
+                Light::Directional(DirectionalLight {
+                    direction,
+                    ..DirectionalLight::default()
+                }),
+                Light::Spot(SpotLight {
+                    direction,
+                    ..SpotLight::default()
+                }),
+            ] {
+                let mut bytes = Vec::new();
+                light.push_values(&mut bytes, Vec3::ZERO);
+                let floats: Vec<f32> = words(&bytes).into_iter().map(float).collect();
+                assert_eq!(&floats[8..11], &[0.0, -1.0, 0.0], "{light:?}");
+            }
+        }
     }
 }

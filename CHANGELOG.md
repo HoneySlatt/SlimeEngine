@@ -237,6 +237,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- A light, or a sky's sun, whose direction is very short or very long but finite, as its
+  documentation allows, lights as one of length one. Its direction was scaled to a length of one in
+  `f32`, whose square of a length below about 4 × 10⁻²³ is zero and above 2 × 10¹⁹ infinite: the
+  light made its pixels NaN, or gave nothing.
 - `Renderer::render` returns `GfxError::DeviceLost` once the device is lost, also for a frame that
   creates nothing, of the same size as the one before; it returned the statistics of a frame that
   was never drawn.

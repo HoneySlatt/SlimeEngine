@@ -14,7 +14,7 @@ use std::sync::{Arc, LazyLock};
 use glam::Vec3;
 use slime_gfx::{GfxError, Gpu, LinearColor, Texture, TextureFormat, f32_to_f16};
 
-use crate::light::{DirectionalLight, rgb};
+use crate::light::{DirectionalLight, rgb, unit};
 
 /// The width of the faces of the environment's first level, in texels: 0.90° per texel at a face's
 /// centre, 0.45° at its edges.
@@ -108,7 +108,7 @@ impl Sky {
             rgb(self.ground).lerp(rgb(self.horizon), haze)
         };
         let glow = self.sun.map_or(Vec3::ZERO, |sun| {
-            let cosine = direction.dot(-sun.direction.normalize());
+            let cosine = direction.dot(-unit(sun.direction));
             let g = GLOW_FOCUS;
             // Henyey and Greenstein's phase function, whose integral over every direction is 1.
             let phase = (1.0 - g * g) / (2.0 * TAU * (1.0 + g * g - 2.0 * g * cosine).powf(1.5));
@@ -127,7 +127,7 @@ impl Sky {
             // so near 1.
             let solid_angle = 4.0 * std::f64::consts::PI * (SUN_ANGULAR_RADIUS / 2.0).sin().powi(2);
             (
-                -sun.direction.normalize(),
+                -unit(sun.direction),
                 rgb(sun.color) * (f64::from(sun.illuminance) / solid_angle) as f32,
             )
         })
@@ -718,6 +718,37 @@ mod tests {
             (integral / expected - 1.0).abs() < 2e-3,
             "{integral} lux, not {expected}"
         );
+    }
+
+    #[test]
+    fn a_sun_direction_of_any_finite_length_places_the_same_sun() {
+        let sun = SAMPLE_SKY.sun.expect("the sample's sky has a sun");
+        let unit = sun.direction.as_dvec3().normalize().as_vec3();
+        let reference = Sky {
+            sun: Some(DirectionalLight {
+                direction: unit,
+                ..sun
+            }),
+            ..SAMPLE_SKY
+        };
+        // In `f32`, the square of the first length rounds to zero and that of the second overflows.
+        for length in [1e-30, 1e20] {
+            let sky = Sky {
+                sun: Some(DirectionalLight {
+                    direction: unit * length,
+                    ..sun
+                }),
+                ..SAMPLE_SKY
+            };
+            assert_eq!(sky.sun_disc(), reference.sun_disc(), "{length}");
+            for direction in [Vec3::Y, -unit, Vec3::new(1.0, 0.2, 0.0).normalize()] {
+                assert_eq!(
+                    sky.radiance(direction),
+                    reference.radiance(direction),
+                    "{length}, towards {direction}"
+                );
+            }
+        }
     }
 
     #[test]
