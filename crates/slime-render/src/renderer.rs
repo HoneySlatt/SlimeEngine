@@ -85,7 +85,9 @@ pub struct Instance<'a> {
 pub struct Scene<'a> {
     /// Where the scene is seen from.
     pub camera: Camera,
-    /// What lights the surfaces, at most [`MAX_LIGHTS`]: [`Renderer::render`] panics on more.
+    /// What lights the surfaces. [`Renderer::render`] draws the first [`MAX_LIGHTS`] and leaves
+    /// the others out, logging a warning the first time a renderer meets such a scene; it panics
+    /// on a drawn light with a value outside the range its documentation gives.
     pub lights: &'a [Light],
     /// What surrounds the scene (ADR-0039): its light reaches every surface, reflected as glTF's
     /// materials reflect it (image-based lighting), and it shows where no surface is drawn, with
@@ -99,7 +101,7 @@ pub struct Scene<'a> {
     /// reflects 0.97 E / π nits, which an exposure of π / E shows at sRGB 239. A camera of exposure
     /// value EV100 (at ISO 100) has an exposure of 1 / (1.2 × 2^EV100) in the convention that
     /// Frostbite and Filament follow: about 1 / 39 000 for EV100 15, a photographer's exposure for
-    /// direct sunlight. Finite and not negative.
+    /// direct sunlight. Finite and not negative: [`Renderer::render`] panics otherwise.
     pub exposure: f32,
     /// The share of each pixel's exposed light that the bloom spreads around where it lands, as a
     /// camera's lens and the eye spread light (ADR-0040): from 0, no bloom, to 1, where the image
@@ -112,7 +114,8 @@ pub struct Scene<'a> {
     /// glow over about a third of the screen, softens edges between light and shade by about 4 % of
     /// their contrast, and makes surfaces a few times brighter than their surroundings glow
     /// faintly. 0 skips the bloom's passes and draws what a renderer without bloom draws; outputs
-    /// smaller than 15 × 15 pixels have no bloom. Finite, from 0 to 1.
+    /// smaller than 15 × 15 pixels have no bloom. From 0 to 1: [`Renderer::render`] panics
+    /// otherwise.
     pub bloom: f32,
     /// What to draw, in this order.
     pub instances: &'a [Instance<'a>],
@@ -238,6 +241,9 @@ pub struct Renderer {
     bloom_sampler: Sampler,
     /// The strength the tone-mapping pass mixes the blurred copy in by, written every frame.
     bloom_strength: UniformBuffer,
+    /// Whether a scene with more than [`MAX_LIGHTS`] lights was drawn: it is said once, not at
+    /// every frame.
+    warned_of_lights: bool,
 }
 
 /// The passes of the renderer's frame (ADR-0041), as its graph names them.
@@ -616,6 +622,7 @@ impl Renderer {
             bloom_up_layout,
             bloom_sampler,
             bloom_strength,
+            warned_of_lights: false,
         })
     }
 
@@ -739,27 +746,47 @@ impl Renderer {
     /// 10.5 MiB at 1920 × 1080) likewise, and only while the bloom runs: they are freed when it
     /// stops, and created again, in one frame, when it resumes. The instance buffer grows when a
     /// scene has more instances than it holds, and shrinks back once a frame uses a quarter of it
-    /// or less. The shadow map keeps its size: its texels are the
-    /// extent of the instances across the light divided by 2048, so that a scene that spreads wider
-    /// gets coarser shadows.
+    /// or less. The shadow map keeps its size: its texels are the extent of the instances across
+    /// the light divided by 2048, so that a scene that spreads wider gets coarser shadows.
     ///
     /// # Panics
     ///
-    /// If `target` does not have the format the renderer was created for, if the scene has more
-    /// than [`MAX_LIGHTS`] lights, or if the instances need a buffer larger than the device allows
-    /// (256 MiB with the default limits: about a million instances): these are bugs in the caller.
+    /// If `target` does not have the format the renderer was created for; if the scene's exposure
+    /// or bloom, or a value of one of the lights it draws, is outside the range its documentation
+    /// gives (the message names it); or if the instances need a buffer larger than the device
+    /// allows (256 MiB with the default limits: about a million instances): these are bugs in the
+    /// caller.
     ///
-    /// With glam's assertions on (see [`Camera`]), also for a camera or a light that would
-    /// otherwise draw nothing usable: as [`Camera::view_projection`] does, and for a zero
-    /// [`DirectionalLight::direction`](crate::DirectionalLight::direction) or
-    /// [`SpotLight::direction`](crate::SpotLight::direction).
+    /// With glam's assertions on (see [`Camera`]), also for a camera that would otherwise draw
+    /// nothing usable, as [`Camera::view_projection`] does.
     pub fn render(&mut self, gpu: &Gpu, target: &RenderTarget, scene: &Scene<'_>) -> RenderStats {
         let started = Instant::now();
         assert!(
-            scene.lights.len() <= MAX_LIGHTS,
-            "the scene has {} lights; the renderer draws at most {MAX_LIGHTS}",
-            scene.lights.len()
+            scene.exposure.is_finite() && scene.exposure >= 0.0,
+            "the scene's exposure is {}; it is finite and not negative",
+            scene.exposure
         );
+        assert!(
+            (0.0..=1.0).contains(&scene.bloom),
+            "the scene's bloom is {}; it is from 0 to 1",
+            scene.bloom
+        );
+        // A scene with more lights than the renderer packs draws its first ones: lights come from
+        // a game's data, which a player should not see end the game.
+        let lights = &scene.lights[..scene.lights.len().min(MAX_LIGHTS)];
+        if lights.len() < scene.lights.len() && !self.warned_of_lights {
+            tracing::warn!(
+                lights = scene.lights.len(),
+                "the scene has more lights than the renderer draws, {MAX_LIGHTS}: the first are \
+                 drawn and the others left out (said once per renderer)"
+            );
+            self.warned_of_lights = true;
+        }
+        for (index, light) in lights.iter().enumerate() {
+            if let Some(reason) = light.invalid() {
+                panic!("light {index} of the scene is not valid: {reason}");
+            }
+        }
         assert!(
             target.format() == self.format,
             "the renderer draws into {:?} targets, not into `{}`, which is {:?}",
@@ -778,8 +805,7 @@ impl Renderer {
 
         // The first directional light that casts shadows casts them, when an instance has a box
         // to cast them (ADR-0038).
-        let shadow = scene
-            .lights
+        let shadow = lights
             .iter()
             .enumerate()
             .find_map(|(index, light)| match light {
@@ -811,13 +837,13 @@ impl Renderer {
         push_f32s(&mut frame_bytes, &[eye.x, eye.y, eye.z, scene.exposure]);
         let (shadowed, light_view_proj) = shadow
             .map_or((NO_SHADOWED_LIGHT, Mat4::IDENTITY), |(index, matrix)| {
-                (u32::try_from(index).expect("checked above"), matrix)
+                (u32::try_from(index).expect("below MAX_LIGHTS"), matrix)
             });
         push_mat4(&mut frame_bytes, light_view_proj);
         push_u32s(
             &mut frame_bytes,
             &[
-                u32::try_from(scene.lights.len()).expect("checked above"),
+                u32::try_from(lights.len()).expect("at most MAX_LIGHTS"),
                 shadowed,
                 0,
                 0,
@@ -827,7 +853,7 @@ impl Renderer {
         let (to_sun, sun) = (environment.to_sun, environment.sun_radiance);
         push_f32s(&mut frame_bytes, &[to_sun.x, to_sun.y, to_sun.z, 0.0]);
         push_f32s(&mut frame_bytes, &[sun.x, sun.y, sun.z, 0.0]);
-        for light in scene.lights {
+        for light in lights {
             light.push_values(&mut frame_bytes);
         }
         // The slots of the lights the scene does not have: the shader does not read them.

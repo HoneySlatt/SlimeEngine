@@ -4,8 +4,10 @@
   [0034](0034-hdr-rendering-and-tone-mapping.md) and [0035](0035-physically-based-materials.md);
   amended by [0038](0038-shadow-mapping.md) (the frame's values; `DirectionalLight::casts_shadows`),
   by [0039](0039-image-based-lighting-computed-on-the-cpu.md) (`Scene::environment` replaces
-  `Scene::ambient` and `Scene::clear`; the frame's values) and by [0040](0040-bloom.md) (the
+  `Scene::ambient` and `Scene::clear`; the frame's values), by [0040](0040-bloom.md) (the
   high-dynamic-range target holds exposed light divided by 64; the tone-mapping pass has a uniform)
+  and by [0042](0042-lights-beyond-the-most-drawn-and-checked-scene-values.md) (the first
+  `MAX_LIGHTS` lights of a scene with more are drawn; the lights' values are checked)
 - Date: 2026-10-13
 
 ## Context

@@ -160,7 +160,9 @@ fn main() -> Result<(), RenderError> {
   `lights` and its `environment` (none is a black sky), with the depth test, so that nearer surfaces
   hide farther ones whatever the order of the instances, the shadowed light only where the shadow
   map holds nothing nearer to it, compared at 3 × 3 points one texel apart, so that a shadow's edge
-  fades over three texels; it panics on a scene of more than `MAX_LIGHTS` lights. The sky pass then
+  fades over three texels; a scene with more than `MAX_LIGHTS` lights has its first ones drawn,
+  with a warning logged once per renderer, and a value of the exposure, the bloom or a light
+  outside the range its documentation gives panics, naming it. The sky pass then
   draws the environment, and its sun's disc, where no surface was drawn. The light of both is
   multiplied by the scene's `exposure` (1 leaves it as it is, 2 is one photographic stop brighter)
   before it is written, divided by 64, so that the target's half-precision floats, whose largest
@@ -196,7 +198,7 @@ fn main() -> Result<(), RenderError> {
   0.97/π of the illuminance it receives, and reflect their environment as the Khronos glTF Sample
   Viewer does (the split sum, with the light that rough surfaces scatter more than once), times
   their occlusion: a white surface of any roughness, metal or not, inside a uniform sky shows the
-  sky's radiance. A scene holds at most `MAX_LIGHTS` (16) lights, every one of which every
+  sky's radiance. The renderer draws at most `MAX_LIGHTS` (16) lights, every one of which every
   fragment evaluates. Normals follow the rotation of their instance and stay perpendicular to
   surfaces scaled unevenly, even flattened along one axis.
 - Conventions: world space is right-handed with +Y up, as in glTF; distances are in metres and light

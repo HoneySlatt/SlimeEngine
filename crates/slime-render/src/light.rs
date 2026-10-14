@@ -7,9 +7,10 @@ use glam::Vec3;
 
 use crate::bytes::{push_f32s, push_u32s};
 
-/// The most lights a [`Scene`](crate::Scene) holds:
-/// [`Renderer::render`](crate::Renderer::render) panics on more. Every fragment of the scene pass
-/// evaluates every light of the scene (ADR-0037).
+/// The most lights [`Renderer::render`](crate::Renderer::render) draws: it draws the first ones of
+/// a [`Scene`](crate::Scene) that has more and leaves the others out, logging a warning the first
+/// time a renderer meets such a scene. Every fragment of the scene pass evaluates every light it
+/// draws (ADR-0037).
 pub const MAX_LIGHTS: usize = 16;
 
 /// The size of one light's values, as `Light` in `shader.wgsl` lays them out: four 16-byte rows.
@@ -27,7 +28,8 @@ const SPOT: u32 = 2;
 /// reaches a surface facing it, its illuminance, times the BRDF and the cosine of incidence. A
 /// white matte surface facing a light and the camera reflects 0.97 / π of the illuminance it
 /// receives, in nits (candelas per square metre) for an illuminance in lux. Distances are in
-/// metres, as in glTF.
+/// metres, as in glTF. [`Renderer::render`](crate::Renderer::render) panics on a light with a value
+/// outside the range its documentation gives.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Light {
     /// A light from one direction everywhere, like the sun.
@@ -43,9 +45,7 @@ pub enum Light {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DirectionalLight {
     /// The direction the light travels in, in world space: down and to the side for a sun. Its
-    /// length does not matter, but it must not be zero: the renderer would light the scene from
-    /// a direction that is not a number, or [`Renderer::render`](crate::Renderer::render) panic
-    /// inside glam when glam's assertions are on (see [`Camera`](crate::Camera)).
+    /// length does not matter, but it is finite and not zero.
     pub direction: Vec3,
     /// Linear, not negative: what `illuminance` is multiplied by in each channel. glTF keeps each
     /// channel within 0 and 1, so that `illuminance` alone sets the strength.
@@ -83,7 +83,7 @@ impl Default for DirectionalLight {
 /// receives nothing.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PointLight {
-    /// Where the light is, in world space.
+    /// Where the light is, in world space. Finite.
     pub position: Vec3,
     /// Linear, not negative: what `intensity` is multiplied by in each channel. glTF keeps each
     /// channel within 0 and 1, so that `intensity` alone sets the strength.
@@ -118,10 +118,10 @@ impl Default for PointLight {
 /// (`KHR_lights_punctual`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SpotLight {
-    /// Where the light is, in world space.
+    /// Where the light is, in world space. Finite.
     pub position: Vec3,
     /// The direction the light travels in along the cone's axis, in world space. Its length does
-    /// not matter, but it must not be zero, as for [`DirectionalLight::direction`].
+    /// not matter, but it is finite and not zero, as for [`DirectionalLight::direction`].
     pub direction: Vec3,
     /// As [`PointLight::color`].
     pub color: Vec3,
@@ -153,6 +153,56 @@ impl Default for SpotLight {
 }
 
 impl Light {
+    /// Which value of the light is outside the range its documentation gives, if one is: a color
+    /// or a strength that is not finite or is negative, a position that is not finite, a
+    /// direction that is zero or not finite, a range that is not positive and finite, or a spot's
+    /// cones out of order or wider than π / 2.
+    pub(crate) fn invalid(&self) -> Option<String> {
+        let color = |color: Vec3| {
+            (!color.is_finite() || color.min_element() < 0.0)
+                .then(|| format!("its color {color} is not finite and not negative"))
+        };
+        let strength = |name: &str, value: f32| {
+            (!value.is_finite() || value < 0.0)
+                .then(|| format!("its {name} {value} is not finite and not negative"))
+        };
+        let position = |position: Vec3| {
+            (!position.is_finite()).then(|| format!("its position {position} is not finite"))
+        };
+        let direction = |direction: Vec3| {
+            (!direction.is_finite() || direction == Vec3::ZERO)
+                .then(|| format!("its direction {direction} is zero or not finite"))
+        };
+        let range = |range: Option<f32>| {
+            range
+                .filter(|&range| !(range.is_finite() && range > 0.0))
+                .map(|range| format!("its range {range} is not positive and finite"))
+        };
+        let cones = |inner: f32, outer: f32| {
+            let ordered = 0.0 <= inner && inner < outer && outer <= std::f32::consts::FRAC_PI_2;
+            (!ordered).then(|| {
+                format!(
+                    "its cones of {inner} and {outer} radians are not 0 ≤ inner < outer ≤ π / 2"
+                )
+            })
+        };
+        match *self {
+            Self::Directional(light) => color(light.color)
+                .or_else(|| strength("illuminance", light.illuminance))
+                .or_else(|| direction(light.direction)),
+            Self::Point(light) => color(light.color)
+                .or_else(|| strength("intensity", light.intensity))
+                .or_else(|| position(light.position))
+                .or_else(|| range(light.range)),
+            Self::Spot(light) => color(light.color)
+                .or_else(|| strength("intensity", light.intensity))
+                .or_else(|| position(light.position))
+                .or_else(|| direction(light.direction))
+                .or_else(|| range(light.range))
+                .or_else(|| cones(light.inner_cone_angle, light.outer_cone_angle)),
+        }
+    }
+
     /// Appends the values the scene shader reads for this light, laid out as `Light` in
     /// `shader.wgsl`: [`LIGHT_VALUES_SIZE`] bytes. What a kind of light does not use is zero, but
     /// for the cone: a scale of 0 and an offset of 1 leave a point light's light whole.
@@ -213,6 +263,89 @@ fn cone_scale_and_offset(inner: f32, outer: f32) -> (f32, f32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn values_outside_their_documented_ranges_are_named() {
+        let directional = DirectionalLight::default();
+        let point = PointLight::default();
+        let spot = SpotLight::default();
+        for light in [
+            Light::Directional(directional),
+            Light::Point(point),
+            Light::Spot(spot),
+        ] {
+            assert_eq!(light.invalid(), None, "{light:?}");
+        }
+        let cases = [
+            (
+                Light::Directional(DirectionalLight {
+                    color: Vec3::new(1.0, -0.1, 1.0),
+                    ..directional
+                }),
+                "its color [1, -0.1, 1] is not finite and not negative",
+            ),
+            (
+                Light::Directional(DirectionalLight {
+                    illuminance: f32::NAN,
+                    ..directional
+                }),
+                "its illuminance NaN is not finite and not negative",
+            ),
+            (
+                Light::Directional(DirectionalLight {
+                    direction: Vec3::ZERO,
+                    ..directional
+                }),
+                "its direction [0, 0, 0] is zero or not finite",
+            ),
+            (
+                Light::Point(PointLight {
+                    intensity: -1.0,
+                    ..point
+                }),
+                "its intensity -1 is not finite and not negative",
+            ),
+            (
+                Light::Point(PointLight {
+                    position: Vec3::new(f32::INFINITY, 0.0, 0.0),
+                    ..point
+                }),
+                "its position [inf, 0, 0] is not finite",
+            ),
+            (
+                Light::Point(PointLight {
+                    range: Some(0.0),
+                    ..point
+                }),
+                "its range 0 is not positive and finite",
+            ),
+            (
+                Light::Spot(SpotLight {
+                    direction: Vec3::new(0.0, f32::NAN, 0.0),
+                    ..spot
+                }),
+                "its direction [0, NaN, 0] is zero or not finite",
+            ),
+            (
+                Light::Spot(SpotLight {
+                    inner_cone_angle: 0.5,
+                    outer_cone_angle: 0.5,
+                    ..spot
+                }),
+                "its cones of 0.5 and 0.5 radians are not 0 ≤ inner < outer ≤ π / 2",
+            ),
+            (
+                Light::Spot(SpotLight {
+                    outer_cone_angle: 2.0,
+                    ..spot
+                }),
+                "its cones of 0 and 2 radians are not 0 ≤ inner < outer ≤ π / 2",
+            ),
+        ];
+        for (light, reason) in cases {
+            assert_eq!(light.invalid().as_deref(), Some(reason), "{light:?}");
+        }
+    }
 
     fn words(bytes: &[u8]) -> Vec<[u8; 4]> {
         bytes

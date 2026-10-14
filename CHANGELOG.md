@@ -173,6 +173,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- `Renderer::render` draws the first `MAX_LIGHTS` (16) lights of a scene that has more, and logs a
+  warning once per renderer, instead of panicking, in release builds too, on data a game loads
+  ([ADR-0042](docs/adr/0042-lights-beyond-the-most-drawn-and-checked-scene-values.md)). It panics
+  with a message naming the value on an exposure, a bloom or a light value outside the range its
+  documentation gives, where it drew a white image, negative light or a light from no direction.
 - A renderer that drew many instances once no longer pays for them in every later frame: its
   instance buffer shrinks back once a frame uses a quarter of it or less (a 10-instance frame after
   a 100 000-instance one took 21.4 ms of CPU on lavapipe, 0.054 ms now).

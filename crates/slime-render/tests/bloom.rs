@@ -393,6 +393,13 @@ fn a_renderer_whose_frame_changes_shape_draws_what_a_new_one_draws_and_times_it_
 }
 
 #[test]
+#[should_panic(expected = "the scene's bloom is 2; it is from 0 to 1")]
+fn a_bloom_beyond_1_is_a_bug() {
+    // It would take more light from a pixel than it holds.
+    Pixel::new(1.0).draw((16, 16), (8, 8), 2.0);
+}
+
+#[test]
 fn the_statistics_give_the_bloom_s_gpu_time_on_adapters_that_can_time_their_work() {
     let mut scene = Pixel::new(200.0);
     let mut time = None;

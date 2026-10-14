@@ -411,12 +411,41 @@ fn a_scene_with_the_most_lights_draws_every_one_of_them() {
 }
 
 #[test]
-#[should_panic(expected = "the scene has 17 lights; the renderer draws at most 16")]
-fn a_scene_with_more_lights_than_the_renderer_draws_is_a_bug() {
+fn a_scene_with_more_lights_than_the_renderer_draws_shows_its_first_ones() {
+    // Lights come from a game's data: a 17th one is left out, with a warning, rather than end the
+    // game.
     let mut setup = Setup::new();
-    let mut lights = many_lights();
-    lights.push(point(1.0, 1.0, None));
-    setup.draw(&lights, 1.0);
+    let first = many_lights();
+    let mut more = first.clone();
+    more.push(point(1.0, 1.0, None));
+    let drawn = setup.draw(&first, 1.0);
+    for _ in 0..2 {
+        assert_eq!(
+            setup.draw(&more, 1.0).pixels,
+            drawn.pixels,
+            "the 17th light is left out"
+        );
+    }
+}
+
+#[test]
+#[should_panic(expected = "the scene's exposure is NaN; it is finite and not negative")]
+fn an_exposure_that_is_not_a_number_is_a_bug() {
+    Setup::new().draw(&[], f32::NAN);
+}
+
+#[test]
+#[should_panic(expected = "the scene's exposure is -1; it is finite and not negative")]
+fn a_negative_exposure_is_a_bug() {
+    Setup::new().draw(&[], -1.0);
+}
+
+#[test]
+#[should_panic(
+    expected = "light 1 of the scene is not valid: its intensity -64 is not finite and not negative"
+)]
+fn a_light_outside_its_documented_range_is_a_bug_named_in_the_message() {
+    Setup::new().draw(&[point(1.0, 1.0, None), point(1.0, -64.0, None)], 1.0);
 }
 
 #[test]
