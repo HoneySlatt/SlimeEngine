@@ -865,3 +865,102 @@ fn a_filtering_sampler_cannot_be_bound_as_a_comparison_sampler() {
         }],
     );
 }
+
+#[test]
+fn the_passes_of_one_submission_run_in_the_order_they_were_recorded() {
+    let gpu = gpu();
+    let size = 8;
+    let first = gpu.create_render_target("first", size, size, TextureFormat::Rgba16Float);
+    let second = gpu.create_render_target("second", size, size, TextureFormat::Rgba16Float);
+    let positions = fullscreen_pipeline(
+        &gpu,
+        "positions",
+        "@fragment
+         fn fs_main(@builtin(position) p: vec4<f32>) -> @location(0) vec4<f32> {
+             return vec4<f32>(p.x, p.y, -2.5, 1.0);
+         }",
+        &[],
+        TextureFormat::Rgba16Float,
+    );
+    let seven = fullscreen_pipeline(
+        &gpu,
+        "seven",
+        "@fragment
+         fn fs_main() -> @location(0) vec4<f32> {
+             return vec4<f32>(7.0);
+         }",
+        &[],
+        TextureFormat::Rgba16Float,
+    );
+    let layout = gpu.create_bind_group_layout(
+        "first",
+        &[BindGroupLayoutEntry {
+            binding: 0,
+            visible_to: ShaderStages::Fragment,
+            ty: BindingType::Texture,
+        }],
+    );
+    let group = gpu.create_bind_group(
+        "first",
+        &layout,
+        &[BindGroupEntry {
+            binding: 0,
+            resource: BindingResource::RenderTarget(&first),
+        }],
+    );
+    // Reads the first target mirrored left to right, texel by texel, and doubles it.
+    let mirror = fullscreen_pipeline(
+        &gpu,
+        "mirror",
+        "@group(0) @binding(0) var first: texture_2d<f32>;
+         @fragment
+         fn fs_main(@builtin(position) p: vec4<f32>) -> @location(0) vec4<f32> {
+             return textureLoad(first, vec2<u32>(7u - u32(p.x), u32(p.y)), 0) * 2.0;
+         }",
+        &[&layout],
+        TextureFormat::Rgba16Float,
+    );
+    let pass = |target| RenderPassDescriptor {
+        target,
+        clear: Some(BLACK),
+        depth: None,
+        timer: None,
+    };
+    // Three passes in one submission: the second reads what the first drew, before the third draws
+    // over it.
+    gpu.submit("three passes", |commands| {
+        commands.render(&pass(&first), |pass| {
+            pass.set_pipeline(&positions);
+            pass.draw(0..3);
+        });
+        commands.render(&pass(&second), |pass| {
+            pass.set_pipeline(&mirror);
+            pass.set_bind_group(0, &group, &[]);
+            pass.draw(0..3);
+        });
+        commands.render(&pass(&first), |pass| {
+            pass.set_pipeline(&seven);
+            pass.draw(0..3);
+        });
+    });
+    let mirrored = gpu
+        .read_float_render_target(&second)
+        .expect("the image is read back");
+    let overdrawn = gpu
+        .read_float_render_target(&first)
+        .expect("the image is read back");
+    for y in 0..size {
+        for x in 0..size {
+            assert_eq!(
+                pixel(&mirrored, x, y),
+                [15.0 - 2.0 * x as f32, 2.0 * y as f32 + 1.0, -5.0, 2.0],
+                "pixel ({x}, {y}) of the second pass"
+            );
+            assert_eq!(
+                pixel(&overdrawn, x, y),
+                [7.0; 4],
+                "pixel ({x}, {y}) of the third"
+            );
+        }
+    }
+}

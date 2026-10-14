@@ -14,7 +14,8 @@ them back, and draws into a window:
   groups, with a depth test, a depth bias and face culling.
 - It draws into 8-bit sRGB or linear images, into 16-bit floating-point ones (high dynamic range),
   or into a depth target only.
-- Later passes sample the render and depth targets that earlier ones drew into.
+- Later passes sample the render and depth targets that earlier ones drew into. Several passes
+  can be recorded into one submission.
 - It times each render pass with a timer of its own, on adapters that have timestamp queries.
 - It creates textures from the CPU: two-dimensional ones whose levels of detail it computes, or
   whose levels the caller gives, in 8-bit or half-precision float formats, and cube textures.
@@ -196,6 +197,13 @@ fn main() -> Result<(), GfxError> {
   target: it clears the depth target to the farthest depth and lets `record` draw with pipelines
   that have a depth test and no fragment stage, or one without a target format, which may discard
   fragments: a shadow map's, whose masked materials cast the shadow of what they keep.
+- `Gpu::submit(label, |commands| ...)` records several passes, through `Commands::render` and
+  `Commands::render_depth` (which take the descriptors above), one after another into one command
+  buffer named `label`, and sends them to the GPU at once: one *submission*, the unit of work the
+  GPU receives. Each pass sees what the passes recorded before it drew. `Gpu::render` and
+  `Gpu::render_depth` are a submission of one pass. A command that wgpu rejects is reported when
+  the commands are finished, inside `submit`, with a message naming the pass; a target counts as
+  drawn into (for `SurfaceFrame::present`) once its pass is submitted.
 - `Gpu::read_render_target(target)` waits for the GPU and copies an 8-bit target into an `Image`:
   RGBA bytes, rows from top to bottom, whatever the byte order of the target's format.
   `Gpu::read_float_render_target(target)` copies an `Rgba16Float` target into a `FloatImage` of

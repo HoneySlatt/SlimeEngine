@@ -169,18 +169,38 @@ impl GpuTimer {
         );
     }
 
-    /// Asks for `slot`'s readback to be mapped once the submitted work is done; the callback
-    /// reports it to [`latest`](Self::latest).
-    pub(crate) fn map(&self, slot: usize) {
-        let sender = self.sender.clone();
-        self.slots[slot]
-            .readback
-            .map_async(wgpu::MapMode::Read, .., move |result| {
-                // The timer may be gone by then; a slot that nobody reads is no loss.
-                if result.is_ok() {
-                    let _ = sender.send(slot);
-                }
-            });
+    /// What reads `slot`'s timestamps back once the pass that writes them is submitted.
+    pub(crate) fn timed_pass(&self, slot: usize) -> TimedPass {
+        TimedPass {
+            readback: self.slots[slot].readback.clone(),
+            sender: self.sender.clone(),
+            slot,
+        }
+    }
+}
+
+/// A timed pass recorded and not submitted yet: its readback is mapped once it is.
+pub(crate) struct TimedPass {
+    readback: wgpu::Buffer,
+    sender: mpsc::Sender<usize>,
+    slot: usize,
+}
+
+impl TimedPass {
+    /// Asks for the readback to be mapped once the submitted work is done; the callback reports it
+    /// to [`GpuTimer::latest`].
+    pub(crate) fn map(self) {
+        let Self {
+            readback,
+            sender,
+            slot,
+        } = self;
+        readback.map_async(wgpu::MapMode::Read, .., move |result| {
+            // The timer may be gone by then; a slot that nobody reads is no loss.
+            if result.is_ok() {
+                let _ = sender.send(slot);
+            }
+        });
     }
 }
 

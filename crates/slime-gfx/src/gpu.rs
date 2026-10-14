@@ -356,6 +356,10 @@ mod tests {
             timer: None,
         };
         gpu.render(&pass, |_pass| {});
+        gpu.submit("lost frame", |commands| {
+            commands.render(&pass, |_pass| {});
+            commands.render(&pass, |_pass| {});
+        });
         // wgpu cannot map a buffer created on a lost device to fill it.
         gpu.create_vertex_buffer("lost vertices", &[0; 6]);
         gpu.create_index_buffer("lost indices", &[0]);

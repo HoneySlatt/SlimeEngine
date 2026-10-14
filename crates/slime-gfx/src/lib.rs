@@ -34,7 +34,7 @@ pub use float16::f32_to_f16;
 pub use gpu::Gpu;
 pub use image::{FloatImage, Image};
 pub use index_buffer::IndexBuffer;
-pub use pass::{Color, DepthPassDescriptor, RenderPass, RenderPassDescriptor};
+pub use pass::{Color, Commands, DepthPassDescriptor, RenderPass, RenderPassDescriptor};
 pub use pipeline::{
     CullMode, DepthBias, DepthCompare, DepthState, FragmentState, RenderPipeline,
     RenderPipelineDescriptor, VertexAttribute, VertexFormat, VertexLayout,

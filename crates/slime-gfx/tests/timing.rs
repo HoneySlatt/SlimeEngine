@@ -158,3 +158,58 @@ fn three_passes_timed_in_one_frame_each_get_their_own_time() {
         assert_plausible(time.expect("each timed pass gets its time back within a few frames"));
     }
 }
+
+#[test]
+fn three_passes_timed_in_one_submission_each_get_their_own_time() {
+    let gpu =
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+    let Some(shadow) = gpu.create_timer("shadow") else {
+        assert!(!gpu.can_time(), "an adapter that can time gives a timer");
+        eprintln!("adapter `{}` cannot time its work", gpu.adapter_name());
+        return;
+    };
+    let scene = gpu.create_timer("scene").expect("the adapter can time");
+    let tone_mapping = gpu
+        .create_timer("tone mapping")
+        .expect("the adapter can time");
+    let depth = gpu.create_depth_target("shadow map", 64, 64);
+    let hdr = gpu.create_render_target("hdr", 64, 64, TextureFormat::Rgba16Float);
+    let output = gpu.create_render_target("output", 64, 64, TextureFormat::Rgba8UnormSrgb);
+
+    let mut times = [None; 3];
+    for _frame in 0..8 {
+        gpu.submit("frame", |commands| {
+            commands.render_depth(
+                &DepthPassDescriptor {
+                    depth: &depth,
+                    timer: Some(&shadow),
+                },
+                |_pass| {},
+            );
+            for (target, timer) in [(&hdr, &scene), (&output, &tone_mapping)] {
+                let pass = RenderPassDescriptor {
+                    target,
+                    clear: Some(BLACK),
+                    depth: None,
+                    timer: Some(timer),
+                };
+                commands.render(&pass, |_pass| {});
+            }
+        });
+        // Waiting is not needed to get the times back, but makes the test deterministic.
+        gpu.wait_idle().expect("the GPU finishes the passes");
+        for (time, timer) in times.iter_mut().zip([&shadow, &scene, &tone_mapping]) {
+            *time = time.or(timer.latest());
+        }
+        if times.iter().all(Option::is_some) {
+            break;
+        }
+    }
+    eprintln!(
+        "adapter `{}`: shadow, scene and tone-mapping passes of one submission timed {times:?}",
+        gpu.adapter_name()
+    );
+    for time in times {
+        assert_plausible(time.expect("each timed pass gets its time back within a few frames"));
+    }
+}

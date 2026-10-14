@@ -2,7 +2,8 @@
 
 use std::marker::PhantomData;
 use std::ops::Range;
-use std::sync::atomic::Ordering;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::bind_group::BindGroup;
 use crate::depth_target::DepthTarget;
@@ -10,7 +11,7 @@ use crate::gpu::Gpu;
 use crate::index_buffer::IndexBuffer;
 use crate::pipeline::RenderPipeline;
 use crate::render_target::RenderTarget;
-use crate::timer::GpuTimer;
+use crate::timer::{GpuTimer, TimedPass};
 use crate::vertex_buffer::VertexBuffer;
 
 /// A color with linear components, not sRGB-encoded. 8-bit targets keep each component between 0
@@ -40,8 +41,8 @@ impl Color {
     }
 }
 
-/// What a render pass draws into ([`Gpu::render`]). A pass without a render target is described
-/// by a [`DepthPassDescriptor`].
+/// What a render pass draws into ([`Gpu::render`], [`Commands::render`]). A pass without a render
+/// target is described by a [`DepthPassDescriptor`].
 #[derive(Clone, Copy, Debug)]
 pub struct RenderPassDescriptor<'a> {
     /// The image to draw into.
@@ -60,8 +61,8 @@ pub struct RenderPassDescriptor<'a> {
     pub timer: Option<&'a GpuTimer>,
 }
 
-/// What a render pass without a render target draws into ([`Gpu::render_depth`]): a depth target
-/// only, for pipelines that write depth only.
+/// What a render pass without a render target draws into ([`Gpu::render_depth`],
+/// [`Commands::render_depth`]): a depth target only, for pipelines that write depth only.
 #[derive(Clone, Copy, Debug)]
 pub struct DepthPassDescriptor<'a> {
     /// The depth target to draw into, cleared to the farthest depth (1.0) when the pass starts. It
@@ -72,8 +73,9 @@ pub struct DepthPassDescriptor<'a> {
     pub timer: Option<&'a GpuTimer>,
 }
 
-/// The drawing commands of one render pass, recorded inside [`Gpu::render`] or
-/// [`Gpu::render_depth`]. The lifetime is the closure's: a pass cannot be kept beyond it.
+/// The drawing commands of one render pass, recorded inside [`Gpu::render`], [`Gpu::render_depth`],
+/// [`Commands::render`] or [`Commands::render_depth`]. The lifetime is the closure's: a pass cannot
+/// be kept beyond it.
 #[derive(Debug)]
 pub struct RenderPass<'a> {
     pass: wgpu::RenderPass<'static>,
@@ -139,9 +141,78 @@ impl RenderPass<'_> {
     }
 }
 
+/// Render passes recorded one after another into one command encoder, which [`Gpu::submit`]
+/// submits to the GPU at once: the passes of a frame, for example. The GPU runs them in the order
+/// they were recorded, each seeing what the passes before it drew. `submit` lends them to its
+/// closure only, so that every pass recorded is submitted.
+pub struct Commands {
+    encoder: wgpu::CommandEncoder,
+    /// The timed passes, whose timestamps are read back once submitted.
+    timed: Vec<TimedPass>,
+    /// The flags of the render targets drawn into, set once submitted.
+    drawn: Vec<Arc<AtomicBool>>,
+}
+
+impl std::fmt::Debug for Commands {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Commands")
+            .field("timed", &self.timed.len())
+            .field("drawn", &self.drawn.len())
+            .finish_non_exhaustive()
+    }
+}
+
 impl Gpu {
+    /// Records the render passes that `record` gives, one after another, into one command encoder,
+    /// then submits them to the GPU at once: one submission, however many passes. `label` names
+    /// the commands in GPU capture tools; each pass is named after its target, as with
+    /// [`Gpu::render`].
+    ///
+    /// The work runs on the GPU after this function returns, in the order the passes were
+    /// recorded; reading a target back waits for it. Submitting it is recorded as a `trace`-level
+    /// profiling span named `submit`; wgpu's validation and encoding of the recorded commands, just
+    /// before, are not part of it. Timed passes get their times as with [`Gpu::render`]; a timer
+    /// given to several passes of one submission times each of them, one slot each, and reports
+    /// whichever came back last.
+    ///
+    /// # Panics
+    ///
+    /// As [`Commands::render`] and [`Commands::render_depth`] say: a pass whose depth target does
+    /// not fit when it is recorded, a command wgpu rejects when the commands are finished, inside
+    /// this method.
+    pub fn submit(&self, label: &str, record: impl FnOnce(&mut Commands)) {
+        let mut commands = Commands {
+            encoder: self
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some(label) }),
+            timed: Vec::new(),
+            drawn: Vec::new(),
+        };
+        record(&mut commands);
+        let Commands {
+            encoder,
+            timed,
+            drawn,
+        } = commands;
+        // Finishing the encoder is where wgpu validates and encodes every command recorded, work
+        // that grows with the draws: it stays out of the span, which times the submission.
+        let commands = encoder.finish();
+        {
+            let _span = tracing::trace_span!("submit").entered();
+            self.queue.submit([commands]);
+        }
+        for flag in drawn {
+            flag.store(true, Ordering::Relaxed);
+        }
+        // A readback can be mapped only once the commands that write it are submitted.
+        for pass in timed {
+            pass.map();
+        }
+    }
+
     /// Runs one render pass as `descriptor` says: clears or keeps the target, lets `record` draw
-    /// into it, then submits the work to the GPU.
+    /// into it, then submits the work to the GPU. It is [`Gpu::submit`] with one pass, named
+    /// after the target.
     ///
     /// The work runs on the GPU after this function returns; reading the target back waits for
     /// it. Submitting it is recorded as a `trace`-level profiling span named `submit`; wgpu's
@@ -149,16 +220,51 @@ impl Gpu {
     ///
     /// # Panics
     ///
-    /// If the depth target does not have the size of the render target, or if wgpu rejects a
-    /// command that `record` gave, which it reports when the pass is finished inside this method:
-    /// a pipeline built for another target format, or whose depth test does not match the pass
-    /// (a depth test in a pass without a depth target, or none in a pass with one); a
-    /// pipeline without a fragment stage (it draws only with [`Gpu::render_depth`]); a draw with
-    /// a pipeline that has a vertex layout and no vertex buffer set; a bind group that holds the
-    /// pass's own target or depth target, since a pass cannot sample what it draws into. These
-    /// are bugs in the caller.
+    /// As [`Commands::render`] says.
     pub fn render(
         &self,
+        descriptor: &RenderPassDescriptor<'_>,
+        record: impl FnOnce(&mut RenderPass<'_>),
+    ) {
+        self.submit(&descriptor.target.label, |commands| {
+            commands.render(descriptor, record);
+        });
+    }
+
+    /// Runs one render pass without a render target, as [`Commands::render_depth`] says, then
+    /// submits it: [`Gpu::submit`] with one pass, named after the depth target.
+    ///
+    /// # Panics
+    ///
+    /// As [`Commands::render_depth`] says.
+    pub fn render_depth(
+        &self,
+        descriptor: &DepthPassDescriptor<'_>,
+        record: impl FnOnce(&mut RenderPass<'_>),
+    ) {
+        self.submit(&descriptor.depth.label, |commands| {
+            commands.render_depth(descriptor, record);
+        });
+    }
+}
+
+impl Commands {
+    /// Records one render pass as `descriptor` says: clears or keeps the target, and lets
+    /// `record` draw into it. The pass and its commands are named after the target in capture
+    /// tools.
+    ///
+    /// # Panics
+    ///
+    /// If the depth target does not have the size of the render target. When the commands are
+    /// submitted, if wgpu rejects a command that `record` gave, which it reports when the pass is
+    /// finished: a pipeline built for another target format, or whose depth test does not match
+    /// the pass (a depth test in a pass without a depth target, or none in a pass with one); a
+    /// pipeline without a fragment stage (it draws only in [`Commands::render_depth`]); a draw
+    /// with a pipeline that has a vertex layout and no vertex buffer set; a bind group that holds
+    /// the pass's own target or depth target, since a pass cannot sample what it draws into.
+    /// These are bugs in the caller.
+    pub fn render(
+        &mut self,
         descriptor: &RenderPassDescriptor<'_>,
         record: impl FnOnce(&mut RenderPass<'_>),
     ) {
@@ -202,30 +308,26 @@ impl Gpu {
                 stencil_ops: None,
             });
         self.run_pass(&target.label, Some(color), depth, descriptor.timer, record);
-        target.drawn.store(true, Ordering::Relaxed);
+        self.drawn.push(Arc::clone(&target.drawn));
     }
 
-    /// Runs one render pass without a render target: clears `descriptor.depth` to the farthest
-    /// depth, lets `record` draw with pipelines that have a depth test and no fragment stage
-    /// ([`RenderPipelineDescriptor::fragment`](crate::RenderPipelineDescriptor::fragment) is
-    /// `None`), such as a shadow map's, then submits the work, timed by `descriptor.timer` when
-    /// there is one. Later passes can then sample the depth target
-    /// ([`BindingResource::DepthTarget`](crate::BindingResource::DepthTarget)).
-    ///
-    /// The pass and its commands are named after the depth target's label in capture tools. The
-    /// work runs on the GPU after this function returns; submitting it is recorded as a
-    /// `trace`-level profiling span named `submit`, which wgpu's validation and encoding of the
-    /// recorded commands, just before, are not part of.
+    /// Records one render pass without a render target: clears `descriptor.depth` to the
+    /// farthest depth, lets `record` draw with pipelines that have a depth test and no fragment
+    /// stage ([`RenderPipelineDescriptor::fragment`](crate::RenderPipelineDescriptor::fragment) is
+    /// `None`), such as a shadow map's, timed by `descriptor.timer` when there is one. Later
+    /// passes can then sample the depth target
+    /// ([`BindingResource::DepthTarget`](crate::BindingResource::DepthTarget)). The pass is named
+    /// after the depth target in capture tools.
     ///
     /// # Panics
     ///
-    /// If wgpu rejects a command that `record` gave, which it reports when the pass is finished
-    /// inside this method: a pipeline with a fragment stage (it draws only with
-    /// [`Gpu::render`]), a pipeline without a depth test, a draw with a pipeline that has a
-    /// vertex layout and no vertex buffer set, or a bind group that holds `descriptor.depth`.
-    /// These are bugs in the caller.
+    /// When the commands are submitted, if wgpu rejects a command that `record` gave, which it
+    /// reports when the pass is finished: a pipeline with a fragment stage that has a target format
+    /// (it draws only in [`Commands::render`]), a pipeline without a depth test, a draw with a
+    /// pipeline that has a vertex layout and no vertex buffer set, or a bind group that holds
+    /// `descriptor.depth`. These are bugs in the caller.
     pub fn render_depth(
-        &self,
+        &mut self,
         descriptor: &DepthPassDescriptor<'_>,
         record: impl FnOnce(&mut RenderPass<'_>),
     ) {
@@ -246,19 +348,16 @@ impl Gpu {
         );
     }
 
-    /// Records one render pass into its own command encoder, with `color` and `depth` as its
-    /// attachments, timed by `timer` when it has a free slot, and submits it.
+    /// Records one render pass into the encoder, with `color` and `depth` as its attachments,
+    /// timed by `timer` when it has a free slot.
     fn run_pass(
-        &self,
+        &mut self,
         label: &str,
         color: Option<wgpu::RenderPassColorAttachment<'_>>,
         depth: Option<wgpu::RenderPassDepthStencilAttachment<'_>>,
         timer: Option<&GpuTimer>,
         record: impl FnOnce(&mut RenderPass<'_>),
     ) {
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some(label) });
         // A timer whose slots are all in flight leaves this pass untimed rather than waiting.
         let timing = timer.and_then(|timer| timer.reserve().map(|slot| (timer, slot)));
         // A pass without a render target has no color attachment at all, not one empty slot:
@@ -272,7 +371,7 @@ impl Gpu {
                 &[]
             };
         {
-            let pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            let pass = self.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some(label),
                 color_attachments,
                 depth_stencil_attachment: depth,
@@ -280,23 +379,44 @@ impl Gpu {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            // The pass ends when this block does, before the encoder is finished, which is what
-            // wgpu asks of a pass freed from the encoder's lifetime.
+            // The pass ends when this block does, before the encoder records anything else, which
+            // is what wgpu asks of a pass freed from the encoder's lifetime.
             record(&mut RenderPass {
                 pass: pass.forget_lifetime(),
                 closure: PhantomData,
             });
         }
         if let Some((timer, slot)) = timing {
-            timer.resolve(&mut encoder, slot);
+            timer.resolve(&mut self.encoder, slot);
+            self.timed.push(timer.timed_pass(slot));
         }
-        // Finishing the encoder is where wgpu validates and encodes every command `record` gave,
-        // work that grows with the draws: it stays out of the span, which times the submission.
-        let commands = encoder.finish();
-        let _span = tracing::trace_span!("submit").entered();
-        self.queue.submit([commands]);
-        if let Some((timer, slot)) = timing {
-            timer.map(slot);
-        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::TextureFormat;
+
+    #[test]
+    fn a_target_counts_as_drawn_once_the_pass_that_draws_it_is_submitted() {
+        // What `SurfaceFrame::present` relies on to give wgpu a submission when nothing drew.
+        let gpu =
+            Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+        let drawn = gpu.create_render_target("drawn", 4, 4, TextureFormat::Rgba8UnormSrgb);
+        let untouched = gpu.create_render_target("untouched", 4, 4, TextureFormat::Rgba8UnormSrgb);
+        let is_drawn = |target: &RenderTarget| target.drawn.load(Ordering::Relaxed);
+        gpu.submit("drawn", |commands| {
+            let pass = RenderPassDescriptor {
+                target: &drawn,
+                clear: None,
+                depth: None,
+                timer: None,
+            };
+            commands.render(&pass, |_pass| {});
+            assert!(!is_drawn(&drawn), "recorded, not submitted yet");
+        });
+        assert!(is_drawn(&drawn), "submitted");
+        assert!(!is_drawn(&untouched), "no pass drew it");
     }
 }
