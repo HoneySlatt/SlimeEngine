@@ -12,9 +12,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 
 ## Current
 
-- Stage 3c — A first game: in progress. Planned on 2026-10-14 and validated by the owner. M3c.1
-  and M3c.2 are done; the owner played the game on Linux, and M3c.3 waits for the Windows virtual
-  machine.
+- Stage 3c — A first game: in progress. Planned on 2026-10-14 and validated by the owner. M3c.1,
+  M3c.2 and M3c.3 are done, the game played by the owner on Linux and in the Windows virtual
+  machine; M3c.4 puts the findings to the owner.
 - Next: Stage 3d, anti-aliasing and the shadows of spot lights, decided by the owner from what the
   game showed ([ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md)).
 
@@ -24,8 +24,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 |---|---|---|
 | [M3c.1](#m3c1--skeleton) | The courtyard, the camera, the player's movement and collisions | Done |
 | [M3c.2](#m3c2--guards-detection-and-the-objective) | Guards, detection, the switch, the exit: the game is won and lost | Done |
-| [M3c.3](#m3c3--night-feel-and-the-windows-check) | The night's mood, the feel, played on Linux and Windows | In progress |
-| [M3c.4](#m3c4--findings-for-stages-4-and-5) | What the game found hard, as proposals for Stages 4 and 5 | Planned |
+| [M3c.3](#m3c3--night-feel-and-the-windows-check) | The night's mood, the feel, played on Linux and Windows | Done |
+| [M3c.4](#m3c4--findings-for-stages-4-and-5) | What the game found hard, as proposals for Stages 4 and 5 | In progress |
 
 Stages 0, 1, 2, 3a and 3b are done; see [Completed stages](#completed-stages).
 
@@ -135,13 +135,18 @@ a large step; and the fun of a stealth game depends on tuning that tests cannot 
   game on Linux and in the Windows virtual machine.
 - **Done when.** The owner's reports from Linux and Windows; the checks and CI are green.
 - **How to test.** Playing it; `--frames` in the headless Weston.
-- **Checked so far** on 2026-10-14: the night darker, its lamps lighting pools that do not wash it
-  out; what moves drawn between its last two steps; the camera kept clear of walls, by a test; the
-  dev overlay on F1. In a release build on the development machine's RX 6900 XT, a frame takes
-  0.59 ms of CPU time and about 1.1 ms on the GPU (32 draw calls, 3 216 triangles). The owner played
-  it on Linux: the controls, the switch and the gate work, the game is readable and very easy, which
-  is fine; the light that goes through walls and the jagged edges were its defects, which Stage 3d
-  will remove (ADR-0056). Waiting: the owner's game in the Windows virtual machine.
+- **Checked** on 2026-10-14 and 2026-10-15: the night darker, its lamps lighting pools that do not
+  wash it out; what moves drawn between its last two steps; the camera kept clear of walls, by a
+  test; the dev overlay on F1. In a release build on the development machine's RX 6900 XT, a frame
+  takes 0.59 ms of CPU time and about 1.1 ms on the GPU (32 draw calls, 3 216 triangles). The owner
+  played it on Linux: the controls, the switch and the gate work, the game is readable and very
+  easy, which is fine; the light that goes through walls and the jagged edges were its defects,
+  which Stage 3d will remove (ADR-0056). In the Windows virtual machine, on the same GPU, with the
+  build of CI: the game runs on Direct3D 12 and on Vulkan, plays through to the switch, the gate and
+  a new game, follows the window as it is resized, maximized, minimized and restored, and closes on
+  Escape and after `--frames`, with no error and one warning, known: the dev overlay's sRGB
+  framebuffer ([Known debt](#known-debt)). Its scene pass costs more on Direct3D 12 than on Vulkan,
+  a finding.
 
 ### M3c.4 — Findings for Stages 4 and 5
 
@@ -198,6 +203,15 @@ instead, and proposes a change with the stage it belongs to.
   last two fixed steps, as `Context::fixed_step_alpha` allows, the rules keep the player's and the
   guards' previous places. Proposal: transforms that the world model of Stage 5 keeps at both
   steps, so that a game does not.
+- **The scene pass costs more than twice as much on Direct3D 12 as on Vulkan** (M3c.3). In the
+  Windows virtual machine, on the RX 6900 XT, with the view the game starts on and the dev overlay
+  open, it took 2.9 ms on Direct3D 12 and 1.2 ms on Vulkan (0.8 ms on Linux, with RADV); the other
+  passes cost about the same on both. That is well within a frame at 60 Hz, but the scene pass is
+  the one Stage 3d makes heavier. The cause is not measured: the code of shaders compiled by FXC
+  ([ADR-0036](adr/0036-direct3d-12-shader-compiler.md)), which may be slower than DXC's, or the
+  GPU's clock under a light load, which would also explain one frame measured at 10.3 ms on
+  Direct3D 12, the last before the game closed. Proposal: measure with DXC
+  (`WGPU_DX12_COMPILER=dxc`) in Stage 3d, when the cost of MSAA on the scene pass is measured.
 
 ## Releasing
 
