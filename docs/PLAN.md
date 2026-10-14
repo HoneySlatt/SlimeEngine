@@ -13,11 +13,10 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3b — Physically based renderer → 0.1: in progress. Planned on 2026-10-13 and validated by
-  the owner. M3b.1 to M3b.7 are done. The owner's decisions of 2026-10-13 on earlier proposals are
+  the owner. M3b.1 to M3b.8 are done. The owner's decisions of 2026-10-13 on earlier proposals are
   applied, and the findings of rounds 4 and 5 of the audit of 0.0.3 (issue
-  [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are fixed or recorded below. M3b.8 is
-  in progress: its code and documents are in, its check to record; then a pass over the known debt
-  that users of 0.1 would meet, before M3b.9.
+  [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are fixed or recorded below; next: a
+  pass over the known debt that users of 0.1 would meet, then M3b.9.
 
 ## Status
 
@@ -30,7 +29,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M3b.5](#m3b5--shadows) | Shadows | Done |
 | [M3b.6](#m3b6--image-based-lighting) | Image-based lighting | Done |
 | [M3b.7](#m3b7--bloom) | Bloom | Done |
-| [M3b.8](#m3b8--render-graph) | Render graph | In progress |
+| [M3b.8](#m3b8--render-graph) | Render graph | Done |
 | [M3b.9](#m3b9--windows-check-documentation-release-01) | Windows check, documentation, release 0.1 | Planned |
 
 Stages 0, 1, 2 and 3a are done; see [Completed stages](#completed-stages).
@@ -501,6 +500,51 @@ upgrading wgpu still waits for egui.
   lavapipe as before the extraction; the CPU time of a frame is not worse, measured before and
   after.
 - **How to test.** `cargo test -p slime-render`; the image tests.
+- **Checked** on 2026-10-14: ADR-0041 records where the graph lives, what passes and targets
+  declare, the order and the refusals, how a frame is submitted and timed, and the alternatives
+  rejected, from three prototyped designs. The owner chose four passes per submission rather than
+  one per frame, once one submission of a whole bloomed frame was measured stalling in the kernel
+  when the RX 6900 XT's 256 MiB window of CPU-visible memory was filled to 241 MiB (a mean 2.4 ms,
+  8 ms at the 90th percentile, at 1920 × 1080; submissions of 2 to 6 passes stable, 8 not); to
+  keep the five GPU times of `RenderStats`; and to free the bloom's levels while it is off.
+  Without a GPU, `graph.rs`'s tests order a frame declared backwards, keep the order of passes
+  free to run in any order, chain the passes that draw into one target before its readers, let an
+  imported target be read and kept without a writer, refuse each `GraphError` by value (two
+  transient targets with one label, a read or a keep of an unwritten transient target, a clear of
+  a drawn target, a pass sampling its own target, a cycle with the passes in it, an unused target)
+  and size transient targets within half a texel; with a GPU, a frame of six passes in two
+  submissions is recorded in its order into targets of its size, each pass timed, and the next
+  shape reuses the targets of the same label, format and size only. Every shape of the renderer's
+  frame (five sizes, shadows and bloom on and off) compiles into the order it had; each pass's GPU
+  time folds into its field; a renderer whose bloom stops and resumes and whose output grows and
+  shrinks back draws what a new renderer draws, byte for byte, and gets its times back. In
+  `slime-gfx`, the passes of one submission run in the order recorded, a target counts as drawn
+  once submitted, one timer times three passes of a submission apart, and a submission of two
+  passes on a lost device does not panic. Mutations of the timer (every pass writing the first
+  pair, a pass fewer resolved, a pass more timed), of the reuse of targets (the format ignored, no
+  reuse) and of the timers' creation each fail a test, as did the prototypes' 17 and 30 of 32
+  mutations. Every readback of every test of the workspace (317) and 300 frames (shadows on and
+  off, an environment or none, bloom strengths of 0, 0.04 and 1, ten output sizes, sRGB and float
+  outputs) hash identically, byte for byte, before (cc4d35d) and after (b81fdd5), on lavapipe and
+  RADV. The CPU time of `render`, on the RX 6900 XT (Ryzen 7 5800X, RADV of Mesa 26.2.4), drawing
+  the sample offscreen in a release build, three alternated rounds of 300 frames, with the
+  CPU-visible window as the desktop left it (201 MiB) and filled to 241 MiB: 0.71 → 0.33 ms at
+  1280 × 720 with the bloom, 0.81 → 0.38 ms at 1920 × 1080, 0.22 → 0.11 ms without it, the 90th
+  percentiles below 0.5 ms; a frame that changes shape costs 0.26 ms more when the bloom starts,
+  0.12 ms when it stops and 0.28 ms for a resize (0.10 ms before). GPU times do not change. A
+  capture of the `scene` example with RenderDoc 1.46, in a headless Weston through Xwayland, shows
+  a 1280 × 720 frame as four submissions of 4, 4, 4 and 3 passes, each ending with its timer's
+  copy, then the overlay's. The workspace's tests take 25.5 s on lavapipe (26.2 s at M3b.7). A
+  reviewing agent read the milestone against `AGENTS.md`: a renderer whose shape changes at every
+  call lost its tone-mapping and bloom times without a word (now documented, with the known debt),
+  ADR-0034, 0038 and 0039 were not marked amended, the GPU times' return after a change of shape
+  was misstated, passes' and submissions' counts held only at common sizes, two transient targets
+  with one label could have shared a texture (now refused), and the shape changes and the reuse of
+  targets were untested; all were corrected. In the Windows CI job, on WARP, every test passes,
+  one timer times a submission's passes apart, and the references differ as at M3b.7
+  (`gltf-front`: 40 pixels off by more than 2, none by more than 4; `gltf-back`: 13 and 0;
+  `shapes`: 37 and 0); the job took 11 minutes 56 seconds, the Linux one 5 minutes 35 seconds. The
+  owner ran the `scene` example on RADV on 2026-10-14: every pass's GPU time shows in the overlay.
 
 ### M3b.9 — Windows check, documentation, release 0.1
 
