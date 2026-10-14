@@ -829,9 +829,10 @@ impl Renderer {
     ///
     /// [`RenderError::Gfx`] with [`GfxError::OutOfMemory`] when the GPU's memory cannot hold
     /// what the frame creates: the targets of a new size, the bloom's levels when it resumes, or a
-    /// larger instance buffer; or with [`GfxError::DeviceLost`] once the device is lost. Nothing is drawn then, and the renderer
-    /// keeps what it had: the next call tries again, so that a game can free memory, or draw
-    /// into a smaller target, in between.
+    /// larger instance buffer; or with [`GfxError::DeviceLost`] once the device is lost, whether
+    /// the frame creates anything or not. Nothing is drawn then, and the renderer keeps what it
+    /// had: the next call tries again, so that a game can free memory, or draw into a smaller
+    /// target, in between.
     ///
     /// # Panics
     ///
@@ -883,6 +884,9 @@ impl Renderer {
             target.label(),
             target.format()
         );
+        // A lost device ignores what is recorded on it: without this, a frame that creates
+        // nothing would report itself drawn.
+        gpu.check()?;
         let (width, height) = (target.width(), target.height());
         let bloom = scene.bloom > 0.0 && bloom_levels(width, height) > 0;
         // An 8-bit output is dithered by one of its 255 steps; a floating-point one is not.

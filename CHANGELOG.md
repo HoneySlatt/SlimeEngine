@@ -234,6 +234,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- `Renderer::render` returns `GfxError::DeviceLost` once the device is lost, also for a frame that
+  creates nothing, of the same size as the one before; it returned the statistics of a frame that
+  was never drawn.
 - The dev overlay tells egui when the window loses the keyboard focus, so that a text field's
   caret stops blinking then.
 - `Gpu::create_texture` of a texture with a side of zero panics with a message that says so, not
