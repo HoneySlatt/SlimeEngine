@@ -1,7 +1,8 @@
 //! Materials, checked by reading pixels back through the tone-mapping curve of the renderer
 //! (ADR-0034): a base color texture is read at the texture coordinates of the mesh and multiplied
 //! with the base color, and an opaque material ignores the alpha of its base color (masks are in
-//! `shading.rs`). Runs on whatever adapter the machine offers.
+//! `shading.rs`); meshes, materials and environments are drawn by any renderer of their GPU, not
+//! only the one that made them. Runs on whatever adapter the machine offers.
 
 #[path = "common/tone_curve.rs"]
 mod tone_curve;
@@ -173,4 +174,71 @@ fn the_base_color_texture_is_read_at_the_texture_coordinates_and_tints_the_base_
             );
         }
     }
+}
+
+#[test]
+fn meshes_materials_and_environments_are_drawn_by_any_renderer_of_their_gpu() {
+    let gpu =
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+    let target = gpu
+        .create_render_target("shared", SIZE, SIZE, TextureFormat::Rgba8UnormSrgb)
+        .expect("the GPU has memory for it");
+    let mut first = Renderer::new(&gpu, target.format()).expect("the renderer is created");
+    let mut second = Renderer::new(&gpu, target.format()).expect("the renderer is created");
+    let triangle = first
+        .create_mesh(
+            &gpu,
+            "triangle",
+            &MeshData {
+                positions: vec![[-1.0, -1.0, 0.0], [1.0, -1.0, 0.0], [0.0, 1.0, 0.0]],
+                normals: vec![[0.0, 0.0, 1.0]; 3],
+                uvs: vec![[0.0, 1.0], [1.0, 1.0], [0.5, 0.0]],
+                tangents: vec![[1.0, 0.0, 0.0, 1.0]; 3],
+                indices: vec![0, 1, 2],
+            },
+        )
+        .expect("the triangle is valid");
+    let red = first
+        .create_material(
+            &gpu,
+            "red",
+            &MaterialData {
+                base_color: LinearColor::rgb(1.0, 0.1, 0.1),
+                ..MaterialData::default()
+            },
+        )
+        .expect("the GPU has memory for it");
+    let sky = first
+        .create_environment(
+            &gpu,
+            &slime_render::Sky {
+                zenith: LinearColor::rgb(0.2, 0.3, 0.8),
+                horizon: LinearColor::rgb(0.6, 0.6, 0.6),
+                ground: LinearColor::rgb(0.1, 0.1, 0.1),
+                sun: None,
+            },
+        )
+        .expect("the GPU has memory for it");
+    let camera = Camera {
+        eye: Vec3::new(0.0, 0.0, 3.0),
+        ..Camera::default()
+    };
+    let instances = [Instance::new(&triangle, &red, Mat4::IDENTITY)];
+    let mut scene = Scene::new(camera, &instances);
+    scene.environment = Some(&sky);
+
+    let [by_first, by_second] = [&mut first, &mut second].map(|renderer| {
+        renderer
+            .render(&gpu, &target, &scene)
+            .expect("the frame is drawn");
+        gpu.read_render_target(&target)
+            .expect("the image is read back")
+    });
+    // The triangle's middle shows its material, redder than the grey and blue sky around it.
+    let [r, g, _, _] = pixel(&by_first, (8, 9));
+    assert!(r > g + 40, "the triangle is drawn red: {r}, {g}");
+    assert!(
+        by_first.pixels == by_second.pixels,
+        "the second renderer draws what the first made as the first does"
+    );
 }

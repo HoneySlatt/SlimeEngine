@@ -253,7 +253,8 @@ pub struct RenderStats {
 /// shape changes (the output's size, the shadow pass or the bloom turned on or off). A renderer
 /// draws best into outputs of one size: drawing into outputs of two sizes in turn creates its
 /// targets again at every call, and reports no tone-mapping or bloom time; use one renderer per
-/// output size.
+/// output size. At 1920 × 1080 with the bloom, a renderer holds about 50 MiB of GPU memory: 16 for
+/// the shadow map, 24 for the high-dynamic-range and depth targets and 10.5 for the bloom's levels.
 ///
 /// It does not yet smooth the edges of triangles (anti-aliasing), blend transparent surfaces, or
 /// leave out the instances that the camera does not see: every instance costs one draw call in the

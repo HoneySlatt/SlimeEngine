@@ -150,7 +150,7 @@ impl MaterialData<'_> {
 }
 
 /// A material on the GPU, created by [`Renderer::create_material`](crate::Renderer::create_material).
-/// It keeps its textures and samplers alive.
+/// It keeps its textures and samplers alive. Any renderer of the same `Gpu` draws with it.
 ///
 /// Clones refer to the same material.
 #[derive(Clone, Debug)]

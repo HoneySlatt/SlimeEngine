@@ -134,7 +134,8 @@ impl MeshData {
     }
 }
 
-/// A mesh on the GPU, created by [`Renderer::create_mesh`](crate::Renderer::create_mesh).
+/// A mesh on the GPU, created by [`Renderer::create_mesh`](crate::Renderer::create_mesh). Any
+/// renderer of the same `Gpu` draws it.
 ///
 /// Clones refer to the same buffers.
 #[derive(Clone, Debug)]
