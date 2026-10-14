@@ -47,10 +47,11 @@ impl Gpu {
     /// from 1 to 100, makes the creation of buffers, textures and timers fail with
     /// [`GfxError::OutOfMemory`] once the memory in use would pass that share of what the driver
     /// allows the process, to try a game with less memory and to test how it handles these errors.
-    /// It works on Direct3D 12, and on Vulkan with drivers that report their memory budget
-    /// (`VK_EXT_memory_budget`: RADV and lavapipe do). Drivers count the memory already in use
-    /// differently: lavapipe counts the whole machine's, so that below a share that depends on
-    /// what else runs, the device does not even open ([`GfxError::RequestDevice`]).
+    /// It works on Direct3D 12, and on Vulkan with drivers whose memory budget wgpu reads
+    /// (`VK_EXT_memory_budget`): lavapipe's, not RADV's, which wgpu 30 ignores because of a driver
+    /// bug; elsewhere it changes nothing. Drivers count the memory already in use differently:
+    /// lavapipe counts the whole machine's, so that below a share that depends on what else runs,
+    /// the device does not even open ([`GfxError::RequestDevice`]).
     ///
     /// # Errors
     ///
@@ -480,7 +481,9 @@ mod tests {
     }
 
     /// Runs the test `name` again in processes of its own, with [`MEMORY_BUDGET_ENV_VAR`] set,
-    /// and returns what the first one that ran out of memory printed.
+    /// and returns what the first one that ran out of memory printed; `None` when nothing runs out
+    /// even at a budget of 1 %: wgpu does not read the driver's budget, as with RADV, whose budget
+    /// wgpu 30 ignores because of a driver bug, and no budget can make memory run out.
     ///
     /// The budget is a share of the memory that the driver says the process may use, but drivers
     /// count what is already used differently: lavapipe counts the whole machine's memory, which
@@ -489,10 +492,13 @@ mod tests {
     /// for a share in between, where the child prints neither `no device` nor `never ran out`. What
     /// else runs on the machine moves that share; the search starts again, up to three times, when
     /// it has moved too far to be found.
-    fn run_out_of_memory_in_a_child(name: &str) -> String {
+    fn run_out_of_memory_in_a_child(name: &str) -> Option<String> {
+        if child(name, 1).contains("never ran out") {
+            return None;
+        }
         for _ in 0..3 {
             if let Some(stdout) = search_budget(name) {
-                return stdout;
+                return Some(stdout);
             }
         }
         panic!("no budget lets the device open and then run out of memory within 4 GiB");
@@ -503,20 +509,7 @@ mod tests {
         let (mut low, mut high) = (1_u8, 100_u8);
         while low <= high {
             let budget = low + (high - low) / 2;
-            let output =
-                std::process::Command::new(std::env::current_exe().expect("test binary path"))
-                    .args(["--exact", name, "--nocapture"])
-                    .env(CHILD_ENV, "1")
-                    .env(MEMORY_BUDGET_ENV_VAR, budget.to_string())
-                    .output()
-                    .expect("child test process runs");
-            let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
-            assert!(
-                output.status.success(),
-                "the child failed with a budget of {budget} %: {}\n{stdout}\n{}",
-                output.status,
-                String::from_utf8_lossy(&output.stderr)
-            );
+            let stdout = child(name, budget);
             if stdout.contains("no device") {
                 low = budget + 1;
             } else if stdout.contains("never ran out") {
@@ -526,6 +519,25 @@ mod tests {
             }
         }
         None
+    }
+
+    /// What the test `name` prints when it runs in a process of its own, with a memory budget of
+    /// `budget` %.
+    fn child(name: &str, budget: u8) -> String {
+        let output = std::process::Command::new(std::env::current_exe().expect("test binary path"))
+            .args(["--exact", name, "--nocapture"])
+            .env(CHILD_ENV, "1")
+            .env(MEMORY_BUDGET_ENV_VAR, budget.to_string())
+            .output()
+            .expect("child test process runs");
+        let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+        assert!(
+            output.status.success(),
+            "the child failed with a budget of {budget} %: {}\n{stdout}\n{}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        stdout
     }
 
     /// The GPU of a child, or `None`, once it has printed `no device`, when the budget is too small
@@ -544,9 +556,12 @@ mod tests {
     #[test]
     fn a_creation_beyond_the_memory_fails_and_the_device_goes_on() {
         if std::env::var_os(CHILD_ENV).is_none() {
-            let stdout = run_out_of_memory_in_a_child(
+            let Some(stdout) = run_out_of_memory_in_a_child(
                 "gpu::tests::a_creation_beyond_the_memory_fails_and_the_device_goes_on",
-            );
+            ) else {
+                eprintln!("skipped: no memory budget makes the memory of this driver run out");
+                return;
+            };
             assert!(stdout.contains("the device goes on"), "{stdout}");
             return;
         }
@@ -596,9 +611,12 @@ mod tests {
     #[test]
     fn memory_that_runs_out_where_no_caller_is_told_gives_the_device_up() {
         if std::env::var_os(CHILD_ENV).is_none() {
-            let stdout = run_out_of_memory_in_a_child(
+            let Some(stdout) = run_out_of_memory_in_a_child(
                 "gpu::tests::memory_that_runs_out_where_no_caller_is_told_gives_the_device_up",
-            );
+            ) else {
+                eprintln!("skipped: no memory budget makes the memory of this driver run out");
+                return;
+            };
             assert!(stdout.contains("given up"), "{stdout}");
             return;
         }

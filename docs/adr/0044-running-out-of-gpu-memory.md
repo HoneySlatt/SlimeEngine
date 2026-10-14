@@ -47,11 +47,12 @@ error and reacts, as streaming a world needs.
 - The `SLIME_GPU_MEMORY_BUDGET` environment variable, a percentage from 1 to 100, sets wgpu's
   threshold for resource creation: buffers, textures and query sets fail with `OutOfMemory` once
   the memory in use would pass that share of what the driver allows the process. It works on
-  Direct3D 12, and on Vulkan with drivers that report a memory budget (`VK_EXT_memory_budget`),
-  RADV and lavapipe among them. Drivers count the memory already in use differently: lavapipe
-  counts the whole machine's, so that below a share that depends on what else runs, the device
-  does not even open. It is a tool to try a game with less memory and to test these errors, not a
-  size: the tests of `slime-gfx` search for a share at which the device opens and then runs out.
+  Direct3D 12, and on Vulkan with drivers whose memory budget wgpu reads (`VK_EXT_memory_budget`):
+  lavapipe's, not RADV's, which wgpu 30 ignores because of a driver bug. Drivers count the memory
+  already in use differently: lavapipe counts the whole machine's, so that below a share that
+  depends on what else runs, the device does not even open. It is a tool to try a game with less
+  memory and to test these errors, not a size: the tests of `slime-gfx` search for a share at
+  which the device opens and then runs out, and are skipped where nothing runs out at 1 %.
 
 This amends ADR-0016 (an out-of-memory error is not a bug), ADR-0017 (the creation methods return
 a `Result`) and ADR-0022 (a lost device creates nothing, and memory that runs out where no caller

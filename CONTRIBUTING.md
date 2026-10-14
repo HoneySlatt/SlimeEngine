@@ -92,7 +92,9 @@ The GPU layer uses Vulkan on Linux and Direct3D 12 on Windows
 - `SLIME_GPU_MEMORY_BUDGET`, a percentage from 1 to 100, makes creations fail with
   `GfxError::OutOfMemory` once the memory in use would pass that share of what the driver allows,
   to try how a game handles a full GPU memory
-  ([ADR-0044](docs/adr/0044-running-out-of-gpu-memory.md)).
+  ([ADR-0044](docs/adr/0044-running-out-of-gpu-memory.md)). It changes nothing on drivers whose
+  memory budget wgpu does not read, RADV among them; the out-of-memory tests of `slime-gfx` then
+  say they are skipped.
 - Image tests compare a render with a reference image stored in `examples/tests/reference/`,
   within a tolerance that depends on the driver
   ([ADR-0018](docs/adr/0018-reference-image-tests.md), amended by
