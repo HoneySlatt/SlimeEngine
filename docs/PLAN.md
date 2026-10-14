@@ -12,16 +12,17 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 
 ## Current
 
-- Stage 3c — A first game: in progress. Planned on 2026-10-14 and validated by the owner; next:
-  M3c.1.
+- Stage 3c — A first game: in progress. Planned on 2026-10-14 and validated by the owner. M3c.1
+  and M3c.2 are done; M3c.3 waits for the owner to play the game on Linux and in the Windows
+  virtual machine.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
-| [M3c.1](#m3c1--skeleton) | The courtyard, the camera, the player's movement and collisions | Planned |
-| [M3c.2](#m3c2--guards-detection-and-the-objective) | Guards, detection, the switch, the exit: the game is won and lost | Planned |
-| [M3c.3](#m3c3--night-feel-and-the-windows-check) | The night's mood, the feel, played on Linux and Windows | Planned |
+| [M3c.1](#m3c1--skeleton) | The courtyard, the camera, the player's movement and collisions | Done |
+| [M3c.2](#m3c2--guards-detection-and-the-objective) | Guards, detection, the switch, the exit: the game is won and lost | Done |
+| [M3c.3](#m3c3--night-feel-and-the-windows-check) | The night's mood, the feel, played on Linux and Windows | In progress |
 | [M3c.4](#m3c4--findings-for-stages-4-and-5) | What the game found hard, as proposals for Stages 4 and 5 | Planned |
 
 Stages 0, 1, 2, 3a and 3b are done; see [Completed stages](#completed-stages).
@@ -94,6 +95,11 @@ a large step; and the fun of a stealth game depends on tuning that tests cannot 
   sliding along them, and never through a corner at the fixed step; the game runs on Linux and in
   the headless Weston; CI is green on both platforms.
 - **How to test.** `cargo test -p nightwatch`; `cargo run -p nightwatch`.
+- **Checked** on 2026-10-14: ADR-0055; the crate, its README and its place in the documents; 13
+  tests of the rules, the meshes, the controls and the camera; the game drawn 120 frames in
+  `scripts/check.sh`'s headless Weston, and looked at offscreen; CI green on Linux and Windows, with
+  `nightwatch.exe` in the Windows artifact. Seen while looking: the camera, from the entrance, stood
+  behind the west wall; raised then, and kept clear of walls at M3c.3.
 
 ### M3c.2 — Guards, detection and the objective
 
@@ -109,6 +115,12 @@ a large step; and the fun of a stealth game depends on tuning that tests cannot 
   starts again; a guard does not see the player behind a crate; a switched-off floodlight sees
   nothing; a new game starts from the same state as the first; restarting creates no GPU object.
 - **How to test.** `cargo test -p nightwatch`; playing it.
+- **Checked** on 2026-10-14: three guards, two floodlights and a switch in the courtyard; 27 tests,
+  among them a scripted game that crosses the courtyard to the gate in 33 s, one that walks straight
+  into a light and is caught, and a new game that starts from the state of the first. The switch,
+  first placed in the south of the east part, could only be reached through the light it turns off:
+  it stands on the north wall. Looked at offscreen; CI green on Linux and Windows. A new game
+  touches the rules only, which hold no GPU object.
 
 ### M3c.3 — Night, feel and the Windows check
 
