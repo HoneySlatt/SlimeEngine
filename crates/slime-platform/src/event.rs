@@ -10,11 +10,9 @@ use crate::window::PhysicalSize;
 ///
 /// Keys arrive while the window has the keyboard focus. Mouse input arrives while the cursor is
 /// over the window, and outside it while a button pressed over the window is held (see
-/// [`CursorMoved`](Self::CursorMoved)). The engine does not report yet: the state of modifier
-/// keys as a whole (track the `Shift`, `Control`, `Alt` and `Super` keys instead; a modifier
-/// already held when the window gains the focus is not seen until it is pressed again, as
-/// [`Key`](Self::Key) says), text composed by input methods (used for Chinese, Japanese or
-/// Korean), touch screens, touchpad gestures, or files dropped on the window.
+/// [`CursorMoved`](Self::CursorMoved)). The engine does not report yet: text composed by input
+/// methods (used for Chinese, Japanese or Korean), touch screens, touchpad gestures, or files
+/// dropped on the window.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum Event {

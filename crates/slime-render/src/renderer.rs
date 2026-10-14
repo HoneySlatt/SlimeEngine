@@ -795,25 +795,28 @@ impl Renderer {
         })
     }
 
-    /// Draws `scene` into `target`, in passes. The shadow pass draws into the shadow map the
-    /// depths of every instance, all their faces (the parts that masked materials discard
-    /// excepted), as the first directional light of `scene.lights` that casts shadows sees them,
-    /// through an orthographic projection that covers the boxes around the instances' meshes
-    /// (ADR-0038); it is skipped when no directional light casts shadows. The scene pass draws
-    /// every instance into a high-dynamic-range target with the depth test, so that nearer surfaces
-    /// hide farther ones whatever their order, each surface shaded by the scene's light with glTF's
+    /// Draws `scene` into `target`, in passes. The shadow pass draws into the shadow map the depths
+    /// of every instance that casts shadows, all their faces (the parts that masked materials
+    /// discard excepted), as the first directional light of `scene.lights` that casts shadows sees
+    /// them, over the region around the camera that the light's
+    /// [`shadow_distance`](crate::DirectionalLight::shadow_distance) sets (ADR-0038, ADR-0049,
+    /// ADR-0050); it is skipped when no directional light casts shadows, or when no instance that
+    /// casts shadows reaches the region. The scene pass draws every instance into a
+    /// high-dynamic-range target with the depth test, so that nearer surfaces hide farther ones
+    /// whatever their order, each surface shaded by the scene's light with glTF's
     /// metallic-roughness model and its material's textures, the shadowed light's only where the
-    /// shadow map holds nothing nearer to it, its edges blended over three of the map's texels, and
-    /// culled or not as its material and its transform ask (ADR-0035), the scene's environment
-    /// reflected as its material reflects it (ADR-0039), its light multiplied by the scene's
-    /// exposure (ADR-0037). Point and spot lights cast no shadows. The sky pass draws the
-    /// environment, exposed, where no surface was drawn, with its sun's disc. Unless `scene.bloom`
-    /// is 0 or `target` is smaller than 15 × 15, the bloom's passes filter that light down into
-    /// levels of half the size of the one before, to a side of at least 8 texels, with Jimenez's
-    /// 13-tap filter, then average them back up through 3 × 3 tents, every level with the same
-    /// weight, into a blurred copy (ADR-0040): 11 passes at 1280 × 720, 13 at 1920 × 1080. The
-    /// tone-mapping pass then mixes the blurred copy in by `scene.bloom`, maps that light to the
-    /// range a display shows, and writes it into `target`, opaque. A render graph orders the
+    /// shadow map holds nothing nearer to it, looked up at most 3 texels off the surface along its
+    /// normal, its edges blended over three of the map's texels, and culled or not as its material
+    /// and its transform ask (ADR-0035), the scene's environment reflected as its material reflects
+    /// it (ADR-0039), its light multiplied by the scene's exposure (ADR-0037). Point and spot
+    /// lights cast no shadows. The sky pass draws the environment, exposed, where no surface was
+    /// drawn, with its sun's disc. Unless `scene.bloom` is 0 or `target` is smaller than 15 × 15,
+    /// the bloom's passes filter that light down into levels of half the size of the one before, to
+    /// a side of at least 8 texels, with Jimenez's 13-tap filter, then average them back up through
+    /// 3 × 3 tents, every level with the same weight, into a blurred copy (ADR-0040): 11 passes at
+    /// 1280 × 720, 13 at 1920 × 1080. The tone-mapping pass then mixes the blurred copy in by
+    /// `scene.bloom`, maps that light to the range a display shows, dithers it when `target` has 8
+    /// bits per channel (ADR-0051), and writes it into `target`, opaque. A render graph orders the
     /// passes, and they are recorded in that order, four to a submission named after `target`
     /// (ADR-0041); the work runs on the GPU after this method returns.
     ///
@@ -822,8 +825,7 @@ impl Renderer {
     /// 10.5 MiB at 1920 × 1080) likewise, and only while the bloom runs: they are freed when it
     /// stops, and created again, in one frame, when it resumes. The instance buffer grows when a
     /// scene has more instances than it holds, and shrinks back once a frame uses a quarter of it
-    /// or less. The shadow map keeps its size: its texels are the extent of the instances across
-    /// the light divided by 2048, so that a scene that spreads wider gets coarser shadows.
+    /// or less. The shadow map keeps its size, 2048 × 2048, whatever the region it covers.
     ///
     /// # Errors
     ///

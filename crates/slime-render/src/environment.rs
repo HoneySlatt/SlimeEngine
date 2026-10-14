@@ -89,9 +89,9 @@ pub struct Sky {
     /// Alpha is ignored.
     pub ground: LinearColor,
     /// The sun: the direction its light travels in, its color and its illuminance place its glow
-    /// and its disc (`casts_shadows` means nothing here). Give the scene the same light, so that
-    /// the disc and the glow lie where the light and its shadows come from. `None` for a sky
-    /// without a sun.
+    /// and its disc (`casts_shadows` and `shadow_distance` mean nothing here). Give the scene the
+    /// same light, so that the disc and the glow lie where the light and its shadows come from.
+    /// `None` for a sky without a sun.
     pub sun: Option<DirectionalLight>,
 }
 

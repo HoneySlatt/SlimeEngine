@@ -609,8 +609,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   included, the X server reports windows as visible anyway.
 - **wgpu's errors panic, in release builds too** (ADR-0016): a use of wgpu that it rejects is
   treated as a bug. Before games ship, logging the error and dropping the frame is to be
-  considered. Running out of GPU memory panics as well on the paths where wgpu does not treat it as
-  the loss of the device (ADR-0022). The engine avoids the rejections that the environment can
+  considered. Running out of GPU memory is not such a use: creations return
+  `GfxError::OutOfMemory`, and memory that runs out where no caller hears of it gives the device up,
+  which stops the run (ADR-0044). The engine avoids the rejections that the environment can
   cause: a window larger than the device's largest image is drawn at that size (`Surface::resize`),
   and a shader or pipeline that the driver rejects is returned as an error (`GfxError::Shader` or
   `GfxError::Pipeline` on Direct3D 12; on Vulkan, wgpu treats the driver's failure as a lost
@@ -620,6 +621,7 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **A lost GPU device is not replaced** (ADR-0022; issue
   [#2](https://github.com/HoneySlatt/SlimeEngine/issues/2)): the run stops with an error, and
   since winit allows one event loop per process, carrying on means starting the process again.
+  Recovering from a loss is planned for Stage 4 (ADR-0052).
 - **Captures in RenderDoc were not tried on Windows** (Direct3D 12).
 - **Frames pause on Windows while the user moves the window, holds its title bar or a border, or
   opens the system menu**: the system then runs a loop of its own, in which no redraw arrives and
