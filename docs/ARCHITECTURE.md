@@ -318,7 +318,7 @@ renderer = Renderer::new(&gpu, format)                 the output's format; thre
     │   built again when the scene names another environment (a black one for none)
     ├── the instance buffer ← each instance's transform, normal        bind group 2, one dynamic
     │   matrix and handedness (−1 when it mirrors), one slot each, at  offset per instance
-    │   the device's alignment; grows when a scene needs it
+    │   the device's alignment; grows when a scene needs it, shrinks back after a peak
     ├── the frame's render graph, built again when the frame's shape changes (the target's size,
     │   the shadow pass or the bloom starting or stopping): the passes below, each declaring the
     │   targets it draws into and samples, ordered by them; the HDR target (Rgba16Float), the depth

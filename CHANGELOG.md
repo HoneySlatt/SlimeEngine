@@ -173,6 +173,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- A renderer that drew many instances once no longer pays for them in every later frame: its
+  instance buffer shrinks back once a frame uses a quarter of it or less (a 10-instance frame after
+  a 100 000-instance one took 21.4 ms of CPU on lavapipe, 0.054 ms now).
 - `Context::exit_requested` reports a termination signal as soon as it arrives, during
   `App::init` and in the middle of a frame too, so that a long loading or update that checks it
   can stop early on Ctrl+C. It reported it only once the run was already stopping between frames.

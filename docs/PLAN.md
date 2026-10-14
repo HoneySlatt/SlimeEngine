@@ -808,15 +808,13 @@ GitHub issues, linked from their entry; this list stays the reference.
   that pass until the next time replaces it. wgpu does not tell how many bits are valid, so the
   wrapped difference cannot be recovered. Dropping such a sample (`end.checked_sub(start)` in
   `crates/slime-gfx/src/timer.rs`) is a one-line change if it ever matters.
-- **The instance buffer is uploaded at its largest size every frame.** `Renderer::render` packs,
-  zero-fills and uploads `capacity × stride` bytes (256-byte slots with the default limits), where
-  the capacity is the largest instance count ever drawn, rounded up to a power of two (at least
-  64). It never shrinks. A scene that shrinks after a large peak still pays for the peak: about
-  32 MiB a frame after 100 000 instances. It also allocates one small `Vec` per instance per
-  frame. Uploading only the live slots would amend ADR-0026's rule that a uniform buffer is always
-  written at its creation size. To measure first: `RenderStats::cpu_time` and the GPU time of a
-  10-instance frame after a 100 000-instance frame, against a renderer that never drew more than
-  10.
+- **The instance buffer is uploaded whole every frame.** `Renderer::render` uploads
+  `capacity × stride` bytes (256-byte slots with the default limits), where the capacity is a
+  power of two from 64 that fits the frame's instances, up to four times as many: it shrinks back
+  once a frame uses a quarter of it or less, so that a 10-instance frame after a 100 000-instance
+  one costs what it costs on a new renderer (0.054 ms against 21.4 ms before, on lavapipe).
+  Uploading only the live slots would amend ADR-0026's rule that a uniform buffer is always
+  written at its creation size.
 - **The dev overlay leaves egui's focus flag set.** `slime-devui` sends egui the window's focus
   changes as events only (`WindowFocused`) and leaves `RawInput::focused` at egui's default,
   `true`. A focused text field therefore keeps its caret blinking after the window loses the

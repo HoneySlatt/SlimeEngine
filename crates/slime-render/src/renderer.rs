@@ -56,7 +56,8 @@ const MATERIAL_TEXTURE_SLOTS: u32 = 5;
 /// transform to mirror (see `is_mirrored`).
 const MIRROR_THRESHOLD: f32 = 1e-5;
 /// How many instances the instance buffer holds when the renderer is created; it doubles whenever
-/// a scene has more.
+/// a scene has more, and comes back down once a frame uses a quarter of it or less
+/// (`instance_capacity`).
 const INITIAL_INSTANCE_CAPACITY: usize = 64;
 
 /// One thing to draw: a mesh, its material, and where it is.
@@ -736,7 +737,8 @@ impl Renderer {
     /// time, and again whenever that size changes; the bloom's levels (4.7 MiB at 1280 × 720,
     /// 10.5 MiB at 1920 × 1080) likewise, and only while the bloom runs: they are freed when it
     /// stops, and created again, in one frame, when it resumes. The instance buffer grows when a
-    /// scene has more instances than before. The shadow map keeps its size: its texels are the
+    /// scene has more instances than it holds, and shrinks back once a frame uses a quarter of it
+    /// or less. The shadow map keeps its size: its texels are the
     /// extent of the instances across the light divided by 2048, so that a scene that spreads wider
     /// gets coarser shadows.
     ///
@@ -845,29 +847,27 @@ impl Renderer {
         }
         let frame_group = &self.frame_group.1;
 
-        if self.instances.capacity < scene.instances.len() {
-            let mut capacity = self.instances.capacity.max(1);
-            while capacity < scene.instances.len() {
-                capacity *= 2;
-            }
-            tracing::debug!(capacity, "growing the instance buffer");
+        let capacity = instance_capacity(self.instances.capacity, scene.instances.len());
+        if capacity != self.instances.capacity {
+            tracing::debug!(capacity, "resizing the instance buffer");
             self.instances = InstanceSlots::new(gpu, &self.instance_layout, capacity);
         }
         let stride = self.instances.stride;
-        let mut instance_bytes = vec![0; self.instances.capacity * stride];
-        for (slot, instance) in scene.instances.iter().enumerate() {
-            let mut bytes = Vec::with_capacity(INSTANCE_VALUES_SIZE);
-            push_mat4(&mut bytes, instance.transform);
-            push_mat3(&mut bytes, normal_matrix(instance.transform));
+        // The slots are written one after another, each padded to the stride, and the slots no
+        // instance uses are left zero: the buffer is written whole.
+        let mut instance_bytes = Vec::with_capacity(capacity * stride);
+        for instance in scene.instances {
+            push_mat4(&mut instance_bytes, instance.transform);
+            push_mat3(&mut instance_bytes, normal_matrix(instance.transform));
             let handedness = if is_mirrored(instance.transform) {
                 -1.0
             } else {
                 1.0
             };
-            push_f32s(&mut bytes, &[handedness, 0.0, 0.0, 0.0]);
-            instance_bytes[slot * stride..slot * stride + INSTANCE_VALUES_SIZE]
-                .copy_from_slice(&bytes);
+            push_f32s(&mut instance_bytes, &[handedness, 0.0, 0.0, 0.0]);
+            instance_bytes.resize(instance_bytes.len().next_multiple_of(stride), 0);
         }
+        instance_bytes.resize(capacity * stride, 0);
         gpu.write_uniform_buffer(&self.instances.buffer, &instance_bytes);
 
         let shape = Shape {
@@ -1303,6 +1303,27 @@ fn is_mirrored(transform: Mat4) -> bool {
     x.dot(y.cross(z)) < -MIRROR_THRESHOLD
 }
 
+/// How many slots the instance buffer has for a frame of `instances` instances when it has
+/// `capacity`: twice as many as before until they fit, and back to the smallest such size from
+/// [`INITIAL_INSTANCE_CAPACITY`] once the frame uses a quarter or less, so that a peak (a
+/// loading screen, a burst of debris) does not leave every later frame uploading its whole size,
+/// and a count that hovers around a size does not resize the buffer at every frame.
+fn instance_capacity(capacity: usize, instances: usize) -> usize {
+    let fitting = |mut capacity: usize| {
+        while capacity < instances {
+            capacity *= 2;
+        }
+        capacity
+    };
+    if instances > capacity {
+        fitting(capacity.max(1))
+    } else if instances <= capacity / 4 && capacity > INITIAL_INSTANCE_CAPACITY {
+        fitting(INITIAL_INSTANCE_CAPACITY)
+    } else {
+        capacity
+    }
+}
+
 /// The uniform buffer holding the values of every instance of a frame, one slot per instance at
 /// a multiple of the device's alignment, and the group that binds one slot at a time.
 struct InstanceSlots {
@@ -1685,6 +1706,26 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn the_instance_buffer_grows_to_fit_and_shrinks_back_after_a_peak() {
+        let initial = INITIAL_INSTANCE_CAPACITY;
+        assert_eq!(instance_capacity(initial, 0), initial);
+        assert_eq!(instance_capacity(initial, initial), initial);
+        assert_eq!(instance_capacity(initial, initial + 1), 2 * initial);
+        // A peak of 100 000 instances, then a frame of 10: back to the first size.
+        let peak = instance_capacity(initial, 100_000);
+        assert_eq!(peak, initial << 11);
+        assert_eq!(instance_capacity(peak, 10), initial);
+        // A frame using more than a quarter keeps the size; a quarter or less shrinks it to the
+        // smallest size that fits, never below the first.
+        assert_eq!(instance_capacity(4 * initial, initial + 1), 4 * initial);
+        assert_eq!(instance_capacity(8 * initial, 2 * initial), 2 * initial);
+        assert_eq!(instance_capacity(8 * initial, 2 * initial + 1), 8 * initial);
+        // A count hovering around a size does not resize the buffer back and forth.
+        let grown = instance_capacity(initial, initial + 1);
+        assert_eq!(instance_capacity(grown, initial), grown);
     }
 
     #[test]
