@@ -84,8 +84,9 @@ pub struct Instance<'a> {
 /// Light is in physical units (ADR-0037): lights in lux and candelas, the light that surfaces
 /// reflect and emit and the environment's in nits (candelas per square metre),
 /// distances in metres. The scene pass multiplies that light by the exposure before it writes it
-/// into the high-dynamic-range target (pre-exposure), whose half-precision floats reach 65 504:
-/// exposed light above it is written as 65 504, which clips it.
+/// into the high-dynamic-range target (pre-exposure), divided by 64 so that its half-precision
+/// floats, which reach 65 504, hold exposed light up to 64 × 65 504 (ADR-0040): exposed light above
+/// it is clipped to it.
 #[derive(Clone, Copy, Debug)]
 pub struct Scene<'a> {
     /// Where the scene is seen from.
@@ -1409,12 +1410,25 @@ mod tests {
 
     /// The value of the WGSL constant `name` in the scene shader.
     fn shader_constant(name: &str) -> f64 {
+        constant_of(SCENE_SHADER, name)
+    }
+
+    /// The value of the WGSL constant `name` in `shader`.
+    fn constant_of(shader: &str, name: &str) -> f64 {
         let start = format!("const {name}: f32 = ");
-        let line = SCENE_SHADER
+        let line = shader
             .lines()
             .find_map(|line| line.strip_prefix(&start))
-            .unwrap_or_else(|| panic!("shader.wgsl lacks `{start}`"));
+            .unwrap_or_else(|| panic!("the shader lacks `{start}`"));
         line.trim_end_matches(';').parse().expect("a number")
+    }
+
+    #[test]
+    fn the_tone_mapping_pass_restores_the_light_the_scene_pass_divided() {
+        // Both shaders scale by the same power of two, which half precision multiplies exactly.
+        let headroom = shader_constant("HEADROOM");
+        assert_eq!(constant_of(TONE_MAPPING_SHADER, "HEADROOM"), headroom);
+        assert_eq!(headroom, 64.0);
     }
 
     #[test]

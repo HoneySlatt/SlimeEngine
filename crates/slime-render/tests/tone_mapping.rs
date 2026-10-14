@@ -145,22 +145,24 @@ fn the_sky_is_exposed_before_the_high_dynamic_range_target_and_kept_within_its_r
     let mut renderer =
         Renderer::new(&gpu, TextureFormat::Rgba16Float).expect("the renderer is created");
     let output = gpu.create_render_target("output", 4, 4, TextureFormat::Rgba16Float);
-    // Exposed light beyond 65 504 is stored as 65 504, as the sky shader writes it, rather than
-    // left to the driver, which may store an infinity that the curve turns into NaN. lavapipe and
-    // RADV would store 65 504 without the shader's clamp too: this checks the value, not the clamp.
-    draw(&gpu, &mut renderer, &output, [32_768.0; 3], 4.0);
+    // The target holds exposed light divided by 64 (ADR-0040); beyond 64 × 65 504 it is stored as
+    // 65 504, as the sky shader writes it, rather than left to the driver, which may store an
+    // infinity that the curve turns into NaN. lavapipe and RADV would store 65 504 without the
+    // shader's clamp too: this checks the value, not the clamp.
+    draw(&gpu, &mut renderer, &output, [65_504.0; 3], 128.0);
     let image = gpu
         .read_float_render_target(&output)
         .expect("the image is read back");
     assert_every_pixel(
         &image,
-        tone_curve::tone_map([65_504.0; 3]),
-        "32 768 at an exposure of 4",
+        tone_curve::tone_map([64.0 * 65_504.0; 3]),
+        "65 504 at an exposure of 128",
     );
-    // The disc of a sun of 100 000 lux has 100 000 / Ω = 1.47 × 10⁹ nits, beyond half precision,
-    // exposed in the shader to 0.5 here, and to 65 504 at an exposure of 1. Seen along the light,
-    // every pixel of a narrow view is in the disc, where the sun's glow adds 14 324 nits, 5 × 10⁻⁶
-    // once exposed. The same light in the scene lights surfaces but draws no second disc.
+    // The disc of a sun of 100 000 lux has 100 000 / Ω = 1.47 × 10⁹ nits, beyond half
+    // precision, exposed in the shader to 0.5 here, and to 64 × 65 504 at an exposure of 1. Seen
+    // along the light, every pixel of a narrow view is in the disc, where the sun's glow adds
+    // 14 324 nits, 5 × 10⁻⁶ once exposed. The same light in the scene lights surfaces but draws
+    // no second disc.
     let solid_angle = 2.0 * std::f64::consts::PI * (1.0 - (0.533_f64 / 2.0).to_radians().cos());
     let mut disc = |direction: Vec3, exposure: f32| {
         let sun = DirectionalLight {
@@ -205,10 +207,10 @@ fn the_sky_is_exposed_before_the_high_dynamic_range_target_and_kept_within_its_r
         tone_curve::tone_map([0.5; 3]),
         "the sun's disc",
     );
-    // Exposed at 1, it would be 1.47 × 10⁹: stored as 65 504.
+    // Exposed at 1, it would be 1.47 × 10⁹: stored as 65 504, 64 × 65 504 once multiplied back.
     assert_every_pixel(
         &disc(high, 1.0),
-        tone_curve::tone_map([65_504.0; 3]),
+        tone_curve::tone_map([64.0 * 65_504.0; 3]),
         "the sun's disc at an exposure of 1",
     );
     // 11.3° below the horizon, the ground's haze leaves e^(−0.196 / 0.03) = 1.5 × 10⁻³ of it.

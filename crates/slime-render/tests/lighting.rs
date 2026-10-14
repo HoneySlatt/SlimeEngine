@@ -267,17 +267,17 @@ fn the_exposure_multiplies_the_light_that_surfaces_reflect() {
         "a light of 4π at an exposure of 1/4 shows as a light of π at an exposure of 1"
     );
     // The exposure is applied before the high-dynamic-range target is written: under a light of
-    // 10⁶ π the square reflects about 970 000, far beyond the target's 65 504, and still shows at
-    // an exposure of 10⁻⁶ as under a light of π at 1. Exposed after the target, it would show the
-    // clamped light, 65 504 × 10⁻⁶, about 0.07.
+    // 10⁸ π the square reflects about 97 000 000, far beyond the target's 64 × 65 504, and still
+    // shows at an exposure of 10⁻⁸ as under a light of π at 1. Exposed after the target, it would
+    // show the clamped light, 64 × 65 504 × 10⁻⁸, about 0.04.
     let blinding = DirectionalLight {
-        illuminance: 1e6 * PI,
+        illuminance: 1e8 * PI,
         ..from_the_front()
     };
     assert_close(
-        setup.exposed_center_red(blinding, 0.0, Mat4::IDENTITY, 1e-6),
+        setup.exposed_center_red(blinding, 0.0, Mat4::IDENTITY, 1e-8),
         fully_lit(),
-        "a light of 10⁶ π at an exposure of 10⁻⁶",
+        "a light of 10⁸ π at an exposure of 10⁻⁸",
     );
 }
 

@@ -382,6 +382,16 @@ impl Level {
     }
 }
 
+/// What the scene pass divides exposed light by before it writes the high-dynamic-range target,
+/// which the chain filters as it is (`HEADROOM` in `shader.wgsl`).
+const HEADROOM: f32 = 64.0;
+
+/// `value`, exposed light, as the high-dynamic-range target and the chain store it: divided by
+/// [`HEADROOM`], rounded to half precision, multiplied again.
+fn stored(value: f32) -> f32 {
+    half(value / HEADROOM) * HEADROOM
+}
+
 /// `value` rounded to half precision, as an `Rgba16Float` target stores it.
 fn half(value: f32) -> f32 {
     let bits = slime_gfx::f32_to_f16(value);
@@ -403,8 +413,8 @@ fn half(value: f32) -> f32 {
 /// ADR's description, not from the shaders: level i the output divided by 2^i, rounded to the
 /// nearest, while both sides keep 8 texels; Jimenez's 13 taps down, read at twice the pixel's
 /// position; tents up, read at half, each level averaged with the same weight; every level read
-/// mirrored beyond its edges and rounded to half precision; then the tone-mapping pass's tent, at
-/// the output's size.
+/// mirrored beyond its edges and stored as the target stores it ([`stored`]); then the
+/// tone-mapping pass's tent, at the output's size.
 fn blurred(scene: &Level) -> Vec<f32> {
     let mut downs: Vec<Level> = Vec::new();
     for index in 1.. {
@@ -436,7 +446,7 @@ fn blurred(scene: &Level) -> Vec<f32> {
                             + tap(0.0, 0.0))
                             * 0.25
                     });
-                values.push(half(inner * 0.5 + corners.iter().sum::<f32>() * 0.125));
+                values.push(stored(inner * 0.5 + corners.iter().sum::<f32>() * 0.125));
             }
         }
         downs.push(Level {
@@ -456,7 +466,7 @@ fn blurred(scene: &Level) -> Vec<f32> {
             for x in 0..level.width {
                 let coarser = sum.tent(0.5 * (x as f32 + 0.5), 0.5 * (y as f32 + 0.5));
                 let own_light = level.values[y * level.width + x];
-                values.push(half(coarser + (own_light - coarser) * own));
+                values.push(stored(coarser + (own_light - coarser) * own));
             }
         }
         sum = Level {
@@ -484,36 +494,54 @@ fn the_halo_is_the_blur_that_an_independent_model_of_the_chain_computes() {
         ((64, 64), (0, 0)),
         ((257, 131), (256, 130)),
     ] {
-        // At a strength of 1 the image is the blurred copy itself.
-        let (image, _) = scene.draw(size, at, 1.0);
-        let mut light = Level {
-            width: size.0 as usize,
-            height: size.1 as usize,
-            values: vec![0.0; (size.0 * size.1) as usize],
-        };
-        light.values[(at.1 * size.0 + at.0) as usize] = half(200.0);
-        let expected = blurred(&light);
-        let mut largest = 0.0f32;
-        for y in 0..size.1 {
-            for x in 0..size.0 {
-                let shown = red(&image, x, y);
-                // Where the curve is exactly invertible and the light far above half precision's
-                // smallest normal values.
-                if !(1e-4..0.7).contains(&shown) {
-                    continue;
-                }
-                let model = expected[(y * size.0 + x) as usize];
-                let relative = (untone(shown) - model).abs() / model;
-                largest = largest.max(relative);
-                assert!(
-                    relative <= 6e-3,
-                    "{size:?}, ({x}, {y}): {} against the model's {model}",
-                    untone(shown)
-                );
-            }
-        }
-        eprintln!("{size:?}: largest relative difference from the model {largest}");
+        assert_the_halo_is_the_model_s(&mut scene, size, at, 200.0);
     }
+}
+
+#[test]
+fn light_beyond_the_largest_half_keeps_its_halo() {
+    // A pixel of 4 × 65 536, exposed: the high-dynamic-range target holds exposed light divided by
+    // 64, up to 64 × 65 504, so that the pixel keeps its light and its halo is the model's. Written
+    // as 65 504 first, as the target would without that headroom, its halo would hold a quarter
+    // of it, as the sun's disc did once the exposure was raised by half a stop.
+    let mut scene = Pixel::new(262_144.0);
+    assert_the_halo_is_the_model_s(&mut scene, (64, 64), (29, 29), 262_144.0);
+}
+
+/// Checks that the halo of the pixel `at`, of light `light`, drawn by `scene` at a strength of 1
+/// into an output of `size`, where the image is the blurred copy itself, is what [`blurred`]
+/// computes, at every pixel where the tone curve can be inverted precisely.
+fn assert_the_halo_is_the_model_s(scene: &mut Pixel, size: (u32, u32), at: (u32, u32), light: f32) {
+    let (image, _) = scene.draw(size, at, 1.0);
+    let mut given = Level {
+        width: size.0 as usize,
+        height: size.1 as usize,
+        values: vec![0.0; (size.0 * size.1) as usize],
+    };
+    given.values[(at.1 * size.0 + at.0) as usize] = stored(light);
+    let expected = blurred(&given);
+    let (mut largest, mut compared) = (0.0f32, 0);
+    for y in 0..size.1 {
+        for x in 0..size.0 {
+            let shown = red(&image, x, y);
+            // Where the curve is exactly invertible and the light far above half precision's
+            // smallest normal values.
+            if !(1e-4..0.7).contains(&shown) {
+                continue;
+            }
+            let model = expected[(y * size.0 + x) as usize];
+            let relative = (untone(shown) - model).abs() / model;
+            largest = largest.max(relative);
+            compared += 1;
+            assert!(
+                relative <= 6e-3,
+                "{size:?}, ({x}, {y}): {} against the model's {model}",
+                untone(shown)
+            );
+        }
+    }
+    assert!(compared > 500, "{size:?}: {compared} pixels compared");
+    eprintln!("{size:?}: largest relative difference from the model {largest} ({compared} pixels)");
 }
 
 #[test]

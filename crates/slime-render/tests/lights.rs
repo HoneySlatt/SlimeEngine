@@ -424,8 +424,8 @@ fn a_light_on_the_surface_it_lights_gives_no_infinity() {
     let mut setup = Setup::new();
     // On the square's center, where the center pixel's fragment lies exactly: the light grazes
     // every other point of the square, and that one has no direction to the light, at a distance
-    // of 0. Nothing is lit, and no pixel holds NaN or an infinity, nor 65 504, as one that the
-    // shader's limit turns into it would.
+    // of 0. Nothing is lit, and no pixel holds NaN or an infinity, nor the target's largest value,
+    // as one that the shader's limit turns into it would.
     let image = setup.draw(&[point(0.0, 1000.0, None)], 1.0);
     for (index, channel) in image.pixels.iter().enumerate() {
         assert!(
@@ -449,33 +449,34 @@ fn a_light_on_the_surface_it_lights_gives_no_infinity() {
 #[test]
 fn the_exposure_applies_before_the_high_dynamic_range_target() {
     let mut setup = Setup::new();
-    // Light far above 65 504 before the exposure, as candelas give: a white matte surface facing a
-    // light of 10⁶ candelas 1 m away reflects 308 760 nits, which this exposure brings to 0.485.
-    // Exposed after the target, it would be stored as 65 504 or an infinity first. `lighting.rs`
+    // Light far above 64 × 65 504 before the exposure, as candelas give: a white matte surface
+    // facing a light of 10⁸ candelas 1 m away reflects 30 876 000 nits, which this exposure brings
+    // to 0.485. Exposed after the target, it would be stored as its largest value or an infinity
+    // first. `lighting.rs`
     // checks the same for a directional light.
-    let lamp = point(1.0, 1e6, None);
-    let exposure = PI / 2e6;
+    let lamp = point(1.0, 1e8, None);
+    let exposure = PI / 2e8;
     assert_shows(
         &setup.draw(&[lamp], exposure),
         CENTER,
         expected(&[lamp], exposure),
-        "a light of 10⁶ candelas 1 m away",
+        "a light of 10⁸ candelas 1 m away",
     );
-    // Emission is exposed too: 10⁶ nits at 5 × 10⁻⁷.
+    // Emission is exposed too: 10⁸ nits at 5 × 10⁻⁹.
     let glowing = setup.renderer.create_material(
         &setup.gpu,
         "glowing",
         &MaterialData {
             base_color: [0.0, 0.0, 0.0, 1.0],
             emissive: [1.0, 0.0, 0.0],
-            emissive_strength: 1e6,
+            emissive_strength: 1e8,
             ..MaterialData::default()
         },
     );
     assert_shows(
-        &setup.draw_with(Some(&glowing), &[], 5e-7),
+        &setup.draw_with(Some(&glowing), &[], 5e-9),
         CENTER,
-        [1e6 * f64::from(5e-7_f32), 0.0, 0.0],
-        "an emission of 10⁶ nits",
+        [1e8 * f64::from(5e-9_f32), 0.0, 0.0],
+        "an emission of 10⁸ nits",
     );
 }

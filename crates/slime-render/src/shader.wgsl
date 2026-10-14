@@ -14,10 +14,17 @@ const DIELECTRIC_F0: f32 = 0.04;
 // The smoothest surface shaded, Filament's minimum for 32-bit floats: at a roughness of 0, the
 // distribution divides 0 by 0 at the center of a highlight.
 const MIN_ROUGHNESS: f32 = 0.045;
-// The largest value of the high-dynamic-range target's half-precision floats. Brighter exposed
-// light is written as it rather than left to the driver, which may store an infinity that the tone
-// curve turns into NaN.
+// The largest value of the high-dynamic-range target's half-precision floats. Brighter light is
+// written as it rather than left to the driver, which may store an infinity that the tone curve
+// turns into NaN.
 const LARGEST_HALF: f32 = 65504.0;
+// What exposed light is divided by before it is written into the high-dynamic-range target, and
+// multiplied by again in the tone-mapping pass (ADR-0040): light up to 64 × 65 504 keeps its energy
+// for the bloom, as a sun's disc brighter than half precision does when the exposure is raised. A
+// power of two, which half precision divides exactly but below 64 × 2^-14 (about 0.004 once
+// exposed, black on an 8-bit display), where light is stored in steps of 64 × 2^-24.
+// HEADROOM in tone_mapping.wgsl is the same, which a unit test checks.
+const HEADROOM: f32 = 64.0;
 // The most lights a scene holds: MAX_LIGHTS in light.rs, which a unit test compares with it.
 const MAX_LIGHTS: u32 = 16u;
 // Light::kind of a directional light. Point lights are 1u and spot lights 2u, which the shader
@@ -276,7 +283,7 @@ fn fs_main(
     // reaches hundreds of thousands, which half precision does not hold (ADR-0037). Surfaces are
     // opaque: the target's alpha is 1 wherever one is drawn.
     let exposed = (direct + indirect + emitted) * frame.exposure;
-    return vec4<f32>(min(exposed, vec3<f32>(LARGEST_HALF)), 1.0);
+    return vec4<f32>(min(exposed / HEADROOM, vec3<f32>(LARGEST_HALF)), 1.0);
 }
 
 // What a surface reflects towards v of its environment (image-based lighting, ADR-0039), as the
@@ -363,7 +370,7 @@ fn fs_sky(input: SkyVertex) -> @location(0) vec4<f32> {
     let covered = saturate((SUN_CHORD - from_centre) / max(fwidth(from_centre), 1e-7) + 0.5);
     let seen = min(exp(direction.y / GROUND_HAZE), 1.0);
     light += frame.sun_radiance * (covered * seen);
-    return vec4<f32>(min(light * frame.exposure, vec3<f32>(LARGEST_HALF)), 1.0);
+    return vec4<f32>(min(light * frame.exposure / HEADROOM, vec3<f32>(LARGEST_HALF)), 1.0);
 }
 
 // The share of the shadowed light that reaches `position`, from 0 in shadow to 1: its depth seen

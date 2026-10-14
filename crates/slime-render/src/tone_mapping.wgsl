@@ -4,8 +4,8 @@
 // display shows with Khronos PBR Neutral, and writes it opaque. The scene pass has applied the
 // exposure. The output target's format encodes the result (sRGB for a window).
 
-// The scene's exposed light, drawn by the scene pass at the output's size: linear, from 0 to
-// 65504.
+// The scene's exposed light divided by HEADROOM, drawn by the scene pass at the output's size:
+// linear, from 0 to 65504.
 @group(0) @binding(0) var scene_light: texture_2d<f32>;
 // The bloom chain's blurred copy of it, half the output's size rounded to the nearest (the scene's
 // light itself, with a strength of 0, when the output is too small for a chain), and the linear
@@ -18,6 +18,10 @@ struct Bloom {
     strength: f32,
 }
 @group(0) @binding(3) var<uniform> bloom: Bloom;
+
+// What the scene and sky passes divided exposed light by, so that light up to 64 × 65 504 keeps
+// its energy for the bloom (ADR-0040): HEADROOM in shader.wgsl, which a unit test compares with it.
+const HEADROOM: f32 = 64.0;
 
 // The corners (-1, -1), (3, -1) and (-1, 3), counter-clockwise: one triangle that covers the
 // target, built from the vertex index without a vertex buffer.
@@ -57,7 +61,7 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
         // lands, before the curve, as light rather than display values.
         light = mix(light, blurred, bloom.strength);
     }
-    return vec4<f32>(pbr_neutral(light), 1.0);
+    return vec4<f32>(pbr_neutral(light * HEADROOM), 1.0);
 }
 
 // Khronos PBR Neutral, written from the equations of its specification:

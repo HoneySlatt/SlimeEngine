@@ -142,34 +142,35 @@ fn main() -> Result<(), RenderError> {
   empty reads one white pixel, so that its factor counts alone. `MaterialData::default()` is an
   opaque, single-sided, white matte dielectric. Meshes and materials are cheap to clone and shared
   by their clones.
-- `Renderer::render(gpu, target, &Scene)` draws a frame in passes. The shadow pass draws the
-  depths of every instance, all their faces but what masked materials discard, as the first
-  directional light that casts shadows sees them, into the shadow map, through an orthographic
-  projection that covers the boxes around the instances' meshes; it is skipped when no directional
-  light casts shadows. The scene pass draws its instances (`Instance`: a mesh, a material, a
-  transform from the mesh's space to world space) into a target of half-precision floats from its
-  `Camera`, lit by its `lights` and its `environment` (none is a black sky), with the depth test, so
-  that nearer surfaces hide farther ones whatever the order of the instances, the shadowed light
-  only where the shadow map holds nothing nearer to it, compared at 3 × 3 points one texel apart,
-  so that a shadow's edge fades over three texels; it panics on a scene of more than `MAX_LIGHTS`
-  lights. The sky pass then draws the environment, and its sun's disc, where no surface was drawn.
-  The light of both is multiplied by the scene's `exposure` (1 leaves it as it is, 2 is one
-  photographic stop brighter) before it is written: exposed light above 65 504, the largest value of
-  that target, is written as 65 504. Unless the scene's `bloom` is 0, the bloom's passes then filter
-  that light down into a chain of levels, each half the size of the one before, to a side of 8
-  texels (six levels at 1280 × 720, seven at 1920 × 1080, none below 15 × 15), and average them
-  back up into a blurred copy, every level with the same weight. The tone-mapping pass mixes the
-  blurred copy in by `bloom`, the share of each pixel's light spread around it (0.04 in the samples;
-  a uniform image is unchanged, light is moved and never added), then maps that light to the
-  output's range with Khronos PBR Neutral: colors whose channels lie between 0.08 and 0.8 come out
-  lowered by 0.04, darker ones less, and brighter ones are compressed towards 1 and turned towards
-  white, so that a surface reflecting a light of 1 shows at 0.87 (sRGB 240). It returns
-  `RenderStats`: the scene pass's draw calls and triangles, the shadow pass's draw calls
-  (`shadow_draw_calls`), the CPU time of the call, and the GPU time of each pass
-  (`shadow_gpu_time`, `scene_gpu_time`, `sky_gpu_time`, `tone_mapping_gpu_time`, and
-  `bloom_gpu_time` for the bloom's passes together), measured with a `slime_gfx::GpuTimer` per pass
-  on adapters that can time their work and read back a few frames later (`None` otherwise, and
-  until the first time comes back); they can come from different frames.
+- `Renderer::render(gpu, target, &Scene)` draws a frame in passes. The shadow pass draws the depths
+  of every instance, all their faces but what masked materials discard, as the first directional
+  light that casts shadows sees them, into the shadow map, through an orthographic projection that
+  covers the boxes around the instances' meshes; it is skipped when no directional light casts
+  shadows. The scene pass draws its instances (`Instance`: a mesh, a material, a transform from the
+  mesh's space to world space) into a target of half-precision floats from its `Camera`, lit by its
+  `lights` and its `environment` (none is a black sky), with the depth test, so that nearer surfaces
+  hide farther ones whatever the order of the instances, the shadowed light only where the shadow
+  map holds nothing nearer to it, compared at 3 × 3 points one texel apart, so that a shadow's edge
+  fades over three texels; it panics on a scene of more than `MAX_LIGHTS` lights. The sky pass then
+  draws the environment, and its sun's disc, where no surface was drawn. The light of both is
+  multiplied by the scene's `exposure` (1 leaves it as it is, 2 is one photographic stop brighter)
+  before it is written, divided by 64, so that the target's half-precision floats, whose largest
+  value is 65 504, hold exposed light up to 64 × 65 504; brighter light is written as that largest
+  value. Unless the scene's `bloom` is 0, the bloom's passes then filter that light down into a
+  chain of levels, each half the size of the one before, to a side of 8 texels (six levels at 1280
+  × 720, seven at 1920 × 1080, none below 15 × 15), and average them back up into a blurred copy,
+  every level with the same weight. The tone-mapping pass mixes the blurred copy in by `bloom`, the
+  share of each pixel's light spread around it (0.04 in the samples; a uniform image is unchanged,
+  light is moved and never added), then maps that light to the output's range with Khronos PBR
+  Neutral: colors whose channels lie between 0.08 and 0.8 come out lowered by 0.04, darker ones
+  less, and brighter ones are compressed towards 1 and turned towards white, so that a surface
+  reflecting a light of 1 shows at 0.87 (sRGB 240). It returns `RenderStats`: the scene pass's draw
+  calls and triangles, the shadow pass's draw calls (`shadow_draw_calls`), the CPU time of the call,
+  and the GPU time of each pass (`shadow_gpu_time`, `scene_gpu_time`, `sky_gpu_time`,
+  `tone_mapping_gpu_time`, and `bloom_gpu_time` for the bloom's passes together), measured with a
+  `slime_gfx::GpuTimer` per pass on adapters that can time their work and read back a few frames
+  later (`None` otherwise, and until the first time comes back); they can come from different
+  frames.
 - `Camera`: an eye, a target, an up direction, a vertical field of view in radians, and the near
   and far distances; `view`, `projection(aspect)` and `view_projection(aspect)` give its matrices.
 - `Light`: one of the punctual lights of glTF's `KHR_lights_punctual`, each with a linear color and
@@ -193,7 +194,7 @@ fn main() -> Result<(), RenderError> {
   light that surfaces reflect and emit and for the sky; the camera looks down its −Z axis; front
   faces wind counter-clockwise; depth runs from 0 at the near plane to 1 at the far plane; colors in
   materials and skies are linear; light is not negative and may exceed 1, and once exposed, the
-  high-dynamic-range target holds it up to 65 504, its largest value; an sRGB output encodes the
+  high-dynamic-range target holds it, divided by 64, up to 64 × 65 504; an sRGB output encodes the
   tone-mapped values; tangents and normal textures follow glTF: x along increasing u, y up the image
   (the bitangent is cross(normal, tangent) × w), z along the normal; a mirrored instance keeps its
   front faces.

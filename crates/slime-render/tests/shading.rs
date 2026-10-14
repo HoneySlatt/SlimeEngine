@@ -789,7 +789,7 @@ fn light_beyond_the_range_of_the_hdr_target_is_stored_as_its_largest_value() {
     let material = setup.material(&MaterialData {
         base_color: [0.0, 0.0, 0.0, 1.0],
         emissive: [1.0, 0.0, 0.0],
-        emissive_strength: 1e5,
+        emissive_strength: 1e7,
         ..MaterialData::default()
     });
     let image = setup.draw(
@@ -805,7 +805,14 @@ fn light_beyond_the_range_of_the_hdr_target_is_stored_as_its_largest_value() {
         "{:?}",
         &image.pixels[start..start + 3]
     );
-    assert_shows(&image, CENTER, [65504.0, 0.0, 0.0], "an emission of 10^5");
+    // The target holds exposed light divided by 64: 10^7 is stored as 65 504, 64 × 65 504 once
+    // multiplied back (ADR-0040).
+    assert_shows(
+        &image,
+        CENTER,
+        [64.0 * 65504.0, 0.0, 0.0],
+        "an emission of 10^7",
+    );
 }
 
 #[test]
