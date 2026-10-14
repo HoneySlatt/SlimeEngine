@@ -9,7 +9,9 @@ mod window;
 pub use error::PlatformError;
 pub use event::Event;
 pub use event_loop::{EventHandler, LoopControl, run_event_loop};
-pub use input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey, ScrollDelta};
+pub use input::{
+    ButtonState, Key, KeyCode, KeyEvent, Modifiers, MouseButton, NamedKey, ScrollDelta,
+};
 pub use window::{PhysicalSize, Window, WindowConfig};
 
 /// Which types may cross threads (`docs/ARCHITECTURE.md`, "Threads"): checked when the tests are

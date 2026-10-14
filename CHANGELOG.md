@@ -8,6 +8,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- `Event::ModifiersChanged`: the modifier keys held as a whole (`Modifiers`: Shift, Control, Alt,
+  Super), once per change, released when the window loses the focus. The dev overlay feeds them
+  to egui, so its shortcuts with Ctrl, and selecting text with Shift, work.
 - `Context::fixed_step_alpha`: the fraction of a fixed step accumulated but not run, so that an
   application draws what `fixed_update` moves between its last two states, smoothly when the frame
   rate and the step rate differ.

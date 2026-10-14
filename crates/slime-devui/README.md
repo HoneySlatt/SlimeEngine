@@ -7,12 +7,11 @@ statistics and tooling while the engine has no UI framework of its own.
 
 Temporary, tooling only (`docs/adr/0031-dev-overlay-with-egui.md`). The editor's UI framework
 (Stage 6 of `docs/ROADMAP.md`) replaces it, and this crate is deleted then. It draws egui panels
-over a frame and feeds egui the window's events; it does not report modifier keys, since the
-engine does not yet, nor the clipboard, cursor icons or input methods. egui therefore sees a
-shortcut as its key alone (Shift with an arrow moves the cursor without selecting), and a key
-pressed while Ctrl is held types no text, so that a shortcut does not type its letter into a text
-field. egui warns once at startup that the framebuffer is sRGB, since it prefers a linear one for
-its blending: the panels look slightly lighter than egui's own demos.
+over a frame and feeds egui the window's events, the modifier keys held included; it does not
+report the clipboard, cursor icons or input methods. A key pressed while Ctrl is held types no
+text, so that a shortcut does not type its letter into a text field. egui warns once at startup
+that the framebuffer is sRGB, since it prefers a linear one for its blending: the panels look
+slightly lighter than egui's own demos.
 
 ## Role
 

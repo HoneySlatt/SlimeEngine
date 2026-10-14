@@ -3,7 +3,7 @@
 use winit::event::WindowEvent;
 use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
-use crate::input::{self, ButtonState, KeyEvent, MouseButton, ScrollDelta};
+use crate::input::{self, ButtonState, KeyEvent, Modifiers, MouseButton, ScrollDelta};
 use crate::window::PhysicalSize;
 
 /// Something that happened to the window, or input it received.
@@ -54,6 +54,14 @@ pub enum Event {
     /// second Shift as an auto-repeat, in which case neither that press nor its release is
     /// reported: the first Shift's press and its release, at the last key-up, are.
     Key(KeyEvent),
+    /// The modifier keys held changed: the new state, as a whole.
+    ///
+    /// Only changes are reported: two of these events in a row hold different states. The modifiers
+    /// held when the window gains the keyboard focus are reported, unlike the keys held then (see
+    /// [`Key`](Self::Key)), next to [`Focused(true)`](Self::Focused). When the window loses the
+    /// focus, modifiers still held are reported released, before the keys still down and
+    /// [`Focused(false)`](Self::Focused).
+    ModifiersChanged(Modifiers),
     /// A mouse button went down over the window, or went up after going down there, possibly
     /// with the cursor outside the window by then.
     ///
@@ -113,6 +121,8 @@ pub(crate) struct Translator {
     /// The mouse buttons whose press was delivered and whose release was not, in the order they
     /// went down.
     buttons: Vec<MouseButton>,
+    /// The modifiers last delivered.
+    modifiers: Modifiers,
 }
 
 impl Translator {
@@ -151,6 +161,14 @@ impl Translator {
                     Some(key) => Event::Key(key),
                     None => return,
                 }
+            }
+            WindowEvent::ModifiersChanged(modifiers) => {
+                let modifiers = input::modifiers(modifiers.state());
+                if modifiers == self.modifiers {
+                    return;
+                }
+                self.modifiers = modifiers;
+                Event::ModifiersChanged(modifiers)
             }
             WindowEvent::MouseInput { state, button, .. } => {
                 let button = input::mouse_button(button);
@@ -253,8 +271,13 @@ impl Translator {
         true
     }
 
-    /// Releases the keys and mouse buttons still down, because the window is losing the focus.
+    /// Releases the modifiers, keys and mouse buttons still down, because the window is losing the
+    /// focus.
     fn release_all(&mut self, deliver: &mut impl FnMut(Event)) {
+        if self.modifiers != Modifiers::default() {
+            self.modifiers = Modifiers::default();
+            deliver(Event::ModifiersChanged(self.modifiers));
+        }
         for (_, press) in self.pressed.drain(..) {
             deliver(Event::Key(release_of(press)));
         }
@@ -282,7 +305,7 @@ fn release_of(press: KeyEvent) -> KeyEvent {
 #[cfg(test)]
 mod tests {
     use winit::dpi::{PhysicalPosition, PhysicalSize as WinitSize};
-    use winit::keyboard::{KeyCode as WinitKeyCode, NativeKeyCode};
+    use winit::keyboard::{KeyCode as WinitKeyCode, ModifiersState, NativeKeyCode};
 
     use super::*;
     use crate::input::{Key, KeyCode, NamedKey};
@@ -585,6 +608,60 @@ mod tests {
         assert_eq!(
             translate(WindowEvent::Moved(PhysicalPosition::new(10, 20))),
             None
+        );
+    }
+
+    /// The events delivered for `event`, by `translator`.
+    fn events(translator: &mut Translator, event: WindowEvent) -> Vec<Event> {
+        let mut events = Vec::new();
+        translator.translate(event, |event| events.push(event));
+        events
+    }
+
+    fn changed(state: ModifiersState) -> WindowEvent {
+        WindowEvent::ModifiersChanged(state.into())
+    }
+
+    fn held(shift: bool, control: bool) -> Event {
+        Event::ModifiersChanged(Modifiers {
+            shift,
+            control,
+            ..Modifiers::default()
+        })
+    }
+
+    #[test]
+    fn each_change_of_the_modifiers_is_reported_once() {
+        let mut translator = Translator::default();
+        let control = ModifiersState::CONTROL;
+        assert_eq!(
+            events(&mut translator, changed(control)),
+            [held(false, true)]
+        );
+        // X11 reports the modifiers again when the window gains the focus, changed or not.
+        assert_eq!(events(&mut translator, changed(control)), []);
+        assert_eq!(
+            events(&mut translator, changed(control | ModifiersState::SHIFT)),
+            [held(true, true)]
+        );
+        assert_eq!(
+            events(&mut translator, changed(ModifiersState::empty())),
+            [held(false, false)]
+        );
+    }
+
+    #[test]
+    fn modifiers_still_held_are_released_when_the_focus_is_lost() {
+        let mut translator = Translator::default();
+        events(&mut translator, changed(ModifiersState::SHIFT));
+        assert_eq!(
+            events(&mut translator, WindowEvent::Focused(false)),
+            [held(false, false), Event::Focused(false)]
+        );
+        // The release that winit reports itself on every platform then changes nothing.
+        assert_eq!(
+            events(&mut translator, changed(ModifiersState::empty())),
+            []
         );
     }
 }

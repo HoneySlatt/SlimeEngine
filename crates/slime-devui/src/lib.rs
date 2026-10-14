@@ -56,12 +56,11 @@ impl Overlay {
     }
 
     /// Gives the overlay an event of the window. It keeps what egui understands: the cursor, the
-    /// mouse buttons and wheel, keys and the text they produce, the window's focus and its scale
-    /// factor. The engine does not report the state of the modifier keys yet, so egui gets none
-    /// and sees a shortcut as its key alone: Ctrl+Z in a text field undoes nothing, Shift with an
-    /// arrow moves the cursor without selecting. A key pressed while Ctrl is held types no text,
-    /// so that a shortcut does not type its letter into a text field; on Windows, this includes
-    /// Ctrl+Alt used in place of AltGr, whereas AltGr itself types its characters.
+    /// mouse buttons and wheel, keys and the text they produce, the modifier keys held, the
+    /// window's focus and its scale factor. egui's "command" modifier, which its shortcuts use, is
+    /// Ctrl. A key pressed while Ctrl is held types no text, so that a shortcut does not type its
+    /// letter into a text field; on Windows, this includes Ctrl+Alt used in place of AltGr, whereas
+    /// AltGr itself types its characters.
     ///
     /// The overlay keeps the events until the next [`render`](Self::render), which hands them to
     /// egui. To hide the overlay, an application calls `render` with no panel rather than not at

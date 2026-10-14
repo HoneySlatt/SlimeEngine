@@ -152,6 +152,24 @@ mirror_enum! {
     }
 }
 
+/// The modifier keys held, as a whole: each is held when either of its keys, left or right, is
+/// down, or a key that the keyboard layout turns into it. AltGr counts as neither Control nor Alt.
+///
+/// A shortcut such as Ctrl+S is a press of S while the modifiers last reported
+/// ([`Event::ModifiersChanged`](crate::Event::ModifiersChanged)) hold Control.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub struct Modifiers {
+    /// Shift.
+    pub shift: bool,
+    /// Control (Ctrl).
+    pub control: bool,
+    /// Alt.
+    pub alt: bool,
+    /// The key with the system's logo: the Windows key, or Super on Linux.
+    pub super_key: bool,
+}
+
 /// A mouse button.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum MouseButton {
@@ -248,6 +266,15 @@ pub(crate) fn button_state(state: ElementState) -> ButtonState {
     }
 }
 
+pub(crate) fn modifiers(state: winit::keyboard::ModifiersState) -> Modifiers {
+    Modifiers {
+        shift: state.shift_key(),
+        control: state.control_key(),
+        alt: state.alt_key(),
+        super_key: state.super_key(),
+    }
+}
+
 pub(crate) fn mouse_button(button: winit::event::MouseButton) -> MouseButton {
     use winit::event::MouseButton as Winit;
     match button {
@@ -296,6 +323,25 @@ mod tests {
             key_code(PhysicalKey::Unidentified(NativeKeyCode::Xkb(999))),
             KeyCode::Unidentified
         );
+    }
+
+    #[test]
+    fn modifiers_are_translated_one_by_one() {
+        use winit::keyboard::ModifiersState;
+        let state = ModifiersState::SHIFT | ModifiersState::SUPER;
+        let expected = Modifiers {
+            shift: true,
+            super_key: true,
+            ..Modifiers::default()
+        };
+        assert_eq!(modifiers(state), expected);
+        let state = ModifiersState::CONTROL | ModifiersState::ALT;
+        let expected = Modifiers {
+            control: true,
+            alt: true,
+            ..Modifiers::default()
+        };
+        assert_eq!(modifiers(state), expected);
     }
 
     #[test]

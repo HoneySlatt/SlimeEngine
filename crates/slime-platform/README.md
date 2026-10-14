@@ -5,10 +5,10 @@ The engine's link to the operating system's windowing and input services.
 ## Status
 
 Partial. It opens one window, on Wayland or X11 (Linux) and on Windows, reports its events (close
-requested, resized, scale factor changed, focus, keys, mouse buttons, cursor motion, the cursor
-entering and leaving, and scrolling) and its redraw requests. It does not report yet: the state of
-the modifier keys as a whole, text composed by input methods (Chinese, Japanese, Korean), touch
-screens, touchpad gestures, gamepads, or files dropped on the window.
+requested, resized, scale factor changed, focus, keys, the modifier keys held, mouse buttons, cursor
+motion, the cursor entering and leaving, and scrolling) and its redraw requests. It does not report
+yet: text composed by input methods (Chinese, Japanese, Korean), touch screens, touchpad gestures,
+gamepads, or files dropped on the window.
 
 ## Role
 
@@ -55,6 +55,10 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
   Mouse button events pair up too: a button still down when the window loses the keyboard focus
   is released just before `Focused(false)`, since on Windows its real release goes to another
   window, and a later real release is not reported.
+  `ModifiersChanged` reports the modifier keys held as a whole (`Modifiers`: Shift, Control, Alt,
+  Super), once per change: those held when the window gains the focus are reported, and those still
+  held when it loses the focus are reported released, before the keys. A shortcut such as Ctrl+S
+  is a press of S while the modifiers last reported hold Control.
 - Input types: `KeyEvent` describes a key twice: by `physical` position, whatever the layout
   (`KeyCode`, named after the W3C UI Events `code` values such as `KeyQ` or `Escape`, with a few
   exceptions listed in its rustdoc), and by `logical` meaning with the current layout (`Key`: a

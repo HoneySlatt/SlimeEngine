@@ -630,11 +630,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   (GNOME), the title bar has no text, because winit's text renderer depends on an unmaintained
   crate (ADR-0011).
 - **Input not reported yet** (issue [#3](https://github.com/HoneySlatt/SlimeEngine/issues/3)):
-  the state of the modifier keys as a whole, input-method text, touch, touchpad gestures,
-  gamepads, dropped files. The dev overlay feels it too: egui gets no modifiers and sees a shortcut
-  as its key alone, so shortcuts with Ctrl or Shift, and selecting text with Shift, do not work in
-  it; a key pressed while Ctrl is held types no text, so that a shortcut does not type its letter
-  into a text field.
+  input-method text, touch, touchpad gestures, gamepads, dropped files.
 - **A compositor that stops answering blocks the engine.** Before the first frame, winit waits for
   the window's first configuration without a timeout, so a termination signal is noticed only when
   a second one ends the process; after `shutdown`, releasing the window or the surface can block

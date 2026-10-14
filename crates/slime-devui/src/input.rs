@@ -1,9 +1,7 @@
 //! Translating the engine's events into egui's.
 
-use egui::{Modifiers, MouseWheelUnit, PointerButton, Pos2, pos2, vec2};
-use slime_platform::{
-    ButtonState, Event, Key, KeyCode, KeyEvent, MouseButton, NamedKey, ScrollDelta,
-};
+use egui::{MouseWheelUnit, PointerButton, Pos2, pos2, vec2};
+use slime_platform::{ButtonState, Event, Key, KeyEvent, Modifiers, MouseButton, ScrollDelta};
 
 /// The events of the window since the last frame, as egui reads them, and what they need: the
 /// scale factor and where the cursor is.
@@ -12,9 +10,8 @@ pub(crate) struct Input {
     scale_factor: f32,
     /// Where the cursor was last seen, in physical pixels.
     pointer: Pos2,
-    /// The Ctrl keys that are down, by position, as their own presses and releases say: the engine
-    /// does not report the state of the modifier keys.
-    control_keys: Vec<KeyCode>,
+    /// The modifier keys held, as the window last reported them.
+    modifiers: Modifiers,
     /// Whether the window has the keyboard focus, as its last focus change said: egui stops a
     /// text field's caret blinking while it does not.
     focused: bool,
@@ -26,7 +23,7 @@ impl Input {
         Self {
             scale_factor: scale_factor as f32,
             pointer: Pos2::ZERO,
-            control_keys: Vec::new(),
+            modifiers: Modifiers::default(),
             // egui's own assumption until the window says otherwise.
             focused: true,
             events: Vec::new(),
@@ -49,8 +46,7 @@ impl Input {
     /// Takes `event`, with its positions in egui's points at egui's `zoom` factor: egui draws a
     /// point as `zoom` times the scale factor in physical pixels.
     pub(crate) fn handle(&mut self, event: &Event, zoom: f32) {
-        // The engine does not report the state of the modifier keys yet.
-        let modifiers = Modifiers::default();
+        let modifiers = self.egui_modifiers();
         let pixels_per_point = self.scale_factor * zoom;
         match event {
             Event::ScaleFactorChanged { scale_factor } => {
@@ -88,6 +84,11 @@ impl Input {
                     modifiers,
                 });
             }
+            Event::ModifiersChanged(held) => {
+                self.modifiers = *held;
+                self.events
+                    .push(egui::Event::ModifiersChanged(self.egui_modifiers()));
+            }
             Event::Key(key) => self.key(key, modifiers),
             Event::Focused(focused) => {
                 self.focused = *focused;
@@ -97,21 +98,20 @@ impl Input {
         }
     }
 
-    /// A key, by the name egui gives it, and the text it produces when pressed.
-    fn key(&mut self, event: &KeyEvent, modifiers: Modifiers) {
-        let pressed = event.state == ButtonState::Pressed;
-        // A press is Ctrl by its meaning, so that a key the layout turns into Ctrl counts, and the
-        // release of the same key ends it whatever that release means: on Linux, winit gives a
-        // release the meaning the key has with the modifiers still down, and with the layout
-        // options that switch groups with Ctrl, such as `grp:ctrl_shift_toggle`, Ctrl released
-        // while Shift is held means "next group".
-        if !pressed {
-            self.control_keys.retain(|key| *key != event.physical);
-        } else if event.logical == Key::Named(NamedKey::Control)
-            && !self.control_keys.contains(&event.physical)
-        {
-            self.control_keys.push(event.physical);
+    /// The modifier keys held, as egui names them. On Linux and Windows, egui's "command" is Ctrl.
+    fn egui_modifiers(&self) -> egui::Modifiers {
+        egui::Modifiers {
+            alt: self.modifiers.alt,
+            ctrl: self.modifiers.control,
+            shift: self.modifiers.shift,
+            mac_cmd: false,
+            command: self.modifiers.control,
         }
+    }
+
+    /// A key, by the name egui gives it, and the text it produces when pressed.
+    fn key(&mut self, event: &KeyEvent, modifiers: egui::Modifiers) {
+        let pressed = event.state == ButtonState::Pressed;
         let name = match &event.logical {
             Key::Character(character) => character.clone(),
             Key::Named(named) => format!("{named:?}"),
@@ -129,7 +129,7 @@ impl Input {
         // A key pressed with Ctrl gives its text without Ctrl applied, "c" for Ctrl+C, which a text
         // field would insert. It is dropped, as egui's own integration with winit does: the
         // shortcut then does nothing rather than type its letter.
-        if let (true, Some(text)) = (pressed && self.control_keys.is_empty(), &event.text)
+        if let (true, Some(text)) = (pressed && !self.modifiers.control, &event.text)
             && text.chars().all(|character| !character.is_control())
         {
             self.events.push(egui::Event::Text(text.clone()));
@@ -150,6 +150,8 @@ fn pointer_button(button: MouseButton) -> Option<PointerButton> {
 
 #[cfg(test)]
 mod tests {
+    use slime_platform::{KeyCode, NamedKey};
+
     use super::*;
 
     #[test]
@@ -243,20 +245,17 @@ mod tests {
         assert_eq!(events.len(), 3, "a control character is not text");
     }
 
-    use ButtonState::{Pressed, Released};
-    use KeyCode::{ControlLeft, ControlRight};
+    /// The modifiers with Control alone, or Shift alone.
+    fn control() -> Modifiers {
+        let mut modifiers = Modifiers::default();
+        modifiers.control = true;
+        modifiers
+    }
 
-    const CONTROL: Key = Key::Named(NamedKey::Control);
-
-    /// The key at `physical` going down or up, meaning `logical` then.
-    fn modifier(physical: KeyCode, logical: Key, state: ButtonState) -> Event {
-        Event::Key(KeyEvent {
-            physical,
-            logical,
-            text: None,
-            state,
-            repeat: false,
-        })
+    fn shift() -> Modifiers {
+        let mut modifiers = Modifiers::default();
+        modifiers.shift = true;
+        modifiers
     }
 
     /// Presses C and returns the text it types. winit gives the text of a key pressed with Ctrl
@@ -267,7 +266,7 @@ mod tests {
                 physical: KeyCode::KeyC,
                 logical: Key::Character("c".to_owned()),
                 text: Some("c".to_owned()),
-                state: Pressed,
+                state: ButtonState::Pressed,
                 repeat: false,
             }),
             1.0,
@@ -285,31 +284,53 @@ mod tests {
     #[test]
     fn keys_pressed_while_control_is_held_give_no_text() {
         let mut input = Input::new(1.0);
-        input.handle(&modifier(ControlLeft, CONTROL, Pressed), 1.0);
+        input.handle(&Event::ModifiersChanged(control()), 1.0);
         assert!(type_c(&mut input).is_empty(), "Ctrl+C types no text");
-        input.handle(&modifier(ControlLeft, CONTROL, Released), 1.0);
+        input.handle(&Event::ModifiersChanged(Modifiers::default()), 1.0);
         assert_eq!(type_c(&mut input), ["c"], "C types once Ctrl is released");
     }
 
     #[test]
-    fn control_ends_with_the_release_of_its_key_whatever_that_release_means() {
-        // On Linux, winit gives a release the meaning the key has with the modifiers still down.
-        // With the layout option `grp:ctrl_shift_toggle`, Ctrl released while Shift is held means
-        // "next group", which the engine does not name.
+    fn egui_gets_the_modifiers_and_each_key_and_click_carries_them() {
         let mut input = Input::new(1.0);
-        input.handle(&modifier(ControlLeft, CONTROL, Pressed), 1.0);
-        input.handle(&modifier(ControlLeft, Key::Unidentified, Released), 1.0);
-        assert_eq!(type_c(&mut input), ["c"]);
-    }
+        input.handle(&Event::ModifiersChanged(shift()), 1.0);
+        input.handle(
+            &Event::Key(KeyEvent {
+                physical: KeyCode::ArrowLeft,
+                logical: Key::Named(NamedKey::ArrowLeft),
+                text: None,
+                state: ButtonState::Pressed,
+                repeat: false,
+            }),
+            1.0,
+        );
+        input.handle(
+            &Event::MouseButton {
+                button: MouseButton::Left,
+                state: ButtonState::Pressed,
+            },
+            1.0,
+        );
+        let events = input.take_events();
+        assert!(
+            matches!(events[0], egui::Event::ModifiersChanged(held) if held == egui::Modifiers::SHIFT),
+            "{events:?}"
+        );
+        assert!(matches!(
+            events[1],
+            egui::Event::Key { key: egui::Key::ArrowLeft, modifiers, .. }
+                if modifiers == egui::Modifiers::SHIFT
+        ));
+        assert!(matches!(
+            events[2],
+            egui::Event::PointerButton { modifiers, .. } if modifiers == egui::Modifiers::SHIFT
+        ));
 
-    #[test]
-    fn control_lasts_while_either_control_key_is_held() {
-        let mut input = Input::new(1.0);
-        input.handle(&modifier(ControlLeft, CONTROL, Pressed), 1.0);
-        input.handle(&modifier(ControlRight, CONTROL, Pressed), 1.0);
-        input.handle(&modifier(ControlLeft, CONTROL, Released), 1.0);
-        assert!(type_c(&mut input).is_empty(), "the right Ctrl is held");
-        input.handle(&modifier(ControlRight, CONTROL, Released), 1.0);
-        assert_eq!(type_c(&mut input), ["c"]);
+        // On Linux and Windows, egui's "command" is Ctrl.
+        input.handle(&Event::ModifiersChanged(control()), 1.0);
+        assert!(matches!(
+            input.take_events()[0],
+            egui::Event::ModifiersChanged(held) if held.ctrl && held.command && !held.shift
+        ));
     }
 }
