@@ -47,3 +47,38 @@ pub use texture::Texture;
 pub use timer::GpuTimer;
 pub use uniform_buffer::UniformBuffer;
 pub use vertex_buffer::VertexBuffer;
+
+/// Which types may cross threads (`docs/ARCHITECTURE.md`, "Threads"): checked when the tests are
+/// compiled, so that a field added later cannot take it away unnoticed.
+#[cfg(test)]
+mod threads {
+    use super::*;
+
+    fn send_and_sync<T: Send + Sync>() {}
+    fn send<T: Send>() {}
+
+    #[test]
+    fn the_gpu_and_its_objects_can_be_shared_between_threads() {
+        send_and_sync::<Gpu>();
+        send_and_sync::<Surface>();
+        send_and_sync::<SurfaceFrame>();
+        send_and_sync::<RenderTarget>();
+        send_and_sync::<DepthTarget>();
+        send_and_sync::<Texture>();
+        send_and_sync::<Sampler>();
+        send_and_sync::<ComparisonSampler>();
+        send_and_sync::<VertexBuffer>();
+        send_and_sync::<IndexBuffer>();
+        send_and_sync::<UniformBuffer>();
+        send_and_sync::<BindGroupLayout>();
+        send_and_sync::<BindGroup>();
+        send_and_sync::<ShaderModule>();
+        send_and_sync::<RenderPipeline>();
+        send_and_sync::<Image>();
+        send_and_sync::<FloatImage>();
+        send_and_sync::<GfxError>();
+        // A timer reads its times back through a cell: it moves between threads, but one thread
+        // uses it at a time.
+        send::<GpuTimer>();
+    }
+}

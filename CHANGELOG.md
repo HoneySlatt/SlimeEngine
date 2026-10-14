@@ -8,6 +8,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- Which types may cross threads is stated in `docs/ARCHITECTURE.md` ("Threads") and checked when
+  the tests compile: the `Gpu` and every GPU object, meshes, materials, scenes, windows, events
+  and the `Context` are `Send` and `Sync`; a `GpuTimer` and the `Renderer` are `Send`.
 - Multi-pass rendering in `slime-gfx`
   ([ADR-0033](docs/adr/0033-gpu-layer-for-multi-pass-rendering.md)): render targets in the new
   `TextureFormat::Rgba16Float`, 16-bit floating-point colors beyond 0 to 1, read back with

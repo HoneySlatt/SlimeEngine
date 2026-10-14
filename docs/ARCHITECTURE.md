@@ -455,6 +455,24 @@ frame (measured, or simulated in headless runs), gets a `FrameTime` back, and gi
 [`crates/slime-app/src/time.rs`](../crates/slime-app/src/time.rs); rules:
 [ADR-0009](adr/0009-frame-timing.md).
 
+### Threads
+
+The engine runs on one thread today: `run` drives the application from the main thread, and the
+renderer records and submits its passes on the thread that calls it. What may cross threads is
+nonetheless stated, so that later stages (loading on a task pool, a render thread, the job system)
+can rely on it, and checked when each crate's tests compile (a `threads` module in its
+`lib.rs`, or in `slime-devui`'s tests):
+
+- **Shared between threads** (`Send` and `Sync`): the `Gpu`, its `Surface` and every GPU object
+  it creates (targets, textures, samplers, buffers, bind groups and their layouts, shader modules,
+  pipelines), images read back, meshes, materials, environments, cameras, lights, scenes and
+  instances, statistics, windows, events, the application's `Context` and `AppConfig`, the dev
+  overlay, and every error type. wgpu keeps its error scopes per thread, so shaders and pipelines
+  can be created from several threads.
+- **Moved between threads, used by one at a time** (`Send` only): a `GpuTimer`, which reads its
+  times back through a cell, and so the `Renderer` that holds them; `Renderer::render` takes it
+  mutably anyway.
+
 ## Platforms
 
 The engine targets Linux (`x86_64-unknown-linux-gnu`) and Windows (`x86_64-pc-windows-msvc`)

@@ -189,6 +189,13 @@ mod tests {
 
     use super::*;
 
+    /// Checked when the tests are compiled (`docs/ARCHITECTURE.md`, "Threads").
+    #[test]
+    fn the_overlay_can_be_shared_between_threads() {
+        fn send_and_sync<T: Send + Sync>() {}
+        send_and_sync::<Overlay>();
+    }
+
     const FORMAT: TextureFormat = TextureFormat::Rgba8UnormSrgb;
 
     fn gpu() -> Gpu {
