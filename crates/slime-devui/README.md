@@ -1,7 +1,7 @@
 # slime-devui
 
 The dev overlay: [egui](https://github.com/emilk/egui) drawn over the engine's frames, to show
-statistics and tooling while the engine has no UI framework of its own.
+statistics and tooling over a running application.
 
 ## Status
 

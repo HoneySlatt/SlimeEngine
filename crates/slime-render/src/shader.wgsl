@@ -410,9 +410,9 @@ fn fs_sky(input: SkyVertex) -> @location(0) vec4<f32> {
 // fades over three texels. Sampled at level 0, without derivatives: allowed outside uniform
 // control flow.
 fn light_reaching(seen: vec3<f32>) -> f32 {
-    // The map holds every instance that casts shadows (ADR-0049): beyond its sides, nothing casts
-    // any; beyond its far end, at depths below 0, a point lies behind every caster, and is
-    // compared as if it were at that end.
+    // Beyond the map's sides, outside the region around the camera, shadows end (ADR-0050): the
+    // point is lit. Beyond its far end, at depths below 0, a point lies behind every caster that
+    // reaches the region, and is compared as if it were at that end (ADR-0049).
     if any(abs(seen.xy) > vec2<f32>(1.0)) {
         return 1.0;
     }

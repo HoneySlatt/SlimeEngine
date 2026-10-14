@@ -9,7 +9,7 @@
 
 ## 1. Vision
 
-A general-purpose, modular, open-source (MPL-2.0) 3D creation platform whose runtime is written in Rust.
+A general-purpose, modular, open-source (MPL-2.0) creation platform whose runtime is written in Rust, for 3D games first.
 
 Long-term targets, in order of reach:
 
@@ -71,7 +71,7 @@ Each is decided by ADR at the stage where it becomes necessary, not earlier.
 | Physics backend | rapier3d or other, behind an abstraction | Stage 7 |
 | Audio backend | To evaluate | Stage 7 |
 | Scripting language | Lua, C#, dedicated VM, other | Stage 8 |
-| Shader language beyond WGSL | Slang, generated WGSL | Stage 9 |
+| Shader language beyond WGSL | Slang, generated WGSL | Stage 9b |
 | Network transport | To evaluate | Stage 10 |
 
 ## 5. Repository layout
@@ -150,10 +150,10 @@ Stage 3 is split in two so that each half ends with a runnable, tested sample.
 
 - Meshes, camera, depth, textures, a basic material and a directional light
 - Render statistics and GPU timings
-- Dev overlay (egui, tooling only, temporary)
+- Dev overlay (egui, tooling only, until something does at least as well: ADR-0052)
 - Temporary direct glTF loading
 
-`egui-wgpu` is built against a specific wgpu version: while the overlay exists, upgrading wgpu waits for egui.
+`egui-wgpu` is built against a specific wgpu version: while the engine's tooling draws with egui, upgrading wgpu waits for egui.
 
 **Exit.** A glTF scene renders with textures, depth and simple lighting under a moving camera, with statistics shown in the overlay, covered by image tests.
 
@@ -174,7 +174,7 @@ Stage 3 is split in two so that each half ends with a runnable, tested sample.
 - A small game that uses the public API only: the player moves, interacts with a few objects and reaches an objective, and the game restarts cleanly
 - What the game finds hard to do, recorded as proposals for Stages 4 and 5
 
-The stage is added after 0.1 (ADR-0052) and has no release of its own; its game is the sample that every later stage grows.
+The stage comes right after 0.1 (it was added by ADR-0052) and has no release of its own; its game is the sample that every later stage grows.
 
 **Not yet.** Text, physics, sound: the engine does not have them.
 
@@ -192,7 +192,7 @@ The stage is added after 0.1 (ADR-0052) and has no release of its own; its game 
 - Hot reload
 - Recovering from a lost GPU device: the GPU objects are created again from their sources, where the run stops today (ADR-0022)
 
-**Exit.** The Stage 3 scene loads from cooked assets and the temporary loader is deleted. Moving a source file breaks no reference. A texture and a shader hot-reload at runtime.
+**Exit.** The game loads its scenes from cooked assets and the temporary loader is deleted. Moving a source file breaks no reference. A texture and a shader hot-reload at runtime.
 
 ### Stage 5 — Reflection, serialization, world → 0.3
 
@@ -205,7 +205,7 @@ The stage is added after 0.1 (ADR-0052) and has no release of its own; its game 
 - Worlds, scenes, prefabs
 - Entity lifetime and stable references
 
-**Exit.** A scene round-trips through save and load. Prefabs instantiate with overrides. Any component's properties can be listed and edited generically.
+**Exit.** The game's scenes round-trip through save and load. Prefabs instantiate with overrides. Any component's properties can be listed and edited generically.
 
 ### Stage 6 — Editor foundation → 0.4
 
@@ -216,7 +216,7 @@ The stage is added after 0.1 (ADR-0052) and has no release of its own; its game 
 - Command and transaction system: every edit is undoable
 - Play in editor
 
-**Exit.** The sample scene is built, saved and reloaded entirely in the editor, with undo/redo on every operation. The editor uses no private engine API.
+**Exit.** A level of the game is built, saved and reloaded entirely in the editor, with undo/redo on every operation. The editor uses no private engine API.
 
 ### Stage 7 — Runtime systems → 0.5
 
@@ -272,7 +272,7 @@ Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b nee
 - Navigation: navmesh, pathfinding, spatial queries
 - Build, cook and package: Development, Shipping, Server, Editor configurations, for Linux and Windows. Builds without a console (Windows games) write their log to a file.
 
-**Exit.** A short narrative vertical slice (animated character, cutscene, gameplay) ships as a packaged build.
+**Exit.** The game grows into a short narrative vertical slice (animated character, cutscene, gameplay) that ships as a packaged build.
 
 ### Stage 10 — Large worlds and networking → 0.9
 
@@ -285,7 +285,7 @@ Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b nee
 - Networking: transport, replication, RPC, prediction, reconciliation, interest management
 - Dedicated server build
 
-**Exit.** A streamed open-world sample with several clients connected to a dedicated server.
+**Exit.** The game streams an open world, with several clients connected to a dedicated server.
 
 ### Stage 11 — Production readiness → 0.10, then 1.0
 

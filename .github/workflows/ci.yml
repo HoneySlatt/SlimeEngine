@@ -62,7 +62,7 @@ jobs:
           cargo run --locked --example offscreen -- --output target/triangle.png
       # The C runtime is linked statically, so that the published examples start on a Windows
       # without the Visual C++ Redistributable (a fresh install, Windows Sandbox). How shipped games
-      # link it is decided with their packaging (Stage 9).
+      # link it is decided with their packaging (Stage 9b).
       - name: Build the examples for checks by hand
         run: cargo build --locked --release --examples
         env:

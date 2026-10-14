@@ -40,13 +40,14 @@ The roadmap is amended as follows.
   player moves, interacts with a few objects and reaches an objective, and the game restarts
   cleanly; no text, physics or sound, which the engine does not have yet. What the game finds hard
   guides Stages 4 and 5. From then on, the sample each stage ends with is that game, grown by the
-  stage. The stage has no release of its own.
+  stage, and the exit criteria of the later stages name it. The stage has no release of its own.
 - **Stage 9 is split in two.** Stage 9a, Production renderer, gathers the renderer's work above
   and the pieces for 2D and stylized games that no earlier stage needed. Stage 9b, Content
   production, is the former Stage 9. Stage 10 keeps rendering at very large scale.
 - **Stage numbers.** The stages added take letters, as Stage 3's halves did, so that the stage
-  numbers that documents and ADRs cite stay right. Releases follow the stages: 0.7 for Stage 9a,
-  0.8 for 9b, 0.9 for Stage 10, and 0.10, then 1.0, for Stage 11.
+  numbers that documents and ADRs cite stay right; a reference to Stage 9 now means its two halves,
+  as one to Stage 3 does. Releases follow the stages: 0.7 for Stage 9a, 0.8 for 9b, 0.9 for Stage
+  10, and 0.10, then 1.0, for Stage 11.
 - **Stage 4** recovers from a lost device, creating the GPU objects again from their sources, and
   creates GPU objects from loading threads, through the `Gpu` they share (it is `Send` and `Sync`
   already).

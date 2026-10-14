@@ -48,6 +48,9 @@ impl Camera {
     /// parallel to the viewing direction or of an extreme length (see [`up`](Self::up)), gives a
     /// matrix that is not finite and draws nothing.
     ///
+    /// It maps world positions in `f32`: far from the origin, it loses the precision that the
+    /// renderer keeps by drawing relative to the camera (ADR-0048).
+    ///
     /// # Panics
     ///
     /// Inside glam, for those cameras, when glam's assertions are on (see [`Camera`]).
@@ -80,7 +83,8 @@ impl Camera {
         glam::camera::rh::proj::directx::perspective_infinite_reverse(self.fov_y, aspect, self.near)
     }
 
-    /// The projection times the view: from world space to clip space.
+    /// The projection times the view: from world space to clip space, as precise as
+    /// [`view`](Self::view) is.
     ///
     /// # Panics
     ///

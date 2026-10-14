@@ -6,11 +6,11 @@ the GPU layer (`slime-gfx`).
 ## Status
 
 Partial: the physically based renderer of Stage 3b (`docs/PLAN.md`). It draws instances of meshes
-from a perspective camera, each with a material in glTF's metallic-roughness model, lit by up to 16
+from a perspective camera, each with a material in glTF's metallic-roughness model, lit by
 directional, point and spot lights in physical units and by a procedural sky that surfaces reflect
-and that shows behind them, with the shadows of one directional light around the camera. It draws
-in high dynamic range, then exposes the light, spreads a bloom around it, tone maps it and dithers
-it into the output, and reports what each frame cost on the CPU and the GPU. It does not yet
+and that shows behind them, with the shadows of one directional light around the camera. It draws in
+high dynamic range, then exposes the light, spreads a bloom around it, tone maps it and dithers it
+into the output, and reports what each frame cost on the CPU and the GPU. It does not yet
 anti-alias, blend transparent surfaces or leave out what the camera does not see.
 
 ## Role
@@ -98,7 +98,7 @@ fn main() -> Result<(), RenderError> {
   size.
 - `Renderer::create_environment(gpu, &Sky)` computes, on the CPU, the `Environment` that lights a
   scene and shows behind it: a procedural sky of a zenith, a horizon, a ground and an optional sun.
-  It takes tens of milliseconds in a release build: create one per sky, not per frame.
+  It is slow: create one per sky, not per frame.
 - `Renderer::create_mesh(gpu, label, &MeshData)` uploads a `Mesh`; mesh data that cannot be drawn
   is returned as `RenderError::InvalidMesh`. `Renderer::create_material(gpu, label,
   &MaterialData)` creates a `Material` with glTF's metallic-roughness model, its textures given as
@@ -110,7 +110,7 @@ fn main() -> Result<(), RenderError> {
   tone mapping) and returns its `RenderStats`: draw calls, triangles, and the CPU and GPU time of
   its passes.
 - `Camera`: where the scene is seen from. `Light`: one of glTF's punctual lights, a
-  `DirectionalLight`, the first of which casts the scene's shadows, a `PointLight` or a
+  `DirectionalLight`, of which the first that casts shadows casts the scene's, a `PointLight` or a
   `SpotLight`; a scene has at most `MAX_LIGHTS` of them drawn.
 - `RenderError`: an invalid mesh, or a failure of the GPU layer (`GfxError`): a shader or pipeline
   the driver rejects, memory that runs out, or a lost device.

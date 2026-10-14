@@ -77,8 +77,10 @@ pub trait App {
     }
 
     /// Called once, after the last frame, however the run stopped, unless [`init`](Self::init)
-    /// failed. With a window, the window and the GPU still exist; an application that keeps a
-    /// clone of the window should drop it here.
+    /// failed or the process ends before the run stops: on a second termination signal, when the
+    /// console closes or Windows logs off or shuts down (see [`run`](crate::run)), or when the
+    /// connection to the X server is lost. With a window, the window and the GPU still exist; an
+    /// application that keeps a clone of the window should drop it here.
     fn shutdown(&mut self, ctx: &mut Context) {
         let _ = ctx;
     }
@@ -272,7 +274,9 @@ pub(crate) enum ExitReason {
 /// stop runs cleanly.
 ///
 /// On Windows, Ctrl+C and Ctrl+Break in a console stop the run the same way. Closing the console
-/// window ends the process at once, without `shutdown`.
+/// window ends the process at once, without `shutdown`. Logging off and shutting down end it
+/// without `shutdown` too: Windows tells a window of them with messages that the windowing library
+/// does not report.
 ///
 /// - **Headless** ([`AppConfig::window`] is `None`): frames run back to back, as fast as the
 ///   machine allows, with simulated time: each frame represents exactly one fixed step, so it runs

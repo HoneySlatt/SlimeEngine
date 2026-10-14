@@ -42,13 +42,15 @@ scripts/check.sh             # every check, exactly as CI runs them (Linux only)
 Each CI run on GitHub also publishes the `hello`, `headless`, `window`, `offscreen` and `scene`
 examples built for Windows, to try without a toolchain.
 
-The tests run on your own GPU; CI runs them on lavapipe, a Vulkan driver that renders on the CPU,
-and [`CONTRIBUTING.md`](CONTRIBUTING.md#gpu) explains how to run them the same way.
+The tests run on your own GPU; CI runs them on drivers that render on the CPU, lavapipe on Linux and
+WARP on Windows, and [`CONTRIBUTING.md`](CONTRIBUTING.md#gpu) explains how to run them the same way.
 
 ## Using SlimeEngine in a game
 
 The engine is not published on crates.io: a game depends on its crates through git, pinned to a
-release tag.
+release tag. Until 0.1 is released, `main` is well ahead of the latest tag, 0.0.3, and the crates'
+READMEs and the examples describe `main`: to follow them, use `branch = "main"`, or a `rev` for a
+build that does not move.
 
 ```toml
 [dependencies]
@@ -57,7 +59,7 @@ slime-gfx = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.0.3" 
 slime-platform = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.0.3" }
 slime-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.0.3" }
 
-# The renderer computes lighting on the CPU, about five times slower without optimizations.
+# The renderer computes a sky's lighting on the CPU, several times slower without optimizations.
 [profile.dev.package.slime-render]
 opt-level = 3
 ```
@@ -86,7 +88,7 @@ today has:
   later.
 - No world or scene graph: the game gives the renderer the list of what to draw at every frame.
 - A renderer without anti-aliasing, blended transparency, or culling of what the camera does not
-  see; with at most 16 lights, and shadows from one directional light only.
+  see; with a capped number of lights, and shadows from one directional light only.
 - One window, which cannot go fullscreen, grab or hide the cursor, or report raw mouse motion; no
   gamepads, touch input or input methods.
 - A run that stops when the GPU device is lost.

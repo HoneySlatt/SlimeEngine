@@ -131,7 +131,8 @@ if slime_app::run(&mut Game, &config).is_err() {
     returns: a signal then no longer ends the process by itself, and only the second one received
     in the process ends it (exit code 130).
   - On Windows, Ctrl+C and Ctrl+Break in a console stop the run the same way; closing the console
-    window ends the process at once, without `shutdown`.
+    window ends the process at once, without `shutdown`, and logging off and shutting down end it
+    without `shutdown` too.
 - `AppConfig`: the window (`None`, the default, runs headless), frame limit, fixed step
   (1/60 s), maximum fixed steps per frame (8), maximum frame delta (250 ms), maximum frame rate
   (60) and present mode (`PresentMode::Mailbox`). Write it as a struct literal ending with

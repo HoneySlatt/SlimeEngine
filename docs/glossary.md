@@ -311,9 +311,9 @@ reaches each point of a surface, darkening creases (glTF).
 example to read it back to the CPU. Image tests render this way, without a windowing system.
 
 **Overlay (dev).** Panels drawn over the engine's frames with egui, to show statistics and
-tooling while the engine has no UI framework of its own (`slime_devui::Overlay`,
-[ADR-0031](adr/0031-dev-overlay-with-egui.md)). Removed once what replaces it does at least as well
-([ADR-0052](adr/0052-amend-roadmap-before-0-1.md)).
+tooling over a running application (`slime_devui::Overlay`,
+[ADR-0031](adr/0031-dev-overlay-with-egui.md)). Removed once what replaces it does at least as
+well ([ADR-0052](adr/0052-amend-roadmap-before-0-1.md)).
 
 **Owner.** The person who validates the project's direction and its architecture decisions.
 

@@ -79,9 +79,10 @@ it:
   feature of that name, a feature of an admitted dependency recorded in `dependencies.md`; a fixed
   maximum number per scene, in a uniform buffer; storage buffers only if a measurement asks for
   them.
-- Shadows. One shadow map, for the first directional light: an orthographic projection fitted to
-  the scene's bounds, a depth bias, and percentage-closer filtering (PCF) over 3 × 3 samples
-  through a comparison sampler.
+- Shadows. One shadow map, for the first directional light: an orthographic projection fitted to the
+  scene's bounds, a depth bias, and percentage-closer filtering (PCF) over 3 × 3 samples through a
+  comparison sampler. (Done at M3b.5, ADR-0038; since the pass over the known debt, the map covers a
+  region that follows the camera, and a normal offset replaced the slope-scaled bias, ADR-0050.)
 - IBL. A procedural sky drawn into an environment cube map, its irradiance, its prefiltered
   specular levels and the table of the BRDF's scale and bias, all computed on the CPU at startup:
   no compute pass and no image file. The asset pipeline of Stage 4 may cook them instead. (Done at
@@ -564,7 +565,7 @@ upgrading wgpu still waits for egui.
     available, and what differs recorded.
   - The documentation reread by reviewing agents; `CHANGELOG.md`; the tag that the README's
     "Using SlimeEngine in a game" names set to `v0.1.0`.
-  - The duration of CI measured (the Windows job took 12.5 minutes at the debt pass) and a decision
+  - The duration of CI measured (the Windows job took 12.5 minutes on 2026-10-14) and a decision
     on binaries: CI's Windows examples expire after 14 days, and releases carry none.
   - The `v0.1.0` tag on a commit whose CI is green on both platforms.
 - **Done when.** The checks are green on both platforms; the tag is pushed.
@@ -576,8 +577,9 @@ upgrading wgpu still waits for egui.
 A release is an annotated git tag on a commit whose CI run is green on Linux and Windows
 ([ADR-0004](adr/0004-workspace-layout-and-crate-naming.md)):
 
-1. In one commit, set the version in the root `Cargo.toml`, rename the `[Unreleased]` section of
-   `CHANGELOG.md` to `[<version>] - <date>`, and update this plan.
+1. In one commit, set the version in the root `Cargo.toml` and the tag that the README's "Using
+   SlimeEngine in a game" names, rename the `[Unreleased]` section of `CHANGELOG.md` to
+   `[<version>] - <date>`, and update this plan.
 2. Push that commit and wait for its CI run to pass.
 3. Tag that commit, not a later one, then push the tag:
    `git tag -a v<version> -m "SlimeEngine <version>" <commit>`.
@@ -677,18 +679,17 @@ GitHub issues, linked from their entry; this list stays the reference.
   sctk-adwaita, on compositors that do not draw decorations), each waiting up to 100 ms when the
   settings portal does not answer; the error they log when no session bus or portal answers is
   hidden by the default log filter (ADR-0019).
-- **Upgrading wgpu waits for egui** while `slime-devui` exists: `egui-wgpu` is built against one
-  wgpu version (egui 0.36 against wgpu 30 today), so wgpu moves only once egui follows
-  (ADR-0031). Ends when the overlay is deleted.
+- **Upgrading wgpu waits for egui** while the engine's tooling draws with it: the dev overlay, and
+  from Stage 6 the editor (ADR-0031, ADR-0052). `egui-wgpu` is built against one wgpu version
+  (egui 0.36 against wgpu 30 today), so wgpu moves only once egui follows.
 - **The dev overlay blends in an sRGB framebuffer.** egui prefers a linear one for its blending,
   warns once at startup, and its panels look slightly lighter than egui's own demos (ADR-0031).
   Harmless for tooling.
-- **Mipmaps are computed on the CPU when a texture is created** (`Gpu::create_texture`), on the
-  calling thread, in work proportional to the texture's pixels (ADR-0032): about 72 ms for a
-  2048 × 2048 sRGB texture and 280 ms for 4096 × 4096 in a release build on the development
-  machine, so that a level of 70 textures of 2048 waits about 5 s. A caller with levels of its own
-  gives them to `Gpu::create_texture_with_levels` (ADR-0039). To move to the GPU, or to the asset
-  pipeline of Stage 4.
+- **Mipmaps are computed on the CPU when a texture is created** (`Gpu::create_texture`, whose
+  documentation gives the cost), on the calling thread, in work proportional to the texture's pixels
+  (ADR-0032): a level of tens of large textures waits seconds. A caller with levels of its own gives
+  them to `Gpu::create_texture_with_levels` (ADR-0039). To move to the GPU, or to the asset pipeline
+  of Stage 4.
 - **Every offscreen render target and depth target can be sampled** (ADR-0033): they all carry the
   usage that allows it, which may cost some compression on some GPUs. Measured at M3b.5 on an RX
   6900 XT (RADV), with two builds that differ only by it: no cost (the scene pass took 43.9 µs
@@ -876,10 +877,10 @@ GitHub issues, linked from their entry; this list stays the reference.
   drawn together: a frame's CPU and GPU time grow with every instance of the scene, wherever it is.
   Frustum culling and instancing are left to Stage 9a (ADR-0052).
 - **One shadow map, without cascades** (ADR-0050). It covers what the camera sees up to the light's
-  shadow distance, in 2048 texels across the sphere around it: 6 cm each at the default 50 m with a
-  60° field of view and a 16:9 output. What is near the camera gets the texels of what is far, and
-  shadows end at the map's edge, without fading. Cascades are left to Stage 9a (ADR-0052). The map
-  takes 16 MiB per renderer, even for scenes without a directional light.
+  shadow distance, with texels of one size (`DirectionalLight::shadow_distance` gives it): what is
+  near the camera gets the texels of what is far, and shadows end at the map's edge, without
+  fading. Cascades are left to Stage 9a (ADR-0052). Every renderer holds the map (`Renderer` gives
+  its size), even for scenes without a directional light.
 - **Shadows shift, and thin objects close to a surface lose theirs (peter-panning)** (ADR-0050).
   The normal offset that keeps surfaces from shadowing themselves looks a point up 3 texels × the
   sine of the light's incidence off its surface: at the default distance, 13 cm under a light 45°
@@ -950,7 +951,7 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **Tiny, very bright sources blink in the bloom** (ADR-0040). Without a firefly filter (Karis's
   average dims the sun's halo and makes it flicker, measured), a highlight smaller than a pixel
   blooms as its coverage of the pixel changes from frame to frame. Temporal anti-aliasing, or a cap
-  on the light a pixel brings to the chain, belong to a later stage.
+  on the light a pixel brings to the chain, belong to Stage 9a (ADR-0052).
 - **A pixel whose light is not a number spreads through the bloom** (ADR-0040). Materials' values
   are not checked: a NaN in a base color or an emission makes its pixels NaN in the
   high-dynamic-range target, and the bloom averages them into its levels, and from there into

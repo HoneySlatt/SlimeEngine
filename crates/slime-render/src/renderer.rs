@@ -706,7 +706,7 @@ impl Renderer {
     /// cube map of 128 × 128 texels per face, each the average of 2 × 2 points of it, then
     /// prefiltered for roughnesses 0.25, 0.5, 0.75 and 1 into faces of 64, 32, 16 and 8 texels, the
     /// last also the light that matte surfaces diffuse: 1.0 MiB of half-precision floats. This
-    /// takes tens of milliseconds on every core in a release build, about five times as long in a
+    /// takes tens of milliseconds on every core in a release build, several times as long in a
     /// debug build: create an environment once per sky, not per frame. A sky of one radiance in
     /// every direction, without a sun, takes almost none. The environment is not tied to this
     /// renderer.
@@ -836,13 +836,13 @@ impl Renderer {
     /// 13-tap filter, then average them back up through 3 × 3 tents, every level with the same
     /// weight, into a blurred copy (ADR-0040): 11 passes at 1280 × 720, 13 at 1920 × 1080. The
     /// tone-mapping pass then mixes the blurred copy in by `scene.bloom`, maps that light to the
-    /// range a display shows with Khronos PBR Neutral, which lowers channels between 0.08 and 0.8
-    /// by 0.04, darker ones less, and compresses brighter ones towards 1 and turns them towards
-    /// white, dithers it when `target` has 8 bits per channel, with noise of up to one step that
-    /// keeps its average and leaves black and white as they are (ADR-0051), and writes it into
-    /// `target`, opaque. A render graph orders the passes, and they are recorded in that order,
-    /// four to a submission named after `target` (ADR-0041); the work runs on the GPU after this
-    /// method returns.
+    /// range a display shows with Khronos PBR Neutral, which lowers a color whose channels all lie
+    /// between 0.08 and 0.8 by 0.04, a darker one less, and compresses a brighter one towards 1 and
+    /// turns it towards white, dithers it when `target` has 8 bits per channel, with noise of up to
+    /// one step that keeps its average and leaves black and white as they are (ADR-0051), and
+    /// writes it into `target`, opaque. A render graph orders the passes, and they are recorded in
+    /// that order, four to a submission named after `target` (ADR-0041); the work runs on the GPU
+    /// after this method returns.
     ///
     /// The high-dynamic-range and depth targets are created at the size of `target` the first
     /// time, and again whenever that size changes; the bloom's levels (4.7 MiB at 1280 × 720,

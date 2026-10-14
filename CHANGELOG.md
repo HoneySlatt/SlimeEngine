@@ -12,8 +12,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   the renderer optimized in debug builds) and what the engine does not do yet.
 - `Instance::casts_shadows` ([ADR-0049](docs/adr/0049-instances-that-cast-no-shadow.md)): an
   instance that casts no shadow, a vast floor or a sky dome, is left out of the shadow pass and of
-  the shadow map's fit, so that it no longer spreads the map's texels over its extent and blurs
-  every shadow; it still receives shadows. What lies beyond the map is lit.
+  the depths the shadow map spans, so that it costs no draw there and does not coarsen those depths;
+  it still receives shadows. What lies beyond the map is lit.
 - `DirectionalLight::shadow_distance`, 50 m by default
   ([ADR-0050](docs/adr/0050-a-shadow-region-that-follows-the-camera.md)): the shadow map covers
   what the camera sees up to that distance, instead of every instance, its texels on a grid fixed
@@ -87,11 +87,12 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 - Shadows in `slime-render` ([ADR-0038](docs/adr/0038-shadow-mapping.md)): the first directional
   light of a scene that casts shadows (`DirectionalLight::casts_shadows`, true by default) casts
-  them, through a 2048 × 2048 shadow map drawn each frame by a depth-only pass from an
-  orthographic projection that covers the instances, and read by the scene pass at 3 × 3 points,
-  so that their edges fade over three of the map's texels. Masked materials cast the shadow of
-  what they keep. `RenderStats::shadow_draw_calls` and `RenderStats::shadow_gpu_time` describe the
-  shadow pass, which the `scene` example's overlay shows.
+  them, through a 2048 × 2048 shadow map drawn each frame by a depth-only pass from an orthographic
+  projection over the region around the camera that `shadow_distance` sets, and read by the scene
+  pass at 3 × 3 points, so that their edges fade over three of the map's texels. Masked materials
+  cast the shadow of what they keep. `RenderStats::shadow_draw_calls` and
+  `RenderStats::shadow_gpu_time` describe the shadow pass, which the `scene` example's overlay
+  shows.
 - `FragmentState::target_format` in `slime-gfx` is optional: a fragment stage without a target
   format writes no color and may discard fragments, in a pass without a render target.
 - Image-based lighting in `slime-render`
@@ -418,8 +419,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   length one, such as (0, 2, 0), panic on its first frame.
 - The examples' glTF loader refuses a buffer or an image given as a data URI with a message that
   says so. It called such data "an external file" and quoted the whole base64 payload.
-- The `slime-render` README lists every reason `Renderer::create_mesh` rejects a mesh, including a
-  mesh with no vertex and a number of indices that is not a multiple of three, and the rustdoc of
+- The rustdoc of `Renderer::create_mesh` lists every reason it rejects a mesh, including a mesh
+  with no vertex and a number of indices that is not a multiple of three, and that of
   `RenderError::InvalidMesh` points to that list instead of keeping an incomplete copy.
 - `FixedStep::advance` says that a limited call drops the fraction of a step too.
 - Three tests could pass with what they check broken: the mipmap test of `slime-gfx` passed on a
