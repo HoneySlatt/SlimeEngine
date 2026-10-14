@@ -83,13 +83,13 @@ the ADR linking to it.
 | [0013](0013-windowed-smoke-test-in-weston.md) | Windowed smoke test in a headless Weston compositor | Accepted; amended by 0020, 0024 |
 | [0014](0014-amend-roadmap-for-stage-2-and-windows.md) | Amend the roadmap for Stage 2 and for Windows | Accepted |
 | [0015](0015-platforms-and-ci.md) | Platforms and CI on Linux and Windows | Accepted |
-| [0016](0016-gpu-layer-with-wgpu.md) | The GPU layer: wgpu behind `slime-gfx` | Accepted; amended by 0022, 0031, 0025, 0036 |
-| [0017](0017-gpu-resource-types.md) | GPU resource types | Accepted; amended by 0026, 0033 |
+| [0016](0016-gpu-layer-with-wgpu.md) | The GPU layer: wgpu behind `slime-gfx` | Accepted; amended by 0022, 0031, 0025, 0036 and 0044 |
+| [0017](0017-gpu-resource-types.md) | GPU resource types | Accepted; amended by 0026, 0033 and 0044 |
 | [0018](0018-reference-image-tests.md) | Reference image tests | Accepted; amended by 0028, 0030 |
 | [0019](0019-default-log-filter.md) | Default log filter | Accepted |
 | [0020](0020-rendering-in-the-main-loop.md) | Rendering in the main loop, and application errors | Accepted; amended by 0021, 0022, 0025 and 0043 |
 | [0021](0021-frame-pacing.md) | Frame pacing | Accepted |
-| [0022](0022-losing-the-gpu-device.md) | Losing the GPU device | Accepted; amended by 0025 |
+| [0022](0022-losing-the-gpu-device.md) | Losing the GPU device | Accepted; amended by 0025 and 0044 |
 | [0023](0023-dependency-checks-for-the-supported-targets.md) | Check the dependencies of the supported targets only | Accepted |
 | [0024](0024-windowed-lifecycle-check-in-weston.md) | Windowed lifecycle check in the headless compositor | Accepted; extended on 2026-10-13 |
 | [0025](0025-giving-up-a-lost-surface.md) | Giving up a window's surface that is lost for good | Accepted |
@@ -111,3 +111,4 @@ the ADR linking to it.
 | [0041](0041-render-graph.md) | The render graph | Accepted |
 | [0042](0042-lights-beyond-the-most-drawn-and-checked-scene-values.md) | Lights beyond the most drawn, and checked scene values | Accepted |
 | [0043](0043-application-errors-during-a-run.md) | Application errors during a run | Accepted |
+| [0044](0044-running-out-of-gpu-memory.md) | Running out of GPU memory | Accepted |

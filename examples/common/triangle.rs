@@ -64,7 +64,7 @@ impl Triangle {
             .flatten()
             .flat_map(|value| value.to_le_bytes())
             .collect();
-        let vertices = gpu.create_vertex_buffer("triangle vertices", &bytes);
+        let vertices = gpu.create_vertex_buffer("triangle vertices", &bytes)?;
         Ok(Self { pipeline, vertices })
     }
 

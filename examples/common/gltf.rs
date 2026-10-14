@@ -73,7 +73,9 @@ use gltf::Semantic;
 use gltf::accessor::{DataType, Dimensions};
 use gltf::khr_lights_punctual::Kind;
 use gltf::texture::{MagFilter, MinFilter, WrappingMode};
-use slime_gfx::{AddressMode, Filter, Gpu, Sampler, SamplerDescriptor, Texture, TextureFormat};
+use slime_gfx::{
+    AddressMode, Filter, GfxError, Gpu, Sampler, SamplerDescriptor, Texture, TextureFormat,
+};
 use slime_render::glam::{Mat4, Vec2, Vec3};
 use slime_render::{
     AlphaMode, DirectionalLight, Instance, Light, MAX_LIGHTS, Material, MaterialData, Mesh,
@@ -91,6 +93,12 @@ impl fmt::Display for LoadError {
 }
 
 impl std::error::Error for LoadError {}
+
+/// A GPU object of the file that could not be created: the GPU's memory is full, or the device
+/// was lost.
+fn gpu_error(error: GfxError) -> LoadError {
+    LoadError(error.to_string())
+}
 
 /// The smallest box around a loaded scene, in world space.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -331,20 +339,20 @@ pub fn load(gpu: &Gpu, renderer: &Renderer, bytes: &[u8]) -> Result<LoadedScene,
                     "{name}, {}",
                     if format.is_srgb() { "sRGB" } else { "linear" }
                 );
-                entry.insert(gpu.create_texture(
-                    &label,
-                    pixels.width,
-                    pixels.height,
-                    format,
-                    &pixels.pixels,
-                ));
+                entry.insert(
+                    gpu.create_texture(&label, pixels.width, pixels.height, format, &pixels.pixels)
+                        .map_err(gpu_error)?,
+                );
             }
-            samplers.entry(texture.index()).or_insert_with(|| {
+            if let Entry::Vacant(entry) = samplers.entry(texture.index()) {
                 let label = texture
                     .name()
                     .map_or_else(|| format!("texture {}", texture.index()), str::to_owned);
-                gpu.create_sampler(&label, &sampler_descriptor(&texture.sampler()))
-            });
+                entry.insert(
+                    gpu.create_sampler(&label, &sampler_descriptor(&texture.sampler()))
+                        .map_err(gpu_error)?,
+                );
+            }
         }
     }
     drop(decoded);

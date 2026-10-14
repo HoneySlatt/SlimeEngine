@@ -94,7 +94,9 @@ fn a_fullscreen_triangle_without_a_vertex_buffer_covers_every_pixel() {
     let gpu = gpu();
     // 67 pixels of 8 bytes: rows of 536 bytes, padded to 768 when read back.
     let (width, height) = (67, 5);
-    let target = gpu.create_render_target("positions", width, height, TextureFormat::Rgba16Float);
+    let target = gpu
+        .create_render_target("positions", width, height, TextureFormat::Rgba16Float)
+        .expect("the GPU has memory for it");
     // Each pixel writes its own center; culling back faces proves the triangle faces the front.
     let pipeline = fullscreen_pipeline(
         &gpu,
@@ -139,9 +141,15 @@ fn a_fullscreen_triangle_without_a_vertex_buffer_covers_every_pixel() {
 fn a_second_pass_samples_the_target_a_first_pass_drew_into() {
     let gpu = gpu();
     let size = 8;
-    let first = gpu.create_render_target("first", size, size, TextureFormat::Rgba16Float);
-    let second = gpu.create_render_target("second", size, size, TextureFormat::Rgba16Float);
-    let display = gpu.create_render_target("display", size, size, TextureFormat::Rgba8UnormSrgb);
+    let first = gpu
+        .create_render_target("first", size, size, TextureFormat::Rgba16Float)
+        .expect("the GPU has memory for it");
+    let second = gpu
+        .create_render_target("second", size, size, TextureFormat::Rgba16Float)
+        .expect("the GPU has memory for it");
+    let display = gpu
+        .create_render_target("display", size, size, TextureFormat::Rgba8UnormSrgb)
+        .expect("the GPU has memory for it");
 
     // The first pass writes each pixel's center, and a value below 0.
     let draw_first = fullscreen_pipeline(
@@ -174,44 +182,50 @@ fn a_second_pass_samples_the_target_a_first_pass_drew_into() {
         );
     }
 
-    let layout = gpu.create_bind_group_layout(
-        "first",
-        &[
-            BindGroupLayoutEntry {
-                binding: 0,
-                visible_to: ShaderStages::Fragment,
-                ty: BindingType::Texture,
+    let layout = gpu
+        .create_bind_group_layout(
+            "first",
+            &[
+                BindGroupLayoutEntry {
+                    binding: 0,
+                    visible_to: ShaderStages::Fragment,
+                    ty: BindingType::Texture,
+                },
+                BindGroupLayoutEntry {
+                    binding: 1,
+                    visible_to: ShaderStages::Fragment,
+                    ty: BindingType::Sampler,
+                },
+            ],
+        )
+        .expect("the GPU has memory for it");
+    let nearest = gpu
+        .create_sampler(
+            "nearest",
+            &SamplerDescriptor {
+                mag_filter: Filter::Nearest,
+                min_filter: Filter::Nearest,
+                address_u: slime_gfx::AddressMode::ClampToEdge,
+                address_v: slime_gfx::AddressMode::ClampToEdge,
             },
-            BindGroupLayoutEntry {
-                binding: 1,
-                visible_to: ShaderStages::Fragment,
-                ty: BindingType::Sampler,
-            },
-        ],
-    );
-    let nearest = gpu.create_sampler(
-        "nearest",
-        &SamplerDescriptor {
-            mag_filter: Filter::Nearest,
-            min_filter: Filter::Nearest,
-            address_u: slime_gfx::AddressMode::ClampToEdge,
-            address_v: slime_gfx::AddressMode::ClampToEdge,
-        },
-    );
-    let group = gpu.create_bind_group(
-        "first",
-        &layout,
-        &[
-            BindGroupEntry {
-                binding: 0,
-                resource: BindingResource::RenderTarget(&first),
-            },
-            BindGroupEntry {
-                binding: 1,
-                resource: BindingResource::Sampler(&nearest),
-            },
-        ],
-    );
+        )
+        .expect("the GPU has memory for it");
+    let group = gpu
+        .create_bind_group(
+            "first",
+            &layout,
+            &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: BindingResource::RenderTarget(&first),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: BindingResource::Sampler(&nearest),
+                },
+            ],
+        )
+        .expect("the GPU has memory for it");
     let bindings = "
         @group(0) @binding(0) var first: texture_2d<f32>;
         @group(0) @binding(1) var nearest: sampler;
@@ -308,7 +322,9 @@ fn a_depth_only_pass_is_read_through_a_comparison_sampler() {
             bias: DepthBias::default(),
         },
     );
-    let shadow_map = gpu.create_depth_target("shadow map", 2 * size, 2 * size);
+    let shadow_map = gpu
+        .create_depth_target("shadow map", 2 * size, 2 * size)
+        .expect("the GPU has memory for it");
     gpu.render_depth(
         &DepthPassDescriptor {
             depth: &shadow_map,
@@ -320,51 +336,58 @@ fn a_depth_only_pass_is_read_through_a_comparison_sampler() {
         },
     );
 
-    let layout = gpu.create_bind_group_layout(
-        "shadow lookup",
-        &[
-            BindGroupLayoutEntry {
-                binding: 0,
-                visible_to: ShaderStages::Fragment,
-                ty: BindingType::DepthTexture,
-            },
-            BindGroupLayoutEntry {
-                binding: 1,
-                visible_to: ShaderStages::Fragment,
-                ty: BindingType::ComparisonSampler,
-            },
-            BindGroupLayoutEntry {
-                binding: 2,
-                visible_to: ShaderStages::Fragment,
-                ty: BindingType::ComparisonSampler,
-            },
-        ],
-    );
-    let nearest = gpu.create_comparison_sampler(
-        "nearest comparison",
-        DepthCompare::LessEqual,
-        Filter::Nearest,
-    );
-    let linear =
-        gpu.create_comparison_sampler("linear comparison", DepthCompare::LessEqual, Filter::Linear);
-    let group = gpu.create_bind_group(
-        "shadow lookup",
-        &layout,
-        &[
-            BindGroupEntry {
-                binding: 0,
-                resource: BindingResource::DepthTarget(&shadow_map),
-            },
-            BindGroupEntry {
-                binding: 1,
-                resource: BindingResource::ComparisonSampler(&nearest),
-            },
-            BindGroupEntry {
-                binding: 2,
-                resource: BindingResource::ComparisonSampler(&linear),
-            },
-        ],
-    );
+    let layout = gpu
+        .create_bind_group_layout(
+            "shadow lookup",
+            &[
+                BindGroupLayoutEntry {
+                    binding: 0,
+                    visible_to: ShaderStages::Fragment,
+                    ty: BindingType::DepthTexture,
+                },
+                BindGroupLayoutEntry {
+                    binding: 1,
+                    visible_to: ShaderStages::Fragment,
+                    ty: BindingType::ComparisonSampler,
+                },
+                BindGroupLayoutEntry {
+                    binding: 2,
+                    visible_to: ShaderStages::Fragment,
+                    ty: BindingType::ComparisonSampler,
+                },
+            ],
+        )
+        .expect("the GPU has memory for it");
+    let nearest = gpu
+        .create_comparison_sampler(
+            "nearest comparison",
+            DepthCompare::LessEqual,
+            Filter::Nearest,
+        )
+        .expect("the GPU has memory for it");
+    let linear = gpu
+        .create_comparison_sampler("linear comparison", DepthCompare::LessEqual, Filter::Linear)
+        .expect("the GPU has memory for it");
+    let group = gpu
+        .create_bind_group(
+            "shadow lookup",
+            &layout,
+            &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: BindingResource::DepthTarget(&shadow_map),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: BindingResource::ComparisonSampler(&nearest),
+                },
+                BindGroupEntry {
+                    binding: 2,
+                    resource: BindingResource::ComparisonSampler(&linear),
+                },
+            ],
+        )
+        .expect("the GPU has memory for it");
     // Each pixel of the lookup covers 2 × 2 texels of the shadow map, which hold the same depth.
     // Red compares a reference of 0.5 there, green one of 0.1, blue 0.5 halfway between texels 2x
     // + 1 and 2x + 2, horizontally, with linear filtering, and alpha the very depth stored there,
@@ -395,7 +418,9 @@ fn a_depth_only_pass_is_read_through_a_comparison_sampler() {
         &[&layout],
         TextureFormat::Rgba16Float,
     );
-    let lit = gpu.create_render_target("lit", size, size, TextureFormat::Rgba16Float);
+    let lit = gpu
+        .create_render_target("lit", size, size, TextureFormat::Rgba16Float)
+        .expect("the GPU has memory for it");
     let pass = RenderPassDescriptor {
         target: &lit,
         clear: Some(BLACK),
@@ -476,7 +501,9 @@ fn a_fragment_stage_without_a_render_target_discards_in_a_depth_only_pass() {
             cull: CullMode::None,
         })
         .expect("the pipeline is valid");
-    let depth = gpu.create_depth_target("depth", size, size);
+    let depth = gpu
+        .create_depth_target("depth", size, size)
+        .expect("the GPU has memory for it");
     gpu.render_depth(
         &DepthPassDescriptor {
             depth: &depth,
@@ -490,22 +517,26 @@ fn a_fragment_stage_without_a_render_target_discards_in_a_depth_only_pass() {
 
     // Each pixel shows the depth stored under it: the cleared 1 where the fragment was
     // discarded, 0.25 elsewhere.
-    let layout = gpu.create_bind_group_layout(
-        "depth",
-        &[BindGroupLayoutEntry {
-            binding: 0,
-            visible_to: ShaderStages::Fragment,
-            ty: BindingType::DepthTexture,
-        }],
-    );
-    let group = gpu.create_bind_group(
-        "depth",
-        &layout,
-        &[BindGroupEntry {
-            binding: 0,
-            resource: BindingResource::DepthTarget(&depth),
-        }],
-    );
+    let layout = gpu
+        .create_bind_group_layout(
+            "depth",
+            &[BindGroupLayoutEntry {
+                binding: 0,
+                visible_to: ShaderStages::Fragment,
+                ty: BindingType::DepthTexture,
+            }],
+        )
+        .expect("the GPU has memory for it");
+    let group = gpu
+        .create_bind_group(
+            "depth",
+            &layout,
+            &[BindGroupEntry {
+                binding: 0,
+                resource: BindingResource::DepthTarget(&depth),
+            }],
+        )
+        .expect("the GPU has memory for it");
     let show = fullscreen_pipeline(
         &gpu,
         "show depth",
@@ -518,7 +549,9 @@ fn a_fragment_stage_without_a_render_target_discards_in_a_depth_only_pass() {
         &[&layout],
         TextureFormat::Rgba16Float,
     );
-    let shown = gpu.create_render_target("shown", size, size, TextureFormat::Rgba16Float);
+    let shown = gpu
+        .create_render_target("shown", size, size, TextureFormat::Rgba16Float)
+        .expect("the GPU has memory for it");
     let pass = RenderPassDescriptor {
         target: &shown,
         clear: Some(BLACK),
@@ -587,7 +620,9 @@ fn a_depth_bias_moves_the_depth_by_the_expected_amount() {
     let targets: Vec<_> = cases
         .iter()
         .map(|&(label, shader, bias)| {
-            let target = gpu.create_depth_target(label, size, size);
+            let target = gpu
+                .create_depth_target(label, size, size)
+                .expect("the GPU has memory for it");
             let pipeline = depth_pipeline(&gpu, label, shader, depth(bias));
             gpu.render_depth(
                 &DepthPassDescriptor {
@@ -610,7 +645,9 @@ fn a_depth_bias_moves_the_depth_by_the_expected_amount() {
             ty: BindingType::DepthTexture,
         })
         .collect();
-    let layout = gpu.create_bind_group_layout("depths", &entries);
+    let layout = gpu
+        .create_bind_group_layout("depths", &entries)
+        .expect("the GPU has memory for it");
     let resources: Vec<_> = targets
         .iter()
         .zip(0..)
@@ -619,7 +656,9 @@ fn a_depth_bias_moves_the_depth_by_the_expected_amount() {
             resource: BindingResource::DepthTarget(target),
         })
         .collect();
-    let group = gpu.create_bind_group("depths", &layout, &resources);
+    let group = gpu
+        .create_bind_group("depths", &layout, &resources)
+        .expect("the GPU has memory for it");
     // Red and green scale the two biases so that the expected value is 1; blue and alpha give the
     // unbiased depths, which confirm the geometry.
     let measure = fullscreen_pipeline(
@@ -645,7 +684,9 @@ fn a_depth_bias_moves_the_depth_by_the_expected_amount() {
         &[&layout],
         TextureFormat::Rgba16Float,
     );
-    let measured = gpu.create_render_target("measured", size, size, TextureFormat::Rgba16Float);
+    let measured = gpu
+        .create_render_target("measured", size, size, TextureFormat::Rgba16Float)
+        .expect("the GPU has memory for it");
     let pass = RenderPassDescriptor {
         target: &measured,
         clear: Some(BLACK),
@@ -691,23 +732,29 @@ fn a_depth_bias_moves_the_depth_by_the_expected_amount() {
 #[should_panic(expected = "conflicting usages")]
 fn a_pass_cannot_sample_the_target_it_draws_into() {
     let gpu = gpu();
-    let hdr = gpu.create_render_target("hdr", 8, 8, TextureFormat::Rgba16Float);
-    let layout = gpu.create_bind_group_layout(
-        "hdr",
-        &[BindGroupLayoutEntry {
-            binding: 0,
-            visible_to: ShaderStages::Fragment,
-            ty: BindingType::Texture,
-        }],
-    );
-    let group = gpu.create_bind_group(
-        "hdr",
-        &layout,
-        &[BindGroupEntry {
-            binding: 0,
-            resource: BindingResource::RenderTarget(&hdr),
-        }],
-    );
+    let hdr = gpu
+        .create_render_target("hdr", 8, 8, TextureFormat::Rgba16Float)
+        .expect("the GPU has memory for it");
+    let layout = gpu
+        .create_bind_group_layout(
+            "hdr",
+            &[BindGroupLayoutEntry {
+                binding: 0,
+                visible_to: ShaderStages::Fragment,
+                ty: BindingType::Texture,
+            }],
+        )
+        .expect("the GPU has memory for it");
+    let group = gpu
+        .create_bind_group(
+            "hdr",
+            &layout,
+            &[BindGroupEntry {
+                binding: 0,
+                resource: BindingResource::RenderTarget(&hdr),
+            }],
+        )
+        .expect("the GPU has memory for it");
     let pass = RenderPassDescriptor {
         target: &hdr,
         clear: Some(BLACK),
@@ -734,8 +781,12 @@ fn a_depth_only_pipeline_does_not_draw_in_a_pass_with_a_render_target() {
             bias: DepthBias::default(),
         },
     );
-    let target = gpu.create_render_target("color", 8, 8, TextureFormat::Rgba16Float);
-    let depth = gpu.create_depth_target("depth", 8, 8);
+    let target = gpu
+        .create_render_target("color", 8, 8, TextureFormat::Rgba16Float)
+        .expect("the GPU has memory for it");
+    let depth = gpu
+        .create_depth_target("depth", 8, 8)
+        .expect("the GPU has memory for it");
     let pass = RenderPassDescriptor {
         target: &target,
         clear: Some(BLACK),
@@ -759,7 +810,9 @@ fn a_pipeline_with_a_fragment_stage_does_not_draw_in_a_depth_only_pass() {
         &[],
         TextureFormat::Rgba16Float,
     );
-    let depth = gpu.create_depth_target("depth", 8, 8);
+    let depth = gpu
+        .create_depth_target("depth", 8, 8)
+        .expect("the GPU has memory for it");
     gpu.render_depth(
         &DepthPassDescriptor {
             depth: &depth,
@@ -771,14 +824,16 @@ fn a_pipeline_with_a_fragment_stage_does_not_draw_in_a_depth_only_pass() {
 
 /// A bind group holding `depth`, at a depth-texture binding.
 fn depth_group(gpu: &Gpu, depth: &slime_gfx::DepthTarget) -> slime_gfx::BindGroup {
-    let layout = gpu.create_bind_group_layout(
-        "depth",
-        &[BindGroupLayoutEntry {
-            binding: 0,
-            visible_to: ShaderStages::Fragment,
-            ty: BindingType::DepthTexture,
-        }],
-    );
+    let layout = gpu
+        .create_bind_group_layout(
+            "depth",
+            &[BindGroupLayoutEntry {
+                binding: 0,
+                visible_to: ShaderStages::Fragment,
+                ty: BindingType::DepthTexture,
+            }],
+        )
+        .expect("the GPU has memory for it");
     gpu.create_bind_group(
         "depth",
         &layout,
@@ -787,13 +842,16 @@ fn depth_group(gpu: &Gpu, depth: &slime_gfx::DepthTarget) -> slime_gfx::BindGrou
             resource: BindingResource::DepthTarget(depth),
         }],
     )
+    .expect("the GPU has memory for it")
 }
 
 #[test]
 #[should_panic(expected = "conflicting usages")]
 fn a_depth_only_pass_cannot_sample_the_depth_target_it_draws_into() {
     let gpu = gpu();
-    let depth = gpu.create_depth_target("shadow map", 8, 8);
+    let depth = gpu
+        .create_depth_target("shadow map", 8, 8)
+        .expect("the GPU has memory for it");
     let group = depth_group(&gpu, &depth);
     gpu.render_depth(
         &DepthPassDescriptor {
@@ -808,8 +866,12 @@ fn a_depth_only_pass_cannot_sample_the_depth_target_it_draws_into() {
 #[should_panic(expected = "conflicting usages")]
 fn a_pass_cannot_sample_the_depth_target_it_tests_against() {
     let gpu = gpu();
-    let target = gpu.create_render_target("color", 8, 8, TextureFormat::Rgba16Float);
-    let depth = gpu.create_depth_target("depth", 8, 8);
+    let target = gpu
+        .create_render_target("color", 8, 8, TextureFormat::Rgba16Float)
+        .expect("the GPU has memory for it");
+    let depth = gpu
+        .create_depth_target("depth", 8, 8)
+        .expect("the GPU has memory for it");
     let group = depth_group(&gpu, &depth);
     let pass = RenderPassDescriptor {
         target: &target,
@@ -824,15 +886,19 @@ fn a_pass_cannot_sample_the_depth_target_it_tests_against() {
 #[should_panic(expected = "sample type")]
 fn a_depth_target_cannot_be_bound_as_a_float_texture() {
     let gpu = gpu();
-    let depth = gpu.create_depth_target("depth", 8, 8);
-    let layout = gpu.create_bind_group_layout(
-        "float texture",
-        &[BindGroupLayoutEntry {
-            binding: 0,
-            visible_to: ShaderStages::Fragment,
-            ty: BindingType::Texture,
-        }],
-    );
+    let depth = gpu
+        .create_depth_target("depth", 8, 8)
+        .expect("the GPU has memory for it");
+    let layout = gpu
+        .create_bind_group_layout(
+            "float texture",
+            &[BindGroupLayoutEntry {
+                binding: 0,
+                visible_to: ShaderStages::Fragment,
+                ty: BindingType::Texture,
+            }],
+        )
+        .expect("the GPU has memory for it");
     gpu.create_bind_group(
         "float texture",
         &layout,
@@ -840,22 +906,27 @@ fn a_depth_target_cannot_be_bound_as_a_float_texture() {
             binding: 0,
             resource: BindingResource::DepthTarget(&depth),
         }],
-    );
+    )
+    .expect("the GPU has memory for it");
 }
 
 #[test]
 #[should_panic(expected = "comparison")]
 fn a_filtering_sampler_cannot_be_bound_as_a_comparison_sampler() {
     let gpu = gpu();
-    let sampler = gpu.create_sampler("filtering", &SamplerDescriptor::default());
-    let layout = gpu.create_bind_group_layout(
-        "comparison",
-        &[BindGroupLayoutEntry {
-            binding: 0,
-            visible_to: ShaderStages::Fragment,
-            ty: BindingType::ComparisonSampler,
-        }],
-    );
+    let sampler = gpu
+        .create_sampler("filtering", &SamplerDescriptor::default())
+        .expect("the GPU has memory for it");
+    let layout = gpu
+        .create_bind_group_layout(
+            "comparison",
+            &[BindGroupLayoutEntry {
+                binding: 0,
+                visible_to: ShaderStages::Fragment,
+                ty: BindingType::ComparisonSampler,
+            }],
+        )
+        .expect("the GPU has memory for it");
     gpu.create_bind_group(
         "comparison",
         &layout,
@@ -863,15 +934,20 @@ fn a_filtering_sampler_cannot_be_bound_as_a_comparison_sampler() {
             binding: 0,
             resource: BindingResource::Sampler(&sampler),
         }],
-    );
+    )
+    .expect("the GPU has memory for it");
 }
 
 #[test]
 fn the_passes_of_one_submission_run_in_the_order_they_were_recorded() {
     let gpu = gpu();
     let size = 8;
-    let first = gpu.create_render_target("first", size, size, TextureFormat::Rgba16Float);
-    let second = gpu.create_render_target("second", size, size, TextureFormat::Rgba16Float);
+    let first = gpu
+        .create_render_target("first", size, size, TextureFormat::Rgba16Float)
+        .expect("the GPU has memory for it");
+    let second = gpu
+        .create_render_target("second", size, size, TextureFormat::Rgba16Float)
+        .expect("the GPU has memory for it");
     let positions = fullscreen_pipeline(
         &gpu,
         "positions",
@@ -892,22 +968,26 @@ fn the_passes_of_one_submission_run_in_the_order_they_were_recorded() {
         &[],
         TextureFormat::Rgba16Float,
     );
-    let layout = gpu.create_bind_group_layout(
-        "first",
-        &[BindGroupLayoutEntry {
-            binding: 0,
-            visible_to: ShaderStages::Fragment,
-            ty: BindingType::Texture,
-        }],
-    );
-    let group = gpu.create_bind_group(
-        "first",
-        &layout,
-        &[BindGroupEntry {
-            binding: 0,
-            resource: BindingResource::RenderTarget(&first),
-        }],
-    );
+    let layout = gpu
+        .create_bind_group_layout(
+            "first",
+            &[BindGroupLayoutEntry {
+                binding: 0,
+                visible_to: ShaderStages::Fragment,
+                ty: BindingType::Texture,
+            }],
+        )
+        .expect("the GPU has memory for it");
+    let group = gpu
+        .create_bind_group(
+            "first",
+            &layout,
+            &[BindGroupEntry {
+                binding: 0,
+                resource: BindingResource::RenderTarget(&first),
+            }],
+        )
+        .expect("the GPU has memory for it");
     // Reads the first target mirrored left to right, texel by texel, and doubles it.
     let mirror = fullscreen_pipeline(
         &gpu,

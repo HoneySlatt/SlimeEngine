@@ -20,7 +20,9 @@ fn readback_unpads_rows_and_orders_channels_for_every_size() {
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
     for (width, height) in [(1, 1), (3, 5), (63, 2), (64, 1), (65, 2), (257, 2)] {
         for format in [TextureFormat::Rgba8UnormSrgb, TextureFormat::Bgra8UnormSrgb] {
-            let target = gpu.create_render_target("readback", width, height, format);
+            let target = gpu
+                .create_render_target("readback", width, height, format)
+                .expect("the GPU has memory for it");
             let pass = RenderPassDescriptor {
                 target: &target,
                 clear: Some(CLEAR),
@@ -65,7 +67,9 @@ fn a_float_target_keeps_values_beyond_0_and_1_for_every_size() {
     let expected = [2.5, -1.25, 60_000.0, 1365.0 / 4096.0];
     // Rows of 8, 24, 248, 256, 264 and 2056 bytes, padded to 256, 256, 256, 256, 512 and 2304.
     for (width, height) in [(1, 1), (3, 5), (31, 2), (32, 1), (33, 2), (257, 2)] {
-        let target = gpu.create_render_target("hdr", width, height, TextureFormat::Rgba16Float);
+        let target = gpu
+            .create_render_target("hdr", width, height, TextureFormat::Rgba16Float)
+            .expect("the GPU has memory for it");
         let pass = RenderPassDescriptor {
             target: &target,
             clear: Some(clear),

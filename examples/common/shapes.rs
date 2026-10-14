@@ -78,8 +78,8 @@ impl Shapes {
             CHECKER_SIZE,
             TextureFormat::Rgba8UnormSrgb,
             &checker(),
-        );
-        let sampler = gpu.create_sampler("checker", &SamplerDescriptor::default());
+        )?;
+        let sampler = gpu.create_sampler("checker", &SamplerDescriptor::default())?;
         let checkered_by = Some(SampledTexture {
             texture: &checker,
             sampler: &sampler,

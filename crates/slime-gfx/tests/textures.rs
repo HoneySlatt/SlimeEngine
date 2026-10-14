@@ -57,23 +57,26 @@ impl Setup {
     fn new() -> Self {
         let gpu =
             Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-        let target =
-            gpu.create_render_target("textures", SIZE, SIZE, TextureFormat::Rgba8UnormSrgb);
-        let layout = gpu.create_bind_group_layout(
-            "texture and sampler",
-            &[
-                BindGroupLayoutEntry {
-                    binding: 0,
-                    visible_to: ShaderStages::Fragment,
-                    ty: BindingType::Texture,
-                },
-                BindGroupLayoutEntry {
-                    binding: 1,
-                    visible_to: ShaderStages::Fragment,
-                    ty: BindingType::Sampler,
-                },
-            ],
-        );
+        let target = gpu
+            .create_render_target("textures", SIZE, SIZE, TextureFormat::Rgba8UnormSrgb)
+            .expect("the GPU has memory for it");
+        let layout = gpu
+            .create_bind_group_layout(
+                "texture and sampler",
+                &[
+                    BindGroupLayoutEntry {
+                        binding: 0,
+                        visible_to: ShaderStages::Fragment,
+                        ty: BindingType::Texture,
+                    },
+                    BindGroupLayoutEntry {
+                        binding: 1,
+                        visible_to: ShaderStages::Fragment,
+                        ty: BindingType::Sampler,
+                    },
+                ],
+            )
+            .expect("the GPU has memory for it");
         let shader = gpu
             .create_shader_module("textures", SHADER)
             .expect("the shader compiles");
@@ -117,19 +120,23 @@ impl Setup {
     /// A 2 × 2 texture of `format`: red and green on the top row, blue and white below.
     fn two_by_two(&self, format: TextureFormat) -> Texture {
         let pixels: Vec<u8> = [RED, GREEN, BLUE, WHITE].concat();
-        self.gpu.create_texture("two by two", 2, 2, format, &pixels)
+        self.gpu
+            .create_texture("two by two", 2, 2, format, &pixels)
+            .expect("the GPU has memory for it")
     }
 
     fn sampler(&self, filter: Filter, address: AddressMode) -> Sampler {
-        self.gpu.create_sampler(
-            "sampler",
-            &SamplerDescriptor {
-                mag_filter: filter,
-                min_filter: filter,
-                address_u: address,
-                address_v: address,
-            },
-        )
+        self.gpu
+            .create_sampler(
+                "sampler",
+                &SamplerDescriptor {
+                    mag_filter: filter,
+                    min_filter: filter,
+                    address_u: address,
+                    address_v: address,
+                },
+            )
+            .expect("the GPU has memory for it")
     }
 
     /// Draws `texture` over the whole target with `sampler`, the texture coordinates running
@@ -147,22 +154,31 @@ impl Setup {
             .flatten()
             .flat_map(|value| value.to_le_bytes())
             .collect();
-        let vertices = self.gpu.create_vertex_buffer("quad", &bytes);
-        let indices = self.gpu.create_index_buffer("quad", &[0, 1, 2, 0, 2, 3]);
-        let group = self.gpu.create_bind_group(
-            "texture and sampler",
-            &self.layout,
-            &[
-                BindGroupEntry {
-                    binding: 0,
-                    resource: BindingResource::Texture(texture),
-                },
-                BindGroupEntry {
-                    binding: 1,
-                    resource: BindingResource::Sampler(sampler),
-                },
-            ],
-        );
+        let vertices = self
+            .gpu
+            .create_vertex_buffer("quad", &bytes)
+            .expect("the GPU has memory for it");
+        let indices = self
+            .gpu
+            .create_index_buffer("quad", &[0, 1, 2, 0, 2, 3])
+            .expect("the GPU has memory for it");
+        let group = self
+            .gpu
+            .create_bind_group(
+                "texture and sampler",
+                &self.layout,
+                &[
+                    BindGroupEntry {
+                        binding: 0,
+                        resource: BindingResource::Texture(texture),
+                    },
+                    BindGroupEntry {
+                        binding: 1,
+                        resource: BindingResource::Sampler(sampler),
+                    },
+                ],
+            )
+            .expect("the GPU has memory for it");
         let pass = RenderPassDescriptor {
             target: &self.target,
             clear: Some(BLACK),
@@ -280,29 +296,35 @@ fn each_direction_of_a_sampler_is_its_own_and_magnifying_uses_the_mag_filter() {
     // left column; clamped vertically, the bottom row: blue. Directions swapped would read green,
     // and filters swapped, a linear blend of blue and white. Nothing is minified, so the
     // minification filter is not read.
-    let sampler = setup.gpu.create_sampler(
-        "repeat u, clamp v",
-        &SamplerDescriptor {
-            mag_filter: Filter::Nearest,
-            min_filter: Filter::Linear,
-            address_u: AddressMode::Repeat,
-            address_v: AddressMode::ClampToEdge,
-        },
-    );
+    let sampler = setup
+        .gpu
+        .create_sampler(
+            "repeat u, clamp v",
+            &SamplerDescriptor {
+                mag_filter: Filter::Nearest,
+                min_filter: Filter::Linear,
+                address_u: AddressMode::Repeat,
+                address_v: AddressMode::ClampToEdge,
+            },
+        )
+        .expect("the GPU has memory for it");
     let image = setup.draw(&texture, &sampler, [2.0, 2.0]);
     assert_eq!(pixel(&image, (5, 5)), rgb(BLUE));
 
     // Mirrored vertically: pixels (1, 5) and (1, 7) read 1.375 and 1.875, mirrored to 0.625 and
     // 0.125: the bottom row, then the top one.
-    let sampler = setup.gpu.create_sampler(
-        "clamp u, mirror v",
-        &SamplerDescriptor {
-            mag_filter: Filter::Nearest,
-            min_filter: Filter::Nearest,
-            address_u: AddressMode::ClampToEdge,
-            address_v: AddressMode::MirrorRepeat,
-        },
-    );
+    let sampler = setup
+        .gpu
+        .create_sampler(
+            "clamp u, mirror v",
+            &SamplerDescriptor {
+                mag_filter: Filter::Nearest,
+                min_filter: Filter::Nearest,
+                address_u: AddressMode::ClampToEdge,
+                address_v: AddressMode::MirrorRepeat,
+            },
+        )
+        .expect("the GPU has memory for it");
     let image = setup.draw(&texture, &sampler, [1.0, 2.0]);
     assert_eq!(pixel(&image, (1, 5)), rgb(BLUE));
     assert_eq!(pixel(&image, (1, 7)), rgb(RED));
@@ -320,7 +342,8 @@ fn srgb_textures_are_decoded_and_linear_ones_are_read_as_they_are() {
     ] {
         let texture = setup
             .gpu
-            .create_texture("grey", 1, 1, format, &[128, 128, 128, 255]);
+            .create_texture("grey", 1, 1, format, &[128, 128, 128, 255])
+            .expect("the GPU has memory for it");
         let image = setup.draw(&texture, &sampler, [1.0, 1.0]);
         let [red, ..] = pixel(&image, (4, 4));
         assert!(
@@ -342,7 +365,8 @@ fn minified_textures_are_read_from_their_smaller_levels() {
     }
     let texture = setup
         .gpu
-        .create_texture("checker", 4, 4, TextureFormat::Rgba8Unorm, &pixels);
+        .create_texture("checker", 4, 4, TextureFormat::Rgba8Unorm, &pixels)
+        .expect("the GPU has memory for it");
     let sampler = setup.sampler(Filter::Linear, AddressMode::Repeat);
     // The texture repeats six times across the eight pixels of the target: each pixel covers three
     // of its pixels in each direction, so levels 1 and 2 (2 × 2 and 1 × 1 pixels, all grey) are

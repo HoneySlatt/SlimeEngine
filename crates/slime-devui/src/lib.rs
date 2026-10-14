@@ -219,7 +219,9 @@ mod tests {
     #[test]
     fn egui_knows_when_the_window_loses_and_regains_the_focus() {
         let gpu = gpu();
-        let target = gpu.create_render_target("overlay target", 64, 64, FORMAT);
+        let target = gpu
+            .create_render_target("overlay target", 64, 64, FORMAT)
+            .expect("the GPU has memory for it");
         let mut overlay = Overlay::new(&gpu, FORMAT, 1.0);
         let mut focused = None;
         for (event, expected) in [(Event::Focused(false), false), (Event::Focused(true), true)] {
@@ -234,8 +236,12 @@ mod tests {
     #[test]
     fn a_new_scale_factor_keeps_the_panels_in_place() {
         let gpu = gpu();
-        let small = gpu.create_render_target("1x target", 800, 600, FORMAT);
-        let large = gpu.create_render_target("2x target", 1600, 1200, FORMAT);
+        let small = gpu
+            .create_render_target("1x target", 800, 600, FORMAT)
+            .expect("the GPU has memory for it");
+        let large = gpu
+            .create_render_target("2x target", 1600, 1200, FORMAT)
+            .expect("the GPU has memory for it");
         let mut overlay = Overlay::new(&gpu, FORMAT, 1.0);
         // egui sizes the window on the first frame and draws it from the second.
         frame(&mut overlay, &gpu, &small);
@@ -255,7 +261,9 @@ mod tests {
     #[test]
     fn the_panels_follow_egui_zoom() {
         let gpu = gpu();
-        let target = gpu.create_render_target("overlay target", 800, 600, FORMAT);
+        let target = gpu
+            .create_render_target("overlay target", 800, 600, FORMAT)
+            .expect("the GPU has memory for it");
         let mut overlay = Overlay::new(&gpu, FORMAT, 1.0);
         overlay.render(&gpu, &target, |ctx| ctx.set_zoom_factor(2.0));
         // egui applies the zoom on the next frame, the only one it lays out in an area of its own.
@@ -282,7 +290,9 @@ mod tests {
     #[test]
     fn a_frame_that_egui_lays_out_twice_still_draws_the_panels() {
         let gpu = gpu();
-        let target = gpu.create_render_target("overlay target", 200, 200, FORMAT);
+        let target = gpu
+            .create_render_target("overlay target", 200, 200, FORMAT)
+            .expect("the GPU has memory for it");
         let mut overlay = Overlay::new(&gpu, FORMAT, 1.0);
         overlay.handle(&Event::CursorMoved { x: 20.0, y: 20.0 });
         let passes = Cell::new(0);
@@ -315,7 +325,9 @@ mod tests {
     #[test]
     fn the_panels_are_drawn_over_what_the_target_holds() {
         let gpu = gpu();
-        let target = gpu.create_render_target("overlay target", 200, 200, FORMAT);
+        let target = gpu
+            .create_render_target("overlay target", 200, 200, FORMAT)
+            .expect("the GPU has memory for it");
         let mut overlay = Overlay::new(&gpu, FORMAT, 1.0);
         // Opaque, not black, and exact in sRGB: an overlay pass that cleared the target, to black or
         // to transparent black, would not leave this color around the panel.
@@ -356,7 +368,9 @@ mod tests {
     #[test]
     fn panels_shown_after_a_hidden_frame_are_drawn() {
         let gpu = gpu();
-        let target = gpu.create_render_target("overlay target", 200, 200, FORMAT);
+        let target = gpu
+            .create_render_target("overlay target", 200, 200, FORMAT)
+            .expect("the GPU has memory for it");
         let mut overlay = Overlay::new(&gpu, FORMAT, 1.0);
         // egui hands its font texture over on its first frame, which draws nothing here: the
         // panels drawn later sample it.
@@ -378,7 +392,9 @@ mod tests {
     #[test]
     fn a_device_lost_earlier_in_the_frame_drops_the_frame() {
         let gpu = gpu();
-        let target = gpu.create_render_target("overlay target", 200, 200, FORMAT);
+        let target = gpu
+            .create_render_target("overlay target", 200, 200, FORMAT)
+            .expect("the GPU has memory for it");
         let mut overlay = Overlay::new(&gpu, FORMAT, 1.0);
         let panels = |ctx: &egui::Context| {
             egui::Window::new("panel").show(ctx, |ui| ui.label("text"));
@@ -396,7 +412,9 @@ mod tests {
     #[should_panic(expected = "the overlay draws into Bgra8UnormSrgb targets")]
     fn a_target_of_another_format_is_refused() {
         let gpu = gpu();
-        let target = gpu.create_render_target("overlay target", 4, 4, FORMAT);
+        let target = gpu
+            .create_render_target("overlay target", 4, 4, FORMAT)
+            .expect("the GPU has memory for it");
         let mut overlay = Overlay::new(&gpu, TextureFormat::Bgra8UnormSrgb, 1.0);
         overlay.render(&gpu, &target, |_| {});
     }

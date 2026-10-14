@@ -98,6 +98,13 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- Every method of `Gpu` that creates a GPU object returns a `Result`
+  ([ADR-0044](docs/adr/0044-running-out-of-gpu-memory.md)): the new `GfxError::OutOfMemory` when
+  the GPU's memory cannot hold it, where the engine panicked, so that a game can free memory or ask
+  for less; and `GfxError::DeviceLost` on a lost device, where it returned an object that could not
+  be used. Memory that runs out in a creation the engine does not make, in egui's renderer for
+  example, gives the device up and stops the run cleanly. The `SLIME_GPU_MEMORY_BUDGET`
+  environment variable lowers the memory that creations may use, to try a game with less.
 - On Direct3D 12, shaders are compiled with FXC, which is part of Windows, on every machine
   ([ADR-0036](docs/adr/0036-direct3d-12-shader-compiler.md)). wgpu used any `dxcompiler.dll` that
   Windows found, whatever its version, so the same program could compile its shaders differently,

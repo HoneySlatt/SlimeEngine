@@ -94,9 +94,10 @@ impl Pixel {
         at: (u32, u32),
         bloom: f32,
     ) -> (FloatImage, RenderStats) {
-        let output =
-            self.gpu
-                .create_render_target("output", width, height, TextureFormat::Rgba16Float);
+        let output = self
+            .gpu
+            .create_render_target("output", width, height, TextureFormat::Rgba16Float)
+            .expect("the GPU has memory for it");
         let mesh: Mesh = self
             .renderer
             .create_mesh(&self.gpu, "pixel", &pixel_square(width, height, at))
@@ -228,7 +229,9 @@ fn uniform(
     light: f32,
     bloom: f32,
 ) -> (FloatImage, RenderStats) {
-    let output = gpu.create_render_target("output", width, height, TextureFormat::Rgba16Float);
+    let output = gpu
+        .create_render_target("output", width, height, TextureFormat::Rgba16Float)
+        .expect("the GPU has memory for it");
     let environment = renderer.create_environment(
         gpu,
         &Sky {

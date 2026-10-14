@@ -28,12 +28,14 @@ const TIME: f32 = 0.7;
 fn the_shapes_match_their_reference_image() {
     let gpu =
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-    let target = gpu.create_render_target(
-        "reference shapes",
-        SIZE,
-        SIZE,
-        TextureFormat::Rgba8UnormSrgb,
-    );
+    let target = gpu
+        .create_render_target(
+            "reference shapes",
+            SIZE,
+            SIZE,
+            TextureFormat::Rgba8UnormSrgb,
+        )
+        .expect("the GPU has memory for it");
     let mut shapes = Shapes::new(&gpu, target.format()).expect("the shapes' GPU objects are valid");
     let stats = shapes.render(&gpu, &target, TIME);
     // Three cubes of 12 triangles and seven spheres of 720.

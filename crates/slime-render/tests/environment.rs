@@ -108,8 +108,9 @@ impl Setup {
             Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
         let renderer =
             Renderer::new(&gpu, TextureFormat::Rgba16Float).expect("the renderer is created");
-        let output =
-            gpu.create_render_target("environment", SIZE, SIZE, TextureFormat::Rgba16Float);
+        let output = gpu
+            .create_render_target("environment", SIZE, SIZE, TextureFormat::Rgba16Float)
+            .expect("the GPU has memory for it");
         let sphere = renderer
             .create_mesh(&gpu, "sphere", &sphere(64, 128))
             .expect("the sphere is valid");

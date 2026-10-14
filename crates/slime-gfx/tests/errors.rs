@@ -127,38 +127,50 @@ fn a_pipeline_whose_shader_bindings_are_not_in_its_layouts_is_rejected() {
 #[test]
 #[should_panic(expected = "vertex buffer `empty mesh` is empty")]
 fn an_empty_vertex_buffer_is_rejected_at_creation() {
-    gpu().create_vertex_buffer("empty mesh", &[]);
+    gpu()
+        .create_vertex_buffer("empty mesh", &[])
+        .expect("the GPU has memory for it");
 }
 
 #[test]
 #[should_panic(expected = "index buffer `empty mesh` is empty")]
 fn an_empty_index_buffer_is_rejected_at_creation() {
-    gpu().create_index_buffer("empty mesh", &[]);
+    gpu()
+        .create_index_buffer("empty mesh", &[])
+        .expect("the GPU has memory for it");
 }
 
 #[test]
 #[should_panic(expected = "uniform buffer `odd` holds 6 bytes")]
 fn a_uniform_buffer_whose_size_is_not_a_multiple_of_4_is_rejected_at_creation() {
-    gpu().create_uniform_buffer("odd", &[0; 6]);
+    gpu()
+        .create_uniform_buffer("odd", &[0; 6])
+        .expect("the GPU has memory for it");
 }
 
 #[test]
 #[should_panic(expected = "texture `empty` is 0x4: a texture has at least one pixel")]
 fn a_texture_without_pixels_is_a_bug_named_in_the_message() {
-    gpu().create_texture("empty", 0, 4, TextureFormat::Rgba8UnormSrgb, &[]);
+    gpu()
+        .create_texture("empty", 0, 4, TextureFormat::Rgba8UnormSrgb, &[])
+        .expect("the GPU has memory for it");
 }
 
 #[test]
 #[should_panic(expected = "texture `tiny` is 2x2 and needs 16 bytes of pixels, but 12 were given")]
 fn a_texture_with_the_wrong_number_of_bytes_is_rejected_at_creation() {
-    gpu().create_texture("tiny", 2, 2, TextureFormat::Rgba8UnormSrgb, &[0; 12]);
+    gpu()
+        .create_texture("tiny", 2, 2, TextureFormat::Rgba8UnormSrgb, &[0; 12])
+        .expect("the GPU has memory for it");
 }
 
 #[test]
 #[should_panic(expected = "uniform buffer `offset` holds 16 bytes, but 8 were written")]
 fn a_write_of_another_size_than_the_uniform_buffer_is_rejected() {
     let gpu = gpu();
-    let buffer = gpu.create_uniform_buffer("offset", &[0; 16]);
+    let buffer = gpu
+        .create_uniform_buffer("offset", &[0; 16])
+        .expect("the GPU has memory for it");
     assert_eq!(buffer.size(), 16);
     gpu.write_uniform_buffer(&buffer, &[0; 8]);
 }
@@ -287,7 +299,9 @@ fn bindings_declared_as_another_kind_than_their_layout_are_rejected() {
         let shader = gpu
             .create_shader_module(label, &format!("{fullscreen}{fragment}"))
             .expect("the shader compiles");
-        let layout = gpu.create_bind_group_layout(label, &entries);
+        let layout = gpu
+            .create_bind_group_layout(label, &entries)
+            .expect("the GPU has memory for it");
         let message = pipeline_error(
             &gpu,
             &RenderPipelineDescriptor {
@@ -317,7 +331,9 @@ fn bindings_declared_as_another_kind_than_their_layout_are_rejected() {
 )]
 fn a_float_target_is_not_read_as_bytes() {
     let gpu = gpu();
-    let target = gpu.create_render_target("hdr", 1, 1, TextureFormat::Rgba16Float);
+    let target = gpu
+        .create_render_target("hdr", 1, 1, TextureFormat::Rgba16Float)
+        .expect("the GPU has memory for it");
     let _ = gpu.read_render_target(&target);
 }
 
@@ -325,12 +341,16 @@ fn a_float_target_is_not_read_as_bytes() {
 #[should_panic(expected = "render target `image` is Rgba8UnormSrgb, not Rgba16Float")]
 fn an_8_bit_target_is_not_read_as_floats() {
     let gpu = gpu();
-    let target = gpu.create_render_target("image", 1, 1, TextureFormat::Rgba8UnormSrgb);
+    let target = gpu
+        .create_render_target("image", 1, 1, TextureFormat::Rgba8UnormSrgb)
+        .expect("the GPU has memory for it");
     let _ = gpu.read_float_render_target(&target);
 }
 
 #[test]
 #[should_panic(expected = "texture `hdr`: Rgba16Float textures take levels given by the caller")]
 fn a_float_texture_takes_levels_given_by_the_caller() {
-    gpu().create_texture("hdr", 1, 1, TextureFormat::Rgba16Float, &[0; 8]);
+    gpu()
+        .create_texture("hdr", 1, 1, TextureFormat::Rgba16Float, &[0; 8])
+        .expect("the GPU has memory for it");
 }

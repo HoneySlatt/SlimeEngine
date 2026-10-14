@@ -415,8 +415,12 @@ mod tests {
         // What `SurfaceFrame::present` relies on to give wgpu a submission when nothing drew.
         let gpu =
             Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-        let drawn = gpu.create_render_target("drawn", 4, 4, TextureFormat::Rgba8UnormSrgb);
-        let untouched = gpu.create_render_target("untouched", 4, 4, TextureFormat::Rgba8UnormSrgb);
+        let drawn = gpu
+            .create_render_target("drawn", 4, 4, TextureFormat::Rgba8UnormSrgb)
+            .expect("the GPU has memory for it");
+        let untouched = gpu
+            .create_render_target("untouched", 4, 4, TextureFormat::Rgba8UnormSrgb)
+            .expect("the GPU has memory for it");
         let is_drawn = |target: &RenderTarget| target.drawn.load(Ordering::Relaxed);
         gpu.submit("drawn", |commands| {
             let pass = RenderPassDescriptor {

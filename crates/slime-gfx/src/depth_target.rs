@@ -1,6 +1,7 @@
 //! Depth targets: textures holding the depth of what was drawn, for depth testing and for later
 //! passes to sample.
 
+use crate::error::GfxError;
 use crate::gpu::Gpu;
 
 /// The format of every depth target: 32-bit floating-point depth, without stencil. The same on
@@ -46,32 +47,45 @@ impl Gpu {
     /// passes that test depth with it ([`Gpu::render`] asserts it), or any size for a depth-only
     /// pass ([`Gpu::render_depth`]). `label` names it in error messages and in GPU capture tools.
     ///
+    /// # Errors
+    ///
+    /// [`GfxError::OutOfMemory`] if the GPU's memory cannot hold it, and [`GfxError::DeviceLost`]
+    /// once the device is lost ([`Gpu::check`]): nothing is created then.
+    ///
     /// # Panics
     ///
     /// If `width` or `height` is zero or larger than the device allows (8192 with the default
     /// limits).
-    pub fn create_depth_target(&self, label: &str, width: u32, height: u32) -> DepthTarget {
-        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some(label),
-            size: wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: DEPTH_FORMAT,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        });
+    pub fn create_depth_target(
+        &self,
+        label: &str,
+        width: u32,
+        height: u32,
+    ) -> Result<DepthTarget, GfxError> {
+        let texture = self.create(label, || {
+            self.device.create_texture(&wgpu::TextureDescriptor {
+                label: Some(label),
+                size: wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: DEPTH_FORMAT,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            })
+        })?;
         // The view keeps the texture alive.
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        DepthTarget {
+        Ok(DepthTarget {
             view,
             label: label.to_owned(),
             width,
             height,
-        }
+        })
     }
 }

@@ -1,6 +1,6 @@
 # 0022. Losing the GPU device
 
-- Status: Accepted; amended by [0025](0025-giving-up-a-lost-surface.md) (surface lost for good)
+- Status: Accepted; amended by [0025](0025-giving-up-a-lost-surface.md) (surface lost for good) and [0044](0044-running-out-of-gpu-memory.md) (a lost device creates nothing; memory that runs out unseen gives the device up)
 - Date: 2026-10-12
 
 ## Context

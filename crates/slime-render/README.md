@@ -61,7 +61,7 @@ use std::f32::consts::PI;
 
 fn main() -> Result<(), RenderError> {
     let gpu = Gpu::new()?;
-    let target = gpu.create_render_target("image", 64, 64, TextureFormat::Rgba8UnormSrgb);
+    let target = gpu.create_render_target("image", 64, 64, TextureFormat::Rgba8UnormSrgb).expect("the GPU has memory for it");
     let mut renderer = Renderer::new(&gpu, target.format())?;
     let triangle = renderer.create_mesh(&gpu, "triangle", &MeshData {
         positions: vec![[-1.0, -1.0, 0.0], [1.0, -1.0, 0.0], [0.0, 1.0, 0.0]],

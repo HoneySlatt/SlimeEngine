@@ -29,7 +29,9 @@ fn pixel(image: &Image, (x, y): (u32, u32)) -> [u8; 4] {
 fn the_base_color_texture_is_read_at_the_texture_coordinates_and_tints_the_base_color() {
     let gpu =
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-    let target = gpu.create_render_target("materials", SIZE, SIZE, TextureFormat::Rgba8UnormSrgb);
+    let target = gpu
+        .create_render_target("materials", SIZE, SIZE, TextureFormat::Rgba8UnormSrgb)
+        .expect("the GPU has memory for it");
     let mut renderer = Renderer::new(&gpu, target.format()).expect("the renderer is created");
     // A square facing +Z, two units wide, with the texture's top left at its top left.
     let square = renderer
@@ -51,24 +53,28 @@ fn the_base_color_texture_is_read_at_the_texture_coordinates_and_tints_the_base_
         )
         .expect("the square is valid");
     // Red and green on the top row, blue and white below.
-    let texture = gpu.create_texture(
-        "quarters",
-        2,
-        2,
-        TextureFormat::Rgba8UnormSrgb,
-        &[
-            255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255,
-        ],
-    );
-    let sampler = gpu.create_sampler(
-        "nearest",
-        &SamplerDescriptor {
-            mag_filter: Filter::Nearest,
-            min_filter: Filter::Nearest,
-            address_u: AddressMode::ClampToEdge,
-            address_v: AddressMode::ClampToEdge,
-        },
-    );
+    let texture = gpu
+        .create_texture(
+            "quarters",
+            2,
+            2,
+            TextureFormat::Rgba8UnormSrgb,
+            &[
+                255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255,
+            ],
+        )
+        .expect("the GPU has memory for it");
+    let sampler = gpu
+        .create_sampler(
+            "nearest",
+            &SamplerDescriptor {
+                mag_filter: Filter::Nearest,
+                min_filter: Filter::Nearest,
+                address_u: AddressMode::ClampToEdge,
+                address_v: AddressMode::ClampToEdge,
+            },
+        )
+        .expect("the GPU has memory for it");
     let sampled = SampledTexture {
         texture: &texture,
         sampler: &sampler,

@@ -31,7 +31,7 @@ pub use bind_group::{
 pub use depth_target::DepthTarget;
 pub use error::GfxError;
 pub use float16::f32_to_f16;
-pub use gpu::Gpu;
+pub use gpu::{Gpu, MEMORY_BUDGET_ENV_VAR};
 pub use image::{FloatImage, Image};
 pub use index_buffer::IndexBuffer;
 pub use pass::{Color, Commands, DepthPassDescriptor, RenderPass, RenderPassDescriptor};

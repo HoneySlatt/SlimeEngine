@@ -262,8 +262,11 @@ Each GPU object is an engine-owned type holding its wgpu object
 ([ADR-0017](adr/0017-gpu-resource-types.md); bind groups and depth:
 [ADR-0026](adr/0026-resource-binding-and-depth.md); float and sampled targets, depth-only passes:
 [ADR-0033](adr/0033-gpu-layer-for-multi-pass-rendering.md)). Shader modules and pipelines are
-created inside a wgpu error scope, so that a rejection comes back as an error with wgpu's message;
-any other wgpu error is a bug and panics ([ADR-0016](adr/0016-gpu-layer-with-wgpu.md)). The test
+created inside a wgpu error scope, so that a rejection comes back as an error with wgpu's message,
+and every creation inside an out-of-memory scope, so that memory that runs out comes back as
+`GfxError::OutOfMemory` and the caller can react
+([ADR-0044](adr/0044-running-out-of-gpu-memory.md)); any other wgpu error is a bug and panics
+([ADR-0016](adr/0016-gpu-layer-with-wgpu.md)). The test
 [`examples/tests/offscreen.rs`](../examples/tests/offscreen.rs) compares the image with a
 reference PNG within a tolerance ([ADR-0018](adr/0018-reference-image-tests.md)).
 
@@ -427,8 +430,11 @@ receives them in every build ([ADR-0016](adr/0016-gpu-layer-with-wgpu.md)).
 ### Losing the GPU
 
 The driver can lose the device: it crashes or is reset, the GPU is removed, or it runs out of
-memory. `slime-gfx` records the loss in wgpu's device-lost callback, and from then on its error
-handler logs wgpu's errors instead of panicking, since every use of the device fails. Before each
+memory. Memory that runs out in a creation that no caller hears of, made by a library built on
+wgpu such as egui's renderer, gives the device up the same way
+([ADR-0044](adr/0044-running-out-of-gpu-memory.md)). `slime-gfx` records the loss in wgpu's
+device-lost callback, and from then on its error handler logs wgpu's errors instead of panicking,
+since every use of the device fails, and creations return `GfxError::DeviceLost`. Before each
 frame, the windowed driver checks `Gpu::check()` with the other reasons to stop: after a loss, the
 run stops like after an exit request, and `run` returns `RunError::Gfx` with
 `GfxError::DeviceLost` ([ADR-0022](adr/0022-losing-the-gpu-device.md)). The window's surface can be

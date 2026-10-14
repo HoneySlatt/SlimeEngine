@@ -160,8 +160,9 @@ impl Mesh {
                 label: label.to_owned(),
                 reason,
             })?;
-        let vertices = gpu.create_vertex_buffer(&format!("{label} vertices"), &data.vertex_bytes());
-        let indices = gpu.create_index_buffer(&format!("{label} indices"), &data.indices);
+        let vertices =
+            gpu.create_vertex_buffer(&format!("{label} vertices"), &data.vertex_bytes())?;
+        let indices = gpu.create_index_buffer(&format!("{label} indices"), &data.indices)?;
         let (min, max) = data.bounds();
         Ok(Self {
             vertices,

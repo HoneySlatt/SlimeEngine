@@ -3,6 +3,7 @@
 use std::num::NonZeroU64;
 
 use crate::depth_target::DepthTarget;
+use crate::error::GfxError;
 use crate::gpu::Gpu;
 use crate::render_target::RenderTarget;
 use crate::sampler::{ComparisonSampler, Sampler};
@@ -134,6 +135,11 @@ impl Gpu {
     /// index ([`RenderPipelineDescriptor::bind_group_layouts`](crate::RenderPipelineDescriptor::bind_group_layouts)),
     /// and [`Gpu::create_bind_group`] creates the groups bound to it.
     ///
+    /// # Errors
+    ///
+    /// [`GfxError::DeviceLost`] once the device is lost ([`Gpu::check`]), including when the GPU's
+    /// memory cannot hold it: wgpu then loses the device. Nothing is created then.
+    ///
     /// # Panics
     ///
     /// If two entries have the same binding number: this is a bug in the caller (ADR-0016).
@@ -141,7 +147,7 @@ impl Gpu {
         &self,
         label: &str,
         entries: &[BindGroupLayoutEntry],
-    ) -> BindGroupLayout {
+    ) -> Result<BindGroupLayout, GfxError> {
         let entries: Vec<wgpu::BindGroupLayoutEntry> = entries
             .iter()
             .map(|entry| wgpu::BindGroupLayoutEntry {
@@ -178,17 +184,23 @@ impl Gpu {
                 count: None,
             })
             .collect();
-        let layout = self
-            .device
-            .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some(label),
-                entries: &entries,
-            });
-        BindGroupLayout { layout }
+        let layout = self.create(label, || {
+            self.device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some(label),
+                    entries: &entries,
+                })
+        })?;
+        Ok(BindGroupLayout { layout })
     }
 
     /// Creates a bind group of `layout` holding `entries`: one per entry of the layout, each of
     /// the kind that entry declares. `label` names it in error messages and in GPU capture tools.
+    ///
+    /// # Errors
+    ///
+    /// [`GfxError::DeviceLost`] once the device is lost ([`Gpu::check`]), including when the GPU's
+    /// memory cannot hold it: wgpu then loses the device. Nothing is created then.
     ///
     /// # Panics
     ///
@@ -204,7 +216,7 @@ impl Gpu {
         label: &str,
         layout: &BindGroupLayout,
         entries: &[BindGroupEntry<'_>],
-    ) -> BindGroup {
+    ) -> Result<BindGroup, GfxError> {
         let entries: Vec<wgpu::BindGroupEntry<'_>> = entries
             .iter()
             .map(|entry| wgpu::BindGroupEntry {
@@ -242,12 +254,14 @@ impl Gpu {
                 },
             })
             .collect();
-        let group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some(label),
-            layout: &layout.layout,
-            entries: &entries,
-        });
-        BindGroup { group }
+        let group = self.create(label, || {
+            self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some(label),
+                layout: &layout.layout,
+                entries: &entries,
+            })
+        })?;
+        Ok(BindGroup { group })
     }
 }
 
@@ -290,14 +304,16 @@ mod tests {
         let gpu =
             Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
         let image = window_image(&gpu);
-        let layout = gpu.create_bind_group_layout(
-            "window image",
-            &[BindGroupLayoutEntry {
-                binding: 0,
-                visible_to: ShaderStages::Fragment,
-                ty: BindingType::Texture,
-            }],
-        );
+        let layout = gpu
+            .create_bind_group_layout(
+                "window image",
+                &[BindGroupLayoutEntry {
+                    binding: 0,
+                    visible_to: ShaderStages::Fragment,
+                    ty: BindingType::Texture,
+                }],
+            )
+            .expect("the GPU has memory for it");
         gpu.create_bind_group(
             "window image",
             &layout,
@@ -305,6 +321,7 @@ mod tests {
                 binding: 0,
                 resource: BindingResource::RenderTarget(&image),
             }],
-        );
+        )
+        .expect("the GPU has memory for it");
     }
 }

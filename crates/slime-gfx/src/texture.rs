@@ -3,6 +3,7 @@
 use std::borrow::Cow;
 use std::sync::LazyLock;
 
+use crate::error::GfxError;
 use crate::gpu::Gpu;
 use crate::render_target::TextureFormat;
 
@@ -54,6 +55,11 @@ impl Gpu {
     /// weighted by how much of it the pixel covers. `label` names the texture in error messages
     /// and in GPU capture tools.
     ///
+    /// # Errors
+    ///
+    /// [`GfxError::OutOfMemory`] if the GPU's memory cannot hold it, and [`GfxError::DeviceLost`]
+    /// once the device is lost ([`Gpu::check`]): nothing is created then.
+    ///
     /// # Panics
     ///
     /// If `format` is `Rgba16Float`, whose textures take levels the caller gives
@@ -67,7 +73,7 @@ impl Gpu {
         height: u32,
         format: TextureFormat,
         pixels: &[u8],
-    ) -> Texture {
+    ) -> Result<Texture, GfxError> {
         assert!(
             format != TextureFormat::Rgba16Float,
             "texture `{label}`: Rgba16Float textures take levels given by the caller \
@@ -107,6 +113,11 @@ impl Gpu {
     /// [`f32_to_f16`](crate::f32_to_f16) gives them. Sampled like the textures of
     /// [`Gpu::create_texture`]; a sampler reads no level beyond the last given.
     ///
+    /// # Errors
+    ///
+    /// [`GfxError::OutOfMemory`] if the GPU's memory cannot hold it, and [`GfxError::DeviceLost`]
+    /// once the device is lost ([`Gpu::check`]): nothing is created then.
+    ///
     /// # Panics
     ///
     /// If `width` or `height` is zero or larger than the device allows
@@ -119,7 +130,7 @@ impl Gpu {
         height: u32,
         format: TextureFormat,
         levels: &[&[u8]],
-    ) -> Texture {
+    ) -> Result<Texture, GfxError> {
         self.create_texture_from_levels(label, (width, height), 1, format, levels)
     }
 
@@ -144,6 +155,10 @@ impl Gpu {
     /// the convention of Vulkan, Direct3D and Metal, which wgpu follows on every graphics API.
     /// Filtering blends pixels across the edges between faces.
     ///
+    /// # Errors
+    ///
+    /// As [`Gpu::create_texture_with_levels`].
+    ///
     /// # Panics
     ///
     /// As [`Gpu::create_texture_with_levels`], for a level holding six faces.
@@ -153,7 +168,7 @@ impl Gpu {
         size: u32,
         format: TextureFormat,
         levels: &[&[u8]],
-    ) -> Texture {
+    ) -> Result<Texture, GfxError> {
         self.create_texture_from_levels(label, (size, size), 6, format, levels)
     }
 
@@ -166,7 +181,7 @@ impl Gpu {
         layers: u32,
         format: TextureFormat,
         levels: &[&[u8]],
-    ) -> Texture {
+    ) -> Result<Texture, GfxError> {
         assert!(
             width > 0 && height > 0,
             "texture `{label}` is {width}x{height}: a texture has at least one pixel"
@@ -179,22 +194,9 @@ impl Gpu {
             levels.len()
         );
         let texel_size = format.texel_size();
-        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some(label),
-            size: wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: layers,
-            },
-            mip_level_count: levels.len() as u32,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: format.to_wgpu(),
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[],
-        });
+        let level_size = |index: usize| ((width >> index).max(1), (height >> index).max(1));
         for (index, bytes) in levels.iter().enumerate() {
-            let (level_width, level_height) = ((width >> index).max(1), (height >> index).max(1));
+            let (level_width, level_height) = level_size(index);
             let expected = (level_width * level_height * layers * texel_size) as usize;
             assert!(
                 bytes.len() == expected,
@@ -202,6 +204,25 @@ impl Gpu {
                  needs {expected} bytes, but {} were given",
                 bytes.len()
             );
+        }
+        let texture = self.create(label, || {
+            self.device.create_texture(&wgpu::TextureDescriptor {
+                label: Some(label),
+                size: wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: layers,
+                },
+                mip_level_count: levels.len() as u32,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: format.to_wgpu(),
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                view_formats: &[],
+            })
+        })?;
+        for (index, bytes) in levels.iter().enumerate() {
+            let (level_width, level_height) = level_size(index);
             // Unlike copies recorded in a command encoder, this write needs no row alignment.
             self.queue.write_texture(
                 wgpu::TexelCopyTextureInfo {
@@ -231,13 +252,15 @@ impl Gpu {
             }),
             ..wgpu::TextureViewDescriptor::default()
         });
+        // Memory that runs out while the levels are uploaded loses the device.
+        self.check()?;
         // The view keeps the texture alive.
-        Texture {
+        Ok(Texture {
             view,
             width,
             height,
             format,
-        }
+        })
     }
 }
 

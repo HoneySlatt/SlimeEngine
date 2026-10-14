@@ -41,13 +41,18 @@ fn a_timed_pass_reports_how_long_it_took_when_the_adapter_can_tell() {
         gpu.adapter_name(),
         gpu.can_time()
     );
-    let Some(timer) = gpu.create_timer("test", 1) else {
+    let Some(timer) = gpu
+        .create_timer("test", 1)
+        .expect("the GPU has memory for it")
+    else {
         assert!(!gpu.can_time(), "an adapter that can time gives a timer");
         return;
     };
     assert!(timer.latest(0).is_none(), "nothing has been timed yet");
 
-    let target = gpu.create_render_target("timed", 64, 64, TextureFormat::Rgba8UnormSrgb);
+    let target = gpu
+        .create_render_target("timed", 64, 64, TextureFormat::Rgba8UnormSrgb)
+        .expect("the GPU has memory for it");
     let mut measured = None;
     for frame in 0..8 {
         let pass = RenderPassDescriptor {
@@ -76,12 +81,17 @@ fn a_time_comes_back_with_later_frames_without_waiting() {
     // frame's submission, which is when wgpu collects the passes the GPU has finished.
     let gpu =
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-    let Some(timer) = gpu.create_timer("frames", 1) else {
+    let Some(timer) = gpu
+        .create_timer("frames", 1)
+        .expect("the GPU has memory for it")
+    else {
         assert!(!gpu.can_time(), "an adapter that can time gives a timer");
         eprintln!("adapter `{}` cannot time its work", gpu.adapter_name());
         return;
     };
-    let target = gpu.create_render_target("timed", 64, 64, TextureFormat::Rgba8UnormSrgb);
+    let target = gpu
+        .create_render_target("timed", 64, 64, TextureFormat::Rgba8UnormSrgb)
+        .expect("the GPU has memory for it");
     let pass = RenderPassDescriptor {
         target: &target,
         clear: Some(BLACK),
@@ -110,18 +120,31 @@ fn a_time_comes_back_with_later_frames_without_waiting() {
 fn three_passes_timed_in_one_frame_each_get_their_own_time() {
     let gpu =
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-    let Some(shadow) = gpu.create_timer("shadow", 1) else {
+    let Some(shadow) = gpu
+        .create_timer("shadow", 1)
+        .expect("the GPU has memory for it")
+    else {
         assert!(!gpu.can_time(), "an adapter that can time gives a timer");
         eprintln!("adapter `{}` cannot time its work", gpu.adapter_name());
         return;
     };
-    let scene = gpu.create_timer("scene", 1).expect("the adapter can time");
+    let scene = gpu
+        .create_timer("scene", 1)
+        .expect("the GPU has memory for it")
+        .expect("the adapter can time");
     let tone_mapping = gpu
         .create_timer("tone mapping", 1)
+        .expect("the GPU has memory for it")
         .expect("the adapter can time");
-    let depth = gpu.create_depth_target("shadow map", 64, 64);
-    let hdr = gpu.create_render_target("hdr", 64, 64, TextureFormat::Rgba16Float);
-    let output = gpu.create_render_target("output", 64, 64, TextureFormat::Rgba8UnormSrgb);
+    let depth = gpu
+        .create_depth_target("shadow map", 64, 64)
+        .expect("the GPU has memory for it");
+    let hdr = gpu
+        .create_render_target("hdr", 64, 64, TextureFormat::Rgba16Float)
+        .expect("the GPU has memory for it");
+    let output = gpu
+        .create_render_target("output", 64, 64, TextureFormat::Rgba8UnormSrgb)
+        .expect("the GPU has memory for it");
 
     let mut times = [None; 3];
     for _frame in 0..8 {
@@ -163,14 +186,23 @@ fn three_passes_timed_in_one_frame_each_get_their_own_time() {
 fn three_passes_of_one_submission_each_get_their_own_time_from_one_timer() {
     let gpu =
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-    let Some(timer) = gpu.create_timer("frame", 3) else {
+    let Some(timer) = gpu
+        .create_timer("frame", 3)
+        .expect("the GPU has memory for it")
+    else {
         assert!(!gpu.can_time(), "an adapter that can time gives a timer");
         eprintln!("adapter `{}` cannot time its work", gpu.adapter_name());
         return;
     };
-    let depth = gpu.create_depth_target("shadow map", 64, 64);
-    let hdr = gpu.create_render_target("hdr", 64, 64, TextureFormat::Rgba16Float);
-    let output = gpu.create_render_target("output", 64, 64, TextureFormat::Rgba8UnormSrgb);
+    let depth = gpu
+        .create_depth_target("shadow map", 64, 64)
+        .expect("the GPU has memory for it");
+    let hdr = gpu
+        .create_render_target("hdr", 64, 64, TextureFormat::Rgba16Float)
+        .expect("the GPU has memory for it");
+    let output = gpu
+        .create_render_target("output", 64, 64, TextureFormat::Rgba8UnormSrgb)
+        .expect("the GPU has memory for it");
 
     let mut times = [None; 3];
     for _frame in 0..8 {

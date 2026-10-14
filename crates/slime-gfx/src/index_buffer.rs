@@ -1,5 +1,6 @@
 //! Buffers of vertex indices.
 
+use crate::error::GfxError;
 use crate::gpu::Gpu;
 
 /// A buffer of 32-bit indices into a vertex buffer, which indexed draws read
@@ -24,12 +25,21 @@ impl Gpu {
     /// Creates an index buffer holding `indices`, each the position of a vertex in the vertex
     /// buffer bound with it. `label` names it in error messages and in GPU capture tools.
     ///
+    /// # Errors
+    ///
+    /// [`GfxError::OutOfMemory`] if the GPU's memory cannot hold it, and [`GfxError::DeviceLost`]
+    /// once the device is lost ([`Gpu::check`]): nothing is created then.
+    ///
     /// # Panics
     ///
     /// If `indices` is empty (wgpu cannot bind an empty buffer), holds more than `u32::MAX`
     /// indices, or is larger than the device allows ([`Gpu::max_buffer_size`], 256 MiB with the
     /// default limits: 4 bytes per index).
-    pub fn create_index_buffer(&self, label: &str, indices: &[u32]) -> IndexBuffer {
+    pub fn create_index_buffer(
+        &self,
+        label: &str,
+        indices: &[u32],
+    ) -> Result<IndexBuffer, GfxError> {
         assert!(
             !indices.is_empty(),
             "index buffer `{label}` is empty: wgpu cannot bind an empty buffer"
@@ -40,7 +50,9 @@ impl Gpu {
             .iter()
             .flat_map(|index| index.to_le_bytes())
             .collect();
-        let buffer = self.create_buffer_with(label, &contents, wgpu::BufferUsages::INDEX);
-        IndexBuffer { buffer, count }
+        let buffer = self.create(label, || {
+            self.create_buffer_with(label, &contents, wgpu::BufferUsages::INDEX)
+        })?;
+        Ok(IndexBuffer { buffer, count })
     }
 }

@@ -1,5 +1,6 @@
 //! Buffers of vertex data.
 
+use crate::error::GfxError;
 use crate::gpu::Gpu;
 
 /// A buffer of vertex data that render passes read.
@@ -16,16 +17,27 @@ impl Gpu {
     /// declares in its [`VertexLayout`](crate::VertexLayout). `label` names it in error messages
     /// and in GPU capture tools.
     ///
+    /// # Errors
+    ///
+    /// [`GfxError::OutOfMemory`] if the GPU's memory cannot hold it, and [`GfxError::DeviceLost`]
+    /// once the device is lost ([`Gpu::check`]): nothing is created then.
+    ///
     /// # Panics
     ///
     /// If `contents` is empty (wgpu cannot bind an empty buffer), or larger than the device allows
     /// ([`Gpu::max_buffer_size`], 256 MiB with the default limits).
-    pub fn create_vertex_buffer(&self, label: &str, contents: &[u8]) -> VertexBuffer {
+    pub fn create_vertex_buffer(
+        &self,
+        label: &str,
+        contents: &[u8],
+    ) -> Result<VertexBuffer, GfxError> {
         assert!(
             !contents.is_empty(),
             "vertex buffer `{label}` is empty: wgpu cannot bind an empty buffer"
         );
-        let buffer = self.create_buffer_with(label, contents, wgpu::BufferUsages::VERTEX);
-        VertexBuffer { buffer }
+        let buffer = self.create(label, || {
+            self.create_buffer_with(label, contents, wgpu::BufferUsages::VERTEX)
+        })?;
+        Ok(VertexBuffer { buffer })
     }
 }

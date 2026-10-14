@@ -1,5 +1,6 @@
 //! Buffers of uniform data: values that a whole draw reads, such as a camera's matrices.
 
+use crate::error::GfxError;
 use crate::gpu::Gpu;
 
 /// A buffer of uniform data, which shaders read through a bind group
@@ -28,28 +29,39 @@ impl Gpu {
     /// WGSL's uniform layout rules, where vectors of three or four components and matrices are
     /// aligned to 16 bytes. `label` names it in error messages and in GPU capture tools.
     ///
+    /// # Errors
+    ///
+    /// [`GfxError::OutOfMemory`] if the GPU's memory cannot hold it, and [`GfxError::DeviceLost`]
+    /// once the device is lost ([`Gpu::check`]): nothing is created then.
+    ///
     /// # Panics
     ///
     /// If `contents` is empty or its length is not a multiple of 4 bytes, which GPU copies
     /// require, or if it is larger than the device allows (256 MiB with the default limits). A
     /// binding of the whole buffer is limited to 64 KiB with the default limits; a buffer holding
     /// the values of many draws, bound one range at a time, can be larger.
-    pub fn create_uniform_buffer(&self, label: &str, contents: &[u8]) -> UniformBuffer {
+    pub fn create_uniform_buffer(
+        &self,
+        label: &str,
+        contents: &[u8],
+    ) -> Result<UniformBuffer, GfxError> {
         assert!(
             !contents.is_empty() && contents.len().is_multiple_of(4),
             "uniform buffer `{label}` holds {} bytes; it needs at least 4, in multiples of 4",
             contents.len()
         );
-        let buffer = self.create_buffer_with(
-            label,
-            contents,
-            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        );
-        UniformBuffer {
+        let buffer = self.create(label, || {
+            self.create_buffer_with(
+                label,
+                contents,
+                wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            )
+        })?;
+        Ok(UniformBuffer {
             buffer,
             label: label.to_owned(),
             size: contents.len(),
-        }
+        })
     }
 
     /// Replaces the content of `buffer` with `contents`. The draws of work submitted after this

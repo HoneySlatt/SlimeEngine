@@ -42,7 +42,9 @@ fn the_triangle_in_the_usual_window_format_matches_the_same_reference() {
 fn check_triangle(format: TextureFormat, name: &str) {
     let gpu =
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-    let target = gpu.create_render_target("reference triangle", SIZE, SIZE, format);
+    let target = gpu
+        .create_render_target("reference triangle", SIZE, SIZE, format)
+        .expect("the GPU has memory for it");
     let triangle =
         Triangle::new(&gpu, target.format()).expect("the triangle's GPU objects are valid");
     let pass = RenderPassDescriptor {

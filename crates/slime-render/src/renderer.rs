@@ -354,7 +354,7 @@ impl Renderer {
                     ty: BindingType::Sampler,
                 },
             ],
-        );
+        )?;
         // The material's values, then each texture slot: a texture and its sampler.
         let mut material_entries = vec![BindGroupLayoutEntry {
             binding: 0,
@@ -375,8 +375,8 @@ impl Renderer {
                 });
             }
         }
-        let material_layout = gpu.create_bind_group_layout("material", &material_entries);
-        let instance_layout = uniform("instance", true);
+        let material_layout = gpu.create_bind_group_layout("material", &material_entries)?;
+        let instance_layout = uniform("instance", true)?;
         // Apart from the frame's group, which the shadow pass binds: a pass cannot bind what it
         // draws into.
         let shadow_layout = gpu.create_bind_group_layout(
@@ -393,7 +393,7 @@ impl Renderer {
                     ty: BindingType::ComparisonSampler,
                 },
             ],
-        );
+        )?;
         let scene_pipeline = |label: &str, cull: CullMode| {
             gpu.create_render_pipeline(&RenderPipelineDescriptor {
                 label,
@@ -444,9 +444,9 @@ impl Renderer {
             }),
         )?;
         let shadow_pipeline = shadow_pipeline("shadow", None)?;
-        let shadow_map = gpu.create_depth_target("shadow map", SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
+        let shadow_map = gpu.create_depth_target("shadow map", SHADOW_MAP_SIZE, SHADOW_MAP_SIZE)?;
         let shadow_sampler =
-            gpu.create_comparison_sampler("shadow map", DepthCompare::LessEqual, Filter::Linear);
+            gpu.create_comparison_sampler("shadow map", DepthCompare::LessEqual, Filter::Linear)?;
         let shadow_group = gpu.create_bind_group(
             "shadow map",
             &shadow_layout,
@@ -460,7 +460,7 @@ impl Renderer {
                     resource: BindingResource::ComparisonSampler(&shadow_sampler),
                 },
             ],
-        );
+        )?;
         let scene_pipelines = ScenePipelines {
             back_culled: scene_pipeline("scene, back faces culled", CullMode::Back)?,
             front_culled: scene_pipeline("scene, front faces culled", CullMode::Front)?,
@@ -508,12 +508,12 @@ impl Renderer {
                 BindingType::Sampler,
                 values,
             ]),
-        );
+        )?;
         let bloom_shader = gpu.create_shader_module("bloom", BLOOM_SHADER)?;
         let bloom_down_layout = gpu.create_bind_group_layout(
             "bloom down",
             &fragment_entries(&[BindingType::Texture, BindingType::Sampler]),
-        );
+        )?;
         let bloom_up_layout = gpu.create_bind_group_layout(
             "bloom up",
             &fragment_entries(&[
@@ -522,7 +522,7 @@ impl Renderer {
                 BindingType::Texture,
                 values,
             ]),
-        );
+        )?;
         let bloom_pipeline = |label: &str, entry_point: &str, layout: &BindGroupLayout| {
             gpu.create_render_pipeline(&RenderPipelineDescriptor {
                 label,
@@ -548,8 +548,8 @@ impl Renderer {
                 address_v: AddressMode::MirrorRepeat,
                 ..SamplerDescriptor::default()
             },
-        );
-        let bloom_strength = gpu.create_uniform_buffer("bloom strength", &[0; 16]);
+        )?;
+        let bloom_strength = gpu.create_uniform_buffer("bloom strength", &[0; 16])?;
         let tone_mapping_pipeline = gpu.create_render_pipeline(&RenderPipelineDescriptor {
             label: "tone mapping",
             shader: &tone_mapping_shader,
@@ -563,7 +563,7 @@ impl Renderer {
             depth: None,
             cull: CullMode::None,
         })?;
-        let frame_uniform = gpu.create_uniform_buffer("frame", &[0; FRAME_VALUES_SIZE]);
+        let frame_uniform = gpu.create_uniform_buffer("frame", &[0; FRAME_VALUES_SIZE])?;
         let no_environment = Environment::black(gpu);
         let brdf_table = brdf_table(gpu);
         let environment_sampler = gpu.create_sampler(
@@ -573,7 +573,7 @@ impl Renderer {
                 address_v: AddressMode::ClampToEdge,
                 ..SamplerDescriptor::default()
             },
-        );
+        )?;
         let frame_group = frame_group(
             gpu,
             &frame_layout,
@@ -588,8 +588,8 @@ impl Renderer {
             1,
             TextureFormat::Rgba8UnormSrgb,
             &[255, 255, 255, 255],
-        );
-        let default_sampler = gpu.create_sampler("default", &SamplerDescriptor::default());
+        )?;
+        let default_sampler = gpu.create_sampler("default", &SamplerDescriptor::default())?;
         let instances = InstanceSlots::new(gpu, &instance_layout, INITIAL_INSTANCE_CAPACITY);
         if !gpu.can_time() {
             tracing::info!("the adapter cannot time its work: the statistics have no GPU time");
@@ -671,7 +671,9 @@ impl Renderer {
     /// data and need a format without sRGB encoding, `Rgba8Unorm`. Read in the other kind of
     /// format, their values would be wrong: this is a bug in the caller.
     pub fn create_material(&self, gpu: &Gpu, label: &str, data: &MaterialData<'_>) -> Material {
-        let uniform = gpu.create_uniform_buffer(label, &data.values());
+        let uniform = gpu
+            .create_uniform_buffer(label, &data.values())
+            .expect("the renderer's GPU objects fit in memory");
         // Each slot: its name, its texture, and whether it holds colors (sRGB) rather than data.
         let slots = [
             ("base color", data.base_color_texture, true),
@@ -711,7 +713,9 @@ impl Renderer {
                 resource: BindingResource::Sampler(sampler),
             });
         }
-        let group = gpu.create_bind_group(label, &self.material_layout, &entries);
+        let group = gpu
+            .create_bind_group(label, &self.material_layout, &entries)
+            .expect("the renderer's GPU objects fit in memory");
         Material {
             group,
             double_sided: data.double_sided,
@@ -1072,7 +1076,10 @@ impl Renderer {
                     }
                 };
                 let (label, layout, mut resources, weight) = entries;
-                let weight = weight.map(|weight| gpu.create_uniform_buffer(&label, &weight));
+                let weight = weight.map(|weight| {
+                    gpu.create_uniform_buffer(&label, &weight)
+                        .expect("the renderer's GPU objects fit in memory")
+                });
                 if let Some(weight) = &weight {
                     resources.push(BindingResource::UniformBuffer(weight));
                 }
@@ -1080,7 +1087,10 @@ impl Renderer {
                     .zip(resources)
                     .map(|(binding, resource)| BindGroupEntry { binding, resource })
                     .collect();
-                Some(gpu.create_bind_group(&label, layout, &entries))
+                Some(
+                    gpu.create_bind_group(&label, layout, &entries)
+                        .expect("the renderer's GPU objects fit in memory"),
+                )
             })
             .collect();
         Frame {
@@ -1247,6 +1257,7 @@ fn frame_group(
             },
         ],
     )
+    .expect("the renderer's GPU objects fit in memory")
 }
 
 /// The matrix that transforms the normals of an instance placed by `transform`. It gives
@@ -1365,18 +1376,22 @@ struct InstanceSlots {
 impl InstanceSlots {
     fn new(gpu: &Gpu, layout: &BindGroupLayout, capacity: usize) -> Self {
         let stride = INSTANCE_VALUES_SIZE.next_multiple_of(gpu.uniform_offset_alignment());
-        let buffer = gpu.create_uniform_buffer("instances", &vec![0; capacity * stride]);
-        let group = gpu.create_bind_group(
-            "instances",
-            layout,
-            &[BindGroupEntry {
-                binding: 0,
-                resource: BindingResource::UniformBufferRange {
-                    buffer: &buffer,
-                    size: INSTANCE_VALUES_SIZE,
-                },
-            }],
-        );
+        let buffer = gpu
+            .create_uniform_buffer("instances", &vec![0; capacity * stride])
+            .expect("the renderer's GPU objects fit in memory");
+        let group = gpu
+            .create_bind_group(
+                "instances",
+                layout,
+                &[BindGroupEntry {
+                    binding: 0,
+                    resource: BindingResource::UniformBufferRange {
+                        buffer: &buffer,
+                        size: INSTANCE_VALUES_SIZE,
+                    },
+                }],
+            )
+            .expect("the renderer's GPU objects fit in memory");
         Self {
             buffer,
             group,

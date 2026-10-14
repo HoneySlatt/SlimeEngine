@@ -24,11 +24,28 @@ pub enum GfxError {
         offered: String,
     },
     /// The GPU device was lost: the driver crashed or was reset, the GPU was removed, or it ran out
-    /// of memory. Objects created from the device can no longer be used.
+    /// of memory where wgpu cannot recover (see [`OutOfMemory`](Self::OutOfMemory)). Objects
+    /// created from the device can no longer be used.
     #[error("the GPU device was lost: {message}")]
     DeviceLost {
         /// The reason the driver gave.
         message: String,
+    },
+    /// The GPU's memory cannot hold an object being created: a buffer, a texture, a render or
+    /// depth target, a sampler, a timer's queries and buffers, or the buffer of a readback. Nothing
+    /// was created and the device can still be used: the same creation can succeed once the
+    /// caller has freed memory, by dropping objects the GPU no longer uses, or asks for less.
+    ///
+    /// wgpu reports these, and the engine returns them, for the memory of the object itself.
+    /// When memory runs out elsewhere, wgpu loses the device instead, and the creation returns
+    /// [`DeviceLost`](Self::DeviceLost): for the staging memory that carries an object's data to
+    /// the GPU, and for the other kinds of objects (bind groups, shaders, pipelines). Memory that
+    /// runs out in a creation the engine does not make, in a library built on wgpu, is handled as
+    /// a device loss too. ADR-0044 records why.
+    #[error("out of GPU memory: cannot create `{label}`")]
+    OutOfMemory {
+        /// The label given to the object.
+        label: String,
     },
     /// A shader module was rejected, usually because its WGSL source does not compile.
     #[error("shader `{label}` was rejected:\n{message}")]

@@ -49,7 +49,8 @@ fn main() -> ExitCode {
 
 fn render_to_file(output: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
     let gpu = Gpu::new()?;
-    let target = gpu.create_render_target("offscreen", SIZE, SIZE, TextureFormat::Rgba8UnormSrgb);
+    let target =
+        gpu.create_render_target("offscreen", SIZE, SIZE, TextureFormat::Rgba8UnormSrgb)?;
     let triangle = Triangle::new(&gpu, target.format())?;
     let pass = RenderPassDescriptor {
         target: &target,

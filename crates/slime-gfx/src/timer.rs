@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::time::Duration;
 
+use crate::error::GfxError;
 use crate::gpu::Gpu;
 
 /// How many timed submissions can be in flight with their times not read yet; beyond that,
@@ -76,17 +77,38 @@ impl Gpu {
     /// cannot time its work ([`Gpu::can_time`]). `label` names its GPU objects in error messages
     /// and in GPU capture tools.
     ///
+    /// # Errors
+    ///
+    /// [`GfxError::OutOfMemory`] if the GPU's memory cannot hold its queries and buffers, and
+    /// [`GfxError::DeviceLost`] once the device is lost ([`Gpu::check`]): nothing is created then.
+    ///
     /// # Panics
     ///
     /// If `passes` is 0 or more than 512, the most that wgpu's query sets hold.
-    pub fn create_timer(&self, label: &str, passes: u32) -> Option<GpuTimer> {
+    pub fn create_timer(&self, label: &str, passes: u32) -> Result<Option<GpuTimer>, GfxError> {
         assert!(
             (1..=MAX_PASSES).contains(&passes),
             "timer `{label}` for {passes} passes per submission; a timer times 1 to {MAX_PASSES}"
         );
         if !self.can_time() {
-            return None;
+            return Ok(None);
         }
+        let (query_set, slots) = self.create(label, || self.create_timer_objects(label, passes))?;
+        let (sender, mapped) = mpsc::channel();
+        Ok(Some(GpuTimer {
+            id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
+            query_set,
+            passes,
+            slots,
+            mapped,
+            sender,
+            period: self.queue.get_timestamp_period(),
+            latest: (0..passes).map(|_| Cell::new(None)).collect(),
+        }))
+    }
+
+    /// The query set and the slots of a timer for `passes` passes per submission.
+    fn create_timer_objects(&self, label: &str, passes: u32) -> (wgpu::QuerySet, Vec<Slot>) {
         let query_set = self.device.create_query_set(&wgpu::QuerySetDescriptor {
             label: Some(label),
             ty: wgpu::QueryType::Timestamp,
@@ -110,17 +132,7 @@ impl Gpu {
                 in_flight: Cell::new(false),
             })
             .collect();
-        let (sender, mapped) = mpsc::channel();
-        Some(GpuTimer {
-            id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
-            query_set,
-            passes,
-            slots,
-            mapped,
-            sender,
-            period: self.queue.get_timestamp_period(),
-            latest: (0..passes).map(|_| Cell::new(None)).collect(),
-        })
+        (query_set, slots)
     }
 }
 
@@ -279,11 +291,16 @@ mod tests {
     fn passes_beyond_the_slots_go_untimed_until_reading_frees_them() {
         let gpu =
             Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-        let Some(timer) = gpu.create_timer("slots", 1) else {
+        let Some(timer) = gpu
+            .create_timer("slots", 1)
+            .expect("the GPU has memory for it")
+        else {
             eprintln!("adapter `{}` cannot time its work", gpu.adapter_name());
             return;
         };
-        let target = gpu.create_render_target("timed", 4, 4, TextureFormat::Rgba8UnormSrgb);
+        let target = gpu
+            .create_render_target("timed", 4, 4, TextureFormat::Rgba8UnormSrgb)
+            .expect("the GPU has memory for it");
         let pass = RenderPassDescriptor {
             target: &target,
             clear: Some(Color {
@@ -327,11 +344,16 @@ mod tests {
     fn one_slot_times_the_passes_of_a_submission_up_to_the_timer_s_number() {
         let gpu =
             Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-        let Some(timer) = gpu.create_timer("passes", 2) else {
+        let Some(timer) = gpu
+            .create_timer("passes", 2)
+            .expect("the GPU has memory for it")
+        else {
             eprintln!("adapter `{}` cannot time its work", gpu.adapter_name());
             return;
         };
-        let target = gpu.create_render_target("timed", 4, 4, TextureFormat::Rgba8UnormSrgb);
+        let target = gpu
+            .create_render_target("timed", 4, 4, TextureFormat::Rgba8UnormSrgb)
+            .expect("the GPU has memory for it");
         let pass = RenderPassDescriptor {
             target: &target,
             clear: Some(Color {

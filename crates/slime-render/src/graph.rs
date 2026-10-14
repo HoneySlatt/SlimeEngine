@@ -462,10 +462,14 @@ impl Graph {
                 })
             });
             let created = reused.unwrap_or_else(|| match format {
-                Some(format) => {
-                    Created::Color(gpu.create_render_target(&target.label, size.0, size.1, format))
-                }
-                None => Created::Depth(gpu.create_depth_target(&target.label, size.0, size.1)),
+                Some(format) => Created::Color(
+                    gpu.create_render_target(&target.label, size.0, size.1, format)
+                        .expect("the renderer's GPU objects fit in memory"),
+                ),
+                None => Created::Depth(
+                    gpu.create_depth_target(&target.label, size.0, size.1)
+                        .expect("the renderer's GPU objects fit in memory"),
+                ),
             });
             self.targets[index].created = Some(created);
         }
@@ -479,6 +483,7 @@ impl Graph {
                     &format!("frame {submission}"),
                     u32::try_from(timed).expect("at most PASSES_PER_SUBMISSION"),
                 )
+                .expect("the renderer's GPU objects fit in memory")
             })
             .collect();
     }
@@ -920,7 +925,9 @@ mod tests {
 
         let (mut first, kept, other) = declare(8, 8, HDR);
         first.create(&gpu, None);
-        let output = gpu.create_render_target("output", 8, 8, TextureFormat::Rgba8UnormSrgb);
+        let output = gpu
+            .create_render_target("output", 8, 8, TextureFormat::Rgba8UnormSrgb)
+            .expect("the GPU has memory for it");
         first.record(&gpu, "frame", &[Imported::Color(&output)], |_, _, _| {});
         assert_eq!(
             (alpha(first.color(kept)), alpha(first.color(other))),
@@ -971,7 +978,9 @@ mod tests {
         let created = graph.color(half);
         assert_eq!((created.width(), created.height()), (4, 3), "7x5 halved");
 
-        let target = gpu.create_render_target("output", 7, 5, TextureFormat::Rgba8UnormSrgb);
+        let target = gpu
+            .create_render_target("output", 7, 5, TextureFormat::Rgba8UnormSrgb)
+            .expect("the GPU has memory for it");
         let mut times = vec![None; 6];
         for _frame in 0..8 {
             let mut recorded = Vec::new();

@@ -42,8 +42,9 @@ const SIZE: u32 = 256;
 fn the_gltf_scene_matches_its_reference_images() {
     let gpu =
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-    let target =
-        gpu.create_render_target("reference glTF", SIZE, SIZE, TextureFormat::Rgba8UnormSrgb);
+    let target = gpu
+        .create_render_target("reference glTF", SIZE, SIZE, TextureFormat::Rgba8UnormSrgb)
+        .expect("the GPU has memory for it");
     let mut scene = SampleScene::new(&gpu, target.format(), sample_scene::ASSET)
         .expect("the sample asset loads");
     // The budget of the plan is for release builds; this is a debug build's, among other tests.
@@ -855,7 +856,9 @@ const TRIANGLE_CENTRE: Vec3 = Vec3::new(1.0 / 3.0, 1.0 / 3.0, 0.0);
 /// every node of `file` is moved 1 km aside: the sky behind it.
 fn centre_and_sky_behind(gpu: &Gpu, file: &mut Glb, centre: Vec3, yaw: f32) -> ([u8; 3], [u8; 3]) {
     let shown = |bytes: &[u8]| {
-        let target = gpu.create_render_target("triangle", 64, 64, TextureFormat::Rgba8UnormSrgb);
+        let target = gpu
+            .create_render_target("triangle", 64, 64, TextureFormat::Rgba8UnormSrgb)
+            .expect("the GPU has memory for it");
         let mut scene = SampleScene::new(gpu, target.format(), bytes).expect("the triangle loads");
         scene.render(
             gpu,

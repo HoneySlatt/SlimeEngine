@@ -64,7 +64,9 @@ impl Setup {
             Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
         let renderer =
             Renderer::new(&gpu, TextureFormat::Rgba16Float).expect("the renderer is created");
-        let output = gpu.create_render_target("shadows", SIZE, SIZE, TextureFormat::Rgba16Float);
+        let output = gpu
+            .create_render_target("shadows", SIZE, SIZE, TextureFormat::Rgba16Float)
+            .expect("the GPU has memory for it");
         let square = renderer
             .create_mesh(
                 &gpu,
@@ -460,22 +462,28 @@ fn a_masked_material_casts_no_shadow_where_it_discards() {
     let mut setup = Setup::new();
     let white = setup.white.clone();
     // The square's left half is transparent, its right half opaque (a 2 × 1 texture read nearest).
-    let texture = setup.gpu.create_texture(
-        "half",
-        2,
-        1,
-        TextureFormat::Rgba8UnormSrgb,
-        &[255, 255, 255, 0, 255, 255, 255, 255],
-    );
-    let nearest = setup.gpu.create_sampler(
-        "nearest",
-        &slime_gfx::SamplerDescriptor {
-            mag_filter: slime_gfx::Filter::Nearest,
-            min_filter: slime_gfx::Filter::Nearest,
-            address_u: slime_gfx::AddressMode::ClampToEdge,
-            address_v: slime_gfx::AddressMode::ClampToEdge,
-        },
-    );
+    let texture = setup
+        .gpu
+        .create_texture(
+            "half",
+            2,
+            1,
+            TextureFormat::Rgba8UnormSrgb,
+            &[255, 255, 255, 0, 255, 255, 255, 255],
+        )
+        .expect("the GPU has memory for it");
+    let nearest = setup
+        .gpu
+        .create_sampler(
+            "nearest",
+            &slime_gfx::SamplerDescriptor {
+                mag_filter: slime_gfx::Filter::Nearest,
+                min_filter: slime_gfx::Filter::Nearest,
+                address_u: slime_gfx::AddressMode::ClampToEdge,
+                address_v: slime_gfx::AddressMode::ClampToEdge,
+            },
+        )
+        .expect("the GPU has memory for it");
     let half = setup.renderer.create_material(
         &setup.gpu,
         "half",

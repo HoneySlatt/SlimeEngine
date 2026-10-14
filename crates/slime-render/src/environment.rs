@@ -182,12 +182,10 @@ impl Environment {
         let levels: Vec<Vec<u8>> = levels.iter().map(|level| halves(level)).collect();
         let levels: Vec<&[u8]> = levels.iter().map(Vec::as_slice).collect();
         Self {
-            texture: Arc::new(gpu.create_cube_texture(
-                label,
-                size,
-                TextureFormat::Rgba16Float,
-                &levels,
-            )),
+            texture: Arc::new(
+                gpu.create_cube_texture(label, size, TextureFormat::Rgba16Float, &levels)
+                    .expect("the renderer's GPU objects fit in memory"),
+            ),
             to_sun: Vec3::Y,
             sun_radiance: Vec3::ZERO,
         }
@@ -560,6 +558,7 @@ pub(crate) fn brdf_table(gpu: &Gpu) -> Texture {
         TextureFormat::Rgba16Float,
         &[&halves(&BRDF_TABLE)],
     )
+    .expect("the renderer's GPU objects fit in memory")
 }
 
 #[cfg(test)]

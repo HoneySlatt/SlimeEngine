@@ -70,7 +70,9 @@ impl Setup {
             Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
         let renderer =
             Renderer::new(&gpu, TextureFormat::Rgba16Float).expect("the renderer is created");
-        let output = gpu.create_render_target("shading", SIZE, SIZE, TextureFormat::Rgba16Float);
+        let output = gpu
+            .create_render_target("shading", SIZE, SIZE, TextureFormat::Rgba16Float)
+            .expect("the GPU has memory for it");
         let square = renderer
             .create_mesh(
                 &gpu,
@@ -89,15 +91,17 @@ impl Setup {
                 },
             )
             .expect("the square is valid");
-        let nearest = gpu.create_sampler(
-            "nearest",
-            &SamplerDescriptor {
-                mag_filter: Filter::Nearest,
-                min_filter: Filter::Nearest,
-                address_u: AddressMode::ClampToEdge,
-                address_v: AddressMode::ClampToEdge,
-            },
-        );
+        let nearest = gpu
+            .create_sampler(
+                "nearest",
+                &SamplerDescriptor {
+                    mag_filter: Filter::Nearest,
+                    min_filter: Filter::Nearest,
+                    address_u: AddressMode::ClampToEdge,
+                    address_v: AddressMode::ClampToEdge,
+                },
+            )
+            .expect("the GPU has memory for it");
         Self {
             gpu,
             renderer,
@@ -116,6 +120,7 @@ impl Setup {
         let height = u32::try_from(pixels.len()).expect("a small texture") / width;
         self.gpu
             .create_texture("texture", width, height, format, pixels.as_flattened())
+            .expect("the GPU has memory for it")
     }
 
     /// `texture` read through the nearest sampler.

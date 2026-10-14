@@ -55,7 +55,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 
 fn main() -> Result<(), GfxError> {
     let gpu = Gpu::new()?;
-    let target = gpu.create_render_target("image", 64, 64, TextureFormat::Rgba8UnormSrgb);
+    let target = gpu.create_render_target("image", 64, 64, TextureFormat::Rgba8UnormSrgb)?;
     let shader = gpu.create_shader_module("white", SHADER)?;
     let pipeline = gpu.create_render_pipeline(&RenderPipelineDescriptor {
         label: "white triangles",
@@ -80,7 +80,7 @@ fn main() -> Result<(), GfxError> {
     // Three corners as (x, y) pairs of f32, in the GPU's byte order (little-endian).
     let corners: [f32; 6] = [0.0, 0.5, -0.5, -0.5, 0.5, -0.5];
     let bytes: Vec<u8> = corners.iter().flat_map(|value| value.to_le_bytes()).collect();
-    let vertices = gpu.create_vertex_buffer("triangle", &bytes);
+    let vertices = gpu.create_vertex_buffer("triangle", &bytes)?;
 
     let black = Color { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
     let pass = RenderPassDescriptor { target: &target, clear: Some(black), depth: None, timer: None };
@@ -106,6 +106,15 @@ fn main() -> Result<(), GfxError> {
   return a `Result` then return that error, and the others do nothing
   (`docs/adr/0022-losing-the-gpu-device.md`). A loss that a wait for the GPU is the first to find
   panics inside wgpu, which treats it as fatal.
+- Every method that creates a GPU object returns a `Result`: `GfxError::OutOfMemory` when the
+  GPU's memory cannot hold the object, so that a game can react, by freeing memory or asking for
+  less (a texture of lower resolution, a smaller part of a world), and `GfxError::DeviceLost` once
+  the device is lost; nothing is created then. Memory that runs out where wgpu cannot recover, or
+  in a creation that a library built on wgpu makes, loses the device. A mistake in the arguments,
+  such as an empty buffer, is a bug and panics. The `SLIME_GPU_MEMORY_BUDGET` environment
+  variable lowers the memory that creations may use, to a percentage of what the driver allows
+  the process, to try a game as on a GPU with less memory
+  (`docs/adr/0044-running-out-of-gpu-memory.md`).
 - GPU objects, each created by a method of `Gpu` with a label that names it in error messages and
   GPU capture tools (`docs/adr/0017-gpu-resource-types.md`):
   - `RenderTarget`: an image the GPU draws into (`create_render_target`), in one of the

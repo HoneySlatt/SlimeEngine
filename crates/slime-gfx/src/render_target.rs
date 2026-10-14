@@ -3,6 +3,7 @@
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
+use crate::error::GfxError;
 use crate::gpu::Gpu;
 
 /// The formats of the engine's textures: those it renders into, and those shaders sample.
@@ -119,6 +120,11 @@ impl Gpu {
     /// [`BindingType::Texture`](crate::BindingType::Texture) binding); a pass cannot sample the
     /// target it draws into. Until a pass draws into it, it reads as zeros.
     ///
+    /// # Errors
+    ///
+    /// [`GfxError::OutOfMemory`] if the GPU's memory cannot hold it, and [`GfxError::DeviceLost`]
+    /// once the device is lost ([`Gpu::check`]): nothing is created then.
+    ///
     /// # Panics
     ///
     /// If `width` or `height` is zero or larger than the device allows (8192 with the default
@@ -129,24 +135,26 @@ impl Gpu {
         width: u32,
         height: u32,
         format: TextureFormat,
-    ) -> RenderTarget {
-        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some(label),
-            size: wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: format.to_wgpu(),
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-                | wgpu::TextureUsages::COPY_SRC
-                | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        });
-        RenderTarget::new(texture, label, format)
+    ) -> Result<RenderTarget, GfxError> {
+        let texture = self.create(label, || {
+            self.device.create_texture(&wgpu::TextureDescriptor {
+                label: Some(label),
+                size: wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: format.to_wgpu(),
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::COPY_SRC
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            })
+        })?;
+        Ok(RenderTarget::new(texture, label, format))
     }
 }
 

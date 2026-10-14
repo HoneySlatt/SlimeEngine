@@ -97,9 +97,10 @@ impl Setup {
         (width, height): (u32, u32),
         exposure: f32,
     ) -> (Image, RenderStats) {
-        let target =
-            self.gpu
-                .create_render_target("lighting", width, height, TextureFormat::Rgba8UnormSrgb);
+        let target = self
+            .gpu
+            .create_render_target("lighting", width, height, TextureFormat::Rgba8UnormSrgb)
+            .expect("the GPU has memory for it");
         let camera = Camera {
             eye: Vec3::new(0.0, 0.0, 3.0),
             ..Camera::default()

@@ -101,7 +101,9 @@ fn the_tone_mapping_pass_maps_light_as_the_specification_says() {
     let gpu = gpu();
     let mut renderer =
         Renderer::new(&gpu, TextureFormat::Rgba16Float).expect("the renderer is created");
-    let output = gpu.create_render_target("output", 4, 4, TextureFormat::Rgba16Float);
+    let output = gpu
+        .create_render_target("output", 4, 4, TextureFormat::Rgba16Float)
+        .expect("the GPU has memory for it");
     for (light, expected) in CURVE {
         let stats = draw(&gpu, &mut renderer, &output, light, 1.0);
         assert_eq!(
@@ -120,7 +122,9 @@ fn the_exposure_multiplies_the_light_before_the_curve() {
     let gpu = gpu();
     let mut renderer =
         Renderer::new(&gpu, TextureFormat::Rgba16Float).expect("the renderer is created");
-    let output = gpu.create_render_target("output", 4, 4, TextureFormat::Rgba16Float);
+    let output = gpu
+        .create_render_target("output", 4, 4, TextureFormat::Rgba16Float)
+        .expect("the GPU has memory for it");
     for (light, exposure, expected) in [
         (0.25, 2.0, 0.46),
         (2.0, 0.25, 0.46),
@@ -144,7 +148,9 @@ fn the_sky_is_exposed_before_the_high_dynamic_range_target_and_kept_within_its_r
     let gpu = gpu();
     let mut renderer =
         Renderer::new(&gpu, TextureFormat::Rgba16Float).expect("the renderer is created");
-    let output = gpu.create_render_target("output", 4, 4, TextureFormat::Rgba16Float);
+    let output = gpu
+        .create_render_target("output", 4, 4, TextureFormat::Rgba16Float)
+        .expect("the GPU has memory for it");
     // The target holds exposed light divided by 64 (ADR-0040); beyond 64 × 65 504 it is stored as
     // 65 504, as the sky shader writes it, rather than left to the driver, which may store an
     // infinity that the curve turns into NaN. lavapipe and RADV would store 65 504 without the
@@ -241,7 +247,9 @@ fn the_targets_follow_the_size_of_the_output() {
         ((7, 7), 4.0, 0.983_255_8),
         ((4, 3), 2.0, 0.96),
     ] {
-        let output = gpu.create_render_target("output", width, height, TextureFormat::Rgba16Float);
+        let output = gpu
+            .create_render_target("output", width, height, TextureFormat::Rgba16Float)
+            .expect("the GPU has memory for it");
         draw(&gpu, &mut renderer, &output, [light; 3], 1.0);
         let image = gpu
             .read_float_render_target(&output)
@@ -256,7 +264,9 @@ fn an_srgb_output_encodes_the_tone_mapped_light() {
     let gpu = gpu();
     let mut renderer =
         Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer is created");
-    let output = gpu.create_render_target("output", 4, 4, TextureFormat::Rgba8UnormSrgb);
+    let output = gpu
+        .create_render_target("output", 4, 4, TextureFormat::Rgba8UnormSrgb)
+        .expect("the GPU has memory for it");
     draw(&gpu, &mut renderer, &output, [4.0; 3], 1.0);
     let image = gpu
         .read_render_target(&output)

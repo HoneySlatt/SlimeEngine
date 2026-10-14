@@ -78,27 +78,37 @@ impl Scene {
     fn new() -> Self {
         let gpu =
             Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-        let target = gpu.create_render_target("scene", SIZE, SIZE, TextureFormat::Rgba8UnormSrgb);
-        let depth = gpu.create_depth_target("scene depth", SIZE, SIZE);
-        let layout = gpu.create_bind_group_layout(
-            "offset",
-            &[BindGroupLayoutEntry {
-                binding: 0,
-                visible_to: ShaderStages::Vertex,
-                ty: BindingType::UniformBuffer {
-                    dynamic_offset: false,
-                },
-            }],
-        );
-        let offset = gpu.create_uniform_buffer("offset", &offset_bytes(0.0, 0.0));
-        let group = gpu.create_bind_group(
-            "offset",
-            &layout,
-            &[BindGroupEntry {
-                binding: 0,
-                resource: BindingResource::UniformBuffer(&offset),
-            }],
-        );
+        let target = gpu
+            .create_render_target("scene", SIZE, SIZE, TextureFormat::Rgba8UnormSrgb)
+            .expect("the GPU has memory for it");
+        let depth = gpu
+            .create_depth_target("scene depth", SIZE, SIZE)
+            .expect("the GPU has memory for it");
+        let layout = gpu
+            .create_bind_group_layout(
+                "offset",
+                &[BindGroupLayoutEntry {
+                    binding: 0,
+                    visible_to: ShaderStages::Vertex,
+                    ty: BindingType::UniformBuffer {
+                        dynamic_offset: false,
+                    },
+                }],
+            )
+            .expect("the GPU has memory for it");
+        let offset = gpu
+            .create_uniform_buffer("offset", &offset_bytes(0.0, 0.0))
+            .expect("the GPU has memory for it");
+        let group = gpu
+            .create_bind_group(
+                "offset",
+                &layout,
+                &[BindGroupEntry {
+                    binding: 0,
+                    resource: BindingResource::UniformBuffer(&offset),
+                }],
+            )
+            .expect("the GPU has memory for it");
         Self {
             gpu,
             target,
@@ -121,7 +131,9 @@ impl Scene {
             .flat_map(|(position, color)| position.iter().chain(color))
             .flat_map(|value| value.to_le_bytes())
             .collect();
-        self.gpu.create_vertex_buffer("vertices", &bytes)
+        self.gpu
+            .create_vertex_buffer("vertices", &bytes)
+            .expect("the GPU has memory for it")
     }
 
     /// Clears the target to black, binds the offset, lets `draw` draw, with the depth target when
@@ -184,7 +196,10 @@ fn an_indexed_quad_fills_the_target() {
         ([1.0, 1.0, 0.5], WHITE),
         ([-1.0, 1.0, 0.5], WHITE),
     ]);
-    let indices = scene.gpu.create_index_buffer("quad", &[0, 1, 2, 0, 2, 3]);
+    let indices = scene
+        .gpu
+        .create_index_buffer("quad", &[0, 1, 2, 0, 2, 3])
+        .expect("the GPU has memory for it");
     assert_eq!(indices.count(), 6);
     let image = scene.render(false, |pass| {
         pass.set_pipeline(&pipeline);
@@ -381,7 +396,10 @@ fn faces_are_culled_as_the_pipeline_says() {
 #[should_panic(expected = "depth target `small depth` is 4x4 but render target `scene` is 8x8")]
 fn a_depth_target_of_another_size_is_rejected() {
     let scene = Scene::new();
-    let small = scene.gpu.create_depth_target("small depth", 4, 4);
+    let small = scene
+        .gpu
+        .create_depth_target("small depth", 4, 4)
+        .expect("the GPU has memory for it");
     let pass = RenderPassDescriptor {
         target: &scene.target,
         clear: Some(BLACK),
@@ -441,28 +459,37 @@ fn a_dynamic_offset_selects_the_values_of_each_draw() {
     let mut slots = vec![0; alignment * 2];
     slots[..16].copy_from_slice(&offset_bytes(0.0, 0.0));
     slots[alignment..alignment + 16].copy_from_slice(&offset_bytes(1.0, 1.0));
-    let buffer = scene.gpu.create_uniform_buffer("offsets", &slots);
-    let layout = scene.gpu.create_bind_group_layout(
-        "dynamic offset",
-        &[BindGroupLayoutEntry {
-            binding: 0,
-            visible_to: ShaderStages::Vertex,
-            ty: BindingType::UniformBuffer {
-                dynamic_offset: true,
-            },
-        }],
-    );
-    let group = scene.gpu.create_bind_group(
-        "dynamic offset",
-        &layout,
-        &[BindGroupEntry {
-            binding: 0,
-            resource: BindingResource::UniformBufferRange {
-                buffer: &buffer,
-                size: 16,
-            },
-        }],
-    );
+    let buffer = scene
+        .gpu
+        .create_uniform_buffer("offsets", &slots)
+        .expect("the GPU has memory for it");
+    let layout = scene
+        .gpu
+        .create_bind_group_layout(
+            "dynamic offset",
+            &[BindGroupLayoutEntry {
+                binding: 0,
+                visible_to: ShaderStages::Vertex,
+                ty: BindingType::UniformBuffer {
+                    dynamic_offset: true,
+                },
+            }],
+        )
+        .expect("the GPU has memory for it");
+    let group = scene
+        .gpu
+        .create_bind_group(
+            "dynamic offset",
+            &layout,
+            &[BindGroupEntry {
+                binding: 0,
+                resource: BindingResource::UniformBufferRange {
+                    buffer: &buffer,
+                    size: 16,
+                },
+            }],
+        )
+        .expect("the GPU has memory for it");
     let pipeline = pipeline_for(
         &scene.gpu,
         &layout,

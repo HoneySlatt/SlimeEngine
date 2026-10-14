@@ -38,14 +38,25 @@ impl Gpu {
     /// on Vulkan in debug builds (or with `WGPU_DEBUG=1`), on Direct3D 12 in every build (unless
     /// `WGPU_DISCARD_HAL_LABELS=1` is set). The graphics API's own validation layers stay off
     /// unless `WGPU_VALIDATION=1` is set; wgpu always validates how the engine uses it, and a use
-    /// it rejects is a bug that panics, except once the device is lost ([`Gpu::check`]). The
-    /// device has the default limits, and the optional features the adapter offers among those the
-    /// engine uses: timestamp queries ([`Gpu::can_time`]).
+    /// it rejects is a bug that panics, except once the device is lost ([`Gpu::check`]). Memory
+    /// that runs out is not a bug: see [`GfxError::OutOfMemory`]. The device has the default
+    /// limits, and the optional features the adapter offers among those the engine uses:
+    /// timestamp queries ([`Gpu::can_time`]).
+    ///
+    /// The `SLIME_GPU_MEMORY_BUDGET` environment variable ([`MEMORY_BUDGET_ENV_VAR`]), a percentage
+    /// from 1 to 100, makes the creation of buffers, textures and timers fail with
+    /// [`GfxError::OutOfMemory`] once the memory in use would pass that share of what the driver
+    /// allows the process, to try a game with less memory and to test how it handles these errors.
+    /// It works on Direct3D 12, and on Vulkan with drivers that report their memory budget
+    /// (`VK_EXT_memory_budget`: RADV and lavapipe do). Drivers count the memory already in use
+    /// differently: lavapipe counts the whole machine's, so that below a share that depends on
+    /// what else runs, the device does not even open ([`GfxError::RequestDevice`]).
     ///
     /// # Errors
     ///
     /// [`GfxError::NoAdapter`] if no adapter of the graphics API is available, and
-    /// [`GfxError::RequestDevice`] if the adapter refuses to open a device.
+    /// [`GfxError::RequestDevice`] if the adapter refuses to open a device, as when the memory
+    /// budget is too small for it.
     pub fn new() -> Result<Self, GfxError> {
         Self::open(&create_instance(), None).map(|(gpu, _adapter)| gpu)
     }
@@ -96,10 +107,18 @@ impl Gpu {
             let loss = Arc::clone(&loss);
             move |error: wgpu::Error| {
                 // Every use of a lost device fails; the loss itself is what matters, and the run
-                // stops on it (ADR-0022). Before the loss, an error is a bug in the engine or the
-                // application, as with wgpu's default handler.
+                // stops on it (ADR-0022). Memory that runs out here ran out in a creation that no
+                // caller hears of, one made by a library built on wgpu such as egui's renderer:
+                // the device is given up as if it were lost, so that the run stops cleanly
+                // (ADR-0044). Before that, an error is a bug in the engine or the application, as
+                // with wgpu's default handler.
                 if loss.get().is_some() {
                     tracing::debug!(%error, "GPU error after the device was lost");
+                } else if let wgpu::Error::OutOfMemory { .. } = error {
+                    tracing::error!(%error, "out of GPU memory where no caller can be told");
+                    let _ = loss.set(format!(
+                        "out of GPU memory where no caller can be told: {error}"
+                    ));
                 } else {
                     panic!("wgpu error: {error}");
                 }
@@ -152,8 +171,31 @@ impl Gpu {
         Ok((created, error))
     }
 
-    /// Creates a buffer of `usage` holding `contents`, which must not be empty. On a lost device,
-    /// the buffer cannot be used, like every object created then.
+    /// Runs `create`, which creates the GPU objects of `label`, inside an out-of-memory error
+    /// scope, and returns what it created. On a lost device, `create` does not run: nothing could
+    /// be created. Errors of other kinds reach the error handler.
+    ///
+    /// # Errors
+    ///
+    /// [`GfxError::OutOfMemory`] if wgpu reports that the GPU's memory cannot hold what `create`
+    /// asked for, and [`GfxError::DeviceLost`] if the device is lost before `create` runs or once
+    /// it returns.
+    pub(crate) fn create<T>(&self, label: &str, create: impl FnOnce() -> T) -> Result<T, GfxError> {
+        self.check()?;
+        let scope = self.device.push_error_scope(wgpu::ErrorFilter::OutOfMemory);
+        let created = create();
+        let error = pollster::block_on(scope.pop());
+        self.check()?;
+        match error {
+            None => Ok(created),
+            Some(_) => Err(GfxError::OutOfMemory {
+                label: label.to_owned(),
+            }),
+        }
+    }
+
+    /// Creates a buffer of `usage` holding `contents`, which must not be empty, inside
+    /// [`create`](Self::create), which reports a buffer that could not be created.
     pub(crate) fn create_buffer_with(
         &self,
         label: &str,
@@ -167,8 +209,9 @@ impl Gpu {
             usage,
             mapped_at_creation: true,
         });
-        // wgpu's own `create_buffer_init` panics here on a lost device: the buffer it then creates
-        // is invalid and cannot be mapped. Such a buffer is returned as it is, unusable (ADR-0022).
+        // wgpu's own `create_buffer_init` panics here when the buffer could not be created, on a
+        // lost device or out of memory: it is invalid and cannot be mapped. Such a buffer is
+        // returned as it is, and `create` reports why (ADR-0022, ADR-0044).
         if let Ok(mut mapped) = buffer.get_mapped_range_mut(..) {
             mapped.slice(..contents.len()).copy_from_slice(contents);
             drop(mapped);
@@ -270,7 +313,29 @@ pub(crate) fn create_instance() -> wgpu::Instance {
     descriptor.backends = wgpu::Backends::from_env().unwrap_or(DEFAULT_BACKENDS);
     descriptor.flags = instance_flags();
     descriptor.backend_options.dx12.shader_compiler = dx12_compiler(wgpu::Dx12Compiler::from_env());
+    descriptor.memory_budget_thresholds.for_resource_creation =
+        memory_budget(std::env::var(MEMORY_BUDGET_ENV_VAR).ok().as_deref());
     wgpu::Instance::new(descriptor)
+}
+
+/// The environment variable that lowers the GPU memory that creations may use, to a percentage of
+/// what the driver allows the process (ADR-0044).
+pub const MEMORY_BUDGET_ENV_VAR: &str = "SLIME_GPU_MEMORY_BUDGET";
+
+/// The percentage of the driver's memory budget past which wgpu refuses to create buffers,
+/// textures and query sets, from the value of [`MEMORY_BUDGET_ENV_VAR`]: a whole number from 1 to
+/// 100, or nothing. Another value is ignored, with a warning.
+fn memory_budget(value: Option<&str>) -> Option<u8> {
+    let value = value?;
+    match value.trim().parse() {
+        Ok(percent @ 1..=100) => Some(percent),
+        _ => {
+            tracing::warn!(
+                "{MEMORY_BUDGET_ENV_VAR}={value} is ignored: it is a percentage, from 1 to 100"
+            );
+            None
+        }
+    }
 }
 
 /// The shader compiler of Direct3D 12 (ADR-0036): FXC, which is part of Windows, so that every
@@ -300,7 +365,7 @@ fn instance_flags() -> wgpu::InstanceFlags {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Color, RenderPassDescriptor, TextureFormat};
+    use crate::{Color, RenderPassDescriptor, RenderTarget, TextureFormat};
 
     #[test]
     fn direct3d_12_compiles_shaders_with_fxc_unless_dxc_is_asked_for() {
@@ -332,7 +397,9 @@ mod tests {
     fn a_lost_device_is_reported_and_using_it_does_not_panic() {
         let gpu =
             Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-        let target = gpu.create_render_target("lost target", 4, 4, TextureFormat::Rgba8UnormSrgb);
+        let target = gpu
+            .create_render_target("lost target", 4, 4, TextureFormat::Rgba8UnormSrgb)
+            .expect("the GPU has memory for it");
         assert!(gpu.check().is_ok());
 
         gpu.device.destroy();
@@ -360,14 +427,18 @@ mod tests {
             commands.render(&pass, |_pass| {});
             commands.render(&pass, |_pass| {});
         });
-        // wgpu cannot map a buffer created on a lost device to fill it.
-        gpu.create_vertex_buffer("lost vertices", &[0; 6]);
-        gpu.create_index_buffer("lost indices", &[0]);
-        gpu.create_uniform_buffer("lost uniforms", &[0; 4]);
         for result in [
             gpu.read_render_target(&target).map(|_| ()),
             gpu.wait_idle(),
             gpu.create_shader_module("lost shader", "").map(|_| ()),
+            // wgpu cannot map a buffer created on a lost device to fill it: nothing is created.
+            gpu.create_vertex_buffer("lost vertices", &[0; 6])
+                .map(|_| ()),
+            gpu.create_index_buffer("lost indices", &[0]).map(|_| ()),
+            gpu.create_uniform_buffer("lost uniforms", &[0; 4])
+                .map(|_| ()),
+            gpu.create_render_target("lost target", 4, 4, TextureFormat::Rgba8UnormSrgb)
+                .map(|_| ()),
         ] {
             assert!(
                 matches!(result, Err(GfxError::DeviceLost { .. })),
@@ -390,5 +461,189 @@ mod tests {
             matches!(result, Err(GfxError::DeviceLost { .. })),
             "the loss is reported: {result:?}"
         );
+    }
+
+    #[test]
+    fn the_memory_budget_is_a_percentage_from_1_to_100() {
+        assert_eq!(memory_budget(None), None);
+        assert_eq!(memory_budget(Some("1")), Some(1));
+        assert_eq!(memory_budget(Some(" 100 ")), Some(100));
+        for ignored in ["0", "101", "-5", "half", ""] {
+            assert_eq!(memory_budget(Some(ignored)), None, "{ignored:?}");
+        }
+    }
+
+    /// Set in the processes that the out-of-memory tests start.
+    const CHILD_ENV: &str = "SLIME_GFX_TEST_CHILD";
+
+    /// The most render targets of [`filler`] that a child creates: 4 GiB.
+    const FILLERS: usize = 8;
+
+    /// A render target of 8192 × 8192 pixels of 8 bytes: 512 MiB.
+    fn filler(gpu: &Gpu) -> Result<RenderTarget, GfxError> {
+        gpu.create_render_target("filler", 8192, 8192, TextureFormat::Rgba16Float)
+    }
+
+    /// Runs the test `name` again in processes of its own, with [`MEMORY_BUDGET_ENV_VAR`] set,
+    /// and returns what the first one that ran out of memory printed.
+    ///
+    /// The budget is a share of the memory that the driver says the process may use, but drivers
+    /// count what is already used differently: lavapipe counts the whole machine's memory, which
+    /// the creations of a test do not change, so that below a share that depends on what else
+    /// runs, the device does not even open, and above it, nothing runs out. A binary search looks
+    /// for a share in between, where the child prints neither `no device` nor `never ran out`. What
+    /// else runs on the machine moves that share; the search starts again, up to three times, when
+    /// it has moved too far to be found.
+    fn run_out_of_memory_in_a_child(name: &str) -> String {
+        for _ in 0..3 {
+            if let Some(stdout) = search_budget(name) {
+                return stdout;
+            }
+        }
+        panic!("no budget lets the device open and then run out of memory within 4 GiB");
+    }
+
+    /// One binary search of [`run_out_of_memory_in_a_child`].
+    fn search_budget(name: &str) -> Option<String> {
+        let (mut low, mut high) = (1_u8, 100_u8);
+        while low <= high {
+            let budget = low + (high - low) / 2;
+            let output =
+                std::process::Command::new(std::env::current_exe().expect("test binary path"))
+                    .args(["--exact", name, "--nocapture"])
+                    .env(CHILD_ENV, "1")
+                    .env(MEMORY_BUDGET_ENV_VAR, budget.to_string())
+                    .output()
+                    .expect("child test process runs");
+            let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+            assert!(
+                output.status.success(),
+                "the child failed with a budget of {budget} %: {}\n{stdout}\n{}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr)
+            );
+            if stdout.contains("no device") {
+                low = budget + 1;
+            } else if stdout.contains("never ran out") {
+                high = budget - 1;
+            } else {
+                return Some(stdout);
+            }
+        }
+        None
+    }
+
+    /// The GPU of a child, or `None`, once it has printed `no device`, when the budget is too small
+    /// for the device to open.
+    fn child_gpu() -> Option<Gpu> {
+        match Gpu::new() {
+            Ok(gpu) => Some(gpu),
+            Err(GfxError::RequestDevice(_)) => {
+                println!("no device");
+                None
+            }
+            Err(error) => panic!("a GPU adapter must be available: {error}"),
+        }
+    }
+
+    #[test]
+    fn a_creation_beyond_the_memory_fails_and_the_device_goes_on() {
+        if std::env::var_os(CHILD_ENV).is_none() {
+            let stdout = run_out_of_memory_in_a_child(
+                "gpu::tests::a_creation_beyond_the_memory_fails_and_the_device_goes_on",
+            );
+            assert!(stdout.contains("the device goes on"), "{stdout}");
+            return;
+        }
+        let Some(gpu) = child_gpu() else { return };
+        let mut fillers = Vec::new();
+        let error = loop {
+            if fillers.len() == FILLERS {
+                println!("never ran out");
+                return;
+            }
+            match filler(&gpu) {
+                Ok(target) => fillers.push(target),
+                Err(error) => break error,
+            }
+        };
+        println!("out of memory after {} targets of 512 MiB", fillers.len());
+        assert!(
+            matches!(&error, GfxError::OutOfMemory { label } if label == "filler"),
+            "{error:?}"
+        );
+        assert_eq!(
+            error.to_string(),
+            "out of GPU memory: cannot create `filler`"
+        );
+        assert!(gpu.check().is_ok(), "the device is not lost");
+
+        let small = gpu
+            .create_render_target("small", 4, 4, TextureFormat::Rgba8UnormSrgb)
+            .expect("a small target fits");
+        let red = Color {
+            r: 1.0,
+            g: 0.0,
+            b: 0.0,
+            a: 1.0,
+        };
+        gpu.render(
+            &RenderPassDescriptor {
+                target: &small,
+                clear: Some(red),
+                depth: None,
+                timer: None,
+            },
+            |_pass| {},
+        );
+        let image = gpu
+            .read_render_target(&small)
+            .expect("the target is read back");
+        assert_eq!(image.pixels[..4], [255, 0, 0, 255]);
+        println!("the device goes on");
+    }
+
+    #[test]
+    fn memory_that_runs_out_where_no_caller_is_told_gives_the_device_up() {
+        if std::env::var_os(CHILD_ENV).is_none() {
+            let stdout = run_out_of_memory_in_a_child(
+                "gpu::tests::memory_that_runs_out_where_no_caller_is_told_gives_the_device_up",
+            );
+            assert!(stdout.contains("given up"), "{stdout}");
+            return;
+        }
+        let Some(gpu) = child_gpu() else { return };
+        // A texture that a library built on wgpu creates itself, outside the engine's scopes.
+        let mut textures = Vec::new();
+        while gpu.check().is_ok() {
+            if textures.len() == FILLERS {
+                println!("never ran out");
+                return;
+            }
+            textures.push(gpu.device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("library texture"),
+                size: wgpu::Extent3d {
+                    width: 8192,
+                    height: 8192,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba16Float,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                view_formats: &[],
+            }));
+        }
+        let Err(GfxError::DeviceLost { message }) = gpu.check() else {
+            unreachable!("the loop ends on a loss");
+        };
+        assert!(
+            message.starts_with("out of GPU memory where no caller can be told"),
+            "{message}"
+        );
+        // Like a lost device, a given-up one creates nothing more.
+        assert!(matches!(filler(&gpu), Err(GfxError::DeviceLost { .. })));
+        println!("given up");
     }
 }

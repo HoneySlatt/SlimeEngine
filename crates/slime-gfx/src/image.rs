@@ -41,8 +41,9 @@ impl Gpu {
     ///
     /// # Errors
     ///
-    /// [`GfxError::DeviceLost`] once the device is lost ([`Gpu::check`]); [`GfxError::Readback`] if
-    /// waiting for the GPU or reading its memory fails.
+    /// [`GfxError::DeviceLost`] once the device is lost ([`Gpu::check`]); [`GfxError::OutOfMemory`]
+    /// if the GPU's memory cannot hold the buffer the pixels are copied into;
+    /// [`GfxError::Readback`] if waiting for the GPU or reading its memory fails.
     ///
     /// # Panics
     ///
@@ -76,8 +77,9 @@ impl Gpu {
     ///
     /// # Errors
     ///
-    /// [`GfxError::DeviceLost`] once the device is lost ([`Gpu::check`]); [`GfxError::Readback`] if
-    /// waiting for the GPU or reading its memory fails.
+    /// [`GfxError::DeviceLost`] once the device is lost ([`Gpu::check`]); [`GfxError::OutOfMemory`]
+    /// if the GPU's memory cannot hold the buffer the pixels are copied into;
+    /// [`GfxError::Readback`] if waiting for the GPU or reading its memory fails.
     ///
     /// # Panics
     ///
@@ -136,12 +138,15 @@ impl Gpu {
         // A row always fits: the widest one, 8192 float pixels, takes 64 KiB.
         let band_rows =
             (largest_buffer / u64::from(padded_row_bytes)).min(u64::from(height)) as u32;
-        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some(&format!("{} readback", target.label)),
-            size: u64::from(padded_row_bytes) * u64::from(band_rows),
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
+        let buffer_label = format!("{} readback", target.label);
+        let buffer = self.create(&buffer_label, || {
+            self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some(&buffer_label),
+                size: u64::from(padded_row_bytes) * u64::from(band_rows),
+                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                mapped_at_creation: false,
+            })
+        })?;
 
         let mut texels = Vec::with_capacity(row_bytes as usize * height as usize);
         for first_row in (0..height).step_by(band_rows as usize) {
@@ -213,7 +218,9 @@ mod tests {
     fn rows_read_in_bands_come_back_in_order() {
         let gpu =
             Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-        let target = gpu.create_render_target("bands", 3, 5, TextureFormat::Rgba16Float);
+        let target = gpu
+            .create_render_target("bands", 3, 5, TextureFormat::Rgba16Float)
+            .expect("the GPU has memory for it");
         let shader = gpu
             .create_shader_module(
                 "bands",

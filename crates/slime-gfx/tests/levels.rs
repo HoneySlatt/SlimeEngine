@@ -63,25 +63,29 @@ fn sample(
         visible_to: ShaderStages::Fragment,
         ty,
     };
-    let layout = gpu.create_bind_group_layout(
-        "levels",
-        &[
-            entry(0, binding),
-            entry(1, BindingType::Sampler),
-            entry(
-                2,
-                BindingType::UniformBuffer {
-                    dynamic_offset: false,
-                },
-            ),
-        ],
-    );
-    let target = gpu.create_render_target(
-        "levels",
-        lookups.len() as u32,
-        1,
-        TextureFormat::Rgba16Float,
-    );
+    let layout = gpu
+        .create_bind_group_layout(
+            "levels",
+            &[
+                entry(0, binding),
+                entry(1, BindingType::Sampler),
+                entry(
+                    2,
+                    BindingType::UniformBuffer {
+                        dynamic_offset: false,
+                    },
+                ),
+            ],
+        )
+        .expect("the GPU has memory for it");
+    let target = gpu
+        .create_render_target(
+            "levels",
+            lookups.len() as u32,
+            1,
+            TextureFormat::Rgba16Float,
+        )
+        .expect("the GPU has memory for it");
     let pipeline = gpu
         .create_render_pipeline(&RenderPipelineDescriptor {
             label: "levels",
@@ -97,38 +101,44 @@ fn sample(
             cull: CullMode::None,
         })
         .expect("the pipeline is valid");
-    let nearest = gpu.create_sampler(
-        "nearest",
-        &SamplerDescriptor {
-            mag_filter: Filter::Nearest,
-            min_filter: Filter::Nearest,
-            ..SamplerDescriptor::default()
-        },
-    );
+    let nearest = gpu
+        .create_sampler(
+            "nearest",
+            &SamplerDescriptor {
+                mag_filter: Filter::Nearest,
+                min_filter: Filter::Nearest,
+                ..SamplerDescriptor::default()
+            },
+        )
+        .expect("the GPU has memory for it");
     let bytes: Vec<u8> = lookups
         .as_flattened()
         .iter()
         .flat_map(|value| value.to_le_bytes())
         .collect();
-    let uniform = gpu.create_uniform_buffer("lookups", &bytes);
-    let group = gpu.create_bind_group(
-        "levels",
-        &layout,
-        &[
-            BindGroupEntry {
-                binding: 0,
-                resource: BindingResource::Texture(texture),
-            },
-            BindGroupEntry {
-                binding: 1,
-                resource: BindingResource::Sampler(&nearest),
-            },
-            BindGroupEntry {
-                binding: 2,
-                resource: BindingResource::UniformBuffer(&uniform),
-            },
-        ],
-    );
+    let uniform = gpu
+        .create_uniform_buffer("lookups", &bytes)
+        .expect("the GPU has memory for it");
+    let group = gpu
+        .create_bind_group(
+            "levels",
+            &layout,
+            &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: BindingResource::Texture(texture),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: BindingResource::Sampler(&nearest),
+                },
+                BindGroupEntry {
+                    binding: 2,
+                    resource: BindingResource::UniformBuffer(&uniform),
+                },
+            ],
+        )
+        .expect("the GPU has memory for it");
     let pass = RenderPassDescriptor {
         target: &target,
         clear: Some(Color {
@@ -160,13 +170,15 @@ fn half_precision_levels_are_read_back_exactly_where_they_were_given() {
         -65_504.0, 0.25, 300.0, 1.0, // bottom right
     ];
     let small: [f32; 4] = [42.0, -1.5, 0.0625, 0.5];
-    let texture = gpu.create_texture_with_levels(
-        "two levels",
-        2,
-        2,
-        TextureFormat::Rgba16Float,
-        &[&halves(&full), &halves(&small)],
-    );
+    let texture = gpu
+        .create_texture_with_levels(
+            "two levels",
+            2,
+            2,
+            TextureFormat::Rgba16Float,
+            &[&halves(&full), &halves(&small)],
+        )
+        .expect("the GPU has memory for it");
     let lookups = [
         [0.25, 0.25, 0.0, 0.0],
         [0.75, 0.25, 0.0, 0.0],
@@ -217,12 +229,14 @@ fn each_pixel_of_a_cube_lies_in_the_documented_direction() {
         }
         halves(&values)
     };
-    let texture = gpu.create_cube_texture(
-        "cube",
-        4,
-        TextureFormat::Rgba16Float,
-        &[&level(4, 0.0), &level(2, 1.0)],
-    );
+    let texture = gpu
+        .create_cube_texture(
+            "cube",
+            4,
+            TextureFormat::Rgba16Float,
+            &[&level(4, 0.0), &level(2, 1.0)],
+        )
+        .expect("the GPU has memory for it");
     let mut lookups = Vec::new();
     let mut expected = Vec::new();
     for (size, index) in [(4, 0.0), (2, 1.0)] {
@@ -253,7 +267,8 @@ fn each_pixel_of_a_cube_lies_in_the_documented_direction() {
 #[should_panic(expected = "needs 32 bytes, but 24 were given")]
 fn a_level_of_the_wrong_size_is_refused() {
     let gpu = gpu();
-    gpu.create_texture_with_levels("short", 2, 2, TextureFormat::Rgba16Float, &[&[0; 24]]);
+    gpu.create_texture_with_levels("short", 2, 2, TextureFormat::Rgba16Float, &[&[0; 24]])
+        .expect("the GPU has memory for it");
 }
 
 #[test]
@@ -265,5 +280,6 @@ fn more_levels_than_down_to_one_pixel_are_refused() {
         2,
         TextureFormat::Rgba8Unorm,
         &[&[0; 96], &[0; 24], &[0; 24]],
-    );
+    )
+    .expect("the GPU has memory for it");
 }
