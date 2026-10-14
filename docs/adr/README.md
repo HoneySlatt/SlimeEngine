@@ -105,7 +105,7 @@ the ADR linking to it.
 | [0035](0035-physically-based-materials.md) | Physically based materials | Accepted; amended by 0037 and 0039 |
 | [0036](0036-direct3d-12-shader-compiler.md) | The shader compiler of Direct3D 12 | Accepted |
 | [0037](0037-lights-in-physical-units-and-pre-exposure.md) | Lights in physical units, and pre-exposure | Accepted; amended by 0038, 0039, 0040 and 0042 |
-| [0038](0038-shadow-mapping.md) | Shadow mapping | Accepted; amended by 0039, 0041 and 0047 |
+| [0038](0038-shadow-mapping.md) | Shadow mapping | Accepted; amended by 0039, 0041, 0047 and 0049 |
 | [0039](0039-image-based-lighting-computed-on-the-cpu.md) | Image-based lighting computed on the CPU | Accepted; amended by 0041 |
 | [0040](0040-bloom.md) | Bloom | Accepted; amended by 0041 |
 | [0041](0041-render-graph.md) | The render graph | Accepted |
@@ -116,3 +116,4 @@ the ADR linking to it.
 | [0046](0046-constructors-for-the-structs-a-game-fills-in.md) | Constructors for the structs a game fills in | Accepted |
 | [0047](0047-reversed-depth-with-an-infinite-far-plane.md) | Reversed depth with an infinite far plane | Accepted |
 | [0048](0048-rendering-relative-to-the-camera.md) | Rendering relative to the camera | Accepted |
+| [0049](0049-instances-that-cast-no-shadow.md) | Instances that cast no shadow | Accepted |

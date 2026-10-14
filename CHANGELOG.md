@@ -8,6 +8,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- `Instance::casts_shadows` ([ADR-0049](docs/adr/0049-instances-that-cast-no-shadow.md)): an
+  instance that casts no shadow, a vast floor or a sky dome, is left out of the shadow pass and of
+  the shadow map's fit, so that it no longer spreads the map's texels over its extent and blurs
+  every shadow; it still receives shadows. What lies beyond the map is lit.
 - `Event::ModifiersChanged`: the modifier keys held as a whole (`Modifiers`: Shift, Control, Alt,
   Super), once per change, released when the window loses the focus. The dev overlay feeds them
   to egui, so its shortcuts with Ctrl, and selecting text with Shift, work.

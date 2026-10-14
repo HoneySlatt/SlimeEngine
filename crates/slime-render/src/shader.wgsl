@@ -381,6 +381,13 @@ fn fs_sky(input: SkyVertex) -> @location(0) vec4<f32> {
 // fades over three texels. Sampled at level 0, without derivatives: allowed outside uniform
 // control flow.
 fn light_reaching(seen: vec3<f32>) -> f32 {
+    // The map holds every instance that casts shadows (ADR-0049): beyond its sides, nothing casts
+    // any; beyond its far end, at depths below 0, a point lies behind every caster, and is
+    // compared as if it were at that end.
+    if any(abs(seen.xy) > vec2<f32>(1.0)) {
+        return 1.0;
+    }
+    let depth = max(seen.z, 0.0);
     // Clip space has y up, texture coordinates y down.
     let uv = seen.xy * vec2<f32>(0.5, -0.5) + 0.5;
     let texel = 1.0 / vec2<f32>(textureDimensions(shadow_map));
@@ -388,7 +395,7 @@ fn light_reaching(seen: vec3<f32>) -> f32 {
     for (var y = -1; y <= 1; y += 1) {
         for (var x = -1; x <= 1; x += 1) {
             let at = uv + vec2<f32>(f32(x), f32(y)) * texel;
-            lit += textureSampleCompareLevel(shadow_map, shadow_sampler, at, seen.z);
+            lit += textureSampleCompareLevel(shadow_map, shadow_sampler, at, depth);
         }
     }
     return lit / 9.0;

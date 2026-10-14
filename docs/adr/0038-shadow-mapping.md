@@ -5,7 +5,9 @@
   [0037](0037-lights-in-physical-units-and-pre-exposure.md); amended by
   [0039](0039-image-based-lighting-computed-on-the-cpu.md) (the frame's values; group 0 holds the
   environment), by [0041](0041-render-graph.md) (the shadow pass shares a submission and its
-  timer) and by [0047](0047-reversed-depth-with-an-infinite-far-plane.md) (the map's depth reversed, its comparison and bias)
+  timer), by [0047](0047-reversed-depth-with-an-infinite-far-plane.md) (the map's depth
+  reversed, its comparison and bias) and by [0049](0049-instances-that-cast-no-shadow.md)
+  (instances that cast no shadow; points beyond the map lit)
 - Date: 2026-10-13
 
 ## Context

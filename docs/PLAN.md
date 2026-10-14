@@ -843,11 +843,12 @@ GitHub issues, linked from their entry; this list stays the reference.
   the first directional light that casts shadows casts them). The sample's spot light is aimed up,
   so that the light the wall would stop goes into the sky; its ring light reaches 4 m, and gives
   little beyond a metre.
-- **One shadow map covers every instance** (ADR-0038). Its texels are the instances' extent across
-  the light divided by 2048, 3 mm for the sample: a terrain of a few kilometres would get texels of
-  a metre, and objects smaller than a texel cast nothing. Cascades, or a region that the game
-  chooses, are left to a later stage. The map takes 16 MiB per renderer, even for scenes without a
-  directional light.
+- **One shadow map covers every instance that casts shadows** (ADR-0038, ADR-0049). Its texels are
+  their extent across the light divided by 2048, 3 mm for the sample: a terrain of a few kilometres
+  would get texels of a metre, and objects smaller than a texel cast nothing, unless the terrain
+  casts no shadow (`Instance::casts_shadows`). Cascades, or a region that the game chooses, are
+  left to a later stage. The map takes 16 MiB per renderer, even for scenes without a directional
+  light.
 - **Shadow edges crawl when the instances' extent changes** (ADR-0038). The map is fitted to the
   instances again every frame, without texel snapping: an instance that moves at the edge of the
   scene shifts or rescales its texels. A static floor larger than the moving objects, as in the
@@ -855,8 +856,6 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **Thin objects close to a surface lose their shadow (peter-panning)** (ADR-0038). The
   slope-scaled bias pushes stored depths back by about four texels' slope: 10 mm on the sample's
   floor, more under grazing light. A sheet lying a centimetre above a floor casts nothing.
-- **Every instance casts and receives shadows.** A game cannot exclude a sky mesh or a fog card;
-  it can only turn a directional light's shadows off (`DirectionalLight::casts_shadows`).
 - **Every draw of the scene pass runs a shader that can discard fragments** (ADR-0035). The `MASK`
   alpha mode discards in the one fragment shader that every material uses, opaque materials with a
   cutoff of 0. Some GPUs then test depth after the shader rather than before, for opaque draws

@@ -75,16 +75,22 @@ pub struct Instance<'a> {
     /// determinant, beyond rounding) keeps the mesh's front faces, as glTF does: the renderer
     /// culls its other faces.
     pub transform: Mat4,
+    /// Whether it casts shadows (ADR-0038); it receives them either way. An instance that casts
+    /// none is left out of the shadow pass and of the shadow map's fit: a vast floor, a sky dome or
+    /// a distant mountain that nothing needs to shade would otherwise spread the map's texels over
+    /// their whole extent, and blur every shadow.
+    pub casts_shadows: bool,
 }
 
 impl<'a> Instance<'a> {
-    /// `mesh` drawn with `material`, placed by `transform`.
+    /// `mesh` drawn with `material`, placed by `transform`, casting shadows.
     #[must_use]
     pub fn new(mesh: &'a Mesh, material: &'a Material, transform: Mat4) -> Self {
         Self {
             mesh,
             material,
             transform,
+            casts_shadows: true,
         }
     }
 }
@@ -201,9 +207,9 @@ pub struct RenderStats {
     /// add up to its GPU time (ADR-0033).
     pub tone_mapping_gpu_time: Option<Duration>,
     /// Draw calls of the shadow pass, which draws the shadows of the scene's first directional
-    /// light that casts shadows (ADR-0038): one per instance. None when no directional light of
-    /// the scene casts shadows, or when every instance is flattened to a point, which casts
-    /// nothing: the pass is then skipped.
+    /// light that casts shadows (ADR-0038): one per instance that casts shadows. None when no
+    /// directional light of the scene casts shadows, or when no instance casts shadows, or every
+    /// one that does is flattened to a point, which casts nothing: the pass is then skipped.
     pub shadow_draw_calls: u32,
     /// How long the GPU took to draw the shadow map, under the same rules as `scene_gpu_time`;
     /// `None` too for a frame that skipped the shadow pass.
@@ -885,8 +891,8 @@ impl Renderer {
 
         // Every position reaches the GPU relative to the camera (ADR-0048).
         let origin = scene.camera.eye;
-        // The first directional light that casts shadows casts them, when an instance has a box
-        // to cast them (ADR-0038).
+        // The first directional light that casts shadows casts them, when an instance that casts
+        // shadows has a box to cast them (ADR-0038, ADR-0049).
         let shadow = lights
             .iter()
             .enumerate()
@@ -895,7 +901,11 @@ impl Renderer {
                 _ => None,
             })
             .and_then(|(index, direction)| {
-                let boxes = scene.instances.iter().map(|instance| {
+                let casters = scene
+                    .instances
+                    .iter()
+                    .filter(|instance| instance.casts_shadows);
+                let boxes = casters.map(|instance| {
                     (
                         relative_to(origin, instance.transform),
                         instance.mesh.center,
@@ -1025,7 +1035,8 @@ impl Renderer {
             Pass::Shadow => {
                 render_pass.set_bind_group(0, frame_group, &[]);
                 let mut bound = None;
-                for (slot, instance) in scene.instances.iter().enumerate() {
+                let casters = scene.instances.iter().enumerate();
+                for (slot, instance) in casters.filter(|(_, instance)| instance.casts_shadows) {
                     let masked = instance.material.masked;
                     if bound != Some(masked) {
                         render_pass.set_pipeline(if masked {

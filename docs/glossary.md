@@ -396,8 +396,8 @@ them.
 **Shadow map.** A *depth target* drawn from a light's point of view by a *depth-only pass*: a
 point is in shadow where something nearer to the light is stored at its place in the map. The
 renderer's is 2048 × 2048, drawn each frame for the first directional light that casts shadows,
-through an orthographic projection that covers the boxes around the instances
-([ADR-0038](adr/0038-shadow-mapping.md)).
+through an orthographic projection that covers the boxes around the instances that cast shadows
+([ADR-0038](adr/0038-shadow-mapping.md), [ADR-0049](adr/0049-instances-that-cast-no-shadow.md)).
 
 **Shape (of a frame).** What decides the renderer's passes and targets: the output's size, whether
 the shadow pass runs and whether the bloom's passes do. The *render graph* is built again, and its

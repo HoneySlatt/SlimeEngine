@@ -317,7 +317,7 @@ renderer = Renderer::new(&gpu, format)                 the output's format; thre
     ├── every position moved by −camera.eye, in f64 (ADR-0048): the GPU draws relative to the
     │   camera, so that what is near it keeps its precision however far from the origin
     ├── the light-space matrix of the first directional light that casts shadows: an orthographic
-    │   projection covering the instances' boxes as that light sees them
+    │   projection covering the boxes of the instances that cast shadows as that light sees them
     ├── the frame uniform ← the camera's projection times its rotation, the sky's directions from
     │   clip space (its inverse), the exposure, the light-space matrix, the number of lights and the
     │   shadowed light's index, the sun's disc (direction, radiance), and the lights (64 bytes
@@ -334,9 +334,9 @@ renderer = Renderer::new(&gpu, format)                 the output's format; thre
     │   built from the passes' declarations; a GpuTimer per submission
     ├── the passes, in the graph's order, four to a submission named after the target, each timed
     │   by its submission's GpuTimer when the adapter can:
-    │   ├── the shadow pass into the shadow map, a depth-only pass skipped when no light casts
-    │   │   shadows: for each instance, the shadow pipeline its material asks for (masked or not),
-    │   │   its bind groups and buffers, draw_indexed
+    │   ├── the shadow pass into the shadow map, a depth-only pass skipped when no light or no
+    │   │   instance casts shadows: for each instance that casts shadows, the shadow pipeline its
+    │   │   material asks for (masked or not), its bind groups and buffers, draw_indexed
     │   ├── the scene pass into the HDR target, cleared to black, the shadow map's group bound at
     │   │   group 3: for each instance, the pipeline that its material's double-sidedness and its
     │   │   transform's mirroring choose (set when it changes), its material's bind group 1, its

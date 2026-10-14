@@ -15,11 +15,11 @@ them (`docs/adr/0035-physically-based-materials.md`,
 procedural daytime sky with a sun, computed on the CPU into an environment that surfaces reflect as
 their material does (image-based lighting) and that is drawn behind them, with the sun's disc
 (`docs/adr/0039-image-based-lighting-computed-on-the-cpu.md`). The first directional light that
-casts shadows casts them, through a shadow map that covers the instances, its edges blended over
-three of the map's texels (`docs/adr/0038-shadow-mapping.md`); the sky's light is not shadowed. It
-draws the scene in high dynamic range, where light may exceed 1, multiplied by an exposure before
-it is written, then maps it to the output with a tone-mapping operator, Khronos PBR Neutral
-(`docs/adr/0034-hdr-rendering-and-tone-mapping.md`,
+casts shadows casts them, through a shadow map that covers the instances that cast shadows, its
+edges blended over three of the map's texels (`docs/adr/0038-shadow-mapping.md`); the sky's
+light is not shadowed. It draws the scene in high dynamic range, where light may exceed 1,
+multiplied by an exposure before it is written, then maps it to the output with a tone-mapping
+operator, Khronos PBR Neutral (`docs/adr/0034-hdr-rendering-and-tone-mapping.md`,
 `docs/adr/0037-lights-in-physical-units-and-pre-exposure.md`), after mixing in a bloom: a share of
 the light spread around where it lands, as a lens spreads it, which makes the sun's disc glow
 (`docs/adr/0040-bloom.md`). It reports what each frame cost on the CPU and, on adapters that can
@@ -153,40 +153,41 @@ fn main() -> Result<(), RenderError> {
   make them (ADR-0046); their fields are public, and changed once made. A new scene has no lights,
   no environment, an exposure of 1 and no bloom.
 - `Renderer::render(gpu, target, &Scene)` draws a frame in passes. The shadow pass draws the depths
-  of every instance, all their faces but what masked materials discard, as the first directional
-  light that casts shadows sees them, into the shadow map, through an orthographic projection that
-  covers the boxes around the instances' meshes; it is skipped when no directional light casts
-  shadows. The scene pass draws its instances (`Instance`: a mesh, a material, a transform from the
-  mesh's space to world space) into a target of half-precision floats from its `Camera`, lit by its
-  `lights` and its `environment` (none is a black sky), with the depth test, so that nearer surfaces
-  hide farther ones whatever the order of the instances, the shadowed light only where the shadow
-  map holds nothing nearer to it, compared at 3 × 3 points one texel apart, so that a shadow's edge
-  fades over three texels; a scene with more than `MAX_LIGHTS` lights has its first ones drawn,
-  with a warning logged once per renderer, and a value of the exposure, the bloom or a light
-  outside the range its documentation gives panics, naming it. The sky pass then
-  draws the environment, and its sun's disc, where no surface was drawn. The light of both is
-  multiplied by the scene's `exposure` (1 leaves it as it is, 2 is one photographic stop brighter)
-  before it is written, divided by 64, so that the target's half-precision floats, whose largest
-  value is 65 504, hold exposed light up to 64 × 65 504; brighter light is written as that largest
-  value. Unless the scene's `bloom` is 0, the bloom's passes then filter that light down into a
-  chain of levels, each half the size of the one before, to a side of 8 texels (six levels at 1280
-  × 720, seven at 1920 × 1080, none below 15 × 15), and average them back up into a blurred copy,
-  every level with the same weight. The tone-mapping pass mixes the blurred copy in by `bloom`, the
-  share of each pixel's light spread around it (0.04 in the samples; a uniform image is unchanged,
-  light is moved and never added), then maps that light to the output's range with Khronos PBR
-  Neutral: colors whose channels lie between 0.08 and 0.8 come out lowered by 0.04, darker ones
-  less, and brighter ones are compressed towards 1 and turned towards white, so that a surface
-  reflecting a light of 1 shows at 0.87 (sRGB 240). It returns `RenderStats`, or an error when the
-  GPU's memory cannot hold what the frame creates (the targets of a new size, the bloom's levels
-  when it resumes, a larger instance buffer) or the device is lost: nothing is drawn then, and the
-  next call tries again. `RenderStats` holds the scene pass's draw calls and triangles, the shadow
-  pass's draw calls (`shadow_draw_calls`), the CPU time of the call, and the GPU time of each pass
-  (`shadow_gpu_time`, `scene_gpu_time`, `sky_gpu_time`, `tone_mapping_gpu_time`, and
-  `bloom_gpu_time` for the bloom's passes together), measured with a `slime_gfx::GpuTimer` per
-  submission of four passes on adapters that can time their work and read back a few frames later
-  (`None` otherwise, until the first time comes back, and for a few frames after the output's size
-  changes or the shadow pass or the bloom starts or stops); times from different submissions can
-  come from different frames, usually consecutive ones.
+  of every instance that casts shadows, all their faces but what masked materials discard, as the
+  first directional light that casts shadows sees them, into the shadow map, through an orthographic
+  projection that covers the boxes around their meshes; it is skipped when no directional light or
+  no instance casts shadows. What lies beyond the map's sides is lit. The scene pass draws its
+  instances (`Instance`: a mesh, a material, a transform from the mesh's space to world space, and
+  whether it casts shadows: a vast floor or a sky dome that casts none leaves the map's texels to
+  what does, ADR-0049) into a target of half-precision floats from its `Camera`, lit by its `lights`
+  and its `environment` (none is a black sky), with the depth test, so that nearer surfaces hide
+  farther ones whatever the order of the instances, the shadowed light only where the shadow map
+  holds nothing nearer to it, compared at 3 × 3 points one texel apart, so that a shadow's edge
+  fades over three texels; a scene with more than `MAX_LIGHTS` lights has its first ones drawn, with
+  a warning logged once per renderer, and a value of the exposure, the bloom or a light outside the
+  range its documentation gives panics, naming it. The sky pass then draws the environment, and its
+  sun's disc, where no surface was drawn. The light of both is multiplied by the scene's `exposure`
+  (1 leaves it as it is, 2 is one photographic stop brighter) before it is written, divided by 64,
+  so that the target's half-precision floats, whose largest value is 65 504, hold exposed light up
+  to 64 × 65 504; brighter light is written as that largest value. Unless the scene's `bloom` is 0,
+  the bloom's passes then filter that light down into a chain of levels, each half the size of the
+  one before, to a side of 8 texels (six levels at 1280 × 720, seven at 1920 × 1080, none below
+  15 × 15), and average them back up into a blurred copy, every level with the same weight. The
+  tone-mapping pass mixes the blurred copy in by `bloom`, the share of each pixel's light spread
+  around it (0.04 in the samples; a uniform image is unchanged, light is moved and never added),
+  then maps that light to the output's range with Khronos PBR Neutral: colors whose channels lie
+  between 0.08 and 0.8 come out lowered by 0.04, darker ones less, and brighter ones are compressed
+  towards 1 and turned towards white, so that a surface reflecting a light of 1 shows at 0.87
+  (sRGB 240). It returns `RenderStats`, or an error when the GPU's memory cannot hold what the frame
+  creates (the targets of a new size, the bloom's levels when it resumes, a larger instance buffer)
+  or the device is lost: nothing is drawn then, and the next call tries again. `RenderStats` holds
+  the scene pass's draw calls and triangles, the shadow pass's draw calls (`shadow_draw_calls`), the
+  CPU time of the call, and the GPU time of each pass (`shadow_gpu_time`, `scene_gpu_time`,
+  `sky_gpu_time`, `tone_mapping_gpu_time`, and `bloom_gpu_time` for the bloom's passes together),
+  measured with a `slime_gfx::GpuTimer` per submission of four passes on adapters that can time
+  their work and read back a few frames later (`None` otherwise, until the first time comes back,
+  and for a few frames after the output's size changes or the shadow pass or the bloom starts or
+  stops); times from different submissions can come from different frames, usually consecutive ones.
 - `Camera`: an eye, a target, an up direction, a vertical field of view in radians, and the near
   distance; nothing is too far to be seen, as the far plane is at infinity. `view`,
   `projection(aspect)` and `view_projection(aspect)` give its matrices.

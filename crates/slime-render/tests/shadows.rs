@@ -3,7 +3,8 @@
 //! curve of `common/tone_curve.rs`, with the share of light that the shadow lets through computed
 //! here from the geometry: a square above a floor darkens a square of the floor, its edges blended
 //! over the three texels of the filter; a lit floor does not shadow itself; only the first
-//! directional light that casts shadows casts them; a masked material casts none where it discards.
+//! directional light that casts shadows casts them; a masked material casts none where it discards;
+//! an instance that casts no shadow is left out of the map, and what lies beyond the map is lit.
 //! Runs on whatever adapter the machine offers.
 //!
 //! The floor is the plane z = 0, facing +Z, and "above" is along +Z. A directional light in the
@@ -119,9 +120,27 @@ impl Setup {
         lights: &[Light],
         squares: &[(&Material, Mat4)],
     ) -> (FloatImage, RenderStats) {
+        let casting: Vec<_> = squares
+            .iter()
+            .map(|&(material, transform)| (material, transform, true))
+            .collect();
+        self.draw_casting(camera, lights, &casting)
+    }
+
+    /// As `draw`, each square casting shadows or not as `squares` says.
+    fn draw_casting(
+        &mut self,
+        camera: Camera,
+        lights: &[Light],
+        squares: &[(&Material, Mat4, bool)],
+    ) -> (FloatImage, RenderStats) {
         let instances: Vec<Instance<'_>> = squares
             .iter()
-            .map(|&(material, transform)| Instance::new(&self.square, material, transform))
+            .map(|&(material, transform, casts_shadows)| {
+                let mut instance = Instance::new(&self.square, material, transform);
+                instance.casts_shadows = casts_shadows;
+                instance
+            })
             .collect();
         let mut scene = Scene::new(camera, &instances);
         scene.lights = lights;
@@ -522,4 +541,50 @@ fn a_masked_material_casts_no_shadow_where_it_discards() {
     ] {
         assert_shows(&image, pixel, floor_shows(&camera, pixel, sun, lit), case);
     }
+}
+
+#[test]
+fn an_instance_that_casts_no_shadow_is_left_out_of_the_map() {
+    let mut setup = Setup::new();
+    let white = setup.white.clone();
+    // The square of the test above, over a floor 1 km wide that casts no shadow: the map fits
+    // the square alone, its texels a fraction of a millimetre, so the shadow's edges are sharp to
+    // the pixel; the floor beyond the map, which no texel covers, is lit.
+    let sun = sun(45.0, 0.4);
+    let camera = camera_above(1.5, 0.75);
+    let square = blocker(Vec3::new(0.0, 0.75, 1.5), false);
+    let (image, stats) = setup.draw_casting(
+        camera,
+        &[Light::Directional(sun.0)],
+        &[(&white, floor(1_000.0), false), (&white, square, true)],
+    );
+    assert_eq!((stats.draw_calls, stats.shadow_draw_calls), (2, 1));
+    let mut dark = 0;
+    let (elsewhere, near_an_edge) = largest_differences(&image, |pixel| {
+        let point = brdf::seen_point(&camera, (SIZE, SIZE), pixel, 0.0);
+        // The shadow covers x from 1 to 2 and y from 0.25 to 1.25.
+        let inside = (1.0..=2.0).contains(&point.x) && (0.25..=1.25).contains(&point.y);
+        let from_an_edge = [point.x - 1.0, 2.0 - point.x, point.y - 0.25, 1.25 - point.y]
+            .map(f64::abs)
+            .into_iter()
+            .fold(f64::INFINITY, f64::min);
+        dark += usize::from(inside);
+        let lit = if inside { 0.0 } else { 1.0 };
+        (floor_shows(&camera, pixel, sun, lit), from_an_edge < 0.005)
+    });
+    assert!(dark > 300, "{dark} pixels in shadow");
+    assert!(elsewhere <= 2e-3, "off by {elsewhere}");
+    eprintln!("within 5 mm of the shadow's edges, off by up to {near_an_edge}");
+
+    // The square casting no shadow either: no shadow, and no shadow pass.
+    let (image, stats) = setup.draw_casting(
+        camera,
+        &[Light::Directional(sun.0)],
+        &[(&white, floor(1_000.0), false), (&white, square, false)],
+    );
+    assert_eq!((stats.shadow_draw_calls, stats.shadow_gpu_time), (0, None));
+    let (largest, _) = largest_differences(&image, |pixel| {
+        (floor_shows(&camera, pixel, sun, 1.0), false)
+    });
+    assert!(largest <= 2e-3, "off by {largest}");
 }
