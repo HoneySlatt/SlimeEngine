@@ -82,6 +82,7 @@ fn a_pipeline_error_names_the_pipeline() {
             bind_group_layouts: &[],
             depth: None,
             cull: CullMode::None,
+            multisampled: false,
         })
         .expect_err("a missing entry point must be rejected");
     let GfxError::Pipeline { message, .. } = &error else {
@@ -112,6 +113,7 @@ fn a_pipeline_whose_shader_bindings_are_not_in_its_layouts_is_rejected() {
             bind_group_layouts: &[],
             depth: None,
             cull: CullMode::None,
+            multisampled: false,
         })
         .expect_err("a binding that no layout holds must be rejected");
     let GfxError::Pipeline { label, message } = &error else {
@@ -209,6 +211,7 @@ fn pipelines_without_what_their_shaders_or_passes_need_are_rejected() {
             bind_group_layouts: &[],
             depth: None,
             cull: CullMode::None,
+            multisampled: false,
         },
     );
     assert!(
@@ -227,6 +230,7 @@ fn pipelines_without_what_their_shaders_or_passes_need_are_rejected() {
             bind_group_layouts: &[],
             depth: None,
             cull: CullMode::None,
+            multisampled: false,
         },
     );
     assert!(
@@ -316,6 +320,7 @@ fn bindings_declared_as_another_kind_than_their_layout_are_rejected() {
                 bind_group_layouts: &[&layout],
                 depth: None,
                 cull: CullMode::None,
+                multisampled: false,
             },
         );
         assert!(

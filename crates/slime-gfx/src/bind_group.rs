@@ -102,11 +102,13 @@ pub enum BindingResource<'a> {
     Sampler(&'a Sampler),
     /// A render target created by [`Gpu::create_render_target`], for a
     /// [`BindingType::Texture`] binding: shaders read what earlier passes drew into it. A pass
-    /// that binds it cannot draw into it, and the image of a window cannot be bound. The group
-    /// keeps this target: a target created again (at a new size) needs a new group.
+    /// that binds it cannot draw into it, and neither the image of a window nor a multisampled
+    /// target can be bound. The group keeps this target: a target created again (at a new size)
+    /// needs a new group.
     RenderTarget(&'a RenderTarget),
-    /// A depth target, for a [`BindingType::DepthTexture`] binding. A pass that binds it cannot
-    /// draw into it. The group keeps this depth target, as above.
+    /// A depth target created by [`Gpu::create_depth_target`], for a [`BindingType::DepthTexture`]
+    /// binding: a multisampled one cannot be bound. A pass that binds it cannot draw into it. The
+    /// group keeps this depth target, as above.
     DepthTarget(&'a DepthTarget),
     /// A comparison sampler, for a [`BindingType::ComparisonSampler`] binding.
     ComparisonSampler(&'a ComparisonSampler),

@@ -19,20 +19,29 @@ use crate::vertex_buffer::VertexBuffer;
 /// target is described by a [`DepthPassDescriptor`].
 #[derive(Clone, Copy, Debug)]
 pub struct RenderPassDescriptor<'a> {
-    /// The image to draw into.
+    /// The image to draw into, of one sample per pixel or multisampled. A pass takes only pipelines
+    /// of its number of samples
+    /// ([`RenderPipelineDescriptor::multisampled`](crate::RenderPipelineDescriptor::multisampled)).
     pub target: &'a RenderTarget,
     /// `Some(color)` clears the target to that color before drawing, and the depth target, if
     /// there is one, to the farthest depth; `None` keeps what both hold, so that the pass draws
     /// over an earlier one.
     pub clear: Option<LinearColor>,
     /// The depth target that pipelines with a depth test read and write, or `None` for a pass
-    /// without one. It must have the size of `target`. A pass with a depth target takes only
-    /// pipelines with a depth test, and a pass without takes only pipelines without
+    /// without one. It must have the size of `target`, and as many samples per pixel. A pass with a
+    /// depth target takes only pipelines with a depth test, and a pass without takes only pipelines
+    /// without
     /// ([`RenderPipelineDescriptor::depth`](crate::RenderPipelineDescriptor::depth)).
     pub depth: Option<&'a DepthTarget>,
     /// A timer that measures how long the pass takes on the GPU, read later through
     /// [`GpuTimer::latest`]; `None` leaves the pass untimed.
     pub timer: Option<&'a GpuTimer>,
+    /// For a multisampled `target` ([`Gpu::create_multisampled_render_target`]), the render target
+    /// of one sample per pixel, of its size and format, into which the pass resolves it as it
+    /// ends: each pixel the average of the samples of `target`'s. `None` leaves the samples in
+    /// `target` only, for a later pass to draw over and resolve; a pass that draws nothing
+    /// resolves too. It must be `None` for a target of one sample.
+    pub resolve: Option<&'a RenderTarget>,
 }
 
 /// What a render pass without a render target draws into ([`Gpu::render_depth`],
@@ -226,16 +235,19 @@ impl Gpu {
 }
 
 impl Commands {
-    /// Records one render pass as `descriptor` says: clears or keeps the target, and lets
-    /// `record` draw into it. The pass and its commands are named after the target in capture
-    /// tools.
+    /// Records one render pass as `descriptor` says: clears or keeps the target, lets `record` draw
+    /// into it, then resolves it into `descriptor.resolve` if there is one. The pass and its
+    /// commands are named after the target in capture tools.
     ///
     /// # Panics
     ///
     /// If the depth target does not have the size of the render target. When the commands are
     /// submitted, if wgpu rejects a command that `record` gave, which it reports when the pass is
-    /// finished: a pipeline built for another target format, or whose depth test does not match
-    /// the pass (a depth test in a pass without a depth target, or none in a pass with one); a
+    /// finished: a pipeline built for another target format or another number of samples, or whose
+    /// depth test does not match the pass (a depth test in a pass without a depth target, or none
+    /// in a pass with one); a depth target of another number of samples than the target; a
+    /// `resolve` target of another size or format than the target, or multisampled, or given for a
+    /// target of one sample; a
     /// pipeline without a fragment stage (it draws only in [`Commands::render_depth`]); a draw
     /// with a pipeline that has a vertex layout and no vertex buffer set; a bind group that holds
     /// the pass's own target or depth target, since a pass cannot sample what it draws into.
@@ -261,7 +273,7 @@ impl Commands {
         let color = wgpu::RenderPassColorAttachment {
             view: &target.view,
             depth_slice: None,
-            resolve_target: None,
+            resolve_target: descriptor.resolve.map(|resolve| &resolve.view),
             ops: wgpu::Operations {
                 load: match descriptor.clear {
                     Some(color) => wgpu::LoadOp::Clear(color.to_wgpu()),
@@ -286,6 +298,9 @@ impl Commands {
             });
         self.run_pass(&target.label, Some(color), depth, descriptor.timer, record);
         self.drawn.push(Arc::clone(&target.drawn));
+        if let Some(resolve) = descriptor.resolve {
+            self.drawn.push(Arc::clone(&resolve.drawn));
+        }
     }
 
     /// Records one render pass without a render target: clears `descriptor.depth` to the farthest
@@ -403,6 +418,7 @@ mod tests {
                 clear: None,
                 depth: None,
                 timer: None,
+                resolve: None,
             };
             commands.render(&pass, |_pass| {});
             assert!(!is_drawn(&drawn), "recorded, not submitted yet");

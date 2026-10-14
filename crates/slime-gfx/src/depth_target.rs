@@ -3,6 +3,7 @@
 
 use crate::error::GfxError;
 use crate::gpu::Gpu;
+use crate::render_target::MULTISAMPLE_COUNT;
 
 /// The format of every depth target: 32-bit floating-point depth, without stencil. The same on
 /// every driver, which image tests prefer to the driver-dependent precision of `Depth24Plus`.
@@ -19,6 +20,10 @@ pub(crate) const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth3
 /// the depth target it draws into. Until a pass draws into it, it holds depth 0, the farthest
 /// (depth is reversed, ADR-0047): a comparison sampler then finds every reference depth in front
 /// of it. It cannot be read back to the CPU.
+///
+/// A depth target of several samples per pixel ([`Gpu::create_multisampled_depth_target`]) holds a
+/// depth for each sample, for the passes that draw into a multisampled render target: passes only
+/// test and write it, and no shader reads it.
 ///
 /// Clones refer to the same texture, which is freed when the last clone is dropped and the GPU no
 /// longer uses it.
@@ -62,6 +67,51 @@ impl Gpu {
         width: u32,
         height: u32,
     ) -> Result<DepthTarget, GfxError> {
+        self.create_depth(
+            label,
+            width,
+            height,
+            1,
+            wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+        )
+    }
+
+    /// Creates a depth target of `width` × `height` pixels of [`MULTISAMPLE_COUNT`] samples each,
+    /// the size of the multisampled render target of the passes that test depth with it. Passes
+    /// test and write a depth for each sample; no shader can read it. `label` names it in error
+    /// messages and in GPU capture tools.
+    ///
+    /// # Errors
+    ///
+    /// As [`Gpu::create_depth_target`].
+    ///
+    /// # Panics
+    ///
+    /// As [`Gpu::create_depth_target`].
+    pub fn create_multisampled_depth_target(
+        &self,
+        label: &str,
+        width: u32,
+        height: u32,
+    ) -> Result<DepthTarget, GfxError> {
+        self.create_depth(
+            label,
+            width,
+            height,
+            MULTISAMPLE_COUNT,
+            wgpu::TextureUsages::RENDER_ATTACHMENT,
+        )
+    }
+
+    /// Creates the texture of a depth target and its view.
+    fn create_depth(
+        &self,
+        label: &str,
+        width: u32,
+        height: u32,
+        sample_count: u32,
+        usage: wgpu::TextureUsages,
+    ) -> Result<DepthTarget, GfxError> {
         let texture = self.create(label, || {
             self.device.create_texture(&wgpu::TextureDescriptor {
                 label: Some(label),
@@ -71,11 +121,10 @@ impl Gpu {
                     depth_or_array_layers: 1,
                 },
                 mip_level_count: 1,
-                sample_count: 1,
+                sample_count,
                 dimension: wgpu::TextureDimension::D2,
                 format: DEPTH_FORMAT,
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-                    | wgpu::TextureUsages::TEXTURE_BINDING,
+                usage,
                 view_formats: &[],
             })
         })?;

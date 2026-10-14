@@ -23,6 +23,7 @@ fn readback_unpads_rows_and_orders_channels_for_every_size() {
                 clear: Some(CLEAR),
                 depth: None,
                 timer: None,
+                resolve: None,
             };
             gpu.render(&pass, |_pass| {});
             let image = gpu
@@ -65,6 +66,7 @@ fn a_float_target_keeps_values_beyond_0_and_1_for_every_size() {
             clear: Some(clear),
             depth: None,
             timer: None,
+            resolve: None,
         };
         gpu.render(&pass, |_pass| {});
         let image = gpu

@@ -431,6 +431,7 @@ mod tests {
             clear: Some(black),
             depth: None,
             timer: None,
+            resolve: None,
         };
         gpu.render(&pass, |_pass| {});
         gpu.submit("lost frame", |commands| {
@@ -612,6 +613,7 @@ mod tests {
                 clear: Some(red),
                 depth: None,
                 timer: None,
+                resolve: None,
             },
             |_pass| {},
         );

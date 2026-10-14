@@ -144,6 +144,7 @@ mod linux {
                     clear: Some(grey),
                     depth: None,
                     timer: None,
+                    resolve: None,
                 };
                 let gpu = ctx.gpu().expect("windowed run");
                 if self.scenario == "device-lost" && self.last_update == STOP_FRAME {

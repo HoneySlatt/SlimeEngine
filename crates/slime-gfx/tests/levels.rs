@@ -99,6 +99,7 @@ fn sample(
             bind_group_layouts: &[&layout],
             depth: None,
             cull: CullMode::None,
+            multisampled: false,
         })
         .expect("the pipeline is valid");
     let nearest = gpu
@@ -144,6 +145,7 @@ fn sample(
         clear: Some(LinearColor::rgba(0.0, 0.0, 0.0, 0.0)),
         depth: None,
         timer: None,
+        resolve: None,
     };
     gpu.render(&pass, |pass| {
         pass.set_pipeline(&pipeline);

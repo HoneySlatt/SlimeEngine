@@ -14,13 +14,16 @@ them back, and draws into a window:
   groups, with a depth test, a depth bias and face culling.
 - It draws into 8-bit sRGB or linear images, into 16-bit floating-point ones (high dynamic range),
   or into a depth target only.
+- It draws into images of four samples per pixel, which a pass resolves into ordinary ones, for
+  multisample anti-aliasing.
 - Later passes sample the render and depth targets that earlier ones drew into. Several passes
   can be recorded into one submission.
 - It times render passes, each pass of a submission apart, on adapters that have timestamp queries.
 - It creates textures from the CPU: two-dimensional ones whose levels of detail it computes, or
   whose levels the caller gives, in 8-bit or half-precision float formats, and cube textures.
 
-Not there yet: blending, multisampling, and array textures.
+Not there yet: blending, array textures, and shaders that read the samples of a multisampled
+image.
 
 ## Role
 
@@ -76,6 +79,7 @@ fn main() -> Result<(), GfxError> {
         bind_group_layouts: &[],
         depth: None,
         cull: CullMode::None,
+        multisampled: false,
     })?;
     // Three corners as (x, y) pairs of f32, in the GPU's byte order (little-endian).
     let corners: [f32; 6] = [0.0, 0.5, -0.5, -0.5, 0.5, -0.5];
@@ -83,7 +87,13 @@ fn main() -> Result<(), GfxError> {
     let vertices = gpu.create_vertex_buffer("triangle", &bytes)?;
 
     let black = LinearColor::BLACK;
-    let pass = RenderPassDescriptor { target: &target, clear: Some(black), depth: None, timer: None };
+    let pass = RenderPassDescriptor {
+        target: &target,
+        clear: Some(black),
+        depth: None,
+        timer: None,
+        resolve: None,
+    };
     gpu.render(&pass, |pass| {
         pass.set_pipeline(&pipeline);
         pass.set_vertex_buffer(0, &vertices);
@@ -111,6 +121,10 @@ fn main() -> Result<(), GfxError> {
 - `Gpu::render` and `Gpu::render_depth` run one pass, through a `RenderPass`, and `Gpu::submit`
   records several into one submission (ADR-0033). `Gpu::read_render_target` and
   `Gpu::read_float_render_target` copy a target back to the CPU.
+- `Gpu::create_multisampled_render_target` and `Gpu::create_multisampled_depth_target` create
+  targets of `MULTISAMPLE_COUNT` samples per pixel, which pipelines built `multisampled` draw into;
+  `RenderPassDescriptor::resolve` names the target of one sample that the pass averages them into
+  as it ends (ADR-0059).
 - `Surface::acquire` gives the `SurfaceFrame` to draw a window's next image into, and
   `SurfaceFrame::present` shows it, as its `PresentMode` says (ADR-0021). Applications built on
   `slime-app` do not call these: the engine does.

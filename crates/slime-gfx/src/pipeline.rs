@@ -5,7 +5,7 @@ use crate::bind_group::BindGroupLayout;
 use crate::depth_target::DEPTH_FORMAT;
 use crate::error::GfxError;
 use crate::gpu::Gpu;
-use crate::render_target::TextureFormat;
+use crate::render_target::{MULTISAMPLE_COUNT, TextureFormat};
 use crate::shader::ShaderModule;
 
 /// The type of one vertex attribute in a vertex buffer.
@@ -167,6 +167,11 @@ pub struct RenderPipelineDescriptor<'a> {
     pub depth: Option<DepthState>,
     /// Which faces are not drawn.
     pub cull: CullMode,
+    /// Whether the pipeline draws into targets of [`MULTISAMPLE_COUNT`](crate::MULTISAMPLE_COUNT)
+    /// samples per pixel ([`Gpu::create_multisampled_render_target`],
+    /// [`Gpu::create_multisampled_depth_target`]) rather than of one. A pipeline draws only in
+    /// passes whose targets have its number of samples.
+    pub multisampled: bool,
 }
 
 /// The fragment stage of a pipeline: its entry point, and the format of the render targets it
@@ -286,7 +291,14 @@ impl Gpu {
                             clamp: 0.0,
                         },
                     }),
-                    multisample: wgpu::MultisampleState::default(),
+                    multisample: wgpu::MultisampleState {
+                        count: if descriptor.multisampled {
+                            MULTISAMPLE_COUNT
+                        } else {
+                            1
+                        },
+                        ..wgpu::MultisampleState::default()
+                    },
                     fragment: descriptor.fragment.map(|fragment| wgpu::FragmentState {
                         module: &descriptor.shader.module,
                         entry_point: Some(fragment.entry_point),

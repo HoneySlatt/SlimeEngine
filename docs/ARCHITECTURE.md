@@ -45,7 +45,7 @@ created only when code needs it.
 |---|---|---|---|
 | [`slime-platform`](../crates/slime-platform/README.md) | The window, its events and keyboard and mouse input; the only crate that uses the windowing library (winit) | `winit`, `raw-window-handle`, `thiserror`, `tracing` | One window; window, keyboard and mouse events |
 | [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `slime-platform`, `slime-gfx`, `ctrlc`, `thiserror`, `tracing`, `tracing-subscriber` | Headless runs, and windowed runs drawn by the GPU |
-| [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu, apart from the dev overlay through its `wgpu` feature | `wgpu`, `pollster`, `raw-window-handle`, `thiserror`, `tracing` | Opens a GPU device; draws into offscreen images, 8-bit or 16-bit float, and reads them back; draws into a window; later passes sample what earlier ones drew; depth-only passes; textures and cube textures whose levels the caller gives, half-precision floats among their formats |
+| [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu, apart from the dev overlay through its `wgpu` feature | `wgpu`, `pollster`, `raw-window-handle`, `thiserror`, `tracing` | Opens a GPU device; draws into offscreen images, 8-bit or 16-bit float, and reads them back; draws into a window; later passes sample what earlier ones drew; depth-only passes; images of four samples per pixel, resolved for anti-aliasing; textures and cube textures whose levels the caller gives, half-precision floats among their formats |
 | [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, lit by directional, point and spot lights, seen from a camera, into render targets, and reports what a frame cost; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `glam`, `thiserror`, `tracing` | Meshes with tangents, simple shapes made in code (a cube, a sphere, a square), glTF's metallic-roughness materials (five textures, masks, double-sided), a perspective camera, the depth test, up to 16 directional, point and spot lights in physical units (`KHR_lights_punctual`), a procedural sky computed on the CPU that surfaces reflect (image-based lighting) and that is drawn behind them with its sun's disc, the shadows of the first directional light that casts them (one shadow map, 3 × 3 PCF), mirrored instances drawn with their front faces, the scene drawn in HDR with its light exposed, an energy-conserving bloom, then tone mapped, the passes ordered by a render graph and recorded four to a submission, statistics with the GPU time of each pass |
 | [`slime-devui`](../crates/slime-devui/README.md) | The dev overlay: egui drawn over the engine's frames, fed with the engine's events; tooling, removed once something does at least as well ([ADR-0052](adr/0052-amend-roadmap-before-0-1.md)) | `egui`, `egui-wgpu`, `slime-gfx` (with its `wgpu` feature), `slime-platform` | Panels over a frame; no clipboard or input methods |
 | [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `gltf`, `png`, `tracing` | `hello`, `headless`, `window`, `offscreen`, `scene`; the reference image tests; a temporary glTF loader |
@@ -211,6 +211,11 @@ gpu = Gpu::new()
 ├── create_depth_target(label, width, height)            the depth of what is drawn, for passes
 │                                                        that test depth; later passes can sample
 │                                                        it (a shadow map)
+├── create_multisampled_render_target(label, width, height, format)
+│                                                        four samples per pixel, for anti-aliasing;
+│                                                        passes only draw into it, and resolve it
+├── create_multisampled_depth_target(label, width, height)
+│                                                        a depth per sample, for the same passes
 ├── create_shader_module(label, wgsl)                    rejected → GfxError::Shader
 ├── create_bind_group_layout(label, entries)             what the shaders read: uniform buffers,
 │                                                        textures and render targets, depth
@@ -219,7 +224,8 @@ gpu = Gpu::new()
 │                                                        its vertex layout (or none: vertices from
 │                                                        the vertex index), its fragment stage (or
 │                                                        none: depth only), its bind group layouts,
-│                                                        depth test and bias, culling
+│                                                        depth test and bias, culling, and whether
+│                                                        it draws into multisampled targets
 ├── create_vertex_buffer(label, bytes)
 ├── create_index_buffer(label, indices)
 ├── create_uniform_buffer(label, bytes)                  written again with write_uniform_buffer
@@ -242,11 +248,13 @@ gpu = Gpu::new()
 ├── create_timer(label, passes)                          a GpuTimer for up to `passes` passes of a
 │                                                        submission, when can_time() says the
 │                                                        adapter has timestamp queries
-├── render(&RenderPassDescriptor { target, clear, depth, timer }, |pass| ...)
+├── render(&RenderPassDescriptor { target, clear, depth, timer, resolve }, |pass| ...)
 │                                                        one command encoder and render pass; the
 │                                                        closure sets the pipeline, the bind groups
-│                                                        and the buffers, and draws; then submitted,
-│                                                        timed by the timer when there is one
+│                                                        and the buffers, and draws; a multisampled
+│                                                        target is resolved into `resolve`; then
+│                                                        submitted, timed by the timer when there
+│                                                        is one
 ├── render_depth(&DepthPassDescriptor { depth, timer }, |pass| ...)
 │                                                        a pass without a render target: clears the
 │                                                        depth target, draws depth-only pipelines

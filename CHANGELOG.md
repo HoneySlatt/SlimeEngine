@@ -17,6 +17,15 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   it for Windows with the examples.
 - `MeshData::cube`, `MeshData::sphere` and `MeshData::square` make simple shapes in code, one metre
   across, for a game or a test that has no model to load.
+- `slime-gfx` draws into targets of four samples per pixel, for multisample anti-aliasing:
+  `Gpu::create_multisampled_render_target` and `Gpu::create_multisampled_depth_target`, pipelines
+  built for them, and passes that resolve them into ordinary targets
+  ([ADR-0059](docs/adr/0059-multisampling-in-the-gpu-layer.md)).
+
+### Changed
+
+- `RenderPipelineDescriptor` has a new field, `multisampled`, and `RenderPassDescriptor` one,
+  `resolve`: a literal written in full names them, `false` and `None` for what it drew before.
 
 ## [0.1.0] - 2026-10-14
 

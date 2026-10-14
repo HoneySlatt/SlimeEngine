@@ -53,6 +53,7 @@ fn a_timed_pass_reports_how_long_it_took_when_the_adapter_can_tell() {
             clear: Some(LinearColor::BLACK),
             depth: None,
             timer: Some(&timer),
+            resolve: None,
         };
         gpu.render(&pass, |_pass| {});
         // Waiting is not needed to get a time back, but makes the test deterministic.
@@ -90,6 +91,7 @@ fn a_time_comes_back_with_later_frames_without_waiting() {
         clear: Some(LinearColor::BLACK),
         depth: None,
         timer: Some(&timer),
+        resolve: None,
     };
     // Frames a millisecond apart, so that the GPU, however slow, finishes a pass well before the
     // last of them.
@@ -154,6 +156,7 @@ fn three_passes_timed_in_one_frame_each_get_their_own_time() {
                 clear: Some(LinearColor::BLACK),
                 depth: None,
                 timer: Some(timer),
+                resolve: None,
             };
             gpu.render(&pass, |_pass| {});
         }
@@ -213,6 +216,7 @@ fn three_passes_of_one_submission_each_get_their_own_time_from_one_timer() {
                     clear: Some(LinearColor::BLACK),
                     depth: None,
                     timer: Some(&timer),
+                    resolve: None,
                 };
                 commands.render(&pass, |_pass| {});
             }

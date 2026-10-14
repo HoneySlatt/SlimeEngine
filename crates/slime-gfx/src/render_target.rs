@@ -6,6 +6,13 @@ use std::sync::atomic::AtomicBool;
 use crate::error::GfxError;
 use crate::gpu::Gpu;
 
+/// The samples per pixel of a multisampled target ([`Gpu::create_multisampled_render_target`],
+/// [`Gpu::create_multisampled_depth_target`]): four, which every driver supports for every format
+/// of render targets. Drivers place them at the points of the standard pattern of Vulkan and
+/// Direct3D, one in each quarter of the pixel's width and one in each quarter of its height, which
+/// the engine's tests check.
+pub const MULTISAMPLE_COUNT: u32 = 4;
+
 /// The formats of the engine's textures: those it renders into, and those shaders sample.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
@@ -72,8 +79,10 @@ impl TextureFormat {
 }
 
 /// A texture that render passes draw into: an offscreen image ([`Gpu::create_render_target`]),
-/// which can be read back and sampled by later passes, or the image of a window for one frame
-/// ([`SurfaceFrame::target`](crate::SurfaceFrame::target)), which can be neither.
+/// which can be read back and sampled by later passes; the image of a window for one frame
+/// ([`SurfaceFrame::target`](crate::SurfaceFrame::target)), which can be neither; or an offscreen
+/// image of several samples per pixel ([`Gpu::create_multisampled_render_target`]), which can be
+/// neither either, and which a pass resolves into an ordinary one.
 ///
 /// Clones refer to the same texture, which is freed when the last clone is dropped and the GPU no
 /// longer uses it.
@@ -136,6 +145,65 @@ impl Gpu {
         height: u32,
         format: TextureFormat,
     ) -> Result<RenderTarget, GfxError> {
+        self.create_target(
+            label,
+            width,
+            height,
+            format,
+            1,
+            wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::TEXTURE_BINDING,
+        )
+    }
+
+    /// Creates a render target of `width` × `height` pixels of [`MULTISAMPLE_COUNT`] samples each,
+    /// for multisample anti-aliasing: a pipeline built for it
+    /// ([`RenderPipelineDescriptor::multisampled`](crate::RenderPipelineDescriptor::multisampled))
+    /// tests whether a triangle covers each sample, and shades the pixel once for the samples it
+    /// covers. A pass then resolves it
+    /// into a render target of one sample per pixel, of its size and format
+    /// ([`RenderPassDescriptor::resolve`](crate::RenderPassDescriptor::resolve)): each pixel the
+    /// average of its samples, so that an edge across it shows the share of the pixel it covers.
+    /// `label` names it in error messages and in GPU capture tools.
+    ///
+    /// Passes only draw into it: it can be neither read back nor sampled, as a window's image
+    /// cannot. It takes [`MULTISAMPLE_COUNT`] times the memory of a target of one sample.
+    ///
+    /// # Errors
+    ///
+    /// As [`Gpu::create_render_target`].
+    ///
+    /// # Panics
+    ///
+    /// As [`Gpu::create_render_target`].
+    pub fn create_multisampled_render_target(
+        &self,
+        label: &str,
+        width: u32,
+        height: u32,
+        format: TextureFormat,
+    ) -> Result<RenderTarget, GfxError> {
+        self.create_target(
+            label,
+            width,
+            height,
+            format,
+            MULTISAMPLE_COUNT,
+            wgpu::TextureUsages::RENDER_ATTACHMENT,
+        )
+    }
+
+    /// Creates the texture of a render target and its view.
+    fn create_target(
+        &self,
+        label: &str,
+        width: u32,
+        height: u32,
+        format: TextureFormat,
+        sample_count: u32,
+        usage: wgpu::TextureUsages,
+    ) -> Result<RenderTarget, GfxError> {
         let texture = self.create(label, || {
             self.device.create_texture(&wgpu::TextureDescriptor {
                 label: Some(label),
@@ -145,12 +213,10 @@ impl Gpu {
                     depth_or_array_layers: 1,
                 },
                 mip_level_count: 1,
-                sample_count: 1,
+                sample_count,
                 dimension: wgpu::TextureDimension::D2,
                 format: format.to_wgpu(),
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-                    | wgpu::TextureUsages::COPY_SRC
-                    | wgpu::TextureUsages::TEXTURE_BINDING,
+                usage,
                 view_formats: &[],
             })
         })?;

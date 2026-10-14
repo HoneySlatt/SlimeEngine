@@ -310,6 +310,7 @@ mod tests {
             clear: Some(LinearColor::BLACK),
             depth: None,
             timer: Some(&timer),
+            resolve: None,
         };
         let in_flight = || {
             timer
@@ -358,6 +359,7 @@ mod tests {
             clear: Some(LinearColor::BLACK),
             depth: None,
             timer: Some(&timer),
+            resolve: None,
         };
         let in_flight = || {
             timer

@@ -572,6 +572,7 @@ impl Graph {
                                 clear: clear.then_some(LinearColor::BLACK),
                                 depth: depth_target.map(depth),
                                 timer,
+                                resolve: None,
                             },
                             draw,
                         ),

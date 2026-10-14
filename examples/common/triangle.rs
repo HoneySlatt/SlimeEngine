@@ -53,6 +53,7 @@ impl Triangle {
             bind_group_layouts: &[],
             depth: None,
             cull: CullMode::None,
+            multisampled: false,
         })?;
         let bytes: Vec<u8> = VERTICES
             .iter()

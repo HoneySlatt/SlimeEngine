@@ -41,7 +41,7 @@ pub use pipeline::{
     CullMode, DepthBias, DepthCompare, DepthState, FragmentState, RenderPipeline,
     RenderPipelineDescriptor, VertexAttribute, VertexFormat, VertexLayout,
 };
-pub use render_target::{RenderTarget, TextureFormat};
+pub use render_target::{MULTISAMPLE_COUNT, RenderTarget, TextureFormat};
 pub use sampler::{AddressMode, ComparisonSampler, Filter, Sampler, SamplerDescriptor};
 pub use shader::ShaderModule;
 pub use surface::{PresentMode, Surface, SurfaceFrame};

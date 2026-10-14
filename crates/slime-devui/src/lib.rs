@@ -172,6 +172,7 @@ impl Overlay {
                 clear: None,
                 depth: None,
                 timer: None,
+                resolve: None,
             };
             gpu.render(&pass, |pass| {
                 self.renderer.render(pass.wgpu_pass(), &primitives, &screen);
@@ -337,6 +338,7 @@ mod tests {
             clear: Some(blue),
             depth: None,
             timer: None,
+            resolve: None,
         };
         // egui sizes the window on the first frame and draws it from the second.
         for _ in 0..2 {

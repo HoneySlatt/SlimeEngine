@@ -138,6 +138,7 @@ impl Scene {
             clear: Some(LinearColor::BLACK),
             depth: with_depth.then_some(&self.depth),
             timer: None,
+            resolve: None,
         };
         self.gpu.render(&pass, |pass| {
             pass.set_bind_group(0, &self.group, &[]);
@@ -249,6 +250,7 @@ fn a_pass_without_a_clear_keeps_what_was_drawn_before() {
         clear: None,
         depth: None,
         timer: None,
+        resolve: None,
     };
     scene.gpu.render(&pass, |pass| {
         pass.set_bind_group(0, &scene.group, &[]);
@@ -283,6 +285,7 @@ fn a_pass_without_a_clear_keeps_the_depth_drawn_before() {
         clear: None,
         depth: Some(&scene.depth),
         timer: None,
+        resolve: None,
     };
     scene.gpu.render(&pass, |pass| {
         pass.set_bind_group(0, &scene.group, &[]);
@@ -399,6 +402,7 @@ fn a_depth_target_of_another_size_is_rejected() {
         clear: Some(LinearColor::BLACK),
         depth: Some(&small),
         timer: None,
+        resolve: None,
     };
     scene.gpu.render(&pass, |_pass| {});
 }
@@ -441,6 +445,7 @@ fn pipeline_for(
         bind_group_layouts: &[layout],
         depth,
         cull,
+        multisampled: false,
     })
     .expect("the pipeline is valid")
 }
@@ -498,6 +503,7 @@ fn a_dynamic_offset_selects_the_values_of_each_draw() {
         clear: Some(LinearColor::BLACK),
         depth: None,
         timer: None,
+        resolve: None,
     };
     scene.gpu.render(&pass, |pass| {
         pass.set_pipeline(&pipeline);

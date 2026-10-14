@@ -489,6 +489,7 @@ impl Renderer {
                     bias: DepthBias::default(),
                 }),
                 cull,
+                multisampled: false,
             })
         };
         // Every face casts, whichever way it faces the light: a single-sided surface stops light
@@ -507,6 +508,7 @@ impl Renderer {
                     bias: SHADOW_BIAS,
                 }),
                 cull: CullMode::None,
+                multisampled: false,
             })
         };
         let masked_shadow_pipeline = shadow_pipeline(
@@ -559,6 +561,7 @@ impl Renderer {
                 bias: DepthBias::default(),
             }),
             cull: CullMode::None,
+            multisampled: false,
         })?;
 
         let tone_mapping_shader = gpu.create_shader_module("tone mapping", TONE_MAPPING_SHADER)?;
@@ -612,6 +615,7 @@ impl Renderer {
                 bind_group_layouts: &[layout],
                 depth: None,
                 cull: CullMode::None,
+                multisampled: false,
             })
         };
         let bloom_down_pipeline =
@@ -638,6 +642,7 @@ impl Renderer {
             bind_group_layouts: &[&tone_mapping_layout],
             depth: None,
             cull: CullMode::None,
+            multisampled: false,
         })?;
         let frame_uniform = gpu.create_uniform_buffer("frame", &[0; FRAME_VALUES_SIZE])?;
         let no_environment = Environment::black(gpu)?;

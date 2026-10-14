@@ -53,6 +53,7 @@ fn fullscreen_pipeline(
         bind_group_layouts: layouts,
         depth: None,
         cull: CullMode::Back,
+        multisampled: false,
     })
     .expect("the pipeline is valid")
 }
@@ -71,6 +72,7 @@ fn depth_pipeline(gpu: &Gpu, label: &str, shader: &str, depth: DepthState) -> Re
         bind_group_layouts: &[],
         depth: Some(depth),
         cull: CullMode::None,
+        multisampled: false,
     })
     .expect("the pipeline is valid")
 }
@@ -106,6 +108,7 @@ fn a_fullscreen_triangle_without_a_vertex_buffer_covers_every_pixel() {
         clear: Some(LinearColor::rgba(-1.0, -1.0, -1.0, -1.0)),
         depth: None,
         timer: None,
+        resolve: None,
     };
     gpu.render(&pass, |pass| {
         pass.set_pipeline(&pipeline);
@@ -155,6 +158,7 @@ fn a_second_pass_samples_the_target_a_first_pass_drew_into() {
         clear: Some(LinearColor::BLACK),
         depth: None,
         timer: None,
+        resolve: None,
     };
     gpu.render(&pass(&first), |pass| {
         pass.set_pipeline(&draw_first);
@@ -419,6 +423,7 @@ fn a_depth_only_pass_is_read_through_a_comparison_sampler() {
         clear: Some(LinearColor::BLACK),
         depth: None,
         timer: None,
+        resolve: None,
     };
     gpu.render(&pass, |pass| {
         pass.set_pipeline(&lookup);
@@ -492,6 +497,7 @@ fn a_fragment_stage_without_a_render_target_discards_in_a_depth_only_pass() {
                 bias: DepthBias::default(),
             }),
             cull: CullMode::None,
+            multisampled: false,
         })
         .expect("the pipeline is valid");
     let depth = gpu
@@ -550,6 +556,7 @@ fn a_fragment_stage_without_a_render_target_discards_in_a_depth_only_pass() {
         clear: Some(LinearColor::BLACK),
         depth: None,
         timer: None,
+        resolve: None,
     };
     gpu.render(&pass, |pass| {
         pass.set_pipeline(&show);
@@ -685,6 +692,7 @@ fn a_depth_bias_moves_the_depth_by_the_expected_amount() {
         clear: Some(LinearColor::BLACK),
         depth: None,
         timer: None,
+        resolve: None,
     };
     gpu.render(&pass, |pass| {
         pass.set_pipeline(&measure);
@@ -753,6 +761,7 @@ fn a_pass_cannot_sample_the_target_it_draws_into() {
         clear: Some(LinearColor::BLACK),
         depth: None,
         timer: None,
+        resolve: None,
     };
     gpu.render(&pass, |pass| pass.set_bind_group(0, &group, &[]));
 }
@@ -785,6 +794,7 @@ fn a_depth_only_pipeline_does_not_draw_in_a_pass_with_a_render_target() {
         clear: Some(LinearColor::BLACK),
         depth: Some(&depth),
         timer: None,
+        resolve: None,
     };
     gpu.render(&pass, |pass| pass.set_pipeline(&pipeline));
 }
@@ -871,6 +881,7 @@ fn a_pass_cannot_sample_the_depth_target_it_tests_against() {
         clear: Some(LinearColor::BLACK),
         depth: Some(&depth),
         timer: None,
+        resolve: None,
     };
     gpu.render(&pass, |pass| pass.set_bind_group(0, &group, &[]));
 }
@@ -998,6 +1009,7 @@ fn the_passes_of_one_submission_run_in_the_order_they_were_recorded() {
         clear: Some(LinearColor::BLACK),
         depth: None,
         timer: None,
+        resolve: None,
     };
     // Three passes in one submission: the second reads what the first drew, before the third draws
     // over it.

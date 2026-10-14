@@ -83,7 +83,8 @@ impl Gpu {
     ///
     /// # Panics
     ///
-    /// If `target` is not `Rgba16Float` (the image of a window never is). Also if the wait for the
+    /// If `target` is not `Rgba16Float` (the image of a window never is), or is multisampled: only
+    /// targets created by [`Gpu::create_render_target`] can be read back. Also if the wait for the
     /// GPU is what finds the device lost: wgpu treats that as fatal.
     pub fn read_float_render_target(&self, target: &RenderTarget) -> Result<FloatImage, GfxError> {
         assert!(
@@ -247,6 +248,7 @@ mod tests {
                 bind_group_layouts: &[],
                 depth: None,
                 cull: CullMode::None,
+                multisampled: false,
             })
             .expect("the pipeline is valid");
         let pass = RenderPassDescriptor {
@@ -254,6 +256,7 @@ mod tests {
             clear: None,
             depth: None,
             timer: None,
+            resolve: None,
         };
         gpu.render(&pass, |pass| {
             pass.set_pipeline(&pipeline);
