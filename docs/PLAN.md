@@ -15,8 +15,10 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 - Stage 3b — Physically based renderer → 0.1: in progress. Planned on 2026-10-13 and validated by
   the owner. M3b.1 to M3b.8 are done. The owner's decisions of 2026-10-13 on earlier proposals are
   applied, and the findings of rounds 4 and 5 of the audit of 0.0.3 (issue
-  [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are fixed or recorded below; next: a
-  pass over the known debt that users of 0.1 would meet, then M3b.9.
+  [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are fixed or recorded below. A pass
+  over the known debt that users of 0.1 would meet is done (2026-10-14): the owner's decisions on
+  it are ADR-0042 to ADR-0053, from lights beyond the most drawn to the roadmap's amendment and
+  one home per fact, and what it left is recorded below. Next: M3b.9.
 - Next: Stage 3c, a first game, added to the roadmap by
   [ADR-0052](adr/0052-amend-roadmap-before-0-1.md); planned once 0.1 is released.
 
