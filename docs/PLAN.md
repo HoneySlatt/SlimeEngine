@@ -595,8 +595,11 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **Frames are not synchronized with the display's refresh** (ADR-0021; issue
   [#1](https://github.com/HoneySlatt/SlimeEngine/issues/1)). With Mailbox, the default, the
   schedule alone paces frames: on a 60 Hz display, an image is now and then shown twice while the
-  next one is dropped. Aligning frames on the compositor's frame callbacks is to reconsider when a
-  renderer draws real scenes.
+  next one is dropped. On a display of 144 or 165 Hz, the default 60 frames a second last 2 or 3
+  refreshes in turn, which shows as judder in motion: a game can raise `AppConfig::max_frame_rate`
+  to the display's rate, which the engine does not report, or choose `PresentMode::Fifo`, which
+  shows one image per refresh but can stall as the next entry says. Aligning frames on the
+  compositor's frame callbacks is to reconsider when a renderer draws real scenes.
 - **Without Mailbox, presenting can still stall the loop.** Windows that do not offer it, and
   applications that choose `PresentMode::Fifo`, wait for the display: one frame per second for a
   hidden window on niri. In a headless Weston with lavapipe, `acquire` waits for Weston's frame
@@ -634,11 +637,16 @@ GitHub issues, linked from their entry; this list stays the reference.
   (GNOME), the title bar has no text, because winit's text renderer depends on an unmaintained
   crate (ADR-0011).
 - **Input not reported yet** (issue [#3](https://github.com/HoneySlatt/SlimeEngine/issues/3)):
-  input-method text, touch, touchpad gestures, gamepads, dropped files.
+  input-method text, touch, touchpad gestures, gamepads, dropped files, the mouse's raw motion.
+  The window cannot grab or hide the cursor, go fullscreen, or change its title once created.
 - **A compositor that stops answering blocks the engine.** Before the first frame, winit waits for
   the window's first configuration without a timeout, so a termination signal is noticed only when
   a second one ends the process; after `shutdown`, releasing the window or the surface can block
   too (seen with a Weston stopped by SIGSTOP).
+- **Logging off or shutting down Windows ends a game without `App::shutdown`.** Windows tells a
+  window of it with end-session messages, which winit does not report, and sends no console event
+  to a process that has loaded `user32.dll`, as every engine process has
+  (`crates/slime-app/src/signal.rs`): what a game saves in `shutdown` is lost then.
 - **On Direct3D 12, a covered window or a locked session was not measured.** In `acquire`, wgpu
   waits on the swap chain's frame-latency object, up to one second, if the compositor stops taking
   images; whether Windows does so for such windows is unknown. After that wait wgpu hands out the
@@ -663,9 +671,11 @@ GitHub issues, linked from their entry; this list stays the reference.
   warns once at startup, and its panels look slightly lighter than egui's own demos (ADR-0031).
   Harmless for tooling.
 - **Mipmaps are computed on the CPU when a texture is created** (`Gpu::create_texture`), on the
-  calling thread, in work proportional to the texture's pixels (ADR-0032); a caller with levels of
-  its own gives them to `Gpu::create_texture_with_levels` (ADR-0039). To move to the GPU, or to
-  the asset pipeline of Stage 4, if textures grow.
+  calling thread, in work proportional to the texture's pixels (ADR-0032): about 72 ms for a
+  2048 × 2048 sRGB texture and 280 ms for 4096 × 4096 in a release build on the development
+  machine, so that a level of 70 textures of 2048 waits about 5 s. A caller with levels of its own
+  gives them to `Gpu::create_texture_with_levels` (ADR-0039). To move to the GPU, or to the asset
+  pipeline of Stage 4.
 - **Every offscreen render target and depth target can be sampled** (ADR-0033): they all carry the
   usage that allows it, which may cost some compression on some GPUs. Measured at M3b.5 on an RX
   6900 XT (RADV), with two builds that differ only by it: no cost (the scene pass took 43.9 µs
@@ -717,16 +727,17 @@ GitHub issues, linked from their entry; this list stays the reference.
   misuse, and nothing reports it; the engine always presents. A `Drop` that presents was rejected:
   it would show a black or half-drawn frame instead of skipping it, and present during unwinding.
 - **An oversize window's surface is configured again at every frame on X11.** A window wider or
-  taller than the device's largest image (8192 pixels with the default limits) gets images of
-  that size, smaller than the window. On X11, Mesa's Vulkan drivers mark such a swapchain
-  suboptimal, and every image of it too. `Surface::acquire` treats each suboptimal image as a
-  reason to configure the surface again, at the same clamped size, so every frame waits for the
-  GPU to finish and rebuilds the window's images. The frames are correct, and only `debug` logs
-  show it; Wayland and Direct3D 12 are not affected. The fix is one line in the `Suboptimal` arm
-  of `Surface::next_image`: do not set `stale` while `oversize` is set. It was written, then
-  reverted for lack of a measurement. To measure, before and after: start Xvfb with a screen wider
-  than 9000 pixels; with `WAYLAND_DISPLAY` unset, `DISPLAY` set to it and lavapipe, run the child
-  of the `oversize` scenario of `crates/slime-app/tests/windowed_lifecycle.rs` with
+  taller than the device's largest image (8192 pixels with the default limits) gets images of that
+  size, smaller than the window. On X11, Mesa's Vulkan drivers mark such a swapchain suboptimal, and
+  every image of it too. `Surface::acquire` treats each suboptimal image as a reason to configure
+  the surface again, at the same clamped size, so every frame waits for the GPU to finish and
+  rebuilds the window's images. The frames are correct, and only `debug` logs show it; Wayland and
+  Direct3D 12 are not affected. Not setting `stale` in the `Suboptimal` arm of `Surface::next_image`
+  while `oversize` is set is not enough: measured, the `Outdated` branch then configures the surface
+  again. Asking the device for the adapter's own largest image (`max_texture_dimension_2d`) instead
+  of the default limit would make such windows rare. To measure, before and after: start Xvfb with a
+  screen wider than 9000 pixels; with `WAYLAND_DISPLAY` unset, `DISPLAY` set to it and lavapipe, run
+  the child of the `oversize` scenario of `crates/slime-app/tests/windowed_lifecycle.rs` with
   `SLIME_LOG=wgpu_core=debug`; count wgpu-core's `configuring surface with` records (about one per
   frame without the fix, one with it) and note the frame times.
 - **Termination signals are ignored for the rest of the process when `ctrlc` cannot start its
@@ -739,9 +750,9 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **Any `trace` directive in `SLIME_LOG` makes wgpu build its per-command trace records.**
   tracing-subscriber sets the `log` crate's maximum level from the most verbose directive. With
   `slime_app=trace`, wgpu-core then formats and filters out about five records per draw while it
-  encodes a pass, which counts in the caller's span (`render` in a windowed run). This is
-  negligible for the samples. To measure it: read `RenderStats::cpu_time` for a scene of about
-  1000 instances with `SLIME_LOG` unset, then with `slime_app=trace`. Alternatively, profile with
+  encodes a pass, which counts in the caller's span (`render` in a windowed run): measured with
+  `RenderStats::cpu_time` for a scene of 1000 instances, 0.38 ms more per frame, 35 %, with
+  `slime_app=trace` than with `SLIME_LOG` unset. Alternatively, profile with
   `perf record -g` and look for `tracing_log::LogTracer::log`, `EnvFilter::enabled` and
   `wgpu_core::resource::Labeled::error_ident`. Capping the `log` level needs `log` or
   `tracing-log` as a direct dependency (ADR-0006). Span close lines are also written while the
@@ -842,15 +853,19 @@ GitHub issues, linked from their entry; this list stays the reference.
   culling: its cost grows with the number of lights, about 20 µs per light for a screen of 1920 ×
   1080 fragments on an RX 6900 XT (2026-10-13), 338 µs for 16, the most a scene holds, and 10 to 20
   times more on an integrated GPU; a light's range saves no work. More lights would need clustered
-  or tiled culling and a storage buffer, a measured decision of a later stage.
+  or tiled culling and a storage buffer, a measured decision of Stage 9a (ADR-0052).
 - **Point and spot lights cast no shadows, and light what objects hide** (ADR-0037, ADR-0038: only
   the first directional light that casts shadows casts them). The sample's spot light is aimed up,
   so that the light the wall would stop goes into the sky; its ring light reaches 4 m, and gives
-  little beyond a metre.
+  little beyond a metre. Their shadows are left to Stage 9a (ADR-0052).
+- **Every instance is drawn, with a draw call of its own** (`Renderer`). Nothing leaves out the
+  instances that the camera does not see, and instances of the same mesh and material are not
+  drawn together: a frame's CPU and GPU time grow with every instance of the scene, wherever it is.
+  Frustum culling and instancing are left to Stage 9a (ADR-0052).
 - **One shadow map, without cascades** (ADR-0050). It covers what the camera sees up to the light's
   shadow distance, in 2048 texels across the sphere around it: 6 cm each at the default 50 m with a
-  60° field of view and a 16:9 output. What is near the camera gets the texels of what is far,
-  and shadows end at the map's edge, without fading. Cascades are left to a later stage. The map
+  60° field of view and a 16:9 output. What is near the camera gets the texels of what is far, and
+  shadows end at the map's edge, without fading. Cascades are left to Stage 9a (ADR-0052). The map
   takes 16 MiB per renderer, even for scenes without a directional light.
 - **Shadows shift, and thin objects close to a surface lose theirs (peter-panning)** (ADR-0050).
   The normal offset that keeps surfaces from shadowing themselves looks a point up 3 texels × the
@@ -870,7 +885,9 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **The sky's light is neither shadowed nor occluded** (ADR-0039). A surface under an object, or
   inside a box, receives the whole sky, but for its material's occlusion texture: no ambient
   occlusion (screen-space effects are outside the stage), no reflection probes, and mirrors reflect
-  the sky, never the objects around them.
+  the sky, never the objects around them. An interior is lit by the whole sky through its walls:
+  until then, draw it without an environment, or with a sky of lower radiances, and light it with
+  point and spot lights.
 - **The environment is computed on the CPU, in every process that draws a sky** (ADR-0039): 23 ms
   in a release build on the owner's 16 threads, 162 ms on one core, and the BRDF table once (15
   ms); about eight times longer in a debug build, which every test that draws a sky with a gradient
@@ -921,14 +938,20 @@ GitHub issues, linked from their entry; this list stays the reference.
   average dims the sun's halo and makes it flicker, measured), a highlight smaller than a pixel
   blooms as its coverage of the pixel changes from frame to frame. Temporal anti-aliasing, or a cap
   on the light a pixel brings to the chain, belong to a later stage.
+- **A pixel whose light is not a number spreads through the bloom** (ADR-0040). Materials' values
+  are not checked: a NaN in a base color or an emission makes its pixels NaN in the
+  high-dynamic-range target, and the bloom averages them into its levels, and from there into
+  every pixel within reach of their halo, a blot where one surface was wrong. Checking materials'
+  values as lights' are (ADR-0042), or dropping such light before the bloom, would keep it to its
+  pixels.
 - **The bloom has one shape** (ADR-0040): every level the same weight, down to a side of 8 texels;
   no radius, threshold or tint for a game to set. A window resized across a power of two adds or
   removes a level: the glow's reach changes a little while the edge is dragged.
 - **Light near the right and bottom edges blooms a little more or less** (ADR-0040). Where an
   output's side is not a multiple of 2^levels, the coarse levels' last texels straddle the edge: a
   pixel's halo there holds 0.83 to 1.37 of its light at ten sizes measured, up to 1.9 at the far
-  corner (1023 × 1023, 2047 × 1151), within 1.002 at 1280 × 720 and 1.10 at 1920 × 1080; inside the
-  image and at the top and left edges, its light exactly. To measure: the CPU model of
+  corner (1023 × 1023, 2047 × 1151), within 1.011 at 1280 × 720 and about 1.1 at 1920 × 1080; inside
+  the image and at the top and left edges, its light exactly. To measure: the CPU model of
   `tests/bloom.rs` at the size in question. A fix would pad the chain beyond those edges.
 - **glTF minification filters are approximated.** `slime-gfx` ties mip blending to the
   minification filter and gives every texture mipmaps, so only `NEAREST_MIPMAP_NEAREST` and
