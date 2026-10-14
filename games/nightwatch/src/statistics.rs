@@ -60,6 +60,7 @@ impl Statistics {
                     ));
                     for (pass, time) in [
                         ("shadow", stats.shadow_gpu_time),
+                        ("spot shadows", stats.spot_shadow_gpu_time),
                         ("scene", stats.scene_gpu_time),
                         ("sky", stats.sky_gpu_time),
                         ("resolve", stats.resolve_gpu_time),
@@ -75,7 +76,9 @@ impl Statistics {
                     }
                     ui.label(format!(
                         "{} draw calls, {} triangles; {} draw calls for shadows",
-                        stats.draw_calls, stats.triangles, stats.shadow_draw_calls
+                        stats.draw_calls,
+                        stats.triangles,
+                        stats.shadow_draw_calls + stats.spot_shadow_draw_calls
                     ));
                     ui.label("F1 hides this");
                 });

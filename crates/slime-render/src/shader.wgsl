@@ -227,16 +227,25 @@ fn shadow_lookup(position: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
     return (frame.light_view_proj * vec4<f32>(position + offset, 1.0)).xyz;
 }
 
-// The shadow pass (ADR-0038): each vertex where the shadowed light sees it. The pipeline of opaque
-// materials has no fragment stage: it writes depth only; masked materials' runs `fs_shadow`.
+// The shadow passes (ADR-0038, ADR-0061): each vertex where a light sees it, into the directional
+// light's shadow map or a spot light's tile of the atlas. The pipeline of opaque materials has no
+// fragment stage: it writes depth only; masked materials' runs `fs_shadow`.
 struct ShadowVertex {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) uv: vec2<f32>,
 }
 
+// From the frame's space to the clip space of the map or tile the shadow pass draws: one view per
+// map or tile, bound at its offset for each. Apart from group 3 of the scene pass, which holds the
+// maps it reads.
+struct ShadowView {
+    view_proj: mat4x4<f32>,
+}
+@group(3) @binding(3) var<uniform> shadow_view: ShadowView;
+
 @vertex
 fn vs_shadow(@location(0) position: vec3<f32>, @location(2) uv: vec2<f32>) -> ShadowVertex {
-    return ShadowVertex(frame.light_view_proj * (instance.model * vec4<f32>(position, 1.0)), uv);
+    return ShadowVertex(shadow_view.view_proj * (instance.model * vec4<f32>(position, 1.0)), uv);
 }
 
 // The shadow pass of masked materials: below the cutoff, no depth is written, as in the scene pass.

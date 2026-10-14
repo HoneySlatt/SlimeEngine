@@ -272,6 +272,7 @@ fn a_spot_light_is_full_inside_its_inner_cone_dark_outside_its_outer_cone_and_sm
             intensity: 2.0 * PI,
             inner_cone_angle: 20f32.to_radians(),
             outer_cone_angle: 40f32.to_radians(),
+            casts_shadows: true,
             ..SpotLight::default()
         })
     };
@@ -311,6 +312,7 @@ fn many_lights() -> Vec<Light> {
                 range,
                 inner_cone_angle: 0.1,
                 outer_cone_angle: 0.4,
+                casts_shadows: true,
             })
         };
     let lights = vec![

@@ -37,6 +37,7 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 - `RenderPipelineDescriptor` has a new field, `multisampled`, and `RenderPassDescriptor` one,
   `resolve`: a literal written in full names them, `false` and `None` for what it drew before.
+- `SpotLight` has a new field, `casts_shadows`, on by default: a literal written in full names it.
 
 ## [0.1.0] - 2026-10-14
 

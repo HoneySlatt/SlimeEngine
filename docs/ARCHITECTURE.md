@@ -338,6 +338,12 @@ renderer = Renderer::new(&gpu, format)                 the output's format; thre
     │   ADR-0050): an orthographic projection across the light covering the sphere around what
     │   the camera sees up to the light's shadow distance, moved to a texel grid fixed in the
     │   world, and along it the boxes of the instances that cast shadows across that square
+    ├── each spot light that casts shadows, in the scene's order: its tile of the atlas, 2048 or
+    │   1024 texels wide by how many cast them, its perspective view from the light, from 5 cm
+    │   out, its cone and a margin, up to 80° from its axis, and the instances whose boxes reach
+    │   into it (shadow.rs, ADR-0058, ADR-0061)
+    ├── the buffer of the shadow passes' views ← the light-space matrix, then each tile's view,
+    │   one slot each at the device's alignment; bound at group 3 of the shadow pipelines
     ├── the frame uniform ← the camera's projection times its rotation, the sky's directions from
     │   clip space (its inverse), the exposure, the width of the shadow map's texels, the
     │   light-space matrix, the number of lights and the shadowed light's index, the sun's disc
@@ -348,7 +354,7 @@ renderer = Renderer::new(&gpu, format)                 the output's format; thre
     │   normal matrix and handedness (−1 when it mirrors), one slot    offset per instance
     │   each, at the device's alignment; grows when a scene needs it, shrinks back after a peak
     ├── the frame's render graph, built again when the frame's shape changes (the target's size,
-    │   the shadow pass or the bloom starting or stopping): the passes below, each declaring the
+    │   either shadow pass or the bloom starting or stopping): the passes below, each declaring the
     │   targets it draws into and samples, ordered by them; the HDR target (Rgba16Float) and the
     │   depth target, of four samples per pixel, the HDR target their samples are resolved into,
     │   and, while the bloom runs, its levels (the output divided by 2^i, rounded to the nearest,
@@ -357,8 +363,14 @@ renderer = Renderer::new(&gpu, format)                 the output's format; thre
     ├── the passes, in the graph's order, four to a submission named after the target, each timed
     │   by its submission's GpuTimer when the adapter can:
     │   ├── the shadow pass into the shadow map, a depth-only pass skipped when no light or no
-    │   │   instance casts shadows: for each instance that casts shadows, the shadow pipeline its
-    │   │   material asks for (masked or not), its bind groups and buffers, draw_indexed
+    │   │   instance casts shadows: the first slot of the buffer of views bound at group 3; for each
+    │   │   instance that casts shadows, the shadow pipeline its material asks for (masked or not),
+    │   │   its bind groups and buffers, draw_indexed
+    │   ├── the spot lights' shadow pass into the atlas, created by the first frame that needs it,
+    │   │   skipped when no spot light casts shadows: for each such light, its tile
+    │   │   (set_viewport) and its view's slot; for each instance that casts shadows and whose box
+    │   │   reaches into its cone and range, as above (ADR-0058, ADR-0061); the scene pass does not
+    │   │   read the atlas yet
     │   ├── the scene pass into the multisampled HDR target, cleared to black, the shadow map's
     │   │   group bound at group 3: for each instance, the pipeline that its material's
     │   │   double-sidedness and its transform's mirroring choose (set when it changes), its

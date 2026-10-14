@@ -147,11 +147,17 @@ pub struct SpotLight {
     pub inner_cone_angle: f32,
     /// The angle from the axis, in radians, beyond which there is no light: at most π / 2.
     pub outer_cone_angle: f32,
+    /// Whether the light casts shadows (ADR-0058): every spot light drawn that does gets a tile of
+    /// the renderer's shadow atlas, in the order of the scene's lights, 2048 × 2048 texels for up
+    /// to four such lights, 1024 × 1024 from five on. The tile sees what lies 5 cm or more from the
+    /// light, within 80° of its axis at most: a wider cone is not shadowed beyond. Each light that
+    /// casts shadows costs a draw of every instance that casts shadows inside its cone and range.
+    pub casts_shadows: bool,
 }
 
 impl Default for SpotLight {
     /// A white light of 1 candela at the origin, pointing down −Z, without range, with glTF's
-    /// cone: full on its axis only, nothing beyond π / 4.
+    /// cone: full on its axis only, nothing beyond π / 4; it casts shadows.
     fn default() -> Self {
         Self {
             position: Vec3::ZERO,
@@ -161,6 +167,7 @@ impl Default for SpotLight {
             range: None,
             inner_cone_angle: 0.0,
             outer_cone_angle: FRAC_PI_4,
+            casts_shadows: true,
         }
     }
 }
@@ -372,6 +379,7 @@ mod tests {
                 Light::Spot(SpotLight {
                     inner_cone_angle: 0.5,
                     outer_cone_angle: 0.5,
+                    casts_shadows: true,
                     ..spot
                 }),
                 "its cones of 0.5 and 0.5 radians are not 0 ≤ inner < outer ≤ π / 2",
@@ -379,6 +387,7 @@ mod tests {
             (
                 Light::Spot(SpotLight {
                     outer_cone_angle: 2.0,
+                    casts_shadows: true,
                     ..spot
                 }),
                 "its cones of 0 and 2 radians are not 0 ≤ inner < outer ≤ π / 2",
@@ -412,6 +421,7 @@ mod tests {
             range: Some(4.0),
             inner_cone_angle: 0.0,
             outer_cone_angle: std::f32::consts::FRAC_PI_2,
+            casts_shadows: true,
         })
         .push_values(&mut bytes, Vec3::new(10_000.0, 0.0, 0.0));
         assert_eq!(bytes.len(), LIGHT_VALUES_SIZE);

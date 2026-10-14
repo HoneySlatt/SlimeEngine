@@ -110,12 +110,13 @@ fn main() -> Result<(), RenderError> {
 - `Scene::new(camera, &instances)` and `Instance::new(mesh, material, transform)` make what a
   frame draws; their other fields, such as the scene's `lights`, `environment`, `exposure` and
   `bloom`, or whether an instance casts shadows, are set once they are made (ADR-0046).
-- `Renderer::render(gpu, target, &scene)` draws a frame in passes (shadows, scene, sky, bloom,
-  tone mapping) and returns its `RenderStats`: draw calls, triangles, and the CPU and GPU time of
-  its passes.
+- `Renderer::render(gpu, target, &scene)` draws a frame in passes (the directional light's shadows,
+  the spot lights' shadows, scene, sky, resolve, bloom, tone mapping) and returns its `RenderStats`:
+  draw calls, triangles, and the CPU and GPU time of its passes.
 - `Camera`: where the scene is seen from. `Light`: one of glTF's punctual lights, a
   `DirectionalLight`, of which the first that casts shadows casts the scene's, a `PointLight` or a
-  `SpotLight`; a scene has at most `MAX_LIGHTS` of them drawn.
+  `SpotLight`, every one of which may cast shadows into a tile of the shadow atlas; a scene has at
+  most `MAX_LIGHTS` of them drawn.
 - `RenderError`: an invalid mesh, or a failure of the GPU layer (`GfxError`): a shader or pipeline
   the driver rejects, memory that runs out, or a lost device.
 - `slime_render::glam` re-exports the math crate the API uses (`Mat4`, `Vec3`, `Quat`), so that

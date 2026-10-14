@@ -288,6 +288,7 @@ impl App for SceneExample {
                         ));
                         for (pass, time) in [
                             ("shadow", stats.shadow_gpu_time),
+                            ("spot shadows", stats.spot_shadow_gpu_time),
                             ("scene", stats.scene_gpu_time),
                             ("sky", stats.sky_gpu_time),
                             ("resolve", stats.resolve_gpu_time),
@@ -304,7 +305,9 @@ impl App for SceneExample {
                         }
                         ui.label(format!(
                             "{} draw calls, {} triangles; {} draw calls for shadows",
-                            stats.draw_calls, stats.triangles, stats.shadow_draw_calls
+                            stats.draw_calls,
+                            stats.triangles,
+                            stats.shadow_draw_calls + stats.spot_shadow_draw_calls
                         ));
                         ui.label(format!(
                             "sky computed on the CPU at startup: {:.1} ms",
@@ -338,9 +341,11 @@ impl App for SceneExample {
             drawn = self.drawn,
             draw_calls = self.stats.draw_calls,
             shadow_draw_calls = self.stats.shadow_draw_calls,
+            spot_shadow_draw_calls = self.stats.spot_shadow_draw_calls,
             triangles = self.stats.triangles,
             cpu_time = ?self.stats.cpu_time,
             shadow_gpu_time = ?self.stats.shadow_gpu_time,
+            spot_shadow_gpu_time = ?self.stats.spot_shadow_gpu_time,
             scene_gpu_time = ?self.stats.scene_gpu_time,
             sky_gpu_time = ?self.stats.sky_gpu_time,
             resolve_gpu_time = ?self.stats.resolve_gpu_time,

@@ -19,11 +19,12 @@ use crate::camera::Camera;
 use crate::environment::{Environment, Sky, brdf_table};
 use crate::error::RenderError;
 use crate::graph::{ColorId, Draws, Graph, Imported, PassDeclaration, scaled_side};
-use crate::light::{LIGHT_VALUES_SIZE, Light, MAX_LIGHTS};
+use crate::light::{LIGHT_VALUES_SIZE, Light, MAX_LIGHTS, SpotLight};
 use crate::material::{Material, MaterialData};
 use crate::mesh::{Mesh, MeshData, VERTEX_LAYOUT};
 use crate::shadow::{
-    SHADOW_BIAS, SHADOW_MAP_SIZE, light_view_projection, texel_width, view_sphere,
+    SHADOW_BIAS, SHADOW_MAP_SIZE, SPOT_ATLAS_SIZE, SpotTile, SpotView, light_view_projection,
+    spot_tiles, texel_width, view_sphere,
 };
 
 /// The shader of the scene pass.
@@ -53,6 +54,8 @@ const NO_SHADOWED_LIGHT: u32 = u32::MAX;
 /// the `mat3x3<f32>` that transforms its normals (three columns padded to 16 bytes), and its
 /// handedness, padded to 16 bytes.
 const INSTANCE_VALUES_SIZE: usize = 64 + 3 * 16 + 16;
+/// The size of the values of one view of a shadow pass, `ShadowView` in `shader.wgsl`: a matrix.
+const SHADOW_VIEW_SIZE: usize = 64;
 /// The texture slots of a material, each a texture and its sampler: base color,
 /// metallic-roughness, normal, occlusion, emissive (ADR-0035).
 const MATERIAL_TEXTURE_SLOTS: u32 = 5;
@@ -221,9 +224,15 @@ pub struct RenderStats {
     /// the region the shadow map covers or every one that does is flattened to a point, which casts
     /// nothing, or when the camera sees nothing: the pass is then skipped.
     pub shadow_draw_calls: u32,
+    /// The draw calls the spot lights' shadow pass made: for each spot light that casts shadows,
+    /// one per instance that casts shadows whose box reaches into its tile.
+    pub spot_shadow_draw_calls: u32,
     /// How long the GPU took to draw the shadow map, under the same rules as `scene_gpu_time`;
     /// `None` too for a frame that skipped the shadow pass.
     pub shadow_gpu_time: Option<Duration>,
+    /// How long the GPU took to draw the spot lights' shadow atlas, under the same rules as
+    /// `scene_gpu_time`; `None` too for a frame in which no spot light casts shadows.
+    pub spot_shadow_gpu_time: Option<Duration>,
     /// How long the GPU took to draw the sky behind the scene, under the same rules as
     /// `scene_gpu_time`.
     pub sky_gpu_time: Option<Duration>,
@@ -240,35 +249,40 @@ pub struct RenderStats {
 ///
 /// Each frame takes these passes (ADR-0034, ADR-0037, ADR-0038, ADR-0039, ADR-0040): the shadow
 /// pass draws the depths of the instances, as the scene's first directional light that casts
-/// shadows sees them, into the shadow map; the scene pass draws the instances into a target of
-/// half-precision floats, where light may exceed 1, of four samples per pixel, with a depth target
-/// of four samples too (ADR-0056), their light multiplied by the scene's exposure, that light's
-/// only where the shadow map shows nothing nearer to it, and the environment's; the sky pass draws
-/// the environment where no surface is, sample by sample; the resolve pass averages the samples of
-/// each pixel into a target of one sample per pixel, each weighed by its brightness (ADR-0060), so
-/// that the edges of what both passes drew are smooth (multisample anti-aliasing); the bloom's
-/// passes filter that light down into a chain of levels, each half the size of the one before, then
-/// average them back up into a blurred copy; the tone-mapping pass then mixes the blurred copy in
-/// by the scene's bloom strength and maps the light to the output's range with Khronos PBR Neutral.
-/// The renderer owns ten pipelines: two for the shadow pass (the second discards what masked
-/// materials discard), three for the scene pass, which differ by the faces they cull and among
-/// which each draw chooses (ADR-0035), the sky pass's, the resolve pass's, the bloom's two (down
-/// and up) and the tone-mapping pass's; the table of the BRDF's scale and bias and a black
-/// environment for scenes without one; the shadow map, 2048 × 2048 depths (16 MiB) created with the
-/// renderer; the buffer of the instances' values; and the frame's render graph (ADR-0041): its
-/// passes in order, the high-dynamic-range and depth targets and the bloom's levels at the size of
-/// the output it draws into, the groups that read them and GPU timers for its submissions, built
-/// again when the frame's shape changes (the output's size, the shadow pass or the bloom turned on
-/// or off). A renderer draws best into outputs of one size: drawing into outputs of two sizes in
-/// turn creates its targets again at every call, and reports no tone-mapping or bloom time; use one
-/// renderer per output size. At 1920 × 1080 with the bloom, a renderer holds about 137 MiB of GPU
-/// memory: 16 for the shadow map, 111 for the high-dynamic-range and depth targets, 95 of them for
-/// their four samples per pixel, and 10.5 for the bloom's levels; at 3840 × 2160, about 500 MiB.
+/// shadows sees them, into the shadow map; the spot lights' shadow pass draws them, as each spot
+/// light that casts shadows sees them, into its tile of the atlas (ADR-0058, ADR-0061), which the
+/// scene pass does not read yet; the scene pass draws the instances into a target of half-precision
+/// floats, where light may exceed 1, of four samples per pixel, with a depth target of four samples
+/// too (ADR-0056), their light multiplied by the scene's exposure, that light's only where the
+/// shadow map shows nothing nearer to it, and the environment's; the sky pass draws the environment
+/// where no surface is, sample by sample; the resolve pass averages the samples of each pixel into
+/// a target of one sample per pixel, each weighed by its brightness (ADR-0060), so that the edges
+/// of what both passes drew are smooth (multisample anti-aliasing); the bloom's passes filter that
+/// light down into a chain of levels, each half the size of the one before, then average them back
+/// up into a blurred copy; the tone-mapping pass then mixes the blurred copy in by the scene's
+/// bloom strength and maps the light to the output's range with Khronos PBR Neutral. The renderer
+/// owns ten pipelines: two for the shadow pass (the second discards what masked materials discard),
+/// three for the scene pass, which differ by the faces they cull and among which each draw chooses
+/// (ADR-0035), the sky pass's, the resolve pass's, the bloom's two (down and up) and the
+/// tone-mapping pass's; the table of the BRDF's scale and bias and a black environment for scenes
+/// without one; the shadow map, 2048 × 2048 depths (16 MiB) created with the renderer; the spot
+/// lights' shadow atlas, 4096 × 4096 depths (64 MiB) created by the first frame in which a spot
+/// light casts shadows; the buffer of the shadow passes' views; the buffer of the instances'
+/// values; and the frame's render graph (ADR-0041): its passes in order, the high-dynamic-range and
+/// depth targets and the bloom's levels at the size of the output it draws into, the groups that
+/// read them and GPU timers for its submissions, built again when the frame's shape changes (the
+/// output's size, either shadow pass or the bloom turned on or off). A renderer draws best into
+/// outputs of one size: drawing into outputs of two sizes in turn creates its targets again at
+/// every call, and reports no tone-mapping or bloom time; use one renderer per output size. At
+/// 1920 × 1080 with the bloom, a renderer holds about 137 MiB of GPU memory: 16 for the shadow map,
+/// 111 for the high-dynamic-range and depth targets, 95 of them for their four samples per pixel,
+/// and 10.5 for the bloom's levels, and 64 more once a spot light has cast shadows; at 3840 × 2160,
+/// about 500 MiB, and 64 more.
 ///
 /// It does not yet smooth the edges that a masked material cuts inside a triangle, blend
 /// transparent surfaces, or leave out the instances that the camera does not see: every instance
 /// costs one draw call in the scene pass, and one in the shadow pass if it casts shadows, wherever
-/// it is.
+/// it is; only the spot lights' tiles leave out what lies outside their cones.
 pub struct Renderer {
     /// The output's format.
     format: TextureFormat,
@@ -313,6 +327,16 @@ pub struct Renderer {
     shadow_map: DepthTarget,
     /// The shadow map and its comparison sampler, bound at group 3 of the scene pass.
     shadow_group: BindGroup,
+    /// The view of each map or tile that the shadow passes draw: the directional light's in the
+    /// first slot, then one per spot light that casts shadows, each slot `shadow_view_stride` bytes
+    /// apart, written at every frame.
+    shadow_views: UniformBuffer,
+    shadow_view_stride: usize,
+    /// Those views, bound at group 3 of the shadow passes, at the offset of each.
+    shadow_views_group: BindGroup,
+    /// The spot lights' shadow atlas (ADR-0058): created by the first frame in which a spot light
+    /// casts shadows, then kept.
+    spot_atlas: Option<DepthTarget>,
     /// Filters a level down from the one above, the scene's light for the first.
     bloom_down_pipeline: RenderPipeline,
     /// Averages a level with the coarser ones.
@@ -337,6 +361,9 @@ pub struct Renderer {
 pub(crate) enum Pass {
     /// The depths of the instances as the shadowed light sees them, into the shadow map.
     Shadow,
+    /// The depths of the instances as each spot light that casts shadows sees them, into its tile
+    /// of the atlas.
+    SpotShadows,
     /// The instances, shaded, into the high-dynamic-range target.
     Scene,
     /// The environment where no surface is.
@@ -353,12 +380,13 @@ pub(crate) enum Pass {
 }
 
 /// What decides the passes and targets of a frame: the output's size, whether the shadow pass
-/// runs, and whether the bloom's passes do.
+/// runs, whether the spot lights' shadow pass does, and whether the bloom's passes do.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Shape {
     width: u32,
     height: u32,
     shadow: bool,
+    spot_shadows: bool,
     bloom: bool,
 }
 
@@ -372,6 +400,13 @@ struct Frame {
     /// it declares, created from that declaration so that the two cannot differ; `None` for the
     /// passes that read none (shadow, scene and sky).
     groups: Vec<Option<BindGroup>>,
+}
+
+/// What the spot lights' shadow pass draws into one tile of the atlas.
+struct SpotDraw {
+    tile: SpotTile,
+    /// The slots of the instances that cast shadows into the tile.
+    instances: Vec<usize>,
 }
 
 /// How many levels the bloom's chain has for an output of `width` × `height` pixels: the level
@@ -509,6 +544,18 @@ impl Renderer {
                 multisampled: true,
             })
         };
+        // The view of the map or tile a shadow pass draws, one slot per view (`ShadowView` in
+        // `shader.wgsl`).
+        let shadow_views_layout = gpu.create_bind_group_layout(
+            "shadow views",
+            &[BindGroupLayoutEntry {
+                binding: 3,
+                visible_to: ShaderStages::Vertex,
+                ty: BindingType::UniformBuffer {
+                    dynamic_offset: true,
+                },
+            }],
+        )?;
         // Every face casts, whichever way it faces the light: a single-sided surface stops light
         // from behind too, and mirrored instances need no other pipeline.
         let shadow_pipeline = |label: &str, fragment: Option<FragmentState<'_>>| {
@@ -518,7 +565,12 @@ impl Renderer {
                 vertex_entry_point: "vs_shadow",
                 vertex_layout: Some(VERTEX_LAYOUT),
                 fragment,
-                bind_group_layouts: &[&frame_layout, &material_layout, &instance_layout],
+                bind_group_layouts: &[
+                    &frame_layout,
+                    &material_layout,
+                    &instance_layout,
+                    &shadow_views_layout,
+                ],
                 depth: Some(DepthState {
                     compare: DepthCompare::Greater,
                     write: true,
@@ -555,6 +607,23 @@ impl Renderer {
                     resource: BindingResource::ComparisonSampler(&shadow_sampler),
                 },
             ],
+        )?;
+        // The directional light's view, then one per tile of the spot lights' atlas.
+        let shadow_view_stride = SHADOW_VIEW_SIZE.next_multiple_of(gpu.uniform_offset_alignment());
+        let shadow_views = gpu.create_uniform_buffer(
+            "shadow views",
+            &vec![0; (1 + MAX_LIGHTS) * shadow_view_stride],
+        )?;
+        let shadow_views_group = gpu.create_bind_group(
+            "shadow views",
+            &shadow_views_layout,
+            &[BindGroupEntry {
+                binding: 3,
+                resource: BindingResource::UniformBufferRange {
+                    buffer: &shadow_views,
+                    size: SHADOW_VIEW_SIZE,
+                },
+            }],
         )?;
         let scene_pipelines = ScenePipelines {
             back_culled: scene_pipeline("scene, back faces culled", CullMode::Back)?,
@@ -736,6 +805,10 @@ impl Renderer {
             masked_shadow_pipeline,
             shadow_map,
             shadow_group,
+            shadow_views,
+            shadow_view_stride,
+            shadow_views_group,
+            spot_atlas: None,
             bloom_down_pipeline,
             bloom_up_pipeline,
             bloom_down_layout,
@@ -865,7 +938,10 @@ impl Renderer {
     /// them, over the region around the camera that the light's
     /// [`shadow_distance`](crate::DirectionalLight::shadow_distance) sets (ADR-0038, ADR-0049,
     /// ADR-0050); it is skipped when no directional light casts shadows, or when no instance that
-    /// casts shadows reaches the region. The scene pass draws every instance into a
+    /// casts shadows reaches the region. The spot lights' shadow pass then draws, into the tile of
+    /// the atlas of each spot light that casts shadows, the depths of the instances that cast
+    /// shadows inside its cone and range, seen in perspective from the light (ADR-0058, ADR-0061);
+    /// it is skipped when no spot light casts shadows. The scene pass draws every instance into a
     /// high-dynamic-range target of four samples per pixel with the depth test, so that nearer
     /// surfaces hide farther ones whatever their order, each surface shaded by the scene's light
     /// with glTF's metallic-roughness model and its material's textures, the shadowed light's only
@@ -873,22 +949,23 @@ impl Renderer {
     /// along its normal, compared at 3 × 3 points one texel apart so that its edges fade over three
     /// texels, and culled or not as its material and its transform ask (ADR-0035), the scene's
     /// environment reflected as its material reflects it (ADR-0039), its light multiplied by the
-    /// scene's exposure (ADR-0037). Point and spot lights cast no shadows. The sky pass draws the
-    /// environment, exposed, where no surface was drawn, with its sun's disc. The resolve pass then
-    /// averages the samples of each pixel, each weighed by 1 / (1 + its brightest channel), which
-    /// smooths the edges of what both passes drew, the bright ones too (ADR-0056, ADR-0060). Unless
-    /// `scene.bloom` is 0 or `target` is smaller than 15 × 15, the bloom's passes filter that light
-    /// down into levels of half the size of the one before, to a side of at least 8 texels, with
-    /// Jimenez's 13-tap filter, then average them back up through 3 × 3 tents, every level with the
-    /// same weight, into a blurred copy (ADR-0040): 11 passes at 1280 × 720, 13 at 1920 × 1080. The
-    /// tone-mapping pass then mixes the blurred copy in by `scene.bloom`, maps that light to the
-    /// range a display shows with Khronos PBR Neutral, which lowers a color whose channels all lie
-    /// between 0.08 and 0.8 by 0.04, a darker one less, and compresses a brighter one towards 1 and
-    /// turns it towards white, dithers it when `target` has 8 bits per channel, with noise of up to
-    /// one step that keeps its average and leaves black and white as they are (ADR-0051), and
-    /// writes it into `target`, opaque. A render graph orders the passes, and they are recorded in
-    /// that order, four to a submission named after `target` (ADR-0041); the work runs on the GPU
-    /// after this method returns.
+    /// scene's exposure (ADR-0037). The scene pass does not read the atlas yet: point and spot
+    /// lights light as if they cast no shadows. The sky pass draws the environment, exposed, where
+    /// no surface was drawn, with its sun's disc. The resolve pass then averages the samples of
+    /// each pixel, each weighed by 1 / (1 + its brightest channel), which smooths the edges of what
+    /// both passes drew, the bright ones too (ADR-0056, ADR-0060). Unless `scene.bloom` is 0 or
+    /// `target` is smaller than 15 × 15, the bloom's passes filter that light down into levels of
+    /// half the size of the one before, to a side of at least 8 texels, with Jimenez's 13-tap
+    /// filter, then average them back up through 3 × 3 tents, every level with the same weight,
+    /// into a blurred copy (ADR-0040): 11 passes at 1280 × 720, 13 at 1920 × 1080. The tone-mapping
+    /// pass then mixes the blurred copy in by `scene.bloom`, maps that light to the range a display
+    /// shows with Khronos PBR Neutral, which lowers a color whose channels all lie between 0.08 and
+    /// 0.8 by 0.04, a darker one less, and compresses a brighter one towards 1 and turns it towards
+    /// white, dithers it when `target` has 8 bits per channel, with noise of up to one step that
+    /// keeps its average and leaves black and white as they are (ADR-0051), and writes it into
+    /// `target`, opaque. A render graph orders the passes, and they are recorded in that order,
+    /// four to a submission named after `target` (ADR-0041); the work runs on the GPU after this
+    /// method returns.
     ///
     /// The high-dynamic-range and depth targets are created at the size of `target` the first
     /// time, and again whenever that size changes; the bloom's levels (4.7 MiB at 1280 × 720,
@@ -1043,6 +1120,61 @@ impl Renderer {
         // The slots of the lights the scene does not have: the shader does not read them.
         frame_bytes.resize(FRAME_VALUES_SIZE, 0);
         gpu.write_uniform_buffer(&self.frame_uniform, &frame_bytes);
+
+        // Each spot light that casts shadows, among those drawn, gets a tile of the atlas, in the
+        // scene's order, and draws there the instances that cast shadows into it (ADR-0058).
+        let spot_lights: Vec<&SpotLight> = lights
+            .iter()
+            .filter_map(|light| match light {
+                Light::Spot(light) if light.casts_shadows => Some(light),
+                _ => None,
+            })
+            .collect();
+        let mut spot_views = Vec::with_capacity(spot_lights.len());
+        let spot_draws: Vec<SpotDraw> = spot_lights
+            .iter()
+            .zip(spot_tiles(spot_lights.len()))
+            .map(|(light, tile)| {
+                let view = SpotView::new(light, origin, tile.size);
+                let instances = (0..)
+                    .zip(scene.instances)
+                    .filter(|(_, instance)| {
+                        instance.casts_shadows
+                            && view.reaches(
+                                light.range,
+                                (
+                                    relative_to(origin, instance.transform),
+                                    instance.mesh.center,
+                                    instance.mesh.half_size,
+                                ),
+                            )
+                    })
+                    .map(|(slot, _)| slot)
+                    .collect();
+                spot_views.push(view);
+                SpotDraw { tile, instances }
+            })
+            .collect();
+        if !spot_draws.is_empty() && self.spot_atlas.is_none() {
+            self.spot_atlas = Some(gpu.create_depth_target(
+                "spot shadow atlas",
+                SPOT_ATLAS_SIZE,
+                SPOT_ATLAS_SIZE,
+            )?);
+        }
+        // The views of the shadow passes: the directional light's, then the tiles', each in its slot.
+        let mut view_bytes = Vec::with_capacity((1 + MAX_LIGHTS) * self.shadow_view_stride);
+        let views = std::iter::once(light_view_proj)
+            .chain(spot_views.iter().map(|view| view.view_projection));
+        for view in views {
+            push_mat4(&mut view_bytes, view);
+            view_bytes.resize(
+                view_bytes.len().next_multiple_of(self.shadow_view_stride),
+                0,
+            );
+        }
+        view_bytes.resize((1 + MAX_LIGHTS) * self.shadow_view_stride, 0);
+        gpu.write_uniform_buffer(&self.shadow_views, &view_bytes);
         if !self.frame_group.0.is(environment) {
             let group = frame_group(
                 gpu,
@@ -1083,6 +1215,7 @@ impl Renderer {
             width,
             height,
             shadow: shadow.is_some(),
+            spot_shadows: !spot_draws.is_empty(),
             bloom,
         };
         if self.frame.as_ref().is_none_or(|frame| frame.shape != shape) {
@@ -1093,7 +1226,10 @@ impl Renderer {
 
         let mut stats = RenderStats::default();
         // In the order `declare_frame` imports them.
-        let imported = [Imported::Color(target), Imported::Depth(&self.shadow_map)];
+        let mut imported = vec![Imported::Color(target), Imported::Depth(&self.shadow_map)];
+        if let (true, Some(atlas)) = (shape.spot_shadows, &self.spot_atlas) {
+            imported.push(Imported::Depth(atlas));
+        }
         // The submissions are named after the output, so that capture tools show which it drew.
         frame.graph.record(
             gpu,
@@ -1101,7 +1237,15 @@ impl Renderer {
             &imported,
             |index, pass, render_pass| {
                 let group = frame.groups[index].as_ref();
-                self.record(pass, render_pass, group, frame_group, scene, &mut stats);
+                self.record(
+                    pass,
+                    render_pass,
+                    group,
+                    frame_group,
+                    scene,
+                    &spot_draws,
+                    &mut stats,
+                );
             },
         );
         fold_gpu_times(
@@ -1117,8 +1261,33 @@ impl Renderer {
         Ok(stats)
     }
 
+    /// Draws the depths of `instance`, at `slot` of the instance buffer, in a shadow pass, with the
+    /// shadow pipeline its material asks for, set when it differs from `bound`, the one set last.
+    fn draw_caster(
+        &self,
+        render_pass: &mut RenderPass<'_>,
+        bound: &mut Option<bool>,
+        slot: usize,
+        instance: &Instance<'_>,
+    ) {
+        let masked = instance.material.masked;
+        if *bound != Some(masked) {
+            render_pass.set_pipeline(if masked {
+                &self.masked_shadow_pipeline
+            } else {
+                &self.shadow_pipeline
+            });
+            *bound = Some(masked);
+        }
+        self.instances.draw(render_pass, slot, instance);
+    }
+
     /// Records `pass`, which reads its transient targets through `group`, drawing `scene`, and
     /// counts its draws in `stats`.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the frame's parts that every pass may need, gathered by `render`"
+    )]
     fn record(
         &self,
         pass: Pass,
@@ -1126,25 +1295,35 @@ impl Renderer {
         group: Option<&BindGroup>,
         frame_group: &BindGroup,
         scene: &Scene<'_>,
+        spot_draws: &[SpotDraw],
         stats: &mut RenderStats,
     ) {
         match pass {
             Pass::Shadow => {
                 render_pass.set_bind_group(0, frame_group, &[]);
+                // The directional light's view, in the first slot.
+                render_pass.set_bind_group(3, &self.shadow_views_group, &[0]);
                 let mut bound = None;
                 let casters = scene.instances.iter().enumerate();
                 for (slot, instance) in casters.filter(|(_, instance)| instance.casts_shadows) {
-                    let masked = instance.material.masked;
-                    if bound != Some(masked) {
-                        render_pass.set_pipeline(if masked {
-                            &self.masked_shadow_pipeline
-                        } else {
-                            &self.shadow_pipeline
-                        });
-                        bound = Some(masked);
-                    }
-                    self.instances.draw(render_pass, slot, instance);
+                    self.draw_caster(render_pass, &mut bound, slot, instance);
                     stats.shadow_draw_calls += 1;
+                }
+            }
+            Pass::SpotShadows => {
+                render_pass.set_bind_group(0, frame_group, &[]);
+                let mut bound = None;
+                // Each tile's view, in the slots after the directional light's.
+                for (view, draw) in (1..).zip(spot_draws) {
+                    let SpotTile { x, y, size } = draw.tile;
+                    render_pass.set_viewport(x, y, size, size);
+                    let offset = u32::try_from(view * self.shadow_view_stride)
+                        .expect("at most MAX_LIGHTS views");
+                    render_pass.set_bind_group(3, &self.shadow_views_group, &[offset]);
+                    for &slot in &draw.instances {
+                        self.draw_caster(render_pass, &mut bound, slot, &scene.instances[slot]);
+                        stats.spot_shadow_draw_calls += 1;
+                    }
                 }
             }
             Pass::Scene => {
@@ -1216,7 +1395,7 @@ impl Renderer {
                 // The transient render target the pass declares at `slot` of its reads.
                 let read = |slot: usize| declaration.reads[slot].map(|target| graph.color(target));
                 let entries = match declaration.pass {
-                    Pass::Shadow | Pass::Scene | Pass::Sky => return Ok(None),
+                    Pass::Shadow | Pass::SpotShadows | Pass::Scene | Pass::Sky => return Ok(None),
                     Pass::Resolve => (
                         "resolve".to_owned(),
                         &self.resolve_layout,
@@ -1304,6 +1483,7 @@ fn fold_gpu_times(
         let time = time(index);
         match pass {
             Pass::Shadow => stats.shadow_gpu_time = time,
+            Pass::SpotShadows => stats.spot_shadow_gpu_time = time,
             Pass::Scene => stats.scene_gpu_time = time,
             Pass::Sky => stats.sky_gpu_time = time,
             Pass::Resolve => stats.resolve_gpu_time = time,
@@ -1325,6 +1505,9 @@ fn declare_frame(shape: Shape) -> Graph {
     // Given to `Graph::record` in this order.
     let output = graph.import_color("output");
     let shadow_map = graph.import_depth("shadow map");
+    let spot_atlas = shape
+        .spot_shadows
+        .then(|| graph.import_depth("spot shadow atlas"));
     // The scene and the sky are drawn at four samples per pixel, which smooths the edges of what
     // they draw (ADR-0056), then resolved into a target of one sample that the later passes
     // sample. Labelled "scene", which names the scene and sky passes in capture tools.
@@ -1342,6 +1525,9 @@ fn declare_frame(shape: Shape) -> Graph {
     };
     if shape.shadow {
         graph.add_pass(pass(Pass::Shadow, Draws::Depth(shadow_map), [None, None]));
+    }
+    if let Some(atlas) = spot_atlas {
+        graph.add_pass(pass(Pass::SpotShadows, Draws::Depth(atlas), [None, None]));
     }
     // The sky pass draws every pixel that no surface covers. Without a shadow pass, the scene pass
     // still binds the shadow map, which its shader then does not read.
@@ -1923,12 +2109,15 @@ mod tests {
     #[test]
     fn every_shape_of_the_frame_runs_its_passes_in_the_order_they_draw_and_read() {
         for (width, height) in [(1920, 1080), (1280, 720), (15, 15), (14, 14), (1, 1)] {
-            for shadow in [false, true] {
+            for (shadow, spot_shadows) in
+                [(false, false), (true, false), (false, true), (true, true)]
+            {
                 for bloom in [false, true] {
                     let shape = Shape {
                         width,
                         height,
                         shadow,
+                        spot_shadows,
                         bloom: bloom && bloom_levels(width, height) > 0,
                     };
                     let mut graph = declare_frame(shape);
@@ -1943,6 +2132,9 @@ mod tests {
                     let mut expected = Vec::new();
                     if shadow {
                         expected.push(Pass::Shadow);
+                    }
+                    if spot_shadows {
+                        expected.push(Pass::SpotShadows);
                     }
                     expected.extend([Pass::Scene, Pass::Sky, Pass::Resolve]);
                     expected.extend((0..levels).map(Pass::BloomDown));
@@ -1984,6 +2176,7 @@ mod tests {
         let millis = |k: u64| Duration::from_millis(k);
         let passes = [
             Pass::Shadow,
+            Pass::SpotShadows,
             Pass::Scene,
             Pass::Sky,
             Pass::Resolve,
@@ -2001,6 +2194,7 @@ mod tests {
         assert_eq!(
             (
                 stats.shadow_gpu_time,
+                stats.spot_shadow_gpu_time,
                 stats.scene_gpu_time,
                 stats.sky_gpu_time,
                 stats.resolve_gpu_time,
@@ -2012,8 +2206,9 @@ mod tests {
                 Some(millis(2)),
                 Some(millis(3)),
                 Some(millis(4)),
-                Some(millis(5 + 6 + 7)),
-                Some(millis(8))
+                Some(millis(5)),
+                Some(millis(6 + 7 + 8)),
+                Some(millis(9))
             )
         );
         // A bloom pass without a time leaves the sum unknown, and a frame without the bloom's
@@ -2021,7 +2216,7 @@ mod tests {
         let mut stats = RenderStats::default();
         fold_gpu_times(
             passes.into_iter(),
-            |k| (k != 4).then(|| millis(1)),
+            |k| (k != 5).then(|| millis(1)),
             &mut stats,
         );
         assert_eq!(stats.bloom_gpu_time, None);

@@ -13,7 +13,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3d — Anti-aliasing and the shadows of spot lights: planned on 2026-10-15 and validated by
-  the owner. M3d.1 is done; M3d.2 waits for its check on WARP by CI.
+  the owner. M3d.1 is done; M3d.2 waits for its check on WARP by CI; M3d.3 is in progress.
 
 ## Status
 
@@ -21,7 +21,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 |---|---|---|
 | [M3d.1](#m3d1--multisampling-in-the-gpu-layer) | `slime-gfx` draws into targets of four samples and resolves them | Done |
 | [M3d.2](#m3d2--anti-aliasing-in-the-renderer) | The edges of the scene are smooth | In progress |
-| [M3d.3](#m3d3--spot-lights-shadows-what-each-tile-sees) | Each spot light that casts shadows has its tile and knows what it sees | Planned |
+| [M3d.3](#m3d3--spot-lights-shadows-what-each-tile-sees) | The renderer draws each spot light's tile of the shadow atlas | In progress |
 | [M3d.4](#m3d4--spot-lights-shadows-drawn-and-read) | Spot lights cast shadows | Planned |
 | [M3d.5](#m3d5--nightwatch-and-the-windows-check) | Nightwatch shows both, on Linux and Windows | Planned |
 
@@ -121,26 +121,34 @@ lengthens `scripts/check.sh`.
 
 ### M3d.3 — Spot lights' shadows: what each tile sees
 
-- **Goal.** The renderer knows, for each spot light that casts shadows, its tile and what it sees.
+- **Goal.** The renderer draws, for each spot light that casts shadows, its tile of the atlas.
 - **Crates.** `slime-render`, `slime-gfx`.
 - **Delivers.** `SpotLight::casts_shadows`; tiles sized and placed by ADR-0058's rule; each tile's
   projection, in perspective from its light, with its near plane and the widest cone it covers;
   the instances kept for each light, those inside its cone and range; render passes that draw into
-  part of a target, so that one pass draws every tile; the ADR on how a tile is projected and how
-  its depths are biased.
+  part of a target, so that one pass draws every tile; that pass, its views and its cost in
+  `RenderStats` (planned for M3d.4: the code that computes the tiles must be used where it is
+  written, or the checks refuse it as dead); the ADR on how a tile is projected and how its depths
+  are biased.
 - **Done when.** Unit tests: the tiles of 1, 4, 5 and 16 lights; a cone fits in its tile with the
   filter's margin; an instance inside a light's cone is kept and one outside left out; a pass that
   draws into two parts of one depth target, which a later pass samples. The directional light's
   shadow tests and the image tests hold unchanged.
 - **How to test.** `cargo test -p slime-gfx -p slime-render`.
+- **Checked so far** on 2026-10-15: ADR-0061; unit tests of the tiles of 0, 1, 4, 5 and 16 lights,
+  of a cone held by its tile with a margin of 6 texels at three sizes and angles, an 80° cut for a
+  cone of π / 2, and of the instances kept and left out; a pass that draws into two halves of one
+  depth target, read by a later pass, on lavapipe and an RX 6900 XT (RADV). The directional
+  light's shadow tests and the image tests hold unchanged. In *Nightwatch*, on the RX 6900 XT, the
+  five tiles cost 46 draws, of 155 without culling, and about 10 µs of GPU time.
 
 ### M3d.4 — Spot lights' shadows: drawn and read
 
 - **Goal.** Spot lights cast shadows.
 - **Crates.** `slime-render`.
-- **Delivers.** The pass that draws the atlas; the scene shader reading each light's tile with the
-  3 × 3 filter of the directional light, shared; the pass's cost in `RenderStats`; tests of spot
-  lights' shadows; the bias checked on lavapipe, an AMD GPU and WARP; the documents.
+- **Delivers.** The scene shader reading each light's tile with the 3 × 3 filter of the directional
+  light, shared; tests of spot lights' shadows; the bias checked on lavapipe, an AMD GPU and WARP;
+  the documents.
 - **Done when.** Tests: a square shadows a floor where the geometry predicts, its edge within the
   directional tests' tolerances; a lit floor and a lit sphere shadow nothing of themselves; a light
   that casts no shadows lights through; sixteen lights each get a tile; a masked cut-out casts the

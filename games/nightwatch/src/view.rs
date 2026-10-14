@@ -251,6 +251,7 @@ impl View {
                     range: Some(FLOODLIGHT_RANGE + 3.0),
                     inner_cone_angle: FLOODLIGHT_HALF_ANGLE * 0.7,
                     outer_cone_angle: FLOODLIGHT_HALF_ANGLE,
+                    casts_shadows: true,
                 }));
             }
         }
@@ -287,6 +288,7 @@ impl View {
                 range: Some(FLASHLIGHT_RANGE + 1.0),
                 inner_cone_angle: FLASHLIGHT_HALF_ANGLE * 0.6,
                 outer_cone_angle: FLASHLIGHT_HALF_ANGLE,
+                casts_shadows: true,
             }));
         }
 

@@ -1,12 +1,15 @@
-//! Shadows of the first directional light of a scene that casts shadows: the shadow map's size and
-//! depth bias, and the projection that fits the map to the region around the camera (ADR-0038,
-//! ADR-0050).
+//! Shadows: those of the first directional light of a scene that casts shadows, the shadow map's
+//! size and depth bias, and the projection that fits the map to the region around the camera
+//! (ADR-0038, ADR-0050); and those of spot lights, the tiles of their atlas and what each sees
+//! (ADR-0058, ADR-0061).
 
-use glam::camera::rh::proj::directx::orthographic;
+use glam::camera::rh::proj::directx::{orthographic, perspective_infinite_reverse};
+use glam::camera::rh::view::look_to_mat4;
 use glam::{DMat4, DVec3, DVec4, Mat3, Mat4, Vec3};
 use slime_gfx::DepthBias;
 
 use crate::camera::Camera;
+use crate::light::{MAX_LIGHTS, SpotLight, unit};
 
 /// The width and the height of the shadow map, in texels: 16 MiB of 32-bit depths.
 pub(crate) const SHADOW_MAP_SIZE: u32 = 2048;
@@ -139,9 +142,119 @@ pub(crate) fn view_sphere(camera: &Camera, aspect: f32, distance: f32) -> (DVec3
     (forward * along, radius)
 }
 
+/// The width and the height of the spot lights' shadow atlas, in texels: 64 MiB of 32-bit depths
+/// (ADR-0058).
+pub(crate) const SPOT_ATLAS_SIZE: u32 = 4096;
+
+/// How far from a spot light its tile starts seeing, in metres: what lies nearer casts no shadow,
+/// so that the lamp a light sits in does not hide it (ADR-0061).
+pub(crate) const SPOT_NEAR: f32 = 0.05;
+
+/// The widest a spot light's tile sees, in radians from its axis: 80°. A cone of up to π / 2 would
+/// need a tile infinitely wide; beyond this angle, its light casts no shadow (ADR-0061).
+pub(crate) const SPOT_WIDEST: f32 = 1.396_263_4;
+
+/// How many texels a tile sees beyond its light's cone on each side, so that the filter of a point
+/// at the cone's edge, looked up off its surface, still reads the tile's own texels: the filter
+/// reaches a texel and a half from the point, which the normal offset moves by up to three
+/// (`NORMAL_OFFSET_TEXELS` in `shader.wgsl`, ADR-0061).
+const TILE_MARGIN_TEXELS: u32 = 6;
+
+/// A tile of the spot lights' shadow atlas: its top left texel and its side, in texels.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct SpotTile {
+    pub(crate) x: u32,
+    pub(crate) y: u32,
+    pub(crate) size: u32,
+}
+
+/// The tiles of the atlas for `count` spot lights that cast shadows, in the scene's order: 2048 ×
+/// 2048 texels each for up to four lights, 1024 × 1024 each from five to [`MAX_LIGHTS`], row by
+/// row from the atlas's top left corner (ADR-0058).
+///
+/// # Panics
+///
+/// If `count` is above [`MAX_LIGHTS`], the most lights a scene draws.
+pub(crate) fn spot_tiles(count: usize) -> impl Iterator<Item = SpotTile> {
+    assert!(count <= MAX_LIGHTS, "{count} spot lights cast shadows");
+    let per_row: u32 = if count <= 4 { 2 } else { 4 };
+    let size = SPOT_ATLAS_SIZE / per_row;
+    (0..u32::try_from(count).expect("at most MAX_LIGHTS")).map(move |index| SpotTile {
+        x: index % per_row * size,
+        y: index / per_row * size,
+        size,
+    })
+}
+
+/// What the tile of a spot light sees.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct SpotView {
+    /// From the frame's space (world space moved by −the camera's eye, ADR-0048) to the tile's
+    /// clip space: x and y from −1 to 1 across the tile, depth `SPOT_NEAR` / d at a distance d
+    /// along the light's axis, reversed and infinite as the camera's (ADR-0047).
+    pub(crate) view_projection: Mat4,
+    /// Where the light is, in the frame's space.
+    pub(crate) position: Vec3,
+    /// The light's axis, of length one.
+    pub(crate) axis: Vec3,
+    /// The tangent of the angle from the axis to the tile's sides.
+    pub(crate) tan_half: f32,
+}
+
+impl SpotView {
+    /// The view of a tile of `size` texels for `light`, in the frame's space of a camera whose eye
+    /// is `origin`: a perspective projection from the light along its axis, square, wide enough to
+    /// hold its cone, up to [`SPOT_WIDEST`] from the axis, and [`TILE_MARGIN_TEXELS`] more on each
+    /// side, from [`SPOT_NEAR`] to infinity. The light's position is taken relative to `origin` in
+    /// `f64` (ADR-0048).
+    pub(crate) fn new(light: &SpotLight, origin: Vec3, size: u32) -> Self {
+        let position = (light.position.as_dvec3() - origin.as_dvec3()).as_vec3();
+        let axis = unit(light.direction);
+        let cone = light.outer_cone_angle.min(SPOT_WIDEST).tan();
+        let tan_half = cone * size as f32 / (size - 2 * TILE_MARGIN_TEXELS) as f32;
+        let view = look_to_mat4(position, axis, axis.any_orthonormal_vector());
+        let projection = perspective_infinite_reverse(2.0 * tan_half.atan(), 1.0, SPOT_NEAR);
+        Self {
+            view_projection: projection * view,
+            position,
+            axis,
+            tan_half,
+        }
+    }
+
+    /// Whether the box of an instance, `transform` from its own space to the frame's space, its
+    /// center and half its size in its own space, may cast a shadow in the tile of a light that
+    /// reaches `range` metres (`None` for every distance): whether the sphere around the box meets
+    /// the cone around the tile's corners, in front of the light and within its range. A box at
+    /// no finite place is left out.
+    pub(crate) fn reaches(
+        &self,
+        range: Option<f32>,
+        (transform, center, half_size): (Mat4, Vec3, Vec3),
+    ) -> bool {
+        let center = transform.transform_point3(center);
+        let radius = (Mat3::from_mat4(transform).abs() * half_size).length();
+        if !(center.is_finite() && radius.is_finite()) {
+            return false;
+        }
+        let to_center = center - self.position;
+        let along = to_center.dot(self.axis);
+        let across = (to_center.length_squared() - along * along).max(0.0).sqrt();
+        // The cone around the square tile passes through its corners.
+        let tan_corner = self.tan_half * std::f32::consts::SQRT_2;
+        let (sin, cos) = tan_corner.atan().sin_cos();
+        // The distance from the sphere's center to the cone's surface, positive outside it.
+        let outside = across * cos - along * sin;
+        let in_range = range.is_none_or(|range| to_center.length() - radius < range);
+        outside < radius && along > -radius && in_range
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use glam::Vec4;
+    use std::f32::consts::FRAC_PI_2;
+
+    use glam::{Quat, Vec4};
 
     use super::*;
 
@@ -382,5 +495,133 @@ mod tests {
                 "{fov_degrees}°, {aspect}: corners up to {largest} from the center, radius {radius}"
             );
         }
+    }
+
+    #[test]
+    fn spot_tiles_split_the_atlas_by_how_many_lights_cast_shadows() {
+        assert_eq!(spot_tiles(0).count(), 0);
+        let tile = |x, y, size| SpotTile { x, y, size };
+        assert_eq!(spot_tiles(1).collect::<Vec<_>>(), [tile(0, 0, 2048)]);
+        assert_eq!(
+            spot_tiles(4).collect::<Vec<_>>(),
+            [
+                tile(0, 0, 2048),
+                tile(2048, 0, 2048),
+                tile(0, 2048, 2048),
+                tile(2048, 2048, 2048)
+            ]
+        );
+        assert_eq!(
+            spot_tiles(5).collect::<Vec<_>>(),
+            [
+                tile(0, 0, 1024),
+                tile(1024, 0, 1024),
+                tile(2048, 0, 1024),
+                tile(3072, 0, 1024),
+                tile(0, 1024, 1024)
+            ]
+        );
+        // Sixteen tiles fill the atlas without overlapping.
+        let tiles: Vec<SpotTile> = spot_tiles(MAX_LIGHTS).collect();
+        let mut covered = [false; 16];
+        for tile in &tiles {
+            assert_eq!(tile.size, 1024);
+            assert!(tile.x + tile.size <= SPOT_ATLAS_SIZE && tile.y + tile.size <= SPOT_ATLAS_SIZE);
+            let cell = (tile.y / 1024 * 4 + tile.x / 1024) as usize;
+            assert!(!covered[cell], "{tile:?} overlaps another");
+            covered[cell] = true;
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "17 spot lights cast shadows")]
+    fn more_spot_tiles_than_lights_drawn_are_refused() {
+        let _ = spot_tiles(MAX_LIGHTS + 1);
+    }
+
+    fn spot(position: Vec3, direction: Vec3, outer: f32, range: Option<f32>) -> SpotLight {
+        SpotLight {
+            position,
+            direction,
+            outer_cone_angle: outer,
+            range,
+            ..SpotLight::default()
+        }
+    }
+
+    #[test]
+    fn a_spot_tile_holds_its_cone_with_a_margin_for_the_filter() {
+        // A light 10 km from the world's origin, near the camera: the view is relative to it.
+        let origin = Vec3::new(10_000.0, 0.0, 0.0);
+        let direction = Vec3::new(1.0, -2.0, 0.5);
+        for (outer, size) in [(0.42, 1024), (0.35, 2048), (1.2, 1024)] {
+            let light = spot(origin + Vec3::new(1.0, 3.0, 2.0), direction, outer, None);
+            let view = SpotView::new(&light, origin, size);
+            let axis = direction.normalize();
+            assert!(view.position.abs_diff_eq(Vec3::new(1.0, 3.0, 2.0), 1e-6));
+            // Points of the cone's surface, in eight directions around the axis, near and far.
+            let across = axis.any_orthogonal_vector().normalize();
+            for turn in 0..8 {
+                let around = Quat::from_axis_angle(axis, turn as f32 * std::f32::consts::FRAC_PI_4);
+                let edge = Quat::from_axis_angle(around * across, outer) * axis;
+                for distance in [0.5f32, 4.0, 30.0] {
+                    let along = distance / edge.dot(axis);
+                    let clip = view.view_projection * (view.position + edge * along).extend(1.0);
+                    let projected = clip.truncate() / clip.w;
+                    // The cone's edge is a circle the margin inside the tile's sides.
+                    let radius = projected.truncate().length();
+                    let inside = 1.0 - 2.0 * TILE_MARGIN_TEXELS as f32 / size as f32;
+                    assert!((radius - inside).abs() < 1e-4, "{outer}, {turn}: {radius}");
+                    assert!((projected.z - SPOT_NEAR / distance).abs() < 1e-6);
+                }
+            }
+        }
+        // A cone of π / 2 is seen up to 80° from its axis.
+        let wide = SpotView::new(&spot(origin, direction, FRAC_PI_2, None), origin, 1024);
+        let cone = SPOT_WIDEST.tan();
+        assert!((wide.tan_half / cone - 1024.0 / 1012.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn a_spot_tile_keeps_the_boxes_inside_its_cone_and_range() {
+        let origin = Vec3::ZERO;
+        let light = spot(Vec3::new(0.0, 5.0, 0.0), Vec3::NEG_Y, 0.4, Some(6.0));
+        let view = SpotView::new(&light, origin, 1024);
+        let cube = |at: Vec3, side: f32| {
+            (
+                Mat4::from_scale_rotation_translation(Vec3::splat(side), Quat::IDENTITY, at),
+                Vec3::ZERO,
+                Vec3::splat(0.5),
+            )
+        };
+        let keeps = |boxed| view.reaches(light.range, boxed);
+        // Under the light, inside its cone.
+        assert!(keeps(cube(Vec3::new(0.5, 1.0, 0.0), 1.0)));
+        // Beside the cone, 4 m out at 4 m down: 45° from the axis, beyond the 31° of the tile's
+        // corners.
+        assert!(!keeps(cube(Vec3::new(4.0, 1.0, 0.0), 1.0)));
+        // A large box beside it reaches into it.
+        assert!(keeps(cube(Vec3::new(4.0, 1.0, 0.0), 6.0)));
+        // Behind the light.
+        assert!(!keeps(cube(Vec3::new(0.0, 7.0, 0.0), 1.0)));
+        // Beyond its range, and across it.
+        assert!(!keeps(cube(Vec3::new(0.0, -2.0, 0.0), 1.0)));
+        assert!(keeps(cube(Vec3::new(0.0, -0.9, 0.0), 1.0)));
+        // Without a range, as far as the cone goes.
+        assert!(
+            SpotView::new(
+                &spot(Vec3::new(0.0, 5.0, 0.0), Vec3::NEG_Y, 0.4, None),
+                origin,
+                1024
+            )
+            .reaches(None, cube(Vec3::new(0.0, -200.0, 0.0), 1.0))
+        );
+        // A box thrown to infinity.
+        let thrown = (
+            Mat4::from_translation(Vec3::INFINITY),
+            Vec3::ZERO,
+            Vec3::ONE,
+        );
+        assert!(!keeps(thrown));
     }
 }

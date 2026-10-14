@@ -799,6 +799,7 @@ fn read_light(
                 range,
                 inner_cone_angle,
                 outer_cone_angle,
+                casts_shadows: true,
             })
         }
     })
