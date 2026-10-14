@@ -372,7 +372,8 @@ impl Renderer {
     /// # Errors
     ///
     /// [`RenderError::Gfx`] if the graphics driver rejects one of the renderer's three shaders or
-    /// nine pipelines, or if the device is lost.
+    /// nine pipelines; with [`GfxError::OutOfMemory`] if the GPU's memory cannot hold the shadow
+    /// map or the renderer's other objects; or with [`GfxError::DeviceLost`] if the device is lost.
     pub fn new(gpu: &Gpu, format: TextureFormat) -> Result<Self, RenderError> {
         let shader = gpu.create_shader_module("scene", SCENE_SHADER)?;
         let uniform = |label: &str, dynamic_offset: bool| {
@@ -687,12 +688,13 @@ impl Renderer {
         })
     }
 
-    /// Computes the environment of `sky` on the CPU and uploads it (ADR-0039): the sky drawn into
-    /// a cube map of 128 × 128 texels per face, each the average of 2 × 2 points of it, then
+    /// Computes the environment of `sky` on the CPU and uploads it (ADR-0039): the sky drawn into a
+    /// cube map of 128 × 128 texels per face, each the average of 2 × 2 points of it, then
     /// prefiltered for roughnesses 0.25, 0.5, 0.75 and 1 into faces of 64, 32, 16 and 8 texels.
-    /// This takes tens of milliseconds, on every core: create an environment once per sky, not per
-    /// frame. A sky of one radiance in every direction, without a sun, takes almost none. The
-    /// environment is not tied to this renderer.
+    /// This takes tens of milliseconds on every core in a release build, about five times as long
+    /// in a debug build: create an environment once per sky, not per frame. A sky of one radiance
+    /// in every direction, without a sun, takes almost none. The environment is not tied to this
+    /// renderer.
     ///
     /// # Errors
     ///

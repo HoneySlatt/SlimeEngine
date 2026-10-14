@@ -357,9 +357,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   for a vertex value (position, normal, uv or tangent) that is not finite, which drew nothing and,
   for a position, took every shadow from the scene.
 - An instance whose transform puts it at no finite place no longer takes the shadows of the whole
-  scene away: the shadow map is fitted to the other instances.
-- `Camera`'s documentation names the inputs that give a matrix that is not finite: a `target` at
-  `eye`, and a `far` that is not finite.
+  scene away: the shadow map leaves it out.
+- `Camera`'s documentation names the inputs that give a matrix that is not finite, such as a
+  `target` at `eye`.
 - The dev overlay keeps its panels in place when the window's scale factor changes. Moving the
   window to a screen with a higher scale used to push them toward the top-left, for good.
 - The dev overlay no longer draws an empty frame when egui lays a frame out twice, as on the first
@@ -390,8 +390,6 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - The `scene` example no longer replays, when F1 shows its overlay again, all the input received
   while the overlay was hidden: a click on the scene could press a button of the overlay.
 - A renderer failure in the `scene` example is reported with its cause.
-- `examples/README.md` says that the Windows examples published by CI need the x64 Microsoft
-  Visual C++ Redistributable (`VCRUNTIME140.dll`), which a fresh Windows install lacks.
 - `CONTRIBUTING.md` tells contributors on WARP to run the tests one at a time
   (`--test-threads=1`), as the Windows CI job does.
 - A GPU device lost while a frame was being drawn into a window no longer makes the end of the
