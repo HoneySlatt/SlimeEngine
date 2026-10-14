@@ -552,11 +552,24 @@ upgrading wgpu still waits for egui.
 
 - **Goal.** 0.1 released.
 - **Crates.** All; CI.
-- **Delivers.** The Windows checklist run by the owner in the virtual machine; the documentation
-  reread by reviewing agents; `CHANGELOG.md`; the duration of CI measured; the `v0.1.0` tag on a
-  commit whose CI is green on both platforms.
+- **Delivers.**
+  - The Windows checklist run by the owner in the virtual machine, with what was never checked
+    there: a window covered by another and a locked session on Direct3D 12, the window hidden when
+    the run ends, a frame captured in RenderDoc on Direct3D 12 (known debt).
+  - Scenes made outside the project drawn by the `scene` example: two or three of the Khronos glTF
+    sample models, an interior among them, converted locally to GLB files holding PNG images and
+    not committed, since their licenses differ from the engine's. What they show that the
+    project's own scene does not is recorded in the known debt.
+  - The image tests and the samples run on another GPU than the development machine's, if one is
+    available, and what differs recorded.
+  - The documentation reread by reviewing agents; `CHANGELOG.md`; the tag that the README's
+    "Using SlimeEngine in a game" names set to `v0.1.0`.
+  - The duration of CI measured (the Windows job took 12.5 minutes at the debt pass) and a decision
+    on binaries: CI's Windows examples expire after 14 days, and releases carry none.
+  - The `v0.1.0` tag on a commit whose CI is green on both platforms.
 - **Done when.** The checks are green on both platforms; the tag is pushed.
-- **How to test.** Push and read the CI run; the Windows artifact in the virtual machine.
+- **How to test.** Push and read the CI run; the Windows artifact in the virtual machine; the
+  `scene` example on each converted model, looked at.
 
 ## Releasing
 
