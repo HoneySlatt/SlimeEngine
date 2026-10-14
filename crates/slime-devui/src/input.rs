@@ -15,6 +15,9 @@ pub(crate) struct Input {
     /// The Ctrl keys that are down, by position, as their own presses and releases say: the engine
     /// does not report the state of the modifier keys.
     control_keys: Vec<KeyCode>,
+    /// Whether the window has the keyboard focus, as its last focus change said: egui stops a
+    /// text field's caret blinking while it does not.
+    focused: bool,
     events: Vec<egui::Event>,
 }
 
@@ -24,8 +27,14 @@ impl Input {
             scale_factor: scale_factor as f32,
             pointer: Pos2::ZERO,
             control_keys: Vec::new(),
+            // egui's own assumption until the window says otherwise.
+            focused: true,
             events: Vec::new(),
         }
+    }
+
+    pub(crate) fn focused(&self) -> bool {
+        self.focused
     }
 
     pub(crate) fn scale_factor(&self) -> f32 {
@@ -80,7 +89,10 @@ impl Input {
                 });
             }
             Event::Key(key) => self.key(key, modifiers),
-            Event::Focused(focused) => self.events.push(egui::Event::WindowFocused(*focused)),
+            Event::Focused(focused) => {
+                self.focused = *focused;
+                self.events.push(egui::Event::WindowFocused(*focused));
+            }
             _ => {}
         }
     }

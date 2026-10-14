@@ -167,6 +167,10 @@ impl Gpu {
         format: TextureFormat,
         levels: &[&[u8]],
     ) -> Texture {
+        assert!(
+            width > 0 && height > 0,
+            "texture `{label}` is {width}x{height}: a texture has at least one pixel"
+        );
         let full_chain = u32::BITS - width.max(height).leading_zeros();
         assert!(
             !levels.is_empty() && levels.len() <= full_chain as usize,

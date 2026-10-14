@@ -764,7 +764,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   `SurfaceError::Timeout`, as its other waits do.
 - **Seen from below, the sample scene's walls and crates flicker where they touch the floor.** Their
   bottom faces lie in the floor's plane, and since M3b.3 the floor is double-sided, so from below
-  both are drawn at the same depth (z-fighting). Lifting them by a few millimetres in
+  both are drawn at the same depth (z-fighting). The `scene` example keeps its camera above the
+  floor, but another viewer of the asset sees it. Lifting them by a few millimetres in
   `examples/assets/make_scene.py` fixes it, at the cost of rendering the glTF references again.
 - **A mouse button can stay down on Wayland when the compositor takes the pointer away during a
   press without taking the keyboard focus.** winit 0.30 reports only `CursorLeft` then, and
@@ -815,13 +816,6 @@ GitHub issues, linked from their entry; this list stays the reference.
   one costs what it costs on a new renderer (0.054 ms against 21.4 ms before, on lavapipe).
   Uploading only the live slots would amend ADR-0026's rule that a uniform buffer is always
   written at its creation size.
-- **The dev overlay leaves egui's focus flag set.** `slime-devui` sends egui the window's focus
-  changes as events only (`WindowFocused`) and leaves `RawInput::focused` at egui's default,
-  `true`. A focused text field therefore keeps its caret blinking after the window loses the
-  focus. The effect is cosmetic: the engine redraws every frame anyway, and the scene example has
-  no text field (its exposure slider shows its value as a label). Fix: keep a `focused` flag in
-  `slime-devui`'s `input::Input`, updated on `Event::Focused`, and set `RawInput::focused` from
-  it in `Overlay::render`.
 - **The dev overlay can still panic on a lost device** (ADR-0022). `Overlay::render` skips the
   frame when the device was lost earlier in it, but two cases panic inside egui-wgpu or wgpu: a
   loss that egui-wgpu's own buffer upload is the first to find, and `Overlay::new` on a device

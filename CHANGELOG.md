@@ -176,6 +176,13 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- The dev overlay tells egui when the window loses the keyboard focus, so that a text field's
+  caret stops blinking then.
+- `Gpu::create_texture` of a texture with a side of zero panics with a message that says so, not
+  with "takes 1 to 0 levels".
+- The `scene` example keeps its camera above the floor, from which the sample's walls and crates
+  flickered where they touch it.
+- `scripts/check.sh` checks the links of an archive of the repository too, outside a git checkout.
 - A failed `slime_app::run` is logged at the `error` level with each of its causes (`the run
   failed: cannot draw into the window: no GPU adapter is available: ...`); the README's pattern,
   which printed only the most general message, now only exits with a failure.

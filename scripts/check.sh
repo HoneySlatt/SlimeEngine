@@ -92,7 +92,12 @@ env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check-scaled \
 step "Documentation links"
 # Tracked and new, non-ignored Markdown files. External links are not checked: they fail for
 # reasons unrelated to the change being checked.
-mapfile -t markdown < <(git ls-files --cached --others --exclude-standard '*.md')
+if git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
+    mapfile -t markdown < <(git ls-files --cached --others --exclude-standard '*.md')
+else
+    # Outside a git checkout, such as an archive of a release: every Markdown file but the build's.
+    mapfile -t markdown < <(find . -name '*.md' -not -path './target/*' -not -path './.git/*')
+fi
 lychee --offline --include-fragments --no-progress "${markdown[@]}"
 
 step "All checks passed"

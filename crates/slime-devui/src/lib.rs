@@ -118,6 +118,7 @@ impl Overlay {
             )),
             time: Some(self.started.elapsed().as_secs_f64()),
             events: self.input.take_events(),
+            focused: self.input.focused(),
             ..egui::RawInput::default()
         };
         // egui gets the scale factor as the screen's own, not as a zoom: when its zoom changes,
@@ -214,6 +215,21 @@ mod tests {
             seen = Some((ctx.content_rect(), window.response.rect));
         });
         seen.expect("the panels were built")
+    }
+
+    #[test]
+    fn egui_knows_when_the_window_loses_and_regains_the_focus() {
+        let gpu = gpu();
+        let target = gpu.create_render_target("overlay target", 64, 64, FORMAT);
+        let mut overlay = Overlay::new(&gpu, FORMAT, 1.0);
+        let mut focused = None;
+        for (event, expected) in [(Event::Focused(false), false), (Event::Focused(true), true)] {
+            overlay.handle(&event);
+            overlay.render(&gpu, &target, |ctx| {
+                focused = Some(ctx.input(|i| i.focused))
+            });
+            assert_eq!(focused, Some(expected), "after {event:?}");
+        }
     }
 
     #[test]

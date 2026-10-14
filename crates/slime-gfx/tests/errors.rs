@@ -143,6 +143,12 @@ fn a_uniform_buffer_whose_size_is_not_a_multiple_of_4_is_rejected_at_creation() 
 }
 
 #[test]
+#[should_panic(expected = "texture `empty` is 0x4: a texture has at least one pixel")]
+fn a_texture_without_pixels_is_a_bug_named_in_the_message() {
+    gpu().create_texture("empty", 0, 4, TextureFormat::Rgba8UnormSrgb, &[]);
+}
+
+#[test]
 #[should_panic(expected = "texture `tiny` is 2x2 and needs 16 bytes of pixels, but 12 were given")]
 fn a_texture_with_the_wrong_number_of_bytes_is_rejected_at_creation() {
     gpu().create_texture("tiny", 2, 2, TextureFormat::Rgba8UnormSrgb, &[0; 12]);
