@@ -116,6 +116,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   nothing is clipped by distance. `Camera::far` is removed. In `slime-gfx`, depth targets are
   cleared to 0, `DepthCompare` has `Greater` and `GreaterEqual` instead of `Less` and `LessEqual`,
   and a negative `DepthBias` pushes a surface away. Images do not change.
+- The renderer draws relative to the camera
+  ([ADR-0048](docs/adr/0048-rendering-relative-to-the-camera.md)): it subtracts the camera's eye
+  from every position in `f64` before the GPU sees it, so that a scene 10 km from the origin is
+  drawn exactly as at the origin, where its edges, shadows and lights moved before. The API's
+  positions are still `f32`s, held in steps of 1 mm at 10 km.
 - Every method of `Gpu` that creates a GPU object returns a `Result`
   ([ADR-0044](docs/adr/0044-running-out-of-gpu-memory.md)): the new `GfxError::OutOfMemory` when
   the GPU's memory cannot hold it, where the engine panicked, so that a game can free memory or ask

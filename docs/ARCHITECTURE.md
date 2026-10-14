@@ -314,16 +314,18 @@ renderer = Renderer::new(&gpu, format)                 the output's format; thre
 └── render(&gpu, &target, &Scene { camera, lights, environment, exposure, bloom, instances })
     │                                                  → RenderStats, or the error of a creation
     │                                                  (ADR-0044); draws the first 16 lights
+    ├── every position moved by −camera.eye, in f64 (ADR-0048): the GPU draws relative to the
+    │   camera, so that what is near it keeps its precision however far from the origin
     ├── the light-space matrix of the first directional light that casts shadows: an orthographic
     │   projection covering the instances' boxes as that light sees them
-    ├── the frame uniform ← camera.view_projection(aspect), the sky's directions from clip space,
-    │   the camera's position, the exposure, the light-space matrix, the number of lights and the
+    ├── the frame uniform ← the camera's projection times its rotation, the sky's directions from
+    │   clip space (its inverse), the exposure, the light-space matrix, the number of lights and the
     │   shadowed light's index, the sun's disc (direction, radiance), and the lights (64 bytes
     │   each, at most 16); bind group 0, with the environment, the BRDF table and their sampler,
     │   built again when the scene names another environment (a black one for none)
-    ├── the instance buffer ← each instance's transform, normal        bind group 2, one dynamic
-    │   matrix and handedness (−1 when it mirrors), one slot each, at  offset per instance
-    │   the device's alignment; grows when a scene needs it, shrinks back after a peak
+    ├── the instance buffer ← each instance's relative transform,     bind group 2, one dynamic
+    │   normal matrix and handedness (−1 when it mirrors), one slot    offset per instance
+    │   each, at the device's alignment; grows when a scene needs it, shrinks back after a peak
     ├── the frame's render graph, built again when the frame's shape changes (the target's size,
     │   the shadow pass or the bloom starting or stopping): the passes below, each declaring the
     │   targets it draws into and samples, ordered by them; the HDR target (Rgba16Float), the depth

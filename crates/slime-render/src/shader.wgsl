@@ -35,7 +35,8 @@ const DIRECTIONAL: u32 = 0u;
 // bound at the light.
 const MIN_DISTANCE_SQUARED: f32 = 1e-4;
 // The square of the distance, 1 µm squared, within which a fragment has no direction to a point or
-// spot light: positions in 32-bit floats a few metres from the origin are about that precise.
+// spot light: positions in 32-bit floats a few metres from the camera, the origin of the frame's
+// space, are about that precise.
 const DIRECTIONLESS_SQUARED: f32 = 1e-12;
 // The environment's last level, prefiltered for a roughness of 1, which is also the irradiance
 // divided by pi: ENVIRONMENT_LEVELS - 1 in environment.rs, which a unit test compares with it.
@@ -52,7 +53,7 @@ const SUN_CHORD: f32 = 0.0046512983;
 // sun's disc as the environment hides its glow.
 const GROUND_HAZE: f32 = 0.03;
 
-// One light, in world space, as Light::push_values in light.rs packs it.
+// One light, in the frame's space, as Light::push_values in light.rs packs it.
 struct Light {
     // The light's color times its illuminance (lux) for a directional light, times its intensity
     // (candelas) for the others.
@@ -72,21 +73,21 @@ struct Light {
     cone_offset: f32,
 }
 
+// Positions are in the frame's space: world space moved so that the camera's eye is at its origin
+// (ADR-0048), computed on the CPU, so that what is near the camera keeps its precision however far
+// from the world's origin it is.
 struct FrameUniform {
-    // From world space to clip space.
+    // From the frame's space to clip space.
     view_proj: mat4x4<f32>,
-    // From clip space to directions from the camera in world space: the inverse of view_proj
-    // without the camera's position. A point (x, y, 0, 1) at infinity gives (d, 0), d the direction
-    // it is seen in.
+    // From clip space to directions from the camera, with world space's axes: the inverse of
+    // view_proj. A point (x, y, 0, 1) at infinity gives (d, 0), d the direction it is seen in.
     sky_from_clip: mat4x4<f32>,
-    // Where the camera is, in world space.
-    camera_position: vec3<f32>,
     // What the light is multiplied by before it is written into the high-dynamic-range target
-    // (pre-exposure, ADR-0037).
+    // (pre-exposure, ADR-0037). The 12 bytes after it are padding: a matrix is aligned on 16.
     exposure: f32,
-    // From world space to the shadow map's clip space (ADR-0038): x and y from -1 to 1 across the
-    // map, depth from 1 near the light to 0 away from it (reversed, ADR-0047). Orthographic: w
-    // stays 1.
+    // From the frame's space to the shadow map's clip space (ADR-0038): x and y from -1 to 1
+    // across the map, depth from 1 near the light to 0 away from it (reversed, ADR-0047).
+    // Orthographic: w stays 1.
     light_view_proj: mat4x4<f32>,
     // How many entries of `lights` hold the scene's lights, from 0 to MAX_LIGHTS.
     light_count: u32,
@@ -139,7 +140,7 @@ struct MaterialUniform {
 @group(1) @binding(10) var emissive_sampler: sampler;
 
 struct InstanceUniform {
-    // From the mesh's space to world space.
+    // From the mesh's space to the frame's space.
     model: mat4x4<f32>,
     // For normals: proportional to the inverse transpose of the model's rotation and scale, so
     // that normals stay perpendicular to surfaces scaled unevenly. It gives directions only.
@@ -166,12 +167,13 @@ struct VertexInput {
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
-    // In world space, of any length: the normal matrix gives directions only, and interpolation
-    // across the triangle shortens it.
+    // With world space's axes, of any length: the normal matrix gives directions only, and
+    // interpolation across the triangle shortens it.
     @location(0) normal: vec3<f32>,
     @location(1) uv: vec2<f32>,
-    @location(2) world_position: vec3<f32>,
-    // xyz in world space, of any length; w: the bitangent's sign times the handedness.
+    // In the frame's space: from the camera.
+    @location(2) position: vec3<f32>,
+    // xyz with world space's axes, of any length; w: the bitangent's sign times the handedness.
     @location(3) tangent: vec4<f32>,
     // Where the shadowed light sees the vertex, in the shadow map's clip space, computed as the
     // shadow pass computes it, so that both round alike.
@@ -181,10 +183,10 @@ struct VertexOutput {
 @vertex
 fn vs_main(input: VertexInput) -> VertexOutput {
     var output: VertexOutput;
-    let world = instance.model * vec4<f32>(input.position, 1.0);
-    output.clip_position = frame.view_proj * world;
-    output.world_position = world.xyz;
-    output.light_position = (frame.light_view_proj * world).xyz;
+    let position = instance.model * vec4<f32>(input.position, 1.0);
+    output.clip_position = frame.view_proj * position;
+    output.position = position.xyz;
+    output.light_position = (frame.light_view_proj * position).xyz;
     output.normal = instance.normal * input.normal;
     output.uv = input.uv;
     // A tangent lies in the surface: the model matrix carries it as it carries the surface. A
@@ -238,7 +240,8 @@ fn fs_main(
     let metallic = clamp(material.metallic * metallic_roughness.b, 0.0, 1.0);
     let roughness = clamp(material.roughness * metallic_roughness.g, MIN_ROUGHNESS, 1.0);
     let normal = shading_normal(input.normal, input.tangent, encoded_normal, front_facing);
-    let to_camera = normalize(frame.camera_position - input.world_position);
+    // The camera is at the origin of the frame's space.
+    let to_camera = normalize(-input.position);
     // Read once, outside the loop over the lights, whose bound the shader compiler of Direct3D 12
     // cannot unroll.
     var shadow = 1.0;
@@ -254,7 +257,7 @@ fn fs_main(
         // The shadowed light is directional: nothing else attenuates it.
         var attenuation = select(1.0, shadow, i == frame.shadowed_light);
         if light.kind != DIRECTIONAL {
-            let to_light = light.position - input.world_position;
+            let to_light = light.position - input.position;
             let distance_squared = dot(to_light, to_light);
             // A fragment on the light has no direction to it, and gets no light rather than NaN.
             // The divisor is bounded so that no infinity is computed where it is not used either,

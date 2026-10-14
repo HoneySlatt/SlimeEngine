@@ -45,6 +45,11 @@ per process, 32 × 32 ([ADR-0039](adr/0039-image-based-lighting-computed-on-the-
 **Candela (cd).** The unit of luminous intensity, lumens per steradian: the strength of a point or
 spot light (`intensity`). A surface facing such a light d metres away receives intensity / d² *lux*.
 
+**Camera-relative rendering.** Drawing in world space moved so that the camera's eye is at the
+origin: the renderer subtracts the eye from every position in `f64` on the CPU, so that the GPU's
+32-bit floats hold small numbers near the camera, as precise 10 km from the world's origin as at
+it ([ADR-0048](adr/0048-rendering-relative-to-the-camera.md)).
+
 **Checks (the).** The automated checks of the *definition of done*, which `scripts/check.sh` runs
 and the Linux CI job runs unchanged: formatting, clippy (for Windows too), the build, the tests on
 lavapipe, rustdoc, the dependency rules, the samples without a display server and in a headless

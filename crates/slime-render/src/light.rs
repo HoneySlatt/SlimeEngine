@@ -209,8 +209,9 @@ impl Light {
 
     /// Appends the values the scene shader reads for this light, laid out as `Light` in
     /// `shader.wgsl`: [`LIGHT_VALUES_SIZE`] bytes. What a kind of light does not use is zero, but
-    /// for the cone: a scale of 0 and an offset of 1 leave a point light's light whole.
-    pub(crate) fn push_values(&self, bytes: &mut Vec<u8>) {
+    /// for the cone: a scale of 0 and an offset of 1 leave a point light's light whole. The position
+    /// is relative to `origin`, the camera's eye (ADR-0048), computed in `f64`.
+    pub(crate) fn push_values(&self, bytes: &mut Vec<u8>, origin: Vec3) {
         let start = bytes.len();
         let (kind, color, intensity, position, range, direction, cone) = match *self {
             Self::Directional(light) => (
@@ -246,6 +247,7 @@ impl Light {
         push_u32s(bytes, &[kind]);
         // 1 / range², so that the shader's (d / range)⁴ is (d² / range²)², and 0 for no range.
         let inverse_range_squared = range.map_or(0.0, |range| 1.0 / (range * range));
+        let position = (position.as_dvec3() - origin.as_dvec3()).as_vec3();
         push_f32s(bytes, &position.to_array());
         push_f32s(bytes, &[inverse_range_squared]);
         push_f32s(bytes, &direction.to_array());
@@ -370,9 +372,10 @@ mod tests {
 
     #[test]
     fn each_kind_of_light_is_packed_as_the_shader_reads_it() {
+        // A light 10 km from the world's origin, near the camera: packed relative to the camera.
         let mut bytes = Vec::new();
         Light::Spot(SpotLight {
-            position: Vec3::new(1.0, 2.0, 3.0),
+            position: Vec3::new(10_001.0, 2.0, 3.0),
             direction: Vec3::new(0.0, -2.0, 0.0),
             color: LinearColor::rgb(1.0, 0.5, 0.25),
             intensity: 8.0,
@@ -380,7 +383,7 @@ mod tests {
             inner_cone_angle: 0.0,
             outer_cone_angle: std::f32::consts::FRAC_PI_2,
         })
-        .push_values(&mut bytes);
+        .push_values(&mut bytes, Vec3::new(10_000.0, 0.0, 0.0));
         assert_eq!(bytes.len(), LIGHT_VALUES_SIZE);
         let packed = words(&bytes);
         let floats: Vec<f32> = packed.iter().map(|&word| float(word)).collect();
@@ -401,7 +404,7 @@ mod tests {
         assert_eq!(&floats[13..], &[0.0; 3]);
 
         let mut bytes = Vec::new();
-        Light::Point(PointLight::default()).push_values(&mut bytes);
+        Light::Point(PointLight::default()).push_values(&mut bytes, Vec3::ZERO);
         let packed = words(&bytes);
         assert_eq!(u32::from_le_bytes(packed[3]), POINT);
         assert_eq!(float(packed[7]), 0.0, "no range");
@@ -416,7 +419,7 @@ mod tests {
             direction: Vec3::new(0.0, 0.0, -5.0),
             ..DirectionalLight::default()
         })
-        .push_values(&mut bytes);
+        .push_values(&mut bytes, Vec3::ZERO);
         let packed = words(&bytes);
         assert_eq!(u32::from_le_bytes(packed[3]), DIRECTIONAL);
         assert_eq!(

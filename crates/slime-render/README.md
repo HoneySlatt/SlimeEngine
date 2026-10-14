@@ -215,7 +215,11 @@ fn main() -> Result<(), RenderError> {
   is not negative and may exceed 1, and once exposed, the high-dynamic-range target holds it,
   divided by 64, up to 64 × 65 504; an sRGB output encodes the tone-mapped values; tangents and
   normal textures follow glTF: x along increasing u, y up the image (the bitangent is
-  cross(normal, tangent) × w), z along the normal; a mirrored instance keeps its front faces.
+  cross(normal, tangent) × w), z along the normal; a mirrored instance keeps its front faces;
+  positions are in world space, as `f32`s, and the renderer moves them by −`camera.eye` in `f64`
+  before they reach the GPU (ADR-0048), so that what is near the camera is drawn as precisely
+  10 km from the origin as at the origin, though an `f32` holds world positions only in steps of
+  1 mm at 10 km.
 - `slime_render::glam` re-exports the math crate the API uses (`Mat4`, `Vec3`, `Quat`), so that
   callers use the same version.
 - `RenderError`: an invalid mesh, or a failure of the GPU layer (`GfxError` as its source): a

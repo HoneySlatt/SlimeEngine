@@ -56,6 +56,14 @@ impl Camera {
         glam::camera::rh::view::look_at_mat4(self.eye, self.target, self.up.normalize())
     }
 
+    /// The view matrix from world space moved by −[`eye`](Self::eye), the space in which the
+    /// renderer draws (ADR-0048): the rotation of [`view`](Self::view) alone. The direction from
+    /// the eye to the target is computed in `f64`, so that a camera far from the origin keeps it.
+    pub(crate) fn view_from_eye(&self) -> Mat4 {
+        let direction = (self.target.as_dvec3() - self.eye.as_dvec3()).as_vec3();
+        glam::camera::rh::view::look_at_mat4(Vec3::ZERO, direction, self.up.normalize())
+    }
+
     /// The projection matrix for a target `aspect` times as wide as it is high: from the camera's
     /// space to clip space, +Y up, the convention of WebGPU, which wgpu follows on every graphics
     /// API, with depth reversed (ADR-0047): 1 at [`near`](Self::near), falling towards 0 as the

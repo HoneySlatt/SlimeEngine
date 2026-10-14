@@ -1,0 +1,132 @@
+//! Rendering relative to the camera (ADR-0048): a scene 10 km from the origin is drawn exactly as
+//! the same scene at the origin. Runs on whatever adapter the machine offers.
+//!
+//! The scene is small and seen from close, where a millimetre is a pixel: a floor a metre wide, a
+//! square leaning over it that casts a shadow under the sun, and a bulb a few centimetres above
+//! the floor, seen from 30 cm away. Every position is a multiple of 2⁻¹⁰ m, which a 32-bit float
+//! holds exactly up to 16 km from the origin: moved 10 km away, the scene is exactly the same
+//! scene, and only how the renderer computes can tell them apart.
+
+use slime_gfx::{FloatImage, Gpu, LinearColor, TextureFormat};
+use slime_render::glam::{Mat4, Quat, Vec3};
+use slime_render::{
+    Camera, DirectionalLight, Instance, Light, MaterialData, MeshData, PointLight, Renderer, Scene,
+};
+
+const SIZE: u32 = 64;
+
+/// A square two units wide facing +Z, centred on its origin.
+fn square() -> MeshData {
+    MeshData {
+        positions: vec![
+            [-1.0, -1.0, 0.0],
+            [1.0, -1.0, 0.0],
+            [1.0, 1.0, 0.0],
+            [-1.0, 1.0, 0.0],
+        ],
+        normals: vec![[0.0, 0.0, 1.0]; 4],
+        uvs: vec![[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]],
+        tangents: vec![[1.0, 0.0, 0.0, 1.0]; 4],
+        indices: vec![0, 1, 2, 0, 2, 3],
+    }
+}
+
+/// Draws the scene moved by `offset` and reads the output back.
+fn draw(offset: Vec3) -> FloatImage {
+    let gpu =
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+    let mut renderer =
+        Renderer::new(&gpu, TextureFormat::Rgba16Float).expect("the renderer is created");
+    let output = gpu
+        .create_render_target("precision", SIZE, SIZE, TextureFormat::Rgba16Float)
+        .expect("the GPU has memory for it");
+    let square = renderer
+        .create_mesh(&gpu, "square", &square())
+        .expect("the square is valid");
+    let white = renderer
+        .create_material(&gpu, "white", &MaterialData::default())
+        .expect("the GPU has memory for it");
+    let glossy = renderer
+        .create_material(
+            &gpu,
+            "glossy",
+            &MaterialData {
+                base_color: LinearColor::rgb(0.8, 0.3, 0.1),
+                roughness: 0.3,
+                ..MaterialData::default()
+            },
+        )
+        .expect("the GPU has memory for it");
+    let moved = Mat4::from_translation(offset);
+    // The floor in the plane y = 0, and the square leaning over it, 2 cm up.
+    let floor =
+        Mat4::from_rotation_x(-std::f32::consts::FRAC_PI_2) * Mat4::from_scale(Vec3::splat(0.5));
+    let leaning = Mat4::from_scale_rotation_translation(
+        Vec3::splat(0.03),
+        Quat::from_euler(slime_render::glam::EulerRot::XYZ, -1.1, 0.4, 0.2),
+        Vec3::new(0.015_625, 0.031_25, -0.007_812_5),
+    );
+    let instances = [
+        Instance::new(&square, &white, moved * floor),
+        Instance::new(&square, &glossy, moved * leaning),
+    ];
+    let lights = [
+        Light::Directional(DirectionalLight {
+            direction: Vec3::new(-0.3, -1.0, -0.2),
+            illuminance: 3.0,
+            ..DirectionalLight::default()
+        }),
+        Light::Point(PointLight {
+            position: offset + Vec3::new(-0.039_062_5, 0.023_437_5, 0.031_25),
+            color: LinearColor::rgb(1.0, 0.8, 0.6),
+            intensity: 0.002,
+            range: Some(0.25),
+        }),
+    ];
+    let mut scene = Scene::new(
+        Camera {
+            eye: offset + Vec3::new(0.125, 0.25, 0.25),
+            target: offset + Vec3::new(0.0, 0.015_625, 0.0),
+            near: 0.001,
+            ..Camera::default()
+        },
+        &instances,
+    );
+    scene.lights = &lights;
+    renderer
+        .render(&gpu, &output, &scene)
+        .expect("the frame is drawn");
+    gpu.read_float_render_target(&output)
+        .expect("the image is read back")
+}
+
+#[test]
+fn a_scene_10_km_from_the_origin_is_drawn_exactly_as_at_the_origin() {
+    let at_origin = draw(Vec3::ZERO);
+    // Enough pixels lit, by the sun and by the bulb, that the comparison means something.
+    let lit = at_origin
+        .pixels
+        .chunks(4)
+        .filter(|pixel| pixel[0] > 0.05)
+        .count();
+    assert!(lit > (SIZE * SIZE / 2) as usize, "{lit} pixels lit");
+    let far = draw(Vec3::new(10_000.0, 0.0, -10_000.0));
+    let differences: Vec<(usize, f32, f32)> = at_origin
+        .pixels
+        .iter()
+        .zip(&far.pixels)
+        .enumerate()
+        .filter(|(_, (a, b))| a != b)
+        .map(|(index, (&a, &b))| (index / 4, a, b))
+        .collect();
+    let largest = differences
+        .iter()
+        .map(|&(_, a, b)| (a - b).abs())
+        .fold(0.0, f32::max);
+    assert!(
+        differences.is_empty(),
+        "{} channels differ, by up to {largest}; the first: {:?}",
+        differences.len(),
+        &differences[..differences.len().min(5)]
+    );
+}

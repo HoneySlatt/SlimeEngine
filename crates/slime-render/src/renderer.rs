@@ -6,7 +6,7 @@
 
 use std::time::{Duration, Instant};
 
-use glam::{Mat3, Mat4, Vec3};
+use glam::{DMat4, Mat3, Mat4, Vec3};
 use slime_gfx::{
     AddressMode, BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource,
     BindingType, CullMode, DepthBias, DepthCompare, DepthState, DepthTarget, Filter, FragmentState,
@@ -97,6 +97,11 @@ impl<'a> Instance<'a> {
 /// into the high-dynamic-range target (pre-exposure), divided by 64 so that its half-precision
 /// floats, which reach 65 504, hold exposed light up to 64 × 65 504 (ADR-0040): exposed light above
 /// it is clipped to it.
+///
+/// Positions are in world space, as `f32`s. The renderer moves them by −`camera.eye` in `f64`
+/// before they reach the GPU (ADR-0048), so that what is near the camera is drawn as precisely
+/// 10 km from the origin as at the origin; but an `f32` holds world positions in steps of 1 mm at
+/// 10 km, and of 6 cm at 1 000 km, which the scene keeps.
 ///
 /// Made by [`Scene::new`], so that a field added later does not break the code that makes one
 /// (ADR-0046), then filled in by changing the fields:
@@ -878,6 +883,8 @@ impl Renderer {
         );
         gpu.write_uniform_buffer(&self.bloom_strength, &strength);
 
+        // Every position reaches the GPU relative to the camera (ADR-0048).
+        let origin = scene.camera.eye;
         // The first directional light that casts shadows casts them, when an instance has a box
         // to cast them (ADR-0038).
         let shadow = lights
@@ -890,7 +897,7 @@ impl Renderer {
             .and_then(|(index, direction)| {
                 let boxes = scene.instances.iter().map(|instance| {
                     (
-                        instance.transform,
+                        relative_to(origin, instance.transform),
                         instance.mesh.center,
                         instance.mesh.half_size,
                     )
@@ -900,16 +907,11 @@ impl Renderer {
 
         let aspect = width as f32 / height as f32;
         let mut frame_bytes = Vec::with_capacity(FRAME_VALUES_SIZE);
-        push_mat4(&mut frame_bytes, scene.camera.view_projection(aspect));
-        // Directions only: the view without the camera's position, which also keeps the inverse
-        // away from the rounding of large coordinates.
-        let rotation = Mat4::from_mat3(Mat3::from_mat4(scene.camera.view()));
-        push_mat4(
-            &mut frame_bytes,
-            (scene.camera.projection(aspect) * rotation).inverse(),
-        );
-        let eye = scene.camera.eye;
-        push_f32s(&mut frame_bytes, &[eye.x, eye.y, eye.z, scene.exposure]);
+        let view_projection = scene.camera.projection(aspect) * scene.camera.view_from_eye();
+        push_mat4(&mut frame_bytes, view_projection);
+        // Without the camera's position, its inverse gives directions from the camera.
+        push_mat4(&mut frame_bytes, view_projection.inverse());
+        push_f32s(&mut frame_bytes, &[scene.exposure, 0.0, 0.0, 0.0]);
         let (shadowed, light_view_proj) = shadow
             .map_or((NO_SHADOWED_LIGHT, Mat4::IDENTITY), |(index, matrix)| {
                 (u32::try_from(index).expect("below MAX_LIGHTS"), matrix)
@@ -929,7 +931,7 @@ impl Renderer {
         push_f32s(&mut frame_bytes, &[to_sun.x, to_sun.y, to_sun.z, 0.0]);
         push_f32s(&mut frame_bytes, &[sun.x, sun.y, sun.z, 0.0]);
         for light in lights {
-            light.push_values(&mut frame_bytes);
+            light.push_values(&mut frame_bytes, origin);
         }
         // The slots of the lights the scene does not have: the shader does not read them.
         frame_bytes.resize(FRAME_VALUES_SIZE, 0);
@@ -957,7 +959,7 @@ impl Renderer {
         // instance uses are left zero: the buffer is written whole.
         let mut instance_bytes = Vec::with_capacity(capacity * stride);
         for instance in scene.instances {
-            push_mat4(&mut instance_bytes, instance.transform);
+            push_mat4(&mut instance_bytes, relative_to(origin, instance.transform));
             push_mat3(&mut instance_bytes, normal_matrix(instance.transform));
             let handedness = if is_mirrored(instance.transform) {
                 -1.0
@@ -1326,6 +1328,14 @@ fn frame_group(
             },
         ],
     )
+}
+
+/// `transform` followed by a move by −`origin`: from the mesh's space to world space moved so that
+/// `origin` is at its origin, the space the renderer draws in (ADR-0048). Computed in `f64`, so
+/// that the difference between a far position and a far origin is as exact as an `f32` holds it:
+/// a mesh 1 m from a camera 10 km from the world's origin keeps the precision it has at the origin.
+fn relative_to(origin: Vec3, transform: Mat4) -> Mat4 {
+    (DMat4::from_translation(-origin.as_dvec3()) * transform.as_dmat4()).as_mat4()
 }
 
 /// The matrix that transforms the normals of an instance placed by `transform`. It gives
