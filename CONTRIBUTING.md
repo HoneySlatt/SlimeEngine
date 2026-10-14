@@ -35,8 +35,8 @@ nix develop
 
 The shell it opens contains the pinned toolchain and the project's tools: `cargo-deny` (checks
 dependency licenses and security advisories), `lychee` (checks links in the documentation) and
-Weston (a Wayland compositor without screen, in which the checks run the windowed samples). It
-also puts the windowing libraries that the engine loads at run time on the loader path.
+Weston (a Wayland compositor without screen, in which the checks run the windowed samples and the
+games). It also puts the windowing libraries that the engine loads at run time on the loader path.
 [`flake.lock`](flake.lock) pins every input, so every contributor and CI get the same versions.
 To run a single command in that environment without opening a shell, use
 `nix develop -c <command>`.
@@ -158,15 +158,15 @@ One script runs every automated check, exactly as CI does:
 ```sh
 nix develop -c scripts/check.sh
 ```
-
 [`scripts/check.sh`](scripts/check.sh) runs rustfmt, clippy with warnings as errors, the build and
 tests of every target, the renderer's tests again with glam's assertions on (which a game that turns
 them on also turns on in the engine), rustdoc with warnings as errors, `cargo deny` (dependency
 licenses, security advisories and sources; it downloads the advisory database, so it needs network
-access), the samples with no display server available, the windowed samples and the windowed
-lifecycle test inside a headless Weston compositor (and that test's resize scenario in a second one,
-at scale 2), and `lychee` (links between Markdown files). The individual commands are listed in
-[`AGENTS.md`](AGENTS.md#environment-and-commands) for when you want to run only one of them.
+access), the samples with no display server available, the windowed samples, the games and the
+windowed lifecycle test inside a headless Weston compositor (and that test's resize scenario in a
+second one, at scale 2), and `lychee` (links between Markdown files). The individual commands are
+listed in [`AGENTS.md`](AGENTS.md#environment-and-commands) for when you want to run only one of
+them.
 
 The script also runs clippy for the Windows target, which catches code that does not compile on
 Windows without a Windows machine.

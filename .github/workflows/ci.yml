@@ -60,17 +60,19 @@ jobs:
           cargo run --locked --example headless -- --frames 600
           cargo run --locked --example window -- --headless --frames 600
           cargo run --locked --example offscreen -- --output target/triangle.png
-      # The C runtime is linked statically, so that the published examples start on a Windows
+      # The C runtime is linked statically, so that the published programs start on a Windows
       # without the Visual C++ Redistributable (a fresh install, Windows Sandbox). How shipped games
       # link it is decided with their packaging (Stage 9b).
-      - name: Build the examples for checks by hand
-        run: cargo build --locked --release --examples
+      - name: Build the examples and the games for checks by hand
+        run: |
+          cargo build --locked --release --examples
+          cargo build --locked --release -p nightwatch
         env:
           RUSTFLAGS: -C target-feature=+crt-static
-      - name: Check that the examples do not import the Visual C++ runtime
+      - name: Check that the examples and the games do not import the Visual C++ runtime
         run: |
-          if grep -l -a -i 'vcruntime140' target/release/examples/*.exe; then
-            echo 'these examples import VCRUNTIME140.dll'
+          if grep -l -a -i 'vcruntime140' target/release/examples/*.exe target/release/nightwatch.exe; then
+            echo 'these programs import VCRUNTIME140.dll'
             exit 1
           fi
       - name: Run the headless samples of the release build
@@ -86,6 +88,7 @@ jobs:
             target/release/examples/window.exe
             target/release/examples/offscreen.exe
             target/release/examples/scene.exe
+            target/release/nightwatch.exe
           if-no-files-found: error
           retention-days: 14
       # An image test that fails writes the image it rendered in target/tmp (CARGO_TARGET_TMPDIR).

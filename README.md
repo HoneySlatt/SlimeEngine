@@ -34,12 +34,13 @@ Nix, and the setup on Windows. Then:
 cargo build --workspace
 cargo test --workspace
 cargo run --example window   # the examples are listed in examples/README.md
+cargo run -p nightwatch      # the first game, games/nightwatch/README.md
 scripts/check.sh             # every check, exactly as CI runs them (Linux only)
 ```
 
 Each CI run on GitHub also publishes the `hello`, `headless`, `window`, `offscreen` and `scene`
-examples built for Windows, to try without a toolchain, and the GitHub release of each version
-since 0.1 carries them.
+examples and the `nightwatch` game built for Windows, to try without a toolchain; the GitHub
+release of each version since 0.1 carries what that version had.
 
 The tests run on your own GPU; CI runs them on drivers that render on the CPU, lavapipe on Linux and
 WARP on Windows, and [`CONTRIBUTING.md`](CONTRIBUTING.md#gpu) explains how to run them the same way.

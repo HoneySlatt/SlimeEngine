@@ -1,6 +1,7 @@
 # 0004. Workspace layout and crate naming
 
 - Status: Accepted; amended by [0014](0014-amend-roadmap-for-stage-2-and-windows.md) (no `core` crate in Stage 2)
+  and [0055](0055-games-in-the-workspace.md) (a `games/` directory)
 - Date: 2026-10-12
 
 ## Context

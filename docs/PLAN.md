@@ -144,6 +144,23 @@ instead, and proposes a change with the stage it belongs to.
   their cones off most obstacles. Proposal: the shadows of spot lights, planned for Stage 9a
   ([ADR-0052](adr/0052-amend-roadmap-before-0-1.md)); to weigh whether a game of light and shadow
   needs them sooner.
+- **No model can be loaded outside the examples** (M3c.1). The temporary glTF loader is example
+  code (ADR-0029), so the game builds its meshes in code: a cube and a sphere
+  (`games/nightwatch/src/meshes.rs`). Proposal: a way for a game to load a model, the first thing
+  Stage 4's pipeline must give it.
+- **A mesh needs tangents, even without a normal texture** (M3c.1). `MeshData::tangents` is
+  required, so the game computes them for its cube and sphere, which no material of it uses.
+  Proposal: tangents that the engine computes when a mesh has none, with MikkTSpace, as glTF asks,
+  at Stage 4, whose importer must compute them anyway.
+- **The engine has no simple shapes** (M3c.1). Every game, every example and every test writes its
+  own cube and sphere: the examples have theirs, the game a copy of the same idea. Proposal: a few
+  shapes in the engine, built as `MeshData`, when the assets of Stage 4 give meshes a home.
+- **The engine reports keys going down and up, not the keys held** (M3c.1). The game keeps which of
+  its keys are held (`games/nightwatch/src/controls.rs`). Proposal: the keys and buttons held, kept
+  by the engine, with the input action mapping of Stage 7, or sooner if the next findings ask.
+- **A frame's instances are rebuilt from the game's own state** (M3c.1). The game keeps its blocks
+  and its player, and turns them into a list of `Instance`s at every frame, with their transforms.
+  Proposal: none yet; the world model of Stage 5 decides where the things drawn live.
 
 ## Releasing
 

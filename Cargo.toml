@@ -1,7 +1,7 @@
 # Workspace layout and naming: docs/adr/0004-workspace-layout-and-crate-naming.md
 # Lints and unsafe policy: docs/adr/0005-lints-and-unsafe-policy.md
 [workspace]
-members = ["crates/*", "examples"]
+members = ["crates/*", "examples", "games/*"]
 resolver = "3"
 
 [workspace.package]

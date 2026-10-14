@@ -45,7 +45,7 @@ env -u WAYLAND_DISPLAY -u DISPLAY cargo run --locked --example window -- --headl
 env -u WAYLAND_DISPLAY -u DISPLAY VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
     cargo run --locked --example offscreen -- --output target/triangle.png
 
-step "Windowed samples and lifecycle test in headless Wayland compositors (Weston), drawn with lavapipe"
+step "Windowed samples, games and lifecycle test in headless Wayland compositors (Weston), drawn with lavapipe"
 # A private runtime directory keeps these compositors apart from the one the developer may be using.
 runtime=$(mktemp -d)
 westons=()
@@ -75,6 +75,10 @@ for example in window scene; do
         timeout -k 10 120 cargo run --locked --example "$example" -- --frames 120 ||
         { cat "$runtime/slime-check.log"; exit 1; }
 done
+# The games too (ADR-0055).
+env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+    timeout -k 10 120 cargo run --locked -p nightwatch -- --frames 120 ||
+    { cat "$runtime/slime-check.log"; exit 1; }
 # The windowed lifecycle test needs the compositor too, so it is outside the default test run
 # (ADR-0024).
 env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \

@@ -19,11 +19,12 @@ cargo run --example <name> [-- <arguments>]
 On Windows, the same commands work with the toolchain described in
 [`CONTRIBUTING.md`](../CONTRIBUTING.md#on-windows). Each CI run on GitHub also publishes
 `hello.exe`, `headless.exe`, `window.exe`, `offscreen.exe` and `scene.exe` built for Windows, as the
-artifact `slime-examples-windows`, to run on a Windows machine without a Rust toolchain. They link
-the C runtime of the MSVC toolchain statically, so they start on a fresh Windows install too,
-without the Visual C++ Redistributable. Run them from a terminal (Windows Terminal, PowerShell or
-cmd): started by a double click, their console closes with them, and an error at startup disappears
-with it.
+artifact `slime-examples-windows`, with the first game, `nightwatch.exe`
+([`games/nightwatch`](../games/nightwatch/README.md)), to run on a Windows machine without a Rust
+toolchain. They link the C runtime of the MSVC toolchain statically, so they start on a fresh
+Windows install too, without the Visual C++ Redistributable. Run them from a terminal (Windows
+Terminal, PowerShell or cmd): started by a double click, their console closes with them, and an
+error at startup disappears with it.
 
 The log level of every example is set by the `SLIME_LOG` environment variable, for example
 `SLIME_LOG=debug cargo run --example hello`.

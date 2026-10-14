@@ -23,6 +23,8 @@ it is built this way.
 ├── examples/            runnable examples, one per feature, with their tests (`slime-examples`)
 ├── flake.nix            Nix development shell
 ├── flake.lock           pinned inputs of the development shell
+├── games/               games made with the engine through its public API
+│   └── nightwatch/      Nightwatch, a small stealth game: the sample every stage grows
 ├── rust-toolchain.toml  pinned Rust toolchain
 ├── scripts/check.sh     every automated check, as CI runs them
 ├── AGENTS.md            rules for every contributor
@@ -33,8 +35,9 @@ it is built this way.
 ```
 
 [ADR-0004](adr/0004-workspace-layout-and-crate-naming.md) sets the layout and naming rules: the
-root is a virtual workspace, engine crates are `crates/slime-<role>/`, and a directory or a crate
-is created only when code needs it.
+root is a virtual workspace, engine crates are `crates/slime-<role>/`, games are
+`games/<name>/` ([ADR-0055](adr/0055-games-in-the-workspace.md)), and a directory or a crate is
+created only when code needs it.
 
 ## Crates
 
@@ -46,6 +49,7 @@ is created only when code needs it.
 | [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, lit by directional, point and spot lights, seen from a camera, into render targets, and reports what a frame cost; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `glam`, `thiserror`, `tracing` | Meshes with tangents, glTF's metallic-roughness materials (five textures, masks, double-sided), a perspective camera, the depth test, up to 16 directional, point and spot lights in physical units (`KHR_lights_punctual`), a procedural sky computed on the CPU that surfaces reflect (image-based lighting) and that is drawn behind them with its sun's disc, the shadows of the first directional light that casts them (one shadow map, 3 × 3 PCF), mirrored instances drawn with their front faces, the scene drawn in HDR with its light exposed, an energy-conserving bloom, then tone mapped, the passes ordered by a render graph and recorded four to a submission, statistics with the GPU time of each pass |
 | [`slime-devui`](../crates/slime-devui/README.md) | The dev overlay: egui drawn over the engine's frames, fed with the engine's events; tooling, removed once something does at least as well ([ADR-0052](adr/0052-amend-roadmap-before-0-1.md)) | `egui`, `egui-wgpu`, `slime-gfx` (with its `wgpu` feature), `slime-platform` | Panels over a frame; no clipboard or input methods |
 | [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `gltf`, `png`, `tracing` | `hello`, `headless`, `window`, `offscreen`, `scene`; the reference image tests; a temporary glTF loader |
+| [`nightwatch`](../games/nightwatch/README.md) | Nightwatch, the first game; a client of the engine through its public API only, not part of the engine ([ADR-0055](adr/0055-games-in-the-workspace.md)) | `slime-app`, `slime-gfx`, `slime-platform`, `slime-render`, `tracing` | The courtyard at night, the camera, the player's movement and collisions |
 
 ## Dependency rules
 
@@ -57,6 +61,8 @@ slime-examples ──▶ slime-app ──┬──▶ slime-platform ──▶ w
        │                   ├───────▶ egui, egui-wgpu ──────────▶ wgpu
        │                   └───────▶ slime-platform (events)
        └──▶ slime-platform, slime-gfx (their types: events, GPU objects)
+
+nightwatch ──▶ slime-app, slime-render, slime-platform, slime-gfx (public API only)
 ```
 
 - Dependencies between crates point one way: `slime-app` depends on `slime-platform` and
@@ -71,6 +77,9 @@ slime-examples ──▶ slime-app ──┬──▶ slime-platform ──▶ w
   does to destroy the GPU device. `slime-devui` is tooling, a client of the engine like the
   examples: no engine crate depends on it, and
   games do not enable the feature.
+- A game, such as `nightwatch`, is a client of the engine like the examples: it uses the public API
+  of the engine's crates only, and no engine crate depends on it
+  ([ADR-0055](adr/0055-games-in-the-workspace.md)).
 - Only `slime-platform` uses winit, and winit's types never appear in a public API
   ([ADR-0011](adr/0011-windowing-with-winit.md)). `slime_platform::Window` exposes the
   `raw-window-handle` traits so that graphics libraries can draw into it.
