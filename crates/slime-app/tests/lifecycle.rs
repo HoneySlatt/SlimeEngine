@@ -28,6 +28,8 @@ struct Recorder {
     exit_in_init: bool,
     fail_in_init: bool,
     exit_in_update_of_frame: Option<u64>,
+    /// `Context::fixed_step_alpha` as each `update` reads it.
+    alphas: Vec<f64>,
 }
 
 impl App for Recorder {
@@ -52,6 +54,7 @@ impl App for Recorder {
             delta: frame.delta(),
             elapsed: frame.elapsed(),
         });
+        self.alphas.push(ctx.fixed_step_alpha());
         if self.exit_in_update_of_frame == Some(frame.index()) {
             ctx.request_exit();
         }
@@ -170,4 +173,20 @@ fn headless_time_is_simulated_and_identical_between_runs() {
     assert_eq!(first.calls, second.calls);
     assert_eq!(first.calls.len(), 1 + 600 * 2 + 1);
     assert_eq!(first.calls[first.calls.len() - 2], update(599));
+}
+
+#[test]
+fn update_reads_the_fraction_of_a_fixed_step_left_to_run() {
+    let mut app = Recorder::default();
+    // Frames limited to 4 ms of a 10 ms step run a step every two or three frames.
+    let limited = AppConfig {
+        max_frame_delta: Duration::from_millis(4),
+        ..config(Some(5))
+    };
+    run(&mut app, &limited).expect("this application starts");
+    assert_eq!(app.alphas, [0.4, 0.8, 0.2, 0.6, 0.0]);
+
+    let mut app = Recorder::default();
+    run(&mut app, &config(Some(3))).expect("this application starts");
+    assert_eq!(app.alphas, [0.0, 0.0, 0.0]);
 }

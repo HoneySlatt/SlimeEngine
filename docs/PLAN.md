@@ -637,9 +637,6 @@ GitHub issues, linked from their entry; this list stays the reference.
   as its key alone, so shortcuts with Ctrl or Shift, and selecting text with Shift, do not work in
   it; a key pressed while Ctrl is held types no text, so that a shortcut does not type its letter
   into a text field.
-- **The interpolation factor is not passed to applications.** `FixedStep::alpha` computes it, but
-  `run` keeps its `FixedStep` private, so an application cannot interpolate between fixed steps
-  yet. To expose when a renderer needs it.
 - **A compositor that stops answering blocks the engine.** Before the first frame, winit waits for
   the window's first configuration without a timeout, so a termination signal is noticed only when
   a second one ends the process; after `shutdown`, releasing the window or the surface can block

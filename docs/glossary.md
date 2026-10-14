@@ -214,7 +214,7 @@ them, built for each frame.
 
 **Interpolation factor.** The fraction of a fixed step accumulated but not yet run
 (`FixedStep::alpha`), between 0 and 1. Used to draw a state between the last two fixed steps.
-`run` does not pass it to applications yet.
+Applications read it from `Context::fixed_step_alpha`.
 
 **Irradiance.** The light that reaches a surface from every direction of its hemisphere, each
 weighted by the cosine of its incidence, in *lux*: a matte surface of albedo c reflects

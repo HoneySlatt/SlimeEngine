@@ -8,6 +8,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- `Context::fixed_step_alpha`: the fraction of a fixed step accumulated but not run, so that an
+  application draws what `fixed_update` moves between its last two states, smoothly when the frame
+  rate and the step rate differ.
 - Which types may cross threads is stated in `docs/ARCHITECTURE.md` ("Threads") and checked when
   the tests compile: the `Gpu` and every GPU object, meshes, materials, scenes, windows, events
   and the `Context` are `Send` and `Sync`; a `GpuTimer` and the `Renderer` are `Send`.

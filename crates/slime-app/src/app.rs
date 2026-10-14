@@ -146,6 +146,7 @@ pub struct Context {
     gpu: Option<Gpu>,
     surface_format: Option<TextureFormat>,
     exit: Option<ExitReason>,
+    fixed_step_alpha: f64,
 }
 
 impl Context {
@@ -164,6 +165,20 @@ impl Context {
     /// early. The loss of the GPU device or of the surface is noticed only between frames.
     pub fn exit_requested(&self) -> bool {
         self.exit.is_some() || signal::received()
+    }
+
+    /// The fraction of a fixed step that the frames so far accumulated but did not run, at least
+    /// 0.0 and below 1.0: the interpolation factor, [`FixedStep::alpha`] of the run's fixed step.
+    ///
+    /// An application that moves things in [`App::fixed_update`] keeps their state of the last two
+    /// steps and draws them this fraction of the way from the older state to the newer, so that
+    /// motion looks smooth when the frame rate and the step rate differ. The value is set once per
+    /// frame, after the frame's time is added and before its fixed steps run: it is the same in
+    /// that frame's `fixed_update`, [`App::update`] and [`App::render`], and 0.0 before the first
+    /// frame. Headless frames each represent one fixed step and read 0.0, unless the step is
+    /// longer than [`AppConfig::max_frame_delta`].
+    pub fn fixed_step_alpha(&self) -> f64 {
+        self.fixed_step_alpha
     }
 
     /// The window of the application, or `None` when it runs headless.
@@ -380,7 +395,9 @@ impl Frames {
     ) {
         let frame = self.clock.advance(raw_delta);
         let _frame_span = tracing::trace_span!("frame", index = frame.index()).entered();
-        for _ in 0..self.fixed.advance(frame.delta()) {
+        let steps = self.fixed.advance(frame.delta());
+        ctx.fixed_step_alpha = self.fixed.alpha();
+        for _ in 0..steps {
             let _span = tracing::trace_span!("fixed_update").entered();
             app.fixed_update(ctx, self.fixed.step());
         }
