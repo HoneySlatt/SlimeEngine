@@ -6,6 +6,17 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-14
+
+The fourth release, which closes Stage 3b of the roadmap: the physically based renderer. The engine
+draws glTF's metallic-roughness materials under directional, point and spot lights in physical
+units, with the shadows of a sun around the camera and the light of a procedural sky, in high
+dynamic range, then exposes, blooms, tone maps and dithers it, its passes ordered by a render graph.
+It draws relative to the camera and with reversed depth, so that large scenes keep their precision;
+every creation of a GPU object can fail with an error that a game can handle; and image tests cover
+it on lavapipe, WARP and an AMD GPU. The Windows examples that CI builds are attached to the
+release on GitHub.
+
 ### Added
 
 - The README says how a game depends on the engine (through git, pinned to a release tag, with
@@ -439,6 +450,19 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   texture without mipmaps, the timing tests accepted a pass that took no time, and the windowed
   lifecycle test never checked the time each frame represents. The profiling spans of the main
   loop, decided in ADR-0010 and ADR-0020, are now checked too.
+
+### Known limitations
+
+See the known debt in [`docs/PLAN.md`](docs/PLAN.md#known-debt) and what the engine does not do yet
+in the [`README.md`](README.md#what-it-does-not-do-yet). In short: the renderer has no
+anti-aliasing, transparency, culling or instancing, one shadow map without cascades and no shadows
+from point and spot lights, at most 16 lights that every pixel evaluates, and a sky whose light is
+neither shadowed nor occluded; glass is drawn opaque; glTF files are read by a temporary loader in
+the examples, and textures get their levels of detail on the CPU; a lost GPU device ends the run;
+upgrading wgpu waits for egui; and limitations of 0.0.3 remain: frames are not synchronized with
+the display's refresh, presenting can still stall where Mailbox is not offered, frames pause on
+Windows while the window is moved, wgpu's errors other than running out of memory panic in release
+builds too, and input methods, touch, gestures and gamepads are not reported.
 
 ## [0.0.3] - 2026-10-13
 

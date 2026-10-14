@@ -6,24 +6,22 @@ games first, then open-world games, then large online worlds.
 
 ## Status
 
-Pre-alpha. Stages 0 (*Foundations*), 1 (*Core and platform*), 2 (*GPU layer*) and 3a (*First
-renderer*) are done; the latest release is 0.0.3 (git tag `v0.0.3`). Applications run headless or
-with a window (Wayland or X11 on Linux, Win32 on Windows) that receives keyboard and mouse input,
-with a fixed-step main loop, logging, panic reporting and a clean shutdown on Ctrl+C. The engine
-opens the GPU (Vulkan on Linux, Direct3D 12 on Windows), paces frames with its own schedule and the
-Mailbox present mode by default, names its GPU work for capture tools, and stops cleanly when the
-GPU device is lost. Its first renderer, `slime-render`, draws instances of meshes from a camera,
-with a depth test, each with a physically based material (glTF's metallic-roughness model, with base
-color, metallic-roughness, normal, occlusion and emissive textures), lit by directional, point and
-spot lights in physical units (lux and candelas), a sun casting shadows and a procedural sky that
-surfaces reflect and that shows behind them, into the window or into offscreen images that image
-tests compare with references; the `scene` example draws a glTF scene and its lights under a camera
-driven by the mouse, with its frame time, CPU time, the GPU time of each pass and an exposure slider
-in a dev overlay. Stage 3b, the physically based renderer, is in progress: the renderer draws the
-scene in high dynamic range, shades it with glTF's metallic-roughness materials under lights in
-physical units, the shadows of its sun and the light of its sky, exposes it, spreads a bloom around
-bright light, and maps it to the display with a tone-mapping pass. [`docs/PLAN.md`](docs/PLAN.md)
-lists what comes next and the known debt.
+Pre-alpha. Stages 0 (*Foundations*), 1 (*Core and platform*), 2 (*GPU layer*), 3a (*First
+renderer*) and 3b (*Physically based renderer*) are done; the latest release is 0.1 (git tag
+`v0.1.0`). Applications run headless or with a window (Wayland or X11 on Linux, Win32 on Windows)
+that receives keyboard and mouse input, with a fixed-step main loop, logging, panic reporting and a
+clean shutdown on Ctrl+C. The engine opens the GPU (Vulkan on Linux, Direct3D 12 on Windows), paces
+frames with its own schedule and the Mailbox present mode by default, names its GPU work for
+capture tools, reports a GPU whose memory runs out as an error a game can handle, and stops cleanly
+when the GPU device is lost. Its renderer, `slime-render`, draws instances of meshes with glTF's
+metallic-roughness materials, lit by directional, point and spot lights in physical units (lux and
+candelas), with the shadows of a sun around the camera and the light of a procedural sky that
+surfaces reflect and that shows behind them; it draws in high dynamic range, relative to the camera
+and with reversed depth so that large scenes keep their precision, then exposes the light, spreads a
+bloom around it, tone maps it and dithers it, into a window or into offscreen images that image
+tests compare with references. The `scene` example draws a glTF scene and its lights under a camera
+driven by the mouse, with the CPU time and the GPU time of each pass in a dev overlay. Next comes
+Stage 3c, a first game; [`docs/PLAN.md`](docs/PLAN.md) lists the known debt.
 
 ## Getting started
 
@@ -40,7 +38,8 @@ scripts/check.sh             # every check, exactly as CI runs them (Linux only)
 ```
 
 Each CI run on GitHub also publishes the `hello`, `headless`, `window`, `offscreen` and `scene`
-examples built for Windows, to try without a toolchain.
+examples built for Windows, to try without a toolchain, and the GitHub release of each version
+since 0.1 carries them.
 
 The tests run on your own GPU; CI runs them on drivers that render on the CPU, lavapipe on Linux and
 WARP on Windows, and [`CONTRIBUTING.md`](CONTRIBUTING.md#gpu) explains how to run them the same way.
@@ -48,16 +47,16 @@ WARP on Windows, and [`CONTRIBUTING.md`](CONTRIBUTING.md#gpu) explains how to ru
 ## Using SlimeEngine in a game
 
 The engine is not published on crates.io: a game depends on its crates through git, pinned to a
-release tag. Until 0.1 is released, `main` is well ahead of the latest tag, 0.0.3, and the crates'
-READMEs and the examples describe `main`: to follow them, use `branch = "main"`, or a `rev` for a
-build that does not move.
+release tag. Between releases, `main` moves ahead of the latest tag, and the crates' READMEs and the
+examples describe `main`: to follow them, use `branch = "main"`, or a `rev` for a build that does
+not move.
 
 ```toml
 [dependencies]
-slime-app = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.0.3" }
-slime-gfx = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.0.3" }
-slime-platform = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.0.3" }
-slime-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.0.3" }
+slime-app = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.1.0" }
+slime-gfx = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.1.0" }
+slime-platform = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.1.0" }
+slime-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.1.0" }
 
 # The renderer computes a sky's lighting on the CPU, several times slower without optimizations.
 [profile.dev.package.slime-render]

@@ -12,15 +12,15 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 
 ## Current
 
-- Stage 3b — Physically based renderer → 0.1: in progress. Planned on 2026-10-13 and validated by
-  the owner. M3b.1 to M3b.8 are done. The owner's decisions of 2026-10-13 on earlier proposals are
-  applied, and the findings of rounds 4 and 5 of the audit of 0.0.3 (issue
-  [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are fixed or recorded below. A pass
-  over the known debt that users of 0.1 would meet is done (2026-10-14): the owner's decisions on
-  it are ADR-0042 to ADR-0053, from lights beyond the most drawn to the roadmap's amendment and
-  one home per fact, and what it left is recorded below. Next: M3b.9.
+- Stage 3b — Physically based renderer → 0.1: done, and released as 0.1 on 2026-10-14 (tag
+  `v0.1.0`). Planned on 2026-10-13 and validated by the owner; M3b.1 to M3b.9 are done. The owner's
+  decisions of 2026-10-13 on earlier proposals are applied, and the findings of rounds 4 and 5 of
+  the audit of 0.0.3 (issue [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are fixed or
+  recorded below. A pass over the known debt that users of 0.1 would meet is done (2026-10-14): the
+  owner's decisions on it are ADR-0042 to ADR-0053, from lights beyond the most drawn to the
+  roadmap's amendment and one home per fact, and what it left is recorded below.
 - Next: Stage 3c, a first game, added to the roadmap by
-  [ADR-0052](adr/0052-amend-roadmap-before-0-1.md); planned once 0.1 is released.
+  [ADR-0052](adr/0052-amend-roadmap-before-0-1.md), to be planned with the owner.
 
 ## Status
 
@@ -34,7 +34,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M3b.6](#m3b6--image-based-lighting) | Image-based lighting | Done |
 | [M3b.7](#m3b7--bloom) | Bloom | Done |
 | [M3b.8](#m3b8--render-graph) | Render graph | Done |
-| [M3b.9](#m3b9--windows-check-documentation-release-01) | Windows check, documentation, release 0.1 | Planned |
+| [M3b.9](#m3b9--windows-check-documentation-release-01) | Windows check, documentation, release 0.1 | Done |
 
 Stages 0, 1, 2 and 3a are done; see [Completed stages](#completed-stages).
 
@@ -573,7 +573,7 @@ upgrading wgpu still waits for egui.
 - **Done when.** The checks are green on both platforms; the tag is pushed.
 - **How to test.** Push and read the CI run; the Windows artifact in the virtual machine; the
   `scene` example on each converted model, looked at.
-- **Checked so far** on 2026-10-14:
+- **Checked** on 2026-10-14:
   - Four Khronos sample models, converted to GLB files holding PNG images and drawn by the
     examples' loader (offscreen at 1280 × 720 on RADV, and 120 frames of the `scene` example in a
     headless Weston): DamagedHelmet, FlightHelmet, Sponza, an interior, and ABeautifulGame, up to
@@ -597,7 +597,8 @@ upgrading wgpu still waits for egui.
     button was clicked, before the process ended; exit codes of 0; a capture in RenderDoc on
     Direct3D 12. Two items of the list did not apply: the sun's disc lies above what the `scene`
     example's camera can see, and its overlay has no text field. It also found the bricks of the
-    asset's wall turned by 90°, fixed since.
+    asset's wall turned by 90°, fixed since, with the image tests' tolerance on other drivers
+    widened (ADR-0054).
   - The owner's decisions on 2026-10-14: CI stays as it is, the repository being public and its
     minutes free, to reconsider past 20 minutes; a release carries the Windows examples that the CI
     run of its commit builds, attached by hand to its GitHub release (see Releasing).
@@ -617,7 +618,8 @@ A release is an annotated git tag on a commit whose CI run is green on Linux and
 0.0.1 was released on 2026-10-12, before Windows joined CI: the tag `v0.0.1` is on the commit
 "Release 0.0.1". 0.0.2 was released the same way on 2026-10-12: the tag `v0.0.2` is on the
 commit "Release 0.0.2", and 0.0.3 on 2026-10-13: the tag `v0.0.3` is on the commit
-"Release 0.0.3".
+"Release 0.0.3". 0.1 was released on 2026-10-14: the tag `v0.1.0` is on the commit "Release 0.1.0",
+and its GitHub release carries the Windows examples that CI built from that commit.
 
 ## Completed stages
 

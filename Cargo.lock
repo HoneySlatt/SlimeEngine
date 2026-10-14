@@ -1926,7 +1926,7 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
 name = "slime-app"
-version = "0.0.3"
+version = "0.1.0"
 dependencies = [
  "ctrlc",
  "nu-ansi-term",
@@ -1939,7 +1939,7 @@ dependencies = [
 
 [[package]]
 name = "slime-devui"
-version = "0.0.3"
+version = "0.1.0"
 dependencies = [
  "egui",
  "egui-wgpu",
@@ -1950,7 +1950,7 @@ dependencies = [
 
 [[package]]
 name = "slime-examples"
-version = "0.0.3"
+version = "0.1.0"
 dependencies = [
  "gltf",
  "png",
@@ -1964,7 +1964,7 @@ dependencies = [
 
 [[package]]
 name = "slime-gfx"
-version = "0.0.3"
+version = "0.1.0"
 dependencies = [
  "pollster",
  "raw-window-handle",
@@ -1975,7 +1975,7 @@ dependencies = [
 
 [[package]]
 name = "slime-platform"
-version = "0.0.3"
+version = "0.1.0"
 dependencies = [
  "raw-window-handle",
  "thiserror 2.0.21",
@@ -1985,7 +1985,7 @@ dependencies = [
 
 [[package]]
 name = "slime-render"
-version = "0.0.3"
+version = "0.1.0"
 dependencies = [
  "glam",
  "slime-gfx",
