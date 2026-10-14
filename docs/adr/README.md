@@ -119,7 +119,8 @@ the ADR linking to it.
 | [0049](0049-instances-that-cast-no-shadow.md) | Instances that cast no shadow | Accepted; amended by 0050 |
 | [0050](0050-a-shadow-region-that-follows-the-camera.md) | A shadow region that follows the camera | Accepted |
 | [0051](0051-dithering-8-bit-outputs.md) | Dithering 8-bit outputs | Accepted |
-| [0052](0052-amend-roadmap-before-0-1.md) | Amend the roadmap before 0.1 | Accepted |
+| [0052](0052-amend-roadmap-before-0-1.md) | Amend the roadmap before 0.1 | Accepted; amended by 0056 |
 | [0053](0053-one-home-per-fact.md) | One home per fact in the documentation | Accepted |
 | [0054](0054-image-tests-allow-0-2-percent-on-other-drivers.md) | Image tests allow 0.2 % of the pixels to differ on other drivers | Accepted |
 | [0055](0055-games-in-the-workspace.md) | Games in the workspace | Accepted |
+| [0056](0056-stage-3d-anti-aliasing-and-spot-light-shadows.md) | Stage 3d: anti-aliasing and the shadows of spot lights | Accepted |

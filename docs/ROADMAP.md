@@ -180,6 +180,17 @@ The stage comes right after 0.1 (it was added by ADR-0052) and has no release of
 
 **Exit.** The game is played to its objective and restarted, on Linux and on Windows, through the public API only.
 
+### Stage 3d — Anti-aliasing and the shadows of spot lights
+
+**Goal.** Remove the two defects of the renderer that the first game showed (ADR-0056).
+
+- Multisample anti-aliasing (four samples) on the scene pass
+- Shadow maps for spot lights: at most four of a scene's spot lights cast shadows, each through a map of its own
+
+The stage comes right after Stage 3c and has no release of its own; what it delivers is released with 0.2.
+
+**Exit.** In the game, walls and crates stop the light of flashlights and floodlights, and edges are smooth, on Linux and on Windows; image tests cover both.
+
 ### Stage 4 — Asset pipeline → 0.2
 
 **Goal.** Replace "load a file at startup" with a real pipeline: source → import → engine asset → cook → runtime data.
@@ -250,10 +261,10 @@ Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b nee
 
 **Goal.** Render what a shipped game shows, beyond a simple scene.
 
-- Shadows: cascaded shadow maps for the directional light, shadows of point and spot lights
+- Shadows: cascaded shadow maps for the directional light, shadows of point lights, more spot lights that cast shadows if a game needs them
 - Many lights
 - Transparency
-- Anti-aliasing, then temporal anti-aliasing
+- Temporal anti-aliasing
 - Frustum culling, instancing
 - Fog, ambient occlusion, decals
 - A day-night cycle
@@ -358,6 +369,7 @@ Direction only. None of this is planned work until Stage 11 is reached.
 | 0.0.3 | 3a | First renderer |
 | 0.1 | 3b | Physically based renderer |
 | — | 3c | A first game, released with 0.2 |
+| — | 3d | Anti-aliasing and the shadows of spot lights, released with 0.2 |
 | 0.2 | 4 | Assets |
 | 0.3 | 5 | Reflection, serialization, world |
 | 0.4 | 6 | Editor |

@@ -13,8 +13,10 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3c — A first game: in progress. Planned on 2026-10-14 and validated by the owner. M3c.1
-  and M3c.2 are done; M3c.3 waits for the owner to play the game on Linux and in the Windows
-  virtual machine.
+  and M3c.2 are done; the owner played the game on Linux, and M3c.3 waits for the Windows virtual
+  machine.
+- Next: Stage 3d, anti-aliasing and the shadows of spot lights, decided by the owner from what the
+  game showed ([ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md)).
 
 ## Status
 
@@ -133,6 +135,13 @@ a large step; and the fun of a stealth game depends on tuning that tests cannot 
   game on Linux and in the Windows virtual machine.
 - **Done when.** The owner's reports from Linux and Windows; the checks and CI are green.
 - **How to test.** Playing it; `--frames` in the headless Weston.
+- **Checked so far** on 2026-10-14: the night darker, its lamps lighting pools that do not wash it
+  out; what moves drawn between its last two steps; the camera kept clear of walls, by a test; the
+  dev overlay on F1. In a release build on the development machine's RX 6900 XT, a frame takes
+  0.59 ms of CPU time and about 1.1 ms on the GPU (32 draw calls, 3 216 triangles). The owner played
+  it on Linux: the controls, the switch and the gate work, the game is readable and very easy, which
+  is fine; the light that goes through walls and the jagged edges were its defects, which Stage 3d
+  will remove (ADR-0056). Waiting: the owner's game in the Windows virtual machine.
 
 ### M3c.4 — Findings for Stages 4 and 5
 
@@ -152,10 +161,12 @@ What the game needed and the engine did not give, as met. Each entry says what t
 instead, and proposes a change with the stage it belongs to.
 
 - **Spot lights cast no shadows** (ADR-0037, ADR-0038). A flashlight lights what stands behind a
-  crate, while the game's rules say it does not reach there. The game keeps flashlights short and
-  their cones off most obstacles. Proposal: the shadows of spot lights, planned for Stage 9a
-  ([ADR-0052](adr/0052-amend-roadmap-before-0-1.md)); to weigh whether a game of light and shadow
-  needs them sooner.
+  crate, while the game's rules say it does not reach there. The owner, who played it on Linux,
+  found it the game's main defect. Decided: the shadows of spot lights in Stage 3d, right after this
+  stage ([ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md)).
+- **Edges are jagged** (M3c.3). The renderer has no anti-aliasing: a nearly horizontal edge, the top
+  of a wall, steps by a pixel at long intervals, which the owner saw as teeth. Decided: multisample
+  anti-aliasing in Stage 3d (ADR-0056).
 - **No model can be loaded outside the examples** (M3c.1). The temporary glTF loader is example
   code (ADR-0029), so the game builds its meshes in code: a cube and a sphere
   (`games/nightwatch/src/meshes.rs`). Proposal: a way for a game to load a model, the first thing
@@ -488,7 +499,8 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **Point and spot lights cast no shadows, and light what objects hide** (ADR-0037, ADR-0038: only
   the first directional light that casts shadows casts them). The sample's spot light is aimed up,
   so that the light the wall would stop goes into the sky; its ring light reaches 4 m, and gives
-  little beyond a metre. Their shadows are left to Stage 9a (ADR-0052).
+  little beyond a metre. The shadows of spot lights come with Stage 3d (ADR-0056), those of point
+  lights with Stage 9a (ADR-0052).
 - **Every instance is drawn, with a draw call of its own** (`Renderer`). Nothing leaves out the
   instances that the camera does not see, and instances of the same mesh and material are not
   drawn together: a frame's CPU and GPU time grow with every instance of the scene, wherever it is.
