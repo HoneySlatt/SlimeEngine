@@ -4,8 +4,8 @@
   [0033](0033-gpu-layer-for-multi-pass-rendering.md) and
   [0037](0037-lights-in-physical-units-and-pre-exposure.md); amended by
   [0039](0039-image-based-lighting-computed-on-the-cpu.md) (the frame's values; group 0 holds the
-  environment) and by [0041](0041-render-graph.md) (the shadow pass shares a submission and its
-  timer)
+  environment), by [0041](0041-render-graph.md) (the shadow pass shares a submission and its
+  timer) and by [0047](0047-reversed-depth-with-an-infinite-far-plane.md) (the map's depth reversed, its comparison and bias)
 - Date: 2026-10-13
 
 ## Context

@@ -294,7 +294,8 @@ fn a_depth_only_pass_is_read_through_a_comparison_sampler() {
     let gpu = gpu();
     let size = 8;
     // The shadow map has twice the size of the target that reads it: a depth-only pass takes its
-    // size from its depth target alone. The occluder covers its left half at depth 0.25: its right
+    // size from its depth target alone. The occluder covers its left half at depth 0.75, near the
+    // light (depth is reversed): its right
     // edge, x = 0, lies between columns 7 and 8; its left edge stays left of the map on every row.
     let occluder = depth_pipeline(
         &gpu,
@@ -302,10 +303,10 @@ fn a_depth_only_pass_is_read_through_a_comparison_sampler() {
         "@vertex
          fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {
              var corners = array(vec2<f32>(-3.0, -1.0), vec2<f32>(0.0, -1.0), vec2<f32>(0.0, 3.0));
-             return vec4<f32>(corners[i], 0.25, 1.0);
+             return vec4<f32>(corners[i], 0.75, 1.0);
          }",
         DepthState {
-            compare: DepthCompare::Less,
+            compare: DepthCompare::Greater,
             write: true,
             bias: DepthBias::default(),
         },
@@ -349,12 +350,16 @@ fn a_depth_only_pass_is_read_through_a_comparison_sampler() {
     let nearest = gpu
         .create_comparison_sampler(
             "nearest comparison",
-            DepthCompare::LessEqual,
+            DepthCompare::GreaterEqual,
             Filter::Nearest,
         )
         .expect("the GPU has memory for it");
     let linear = gpu
-        .create_comparison_sampler("linear comparison", DepthCompare::LessEqual, Filter::Linear)
+        .create_comparison_sampler(
+            "linear comparison",
+            DepthCompare::GreaterEqual,
+            Filter::Linear,
+        )
         .expect("the GPU has memory for it");
     let group = gpu
         .create_bind_group(
@@ -377,9 +382,9 @@ fn a_depth_only_pass_is_read_through_a_comparison_sampler() {
         )
         .expect("the GPU has memory for it");
     // Each pixel of the lookup covers 2 × 2 texels of the shadow map, which hold the same depth.
-    // Red compares a reference of 0.5 there, green one of 0.1, blue 0.5 halfway between texels 2x
+    // Red compares a reference of 0.5 there, green one of 0.9, blue 0.5 halfway between texels 2x
     // + 1 and 2x + 2, horizontally, with linear filtering, and alpha the very depth stored there,
-    // which LessEqual finds equal and Less would not.
+    // which GreaterEqual finds equal and Greater would not.
     let lookup = fullscreen_pipeline(
         &gpu,
         "shadow lookup",
@@ -393,7 +398,7 @@ fn a_depth_only_pass_is_read_through_a_comparison_sampler() {
              let between = (p.xy + vec2<f32>(0.5, 0.0)) / 8.0;
              return vec4<f32>(
                  textureSampleCompare(shadow_map, nearest_compare, uv, 0.5),
-                 textureSampleCompare(shadow_map, nearest_compare, uv, 0.1),
+                 textureSampleCompare(shadow_map, nearest_compare, uv, 0.9),
                  textureSampleCompare(shadow_map, linear_compare, between, 0.5),
                  textureSampleCompare(
                      shadow_map,
@@ -432,8 +437,8 @@ fn a_depth_only_pass_is_read_through_a_comparison_sampler() {
     for y in 0..size {
         for x in 0..size {
             let [r, g, b, a] = pixel(&image, x, y);
-            // 0.5 <= 0.25 fails where the occluder is, and 0.5 <= 1.0 (cleared) holds elsewhere;
-            // a stored depth is less than or equal to itself.
+            // 0.5 >= 0.75 fails where the occluder is, and 0.5 >= 0 (cleared) holds elsewhere;
+            // a stored depth is greater than or equal to itself.
             let lit = if x <= 3 { 0.0 } else { 1.0 };
             assert_eq!((r, g, a), (lit, 1.0, 1.0), "pixel ({x}, {y})");
             // Filtering weights are fixed-point numbers on some GPUs.
@@ -449,7 +454,7 @@ fn a_depth_only_pass_is_read_through_a_comparison_sampler() {
 fn a_fragment_stage_without_a_render_target_discards_in_a_depth_only_pass() {
     let gpu = gpu();
     let size = 8;
-    // A triangle covering the target at depth 0.25, whose fragment stage writes no color and
+    // A triangle covering the target at depth 0.75, whose fragment stage writes no color and
     // discards the left half: as a shadow pass cuts out what masked materials discard.
     let module = gpu
         .create_shader_module(
@@ -458,7 +463,7 @@ fn a_fragment_stage_without_a_render_target_discards_in_a_depth_only_pass() {
                 "{FULLSCREEN}
                  @vertex
                  fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {{
-                     return vec4<f32>(corner(i), 0.25, 1.0);
+                     return vec4<f32>(corner(i), 0.75, 1.0);
                  }}
 
                  @fragment
@@ -482,7 +487,7 @@ fn a_fragment_stage_without_a_render_target_discards_in_a_depth_only_pass() {
             }),
             bind_group_layouts: &[],
             depth: Some(DepthState {
-                compare: DepthCompare::Less,
+                compare: DepthCompare::Greater,
                 write: true,
                 bias: DepthBias::default(),
             }),
@@ -503,8 +508,8 @@ fn a_fragment_stage_without_a_render_target_discards_in_a_depth_only_pass() {
         },
     );
 
-    // Each pixel shows the depth stored under it: the cleared 1 where the fragment was
-    // discarded, 0.25 elsewhere.
+    // Each pixel shows the depth stored under it: the cleared 0 where the fragment was
+    // discarded, 0.75 elsewhere.
     let layout = gpu
         .create_bind_group_layout(
             "depth",
@@ -556,7 +561,7 @@ fn a_fragment_stage_without_a_render_target_discards_in_a_depth_only_pass() {
         .expect("the image is read back");
     for y in 0..size {
         for x in 0..size {
-            let expected = if x < 4 { 1.0 } else { 0.25 };
+            let expected = if x < 4 { 0.0 } else { 0.75 };
             assert_eq!(pixel(&image, x, y)[0], expected, "pixel ({x}, {y})");
         }
     }
@@ -764,7 +769,7 @@ fn a_depth_only_pipeline_does_not_draw_in_a_pass_with_a_render_target() {
              return vec4<f32>(corner(i), 0.5, 1.0);
          }",
         DepthState {
-            compare: DepthCompare::Less,
+            compare: DepthCompare::Greater,
             write: true,
             bias: DepthBias::default(),
         },

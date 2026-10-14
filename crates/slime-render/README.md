@@ -188,7 +188,8 @@ fn main() -> Result<(), RenderError> {
   changes or the shadow pass or the bloom starts or stops); times from different submissions can
   come from different frames, usually consecutive ones.
 - `Camera`: an eye, a target, an up direction, a vertical field of view in radians, and the near
-  and far distances; `view`, `projection(aspect)` and `view_projection(aspect)` give its matrices.
+  distance; nothing is too far to be seen, as the far plane is at infinity. `view`,
+  `projection(aspect)` and `view_projection(aspect)` give its matrices.
 - `Light`: one of the punctual lights of glTF's `KHR_lights_punctual`, each with a linear color and
   a strength in its physical unit, and glTF's defaults. A `DirectionalLight` comes from one
   direction everywhere with an illuminance in lux; it casts shadows unless its `casts_shadows` is
@@ -208,7 +209,8 @@ fn main() -> Result<(), RenderError> {
 - Conventions: world space is right-handed with +Y up, as in glTF; distances are in metres and light
   is in physical units, as in glTF: lux, candelas, and nits (candelas per square metre) for the
   light that surfaces reflect and emit and for the sky; the camera looks down its −Z axis; front
-  faces wind counter-clockwise; depth runs from 0 at the near plane to 1 at the far plane; the
+  faces wind counter-clockwise; depth is reversed, from 1 at the near plane to 0 at infinity
+  (ADR-0047), so that 32-bit float depths keep their precision at every distance; the
   colors of materials, lights and skies are `slime-gfx`'s `LinearColor`s, linear (ADR-0045); light
   is not negative and may exceed 1, and once exposed, the high-dynamic-range target holds it,
   divided by 64, up to 64 × 65 504; an sRGB output encodes the tone-mapped values; tangents and

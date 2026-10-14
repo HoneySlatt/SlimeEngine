@@ -82,9 +82,9 @@ pub struct Sampler {
 /// [`DepthTarget`](crate::DepthTarget) (`sampler_comparison` in WGSL, read with
 /// `textureSampleCompare`): each pixel read gives 1.0 where `reference <compare> stored` holds and
 /// 0.0 where it does not, and linear filtering blends the results of the four nearest pixels
-/// (percentage-closer filtering, done by the GPU). With [`DepthCompare::LessEqual`] and the depth
-/// of a point seen from a light as the reference, 1.0 means lit: nothing nearer to the light is
-/// stored there. Coordinates outside 0 to 1 read the nearest edge. Bound at a
+/// (percentage-closer filtering, done by the GPU). With [`DepthCompare::GreaterEqual`] and the
+/// depth of a point seen from a light as the reference, 1.0 means lit: nothing nearer to the light
+/// is stored there. Coordinates outside 0 to 1 read the nearest edge. Bound at a
 /// [`BindingType::ComparisonSampler`](crate::BindingType::ComparisonSampler) binding
 /// ([`BindingResource::ComparisonSampler`](crate::BindingResource::ComparisonSampler)).
 ///

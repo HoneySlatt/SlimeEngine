@@ -339,9 +339,9 @@ renderer = Renderer::new(&gpu, format)                 the output's format; thre
     │   │   group 3: for each instance, the pipeline that its material's double-sidedness and its
     │   │   transform's mirroring choose (set when it changes), its material's bind group 1, its
     │   │   slot, its buffers, draw_indexed
-    │   ├── the sky pass into the HDR target, keeping it and the depth target: one triangle at the
-    │   │   far plane, drawn where the depth test finds no surface, reads the environment along
-    │   │   each pixel's direction, adds the sun's disc, times the exposure
+    │   ├── the sky pass into the HDR target, keeping it and the depth target: one triangle at
+    │   │   depth 0, at infinity, drawn where the depth test finds no surface, reads the
+    │   │   environment along each pixel's direction, adds the sun's disc, times the exposure
     │   ├── unless the scene's bloom is 0: the bloom's passes (bloom.wgsl): each level filtered
     │   │   down from the one above with Jimenez's 13 taps, then each averaged up with the coarser
     │   │   average through a 3 × 3 tent, every level with the same weight, every read mirrored at
@@ -380,7 +380,7 @@ the model matrix, and of its bitangent, rebuilt per fragment; back faces of doub
 shaded with the normal reversed; fragments of masked materials below their cutoff discarded; the sum
 multiplied by the exposure and divided by 64, so that half precision holds light up to 64 × 65 504
 for the bloom (ADR-0040), and brighter light written as 65 504. The material's textures are read at
-the texture coordinates of the vertex. Its sky stages turn each pixel of the far plane into a
+the texture coordinates of the vertex. Its sky stages turn each pixel, at infinity, into a
 direction, read the environment's first level along it and add the sun's disc, its edge blended over
 a pixel. The bloom's shader ([`bloom.wgsl`](../crates/slime-render/src/bloom.wgsl)) filters that
 light down and averages it back up into a blurred copy, which the tone-mapping shader
@@ -393,9 +393,9 @@ or computed), materials and textures, each in its slot's format, and the lights 
 mirrored nodes keep their front faces through the renderer. Conventions: world space is right-handed
 with +Y up, distances are in metres and light in physical units (lux, candelas, and nits for the
 light of surfaces and the sky), the camera looks down −Z, front faces wind counter-clockwise (a
-mirrored instance keeps its front faces), tangents follow glTF, depth runs from 0 to 1, colors are
-linear light, drawn in high dynamic range, exposed in the scene pass (ADR-0037), tone mapped
-(ADR-0034), then encoded by the output's format.
+mirrored instance keeps its front faces), tangents follow glTF, depth is reversed, from 1 at the
+near plane to 0 at infinity (ADR-0047), colors are linear light, drawn in high dynamic range,
+exposed in the scene pass (ADR-0037), tone mapped (ADR-0034), then encoded by the output's format.
 
 ### Rendering in a window
 

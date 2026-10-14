@@ -39,8 +39,8 @@ pub struct RenderPassDescriptor<'a> {
 /// [`Commands::render_depth`]): a depth target only, for pipelines that write depth only.
 #[derive(Clone, Copy, Debug)]
 pub struct DepthPassDescriptor<'a> {
-    /// The depth target to draw into, cleared to the farthest depth (1.0) when the pass starts. It
-    /// can have any size.
+    /// The depth target to draw into, cleared to the farthest depth, 0 (depth is reversed:
+    /// [`DepthCompare`](crate::DepthCompare)), when the pass starts. It can have any size.
     pub depth: &'a DepthTarget,
     /// A timer that measures how long the pass takes on the GPU, read later through
     /// [`GpuTimer::latest`]; `None` leaves the pass untimed.
@@ -275,7 +275,7 @@ impl Commands {
                 view: &depth.view,
                 depth_ops: Some(wgpu::Operations {
                     load: if descriptor.clear.is_some() {
-                        wgpu::LoadOp::Clear(1.0)
+                        wgpu::LoadOp::Clear(0.0)
                     } else {
                         wgpu::LoadOp::Load
                     },
@@ -310,7 +310,7 @@ impl Commands {
         let depth = wgpu::RenderPassDepthStencilAttachment {
             view: &descriptor.depth.view,
             depth_ops: Some(wgpu::Operations {
-                load: wgpu::LoadOp::Clear(1.0),
+                load: wgpu::LoadOp::Clear(0.0),
                 store: wgpu::StoreOp::Store,
             }),
             stencil_ops: None,

@@ -53,14 +53,17 @@ pub struct VertexLayout<'a> {
 /// How a depth is compared with the one stored in a depth target, passing where
 /// `new <op> stored`. For a pipeline's depth test, the new depth is a fragment's; for a
 /// [`ComparisonSampler`](crate::ComparisonSampler), it is the reference the shader gives.
+///
+/// Depth is reversed (ADR-0047): it runs from 1, the nearest, to 0, the farthest, to which passes
+/// clear their depth targets, so that nearer is greater. Floating-point depths are finest near
+/// 0, which reversing spends on the far distances that a perspective projection crowds there.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum DepthCompare {
-    /// Passes where the new depth is less than the stored one: nearer, with the usual
-    /// projections.
-    Less,
-    /// Passes where the new depth is less than or equal to the stored one.
-    LessEqual,
+    /// Passes where the new depth is greater than the stored one: nearer.
+    Greater,
+    /// Passes where the new depth is greater than or equal to the stored one.
+    GreaterEqual,
     /// Passes whatever the stored depth.
     Always,
 }
@@ -68,8 +71,8 @@ pub enum DepthCompare {
 impl DepthCompare {
     pub(crate) fn to_wgpu(self) -> wgpu::CompareFunction {
         match self {
-            Self::Less => wgpu::CompareFunction::Less,
-            Self::LessEqual => wgpu::CompareFunction::LessEqual,
+            Self::Greater => wgpu::CompareFunction::Greater,
+            Self::GreaterEqual => wgpu::CompareFunction::GreaterEqual,
             Self::Always => wgpu::CompareFunction::Always,
         }
     }
@@ -82,7 +85,7 @@ pub struct DepthState {
     pub compare: DepthCompare,
     /// Whether the depth of what is drawn is written to the depth target.
     pub write: bool,
-    /// How far the depth of what the pipeline draws is pushed back before the test and the write;
+    /// How far the depth of what the pipeline draws is pushed away before the test and the write;
     /// [`DepthBias::default()`] pushes nothing.
     pub bias: DepthBias,
 }
@@ -97,9 +100,9 @@ pub struct DepthState {
 ///   x and along y, at most the length of its gradient (Direct3D 12 takes the former, Vulkan
 ///   drivers either).
 ///
-/// Positive values push surfaces away. A shadow map is drawn with one, so that a surface does not
-/// shadow itself where its depth and the stored one differ only by rounding (shadow acne). The
-/// offset is not clamped, and `slope_scale` must be finite: wgpu passes it to the driver
+/// Negative values push surfaces away, towards 0, the farthest depth. A shadow map is drawn with
+/// one, so that a surface does not shadow itself where its depth and the stored one differ only by
+/// rounding (shadow acne). The offset is not clamped, and `slope_scale` must be finite: wgpu passes it to the driver
 /// unchecked, and a NaN or an infinity gives undefined depths. The default, zero, is no bias.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct DepthBias {

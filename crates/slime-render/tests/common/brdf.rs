@@ -72,7 +72,9 @@ pub fn seen_point(
         .inverse();
     let ndc_x = (f64::from(x) + 0.5) / f64::from(width) * 2.0 - 1.0;
     let ndc_y = 1.0 - (f64::from(y) + 0.5) / f64::from(height) * 2.0;
-    let near = inverse.project_point3(DVec3::new(ndc_x, ndc_y, 0.0));
-    let far = inverse.project_point3(DVec3::new(ndc_x, ndc_y, 1.0));
+    // Two points along the ray: the near plane, at depth 1, and twice as far, at depth 0.5 (depth
+    // is reversed, and 0 is infinitely far).
+    let near = inverse.project_point3(DVec3::new(ndc_x, ndc_y, 1.0));
+    let far = inverse.project_point3(DVec3::new(ndc_x, ndc_y, 0.5));
     near + (far - near) * ((plane_z - near.z) / (far.z - near.z))
 }

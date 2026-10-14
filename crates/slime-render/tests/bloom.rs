@@ -31,7 +31,6 @@ fn camera() -> Camera {
         target: Vec3::ZERO,
         fov_y: FOV_Y,
         near: 1.0,
-        far: 100.0,
         ..Camera::default()
     }
 }

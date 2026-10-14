@@ -87,7 +87,7 @@ map* is drawn.
 **Depth target.** A texture holding, for each pixel, the depth of what was drawn there, with
 which a render pass keeps the nearest surface whatever the order the surfaces are drawn in: the
 *depth test* (`slime_gfx::DepthTarget`, `slime_gfx::DepthState`). Later passes can sample it, as
-a *shadow map* is read.
+a *shadow map* is read. Depths are reversed (*reversed depth*).
 
 **Device (GPU).** The engine's connection to an adapter: it creates GPU resources, and its
 *queue* receives the work to execute (`slime_gfx::Gpu`). It is *lost* when the driver crashes or
@@ -366,6 +366,13 @@ again when the frame's *shape* changes.
 **Render target.** An image the GPU draws into (`slime_gfx::RenderTarget`): an offscreen image,
 which can be read back to the CPU and sampled by later passes, or the image of a window for one
 frame, which can be neither.
+
+**Reversed depth (reversed-Z).** Depth that runs from 1 at the near plane to 0 infinitely far,
+the far plane being at infinity ([ADR-0047](adr/0047-reversed-depth-with-an-infinite-far-plane.md)).
+A perspective projection crowds far distances near one end of the depth range; reversed, that end
+is 0, where floating-point depths are finest, so that 32-bit depths keep a precision relative to
+the distance, at any distance. Passes clear *depth targets* to 0, a depth test keeps the greater
+depth, and a *depth bias* is negative.
 
 **Sample.** The example that demonstrates the exit criterion of a stage. Every stage ends with
 one.

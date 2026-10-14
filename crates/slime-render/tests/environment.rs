@@ -233,8 +233,10 @@ fn view_ray(camera: &Camera, (x, y): (u32, u32)) -> DVec3 {
     let inverse = camera.view_projection(1.0).as_dmat4().inverse();
     let ndc_x = (f64::from(x) + 0.5) / f64::from(SIZE) * 2.0 - 1.0;
     let ndc_y = 1.0 - (f64::from(y) + 0.5) / f64::from(SIZE) * 2.0;
-    let near = inverse.project_point3(DVec3::new(ndc_x, ndc_y, 0.0));
-    let far = inverse.project_point3(DVec3::new(ndc_x, ndc_y, 1.0));
+    // Two points along the ray: the near plane, at depth 1, and twice as far, at depth 0.5 (depth
+    // is reversed, and 0 is infinitely far).
+    let near = inverse.project_point3(DVec3::new(ndc_x, ndc_y, 1.0));
+    let far = inverse.project_point3(DVec3::new(ndc_x, ndc_y, 0.5));
     (far - near).normalize()
 }
 

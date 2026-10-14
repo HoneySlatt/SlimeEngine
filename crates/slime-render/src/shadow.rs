@@ -8,24 +8,28 @@ use slime_gfx::DepthBias;
 /// The width and the height of the shadow map, in texels: 16 MiB of 32-bit depths.
 pub(crate) const SHADOW_MAP_SIZE: u32 = 2048;
 
-/// How far the shadow pass pushes back each depth it stores, so that a lit surface compared with
-/// its own depths is not found behind them (shadow acne). The filter compares a point with texels
-/// up to two texels away along each axis of the map: on a surface sloping diagonally to the axes,
-/// their depths differ from the point's by up to four times the steeper of its two slopes, the one
-/// that the slope-scaled part multiplies (on Direct3D 12, and on lavapipe and RADV as measured).
-/// The constant part, 16 units of the depth's last bit, covers what rounding leaves where the
+/// How far the shadow pass pushes away each depth it stores, towards 0 (depth is reversed,
+/// ADR-0047), so that a lit surface compared with its own depths is not found behind them (shadow
+/// acne). The filter compares a point with texels up to two texels away along each axis of the
+/// map: on a surface sloping diagonally to the axes, their depths differ from the point's by up to
+/// four times the steeper of its two slopes, the one that the slope-scaled part multiplies (on
+/// Direct3D 12, and on lavapipe and RADV as measured).
+/// The constant part, 32 units of the depth's last bit, covers what rounding leaves where the
 /// slope is zero, on a surface facing the light: the shadow pass and the scene pass compute the
-/// same depth along two paths. 4 suffice on lavapipe and RADV (ADR-0038).
+/// same depth along two paths. Its unit shrinks with the depth: the surfaces farthest from the
+/// light, the ground under what casts shadows, have the smallest depths, down to about 1/66 with
+/// the padding of [`light_view_projection`], whose last bit is up to 64 times finer than near 1.
+/// There, 8 suffice on lavapipe and RADV, where 4 sufficed before depth was reversed (ADR-0038).
 pub(crate) const SHADOW_BIAS: DepthBias = DepthBias {
-    constant: 16,
-    slope_scale: 4.0,
+    constant: -32,
+    slope_scale: -4.0,
 };
 
 /// The matrix from world space to the clip space of the shadow map of a directional light
 /// travelling along `direction`, not zero: an orthographic projection along the light, whose
 /// x and y run from −1 to 1 across the smallest rectangle, perpendicular to the light, that holds
-/// every box of `boxes`, and whose depth runs from 0 to 1 along the light, from a little before
-/// the box nearest to it to a little after the farthest. Each box is a transform from its own space
+/// every box of `boxes`, and whose depth, reversed as the camera's (ADR-0047), runs from 1 to 0
+/// along the light, from a little before the box nearest to it to a little after the farthest. Each box is a transform from its own space
 /// to world space, its center and half its size, in its own space: an instance and the box around
 /// its mesh.
 ///
@@ -70,14 +74,15 @@ pub(crate) fn light_view_projection(
     }
     let center = (min + max) / 2.0;
     let half_size = ((max - min) / 2.0).max(Vec3::splat(pad)) + Vec3::new(0.0, 0.0, pad);
-    // The light looks down its −Z axis: the nearest point has the largest z.
+    // The light looks down its −Z axis: the nearest point has the largest z. Its depth is 1, the
+    // farthest point's 0: glam's `near` and `far`, swapped.
     let projection = orthographic(
         center.x - half_size.x,
         center.x + half_size.x,
         center.y - half_size.y,
         center.y + half_size.y,
-        -(center.z + half_size.z),
         -(center.z - half_size.z),
+        -(center.z + half_size.z),
     );
     Some(projection * view)
 }
@@ -154,10 +159,10 @@ mod tests {
                 min.z > 0.01 && max.z < 0.99,
                 "{direction}: depths from {min} to {max}"
             );
-            // Depth grows along the light.
+            // Depth falls along the light: it is reversed.
             let near = projected(matrix, Vec3::ZERO);
             let far = projected(matrix, direction.normalize());
-            assert!(far.z > near.z, "{direction}: {near} then {far}");
+            assert!(far.z < near.z, "{direction}: {near} then {far}");
         }
     }
 

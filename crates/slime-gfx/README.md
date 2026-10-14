@@ -161,7 +161,10 @@ fn main() -> Result<(), GfxError> {
     size of the render targets it is used with, for depth testing, or of its own size for a
     depth-only pass. Later passes read it through a bind group (`BindingResource::DepthTarget` at a
     `BindingType::DepthTexture` binding, `texture_depth_2d` in WGSL), with `textureLoad` or through
-    a `ComparisonSampler`, as a shadow map is read. It cannot be read back.
+    a `ComparisonSampler`, as a shadow map is read. It cannot be read back. Depth is reversed
+    (`docs/adr/0047-reversed-depth-with-an-infinite-far-plane.md`): it runs from 1, the nearest, to
+    0, the farthest, to which passes clear depth targets, so that a depth test keeps the nearer
+    surface with `DepthCompare::Greater` and a depth bias pushes a surface away when negative.
   - `ComparisonSampler` (`create_comparison_sampler(label, compare, filter)`): compares a reference
     depth with a depth target's, giving 1 where the `DepthCompare` holds and 0 where it does not.
     With `Filter::Linear`, the GPU blends the four nearest results (percentage-closer filtering).

@@ -5,23 +5,17 @@ use slime_render::glam::Vec3;
 
 /// A camera at `distance` from `target`, looking at it, turned by `yaw` around the vertical axis
 /// (0 looks from +Z) and raised by `pitch` above it (0 is level with it), both in radians, for a
-/// scene that lies within `radius` of `target`. While the camera is more than about 1.002 ×
-/// `radius` from `target`, outside that sphere, its near and far planes enclose the sphere,
-/// whatever the scene's size. Nearer, and inside the sphere, the near plane stays at a thousandth
-/// of the far one, which the precision of the depth buffer allows, and what lies nearer the eye
-/// than that is clipped.
+/// scene that lies within `radius` of `target`. Its near plane is a thousandth of `radius` from the
+/// eye: what lies nearer is clipped. Nothing is too far: the far plane is at infinity, and depth
+/// is reversed, so that its precision does not depend on the near plane (ADR-0047).
 pub fn camera_at(target: Vec3, radius: f32, distance: f32, yaw: f32, pitch: f32) -> Camera {
     let (sin_yaw, cos_yaw) = yaw.sin_cos();
     let (sin_pitch, cos_pitch) = pitch.sin_cos();
     let direction = Vec3::new(cos_pitch * sin_yaw, sin_pitch, cos_pitch * cos_yaw);
-    // With a margin for rounding.
-    let far = (distance + radius) * 1.01;
-    let near = ((distance - radius) * 0.99).max(far / 1000.0);
     Camera {
         eye: target + direction * distance,
         target,
-        near,
-        far,
+        near: radius / 1000.0,
         ..Camera::default()
     }
 }
@@ -31,7 +25,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_whole_scene_lies_between_the_near_and_far_planes() {
+    fn the_whole_scene_lies_beyond_the_near_plane() {
         for radius in [0.01, 4.4, 500.0] {
             let target = Vec3::new(1.0, -2.0, 3.0) * radius;
             for distance in [0.2 * radius, 2.2 * radius, 15.0 * radius] {
@@ -47,7 +41,7 @@ mod tests {
                     let clip = camera.view_projection(1.0) * point.extend(1.0);
                     let depth = clip.z / clip.w;
                     assert!(
-                        (0.0..=1.0).contains(&depth),
+                        depth > 0.0 && depth <= 1.0,
                         "radius {radius}, distance {distance}: {point} at depth {depth}"
                     );
                 }

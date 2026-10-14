@@ -292,10 +292,13 @@ fn a_square_above_a_floor_darkens_a_square_of_the_floor_blended_over_three_texel
 fn a_lit_floor_does_not_shadow_itself() {
     let mut setup = Setup::new();
     let white = setup.white.clone();
-    // The floor alone, 8 m wide, lit from 0° to 85° from its normal, the light along an axis of the
-    // map or diagonally to it, where the filter reaches the most texels downhill. Then the whole
-    // scene turned and moved 46 m away from the origin, where rounding grows: the floor facing the
-    // light, without any slope, compares its own depths computed two ways.
+    // The floor, 8 m wide, lit from 0° to 85° from its normal, the light along an axis of the map
+    // or diagonally to it, where the filter reaches the most texels downhill. A square 20 m above a
+    // corner, whose shadow falls beyond the floor, puts the floor at the far end of the map's
+    // depths, near 0, where they are finest (depth is reversed) and the constant bias, counted in
+    // their last bit, smallest. Then the whole scene turned and moved 46 m away from the origin,
+    // where rounding grows: the floor facing the light, without any slope, compares its own depths
+    // computed two ways.
     let canonical = Camera {
         eye: Vec3::new(0.3, 0.2, 2.0),
         target: Vec3::new(0.1, -0.1, 0.0),
@@ -338,7 +341,13 @@ fn a_lit_floor_does_not_shadow_itself() {
             let (image, _) = setup.draw(
                 camera,
                 &[Light::Directional(placed(light))],
-                &[(&white, placement * floor(8.0))],
+                &[
+                    (&white, placement * floor(8.0)),
+                    (
+                        &white,
+                        placement * blocker(Vec3::new(-3.5, 3.5, 20.0), true),
+                    ),
+                ],
             );
             // The same as in the canonical frame: placing everything alike changes no light.
             let (largest, _) = largest_differences(&image, |pixel| {

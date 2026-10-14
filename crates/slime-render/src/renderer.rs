@@ -455,7 +455,7 @@ impl Renderer {
                     &shadow_layout,
                 ],
                 depth: Some(DepthState {
-                    compare: DepthCompare::Less,
+                    compare: DepthCompare::Greater,
                     write: true,
                     bias: DepthBias::default(),
                 }),
@@ -473,7 +473,7 @@ impl Renderer {
                 fragment,
                 bind_group_layouts: &[&frame_layout, &material_layout, &instance_layout],
                 depth: Some(DepthState {
-                    compare: DepthCompare::Less,
+                    compare: DepthCompare::Greater,
                     write: true,
                     bias: SHADOW_BIAS,
                 }),
@@ -489,8 +489,11 @@ impl Renderer {
         )?;
         let shadow_pipeline = shadow_pipeline("shadow", None)?;
         let shadow_map = gpu.create_depth_target("shadow map", SHADOW_MAP_SIZE, SHADOW_MAP_SIZE)?;
-        let shadow_sampler =
-            gpu.create_comparison_sampler("shadow map", DepthCompare::LessEqual, Filter::Linear)?;
+        let shadow_sampler = gpu.create_comparison_sampler(
+            "shadow map",
+            DepthCompare::GreaterEqual,
+            Filter::Linear,
+        )?;
         let shadow_group = gpu.create_bind_group(
             "shadow map",
             &shadow_layout,
@@ -522,7 +525,7 @@ impl Renderer {
             }),
             bind_group_layouts: &[&frame_layout],
             depth: Some(DepthState {
-                compare: DepthCompare::LessEqual,
+                compare: DepthCompare::GreaterEqual,
                 write: false,
                 bias: DepthBias::default(),
             }),

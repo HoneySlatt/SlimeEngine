@@ -264,14 +264,14 @@ fn a_pass_without_a_clear_keeps_the_depth_drawn_before() {
     let scene = Scene::new();
     let tested = scene.pipeline(
         Some(DepthState {
-            compare: DepthCompare::Less,
+            compare: DepthCompare::Greater,
             write: true,
             bias: DepthBias::default(),
         }),
         CullMode::None,
     );
-    let near = scene.vertices(&full_screen(0.25, RED));
-    let far = scene.vertices(&full_screen(0.75, BLUE));
+    let near = scene.vertices(&full_screen(0.75, RED));
+    let far = scene.vertices(&full_screen(0.25, BLUE));
 
     scene.render(true, |pass| {
         pass.set_pipeline(&tested);
@@ -300,11 +300,11 @@ fn a_pass_without_a_clear_keeps_the_depth_drawn_before() {
 #[test]
 fn the_depth_test_keeps_the_nearest_triangle_whatever_the_order() {
     let scene = Scene::new();
-    let near = scene.vertices(&full_screen(0.25, RED));
-    let far = scene.vertices(&full_screen(0.75, BLUE));
+    let near = scene.vertices(&full_screen(0.75, RED));
+    let far = scene.vertices(&full_screen(0.25, BLUE));
     let tested = scene.pipeline(
         Some(DepthState {
-            compare: DepthCompare::Less,
+            compare: DepthCompare::Greater,
             write: true,
             bias: DepthBias::default(),
         }),

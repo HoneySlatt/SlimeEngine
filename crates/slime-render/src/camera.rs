@@ -22,15 +22,15 @@ pub struct Camera {
     pub up: Vec3,
     /// The vertical field of view, in radians.
     pub fov_y: f32,
-    /// The distance of the nearest visible point, positive.
+    /// The distance of the nearest visible point, positive. Nothing is too far to be seen: depth
+    /// is reversed and the far plane is at infinity (ADR-0047), so a larger `near` only hides what
+    /// is nearer, without making the depth of far surfaces finer.
     pub near: f32,
-    /// The distance of the farthest visible point, finite and greater than `near`.
-    pub far: f32,
 }
 
 impl Default for Camera {
-    /// Five units in front of the origin, looking at it, with a field of view of 60° and visible
-    /// distances from 0.1 to 100.
+    /// Five units in front of the origin, looking at it, with a field of view of 60°, seeing from
+    /// 0.1 away.
     fn default() -> Self {
         Self {
             eye: Vec3::new(0.0, 0.0, 5.0),
@@ -38,7 +38,6 @@ impl Default for Camera {
             up: Vec3::Y,
             fov_y: 60f32.to_radians(),
             near: 0.1,
-            far: 100.0,
         }
     }
 }
@@ -58,18 +57,18 @@ impl Camera {
     }
 
     /// The projection matrix for a target `aspect` times as wide as it is high: from the camera's
-    /// space to clip space, with depth from 0 at [`near`](Self::near) to 1 at [`far`](Self::far)
-    /// and +Y up, the convention of WebGPU, which wgpu follows on every graphics API. A field of
-    /// view outside (0, π), a `near` that is not positive and smaller than `far`, or a `far` that
-    /// is not finite, gives a matrix that draws nothing usable.
+    /// space to clip space, +Y up, the convention of WebGPU, which wgpu follows on every graphics
+    /// API, with depth reversed (ADR-0047): 1 at [`near`](Self::near), falling towards 0 as the
+    /// distance d grows, as `near` / d, without reaching it: the far plane is at infinity. A field
+    /// of view outside (0, π) or a `near` that is not positive gives a matrix that draws nothing
+    /// usable.
     ///
     /// # Panics
     ///
     /// Inside glam, when glam's assertions are on (see [`Camera`]), for a field of view outside
-    /// (0, π), a `near` or `far` that is not positive, a `near` equal to `far`, or an `aspect` of
-    /// zero.
+    /// (0, π), a `near` that is not positive, or an `aspect` of zero.
     pub fn projection(&self, aspect: f32) -> Mat4 {
-        glam::camera::rh::proj::directx::perspective(self.fov_y, aspect, self.near, self.far)
+        glam::camera::rh::proj::directx::perspective_infinite_reverse(self.fov_y, aspect, self.near)
     }
 
     /// The projection times the view: from world space to clip space.
@@ -93,19 +92,27 @@ mod tests {
     }
 
     #[test]
-    fn the_target_is_at_the_center_and_depth_runs_from_near_to_far() {
+    fn the_target_is_at_the_center_and_depth_falls_from_1_at_near_towards_0_at_infinity() {
         let camera = Camera {
             eye: Vec3::new(0.0, 0.0, 5.0),
             near: 1.0,
-            far: 9.0,
             ..Camera::default()
         };
         let center = project(&camera, camera.target);
         assert!(center.x.abs() < 1e-6 && center.y.abs() < 1e-6, "{center}");
-        let near = project(&camera, Vec3::new(0.0, 0.0, 4.0));
-        let far = project(&camera, Vec3::new(0.0, 0.0, -4.0));
-        assert!(near.z.abs() < 1e-6, "near plane at depth 0: {near}");
-        assert!((far.z - 1.0).abs() < 1e-6, "far plane at depth 1: {far}");
+        let depth = |distance: f32| project(&camera, Vec3::new(0.0, 0.0, 5.0 - distance)).z;
+        assert!((depth(1.0) - 1.0).abs() < 1e-6, "near plane at depth 1");
+        assert!((depth(4.0) - 0.25).abs() < 1e-6, "near / distance");
+        // Far beyond any far plane the camera had, depth still orders distances: a float keeps
+        // its relative precision down to 1e-38.
+        let (far, farther) = (depth(1e7), depth(1.1e7));
+        assert!(
+            0.0 < farther && farther < far && far < 1e-6,
+            "{far}, {farther}"
+        );
+        // A direction, a point at infinity, is at depth 0.
+        let clip = camera.view_projection(1.0) * Vec3::NEG_Z.extend(0.0);
+        assert!(clip.z == 0.0 && clip.w > 0.0, "{clip}");
     }
 
     #[test]

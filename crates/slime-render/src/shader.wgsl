@@ -76,8 +76,8 @@ struct FrameUniform {
     // From world space to clip space.
     view_proj: mat4x4<f32>,
     // From clip space to directions from the camera in world space: the inverse of view_proj
-    // without the camera's position. A point (x, y, 1, 1) of the far plane gives (d, w), and d / w
-    // is the direction it is seen in.
+    // without the camera's position. A point (x, y, 0, 1) at infinity gives (d, 0), d the direction
+    // it is seen in.
     sky_from_clip: mat4x4<f32>,
     // Where the camera is, in world space.
     camera_position: vec3<f32>,
@@ -85,7 +85,8 @@ struct FrameUniform {
     // (pre-exposure, ADR-0037).
     exposure: f32,
     // From world space to the shadow map's clip space (ADR-0038): x and y from -1 to 1 across the
-    // map, depth from 0 to 1 away from the light. Orthographic: w stays 1.
+    // map, depth from 1 near the light to 0 away from it (reversed, ADR-0047). Orthographic: w
+    // stays 1.
     light_view_proj: mat4x4<f32>,
     // How many entries of `lights` hold the scene's lights, from 0 to MAX_LIGHTS.
     light_count: u32,
@@ -150,8 +151,8 @@ struct InstanceUniform {
 @group(2) @binding(0) var<uniform> instance: InstanceUniform;
 
 // The depths of what the shadowed light reaches first, drawn by the shadow pass, and the sampler
-// that compares a depth with them: 1 where the depth is at most the stored one (lit), blending the
-// 2 x 2 nearest texels.
+// that compares a depth with them: 1 where the depth is at least the stored one (lit: depth is
+// reversed, nearer is greater), blending the 2 x 2 nearest texels.
 @group(3) @binding(0) var shadow_map: texture_depth_2d;
 @group(3) @binding(1) var shadow_sampler: sampler_comparison;
 
@@ -337,12 +338,12 @@ fn environment_fresnel(
     return single + lost * single * average / (1.0 - average * lost);
 }
 
-// The sky pass (ADR-0039): one triangle covering the target at the far plane, which the depth test
-// keeps where no surface was drawn.
+// The sky pass (ADR-0039): one triangle covering the target at depth 0, infinitely far (ADR-0047),
+// which the depth test keeps where no surface was drawn.
 struct SkyVertex {
     @builtin(position) clip_position: vec4<f32>,
-    // The direction of the pixel, homogeneous: interpolated linearly, since w is 1 at every corner.
-    // Its w is positive, so that its xyz alone gives the direction.
+    // The direction of the pixel: interpolated linearly, since w is 1 at every corner. A point at
+    // infinity, its w is 0 and its xyz the direction.
     @location(0) direction: vec4<f32>,
 }
 
@@ -351,15 +352,13 @@ fn vs_sky(@builtin(vertex_index) index: u32) -> SkyVertex {
     // The corners (-1, -1), (3, -1) and (-1, 3), as the tone-mapping pass's.
     let corner = vec2<f32>(f32((index & 1u) * 4u) - 1.0, f32((index & 2u) * 2u) - 1.0);
     return SkyVertex(
-        vec4<f32>(corner, 1.0, 1.0),
-        frame.sky_from_clip * vec4<f32>(corner, 1.0, 1.0),
+        vec4<f32>(corner, 0.0, 1.0),
+        frame.sky_from_clip * vec4<f32>(corner, 0.0, 1.0),
     );
 }
 
 @fragment
 fn fs_sky(input: SkyVertex) -> @location(0) vec4<f32> {
-    // Not divided by w: w comes from terms that cancel, and reaches 0 when the camera's far plane
-    // is about 10^7 times its near one.
     let direction = normalize(input.direction.xyz);
     var light = textureSampleLevel(environment, environment_sampler, direction, 0.0).rgb;
     // The sun's disc, which is in no level of the environment, so that surfaces receive the sun's
