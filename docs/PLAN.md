@@ -12,18 +12,137 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 
 ## Current
 
-- Stage 3c — A first game: done on 2026-10-15. *Nightwatch* is played to its objective and
-  restarted, on Linux and on Windows, through the public API only, and the owner decided where each
-  of the findings it met goes
-  ([ADR-0057](adr/0057-what-the-first-game-asks-of-the-next-stages.md)).
-- Next: Stage 3d, anti-aliasing and the shadows of spot lights
-  ([ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md)), with the cost of the
-  scene pass measured on Direct3D 12 (ADR-0057). Its plan is to be proposed to the owner.
+- Stage 3d — Anti-aliasing and the shadows of spot lights: planned on 2026-10-15 and validated by
+  the owner. Next: M3d.1.
 
 ## Status
 
-Stage 3d is not planned yet. Stages 0, 1, 2, 3a, 3b and 3c are done; see
-[Completed stages](#completed-stages).
+| Milestone | Goal | Status |
+|---|---|---|
+| [M3d.1](#m3d1--multisampling-in-the-gpu-layer) | `slime-gfx` draws into targets of four samples and resolves them | Planned |
+| [M3d.2](#m3d2--anti-aliasing-in-the-renderer) | The edges of the scene are smooth | Planned |
+| [M3d.3](#m3d3--spot-lights-shadows-what-each-tile-sees) | Each spot light that casts shadows has its tile and knows what it sees | Planned |
+| [M3d.4](#m3d4--spot-lights-shadows-drawn-and-read) | Spot lights cast shadows | Planned |
+| [M3d.5](#m3d5--nightwatch-and-the-windows-check) | Nightwatch shows both, on Linux and Windows | Planned |
+
+Stages 0, 1, 2, 3a, 3b and 3c are done; see [Completed stages](#completed-stages).
+
+## Stage 3d — Anti-aliasing and the shadows of spot lights
+
+Exit criterion (see
+[`ROADMAP.md`](ROADMAP.md#stage-3d--anti-aliasing-and-the-shadows-of-spot-lights)):
+in the game, walls and crates stop the light of flashlights and floodlights, and edges are smooth,
+on Linux and on Windows; image tests cover both.
+
+The stage removes the two defects of the renderer that the owner saw in *Nightwatch*
+([ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md)). The edges of what the
+scene pass draws are smoothed by *multisample anti-aliasing* (MSAA): each pixel on an edge is
+tested at four points, its samples, whose colours are averaged into the pixel when the pass ends,
+the *resolve*. Spot lights cast shadows through shadow maps seen from each light, kept as
+tiles of one depth texture, an *atlas*
+([ADR-0058](adr/0058-shadows-for-every-spot-light-in-one-atlas.md)). The stage also measures the
+cost of the scene pass on Direct3D 12, with each of its shader compilers, against Vulkan's
+([ADR-0057](adr/0057-what-the-first-game-asks-of-the-next-stages.md)). It has no release of its
+own: what it delivers is released with 0.2.
+
+Out of scope: the shadows of point lights, cascaded shadow maps for the directional light, temporal
+anti-aliasing, tiles sized by how large a light shows on screen (Stage 9a, ADR-0058), smoothing the
+edges that a masked material cuts inside a triangle, and anti-aliasing the dev overlay.
+
+Decisions taken when the stage was planned, by the owner on 2026-10-15:
+
+- **How many spot lights cast shadows, and through what.** Every spot light drawn may, up to the 16
+  lights the renderer draws, each through a tile of one atlas of 4096 × 4096 depths: 2048 × 2048
+  each for up to four lights, 1024 × 1024 each from five on. Tiles are given in the scene's order.
+  `SpotLight::casts_shadows` is on by default, as the directional light's is (ADR-0058).
+- **Anti-aliasing is always on**, at four samples: no setting turns it off. Every driver the
+  project tests supports four samples for the formats the scene pass draws into.
+- **The resolve is chosen on images.** A plain average of the samples is made first, then an average
+  that weighs each sample down by its brightness, so that an edge between a bright lamp and the dark
+  is not averaged into a pixel still near white; the owner looks at both on images of *Nightwatch*
+  at M3d.2 and keeps one.
+- **Edges cut by masked materials stay aliased.** Smoothing them (alpha to coverage) behaves
+  differently from one driver to the next, which image tests would see, and no game uses masked
+  materials yet: known debt.
+- **Direct3D 12's cost is measured at M3d.5**, in the Windows virtual machine: the scene pass with
+  FXC, with DXC, and on Vulkan, before and after anti-aliasing (ADR-0057). DXC's two DLLs, from
+  Microsoft's releases of the compiler, are put beside the game for that measurement only.
+
+Risks: the scene's targets grow fourfold with MSAA (about 87 MiB more at 1920 × 1080, and the
+atlas adds 64 MiB); a light inside the mesh of an instance that casts shadows is in that instance's
+shadow, which is *Nightwatch*'s case for its lamps and floodlights; FXC may refuse the shadow
+filter inside the scene shader's light loop; shadow acne differs between drivers (ADR-0047); the
+tests whose pixels lie on an edge change (the bloom's 0.6-pixel square covers no sample, and the
+furnace test's silhouette pixels mix in the sky); lavapipe draws four samples on the CPU, which
+lengthens `scripts/check.sh`.
+
+### M3d.1 — Multisampling in the GPU layer
+
+- **Goal.** `slime-gfx` draws into targets of four samples and resolves them.
+- **Crates.** `slime-gfx`.
+- **Delivers.** Colour and depth targets of four samples, which passes draw into and nothing
+  samples or reads back; pipelines that draw into them; a pass that resolves a target of four
+  samples into an ordinary one as it ends; the ADR on this API; the crate's README and
+  `ARCHITECTURE.md`.
+- **Done when.** Tests: an edge across a quarter and across half of a pixel resolves to exactly a
+  quarter and a half; the depth test holds for each sample; binding or reading back a target of
+  four samples, and drawing with a pipeline whose samples differ from its pass's, are refused.
+- **How to test.** `cargo test -p slime-gfx` on lavapipe and on a GPU; CI on WARP.
+
+### M3d.2 — Anti-aliasing in the renderer
+
+- **Goal.** The edges of the scene are smooth.
+- **Crates.** `slime-render`; the examples' and the game's images, looked at.
+- **Delivers.** The scene and sky passes drawn at four samples, and resolved before the bloom reads
+  them; targets of four samples and resolves in the render graph; the two resolves, shown to the
+  owner on images of *Nightwatch*, and the one kept; the tests whose pixels lie on edges made to
+  hold; the reference images rendered again; the memory and the cost measured; the documents, the
+  glossary and `CHANGELOG.md`.
+- **Done when.** Tests: an edge between a surface and the sky resolves as its coverage predicts;
+  the analytic tests hold unchanged inside surfaces; the graph orders a resolve before what reads
+  it; the image tests pass on lavapipe, an AMD GPU and WARP within ADR-0054's tolerance; the owner
+  has chosen the resolve.
+- **How to test.** `cargo test --workspace`; `cargo run -p nightwatch`; the `scene` example.
+
+### M3d.3 — Spot lights' shadows: what each tile sees
+
+- **Goal.** The renderer knows, for each spot light that casts shadows, its tile and what it sees.
+- **Crates.** `slime-render`, `slime-gfx`.
+- **Delivers.** `SpotLight::casts_shadows`; tiles sized and placed by ADR-0058's rule; each tile's
+  projection, in perspective from its light, with its near plane and the widest cone it covers;
+  the instances kept for each light, those inside its cone and range; render passes that draw into
+  part of a target, so that one pass draws every tile; the ADR on how a tile is projected and how
+  its depths are biased.
+- **Done when.** Unit tests: the tiles of 1, 4, 5 and 16 lights; a cone fits in its tile with the
+  filter's margin; an instance inside a light's cone is kept and one outside left out; a pass that
+  draws into two parts of one depth target, which a later pass samples. The directional light's
+  shadow tests and the image tests hold unchanged.
+- **How to test.** `cargo test -p slime-gfx -p slime-render`.
+
+### M3d.4 — Spot lights' shadows: drawn and read
+
+- **Goal.** Spot lights cast shadows.
+- **Crates.** `slime-render`.
+- **Delivers.** The pass that draws the atlas; the scene shader reading each light's tile with the
+  3 × 3 filter of the directional light, shared; the pass's cost in `RenderStats`; tests of spot
+  lights' shadows; the bias checked on lavapipe, an AMD GPU and WARP; the documents.
+- **Done when.** Tests: a square shadows a floor where the geometry predicts, its edge within the
+  directional tests' tolerances; a lit floor and a lit sphere shadow nothing of themselves; a light
+  that casts no shadows lights through; sixteen lights each get a tile; a masked cut-out casts the
+  shape it cuts; the pass's CPU and GPU cost measured.
+- **How to test.** `cargo test -p slime-render` on the three drivers.
+
+### M3d.5 — Nightwatch and the Windows check
+
+- **Goal.** In the game, walls and crates stop the lights and edges are smooth, on Linux and on
+  Windows.
+- **Crates.** `games/nightwatch`.
+- **Delivers.** The game's flashlights and floodlights cast shadows; its lamps cast none, and the
+  floodlights' lights stand clear of their poles; the frame's cost measured; the owner plays the
+  game on Linux and in the Windows virtual machine, where the scene pass is measured on Direct3D 12
+  with FXC and with DXC and on Vulkan; `CHANGELOG.md`; Stage 3d marked done.
+- **Done when.** The owner's reports from Linux and Windows; the checks and CI are green.
+- **How to test.** Playing it; `--frames` in the headless Weston.
 
 ## Releasing
 

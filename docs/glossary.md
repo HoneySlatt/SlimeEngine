@@ -16,6 +16,10 @@ a texture can cut shapes out of it: glTF's `MASK` alpha mode (`slime_render::Alp
 for the light of the surroundings until the *environment* replaced it
 ([ADR-0039](adr/0039-image-based-lighting-computed-on-the-cpu.md)).
 
+**Anti-aliasing.** Smoothing the steps that an edge makes across the pixels: without it, a nearly
+horizontal edge steps by a whole pixel at long intervals. The renderer uses *multisample
+anti-aliasing* ([ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md)).
+
 **Application time.** The sum of the deltas of all frames so far (`FrameTime::elapsed`). It
 falls behind wall-clock time when a frame delta is limited, for example after a pause.
 
@@ -285,6 +289,11 @@ leaves, which a single-scattering *BRDF* loses: a white rough metal would look g
 gives it back in the *environment*'s light, as the Khronos glTF Sample Viewer does, not in the
 lights'.
 
+**Multisample anti-aliasing (MSAA).** *Anti-aliasing* in which the GPU tests whether a triangle
+covers each pixel at several points, its *samples (multisampling)*, and shades the pixel once for
+the samples it covers; the *resolve* averages them into one pixel. It smooths the edges of
+triangles, not what a shader draws inside them.
+
 **Nit (cd/m²).** The unit of luminance, candelas per square metre: the light that surfaces reflect
 and emit and the *sky*'s, as the renderer computes them before the *exposure*.
 
@@ -383,6 +392,9 @@ again when the frame's *shape* changes.
 which can be read back to the CPU and sampled by later passes, or the image of a window for one
 frame, which can be neither.
 
+**Resolve.** Averaging the *samples (multisampling)* of each pixel of a multisampled *render
+target* into an ordinary one, which later passes can read.
+
 **Reversed depth (reversed-Z).** Depth that runs from 1 at the near plane to 0 infinitely far,
 the far plane being at infinity ([ADR-0047](adr/0047-reversed-depth-with-an-infinite-far-plane.md)).
 A perspective projection crowds far distances near one end of the depth range; reversed, that end
@@ -392,6 +404,9 @@ depth, and a *depth bias* is negative.
 
 **Sample.** The example that demonstrates the exit criterion of a stage. Every stage ends with
 one.
+
+**Sample (multisampling).** One of the points of a pixel at which *multisample anti-aliasing*
+tests coverage and depth; not the *sample* of a stage.
 
 **Sampler.** How shaders read a texture: nearest or linear filtering, and what lies beyond its
 edges (repeat, mirror or clamp) (`slime_gfx::Sampler`).
@@ -403,6 +418,9 @@ renderer keeps nothing between frames, and the world model of Stage 5 will produ
 **Shadow acne.** Speckles of shadow that a surface casts on itself where its depth and the one
 stored in the *shadow map* differ only by rounding or by the map's texels; a *depth bias* and a
 *normal offset* remove them.
+
+**Shadow atlas.** One *depth target* split into square tiles, each the *shadow map* of one light:
+how spot lights cast shadows ([ADR-0058](adr/0058-shadows-for-every-spot-light-in-one-atlas.md)).
 
 **Shadow map.** A *depth target* drawn from a light's point of view by a *depth-only pass*: a
 point is in shadow where something nearer to the light is stored at its place in the map. The

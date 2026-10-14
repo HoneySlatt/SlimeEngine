@@ -123,5 +123,6 @@ the ADR linking to it.
 | [0053](0053-one-home-per-fact.md) | One home per fact in the documentation | Accepted |
 | [0054](0054-image-tests-allow-0-2-percent-on-other-drivers.md) | Image tests allow 0.2 % of the pixels to differ on other drivers | Accepted |
 | [0055](0055-games-in-the-workspace.md) | Games in the workspace | Accepted |
-| [0056](0056-stage-3d-anti-aliasing-and-spot-light-shadows.md) | Stage 3d: anti-aliasing and the shadows of spot lights | Accepted |
+| [0056](0056-stage-3d-anti-aliasing-and-spot-light-shadows.md) | Stage 3d: anti-aliasing and the shadows of spot lights | Accepted; amended by 0058 |
 | [0057](0057-what-the-first-game-asks-of-the-next-stages.md) | What the first game asks of the next stages | Accepted |
+| [0058](0058-shadows-for-every-spot-light-in-one-atlas.md) | Shadows for every spot light, in one atlas | Accepted |
