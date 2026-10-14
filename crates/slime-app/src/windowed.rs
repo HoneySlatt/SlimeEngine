@@ -146,6 +146,9 @@ impl<A: App> EventHandler for WindowedDriver<'_, A> {
             tracing::info!(frames = self.frames.count(), "stopping: {reason}");
             self.app.shutdown(&mut self.ctx);
         }
+        if let Some(error) = self.ctx.take_error() {
+            self.error.get_or_insert(RunError::App(error));
+        }
         if let Some(Err(error)) = self.ctx.gpu().map(Gpu::check) {
             self.error.get_or_insert(RunError::Gfx(error));
         }

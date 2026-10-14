@@ -629,8 +629,6 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **No title text in client-side decorations.** On compositors that do not draw decorations
   (GNOME), the title bar has no text, because winit's text renderer depends on an unmaintained
   crate (ADR-0011).
-- **Only `App::init` can return an error** (ADR-0020). An application that hits an error in
-  another method logs it and requests an exit.
 - **Input not reported yet** (issue [#3](https://github.com/HoneySlatt/SlimeEngine/issues/3)):
   the state of the modifier keys as a whole, input-method text, touch, touchpad gestures,
   gamepads, dropped files. The dev overlay feels it too: egui gets no modifiers and sees a shortcut

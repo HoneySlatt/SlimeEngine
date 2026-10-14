@@ -3,9 +3,10 @@
 use slime_gfx::GfxError;
 use slime_platform::PlatformError;
 
-/// The error an application returns from [`App::init`](crate::App::init) when it cannot start:
-/// any error type, boxed. The `?` operator converts other errors into it, and so does `.into()`
-/// for a message (`Err("no save file".into())`).
+/// The error an application returns from [`App::init`](crate::App::init) when it cannot start, or
+/// passes to [`Context::exit_with_error`](crate::Context::exit_with_error) to stop a run: any error
+/// type, boxed. The `?` operator converts other errors into it, and so does `.into()` for a message
+/// (`Err("no save file".into())`).
 pub type AppError = Box<dyn std::error::Error + Send + Sync>;
 
 /// Why [`run`](crate::run) failed. The underlying error is available through
@@ -23,4 +24,8 @@ pub enum RunError {
     /// The application could not start: [`App::init`](crate::App::init) returned this error.
     #[error("the application failed to start")]
     Init(#[source] AppError),
+    /// The application stopped the run with this error, which it passed to
+    /// [`Context::exit_with_error`](crate::Context::exit_with_error).
+    #[error("the application stopped with an error")]
+    App(#[source] AppError),
 }

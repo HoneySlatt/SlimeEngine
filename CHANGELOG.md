@@ -11,6 +11,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - `Context::fixed_step_alpha`: the fraction of a fixed step accumulated but not run, so that an
   application draws what `fixed_update` moves between its last two states, smoothly when the frame
   rate and the step rate differ.
+- `Context::exit_with_error`: an application fails a run from any method, `shutdown` included; the
+  run stops as after an exit request and `run` returns the new `RunError::App`
+  ([ADR-0043](docs/adr/0043-application-errors-during-a-run.md)). Before, only `init` could fail,
+  and a game that hit an error later exited with success.
 - Which types may cross threads is stated in `docs/ARCHITECTURE.md` ("Threads") and checked when
   the tests compile: the `Gpu` and every GPU object, meshes, materials, scenes, windows, events
   and the `Context` are `Send` and `Sync`; a `GpuTimer` and the `Renderer` are `Send`.

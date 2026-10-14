@@ -86,7 +86,10 @@ if slime_app::run(&mut Game, &config).is_err() {
   defaults that do nothing.
   - `init` can fail: it returns `Result<(), AppError>`, where `AppError` is any boxed error (`?`
     converts errors into it). After a failed `init`, no frame runs, `shutdown` is not called and
-    `run` returns the error.
+    `run` returns the error. The other methods return nothing: one that hits an error it cannot
+    handle passes it to `Context::exit_with_error`, which stops the run as an exit request does,
+    `shutdown` included, and makes `run` return it
+    (`docs/adr/0043-application-errors-during-a-run.md`).
   - `render(ctx, target)` draws the frame into `target`, the window's image, with `ctx.gpu()`;
     the engine shows the image afterwards. It is not called in frames where the window cannot
     show a new image: while it is minimized, or when its next image is not ready in time on
@@ -114,10 +117,11 @@ if slime_app::run(&mut Game, &config).is_err() {
     included (`docs/adr/0021-frame-pacing.md`). With `PresentMode::Fifo`, every image is shown
     in step with the display, which can block a frame: up to one second when the compositor
     rarely shows a hidden window.
-  - It returns a `RunError`: `Init` when `init` fails, `Platform` when the window cannot be opened
-    (for example without a display server) or its event loop fails, `Gfx` when no GPU can draw into
-    the window or when the GPU device or the window's surface is lost for good during the run. After
-    a loss, the run stops like after an exit request, `shutdown` included
+  - It returns a `RunError`: `Init` when `init` fails, `App` when the application passed an error
+    to `Context::exit_with_error`, `Platform` when the window cannot be opened (for example without
+    a display server) or its event loop fails, `Gfx` when no GPU can draw into the window or when
+    the GPU device or the window's surface is lost for good during the run. After a loss, the run
+    stops like after an exit request, `shutdown` included
     (`docs/adr/0022-losing-the-gpu-device.md`, `docs/adr/0025-giving-up-a-lost-surface.md`). Only
     one windowed run, or attempt, is possible per process. A failed run is logged at the `error`
     level with each of its causes (`the run failed: cannot draw into the window: no GPU adapter is
@@ -136,9 +140,9 @@ if slime_app::run(&mut Game, &config).is_err() {
   that draws into it (`Context::gpu`) and the format of its images (`Context::surface_format`),
   all `None` when headless; the interpolation factor (`Context::fixed_step_alpha`), the fraction of
   a fixed step accumulated but not run, to draw what `fixed_update` moves between its last two
-  states; stopping the run (`Context::request_exit`); and whether it is going to stop
-  (`Context::exit_requested`), which reports a termination signal as soon as it arrives, even
-  during `init` or in the middle of a frame.
+  states; stopping the run (`Context::request_exit`), or failing it (`Context::exit_with_error`);
+  and whether it is going to stop (`Context::exit_requested`), which reports a termination signal
+  as soon as it arrives, even during `init` or in the middle of a frame.
 - `time`: `FrameClock` turns the time between frames into a `FrameTime` (index, delta, elapsed
   time) and limits how much time one frame can represent; `FixedStep` splits frame time into
   steps of a fixed duration. Both take durations rather than reading a clock

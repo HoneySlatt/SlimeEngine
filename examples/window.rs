@@ -32,6 +32,9 @@ struct WindowExample {
     triangle: Option<Triangle>,
     /// How many frames drew the triangle.
     drawn: u64,
+    /// Whether a run that drew nothing has failed. The automated checks run this example for a
+    /// number of frames in a compositor without a screen, to prove that the window is drawn into.
+    must_draw: bool,
 }
 
 impl App for WindowExample {
@@ -70,8 +73,11 @@ impl App for WindowExample {
         }
     }
 
-    fn shutdown(&mut self, _ctx: &mut Context) {
+    fn shutdown(&mut self, ctx: &mut Context) {
         tracing::info!(drawn = self.drawn, "shutdown");
+        if self.must_draw && self.drawn == 0 {
+            ctx.exit_with_error("no frame drew the triangle");
+        }
     }
 }
 
@@ -94,18 +100,11 @@ fn main() -> ExitCode {
         present_mode: options.present_mode,
         ..AppConfig::default()
     };
-    let mut example = WindowExample::default();
+    let mut example = WindowExample {
+        must_draw: config.window.is_some() && options.frame_limit.is_some_and(|limit| limit > 0),
+        ..WindowExample::default()
+    };
     match slime_app::run(&mut example, &config) {
-        // The automated checks run this example for a number of frames in a compositor without a
-        // screen, to prove that the window is drawn into: a run that drew nothing has failed.
-        Ok(()) if config.window.is_some() && options.frame_limit.is_some_and(|limit| limit > 0) => {
-            if example.drawn == 0 {
-                tracing::error!("no frame drew the triangle");
-                ExitCode::FAILURE
-            } else {
-                ExitCode::SUCCESS
-            }
-        }
         Ok(()) => ExitCode::SUCCESS,
         // `run` has logged the error with its causes.
         Err(_) => ExitCode::FAILURE,

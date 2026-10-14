@@ -170,6 +170,9 @@ struct SceneExample {
     frame_ms: f32,
     /// How many frames drew the scene.
     drawn: u64,
+    /// Whether a run that drew nothing has failed. The automated checks run this example for a
+    /// number of frames in a compositor without a screen, to prove that the scene is drawn.
+    must_draw: bool,
     /// What the last frame cost.
     stats: RenderStats,
     /// The exposure the scene is drawn at, as an exposure value at ISO 100 (see [`ev100`]); the
@@ -320,7 +323,7 @@ impl App for SceneExample {
         }
     }
 
-    fn shutdown(&mut self, _ctx: &mut Context) {
+    fn shutdown(&mut self, ctx: &mut Context) {
         tracing::info!(
             drawn = self.drawn,
             draw_calls = self.stats.draw_calls,
@@ -334,6 +337,9 @@ impl App for SceneExample {
             tone_mapping_gpu_time = ?self.stats.tone_mapping_gpu_time,
             "shutdown"
         );
+        if self.must_draw && self.drawn == 0 {
+            ctx.exit_with_error("no frame drew the scene");
+        }
     }
 }
 
@@ -374,19 +380,10 @@ fn main() -> ExitCode {
         bloom: BLOOM,
         frame_ms: 0.0,
         drawn: 0,
+        must_draw: options.frame_limit.is_some_and(|limit| limit > 0),
         stats: RenderStats::default(),
     };
     match slime_app::run(&mut example, &config) {
-        // The automated checks run this example for a number of frames in a compositor without a
-        // screen, to prove that the scene is drawn: a run that drew nothing has failed.
-        Ok(()) if options.frame_limit.is_some_and(|limit| limit > 0) => {
-            if example.drawn == 0 {
-                tracing::error!("no frame drew the scene");
-                ExitCode::FAILURE
-            } else {
-                ExitCode::SUCCESS
-            }
-        }
         Ok(()) => ExitCode::SUCCESS,
         // `run` has logged the error with its causes.
         Err(_) => ExitCode::FAILURE,

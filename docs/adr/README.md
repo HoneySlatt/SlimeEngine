@@ -87,7 +87,7 @@ the ADR linking to it.
 | [0017](0017-gpu-resource-types.md) | GPU resource types | Accepted; amended by 0026, 0033 |
 | [0018](0018-reference-image-tests.md) | Reference image tests | Accepted; amended by 0028, 0030 |
 | [0019](0019-default-log-filter.md) | Default log filter | Accepted |
-| [0020](0020-rendering-in-the-main-loop.md) | Rendering in the main loop, and application errors | Accepted; amended by 0021, 0022, 0025 |
+| [0020](0020-rendering-in-the-main-loop.md) | Rendering in the main loop, and application errors | Accepted; amended by 0021, 0022, 0025 and 0043 |
 | [0021](0021-frame-pacing.md) | Frame pacing | Accepted |
 | [0022](0022-losing-the-gpu-device.md) | Losing the GPU device | Accepted; amended by 0025 |
 | [0023](0023-dependency-checks-for-the-supported-targets.md) | Check the dependencies of the supported targets only | Accepted |
@@ -110,3 +110,4 @@ the ADR linking to it.
 | [0040](0040-bloom.md) | Bloom | Accepted; amended by 0041 |
 | [0041](0041-render-graph.md) | The render graph | Accepted |
 | [0042](0042-lights-beyond-the-most-drawn-and-checked-scene-values.md) | Lights beyond the most drawn, and checked scene values | Accepted |
+| [0043](0043-application-errors-during-a-run.md) | Application errors during a run | Accepted |

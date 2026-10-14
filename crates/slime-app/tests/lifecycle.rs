@@ -28,6 +28,8 @@ struct Recorder {
     exit_in_init: bool,
     fail_in_init: bool,
     exit_in_update_of_frame: Option<u64>,
+    fail_in_update_of_frame: Option<u64>,
+    fail_in_shutdown: bool,
     /// `Context::fixed_step_alpha` as each `update` reads it.
     alphas: Vec<f64>,
 }
@@ -58,10 +60,18 @@ impl App for Recorder {
         if self.exit_in_update_of_frame == Some(frame.index()) {
             ctx.request_exit();
         }
+        if self.fail_in_update_of_frame == Some(frame.index()) {
+            ctx.exit_with_error("the save file is corrupt");
+            // Only the first error is returned.
+            ctx.exit_with_error("the second error");
+        }
     }
 
-    fn shutdown(&mut self, _ctx: &mut Context) {
+    fn shutdown(&mut self, ctx: &mut Context) {
         self.calls.push(Call::Shutdown);
+        if self.fail_in_shutdown {
+            ctx.exit_with_error("cannot write the save file");
+        }
     }
 }
 
@@ -189,4 +199,47 @@ fn update_reads_the_fraction_of_a_fixed_step_left_to_run() {
     let mut app = Recorder::default();
     run(&mut app, &config(Some(3))).expect("this application starts");
     assert_eq!(app.alphas, [0.0, 0.0, 0.0]);
+}
+
+/// The run's error, and the message of its source.
+fn app_error(result: Result<(), RunError>) -> String {
+    let error = result.expect_err("the application's error is returned");
+    assert!(
+        matches!(error, RunError::App(_)),
+        "unexpected error: {error:?}"
+    );
+    std::error::Error::source(&error)
+        .expect("the application's error is the source")
+        .to_string()
+}
+
+#[test]
+fn an_error_in_a_frame_lets_it_finish_runs_shutdown_and_is_returned() {
+    let mut app = Recorder {
+        fail_in_update_of_frame: Some(1),
+        ..Recorder::default()
+    };
+    let result = run(&mut app, &config(None));
+    assert_eq!(app_error(result), "the save file is corrupt");
+    assert_eq!(
+        app.calls,
+        [
+            Call::Init,
+            Call::FixedUpdate(STEP),
+            update(0),
+            Call::FixedUpdate(STEP),
+            update(1),
+            Call::Shutdown,
+        ]
+    );
+}
+
+#[test]
+fn an_error_in_shutdown_fails_a_run_that_ended_well() {
+    let mut app = Recorder {
+        fail_in_shutdown: true,
+        ..Recorder::default()
+    };
+    let result = run(&mut app, &config(Some(1)));
+    assert_eq!(app_error(result), "cannot write the save file");
 }

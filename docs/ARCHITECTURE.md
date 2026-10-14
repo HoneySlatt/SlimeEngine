@@ -116,11 +116,12 @@ frame                                span "frame", trace level
     └── image.present()              hands it to the window; span "present"
 ```
 
-The run stops before the next frame once the application has called `ctx.request_exit()`, the
-window was closed, the process received a termination signal, or `config.frame_limit` frames have
-run. The frame in progress always finishes, and `app.shutdown` is always called after an
-`app.init` that succeeded; when `app.init` returns an error, the run stops at once and `run`
-returns it as `RunError::Init`. The call order is checked by
+The run stops before the next frame once the application has called `ctx.request_exit()` or
+`ctx.exit_with_error(error)`, the window was closed, the process received a termination signal, or
+`config.frame_limit` frames have run. The frame in progress always finishes, and `app.shutdown` is
+always called after an `app.init` that succeeded; when `app.init` returns an error, the run stops
+at once and `run` returns it as `RunError::Init`, and an error passed to `exit_with_error` is
+returned as `RunError::App` once `app.shutdown` has run. The call order is checked by
 [`crates/slime-app/tests/lifecycle.rs`](../crates/slime-app/tests/lifecycle.rs) headless, and by
 [`crates/slime-app/tests/windowed_lifecycle.rs`](../crates/slime-app/tests/windowed_lifecycle.rs)
 with a window, which the checks run in a headless Weston compositor (ADR-0024). The profiling

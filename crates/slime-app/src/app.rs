@@ -24,8 +24,9 @@ use crate::windowed::run_windowed;
 ///
 /// With a window, [`on_event`](Self::on_event) is called between frames, as events arrive.
 ///
-/// Only `init` can return an error. An application that hits an error it cannot handle in
-/// another method logs it and calls [`Context::request_exit`].
+/// Only `init` returns an error. An application that hits an error it cannot handle in another
+/// method passes it to [`Context::exit_with_error`]: the run stops as after an exit request, and
+/// [`run`] returns the error.
 pub trait App {
     /// Called once, before the first frame. With a window, the window and the GPU already exist
     /// ([`Context::window`], [`Context::gpu`]): this is where an application creates its GPU
@@ -146,6 +147,8 @@ pub struct Context {
     gpu: Option<Gpu>,
     surface_format: Option<TextureFormat>,
     exit: Option<ExitReason>,
+    /// The error passed to `exit_with_error`, which `run` returns.
+    error: Option<AppError>,
     fixed_step_alpha: f64,
 }
 
@@ -154,6 +157,24 @@ impl Context {
     /// [`run`] returns. Asking more than once has no further effect.
     pub fn request_exit(&mut self) {
         self.exit_because(ExitReason::Requested);
+    }
+
+    /// Stops the run because of `error`, which [`run`] then returns as [`RunError::App`]: this is
+    /// how an application fails in a method that returns no error. The run stops as after
+    /// [`request_exit`](Self::request_exit): the current frame finishes, then [`App::shutdown`]
+    /// is called. `shutdown` can call it too, and so fail a run that stopped for another reason.
+    ///
+    /// Only the first error is returned; a later one is logged as an error. When the GPU device or
+    /// the window's surface is lost as well, `run` returns the application's error, and the loss is
+    /// in the log, where the engine writes it when it happens.
+    pub fn exit_with_error(&mut self, error: impl Into<AppError>) {
+        let error = error.into();
+        if self.error.is_some() {
+            tracing::error!("the application failed again: {error}");
+        } else {
+            self.error = Some(error);
+        }
+        self.exit_because(ExitReason::Failed);
     }
 
     /// Whether the run is going to stop: the application requested an exit, the window was closed,
@@ -207,6 +228,11 @@ impl Context {
         self.surface_format = surface_format;
     }
 
+    /// The error passed to `exit_with_error`, if there is one.
+    pub(crate) fn take_error(&mut self) -> Option<AppError> {
+        self.error.take()
+    }
+
     /// Records why the run stops; the first reason is kept.
     pub(crate) fn exit_because(&mut self, reason: ExitReason) {
         self.exit.get_or_insert(reason);
@@ -221,6 +247,7 @@ pub(crate) enum ExitReason {
     Signal,
     DeviceLost,
     SurfaceLost,
+    Failed,
 }
 
 /// Runs `app` until it stops, then returns.
@@ -269,6 +296,8 @@ pub(crate) enum ExitReason {
 /// # Errors
 ///
 /// - [`RunError::Init`] if [`App::init`] returns an error.
+/// - [`RunError::App`] if the application passed an error to [`Context::exit_with_error`], from
+///   any method; it is returned even when the GPU device or the window's surface was lost too.
 /// - With a window, [`RunError::Platform`]: no windowing system can be reached, the window cannot
 ///   be created, a windowed run was already attempted in this process (the windowing library
 ///   allows one attempt per process, even a failed one), or the event loop fails.
@@ -280,7 +309,7 @@ pub(crate) enum ExitReason {
 ///   `shutdown` is called.
 ///
 /// When the window or the GPU could not be opened, neither `init` nor `shutdown` is called.
-/// Headless runs fail only when `init` does. A failed run is logged at the `error` level, with
+/// Headless runs fail only when the application does. A failed run is logged at the `error` level, with
 /// the message of each of the error's causes in turn (`the run failed: cannot draw into the window:
 /// no GPU adapter is available: ...`), so that a caller only has to exit with a failure.
 ///
@@ -327,7 +356,8 @@ fn run_headless(app: &mut impl App, config: &AppConfig) -> Result<(), RunError> 
     };
     tracing::info!(frames = frames.count(), "stopping: {reason}");
     app.shutdown(&mut ctx);
-    Ok(())
+    ctx.take_error()
+        .map_or(Ok(()), |error| Err(RunError::App(error)))
 }
 
 /// The frame logic shared by every driver: timing, fixed steps, update, drawing, and when to stop.
@@ -377,6 +407,7 @@ impl Frames {
             Some(ExitReason::Signal) => Some("a termination signal was received"),
             Some(ExitReason::DeviceLost) => Some("the GPU device was lost"),
             Some(ExitReason::SurfaceLost) => Some("the window's surface was lost"),
+            Some(ExitReason::Failed) => Some("the application stopped with an error"),
             None if self.limit.is_some_and(|limit| self.count >= limit) => {
                 Some("the frame limit was reached")
             }
