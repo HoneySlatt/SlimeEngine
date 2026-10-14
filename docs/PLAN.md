@@ -13,11 +13,10 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3b — Physically based renderer → 0.1: in progress. Planned on 2026-10-13 and validated by
-  the owner. M3b.1 to M3b.5 are done. The owner's decisions of 2026-10-13 on earlier proposals are
+  the owner. M3b.1 to M3b.6 are done. The owner's decisions of 2026-10-13 on earlier proposals are
   applied, and the findings of rounds 4 and 5 of the audit of 0.0.3 (issue
-  [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are fixed or recorded below. M3b.6 is
-  implemented and checked (ADR-0039) and awaits the Windows CI job and the owner's look at the
-  sample; next: M3b.7.
+  [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are fixed or recorded below; next:
+  M3b.7.
 
 ## Status
 
@@ -28,7 +27,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M3b.3](#m3b3--physically-based-materials) | Physically based materials | Done |
 | [M3b.4](#m3b4--light-types) | Light types | Done |
 | [M3b.5](#m3b5--shadows) | Shadows | Done |
-| [M3b.6](#m3b6--image-based-lighting) | Image-based lighting | Awaiting the owner |
+| [M3b.6](#m3b6--image-based-lighting) | Image-based lighting | Done |
 | [M3b.7](#m3b7--bloom) | Bloom | Planned |
 | [M3b.8](#m3b8--render-graph) | Render graph | Planned |
 | [M3b.9](#m3b9--windows-check-documentation-release-01) | Windows check, documentation, release 0.1 | Planned |
@@ -426,7 +425,16 @@ upgrading wgpu still waits for egui.
   (tone mapping) from the start pose, 9.0, 14.6, 15.2 and 10.0 µs from a low pose. The `scene`
   example ran 400 frames in a headless Weston at 1280 × 720 on lavapipe (sky computed in 179 ms in
   a debug build; shadow pass 2.0 ms, scene 3.0 ms, sky 1.1 ms, tone mapping 0.9 ms), and a
-  screenshot was looked at: the sky, the blue shadows, the overlay's sky lines.
+  screenshot was looked at: the sky, the blue shadows, the overlay's sky lines. A reviewing agent
+  read the milestone against `AGENTS.md`: the sky's directions were divided by a w that rounding
+  takes to zero for a far plane 10⁷ times the near one, and the sun's disc showed below the
+  horizon; both were fixed, with the tests and documents it found missing or wrong. In the
+  Windows CI job, on WARP, every test passes, so FXC compiles the environment's lookups and the
+  sky pass, and the references differ by at most 5 (`gltf-front`: 41 pixels off by more than 2,
+  1 by more than 4; `gltf-back`: 17 and 0; `shapes`: 53 and 0); the sky took 0.93 s to compute in
+  that job's debug build; the job took 11 minutes 56 seconds (10 minutes 3 seconds at M3b.5), the
+  Linux one 5 minutes 17 seconds (4 minutes 24 seconds). The owner looked at the sample on the
+  desktop on 2026-10-14: the sky and the sun look right.
 
 ### M3b.7 — Bloom
 
