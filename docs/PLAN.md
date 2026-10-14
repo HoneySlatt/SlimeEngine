@@ -573,6 +573,19 @@ upgrading wgpu still waits for egui.
 - **Done when.** The checks are green on both platforms; the tag is pushed.
 - **How to test.** Push and read the CI run; the Windows artifact in the virtual machine; the
   `scene` example on each converted model, looked at.
+- **Checked so far** on 2026-10-14:
+  - Four Khronos sample models, converted to GLB files holding PNG images and drawn by the
+    examples' loader (offscreen at 1280 × 720 on RADV, and 120 frames of the `scene` example in a
+    headless Weston): DamagedHelmet, FlightHelmet, Sponza, an interior, and ABeautifulGame, up to
+    103 draw calls and 1.5 million triangles. All load and draw without error, with their
+    shadows, masks and materials; their glass is opaque (known debt), and Sponza's interior shows
+    the sky's light unoccluded (known debt). On the RX 6900 XT, a frame takes 0.3 to 0.6 ms of CPU
+    time and at most 0.3 ms on the GPU; loading takes 0.5 to 2.8 s in a release build, for 5 to 68
+    textures of 1024 or 2048 pixels a side, decoded and given their levels of detail on the CPU
+    (known debt).
+  - No other GPU was available: none but RADV, lavapipe and WARP has run the engine (known debt).
+  - CI on 2026-10-14 (ceb7670): the Linux job 5 min 40 s, the Windows job 11 min 32 s, of which
+    the tests take 4 min 31 s and the release build of the examples 3 min 24 s.
 
 ## Releasing
 
@@ -903,7 +916,15 @@ GitHub issues, linked from their entry; this list stays the reference.
   occlusion (screen-space effects are outside the stage), no reflection probes, and mirrors reflect
   the sky, never the objects around them. An interior is lit by the whole sky through its walls:
   until then, draw it without an environment, or with a sky of lower radiances, and light it with
-  point and spot lights.
+  point and spot lights. Khronos's Sponza shows it (M3b.9): its arcades are lit by the sky as its
+  open courtyard is, in the same blue.
+- **Glass is drawn opaque.** The examples' loader ignores glTF's `KHR_materials_transmission` and
+  `KHR_materials_volume`, and warns that it does: the renderer neither lets light through a surface
+  nor blends one (Khronos's FlightHelmet and ABeautifulGame, M3b.9). Transparency is left to
+  Stage 9a (ADR-0052).
+- **Only RADV, lavapipe and WARP have run the engine.** The image tests' tolerances (ADR-0030),
+  the measurements of this plan and the samples' looks come from AMD's Vulkan driver, Mesa's CPU
+  driver and Microsoft's software one: NVIDIA's and Intel's drivers, and Direct3D 12 on a GPU, are untried.
 - **The environment is computed on the CPU, in every process that draws a sky** (ADR-0039): 23 ms
   in a release build on the owner's 16 threads, 162 ms on one core, and the BRDF table once (15
   ms); about eight times longer in a debug build, which every test that draws a sky with a gradient
