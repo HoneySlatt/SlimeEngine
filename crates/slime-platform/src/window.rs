@@ -51,6 +51,9 @@ pub struct PhysicalSize {
 /// On Windows, the windowing library destroys windows from inside the event loop, so the window
 /// still open when the loop ends is hidden then, and released only when the process exits.
 ///
+/// It cannot yet go fullscreen, grab or hide the cursor, change its title once created, or report
+/// the mouse's raw motion, which games that turn a camera with the mouse need.
+///
 /// It implements the [`raw-window-handle`](raw_window_handle) traits, through which graphics
 /// libraries draw into a window without knowing the windowing library that created it.
 #[derive(Clone, Debug)]

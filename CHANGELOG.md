@@ -8,6 +8,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- The README says how a game depends on the engine (through git, pinned to a release tag, with
+  the renderer optimized in debug builds) and what the engine does not do yet.
 - `Instance::casts_shadows` ([ADR-0049](docs/adr/0049-instances-that-cast-no-shadow.md)): an
   instance that casts no shadow, a vast floor or a sky dome, is left out of the shadow pass and of
   the shadow map's fit, so that it no longer spreads the map's texels over its extent and blurs

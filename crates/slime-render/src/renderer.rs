@@ -245,6 +245,10 @@ pub struct RenderStats {
 /// depth targets and the bloom's levels at the size of the output it draws into, the groups that
 /// read them and GPU timers for its submissions, built again when the frame's shape changes (the
 /// output's size, the shadow pass or the bloom turned on or off).
+///
+/// It does not yet smooth the edges of triangles (anti-aliasing), blend transparent surfaces, or
+/// leave out the instances that the camera does not see: every instance costs one draw call in the
+/// scene pass, and one in the shadow pass if it casts shadows, wherever it is.
 pub struct Renderer {
     /// The output's format.
     format: TextureFormat,

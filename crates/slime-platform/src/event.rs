@@ -10,8 +10,8 @@ use crate::window::PhysicalSize;
 ///
 /// Keys arrive while the window has the keyboard focus. Mouse input arrives while the cursor is
 /// over the window, and outside it while a button pressed over the window is held (see
-/// [`CursorMoved`](Self::CursorMoved)). The engine does not report yet: text composed by input
-/// methods (used for Chinese, Japanese or Korean), touch screens, touchpad gestures, or files
+/// [`CursorMoved`](Self::CursorMoved)). The engine does not report yet: gamepads, text composed by
+/// input methods (used for Chinese, Japanese or Korean), touch screens, touchpad gestures, or files
 /// dropped on the window.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]

@@ -1,6 +1,6 @@
-//! Runs an application without a window, the way automated tests and dedicated servers run it.
-//! Frames run back to back with simulated time: each frame represents one fixed step (1/60 s by
-//! default), whatever the speed of the machine.
+//! Runs an application without a window, the way automated tests run it. Frames run back to back
+//! with simulated time: each frame represents one fixed step (1/60 s by default), whatever the
+//! speed of the machine. A dedicated server, which keeps to real time, is a later stage's work.
 //!
 //! ```sh
 //! cargo run --example headless                        # 600 frames: 10 s of simulated time

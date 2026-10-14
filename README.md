@@ -42,6 +42,56 @@ scripts/check.sh             # every check, exactly as CI runs them (Linux only)
 Each CI run on GitHub also publishes the `hello`, `headless`, `window`, `offscreen` and `scene`
 examples built for Windows, to try without a toolchain.
 
+The tests run on your own GPU; CI runs them on lavapipe, a Vulkan driver that renders on the CPU,
+and [`CONTRIBUTING.md`](CONTRIBUTING.md#gpu) explains how to run them the same way.
+
+## Using SlimeEngine in a game
+
+The engine is not published on crates.io: a game depends on its crates through git, pinned to a
+release tag.
+
+```toml
+[dependencies]
+slime-app = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.0.3" }
+slime-gfx = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.0.3" }
+slime-platform = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.0.3" }
+slime-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.0.3" }
+
+# The renderer computes lighting on the CPU, about five times slower without optimizations.
+[profile.dev.package.slime-render]
+opt-level = 3
+```
+
+- `slime-app` runs the game (the `App` trait and `run`), `slime-platform` holds the window's
+  settings and the input events, `slime-gfx` the GPU's objects and colors, and `slime-render` the
+  renderer. Each crate's README shows its entry points, and [`examples/`](examples/README.md) holds
+  programs to start from; `scene` is the most complete.
+- Building needs Rust 1.99 or later and, on Linux, the libraries that
+  [`CONTRIBUTING.md`](CONTRIBUTING.md#on-linux-without-nix) lists and a [Vulkan
+  driver](CONTRIBUTING.md#gpu).
+- A game kept inside a clone of this repository needs an empty `[workspace]` table in its
+  `Cargo.toml`, or cargo takes it for a member of the engine's workspace and refuses to build it.
+- Nothing is stable before 1.0: a release can break the API, and [`CHANGELOG.md`](CHANGELOG.md)
+  says what changed.
+
+## What it does not do yet
+
+The engine is young; [`docs/ROADMAP.md`](docs/ROADMAP.md) says which stage brings what, and the
+known debt in [`docs/PLAN.md`](docs/PLAN.md#known-debt) lists the smaller gaps. A game made with it
+today has:
+
+- No text, game UI, audio, physics, animation or editor.
+- No asset files: the engine reads no image or model format. The examples' glTF loader
+  (`examples/common/gltf.rs`) is example code to copy, not an API, and the asset pipeline comes
+  later.
+- No world or scene graph: the game gives the renderer the list of what to draw at every frame.
+- A renderer without anti-aliasing, blended transparency, or culling of what the camera does not
+  see; with at most 16 lights, and shadows from one directional light only.
+- One window, which cannot go fullscreen, grab or hide the cursor, or report raw mouse motion; no
+  gamepads, touch input or input methods.
+- A run that stops when the GPU device is lost.
+- Linux and Windows only, on x86_64.
+
 ## Where to read next
 
 | Document | What it tells you |
