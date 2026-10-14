@@ -12,6 +12,7 @@
 //!     cargo test -p slime-examples --test gltf
 //! ```
 //!
+//! One test reads the asset itself: the textures of its boxes stand upright on every side.
 //! The other tests give the loader small GLB files built in memory, which hold what the asset
 //! does not: what the loader must refuse with an error rather than panic on; a mirrored node; the
 //! extensions a file requires; lights that light the file instead of the sample's sun, lights that
@@ -70,6 +71,72 @@ fn the_gltf_scene_matches_its_reference_images() {
             reference_image::check(name, name, &image, gpu.adapter_name());
         }
     }
+}
+
+#[test]
+fn the_textures_of_the_asset_s_boxes_stand_upright_on_their_sides() {
+    // Each side of a box shows its texture as an image is seen: u growing to the right, as seen
+    // from outside the box, and v, which glTF counts down the image, growing downward. The wall's
+    // bricks then lie along the wall, three times across its 3 m.
+    let file = gltf::Gltf::from_slice(sample_scene::ASSET).expect("the asset parses");
+    let blob = file.blob.as_deref().expect("the asset has a binary chunk");
+    let boxes = file
+        .nodes()
+        .filter(|node| matches!(node.name(), Some("wall" | "crate" | "small crate")));
+    let mut sides = 0;
+    for node in boxes {
+        let mesh = node.mesh().expect("a box has a mesh");
+        for primitive in mesh.primitives() {
+            let reader = primitive.reader(|_| Some(blob));
+            let positions: Vec<Vec3> = reader
+                .read_positions()
+                .expect("a box has positions")
+                .map(Vec3::from)
+                .collect();
+            let normals: Vec<Vec3> = reader
+                .read_normals()
+                .expect("a box has normals")
+                .map(Vec3::from)
+                .collect();
+            let uvs: Vec<[f32; 2]> = reader
+                .read_tex_coords(0)
+                .expect("a box has texture coordinates")
+                .into_f32()
+                .collect();
+            // The corners of a side share its normal; in the mesh's own space, the sides face
+            // along x and z, y up.
+            for normal in [Vec3::X, -Vec3::X, Vec3::Z, -Vec3::Z] {
+                let corners: Vec<usize> = (0..positions.len())
+                    .filter(|&corner| normals[corner].abs_diff_eq(normal, 1e-3))
+                    .collect();
+                assert!(
+                    !corners.is_empty(),
+                    "{:?} has a side facing {normal}",
+                    node.name()
+                );
+                sides += 1;
+                let right = Vec3::Y.cross(normal);
+                for &a in &corners {
+                    for &b in &corners {
+                        let across = (positions[a] - positions[b]).dot(right);
+                        let up = positions[a].y - positions[b].y;
+                        let (du, dv) = (uvs[a][0] - uvs[b][0], uvs[a][1] - uvs[b][1]);
+                        assert!(
+                            across.abs() < 1e-4 || du * across > 0.0,
+                            "{:?}, side facing {normal}: u does not grow to the right",
+                            node.name()
+                        );
+                        assert!(
+                            up.abs() < 1e-4 || dv * up < 0.0,
+                            "{:?}, side facing {normal}: v does not grow downward",
+                            node.name()
+                        );
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(sides, 12, "four sides for each of the three boxes");
 }
 
 #[test]

@@ -7,9 +7,9 @@
 ## What `scene.glb` holds
 
 Seven primitives, one per object, with 1696 vertices and 2274 triangles in all. Each has normals,
-one set of texture coordinates, and tangents (glTF's `TANGENT`), which Blender computes with
-MikkTSpace. Six materials use glTF's metallic-roughness model, so that one small file exercises
-each property the loader reads:
+one set of texture coordinates, which show the textures upright on every side of the boxes, and
+tangents (glTF's `TANGENT`), which Blender computes with MikkTSpace. Six materials use glTF's
+metallic-roughness model, so that one small file exercises each property the loader reads:
 
 | Material | Drawn on | What it exercises |
 |---|---|---|

@@ -294,14 +294,28 @@ def triangulate_ngons(obj):
 
 
 def box_uvs(obj, repeat_u=1.0, repeat_v=1.0):
-    """Gives each face of a box the whole texture, repeated `repeat_u` × `repeat_v` times."""
+    """Gives each face of a box the whole texture, repeated `repeat_u` × `repeat_v` times, upright:
+    on a side, u runs to the right as seen from outside and v up; on a top or a bottom, u runs
+    along x. Each corner takes its coordinates from its position, since the order of a face's
+    corners differs from face to face."""
     bm = bmesh.new()
     bm.from_mesh(obj.data)
     layer = bm.loops.layers.uv.verify()
-    corners = [(0.0, 0.0), (repeat_u, 0.0), (repeat_u, repeat_v), (0.0, repeat_v)]
+    up = Vector((0.0, 0.0, 1.0))
     for face in bm.faces:
-        for loop, uv in zip(face.loops, corners):
-            loop[layer].uv = uv
+        if abs(face.normal.z) > 0.5:
+            right = Vector((1.0, 0.0, 0.0))
+            upward = Vector((0.0, 1.0 if face.normal.z > 0.0 else -1.0, 0.0))
+        else:
+            right = up.cross(face.normal)
+            upward = up
+        across = [loop.vert.co.dot(right) for loop in face.loops]
+        along = [loop.vert.co.dot(upward) for loop in face.loops]
+        for loop, s, t in zip(face.loops, across, along):
+            loop[layer].uv = (
+                repeat_u * (s - min(across)) / (max(across) - min(across)),
+                repeat_v * (t - min(along)) / (max(along) - min(along)),
+            )
     bm.to_mesh(obj.data)
     bm.free()
 

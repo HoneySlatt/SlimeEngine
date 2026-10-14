@@ -953,10 +953,11 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **A roughness between two prefiltered levels reads a blend of their lobes** (ADR-0039): the four
   levels are 0.25 apart, and a lobe in between is approximated by mixing the nearest two, the split
   sum's usual approximation; each level is within 2.2 % of its own lobe's average.
-- **The `shapes` image test uses 28 of the 131 pixels that RADV may have off by more than 8**
-  (ADR-0030, ADR-0054): edges and the metal spheres' reflections of the sky (49 at M3b.6, before the
-  bloom; 33 before the shadow map followed the camera and the output was dithered). A change that
-  adds reflective detail may exceed it; measure it again then.
+- **The image tests use up to 76 of the 131 pixels that RADV may have off by more than 8**
+  (ADR-0030, ADR-0054): the glTF scene's front view 76, on the wall's mortar joints seen at a
+  grazing angle; `shapes` 28, on edges and the metal spheres' reflections of the sky (49 at M3b.6,
+  before the bloom; 33 before the shadow map followed the camera and the output was dithered). A
+  change that adds fine or reflective detail may exceed it; measure it again then.
 - **Four passes per submission is a number measured on one machine** (ADR-0041). On the owner's
   RX 6900 XT (RADV), whose memory that the CPU can map is a 256 MiB window, one submission of a
   whole bloomed frame stalled in the kernel once the desktop's programs and a test program filled
