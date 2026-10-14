@@ -30,6 +30,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   [ADR-0060](docs/adr/0060-resolving-the-samples-weighed-by-their-brightness.md)).
   `RenderStats::resolve_gpu_time` gives the cost of that average, which the dev overlays show. A
   renderer holds about 87 MiB more of GPU memory at 1920 × 1080, about 137 MiB in all.
+- `RenderPass::set_viewport` draws into part of a pass's targets, so that one pass can draw several
+  views side by side.
 
 ### Changed
 

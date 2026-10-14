@@ -251,10 +251,11 @@ gpu = Gpu::new()
 ├── render(&RenderPassDescriptor { target, clear, depth, timer, resolve }, |pass| ...)
 │                                                        one command encoder and render pass; the
 │                                                        closure sets the pipeline, the bind groups
-│                                                        and the buffers, and draws; a multisampled
-│                                                        target is resolved into `resolve`; then
-│                                                        submitted, timed by the timer when there
-│                                                        is one
+│                                                        and the buffers, and draws, into part of
+│                                                        the target after set_viewport; a
+│                                                        multisampled target is resolved into
+│                                                        `resolve`; then submitted, timed by the
+│                                                        timer when there is one
 ├── render_depth(&DepthPassDescriptor { depth, timer }, |pass| ...)
 │                                                        a pass without a render target: clears the
 │                                                        depth target, draws depth-only pipelines

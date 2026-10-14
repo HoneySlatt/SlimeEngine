@@ -89,6 +89,22 @@ impl RenderPass<'_> {
         self.pass.set_bind_group(index, &group.group, offsets);
     }
 
+    /// Draws the next draws into part of the pass's targets only: the rectangle of `width` ×
+    /// `height` pixels whose top left corner is the pixel (`x`, `y`). Clip space's −1 to 1 spans
+    /// the rectangle, as it spans the whole target until this is called, and nothing is drawn
+    /// outside it: one pass can draw several views side by side into one target, such as the
+    /// tiles of a shadow atlas. Depth keeps its range, 0 to 1.
+    ///
+    /// # Panics
+    ///
+    /// When the commands are submitted, if the rectangle reaches beyond the pass's targets, or is
+    /// empty: wgpu rejects it.
+    pub fn set_viewport(&mut self, x: u32, y: u32, width: u32, height: u32) {
+        self.pass
+            .set_viewport(x as f32, y as f32, width as f32, height as f32, 0.0, 1.0);
+        self.pass.set_scissor_rect(x, y, width, height);
+    }
+
     /// Reads the vertices of the next draws from `buffer`, at the pipeline's vertex buffer `slot`.
     pub fn set_vertex_buffer(&mut self, slot: u32, buffer: &VertexBuffer) {
         self.pass.set_vertex_buffer(slot, buffer.buffer.slice(..));

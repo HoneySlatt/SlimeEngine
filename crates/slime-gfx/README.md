@@ -118,8 +118,10 @@ fn main() -> Result<(), GfxError> {
   `BindGroup`, the resources a pipeline's shaders read (ADR-0026); `ShaderModule` and
   `RenderPipeline`; and `GpuTimer`, which times passes on the GPU.
 - `Gpu::render` and `Gpu::render_depth` run one pass, through a `RenderPass`, and `Gpu::submit`
-  records several into one submission (ADR-0033). `Gpu::read_render_target` and
-  `Gpu::read_float_render_target` copy a target back to the CPU.
+  records several into one submission (ADR-0033). `RenderPass::set_viewport` draws into part of a
+  pass's targets, so that one pass can draw several views side by side, as a shadow atlas holds
+  them. `Gpu::read_render_target` and `Gpu::read_float_render_target` copy a target back to the
+  CPU.
 - `Gpu::create_multisampled_render_target` and `Gpu::create_multisampled_depth_target` create
   targets of `MULTISAMPLE_COUNT` samples per pixel, which pipelines built `multisampled` draw into;
   `RenderPassDescriptor::resolve` names the target of one sample that the pass averages them into

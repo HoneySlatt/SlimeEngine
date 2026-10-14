@@ -1,9 +1,10 @@
 //! Drawing in several passes: a fullscreen triangle without a vertex buffer, a pass that samples
 //! what an earlier one drew into a 16-bit float target, a depth-only pass read through comparison
-//! samplers, a depth-only pass whose fragment stage discards, depth bias, and the misuses that
-//! several passes make easy. Values are chosen to be exact in half precision whichever way the
-//! driver rounds, samples land on texel centers or exactly halfway between two, and no pixel center
-//! lies on a triangle's edge. Runs on whatever adapter the machine offers, like `device.rs`.
+//! samplers, a depth-only pass whose fragment stage discards, depth bias, a pass that draws into
+//! two parts of one target, and the misuses that several passes make easy. Values are chosen to be
+//! exact in half precision whichever way the driver rounds, samples land on texel centers or
+//! exactly halfway between two, and no pixel center lies on a triangle's edge. Runs on whatever
+//! adapter the machine offers, like `device.rs`.
 
 use slime_gfx::{
     BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, CullMode, DepthBias,
@@ -451,6 +452,105 @@ fn a_depth_only_pass_is_read_through_a_comparison_sampler() {
                 (b - filtered[x as usize]).abs() <= 1.0 / 256.0,
                 "pixel ({x}, {y}): {b}"
             );
+        }
+    }
+}
+
+#[test]
+fn one_pass_draws_into_two_parts_of_a_depth_target_that_a_later_pass_samples() {
+    let gpu = gpu();
+    // Two triangles that cover all of clip space, at depths 0.75 and 0.25, each drawn into one
+    // half of the target without a depth test: the second, drawn into the left half, would cover
+    // the right half too if its rectangle did not stop it.
+    let fullscreen_at = |label: &str, depth: f32| {
+        depth_pipeline(
+            &gpu,
+            label,
+            &format!(
+                "@vertex
+                 fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {{
+                     return vec4<f32>(corner(i), {depth:?}, 1.0);
+                 }}"
+            ),
+            DepthState {
+                compare: DepthCompare::Always,
+                write: true,
+                bias: DepthBias::default(),
+            },
+        )
+    };
+    let (right, left) = (fullscreen_at("right", 0.75), fullscreen_at("left", 0.25));
+    let atlas = gpu
+        .create_depth_target("atlas", 8, 4)
+        .expect("the GPU has memory for it");
+    gpu.render_depth(
+        &DepthPassDescriptor {
+            depth: &atlas,
+            timer: None,
+        },
+        |pass| {
+            pass.set_viewport(4, 0, 4, 4);
+            pass.set_pipeline(&right);
+            pass.draw(0..3);
+            pass.set_viewport(0, 0, 4, 4);
+            pass.set_pipeline(&left);
+            pass.draw(0..3);
+        },
+    );
+    let layout = gpu
+        .create_bind_group_layout(
+            "atlas",
+            &[BindGroupLayoutEntry {
+                binding: 0,
+                visible_to: ShaderStages::Fragment,
+                ty: BindingType::DepthTexture,
+            }],
+        )
+        .expect("the GPU has memory for it");
+    let group = gpu
+        .create_bind_group(
+            "atlas",
+            &layout,
+            &[BindGroupEntry {
+                binding: 0,
+                resource: BindingResource::DepthTarget(&atlas),
+            }],
+        )
+        .expect("the GPU has memory for it");
+    let reader = fullscreen_pipeline(
+        &gpu,
+        "atlas",
+        "@group(0) @binding(0) var atlas: texture_depth_2d;
+
+         @fragment
+         fn fs_main(@builtin(position) p: vec4<f32>) -> @location(0) vec4<f32> {
+             return vec4<f32>(textureLoad(atlas, vec2<i32>(p.xy), 0), 0.0, 0.0, 1.0);
+         }",
+        &[&layout],
+        TextureFormat::Rgba16Float,
+    );
+    let read = gpu
+        .create_render_target("read", 8, 4, TextureFormat::Rgba16Float)
+        .expect("the GPU has memory for it");
+    let pass = RenderPassDescriptor {
+        target: &read,
+        clear: Some(LinearColor::BLACK),
+        depth: None,
+        timer: None,
+        resolve: None,
+    };
+    gpu.render(&pass, |pass| {
+        pass.set_pipeline(&reader);
+        pass.set_bind_group(0, &group, &[]);
+        pass.draw(0..3);
+    });
+    let image = gpu
+        .read_float_render_target(&read)
+        .expect("the image is read back");
+    for y in 0..4 {
+        for x in 0..8 {
+            let expected = if x < 4 { 0.25 } else { 0.75 };
+            assert_eq!(pixel(&image, x, y)[0], expected, "pixel ({x}, {y})");
         }
     }
 }
