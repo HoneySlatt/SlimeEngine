@@ -318,4 +318,43 @@ fn an_8_bit_output_is_dithered_so_that_it_keeps_the_light_between_two_steps() {
         "a mean of {mean} for {encoded}, with values {values:?}"
     );
     assert!(values.contains(&126) && values.contains(&127), "{values:?}");
+    // The noise is triangular, from −1 to 1 step (ADR-0051): it reaches 125 when it is below −0.88,
+    // for 0.12² / 2 = 0.7 % of the pixels. Uniform noise of one step, from −0.5 to 0.5, never would,
+    // and uniform noise of two steps would for 6 %.
+    let below = image
+        .pixels
+        .chunks(4)
+        .filter(|pixel| pixel[0] == 125)
+        .count();
+    let share = below as f64 / f64::from(side * side);
+    assert!(
+        (0.002..0.02).contains(&share),
+        "{share} of the pixels at 125, with values {values:?}"
+    );
+}
+
+#[test]
+fn black_and_white_are_not_dithered() {
+    let gpu = gpu();
+    let mut renderer =
+        Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer is created");
+    let side = 64;
+    let output = gpu
+        .create_render_target("output", side, side, TextureFormat::Rgba8UnormSrgb)
+        .expect("the GPU has memory for it");
+    // No light is black; a light of 1000 tone maps to 0.99994, within half a step of white. Noise
+    // of up to one step would turn an eighth of their pixels into 1 and 254.
+    for (light, expected) in [(0.0, 0), (1000.0, 255)] {
+        draw(&gpu, &mut renderer, &output, [light; 3], 1.0);
+        let image = gpu
+            .read_render_target(&output)
+            .expect("the image is read back");
+        for pixel in image.pixels.chunks(4) {
+            assert_eq!(
+                pixel,
+                [expected, expected, expected, 255],
+                "a light of {light}"
+            );
+        }
+    }
 }
