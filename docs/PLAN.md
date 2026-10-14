@@ -154,9 +154,13 @@ A release is an annotated git tag on a commit whose CI run is green on Linux and
    SlimeEngine in a game" names, rename the `[Unreleased]` section of `CHANGELOG.md` to
    `[<version>] - <date>`, and update this plan.
 2. Push that commit and wait for its CI run to pass.
-. From 0.1 on, create the GitHub release of the tag, its `CHANGELOG.md` section as its notes,
+3. Tag that commit, not a later one, then push the tag:
+   `git tag -a v<version> -m "SlimeEngine <version>" <commit>`.
+4. From 0.1 on, create the GitHub release of the tag, its `CHANGELOG.md` section as its notes,
    with the `slime-examples-windows` artifact of that commit's CI run attached as
-   `slime-examples-windows-<version>.zip`: CI keeps its artifacts 14 days, a release keeps them.
+   `slime-examples-windows-<version>.zip`, holding beside the programs `LICENSE.txt`, a
+   `NOTICE.txt` and the licenses of the egui fonts that `scene.exe` embeds, which the Ubuntu Font
+   Licence asks to travel with them: CI keeps its artifacts 14 days, a release keeps them.
 
 0.0.1 was released on 2026-10-12, before Windows joined CI: the tag `v0.0.1` is on the commit
 "Release 0.0.1". 0.0.2 was released the same way on 2026-10-12: the tag `v0.0.2` is on the
