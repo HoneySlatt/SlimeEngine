@@ -13,14 +13,14 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3d — Anti-aliasing and the shadows of spot lights: planned on 2026-10-15 and validated by
-  the owner. M3d.1 is in progress.
+  the owner. M3d.1 is done but for its check on WARP by CI; M3d.2 is in progress.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
 | [M3d.1](#m3d1--multisampling-in-the-gpu-layer) | `slime-gfx` draws into targets of four samples and resolves them | In progress |
-| [M3d.2](#m3d2--anti-aliasing-in-the-renderer) | The edges of the scene are smooth | Planned |
+| [M3d.2](#m3d2--anti-aliasing-in-the-renderer) | The edges of the scene are smooth | In progress |
 | [M3d.3](#m3d3--spot-lights-shadows-what-each-tile-sees) | Each spot light that casts shadows has its tile and knows what it sees | Planned |
 | [M3d.4](#m3d4--spot-lights-shadows-drawn-and-read) | Spot lights cast shadows | Planned |
 | [M3d.5](#m3d5--nightwatch-and-the-windows-check) | Nightwatch shows both, on Linux and Windows | Planned |

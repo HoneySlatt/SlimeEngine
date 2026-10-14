@@ -264,6 +264,15 @@ fn covered_along(axes: [DVec3; 2], texel: f64, squares: &[Mat4]) -> [(f64, f64);
     })
 }
 
+/// Where the GPU samples a pixel, four times (`slime_gfx::MULTISAMPLE_COUNT`): the standard pattern
+/// of Vulkan and Direct3D, in pixels from the pixel's top left corner.
+const SAMPLES: [(f64, f64); 4] = [
+    (0.375, 0.125),
+    (0.875, 0.375),
+    (0.125, 0.625),
+    (0.625, 0.875),
+];
+
 /// The largest difference, in any channel, between each pixel of `image` and the tone-mapped
 /// light that `expected` gives for it, kept apart for the pixels it marks as in a penumbra.
 fn largest_differences(
@@ -596,6 +605,20 @@ fn a_masked_material_casts_no_shadow_where_it_discards() {
     }
 }
 
+/// Whether each sample of `pixel` sees the plane z = 0 in front of `camera`, within 400 m of the
+/// origin along x and y: near the horizon, the samples of one pixel see points hundreds of metres
+/// apart.
+fn within_400_m_at_every_sample(camera: &Camera, pixel: (u32, u32)) -> bool {
+    let forward = (camera.target - camera.eye).as_dvec3();
+    SAMPLES.into_iter().all(|(dx, dy)| {
+        let at = (f64::from(pixel.0) + dx, f64::from(pixel.1) + dy);
+        let point = brdf::seen_point_at(camera, (SIZE, SIZE), at, 0.0);
+        (point - camera.eye.as_dvec3()).dot(forward) > 0.0
+            && point.x.abs() < 400.0
+            && point.y.abs() < 400.0
+    })
+}
+
 #[test]
 fn an_instance_that_casts_no_shadow_is_left_out_and_what_lies_beyond_the_map_is_lit() {
     let mut setup = Setup::new();
@@ -626,13 +649,12 @@ fn an_instance_that_casts_no_shadow_is_left_out_and_what_lies_beyond_the_map_is_
         &[(&white, floor(1_000.0), false), (&white, strip, true)],
     );
     assert_eq!((stats.draw_calls, stats.shadow_draw_calls), (2, 1));
-    let forward = (camera.target - camera.eye).as_dvec3();
     let (mut near, mut far) = (0, 0);
     let (largest, _) = largest_differences(&image, |pixel| {
         let point = brdf::seen_point(&camera, (SIZE, SIZE), pixel, 0.0);
-        let on_the_floor = point.x.abs() < 400.0 && point.y.abs() < 400.0;
-        if (point - camera.eye.as_dvec3()).dot(forward) <= 0.0 || !on_the_floor {
-            // Above the horizon, or beyond the floor's edge, 500 m away: the sky.
+        if !within_400_m_at_every_sample(&camera, pixel) {
+            // Above the horizon, or beyond the floor's edge, 500 m away: the sky, for some of
+            // the pixel's samples at least.
             return ([0.0; 3], true);
         }
         let under = point.y.abs() < 0.4;
@@ -659,10 +681,7 @@ fn an_instance_that_casts_no_shadow_is_left_out_and_what_lies_beyond_the_map_is_
     );
     assert_eq!((stats.shadow_draw_calls, stats.shadow_gpu_time), (0, None));
     let (largest, _) = largest_differences(&image, |pixel| {
-        let point = brdf::seen_point(&camera, (SIZE, SIZE), pixel, 0.0);
-        let seen = (point - camera.eye.as_dvec3()).dot(forward) > 0.0
-            && point.x.abs() < 400.0
-            && point.y.abs() < 400.0;
+        let seen = within_400_m_at_every_sample(&camera, pixel);
         (floor_shows(&camera, pixel, sun, 1.0), !seen)
     });
     assert!(largest <= 2e-3, "off by {largest}");

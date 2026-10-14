@@ -222,8 +222,8 @@ pub struct RenderStats {
     /// How long the GPU took to draw the shadow map, under the same rules as `scene_gpu_time`;
     /// `None` too for a frame that skipped the shadow pass.
     pub shadow_gpu_time: Option<Duration>,
-    /// How long the GPU took to draw the sky behind the scene, under the same rules as
-    /// `scene_gpu_time`.
+    /// How long the GPU took to draw the sky behind the scene and resolve the scene's samples into
+    /// one pixel each, under the same rules as `scene_gpu_time`.
     pub sky_gpu_time: Option<Duration>,
     /// How long the GPU took for the bloom's passes (ADR-0040): the sum of their times, under the
     /// same rules as `scene_gpu_time`. `None` too for a frame that skipped the bloom (a strength
@@ -236,9 +236,12 @@ pub struct RenderStats {
 /// Each frame takes these passes (ADR-0034, ADR-0037, ADR-0038, ADR-0039, ADR-0040): the shadow
 /// pass draws the depths of the instances, as the scene's first directional light that casts
 /// shadows sees them, into the shadow map; the scene pass draws the instances into a target of
-/// half-precision floats, where light may exceed 1, with a depth target, their light multiplied by
-/// the scene's exposure, that light's only where the shadow map shows nothing nearer to it, and the
-/// environment's; the sky pass draws the environment where no surface is; the bloom's passes filter
+/// half-precision floats, where light may exceed 1, of four samples per pixel, with a depth target
+/// of four samples too (ADR-0056), their light multiplied by the scene's exposure, that light's
+/// only where the shadow map shows nothing nearer to it, and the environment's; the sky pass draws
+/// the environment where no surface is, sample by sample, then resolves the samples into a target
+/// of one sample per pixel, each pixel their average, so that the edges of what both passes drew
+/// are smooth (multisample anti-aliasing); the bloom's passes filter
 /// that light down into a chain of levels, each half the size of the one before, then average them
 /// back up into a blurred copy; the tone-mapping pass then mixes the blurred copy in by the scene's
 /// bloom strength and maps the light to the output's range with Khronos PBR Neutral. The renderer
@@ -253,12 +256,14 @@ pub struct RenderStats {
 /// shape changes (the output's size, the shadow pass or the bloom turned on or off). A renderer
 /// draws best into outputs of one size: drawing into outputs of two sizes in turn creates its
 /// targets again at every call, and reports no tone-mapping or bloom time; use one renderer per
-/// output size. At 1920 × 1080 with the bloom, a renderer holds about 50 MiB of GPU memory: 16 for
-/// the shadow map, 24 for the high-dynamic-range and depth targets and 10.5 for the bloom's levels.
+/// output size. At 1920 × 1080 with the bloom, a renderer holds about 137 MiB of GPU memory: 16 for
+/// the shadow map, 111 for the high-dynamic-range and depth targets, 95 of them for their four
+/// samples per pixel, and 10.5 for the bloom's levels; at 3840 × 2160, about 500 MiB.
 ///
-/// It does not yet smooth the edges of triangles (anti-aliasing), blend transparent surfaces, or
-/// leave out the instances that the camera does not see: every instance costs one draw call in the
-/// scene pass, and one in the shadow pass if it casts shadows, wherever it is.
+/// It does not yet smooth the edges that a masked material cuts inside a triangle, blend
+/// transparent surfaces, or leave out the instances that the camera does not see: every instance
+/// costs one draw call in the scene pass, and one in the shadow pass if it casts shadows, wherever
+/// it is.
 pub struct Renderer {
     /// The output's format.
     format: TextureFormat,
@@ -489,7 +494,7 @@ impl Renderer {
                     bias: DepthBias::default(),
                 }),
                 cull,
-                multisampled: false,
+                multisampled: true,
             })
         };
         // Every face casts, whichever way it faces the light: a single-sided surface stops light
@@ -561,7 +566,7 @@ impl Renderer {
                 bias: DepthBias::default(),
             }),
             cull: CullMode::None,
-            multisampled: false,
+            multisampled: true,
         })?;
 
         let tone_mapping_shader = gpu.create_shader_module("tone mapping", TONE_MAPPING_SHADER)?;
@@ -827,27 +832,28 @@ impl Renderer {
     /// [`shadow_distance`](crate::DirectionalLight::shadow_distance) sets (ADR-0038, ADR-0049,
     /// ADR-0050); it is skipped when no directional light casts shadows, or when no instance that
     /// casts shadows reaches the region. The scene pass draws every instance into a
-    /// high-dynamic-range target with the depth test, so that nearer surfaces hide farther ones
-    /// whatever their order, each surface shaded by the scene's light with glTF's
-    /// metallic-roughness model and its material's textures, the shadowed light's only where the
-    /// shadow map holds nothing nearer to it, looked up at most 3 texels off the surface along its
-    /// normal, compared at 3 × 3 points one texel apart so that its edges fade over three texels,
-    /// and culled or not as its material and its transform ask (ADR-0035), the scene's environment
-    /// reflected as its material reflects it (ADR-0039), its light multiplied by the scene's
-    /// exposure (ADR-0037). Point and spot lights cast no shadows. The sky pass draws the
-    /// environment, exposed, where no surface was drawn, with its sun's disc. Unless `scene.bloom`
-    /// is 0 or `target` is smaller than 15 × 15, the bloom's passes filter that light down into
-    /// levels of half the size of the one before, to a side of at least 8 texels, with Jimenez's
-    /// 13-tap filter, then average them back up through 3 × 3 tents, every level with the same
-    /// weight, into a blurred copy (ADR-0040): 11 passes at 1280 × 720, 13 at 1920 × 1080. The
-    /// tone-mapping pass then mixes the blurred copy in by `scene.bloom`, maps that light to the
-    /// range a display shows with Khronos PBR Neutral, which lowers a color whose channels all lie
-    /// between 0.08 and 0.8 by 0.04, a darker one less, and compresses a brighter one towards 1 and
-    /// turns it towards white, dithers it when `target` has 8 bits per channel, with noise of up to
-    /// one step that keeps its average and leaves black and white as they are (ADR-0051), and
-    /// writes it into `target`, opaque. A render graph orders the passes, and they are recorded in
-    /// that order, four to a submission named after `target` (ADR-0041); the work runs on the GPU
-    /// after this method returns.
+    /// high-dynamic-range target of four samples per pixel with the depth test, so that nearer
+    /// surfaces hide farther ones whatever their order, each surface shaded by the scene's light
+    /// with glTF's metallic-roughness model and its material's textures, the shadowed light's only
+    /// where the shadow map holds nothing nearer to it, looked up at most 3 texels off the surface
+    /// along its normal, compared at 3 × 3 points one texel apart so that its edges fade over three
+    /// texels, and culled or not as its material and its transform ask (ADR-0035), the scene's
+    /// environment reflected as its material reflects it (ADR-0039), its light multiplied by the
+    /// scene's exposure (ADR-0037). Point and spot lights cast no shadows. The sky pass draws the
+    /// environment, exposed, where no surface was drawn, with its sun's disc, then resolves the
+    /// samples into one pixel each, their average, which smooths the edges of what both passes drew
+    /// (ADR-0056). Unless `scene.bloom` is 0 or `target` is smaller than 15 × 15, the bloom's
+    /// passes filter that light down into levels of half the size of the one before, to a side of
+    /// at least 8 texels, with Jimenez's 13-tap filter, then average them back up through 3 × 3
+    /// tents, every level with the same weight, into a blurred copy (ADR-0040): 11 passes at
+    /// 1280 × 720, 13 at 1920 × 1080. The tone-mapping pass then mixes the blurred copy in by
+    /// `scene.bloom`, maps that light to the range a display shows with Khronos PBR Neutral, which
+    /// lowers a color whose channels all lie between 0.08 and 0.8 by 0.04, a darker one less, and
+    /// compresses a brighter one towards 1 and turns it towards white, dithers it when `target` has
+    /// 8 bits per channel, with noise of up to one step that keeps its average and leaves black and
+    /// white as they are (ADR-0051), and writes it into `target`, opaque. A render graph orders the
+    /// passes, and they are recorded in that order, four to a submission named after `target`
+    /// (ADR-0041); the work runs on the GPU after this method returns.
     ///
     /// The high-dynamic-range and depth targets are created at the size of `target` the first
     /// time, and again whenever that size changes; the bloom's levels (4.7 MiB at 1280 × 720,
@@ -1272,9 +1278,12 @@ fn declare_frame(shape: Shape) -> Graph {
     // Given to `Graph::record` in this order.
     let output = graph.import_color("output");
     let shadow_map = graph.import_depth("shadow map");
-    // Labelled "scene", which names the scene pass in capture tools.
-    let hdr = graph.transient_color("scene", HDR_FORMAT, 0);
-    let depth = graph.transient_depth("scene depth", 0);
+    // The scene and the sky are drawn at four samples per pixel, which smooths the edges of what
+    // they draw (ADR-0056), then resolved into a target of one sample that the later passes
+    // sample. Labelled "scene", which names the scene and sky passes in capture tools.
+    let samples = graph.transient_multisampled_color("scene", HDR_FORMAT);
+    let depth = graph.transient_multisampled_depth("scene depth");
+    let hdr = graph.transient_color("scene resolved", HDR_FORMAT, 0);
     let pass = |pass, draws, reads| PassDeclaration { pass, draws, reads };
     // Each pass that draws one triangle over its target clears it: a clear reads nothing back on
     // GPUs that keep targets in tiles.
@@ -1282,6 +1291,7 @@ fn declare_frame(shape: Shape) -> Graph {
         target,
         depth: None,
         clear: true,
+        resolve: None,
     };
     if shape.shadow {
         graph.add_pass(pass(Pass::Shadow, Draws::Depth(shadow_map), [None, None]));
@@ -1291,20 +1301,24 @@ fn declare_frame(shape: Shape) -> Graph {
     graph.add_pass(pass(
         Pass::Scene,
         Draws::Color {
-            target: hdr,
+            target: samples,
             depth: Some(depth),
             clear: true,
+            resolve: None,
         },
         [Some(shadow_map.into()), None],
     ));
     // Over the scene, keeping its light and its depths: the sky is drawn only where the depth
-    // target still holds the farthest depth, where no surface was drawn.
+    // target still holds the farthest depth, where no surface was drawn, sample by sample, so that
+    // a pixel on a surface's edge averages the surface and the sky. The pass then resolves the
+    // samples.
     graph.add_pass(pass(
         Pass::Sky,
         Draws::Color {
-            target: hdr,
+            target: samples,
             depth: Some(depth),
             clear: false,
+            resolve: Some(hdr),
         },
         [None, None],
     ));

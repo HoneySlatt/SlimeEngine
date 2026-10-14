@@ -62,13 +62,16 @@ pub(crate) enum Imported<'a> {
 /// cannot run cannot be declared.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Draws {
-    /// A render target, and a depth target of its size or none ([`RenderPassDescriptor`]): both
-    /// cleared, to opaque black and to the farthest depth, when `clear`, or both kept, so that the
-    /// pass draws over what earlier passes left.
+    /// A render target, and a depth target of its size and samples or none
+    /// ([`RenderPassDescriptor`]): both cleared, to opaque black and to the farthest depth, when
+    /// `clear`, or both kept, so that the pass draws over what earlier passes left. A multisampled
+    /// target is resolved, as the pass ends, into `resolve`, a render target of one sample of its
+    /// size and format, which the resolve overwrites whole.
     Color {
         target: ColorId,
         depth: Option<DepthId>,
         clear: bool,
+        resolve: Option<ColorId>,
     },
     /// A depth target alone, cleared to the farthest depth ([`DepthPassDescriptor`]).
     Depth(DepthId),
@@ -87,25 +90,27 @@ pub(crate) struct PassDeclaration {
 }
 
 impl PassDeclaration {
-    /// The targets the pass draws into.
-    fn writes(&self) -> impl Iterator<Item = TargetId> {
-        let (first, second) = match self.draws {
-            Draws::Color { target, depth, .. } => (target.0, depth.map(|depth| depth.0)),
-            Draws::Depth(target) => (target.0, None),
+    /// The targets the pass draws into, each with whether the pass overwrites it whole, rather
+    /// than drawing over what it held: a cleared target, and a resolve's.
+    fn writes(&self) -> impl Iterator<Item = (TargetId, bool)> {
+        let [first, second, third] = match self.draws {
+            Draws::Color {
+                target,
+                depth,
+                clear,
+                resolve,
+            } => [
+                Some((target.0, clear)),
+                depth.map(|depth| (depth.0, clear)),
+                resolve.map(|resolve| (resolve.0, true)),
+            ],
+            Draws::Depth(target) => [Some((target.0, true)), None, None],
         };
-        std::iter::once(first).chain(second)
+        [first, second, third].into_iter().flatten()
     }
 
     fn reads(&self) -> impl Iterator<Item = TargetId> {
         self.reads.into_iter().flatten()
-    }
-
-    /// Whether the pass clears what it draws into, rather than keeping it.
-    fn clears(&self) -> bool {
-        match self.draws {
-            Draws::Color { clear, .. } => clear,
-            Draws::Depth(_) => true,
-        }
     }
 }
 
@@ -113,10 +118,11 @@ impl PassDeclaration {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Source {
     /// Created by the graph, of this format (`None` for a depth target), at the output's size
-    /// divided by 2^shift, rounded to the nearest.
+    /// divided by 2^shift, rounded to the nearest, of one sample per pixel or multisampled.
     Transient {
         format: Option<TextureFormat>,
         shift: u32,
+        multisampled: bool,
     },
     /// Given to each `record`, at this index of its `imported` list.
     Imported(usize),
@@ -145,7 +151,8 @@ pub(crate) enum GraphError {
     /// A pass samples a transient target that no pass draws into, or is the first to draw into one
     /// and keeps it: it would read what an earlier frame left.
     Unwritten { pass: Pass, target: String },
-    /// A pass clears a target that an earlier pass drew into, which would be lost unread.
+    /// A pass clears, or resolves into, a target that an earlier pass drew into, which would be
+    /// lost unread.
     ClearsDrawnTarget {
         pass: Pass,
         target: String,
@@ -175,7 +182,8 @@ impl fmt::Display for GraphError {
                 earlier,
             } => write!(
                 f,
-                "pass {pass:?} clears `{target}`, which pass {earlier:?} drew into before it"
+                "pass {pass:?} clears or resolves into `{target}`, which pass {earlier:?} drew into \
+                 before it"
             ),
             Self::SamplesItsTarget { pass, target } => {
                 write!(f, "pass {pass:?} samples `{target}`, which it draws into")
@@ -227,7 +235,7 @@ fn order(targets: &[Target], passes: &[PassDeclaration]) -> Result<Vec<usize>, G
     // For each target, the passes that draw into it, in the order they were added.
     let mut writers: Vec<Vec<usize>> = vec![Vec::new(); targets.len()];
     for (index, pass) in passes.iter().enumerate() {
-        for target in pass.writes() {
+        for (target, _) in pass.writes() {
             writers[target.0].push(index);
         }
     }
@@ -235,7 +243,7 @@ fn order(targets: &[Target], passes: &[PassDeclaration]) -> Result<Vec<usize>, G
     let mut after: Vec<Vec<usize>> = vec![Vec::new(); passes.len()];
     for (index, pass) in passes.iter().enumerate() {
         for target in pass.reads() {
-            if pass.writes().any(|written| written == target) {
+            if pass.writes().any(|(written, _)| written == target) {
                 return Err(GraphError::SamplesItsTarget {
                     pass: pass.pass,
                     target: label(target),
@@ -249,12 +257,12 @@ fn order(targets: &[Target], passes: &[PassDeclaration]) -> Result<Vec<usize>, G
             }
             after[index].extend(&writers[target.0]);
         }
-        for target in pass.writes() {
+        for (target, overwrites) in pass.writes() {
             let position = writers[target.0]
                 .iter()
                 .position(|&writer| writer == index)
                 .expect("listed above");
-            match (position, pass.clears()) {
+            match (position, overwrites) {
                 (0, false) if transient(target) => {
                     return Err(GraphError::Unwritten {
                         pass: pass.pass,
@@ -346,27 +354,49 @@ impl Graph {
         format: TextureFormat,
         shift: u32,
     ) -> ColorId {
-        ColorId(self.transient(label.into(), Some(format), shift))
+        ColorId(self.transient(label.into(), Some(format), shift, false))
     }
 
-    /// Declares a transient depth target, the output's size divided by 2^`shift`, named `label`
-    /// in error messages and capture tools.
-    ///
-    /// # Panics
-    ///
-    /// If that size has a side of zero.
-    pub(crate) fn transient_depth(&mut self, label: impl Into<String>, shift: u32) -> DepthId {
-        DepthId(self.transient(label.into(), None, shift))
+    /// Declares a transient render target of `format` at the output's size, of
+    /// [`MULTISAMPLE_COUNT`](slime_gfx::MULTISAMPLE_COUNT) samples per pixel, which passes draw
+    /// into and resolve ([`Draws::Color`]) and none samples, named `label` in error messages and
+    /// capture tools.
+    pub(crate) fn transient_multisampled_color(
+        &mut self,
+        label: impl Into<String>,
+        format: TextureFormat,
+    ) -> ColorId {
+        ColorId(self.transient(label.into(), Some(format), 0, true))
     }
 
-    fn transient(&mut self, label: String, format: Option<TextureFormat>, shift: u32) -> TargetId {
+    /// Declares a transient depth target at the output's size, of
+    /// [`MULTISAMPLE_COUNT`](slime_gfx::MULTISAMPLE_COUNT) samples per pixel, for the passes that
+    /// draw into a multisampled render target, named `label` in error messages and capture tools.
+    pub(crate) fn transient_multisampled_depth(&mut self, label: impl Into<String>) -> DepthId {
+        DepthId(self.transient(label.into(), None, 0, true))
+    }
+
+    fn transient(
+        &mut self,
+        label: String,
+        format: Option<TextureFormat>,
+        shift: u32,
+        multisampled: bool,
+    ) -> TargetId {
         assert!(
             scaled_side(self.width, shift) > 0 && scaled_side(self.height, shift) > 0,
             "transient target `{label}` would be empty: {}x{} divided by 2^{shift}",
             self.width,
             self.height
         );
-        self.add_target(label, Source::Transient { format, shift })
+        self.add_target(
+            label,
+            Source::Transient {
+                format,
+                shift,
+                multisampled,
+            },
+        )
     }
 
     /// Declares a render target that each [`record`](Self::record) is given, at the next index of
@@ -440,7 +470,12 @@ impl Graph {
     /// its renderer keeps the frame it had.
     pub(crate) fn create(&mut self, gpu: &Gpu, previous: Option<&Graph>) -> Result<(), GfxError> {
         for index in 0..self.targets.len() {
-            let Source::Transient { format, shift } = self.targets[index].source else {
+            let Source::Transient {
+                format,
+                shift,
+                multisampled,
+            } = self.targets[index].source
+            else {
                 continue;
             };
             let size = self.size(shift);
@@ -450,8 +485,10 @@ impl Graph {
                     Source::Transient {
                         format: old_format,
                         shift: old_shift,
+                        multisampled: old_multisampled,
                     } if old.label == target.label
                         && old_format == format
+                        && old_multisampled == multisampled
                         && previous.size(old_shift) == size =>
                     {
                         old.created.clone()
@@ -459,16 +496,20 @@ impl Graph {
                     _ => None,
                 })
             });
-            let created = match (reused, format) {
-                (Some(reused), _) => reused,
-                (None, Some(format)) => Created::Color(gpu.create_render_target(
-                    &target.label,
-                    size.0,
-                    size.1,
-                    format,
-                )?),
-                (None, None) => {
-                    Created::Depth(gpu.create_depth_target(&target.label, size.0, size.1)?)
+            let (label, (width, height)) = (target.label.as_str(), size);
+            let created = match (reused, format, multisampled) {
+                (Some(reused), _, _) => reused,
+                (None, Some(format), false) => {
+                    Created::Color(gpu.create_render_target(label, width, height, format)?)
+                }
+                (None, Some(format), true) => Created::Color(
+                    gpu.create_multisampled_render_target(label, width, height, format)?,
+                ),
+                (None, None, false) => {
+                    Created::Depth(gpu.create_depth_target(label, width, height)?)
+                }
+                (None, None, true) => {
+                    Created::Depth(gpu.create_multisampled_depth_target(label, width, height)?)
                 }
             };
             self.targets[index].created = Some(created);
@@ -566,13 +607,14 @@ impl Graph {
                             target,
                             depth: depth_target,
                             clear,
+                            resolve,
                         } => commands.render(
                             &RenderPassDescriptor {
                                 target: color(target),
                                 clear: clear.then_some(LinearColor::BLACK),
                                 depth: depth_target.map(depth),
                                 timer,
-                                resolve: None,
+                                resolve: resolve.map(color),
                             },
                             draw,
                         ),
@@ -619,6 +661,7 @@ mod tests {
             target,
             depth: None,
             clear,
+            resolve: None,
         }
     }
 
@@ -645,8 +688,9 @@ mod tests {
         let mut graph = Graph::new(64, 32);
         let output = graph.import_color("output");
         let shadow_map = graph.import_depth("shadow map");
-        let hdr = graph.transient_color("scene", HDR, 0);
-        let depth = graph.transient_depth("scene depth", 0);
+        let samples = graph.transient_multisampled_color("scene", HDR);
+        let depth = graph.transient_multisampled_depth("scene depth");
+        let hdr = graph.transient_color("scene resolved", HDR, 0);
         let down = [
             graph.transient_color("down 0", HDR, 1),
             graph.transient_color("down 1", HDR, 2),
@@ -672,13 +716,15 @@ mod tests {
             color(down[0], true),
             &[hdr.into()],
         ));
-        let scene = |clear| Draws::Color {
-            target: hdr,
+        // The sky pass resolves the samples into the target the bloom reads.
+        let scene = |clear, resolve| Draws::Color {
+            target: samples,
             depth: Some(depth),
             clear,
+            resolve,
         };
-        graph.add_pass(pass(Pass::Scene, scene(true), &[shadow_map.into()]));
-        graph.add_pass(pass(Pass::Sky, scene(false), &[]));
+        graph.add_pass(pass(Pass::Scene, scene(true, None), &[shadow_map.into()]));
+        graph.add_pass(pass(Pass::Sky, scene(false, Some(hdr)), &[]));
         graph.add_pass(pass(Pass::Shadow, Draws::Depth(shadow_map), &[]));
         assert_eq!(
             order_of(&mut graph),
@@ -788,6 +834,34 @@ mod tests {
     }
 
     #[test]
+    fn resolving_into_what_an_earlier_pass_drew_is_refused() {
+        // A resolve overwrites its target whole, as a clear does: it needs no earlier pass to have
+        // drawn into it, and loses what one did.
+        let mut graph = Graph::new(8, 8);
+        let samples = graph.transient_multisampled_color("scene", HDR);
+        let resolved = graph.transient_color("scene resolved", HDR, 0);
+        graph.add_pass(pass(Pass::Scene, color(resolved, true), &[]));
+        graph.add_pass(pass(
+            Pass::Sky,
+            Draws::Color {
+                target: samples,
+                depth: None,
+                clear: true,
+                resolve: Some(resolved),
+            },
+            &[],
+        ));
+        assert_eq!(
+            graph.compile(),
+            Err(GraphError::ClearsDrawnTarget {
+                pass: Pass::Sky,
+                target: "scene resolved".to_owned(),
+                earlier: Pass::Scene
+            })
+        );
+    }
+
+    #[test]
     fn a_pass_sampling_what_it_draws_into_is_refused() {
         let mut graph = Graph::new(8, 8);
         let up = graph.transient_color("up", HDR, 0);
@@ -800,7 +874,7 @@ mod tests {
             })
         );
         let mut graph = Graph::new(8, 8);
-        let depth = graph.transient_depth("depth", 0);
+        let depth = graph.import_depth("depth");
         graph.add_pass(pass(Pass::Shadow, Draws::Depth(depth), &[depth.into()]));
         assert_eq!(
             graph.compile(),
@@ -959,6 +1033,49 @@ mod tests {
         let created = third.color(kept);
         assert_eq!((created.width(), created.height()), (8, 4));
         assert_eq!(alpha(created), 0.0, "another size: created again");
+    }
+
+    #[test]
+    fn a_multisampled_target_is_not_reused_for_one_of_one_sample() {
+        // The second graph declares "scene" multisampled where the first had one sample: a reused
+        // target of one sample would make the resolve fail.
+        let gpu =
+            Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+        let output = gpu
+            .create_render_target("output", 8, 8, HDR)
+            .expect("the GPU has memory for it");
+        let mut first = Graph::new(8, 8);
+        let target = first.import_color("output");
+        let scene = first.transient_color("scene", HDR, 0);
+        first.add_pass(pass(Pass::Scene, color(scene, true), &[]));
+        first.add_pass(pass(
+            Pass::ToneMapping,
+            color(target, true),
+            &[scene.into()],
+        ));
+        first.compile().expect("the graph is valid");
+        first.create(&gpu, None).expect("the GPU has memory for it");
+
+        let mut second = Graph::new(8, 8);
+        let target = second.import_color("output");
+        let samples = second.transient_multisampled_color("scene", HDR);
+        second.add_pass(pass(
+            Pass::Scene,
+            Draws::Color {
+                target: samples,
+                depth: None,
+                clear: true,
+                resolve: Some(target),
+            },
+            &[],
+        ));
+        second.compile().expect("the graph is valid");
+        second
+            .create(&gpu, Some(&first))
+            .expect("the GPU has memory for it");
+        second.record(&gpu, "frame", &[Imported::Color(&output)], |_, _, _| {});
+        let image = gpu.read_float_render_target(&output).expect("read back");
+        assert_eq!(image.pixels[3], 1.0, "resolved from the cleared samples");
     }
 
     /// Records a frame of six passes, two submissions, the reader added before the pass that draws

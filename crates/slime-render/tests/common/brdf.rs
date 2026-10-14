@@ -60,18 +60,29 @@ pub fn to_camera(camera: &Camera, size: (u32, u32), pixel: (u32, u32), plane_z: 
 
 /// The point of the plane z = `plane_z` seen at the center of pixel `(x, y)` of a `width` ×
 /// `height` target, in world space.
-pub fn seen_point(
+pub fn seen_point(camera: &Camera, size: (u32, u32), (x, y): (u32, u32), plane_z: f64) -> DVec3 {
+    seen_point_at(
+        camera,
+        size,
+        (f64::from(x) + 0.5, f64::from(y) + 0.5),
+        plane_z,
+    )
+}
+
+/// The point of the plane z = `plane_z` seen at `(x, y)`, in pixels from the top left corner of a
+/// `width` × `height` target, in world space.
+pub fn seen_point_at(
     camera: &Camera,
     (width, height): (u32, u32),
-    (x, y): (u32, u32),
+    (x, y): (f64, f64),
     plane_z: f64,
 ) -> DVec3 {
     let inverse = camera
         .view_projection(width as f32 / height as f32)
         .as_dmat4()
         .inverse();
-    let ndc_x = (f64::from(x) + 0.5) / f64::from(width) * 2.0 - 1.0;
-    let ndc_y = 1.0 - (f64::from(y) + 0.5) / f64::from(height) * 2.0;
+    let ndc_x = x / f64::from(width) * 2.0 - 1.0;
+    let ndc_y = 1.0 - y / f64::from(height) * 2.0;
     // Two points along the ray: the near plane, at depth 1, and twice as far, at depth 0.5 (depth
     // is reversed, and 0 is infinitely far).
     let near = inverse.project_point3(DVec3::new(ndc_x, ndc_y, 1.0));

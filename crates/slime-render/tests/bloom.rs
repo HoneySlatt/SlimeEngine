@@ -35,14 +35,16 @@ fn camera() -> Camera {
     }
 }
 
-/// A square in the plane z = 0 that covers the centre of the pixel (x, y) of a `width` × `height`
-/// output, and no other: 0.6 pixel wide.
+/// A square in the plane z = 0 that covers the four samples of the pixel (x, y) of a `width` ×
+/// `height` output, and none of another pixel's: 0.9 pixel wide, its edges beyond the samples,
+/// which lie up to 0.375 pixel from the pixel's centre along each axis, and short of the nearest
+/// samples of its neighbours, 0.625 pixel from it.
 fn pixel_square(width: u32, height: u32, (x, y): (u32, u32)) -> MeshData {
     let half_height = DISTANCE * (FOV_Y / 2.0).tan();
     let half_width = half_height * width as f32 / height as f32;
     let cx = ((x as f32 + 0.5) / width as f32 * 2.0 - 1.0) * half_width;
     let cy = (1.0 - (y as f32 + 0.5) / height as f32 * 2.0) * half_height;
-    let half = 0.3 * 2.0 * half_height / height as f32;
+    let half = 0.45 * 2.0 * half_height / height as f32;
     MeshData {
         positions: vec![
             [cx - half, cy - half, 0.0],

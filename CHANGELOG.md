@@ -21,6 +21,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   `Gpu::create_multisampled_render_target` and `Gpu::create_multisampled_depth_target`, pipelines
   built for them, and passes that resolve them into ordinary targets
   ([ADR-0059](docs/adr/0059-multisampling-in-the-gpu-layer.md)).
+- The renderer smooths the edges of what it draws: the scene and the sky are drawn at four samples
+  per pixel, then each pixel is the average of its samples (multisample anti-aliasing,
+  [ADR-0056](docs/adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md)). A renderer holds
+  about 87 MiB more of GPU memory at 1920 × 1080, about 137 MiB in all.
 
 ### Changed
 
