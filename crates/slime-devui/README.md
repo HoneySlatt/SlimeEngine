@@ -5,13 +5,13 @@ statistics and tooling while the engine has no UI framework of its own.
 
 ## Status
 
-Temporary, tooling only (`docs/adr/0031-dev-overlay-with-egui.md`). The editor's UI framework
-(Stage 6 of `docs/ROADMAP.md`) replaces it, and this crate is deleted then. It draws egui panels
-over a frame and feeds egui the window's events, the modifier keys held included; it does not
-report the clipboard, cursor icons or input methods. A key pressed while Ctrl is held types no
-text, so that a shortcut does not type its letter into a text field. egui warns once at startup
-that the framebuffer is sRGB, since it prefers a linear one for its blending: the panels look
-slightly lighter than egui's own demos.
+Tooling only (`docs/adr/0031-dev-overlay-with-egui.md`). It is removed once what replaces it, the
+editor of Stage 6 of `docs/ROADMAP.md`, does at least as well
+(`docs/adr/0052-amend-roadmap-before-0-1.md`). It draws egui panels over a frame and feeds egui the
+window's events, the modifier keys held included; it does not report the clipboard, cursor icons or
+input methods. A key pressed while Ctrl is held types no text, so that a shortcut does not type its
+letter into a text field. egui warns once at startup that the framebuffer is sRGB, since it prefers
+a linear one for its blending: the panels look slightly lighter than egui's own demos.
 
 ## Role
 
@@ -95,4 +95,4 @@ impl App for Game {
 ## Must not
 
 - Be used by the engine's crates: it is a client of them, like the examples.
-- Outlive the engine's own UI framework: delete it when Stage 6 delivers one.
+- Outlive what replaces it: remove it once the editor of Stage 6 shows the same at least as well.

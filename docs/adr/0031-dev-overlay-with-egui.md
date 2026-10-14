@@ -1,6 +1,7 @@
 # 0031. The dev overlay with egui, and wgpu for the engine's tooling
 
-- Status: Accepted; its rule on the `wgpu` feature is widened to the engine's own tests (2026-10-13)
+- Status: Accepted; its rule on the `wgpu` feature is widened to the engine's own tests
+  (2026-10-13); amended by [0052](0052-amend-roadmap-before-0-1.md) (when the overlay is removed)
 - Date: 2026-10-13
 
 ## Context

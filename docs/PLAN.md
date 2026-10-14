@@ -17,6 +17,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   applied, and the findings of rounds 4 and 5 of the audit of 0.0.3 (issue
   [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are fixed or recorded below; next: a
   pass over the known debt that users of 0.1 would meet, then M3b.9.
+- Next: Stage 3c, a first game, added to the roadmap by
+  [ADR-0052](adr/0052-amend-roadmap-before-0-1.md); planned once 0.1 is released.
 
 ## Status
 

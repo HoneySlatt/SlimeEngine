@@ -312,8 +312,8 @@ example to read it back to the CPU. Image tests render this way, without a windo
 
 **Overlay (dev).** Panels drawn over the engine's frames with egui, to show statistics and
 tooling while the engine has no UI framework of its own (`slime_devui::Overlay`,
-[ADR-0031](adr/0031-dev-overlay-with-egui.md)). Temporary: the editor's UI framework of Stage 6
-replaces it.
+[ADR-0031](adr/0031-dev-overlay-with-egui.md)). Removed once what replaces it does at least as well
+([ADR-0052](adr/0052-amend-roadmap-before-0-1.md)).
 
 **Owner.** The person who validates the project's direction and its architecture decisions.
 
@@ -442,8 +442,9 @@ values of displays, image files, color pickers and web colors. A *linear color* 
 encoded as 128 out of 255. The GPU decodes the texels of sRGB textures and encodes what it writes
 into sRGB targets; `LinearColor::from_srgb8` decodes bytes on the CPU.
 
-**Stage.** A step of [`docs/ROADMAP.md`](ROADMAP.md), ordered by dependency, with a goal and an
-exit criterion. Stages are numbered from 0; a stage may be split (Stage 3a and 3b).
+**Stage.** A step of [`docs/ROADMAP.md`](ROADMAP.md), ordered by dependency, with a goal and an exit
+criterion. Stages are numbered from 0; a stage may be split (Stage 3a and 3b), and a stage added
+later takes a letter (Stage 3c), so that the numbers cited elsewhere stay right.
 
 **Submission.** Recorded GPU work handed to the GPU at once (`slime_gfx::Gpu::submit`, or the single
 pass of `Gpu::render`): one call into the driver, and a unit of synchronization on the GPU. Each

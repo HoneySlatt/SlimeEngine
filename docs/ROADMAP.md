@@ -19,6 +19,8 @@ Long-term targets, in order of reach:
 
 The project is a complete platform (runtime, asset pipeline, editor, SDK), not a renderer with extras. A native, full-featured editor is a first-class component.
 
+3D comes first. 2D and stylized games are made with the same renderer, through pieces that the stages add where they are needed: an orthographic camera, sprites, transparency, unlit and custom materials, crisp sampling for pixel art. There is no separate 2D renderer (ADR-0052).
+
 ## 2. Architecture
 
 | Layer | Contents | Boundary below |
@@ -35,7 +37,7 @@ The editor sits beside games, not inside the engine: it is a client of the engin
 1. **Dependency order beats feature appeal.** A system is built when what it depends on is solid.
 2. **Measure before optimising.** No custom containers or allocators without data showing the need.
 3. **No abstraction without a second concrete use.**
-4. **Every stage ends with a runnable sample.** An engine that is never used to build something drifts.
+4. **Every stage ends with a runnable sample.** An engine that is never used to build something drifts. From Stage 3c on, the sample is one game, grown by each stage.
 5. **Headless is a normal configuration.** The engine must run without window, renderer or audio. This is what makes CI tests and dedicated servers possible.
 6. **Instrumented from day one.** Profiling spans and GPU markers are added as systems are written, not retrofitted.
 7. **Existing crates are used wherever they are not the point of the engine,** and wrapped at the boundary so they can be replaced.
@@ -54,7 +56,6 @@ The editor sits beside games, not inside the engine: it is a client of the engin
 | Shaders | WGSL to start |
 | First platforms | Linux (Wayland and X11) and Windows: games run on both from Stage 2 on. macOS comes later. |
 | Game-facing API | Rust first. The C ABI and C++ SDK are derived later from a proven API. |
-| Editor UI | Engine-owned, GPU-rendered UI framework (no Qt/GTK) |
 | Windowing and input | winit, used only inside `platform`; its types never leave that crate (ADR-0011) |
 
 ### Open
@@ -65,7 +66,8 @@ Each is decided by ADR at the stage where it becomes necessary, not earlier.
 |---|---|---|
 | Entity model | hecs, bevy_ecs, custom ECS, or non-ECS | Stage 5 |
 | Serialization format | Text for sources, binary for cooked data | Stage 4–5 |
-| UI framework architecture | Retained, immediate, or hybrid | Stage 6 |
+| Editor UI | egui to start, as the dev overlay uses; an engine-owned, GPU-rendered framework (retained, immediate or hybrid) only for a measured need: performance, a limit of egui that the editor meets, or reuse for the UI of games. No Qt or GTK. (ADR-0052) | Stage 6 |
+| UI of games | The editor's framework, or one of their own | Stage 6, with the editor's |
 | Physics backend | rapier3d or other, behind an abstraction | Stage 7 |
 | Audio backend | To evaluate | Stage 7 |
 | Scripting language | Lua, C#, dedicated VM, other | Stage 8 |
@@ -165,6 +167,19 @@ Stage 3 is split in two so that each half ends with a runnable, tested sample.
 
 **Exit.** A sample scene with camera, lights, PBR materials and shadows, covered by image tests.
 
+### Stage 3c — A first game
+
+**Goal.** Use the engine as a game does, before the asset formats and the world model are designed.
+
+- A small game that uses the public API only: the player moves, interacts with a few objects and reaches an objective, and the game restarts cleanly
+- What the game finds hard to do, recorded as proposals for Stages 4 and 5
+
+The stage is added after 0.1 (ADR-0052) and has no release of its own; its game is the sample that every later stage grows.
+
+**Not yet.** Text, physics, sound: the engine does not have them.
+
+**Exit.** The game is played to its objective and restarted, on Linux and on Windows, through the public API only.
+
 ### Stage 4 — Asset pipeline → 0.2
 
 **Goal.** Replace "load a file at startup" with a real pipeline: source → import → engine asset → cook → runtime data.
@@ -173,8 +188,9 @@ Stage 3 is split in two so that each half ends with a runnable, tested sample.
 - Metadata, dependency tracking
 - Importers: glTF, images, then audio
 - Cooked cache, incremental rebuilds
-- Asynchronous loading on a basic task pool
+- Asynchronous loading on a basic task pool; loading threads create GPU objects through the `Gpu` they share
 - Hot reload
+- Recovering from a lost GPU device: the GPU objects are created again from their sources, where the run stops today (ADR-0022)
 
 **Exit.** The Stage 3 scene loads from cooked assets and the temporary loader is deleted. Moving a source file breaks no reference. A texture and a shader hot-reload at runtime.
 
@@ -185,6 +201,7 @@ Stage 3 is split in two so that each half ends with a runnable, tested sample.
 - Type registry and reflection (derive macro)
 - Serialization with format versioning
 - Entity model (decided here), components, transform hierarchy
+- The precision of world positions (decided here): the API's positions are `f32`, which the renderer draws relative to the camera (ADR-0048)
 - Worlds, scenes, prefabs
 - Entity lifetime and stable references
 
@@ -194,7 +211,7 @@ Stage 3 is split in two so that each half ends with a runnable, tested sample.
 
 **Goal.** A real editor, built as a client of the engine.
 
-- UI framework: text, layout, docking, widgets, input routing, focus, drag and drop, theming
+- Editor UI: text, layout, docking, widgets, input routing, focus, drag and drop, theming; on egui to start, on an engine-owned framework only if a measured need decides it (section 4)
 - Viewport, hierarchy, inspector (driven by reflection), asset browser
 - Command and transaction system: every edit is undoable
 - Play in editor
@@ -211,8 +228,9 @@ Stage 3 is split in two so that each half ends with a runnable, tested sample.
 - Physics behind an engine abstraction: bodies, colliders, constraints, queries, character controller
 - Audio: sources, listener, spatialization, buses, mixing, streaming
 - Input action mapping
+- UI of games: text, menus, HUD, on the framework decided at Stage 6
 
-**Exit.** A small playable sample (a character in a physical level, with sound), profiled end to end.
+**Exit.** The game has a character in a physical level, with sound and a UI, and is profiled end to end.
 
 ### Stage 8 — Extensibility → 0.6
 
@@ -224,9 +242,26 @@ Stage 3 is split in two so that each half ends with a runnable, tested sample.
 - C++ SDK as an ergonomic wrapper over the C ABI
 - Scripting (language decided here), bound through reflection, with reload and debugging
 
-**Exit.** The Stage 7 sample's gameplay lives in a plugin using only public API. A C++ sample builds against the SDK.
+**Exit.** The game's gameplay lives in a plugin using only public API. A C++ sample builds against the SDK.
 
-### Stage 9 — Content production → 0.7
+Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b needs a production renderer first.
+
+### Stage 9a — Production renderer → 0.7
+
+**Goal.** Render what a shipped game shows, beyond a simple scene.
+
+- Shadows: cascaded shadow maps for the directional light, shadows of point and spot lights
+- Many lights
+- Transparency
+- Anti-aliasing, then temporal anti-aliasing
+- Frustum culling, instancing
+- Fog, ambient occlusion, decals
+- A day-night cycle
+- The pieces for 2D and stylized games that no earlier stage needed (section 1)
+
+**Exit.** A level of the game, outdoors and indoors, with a day-night cycle, many lights, transparency and anti-aliasing, within the frame budgets tracked for the sample, covered by image tests.
+
+### Stage 9b — Content production → 0.8
 
 **Goal.** A team can produce a narrative game.
 
@@ -239,7 +274,7 @@ Stage 3 is split in two so that each half ends with a runnable, tested sample.
 
 **Exit.** A short narrative vertical slice (animated character, cutscene, gameplay) ships as a packaged build.
 
-### Stage 10 — Large worlds and networking → 0.8
+### Stage 10 — Large worlds and networking → 0.9
 
 **Goal.** Scale beyond a single level and a single machine.
 
@@ -252,7 +287,7 @@ Stage 3 is split in two so that each half ends with a runnable, tested sample.
 
 **Exit.** A streamed open-world sample with several clients connected to a dedicated server.
 
-### Stage 11 — Production readiness → 0.9, then 1.0
+### Stage 11 — Production readiness → 0.10, then 1.0
 
 **Goal.** External projects can rely on the engine.
 
@@ -264,7 +299,7 @@ Stage 3 is split in two so that each half ends with a runnable, tested sample.
 - macOS as a supported platform
 - User, SDK and engine documentation
 
-**Exit for 0.9.** An external project is built without touching engine source.
+**Exit for 0.10.** An external project is built without touching engine source.
 **Exit for 1.0.** A compatibility promise can be made and kept. There is no deadline for this.
 
 ## 7. Continuous tracks
@@ -280,7 +315,7 @@ These run through every stage. They are never "a phase for later".
 | Iteration speed | Compile times, hot reload, startup time |
 | Diagnostics | Logs, assertions, crash context |
 | Documentation | ADRs, architecture notes, API docs, sample walkthroughs |
-| Samples | One runnable example per stage, kept working |
+| Samples | One runnable example per stage, kept working; from Stage 3c on, the game that each stage grows |
 
 ## 8. Horizon
 
@@ -305,6 +340,7 @@ Direction only. None of this is planned work until Stage 11 is reached.
 | serialization | reflect |
 | world | reflect, serialization, assets |
 | editor | world, render, assets, UI framework |
+| UI of games | render, input action mapping, UI framework |
 | undo/redo | reflect, editor commands |
 | physics, audio, animation, navigation | world |
 | plugins, C ABI, scripting | reflect, stable module boundaries |
@@ -321,12 +357,14 @@ Direction only. None of this is planned work until Stage 11 is reached.
 | 0.0.2 | 2 | GPU layer |
 | 0.0.3 | 3a | First renderer |
 | 0.1 | 3b | Physically based renderer |
+| — | 3c | A first game, released with 0.2 |
 | 0.2 | 4 | Assets |
 | 0.3 | 5 | Reflection, serialization, world |
 | 0.4 | 6 | Editor |
 | 0.5 | 7 | Runtime systems |
 | 0.6 | 8 | Plugins, SDK, scripting |
-| 0.7 | 9 | Content production |
-| 0.8 | 10 | Large worlds, networking |
-| 0.9 | 11 | Usable by external projects |
+| 0.7 | 9a | Production renderer |
+| 0.8 | 9b | Content production |
+| 0.9 | 10 | Large worlds, networking |
+| 0.10 | 11 | Usable by external projects |
 | 1.0 | 11 | Stable API and SDK |
