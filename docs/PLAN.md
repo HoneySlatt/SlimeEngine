@@ -161,6 +161,11 @@ instead, and proposes a change with the stage it belongs to.
 - **A frame's instances are rebuilt from the game's own state** (M3c.1). The game keeps its blocks
   and its player, and turns them into a list of `Instance`s at every frame, with their transforms.
   Proposal: none yet; the world model of Stage 5 decides where the things drawn live.
+- **A material cannot change** (M3c.2). The switch's button glows red, brighter within reach, and
+  green once used: three materials made at the start, between which the game picks at each frame,
+  as it does for the caught slime and the floodlights' lamps. Proposal: values a game sets per
+  instance or changes on a material, such as an emission, with the material graph of Stage 9b, or
+  sooner if more findings ask.
 
 ## Releasing
 

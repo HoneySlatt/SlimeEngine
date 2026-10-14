@@ -9,11 +9,20 @@ of the engine, made in Stage 3c, and the sample that every later stage grows
 
 At night, in a courtyard closed by walls, the player, a small glowing slime, crosses from the
 entrance at the west end to the gate in the east wall. Inner walls split the courtyard into three
-parts, and crates stand where one can hide. The moon casts the shadows the player hides in.
+parts, joined by an opening at the south end of the first and the north end of the second, and
+crates stand where one can hide. A guard walks a round in each part, a flashlight in hand, slower
+than the player, stopping at each corner of its round to look round; a floodlight on the north
+wall lights the middle part, and another, on the east wall, the way to the gate.
 
-Planned for Stage 3c, and not there yet: guards who patrol with flashlights, fixed floodlights, a
-switch that turns one off, being seen, which starts the game again, and reaching the gate, which
-wins (`docs/PLAN.md`, Stage 3c).
+A light that sees the player ends the game: inside its cone and its reach, with no wall or crate
+in between. So does a guard that comes too near, whichever way it looks. The slime turns red under
+a red light, and a new game starts a moment later. The switch on the north wall of the east part
+turns the second floodlight off: its button glows red, brighter within reach, and green once used.
+Reaching the gate wins: the courtyard lights up under a green light, and a new game starts.
+
+The engine's spot lights cast no shadows, so a flashlight seems to light what stands behind a
+crate: the rules, which decide who sees the player, know better than the picture (a finding of
+Stage 3c, `docs/PLAN.md`).
 
 There is no text, sound or physics: the engine has none of them yet. The game moves the player
 and stops it at walls and crates on its own, on a flat ground, without jumping.
@@ -29,6 +38,8 @@ cargo run -p nightwatch -- --frames 120     # closes itself after 120 frames
 |---|---|
 | W, A, S, D (Z, Q, S, D on a French keyboard) | Move, relative to the camera |
 | Left and right arrows | Turn the camera around the player |
+| E | Use a switch within reach |
+| R | Start a new game |
 | Escape | Quit |
 
 Keys are read by their position on the keyboard, so that the four movement keys sit in the same
@@ -40,16 +51,17 @@ the `slime-examples-windows` artifact of each run.
 | Module | What it holds |
 |---|---|
 | `main.rs` | The application: the window, the game's loop through `slime_app::App`, the command line |
-| `rules.rs` | The rules, without the GPU: the player's movement, and its collisions with the blocks, as a circle against boxes on the ground |
-| `courtyard.rs` | The courtyard: its blocks, its entrance and its exit |
+| `rules.rs` | The rules, without the GPU: the player's movement and its collisions with the blocks, as a circle against boxes on the ground; the guards' rounds; what sees the player; the switch; winning, losing and a new game |
+| `sight.rs` | What a light sees: a cone on the ground, its reach, and the line of sight that blocks cut |
+| `courtyard.rs` | The courtyard: its blocks, the guards' rounds, the floodlights, the switch, its entrance and its exit |
 | `controls.rs` | Which of the game's keys are held |
 | `camera.rs` | The camera that follows the player |
-| `view.rs` | What the player sees: the renderer, the meshes, the materials, the moon and the night sky |
+| `view.rs` | What the player sees: the renderer, the meshes, the materials, the moon and the night sky, the guards' flashlights and the floodlights as spot lights, and how a game ends, in light |
 | `meshes.rs` | The meshes, built in code: a cube and a sphere |
 
 The rules run at the engine's fixed step, 1/60 s, so that a game plays the same on every machine;
-the camera turns at the frame's rate. The rules need no GPU, so that their tests, and the scripted
-games of the next milestones, run anywhere.
+the camera turns at the frame's rate. The rules need no GPU, so that their tests run anywhere: among
+them, scripted games that cross the courtyard to the gate, and that walk straight into a light.
 
 What the game needed and the engine did not give is recorded, as it is met, in the findings of
 Stage 3c in [`docs/PLAN.md`](../../docs/PLAN.md#findings).

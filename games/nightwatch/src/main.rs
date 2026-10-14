@@ -8,13 +8,14 @@
 //! ```
 //!
 //! W, A, S and D move (Z, Q, S and D on a French keyboard), the left and right arrows turn the
-//! camera, Escape quits.
+//! camera, E uses a switch within reach, R starts a new game, Escape quits.
 
 mod camera;
 mod controls;
 mod courtyard;
 mod meshes;
 mod rules;
+mod sight;
 mod view;
 
 use std::process::ExitCode;
@@ -61,12 +62,18 @@ impl App for Nightwatch {
         };
         self.controls.handle(key);
         if let KeyEvent {
-            physical: KeyCode::Escape,
+            physical,
             state: ButtonState::Pressed,
+            repeat: false,
             ..
         } = key
         {
-            ctx.request_exit();
+            match physical {
+                KeyCode::Escape => ctx.request_exit(),
+                KeyCode::KeyE => self.game.interact(),
+                KeyCode::KeyR => self.game.restart(),
+                _ => {}
+            }
         }
     }
 

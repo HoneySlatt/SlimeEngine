@@ -11,8 +11,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - *Nightwatch*, the first game made with the engine, through its public API only, in
   `games/nightwatch` ([ADR-0055](docs/adr/0055-games-in-the-workspace.md)): so far, a courtyard at
   night under the moon, which the player, a small glowing slime, crosses with the keyboard, stopped
-  by its walls and crates, under a camera that follows it. `cargo run -p nightwatch` plays it; CI
-  builds it for Windows with the examples.
+  by its walls and crates, under a camera that follows it, past guards with flashlights and
+  floodlights that end the game when they see it, to a gate that wins it; a switch turns a
+  floodlight off. `cargo run -p nightwatch` plays it; CI builds it for Windows with the examples.
 
 ## [0.1.0] - 2026-10-14
 
