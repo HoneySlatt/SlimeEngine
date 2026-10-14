@@ -31,8 +31,9 @@ pub(crate) const SHADOW_BIAS: DepthBias = DepthBias {
 ///
 /// The depth range is padded by 1/64 of the largest extent on each side, so that rounding does not
 /// clip the instances nearest to the light or farthest from it, and every extent is at least twice
-/// that pad, so that a scene flat along one axis keeps a projection. `None` when there is no box,
-/// when every box is a point, or when a box is at no finite place: nothing casts a shadow.
+/// that pad, so that a scene flat along one axis keeps a projection. A box at no finite place (an
+/// instance thrown to infinity) is left out, so that the others keep their shadows. `None` when
+/// no box is left, or when every box is a point: nothing casts a shadow.
 pub(crate) fn light_view_projection(
     direction: Vec3,
     boxes: impl IntoIterator<Item = (Mat4, Vec3, Vec3)>,
@@ -46,18 +47,24 @@ pub(crate) fn light_view_projection(
     );
     let (mut min, mut max) = (Vec3::INFINITY, Vec3::NEG_INFINITY);
     for (transform, center, half_size) in boxes {
+        if !transform.is_finite() {
+            continue;
+        }
         // The box of a box turned and scaled into the light's space: its center moves with the
         // transform, and each of its half sizes gathers the absolute values of the transform's
         // rows (Arvo's method), exactly the box around its eight corners.
         let to_view = view * transform;
         let center = to_view.transform_point3(center);
         let half_size = Mat3::from_mat4(to_view).abs() * half_size;
+        // A finite transform can still carry a box beyond the largest float.
+        if !(center.is_finite() && half_size.is_finite()) {
+            continue;
+        }
         min = min.min(center - half_size);
         max = max.max(center + half_size);
     }
     let pad = (max - min).max_element() / 64.0;
-    // No box gives −∞, boxes that are only points give 0, and boxes at no finite place give ∞ or
-    // NaN.
+    // No box gives −∞, and boxes that are only points give 0.
     if !pad.is_finite() || pad <= 0.0 {
         return None;
     }
@@ -172,6 +179,29 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn a_box_at_no_finite_place_is_left_out_and_the_others_keep_their_map() {
+        let unit = (Mat4::IDENTITY, Vec3::ZERO, Vec3::ONE);
+        let alone = light_view_projection(Vec3::NEG_Y, [unit]);
+        for far in [
+            Mat4::from_translation(Vec3::new(f32::INFINITY, 0.0, 0.0)),
+            Mat4::from_translation(Vec3::new(0.0, f32::NAN, 0.0)),
+            Mat4::from_scale(Vec3::splat(f32::INFINITY)),
+        ] {
+            assert_eq!(
+                light_view_projection(Vec3::NEG_Y, [unit, (far, Vec3::ZERO, Vec3::ONE)]),
+                alone,
+                "{far:?}"
+            );
+        }
+        let infinite = Mat4::from_translation(Vec3::splat(f32::INFINITY));
+        assert_eq!(
+            light_view_projection(Vec3::NEG_Y, [(infinite, Vec3::ZERO, Vec3::ONE)]),
+            None,
+            "no finite box is left"
+        );
     }
 
     #[test]

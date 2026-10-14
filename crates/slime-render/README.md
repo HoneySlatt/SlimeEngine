@@ -137,7 +137,8 @@ fn main() -> Result<(), RenderError> {
 - `Renderer::create_mesh(gpu, label, &MeshData)` uploads positions, normals, texture coordinates,
   tangents and indices as a `Mesh`, 48 bytes per vertex; data that cannot be drawn (arrays of
   different lengths, no vertex, no triangle, a number of indices that is not a multiple of three, an
-  index that names no vertex, more vertices or indices than a GPU buffer holds) is returned as
+  index that names no vertex, a vertex value that is not finite, more vertices or indices than a
+  GPU buffer holds) is returned as
   `RenderError::InvalidMesh`. `Renderer::create_material(gpu, label, &MaterialData)` creates a
   `Material` from glTF's metallic-roughness model: a base color, metallic and roughness factors, a
   normal scale, an occlusion strength, an emission and its strength, an `AlphaMode` (`Opaque`, or

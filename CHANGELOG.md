@@ -274,7 +274,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   `Gpu::read_render_target` showed translucent surfaces.
 - `Renderer::create_mesh` returns `RenderError::InvalidMesh` for a mesh whose vertices or indices
   need a buffer larger than the device accepts (`Gpu::max_buffer_size`, 256 MiB with the default
-  limits: more than 8 388 608 vertices or 67 108 864 indices), instead of panicking in wgpu.
+  limits: more than 5 592 405 vertices or 67 108 864 indices), instead of panicking in wgpu, and
+  for a vertex value (position, normal, uv or tangent) that is not finite, which drew nothing and,
+  for a position, took every shadow from the scene.
+- An instance whose transform puts it at no finite place no longer takes the shadows of the whole
+  scene away: the shadow map is fitted to the other instances.
 - `Camera`'s documentation names the inputs that give a matrix that is not finite: a `target` at
   `eye`, and a `far` that is not finite.
 - The dev overlay keeps its panels in place when the window's scale factor changes. Moving the

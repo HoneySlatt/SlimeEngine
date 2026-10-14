@@ -46,6 +46,29 @@ impl MeshData {
                 return Err(format!("it has {vertices} positions but {count} {name}"));
             }
         }
+        // A value that is not finite would put a vertex nowhere, or shade it with NaN, and an
+        // infinite position would leave the scene's shadow map without a size.
+        fn not_finite(values: impl IntoIterator<Item = f32>) -> Option<f32> {
+            values.into_iter().find(|value| !value.is_finite())
+        }
+        for (name, value) in [
+            (
+                "position",
+                not_finite(self.positions.iter().flatten().copied()),
+            ),
+            ("normal", not_finite(self.normals.iter().flatten().copied())),
+            ("uv", not_finite(self.uvs.iter().flatten().copied())),
+            (
+                "tangent",
+                not_finite(self.tangents.iter().flatten().copied()),
+            ),
+        ] {
+            if let Some(value) = value {
+                return Err(format!(
+                    "a vertex's {name} has a value that is not finite: {value}"
+                ));
+            }
+        }
         if self.indices.is_empty() {
             return Err("it has no triangle".to_owned());
         }
@@ -266,6 +289,34 @@ mod tests {
         assert_eq!(
             out_of_range.check(MAX_BUFFER_SIZE),
             Err("index 3 names no vertex: there are 3 vertices".to_owned())
+        );
+    }
+
+    #[test]
+    fn values_that_are_not_finite_are_rejected_in_every_vertex_array() {
+        let mut position = triangle();
+        position.positions[1][0] = f32::INFINITY;
+        assert_eq!(
+            position.check(MAX_BUFFER_SIZE),
+            Err("a vertex's position has a value that is not finite: inf".to_owned())
+        );
+        let mut normal = triangle();
+        normal.normals[2][1] = f32::NAN;
+        assert_eq!(
+            normal.check(MAX_BUFFER_SIZE),
+            Err("a vertex's normal has a value that is not finite: NaN".to_owned())
+        );
+        let mut uv = triangle();
+        uv.uvs[0][1] = f32::NEG_INFINITY;
+        assert_eq!(
+            uv.check(MAX_BUFFER_SIZE),
+            Err("a vertex's uv has a value that is not finite: -inf".to_owned())
+        );
+        let mut tangent = triangle();
+        tangent.tangents[1][3] = f32::NAN;
+        assert_eq!(
+            tangent.check(MAX_BUFFER_SIZE),
+            Err("a vertex's tangent has a value that is not finite: NaN".to_owned())
         );
     }
 
