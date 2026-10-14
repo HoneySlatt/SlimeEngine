@@ -2,7 +2,9 @@
 
 - Status: Accepted; amends [0027](0027-the-render-crate.md),
   [0034](0034-hdr-rendering-and-tone-mapping.md) and
-  [0037](0037-lights-in-physical-units-and-pre-exposure.md)
+  [0037](0037-lights-in-physical-units-and-pre-exposure.md); amended by
+  [0041](0041-render-graph.md) (the passes recorded four to a submission with the others, timed by
+  their submissions' timers; the levels freed while the bloom is off)
 - Date: 2026-10-14
 
 ## Context

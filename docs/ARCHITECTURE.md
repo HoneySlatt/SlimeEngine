@@ -43,7 +43,7 @@ is created only when code needs it.
 | [`slime-platform`](../crates/slime-platform/README.md) | The window, its events and keyboard and mouse input; the only crate that uses the windowing library (winit) | `winit`, `raw-window-handle`, `thiserror`, `tracing` | One window; window, keyboard and mouse events |
 | [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `slime-platform`, `slime-gfx`, `ctrlc`, `thiserror`, `tracing`, `tracing-subscriber` | Headless runs, and windowed runs drawn by the GPU |
 | [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu, apart from the dev overlay through its `wgpu` feature | `wgpu`, `pollster`, `raw-window-handle`, `thiserror`, `tracing` | Opens a GPU device; draws into offscreen images, 8-bit or 16-bit float, and reads them back; draws into a window; later passes sample what earlier ones drew; depth-only passes; textures and cube textures whose levels the caller gives, half-precision floats among their formats |
-| [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, lit by directional, point and spot lights, seen from a camera, into render targets, and reports what a frame cost; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `glam`, `thiserror`, `tracing` | Meshes with tangents, glTF's metallic-roughness materials (five textures, masks, double-sided), a perspective camera, the depth test, up to 16 directional, point and spot lights in physical units (`KHR_lights_punctual`), a procedural sky computed on the CPU that surfaces reflect (image-based lighting) and that is drawn behind them with its sun's disc, the shadows of the first directional light that casts them (one shadow map, 3 × 3 PCF), mirrored instances drawn with their front faces, the scene drawn in HDR with its light exposed, an energy-conserving bloom, then tone mapped, statistics with the GPU time of each pass |
+| [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, lit by directional, point and spot lights, seen from a camera, into render targets, and reports what a frame cost; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `glam`, `thiserror`, `tracing` | Meshes with tangents, glTF's metallic-roughness materials (five textures, masks, double-sided), a perspective camera, the depth test, up to 16 directional, point and spot lights in physical units (`KHR_lights_punctual`), a procedural sky computed on the CPU that surfaces reflect (image-based lighting) and that is drawn behind them with its sun's disc, the shadows of the first directional light that casts them (one shadow map, 3 × 3 PCF), mirrored instances drawn with their front faces, the scene drawn in HDR with its light exposed, an energy-conserving bloom, then tone mapped, the passes ordered by a render graph and recorded four to a submission, statistics with the GPU time of each pass |
 | [`slime-devui`](../crates/slime-devui/README.md) | The dev overlay: egui drawn over the engine's frames, fed with the engine's events; temporary tooling until the editor's UI framework exists | `egui`, `egui-wgpu`, `slime-gfx` (with its `wgpu` feature), `slime-platform` | Panels over a frame; no modifier keys, clipboard or input methods |
 | [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `gltf`, `png`, `tracing` | `hello`, `headless`, `window`, `offscreen`, `scene`; the reference image tests; a temporary glTF loader |
 
@@ -229,8 +229,9 @@ gpu = Gpu::new()
 │                                                        target (8192 with the default limits)
 ├── max_buffer_size()                                    the largest buffer (256 MiB with the
 │                                                        default limits)
-├── create_timer(label)                                  a GpuTimer per timed pass, when can_time()
-│                                                        says the adapter has timestamp queries
+├── create_timer(label, passes)                          a GpuTimer for up to `passes` passes of a
+│                                                        submission, when can_time() says the
+│                                                        adapter has timestamp queries
 ├── render(&RenderPassDescriptor { target, clear, depth, timer }, |pass| ...)
 │                                                        one command encoder and render pass; the
 │                                                        closure sets the pipeline, the bind groups
@@ -239,13 +240,18 @@ gpu = Gpu::new()
 ├── render_depth(&DepthPassDescriptor { depth, timer }, |pass| ...)
 │                                                        a pass without a render target: clears the
 │                                                        depth target, draws depth-only pipelines
+├── submit(label, |commands| ...)                        several passes (commands.render,
+│                                                        commands.render_depth) in one command
+│                                                        encoder, then one submission; a timer's
+│                                                        passes numbered in recording order
 ├── read_render_target(&target)                          copy into a buffer, wait for the GPU,
 │                                                        map it → Image (8-bit RGBA, top row first)
 └── read_float_render_target(&target)                    an Rgba16Float target → FloatImage (f32)
 ```
 
-A frame of several passes runs them one after another, each submitted by its `render` or
-`render_depth`. A later pass binds the targets an earlier one drew into
+A frame of several passes runs them one after another: each submitted by its `render` or
+`render_depth`, or several in one submission (`submit`), which costs the CPU less
+([ADR-0041](adr/0041-render-graph.md)). A later pass binds the targets an earlier one drew into
 (`BindingResource::RenderTarget`, `BindingResource::DepthTarget`). A pass cannot sample what it
 draws into: wgpu refuses it and the engine panics
 ([ADR-0033](adr/0033-gpu-layer-for-multi-pass-rendering.md)).
@@ -265,14 +271,16 @@ reference PNG within a tolerance ([ADR-0018](adr/0018-reference-image-tests.md))
 `slime-render` draws meshes with the objects above. The application builds a `Scene` for each
 frame, a flat list of instances seen from a camera, and the renderer draws it into any render
 target, the window's image or an offscreen one, in passes: the shadow map, the scene in high
-dynamic range, the sky behind it, the bloom's chain, then tone mapping into the target
-([`crates/slime-render/src/renderer.rs`](../crates/slime-render/src/renderer.rs), rules:
+dynamic range, the sky behind it, the bloom's chain, then tone mapping into the target, ordered
+and recorded by a render graph
+([`crates/slime-render/src/renderer.rs`](../crates/slime-render/src/renderer.rs),
+[`crates/slime-render/src/graph.rs`](../crates/slime-render/src/graph.rs), rules:
 [ADR-0027](adr/0027-the-render-crate.md), [ADR-0034](adr/0034-hdr-rendering-and-tone-mapping.md),
 [ADR-0035](adr/0035-physically-based-materials.md),
 [ADR-0037](adr/0037-lights-in-physical-units-and-pre-exposure.md),
 [ADR-0038](adr/0038-shadow-mapping.md),
 [ADR-0039](adr/0039-image-based-lighting-computed-on-the-cpu.md),
-[ADR-0040](adr/0040-bloom.md)):
+[ADR-0040](adr/0040-bloom.md), [ADR-0041](adr/0041-render-graph.md)):
 
 ```text
 renderer = Renderer::new(&gpu, format)                 the output's format; three shaders and nine
@@ -301,9 +309,6 @@ renderer = Renderer::new(&gpu, format)                 the output's format; thre
 │                                                      panics
 └── render(&gpu, &target, &Scene { camera, lights, environment, exposure, bloom, instances })
     │                                                  → RenderStats; panics beyond 16 lights
-    ├── the HDR target (Rgba16Float), the depth target, the bloom's levels (the output divided by
-    │   2^i, rounded to the nearest, to a side of 8 texels) and the groups that read them, created
-    │   at the target's size, again together when it changes
     ├── the light-space matrix of the first directional light that casts shadows: an orthographic
     │   projection covering the instances' boxes as that light sees them
     ├── the frame uniform ← camera.view_projection(aspect), the sky's directions from clip space,
@@ -314,24 +319,31 @@ renderer = Renderer::new(&gpu, format)                 the output's format; thre
     ├── the instance buffer ← each instance's transform, normal        bind group 2, one dynamic
     │   matrix and handedness (−1 when it mirrors), one slot each, at  offset per instance
     │   the device's alignment; grows when a scene needs it
-    ├── the shadow pass into the shadow map, a depth-only pass skipped when no light casts
-    │   shadows, timed by a GpuTimer of its own: for each instance, the shadow pipeline its
-    │   material asks for (masked or not), its bind groups and buffers, draw_indexed
-    ├── the scene pass into the HDR target, cleared to black, timed by a GpuTimer when the adapter
-    │   can, the shadow map's group bound at group 3: for each instance, the pipeline that its
-    │   material's double-sidedness and its transform's mirroring choose (set when it changes), its
-    │   material's bind group 1, its slot, its buffers, draw_indexed
-    ├── the sky pass into the HDR target, keeping it and the depth target, timed by a GpuTimer of
-    │   its own: one triangle at the far plane, drawn where the depth test finds no surface, reads
-    │   the environment along each pixel's direction, adds the sun's disc, times the exposure
-    ├── unless the scene's bloom is 0: the bloom's passes, a GpuTimer each (bloom.wgsl): each level
-    │   filtered down from the one above with Jimenez's 13 taps, then each averaged up with the
-    │   coarser average through a 3 × 3 tent, every level with the same weight, every read mirrored
-    │   at the edges; no pass reads what it writes
-    ├── the tone-mapping pass into the target, timed by a GpuTimer of its own: one fullscreen
-    │   triangle reads each pixel's texel (textureLoad), mixes in the bloom's first average by the
-    │   scene's strength, multiplies by 64, applies Khronos PBR Neutral and writes it opaque; an
-    │   sRGB target encodes it
+    ├── the frame's render graph, built again when the frame's shape changes (the target's size,
+    │   the shadow pass or the bloom starting or stopping): the passes below, each declaring the
+    │   targets it draws into and samples, ordered by them; the HDR target (Rgba16Float), the depth
+    │   target and, while the bloom runs, its levels (the output divided by 2^i, rounded to the
+    │   nearest, to a side of 8 texels), created at the target's size; the groups that read them,
+    │   built from the passes' declarations; a GpuTimer per submission
+    ├── the passes, in the graph's order, four to a submission named after the target, each timed
+    │   by its submission's GpuTimer when the adapter can:
+    │   ├── the shadow pass into the shadow map, a depth-only pass skipped when no light casts
+    │   │   shadows: for each instance, the shadow pipeline its material asks for (masked or not),
+    │   │   its bind groups and buffers, draw_indexed
+    │   ├── the scene pass into the HDR target, cleared to black, the shadow map's group bound at
+    │   │   group 3: for each instance, the pipeline that its material's double-sidedness and its
+    │   │   transform's mirroring choose (set when it changes), its material's bind group 1, its
+    │   │   slot, its buffers, draw_indexed
+    │   ├── the sky pass into the HDR target, keeping it and the depth target: one triangle at the
+    │   │   far plane, drawn where the depth test finds no surface, reads the environment along
+    │   │   each pixel's direction, adds the sun's disc, times the exposure
+    │   ├── unless the scene's bloom is 0: the bloom's passes (bloom.wgsl): each level filtered
+    │   │   down from the one above with Jimenez's 13 taps, then each averaged up with the coarser
+    │   │   average through a 3 × 3 tent, every level with the same weight, every read mirrored at
+    │   │   the edges; no pass reads what it writes
+    │   └── the tone-mapping pass into the target: one fullscreen triangle reads each pixel's texel
+    │       (textureLoad), mixes in the bloom's first average by the scene's strength, multiplies
+    │       by 64, applies Khronos PBR Neutral and writes it opaque; an sRGB target encodes it
     └── RenderStats: the scene pass's draw calls and triangles, the shadow pass's draw calls, the
         CPU time of this call, and the GPU time of each pass, the bloom's summed, a few frames old,
         the latest that came back
@@ -339,9 +351,10 @@ renderer = Renderer::new(&gpu, format)                 the output's format; thre
 
 The dev overlay ([`crates/slime-devui/src/lib.rs`](../crates/slime-devui/src/lib.rs),
 [ADR-0031](adr/0031-dev-overlay-with-egui.md)) draws after the tone-mapping pass, in the output,
-in a pass that keeps the target: the application hands it every window event, which it translates into egui's, and in
-`render` builds its panels with egui and lets egui's wgpu renderer draw them, through the wgpu
-objects that the `wgpu` feature of `slime-gfx` gives.
+in a pass and a submission of its own that keep the target: the application hands it every window
+event, which it translates into egui's, and in `render` builds its panels with egui and lets
+egui's wgpu renderer draw them, through the wgpu objects that the `wgpu` feature of `slime-gfx`
+gives.
 
 The shader ([`shader.wgsl`](../crates/slime-render/src/shader.wgsl)) transforms each vertex by its
 instance's matrix then the camera's, and its normal by the instance's normal matrix (the cofactor

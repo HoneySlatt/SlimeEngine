@@ -120,8 +120,11 @@ fn main() -> Result<(), RenderError> {
   scene, which differ by the faces they cull, the sky's, the bloom's two and the tone-mapping
   one), uploads the table of the BRDF's scale and bias, which the first renderer of a process
   computes on the CPU, and creates the shadow map, 2048 × 2048 depths (16 MiB); the
-  high-dynamic-range target, the depth target and the bloom's levels (4.7 MiB at 1280 × 720) are
-  created at the size of the first output drawn into, and again when the size changes.
+  high-dynamic-range and depth targets are created at the size of the first output drawn into, and
+  again when the size changes, and the bloom's levels (4.7 MiB at 1280 × 720) likewise, only while
+  the bloom runs: they are freed when it stops and created again when it resumes. A renderer draws
+  best into outputs of one size: one that draws into outputs of two sizes in turn creates its
+  targets again at every call and reports no tone-mapping or bloom time; use one per output size.
 - `Renderer::create_environment(gpu, &Sky)` computes a sky's `Environment` on the CPU, on every
   core, and uploads it: a cube map of 128 × 128 texels per face and four levels prefiltered for
   roughnesses 0.25 to 1, in half-precision floats (1.0 MiB), the last also the light a matte
@@ -174,9 +177,9 @@ fn main() -> Result<(), RenderError> {
   and the GPU time of each pass (`shadow_gpu_time`, `scene_gpu_time`, `sky_gpu_time`,
   `tone_mapping_gpu_time`, and `bloom_gpu_time` for the bloom's passes together), measured with a
   `slime_gfx::GpuTimer` per submission of four passes on adapters that can time their work and
-  read back a few frames later (`None` otherwise, until the first time comes back, and for two or
-  three frames after the output's size changes or the shadow pass or the bloom starts or stops);
-  times from different submissions can come from consecutive frames.
+  read back a few frames later (`None` otherwise, until the first time comes back, and for a few
+  frames after the output's size changes or the shadow pass or the bloom starts or stops); times
+  from different submissions can come from different frames, usually consecutive ones.
 - `Camera`: an eye, a target, an up direction, a vertical field of view in radians, and the near
   and far distances; `view`, `projection(aspect)` and `view_projection(aspect)` give its matrices.
 - `Light`: one of the punctual lights of glTF's `KHR_lights_punctual`, each with a linear color and

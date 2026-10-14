@@ -168,9 +168,9 @@ the asset pipeline of Stage 4 will import them.
 
 **GPU time.** How long the GPU took to run a render pass, measured by timestamps written at its
 start and its end (`slime_gfx::GpuTimer`) and read back a few frames later; `None` on adapters
-without timestamp queries. Each timed pass has a `GpuTimer` of its own. The renderer's statistics
-report one per pass (`scene_gpu_time`, `tone_mapping_gpu_time`) with the CPU time of the call
-(`slime_render::RenderStats`).
+without timestamp queries. A `GpuTimer` times the passes of one *submission*, each apart. The
+renderer's statistics report one per kind of pass (`scene_gpu_time`, `tone_mapping_gpu_time`,
+the bloom's passes summed) with the CPU time of the call (`slime_render::RenderStats`).
 
 **Graphics API.** The interface between programs and GPU drivers: Vulkan (the engine's choice on
 Linux) and Direct3D 12 (on Windows). wgpu translates the engine's calls into one of them.
@@ -199,6 +199,11 @@ pixel by pixel, within a tolerance that absorbs how drivers round colors and fil
 ([ADR-0018](adr/0018-reference-image-tests.md), amended by
 [ADR-0028](adr/0028-image-tests-tolerate-a-few-pixels.md) and
 [ADR-0030](adr/0030-image-tests-strict-on-the-reference-driver.md)).
+
+**Imported target.** A target of the *render graph* that outlives the frame and that the graph
+does not create: the output, which may be a window's image that changes every frame, and the
+*shadow map*. It holds what it held before the frame, so a pass may sample it without an earlier
+pass drawing into it ([ADR-0041](adr/0041-render-graph.md)).
 
 **Index buffer.** A buffer of indices into a vertex buffer, so that the triangles of a mesh share
 vertices (`slime_gfx::IndexBuffer`).
@@ -347,6 +352,12 @@ with. The references are rendered with lavapipe and rendered again only on purpo
 deliberate change of what the test draws, or after an update of lavapipe that changes them
 ([ADR-0030](adr/0030-image-tests-strict-on-the-reference-driver.md)).
 
+**Render graph.** The renderer's description of a frame as passes, each declaring the targets it
+draws into and the ones it samples (`crates/slime-render/src/graph.rs`, private): it orders the
+passes by those targets, creates the *transient targets*, records the passes, four to a
+*submission*, and gives each one's *GPU time* ([ADR-0041](adr/0041-render-graph.md)). It is built
+again when the frame's *shape* changes.
+
 **Render target.** An image the GPU draws into (`slime_gfx::RenderTarget`): an offscreen image,
 which can be read back to the CPU and sampled by later passes, or the image of a window for one
 frame, which can be neither.
@@ -371,6 +382,10 @@ renderer's is 2048 × 2048, drawn each frame for the first directional light tha
 through an orthographic projection that covers the boxes around the instances
 ([ADR-0038](adr/0038-shadow-mapping.md)).
 
+**Shape (of a frame).** What decides the renderer's passes and targets: the output's size, whether
+the shadow pass runs and whether the bloom's passes do. The *render graph* is built again, and its
+GPU times start over, when it changes ([ADR-0041](adr/0041-render-graph.md)).
+
 **Simulated time.** Frame deltas supplied as a constant duration instead of being measured, so
 that a run gives the same results on every machine. Headless runs use it.
 
@@ -394,6 +409,11 @@ steps per frame and dropping the rest.
 
 **Stage.** A step of [`docs/ROADMAP.md`](ROADMAP.md), ordered by dependency, with a goal and an
 exit criterion. Stages are numbered from 0; a stage may be split (Stage 3a and 3b).
+
+**Submission.** Recorded GPU work handed to the GPU at once (`slime_gfx::Gpu::submit`, or the single
+pass of `Gpu::render`): one call into the driver, and a unit of synchronization on the GPU. Each
+costs CPU time, so the renderer records its passes four to a submission
+([ADR-0041](adr/0041-render-graph.md)).
 
 **Sun's disc.** The disc of the sun's apparent size, 0.533°, that the *sky pass* draws, whose
 radiance gives a surface facing it the sun's illuminance; it lights nothing, the scene's
@@ -430,6 +450,11 @@ meant to balance the reflection of their surroundings that surfaces get from ima
 **Tooling (engine's).** Code that serves development and ships with no game: the dev *overlay*
 today. It alone may reach wgpu, through the `wgpu` feature of `slime-gfx`
 ([ADR-0031](adr/0031-dev-overlay-with-egui.md)).
+
+**Transient target.** A target of the *render graph* that it creates, at the output's size divided
+by a power of two, and whose content lives for one frame: the renderer's high-dynamic-range and
+depth targets and the bloom's levels. It is kept from frame to frame, and reused by the graph of the
+next *shape* that declares it at the same size ([ADR-0041](adr/0041-render-graph.md)).
 
 **Uniform buffer.** A buffer of values that a whole draw reads, such as a camera's matrices,
 declared `var<uniform>` in WGSL and read through a *bind group* (`slime_gfx::UniformBuffer`).

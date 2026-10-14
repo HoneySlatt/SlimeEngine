@@ -1,9 +1,8 @@
 //! Timing passes on the GPU: a timed pass reports a duration a few frames later, without
 //! waiting, on adapters that support timestamp queries; others give no timer. Several passes of a
 //! frame, a depth-only one among them, are timed by a timer each, or by one timer when they share a
-//! submission. Runs on whatever adapter the
-//! machine offers and prints what it found, so that the checks on lavapipe and the Windows CI job
-//! on WARP tell what software drivers support.
+//! submission. Runs on whatever adapter the machine offers and prints what it found, so that the
+//! checks on lavapipe and the Windows CI job on WARP tell what software drivers support.
 
 use std::time::Duration;
 

@@ -16,7 +16,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   `BindingType::DepthTexture`); pipelines without a vertex buffer, for a fullscreen triangle built
   from the vertex index; depth-only pipelines and passes (`Gpu::render_depth`); comparison samplers
   (`Gpu::create_comparison_sampler`, `BindingType::ComparisonSampler`), for shadow lookups with
-  percentage-closer filtering; and a depth bias on pipelines (`DepthBias`).
+  percentage-closer filtering; and a depth bias on pipelines (`DepthBias`). Several passes can be
+  recorded into one submission (`Gpu::submit` and `Commands`,
+  [ADR-0041](docs/adr/0041-render-graph.md)), which costs the CPU less than a submission per pass.
 - `Gpu::max_texture_dimension()` and `Gpu::max_buffer_size()`: the largest width or height of a
   texture, a render target, a depth target or a window's image (8192 with the default limits),
   and the largest buffer (256 MiB). A loader checks the images and meshes of a file against them
@@ -123,8 +125,18 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   sample them. `Gpu::create_texture` panics on `Rgba16Float`, whose textures take the levels their
   caller gives, and `Gpu::read_render_target` on its targets, read with
   `Gpu::read_float_render_target`.
-- `GpuTimer::latest` takes no argument and no longer polls the device. Times come back when later
-  work is submitted (the next frame) or in `Gpu::wait_idle`.
+- A `GpuTimer` times the passes of one submission, each apart: `Gpu::create_timer(label, passes)`
+  takes how many passes of a submission it times, and `GpuTimer::latest(pass)` takes a pass's
+  number in the order they were recorded instead of the GPU; it no longer polls the device. Times
+  come back when later work is submitted (the next frame) or in `Gpu::wait_idle`.
+- `Renderer::render` orders its passes with a render graph and records them four to a
+  submission, each timed by one timer, instead of a submission and a timer per pass
+  ([ADR-0041](docs/adr/0041-render-graph.md)): on an RX 6900 XT it takes about half the CPU time
+  (at 1920 × 1080, 0.81 → 0.38 ms with the bloom, 0.22 → 0.11 ms without). Its GPU times can be
+  `None` for a few frames after the output's size changes or the shadow pass or the bloom starts
+  or stops, and never come back for the tone-mapping and bloom passes of a renderer that draws
+  into outputs of two sizes in turn: use one renderer per output size. The bloom's levels are
+  freed while the bloom is off. Images do not change.
 - The `submit` profiling span covers only the queue submission. wgpu's validation and encoding of
   a pass's commands now count in the caller's span (`render` in a windowed run).
 - The second termination signal no longer logs a warning before it ends the process; exit code

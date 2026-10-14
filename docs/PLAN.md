@@ -15,8 +15,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 - Stage 3b — Physically based renderer → 0.1: in progress. Planned on 2026-10-13 and validated by
   the owner. M3b.1 to M3b.7 are done. The owner's decisions of 2026-10-13 on earlier proposals are
   applied, and the findings of rounds 4 and 5 of the audit of 0.0.3 (issue
-  [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are fixed or recorded below; next:
-  M3b.8, then a pass over the known debt that users of 0.1 would meet, before M3b.9.
+  [#4](https://github.com/HoneySlatt/SlimeEngine/issues/4)) are fixed or recorded below. M3b.8 is
+  in progress: its code and documents are in, its check to record; then a pass over the known debt
+  that users of 0.1 would meet, before M3b.9.
 
 ## Status
 
@@ -29,7 +30,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M3b.5](#m3b5--shadows) | Shadows | Done |
 | [M3b.6](#m3b6--image-based-lighting) | Image-based lighting | Done |
 | [M3b.7](#m3b7--bloom) | Bloom | Done |
-| [M3b.8](#m3b8--render-graph) | Render graph | Planned |
+| [M3b.8](#m3b8--render-graph) | Render graph | In progress |
 | [M3b.9](#m3b9--windows-check-documentation-release-01) | Windows check, documentation, release 0.1 | Planned |
 
 Stages 0, 1, 2 and 3a are done; see [Completed stages](#completed-stages).
@@ -92,7 +93,8 @@ it:
 - Render graph. Extracted at the end of the stage from the passes that exist then (shadow, scene,
   sky, bloom, tone mapping), as the roadmap asks: passes declare the targets they read and write,
   the graph owns the targets that live for one frame and orders the passes; no memory aliasing, no
-  asynchronous compute.
+  asynchronous compute. (Done at M3b.8, ADR-0041: a private module of `slime-render`, built again
+  when the frame's shape changes, recording the passes four to a submission.)
 - GPU layer. `slime-gfx` gains what the passes need, when they need it, without wgpu outside it
   (ADR-0016): float render targets, targets and depth targets that shaders sample, pipelines
   without vertex buffers, passes without color targets, comparison samplers and depth bias in
@@ -630,8 +632,10 @@ GitHub issues, linked from their entry; this list stays the reference.
   6900 XT (RADV), with two builds that differ only by it: no cost (the scene pass took 43.9 µs
   with it and 44.0 µs without at 1920 × 1080, ADR-0033's correction). Other GPUs are not measured.
 - **A pipeline that does not fit its pass, or a target sampled by the pass that draws into it,
-  panics only when the pass ends** inside `Gpu::render` or `Gpu::render_depth`, with wgpu's
-  message, rather than at the faulty call (ADR-0033).
+  panics only when the commands of its submission are finished** inside `Gpu::submit` (or
+  `Gpu::render`, `Gpu::render_depth`), with wgpu's message naming the pass, rather than at the
+  faulty call (ADR-0033, ADR-0041). For the renderer's frame, the render graph refuses a pass that
+  samples what it draws into before wgpu sees it.
 - **On X11, losing the connection to the X server ends the process** with exit status 1, inside
   the X11 library (Xlib). `EventHandler::exiting`, `App::shutdown` and the return of `run` do not
   happen, although ADR-0010 promises that `shutdown` is called once `init` has been. winit
@@ -868,10 +872,26 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **The `shapes` image test uses 33 of the 65 pixels that RADV may have off by more than 8**
   (ADR-0030): edges and the metal spheres' reflections of the sky (49 at M3b.6, before the bloom).
   A change that adds reflective detail may exceed it; measure it again then.
-- **Every pass is its own submission** (ADR-0033, ADR-0040). The bloom's 11 to 13 passes cost 0.51
-  to 0.63 ms of CPU per frame on the owner's machine, each pass an encoder, a submission and a
-  timer. M3b.8's graph is to record a frame in one submission; to measure: `RenderStats::cpu_time`
-  before and after, at 1280 × 720 and 1920 × 1080.
+- **Four passes per submission is a number measured on one machine** (ADR-0041). On the owner's
+  RX 6900 XT (RADV), whose memory that the CPU can map is a 256 MiB window, one submission of a
+  whole bloomed frame stalled in the kernel once the desktop's programs and a test program filled
+  that window to 241 MiB (a mean 2.4 ms, 8 ms in one frame of ten, at 1920 × 1080); submissions of
+  2 to 6 passes did not, 8 did. The cause in the kernel is not established; Direct3D 12 and other
+  GPUs are not measured, and a GPU with resizable BAR has no such window. To measure: the CPU time
+  of `render` at 1920 × 1080 with the sample's bloom, for several values of
+  `PASSES_PER_SUBMISSION` in `crates/slime-render/src/graph.rs`, with the window filled to
+  several levels, by the desktop's programs or by a program that allocates device-local,
+  host-visible memory (on Linux, `mem_info_vis_vram_used` in the GPU's sysfs directory tells how
+  full it is).
+- **The render graph trusts what a pass says it samples from imported targets** (ADR-0041). The
+  groups that sample transient targets are built from the declarations, but the scene pass's group
+  holding the shadow map is built with the renderer: a pass that binds an imported target must
+  declare it, or the graph orders it without knowing.
+- **A renderer whose frame changes shape at every call reports no tone-mapping or bloom time**
+  (ADR-0041). Each change of shape (the output's size, the shadow pass or the bloom starting or
+  stopping) builds the frame again with new timers, and the last submission's times come back
+  during the next call, by then read from newer timers; such a renderer also creates its targets
+  again at every call, as it did before. Use one renderer per output size.
 - **Tiny, very bright sources blink in the bloom** (ADR-0040). Without a firefly filter (Karis's
   average dims the sun's halo and makes it flicker, measured), a highlight smaller than a pixel
   blooms as its coverage of the pixel changes from frame to frame. Temporal anti-aliasing, or a cap

@@ -135,11 +135,13 @@ pub struct RenderStats {
     /// How long the GPU took to draw the scene into the high-dynamic-range target: the latest time
     /// that has come back, a few frames old. The passes of a frame are timed four to a submission
     /// (ADR-0041): the times of the passes of one submission come from the same frame, those of
-    /// different submissions can come from consecutive frames. `None` on adapters that cannot
-    /// time their work
-    /// ([`Gpu::can_time`](slime_gfx::Gpu::can_time)), until the first time comes back, and for
-    /// the two or three frames after the frame's passes or targets change (the output's size, the
-    /// shadow pass or the bloom turned on or off).
+    /// different submissions can come from different frames, usually consecutive ones. `None` on
+    /// adapters that cannot time their work ([`Gpu::can_time`](slime_gfx::Gpu::can_time)), until
+    /// the first time comes back, and for a few frames after the frame's passes or targets change
+    /// (the output's size, the shadow pass or the bloom turned on or off), until the submission
+    /// that holds the pass has its first time. A renderer whose frame changes at every call, drawing
+    /// into outputs of two sizes in turn for example, gets no tone-mapping or bloom time: use one
+    /// renderer per output size.
     pub scene_gpu_time: Option<Duration>,
     /// How long the GPU took for the tone-mapping pass, under the same rules. On Vulkan, each time
     /// runs from the end of the work before the pass to its end, so the times of a frame do not

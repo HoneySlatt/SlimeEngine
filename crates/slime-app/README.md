@@ -156,8 +156,8 @@ spent in them: `frame`, containing `fixed_update`, `update`, and with a window `
 for the window's image), `render` (with `submit`, recorded by `slime-gfx`) and `present`. Each
 line is written to standard error when its span closes, while the enclosing span is still open, so
 a span's time includes writing the lines of the spans it contains; with `slime_gfx=trace`, the
-renderer's `RenderStats::cpu_time` likewise includes the `submit` lines of its passes. Take timing
-baselines with `SLIME_LOG` unset, and use the span lines for where the time goes. A bare
+renderer's `RenderStats::cpu_time` likewise includes the `submit` lines of its submissions. Take
+timing baselines with `SLIME_LOG` unset, and use the span lines for where the time goes. A bare
 `SLIME_LOG=trace` logs them too, but also turns on the trace logs of wgpu and of its shader
 compiler, among them a line for each command of each draw, written while a pass is encoded: they
 flood standard error, and the time spent writing them counts in the spans. In GPU capture tools

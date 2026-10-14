@@ -8,8 +8,8 @@
 // linear, from 0 to 65504.
 @group(0) @binding(0) var scene_light: texture_2d<f32>;
 // The bloom chain's blurred copy of it, half the output's size rounded to the nearest (the scene's
-// light itself, with a strength of 0, when the output is too small for a chain), and the linear
-// sampler, mirrored at the edges, that magnifies it.
+// light itself, with a strength of 0, when the bloom does not run), and the linear sampler,
+// mirrored at the edges, that magnifies it.
 @group(0) @binding(1) var bloom_light: texture_2d<f32>;
 @group(0) @binding(2) var bloom_sampler: sampler;
 struct Bloom {

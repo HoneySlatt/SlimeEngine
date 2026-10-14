@@ -4,7 +4,8 @@
   [0032](0032-mipmaps-computed-at-texture-creation.md),
   [0033](0033-gpu-layer-for-multi-pass-rendering.md),
   [0034](0034-hdr-rendering-and-tone-mapping.md), [0035](0035-physically-based-materials.md),
-  [0037](0037-lights-in-physical-units-and-pre-exposure.md) and [0038](0038-shadow-mapping.md)
+  [0037](0037-lights-in-physical-units-and-pre-exposure.md) and [0038](0038-shadow-mapping.md);
+  amended by [0041](0041-render-graph.md) (the sky pass shares a submission and its timer)
 - Date: 2026-10-13
 
 ## Context
