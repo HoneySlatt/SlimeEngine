@@ -15,22 +15,6 @@ use slime_render::{
 
 const SIZE: u32 = 64;
 
-/// A square two units wide facing +Z, centred on its origin.
-fn square() -> MeshData {
-    MeshData {
-        positions: vec![
-            [-1.0, -1.0, 0.0],
-            [1.0, -1.0, 0.0],
-            [1.0, 1.0, 0.0],
-            [-1.0, 1.0, 0.0],
-        ],
-        normals: vec![[0.0, 0.0, 1.0]; 4],
-        uvs: vec![[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]],
-        tangents: vec![[1.0, 0.0, 0.0, 1.0]; 4],
-        indices: vec![0, 1, 2, 0, 2, 3],
-    }
-}
-
 /// Draws the scene moved by `offset` and reads the output back.
 fn draw(offset: Vec3) -> FloatImage {
     let gpu =
@@ -41,7 +25,7 @@ fn draw(offset: Vec3) -> FloatImage {
         .create_render_target("precision", SIZE, SIZE, TextureFormat::Rgba16Float)
         .expect("the GPU has memory for it");
     let square = renderer
-        .create_mesh(&gpu, "square", &square())
+        .create_mesh(&gpu, "square", &MeshData::square())
         .expect("the square is valid");
     let white = renderer
         .create_material(&gpu, "white", &MaterialData::default())
@@ -58,11 +42,11 @@ fn draw(offset: Vec3) -> FloatImage {
         )
         .expect("the GPU has memory for it");
     let moved = Mat4::from_translation(offset);
-    // The floor in the plane y = 0, and the square leaning over it, 2 cm up.
-    let floor =
-        Mat4::from_rotation_x(-std::f32::consts::FRAC_PI_2) * Mat4::from_scale(Vec3::splat(0.5));
+    // The floor in the plane y = 0, a metre wide, and the square leaning over it, 6 cm wide, 2 cm
+    // up.
+    let floor = Mat4::from_rotation_x(-std::f32::consts::FRAC_PI_2);
     let leaning = Mat4::from_scale_rotation_translation(
-        Vec3::splat(0.03),
+        Vec3::splat(0.06),
         Quat::from_euler(slime_render::glam::EulerRot::XYZ, -1.1, 0.4, 0.2),
         Vec3::new(0.015_625, 0.031_25, -0.007_812_5),
     );

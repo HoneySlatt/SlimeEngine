@@ -25,7 +25,7 @@ use tone_curve::displayed;
 
 const SIZE: u32 = 16;
 
-/// The renderer and a white square facing +Z, two units wide, centred on the origin.
+/// The renderer and a white square facing +Z, drawn two units wide, centred on the origin.
 struct Setup {
     gpu: Gpu,
     renderer: Renderer,
@@ -40,22 +40,7 @@ impl Setup {
         let renderer =
             Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer is created");
         let square = renderer
-            .create_mesh(
-                &gpu,
-                "square",
-                &MeshData {
-                    positions: vec![
-                        [-1.0, -1.0, 0.0],
-                        [1.0, -1.0, 0.0],
-                        [1.0, 1.0, 0.0],
-                        [-1.0, 1.0, 0.0],
-                    ],
-                    normals: vec![[0.0, 0.0, 1.0]; 4],
-                    uvs: vec![[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]],
-                    tangents: vec![[1.0, 0.0, 0.0, 1.0]; 4],
-                    indices: vec![0, 1, 2, 0, 2, 3],
-                },
-            )
+            .create_mesh(&gpu, "square", &MeshData::square())
             .expect("the square is valid");
         let white = renderer
             .create_material(&gpu, "white", &MaterialData::default())
@@ -109,7 +94,14 @@ impl Setup {
         };
         let instances: Vec<Instance<'_>> = transforms
             .iter()
-            .map(|&transform| Instance::new(&self.square, &self.white, transform))
+            // `MeshData::square` is one unit wide: drawn two.
+            .map(|&transform| {
+                Instance::new(
+                    &self.square,
+                    &self.white,
+                    transform * Mat4::from_scale(Vec3::splat(2.0)),
+                )
+            })
             .collect();
         let uniform = LinearColor::rgb(sky, sky, sky);
         let environment = (sky > 0.0).then(|| {

@@ -34,24 +34,9 @@ fn the_base_color_texture_is_read_at_the_texture_coordinates_and_tints_the_base_
         .create_render_target("materials", SIZE, SIZE, TextureFormat::Rgba8UnormSrgb)
         .expect("the GPU has memory for it");
     let mut renderer = Renderer::new(&gpu, target.format()).expect("the renderer is created");
-    // A square facing +Z, two units wide, with the texture's top left at its top left.
+    // A square facing +Z, with the texture's top left at its top left, drawn two units wide.
     let square = renderer
-        .create_mesh(
-            &gpu,
-            "square",
-            &MeshData {
-                positions: vec![
-                    [-1.0, -1.0, 0.0],
-                    [1.0, -1.0, 0.0],
-                    [1.0, 1.0, 0.0],
-                    [-1.0, 1.0, 0.0],
-                ],
-                normals: vec![[0.0, 0.0, 1.0]; 4],
-                uvs: vec![[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]],
-                tangents: vec![[1.0, 0.0, 0.0, 1.0]; 4],
-                indices: vec![0, 1, 2, 0, 2, 3],
-            },
-        )
+        .create_mesh(&gpu, "square", &MeshData::square())
         .expect("the square is valid");
     // Red and green on the top row, blue and white below.
     let texture = gpu
@@ -149,7 +134,11 @@ fn the_base_color_texture_is_read_at_the_texture_coordinates_and_tints_the_base_
         (&dimmed, shown(0.5), "half base color"),
         (&translucent, shown(1.0), "half alpha"),
     ] {
-        let instances = [Instance::new(&square, material, Mat4::IDENTITY)];
+        let instances = [Instance::new(
+            &square,
+            material,
+            Mat4::from_scale(Vec3::splat(2.0)),
+        )];
         let lights = [light];
         let mut scene = Scene::new(camera, &instances);
         scene.lights = &lights;

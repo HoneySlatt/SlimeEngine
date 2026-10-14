@@ -17,8 +17,6 @@
 mod brdf;
 #[path = "common/shown.rs"]
 mod shown;
-#[path = "common/sphere.rs"]
-mod sphere;
 #[path = "common/tone_curve.rs"]
 #[expect(
     dead_code,
@@ -37,7 +35,6 @@ use slime_render::{
 
 use brdf::Surface;
 use shown::assert_shows;
-use sphere::sphere;
 
 /// The shadow map's width in texels: `SHADOW_MAP_SIZE` in `crates/slime-render/src/shadow.rs`.
 const SHADOW_MAP_SIZE: f64 = 2048.0;
@@ -50,8 +47,8 @@ const WHITE: Surface = Surface {
 /// The radiance of a uniform sky: what a white surface in shadow reflects.
 const SKY: f64 = 0.125;
 
-/// The renderer, a 64 × 64 `Rgba16Float` output, a white matte square two units wide facing +Z,
-/// centred on the origin, and its material.
+/// The renderer, a 64 × 64 `Rgba16Float` output, a white matte square drawn two units wide,
+/// facing +Z, centred on the origin, and its material.
 struct Setup {
     gpu: Gpu,
     renderer: Renderer,
@@ -72,22 +69,7 @@ impl Setup {
             .create_render_target("shadows", SIZE, SIZE, TextureFormat::Rgba16Float)
             .expect("the GPU has memory for it");
         let square = renderer
-            .create_mesh(
-                &gpu,
-                "square",
-                &MeshData {
-                    positions: vec![
-                        [-1.0, -1.0, 0.0],
-                        [1.0, -1.0, 0.0],
-                        [1.0, 1.0, 0.0],
-                        [-1.0, 1.0, 0.0],
-                    ],
-                    normals: vec![[0.0, 0.0, 1.0]; 4],
-                    uvs: vec![[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]],
-                    tangents: vec![[1.0, 0.0, 0.0, 1.0]; 4],
-                    indices: vec![0, 1, 2, 0, 2, 3],
-                },
-            )
+            .create_mesh(&gpu, "square", &MeshData::square())
             .expect("the square is valid");
         let white = renderer
             .create_material(&gpu, "white", &MaterialData::default())
@@ -140,7 +122,12 @@ impl Setup {
         let instances: Vec<Instance<'_>> = squares
             .iter()
             .map(|&(material, transform, casts_shadows)| {
-                let mut instance = Instance::new(&self.square, material, transform);
+                // `MeshData::square` is one unit wide: drawn two.
+                let mut instance = Instance::new(
+                    &self.square,
+                    material,
+                    transform * Mat4::from_scale(Vec3::splat(2.0)),
+                );
                 instance.casts_shadows = casts_shadows;
                 instance
             })
@@ -690,10 +677,11 @@ fn a_lit_sphere_does_not_shadow_itself() {
     // drawn as without shadows: a convex surface casts none on itself there.
     let mesh = setup
         .renderer
-        .create_mesh(&setup.gpu, "sphere", &sphere(16, 24))
+        .create_mesh(&setup.gpu, "sphere", &MeshData::sphere(16, 24))
         .expect("the sphere is valid");
     let radius = 0.2;
-    let transform = Mat4::from_scale(Vec3::splat(radius as f32));
+    // `MeshData::sphere` is one metre across.
+    let transform = Mat4::from_scale(Vec3::splat(2.0 * radius as f32));
     let to_light = DVec3::new(0.5, 0.8, 0.6).normalize();
     let light = DirectionalLight {
         direction: (-to_light).as_vec3(),

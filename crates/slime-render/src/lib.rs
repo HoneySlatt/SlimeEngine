@@ -10,6 +10,7 @@ mod material;
 mod mesh;
 mod renderer;
 mod shadow;
+mod shapes;
 
 /// The math crate whose vectors, matrices and quaternions the API uses, re-exported so that
 /// callers use the same version (ADR-0027).

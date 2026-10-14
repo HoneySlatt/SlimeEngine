@@ -15,6 +15,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   floodlights that end the game when they see it, to a gate that wins it; a switch turns a
   floodlight off, and F1 shows what each frame costs. `cargo run -p nightwatch` plays it; CI builds
   it for Windows with the examples.
+- `MeshData::cube`, `MeshData::sphere` and `MeshData::square` make simple shapes in code, one metre
+  across, for a game or a test that has no model to load.
 
 ## [0.1.0] - 2026-10-14
 

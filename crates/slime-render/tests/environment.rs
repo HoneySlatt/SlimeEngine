@@ -12,8 +12,6 @@
     reason = "this file finds view rays itself: it has no use for points of a plane"
 )]
 mod brdf;
-#[path = "common/sphere.rs"]
-mod sphere;
 #[path = "common/tone_curve.rs"]
 #[expect(
     dead_code,
@@ -26,11 +24,10 @@ use std::f64::consts::PI;
 use slime_gfx::{FloatImage, Gpu, LinearColor, RenderTarget, TextureFormat};
 use slime_render::glam::{DVec3, Mat4, Vec3};
 use slime_render::{
-    Camera, DirectionalLight, Environment, Instance, Material, MaterialData, Mesh, Renderer, Scene,
-    Sky,
+    Camera, DirectionalLight, Environment, Instance, Material, MaterialData, Mesh, MeshData,
+    Renderer, Scene, Sky,
 };
 
-use sphere::sphere;
 use tone_curve::tone_map;
 
 const SIZE: u32 = 48;
@@ -121,7 +118,7 @@ impl Setup {
             .create_render_target("environment", SIZE, SIZE, TextureFormat::Rgba16Float)
             .expect("the GPU has memory for it");
         let sphere = renderer
-            .create_mesh(&gpu, "sphere", &sphere(64, 128))
+            .create_mesh(&gpu, "sphere", &MeshData::sphere(64, 128))
             .expect("the sphere is valid");
         Self {
             gpu,
@@ -147,7 +144,10 @@ impl Setup {
         exposure: f32,
     ) -> FloatImage {
         let instances: Vec<Instance<'_>> = material
-            .map(|material| Instance::new(&self.sphere, material, Mat4::IDENTITY))
+            // `MeshData::sphere` is one metre across: drawn twice that, the unit sphere.
+            .map(|material| {
+                Instance::new(&self.sphere, material, Mat4::from_scale(Vec3::splat(2.0)))
+            })
             .into_iter()
             .collect();
         let mut scene = Scene::new(camera, &instances);
@@ -512,7 +512,12 @@ fn an_environment_draws_with_any_renderer_and_a_scene_without_one_is_black() {
     let made_here = setup.draw(camera, &environment, Some(&material), 1.0);
     let mut other =
         Renderer::new(&setup.gpu, TextureFormat::Rgba16Float).expect("the renderer is created");
-    let instances = [Instance::new(&setup.sphere, &material, Mat4::IDENTITY)];
+    // The unit sphere, as `draw` draws it.
+    let instances = [Instance::new(
+        &setup.sphere,
+        &material,
+        Mat4::from_scale(Vec3::splat(2.0)),
+    )];
     let mut scene = Scene::new(camera, &instances);
     scene.environment = Some(&environment);
     other

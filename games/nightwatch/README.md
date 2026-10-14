@@ -57,8 +57,7 @@ the `slime-examples-windows` artifact of each run.
 | `courtyard.rs` | The courtyard: its blocks, the guards' rounds, the floodlights, the switch, its entrance and its exit |
 | `controls.rs` | Which of the game's keys are held |
 | `camera.rs` | The camera that follows the player, looking down more steeply, or coming nearer, when a wall would stand between them |
-| `view.rs` | What the player sees: the renderer, the meshes, the materials, the moon and the night sky, the guards' flashlights and the floodlights as spot lights, and how a game ends, in light |
-| `meshes.rs` | The meshes, built in code: a cube and a sphere |
+| `view.rs` | What the player sees: the renderer, the engine's cube and sphere, the materials, the moon and the night sky, the guards' flashlights and the floodlights as spot lights, and how a game ends, in light |
 | `statistics.rs` | The dev overlay that shows what each frame costs |
 
 The rules run at the engine's fixed step, 1/60 s, so that a game plays the same on every machine;

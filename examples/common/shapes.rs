@@ -4,7 +4,7 @@
 //! row of dielectrics and a row of metals of increasing roughness (ADR-0035); a directional light,
 //! and a camera that orbits them with time.
 
-use std::f32::consts::{PI, TAU};
+use std::f32::consts::PI;
 
 use slime_gfx::{Gpu, LinearColor, RenderTarget, SamplerDescriptor, TextureFormat};
 use slime_render::glam::{Mat4, Quat, Vec3};
@@ -73,8 +73,8 @@ impl Shapes {
     /// `format`.
     pub fn new(gpu: &Gpu, format: TextureFormat) -> Result<Self, RenderError> {
         let renderer = Renderer::new(gpu, format)?;
-        let cube = renderer.create_mesh(gpu, "cube", &cube())?;
-        let sphere = renderer.create_mesh(gpu, "sphere", &sphere(0.5, 16, 24))?;
+        let cube = renderer.create_mesh(gpu, "cube", &MeshData::cube())?;
+        let sphere = renderer.create_mesh(gpu, "sphere", &MeshData::sphere(16, 24))?;
         let checker = gpu.create_texture(
             "checker",
             CHECKER_SIZE,
@@ -208,132 +208,6 @@ impl Shapes {
         scene.bloom = BLOOM;
         self.renderer.render(gpu, target, &scene)
     }
-}
-
-/// A cube of side 1 centred on the origin: four vertices per face, so that each face has its own
-/// normal, texture coordinates and tangent.
-pub fn cube() -> MeshData {
-    // Each face: its normal, then its four corners counter-clockwise as seen from outside.
-    const FACES: [([f32; 3], [[f32; 3]; 4]); 6] = [
-        (
-            [0.0, 0.0, 1.0],
-            [
-                [-1.0, -1.0, 1.0],
-                [1.0, -1.0, 1.0],
-                [1.0, 1.0, 1.0],
-                [-1.0, 1.0, 1.0],
-            ],
-        ),
-        (
-            [0.0, 0.0, -1.0],
-            [
-                [1.0, -1.0, -1.0],
-                [-1.0, -1.0, -1.0],
-                [-1.0, 1.0, -1.0],
-                [1.0, 1.0, -1.0],
-            ],
-        ),
-        (
-            [1.0, 0.0, 0.0],
-            [
-                [1.0, -1.0, 1.0],
-                [1.0, -1.0, -1.0],
-                [1.0, 1.0, -1.0],
-                [1.0, 1.0, 1.0],
-            ],
-        ),
-        (
-            [-1.0, 0.0, 0.0],
-            [
-                [-1.0, -1.0, -1.0],
-                [-1.0, -1.0, 1.0],
-                [-1.0, 1.0, 1.0],
-                [-1.0, 1.0, -1.0],
-            ],
-        ),
-        (
-            [0.0, 1.0, 0.0],
-            [
-                [-1.0, 1.0, 1.0],
-                [1.0, 1.0, 1.0],
-                [1.0, 1.0, -1.0],
-                [-1.0, 1.0, -1.0],
-            ],
-        ),
-        (
-            [0.0, -1.0, 0.0],
-            [
-                [-1.0, -1.0, -1.0],
-                [1.0, -1.0, -1.0],
-                [1.0, -1.0, 1.0],
-                [-1.0, -1.0, 1.0],
-            ],
-        ),
-    ];
-    // The corners of a face from its bottom left, counter-clockwise; (0, 0) is the top left of
-    // the texture.
-    const UVS: [[f32; 2]; 4] = [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]];
-
-    let mut data = MeshData::default();
-    for (face, (normal, corners)) in FACES.iter().enumerate() {
-        let first = u32::try_from(face * 4).expect("a cube has 24 vertices");
-        // u grows from the first corner to the second, and the fourth is up the texture's image,
-        // where the bitangent cross(normal, tangent) points on every face: the handedness is 1.
-        let tangent = (Vec3::from(corners[1]) - Vec3::from(corners[0])).normalize();
-        for (corner, uv) in corners.iter().zip(UVS) {
-            data.positions
-                .push(corner.map(|coordinate| coordinate * 0.5));
-            data.normals.push(*normal);
-            data.uvs.push(uv);
-            data.tangents.push([tangent.x, tangent.y, tangent.z, 1.0]);
-        }
-        data.indices
-            .extend([first, first + 1, first + 2, first, first + 2, first + 3]);
-    }
-    data
-}
-
-/// A sphere of radius `radius` centred on the origin, smooth: the normal of each vertex points
-/// away from the centre. `rings` bands go from the top pole to the bottom one and `segments`
-/// go around; the texture wraps around it once, its top row at the top pole. It is mirrored on the
-/// surface: u grows with the azimuth, and cross(normal, tangent) points down the image, so the
-/// handedness is −1.
-pub fn sphere(radius: f32, rings: u32, segments: u32) -> MeshData {
-    let mut data = MeshData::default();
-    for ring in 0..=rings {
-        let polar = PI * ring as f32 / rings as f32;
-        let (y, ring_radius) = (polar.cos(), polar.sin());
-        for segment in 0..=segments {
-            let azimuth = TAU * segment as f32 / segments as f32;
-            let normal = [ring_radius * azimuth.cos(), y, ring_radius * azimuth.sin()];
-            data.positions
-                .push(normal.map(|coordinate| coordinate * radius));
-            data.normals.push(normal);
-            data.uvs
-                .push([segment as f32 / segments as f32, ring as f32 / rings as f32]);
-            data.tangents
-                .push([-azimuth.sin(), 0.0, azimuth.cos(), -1.0]);
-        }
-    }
-    // Each ring is a row of `segments + 1` vertices, the last one repeating the first with the
-    // texture's right edge. Between two rows, each quad gives two triangles wound
-    // counter-clockwise from outside, except at the poles, where one of them has no area.
-    let row = segments + 1;
-    for ring in 0..rings {
-        for segment in 0..segments {
-            let a = ring * row + segment;
-            let b = a + row;
-            let c = b + 1;
-            let d = a + 1;
-            if ring != 0 {
-                data.indices.extend([a, d, c]);
-            }
-            if ring != rings - 1 {
-                data.indices.extend([a, c, b]);
-            }
-        }
-    }
-    data
 }
 
 /// A checker of light and dark squares, as sRGB-encoded pixels, rows from top to bottom.

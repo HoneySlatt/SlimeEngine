@@ -14,7 +14,6 @@
 mod camera;
 mod controls;
 mod courtyard;
-mod meshes;
 mod rules;
 mod sight;
 mod statistics;

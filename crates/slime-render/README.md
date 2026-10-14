@@ -99,6 +99,9 @@ fn main() -> Result<(), RenderError> {
 - `Renderer::create_environment(gpu, &Sky)` computes, on the CPU, the `Environment` that lights a
   scene and shows behind it: a procedural sky of a zenith, a horizon, a ground and an optional sun.
   It is slow: create one per sky, not per frame.
+- `MeshData::cube()`, `MeshData::sphere(rings, segments)` and `MeshData::square()` make simple
+  shapes in code, one metre across and centred on their origin, for an instance's transform to
+  place and scale.
 - `Renderer::create_mesh(gpu, label, &MeshData)` uploads a `Mesh`; mesh data that cannot be drawn
   is returned as `RenderError::InvalidMesh`. `Renderer::create_material(gpu, label,
   &MaterialData)` creates a `Material` with glTF's metallic-roughness model, its textures given as

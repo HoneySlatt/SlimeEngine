@@ -53,9 +53,9 @@ const TOWARDS_TANGENT: [u8; 4] = [191, 128, 238, 255];
 /// The same tilt towards the bitangent, up the texture's image.
 const TOWARDS_BITANGENT: [u8; 4] = [128, 191, 238, 255];
 
-/// The renderer, a 9 × 9 `Rgba16Float` output, a white square two units wide facing +Z centred
-/// on the origin (texture coordinates from (0, 1) at its bottom left, tangents along +X), and a
-/// nearest sampler for the tests' small textures.
+/// The renderer, a 9 × 9 `Rgba16Float` output, a white square drawn two units wide, facing +Z,
+/// centred on the origin (texture coordinates from (0, 1) at its bottom left, tangents along +X),
+/// and a nearest sampler for the tests' small textures.
 struct Setup {
     gpu: Gpu,
     renderer: Renderer,
@@ -74,22 +74,7 @@ impl Setup {
             .create_render_target("shading", SIZE, SIZE, TextureFormat::Rgba16Float)
             .expect("the GPU has memory for it");
         let square = renderer
-            .create_mesh(
-                &gpu,
-                "square",
-                &MeshData {
-                    positions: vec![
-                        [-1.0, -1.0, 0.0],
-                        [1.0, -1.0, 0.0],
-                        [1.0, 1.0, 0.0],
-                        [-1.0, 1.0, 0.0],
-                    ],
-                    normals: vec![[0.0, 0.0, 1.0]; 4],
-                    uvs: vec![[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]],
-                    tangents: vec![[1.0, 0.0, 0.0, 1.0]; 4],
-                    indices: vec![0, 1, 2, 0, 2, 3],
-                },
-            )
+            .create_mesh(&gpu, "square", &MeshData::square())
             .expect("the square is valid");
         let nearest = gpu
             .create_sampler(
@@ -143,7 +128,14 @@ impl Setup {
     ) -> FloatImage {
         let instances: Vec<Instance<'_>> = instances
             .iter()
-            .map(|&(material, transform)| Instance::new(&self.square, material, transform))
+            // `MeshData::square` is one unit wide: drawn two.
+            .map(|&(material, transform)| {
+                Instance::new(
+                    &self.square,
+                    material,
+                    transform * Mat4::from_scale(Vec3::splat(2.0)),
+                )
+            })
             .collect();
         let uniform = LinearColor::rgb(sky, sky, sky);
         let environment = (sky > 0.0).then(|| {

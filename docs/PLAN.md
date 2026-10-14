@@ -173,16 +173,17 @@ instead, and proposes a change with the stage it belongs to.
   of a wall, steps by a pixel at long intervals, which the owner saw as teeth. Decided: multisample
   anti-aliasing in Stage 3d (ADR-0056).
 - **No model can be loaded outside the examples** (M3c.1). The temporary glTF loader is example
-  code (ADR-0029), so the game builds its meshes in code: a cube and a sphere
-  (`games/nightwatch/src/meshes.rs`). Proposal: a way for a game to load a model, the first thing
-  Stage 4's pipeline must give it.
+  code (ADR-0029), so the game draws shapes made in code: a cube and a sphere, its own until
+  M3c.4, the engine's since. Decided (M3c.4): Stage 4's pipeline gives a game its models, as
+  Stage 4's exit asks already.
 - **A mesh needs tangents, even without a normal texture** (M3c.1). `MeshData::tangents` is
-  required, so the game computes them for its cube and sphere, which no material of it uses.
-  Proposal: tangents that the engine computes when a mesh has none, with MikkTSpace, as glTF asks,
-  at Stage 4, whose importer must compute them anyway.
-- **The engine has no simple shapes** (M3c.1). Every game, every example and every test writes its
-  own cube and sphere: the examples have theirs, the game a copy of the same idea. Proposal: a few
-  shapes in the engine, built as `MeshData`, when the assets of Stage 4 give meshes a home.
+  required, so the game computed them for its cube and sphere, which no material of it uses; the
+  engine's shapes carry them now. Decided (M3c.4): the engine computes the tangents of a mesh that
+  has none, with MikkTSpace, as glTF asks, at Stage 4, whose importer must compute them anyway.
+- **The engine had no simple shapes** (M3c.1). The game, the examples and the renderer's tests
+  each made their own: two cubes, three spheres and five squares. Done (M3c.4), as the owner
+  decided, before Stage 3d, whose tests need them: `MeshData::cube`, `MeshData::sphere` and
+  `MeshData::square`, which all of them use now.
 - **The engine reports keys going down and up, not the keys held** (M3c.1). The game keeps which of
   its keys are held (`games/nightwatch/src/controls.rs`). Proposal: the keys and buttons held, kept
   by the engine, with the input action mapping of Stage 7, or sooner if the next findings ask.

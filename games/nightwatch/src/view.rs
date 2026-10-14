@@ -5,12 +5,11 @@
 use slime_gfx::{Gpu, LinearColor, RenderTarget, TextureFormat};
 use slime_render::glam::{Mat4, Quat, Vec2, Vec3};
 use slime_render::{
-    Camera, DirectionalLight, Environment, Instance, Light, Material, MaterialData, Mesh,
+    Camera, DirectionalLight, Environment, Instance, Light, Material, MaterialData, Mesh, MeshData,
     PointLight, RenderError, RenderStats, Renderer, Scene, Sky, SpotLight,
 };
 
 use crate::courtyard::{BlockKind, POLE_HEIGHT, SWITCH_HEIGHT};
-use crate::meshes;
 use crate::rules::{
     FLASHLIGHT_HALF_ANGLE, FLASHLIGHT_RANGE, FLOODLIGHT_HALF_ANGLE, FLOODLIGHT_RANGE, Game,
     PLAYER_RADIUS, State,
@@ -146,8 +145,8 @@ impl View {
             switch_off: material("switch off", &glowing(rgb(0.2, 0.8, 0.3), 0.08))?,
         };
         Ok(Self {
-            cube: renderer.create_mesh(gpu, "cube", &meshes::cube())?,
-            sphere: renderer.create_mesh(gpu, "sphere", &meshes::sphere(16, 24))?,
+            cube: renderer.create_mesh(gpu, "cube", &MeshData::cube())?,
+            sphere: renderer.create_mesh(gpu, "sphere", &MeshData::sphere(16, 24))?,
             materials,
             environment: renderer.create_environment(gpu, &NIGHT)?,
             renderer,
@@ -268,7 +267,7 @@ impl View {
                 sphere,
                 &materials.guard_head,
                 Mat4::from_scale_rotation_translation(
-                    Vec3::splat(0.17),
+                    Vec3::splat(0.34),
                     Quat::IDENTITY,
                     Vec3::new(guard.position.x, 1.72, guard.position.y),
                 ),
@@ -301,7 +300,7 @@ impl View {
                 &materials.player
             },
             Mat4::from_scale_rotation_translation(
-                Vec3::splat(PLAYER_RADIUS),
+                Vec3::splat(2.0 * PLAYER_RADIUS),
                 Quat::IDENTITY,
                 Vec3::new(player.x, PLAYER_RADIUS, player.y),
             ),
