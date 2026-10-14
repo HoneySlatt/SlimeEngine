@@ -575,10 +575,10 @@ impl Renderer {
         );
         let default_sampler = gpu.create_sampler("default", &SamplerDescriptor::default());
         let instances = InstanceSlots::new(gpu, &instance_layout, INITIAL_INSTANCE_CAPACITY);
-        let scene_timer = gpu.create_timer("scene");
-        let tone_mapping_timer = gpu.create_timer("tone mapping");
-        let shadow_timer = gpu.create_timer("shadow");
-        let sky_timer = gpu.create_timer("sky");
+        let scene_timer = gpu.create_timer("scene", 1);
+        let tone_mapping_timer = gpu.create_timer("tone mapping", 1);
+        let shadow_timer = gpu.create_timer("shadow", 1);
+        let sky_timer = gpu.create_timer("sky", 1);
         if scene_timer.is_none() {
             tracing::info!("the adapter cannot time its work: the statistics have no GPU time");
         }
@@ -782,7 +782,7 @@ impl Renderer {
         // On adapters that cannot time their work, no timer is ever made.
         if bloom && gpu.can_time() {
             while self.bloom_timers.len() < bloom_passes {
-                match gpu.create_timer(&format!("bloom {}", self.bloom_timers.len())) {
+                match gpu.create_timer(&format!("bloom {}", self.bloom_timers.len()), 1) {
                     Some(timer) => self.bloom_timers.push(timer),
                     None => break,
                 }
@@ -915,7 +915,7 @@ impl Renderer {
                     stats.shadow_draw_calls += 1;
                 }
             });
-            stats.shadow_gpu_time = self.shadow_timer.as_ref().and_then(GpuTimer::latest);
+            stats.shadow_gpu_time = self.shadow_timer.as_ref().and_then(|timer| timer.latest(0));
         }
         let scene_pass = RenderPassDescriptor {
             target: &targets.hdr,
@@ -975,9 +975,12 @@ impl Renderer {
                 pass.draw(0..3);
             });
         });
-        stats.scene_gpu_time = self.scene_timer.as_ref().and_then(GpuTimer::latest);
-        stats.tone_mapping_gpu_time = self.tone_mapping_timer.as_ref().and_then(GpuTimer::latest);
-        stats.sky_gpu_time = self.sky_timer.as_ref().and_then(GpuTimer::latest);
+        stats.scene_gpu_time = self.scene_timer.as_ref().and_then(|timer| timer.latest(0));
+        stats.tone_mapping_gpu_time = self
+            .tone_mapping_timer
+            .as_ref()
+            .and_then(|timer| timer.latest(0));
+        stats.sky_gpu_time = self.sky_timer.as_ref().and_then(|timer| timer.latest(0));
         stats.cpu_time = started.elapsed();
         stats
     }
@@ -1140,7 +1143,7 @@ impl Renderer {
         if self.bloom_timers.len() >= passes {
             stats.bloom_gpu_time = self.bloom_timers[..passes]
                 .iter()
-                .map(GpuTimer::latest)
+                .map(|timer| timer.latest(0))
                 .sum();
         }
     }

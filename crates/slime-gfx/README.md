@@ -16,7 +16,7 @@ them back, and draws into a window:
   or into a depth target only.
 - Later passes sample the render and depth targets that earlier ones drew into. Several passes
   can be recorded into one submission.
-- It times each render pass with a timer of its own, on adapters that have timestamp queries.
+- It times render passes, each pass of a submission apart, on adapters that have timestamp queries.
 - It creates textures from the CPU: two-dimensional ones whose levels of detail it computes, or
   whose levels the caller gives, in 8-bit or half-precision float formats, and cube textures.
 
@@ -157,14 +157,16 @@ fn main() -> Result<(), GfxError> {
     depth with a depth target's, giving 1 where the `DepthCompare` holds and 0 where it does not.
     With `Filter::Linear`, the GPU blends the four nearest results (percentage-closer filtering).
     It clamps to the edges.
-  - `GpuTimer`: measures how long render passes take on the GPU (`create_timer`), on adapters
-    that support timestamp queries (`Gpu::can_time`; `None` otherwise). A pass that names it in
-    its descriptor is timed, and `GpuTimer::latest` gives the time of the last timed pass that
-    has come back, a few frames later, without waiting for the GPU: wgpu collects the times of
-    finished passes when later work is submitted, or in `wait_idle`. At most four timed passes can
-    be in flight: while all four wait for their times, further passes go untimed. Give each timed
-    pass of a frame its own timer and read each with `latest`; the times come back independently,
-    so those of different timers can come from different frames.
+  - `GpuTimer`: measures how long render passes take on the GPU (`create_timer(label, passes)`),
+    on adapters that support timestamp queries (`Gpu::can_time`; `None` otherwise). The passes
+    of one submission that name it in their descriptors are timed, numbered from 0 in the order
+    they are recorded, up to `passes` of them (the next go untimed); `GpuTimer::latest(pass)`
+    gives pass `pass`'s time in the latest submission whose times have come back, a few frames
+    later, without waiting for the GPU: wgpu collects the times of finished work when later work
+    is submitted, or in `wait_idle`. A timer's times all come from one submission; the times of
+    different timers come back independently, so they can come from different frames. At most four
+    timed submissions can be in flight: while all four wait for their times, further passes go
+    untimed.
   - `ShaderModule`: WGSL source compiled by wgpu (`create_shader_module`).
   - `RenderPipeline` (`create_render_pipeline`, from a `RenderPipelineDescriptor`): a vertex entry
     point and the layout of its vertex buffer, or none when the vertex shader builds its vertices

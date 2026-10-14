@@ -11,7 +11,7 @@ use crate::gpu::Gpu;
 use crate::index_buffer::IndexBuffer;
 use crate::pipeline::RenderPipeline;
 use crate::render_target::RenderTarget;
-use crate::timer::{GpuTimer, TimedPass};
+use crate::timer::{GpuTimer, TimedSubmission};
 use crate::vertex_buffer::VertexBuffer;
 
 /// A color with linear components, not sRGB-encoded. 8-bit targets keep each component between 0
@@ -147,8 +147,8 @@ impl RenderPass<'_> {
 /// closure only, so that every pass recorded is submitted.
 pub struct Commands {
     encoder: wgpu::CommandEncoder,
-    /// The timed passes, whose timestamps are read back once submitted.
-    timed: Vec<TimedPass>,
+    /// One entry per timer that the passes name: the passes it times, read back once submitted.
+    timed: Vec<TimedSubmission>,
     /// The flags of the render targets drawn into, set once submitted.
     drawn: Vec<Arc<AtomicBool>>,
 }
@@ -171,9 +171,8 @@ impl Gpu {
     /// The work runs on the GPU after this function returns, in the order the passes were
     /// recorded; reading a target back waits for it. Submitting it is recorded as a `trace`-level
     /// profiling span named `submit`; wgpu's validation and encoding of the recorded commands, just
-    /// before, are not part of it. Timed passes get their times as with [`Gpu::render`]; a timer
-    /// given to several passes of one submission times each of them, one slot each, and reports
-    /// whichever came back last.
+    /// before, are not part of it. The passes that name a timer are its passes 0, 1 and so on, in
+    /// the order they are recorded ([`GpuTimer::latest`]).
     ///
     /// # Panics
     ///
@@ -190,10 +189,13 @@ impl Gpu {
         };
         record(&mut commands);
         let Commands {
-            encoder,
+            mut encoder,
             timed,
             drawn,
         } = commands;
+        for timer in &timed {
+            timer.resolve(&mut encoder);
+        }
         // Finishing the encoder is where wgpu validates and encodes every command recorded, work
         // that grows with the draws: it stays out of the span, which times the submission.
         let commands = encoder.finish();
@@ -358,8 +360,22 @@ impl Commands {
         timer: Option<&GpuTimer>,
         record: impl FnOnce(&mut RenderPass<'_>),
     ) {
-        // A timer whose slots are all in flight leaves this pass untimed rather than waiting.
-        let timing = timer.and_then(|timer| timer.reserve().map(|slot| (timer, slot)));
+        // The first pass that names a timer takes one of its slots for the whole submission.
+        let timing = timer.and_then(|timer| {
+            match self
+                .timed
+                .iter()
+                .position(|timed| timed.timer == timer.id())
+            {
+                Some(index) => Some(index),
+                None => {
+                    // A timer whose slots are all in flight leaves the pass untimed rather than
+                    // waiting.
+                    self.timed.push(timer.time_submission()?);
+                    Some(self.timed.len() - 1)
+                }
+            }
+        });
         // A pass without a render target has no color attachment at all, not one empty slot:
         // wgpu compares this list with the pipelines' targets exactly, and a depth-only pipeline
         // has none.
@@ -375,7 +391,7 @@ impl Commands {
                 label: Some(label),
                 color_attachments,
                 depth_stencil_attachment: depth,
-                timestamp_writes: timing.map(|(timer, slot)| timer.writes(slot)),
+                timestamp_writes: timing.and_then(|index| self.timed[index].next_pass()),
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
@@ -385,10 +401,6 @@ impl Commands {
                 pass: pass.forget_lifetime(),
                 closure: PhantomData,
             });
-        }
-        if let Some((timer, slot)) = timing {
-            timer.resolve(&mut self.encoder, slot);
-            self.timed.push(timer.timed_pass(slot));
         }
     }
 }

@@ -1,6 +1,7 @@
 //! Timing passes on the GPU: a timed pass reports a duration a few frames later, without
 //! waiting, on adapters that support timestamp queries; others give no timer. Several passes of a
-//! frame, a depth-only one among them, are timed by a timer each. Runs on whatever adapter the
+//! frame, a depth-only one among them, are timed by a timer each, or by one timer when they share a
+//! submission. Runs on whatever adapter the
 //! machine offers and prints what it found, so that the checks on lavapipe and the Windows CI job
 //! on WARP tell what software drivers support.
 
@@ -41,11 +42,11 @@ fn a_timed_pass_reports_how_long_it_took_when_the_adapter_can_tell() {
         gpu.adapter_name(),
         gpu.can_time()
     );
-    let Some(timer) = gpu.create_timer("test") else {
+    let Some(timer) = gpu.create_timer("test", 1) else {
         assert!(!gpu.can_time(), "an adapter that can time gives a timer");
         return;
     };
-    assert!(timer.latest().is_none(), "nothing has been timed yet");
+    assert!(timer.latest(0).is_none(), "nothing has been timed yet");
 
     let target = gpu.create_render_target("timed", 64, 64, TextureFormat::Rgba8UnormSrgb);
     let mut measured = None;
@@ -59,7 +60,7 @@ fn a_timed_pass_reports_how_long_it_took_when_the_adapter_can_tell() {
         gpu.render(&pass, |_pass| {});
         // Waiting is not needed to get a time back, but makes the test deterministic.
         gpu.wait_idle().expect("the GPU finishes the pass");
-        measured = timer.latest();
+        measured = timer.latest(0);
         if measured.is_some() {
             eprintln!(
                 "time of a pass that clears 64x64 pixels, read at frame {frame}: {measured:?}"
@@ -76,7 +77,7 @@ fn a_time_comes_back_with_later_frames_without_waiting() {
     // frame's submission, which is when wgpu collects the passes the GPU has finished.
     let gpu =
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-    let Some(timer) = gpu.create_timer("frames") else {
+    let Some(timer) = gpu.create_timer("frames", 1) else {
         assert!(!gpu.can_time(), "an adapter that can time gives a timer");
         eprintln!("adapter `{}` cannot time its work", gpu.adapter_name());
         return;
@@ -94,7 +95,7 @@ fn a_time_comes_back_with_later_frames_without_waiting() {
     let mut measured = None;
     for frame in 0..frames {
         gpu.render(&pass, |_pass| {});
-        measured = timer.latest();
+        measured = timer.latest(0);
         if measured.is_some() {
             eprintln!("time of a pass, read without waiting at frame {frame}: {measured:?}");
             break;
@@ -110,14 +111,14 @@ fn a_time_comes_back_with_later_frames_without_waiting() {
 fn three_passes_timed_in_one_frame_each_get_their_own_time() {
     let gpu =
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-    let Some(shadow) = gpu.create_timer("shadow") else {
+    let Some(shadow) = gpu.create_timer("shadow", 1) else {
         assert!(!gpu.can_time(), "an adapter that can time gives a timer");
         eprintln!("adapter `{}` cannot time its work", gpu.adapter_name());
         return;
     };
-    let scene = gpu.create_timer("scene").expect("the adapter can time");
+    let scene = gpu.create_timer("scene", 1).expect("the adapter can time");
     let tone_mapping = gpu
-        .create_timer("tone mapping")
+        .create_timer("tone mapping", 1)
         .expect("the adapter can time");
     let depth = gpu.create_depth_target("shadow map", 64, 64);
     let hdr = gpu.create_render_target("hdr", 64, 64, TextureFormat::Rgba16Float);
@@ -144,7 +145,7 @@ fn three_passes_timed_in_one_frame_each_get_their_own_time() {
         // Waiting is not needed to get the times back, but makes the test deterministic.
         gpu.wait_idle().expect("the GPU finishes the passes");
         for (time, timer) in times.iter_mut().zip([&shadow, &scene, &tone_mapping]) {
-            *time = time.or(timer.latest());
+            *time = time.or(timer.latest(0));
         }
         if times.iter().all(Option::is_some) {
             break;
@@ -160,18 +161,14 @@ fn three_passes_timed_in_one_frame_each_get_their_own_time() {
 }
 
 #[test]
-fn three_passes_timed_in_one_submission_each_get_their_own_time() {
+fn three_passes_of_one_submission_each_get_their_own_time_from_one_timer() {
     let gpu =
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-    let Some(shadow) = gpu.create_timer("shadow") else {
+    let Some(timer) = gpu.create_timer("frame", 3) else {
         assert!(!gpu.can_time(), "an adapter that can time gives a timer");
         eprintln!("adapter `{}` cannot time its work", gpu.adapter_name());
         return;
     };
-    let scene = gpu.create_timer("scene").expect("the adapter can time");
-    let tone_mapping = gpu
-        .create_timer("tone mapping")
-        .expect("the adapter can time");
     let depth = gpu.create_depth_target("shadow map", 64, 64);
     let hdr = gpu.create_render_target("hdr", 64, 64, TextureFormat::Rgba16Float);
     let output = gpu.create_render_target("output", 64, 64, TextureFormat::Rgba8UnormSrgb);
@@ -182,25 +179,23 @@ fn three_passes_timed_in_one_submission_each_get_their_own_time() {
             commands.render_depth(
                 &DepthPassDescriptor {
                     depth: &depth,
-                    timer: Some(&shadow),
+                    timer: Some(&timer),
                 },
                 |_pass| {},
             );
-            for (target, timer) in [(&hdr, &scene), (&output, &tone_mapping)] {
+            for target in [&hdr, &output] {
                 let pass = RenderPassDescriptor {
                     target,
                     clear: Some(BLACK),
                     depth: None,
-                    timer: Some(timer),
+                    timer: Some(&timer),
                 };
                 commands.render(&pass, |_pass| {});
             }
         });
         // Waiting is not needed to get the times back, but makes the test deterministic.
         gpu.wait_idle().expect("the GPU finishes the passes");
-        for (time, timer) in times.iter_mut().zip([&shadow, &scene, &tone_mapping]) {
-            *time = time.or(timer.latest());
-        }
+        times = [timer.latest(0), timer.latest(1), timer.latest(2)];
         if times.iter().all(Option::is_some) {
             break;
         }

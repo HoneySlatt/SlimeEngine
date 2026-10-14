@@ -1,16 +1,23 @@
-//! Timing the GPU's work: how long a render pass takes on the GPU, when the adapter can tell.
+//! Timing the GPU's work: how long render passes take on the GPU, when the adapter can tell.
 
 use std::cell::Cell;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::time::Duration;
 
 use crate::gpu::Gpu;
 
-/// How many timed passes can be in flight with their times not read yet; beyond that, passes
-/// go untimed until one is read.
+/// How many timed submissions can be in flight with their times not read yet; beyond that,
+/// passes go untimed until one is read.
 const SLOTS: usize = 4;
-/// Two timestamps per slot: the start and the end of the pass.
-const QUERIES_PER_SLOT: u32 = 2;
+/// Two timestamps per pass: its start and its end.
+const QUERIES_PER_PASS: u32 = 2;
+/// The most passes one submission can time: wgpu's query sets hold at most 4096 queries, two per
+/// pass in each of the four slots.
+const MAX_PASSES: u32 = 512;
+
+/// Numbers the timers, so that a submission tells apart the timers its passes name.
+static NEXT_ID: AtomicU64 = AtomicU64::new(0);
 
 /// Measures how long render passes take on the GPU: a timestamp is written when a pass that
 /// uses the timer ([`RenderPassDescriptor::timer`](crate::RenderPassDescriptor::timer),
@@ -20,31 +27,38 @@ const QUERIES_PER_SLOT: u32 = 2;
 /// [`Gpu::create_timer`] gives one only when the adapter supports timestamp queries;
 /// [`Gpu::can_time`] tells.
 ///
-/// A timer measures one pass at a time. To time several passes of a frame, give each its own
-/// timer and read each with [`latest`](Self::latest): its slots, query set and readbacks are its
-/// own. The times of different timers come back independently, so they can come from different
-/// frames. On Vulkan, wgpu writes both timestamps once the work before them is done, so a pass's
-/// time runs from the end of the previous work to the end of the pass: the sum of a frame's pass
-/// times leaves out the gaps between submissions, and is not a frame time. A timer named by
-/// several passes of one frame reports whichever of them came back last.
+/// A timer times the passes of one submission ([`Gpu::submit`], or the single pass of
+/// [`Gpu::render`]): the passes that name it are numbered from 0 in the order they are recorded,
+/// up to the number it was created for, and [`latest`](Self::latest) gives each one's time. The
+/// times a timer gives all come from the same submission. Timers are independent: the times of
+/// two timers can come from different frames. On Vulkan, wgpu writes both timestamps once the
+/// work before them is done, so a pass's time runs from the end of the previous work to the end of
+/// the pass: the sum of a frame's pass times leaves out the gaps between submissions, and is not a
+/// frame time.
 pub struct GpuTimer {
+    /// Tells this timer apart from the others in a submission.
+    id: u64,
     query_set: wgpu::QuerySet,
+    /// The most passes one submission times; the others go untimed.
+    passes: u32,
     slots: Vec<Slot>,
-    /// Slot numbers whose readback is mapped, sent by wgpu's callbacks.
-    mapped: mpsc::Receiver<usize>,
-    sender: mpsc::Sender<usize>,
+    /// The slots whose readback is mapped, sent by wgpu's callbacks with how many passes each
+    /// timed.
+    mapped: mpsc::Receiver<(usize, u32)>,
+    sender: mpsc::Sender<(usize, u32)>,
     /// Nanoseconds per timestamp tick.
     period: f32,
-    latest: Cell<Option<Duration>>,
+    /// The time of each pass of the latest submission whose times came back.
+    latest: Box<[Cell<Option<Duration>>]>,
 }
 
-/// The buffers of one timed pass.
+/// The buffers of one timed submission.
 struct Slot {
-    /// Where the two timestamps are resolved.
+    /// Where the timestamps are resolved.
     resolve: wgpu::Buffer,
     /// Where they are copied for the CPU to read.
     readback: wgpu::Buffer,
-    /// Whether the pass has been submitted and its time not read yet.
+    /// Whether a submission has taken the slot and its times have not been read yet.
     in_flight: Cell<bool>,
 }
 
@@ -58,18 +72,27 @@ impl Gpu {
             .contains(wgpu::Features::TIMESTAMP_QUERY)
     }
 
-    /// Creates a timer, or `None` when the adapter cannot time its work ([`Gpu::can_time`]).
-    /// `label` names its GPU objects in error messages and in GPU capture tools.
-    pub fn create_timer(&self, label: &str) -> Option<GpuTimer> {
+    /// Creates a timer for up to `passes` passes per submission, or `None` when the adapter
+    /// cannot time its work ([`Gpu::can_time`]). `label` names its GPU objects in error messages
+    /// and in GPU capture tools.
+    ///
+    /// # Panics
+    ///
+    /// If `passes` is 0 or more than 512, the most that wgpu's query sets hold.
+    pub fn create_timer(&self, label: &str, passes: u32) -> Option<GpuTimer> {
+        assert!(
+            (1..=MAX_PASSES).contains(&passes),
+            "timer `{label}` for {passes} passes per submission; a timer times 1 to {MAX_PASSES}"
+        );
         if !self.can_time() {
             return None;
         }
         let query_set = self.device.create_query_set(&wgpu::QuerySetDescriptor {
             label: Some(label),
             ty: wgpu::QueryType::Timestamp,
-            count: QUERIES_PER_SLOT * SLOTS as u32,
+            count: QUERIES_PER_PASS * passes * SLOTS as u32,
         });
-        let size = u64::from(QUERIES_PER_SLOT * wgpu::QUERY_SIZE);
+        let size = u64::from(QUERIES_PER_PASS * passes * wgpu::QUERY_SIZE);
         let slots = (0..SLOTS)
             .map(|_| Slot {
                 resolve: self.device.create_buffer(&wgpu::BufferDescriptor {
@@ -89,104 +112,136 @@ impl Gpu {
             .collect();
         let (sender, mapped) = mpsc::channel();
         Some(GpuTimer {
+            id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
             query_set,
+            passes,
             slots,
             mapped,
             sender,
             period: self.queue.get_timestamp_period(),
-            latest: Cell::new(None),
+            latest: (0..passes).map(|_| Cell::new(None)).collect(),
         })
     }
 }
 
 impl GpuTimer {
-    /// The time the GPU took for the last timed pass whose time has come back: `None` until the
-    /// first one does. A time comes back once wgpu has seen that the GPU finished the pass, which
-    /// it checks whenever work is submitted (by the next frame's passes, for example) and in
-    /// [`Gpu::wait_idle`]: a frame or more after the pass. Reading takes no time worth measuring
-    /// and never waits for the GPU.
-    pub fn latest(&self) -> Option<Duration> {
+    /// The time the GPU took for pass `pass` (from 0, in the order the passes that name this timer
+    /// were recorded) of the latest submission whose times have come back: `None` until the first
+    /// one does, and for a pass that this submission did not time. A time comes back once wgpu has
+    /// seen that the GPU finished the submission, which it checks whenever work is submitted (by
+    /// the next frame's passes, for example) and in [`Gpu::wait_idle`]: a frame or more after it.
+    /// Reading takes no time worth measuring and never waits for the GPU.
+    ///
+    /// # Panics
+    ///
+    /// If `pass` is not below the number of passes the timer was created for.
+    pub fn latest(&self, pass: usize) -> Option<Duration> {
         // The callbacks of the readbacks run when work is submitted. Polling the device here would
         // run them sooner, but wgpu treats a poll that finds a lost Vulkan device as fatal, and
         // panics, where a submission only reports the loss (ADR-0022).
-        while let Ok(index) = self.mapped.try_recv() {
+        while let Ok((index, timed)) = self.mapped.try_recv() {
             let slot = &self.slots[index];
-            let timestamps = slot.readback.get_mapped_range(..).ok().map(|mapped| {
-                let timestamp = |at: usize| {
-                    let bytes: [u8; 8] = mapped[at..at + 8].try_into().unwrap_or([0; 8]);
-                    u64::from_le_bytes(bytes)
-                };
-                (timestamp(0), timestamp(8))
-            });
-            slot.readback.unmap();
-            slot.in_flight.set(false);
-            match timestamps {
-                Some((start, end)) => {
-                    let nanoseconds = end.saturating_sub(start) as f64 * f64::from(self.period);
-                    self.latest
-                        .set(Some(Duration::from_nanos(nanoseconds as u64)));
+            match slot.readback.get_mapped_range(..) {
+                Ok(mapped) => {
+                    let timestamp = |at: usize| {
+                        let bytes: [u8; 8] = mapped[at..at + 8].try_into().unwrap_or([0; 8]);
+                        u64::from_le_bytes(bytes)
+                    };
+                    for (pass, latest) in self.latest.iter().enumerate() {
+                        latest.set((pass < timed as usize).then(|| {
+                            let (start, end) = (timestamp(16 * pass), timestamp(16 * pass + 8));
+                            let nanoseconds =
+                                end.saturating_sub(start) as f64 * f64::from(self.period);
+                            Duration::from_nanos(nanoseconds as u64)
+                        }));
+                    }
                 }
                 // wgpu reports the readback as mapped but refuses to give it: nothing to read.
-                None => tracing::debug!("a timed pass could not be read back"),
+                Err(_) => tracing::debug!("a timed submission could not be read back"),
             }
+            slot.readback.unmap();
+            slot.in_flight.set(false);
         }
-        self.latest.get()
+        self.latest[pass].get()
     }
 
-    /// Reserves a slot for a pass, or `None` when every slot is in flight.
-    pub(crate) fn reserve(&self) -> Option<usize> {
+    /// Tells this timer apart from the others in a submission.
+    pub(crate) fn id(&self) -> u64 {
+        self.id
+    }
+
+    /// Takes a slot for the passes of a submission: what times them and reads their timestamps
+    /// back once submitted; `None` when every slot is in flight.
+    pub(crate) fn time_submission(&self) -> Option<TimedSubmission> {
         let index = self.slots.iter().position(|slot| !slot.in_flight.get())?;
-        self.slots[index].in_flight.set(true);
-        Some(index)
+        let slot = &self.slots[index];
+        slot.in_flight.set(true);
+        Some(TimedSubmission {
+            timer: self.id,
+            query_set: self.query_set.clone(),
+            resolve: slot.resolve.clone(),
+            readback: slot.readback.clone(),
+            sender: self.sender.clone(),
+            slot: index,
+            first: QUERIES_PER_PASS * index as u32 * self.passes,
+            passes: self.passes,
+            timed: 0,
+        })
     }
+}
 
-    /// The timestamps a pass writes into `slot`.
-    pub(crate) fn writes(&self, slot: usize) -> wgpu::RenderPassTimestampWrites<'_> {
-        let first = QUERIES_PER_SLOT * slot as u32;
-        wgpu::RenderPassTimestampWrites {
+/// The passes of one submission that a timer times, recorded and not submitted yet.
+pub(crate) struct TimedSubmission {
+    /// The [`GpuTimer::id`] of the timer.
+    pub(crate) timer: u64,
+    query_set: wgpu::QuerySet,
+    resolve: wgpu::Buffer,
+    readback: wgpu::Buffer,
+    sender: mpsc::Sender<(usize, u32)>,
+    slot: usize,
+    /// The slot's first query.
+    first: u32,
+    /// The most passes it times.
+    passes: u32,
+    /// The passes timed so far.
+    timed: u32,
+}
+
+impl TimedSubmission {
+    /// The timestamps that the next pass naming the timer writes, or `None` once the timer's
+    /// number of passes is timed: that pass goes untimed.
+    pub(crate) fn next_pass(&mut self) -> Option<wgpu::RenderPassTimestampWrites<'_>> {
+        if self.timed == self.passes {
+            return None;
+        }
+        let first = self.first + QUERIES_PER_PASS * self.timed;
+        self.timed += 1;
+        Some(wgpu::RenderPassTimestampWrites {
             query_set: &self.query_set,
             beginning_of_pass_write_index: Some(first),
             end_of_pass_write_index: Some(first + 1),
-        }
+        })
     }
 
-    /// Records, after the pass, the copy of `slot`'s timestamps into its readback buffer.
-    pub(crate) fn resolve(&self, encoder: &mut wgpu::CommandEncoder, slot: usize) {
-        let first = QUERIES_PER_SLOT * slot as u32;
-        let buffers = &self.slots[slot];
+    /// Records, after the submission's passes, the copy of their timestamps into the readback
+    /// buffer.
+    pub(crate) fn resolve(&self, encoder: &mut wgpu::CommandEncoder) {
+        let queries = QUERIES_PER_PASS * self.timed;
         encoder.resolve_query_set(
             &self.query_set,
-            first..first + QUERIES_PER_SLOT,
-            &buffers.resolve,
+            self.first..self.first + queries,
+            &self.resolve,
             0,
         );
         encoder.copy_buffer_to_buffer(
-            &buffers.resolve,
+            &self.resolve,
             0,
-            &buffers.readback,
+            &self.readback,
             0,
-            u64::from(QUERIES_PER_SLOT * wgpu::QUERY_SIZE),
+            u64::from(queries * wgpu::QUERY_SIZE),
         );
     }
 
-    /// What reads `slot`'s timestamps back once the pass that writes them is submitted.
-    pub(crate) fn timed_pass(&self, slot: usize) -> TimedPass {
-        TimedPass {
-            readback: self.slots[slot].readback.clone(),
-            sender: self.sender.clone(),
-            slot,
-        }
-    }
-}
-
-/// A timed pass recorded and not submitted yet: its readback is mapped once it is.
-pub(crate) struct TimedPass {
-    readback: wgpu::Buffer,
-    sender: mpsc::Sender<usize>,
-    slot: usize,
-}
-
-impl TimedPass {
     /// Asks for the readback to be mapped once the submitted work is done; the callback reports it
     /// to [`GpuTimer::latest`].
     pub(crate) fn map(self) {
@@ -194,11 +249,13 @@ impl TimedPass {
             readback,
             sender,
             slot,
+            timed,
+            ..
         } = self;
         readback.map_async(wgpu::MapMode::Read, .., move |result| {
             // The timer may be gone by then; a slot that nobody reads is no loss.
             if result.is_ok() {
-                let _ = sender.send(slot);
+                let _ = sender.send((slot, timed));
             }
         });
     }
@@ -208,7 +265,7 @@ impl std::fmt::Debug for GpuTimer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GpuTimer")
             .field("period", &self.period)
-            .field("latest", &self.latest.get())
+            .field("passes", &self.passes)
             .finish_non_exhaustive()
     }
 }
@@ -222,7 +279,7 @@ mod tests {
     fn passes_beyond_the_slots_go_untimed_until_reading_frees_them() {
         let gpu =
             Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-        let Some(timer) = gpu.create_timer("slots") else {
+        let Some(timer) = gpu.create_timer("slots", 1) else {
             eprintln!("adapter `{}` cannot time its work", gpu.adapter_name());
             return;
         };
@@ -255,14 +312,64 @@ mod tests {
         assert_eq!(in_flight(), SLOTS, "every slot waits for its time");
 
         gpu.wait_idle().expect("the GPU finishes the passes");
-        assert!(timer.latest().is_some(), "the times have come back");
+        assert!(timer.latest(0).is_some(), "the times have come back");
         assert_eq!(in_flight(), 0, "reading them frees every slot");
 
         gpu.render(&pass, |_pass| {});
         assert_eq!(in_flight(), 1, "a freed slot times the next pass");
         gpu.wait_idle().expect("the GPU finishes the pass");
         // `latest` still gives the time read before, so only the slot shows this one was read.
-        timer.latest();
+        timer.latest(0);
         assert_eq!(in_flight(), 0, "reading its time frees the slot again");
+    }
+
+    #[test]
+    fn one_slot_times_the_passes_of_a_submission_up_to_the_timer_s_number() {
+        let gpu =
+            Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+        let Some(timer) = gpu.create_timer("passes", 2) else {
+            eprintln!("adapter `{}` cannot time its work", gpu.adapter_name());
+            return;
+        };
+        let target = gpu.create_render_target("timed", 4, 4, TextureFormat::Rgba8UnormSrgb);
+        let pass = RenderPassDescriptor {
+            target: &target,
+            clear: Some(Color {
+                r: 0.0,
+                g: 0.0,
+                b: 0.0,
+                a: 1.0,
+            }),
+            depth: None,
+            timer: Some(&timer),
+        };
+        let in_flight = || {
+            timer
+                .slots
+                .iter()
+                .filter(|slot| slot.in_flight.get())
+                .count()
+        };
+
+        // Three passes for a timer of two: one slot, the third pass untimed.
+        gpu.submit("three passes", |commands| {
+            for _ in 0..3 {
+                commands.render(&pass, |_pass| {});
+            }
+            assert_eq!(in_flight(), 1, "one slot for the whole submission");
+        });
+        gpu.wait_idle().expect("the GPU finishes the passes");
+        assert!(timer.latest(0).is_some() && timer.latest(1).is_some());
+        assert_eq!(in_flight(), 0, "reading the times frees the slot");
+
+        // A submission of one pass: the second pass's time goes with the older submission.
+        gpu.render(&pass, |_pass| {});
+        gpu.wait_idle().expect("the GPU finishes the pass");
+        assert!(timer.latest(0).is_some());
+        assert_eq!(
+            timer.latest(1),
+            None,
+            "the latest submission timed one pass"
+        );
     }
 }
