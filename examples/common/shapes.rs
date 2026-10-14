@@ -32,6 +32,10 @@ const SKY: Sky = Sky {
     sun: Some(SUN),
 };
 
+/// The strength of the bloom: the sample's (`sample_scene::BLOOM`), so that the image test sees
+/// what the sample shows (ADR-0040).
+const BLOOM: f32 = 0.04;
+
 /// How far the camera orbits from the origin, and how high above it.
 const ORBIT_RADIUS: f32 = 4.0;
 const ORBIT_HEIGHT: f32 = 1.8;
@@ -188,6 +192,7 @@ impl Shapes {
                 lights: &[Light::Directional(SUN)],
                 environment: Some(&self.environment),
                 exposure: 1.0,
+                bloom: BLOOM,
                 instances: &instances,
             },
         )

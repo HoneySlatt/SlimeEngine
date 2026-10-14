@@ -1,7 +1,8 @@
 //! The renderer: draws instances of meshes, seen from a camera and shaded with glTF's
 //! metallic-roughness materials under a scene's lights and its environment, into a render target,
-//! in four passes: the shadow map of the first directional light that casts shadows, the scene in
-//! high dynamic range, exposed, the sky behind it, then tone mapping.
+//! in passes: the shadow map of the first directional light that casts shadows, the scene in high
+//! dynamic range, exposed, the sky behind it, the bloom's chain of blurred copies, then tone
+//! mapping, which mixes the bloom in.
 
 use std::time::{Duration, Instant};
 
@@ -27,6 +28,12 @@ use crate::shadow::{SHADOW_BIAS, SHADOW_MAP_SIZE, light_view_projection};
 const SCENE_SHADER: &str = include_str!("shader.wgsl");
 /// The shader of the tone-mapping pass.
 const TONE_MAPPING_SHADER: &str = include_str!("tone_mapping.wgsl");
+/// The shader of the bloom's passes.
+const BLOOM_SHADER: &str = include_str!("bloom.wgsl");
+/// The bloom's chain stops before a level with a side shorter than this, in texels: its coarsest
+/// texel is then an eighth to a sixteenth of the output's shorter side, whatever its resolution, so
+/// that the halo reaches the same share of the screen (ADR-0040).
+const BLOOM_SMALLEST_SIDE: u32 = 8;
 /// The format the scene pass draws into: half-precision floats, which keep light above 1
 /// (ADR-0034).
 const HDR_FORMAT: TextureFormat = TextureFormat::Rgba16Float;
@@ -99,6 +106,19 @@ pub struct Scene<'a> {
     /// Frostbite and Filament follow: about 1 / 39 000 for EV100 15, a photographer's exposure for
     /// direct sunlight. Finite and not negative.
     pub exposure: f32,
+    /// The share of each pixel's exposed light that the bloom spreads around where it lands, as a
+    /// camera's lens and the eye spread light (ADR-0040): from 0, no bloom, to 1, where the image
+    /// is replaced by its blurred copy. The blurred copy averages the image over every scale from a
+    /// few pixels to about an eighth of the screen, with as much light at each scale, so that a
+    /// pixel's halo falls with the square of the distance and looks the same at any resolution.
+    /// What is spread is taken from where it lands, before tone mapping: a uniform image is
+    /// unchanged, and light is moved, never added. Every pixel blooms, whatever its brightness:
+    /// only the contrast makes a halo visible. 0.04, the samples' strength, gives the sun's disc a
+    /// glow over about a third of the screen, softens edges between light and shade by about 4 % of
+    /// their contrast, and makes surfaces a few times brighter than their surroundings glow
+    /// faintly. 0 skips the bloom's passes and draws what a renderer without bloom draws; outputs
+    /// smaller than 15 × 15 pixels have no bloom. Finite, from 0 to 1.
+    pub bloom: f32,
     /// What to draw, in this order.
     pub instances: &'a [Instance<'a>],
 }
@@ -134,23 +154,31 @@ pub struct RenderStats {
     /// How long the GPU took to draw the sky behind the scene, under the same rules as
     /// `scene_gpu_time`.
     pub sky_gpu_time: Option<Duration>,
+    /// How long the GPU took for the bloom's passes (ADR-0040): the sum of the latest time of each,
+    /// measured by a timer of its own, under the same rules as `scene_gpu_time`; the passes' times
+    /// may come from different frames. `None` too for a frame that skipped the bloom (a strength
+    /// of 0, or an output smaller than 15 × 15), and until every pass's time has come back.
+    pub bloom_gpu_time: Option<Duration>,
 }
 
 /// Draws scenes into output targets of one format.
 ///
-/// Each frame takes four passes (ADR-0034, ADR-0037, ADR-0038, ADR-0039): the shadow pass draws the
-/// depths of the instances, as the scene's first directional light that casts shadows sees them,
-/// into the shadow map; the scene pass draws the instances into a target of half-precision floats,
-/// where light may exceed 1, with a depth target, their light multiplied by the scene's exposure,
-/// that light's only where the shadow map shows nothing nearer to it, and the environment's; the
-/// sky pass draws the environment where no surface is; the tone-mapping pass then maps that light
-/// to the output's range with Khronos PBR Neutral. The renderer owns seven pipelines: two for the
-/// shadow pass (the second discards what masked materials discard), three for the scene pass, which
-/// differ by the faces they cull and among which each draw chooses (ADR-0035), the sky pass's and
-/// the tone-mapping pass's; the table of the BRDF's scale and bias and a black environment for
-/// scenes without one; the shadow map, 2048 × 2048 depths created with the renderer; the
-/// high-dynamic-range and depth targets, which it creates at the size of the output it draws into
-/// and again when that size changes; the buffer of the instances' values; and a GPU timer per pass.
+/// Each frame takes these passes (ADR-0034, ADR-0037, ADR-0038, ADR-0039, ADR-0040): the shadow
+/// pass draws the depths of the instances, as the scene's first directional light that casts
+/// shadows sees them, into the shadow map; the scene pass draws the instances into a target of
+/// half-precision floats, where light may exceed 1, with a depth target, their light multiplied by
+/// the scene's exposure, that light's only where the shadow map shows nothing nearer to it, and the
+/// environment's; the sky pass draws the environment where no surface is; the bloom's passes filter
+/// that light down into a chain of levels, each half the size of the one before, then average them
+/// back up into a blurred copy; the tone-mapping pass then mixes the blurred copy in by the scene's
+/// bloom strength and maps the light to the output's range with Khronos PBR Neutral. The renderer
+/// owns ten pipelines: two for the shadow pass (the second discards what masked materials
+/// discard), three for the scene pass, which differ by the faces they cull and among which each
+/// draw chooses (ADR-0035), the sky pass's, the bloom's two (down and up) and the tone-mapping
+/// pass's; the table of the BRDF's scale and bias and a black environment for scenes without one;
+/// the shadow map, 2048 × 2048 depths created with the renderer; the high-dynamic-range and depth
+/// targets and the bloom's levels, which it creates at the size of the output it draws into and
+/// again when that size changes; the buffer of the instances' values; and a GPU timer per pass.
 pub struct Renderer {
     /// The output's format.
     format: TextureFormat,
@@ -195,37 +223,65 @@ pub struct Renderer {
     tone_mapping_timer: Option<GpuTimer>,
     shadow_timer: Option<GpuTimer>,
     sky_timer: Option<GpuTimer>,
+    /// One per pass of the bloom, as many as the longest chain drawn so far needed: a resize keeps
+    /// them, and their times.
+    bloom_timers: Vec<GpuTimer>,
+    /// Filters a level down from the one above, the scene's light for the first.
+    bloom_down_pipeline: RenderPipeline,
+    /// Averages a level with the coarser ones.
+    bloom_up_pipeline: RenderPipeline,
+    /// The layouts of the groups that the bloom's passes read: down, the finer level and the
+    /// sampler; up, the coarser average, the sampler, the level's own light and its weight.
+    bloom_down_layout: BindGroupLayout,
+    bloom_up_layout: BindGroupLayout,
+    /// Linear, mirrored at the edges: reads the levels between their texels, and beyond them their
+    /// texels mirrored, so that a pixel near an edge keeps its light and none wraps around.
+    bloom_sampler: Sampler,
+    /// The strength the tone-mapping pass mixes the blurred copy in by, written every frame.
+    bloom_strength: UniformBuffer,
 }
 
-/// The targets that follow the output's size: what the scene pass draws into, and the group
-/// through which the tone-mapping pass reads it. They are created together, and again together
-/// when the size changes, since a group keeps the target it was created with (ADR-0033).
+/// The targets that follow the output's size: what the scene pass draws into, the bloom's levels,
+/// and the groups through which the bloom's passes and the tone-mapping pass read them. They are
+/// created together, and again together when the size changes, since a group keeps the target it
+/// was created with (ADR-0033).
 struct SizedTargets {
     /// The scene's light, in high dynamic range. Labelled "scene", which names the scene pass in
     /// capture tools.
     hdr: RenderTarget,
     depth: DepthTarget,
     tone_mapping_group: BindGroup,
+    /// From the finest, half the output's size, to the coarsest; empty for outputs smaller than
+    /// 15 × 15.
+    bloom: Vec<BloomLevel>,
 }
 
-impl SizedTargets {
-    fn new(gpu: &Gpu, layout: &BindGroupLayout, width: u32, height: u32) -> Self {
-        let hdr = gpu.create_render_target("scene", width, height, HDR_FORMAT);
-        let depth = gpu.create_depth_target("scene depth", width, height);
-        let tone_mapping_group = gpu.create_bind_group(
-            "tone mapping",
-            layout,
-            &[BindGroupEntry {
-                binding: 0,
-                resource: BindingResource::RenderTarget(&hdr),
-            }],
-        );
-        Self {
-            hdr,
-            depth,
-            tone_mapping_group,
-        }
-    }
+/// One level of the bloom's chain (ADR-0040).
+struct BloomLevel {
+    /// The level above filtered down to this one's size: the scene's light for the first level.
+    down: RenderTarget,
+    /// Reads the level above.
+    down_group: BindGroup,
+    /// The average of this level's light and the coarser levels', and the group that reads both
+    /// and the level's weight; the coarsest level has none, its average being its own light.
+    up: Option<(RenderTarget, BindGroup)>,
+}
+
+/// The sizes of the bloom's levels for an output of `width` × `height` pixels: level i (from 1) is
+/// the output divided by 2^i, rounded to the nearest, while both sides keep at least
+/// [`BLOOM_SMALLEST_SIDE`] texels. Empty below 15 × 15. Each side is then half the one before,
+/// rounded down or up, so that a pixel's position doubled or halved falls where it should; and each
+/// level's edge stays within half a texel of the output's, which keeps the light of pixels near the
+/// right and bottom edges within about 20 % where the output's sides are not multiples of 2^i
+/// (ADR-0040), against twice or ten times their light with other roundings.
+fn bloom_sizes(width: u32, height: u32) -> Vec<(u32, u32)> {
+    let level = |side: u32, index: u32| (side + (1 << (index - 1))) >> index;
+    (1..)
+        .map(|index| (level(width, index), level(height, index)))
+        .take_while(|&(level_width, level_height)| {
+            level_width >= BLOOM_SMALLEST_SIDE && level_height >= BLOOM_SMALLEST_SIDE
+        })
+        .collect()
 }
 
 impl Renderer {
@@ -239,8 +295,8 @@ impl Renderer {
     ///
     /// # Errors
     ///
-    /// [`RenderError::Gfx`] if the graphics driver rejects one of the renderer's two shaders or
-    /// seven pipelines, or if the device is lost.
+    /// [`RenderError::Gfx`] if the graphics driver rejects one of the renderer's three shaders or
+    /// ten pipelines, or if the device is lost.
     pub fn new(gpu: &Gpu, format: TextureFormat) -> Result<Self, RenderError> {
         let shader = gpu.create_shader_module("scene", SCENE_SHADER)?;
         let uniform = |label: &str, dynamic_offset: bool| {
@@ -412,14 +468,70 @@ impl Renderer {
         })?;
 
         let tone_mapping_shader = gpu.create_shader_module("tone mapping", TONE_MAPPING_SHADER)?;
+        let fragment_entries = |types: &[BindingType]| -> Vec<BindGroupLayoutEntry> {
+            (0..)
+                .zip(types)
+                .map(|(binding, &ty)| BindGroupLayoutEntry {
+                    binding,
+                    visible_to: ShaderStages::Fragment,
+                    ty,
+                })
+                .collect()
+        };
+        let values = BindingType::UniformBuffer {
+            dynamic_offset: false,
+        };
+        // The scene's light, the bloom's blurred copy, the sampler that magnifies it, the strength.
         let tone_mapping_layout = gpu.create_bind_group_layout(
             "tone mapping",
-            &[BindGroupLayoutEntry {
-                binding: 0,
-                visible_to: ShaderStages::Fragment,
-                ty: BindingType::Texture,
-            }],
+            &fragment_entries(&[
+                BindingType::Texture,
+                BindingType::Texture,
+                BindingType::Sampler,
+                values,
+            ]),
         );
+        let bloom_shader = gpu.create_shader_module("bloom", BLOOM_SHADER)?;
+        let bloom_down_layout = gpu.create_bind_group_layout(
+            "bloom down",
+            &fragment_entries(&[BindingType::Texture, BindingType::Sampler]),
+        );
+        let bloom_up_layout = gpu.create_bind_group_layout(
+            "bloom up",
+            &fragment_entries(&[
+                BindingType::Texture,
+                BindingType::Sampler,
+                BindingType::Texture,
+                values,
+            ]),
+        );
+        let bloom_pipeline = |label: &str, entry_point: &str, layout: &BindGroupLayout| {
+            gpu.create_render_pipeline(&RenderPipelineDescriptor {
+                label,
+                shader: &bloom_shader,
+                vertex_entry_point: "vs_main",
+                vertex_layout: None,
+                fragment: Some(FragmentState {
+                    entry_point,
+                    target_format: Some(HDR_FORMAT),
+                }),
+                bind_group_layouts: &[layout],
+                depth: None,
+                cull: CullMode::None,
+            })
+        };
+        let bloom_down_pipeline =
+            bloom_pipeline("bloom down", "fs_downsample", &bloom_down_layout)?;
+        let bloom_up_pipeline = bloom_pipeline("bloom up", "fs_upsample", &bloom_up_layout)?;
+        let bloom_sampler = gpu.create_sampler(
+            "bloom",
+            &SamplerDescriptor {
+                address_u: AddressMode::MirrorRepeat,
+                address_v: AddressMode::MirrorRepeat,
+                ..SamplerDescriptor::default()
+            },
+        );
+        let bloom_strength = gpu.create_uniform_buffer("bloom strength", &[0; 16]);
         let tone_mapping_pipeline = gpu.create_render_pipeline(&RenderPipelineDescriptor {
             label: "tone mapping",
             shader: &tone_mapping_shader,
@@ -494,6 +606,13 @@ impl Renderer {
             tone_mapping_timer,
             shadow_timer,
             sky_timer,
+            bloom_timers: Vec::new(),
+            bloom_down_pipeline,
+            bloom_up_pipeline,
+            bloom_down_layout,
+            bloom_up_layout,
+            bloom_sampler,
+            bloom_strength,
         })
     }
 
@@ -589,7 +708,7 @@ impl Renderer {
         }
     }
 
-    /// Draws `scene` into `target`, in four passes. The shadow pass draws into the shadow map the
+    /// Draws `scene` into `target`, in passes. The shadow pass draws into the shadow map the
     /// depths of every instance, all their faces (the parts that masked materials discard
     /// excepted), as the first directional light of `scene.lights` that casts shadows sees them,
     /// through an orthographic projection that covers the boxes around the instances' meshes
@@ -601,13 +720,18 @@ impl Renderer {
     /// culled or not as its material and its transform ask (ADR-0035), the scene's environment
     /// reflected as its material reflects it (ADR-0039), its light multiplied by the scene's
     /// exposure (ADR-0037). Point and spot lights cast no shadows. The sky pass draws the
-    /// environment, exposed, where no surface was drawn, with its sun's disc. The tone-mapping pass
-    /// then maps that light to the range a display shows, and writes it into `target`, opaque. The
-    /// work runs on the GPU after this method returns, as with
-    /// [`Gpu::render`](slime_gfx::Gpu::render).
+    /// environment, exposed, where no surface was drawn, with its sun's disc. Unless `scene.bloom`
+    /// is 0 or `target` is smaller than 15 × 15, the bloom's passes filter that light down into
+    /// levels of half the size of the one before, to a side of at least 8 texels, with Jimenez's
+    /// 13-tap filter, then average them back up through 3 × 3 tents, every level with the same
+    /// weight, into a blurred copy (ADR-0040): 11 passes at 1280 × 720, 13 at 1920 × 1080. The
+    /// tone-mapping pass then mixes the blurred copy in by `scene.bloom`, maps that light to the
+    /// range a display shows, and writes it into `target`, opaque. The work runs on the GPU after
+    /// this method returns, as with [`Gpu::render`](slime_gfx::Gpu::render).
     ///
-    /// The high-dynamic-range and depth targets are created at the size of `target` the first
-    /// time, and again whenever that size changes; the instance buffer grows when a scene has more
+    /// The high-dynamic-range and depth targets and the bloom's levels (4.7 MiB at 1280 × 720,
+    /// 10.5 MiB at 1920 × 1080) are created at the size of `target` the first time, and again
+    /// whenever that size changes; the instance buffer grows when a scene has more
     /// instances than before. The shadow map keeps its size: its texels are the extent of the
     /// instances across the light divided by 2048, so that a scene that spreads wider gets coarser
     /// shadows.
@@ -645,16 +769,28 @@ impl Renderer {
             tracing::debug!(
                 width,
                 height,
-                "creating the high-dynamic-range and depth targets"
+                "creating the high-dynamic-range, depth and bloom targets"
             );
-            self.targets = Some(SizedTargets::new(
-                gpu,
-                &self.tone_mapping_layout,
-                width,
-                height,
-            ));
+            self.targets = Some(self.create_sized_targets(gpu, width, height));
         }
         let targets = self.targets.as_ref().expect("created above");
+        // The bloom's passes: one per level down, one per level but the coarsest up.
+        let bloom_passes = (2 * targets.bloom.len()).saturating_sub(1);
+        let bloom = scene.bloom > 0.0 && bloom_passes > 0;
+        if bloom {
+            while self.bloom_timers.len() < bloom_passes {
+                match gpu.create_timer(&format!("bloom {}", self.bloom_timers.len())) {
+                    Some(timer) => self.bloom_timers.push(timer),
+                    None => break,
+                }
+            }
+        }
+        let mut strength = Vec::with_capacity(16);
+        push_f32s(
+            &mut strength,
+            &[if bloom { scene.bloom } else { 0.0 }, 0.0, 0.0, 0.0],
+        );
+        gpu.write_uniform_buffer(&self.bloom_strength, &strength);
 
         // The first directional light that casts shadows casts them, when an instance has a box
         // to cast them (ADR-0038).
@@ -818,6 +954,9 @@ impl Renderer {
             pass.set_bind_group(0, frame_group, &[]);
             pass.draw(0..3);
         });
+        if bloom {
+            self.draw_bloom(gpu, targets, &mut stats, bloom_passes);
+        }
         // The tone-mapping pass clears rather than keeps the output: its triangle covers every
         // pixel, and a clear does not read what the window's image held before.
         let tone_mapping_pass = RenderPassDescriptor {
@@ -838,6 +977,169 @@ impl Renderer {
         stats.sky_gpu_time = self.sky_timer.as_ref().and_then(GpuTimer::latest);
         stats.cpu_time = started.elapsed();
         stats
+    }
+
+    /// The targets and groups for an output of `width` × `height` pixels (see [`SizedTargets`]).
+    fn create_sized_targets(&self, gpu: &Gpu, width: u32, height: u32) -> SizedTargets {
+        let hdr = gpu.create_render_target("scene", width, height, HDR_FORMAT);
+        let depth = gpu.create_depth_target("scene depth", width, height);
+        let sizes = bloom_sizes(width, height);
+        let downs: Vec<RenderTarget> = (0..)
+            .zip(&sizes)
+            .map(|(index, &(level_width, level_height))| {
+                let label = format!("bloom down {index}");
+                gpu.create_render_target(&label, level_width, level_height, HDR_FORMAT)
+            })
+            .collect();
+        // From the coarsest up: each average reads the coarser one, or the coarsest level's own
+        // light, and mixes in its level by 1 / (the levels from it to the coarsest), so that each
+        // level ends with the same share of the blurred copy, and no average exceeds the light it
+        // averages, which a sum would beyond half precision near the sun.
+        let mut ups: Vec<Option<(RenderTarget, BindGroup)>> = sizes.iter().map(|_| None).collect();
+        for index in (0..sizes.len().saturating_sub(1)).rev() {
+            let (level_width, level_height) = sizes[index];
+            let label = format!("bloom up {index}");
+            let average = gpu.create_render_target(&label, level_width, level_height, HDR_FORMAT);
+            let coarser = ups[index + 1]
+                .as_ref()
+                .map_or(&downs[index + 1], |(average, _)| average);
+            let mut weight = Vec::with_capacity(16);
+            push_f32s(
+                &mut weight,
+                &[1.0 / (sizes.len() - index) as f32, 0.0, 0.0, 0.0],
+            );
+            let weight = gpu.create_uniform_buffer(&label, &weight);
+            let group = gpu.create_bind_group(
+                &label,
+                &self.bloom_up_layout,
+                &[
+                    BindGroupEntry {
+                        binding: 0,
+                        resource: BindingResource::RenderTarget(coarser),
+                    },
+                    BindGroupEntry {
+                        binding: 1,
+                        resource: BindingResource::Sampler(&self.bloom_sampler),
+                    },
+                    BindGroupEntry {
+                        binding: 2,
+                        resource: BindingResource::RenderTarget(&downs[index]),
+                    },
+                    BindGroupEntry {
+                        binding: 3,
+                        resource: BindingResource::UniformBuffer(&weight),
+                    },
+                ],
+            );
+            ups[index] = Some((average, group));
+        }
+        let bloom: Vec<BloomLevel> = (0..downs.len())
+            .zip(ups)
+            .map(|(index, up)| {
+                let above = if index == 0 { &hdr } else { &downs[index - 1] };
+                let down_group = gpu.create_bind_group(
+                    &format!("bloom down {index}"),
+                    &self.bloom_down_layout,
+                    &[
+                        BindGroupEntry {
+                            binding: 0,
+                            resource: BindingResource::RenderTarget(above),
+                        },
+                        BindGroupEntry {
+                            binding: 1,
+                            resource: BindingResource::Sampler(&self.bloom_sampler),
+                        },
+                    ],
+                );
+                BloomLevel {
+                    down: downs[index].clone(),
+                    down_group,
+                    up,
+                }
+            })
+            .collect();
+        // The blurred copy, or the scene's light itself when there is no chain: any texture does,
+        // since the tone-mapping pass then mixes it in by 0.
+        let blurred = match bloom.first() {
+            Some(BloomLevel {
+                up: Some((average, _)),
+                ..
+            }) => average,
+            Some(BloomLevel { down, .. }) => down,
+            None => &hdr,
+        };
+        let tone_mapping_group = gpu.create_bind_group(
+            "tone mapping",
+            &self.tone_mapping_layout,
+            &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: BindingResource::RenderTarget(&hdr),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: BindingResource::RenderTarget(blurred),
+                },
+                BindGroupEntry {
+                    binding: 2,
+                    resource: BindingResource::Sampler(&self.bloom_sampler),
+                },
+                BindGroupEntry {
+                    binding: 3,
+                    resource: BindingResource::UniformBuffer(&self.bloom_strength),
+                },
+            ],
+        );
+        SizedTargets {
+            hdr,
+            depth,
+            tone_mapping_group,
+            bloom,
+        }
+    }
+
+    /// Draws the bloom's chain (ADR-0040): each level filtered down from the one above, the first
+    /// from the scene's light, then each average from the coarser one, from the coarsest up; each
+    /// pass draws one triangle over its target, timed by its own timer when the adapter can time,
+    /// and the sum of their latest times goes into `stats`. `passes` is the number of the chain's
+    /// passes.
+    fn draw_bloom(
+        &self,
+        gpu: &Gpu,
+        targets: &SizedTargets,
+        stats: &mut RenderStats,
+        passes: usize,
+    ) {
+        let mut timers = self.bloom_timers.iter();
+        let mut draw = |target: &RenderTarget, pipeline: &RenderPipeline, group: &BindGroup| {
+            let pass = RenderPassDescriptor {
+                target,
+                // The triangle covers every texel; a clear reads nothing back on GPUs that keep
+                // targets in tiles.
+                clear: Some(BLACK),
+                depth: None,
+                timer: timers.next(),
+            };
+            gpu.render(&pass, |pass| {
+                pass.set_pipeline(pipeline);
+                pass.set_bind_group(0, group, &[]);
+                pass.draw(0..3);
+            });
+        };
+        for level in &targets.bloom {
+            draw(&level.down, &self.bloom_down_pipeline, &level.down_group);
+        }
+        for level in targets.bloom.iter().rev() {
+            if let Some((average, group)) = &level.up {
+                draw(average, &self.bloom_up_pipeline, group);
+            }
+        }
+        if self.bloom_timers.len() >= passes {
+            stats.bloom_gpu_time = self.bloom_timers[..passes]
+                .iter()
+                .map(GpuTimer::latest)
+                .sum();
+        }
     }
 }
 
@@ -1136,6 +1438,72 @@ mod tests {
         assert!((shader_constant("SUN_CHORD") / chord - 1.0).abs() < 1e-6);
         // The ground hides the disc as the environment hides the sun's glow.
         assert_eq!(shader_constant("GROUND_HAZE") as f32, GROUND_HAZE);
+    }
+
+    #[test]
+    fn the_bloom_s_levels_halve_down_to_a_side_of_8_texels() {
+        assert_eq!(bloom_sizes(1, 1), []);
+        assert_eq!(bloom_sizes(3, 2), []);
+        assert_eq!(bloom_sizes(14, 14), []);
+        assert_eq!(bloom_sizes(15, 15), [(8, 8)]);
+        assert_eq!(bloom_sizes(16, 16), [(8, 8)]);
+        assert_eq!(bloom_sizes(33, 17), [(17, 9)]);
+        // Each level is the output divided by 2^i, rounded to the nearest: 720 / 32 = 22.5 gives
+        // 23, 720 / 64 = 11.25 gives 11, though 23 / 2 would round to 12.
+        assert_eq!(
+            bloom_sizes(1280, 720),
+            [
+                (640, 360),
+                (320, 180),
+                (160, 90),
+                (80, 45),
+                (40, 23),
+                (20, 11)
+            ]
+        );
+        assert_eq!(
+            bloom_sizes(1920, 1080),
+            [
+                (960, 540),
+                (480, 270),
+                (240, 135),
+                (120, 68),
+                (60, 34),
+                (30, 17),
+                (15, 8),
+            ]
+        );
+        // An odd output's first level rounds 960.5 up, and the next ones meet the even output's.
+        assert_eq!(bloom_sizes(1921, 1081)[..2], [(961, 541), (480, 270)]);
+        // Every level is half the one before, rounded down or up, which the passes' doubled and
+        // halved positions assume.
+        for (width, height) in [(1921, 1081), (637, 696), (1023, 767), (257, 131)] {
+            let mut finer = (width, height);
+            for (level_width, level_height) in bloom_sizes(width, height) {
+                assert!(
+                    [finer.0 / 2, finer.0.div_ceil(2)].contains(&level_width)
+                        && [finer.1 / 2, finer.1.div_ceil(2)].contains(&level_height),
+                    "{width}x{height}: {level_width}x{level_height} after {finer:?}"
+                );
+                finer = (level_width, level_height);
+            }
+        }
+        // The coarsest level has 8 to 15 texels across the shorter side: each spans an eighth to a
+        // sixteenth of the screen, whatever its resolution.
+        for (width, height) in [
+            (256, 256),
+            (1280, 720),
+            (2560, 1440),
+            (3840, 2160),
+            (8192, 8192),
+        ] {
+            let (level_width, level_height) = *bloom_sizes(width, height).last().expect("a chain");
+            let across = level_width.min(level_height);
+            assert!(
+                (8..16).contains(&across),
+                "{width}x{height}: {across} texels"
+            );
+        }
     }
 
     #[test]

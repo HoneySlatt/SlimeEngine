@@ -162,6 +162,7 @@ impl Setup {
                 lights: &[Light::Directional(light)],
                 environment: environment.as_ref(),
                 exposure: 1.0,
+                bloom: 0.0,
                 instances: &instances,
             },
         );

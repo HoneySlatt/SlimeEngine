@@ -129,6 +129,7 @@ impl Setup {
                 lights,
                 environment: Some(&self.sky),
                 exposure: 1.0,
+                bloom: 0.0,
                 instances: &instances,
             },
         );

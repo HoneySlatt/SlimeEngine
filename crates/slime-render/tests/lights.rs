@@ -112,6 +112,7 @@ impl Setup {
                 lights,
                 environment: None,
                 exposure,
+                bloom: 0.0,
                 instances: &instances,
             },
         );

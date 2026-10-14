@@ -2,9 +2,9 @@
 //! asset's sun, the light of its glowing ring and a spot light), or by the sample's sun for a file
 //! without lights, seen from a camera that orbits it until the mouse takes over: drag with the left
 //! button to turn around it, roll the wheel to come nearer or go farther. A dev overlay shows what
-//! each frame costs, with the GPU time of each pass, and a slider that changes the exposure, as a
-//! photographer's exposure value; F1 hides and shows it. The sample of Stages 3a and 3b. Escape,
-//! closing the window or Ctrl+C quits.
+//! each frame costs, with the GPU time of each pass, a slider that changes the exposure, as a
+//! photographer's exposure value, and one that changes the bloom's strength; F1 hides and shows
+//! it. The sample of Stages 3a and 3b. Escape, closing the window or Ctrl+C quits.
 //!
 //! ```sh
 //! cargo run --example scene                              # the scene of examples/assets/scene.glb
@@ -35,7 +35,7 @@ use slime_render::glam::Vec3;
 use slime_render::{Camera, RenderStats};
 
 use error_chain::error_chain;
-use sample_scene::{EXPOSURE, SampleScene};
+use sample_scene::{BLOOM, EXPOSURE, SampleScene};
 
 const USAGE: &str = "usage: scene [--scene <file.glb>] [--frames <count>]";
 
@@ -55,6 +55,8 @@ const PITCH_LIMIT: f32 = 1.45;
 /// room, so that files lit at other scales than the sample can be exposed too. A higher exposure
 /// value is darker, so the range runs from high to low: dragging to the right brightens the image.
 const EV100_RANGE: RangeInclusive<f32> = 18.0..=0.0;
+/// The bloom strengths the second slider covers: none, to five times the sample's.
+const BLOOM_RANGE: RangeInclusive<f32> = 0.0..=0.2;
 
 /// The exposure value at ISO 100 (EV100) that gives `exposure`, in the convention that Frostbite
 /// and Filament follow (Lagarde and de Rousiers, "Moving Frostbite to Physically Based Rendering",
@@ -174,6 +176,8 @@ struct SceneExample {
     /// The exposure the scene is drawn at, as an exposure value at ISO 100 (see [`ev100`]); the
     /// overlay's slider changes it.
     ev100: f32,
+    /// The strength of the bloom (ADR-0040); the overlay's second slider changes it.
+    bloom: f32,
 }
 
 impl App for SceneExample {
@@ -237,7 +241,13 @@ impl App for SceneExample {
         let (Some(gpu), Some(scene)) = (ctx.gpu(), &mut self.scene) else {
             return;
         };
-        self.stats = scene.render(gpu, target, self.camera.camera(), exposure(self.ev100));
+        self.stats = scene.render(
+            gpu,
+            target,
+            self.camera.camera(),
+            exposure(self.ev100),
+            self.bloom,
+        );
         self.drawn += 1;
         if let Some(overlay) = &mut self.overlay {
             let show = self.show_overlay;
@@ -248,6 +258,7 @@ impl App for SceneExample {
             let size = (target.width(), target.height());
             // The overlay's slider changes it; the scene is drawn with it from the next frame.
             let chosen = &mut self.ev100;
+            let bloom = &mut self.bloom;
             // Drawn with no panel while hidden, so that egui still takes the events handed to the
             // overlay as they come, not all at once when it is shown again.
             overlay.render(gpu, target, |ctx| {
@@ -268,6 +279,7 @@ impl App for SceneExample {
                             ("shadow", stats.shadow_gpu_time),
                             ("scene", stats.scene_gpu_time),
                             ("sky", stats.sky_gpu_time),
+                            ("bloom", stats.bloom_gpu_time),
                             ("tone mapping", stats.tone_mapping_gpu_time),
                         ] {
                             ui.label(match time {
@@ -296,6 +308,13 @@ impl App for SceneExample {
                                 .show_value(false)
                                 .text(format!("EV100 {shown:.1}")),
                         );
+                        // From no bloom to five times the sample's, labelled as the exposure is.
+                        let shown = *bloom;
+                        ui.add(
+                            egui::Slider::new(bloom, BLOOM_RANGE)
+                                .show_value(false)
+                                .text(format!("bloom {shown:.3}")),
+                        );
                         ui.label("F1 hides this");
                     });
             });
@@ -312,6 +331,7 @@ impl App for SceneExample {
             shadow_gpu_time = ?self.stats.shadow_gpu_time,
             scene_gpu_time = ?self.stats.scene_gpu_time,
             sky_gpu_time = ?self.stats.sky_gpu_time,
+            bloom_gpu_time = ?self.stats.bloom_gpu_time,
             tone_mapping_gpu_time = ?self.stats.tone_mapping_gpu_time,
             "shutdown"
         );
@@ -352,6 +372,7 @@ fn main() -> ExitCode {
         overlay: None,
         show_overlay: true,
         ev100: ev100(EXPOSURE),
+        bloom: BLOOM,
         frame_ms: 0.0,
         drawn: 0,
         stats: RenderStats::default(),

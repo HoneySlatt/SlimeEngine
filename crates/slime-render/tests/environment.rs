@@ -150,6 +150,7 @@ impl Setup {
                 lights: &[],
                 environment: Some(environment),
                 exposure,
+                bloom: 0.0,
                 instances: &instances,
             },
         );
@@ -558,6 +559,7 @@ fn an_environment_draws_with_any_renderer_and_a_scene_without_one_is_black() {
         lights: &[],
         environment: Some(&environment),
         exposure: 1.0,
+        bloom: 0.0,
         instances: &instances,
     };
     other.render(&setup.gpu, &setup.output, &scene);

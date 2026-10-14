@@ -34,7 +34,7 @@ use gltf::json::Value;
 use slime_gfx::{Gpu, TextureFormat};
 use slime_render::glam::{Quat, Vec3};
 
-use sample_scene::{EXPOSURE, SampleScene};
+use sample_scene::{BLOOM, EXPOSURE, SampleScene};
 
 const SIZE: u32 = 256;
 
@@ -56,7 +56,7 @@ fn the_gltf_scene_matches_its_reference_images() {
     for (name, yaw, pitch) in [("gltf-front", 0.6, 0.45), ("gltf-back", 3.6, 0.25)] {
         let radius = bounds.radius();
         let camera = orbit::camera_at(bounds.center(), radius, radius * 2.2, yaw, pitch);
-        let stats = scene.render(&gpu, &target, camera, EXPOSURE);
+        let stats = scene.render(&gpu, &target, camera, EXPOSURE, BLOOM);
         assert_eq!((stats.draw_calls, stats.triangles), (7, 2274));
         let image = gpu
             .read_render_target(&target)
@@ -849,10 +849,10 @@ fn png_of(width: u32, height: u32, pixels: &[u8]) -> Vec<u8> {
 const TRIANGLE_CENTRE: Vec3 = Vec3::new(1.0 / 3.0, 1.0 / 3.0, 0.0);
 
 /// Draws `file` into a 64 × 64 sRGB target as the sample does: under the file's lights, or the
-/// sample's sun for a file without lights, and the sample's sky, at the sample's exposure, seen
-/// from 3 units away from `centre`, turned by `yaw` around the vertical axis (0 looks from +Z).
-/// Returns the color of the pixel at the center of the image, and the color it has once every
-/// node of `file` is moved 1 km aside: the sky behind it.
+/// sample's sun for a file without lights, and the sample's sky, at the sample's exposure, without
+/// bloom, seen from 3 units away from `centre`, turned by `yaw` around the vertical axis (0 looks
+/// from +Z). Returns the color of the pixel at the center of the image, and the color it has once
+/// every node of `file` is moved 1 km aside: the sky behind it.
 fn centre_and_sky_behind(gpu: &Gpu, file: &mut Glb, centre: Vec3, yaw: f32) -> ([u8; 3], [u8; 3]) {
     let shown = |bytes: &[u8]| {
         let target = gpu.create_render_target("triangle", 64, 64, TextureFormat::Rgba8UnormSrgb);
@@ -862,6 +862,8 @@ fn centre_and_sky_behind(gpu: &Gpu, file: &mut Glb, centre: Vec3, yaw: f32) -> (
             &target,
             orbit::camera_at(centre, 1.0, 3.0, yaw, 0.0),
             EXPOSURE,
+            // Without bloom, which would spread the disc of a sun behind the triangle onto it.
+            0.0,
         );
         let image = gpu
             .read_render_target(&target)

@@ -62,6 +62,7 @@ fn draw(
             lights: &[],
             environment: Some(&environment),
             exposure,
+            bloom: 0.0,
             instances: &[],
         },
     )
@@ -190,6 +191,7 @@ fn the_sky_is_exposed_before_the_high_dynamic_range_target_and_kept_within_its_r
                 lights: &[Light::Directional(sun)],
                 environment: Some(&environment),
                 exposure,
+                bloom: 0.0,
                 instances: &[],
             },
         );

@@ -20,8 +20,10 @@ three of the map's texels (`docs/adr/0038-shadow-mapping.md`); the sky's light i
 draws the scene in high dynamic range, where light may exceed 1, multiplied by an exposure before
 it is written, then maps it to the output with a tone-mapping operator, Khronos PBR Neutral
 (`docs/adr/0034-hdr-rendering-and-tone-mapping.md`,
-`docs/adr/0037-lights-in-physical-units-and-pre-exposure.md`). It reports what each frame cost on
-the CPU and, on adapters that can time their work, what each of its four passes cost on the GPU.
+`docs/adr/0037-lights-in-physical-units-and-pre-exposure.md`), after mixing in a bloom: a share of
+the light spread around where it lands, as a lens spreads it, which makes the sun's disc glow
+(`docs/adr/0040-bloom.md`). It reports what each frame cost on the CPU and, on adapters that can
+time their work, what each of its passes cost on the GPU, the bloom's counted together.
 Blended transparency is not drawn, and a surface leaves an alpha of 1 in the target. Instances are
 drawn in the order of the scene, neither sorted nor batched. An instance whose transform mirrors it
 (a negative determinant, such as a scale of −1 along one axis) keeps its front faces, as glTF
@@ -88,6 +90,8 @@ fn main() -> Result<(), RenderError> {
         lights: &[sun],
         environment: None,
         exposure: PI / 100_000.0,
+        // No bloom, which would spread a little of the triangle's light around its edges.
+        bloom: 0.0,
         instances: &instances,
     };
     let stats = renderer.render(&gpu, &target, &scene);
@@ -106,13 +110,13 @@ fn main() -> Result<(), RenderError> {
 - `Renderer::new(gpu, format)` creates a renderer for output targets of one `TextureFormat`, the
   window's for a windowed application (`Context::surface_format` in `slime-app`). An sRGB format
   encodes the tone-mapped light for display; `Rgba16Float` holds the tone-mapped values themselves;
-  `Rgba8Unorm` stores them unencoded, which displays too dark. It compiles the two shaders, builds
-  the seven pipelines (two for the shadow pass, the second for masked materials, three for the
-  scene, which differ by the faces they cull, the sky's and the tone-mapping one), uploads the
-  table of the BRDF's scale and bias, which the first renderer of a process computes on the CPU,
-  and creates the shadow map, 2048 × 2048 depths (16 MiB); the high-dynamic-range target and the
-  depth target are created at the size of the first output drawn into, and again when the size
-  changes.
+  `Rgba8Unorm` stores them unencoded, which displays too dark. It compiles the three shaders, builds
+  the ten pipelines (two for the shadow pass, the second for masked materials, three for the
+  scene, which differ by the faces they cull, the sky's, the bloom's two and the tone-mapping
+  one), uploads the table of the BRDF's scale and bias, which the first renderer of a process
+  computes on the CPU, and creates the shadow map, 2048 × 2048 depths (16 MiB); the
+  high-dynamic-range target, the depth target and the bloom's levels (4.7 MiB at 1280 × 720) are
+  created at the size of the first output drawn into, and again when the size changes.
 - `Renderer::create_environment(gpu, &Sky)` computes a sky's `Environment` on the CPU, on every
   core, and uploads it: a cube map of 128 × 128 texels per face and four levels prefiltered for
   roughnesses 0.25 to 1, in half-precision floats (1.0 MiB), the last also the light a matte
@@ -138,7 +142,7 @@ fn main() -> Result<(), RenderError> {
   empty reads one white pixel, so that its factor counts alone. `MaterialData::default()` is an
   opaque, single-sided, white matte dielectric. Meshes and materials are cheap to clone and shared
   by their clones.
-- `Renderer::render(gpu, target, &Scene)` draws a frame in four passes. The shadow pass draws the
+- `Renderer::render(gpu, target, &Scene)` draws a frame in passes. The shadow pass draws the
   depths of every instance, all their faces but what masked materials discard, as the first
   directional light that casts shadows sees them, into the shadow map, through an orthographic
   projection that covers the boxes around the instances' meshes; it is skipped when no directional
@@ -151,15 +155,21 @@ fn main() -> Result<(), RenderError> {
   lights. The sky pass then draws the environment, and its sun's disc, where no surface was drawn.
   The light of both is multiplied by the scene's `exposure` (1 leaves it as it is, 2 is one
   photographic stop brighter) before it is written: exposed light above 65 504, the largest value of
-  that target, is written as 65 504. The tone-mapping pass then maps that light to the output's
-  range with Khronos PBR Neutral: colors whose channels lie between 0.08 and 0.8 come out lowered by
-  0.04, darker ones less, and brighter ones are compressed towards 1 and turned towards white, so
-  that a surface reflecting a light of 1 shows at 0.87 (sRGB 240). It returns `RenderStats`: the
-  scene pass's draw calls and triangles, the shadow pass's draw calls (`shadow_draw_calls`), the CPU
-  time of the call, and the GPU time of each pass (`shadow_gpu_time`, `scene_gpu_time`,
-  `sky_gpu_time`, `tone_mapping_gpu_time`), measured with a `slime_gfx::GpuTimer` each on adapters
-  that can time their work and read back a few frames later (`None` otherwise, and until the first
-  time comes back); they can come from different frames.
+  that target, is written as 65 504. Unless the scene's `bloom` is 0, the bloom's passes then filter
+  that light down into a chain of levels, each half the size of the one before, to a side of 8
+  texels (six levels at 1280 × 720, seven at 1920 × 1080, none below 15 × 15), and average them
+  back up into a blurred copy, every level with the same weight. The tone-mapping pass mixes the
+  blurred copy in by `bloom`, the share of each pixel's light spread around it (0.04 in the samples;
+  a uniform image is unchanged, light is moved and never added), then maps that light to the
+  output's range with Khronos PBR Neutral: colors whose channels lie between 0.08 and 0.8 come out
+  lowered by 0.04, darker ones less, and brighter ones are compressed towards 1 and turned towards
+  white, so that a surface reflecting a light of 1 shows at 0.87 (sRGB 240). It returns
+  `RenderStats`: the scene pass's draw calls and triangles, the shadow pass's draw calls
+  (`shadow_draw_calls`), the CPU time of the call, and the GPU time of each pass
+  (`shadow_gpu_time`, `scene_gpu_time`, `sky_gpu_time`, `tone_mapping_gpu_time`, and
+  `bloom_gpu_time` for the bloom's passes together), measured with a `slime_gfx::GpuTimer` per pass
+  on adapters that can time their work and read back a few frames later (`None` otherwise, and
+  until the first time comes back); they can come from different frames.
 - `Camera`: an eye, a target, an up direction, a vertical field of view in radians, and the near
   and far distances; `view`, `projection(aspect)` and `view_projection(aspect)` give its matrices.
 - `Light`: one of the punctual lights of glTF's `KHR_lights_punctual`, each with a linear color and

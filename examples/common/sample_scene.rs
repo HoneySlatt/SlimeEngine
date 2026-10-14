@@ -30,6 +30,11 @@ const SUN_ILLUMINANCE: f32 = 100_000.0;
 /// 15 of the "sunny 16" rule for direct sunlight.
 pub const EXPOSURE: f32 = PI / SUN_ILLUMINANCE;
 
+/// The share of the exposed light that the sample's bloom spreads around where it lands (ADR-0040):
+/// the sun's disc glows over about a third of the screen, and the ring, four times as bright as
+/// sunlit white, faintly.
+pub const BLOOM: f32 = 0.04;
+
 /// A clear day's sky around the sun, in nits: a blue zenith of luminance 3 900 and a whiter horizon
 /// of 9 400, and dark soil below them, of albedo about 0.1, lit by the sun 52° high and by the sky:
 /// 0.1 × (100 000 × sin 52° + 18 000) / π ≈ 3 100. Once exposed: (0.053, 0.123, 0.314),
@@ -107,13 +112,15 @@ impl SampleScene {
     }
 
     /// Draws the scene into `target` as `camera` sees it, its light multiplied by `exposure`
-    /// ([`EXPOSURE`] for the sample) before tone mapping.
+    /// ([`EXPOSURE`] for the sample), with a bloom of strength `bloom` ([`BLOOM`] for the sample)
+    /// mixed in before tone mapping.
     pub fn render(
         &mut self,
         gpu: &Gpu,
         target: &RenderTarget,
         camera: Camera,
         exposure: f32,
+        bloom: f32,
     ) -> RenderStats {
         let instances = self.loaded.instances();
         let sun = [Light::Directional(SUN)];
@@ -130,6 +137,7 @@ impl SampleScene {
                 lights,
                 environment: Some(&self.environment),
                 exposure,
+                bloom,
                 instances: &instances,
             },
         )

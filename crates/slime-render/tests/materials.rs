@@ -149,6 +149,7 @@ fn the_base_color_texture_is_read_at_the_texture_coordinates_and_tints_the_base_
                 lights: &[light],
                 environment: None,
                 exposure: 1.0,
+                bloom: 0.0,
                 instances: &instances,
             },
         );
