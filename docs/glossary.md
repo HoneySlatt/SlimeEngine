@@ -99,6 +99,11 @@ a *shadow map* is read. Depths are reversed (*reversed depth*).
 is reset, the GPU is removed, or it runs out of memory: its objects can then no longer be used,
 and the run stops ([ADR-0022](adr/0022-losing-the-gpu-device.md)).
 
+**Dithering.** Adding a little noise to values before they are rounded to the steps of an output,
+so that the rounding keeps their average and a slow gradient shows an even grain instead of bands
+one step apart. The renderer dithers 8-bit outputs by up to one step
+([ADR-0051](adr/0051-dithering-8-bit-outputs.md)).
+
 **Double-sided material.** A material whose back faces are drawn too, shaded with their normals
 reversed (glTF).
 

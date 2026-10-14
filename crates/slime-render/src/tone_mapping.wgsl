@@ -1,8 +1,9 @@
 // The tone-mapping pass (ADR-0034, ADR-0037, ADR-0040): one triangle covers the output, and each
 // pixel reads the texel of the scene's high-dynamic-range target under it, mixes it with the bloom
 // chain's blurred copy of the scene by the scene's bloom strength, maps the result to the range a
-// display shows with Khronos PBR Neutral, and writes it opaque. The scene pass has applied the
-// exposure. The output target's format encodes the result (sRGB for a window).
+// display shows with Khronos PBR Neutral, dithers it for an 8-bit output (ADR-0051), and writes it
+// opaque. The scene pass has applied the exposure. The output target's format encodes the result
+// (sRGB for a window).
 
 // The scene's exposed light divided by HEADROOM, drawn by the scene pass at the output's size:
 // linear, from 0 to 65504.
@@ -12,12 +13,18 @@
 // mirrored at the edges, that magnifies it.
 @group(0) @binding(1) var bloom_light: texture_2d<f32>;
 @group(0) @binding(2) var bloom_sampler: sampler;
-struct Bloom {
+struct Settings {
     // The share of each pixel's light that the blurred copy replaces, from 0 to 1; 0 when the
     // frame skipped the chain.
-    strength: f32,
+    bloom: f32,
+    // The step between two of the output's values, 1 / 255 for an 8-bit output, whose rounding
+    // dithering spreads; 0 for a floating-point output, which is not dithered.
+    step: f32,
+    // 1 when the output's format encodes sRGB, whose steps are even in encoded values, not in
+    // light; 0 otherwise.
+    srgb: f32,
 }
-@group(0) @binding(3) var<uniform> bloom: Bloom;
+@group(0) @binding(3) var<uniform> settings: Settings;
 
 // What the scene and sky passes divided exposed light by, so that light up to 64 × 65 504 keeps
 // its energy for the bloom (ADR-0040): HEADROOM in shader.wgsl, which a unit test compares with it.
@@ -41,7 +48,7 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
     // target has the output's size.
     var light = textureLoad(scene_light, vec2<u32>(position.xy), 0).rgb;
     // A branch on a uniform: every pixel takes the same way, and a strength of 0 costs nothing.
-    if bloom.strength > 0.0 {
+    if settings.bloom > 0.0 {
         // The chain's first level has twice the output's pixels per texel: the pixel falls at half
         // its position, read through the same 3 x 3 tent as the chain's own averages, so that the
         // glow of a small, bright source stays round wherever it lies.
@@ -59,9 +66,56 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
         let blurred = (corners + 2.0 * sides + 4.0 * center) / 16.0;
         // Energy-conserving: the share of the light that the lens spreads is taken from where it
         // lands, before the curve, as light rather than display values.
-        light = mix(light, blurred, bloom.strength);
+        light = mix(light, blurred, settings.bloom);
     }
-    return vec4<f32>(pbr_neutral(light * HEADROOM), 1.0);
+    var color = pbr_neutral(light * HEADROOM);
+    if settings.step > 0.0 {
+        color = dithered(color, vec2<u32>(position.xy));
+    }
+    return vec4<f32>(color, 1.0);
+}
+
+// `color`, from 0 to 1, with noise of up to one of the output's steps added, in encoded values for
+// an sRGB output, the same in every channel so that greys stay grey (ADR-0051). Its density is
+// triangular, the sum of two uniform values: the output's rounding then keeps the light's average
+// wherever it falls between two steps, and turns a slow gradient's bands into an even grain. It
+// comes from a hash of `pixel`: the same noise at every frame. A channel within half a step of 0 or
+// 1, which rounds there without noise, gets none: black and white stay as they are.
+fn dithered(color: vec3<f32>, pixel: vec2<u32>) -> vec3<f32> {
+    let hashed = pcg2d(pixel);
+    // The top 24 bits of each, as floats from 0 to below 1, exactly.
+    let unit = vec2<f32>(hashed >> vec2<u32>(8u)) / 16777216.0;
+    let noise = (unit.x + unit.y - 1.0) * settings.step;
+    let encoded = select(color, linear_to_srgb(color), settings.srgb > 0.0);
+    let half_step = 0.5 * settings.step;
+    let extreme = (encoded < vec3<f32>(half_step)) | (encoded > vec3<f32>(1.0 - half_step));
+    let noisy = encoded + select(vec3<f32>(noise), vec3<f32>(0.0), extreme);
+    return select(noisy, srgb_to_linear(noisy), settings.srgb > 0.0);
+}
+
+// Jarzynski and Olano's pcg2d hash (Hash Functions for GPU Rendering, 2020): two well-mixed 32-bit
+// values from two.
+fn pcg2d(input: vec2<u32>) -> vec2<u32> {
+    var v = input * 1664525u + 1013904223u;
+    v.x += v.y * 1664525u;
+    v.y += v.x * 1664525u;
+    v ^= v >> vec2<u32>(16u);
+    v.x += v.y * 1664525u;
+    v.y += v.x * 1664525u;
+    v ^= v >> vec2<u32>(16u);
+    return v;
+}
+
+// The sRGB encoding of linear values from 0 to 1, and its inverse, which takes any value: below 0
+// it gives negative light, which the output's format writes as 0.
+fn linear_to_srgb(linear: vec3<f32>) -> vec3<f32> {
+    let curve = 1.055 * pow(linear, vec3<f32>(1.0 / 2.4)) - 0.055;
+    return select(curve, linear * 12.92, linear <= vec3<f32>(0.0031308));
+}
+
+fn srgb_to_linear(encoded: vec3<f32>) -> vec3<f32> {
+    let curve = pow(max(encoded + 0.055, vec3<f32>(0.0)) / 1.055, vec3<f32>(2.4));
+    return select(curve, encoded / 12.92, encoded <= vec3<f32>(0.04045));
 }
 
 // Khronos PBR Neutral, written from the equations of its specification:

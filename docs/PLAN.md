@@ -889,11 +889,9 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **A roughness between two prefiltered levels reads a blend of their lobes** (ADR-0039): the four
   levels are 0.25 apart, and a lobe in between is approximated by mixing the nearest two, the split
   sum's usual approximation; each level is within 2.2 % of its own lobe's average.
-- **Smooth gradients band on 8-bit outputs.** The sky's gradient shows steps one sRGB level apart,
-  20 to 40 pixels wide, as an 8-bit output does without dithering, and the sun's halo steps 2 to 9
-  pixels wide near the sun; not visible in the sample at normal contrast.
-- **The `shapes` image test uses 33 of the 65 pixels that RADV may have off by more than 8**
-  (ADR-0030): edges and the metal spheres' reflections of the sky (49 at M3b.6, before the bloom).
+- **The `shapes` image test uses 28 of the 65 pixels that RADV may have off by more than 8**
+  (ADR-0030): edges and the metal spheres' reflections of the sky (49 at M3b.6, before the bloom;
+  33 before the shadow map followed the camera and the output was dithered).
   A change that adds reflective detail may exceed it; measure it again then.
 - **Four passes per submission is a number measured on one machine** (ADR-0041). On the owner's
   RX 6900 XT (RADV), whose memory that the CPU can map is a 256 MiB window, one submission of a

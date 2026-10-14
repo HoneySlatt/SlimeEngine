@@ -353,7 +353,9 @@ renderer = Renderer::new(&gpu, format)                 the output's format; thre
     │   │   the edges; no pass reads what it writes
     │   └── the tone-mapping pass into the target: one fullscreen triangle reads each pixel's texel
     │       (textureLoad), mixes in the bloom's first average by the scene's strength, multiplies
-    │       by 64, applies Khronos PBR Neutral and writes it opaque; an sRGB target encodes it
+    │       by 64, applies Khronos PBR Neutral, dithers an 8-bit target with a triangular noise
+    │       of one step hashed from the pixel's position (ADR-0051), and writes it opaque; an sRGB
+    │       target encodes it
     └── RenderStats: the scene pass's draw calls and triangles, the shadow pass's draw calls, the
         CPU time of this call, and the GPU time of each pass, the bloom's summed, a few frames old,
         the latest that came back

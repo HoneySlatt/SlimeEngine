@@ -296,8 +296,9 @@ pub struct Renderer {
     /// Linear, mirrored at the edges: reads the levels between their texels, and beyond them their
     /// texels mirrored, so that a pixel near an edge keeps its light and none wraps around.
     bloom_sampler: Sampler,
-    /// The strength the tone-mapping pass mixes the blurred copy in by, written every frame.
-    bloom_strength: UniformBuffer,
+    /// The tone-mapping pass's settings, `Settings` in `tone_mapping.wgsl`: the strength it mixes
+    /// the blurred copy in by, written every frame, and how it dithers the output (ADR-0051).
+    tone_mapping_settings: UniformBuffer,
     /// Whether a scene with more than [`MAX_LIGHTS`] lights was drawn: it is said once, not at
     /// every frame.
     warned_of_lights: bool,
@@ -609,7 +610,7 @@ impl Renderer {
                 ..SamplerDescriptor::default()
             },
         )?;
-        let bloom_strength = gpu.create_uniform_buffer("bloom strength", &[0; 16])?;
+        let tone_mapping_settings = gpu.create_uniform_buffer("tone-mapping settings", &[0; 16])?;
         let tone_mapping_pipeline = gpu.create_render_pipeline(&RenderPipelineDescriptor {
             label: "tone mapping",
             shader: &tone_mapping_shader,
@@ -681,7 +682,7 @@ impl Renderer {
             bloom_down_layout,
             bloom_up_layout,
             bloom_sampler,
-            bloom_strength,
+            tone_mapping_settings,
             warned_of_lights: false,
         })
     }
@@ -884,12 +885,19 @@ impl Renderer {
         );
         let (width, height) = (target.width(), target.height());
         let bloom = scene.bloom > 0.0 && bloom_levels(width, height) > 0;
-        let mut strength = Vec::with_capacity(16);
+        // An 8-bit output is dithered by one of its 255 steps; a floating-point one is not.
+        let step = if self.format == TextureFormat::Rgba16Float {
+            0.0
+        } else {
+            1.0 / 255.0
+        };
+        let srgb = if self.format.is_srgb() { 1.0 } else { 0.0 };
+        let mut settings = Vec::with_capacity(16);
         push_f32s(
-            &mut strength,
-            &[if bloom { scene.bloom } else { 0.0 }, 0.0, 0.0, 0.0],
+            &mut settings,
+            &[if bloom { scene.bloom } else { 0.0 }, step, srgb, 0.0],
         );
-        gpu.write_uniform_buffer(&self.bloom_strength, &strength);
+        gpu.write_uniform_buffer(&self.tone_mapping_settings, &settings);
 
         // Every position reaches the GPU relative to the camera (ADR-0048).
         let origin = scene.camera.eye;
@@ -1168,7 +1176,7 @@ impl Renderer {
                                 BindingResource::RenderTarget(hdr),
                                 BindingResource::RenderTarget(read(1).unwrap_or(hdr)),
                                 BindingResource::Sampler(&self.bloom_sampler),
-                                BindingResource::UniformBuffer(&self.bloom_strength),
+                                BindingResource::UniformBuffer(&self.tone_mapping_settings),
                             ],
                             None,
                         )

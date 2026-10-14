@@ -101,7 +101,7 @@ the ADR linking to it.
 | [0031](0031-dev-overlay-with-egui.md) | The dev overlay with egui, and wgpu for the engine's tooling | Accepted; widened on 2026-10-13 |
 | [0032](0032-mipmaps-computed-at-texture-creation.md) | Mipmaps computed by the engine when a texture is created | Accepted; amended by 0039 |
 | [0033](0033-gpu-layer-for-multi-pass-rendering.md) | The GPU layer for multi-pass rendering | Accepted; amended by 0038, 0039, 0041 and 0047 |
-| [0034](0034-hdr-rendering-and-tone-mapping.md) | HDR rendering and tone mapping | Accepted; amended by 0035, 0037, 0039, 0040 and 0041 |
+| [0034](0034-hdr-rendering-and-tone-mapping.md) | HDR rendering and tone mapping | Accepted; amended by 0035, 0037, 0039, 0040, 0041 and 0051 |
 | [0035](0035-physically-based-materials.md) | Physically based materials | Accepted; amended by 0037 and 0039 |
 | [0036](0036-direct3d-12-shader-compiler.md) | The shader compiler of Direct3D 12 | Accepted |
 | [0037](0037-lights-in-physical-units-and-pre-exposure.md) | Lights in physical units, and pre-exposure | Accepted; amended by 0038, 0039, 0040 and 0042 |
@@ -118,3 +118,4 @@ the ADR linking to it.
 | [0048](0048-rendering-relative-to-the-camera.md) | Rendering relative to the camera | Accepted |
 | [0049](0049-instances-that-cast-no-shadow.md) | Instances that cast no shadow | Accepted; amended by 0050 |
 | [0050](0050-a-shadow-region-that-follows-the-camera.md) | A shadow region that follows the camera | Accepted |
+| [0051](0051-dithering-8-bit-outputs.md) | Dithering 8-bit outputs | Accepted |

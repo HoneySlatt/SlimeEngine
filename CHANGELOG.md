@@ -19,6 +19,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   as the camera or the instances move. A point is looked up in the map moved off its surface along
   its normal, which keeps curved surfaces from shadowing themselves, instead of the slope-scaled
   depth bias. The samples' shadows are slightly softer, and their reference images changed.
+- Dithering of 8-bit outputs ([ADR-0051](docs/adr/0051-dithering-8-bit-outputs.md)): the
+  tone-mapping pass adds noise of up to one step, the same at every frame, before the output rounds
+  the frame, so that slow gradients such as the sky's show an even grain instead of bands; black
+  and white stay as they are. The reference images changed.
 - `Event::ModifiersChanged`: the modifier keys held as a whole (`Modifiers`: Shift, Control, Alt,
   Super), once per change, released when the window loses the focus. The dev overlay feeds them
   to egui, so its shortcuts with Ctrl, and selecting text with Shift, work.

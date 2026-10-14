@@ -279,3 +279,43 @@ fn an_srgb_output_encodes_the_tone_mapped_light() {
         );
     }
 }
+
+#[test]
+fn an_8_bit_output_is_dithered_so_that_it_keeps_the_light_between_two_steps() {
+    let gpu = gpu();
+    let mut renderer =
+        Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer is created");
+    let side = 64;
+    let output = gpu
+        .create_render_target("output", side, side, TextureFormat::Rgba8UnormSrgb)
+        .expect("the GPU has memory for it");
+    // 0.25 tone maps to 0.21, encoded as 126.38 out of 255: between two steps, which rounding alone
+    // would turn into 126 everywhere.
+    draw(&gpu, &mut renderer, &output, [0.25; 3], 1.0);
+    let image = gpu
+        .read_render_target(&output)
+        .expect("the image is read back");
+    let linear = f64::from(tone_curve::tone_map([0.25; 3])[0]);
+    let encoded = (1.055 * linear.powf(1.0 / 2.4) - 0.055) * 255.0;
+    let mut sum = 0.0;
+    let mut values = std::collections::BTreeSet::new();
+    for pixel in image.pixels.chunks(4) {
+        // The same noise in every channel: grey stays grey.
+        assert!(
+            pixel[0] == pixel[1] && pixel[1] == pixel[2] && pixel[3] == 255,
+            "{pixel:?}"
+        );
+        assert!(
+            (f64::from(pixel[0]) - encoded).abs() < 2.0,
+            "{pixel:?} against {encoded}"
+        );
+        sum += f64::from(pixel[0]);
+        values.insert(pixel[0]);
+    }
+    let mean = sum / f64::from(side * side);
+    assert!(
+        (mean - encoded).abs() < 0.05,
+        "a mean of {mean} for {encoded}, with values {values:?}"
+    );
+    assert!(values.contains(&126) && values.contains(&127), "{values:?}");
+}

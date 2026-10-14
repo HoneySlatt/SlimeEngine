@@ -1,6 +1,6 @@
 # 0034. HDR rendering and tone mapping
 
-- Status: Accepted; amended by [0035](0035-physically-based-materials.md) (light above 65 504 is written as 65 504), by [0037](0037-lights-in-physical-units-and-pre-exposure.md) (the exposure is applied by the scene pass, before the HDR target is written; the tone-mapping pass no longer multiplies by it), by [0039](0039-image-based-lighting-computed-on-the-cpu.md) (the sky replaces the clear color), by [0040](0040-bloom.md) (the tone-mapping pass mixes the bloom in before the curve, and multiplies the light it reads by 64) and by [0041](0041-render-graph.md) (the passes share submissions and their timers; the targets are the render graph's)
+- Status: Accepted; amended by [0035](0035-physically-based-materials.md) (light above 65 504 is written as 65 504), by [0037](0037-lights-in-physical-units-and-pre-exposure.md) (the exposure is applied by the scene pass, before the HDR target is written; the tone-mapping pass no longer multiplies by it), by [0039](0039-image-based-lighting-computed-on-the-cpu.md) (the sky replaces the clear color), by [0040](0040-bloom.md) (the tone-mapping pass mixes the bloom in before the curve, and multiplies the light it reads by 64), by [0041](0041-render-graph.md) (the passes share submissions and their timers; the targets are the render graph's) and by [0051](0051-dithering-8-bit-outputs.md) (8-bit outputs dithered)
 - Date: 2026-10-13
 
 ## Context
