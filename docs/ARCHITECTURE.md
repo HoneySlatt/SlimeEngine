@@ -275,7 +275,7 @@ dynamic range, the sky behind it, the bloom's chain, then tone mapping into the 
 [ADR-0040](adr/0040-bloom.md)):
 
 ```text
-renderer = Renderer::new(&gpu, format)                 the output's format; three shaders and ten
+renderer = Renderer::new(&gpu, format)                 the output's format; three shaders and nine
 │                                                      pipelines: two depth-only ones for the
 │                                                      shadow pass (the second discards what
 │                                                      masked materials discard), three for the

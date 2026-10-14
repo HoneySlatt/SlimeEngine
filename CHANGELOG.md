@@ -105,7 +105,7 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   `illuminance` in lux, and glTF's default strength, 1 lux. A scene under a directional light of π
   lux at an exposure of 1 looks as it did under the former light of π.
 - A frame of `Renderer::render` takes these passes: the shadow map, the scene, the sky, the bloom's
-  chain, then tone mapping; `Renderer::new` builds ten pipelines and a 16 MiB shadow map; `Scene`
+  chain, then tone mapping; `Renderer::new` builds nine pipelines and a 16 MiB shadow map; `Scene`
   has a `bloom` field; a `DirectionalLight` written in full names `casts_shadows`.
   `Scene::environment` replaces `Scene::clear` and the renderer's fixed ambient light: a scene
   without an environment is black around its surfaces and lit by its lights alone. Images change:

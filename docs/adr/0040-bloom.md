@@ -67,9 +67,9 @@ the bloom. The rest was common to the designs or measured.
   own light reflected: no halo wraps around, and a pixel at an edge whose position is on every
   level's grid (the top and left edges always, the others when the side is a multiple of 2^levels)
   keeps its light exactly. Elsewhere the rounding to the nearest keeps each level within half a
-  texel of the image's edge: a pixel's halo holds within 0.82 to 1.19 of its light at the right
-  and bottom edges of the sizes measured, 1.85 at a corner of 1023 × 767. No pass reads what it
-  writes.
+  texel of the image's edge: measured with the tests' model at ten sizes, a pixel's halo at the
+  right and bottom edges holds 0.83 to 1.37 of its light, up to 1.9 at the far corner (1023 × 1023,
+  2047 × 1151); within 1.002 at 1280 × 720 and 1.10 at 1920 × 1080. No pass reads what it writes.
 - Every read is `textureSampleLevel` at level 0 or `textureLoad`: no derivatives, no loops, no
   discards. The tone-mapping pass branches on its strength, a uniform.
 
@@ -84,13 +84,13 @@ light is stored in steps of 64 × 2^-24 instead of relative ones. Brighter light
 ### Tests
 
 - `crates/slime-render/tests/bloom.rs`, reading back `Rgba16Float` outputs: a single bright pixel's
-  halo is symmetric about its diagonals, and two neighbouring pixels' halos mirror each other; on an
-  odd output, the halo falls with the distance and does not change as the pixel moves; it does not
-  wrap around to the other edge; a uniform image, dark or bright, is unchanged by any strength, from
-  1 × 1 to 64 × 64; a strength of 0 skips the passes; the chain follows the output's size; every
-  pixel of a halo, inside the image and at its corners, matches a CPU model of the chain written
-  from this ADR within 3.9 × 10⁻³ relative (6 × 10⁻³ allowed), on lavapipe and RADV; the model keeps
-  a pixel's light at
+  halo is symmetric about the diagonal through it, and two neighbouring pixels' halos mirror each
+  other; on an odd output, the halo falls with the distance and does not change as the pixel moves;
+  it does not wrap around to the other edge; a uniform image, dark or bright, is unchanged by any
+  strength, from 1 × 1 to 64 × 64; a strength of 0 skips the passes, and an output below 15 × 15
+  shows no bloom at any strength; the chain follows the output's size; every pixel of a halo, inside
+  the image and at its corners, matches a CPU model of the chain written from this ADR within
+  3.9 × 10⁻³ relative (6 × 10⁻³ allowed), on lavapipe and RADV; the model keeps a pixel's light at
   every edge of a 64 × 64 output; a pixel of 4 × 65 536 keeps its halo; the statistics give the
   bloom's time. A unit test checks the levels' sizes, another that both shaders scale by the same
   power of two.
@@ -143,7 +143,8 @@ This amends:
   0.51 and 0.63 ms more of CPU per frame for the passes' submissions and timers, until M3b.8 records
   a frame in one submission.
 - Light near the right and bottom edges of outputs whose sides are not multiples of 2^levels blooms
-  up to about 20 % more or less, near a corner more.
+  up to about 40 % more or 20 % less, up to nearly twice at a far corner.
+- A texel that is not a number in the high-dynamic-range target spreads into a whole halo.
 - Tiny, very bright sources' halos blink as their coverage of a pixel changes, without temporal
   anti-aliasing. A window resized across a power of two adds or removes a level, and the glow's
   reach changes a little.

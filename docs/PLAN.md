@@ -458,26 +458,27 @@ upgrading wgpu still waits for egui.
   chose a strength of 0.04 for the samples and to keep light beyond 65 504 for the bloom. The asset
   does not change: its ring glows faintly at 0.04, and a brighter ring whitens and floods the floor
   rather than glowing. `crates/slime-render/tests/bloom.rs` reads `Rgba16Float` outputs back: a
-  single bright pixel's halo is symmetric about its diagonals, and two neighbouring pixels' halos
-  mirror each other within 10⁻³; on a 257 × 131 output the halo falls with the distance and keeps
-  its shape, within 3 %, as the pixel moves; it does not wrap around; uniform images of light 0 to
-  4 are unchanged at a strength of 1 from 1 × 1 to 64 × 64; a strength of 0 skips the passes; the
-  chain follows the output's size; every pixel of a halo, inside and at corners of 256 × 256,
-  257 × 131 and 64 × 64 outputs, matches a CPU model of the chain within 3.9 × 10⁻³ relative, the
-  same on lavapipe and RADV; the model keeps a pixel's light at every edge of a 64 × 64 output
-  within 3 × 10⁻³; a pixel of 4 × 65 536 keeps its halo. Clamping the sampler to the edge, and
-  removing the headroom, each fail a test. Prototypes of the designs were checked against 16 and 30
-  mutations (all but a threshold of 0.01, invisible, caught). Every test passes on lavapipe, with
-  glam's assertions on, and on RADV. The references were rendered again on lavapipe and looked at
-  (a soft glow around the ring and bright edges); on RADV, `gltf-front` has 200 pixels off by more
-  than 2, 72 by more than 4, 3 by more than 8 (65 allowed), largest 24; `gltf-back` 19, 0, 0,
-  largest 4; `shapes` 540, 259, 33, largest 18: the bloom averages the drivers' edge differences,
-  and `shapes` is back from 49 to 33. On RADV, the sample's bloom takes 34 µs at 1280 × 720 and
-  51 µs at 1920 × 1080, and the tone-mapping pass 9 and 20 µs more; on lavapipe 5.3 and 10.1 ms,
-  and 3.4 and 7.4 ms; the CPU time of `render` grows by 0.51 and 0.63 ms, the passes' submissions
-  and timers. The workspace's tests take 26.2 s on lavapipe (23.9 s at M3b.6). The `scene` example
-  ran 400 frames in a headless Weston at 1280 × 720 on lavapipe, and a screenshot was looked at:
-  the ring's glow, the overlay's bloom time and slider.
+  single bright pixel's halo is symmetric about the diagonal through it, and two neighbouring
+  pixels' halos mirror each other within 10⁻³; on a 257 × 131 output the halo falls with the
+  distance and keeps its shape, within 3 %, as the pixel moves; it does not wrap around; uniform
+  images of light 0 to 4 are unchanged at a strength of 1 from 1 × 1 to 64 × 64; a strength of 0
+  skips the passes, and outputs below 15 × 15 show no bloom at any strength; the chain follows the
+  output's size; every pixel of a halo, inside and at corners of 256 × 256, 257 × 131 and 64 × 64
+  outputs, matches a CPU model of the chain within 3.9 × 10⁻³ relative, the same on lavapipe and
+  RADV; the model keeps a pixel's light at every edge of a 64 × 64 output within 3 × 10⁻³; a
+  pixel of 4 × 65 536 keeps its halo. Clamping the sampler to the edge, and removing the headroom,
+  each fail a test. Prototypes of the designs were checked against 16 and 30 mutations (all but a
+  threshold of 0.01, invisible, caught). Every test passes on lavapipe, with glam's assertions on,
+  and on RADV. The references were rendered again on lavapipe and looked at (a soft glow around the
+  ring and bright edges); on RADV, `gltf-front` has 200 pixels off by more than 2, 72 by more than
+  4, 3 by more than 8 (65 allowed), largest 24; `gltf-back` 19, 0, 0, largest 4; `shapes` 540, 259,
+  33, largest 18: the bloom averages the drivers' edge differences, and `shapes` is back from 49 to
+  33. On RADV, the sample's bloom takes 34 µs at 1280 × 720 and 51 µs at 1920 × 1080, and the
+  tone-mapping pass 9 and 20 µs more; on lavapipe 5.3 and 10.1 ms, and 3.4 and 7.4 ms; the CPU time
+  of `render` grows by 0.51 and 0.63 ms, the passes' submissions and timers. The workspace's tests
+  take 26.2 s on lavapipe (23.9 s at M3b.6). The `scene` example ran 400 frames in a headless Weston
+  at 1280 × 720 on lavapipe, and a screenshot was looked at: the ring's glow, the overlay's bloom
+  time and slider.
 
 ### M3b.8 — Render graph
 
@@ -875,9 +876,10 @@ GitHub issues, linked from their entry; this list stays the reference.
   removes a level: the glow's reach changes a little while the edge is dragged.
 - **Light near the right and bottom edges blooms a little more or less** (ADR-0040). Where an
   output's side is not a multiple of 2^levels, the coarse levels' last texels straddle the edge: a
-  pixel's halo there holds 0.82 to 1.19 of its light at the sizes measured, 1.85 at a corner of
-  1023 × 767; inside the image and at the top and left edges, its light exactly. To measure: the
-  CPU model of `tests/bloom.rs` at the size in question.
+  pixel's halo there holds 0.83 to 1.37 of its light at ten sizes measured, up to 1.9 at the far
+  corner (1023 × 1023, 2047 × 1151), within 1.002 at 1280 × 720 and 1.10 at 1920 × 1080; inside the
+  image and at the top and left edges, its light exactly. To measure: the CPU model of
+  `tests/bloom.rs` at the size in question. A fix would pad the chain beyond those edges.
 - **glTF minification filters are approximated.** `slime-gfx` ties mip blending to the
   minification filter and gives every texture mipmaps, so only `NEAREST_MIPMAP_NEAREST` and
   `LINEAR_MIPMAP_LINEAR` are exact (documented in the loader). Revisit when an engine-side user
