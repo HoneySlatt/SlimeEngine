@@ -193,7 +193,8 @@ code.
 1. Keep each commit to one logical change, small enough to review. Write the subject in the
    imperative, in English; explain in the body why the change is needed when it is not obvious.
 2. Update every document the change affects. The table in
-   [`AGENTS.md`](AGENTS.md#files) says which document covers what.
+   [`AGENTS.md`](AGENTS.md#files) says which document covers what, and each fact has one home that
+   the others link to ([one home per fact](AGENTS.md#one-home-per-fact)).
 3. Do not commit code that fails the checks of the
    [definition of done](AGENTS.md#definition-of-done).
 

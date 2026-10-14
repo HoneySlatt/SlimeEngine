@@ -98,6 +98,19 @@ The reader is a competent Rust developer who has never seen this project, arrivi
 - Each notable feature has a runnable example in `examples/`, kept working.
 - A change that leaves a document wrong is not finished.
 
+### One home per fact
+
+A fact written in two places drifts: one copy is updated, the other is not. Each kind of fact has one home, and other documents link to it instead of copying it (ADR-0053):
+
+- **rustdoc**: the API's contracts, what an item does, its invariants, errors, panics and limits, with their figures (sizes, costs, defaults).
+- **A crate's README**: its role, what it depends on, what it must not do, and one or two sentences per entry point, linking to the rustdoc.
+- **`docs/ARCHITECTURE.md`**: the flows across crates, without the figures the rustdoc holds.
+- **ADRs**: why a decision was taken and what was rejected. Only their status changes afterwards.
+- **`docs/PLAN.md`**: status and known debt, linking to where the facts live.
+- **`CHANGELOG.md`**: what changed for users, once, when it changes.
+
+A document that needs a fact held elsewhere states it in a sentence, without its figures, and links to its home.
+
 ### Files
 
 | File | Content | Update when |
