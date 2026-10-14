@@ -173,7 +173,7 @@ pub struct RenderStats {
 /// that light down into a chain of levels, each half the size of the one before, then average them
 /// back up into a blurred copy; the tone-mapping pass then mixes the blurred copy in by the scene's
 /// bloom strength and maps the light to the output's range with Khronos PBR Neutral. The renderer
-/// owns ten pipelines: two for the shadow pass (the second discards what masked materials
+/// owns nine pipelines: two for the shadow pass (the second discards what masked materials
 /// discard), three for the scene pass, which differ by the faces they cull and among which each
 /// draw chooses (ADR-0035), the sky pass's, the bloom's two (down and up) and the tone-mapping
 /// pass's; the table of the BRDF's scale and bias and a black environment for scenes without one;
@@ -272,9 +272,10 @@ struct BloomLevel {
 /// the output divided by 2^i, rounded to the nearest, while both sides keep at least
 /// [`BLOOM_SMALLEST_SIDE`] texels. Empty below 15 × 15. Each side is then half the one before,
 /// rounded down or up, so that a pixel's position doubled or halved falls where it should; and each
-/// level's edge stays within half a texel of the output's, which keeps the light of pixels near the
-/// right and bottom edges within about 20 % where the output's sides are not multiples of 2^i
-/// (ADR-0040), against twice or ten times their light with other roundings.
+/// level's edge stays within half a texel of the output's: where the output's sides are not
+/// multiples of 2^i, a pixel's halo at the right and bottom edges holds 0.83 to 1.37 of its light,
+/// up to 1.9 at the far corner (ADR-0040), against 0.2 or ten times its light with levels rounded
+/// down or up.
 fn bloom_sizes(width: u32, height: u32) -> Vec<(u32, u32)> {
     let level = |side: u32, index: u32| (side + (1 << (index - 1))) >> index;
     (1..)
@@ -297,7 +298,7 @@ impl Renderer {
     /// # Errors
     ///
     /// [`RenderError::Gfx`] if the graphics driver rejects one of the renderer's three shaders or
-    /// ten pipelines, or if the device is lost.
+    /// nine pipelines, or if the device is lost.
     pub fn new(gpu: &Gpu, format: TextureFormat) -> Result<Self, RenderError> {
         let shader = gpu.create_shader_module("scene", SCENE_SHADER)?;
         let uniform = |label: &str, dynamic_offset: bool| {
@@ -778,7 +779,8 @@ impl Renderer {
         // The bloom's passes: one per level down, one per level but the coarsest up.
         let bloom_passes = (2 * targets.bloom.len()).saturating_sub(1);
         let bloom = scene.bloom > 0.0 && bloom_passes > 0;
-        if bloom {
+        // On adapters that cannot time their work, no timer is ever made.
+        if bloom && gpu.can_time() {
             while self.bloom_timers.len() < bloom_passes {
                 match gpu.create_timer(&format!("bloom {}", self.bloom_timers.len())) {
                     Some(timer) => self.bloom_timers.push(timer),

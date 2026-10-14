@@ -148,7 +148,9 @@ fn the_sky_is_exposed_before_the_high_dynamic_range_target_and_kept_within_its_r
     // The target holds exposed light divided by 64 (ADR-0040); beyond 64 × 65 504 it is stored as
     // 65 504, as the sky shader writes it, rather than left to the driver, which may store an
     // infinity that the curve turns into NaN. lavapipe and RADV would store 65 504 without the
-    // shader's clamp too: this checks the value, not the clamp.
+    // shader's clamp too, and near white the curve cannot tell 64 × 65 504 from 65 504: this
+    // checks that the light stays finite and white, not the clamp nor the division by 64, which
+    // `bloom.rs` checks.
     draw(&gpu, &mut renderer, &output, [65_504.0; 3], 128.0);
     let image = gpu
         .read_float_render_target(&output)

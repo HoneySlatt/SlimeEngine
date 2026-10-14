@@ -806,7 +806,8 @@ fn light_beyond_the_range_of_the_hdr_target_is_stored_as_its_largest_value() {
         &image.pixels[start..start + 3]
     );
     // The target holds exposed light divided by 64: 10^7 is stored as 65 504, 64 × 65 504 once
-    // multiplied back (ADR-0040).
+    // multiplied back (ADR-0040). Near white, the tone curve cannot tell that from 65 504: this
+    // checks that the light stays finite and white; `bloom.rs` checks the division by 64.
     assert_shows(
         &image,
         CENTER,

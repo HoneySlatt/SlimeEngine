@@ -142,10 +142,14 @@ fn red(image: &FloatImage, x: u32, y: u32) -> f32 {
 }
 
 #[test]
-fn a_single_bright_pixel_spreads_into_a_halo_symmetric_about_its_diagonals() {
+fn a_single_bright_pixel_spreads_into_a_halo_symmetric_about_its_diagonal() {
+    // About the diagonal through the pixel, x and y swapped, which maps every level's grid to
+    // itself. Not about the other diagonal, nor mirror-symmetric: the pixel's centre is on no
+    // corner of the levels' texels (the next test).
     let mut scene = Pixel::new(200.0);
     let (image, _) = scene.draw((256, 256), (128, 128), 0.04);
-    // 4 px away, the halo holds about 2 % of 200 x 0.04 / 1 000 per pixel: shown as about 2.7e-3.
+    // 4 px away, a pixel gets about 2.6 / 1 000 of the spread light: 200 x 0.04 x 0.0026, about
+    // 0.021.
     let halo = untone(red(&image, 132, 128));
     assert!((0.01..0.04).contains(&halo), "the halo 4 px away: {halo}");
     for dy in -48i32..=48 {
@@ -271,6 +275,32 @@ fn a_uniform_image_dark_or_bright_is_unchanged_by_any_strength() {
             // Below 15 x 15 no level fits: the bloom's passes are skipped.
             if size.0 < 15 || size.1 < 15 {
                 assert_eq!(stats.bloom_gpu_time, None, "{size:?}");
+            }
+        }
+    }
+}
+
+#[test]
+fn an_output_too_small_for_a_chain_shows_no_bloom_at_any_strength() {
+    // Below 15 x 15 the chain has no level: the tone-mapping pass must mix nothing in, whatever
+    // the strength, rather than read the scene's own light magnified as if it were the chain's.
+    let mut scene = Pixel::new(200.0);
+    for size in [(14, 14), (14, 64), (3, 2)] {
+        let at = (size.0 / 2, size.1 / 2);
+        let (image, stats) = scene.draw(size, at, 1.0);
+        assert_eq!(stats.bloom_gpu_time, None, "{size:?}");
+        for y in 0..size.1 {
+            for x in 0..size.0 {
+                let expected = if (x, y) == at {
+                    tone_curve::tone_map([200.0; 3])[0]
+                } else {
+                    0.0
+                };
+                assert!(
+                    (red(&image, x, y) - expected).abs() <= 1e-3,
+                    "{size:?}, ({x}, {y}): {}",
+                    red(&image, x, y)
+                );
             }
         }
     }
@@ -524,8 +554,9 @@ fn assert_the_halo_is_the_model_s(scene: &mut Pixel, size: (u32, u32), at: (u32,
     for y in 0..size.1 {
         for x in 0..size.0 {
             let shown = red(&image, x, y);
-            // Where the curve is exactly invertible and the light far above half precision's
-            // smallest normal values.
+            // Where the curve is exactly invertible, and the light, divided by 64 in the target,
+            // at least half precision's smallest normal value (1e-4 shown is 0.004, stored as
+            // 6.25e-5).
             if !(1e-4..0.7).contains(&shown) {
                 continue;
             }

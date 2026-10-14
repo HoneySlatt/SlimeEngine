@@ -111,7 +111,7 @@ fn main() -> Result<(), RenderError> {
   window's for a windowed application (`Context::surface_format` in `slime-app`). An sRGB format
   encodes the tone-mapped light for display; `Rgba16Float` holds the tone-mapped values themselves;
   `Rgba8Unorm` stores them unencoded, which displays too dark. It compiles the three shaders, builds
-  the ten pipelines (two for the shadow pass, the second for masked materials, three for the
+  the nine pipelines (two for the shadow pass, the second for masked materials, three for the
   scene, which differ by the faces they cull, the sky's, the bloom's two and the tone-mapping
   one), uploads the table of the BRDF's scale and bias, which the first renderer of a process
   computes on the CPU, and creates the shadow map, 2048 × 2048 depths (16 MiB); the
