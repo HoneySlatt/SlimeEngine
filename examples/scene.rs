@@ -290,6 +290,7 @@ impl App for SceneExample {
                             ("shadow", stats.shadow_gpu_time),
                             ("scene", stats.scene_gpu_time),
                             ("sky", stats.sky_gpu_time),
+                            ("resolve", stats.resolve_gpu_time),
                             ("bloom", stats.bloom_gpu_time),
                             ("tone mapping", stats.tone_mapping_gpu_time),
                         ] {
@@ -342,6 +343,7 @@ impl App for SceneExample {
             shadow_gpu_time = ?self.stats.shadow_gpu_time,
             scene_gpu_time = ?self.stats.scene_gpu_time,
             sky_gpu_time = ?self.stats.sky_gpu_time,
+            resolve_gpu_time = ?self.stats.resolve_gpu_time,
             bloom_gpu_time = ?self.stats.bloom_gpu_time,
             tone_mapping_gpu_time = ?self.stats.tone_mapping_gpu_time,
             "shutdown"

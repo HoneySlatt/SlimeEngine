@@ -50,6 +50,11 @@ pub enum BindingType {
     /// A [`Texture`] created by [`Gpu::create_cube_texture`], declared `texture_cube<f32>` in WGSL:
     /// sampled through a [`Sampler`] by direction.
     CubeTexture,
+    /// A [`RenderTarget`] of several samples per pixel
+    /// ([`Gpu::create_multisampled_render_target`]), declared `texture_multisampled_2d<f32>` in
+    /// WGSL: read sample by sample with `textureLoad`, as a shader that resolves it its own way
+    /// does.
+    MultisampledTexture,
     /// A [`Sampler`], declared `sampler` in WGSL.
     Sampler,
     /// A [`DepthTarget`], declared `texture_depth_2d` in WGSL: read with `textureLoad`, or
@@ -100,11 +105,11 @@ pub enum BindingResource<'a> {
     Texture(&'a Texture),
     /// A sampler.
     Sampler(&'a Sampler),
-    /// A render target created by [`Gpu::create_render_target`], for a
-    /// [`BindingType::Texture`] binding: shaders read what earlier passes drew into it. A pass
-    /// that binds it cannot draw into it, and neither the image of a window nor a multisampled
-    /// target can be bound. The group keeps this target: a target created again (at a new size)
-    /// needs a new group.
+    /// A render target that an earlier pass drew into: one created by
+    /// [`Gpu::create_render_target`], for a [`BindingType::Texture`] binding, or by
+    /// [`Gpu::create_multisampled_render_target`], for a [`BindingType::MultisampledTexture`] one.
+    /// A pass that binds it cannot draw into it, and the image of a window cannot be bound. The
+    /// group keeps this target: a target created again (at a new size) needs a new group.
     RenderTarget(&'a RenderTarget),
     /// A depth target created by [`Gpu::create_depth_target`], for a [`BindingType::DepthTexture`]
     /// binding: a multisampled one cannot be bound. A pass that binds it cannot draw into it. The
@@ -171,6 +176,12 @@ impl Gpu {
                         sample_type: wgpu::TextureSampleType::Float { filterable: true },
                         view_dimension: wgpu::TextureViewDimension::Cube,
                         multisampled: false,
+                    },
+                    // wgpu filters no multisampled texture.
+                    BindingType::MultisampledTexture => wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: true,
                     },
                     BindingType::Sampler => {
                         wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering)

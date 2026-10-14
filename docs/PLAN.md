@@ -13,13 +13,13 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3d — Anti-aliasing and the shadows of spot lights: planned on 2026-10-15 and validated by
-  the owner. M3d.1 is done but for its check on WARP by CI; M3d.2 is in progress.
+  the owner. M3d.1 is done; M3d.2 waits for its check on WARP by CI.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
-| [M3d.1](#m3d1--multisampling-in-the-gpu-layer) | `slime-gfx` draws into targets of four samples and resolves them | In progress |
+| [M3d.1](#m3d1--multisampling-in-the-gpu-layer) | `slime-gfx` draws into targets of four samples and resolves them | Done |
 | [M3d.2](#m3d2--anti-aliasing-in-the-renderer) | The edges of the scene are smooth | In progress |
 | [M3d.3](#m3d3--spot-lights-shadows-what-each-tile-sees) | Each spot light that casts shadows has its tile and knows what it sees | Planned |
 | [M3d.4](#m3d4--spot-lights-shadows-drawn-and-read) | Spot lights cast shadows | Planned |
@@ -88,6 +88,13 @@ lengthens `scripts/check.sh`.
   quarter and a half; the depth test holds for each sample; binding or reading back a target of
   four samples, and drawing with a pipeline whose samples differ from its pass's, are refused.
 - **How to test.** `cargo test -p slime-gfx` on lavapipe and on a GPU; CI on WARP.
+- **Checked** on 2026-10-15: ADR-0059; eight tests of multisampling, on lavapipe, an RX 6900 XT
+  (RADV) and WARP (CI): an edge across a quarter and across half of a pixel resolves to exactly a
+  quarter and a half, which the standard pattern of the samples gives; the depth test holds for each
+  sample; samples left in a target are resolved by a later pass that draws nothing; and wgpu
+  refuses reading back or binding as a texture of one sample a multisampled target, binding a
+  multisampled depth target, and drawing with a pipeline or a depth target of another number of
+  samples, or resolving a target of one sample. Every descriptor literal names the new fields.
 
 ### M3d.2 — Anti-aliasing in the renderer
 
@@ -103,6 +110,14 @@ lengthens `scripts/check.sh`.
   it; the image tests pass on lavapipe, an AMD GPU and WARP within ADR-0054's tolerance; the owner
   has chosen the resolve.
 - **How to test.** `cargo test --workspace`; `cargo run -p nightwatch`; the `scene` example.
+- **Checked so far** on 2026-10-15: the owner looked at *Nightwatch* with the plain average of the
+  samples and with the weighted one, and kept the weighted one (ADR-0060). On lavapipe and an RX
+  6900 XT (RADV): an edge between an emissive square and the black sky, a quarter of the way across
+  a pixel, shows its samples weighed as ADR-0060 says; the analytic tests hold inside surfaces; the
+  graph orders the resolve before what reads it; the reference images, rendered again on lavapipe,
+  differ on RADV as before (77 pixels by more than 8 at most, of 131 allowed). With *Nightwatch* in
+  a window of 1901 × 2082 on the RX 6900 XT, the scene pass costs the same, 375 µs, and the resolve
+  57 µs; the renderer holds 87 MiB more at 1920 × 1080. Waiting: WARP, by CI.
 
 ### M3d.3 — Spot lights' shadows: what each tile sees
 

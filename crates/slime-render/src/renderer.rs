@@ -32,6 +32,8 @@ const SCENE_SHADER: &str = include_str!("shader.wgsl");
 const TONE_MAPPING_SHADER: &str = include_str!("tone_mapping.wgsl");
 /// The shader of the bloom's passes.
 const BLOOM_SHADER: &str = include_str!("bloom.wgsl");
+/// The shader of the resolve pass.
+const RESOLVE_SHADER: &str = include_str!("resolve.wgsl");
 /// The bloom's chain stops before a level with a side shorter than this, in texels: its coarsest
 /// texel is then an eighth to a sixteenth of the output's shorter side, whatever its resolution, so
 /// that the halo reaches the same share of the screen (ADR-0040).
@@ -222,9 +224,12 @@ pub struct RenderStats {
     /// How long the GPU took to draw the shadow map, under the same rules as `scene_gpu_time`;
     /// `None` too for a frame that skipped the shadow pass.
     pub shadow_gpu_time: Option<Duration>,
-    /// How long the GPU took to draw the sky behind the scene and resolve the scene's samples into
-    /// one pixel each, under the same rules as `scene_gpu_time`.
+    /// How long the GPU took to draw the sky behind the scene, under the same rules as
+    /// `scene_gpu_time`.
     pub sky_gpu_time: Option<Duration>,
+    /// How long the GPU took to resolve the scene's samples into one pixel each, under the same
+    /// rules as `scene_gpu_time`.
+    pub resolve_gpu_time: Option<Duration>,
     /// How long the GPU took for the bloom's passes (ADR-0040): the sum of their times, under the
     /// same rules as `scene_gpu_time`. `None` too for a frame that skipped the bloom (a strength
     /// of 0, or an output smaller than 15 × 15), and until every pass's time has come back.
@@ -239,26 +244,26 @@ pub struct RenderStats {
 /// half-precision floats, where light may exceed 1, of four samples per pixel, with a depth target
 /// of four samples too (ADR-0056), their light multiplied by the scene's exposure, that light's
 /// only where the shadow map shows nothing nearer to it, and the environment's; the sky pass draws
-/// the environment where no surface is, sample by sample, then resolves the samples into a target
-/// of one sample per pixel, each pixel their average, so that the edges of what both passes drew
-/// are smooth (multisample anti-aliasing); the bloom's passes filter
-/// that light down into a chain of levels, each half the size of the one before, then average them
-/// back up into a blurred copy; the tone-mapping pass then mixes the blurred copy in by the scene's
-/// bloom strength and maps the light to the output's range with Khronos PBR Neutral. The renderer
-/// owns nine pipelines: two for the shadow pass (the second discards what masked materials
-/// discard), three for the scene pass, which differ by the faces they cull and among which each
-/// draw chooses (ADR-0035), the sky pass's, the bloom's two (down and up) and the tone-mapping
-/// pass's; the table of the BRDF's scale and bias and a black environment for scenes without one;
-/// the shadow map, 2048 × 2048 depths (16 MiB) created with the renderer; the buffer of the
-/// instances' values; and the frame's render graph (ADR-0041): its passes in order, the
-/// high-dynamic-range and depth targets and the bloom's levels at the size of the output it draws
-/// into, the groups that read them and GPU timers for its submissions, built again when the frame's
-/// shape changes (the output's size, the shadow pass or the bloom turned on or off). A renderer
-/// draws best into outputs of one size: drawing into outputs of two sizes in turn creates its
-/// targets again at every call, and reports no tone-mapping or bloom time; use one renderer per
-/// output size. At 1920 × 1080 with the bloom, a renderer holds about 137 MiB of GPU memory: 16 for
-/// the shadow map, 111 for the high-dynamic-range and depth targets, 95 of them for their four
-/// samples per pixel, and 10.5 for the bloom's levels; at 3840 × 2160, about 500 MiB.
+/// the environment where no surface is, sample by sample; the resolve pass averages the samples of
+/// each pixel into a target of one sample per pixel, each weighed by its brightness (ADR-0060), so
+/// that the edges of what both passes drew are smooth (multisample anti-aliasing); the bloom's
+/// passes filter that light down into a chain of levels, each half the size of the one before, then
+/// average them back up into a blurred copy; the tone-mapping pass then mixes the blurred copy in
+/// by the scene's bloom strength and maps the light to the output's range with Khronos PBR Neutral.
+/// The renderer owns ten pipelines: two for the shadow pass (the second discards what masked
+/// materials discard), three for the scene pass, which differ by the faces they cull and among
+/// which each draw chooses (ADR-0035), the sky pass's, the resolve pass's, the bloom's two (down
+/// and up) and the tone-mapping pass's; the table of the BRDF's scale and bias and a black
+/// environment for scenes without one; the shadow map, 2048 × 2048 depths (16 MiB) created with the
+/// renderer; the buffer of the instances' values; and the frame's render graph (ADR-0041): its
+/// passes in order, the high-dynamic-range and depth targets and the bloom's levels at the size of
+/// the output it draws into, the groups that read them and GPU timers for its submissions, built
+/// again when the frame's shape changes (the output's size, the shadow pass or the bloom turned on
+/// or off). A renderer draws best into outputs of one size: drawing into outputs of two sizes in
+/// turn creates its targets again at every call, and reports no tone-mapping or bloom time; use one
+/// renderer per output size. At 1920 × 1080 with the bloom, a renderer holds about 137 MiB of GPU
+/// memory: 16 for the shadow map, 111 for the high-dynamic-range and depth targets, 95 of them for
+/// their four samples per pixel, and 10.5 for the bloom's levels; at 3840 × 2160, about 500 MiB.
 ///
 /// It does not yet smooth the edges that a masked material cuts inside a triangle, blend
 /// transparent surfaces, or leave out the instances that the camera does not see: every instance
@@ -286,6 +291,10 @@ pub struct Renderer {
     environment_sampler: Sampler,
     /// Draws the environment where no surface is.
     sky_pipeline: RenderPipeline,
+    /// Averages the samples of each pixel, weighed by their brightness.
+    resolve_pipeline: RenderPipeline,
+    /// The layout of the group through which the resolve pass reads the scene's samples.
+    resolve_layout: BindGroupLayout,
     /// One white pixel, bound in every texture slot that a material leaves empty: every slot reads
     /// it as 1 in each channel, since sRGB's 255 decodes to exactly 1.
     white: Texture,
@@ -332,6 +341,9 @@ pub(crate) enum Pass {
     Scene,
     /// The environment where no surface is.
     Sky,
+    /// The samples of the scene and the sky, weighed by their brightness, averaged into one pixel
+    /// each, which the bloom and the tone mapping read.
+    Resolve,
     /// The bloom's level of this index (from 0, the finest), filtered down from the one above.
     BloomDown(usize),
     /// The average of the bloom's level of this index and the coarser ones.
@@ -634,6 +646,26 @@ impl Renderer {
                 ..SamplerDescriptor::default()
             },
         )?;
+        // The scene's samples, read one by one.
+        let resolve_layout = gpu.create_bind_group_layout(
+            "resolve",
+            &fragment_entries(&[BindingType::MultisampledTexture]),
+        )?;
+        let resolve_shader = gpu.create_shader_module("resolve", RESOLVE_SHADER)?;
+        let resolve_pipeline = gpu.create_render_pipeline(&RenderPipelineDescriptor {
+            label: "resolve",
+            shader: &resolve_shader,
+            vertex_entry_point: "vs_main",
+            vertex_layout: None,
+            fragment: Some(FragmentState {
+                entry_point: "fs_main",
+                target_format: Some(HDR_FORMAT),
+            }),
+            bind_group_layouts: &[&resolve_layout],
+            depth: None,
+            cull: CullMode::None,
+            multisampled: false,
+        })?;
         let tone_mapping_settings = gpu.create_uniform_buffer("tone-mapping settings", &[0; 16])?;
         let tone_mapping_pipeline = gpu.create_render_pipeline(&RenderPipelineDescriptor {
             label: "tone mapping",
@@ -694,6 +726,8 @@ impl Renderer {
             brdf_table,
             environment_sampler,
             sky_pipeline,
+            resolve_pipeline,
+            resolve_layout,
             white,
             default_sampler,
             instances,
@@ -840,20 +874,21 @@ impl Renderer {
     /// texels, and culled or not as its material and its transform ask (ADR-0035), the scene's
     /// environment reflected as its material reflects it (ADR-0039), its light multiplied by the
     /// scene's exposure (ADR-0037). Point and spot lights cast no shadows. The sky pass draws the
-    /// environment, exposed, where no surface was drawn, with its sun's disc, then resolves the
-    /// samples into one pixel each, their average, which smooths the edges of what both passes drew
-    /// (ADR-0056). Unless `scene.bloom` is 0 or `target` is smaller than 15 × 15, the bloom's
-    /// passes filter that light down into levels of half the size of the one before, to a side of
-    /// at least 8 texels, with Jimenez's 13-tap filter, then average them back up through 3 × 3
-    /// tents, every level with the same weight, into a blurred copy (ADR-0040): 11 passes at
-    /// 1280 × 720, 13 at 1920 × 1080. The tone-mapping pass then mixes the blurred copy in by
-    /// `scene.bloom`, maps that light to the range a display shows with Khronos PBR Neutral, which
-    /// lowers a color whose channels all lie between 0.08 and 0.8 by 0.04, a darker one less, and
-    /// compresses a brighter one towards 1 and turns it towards white, dithers it when `target` has
-    /// 8 bits per channel, with noise of up to one step that keeps its average and leaves black and
-    /// white as they are (ADR-0051), and writes it into `target`, opaque. A render graph orders the
-    /// passes, and they are recorded in that order, four to a submission named after `target`
-    /// (ADR-0041); the work runs on the GPU after this method returns.
+    /// environment, exposed, where no surface was drawn, with its sun's disc. The resolve pass then
+    /// averages the samples of each pixel, each weighed by 1 / (1 + its brightest channel), which
+    /// smooths the edges of what both passes drew, the bright ones too (ADR-0056, ADR-0060). Unless
+    /// `scene.bloom` is 0 or `target` is smaller than 15 × 15, the bloom's passes filter that light
+    /// down into levels of half the size of the one before, to a side of at least 8 texels, with
+    /// Jimenez's 13-tap filter, then average them back up through 3 × 3 tents, every level with the
+    /// same weight, into a blurred copy (ADR-0040): 11 passes at 1280 × 720, 13 at 1920 × 1080. The
+    /// tone-mapping pass then mixes the blurred copy in by `scene.bloom`, maps that light to the
+    /// range a display shows with Khronos PBR Neutral, which lowers a color whose channels all lie
+    /// between 0.08 and 0.8 by 0.04, a darker one less, and compresses a brighter one towards 1 and
+    /// turns it towards white, dithers it when `target` has 8 bits per channel, with noise of up to
+    /// one step that keeps its average and leaves black and white as they are (ADR-0051), and
+    /// writes it into `target`, opaque. A render graph orders the passes, and they are recorded in
+    /// that order, four to a submission named after `target` (ADR-0041); the work runs on the GPU
+    /// after this method returns.
     ///
     /// The high-dynamic-range and depth targets are created at the size of `target` the first
     /// time, and again whenever that size changes; the bloom's levels (4.7 MiB at 1280 × 720,
@@ -1137,6 +1172,11 @@ impl Renderer {
                 render_pass.set_bind_group(0, frame_group, &[]);
                 render_pass.draw(0..3);
             }
+            Pass::Resolve => {
+                render_pass.set_pipeline(&self.resolve_pipeline);
+                render_pass.set_bind_group(0, group.expect("the resolve reads the samples"), &[]);
+                render_pass.draw(0..3);
+            }
             Pass::BloomDown(_) | Pass::BloomUp(_) => {
                 render_pass.set_pipeline(if matches!(pass, Pass::BloomDown(_)) {
                     &self.bloom_down_pipeline
@@ -1177,6 +1217,12 @@ impl Renderer {
                 let read = |slot: usize| declaration.reads[slot].map(|target| graph.color(target));
                 let entries = match declaration.pass {
                     Pass::Shadow | Pass::Scene | Pass::Sky => return Ok(None),
+                    Pass::Resolve => (
+                        "resolve".to_owned(),
+                        &self.resolve_layout,
+                        vec![BindingResource::RenderTarget(read(0).expect("declared"))],
+                        None,
+                    ),
                     // The level above: the scene's light for the first.
                     Pass::BloomDown(level) => (
                         format!("bloom down {level}"),
@@ -1260,6 +1306,7 @@ fn fold_gpu_times(
             Pass::Shadow => stats.shadow_gpu_time = time,
             Pass::Scene => stats.scene_gpu_time = time,
             Pass::Sky => stats.sky_gpu_time = time,
+            Pass::Resolve => stats.resolve_gpu_time = time,
             Pass::BloomDown(_) | Pass::BloomUp(_) => {
                 bloom = Some(match bloom {
                     None => time,
@@ -1310,17 +1357,23 @@ fn declare_frame(shape: Shape) -> Graph {
     ));
     // Over the scene, keeping its light and its depths: the sky is drawn only where the depth
     // target still holds the farthest depth, where no surface was drawn, sample by sample, so that
-    // a pixel on a surface's edge averages the surface and the sky. The pass then resolves the
-    // samples.
+    // a pixel on a surface's edge holds both the surface and the sky.
     graph.add_pass(pass(
         Pass::Sky,
         Draws::Color {
             target: samples,
             depth: Some(depth),
             clear: false,
-            resolve: Some(hdr),
+            resolve: None,
         },
         [None, None],
+    ));
+    // The samples averaged, each weighed by its brightness (ADR-0060), into the target that the
+    // later passes read.
+    graph.add_pass(pass(
+        Pass::Resolve,
+        cleared(hdr),
+        [Some(samples.into()), None],
     ));
     let levels = bloom_levels_of(shape);
     let level_shift = |index: usize| u32::try_from(index + 1).expect("a few levels");
@@ -1691,6 +1744,7 @@ mod tests {
         // Both shaders scale by the same power of two, which half precision multiplies exactly.
         let headroom = shader_constant("HEADROOM");
         assert_eq!(constant_of(TONE_MAPPING_SHADER, "HEADROOM"), headroom);
+        assert_eq!(constant_of(RESOLVE_SHADER, "HEADROOM"), headroom);
         assert_eq!(headroom, 64.0);
     }
 
@@ -1890,7 +1944,7 @@ mod tests {
                     if shadow {
                         expected.push(Pass::Shadow);
                     }
-                    expected.extend([Pass::Scene, Pass::Sky]);
+                    expected.extend([Pass::Scene, Pass::Sky, Pass::Resolve]);
                     expected.extend((0..levels).map(Pass::BloomDown));
                     expected.extend((0..levels.saturating_sub(1)).rev().map(Pass::BloomUp));
                     expected.push(Pass::ToneMapping);
@@ -1932,6 +1986,7 @@ mod tests {
             Pass::Shadow,
             Pass::Scene,
             Pass::Sky,
+            Pass::Resolve,
             Pass::BloomDown(0),
             Pass::BloomDown(1),
             Pass::BloomUp(0),
@@ -1948,6 +2003,7 @@ mod tests {
                 stats.shadow_gpu_time,
                 stats.scene_gpu_time,
                 stats.sky_gpu_time,
+                stats.resolve_gpu_time,
                 stats.bloom_gpu_time,
                 stats.tone_mapping_gpu_time
             ),
@@ -1955,8 +2011,9 @@ mod tests {
                 Some(millis(1)),
                 Some(millis(2)),
                 Some(millis(3)),
-                Some(millis(4 + 5 + 6)),
-                Some(millis(7))
+                Some(millis(4)),
+                Some(millis(5 + 6 + 7)),
+                Some(millis(8))
             )
         );
         // A bloom pass without a time leaves the sum unknown, and a frame without the bloom's

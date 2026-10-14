@@ -1,7 +1,8 @@
 # 0059. Multisampling in the GPU layer
 
 - Status: Accepted; amends [0033](0033-gpu-layer-for-multi-pass-rendering.md) (multisampled
-  targets, pipelines and resolves)
+  targets, pipelines and resolves); amended by
+  [0060](0060-resolving-the-samples-weighed-by-their-brightness.md) (shaders read the samples)
 - Date: 2026-10-15
 
 ## Context

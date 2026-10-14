@@ -14,16 +14,15 @@ them back, and draws into a window:
   groups, with a depth test, a depth bias and face culling.
 - It draws into 8-bit sRGB or linear images, into 16-bit floating-point ones (high dynamic range),
   or into a depth target only.
-- It draws into images of four samples per pixel, which a pass resolves into ordinary ones, for
-  multisample anti-aliasing.
+- It draws into images of four samples per pixel, which a pass resolves into ordinary ones, or
+  which later shaders read sample by sample, for multisample anti-aliasing.
 - Later passes sample the render and depth targets that earlier ones drew into. Several passes
   can be recorded into one submission.
 - It times render passes, each pass of a submission apart, on adapters that have timestamp queries.
 - It creates textures from the CPU: two-dimensional ones whose levels of detail it computes, or
   whose levels the caller gives, in 8-bit or half-precision float formats, and cube textures.
 
-Not there yet: blending, array textures, and shaders that read the samples of a multisampled
-image.
+Not there yet: blending and array textures.
 
 ## Role
 
@@ -124,7 +123,8 @@ fn main() -> Result<(), GfxError> {
 - `Gpu::create_multisampled_render_target` and `Gpu::create_multisampled_depth_target` create
   targets of `MULTISAMPLE_COUNT` samples per pixel, which pipelines built `multisampled` draw into;
   `RenderPassDescriptor::resolve` names the target of one sample that the pass averages them into
-  as it ends (ADR-0059).
+  as it ends (ADR-0059); a later pass's shader can also read them sample by sample, at a
+  `BindingType::MultisampledTexture` binding (ADR-0060).
 - `Surface::acquire` gives the `SurfaceFrame` to draw a window's next image into, and
   `SurfaceFrame::present` shows it, as its `PresentMode` says (ADR-0021). Applications built on
   `slime-app` do not call these: the engine does.

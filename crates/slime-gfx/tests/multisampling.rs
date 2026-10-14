@@ -193,7 +193,7 @@ fn a_multisampled_target_cannot_be_read_back() {
 
 #[test]
 #[should_panic(expected = "expects multisampled = false")]
-fn a_multisampled_target_cannot_be_bound() {
+fn a_multisampled_target_is_not_bound_as_a_texture_of_one_sample() {
     let gpu = gpu();
     let samples = multisampled_target(&gpu);
     let layout = gpu
@@ -293,4 +293,106 @@ fn a_target_of_one_sample_is_not_resolved() {
         resolve: Some(&resolved),
     };
     gpu.render(&pass, |_pass| {});
+}
+
+#[test]
+fn a_later_pass_reads_each_sample_of_a_multisampled_target() {
+    let gpu = gpu();
+    let pipeline = pipeline(&gpu, true, None);
+    let samples = multisampled_target(&gpu);
+    let layout = gpu
+        .create_bind_group_layout(
+            "samples",
+            &[BindGroupLayoutEntry {
+                binding: 0,
+                visible_to: ShaderStages::Fragment,
+                ty: BindingType::MultisampledTexture,
+            }],
+        )
+        .expect("the GPU has memory for it");
+    let group = gpu
+        .create_bind_group(
+            "samples",
+            &layout,
+            &[BindGroupEntry {
+                binding: 0,
+                resource: BindingResource::RenderTarget(&samples),
+            }],
+        )
+        .expect("the GPU has memory for it");
+    // Each sample of the pixel in one channel of the output.
+    let shader = gpu
+        .create_shader_module(
+            "samples",
+            "@group(0) @binding(0) var samples: texture_multisampled_2d<f32>;
+
+             @vertex
+             fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {
+                 let corner = vec2<f32>(f32((i & 1u) * 4u) - 1.0, f32((i & 2u) * 2u) - 1.0);
+                 return vec4<f32>(corner, 0.0, 1.0);
+             }
+
+             @fragment
+             fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
+                 let texel = vec2<u32>(position.xy);
+                 return vec4<f32>(
+                     textureLoad(samples, texel, 0).r,
+                     textureLoad(samples, texel, 1).r,
+                     textureLoad(samples, texel, 2).r,
+                     textureLoad(samples, texel, 3).r,
+                 );
+             }",
+        )
+        .expect("the shader compiles");
+    let reader = gpu
+        .create_render_pipeline(&RenderPipelineDescriptor {
+            label: "samples",
+            shader: &shader,
+            vertex_entry_point: "vs_main",
+            vertex_layout: None,
+            fragment: Some(FragmentState {
+                entry_point: "fs_main",
+                target_format: Some(TextureFormat::Rgba16Float),
+            }),
+            bind_group_layouts: &[&layout],
+            depth: None,
+            cull: CullMode::None,
+            multisampled: false,
+        })
+        .expect("the pipeline is valid");
+    let read = resolved_target(&gpu);
+    gpu.submit("samples", |commands| {
+        let drawn = RenderPassDescriptor {
+            target: &samples,
+            clear: Some(LinearColor::BLACK),
+            depth: None,
+            timer: None,
+            resolve: None,
+        };
+        commands.render(&drawn, |pass| {
+            pass.set_pipeline(&pipeline);
+            pass.draw(0..12);
+        });
+        let reading = RenderPassDescriptor {
+            target: &read,
+            ..drawn
+        };
+        commands.render(&reading, |pass| {
+            pass.set_pipeline(&reader);
+            pass.set_bind_group(0, &group, &[]);
+            pass.draw(0..3);
+        });
+    });
+    let image = gpu
+        .read_float_render_target(&read)
+        .expect("the read target is read back");
+    // Each sample is 0 or 1, and the samples covered are as many as the resolve averages.
+    let covered: Vec<f32> = image.pixels[..(WIDTH * 4) as usize]
+        .chunks(4)
+        .map(|pixel| {
+            assert!(pixel.iter().all(|&sample| sample == 0.0 || sample == 1.0));
+            pixel.iter().sum()
+        })
+        .collect();
+    assert_eq!(covered, [0.0, 3.0, 2.0, 0.0, 4.0, 1.0, 0.0, 0.0]);
 }

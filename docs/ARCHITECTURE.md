@@ -349,24 +349,26 @@ renderer = Renderer::new(&gpu, format)                 the output's format; thre
     ├── the frame's render graph, built again when the frame's shape changes (the target's size,
     │   the shadow pass or the bloom starting or stopping): the passes below, each declaring the
     │   targets it draws into and samples, ordered by them; the HDR target (Rgba16Float) and the
-    │   depth target, of four samples per pixel, the HDR target they resolve into, and, while the
-    │   bloom runs, its levels (the output divided by 2^i, rounded to the
-    │   nearest, to a side of 8 texels), created at the target's size; the groups that read them,
-    │   built from the passes' declarations; a GpuTimer per submission
+    │   depth target, of four samples per pixel, the HDR target their samples are resolved into,
+    │   and, while the bloom runs, its levels (the output divided by 2^i, rounded to the nearest,
+    │   to a side of 8 texels), created at the target's size; the groups that read them, built
+    │   from the passes' declarations; a GpuTimer per submission
     ├── the passes, in the graph's order, four to a submission named after the target, each timed
     │   by its submission's GpuTimer when the adapter can:
     │   ├── the shadow pass into the shadow map, a depth-only pass skipped when no light or no
     │   │   instance casts shadows: for each instance that casts shadows, the shadow pipeline its
     │   │   material asks for (masked or not), its bind groups and buffers, draw_indexed
-    │   ├── the scene pass into the multisampled HDR target, cleared to black, the shadow map's group bound at
-    │   │   group 3: for each instance, the pipeline that its material's double-sidedness and its
-    │   │   transform's mirroring choose (set when it changes), its material's bind group 1, its
-    │   │   slot, its buffers, draw_indexed
+    │   ├── the scene pass into the multisampled HDR target, cleared to black, the shadow map's
+    │   │   group bound at group 3: for each instance, the pipeline that its material's
+    │   │   double-sidedness and its transform's mirroring choose (set when it changes), its
+    │   │   material's bind group 1, its slot, its buffers, draw_indexed
     │   ├── the sky pass into the multisampled HDR target, keeping it and the depth target: one
     │   │   triangle at depth 0, at infinity, drawn where the depth test of each sample finds no
     │   │   surface, reads the environment along each pixel's direction, adds the sun's disc, times
-    │   │   the exposure; the pass then resolves the samples into the HDR target of one sample,
-    │   │   each pixel their average, which the passes below read
+    │   │   the exposure
+    │   ├── the resolve pass into the HDR target of one sample, which the passes below read: one
+    │   │   triangle reads the samples of each pixel (textureLoad) and averages them, each weighed
+    │   │   by 1 / (1 + its brightest channel), so that bright edges are smooth too (ADR-0060)
     │   ├── unless the scene's bloom is 0: the bloom's passes (bloom.wgsl): each level filtered
     │   │   down from the one above with Jimenez's 13 taps, then each averaged up with the coarser
     │   │   average through a 3 × 3 tent, every level with the same weight, every read mirrored at

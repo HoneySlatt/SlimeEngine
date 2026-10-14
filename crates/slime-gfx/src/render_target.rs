@@ -81,8 +81,8 @@ impl TextureFormat {
 /// A texture that render passes draw into: an offscreen image ([`Gpu::create_render_target`]),
 /// which can be read back and sampled by later passes; the image of a window for one frame
 /// ([`SurfaceFrame::target`](crate::SurfaceFrame::target)), which can be neither; or an offscreen
-/// image of several samples per pixel ([`Gpu::create_multisampled_render_target`]), which can be
-/// neither either, and which a pass resolves into an ordinary one.
+/// image of several samples per pixel ([`Gpu::create_multisampled_render_target`]), which a pass
+/// resolves into an ordinary one, and which later passes can read sample by sample.
 ///
 /// Clones refer to the same texture, which is freed when the last clone is dropped and the GPU no
 /// longer uses it.
@@ -167,8 +167,11 @@ impl Gpu {
     /// average of its samples, so that an edge across it shows the share of the pixel it covers.
     /// `label` names it in error messages and in GPU capture tools.
     ///
-    /// Passes only draw into it: it can be neither read back nor sampled, as a window's image
-    /// cannot. It takes [`MULTISAMPLE_COUNT`] times the memory of a target of one sample.
+    /// It cannot be read back, nor sampled through a sampler. A shader of a later pass reads it
+    /// sample by sample through a
+    /// [`BindingType::MultisampledTexture`](crate::BindingType::MultisampledTexture) binding, to
+    /// resolve it its own way. It takes [`MULTISAMPLE_COUNT`] times the memory of a target of one
+    /// sample.
     ///
     /// # Errors
     ///
@@ -190,7 +193,7 @@ impl Gpu {
             height,
             format,
             MULTISAMPLE_COUNT,
-            wgpu::TextureUsages::RENDER_ATTACHMENT,
+            wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
         )
     }
 

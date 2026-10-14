@@ -141,6 +141,7 @@ impl App for Nightwatch {
             shadow_gpu_time = ?self.stats.shadow_gpu_time,
             scene_gpu_time = ?self.stats.scene_gpu_time,
             sky_gpu_time = ?self.stats.sky_gpu_time,
+            resolve_gpu_time = ?self.stats.resolve_gpu_time,
             bloom_gpu_time = ?self.stats.bloom_gpu_time,
             tone_mapping_gpu_time = ?self.stats.tone_mapping_gpu_time,
             "shutdown"

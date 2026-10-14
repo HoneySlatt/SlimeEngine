@@ -62,6 +62,7 @@ impl Statistics {
                         ("shadow", stats.shadow_gpu_time),
                         ("scene", stats.scene_gpu_time),
                         ("sky", stats.sky_gpu_time),
+                        ("resolve", stats.resolve_gpu_time),
                         ("bloom", stats.bloom_gpu_time),
                         ("tone mapping", stats.tone_mapping_gpu_time),
                     ] {

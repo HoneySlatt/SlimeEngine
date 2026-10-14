@@ -19,12 +19,17 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   across, for a game or a test that has no model to load.
 - `slime-gfx` draws into targets of four samples per pixel, for multisample anti-aliasing:
   `Gpu::create_multisampled_render_target` and `Gpu::create_multisampled_depth_target`, pipelines
-  built for them, and passes that resolve them into ordinary targets
-  ([ADR-0059](docs/adr/0059-multisampling-in-the-gpu-layer.md)).
+  built for them, passes that resolve them into ordinary targets, and shaders that read them sample
+  by sample (`BindingType::MultisampledTexture`;
+  [ADR-0059](docs/adr/0059-multisampling-in-the-gpu-layer.md),
+  [ADR-0060](docs/adr/0060-resolving-the-samples-weighed-by-their-brightness.md)).
 - The renderer smooths the edges of what it draws: the scene and the sky are drawn at four samples
-  per pixel, then each pixel is the average of its samples (multisample anti-aliasing,
-  [ADR-0056](docs/adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md)). A renderer holds
-  about 87 MiB more of GPU memory at 1920 × 1080, about 137 MiB in all.
+  per pixel, then each pixel is the average of its samples, each weighed by its brightness, so that
+  the edges of bright surfaces are smooth too (multisample anti-aliasing,
+  [ADR-0056](docs/adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md),
+  [ADR-0060](docs/adr/0060-resolving-the-samples-weighed-by-their-brightness.md)).
+  `RenderStats::resolve_gpu_time` gives the cost of that average, which the dev overlays show. A
+  renderer holds about 87 MiB more of GPU memory at 1920 × 1080, about 137 MiB in all.
 
 ### Changed
 

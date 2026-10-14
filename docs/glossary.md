@@ -393,7 +393,9 @@ which can be read back to the CPU and sampled by later passes, or the image of a
 frame, which can be neither.
 
 **Resolve.** Averaging the *samples (multisampling)* of each pixel of a multisampled *render
-target* into an ordinary one, which later passes can read.
+target* into an ordinary one, which later passes can read. The renderer weighs each sample by its
+brightness, so that the edges of bright surfaces are smooth too
+([ADR-0060](adr/0060-resolving-the-samples-weighed-by-their-brightness.md)).
 
 **Reversed depth (reversed-Z).** Depth that runs from 1 at the near plane to 0 infinitely far,
 the far plane being at infinity ([ADR-0047](adr/0047-reversed-depth-with-an-infinite-far-plane.md)).
