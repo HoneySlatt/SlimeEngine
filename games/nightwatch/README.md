@@ -20,10 +20,12 @@ a red light, and a new game starts a moment later. The switch on the north wall 
 turns the second floodlight off: its button glows red, brighter within reach, and green once used.
 Reaching the gate wins: the courtyard lights up under a green light, and a new game starts.
 
-The engine's spot lights cast no shadows, so a flashlight seems to light what stands behind a crate:
-the rules, which decide who sees the player, know better than the picture. Stage 3d gives spot
-lights their shadows
-([ADR-0056](../../docs/adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md)).
+Walls and crates stop the light of flashlights and floodlights, whose spot lights cast shadows
+([ADR-0058](../../docs/adr/0058-shadows-for-every-spot-light-in-one-atlas.md)), as they stop the
+rules' lines of sight: what the picture leaves in shadow, no light sees. Who sees the player is
+still the rules' own decision (`sight.rs`): a cone on the ground and its reach, which the lights'
+glow only approximates at its edges. The lamps cast no shadow, and a floodlight's light stands 30 cm
+in front of its lamp, out of the pole that would hide it.
 
 There is no text, sound or physics: the engine has none of them yet. The game moves the player
 and stops it at walls and crates on its own, on a flat ground, without jumping.

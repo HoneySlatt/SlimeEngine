@@ -50,6 +50,9 @@ const FLASHLIGHT_INTENSITY: f32 = 25.0;
 /// about 2 lux.
 const FLOODLIGHT_AIM: f32 = 5.0;
 const FLOODLIGHT_INTENSITY: f32 = 80.0;
+/// How far along its aim a floodlight's light stands from the top of its pole, in metres: clear of
+/// the pole, which casts shadows and would otherwise hold the light in its own shadow.
+const FLOODLIGHT_OUT: f32 = 0.3;
 const LAMP_COLOR: LinearColor = LinearColor::rgb(1.0, 0.9, 0.72);
 /// The light that marks how a game ends, above the player when caught and above the gate when
 /// won.
@@ -229,7 +232,8 @@ impl View {
             let lamp = Vec3::new(floodlight.position.x, POLE_HEIGHT, floodlight.position.y);
             let aim = floodlight.direction * FLOODLIGHT_AIM;
             let direction = Vec3::new(aim.x, -POLE_HEIGHT, aim.y).normalize();
-            instances.push(Instance::new(
+            // The lamp casts no shadow: its light shines from inside it.
+            let mut housing = Instance::new(
                 cube,
                 if on {
                     &materials.lamp_on
@@ -241,10 +245,12 @@ impl View {
                     Quat::IDENTITY,
                     lamp + Vec3::Y * 0.15,
                 ),
-            ));
+            );
+            housing.casts_shadows = false;
+            instances.push(housing);
             if on {
                 lights.push(Light::Spot(SpotLight {
-                    position: lamp,
+                    position: lamp + direction * FLOODLIGHT_OUT,
                     direction,
                     color: LAMP_COLOR,
                     intensity: FLOODLIGHT_INTENSITY,
@@ -275,11 +281,14 @@ impl View {
             ));
             let hand = guard.position + facing * 0.3;
             let position = Vec3::new(hand.x, FLASHLIGHT_HEIGHT, hand.y);
-            instances.push(Instance::new(
+            // The torch casts no shadow: its light shines from inside it.
+            let mut torch = Instance::new(
                 cube,
                 &materials.lamp_on,
                 Mat4::from_scale_rotation_translation(Vec3::splat(0.1), Quat::IDENTITY, position),
-            ));
+            );
+            torch.casts_shadows = false;
+            instances.push(torch);
             lights.push(Light::Spot(SpotLight {
                 position,
                 direction: Vec3::new(facing.x, -FLASHLIGHT_TILT, facing.y),

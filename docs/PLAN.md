@@ -13,7 +13,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3d — Anti-aliasing and the shadows of spot lights: planned on 2026-10-15 and validated by
-  the owner. M3d.1, M3d.2 and M3d.3 are done; M3d.4 waits for its check on WARP by CI.
+  the owner. M3d.1, M3d.2 and M3d.3 are done; M3d.4 waits for its check on WARP by CI; M3d.5 is in
+  progress.
 
 ## Status
 
@@ -23,7 +24,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M3d.2](#m3d2--anti-aliasing-in-the-renderer) | The edges of the scene are smooth | Done |
 | [M3d.3](#m3d3--spot-lights-shadows-what-each-tile-sees) | The renderer draws each spot light's tile of the shadow atlas | Done |
 | [M3d.4](#m3d4--spot-lights-shadows-drawn-and-read) | Spot lights cast shadows | In progress |
-| [M3d.5](#m3d5--nightwatch-and-the-windows-check) | Nightwatch shows both, on Linux and Windows | Planned |
+| [M3d.5](#m3d5--nightwatch-and-the-windows-check) | Nightwatch shows both, on Linux and Windows | In progress |
 
 Stages 0, 1, 2, 3a, 3b and 3c are done; see [Completed stages](#completed-stages).
 
@@ -165,7 +166,9 @@ lengthens `scripts/check.sh`.
   tile; a cut-out casts nothing. Writing them found that a surface off a tile's axis shadows
   itself when looked up by its incidence, and a coarse facet when looked up off its smooth normal:
   ADR-0062. The glTF sample's spot light now shadows its sphere: its reference images are rendered
-  again. Waiting: WARP, by CI; the cost, measured with *Nightwatch* in M3d.5.
+  again. With *Nightwatch* in a window of 947 × 1028 on the RX 6900 XT, the scene pass takes 104 µs
+  with its five spot lights' tiles read, 99 µs before, and the spot lights' pass about 9 µs.
+  Waiting: WARP, by CI.
 
 ### M3d.5 — Nightwatch and the Windows check
 
@@ -178,6 +181,9 @@ lengthens `scripts/check.sh`.
   with FXC and with DXC and on Vulkan; `CHANGELOG.md`; Stage 3d marked done.
 - **Done when.** The owner's reports from Linux and Windows; the checks and CI are green.
 - **How to test.** Playing it; `--frames` in the headless Weston.
+- **Checked so far** on 2026-10-15: the lamps cast no shadow, and a floodlight's light stands
+  30 cm out of its lamp along its aim, where its pole no longer hides it; looked at offscreen, walls
+  and crates cut the floodlights' pools and the flashlights' beams.
 
 ## Releasing
 

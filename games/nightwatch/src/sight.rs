@@ -1,6 +1,6 @@
 //! What a light shows: whether a point of the ground lies inside a cone of light, within its range,
-//! with nothing standing in between. The rules decide with this alone; the engine's spot lights,
-//! which cast no shadows until Stage 3d, only draw the cones (ADR-0056).
+//! with nothing standing in between. The rules decide with this alone; the engine's spot lights
+//! draw the cones, and the shadows of what stands in between (ADR-0058).
 
 use slime_render::glam::Vec2;
 

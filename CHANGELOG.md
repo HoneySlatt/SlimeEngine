@@ -12,9 +12,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   `games/nightwatch` ([ADR-0055](docs/adr/0055-games-in-the-workspace.md)): so far, a courtyard at
   night under the moon, which the player, a small glowing slime, crosses with the keyboard, stopped
   by its walls and crates, under a camera that follows it, past guards with flashlights and
-  floodlights that end the game when they see it, to a gate that wins it; a switch turns a
-  floodlight off, and F1 shows what each frame costs. `cargo run -p nightwatch` plays it; CI builds
-  it for Windows with the examples.
+  floodlights that end the game when they see it, whose light walls and crates stop, to a gate that
+  wins it; a switch turns a floodlight off, and F1 shows what each frame costs.
+  `cargo run -p nightwatch` plays it; CI builds it for Windows with the examples.
 - `MeshData::cube`, `MeshData::sphere` and `MeshData::square` make simple shapes in code, one metre
   across, for a game or a test that has no model to load.
 - `slime-gfx` draws into targets of four samples per pixel, for multisample anti-aliasing:
