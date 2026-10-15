@@ -46,6 +46,13 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   `games/hunnawood/assets/sources.tsv` lists with their authors and licences, all CC0, from their
   mirror, the immutable releases of github.com/HoneySlatt/SlimeEngine-assets
   ([ADR-0070](docs/adr/0070-the-sample-games-source-assets.md)), and checks each file's SHA-256.
+- *Hunna Wood*'s first zone, a forest path past a gully, a campfire and a ruined chapel whose sealed
+  door opens on a terrace, with its hero: built by a Blender script, `games/hunnawood/zone/`, from
+  the source assets, exported to glTF and mirrored with them. Its colliders, markers (the start, the
+  item, the door, the campfire) and lights of day and night are custom properties of its nodes,
+  which the game reads from the cooked data. `scripts/check.sh` fetches and cooks it, and checks
+  that the hero can reach the item and the campfire, but not what the door closes, and that the
+  zone keeps within its budgets. The game does not load it yet.
 - *Nightwatch*, the first game made with the engine, through its public API only, in
   `games/nightwatch` ([ADR-0055](docs/adr/0055-games-in-the-workspace.md)): so far, a courtyard at
   night under the moon, which the player, a small glowing slime, crosses with the keyboard, stopped

@@ -1,0 +1,67 @@
+# Where build_zone.py places the zone's pieces. Blender's axes: x east, y north, z up, in metres;
+# angles in degrees, counter-clockwise seen from above (from north towards west). The hero walks
+# the flat ground at z = 0.
+
+[zone]
+# Half the size of the ground the hero may walk, around the origin.
+half_size = [30.0, 56.0]
+# The seed of the trees', rocks' and ferns' scatter: the same seed gives the same forest.
+seed = 7
+
+[start]
+at = [0.0, -50.0]
+facing = 0.0
+
+# The path, from the south edge to the chapel's portal, and its branch to the campfire.
+[path]
+width = 2.4
+points = [
+    [0.0, -64.0], [0.6, -50.0], [-0.8, -40.0], [0.4, -30.0], [2.0, -23.0],
+    [2.0, -7.0], [0.6, 0.0], [-1.6, 8.0], [-1.0, 16.0], [0.0, 22.5],
+]
+branch = [[-0.4, 3.5], [-5.0, 4.5], [-9.0, 4.0]]
+
+# A dry gully that crosses the forest from west to east, and the stone bridge over it.
+[ravine]
+south = -19.0
+north = -11.0
+depth = 3.5
+
+[bridge]
+x = [0.2, 3.8]
+y = [-22.0, -8.0]
+
+# The ruined chapel: its nave, from the portal in the south to the sealed door in the north, and
+# the walled terrace behind the door, on the edge of the cliff.
+[chapel]
+x = [-6.5, 6.5]
+y = [23.0, 44.0]
+terrace_north = 53.0
+cliff = 56.0
+
+[campfire]
+at = [-13.0, 4.0]
+
+[item]
+at = [1.6, 41.6]
+
+# Lanterns on posts, each lit at night by a spot light that casts shadows; a lantern hangs on the
+# side its post faces.
+[lanterns]
+posts = [
+    { at = [-1.7, -40.0], facing = -90.0 },
+    { at = [-0.3, -22.6], facing = -90.0 },
+    { at = [4.3, -7.4], facing = 90.0 },
+    { at = [-4.6, 6.4], facing = 0.0 },
+    { at = [-3.2, 21.8], facing = -90.0 },
+    { at = [3.2, 21.8], facing = 90.0 },
+]
+
+# What the seed scatters, kept away from the path, the gully, the chapel and the clearing.
+[scatter]
+oaks = 62
+conifers = 26
+rocks = 34
+ferns = 120
+# How far the forest reaches, beyond the ground the hero walks.
+extent = [58.0, 70.0]

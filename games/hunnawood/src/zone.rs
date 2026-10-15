@@ -183,3 +183,323 @@ mod tests {
         assert!(!collider.covers(Vec2::new(0.8, 0.0), 0.25));
     }
 }
+
+/// The zone as the cooked data holds it (`games/hunnawood/zone/build_zone.py` makes it, the cooker
+/// cooks it): its colliders, markers and lights, read from the extras of the scene's nodes. Only the
+/// tests read it until the game loads its zone from the cooked data.
+#[cfg(test)]
+mod cooked {
+    use std::collections::{HashSet, VecDeque};
+    use std::str::FromStr;
+
+    use slime_assets::{
+        AssetId, AssetKind, CookedAssets, CookedScene, Extra, LightKind, SceneNode,
+    };
+    use slime_render::glam::{Mat4, Vec2};
+
+    use super::{Collider, Shape, Zone};
+    use crate::rules::HERO_RADIUS;
+
+    const SKIP: &str = "needs the cooked zone: scripts/fetch-assets.sh zone/, then cargo run --release -p \
+                        slime-cook -- cook games/hunnawood/assets/zone target/cooked/hunnawood";
+
+    /// The zone's places, beside what `Zone` holds.
+    struct Places {
+        zone: Zone,
+        item: Vec2,
+        door: Vec2,
+        campfire: Vec2,
+        terrace: Vec2,
+        /// The colliders under the door's marker, which open with it; `zone.colliders` holds them
+        /// too.
+        door_colliders: Vec<Collider>,
+    }
+
+    fn assets() -> CookedAssets {
+        CookedAssets::open(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../target/cooked/hunnawood"
+        ))
+        .unwrap_or_else(|error| panic!("{error}; the test {SKIP}"))
+    }
+
+    /// The ID of the zone's file, which its default scene has.
+    fn zone_id() -> AssetId {
+        let meta = include_str!("../assets/zone/hunna_wood.gltf.meta");
+        let id = meta
+            .trim()
+            .trim_start_matches("id = \"")
+            .trim_end_matches('"');
+        AssetId::from_str(id).expect("the metadata file holds an ID")
+    }
+
+    fn text<'a>(node: &'a SceneNode, name: &str) -> Option<&'a str> {
+        node.extras
+            .iter()
+            .find(|(n, _)| n == name)
+            .and_then(|(_, e)| match e {
+                Extra::Text(text) => Some(text.as_str()),
+                _ => None,
+            })
+    }
+
+    fn number(node: &SceneNode, name: &str) -> Option<f32> {
+        node.extras
+            .iter()
+            .find(|(n, _)| n == name)
+            .and_then(|(_, e)| match e {
+                Extra::Number(number) => Some(*number as f32),
+                _ => None,
+            })
+    }
+
+    /// Whether node `index` is `ancestor` or below it.
+    fn under(scene: &CookedScene, mut index: usize, ancestor: usize) -> bool {
+        loop {
+            if index == ancestor {
+                return true;
+            }
+            match scene.nodes[index].parent {
+                Some(parent) => index = parent as usize,
+                None => return false,
+            }
+        }
+    }
+
+    fn places(scene: &CookedScene) -> Places {
+        let world: Vec<Mat4> = scene
+            .world_transforms()
+            .iter()
+            .map(Mat4::from_cols_array)
+            .collect();
+        let ground = |m: &Mat4| Vec2::new(m.w_axis.x, m.w_axis.z);
+        let marker = |kind: &str| {
+            let found: Vec<usize> = (0..scene.nodes.len())
+                .filter(|&i| text(&scene.nodes[i], "marker") == Some(kind))
+                .collect();
+            assert_eq!(found.len(), 1, "markers `{kind}`: {found:?}");
+            found[0]
+        };
+        let door = marker("door");
+        let mut colliders = Vec::new();
+        let mut door_colliders = Vec::new();
+        for (i, node) in scene.nodes.iter().enumerate() {
+            let Some(kind) = text(node, "collider") else {
+                continue;
+            };
+            let m = world[i];
+            let height = number(node, "height").expect("a collider has a height");
+            let shape = match kind {
+                "box" => Shape::Box {
+                    half_size: Vec2::new(
+                        m.x_axis.truncate().length(),
+                        m.z_axis.truncate().length(),
+                    ),
+                    yaw: m.x_axis.z.atan2(m.x_axis.x),
+                },
+                "cylinder" => Shape::Cylinder {
+                    radius: m.x_axis.truncate().length(),
+                },
+                other => panic!("node {}: collider `{other}`", node.name),
+            };
+            let collider = Collider {
+                shape,
+                center: ground(&m),
+                height,
+            };
+            colliders.push(collider);
+            if under(scene, i, door) {
+                door_colliders.push(collider);
+            }
+        }
+        let start = world[marker("start")];
+        let bounds = world[marker("bounds")];
+        let facing = Vec2::new(-start.z_axis.x, -start.z_axis.z).normalize();
+        Places {
+            zone: Zone {
+                half_size: Vec2::new(
+                    bounds.x_axis.truncate().length(),
+                    bounds.z_axis.truncate().length(),
+                ),
+                colliders,
+                start: ground(&start),
+                facing,
+            },
+            item: ground(&world[marker("item")]),
+            door: ground(&world[door]),
+            campfire: ground(&world[marker("campfire")]),
+            terrace: ground(&world[marker("terrace")]),
+            door_colliders,
+        }
+    }
+
+    /// The cells of a grid of `CELL` metres over the ground that the hero reaches from the start,
+    /// walking between `colliders`.
+    struct Reach {
+        origin: Vec2,
+        columns: usize,
+        reached: Vec<bool>,
+    }
+
+    const CELL: f32 = 0.25;
+
+    impl Reach {
+        fn new(zone: &Zone, colliders: &[Collider]) -> Self {
+            let origin = -zone.half_size;
+            let columns = (2.0 * zone.half_size.x / CELL) as usize;
+            let rows = (2.0 * zone.half_size.y / CELL) as usize;
+            let center =
+                |c: usize, r: usize| origin + Vec2::new(c as f32 + 0.5, r as f32 + 0.5) * CELL;
+            let free = |p: Vec2| {
+                p.abs().cmplt(zone.half_size - HERO_RADIUS).all()
+                    && !colliders.iter().any(|c| c.covers(p, HERO_RADIUS))
+            };
+            let mut reached = vec![false; columns * rows];
+            let start = ((zone.start - origin) / CELL).as_uvec2();
+            let (sc, sr) = (start.x as usize, start.y as usize);
+            assert!(free(center(sc, sr)), "the start is not free");
+            let mut queue = VecDeque::from([(sc, sr)]);
+            reached[sr * columns + sc] = true;
+            while let Some((c, r)) = queue.pop_front() {
+                let neighbours = [
+                    (c.wrapping_sub(1), r),
+                    (c + 1, r),
+                    (c, r.wrapping_sub(1)),
+                    (c, r + 1),
+                ];
+                for (nc, nr) in neighbours {
+                    if nc >= columns || nr >= rows || reached[nr * columns + nc] {
+                        continue;
+                    }
+                    if free(center(nc, nr)) {
+                        reached[nr * columns + nc] = true;
+                        queue.push_back((nc, nr));
+                    }
+                }
+            }
+            Self {
+                origin,
+                columns,
+                reached,
+            }
+        }
+
+        /// Whether the hero comes within `distance` of `point`.
+        fn near(&self, point: Vec2, distance: f32) -> bool {
+            self.reached.iter().enumerate().any(|(i, &reached)| {
+                let cell = self.origin
+                    + Vec2::new(
+                        (i % self.columns) as f32 + 0.5,
+                        (i / self.columns) as f32 + 0.5,
+                    ) * CELL;
+                reached && cell.distance(point) <= distance
+            })
+        }
+    }
+
+    #[test]
+    #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
+    fn the_cooked_zone_has_its_places_and_its_start_is_clear() {
+        let places = places(&assets().scene(zone_id()).expect(SKIP));
+        let zone = &places.zone;
+        assert!(zone.start.abs().cmplt(zone.half_size - 1.0).all());
+        for collider in &zone.colliders {
+            assert!(!collider.covers(zone.start, HERO_RADIUS), "{collider:?}");
+        }
+        assert!((zone.facing.length() - 1.0).abs() < 1e-4);
+        assert!(!places.door_colliders.is_empty(), "the door has a collider");
+        for place in [places.item, places.door, places.campfire, places.terrace] {
+            assert!(place.abs().cmplt(zone.half_size).all(), "{place}");
+        }
+    }
+
+    #[test]
+    #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
+    fn the_hero_reaches_the_item_and_the_campfire_and_the_door_keeps_the_terrace() {
+        let places = places(&assets().scene(zone_id()).expect(SKIP));
+        let closed = Reach::new(&places.zone, &places.zone.colliders);
+        assert!(closed.near(places.item, 1.2), "the item is out of reach");
+        assert!(
+            closed.near(places.campfire, 2.0),
+            "the campfire is out of reach"
+        );
+        assert!(closed.near(places.door, 1.5), "the door is out of reach");
+        assert!(
+            !closed.near(places.terrace, 2.0),
+            "the terrace is reached without the door"
+        );
+        // Once the door opens, the terrace is reached through it.
+        let open: Vec<Collider> = places
+            .zone
+            .colliders
+            .iter()
+            .filter(|c| !places.door_colliders.contains(c))
+            .copied()
+            .collect();
+        assert!(
+            Reach::new(&places.zone, &open).near(places.terrace, 1.0),
+            "the open door leads nowhere"
+        );
+    }
+
+    /// The zone's budgets (`docs/PLAN.md`, M4a.6): what the renderer draws in every frame, the
+    /// lights that cast shadows at night, the GPU memory of its textures and the size of its
+    /// cooked data.
+    #[test]
+    #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
+    fn the_cooked_zone_keeps_within_its_budgets() {
+        let assets = assets();
+        let scene = assets.scene(zone_id()).expect(SKIP);
+        let mut triangles = 0;
+        let mut instances = 0;
+        let mut meshes = std::collections::HashMap::new();
+        for node in &scene.nodes {
+            for &id in &node.meshes {
+                let count = *meshes.entry(id).or_insert_with(|| {
+                    assets.mesh(id).expect("the mesh is cooked").indices.len() / 3
+                });
+                triangles += count;
+                instances += 1;
+            }
+        }
+        let night_spots = scene
+            .nodes
+            .iter()
+            .filter(|n| matches!(n.light.map(|l| l.kind), Some(LightKind::Spot { .. })))
+            .filter(|n| text(n, "time") == Some("night"))
+            .count();
+        // Every asset the scene needs, through its meshes and materials, each once.
+        let manifest = assets.manifest();
+        let mut seen = HashSet::new();
+        let mut stack = vec![zone_id()];
+        let (mut size, mut texture_bytes) = (0u64, 0u64);
+        while let Some(id) = stack.pop() {
+            if !seen.insert(id) {
+                continue;
+            }
+            let entry = manifest.get(id).expect("listed");
+            size += entry.size;
+            if entry.kind == AssetKind::Texture {
+                let texture = assets.texture(id).expect("the texture is cooked");
+                texture_bytes += texture.levels.iter().map(|l| l.len() as u64).sum::<u64>();
+            }
+            stack.extend(entry.needs.iter().copied());
+        }
+        let mib = |bytes: u64| bytes as f64 / (1 << 20) as f64;
+        eprintln!(
+            "zone: {triangles} triangles, {instances} instances, {night_spots} spot lights at \
+             night, textures {:.0} MiB, cooked {:.0} MiB",
+            mib(texture_bytes),
+            mib(size)
+        );
+        assert!(triangles <= 1_000_000, "{triangles} triangles");
+        assert!(instances <= 800, "{instances} instances");
+        assert!(night_spots <= 6, "{night_spots} spot lights");
+        assert!(
+            mib(texture_bytes) <= 384.0,
+            "{:.0} MiB of textures",
+            mib(texture_bytes)
+        );
+        assert!(mib(size) <= 320.0, "{:.0} MiB of cooked data", mib(size));
+    }
+}

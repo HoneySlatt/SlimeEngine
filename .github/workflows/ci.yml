@@ -25,6 +25,15 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+      # The sample game's zone, which scripts/fetch-assets.sh fetches from its mirror for the checks
+      # to cook, kept from one run to the next while its list is unchanged; the metadata files come
+      # from the checkout (docs/adr/0070-the-sample-games-source-assets.md).
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            games/hunnawood/assets/zone
+            !games/hunnawood/assets/zone/**/*.meta
+          key: hunnawood-zone-${{ hashFiles('games/hunnawood/assets/sources.tsv') }}
       # Without the flag, an incomplete flake.lock would be completed with an unpinned revision.
       - run: nix develop --no-update-lock-file --command scripts/check.sh
 

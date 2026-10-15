@@ -24,8 +24,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   on 2026-10-15: *Hunna Wood* runs on a test ground, every source asset has an ID of its own,
   images cook into compressed textures, and glTF files into meshes, materials and scenes that the
   renderer loads; the `scene` example draws the cooked sample, and the temporary loader is gone.
-  M4a.6 in progress: the owner agreed to the list of the zone's 22 source assets on 2026-10-15;
-  they are listed, mirrored and fetched; the zone's Blender script comes next.
+  M4a.6 done on 2026-10-15: the zone's 22 source assets, which the owner agreed to, and the zone that
+  a Blender script builds from them are listed, mirrored, fetched, cooked and tested; the owner
+  looked at renders of it and chose to refine its look while playing it. Next: M4a.7.
 
 ## Status
 
@@ -36,7 +37,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M4a.3](#m4a3--images) | PNG and JPEG files become compressed textures that the renderer draws | Done |
 | [M4a.4](#m4a4--gltf) | glTF files become cooked meshes, materials and scenes | Done |
 | [M4a.5](#m4a5--the-sample-scene-through-the-pipeline) | The `scene` example draws cooked data; the temporary loader is deleted | Done |
-| [M4a.6](#m4a6--the-zones-sources) | The zone exists as source assets that anyone can fetch and cook | In progress |
+| [M4a.6](#m4a6--the-zones-sources) | The zone exists as source assets that anyone can fetch and cook | Done |
 | [M4a.7](#m4a7--hunna-wood-by-day) | *Hunna Wood* is played by day; *Nightwatch* is deleted | Planned |
 | [M4a.8](#m4a8--night) | The zone by night; resting switches day and night | Planned |
 | [M4a.9](#m4a9--windows-check-documentation-release-02) | 0.2 is released with *Hunna Wood* | Planned |
@@ -214,6 +215,18 @@ artifact, which grows by the cooked zone.
   the campfire, and not what lies behind the door; the zone within its budgets; `scripts/check.sh`
   fetches and cooks the zone; the owner has looked at renders of it.
 - **How to test.** `scripts/fetch-assets.sh`, then `slime-cook`; `cargo test -p hunnawood`.
+- **Budgets**, set from a synthetic forest measured on the owner's RX 6900 XT and on lavapipe, and
+  checked by the tests of the cooked zone (`games/hunnawood/src/zone.rs`): at most 1 000 000
+  triangles and 800 instances drawn (the renderer culls nothing, so every frame draws them all), 6
+  spot lights that cast shadows at night, 384 MiB of compressed textures and 320 MiB of cooked
+  data. The first zone has 583 000 triangles, 429 instances, 6 lanterns, 151 MiB of textures and 157
+  MiB of cooked data. The renderer draws it in 1.2 ms of GPU time by day and 1.7 ms by night on the
+  RX 6900 XT at 1280 × 720, and in up to 8 s per frame on lavapipe, most of it in the sun's shadow
+  cascades (see [Known debt](#known-debt)).
+- **Left to refine while playing**, by the owner's decision of 2026-10-15: the leaf cards, which
+  read as cards up close; the stone and the ground, warmer than the zone's grey palette; the fire,
+  three glowing tongues until particles; the painted capital, which must seem much farther; the
+  hero's smooth face.
 
 ### M4a.7 — Hunna Wood by day
 
@@ -298,6 +311,17 @@ justify a decision are also in its ADR.
 Limitations known and accepted for now. The ones that a contributor could take on alone are also
 GitHub issues, linked from their entry; this list stays the reference.
 
+- **The zone costs up to 8 s per frame on lavapipe**, the CPU driver of the checks, where the RX
+  6900 XT takes under 2 ms: most of it goes to the four shadow cascades of the sun, each 2048 ×
+  2048 texels, through which thousands of overlapping leaf cards are drawn with a shader that
+  discards. The checks will run the game for a few frames only. Leaves that cast no shadow in the
+  farther cascades, or fewer and smaller cards, would lower it; to measure with the views of the
+  zone, as at M4a.6.
+- **The tests of the cooked zone run in `scripts/check.sh` only**: they need the zone fetched and
+  cooked, so `cargo test` leaves them out (`#[ignore]`), and CI runs them on Linux, not on Windows.
+- **The capital's picture is 4096 × 1536 texels**, beyond the sizes decided for the stage (2048 for
+  the ground, the walls, the cliffs and the hero, 1024 for small props): it spans the whole view
+  north of the zone. It takes 8 MiB compressed.
 - **Frames are not synchronized with the display's refresh** (ADR-0021; issue
   [#1](https://github.com/HoneySlatt/SlimeEngine/issues/1)). With Mailbox, the default, the
   schedule alone paces frames: on a 60 Hz display, an image is now and then shown twice while the
@@ -574,7 +598,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   smooths the edges of triangles, but the scene shader runs once per pixel, and the `MASK` alpha
   mode keeps or discards all of a pixel's samples at once. Smoothing those edges, alpha to
   coverage, behaves differently from one driver to the next, which image tests would see. No game
-  uses masked materials yet; the leaf cards of *Hunna Wood*'s trees will, from M4a.6 on.
+  uses masked materials yet; the leaf cards of *Hunna Wood*'s trees and its ferns will, once the game loads its
+  zone (M4a.7).
 - **The sky's light is neither shadowed nor occluded** (ADR-0039). A surface under an object, or
   inside a box, receives the whole sky, but for its material's occlusion texture: no ambient
   occlusion (screen-space effects are outside the stage), no reflection probes, and mirrors reflect

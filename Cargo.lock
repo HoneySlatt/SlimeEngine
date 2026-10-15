@@ -843,6 +843,7 @@ name = "hunnawood"
 version = "0.1.0"
 dependencies = [
  "slime-app",
+ "slime-assets",
  "slime-devui",
  "slime-gfx",
  "slime-platform",

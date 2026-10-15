@@ -19,3 +19,7 @@ slime-gfx.workspace = true
 slime-platform.workspace = true
 slime-render.workspace = true
 tracing.workspace = true
+
+# The tests of the cooked zone read it with the engine's cooked data.
+[dev-dependencies]
+slime-assets.workspace = true

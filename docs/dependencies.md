@@ -74,6 +74,12 @@ install them as described in [`CONTRIBUTING.md`](../CONTRIBUTING.md#development-
 | [lychee](https://github.com/lycheeverse/lychee) | Checks links and anchors between Markdown files ([ADR-0007](adr/0007-documentation-tooling-and-ci.md)) | markdown-link-check, which needs Node.js | Apache-2.0 OR MIT |
 | [Weston](https://gitlab.freedesktop.org/wayland/weston) | A Wayland compositor without screen in which the checks run the windowed samples ([ADR-0013](adr/0013-windowed-smoke-test-in-weston.md)) | Xvfb, which only covers X11 | MIT |
 
+[Blender](https://www.blender.org) 5.2 is not part of the shell: it builds the examples' sample
+scene (`examples/assets/make_scene.py`) and *Hunna Wood*'s zone (`games/hunnawood/zone/`) from
+scripts, and is needed only to change them. Its licence, GPL-2.0-or-later, does not reach what it
+exports; the alternative, scripting the zone without a modelling tool, would leave out the
+libraries' models and the glTF exporter.
+
 ## CI actions
 
 Used by [`.github/workflows/ci.yml`](../.github/workflows/ci.yml), pinned to commit SHAs.
@@ -83,6 +89,7 @@ Used by [`.github/workflows/ci.yml`](../.github/workflows/ci.yml), pinned to com
 | [actions/checkout](https://github.com/actions/checkout) | Checks out the repository | MIT |
 | [cachix/install-nix-action](https://github.com/cachix/install-nix-action) | Installs Nix with flakes enabled, so CI runs the same development shell as contributors | Apache-2.0 |
 | [actions/upload-artifact](https://github.com/actions/upload-artifact) | Publishes the examples built by the Windows job, to run by hand on a Windows machine, and, when the job fails, the images that failing image tests rendered on WARP | MIT |
+| [actions/cache](https://github.com/actions/cache) | Keeps the files of the sample game's zone that `scripts/fetch-assets.sh` fetched, from one run of the Linux job to the next, while their list is unchanged ([ADR-0070](adr/0070-the-sample-games-source-assets.md)) | MIT |
 
 The Windows job uses the Rust toolchain manager (rustup) and the Visual Studio build tools that the
 `windows-2025` runner image provides; rustup installs the toolchain of `rust-toolchain.toml`.
