@@ -64,7 +64,7 @@ env -u WAYLAND_DISPLAY -u DISPLAY cargo run --locked --example window -- --headl
 env -u WAYLAND_DISPLAY -u DISPLAY VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
     cargo run --locked --example offscreen -- --output target/triangle.png
 
-step "Windowed samples, games and lifecycle test in headless Wayland compositors (Weston), drawn with lavapipe"
+step "Windowed samples, the game and the lifecycle test in headless Wayland compositors (Weston), drawn with lavapipe"
 # A private runtime directory keeps these compositors apart from the one the developer may be using.
 runtime=$(mktemp -d)
 westons=()
@@ -96,14 +96,11 @@ env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_
 env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
     timeout -k 10 120 cargo run --locked --example scene -- --assets "$cooked/first" --frames 120 ||
     { cat "$runtime/slime-check.log"; exit 1; }
-# The games too (ADR-0055). Hunna Wood draws the zone cooked above; a frame of it takes seconds on
-# lavapipe, most of them in the sun's shadows through the leaves (docs/PLAN.md, known debt), so it
-# runs for two frames only.
+# The game too (ADR-0055). It draws the zone cooked above; a frame of it takes seconds on lavapipe,
+# most of them in the sun's shadows through the leaves (docs/PLAN.md, known debt), so it runs for
+# two frames only.
 env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
     timeout -k 10 300 cargo run --locked -p hunnawood -- --frames 2 ||
-    { cat "$runtime/slime-check.log"; exit 1; }
-env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
-    timeout -k 10 120 cargo run --locked -p nightwatch -- --frames 120 ||
     { cat "$runtime/slime-check.log"; exit 1; }
 # The windowed lifecycle test needs the compositor too, so it is outside the default test run
 # (ADR-0024).

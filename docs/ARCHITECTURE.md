@@ -26,8 +26,7 @@ it is built this way.
 ├── flake.nix            Nix development shell
 ├── flake.lock           pinned inputs of the development shell
 ├── games/               games made with the engine through its public API
-│   ├── hunnawood/       Hunna Wood, a role-playing game: the sample every stage grows
-│   └── nightwatch/      Nightwatch, a small stealth game: the sample until Stage 4a replaces it
+│   └── hunnawood/       Hunna Wood, a role-playing game: the sample every stage grows
 ├── rust-toolchain.toml  pinned Rust toolchain
 ├── scripts/             check.sh, every automated check as CI runs them; the scripts that fetch
 │                        DXC and the sample game's source assets
@@ -56,7 +55,6 @@ created only when code needs it.
 | [`slime-devui`](../crates/slime-devui/README.md) | The dev overlay: egui drawn over the engine's frames, fed with the engine's events; tooling, removed once something does at least as well ([ADR-0052](adr/0052-amend-roadmap-before-0-1.md)) | `egui`, `egui-wgpu`, `slime-gfx` (with its `wgpu` feature), `slime-platform` | Panels over a frame; no clipboard or input methods |
 | [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-assets`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `png`, `tracing`; for the tests, `slime-cook` and `gltf` | `hello`, `headless`, `window`, `offscreen`, `scene`, which draws a cooked scene; the reference image tests, and tests that cook glTF files and draw them |
 | [`hunnawood`](../games/hunnawood/README.md) | Hunna Wood, the game that every stage grows from Stage 4a on; a client of the engine through its public API only, not part of the engine ([ADR-0055](adr/0055-games-in-the-workspace.md), [ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)) | `slime-app`, `slime-assets`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `tracing` | A forest zone and its hero read from cooked data, the camera behind the hero, the hero's movement and its collisions with boxes turned about the vertical and cylinders, a key that opens a door |
-| [`nightwatch`](../games/nightwatch/README.md) | Nightwatch, the first game; a client of the engine through its public API only, not part of the engine ([ADR-0055](adr/0055-games-in-the-workspace.md)) | `slime-app`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `tracing` | The courtyard at night, the camera, the player's movement and collisions, guards and floodlights that see the player, a switch, winning and losing |
 
 ## Dependency rules
 
@@ -71,7 +69,6 @@ slime-examples ──▶ slime-app ──┬──▶ slime-platform ──▶ w
        └──▶ slime-platform, slime-gfx (their types: events, GPU objects)
 
 hunnawood  ──▶ slime-app, slime-assets, slime-render, slime-platform, slime-gfx, slime-devui (public API only)
-nightwatch ──▶ slime-app, slime-render, slime-platform, slime-gfx, slime-devui (public API only)
 
 slime-cook ──▶ slime-assets
 slime-render ──▶ slime-assets (cooked data)

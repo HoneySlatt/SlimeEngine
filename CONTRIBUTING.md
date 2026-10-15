@@ -79,7 +79,7 @@ The GPU layer uses Vulkan on Linux and Direct3D 12 on Windows
   beside the program, and otherwise with FXC, part of Windows, whose code runs slower: a warning in
   the log says so ([ADR-0066](docs/adr/0066-shipping-dxc-beside-the-programs.md)). From Git Bash,
   `scripts/fetch-dxc.sh target/debug/deps target/debug/examples target/debug` downloads DXC and
-  puts it beside the tests, the samples and the games that cargo builds, as the Windows CI job
+  puts it beside the tests, the samples and the game that cargo builds, as the Windows CI job
   does.
   `WGPU_DX12_COMPILER=fxc` asks for FXC, and `WGPU_DX12_COMPILER=dxc` for DXC wherever Windows
   finds `dxcompiler.dll`.
@@ -172,7 +172,7 @@ access), the list of the sample game's source assets (`scripts/fetch-assets.sh`)
 (every source asset has a metadata file of its own,
 [ADR-0069](docs/adr/0069-the-asset-pipeline.md)), the sample's assets cooked twice and compared, the
 sample game's zone fetched and cooked, and the tests that read it, the
-samples with no display server available, the windowed samples, the games and the windowed
+samples with no display server available, the windowed samples, the game and the windowed
 lifecycle test inside a headless Weston compositor (and that test's resize scenario in a second
 one, at scale 2), and `lychee` (links between Markdown files). The individual commands are listed
 in [`AGENTS.md`](AGENTS.md#environment-and-commands) for when you want to run only one of them.

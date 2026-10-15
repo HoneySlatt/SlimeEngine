@@ -26,8 +26,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   renderer loads; the `scene` example draws the cooked sample, and the temporary loader is gone.
   M4a.6 done on 2026-10-15: the zone's 22 source assets, which the owner agreed to, and the zone that
   a Blender script builds from them are listed, mirrored, fetched, cooked and tested; the owner
-  looked at renders of it and chose to refine its look while playing it. M4a.7 in progress: the
-  game plays the cooked zone; the owner plays it next, then *Nightwatch* is deleted.
+  looked at renders of it and chose to refine its look while playing it. M4a.7 done on 2026-10-15:
+  the game plays the cooked zone, which the owner played on Linux, and *Nightwatch* is deleted.
+  Next: M4a.8.
 
 ## Status
 
@@ -39,7 +40,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M4a.4](#m4a4--gltf) | glTF files become cooked meshes, materials and scenes | Done |
 | [M4a.5](#m4a5--the-sample-scene-through-the-pipeline) | The `scene` example draws cooked data; the temporary loader is deleted | Done |
 | [M4a.6](#m4a6--the-zones-sources) | The zone exists as source assets that anyone can fetch and cook | Done |
-| [M4a.7](#m4a7--hunna-wood-by-day) | *Hunna Wood* is played by day; *Nightwatch* is deleted | In progress |
+| [M4a.7](#m4a7--hunna-wood-by-day) | *Hunna Wood* is played by day; *Nightwatch* is deleted | Done |
 | [M4a.8](#m4a8--night) | The zone by night; resting switches day and night | Planned |
 | [M4a.9](#m4a9--windows-check-documentation-release-02) | 0.2 is released with *Hunna Wood* | Planned |
 
@@ -132,6 +133,10 @@ artifact, which grows by the cooked zone.
   cylinders, sliding along them, and never through one at the fixed step; the game runs on Linux and
   in the headless Weston; CI is green on both platforms.
 - **How to test.** `cargo test -p hunnawood`; `cargo run -p hunnawood`.
+- **Outcome.** The owner played the zone on Linux on 2026-10-15: rested by the campfire, took the
+  key, opened the door; the frame cost 1.9 ms of GPU time and 2.4 ms of CPU time on the RX 6900 XT
+  in their window (1.2 ms and 3.4 ms in a release build at 1280 × 720 by day). The last commit that
+  holds *Nightwatch* is `90f3a01`: `git show 90f3a01:games/nightwatch/README.md` reads it.
 
 ### M4a.2 — Asset identity
 
@@ -579,9 +584,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   Frustum culling and instancing are left to Stage 9a (ADR-0052).
 - **Cascades are fitted to spheres around slices of the view** (ADR-0064). Each covers its slice
   whichever way the camera looks, which keeps its texels steady, but a wide view makes the spheres
-  large: in *Nightwatch*, with the single map's 30 m, the texels near the player would be about
-  half as wide as its texels, not a quarter, by ADR-0064's study; the game's moon casts its
-  shadows up to 16 m to make them finer. Fitting the cascades to what the camera sees at each frame,
+  large: in the first game, *Nightwatch* (deleted at M4a.7), with the single map's 30 m, the texels
+  near the player would be about half as wide as its texels, not a quarter, by ADR-0064's study;
+  that game's moon cast its shadows up to 16 m to make them finer. Fitting the cascades to what the camera sees at each frame,
   or virtual shadow maps, is left to Stage 9a.
 - **Shadows shift, and thin objects close to a surface lose theirs (peter-panning)** (ADR-0050).
   The normal offset that keeps surfaces from shadowing themselves looks a point up 4.5 texels × the

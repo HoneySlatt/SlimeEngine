@@ -74,8 +74,8 @@ step carries the hero through a thin collider or past a corner. The view leaves 
 nodes under the key's and the door's markers place once the key is taken and the door open
 (`LoadedScene::instance_nodes`).
 
-The game keeps the workarounds that *Nightwatch* found for what the engine does not give yet: it
-keeps the keys held, its own collisions, and the hero's previous position
+The game keeps the workarounds that the first game, *Nightwatch*, found for what the engine does not
+give yet: it keeps the keys held, its own collisions, and the hero's previous position
 ([ADR-0057](../../docs/adr/0057-what-the-first-game-asks-of-the-next-stages.md)).
 
 ## Its assets

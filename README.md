@@ -22,12 +22,12 @@ samples per pixel so that edges are smooth, relative to the camera and with reve
 large scenes keep their precision, then exposes the light, spreads a bloom around it, tone maps it
 and dithers it, into a window or into offscreen images that image tests compare with references. The
 `scene` example draws a scene cooked from a glTF file, and its lights, under a camera driven by the
-mouse, with the CPU time and the GPU time of each pass in a dev overlay. *Nightwatch*
-(`games/nightwatch`), a small stealth game made with the public API only, is the sample game for
-now. Stage 4a, the first half of the asset pipeline, is under way: in it *Hunna Wood*, a
-role-playing game seen in the third person, replaces it and loads its first zone from cooked assets
-([ADR-0067](docs/adr/0067-hunna-wood-replaces-nightwatch.md)); [`docs/PLAN.md`](docs/PLAN.md) lists
-its milestones and the known debt.
+mouse, with the CPU time and the GPU time of each pass in a dev overlay. Stage 4a, the first half
+of the asset pipeline, is under way: its sample game, *Hunna Wood* (`games/hunnawood`), a
+role-playing game seen in the third person and made with the public API only, loads its first zone
+from cooked assets ([ADR-0067](docs/adr/0067-hunna-wood-replaces-nightwatch.md)), where the hero
+finds a key that opens a door; [`docs/PLAN.md`](docs/PLAN.md) lists the stage's milestones and the
+known debt.
 
 ## Getting started
 
@@ -41,12 +41,11 @@ cargo build --workspace
 cargo test --workspace
 cargo run --example window   # the examples are listed in examples/README.md
 cargo run -p hunnawood       # the game, once its zone is cooked: games/hunnawood/README.md
-cargo run -p nightwatch      # the first game, until Stage 4a deletes it
 scripts/check.sh             # every check, exactly as CI runs them (Linux only)
 ```
 
 Each CI run on GitHub also publishes the `hello`, `headless`, `window`, `offscreen` and `scene`
-examples and the `hunnawood` and `nightwatch` games built for Windows, to try without a toolchain;
+examples and the `hunnawood` game built for Windows, to try without a toolchain;
 the GitHub release of each version since 0.1 carries what that version had.
 
 The tests run on your own GPU; CI runs them on drivers that render on the CPU, lavapipe on Linux and

@@ -77,10 +77,10 @@ jobs:
       # The C runtime is linked statically, so that the published programs start on a Windows
       # without the Visual C++ Redistributable (a fresh install, Windows Sandbox). How shipped games
       # link it is decided with their packaging (Stage 9b).
-      - name: Build the examples and the games for checks by hand
+      - name: Build the examples and the game for checks by hand
         run: |
           cargo build --locked --release --examples
-          cargo build --locked --release -p hunnawood -p nightwatch
+          cargo build --locked --release -p hunnawood
         env:
           RUSTFLAGS: -C target-feature=+crt-static
       # The sample game's zone, fetched from its mirror and kept between runs while its list is
@@ -101,9 +101,9 @@ jobs:
           RUSTFLAGS: -C target-feature=+crt-static
       - name: The tests that read the sample game's zone
         run: cargo test --locked -p hunnawood -- --ignored
-      - name: Check that the examples and the games do not import the Visual C++ runtime
+      - name: Check that the examples and the game do not import the Visual C++ runtime
         run: |
-          if grep -l -a -i 'vcruntime140' target/release/examples/*.exe target/release/{hunnawood,nightwatch}.exe; then
+          if grep -l -a -i 'vcruntime140' target/release/examples/*.exe target/release/hunnawood.exe; then
             echo 'these programs import VCRUNTIME140.dll'
             exit 1
           fi
@@ -111,7 +111,7 @@ jobs:
         run: |
           mkdir -p target/windows
           cp target/release/examples/{hello,headless,window,offscreen,scene}.exe target/windows/
-          cp target/release/{hunnawood,nightwatch}.exe target/windows/
+          cp target/release/hunnawood.exe target/windows/
           scripts/fetch-dxc.sh target/windows
           cargo run --locked -p slime-cook -- cook examples/assets target/windows/assets
           cp -r target/cooked/hunnawood target/windows/hunnawood

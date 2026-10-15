@@ -174,7 +174,7 @@ Stage 3 is split in two so that each half ends with a runnable, tested sample.
 - A small game that uses the public API only: the player moves, interacts with a few objects and reaches an objective, and the game restarts cleanly
 - What the game finds hard to do, recorded as proposals for Stages 4 and 5
 
-The stage comes right after 0.1 (it was added by ADR-0052) and has no release of its own. Its game, *Nightwatch*, is the sample until Stage 4a replaces it with *Hunna Wood*; it is never released (ADR-0067).
+The stage comes right after 0.1 (it was added by ADR-0052) and has no release of its own. Its game, *Nightwatch*, was the sample until Stage 4a replaced it with *Hunna Wood*, and was never released (ADR-0067).
 
 **Not yet.** Text, physics, sound: the engine does not have them.
 

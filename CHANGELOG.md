@@ -8,8 +8,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
-- *Hunna Wood*, the game that replaces *Nightwatch* as the sample every stage grows, in
-  `games/hunnawood` ([ADR-0067](docs/adr/0067-hunna-wood-replaces-nightwatch.md)): a role-playing
+- *Hunna Wood*, the sample game that every stage grows, in `games/hunnawood`
+  ([ADR-0055](docs/adr/0055-games-in-the-workspace.md),
+  [ADR-0067](docs/adr/0067-hunna-wood-replaces-nightwatch.md)): a role-playing
   game seen in the third person, whose hero walks the zone below, stopped by what stands in it and
   sliding along it, under a camera that follows it and comes nearer when something stands in
   between. `cargo run -p hunnawood` plays it; CI builds it for Windows with the examples.
@@ -60,13 +61,6 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   cooked beside `hunnawood.exe`.
 - `LoadedScene::instance_nodes` gives the node that places each instance, so that a game can leave
   out what some nodes place, such as a door that opens.
-- *Nightwatch*, the first game made with the engine, through its public API only, in
-  `games/nightwatch` ([ADR-0055](docs/adr/0055-games-in-the-workspace.md)): so far, a courtyard at
-  night under the moon, which the player, a small glowing slime, crosses with the keyboard, stopped
-  by its walls and crates, under a camera that follows it, past guards with flashlights and
-  floodlights that end the game when they see it, whose light walls and crates stop, to a gate that
-  wins it; a switch turns a floodlight off, and F1 shows what each frame costs.
-  `cargo run -p nightwatch` plays it; CI builds it for Windows with the examples.
 - `MeshData::cube`, `MeshData::sphere` and `MeshData::square` make simple shapes in code, one metre
   across, for a game or a test that has no model to load.
 - `slime-gfx` draws into targets of four samples per pixel, for multisample anti-aliasing:
@@ -116,12 +110,12 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   edge of the last ([ADR-0065](docs/adr/0065-reading-the-cascades.md)); a point is looked up off
   its triangle, as under spot lights. The cascades take 64 MiB of GPU memory, from the first
   frame in which a directional light casts shadows, where the map took 16 MiB from the renderer's
-  creation; `RenderStats::shadow_draw_calls` counts an instance once in each cascade it reaches. In
-  *Nightwatch*, the scene pass costs about 10 % more on an RX 6900 XT.
+  creation; `RenderStats::shadow_draw_calls` counts an instance once in each cascade it reaches. In a
+  courtyard lit by the moon, the scene pass costs about 10 % more on an RX 6900 XT.
 - On Direct3D 12, shaders are compiled with DXC when its library, `dxcompiler.dll`, lies beside the
   program, and with FXC otherwise, with a warning in the log
-  ([ADR-0066](docs/adr/0066-shipping-dxc-beside-the-programs.md)): DXC's code draws *Nightwatch*'s
-  scene pass about twice as fast. The Windows programs that CI builds come in one directory with
+  ([ADR-0066](docs/adr/0066-shipping-dxc-beside-the-programs.md)): DXC's code draws a
+  courtyard's scene pass about twice as fast. The Windows programs that CI builds come in one directory with
   DXC and its licence; `scripts/fetch-dxc.sh` downloads it. `WGPU_DX12_COMPILER=fxc` asks for FXC.
 
 ### Removed
