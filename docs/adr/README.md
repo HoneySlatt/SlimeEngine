@@ -139,3 +139,4 @@ the ADR linking to it.
 | [0069](0069-the-asset-pipeline.md) | The asset pipeline: identity, cooking and what a game loads | Accepted |
 | [0070](0070-the-sample-games-source-assets.md) | The sample game's source assets: free, listed, mirrored | Accepted |
 | [0071](0071-cooked-textures.md) | Cooked textures | Accepted |
+| [0072](0072-stage-4b-live-assets.md) | Stage 4b: live assets | Accepted |

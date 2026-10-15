@@ -12,274 +12,224 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 
 ## Current
 
-- Stage 3d — Anti-aliasing and the shadows of spot lights: done on 2026-10-15. In *Nightwatch*,
-  walls and crates stop the light of flashlights and floodlights, edges are smooth and the moon's
-  shadows are sharp near the player, on Linux and on Windows; image tests cover them
-  ([ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md),
-  [ADR-0064](adr/0064-cascaded-shadow-maps.md)).
-- After Stage 3d's measurements, on 2026-10-15: Direct3D 12 compiles shaders with DXC when its
-  library lies beside the program, as it does beside the Windows programs that CI builds
-  ([ADR-0066](adr/0066-shipping-dxc-beside-the-programs.md)).
-- Stage 4a — Cooked assets: planned on 2026-10-15 and validated by the owner. M4a.1 to M4a.5 done
-  on 2026-10-15: *Hunna Wood* runs on a test ground, every source asset has an ID of its own,
-  images cook into compressed textures, and glTF files into meshes, materials and scenes that the
-  renderer loads; the `scene` example draws the cooked sample, and the temporary loader is gone.
-  M4a.6 done on 2026-10-15: the zone's 22 source assets, which the owner agreed to, and the zone that
-  a Blender script builds from them are listed, mirrored, fetched, cooked and tested; the owner
-  looked at renders of it and chose to refine its look while playing it. M4a.7 done on 2026-10-15:
-  the game plays the cooked zone, which the owner played on Linux, and *Nightwatch* is deleted.
-  M4a.8 done on 2026-10-15: the night, and resting by the campfire, which turns the day to night
-  and back; the owner played it on Linux and in the Windows virtual machine. M4a.9 done on
-  2026-10-15: Stage 4a is done and released as 0.2. Next: plan Stage 4b, live assets, with the
-  owner.
+- Stage 4a — Cooked assets: done and released as 0.2 on 2026-10-15. *Hunna Wood* loads its zone
+  from cooked assets and is played by day and by night, on Linux and on Windows.
+- Stage 4b — Live assets: planned on 2026-10-15 and validated by the owner
+  ([ADR-0072](adr/0072-stage-4b-live-assets.md)). Next: M4b.1.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
-| [M4a.1](#m4a1--hunna-woods-skeleton) | *Hunna Wood* runs: the hero walks a test ground in the third person | Done |
-| [M4a.2](#m4a2--asset-identity) | Every source file has an ID that survives a move | Done |
-| [M4a.3](#m4a3--images) | PNG and JPEG files become compressed textures that the renderer draws | Done |
-| [M4a.4](#m4a4--gltf) | glTF files become cooked meshes, materials and scenes | Done |
-| [M4a.5](#m4a5--the-sample-scene-through-the-pipeline) | The `scene` example draws cooked data; the temporary loader is deleted | Done |
-| [M4a.6](#m4a6--the-zones-sources) | The zone exists as source assets that anyone can fetch and cook | Done |
-| [M4a.7](#m4a7--hunna-wood-by-day) | *Hunna Wood* is played by day; *Nightwatch* is deleted | Done |
-| [M4a.8](#m4a8--night) | The zone by night; resting switches day and night | Done |
-| [M4a.9](#m4a9--windows-check-documentation-release-02) | 0.2 is released with *Hunna Wood* | Done |
+| [M4b.1](#m4b1--a-shared-gpu-and-a-task-pool) | The renderer loads a scene on threads of its own, which create its GPU objects | Planned |
+| [M4b.2](#m4b2--the-zone-loads-while-frames-go-on) | *Hunna Wood* draws while its zone loads | Planned |
+| [M4b.3](#m4b3--recovering-from-a-lost-gpu-device) | An application that chooses it goes on after a lost GPU device | Planned |
+| [M4b.4](#m4b4--hunna-wood-goes-on-after-a-lost-device) | *Hunna Wood* goes on after a lost GPU device | Planned |
+| [M4b.5](#m4b5--materials-that-change-in-place) | A game changes a material's values while it runs | Planned |
+| [M4b.6](#m4b6--hot-reload-of-cooked-data) | A texture changed on disk changes in the running game | Planned |
+| [M4b.7](#m4b7--hot-reload-of-shaders) | A shader changed on disk changes in the running game | Planned |
+| [M4b.8](#m4b8--refining-hunna-wood) | *Hunna Wood* refined with hot reload, on the owner's list | Planned |
+| [M4b.9](#m4b9--windows-check-documentation-close) | Stage 4b is done; Stage 5 is planned | Planned |
 
 Stages 0, 1, 2, 3a, 3b, 3c, 3d and 4a are done; see [Completed stages](#completed-stages).
 
-## Stage 4a — Cooked assets
+## Stage 4b — Live assets
 
-Exit criterion (see [`ROADMAP.md`](ROADMAP.md#stage-4a--cooked-assets--02)): *Hunna Wood* loads
-its zone from cooked assets and is played by day and by night, on Linux and on Windows; the
-temporary glTF loader is deleted; moving a source file breaks no reference.
+Exit criterion (see [`ROADMAP.md`](ROADMAP.md#stage-4b--live-assets)): a texture and a shader
+hot-reload in the running game; the game's zone loads while frames go on; the game goes on after a
+lost GPU device.
 
-Stage 4, the asset pipeline, is split in two halves
-([ADR-0068](adr/0068-stage-4-in-two-halves.md)). This first half turns *source assets*, the files
-that people make or download (glTF, PNG, JPEG), into *cooked data*, files in the engine's own
-formats that a game loads without parsing or converting anything: that conversion is *cooking*,
-done by a program of the engine, `slime-cook`, before the game runs. Every source file has an
-*asset ID* that survives a move, kept in a *metadata file* beside it, and each game has a
-*manifest* that lists what was cooked for it ([ADR-0069](adr/0069-the-asset-pipeline.md)).
-Textures are compressed for the GPU. The second half, Stage 4b, makes loaded assets live:
-background loading, materials whose values change in place, hot reload, recovering from a lost GPU
-device. It is planned at the end of this one and released with 0.3.
+This is the second half of Stage 4, the asset pipeline
+([ADR-0068](adr/0068-stage-4-in-two-halves.md)). The first half turned source files into cooked
+data that a game loads by ID ([ADR-0069](adr/0069-the-asset-pipeline.md)); this one makes what is
+loaded live. Three things, where the engine stands at the start:
 
-The stage also replaces the sample game ([ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)).
-*Hunna Wood* is a role-playing game seen in the third person, in a dark-fantasy world; this stage
-makes one zone of its starting region, a forest. The hero walks a path under old mossy trees, among
-rocks and ferns, past a stone bridge and the ruins of gothic walls and pillars, under an overcast
-sky; far off stands the region's capital on its cliff, painted behind the zone. Near the ruins the
-hero finds an item that opens a sealed door; resting at a campfire turns the day into night and
-back. There is no combat, dialogue, physics, animation or sound: the hero is a still figure that
-glides. The models and textures are free (CC0), fetched from a mirror and assembled in Blender by a
-script ([ADR-0070](adr/0070-the-sample-games-source-assets.md)). The game's README describes it in
-full once it exists.
+- **Loading in the background.** `Renderer::load_scene` loads a scene on the thread that calls it,
+  and *Hunna Wood* loads its zone before its window opens. The stage loads scenes on threads of the
+  renderer's own, which create the GPU objects themselves, while the game goes on drawing.
+- **Hot reload**: replacing, in a running game, the cooked data or the shaders that changed on disk,
+  without restarting it. A material cannot change once it is made
+  ([ADR-0057](adr/0057-what-the-first-game-asks-of-the-next-stages.md)), and the shaders are
+  embedded in the program. The stage makes a material's values change in place, which a game uses
+  too (a fire that flickers), then reloads cooked data, then shaders.
+- **Recovering from a lost GPU device.** A lost device stops the run
+  ([ADR-0022](adr/0022-losing-the-gpu-device.md)). The stage opens a new device, for the
+  applications that choose it, which create their GPU objects again.
 
-Out of scope: Stage 4b's work; audio import (Stage 7, ADR-0068); water and falling rain, fog and the
-continuous day-night cycle (Stage 9a), animation (Stage 9b), terrain and vegetation systems (Stage
-10); combat, dialogue and text; import settings in metadata files; glTF animations, skins and morph
-targets, which the importer reports and leaves out; glTF's `KHR_texture_transform`, refused where a
-file uses it.
+Out of scope: handles to assets and their load states, progressive loading, assets shared between
+scenes (Stage 5's world model, ADR-0072); a public task pool or job system (Stage 7); a loading bar
+and any text of games (Stages 6 and 7); watching files through the operating system's
+notifications; reloading a game's code; recovering for applications that do not choose it;
+reloading shaders in a shipped game; audio (Stage 7).
 
-Decisions taken when the stage was planned, by the owner on 2026-10-15:
+Decisions taken when the stage was planned, by the owner on 2026-10-15, with the alternatives they
+rejected, are in [ADR-0072](adr/0072-stage-4b-live-assets.md):
 
-- **The game.** *Hunna Wood* replaces *Nightwatch*, which is deleted at M4a.7, once the owner has
-  played *Hunna Wood* by day, and never released (ADR-0067).
-- **The stage's halves.** Stage 4a, released as 0.2; Stage 4b, released with 0.3; audio import at
-  Stage 7 (ADR-0068).
-- **The pipeline.** Metadata files beside the sources, cooked data never committed, a cache named by
-  content, a game that links no importer, textures in KTX2 files compressed in BC7 and BC5
-  (ADR-0069), and the dependencies that ADR lists.
-- **Texture sizes.** 2048 texels for the ground, the walls, the cliffs and the hero; 1024 for small
-  props.
-- **Source assets.** CC0 only, listed in git, mirrored on the releases of a repository of their own,
-  fetched by a script (ADR-0070). Each batch of downloads waits for the owner's agreement.
-- **The trees** are made in Blender: trunks and branches with bark textures, foliage as *leaf
-  cards*, quads whose texture's alpha cuts out the leaves (the `MASK` alpha mode), whose edges stay
-  aliased (see [Known debt](#known-debt)).
-- **The hero** is a body from Blender Studio's *Human Base Meshes* (CC0), dressed in Blender in a
-  tunic, trousers and a hooded cloak.
-- **The ground** is flat where the hero walks; relief stands beyond, with colliders.
-- **Colliders and markers are placed in Blender**: boxes turned about the vertical and cylinders,
-  and the markers of the hero's start, the item, the door and the campfire, as custom properties of
-  their nodes, which the cooker carries to the game without reading them.
-- **Day and night** are two states: resting at the campfire switches between them, and `--night`
-  starts at night. The day is overcast; the night is lit by the moon, lanterns and the campfire.
-- **No water**: the renderer cannot draw it yet.
+- **The order**: the risk first, recovery before hot reload.
+- **Loading**: a load that the game polls, which gives the scene whole; a task pool private to
+  `slime-render`; the bar of 33 ms between frames; the sky and the hero while the zone loads.
+- **Recovery**: chosen by each application; the same wgpu instance and a new surface; no CPU adapter
+  after a hardware one; giving up after three recoveries without a frame.
+- **Materials**: their values change in place, their textures do not; found by name.
+- **Hot reload**: `slime-cook watch`, which checks the sources every half second; shaders read from
+  their source files; off unless `--watch`; the game starts again from the start when its layout
+  changed, and goes on when only its looks did.
+- **The rest**: a refining of the game, on at most five points that the owner chooses; no release;
+  no new dependency.
 
-Risks: the time that making the zone takes, which budgets bound (triangles drawn, GPU memory of
-textures, size of the cooked data), set at M4a.6 before the art grows; the renderer's gaps for a
-forest: no frustum culling or instancing, so that every tree is drawn by the scene pass wherever
-the camera looks, with a draw call of its own, and again in each cascade and spot light's tile it
-reaches; leaf cards that overdraw, with a shader that discards; the sky's light reaching
-under the trees, unoccluded; a campfire whose point light casts no shadow; at most 16 lights; the
-speed of the BC7 encoder, not measured yet; BC textures not yet sampled on lavapipe; cooked data
-that differs between runs if the cooker depends on an order or a time; the Windows CI job, 10 to 15
-minutes before the stage, with the owner's limit at 20 minutes, to which cooking adds; the Windows
-artifact, which grows by the cooked zone.
+Risks:
 
-### M4a.1 — Hunna Wood's skeleton
+- **Frames held up by loading.** In wgpu 30, writing a texture through the queue holds a lock that a
+  submission takes too, so the loading threads can delay frames; M4b.2 measures it against the bar,
+  with the fallback that ADR-0072 names.
+- **Recovery on real drivers.** A device destroyed by a test is not a driver reset. Real resets are
+  checked by hand: on the owner's AMD GPU through the driver's recovery, which needs root and which
+  the owner runs, and on Windows by a forced timeout detection and recovery (TDR) in the virtual
+  machine. Direct3D 12's second swap chain on one window, the dev overlay's egui renderer, which can
+  panic on a lost device (see [Known debt](#known-debt)), and threads still loading with the lost
+  device are the likely failures.
+- **Shader reload on Direct3D 12**: making every pipeline again pauses the game, for a time not
+  measured yet.
+- **The cost of the checks.** The zone costs up to 8 s per frame on lavapipe, and every scenario that
+  draws it adds that; the Windows CI job takes 17 of the 20 minutes that the owner allows.
 
-- **Goal.** *Hunna Wood* runs: the hero walks a test ground in the third person, blocked by
-  obstacles.
-- **Crates.** `games/hunnawood` (new); the engine's crates only for bugs the game finds.
-- **Delivers.** The crate, its README, and its place in the documents (`README.md`,
-  `ARCHITECTURE.md`, `CONTRIBUTING.md`, `AGENTS.md`); the rules in a module without GPU: the hero
-  moved with the keyboard relative to the camera at the fixed step, sliding along colliders, boxes
-  turned about the vertical and cylinders; a camera above and behind the hero that follows the
-  hero and keeps out of obstacles; a test ground and obstacles built in code, a stand-in for the
-  hero, an overcast sky; the dev overlay on F1; the game in `scripts/check.sh`'s headless Weston and
-  in the Windows programs that CI builds.
-- **Done when.** Unit tests show the hero moving at walking speed, stopped by turned boxes and
-  cylinders, sliding along them, and never through one at the fixed step; the game runs on Linux and
-  in the headless Weston; CI is green on both platforms.
-- **How to test.** `cargo test -p hunnawood`; `cargo run -p hunnawood`.
+### M4b.1 — A shared GPU and a task pool
 
-### M4a.2 — Asset identity
+- **Goal.** The renderer loads a scene on threads of its own, which create its GPU objects.
+- **Crates.** `slime-gfx`, `slime-render`.
+- **Delivers.** A `Gpu` that threads share; the renderer's task pool, private; starting the load of
+  a scene, polling it, taking the scene once loaded, with `load_scene` as starting and waiting; the
+  first error of a load returned and the rest of its work cancelled; a panic of a loading thread
+  raised again on the thread that takes the load; a load dropped cancelled and its threads joined;
+  the interval between frames measured while the zone loads today, as the baseline; the ADR on
+  loading in the background; the documents (`slime-render`'s README, `ARCHITECTURE.md`'s threads,
+  the glossary).
+- **Done when.** Tests: a texture created on another thread draws; a scene loaded in the background
+  draws the same pixels as one loaded on the calling thread; an asset that fails fails the load;
+  two loads at once; a load dropped half-way; a panic raised again; CI is green.
+- **How to test.** `cargo test -p slime-gfx -p slime-render`.
 
-- **Goal.** Every source file has an ID that survives a move.
-- **Crates.** `slime-assets` and `slime-cook` (new).
-- **Delivers.** The two crates and their READMEs; asset IDs and the IDs of sub-assets; metadata
-  files, read and written; `slime-cook` scanning a directory of sources, giving IDs to new files,
-  reporting a metadata file without its source and two with one ID; its check, in
-  `scripts/check.sh`, that refuses a source without metadata; a `.gitattributes` that keeps binary
-  sources out of Windows' line-ending conversion; `ARCHITECTURE.md`, the glossary,
-  `docs/dependencies.md`.
-- **Done when.** Tests without GPU: a new file gets an ID; a file moved or renamed with its metadata
-  keeps it; a copied metadata file is reported; a second scan changes nothing; the IDs of sub-assets
-  are stable and distinct, and a repeated name takes its index; a metadata file outside the format
-  is refused with its line.
-- **How to test.** `cargo test -p slime-assets -p slime-cook`.
+### M4b.2 — The zone loads while frames go on
 
-### M4a.3 — Images
+- **Goal.** *Hunna Wood* draws while its zone loads.
+- **Crates.** `games/hunnawood`; `slime-render` if the measurement asks for the fallback.
+- **Delivers.** The window opened at once; the loading view, the sky and the hero at the start, the
+  camera turning, the hero still; the zone appearing whole; `--frames` counting the frames that draw
+  the zone; the intervals between frames measured while the zone loads, in a release build at
+  1280 × 720 on the RX 6900 XT, with 1, 2 and 4 loading threads; the fallback if the bar is missed;
+  the game's README.
+- **Done when.** While the zone loads, no interval between frames above 33 ms on the RX 6900 XT; a
+  test shows the rules still until the zone is there; the game runs in the headless Weston; the
+  owner plays it; CI is green.
+- **How to test.** `cargo run --release -p hunnawood`.
 
-- **Goal.** PNG and JPEG files become compressed textures that the renderer draws.
-- **Crates.** `slime-cook`, `slime-assets`, `slime-gfx`, `slime-render`.
-- **Delivers.** Images imported; their mipmaps computed by the cooker; BC7 and BC5 encoding; KTX2
-  files written and read; the cache and the manifest; the compressed formats in `slime-gfx`, which
-  asks the device for them and sizes levels in blocks of 4 × 4 texels; textures created by
-  `slime-render` from cooked ones, normal maps in BC5 whose third component the shader rebuilds; the
-  encoder's speed measured on a texture of 4096 texels; the ADR on cooked textures; the documents.
-  `scripts/check.sh` cooks with the glTF importer, at M4a.4, when the sample has sources the cooker
-  takes.
-- **Done when.** Tests: cooking twice gives the same bytes; cooking a third time cooks nothing;
-  changing one image cooks only its textures again; a BC7 texture sampled on lavapipe, an AMD GPU
-  and WARP matches its decoded levels; a texture whose side is not a multiple of four stays
-  uncompressed; a GPU without BC textures is refused with its name.
-- **How to test.** `cargo test -p slime-cook -p slime-assets -p slime-gfx -p slime-render` on the
-  three drivers; `scripts/check.sh`.
+### M4b.3 — Recovering from a lost GPU device
 
-### M4a.4 — glTF
+- **Goal.** An application that chooses it goes on after a lost GPU device.
+- **Crates.** `slime-gfx`, `slime-app`; `slime-devui` and `slime-render` for what they create.
+- **Delivers.** The kind of a loss: the driver's, the application's own, memory that ran out; a new
+  device opened through the lost one's instance, with or without a window, and the window's surface
+  created again; the run's setting that chooses recovery and the method of `App` that it calls once
+  the new device is open; the lost device kept until the new one opens; the limits: no CPU adapter
+  after a hardware one, three recoveries in a row without a presented frame, a device that ran out
+  of memory; a way to lose the device on purpose; scenarios of the windowed lifecycle test where the
+  device is restored, and lost again; the ADR that amends ADR-0022; the documents.
+- **Done when.** Tests: a new device draws the same pixels as the lost one did; an object of the
+  lost device is refused by the new one; a device that ran out of memory is not replaced; an
+  application that does not choose recovery stops as before; the two scenarios pass in the headless
+  Weston; CI is green.
+- **How to test.** `cargo test -p slime-gfx -p slime-app`; `scripts/check.sh`.
 
-- **Goal.** glTF files become cooked meshes, materials and scenes.
-- **Crates.** `slime-cook`, `slime-assets`, `slime-render`.
-- **Delivers.** glTF imported, as `.gltf` files with their external buffers and images and as GLB:
-  images by ID, `KHR_lights_punctual`, `KHR_materials_emissive_strength`, node names and `extras`;
-  tangents computed with MikkTSpace; primitives compacted to the vertices they name; limits on what
-  one file may make the cooker allocate; the temporary loader's tests moved to the importer; the
-  cooked formats of meshes, materials and scenes, which `slime-render` loads; textures of data and
-  of normals for the materials' slots, under IDs derived from their images'; `scripts/check.sh`
-  cooking the sample twice from empty directories and comparing; the documents.
-- **Done when.** The loader's tests pass against the importer; MikkTSpace tangents match Blender's
-  within a tolerance on a test mesh; two primitives that share attributes keep only the vertices
-  each names; a file past the limits is refused with a message that says which; `extras` arrive as
-  written.
-- **How to test.** `cargo test -p slime-cook -p slime-render`.
+### M4b.4 — Hunna Wood goes on after a lost device
 
-### M4a.5 — The sample scene through the pipeline
+- **Goal.** *Hunna Wood* goes on after a lost GPU device.
+- **Crates.** `games/hunnawood`.
+- **Delivers.** The game choosing recovery: its view, statistics and dev overlay made again, its
+  zone loaded again in the background behind the loading view, its run kept (where the hero
+  stands, the key, the door, the time of day); `--lose-device-at <frame>`; a button of the dev
+  overlay that loses the device; `scripts/check.sh` running the game with `--lose-device-at`; the
+  game's README.
+- **Done when.** The game, losing its device in the headless Weston, draws frames after the loss with
+  its run kept; the owner's reports from Linux, with a driver reset, and from the Windows virtual
+  machine, with a forced TDR.
+- **How to test.** `cargo run -p hunnawood -- --lose-device-at 300`; the button of the dev overlay
+  (F1).
 
-- **Goal.** The `scene` example draws cooked data; the temporary loader is deleted.
-- **Crates.** `slime-examples`, `slime-render`.
-- **Delivers.** The `scene` example and its image tests drawing the sample scene from what
-  `slime-cook` cooked; the loader's tests that draw (a mirrored node, masked, blended and
-  double-sided materials, a file's own tangents, a texture read as colors and as data, a file lit
-  by its own lights) drawing cooked data; `examples/common/gltf.rs` deleted, the `gltf` dependency
-  kept by the examples' tests only, which write small glTF files for the cooker; ADR-0029
-  superseded; `scene.exe` with its cooked data in the Windows programs that CI builds; the move
-  test of the exit criterion; the known debt about the loader closed or moved to the importer.
-- **Done when.** The image tests pass on cooked data on lavapipe, an AMD GPU and WARP within
-  ADR-0054's tolerance; in a temporary directory, a glTF file with an external PNG, moved and
-  renamed with their metadata, keeps its IDs, cooks nothing again and draws the same pixels; CI is
-  green.
-- **How to test.** `cargo test --workspace`; `cargo run --example scene`.
+### M4b.5 — Materials that change in place
 
-### M4a.6 — The zone's sources
+- **Goal.** A game changes a material's values while it runs.
+- **Crates.** `slime-render`, `games/hunnawood`.
+- **Delivers.** A material's values read and changed in place, its textures fixed; a loaded scene's
+  materials found by name; *Hunna Wood*'s campfire flickering, its flames, its embers and its light
+  together, and the key glowing in pulses at night; the documents.
+- **Done when.** Tests: a material changed draws as one made with the new values; values refused
+  at creation are refused in place too; a name that no material has finds none; the owner sees the
+  fire.
+- **How to test.** `cargo test -p slime-render`; `cargo run -p hunnawood -- --night`.
 
-- **Goal.** The zone exists as source assets that anyone can fetch and cook.
-- **Crates.** `games/hunnawood` (its assets and scripts); `scripts/`.
-- **Delivers.** The zone's budgets, measured on the owner's GPU and on lavapipe; the list of source
-  assets and its check; the downloads, once the owner has agreed to the list; the mirror's
-  repository and its first release; `scripts/fetch-assets.sh` and CI's cache; the Blender script and
-  its placements: the trees, the ruins, the rocks and ferns, the bridge, the hero, the lanterns, the
-  campfire, the door and the item, the colliders and markers, the lights of day and night; its
-  export, mirrored; the documents.
-- **Done when.** Tests on the cooked zone: exactly one start, item, door and campfire; the start
-  outside every collider; a flood fill from the start over the walkable ground reaches the item and
-  the campfire, and not what lies behind the door; the zone within its budgets; `scripts/check.sh`
-  fetches and cooks the zone; the owner has looked at renders of it.
-- **How to test.** `scripts/fetch-assets.sh`, then `slime-cook`; `cargo test -p hunnawood`.
-- **Budgets**, set from a synthetic forest measured on the owner's RX 6900 XT and on lavapipe, and
-  checked by the tests of the cooked zone (`games/hunnawood/src/zone.rs`): at most 1 000 000
-  triangles and 800 instances drawn (the renderer culls nothing, so every frame draws them all), 6
-  spot lights that cast shadows at night, 384 MiB of compressed textures and 320 MiB of cooked
-  data. The first zone has 583 000 triangles, 429 instances, 6 lanterns, 151 MiB of textures and 157
-  MiB of cooked data. The renderer draws it in 1.2 ms of GPU time by day and 1.7 ms by night on the
-  RX 6900 XT at 1280 × 720, and in up to 8 s per frame on lavapipe, most of it in the sun's shadow
-  cascades (see [Known debt](#known-debt)).
-- **Left to refine while playing**, by the owner's decision of 2026-10-15: the leaf cards, which
-  read as cards up close; the stone and the ground, warmer than the zone's grey palette; the fire,
-  three glowing tongues until particles; the hero's smooth face. Done at M4a.8: the painted capital,
-  twice as far, and a larger brass key that glints at night, which the owner had to be told where
-  to find.
+### M4b.6 — Hot reload of cooked data
 
-### M4a.7 — Hunna Wood by day
+- **Goal.** A texture changed on disk changes in the running game.
+- **Crates.** `slime-cook`, `slime-assets`, `slime-render`, `games/hunnawood`, `slime-examples`.
+- **Delivers.** `slime-cook watch`; temporary files named with the process ID; the manifest written
+  only when its content changes; cooked data that reads a new manifest; a scene loaded again in the
+  background, reusing the GPU objects that did not change; `--watch` in *Hunna Wood* and the `scene`
+  example; the zone's rules read again, the run starting again when the game's layout changed; a
+  reload that fails keeping the old scene; how the cooker names a glTF file's outputs measured,
+  since a name made from the whole file changes every output when one part changes, and changed if
+  it defeats the reuse; the ADR on hot reload; the documents (`CONTRIBUTING.md`, the game's
+  README, `examples/README.md`).
+- **Done when.** Tests: `watch` cooks a changed image, and only what it makes; two cooks at once
+  leave the cooked data whole; the manifest unchanged by a cook that changed nothing; a reloaded
+  scene draws the new texture and keeps the objects that did not change; a change of layout starts
+  the run again, a change of looks does not; by hand, a texture of the zone changed while the game
+  runs, and the owner tries it; CI is green.
+- **How to test.** `cargo run --release -p slime-cook -- watch games/hunnawood/assets/zone
+  target/cooked/hunnawood` beside `cargo run -p hunnawood -- --watch`.
 
-- **Goal.** *Hunna Wood* is played by day; *Nightwatch* is deleted.
-- **Crates.** `games/hunnawood`; `games/nightwatch` deleted.
-- **Delivers.** The zone, its colliders, markers and lights loaded by ID from cooked data; the item,
-  picked up near the ruins, that opens the sealed door; the campfire, where the hero rests; a key
-  that restarts; the frame's cost measured; the owner plays the game on Linux; then *Nightwatch*
-  deleted, with its place in the documents and in `CHANGELOG.md`, and the last commit that holds it
-  recorded here.
-- **Done when.** Tests: a scripted walk from the start picks up the item, opens the door and reaches
-  the campfire; the door stops the hero before the item is found; a restart starts from the same
-  state; the owner's report.
-- **How to test.** `cargo test -p hunnawood`; `cargo run -p hunnawood`.
-- **Outcome.** The owner played the zone on Linux on 2026-10-15: rested by the campfire, took the
-  key, opened the door; the frame cost 1.9 ms of GPU time and 2.4 ms of CPU time on the RX 6900 XT
-  in their window (1.2 ms and 3.4 ms in a release build at 1280 × 720 by day). The last commit that
-  holds *Nightwatch* is `90f3a01`: `git show 90f3a01:games/nightwatch/README.md` reads it.
+### M4b.7 — Hot reload of shaders
 
-### M4a.8 — Night
+- **Goal.** A shader changed on disk changes in the running game.
+- **Crates.** `slime-gfx`, `slime-render`, `games/hunnawood`, `slime-examples`.
+- **Delivers.** Uniform layouts that declare their minimum sizes; the renderer's shaders as sources
+  that it can be given while it runs, embedded by default; its pipelines made again from new
+  sources, all or none, the old ones kept on an error that names its line and column; with
+  `--watch`, *Hunna Wood* and the `scene` example reading the shaders from `crates/slime-render/src`
+  and giving them to the renderer when they change; the pause measured on Direct3D 12; the
+  documents.
+- **Done when.** Tests: a shader that does not fit its data refused when its pipeline is made; new
+  sources equal to the embedded ones draw the same pixels; a broken shader keeps the old pipelines
+  and reports its line and column; by hand, a change in a shader seen in the running game; CI is
+  green on both platforms.
+- **How to test.** `cargo run -p hunnawood -- --watch`, then edit a shader.
 
-- **Goal.** The zone by night; resting switches day and night.
-- **Crates.** `games/hunnawood`; the engine's crates only for bugs the game finds.
-- **Delivers.** The night: the moon, whose shadows fall in cascades; lanterns whose spot lights cast
-  shadows; the campfire's glow through the bloom; resting at the campfire switches between day and
-  night; `--night`; the frame's cost by night; the owner plays the game on Linux and in the Windows
-  virtual machine.
-- **Done when.** Tests: resting switches to night and back; `--night` starts at night; the owner's
-  reports from Linux and Windows; the checks and CI are green.
-- **How to test.** Playing it; `--frames` in the headless Weston.
-- **Outcome.** The owner played the night on Linux on 2026-10-15, found the campfire too bright, at
-  420 candelas, which became 120; then played day and night in the Windows virtual machine from
-  CI's programs: all worked. By night the frame cost about 2.9 ms of GPU time and 3.0 ms of CPU time
-  on the RX 6900 XT. CI's Windows job now fetches and cooks the zone: 17 minutes, under the 20 that
-  the owner set.
+### M4b.8 — Refining Hunna Wood
 
-### M4a.9 — Windows check, documentation, release 0.2
+- **Goal.** *Hunna Wood* refined with hot reload, on the owner's list.
+- **Crates.** `games/hunnawood`: its zone's script and assets.
+- **Delivers.** At most five points, which the owner chooses at the start of the milestone, among
+  what was left to refine while playing at Stage 4a or what they noticed since: the leaf cards,
+  which read as cards up close; the stone and the ground, warmer than the zone's grey palette; the
+  fire, three glowing tongues until particles; the hero's smooth face; the capital's picture,
+  larger than the sizes decided (see [Known debt](#known-debt)). No new engine feature; new source
+  assets and new releases of the mirror only with the owner's agreement
+  ([ADR-0070](adr/0070-the-sample-games-source-assets.md)).
+- **Done when.** The owner's report on each point; the tests of the cooked zone, budgets included,
+  pass; CI is green.
+- **How to test.** Playing it.
 
-- **Goal.** 0.2 is released with *Hunna Wood*.
+### M4b.9 — Windows check, documentation, close
+
+- **Goal.** Stage 4b is done; Stage 5 is planned.
 - **Crates.** All, for their documents.
-- **Delivers.** The documents reread as a newcomer would; `README.md` and `CHANGELOG.md`; the
-  Windows programs that CI builds holding `hunnawood.exe` with its cooked data, DXC, and the notice
-  that credits its assets; Stage 4a marked done; Stage 4b planned with the owner; the release, as
-  [Releasing](#releasing) says.
-- **Done when.** The tag `v0.2.0` is on a commit whose CI run is green, and its GitHub release
-  carries the Windows programs.
-- **How to test.** Reading; CI.
+- **Delivers.** The documents reread as a newcomer would; `CHANGELOG.md`'s `[Unreleased]` section;
+  the owner plays the game from CI's Windows programs; Stage 4b marked done; Stage 5 planned with
+  the owner. No release: what the stage delivers is released with 0.3, at the end of Stage 5
+  (ADR-0068).
+- **Done when.** The exit criterion holds, on Linux and on Windows: hot reload by hand on Linux and
+  through CI's tests on Windows, since CI's Windows programs hold no cooker and no shader sources
+  (ADR-0072); CI is green.
+- **How to test.** Reading; CI; playing it.
 
 ## Releasing
 
@@ -319,7 +269,7 @@ cooked and the notice that credits its assets among them.
 | 3b — Physically based renderer → 0.1 | M3b.1 GPU layer for multi-pass rendering; M3b.2 HDR rendering and tone mapping; M3b.3 physically based materials; M3b.4 light types; M3b.5 shadows; M3b.6 image-based lighting; M3b.7 bloom; M3b.8 render graph; a pass over the known debt; M3b.9 Windows check, documentation, release | Done; released as 0.1 (tag `v0.1.0`), with the Windows examples on its GitHub release. Content listed in [`CHANGELOG.md`](../CHANGELOG.md). |
 | 3c — A first game | M3c.1 skeleton; M3c.2 guards, detection and the objective; M3c.3 night, feel and the Windows check; M3c.4 findings for the next stages | Done; no release of its own: its game, *Nightwatch*, is never released, as *Hunna Wood* replaces it in Stage 4a ([ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)). The stage each of its findings goes to is in [ADR-0057](adr/0057-what-the-first-game-asks-of-the-next-stages.md), and the two that became Stage 3d in [ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md). |
 | 3d — Anti-aliasing and the shadows of spot lights | M3d.1 multisampling in the GPU layer; M3d.2 anti-aliasing in the renderer; M3d.3 spot lights' shadows: what each tile sees; M3d.4 spot lights' shadows: drawn and read; M3d.5 *Nightwatch* and the Windows check; M3d.6 a smoother shadow filter; M3d.7 what each cascade sees; M3d.8 the cascades read; M3d.9 *Nightwatch* at 3840 × 2160 | Done; no release of its own: what it delivers is released with 0.2. Its decisions are in [ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md) and ADR-0058 to [ADR-0065](adr/0065-reading-the-cascades.md); the cost of its scene pass on Direct3D 12, with each shader compiler, is in the [Known debt](#known-debt). |
-| 4a — Cooked assets → 0.2 | M4a.1 *Hunna Wood*'s skeleton; M4a.2 asset identity; M4a.3 images; M4a.4 glTF; M4a.5 the sample scene through the pipeline; M4a.6 the zone's sources; M4a.7 *Hunna Wood* by day; M4a.8 night; M4a.9 Windows check, documentation, release 0.2 | Done, released as 0.2 on 2026-10-15. Its decisions are in [ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md) to [ADR-0071](adr/0071-cooked-textures.md); the zone's budgets and what is left to refine are in [M4a.6](#m4a6--the-zones-sources). |
+| 4a — Cooked assets → 0.2 | M4a.1 *Hunna Wood*'s skeleton; M4a.2 asset identity; M4a.3 images; M4a.4 glTF; M4a.5 the sample scene through the pipeline; M4a.6 the zone's sources; M4a.7 *Hunna Wood* by day; M4a.8 night; M4a.9 Windows check, documentation, release 0.2 | Done, released as 0.2 on 2026-10-15. Its decisions are in [ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md) to [ADR-0071](adr/0071-cooked-textures.md); the zone's budgets are set by the test that checks them, in `games/hunnawood/src/zone.rs`, and what was left to refine goes to [M4b.8](#m4b8--refining-hunna-wood). |
 
 The details of each completed milestone (what it delivered, how it was checked, what was measured)
 are in the history of this file and in the commits that implemented it; the measurements that
@@ -334,11 +284,10 @@ GitHub issues, linked from their entry; this list stays the reference.
   6900 XT takes under 2 ms: most of it goes to the four shadow cascades of the sun, each 2048 ×
   2048 texels, through which thousands of overlapping leaf cards are drawn with a shader that
   discards. The checks run the game for one frame by day and one at night. Leaves that cast no shadow in the
-  farther cascades, or fewer and smaller cards, would lower it; to measure with the views of the
-  zone, as at M4a.6.
+  farther cascades, or fewer and smaller cards, would lower it, to measure with views of the zone.
 - **The tests of the cooked zone run in `scripts/check.sh` only**: they need the zone fetched and
   cooked, so `cargo test` leaves them out (`#[ignore]`), and CI runs them on Linux, not on Windows.
-- **The capital's picture is 4096 × 1536 texels**, beyond the sizes decided for the stage (2048 for
+- **The capital's picture is 4096 × 1536 texels**, beyond the sizes decided for Stage 4a (2048 for
   the ground, the walls, the cliffs and the hero, 1024 for small props): it spans the whole view
   north of the zone. It takes 8 MiB compressed.
 - **Frames are not synchronized with the display's refresh** (ADR-0021; issue

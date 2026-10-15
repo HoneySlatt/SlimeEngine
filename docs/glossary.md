@@ -229,6 +229,10 @@ before it is mapped to the display's range by *tone mapping*. The engine draws t
 `Rgba16Float` render targets: the renderer draws the scene into one at the output's size, which
 its tone-mapping pass reads.
 
+**Hot reload.** Replacing, in a running game, the *cooked data* or the shaders that changed on
+disk, without restarting the game. Stage 4b brings it; until then, a game reads its data and its
+shaders once ([ADR-0072](adr/0072-stage-4b-live-assets.md)).
+
 **Illuminance.** The light a surface facing a light receives from it, in *lux*, which the *BRDF*
 turns into the light the surface reflects: a `DirectionalLight`'s `illuminance`, and what a point
 or spot light gives at a distance (ADR-0035, ADR-0037).

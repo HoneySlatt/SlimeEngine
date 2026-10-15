@@ -386,9 +386,10 @@ pub mod cooked {
         );
     }
 
-    /// The zone's budgets (`docs/PLAN.md`, M4a.6): what the renderer draws in every frame, the
-    /// lights that cast shadows at night, the GPU memory of its textures and the size of its
-    /// cooked data.
+    /// The zone's budgets: what the renderer draws in every frame (it culls nothing, so every frame
+    /// draws all of it), the lights that cast shadows at night, the GPU memory of its textures and
+    /// the size of its cooked data. They were set at Stage 4a, before the zone was made, from a
+    /// synthetic forest measured on an RX 6900 XT and on lavapipe.
     #[test]
     #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
     fn the_cooked_zone_keeps_within_its_budgets() {

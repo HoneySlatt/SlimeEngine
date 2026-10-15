@@ -214,7 +214,7 @@ Stage 4, the asset pipeline, is split in two halves (ADR-0068): a reference to S
 
 **Goal.** Loaded assets arrive in the background, change while the game runs, and outlive the GPU device.
 
-- Asynchronous loading on a basic task pool; loading threads create GPU objects through the `Gpu` they share
+- Asynchronous loading on a basic task pool, the renderer's own (ADR-0072); loading threads create GPU objects through the `Gpu` they share
 - Hot reload, and materials whose values change in place, for it and for a game (ADR-0057)
 - Recovering from a lost GPU device: the GPU objects are created again from their sources, where the run stops today (ADR-0022)
 
@@ -365,8 +365,8 @@ Direction only. None of this is planned work until Stage 11 is reached.
 |---|---|
 | platform | no engine crate (ADR-0004) |
 | gfx | no engine crate; window handles through the `raw-window-handle` traits, not `platform` |
-| render | gfx, assets: it loads its own kinds of asset (ADR-0069) |
-| assets | no engine crate (ADR-0069); a basic task pool from Stage 4b |
+| render | gfx, assets: it loads its own kinds of asset (ADR-0069), on a task pool of its own from Stage 4b (ADR-0072) |
+| assets | no engine crate (ADR-0069) |
 | serialization | reflect |
 | world | reflect, serialization, assets |
 | editor | world, render, assets, UI framework |

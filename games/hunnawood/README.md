@@ -8,7 +8,7 @@ person, in a dark-fantasy world: the sample that every stage grows, since Stage 
 ## The game
 
 Stage 4a makes one zone of the game's starting region, a forest path, which the hero explores by day
-and by night ([`docs/PLAN.md`](../../docs/PLAN.md#stage-4a--cooked-assets)). The game reads it from
+and by night ([`docs/ROADMAP.md`](../../docs/ROADMAP.md#stage-4a--cooked-assets--02)). The game reads it from
 cooked data ([below](#the-zone)). The hero starts in the south, under an overcast sky, and follows
 the path through the forest, over a stone bridge, past a campfire in a clearing, to a ruined chapel.
 In the nave lies an old brass key: the hero takes it on walking up to it. The key opens the sealed
@@ -170,10 +170,9 @@ of the scene's nodes, which the cooker passes on as their `extras`:
 
 Tests read the cooked zone. In `src/zone.rs`: one marker of each kind, a start clear of every
 collider, the key and the campfire within reach, the terrace not until the door opens, and the zone
-within its budgets, which [`docs/PLAN.md`](../../docs/PLAN.md#m4a6--the-zones-sources) sets. In
-`src/rules.rs`: a walk along the path that rests by the campfire, takes the key, opens the door and
-reaches the terrace, then starts again from the same state; a walk to the door without the key,
-which it stops. They need the cooked zone, so `cargo test` leaves them out: `scripts/check.sh`
+within the budgets that the test sets. In `src/rules.rs`: a walk along the path that rests by the
+campfire, takes the key, opens the door and reaches the terrace, then starts again from the same
+state; a walk to the door without the key, which it stops. They need the cooked zone, so `cargo test` leaves them out: `scripts/check.sh`
 fetches and cooks it, then runs them, and after the commands above,
 `cargo test -p hunnawood -- --ignored` does.
 
