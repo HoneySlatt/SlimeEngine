@@ -23,8 +23,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   new one ([ADR-0075](adr/0075-recovering-from-a-lost-gpu-device.md)). M4b.4 done on 2026-10-15:
   *Hunna Wood* goes on after a lost device, its run kept; its checks by hand with a real driver
   reset, on Linux and on Windows, are M4b.9's. M4b.5 done on 2026-10-15: a game changes a
-  material's values while it runs, and *Hunna Wood*'s campfire flickers. M4b.6 built: a texture
-  changed on disk changes in the running game; the owner tries it.
+  material's values while it runs, and *Hunna Wood*'s campfire flickers. M4b.6 done on 2026-10-15: a
+  texture changed on disk changes in the running game
+  ([ADR-0076](adr/0076-hot-reload-of-cooked-data.md)). Next: M4b.7, hot reload of shaders.
 
 ## Status
 
@@ -35,7 +36,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M4b.3](#m4b3--recovering-from-a-lost-gpu-device) | An application that chooses it goes on after a lost GPU device | Done |
 | [M4b.4](#m4b4--hunna-wood-goes-on-after-a-lost-device) | *Hunna Wood* goes on after a lost GPU device | Done |
 | [M4b.5](#m4b5--materials-that-change-in-place) | A game changes a material's values while it runs | Done |
-| [M4b.6](#m4b6--hot-reload-of-cooked-data) | A texture changed on disk changes in the running game | Built; the owner tries it |
+| [M4b.6](#m4b6--hot-reload-of-cooked-data) | A texture changed on disk changes in the running game | Done |
 | [M4b.7](#m4b7--hot-reload-of-shaders) | A shader changed on disk changes in the running game | Planned |
 | [M4b.8](#m4b8--refining-hunna-wood) | *Hunna Wood* refined with hot reload, on the owner's list | Planned |
 | [M4b.9](#m4b9--windows-check-documentation-close) | Stage 4b is done; Stage 5 is planned | Planned |
@@ -252,6 +253,19 @@ Risks:
   runs, and the owner tries it; CI is green.
 - **How to test.** `cargo run --release -p slime-cook -- watch games/hunnawood/assets/zone
   target/cooked/hunnawood` beside `cargo run -p hunnawood -- --watch`.
+- **Outcome.** Done on 2026-10-15
+  ([ADR-0076](adr/0076-hot-reload-of-cooked-data.md)). The owner tried it on a copy of the zone: a
+  texture changed while the game ran showed at once, the zone's 74 meshes and 55 of its 56
+  textures kept, and a parapet of the bridge moved started the run again; the same changes were
+  tried before, on copies, by the agent. The measure that the plan asked for kept the cooker's
+  names: a change of the zone's glTF file renames its meshes, materials and scene, and keeps its
+  textures, nearly all its bytes. Beyond the plan, `slime_assets::ManifestWatch`, which the game
+  and the `scene` example share, and a watch that cooks once the sources have settled, so that an
+  export of several files is cooked whole. Playing under Hyprland found a bug of M4b.2, fixed in a
+  commit of its own: wgpu fails to configure a window's surface while another thread submits work,
+  as loading threads do, and the window that Hyprland resized during the zone's first load lost its
+  surface, and three times in a row stopped the run; the `Gpu`'s submissions now wait while a
+  surface is configured, which a scenario of the windowed lifecycle test checks.
 
 ### M4b.7 — Hot reload of shaders
 
