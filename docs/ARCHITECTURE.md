@@ -29,7 +29,7 @@ it is built this way.
 │   └── hunnawood/       Hunna Wood, a role-playing game: the sample every stage grows
 ├── rust-toolchain.toml  pinned Rust toolchain
 ├── scripts/             check.sh, every automated check as CI runs them; the scripts that fetch
-│                        DXC and the sample game's source assets
+│                        DXC and the sample game's source assets, and write their credits
 ├── AGENTS.md            rules for every contributor
 ├── CHANGELOG.md         notable changes, per release
 ├── CONTRIBUTING.md      environment, checks, how a change is made and reviewed

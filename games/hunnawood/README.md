@@ -114,6 +114,9 @@ The cooker takes about half a minute in a release build, and several minutes in 
 To add an asset: take it from a site that publishes it under CC0, add it to the list with its
 files, attach the files to a new release of the mirror, and give each its mirror's address.
 
+`scripts/credits.sh` writes, from the list, the notice that credits the assets' authors; CI puts it
+beside the game's Windows program, as `hunnawood-CREDITS.txt`.
+
 ## The zone
 
 A forest path, built in Blender by a script, [`zone/build_zone.py`](zone/build_zone.py), from the

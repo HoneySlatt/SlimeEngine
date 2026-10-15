@@ -115,6 +115,7 @@ jobs:
           scripts/fetch-dxc.sh target/windows
           cargo run --locked -p slime-cook -- cook examples/assets target/windows/assets
           cp -r target/cooked/hunnawood target/windows/hunnawood-assets
+          scripts/credits.sh > target/windows/hunnawood-CREDITS.txt
       # The offscreen sample's log says which compiler Direct3D 12 took: DXC, beside it.
       - name: Run the headless samples of the release build
         run: |

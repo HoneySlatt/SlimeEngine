@@ -28,8 +28,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   a Blender script builds from them are listed, mirrored, fetched, cooked and tested; the owner
   looked at renders of it and chose to refine its look while playing it. M4a.7 done on 2026-10-15:
   the game plays the cooked zone, which the owner played on Linux, and *Nightwatch* is deleted.
-  M4a.8 in progress: the night is drawn, and resting by the campfire turns the day to night and
-  back; the owner plays it next, on Linux and in the Windows virtual machine.
+  M4a.8 done on 2026-10-15: the night, and resting by the campfire, which turns the day to night
+  and back; the owner played it on Linux and in the Windows virtual machine. Next: M4a.9, the
+  release of 0.2.
 
 ## Status
 
@@ -42,7 +43,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M4a.5](#m4a5--the-sample-scene-through-the-pipeline) | The `scene` example draws cooked data; the temporary loader is deleted | Done |
 | [M4a.6](#m4a6--the-zones-sources) | The zone exists as source assets that anyone can fetch and cook | Done |
 | [M4a.7](#m4a7--hunna-wood-by-day) | *Hunna Wood* is played by day; *Nightwatch* is deleted | Done |
-| [M4a.8](#m4a8--night) | The zone by night; resting switches day and night | In progress |
+| [M4a.8](#m4a8--night) | The zone by night; resting switches day and night | Done |
 | [M4a.9](#m4a9--windows-check-documentation-release-02) | 0.2 is released with *Hunna Wood* | Planned |
 
 Stages 0, 1, 2, 3a, 3b, 3c and 3d are done; see [Completed stages](#completed-stages).
@@ -261,6 +262,11 @@ artifact, which grows by the cooked zone.
 - **Done when.** Tests: resting switches to night and back; `--night` starts at night; the owner's
   reports from Linux and Windows; the checks and CI are green.
 - **How to test.** Playing it; `--frames` in the headless Weston.
+- **Outcome.** The owner played the night on Linux on 2026-10-15, found the campfire too bright, at
+  420 candelas, which became 120; then played day and night in the Windows virtual machine from
+  CI's programs: all worked. By night the frame cost about 2.9 ms of GPU time and 3.0 ms of CPU time
+  on the RX 6900 XT. CI's Windows job now fetches and cooks the zone: 17 minutes, under the 20 that
+  the owner set.
 
 ### M4a.9 — Windows check, documentation, release 0.2
 
