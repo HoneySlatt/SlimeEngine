@@ -6,6 +6,22 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ## [Unreleased]
 
+### Added
+
+- Scenes load in the background
+  ([ADR-0073](docs/adr/0073-loading-scenes-in-the-background.md)):
+  `Renderer::load_scene_in_background` returns a `SceneLoad` at once, which a game polls at each
+  frame with `take` until it gives the whole scene. Meshes and textures are read and uploaded on a
+  task pool of the renderer's own; dropping a `SceneLoad` cancels its load.
+- `Gpu` is `Clone`: its clones share the device, so that several threads create GPU objects
+  through it.
+
+### Changed
+
+- `Renderer::load_scene` starts a load in the background and waits for it: it loads on several
+  threads, about twice as fast as before on the sample game's zone (ADR-0073). A panic of a
+  loading thread is raised again on the thread that waits.
+
 ## [0.2.0] - 2026-10-15
 
 The fifth release, which closes Stage 4a of the roadmap: cooked assets. Every source file has an

@@ -15,13 +15,15 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 - Stage 4a — Cooked assets: done and released as 0.2 on 2026-10-15. *Hunna Wood* loads its zone
   from cooked assets and is played by day and by night, on Linux and on Windows.
 - Stage 4b — Live assets: planned on 2026-10-15 and validated by the owner
-  ([ADR-0072](adr/0072-stage-4b-live-assets.md)). Next: M4b.1.
+  ([ADR-0072](adr/0072-stage-4b-live-assets.md)). M4b.1 done on 2026-10-15: the renderer loads
+  scenes on threads of its own, which create their GPU objects through clones of the `Gpu`
+  ([ADR-0073](adr/0073-loading-scenes-in-the-background.md)). Next: M4b.2.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
-| [M4b.1](#m4b1--a-shared-gpu-and-a-task-pool) | The renderer loads a scene on threads of its own, which create its GPU objects | Planned |
+| [M4b.1](#m4b1--a-shared-gpu-and-a-task-pool) | The renderer loads a scene on threads of its own, which create its GPU objects | Done |
 | [M4b.2](#m4b2--the-zone-loads-while-frames-go-on) | *Hunna Wood* draws while its zone loads | Planned |
 | [M4b.3](#m4b3--recovering-from-a-lost-gpu-device) | An application that chooses it goes on after a lost GPU device | Planned |
 | [M4b.4](#m4b4--hunna-wood-goes-on-after-a-lost-device) | *Hunna Wood* goes on after a lost GPU device | Planned |
@@ -108,6 +110,11 @@ Risks:
   draws the same pixels as one loaded on the calling thread; an asset that fails fails the load;
   two loads at once; a load dropped half-way; a panic raised again; CI is green.
 - **How to test.** `cargo test -p slime-gfx -p slime-render`.
+- **Outcome.** Done on 2026-10-15 ([ADR-0073](adr/0073-loading-scenes-in-the-background.md)). The
+  baseline, before the change: *Hunna Wood*'s window showed nothing while its zone and its hero
+  loaded, one after the other, on the main thread. On the pool's threads, both load in under half
+  the time; the ADR holds the figures. The game still loads before its first frame, by waiting:
+  M4b.2 makes it draw meanwhile.
 
 ### M4b.2 — The zone loads while frames go on
 

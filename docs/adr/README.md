@@ -140,3 +140,4 @@ the ADR linking to it.
 | [0070](0070-the-sample-games-source-assets.md) | The sample game's source assets: free, listed, mirrored | Accepted |
 | [0071](0071-cooked-textures.md) | Cooked textures | Accepted |
 | [0072](0072-stage-4b-live-assets.md) | Stage 4b: live assets | Accepted |
+| [0073](0073-loading-scenes-in-the-background.md) | Loading scenes in the background | Accepted |

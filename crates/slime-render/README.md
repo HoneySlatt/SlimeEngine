@@ -28,6 +28,9 @@ see.
   graph is the renderer's own: games that draw with `slime-gfx` order their passes themselves.
 - Is built on `slime-gfx`'s engine-owned types only: it does not use wgpu
   (`docs/adr/0027-the-render-crate.md`).
+- Loads cooked scenes on threads of its own: a thread per load, and a task pool private to the
+  crate (`src/pool.rs`), whose threads read and upload one mesh or one texture per task through
+  clones of the `Gpu` (`docs/adr/0073-loading-scenes-in-the-background.md`).
 - Draws what it is given: a flat list of instances that the application builds for each frame.
   It keeps no scene between frames and has no scene graph; the world model of Stage 5 will produce
   such lists.
@@ -112,12 +115,14 @@ fn main() -> Result<(), RenderError> {
   pipeline, read from a directory of cooked data with `slime_assets::CookedAssets::texture`: BC7,
   BC5 or 8-bit texels, every level as the cooker made it (ADR-0071). Normal textures are read by
   their x and y, z rebuilt, so that BC5 serves.
-- `Renderer::load_scene(gpu, &CookedAssets, id)` loads a cooked scene onto the GPU: every mesh its
-  nodes place, the materials they are drawn with and the textures those read, each once; its
-  `LoadedScene` gives the `instances` to draw and the node that places each
-  (`instance_nodes`), the `lights` in world space, the box around them, and the cooked scene itself,
-  whose nodes carry the `extras` a game reads its own data from. What cannot be loaded is a
-  `SceneError`.
+- `Renderer::load_scene_in_background(gpu, &CookedAssets, id)` starts loading a cooked scene onto
+  the GPU, on the renderer's threads, and returns a `SceneLoad` at once, which a game polls at each
+  frame with `take` until it gives the scene, whole; `Renderer::load_scene` starts a load and waits
+  for it. A load reads every mesh its nodes place, the materials they are drawn with and the
+  textures those read, each once; its `LoadedScene` gives the `instances` to draw and the node that
+  places each (`instance_nodes`), the `lights` in world space, the box around them, and the cooked
+  scene itself, whose nodes carry the `extras` a game reads its own data from. What cannot be
+  loaded is a `SceneError`.
 - `Scene::new(camera, &instances)` and `Instance::new(mesh, material, transform)` make what a
   frame draws; their other fields, such as the scene's `lights`, `environment`, `exposure` and
   `bloom`, or whether an instance casts shadows, are set once they are made (ADR-0046).

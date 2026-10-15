@@ -9,6 +9,7 @@ mod graph;
 mod light;
 mod material;
 mod mesh;
+mod pool;
 mod renderer;
 mod shadow;
 mod shapes;
@@ -18,7 +19,7 @@ mod shapes;
 pub use glam;
 
 pub use camera::Camera;
-pub use cooked::{LoadedScene, SceneError};
+pub use cooked::{LoadedScene, SceneError, SceneLoad};
 pub use environment::{Environment, Sky};
 pub use error::RenderError;
 pub use light::{DirectionalLight, Light, MAX_LIGHTS, PointLight, SpotLight};
@@ -40,6 +41,8 @@ mod threads {
         send_and_sync::<Mesh>();
         send_and_sync::<MeshData>();
         send_and_sync::<Material>();
+        send_and_sync::<LoadedScene>();
+        send_and_sync::<SceneLoad>();
         send_and_sync::<Environment>();
         send_and_sync::<Camera>();
         send_and_sync::<Light>();

@@ -550,6 +550,11 @@ engine *acquires* one, the application draws into it, and the engine *presents* 
 up, which stops the run, when that fails or when it is lost again each time
 ([ADR-0025](adr/0025-giving-up-a-lost-surface.md)).
 
+**Task pool.** Threads that run small pieces of work, *tasks*, as they come, each on the first
+thread free. `slime-render` has one of its own, private, which loads scenes in the background: each
+task reads and uploads one mesh or one texture
+([ADR-0073](adr/0073-loading-scenes-in-the-background.md)).
+
 **Tangent.** A direction in a surface, along which the texture's u coordinate grows. With the
 normal and the *handedness* w (±1, −1 where the texture is mirrored on the surface), it gives the
 bitangent, cross(normal, tangent) × w, and with it the *tangent space* in which *normal textures*

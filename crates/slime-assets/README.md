@@ -8,7 +8,7 @@ manifest that lists it ([ADR-0069](../../docs/adr/0069-the-asset-pipeline.md)).
 Started in M4a.2. It holds the asset ID; the cooked formats, textures in KTX2 files
 ([ADR-0071](../../docs/adr/0071-cooked-textures.md)), meshes, materials and scenes in formats of
 the engine's own; the manifest of a directory of cooked data; and the reading of that directory by
-ID. Loading in the background comes with Stage 4b.
+ID, which `slime-render` does in the background, from threads of its own.
 
 ## Role
 
@@ -16,7 +16,7 @@ ID. Loading in the background comes with Stage 4b.
   its source file is moved or renamed: cooked data refers to assets by ID, never by path.
 - Holds the cooked formats, written by the cooker and read by games: each format is read and
   written here, in one place.
-- Reads a directory of cooked data for a game, on the calling thread.
+- Reads a directory of cooked data for a game, on the thread that calls it.
 
 ## Entry points
 

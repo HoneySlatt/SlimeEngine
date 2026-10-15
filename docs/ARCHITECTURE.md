@@ -454,8 +454,9 @@ bloom's shader ([`bloom.wgsl`](../crates/slime-render/src/bloom.wgsl)) filters t
 averages it back up into a blurred copy, which the tone-mapping shader
 ([`tone_mapping.wgsl`](../crates/slime-render/src/tone_mapping.wgsl)) mixes in before it maps the
 light to the display's range. A scene that the asset pipeline cooked reaches the renderer through
-`Renderer::load_scene` ([below](#cooking-and-loading-assets)), which creates its meshes, materials
-and textures and flattens its node hierarchy into instances and lights; mirrored nodes keep their
+`Renderer::load_scene_in_background` or `Renderer::load_scene`
+([below](#cooking-and-loading-assets)), which create its meshes, materials and textures and flatten
+its node hierarchy into instances and lights; mirrored nodes keep their
 front faces through the renderer. Conventions: world space is right-handed
 with +Y up, distances are in metres and light in physical units (lux, candelas, and nits for the
 light of surfaces and the sky), the camera looks down −Z, front faces wind counter-clockwise (a
@@ -519,15 +520,28 @@ slime-cook cook <sources> <output>                     the cooker's program, bef
     │                                                  under a temporary name, then renamed
     └── Manifest::to_bytes ──▶ output/manifest         each asset's kind, file, size, source
 
-the game, at startup
+the game
 ├── slime_assets::CookedAssets::open(output)           reads the manifest
-└── renderer.load_scene(gpu, &assets, id)              slime-render: a scene, the file's ID for a
-    │                                                  glTF file's default one; its instances,
-    │                                                  and its lights in world space
-    ├── assets.scene(id), mesh(id), material(id)       each read once
-    ├── assets.texture(id)                             reads <name>.ktx2 into a CookedTexture
-    └── renderer.create_texture(gpu, label, &data)     the GPU format of its encoding
+├── renderer.load_scene_in_background(gpu, &assets, id)
+│   │                                                  slime-render: a SceneLoad, at once, for a
+│   │                                                  scene, the file's ID for a glTF file's
+│   │                                                  default one (load_scene: then waits)
+│   └── on the load's own thread
+│       ├── assets.scene(id)                           its nodes, and the meshes they place
+│       ├── a task per mesh, on the task pool          assets.mesh(id), uploaded through a clone
+│       │                                              of the Gpu
+│       ├── assets.material(id), as meshes name them   each read once; then a task per texture:
+│       │                                              assets.texture(id), uploaded in the GPU
+│       │                                              format of its encoding
+│       └── once every task has reported              materials and samplers created, nodes
+│                                                      placed: the LoadedScene, its instances and
+│                                                      its lights in world space
+└── load.take(), at each frame                         None while it loads, then the whole scene
 ```
+
+A load runs on threads of the renderer's own (ADR-0073): the thread of the load reads the scene
+and its materials and puts the loaded scene together; the tasks, which read and upload one mesh or
+one texture each, run on a task pool that every load of the process shares.
 
 ### Losing the GPU
 
@@ -566,18 +580,20 @@ frame (measured, or simulated in headless runs), gets a `FrameTime` back, and gi
 
 ### Threads
 
-The engine runs on one thread today: `run` drives the application from the main thread, and the
-renderer records and submits its passes on the thread that calls it. What may cross threads is
-nonetheless stated, so that later stages (loading on a task pool, a render thread, the job system)
-can rely on it, and checked when each crate's tests compile (a `threads` module in its
-`lib.rs`, or in `slime-devui`'s tests):
+`run` drives the application from the main thread, and the renderer records and submits its
+passes on the thread that calls it. The renderer loads cooked scenes on threads of its own
+([above](#cooking-and-loading-assets), ADR-0073): a thread per load, and a task pool private to
+`slime-render`, which lives as long as the process; they create GPU objects through clones of the
+`Gpu`. What may cross threads is stated, so that later stages (a render thread, the job system) can
+rely on it, and checked when each crate's tests compile (a `threads` module in its `lib.rs`, or in
+`slime-devui`'s tests):
 
-- **Shared between threads** (`Send` and `Sync`): the `Gpu`, its `Surface` and every GPU object
-  it creates (targets, textures, samplers, buffers, bind groups and their layouts, shader modules,
-  pipelines), images read back, meshes, materials, environments, cameras, lights, scenes and
-  instances, statistics, windows, events, the application's `Context` and `AppConfig`, the dev
-  overlay, and every error type. wgpu keeps its error scopes per thread, so shaders and pipelines
-  can be created from several threads.
+- **Shared between threads** (`Send` and `Sync`): the `Gpu`, whose clones share its device, its
+  `Surface` and every GPU object it creates (targets, textures, samplers, buffers, bind groups and
+  their layouts, shader modules, pipelines), images read back, meshes, materials, environments,
+  cameras, lights, scenes and instances, loaded scenes and loads in progress, statistics, windows,
+  events, the application's `Context` and `AppConfig`, the dev overlay, and every error type. wgpu
+  keeps its error scopes per thread, so GPU objects can be created from several threads.
 - **Moved between threads, used by one at a time** (`Send` only): a `GpuTimer`, which reads its
   times back through a cell, and so the `Renderer` that holds them; `Renderer::render` takes it
   mutably anyway.

@@ -16,12 +16,17 @@ const DEFAULT_BACKENDS: wgpu::Backends = wgpu::Backends::VULKAN;
 /// [`Gpu::new`] opens it without a window, so that it can render offscreen and run in tests;
 /// [`Gpu::new_for_window`] opens it together with the surface of a window.
 ///
-/// Every object a `Gpu` creates belongs to it: using one with another `Gpu` is a bug that neither
-/// the engine nor wgpu reliably catches. Each `Gpu` opens its own wgpu instance, whose objects are
-/// numbered from zero, so the call may panic inside wgpu, or act on the object of the other `Gpu`
-/// that has the same number: a render target read back with another `Gpu` can return the pixels
-/// of that `Gpu`'s own target.
-#[derive(Debug)]
+/// Cloning a `Gpu` gives another handle to the same device and queue, cheaply: threads that share
+/// the device each hold a clone, and an object that one clone creates is used with any other, as
+/// `slime-render`'s loading threads do. Each clone sees the loss of the device ([`Gpu::check`]).
+///
+/// Every object a `Gpu` creates belongs to its device: using one with a `Gpu` that another call to
+/// [`Gpu::new`] or [`Gpu::new_for_window`] opened is a bug that neither the engine nor wgpu
+/// reliably catches. Each of those calls opens its own wgpu instance, whose objects are numbered
+/// from zero, so the call may panic inside wgpu, or act on the object of the other `Gpu` that has
+/// the same number: a render target read back with another `Gpu` can return the pixels of that
+/// `Gpu`'s own target.
+#[derive(Clone, Debug)]
 pub struct Gpu {
     pub(crate) device: wgpu::Device,
     pub(crate) queue: wgpu::Queue,

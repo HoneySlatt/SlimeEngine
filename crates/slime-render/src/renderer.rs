@@ -8,7 +8,7 @@
 use std::time::{Duration, Instant};
 
 use glam::{DMat4, Mat3, Mat4, Vec3};
-use slime_assets::{CookedTexture, TextureEncoding};
+use slime_assets::CookedTexture;
 use slime_gfx::{
     AddressMode, BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource,
     BindingType, ComparisonSampler, CullMode, DepthBias, DepthCompare, DepthState, DepthTarget,
@@ -18,11 +18,12 @@ use slime_gfx::{
 
 use crate::bytes::{push_f32s, push_mat3, push_mat4, push_u32s};
 use crate::camera::Camera;
+use crate::cooked::upload_texture;
 use crate::environment::{Environment, Sky, brdf_table};
 use crate::error::RenderError;
 use crate::graph::{ColorId, Draws, Graph, Imported, PassDeclaration, scaled_side};
 use crate::light::{LIGHT_VALUES_SIZE, Light, MAX_LIGHTS, NO_TILE, SpotLight};
-use crate::material::{Material, MaterialData};
+use crate::material::{Material, MaterialData, MaterialParts};
 use crate::mesh::{Mesh, MeshData, VERTEX_LAYOUT};
 use crate::shadow::{
     CASCADE_ATLAS_SIZE, CASCADES, CascadeView, SHADOW_BIAS, SPOT_ATLAS_SIZE, ShadowTile, SpotView,
@@ -299,7 +300,8 @@ pub struct Renderer {
     format: TextureFormat,
     scene_pipelines: ScenePipelines,
     tone_mapping_pipeline: RenderPipeline,
-    material_layout: BindGroupLayout,
+    /// What creating a material takes besides its data.
+    pub(crate) material_parts: MaterialParts,
     instance_layout: BindGroupLayout,
     /// The layout of the group through which the tone-mapping pass reads the scene's target.
     tone_mapping_layout: BindGroupLayout,
@@ -320,11 +322,6 @@ pub struct Renderer {
     resolve_pipeline: RenderPipeline,
     /// The layout of the group through which the resolve pass reads the scene's samples.
     resolve_layout: BindGroupLayout,
-    /// One white pixel, bound in every texture slot that a material leaves empty: every slot reads
-    /// it as 1 in each channel, since sRGB's 255 decodes to exactly 1.
-    white: Texture,
-    /// The sampler of that pixel.
-    default_sampler: Sampler,
     instances: InstanceSlots,
     /// The frame's graph and what reads its targets: created by the first `render`, and again
     /// when the frame's shape changes.
@@ -808,7 +805,11 @@ impl Renderer {
             format,
             scene_pipelines,
             tone_mapping_pipeline,
-            material_layout,
+            material_parts: MaterialParts {
+                layout: material_layout,
+                white,
+                sampler: default_sampler,
+            },
             instance_layout,
             tone_mapping_layout,
             frame_uniform,
@@ -820,8 +821,6 @@ impl Renderer {
             sky_pipeline,
             resolve_pipeline,
             resolve_layout,
-            white,
-            default_sampler,
             instances,
             frame: None,
             shadow_pipeline,
@@ -892,15 +891,7 @@ impl Renderer {
         label: &str,
         data: &CookedTexture,
     ) -> Result<Texture, RenderError> {
-        let format = match data.encoding {
-            TextureEncoding::Bc7Srgb => TextureFormat::Bc7RgbaUnormSrgb,
-            TextureEncoding::Bc7 => TextureFormat::Bc7RgbaUnorm,
-            TextureEncoding::Bc5 => TextureFormat::Bc5RgUnorm,
-            TextureEncoding::Rgba8Srgb => TextureFormat::Rgba8UnormSrgb,
-            TextureEncoding::Rgba8 => TextureFormat::Rgba8Unorm,
-        };
-        let levels: Vec<&[u8]> = data.levels.iter().map(Vec::as_slice).collect();
-        Ok(gpu.create_texture_with_levels(label, data.width, data.height, format, &levels)?)
+        upload_texture(gpu, label, data)
     }
 
     /// Uploads a mesh: 48 bytes per vertex and 4 per index. `label` names its buffers in error
@@ -945,52 +936,7 @@ impl Renderer {
         label: &str,
         data: &MaterialData<'_>,
     ) -> Result<Material, RenderError> {
-        let uniform = gpu.create_uniform_buffer(label, &data.values())?;
-        // Each slot: its name, its texture, and whether it holds colors (sRGB) rather than data.
-        let slots = [
-            ("base color", data.base_color_texture, true),
-            ("metallic-roughness", data.metallic_roughness_texture, false),
-            ("normal", data.normal_texture, false),
-            ("occlusion", data.occlusion_texture, false),
-            ("emissive", data.emissive_texture, true),
-        ];
-        let mut entries = vec![BindGroupEntry {
-            binding: 0,
-            resource: BindingResource::UniformBuffer(&uniform),
-        }];
-        for (binding, (slot, sampled, colors)) in (1u32..).step_by(2).zip(slots) {
-            let (texture, sampler) = match sampled {
-                Some(sampled) => {
-                    let format = sampled.texture.format();
-                    assert!(
-                        format.is_srgb() == colors,
-                        "material `{label}`: its {slot} texture is {format:?}, but the {slot} \
-                         slot reads {}",
-                        if colors {
-                            "colors, from an sRGB format"
-                        } else {
-                            "data, from Rgba8Unorm"
-                        }
-                    );
-                    (sampled.texture, sampled.sampler)
-                }
-                None => (&self.white, &self.default_sampler),
-            };
-            entries.push(BindGroupEntry {
-                binding,
-                resource: BindingResource::Texture(texture),
-            });
-            entries.push(BindGroupEntry {
-                binding: binding + 1,
-                resource: BindingResource::Sampler(sampler),
-            });
-        }
-        let group = gpu.create_bind_group(label, &self.material_layout, &entries)?;
-        Ok(Material {
-            group,
-            double_sided: data.double_sided,
-            masked: matches!(data.alpha_mode, crate::material::AlphaMode::Mask { .. }),
-        })
+        self.material_parts.create(gpu, label, data)
     }
 
     /// Draws `scene` into `target`, in passes. The first directional light of `scene.lights` that

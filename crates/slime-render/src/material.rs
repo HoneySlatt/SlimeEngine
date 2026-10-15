@@ -1,8 +1,11 @@
 //! Materials: how a surface looks, with glTF's metallic-roughness model (ADR-0035).
 
-use slime_gfx::{BindGroup, LinearColor, Sampler, Texture};
+use slime_gfx::{
+    BindGroup, BindGroupEntry, BindGroupLayout, BindingResource, Gpu, LinearColor, Sampler, Texture,
+};
 
 use crate::bytes::push_f32s;
+use crate::error::RenderError;
 
 /// The size of a material's values as `MaterialUniform` in `shader.wgsl` lays them out: the base
 /// color (16 bytes), the emission (12) and five numbers (20).
@@ -162,6 +165,78 @@ pub struct Material {
     pub(crate) double_sided: bool,
     /// Whether its shadow is cut out where it discards fragments (ADR-0038).
     pub(crate) masked: bool,
+}
+
+/// What creating a material takes besides its data: the layout of its group, and the white pixel
+/// and its sampler that fill the slots it leaves empty. The renderer keeps them, and gives a clone
+/// to the threads that load scenes, so that they create materials too.
+#[derive(Clone, Debug)]
+pub(crate) struct MaterialParts {
+    /// The layout of a material's group, which the scene pass's pipelines read it through.
+    pub(crate) layout: BindGroupLayout,
+    /// One white pixel, bound in every texture slot that a material leaves empty: every slot reads
+    /// it as 1 in each channel, since sRGB's 255 decodes to exactly 1.
+    pub(crate) white: Texture,
+    /// The sampler of that pixel.
+    pub(crate) sampler: Sampler,
+}
+
+impl MaterialParts {
+    /// Creates a material, as [`Renderer::create_material`](crate::Renderer::create_material)
+    /// says.
+    pub(crate) fn create(
+        &self,
+        gpu: &Gpu,
+        label: &str,
+        data: &MaterialData<'_>,
+    ) -> Result<Material, RenderError> {
+        let uniform = gpu.create_uniform_buffer(label, &data.values())?;
+        // Each slot: its name, its texture, and whether it holds colors (sRGB) rather than data.
+        let slots = [
+            ("base color", data.base_color_texture, true),
+            ("metallic-roughness", data.metallic_roughness_texture, false),
+            ("normal", data.normal_texture, false),
+            ("occlusion", data.occlusion_texture, false),
+            ("emissive", data.emissive_texture, true),
+        ];
+        let mut entries = vec![BindGroupEntry {
+            binding: 0,
+            resource: BindingResource::UniformBuffer(&uniform),
+        }];
+        for (binding, (slot, sampled, colors)) in (1u32..).step_by(2).zip(slots) {
+            let (texture, sampler) = match sampled {
+                Some(sampled) => {
+                    let format = sampled.texture.format();
+                    assert!(
+                        format.is_srgb() == colors,
+                        "material `{label}`: its {slot} texture is {format:?}, but the {slot} \
+                             slot reads {}",
+                        if colors {
+                            "colors, from an sRGB format"
+                        } else {
+                            "data, from Rgba8Unorm"
+                        }
+                    );
+                    (sampled.texture, sampled.sampler)
+                }
+                None => (&self.white, &self.sampler),
+            };
+            entries.push(BindGroupEntry {
+                binding,
+                resource: BindingResource::Texture(texture),
+            });
+            entries.push(BindGroupEntry {
+                binding: binding + 1,
+                resource: BindingResource::Sampler(sampler),
+            });
+        }
+        let group = gpu.create_bind_group(label, &self.layout, &entries)?;
+        Ok(Material {
+            group,
+            double_sided: data.double_sided,
+            masked: matches!(data.alpha_mode, AlphaMode::Mask { .. }),
+        })
+    }
 }
 
 #[cfg(test)]

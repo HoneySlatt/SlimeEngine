@@ -1,7 +1,8 @@
 //! Sampling textures: nearest and linear filtering, the address modes, set on their own for each
 //! direction of a sampler, a magnified texture read with the magnification filter rather than the
-//! minification one, and the decoding of sRGB formats, checked by reading pixels back. Runs on
-//! whatever adapter the machine offers, like `device.rs`.
+//! minification one, the decoding of sRGB formats, and a texture created by another thread through
+//! a clone of the `Gpu`, checked by reading pixels back. Runs on whatever adapter the machine
+//! offers, like `device.rs`.
 
 use slime_gfx::{
     AddressMode, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource,
@@ -218,6 +219,35 @@ fn nearest_filtering_reads_whole_pixels() {
     assert_eq!(pixel(&image, (1, 1)), rgb(RED));
     assert_eq!(pixel(&image, (6, 1)), rgb(GREEN));
     assert_eq!(pixel(&image, (1, 6)), rgb(BLUE));
+    assert_eq!(pixel(&image, (6, 6)), rgb(WHITE));
+}
+
+#[test]
+fn a_texture_that_another_thread_creates_through_a_clone_of_the_gpu_draws() {
+    let setup = Setup::new();
+    let gpu = setup.gpu.clone();
+    let (texture, sampler) = std::thread::spawn(move || {
+        let pixels: Vec<u8> = [RED, GREEN, BLUE, WHITE].concat();
+        let texture = gpu
+            .create_texture("two by two", 2, 2, TextureFormat::Rgba8UnormSrgb, &pixels)
+            .expect("the GPU has memory for it");
+        let sampler = gpu
+            .create_sampler(
+                "sampler",
+                &SamplerDescriptor {
+                    mag_filter: Filter::Nearest,
+                    min_filter: Filter::Nearest,
+                    address_u: AddressMode::ClampToEdge,
+                    address_v: AddressMode::ClampToEdge,
+                },
+            )
+            .expect("the GPU has memory for it");
+        (texture, sampler)
+    })
+    .join()
+    .expect("the thread creates them");
+    let image = setup.draw(&texture, &sampler, [1.0, 1.0]);
+    assert_eq!(pixel(&image, (1, 1)), rgb(RED));
     assert_eq!(pixel(&image, (6, 6)), rgb(WHITE));
 }
 
