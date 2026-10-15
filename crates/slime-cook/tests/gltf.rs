@@ -864,3 +864,39 @@ fn a_gltf_file_whose_image_is_missing_fails_the_cook_with_its_path() {
         "{message}"
     );
 }
+
+#[test]
+fn materials_that_gltf_does_not_allow_are_refused() {
+    for (material, expected) in [
+        (
+            r#"{ "name": "bright", "pbrMetallicRoughness": { "baseColorFactor": [1.2, 1, 1, 1] } }"#,
+            "material `bright` has a base color of [1.2, 1.0, 1.0, 1.0]; glTF requires values \
+             from 0 to 1",
+        ),
+        (
+            r#"{ "pbrMetallicRoughness": { "metallicFactor": 1.01 } }"#,
+            "has a metallic factor of [1.01]",
+        ),
+        (
+            r#"{ "emissiveFactor": [0, -0.5, 0] }"#,
+            "has an emissive factor of [0.0, -0.5, 0.0]",
+        ),
+        (
+            r#"{ "alphaMode": "MASK", "alphaCutoff": -1 }"#,
+            "has an alpha cutoff of -1; glTF requires at least 0",
+        ),
+        (
+            r#"{ "extensions": { "KHR_materials_emissive_strength": { "emissiveStrength": -2 } } }"#,
+            "has an emissive strength of -2; glTF requires at least 0",
+        ),
+    ] {
+        let mut file = Glb::triangle().with_material(material);
+        file.json["extensionsUsed"] = json(r#"["KHR_materials_emissive_strength"]"#);
+        let error = file.refusal();
+        assert!(error.contains(expected), "{material}: {error}");
+    }
+    // A cutoff above 1, which glTF allows, draws nothing: it is kept.
+    let mut file = Glb::triangle().with_material(r#"{ "alphaMode": "MASK", "alphaCutoff": 1.5 }"#);
+    let imported = file.import().expect("imported");
+    assert_eq!(imported.materials[0].1.alpha_cutoff, Some(1.5));
+}

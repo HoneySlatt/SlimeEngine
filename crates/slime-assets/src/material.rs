@@ -56,7 +56,9 @@ pub struct MaterialTexture {
 /// its five textures named by the IDs of cooked textures.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CookedMaterial {
-    /// Its name, for labels and messages.
+    /// Its name: a glTF material's own, `material` and its index in the file for one without a
+    /// name, `default` for the material of a primitive without one. It labels the material on the
+    /// GPU, and a game finds the material by it in a loaded scene (`slime_render::LoadedScene`).
     pub name: String,
     /// The base color, linear red, green, blue and alpha.
     pub base_color: [f32; 4],

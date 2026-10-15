@@ -25,8 +25,8 @@
 //! attribute in a way glTF does not allow (types, sparse or empty accessors, data closer together
 //! than its size or past its buffer); indices that name no vertex, or not a multiple of 3; values
 //! that are not finite numbers, which glTF forbids; a texture read through another set of texture
-//! coordinates than the first; a node hierarchy that is not a set of trees; lights that glTF
-//! forbids; meshes larger than the GPU takes, and files whose meshes together pass
+//! coordinates than the first; a node hierarchy that is not a set of trees; materials and lights
+//! that glTF forbids; meshes larger than the GPU takes, and files whose meshes together pass
 //! [`MAX_FILE_VERTICES`] or [`MAX_FILE_INDICES`], checked before their vertices are copied. It
 //! warns about, and leaves out: animations, skins, cameras, vertex colors, and the extensions a
 //! file uses that it does not read.
@@ -35,6 +35,7 @@ use std::collections::HashMap;
 use std::f32::consts::FRAC_PI_2;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
+use std::slice;
 
 use glam::Vec3;
 use gltf::Semantic;
@@ -478,7 +479,7 @@ impl GltfFile {
             occlusion_texture,
             emissive_texture,
         ] = textures;
-        Ok(CookedMaterial {
+        let cooked = CookedMaterial {
             name,
             base_color: pbr.base_color_factor(),
             base_color_texture,
@@ -502,7 +503,9 @@ impl GltfFile {
                 gltf::material::AlphaMode::Opaque | gltf::material::AlphaMode::Blend => None,
             },
             double_sided: material.double_sided(),
-        })
+        };
+        check_factors(&cooked)?;
+        Ok(cooked)
     }
 
     /// The ID of `image`, read in `role`: an image embedded in the file, which it adds to
@@ -1124,6 +1127,46 @@ fn sampler(sampler: &gltf::texture::Sampler<'_>) -> TextureSampler {
         wrap_u: wrap(sampler.wrap_s()),
         wrap_v: wrap(sampler.wrap_t()),
     }
+}
+
+/// Refuses the material `cooked` if glTF does not allow its factors, which the `gltf` crate does not
+/// check, and which the renderer refuses too (`slime_render::MaterialValues`): a base color or
+/// emissive channel, a metallic or roughness factor or an occlusion strength outside 0 to 1; an
+/// emissive strength (`KHR_materials_emissive_strength`) or an alpha cutoff below 0.
+fn check_factors(cooked: &CookedMaterial) -> Result<(), ImportError> {
+    let unit: [(&str, &[f32]); 5] = [
+        ("a base color of", &cooked.base_color),
+        ("a metallic factor of", slice::from_ref(&cooked.metallic)),
+        ("a roughness factor of", slice::from_ref(&cooked.roughness)),
+        (
+            "an occlusion strength of",
+            slice::from_ref(&cooked.occlusion_strength),
+        ),
+        ("an emissive factor of", &cooked.emissive),
+    ];
+    let not_negative = [
+        ("an emissive strength of", Some(cooked.emissive_strength)),
+        ("an alpha cutoff of", cooked.alpha_cutoff),
+    ];
+    if let Some((what, values)) = unit
+        .into_iter()
+        .find(|(_, values)| !values.iter().all(|value| (0.0..=1.0).contains(value)))
+    {
+        return refuse(format!(
+            "material `{}` has {what} {values:?}; glTF requires values from 0 to 1",
+            cooked.name
+        ));
+    }
+    if let Some((what, Some(value))) = not_negative
+        .into_iter()
+        .find(|(_, value)| value.is_some_and(|value| !(value.is_finite() && value >= 0.0)))
+    {
+        return refuse(format!(
+            "material `{}` has {what} {value}; glTF requires at least 0",
+            cooked.name
+        ));
+    }
+    Ok(())
 }
 
 /// The light `light` of node `node`, refused if `KHR_lights_punctual` does not allow it, which

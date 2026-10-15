@@ -35,7 +35,7 @@ pub enum AlphaMode {
     /// glTF's `MASK`: where the alpha is below `cutoff`, nothing is drawn, not even depth;
     /// elsewhere the surface is drawn opaque. glTF's default cutoff is 0.5.
     Mask {
-        /// The smallest alpha that is drawn, from 0 to 1.
+        /// The smallest alpha that is drawn: 0 or more, and above 1, nothing is drawn.
         cutoff: f32,
     },
 }
@@ -202,9 +202,7 @@ impl MaterialValues {
                     .into_iter()
                     .flatten()
                     .find(|(_, value)| !(value.is_finite() && *value >= 0.0))
-                    .map(|(name, value)| {
-                        format!("its {name} {value} is not finite and not negative")
-                    })
+                    .map(|(name, value)| format!("its {name} {value} is negative or not finite"))
             })
             .or_else(|| {
                 (!self.normal_scale.is_finite())
@@ -278,8 +276,10 @@ impl Material {
     }
 
     /// Changes the values it is drawn with to `values`; its textures and its sidedness stay as
-    /// made. The frames submitted after this call draw with the new values, those submitted before
-    /// with the old ones.
+    /// made. The work submitted to the GPU after this call draws with the new values, the work
+    /// submitted before with the old ones: called between two frames ([`Renderer::render`](crate::Renderer::render)), as a
+    /// game does, it changes the next frame whole. Once the device is lost, it changes the values
+    /// that [`Material::values`] gives, and nothing that is drawn.
     ///
     /// # Errors
     ///
@@ -289,7 +289,7 @@ impl Material {
     ///
     /// # Panics
     ///
-    /// If `gpu` is not the one the material was created with: wgpu panics.
+    /// If `gpu` is not the device the material was created with, and is not lost: wgpu panics.
     pub fn set_values(&self, gpu: &Gpu, values: MaterialValues) -> Result<(), RenderError> {
         let invalid = |reason| RenderError::InvalidMaterial {
             label: self.label.to_string(),
@@ -474,14 +474,14 @@ mod tests {
                     emissive_strength: f32::INFINITY,
                     ..valid
                 },
-                "its emissive strength inf is not finite and not negative",
+                "its emissive strength inf is negative or not finite",
             ),
             (
                 MaterialValues {
                     alpha_mode: AlphaMode::Mask { cutoff: -0.5 },
                     ..valid
                 },
-                "its alpha cutoff -0.5 is not finite and not negative",
+                "its alpha cutoff -0.5 is negative or not finite",
             ),
             (
                 MaterialValues {

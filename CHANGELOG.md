@@ -44,7 +44,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - `Renderer::create_material`, and the loads of cooked scenes, refuse material values out of the
   ranges that glTF keeps them in, or that are not finite, with `RenderError::InvalidMaterial`:
   such a value drew nothing that a surface can look like, and one that is not a number spread
-  through the bloom over the whole frame.
+  through the bloom over the whole frame. `slime-cook` refuses such materials in glTF files, as it
+  refuses the lights that glTF forbids: cook again data that was cooked before.
 - `Renderer::load_scene` starts a load in the background and waits for it: it loads on several
   threads, about twice as fast as before on the sample game's zone (ADR-0073). A panic of a
   loading thread is raised again on the thread that waits. When several assets of a scene fail, the

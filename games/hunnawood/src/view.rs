@@ -56,13 +56,14 @@ const KEY: &str = "brass";
 /// it above the fire pit.
 const CAMPFIRE_LIGHT_REACH: f32 = 1.0;
 /// The waves whose sum makes the fire flicker: each a frequency in hertz, an amplitude and a phase
-/// in turns. Their frequencies have no common multiple within minutes, so that the flicker does
-/// not show a period; their amplitudes add to at most a quarter of the fire's light.
+/// in turns. In thousandths of a hertz, their frequencies have no common divisor but 1, so that
+/// the flicker repeats only every 1 000 seconds; their amplitudes add to at most a quarter of the
+/// fire's light.
 const FLICKER: [(f64, f64, f64); 4] = [
-    (1.3, 0.10, 0.0),
-    (2.9, 0.07, 0.17),
-    (6.1, 0.05, 0.42),
-    (11.7, 0.03, 0.71),
+    (1.303, 0.10, 0.0),
+    (2.917, 0.07, 0.17),
+    (6.131, 0.05, 0.42),
+    (11.719, 0.03, 0.71),
 ];
 /// The seconds between two pulses of the key's glow, and how many times its glow its brightest
 /// pulse reaches.
@@ -97,8 +98,8 @@ pub struct ZoneLights {
     day: Vec<Light>,
     /// The moon, the lanterns and the campfire.
     night: Vec<Light>,
-    /// The index in `night` of the campfire's light, which flickers.
-    campfire: Option<usize>,
+    /// The campfire's light, which flickers, as the zone places it, and its index in `night`.
+    campfire: Option<(usize, PointLight)>,
 }
 
 impl ZoneLights {
@@ -123,13 +124,18 @@ impl ZoneLights {
                 .collect()
         };
         let night = of("night");
-        let campfire = night.iter().position(|light| match light {
-            Light::Point(light) => {
-                Vec2::new(light.position.x, light.position.z).distance(campfire)
-                    <= CAMPFIRE_LIGHT_REACH
-            }
-            _ => false,
-        });
+        let campfire = night
+            .iter()
+            .enumerate()
+            .find_map(|(index, light)| match light {
+                Light::Point(light)
+                    if Vec2::new(light.position.x, light.position.z).distance(campfire)
+                        <= CAMPFIRE_LIGHT_REACH =>
+                {
+                    Some((index, *light))
+                }
+                _ => None,
+            });
         Ok(Self {
             day: of("day"),
             night,
@@ -242,12 +248,8 @@ impl View {
             sun: moon,
             ..NIGHT_SKY
         };
-        let campfire = lights.campfire.and_then(|index| match lights.night[index] {
-            Light::Point(light) => Some((index, light)),
-            _ => None,
-        });
         Ok(Self {
-            campfire,
+            campfire: lights.campfire,
             day: Lighting {
                 lights: lights.day,
                 environment: renderer.create_environment(gpu, &OVERCAST)?,
@@ -302,7 +304,7 @@ impl View {
     ///
     /// # Errors
     ///
-    /// As [`Renderer::render`].
+    /// As [`Renderer::render`] and [`Material::set_values`].
     pub fn draw(
         &mut self,
         gpu: &Gpu,
@@ -430,8 +432,8 @@ mod tests {
         let (assets, zone) = zone();
         let scene = assets.scene(assets::zone_id()).expect("the zone is cooked");
         let lights = ZoneLights::of(&scene, zone.campfire).expect("the lights are placed");
-        let campfire = lights.campfire.expect("the campfire has a light");
-        assert!(matches!(lights.night[campfire], Light::Point(_)));
+        let (index, light) = lights.campfire.expect("the campfire has a light");
+        assert_eq!(lights.night[index], Light::Point(light));
         // The names of the materials that the zone's meshes are drawn with.
         let mut meshes = HashSet::new();
         let names: HashSet<String> = scene

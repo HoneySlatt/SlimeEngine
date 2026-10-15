@@ -100,7 +100,7 @@ impl LoadedScene {
     }
 
     /// The material named `name` among those its meshes are drawn with, its name being the cooked
-    /// material's (a glTF file's material name): when several have it, the first that a mesh of
+    /// material's (`slime_assets::CookedMaterial::name`): when several have it, the first that a mesh of
     /// the scene is drawn with, in the order of the scene's meshes; `None` when none has it. A game
     /// changes how the scene looks through it ([`Material::set_values`]), and keeps a clone of it
     /// to do so at each frame.
