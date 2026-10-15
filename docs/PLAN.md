@@ -12,304 +12,19 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 
 ## Current
 
-- Stage 3d — Anti-aliasing and the shadows of spot lights: planned on 2026-10-15 and validated by
-  the owner. M3d.1 to M3d.9 are done.
+- Stage 3d — Anti-aliasing and the shadows of spot lights: done on 2026-10-15. In *Nightwatch*,
+  walls and crates stop the light of flashlights and floodlights, edges are smooth and the moon's
+  shadows are sharp near the player, on Linux and on Windows; image tests cover them
+  ([ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md),
+  [ADR-0064](adr/0064-cascaded-shadow-maps.md)).
+- Next: ADR-0036 is reopened, now that FXC's code is known to make the scene pass about twice as
+  slow on Direct3D 12 ([Known debt](#known-debt)); the owner decides how. Then Stage 4, the asset
+  pipeline, whose plan is to be proposed to the owner.
 
 ## Status
 
-| Milestone | Goal | Status |
-|---|---|---|
-| [M3d.1](#m3d1--multisampling-in-the-gpu-layer) | `slime-gfx` draws into targets of four samples and resolves them | Done |
-| [M3d.2](#m3d2--anti-aliasing-in-the-renderer) | The edges of the scene are smooth | Done |
-| [M3d.3](#m3d3--spot-lights-shadows-what-each-tile-sees) | The renderer draws each spot light's tile of the shadow atlas | Done |
-| [M3d.4](#m3d4--spot-lights-shadows-drawn-and-read) | Spot lights cast shadows | Done |
-| [M3d.5](#m3d5--nightwatch-and-the-windows-check) | Nightwatch shows both, on Linux and Windows | Done |
-| [M3d.6](#m3d6--a-smoother-shadow-filter) | Shadows' edges fade smoothly | Done |
-| [M3d.7](#m3d7--what-each-cascade-sees) | The shadow pass draws the directional light's four cascades | Done |
-| [M3d.8](#m3d8--the-cascades-read) | Each point is shadowed by the finest cascade that holds it, without seams | Done |
-| [M3d.9](#m3d9--nightwatch-at-3840--2160) | The moon's shadows near the player are finer in the game | Done |
-
-Stages 0, 1, 2, 3a, 3b and 3c are done; see [Completed stages](#completed-stages).
-
-## Stage 3d — Anti-aliasing and the shadows of spot lights
-
-Exit criterion (see
-[`ROADMAP.md`](ROADMAP.md#stage-3d--anti-aliasing-and-the-shadows-of-spot-lights)):
-in the game, walls and crates stop the light of flashlights and floodlights, and edges are smooth,
-on Linux and on Windows; image tests cover both.
-
-The stage removes the two defects of the renderer that the owner saw in *Nightwatch*
-([ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md)). The edges of what the
-scene pass draws are smoothed by *multisample anti-aliasing* (MSAA): each pixel on an edge is
-tested at four points, its samples, whose colours are averaged into the pixel when the pass ends,
-the *resolve*. Spot lights cast shadows through shadow maps seen from each light, kept as
-tiles of one depth texture, an *atlas*
-([ADR-0058](adr/0058-shadows-for-every-spot-light-in-one-atlas.md)). The stage also measures the
-cost of the scene pass on Direct3D 12, with each of its shader compilers, against Vulkan's
-([ADR-0057](adr/0057-what-the-first-game-asks-of-the-next-stages.md)). Once the owner had played the
-game with both, it gained a smoother shadow filter and *cascaded shadow maps* for the directional
-light: what the camera sees is split along its axis into slices, each shadowed by a map of its own,
-finer near the camera ([ADR-0064](adr/0064-cascaded-shadow-maps.md)). It has no release of its
-own: what it delivers is released with 0.2.
-
-Out of scope: the shadows of point lights, temporal anti-aliasing, tiles sized by how large a light
-shows on screen (Stage 9a, ADR-0058), smoothing the edges that a masked material cuts inside a
-triangle, and anti-aliasing the dev overlay.
-
-Decisions taken when the stage was planned, by the owner on 2026-10-15:
-
-- **How many spot lights cast shadows, and through what.** Every spot light drawn may, up to the 16
-  lights the renderer draws, each through a tile of one atlas of 4096 × 4096 depths: 2048 × 2048
-  each for up to four lights, 1024 × 1024 each from five on. Tiles are given in the scene's order.
-  `SpotLight::casts_shadows` is on by default, as the directional light's is (ADR-0058).
-- **Anti-aliasing is always on**, at four samples: no setting turns it off. Every driver the
-  project tests supports four samples for the formats the scene pass draws into.
-- **The resolve is chosen on images.** A plain average of the samples is made first, then an average
-  that weighs each sample down by its brightness, so that an edge between a bright lamp and the dark
-  is not averaged into a pixel still near white; the owner looks at both on images of *Nightwatch*
-  at M3d.2 and keeps one.
-- **Edges cut by masked materials stay aliased.** Smoothing them (alpha to coverage) behaves
-  differently from one driver to the next, which image tests would see, and no game uses masked
-  materials yet: known debt.
-- **Direct3D 12's cost is measured at M3d.5**, in the Windows virtual machine: the scene pass with
-  FXC, with DXC, and on Vulkan, before and after anti-aliasing (ADR-0057). DXC's two DLLs, from
-  Microsoft's releases of the compiler, are put beside the game for that measurement only.
-
-Decisions taken by the owner on 2026-10-15, after M3d.6, which added M3d.7 to M3d.9
-([ADR-0064](adr/0064-cascaded-shadow-maps.md)):
-
-- **Four cascades, each twice as deep as the one before**, ending at 1, 3, 7 and 15 fifteenths of
-  the light's shadow distance.
-- **2048 × 2048 texels per cascade**, in one atlas of 4096 × 4096 (64 MiB) created by the first
-  frame in which a directional light casts shadows.
-- **A blend band between cascades**, a tenth of a cascade's width, and the shadows faded out over
-  the same band beyond the last cascade.
-- **The moon's shadows reach 16 m from the camera**, chosen at M3d.9 on images of *Nightwatch* at
-  3840 × 2160, among 30, 20 and 16 m.
-
-Risks: the scene's targets grow fourfold with MSAA (about 87 MiB more at 1920 × 1080, and the
-atlas adds 64 MiB); a light inside the mesh of an instance that casts shadows is in that instance's
-shadow, which is *Nightwatch*'s case for its lamps and floodlights; FXC may refuse the shadow
-filter inside the scene shader's light loop; shadow acne differs between drivers (ADR-0047); the
-tests whose pixels lie on an edge change (the bloom's 0.6-pixel square covers no sample, and the
-furnace test's silhouette pixels mix in the sky); lavapipe draws four samples on the CPU, which
-lengthens `scripts/check.sh`. With cascades, the shadow pass draws an instance in every cascade it
-reaches, up to four times as many draws; the scene shader chooses a cascade per pixel, which FXC
-may refuse around the filter's comparisons; the wide view of *Nightwatch*'s camera halves the
-texels near the player, not more (ADR-0064).
-
-### M3d.1 — Multisampling in the GPU layer
-
-- **Goal.** `slime-gfx` draws into targets of four samples and resolves them.
-- **Crates.** `slime-gfx`.
-- **Delivers.** Colour and depth targets of four samples, which passes draw into and nothing
-  samples or reads back; pipelines that draw into them; a pass that resolves a target of four
-  samples into an ordinary one as it ends; the ADR on this API; the crate's README and
-  `ARCHITECTURE.md`.
-- **Done when.** Tests: an edge across a quarter and across half of a pixel resolves to exactly a
-  quarter and a half; the depth test holds for each sample; binding or reading back a target of
-  four samples, and drawing with a pipeline whose samples differ from its pass's, are refused.
-- **How to test.** `cargo test -p slime-gfx` on lavapipe and on a GPU; CI on WARP.
-- **Checked** on 2026-10-15: ADR-0059; eight tests of multisampling, on lavapipe, an RX 6900 XT
-  (RADV) and WARP (CI): an edge across a quarter and across half of a pixel resolves to exactly a
-  quarter and a half, which the standard pattern of the samples gives; the depth test holds for each
-  sample; samples left in a target are resolved by a later pass that draws nothing; and wgpu
-  refuses reading back or binding as a texture of one sample a multisampled target, binding a
-  multisampled depth target, and drawing with a pipeline or a depth target of another number of
-  samples, or resolving a target of one sample. Every descriptor literal names the new fields.
-
-### M3d.2 — Anti-aliasing in the renderer
-
-- **Goal.** The edges of the scene are smooth.
-- **Crates.** `slime-render`; the examples' and the game's images, looked at.
-- **Delivers.** The scene and sky passes drawn at four samples, and resolved before the bloom reads
-  them; targets of four samples and resolves in the render graph; the two resolves, shown to the
-  owner on images of *Nightwatch*, and the one kept; the tests whose pixels lie on edges made to
-  hold; the reference images rendered again; the memory and the cost measured; the documents, the
-  glossary and `CHANGELOG.md`.
-- **Done when.** Tests: an edge between a surface and the sky resolves as its coverage predicts;
-  the analytic tests hold unchanged inside surfaces; the graph orders a resolve before what reads
-  it; the image tests pass on lavapipe, an AMD GPU and WARP within ADR-0054's tolerance; the owner
-  has chosen the resolve.
-- **How to test.** `cargo test --workspace`; `cargo run -p nightwatch`; the `scene` example.
-- **Checked** on 2026-10-15: the owner looked at *Nightwatch* with the plain average of the
-  samples and with the weighted one, and kept the weighted one (ADR-0060). On lavapipe and an RX
-  6900 XT (RADV): an edge between an emissive square and the black sky, a quarter of the way across
-  a pixel, shows its samples weighed as ADR-0060 says; the analytic tests hold inside surfaces; the
-  graph orders the resolve before what reads it; the reference images, rendered again on lavapipe,
-  differ on RADV as before (77 pixels by more than 8 at most, of 131 allowed). With *Nightwatch* in
-  a window of 1901 × 2082 on the RX 6900 XT, the scene pass costs the same, 375 µs, and the resolve
-  57 µs; the renderer holds 87 MiB more at 1920 × 1080. CI green on Linux and on Windows, WARP
-  included.
-
-### M3d.3 — Spot lights' shadows: what each tile sees
-
-- **Goal.** The renderer draws, for each spot light that casts shadows, its tile of the atlas.
-- **Crates.** `slime-render`, `slime-gfx`.
-- **Delivers.** `SpotLight::casts_shadows`; tiles sized and placed by ADR-0058's rule; each tile's
-  projection, in perspective from its light, with its near plane and the widest cone it covers;
-  the instances kept for each light, those inside its cone and range; render passes that draw into
-  part of a target, so that one pass draws every tile; that pass, its views and its cost in
-  `RenderStats` (planned for M3d.4: the code that computes the tiles must be used where it is
-  written, or the checks refuse it as dead); the ADR on how a tile is projected and how its depths
-  are biased.
-- **Done when.** Unit tests: the tiles of 1, 4, 5 and 16 lights; a cone fits in its tile with the
-  filter's margin; an instance inside a light's cone is kept and one outside left out; a pass that
-  draws into two parts of one depth target, which a later pass samples. The directional light's
-  shadow tests and the image tests hold unchanged.
-- **How to test.** `cargo test -p slime-gfx -p slime-render`.
-- **Checked** on 2026-10-15: ADR-0061; unit tests of the tiles of 0, 1, 4, 5 and 16 lights,
-  of a cone held by its tile with a margin of 6 texels at three sizes and angles, an 80° cut for a
-  cone of π / 2, and of the instances kept and left out; a pass that draws into two halves of one
-  depth target, read by a later pass, on lavapipe and an RX 6900 XT (RADV). The directional
-  light's shadow tests and the image tests hold unchanged. In *Nightwatch*, on the RX 6900 XT, the
-  five tiles cost 46 draws, of 155 without culling, and about 10 µs of GPU time.
-  CI green on Linux and on Windows, WARP included. Found by the checks, which run the renderer's
-  tests with glam's assertions on: the up vector of a tile's view must be of length one.
-
-### M3d.4 — Spot lights' shadows: drawn and read
-
-- **Goal.** Spot lights cast shadows.
-- **Crates.** `slime-render`.
-- **Delivers.** The scene shader reading each light's tile with the 3 × 3 filter of the directional
-  light, shared; tests of spot lights' shadows; the bias checked on lavapipe, an AMD GPU and WARP;
-  the documents.
-- **Done when.** Tests: a square shadows a floor where the geometry predicts, its edge within the
-  directional tests' tolerances; a lit floor and a lit sphere shadow nothing of themselves; a light
-  that casts no shadows lights through; sixteen lights each get a tile; a masked cut-out casts the
-  shape it cuts; the pass's CPU and GPU cost measured.
-- **How to test.** `cargo test -p slime-render` on the three drivers.
-- **Checked** on 2026-10-15: the tests of spot lights' shadows, on lavapipe and an RX 6900
-  XT (RADV): a square shadows a floor exactly where the light's rays through it land, its edge
-  left out over 1 cm; a floor that casts shadows, under lights leaning up to 60° from it, and a
-  sphere of 5 cm facets show what they show casting none; a light that casts no shadows lights
-  through and draws no tile; with 1, 4, 5 and 16 lights casting, the one that lights reads its own
-  tile; a cut-out casts nothing. Writing them found that a surface off a tile's axis shadows
-  itself when looked up by its incidence, and a coarse facet when looked up off its smooth normal:
-  ADR-0062. The glTF sample's spot light now shadows its sphere: its reference images are rendered
-  again. With *Nightwatch* in a window of 947 × 1028 on the RX 6900 XT, the scene pass takes 104 µs
-  with its five spot lights' tiles read, 99 µs before, and the spot lights' pass about 9 µs. CI
-  green on Linux and on Windows, WARP included: FXC compiles the lookup in the loop over the
-  lights.
-
-### M3d.5 — Nightwatch and the Windows check
-
-- **Goal.** In the game, walls and crates stop the lights and edges are smooth, on Linux and on
-  Windows.
-- **Crates.** `games/nightwatch`.
-- **Delivers.** The game's flashlights and floodlights cast shadows; its lamps cast none, and the
-  floodlights' lights stand clear of their poles; the frame's cost measured; the owner plays the
-  game on Linux and in the Windows virtual machine, where the scene pass is measured on Direct3D 12
-  with FXC and with DXC and on Vulkan; `CHANGELOG.md`; Stage 3d marked done.
-- **Done when.** The owner's reports from Linux and Windows; the checks and CI are green.
-- **How to test.** Playing it; `--frames` in the headless Weston.
-- **Checked** on 2026-10-15: the lamps cast no shadow, and a floodlight's light stands 30 cm out of
-  its lamp along its aim, where its pole no longer hides it; looked at offscreen, walls and crates
-  cut the floodlights' pools and the flashlights' beams. On Linux, the owner played the game at
-  3840 × 2160 after M3d.4: edges smooth, the lights stopped by walls and crates, and the moon's
-  shadows still stepped, which M3d.6 to M3d.9 took on; the cascades were judged on images at M3d.9.
-  In the Windows virtual machine, on the same RX 6900 XT, with the build of CI from 57e4a9e, on
-  Direct3D 12 with FXC: played for nearly five minutes, at 1920 × 1080 then 3840 × 2054, won once
-  and lost once; edges smooth, bright lamps on the dark included; flashlights and floodlights
-  stopped by walls and crates; the moon's shadows sharp near the player, without steps along the
-  crates' feet, and still there at the far end of the courtyard; no acne, no shimmer as the camera
-  moves and turns, no line where one cascade hands over to the next; Escape and `--frames` end it
-  with exit code 0, without an error, with the one known warning of the dev overlay's sRGB
-  framebuffer. At 3840 × 2054 with FXC, the scene pass takes 10.4 ms. Over 600 frames of the first
-  view at 1920 × 1080, the scene pass took 2.89 ms on Direct3D 12 with FXC, 1.15 ms with DXC
-  1.9.2609 and 1.15 ms on Vulkan before the stage (the build of c0fe105), and 3.74, 1.97 and
-  1.79 ms after it: FXC's code is the cause of the gap that ADR-0057 recorded. The moon's shadow
-  pass takes 0.08 to 0.10 ms, the spot lights' 0.05 to 0.07 ms and the resolve 0.14 to 0.15 ms,
-  with either compiler and on Vulkan. ADR-0036 is to be reopened with these figures (ADR-0057).
-
-### M3d.6 — A smoother shadow filter
-
-Added on 2026-10-15, after the owner played *Nightwatch* at 3840 × 2160 with smooth edges and saw
-the steps of the moon's shadows still: multisample anti-aliasing smooths the edges of triangles,
-not those that a shadow map's texels draw.
-
-- **Goal.** Shadows' edges fade smoothly.
-- **Crates.** `slime-render`.
-- **Delivers.** Castaño's filter over 5 × 5 texels for every shadow, a normal offset and tiles'
-  margins grown for its reach; the shadow tests modelling it; the reference images rendered again;
-  the ADR.
-- **Done when.** The shadow tests match the new filter's model; the floors and spheres shadow
-  nothing of themselves; the image tests pass on the three drivers.
-- **How to test.** `cargo test -p slime-render`; *Nightwatch* at 3840 × 2160.
-- **Checked so far** on 2026-10-15: ADR-0063; the shadow tests' model of the filter, computed apart
-  from the shader, matches its shadows within 5.3 × 10⁻⁴, outside and inside the penumbra, on
-  lavapipe and an RX 6900 XT (RADV); the spot lights' tests hold with an edge band of 2 cm; the
-  reference images rendered again, which RADV matches as before. On *Nightwatch* at 3840 × 2160,
-  the filter softens the steps of the moon's shadows along the crates' feet but does not remove
-  them: they run nearly along the texels, longer than the filter reaches; texels half as wide, with
-  the moon's shadows over 15 m instead of 30, halve them. Finer texels near the camera are what
-  cascaded shadow maps give: the owner decided to build them in this stage, M3d.7 to M3d.9
-  (ADR-0064). CI green on Linux and on Windows.
-
-### M3d.7 — What each cascade sees
-
-Added on 2026-10-15 with M3d.8 and M3d.9, when the owner decided to build cascaded shadow maps in
-this stage ([ADR-0064](adr/0064-cascaded-shadow-maps.md)).
-
-- **Goal.** The shadow pass draws the directional light's four cascades.
-- **Crates.** `slime-render`.
-- **Delivers.** Each cascade's slice, square and depth range (`shadow.rs`); the cascades' atlas,
-  created by the first frame that needs it; the shadow pass drawing, into each cascade's tile, the
-  instances whose boxes reach across its square; the frame's values holding each cascade's view,
-  place and texel width; the scene pass reading the last cascade, as it read the single map; the
-  ADR; the roadmap's Stage 9a giving cascades to this stage.
-- **Done when.** The cascades' unit tests pass; the renderer's tests pass on the three drivers.
-- **How to test.** `cargo test -p slime-render`.
-- **Checked so far** on 2026-10-15: the unit tests check the slices (2, 6, 14 and 30 m for 30 m,
-  and slices that end where they start for a distance below the near plane), the tiles, and each
-  square covering its slice and keeping the boxes that reach across it; the renderer's tests pass
-  on lavapipe, with glam's assertions too, and on an RX 6900 XT (RADV), their draw counts now
-  counted per cascade. CI green on Linux and on Windows. The scene pass read the last cascade
-  alone until M3d.8.
-
-### M3d.8 — The cascades read
-
-- **Goal.** Each point is shadowed by the finest cascade that holds it, without seams.
-- **Crates.** `slime-render`.
-- **Delivers.** The cascade chosen per pixel, the blend band between cascades and the fade beyond
-  the last (ADR-0064); the directional light's lookup moved off the surface in the fragment shader,
-  by the texels of the cascade it reads; the shadow tests checking each cascade and the bands; the
-  reference images rendered again; the cost of the scene and shadow passes measured.
-- **Done when.** The shadow tests hold in every cascade and across the bands; no surface shadows
-  itself; the image tests pass on the three drivers; CI green, Direct3D 12 with FXC included.
-- **How to test.** `cargo test -p slime-render`.
-- **Checked so far** on 2026-10-15: ADR-0065. The shadow tests model the cascades apart from the
-  renderer, their squares, texels and bands, and a new test checks every pixel of a floor seen from
-  near to the horizon, and from above beyond the last cascade, against the model: within
-  5.3 × 10⁻⁴ on lavapipe and 1.0 × 10⁻³ on an RX 6900 XT (RADV), outside penumbras; in the
-  penumbras, a fifth of a pixel wide, RADV shades a point up to about 1/100 of a pixel from where
-  the model does, which the test allows. A shader whose band is a hard switch, or whose margin is
-  0, fails it. The floors and spheres shadow nothing of themselves, the sphere under texels as
-  wide as its facets and under texels 20 times finer; that took the triangle's normal, and a depth
-  range at least as deep as the cascade is wide, without which a floor lit head-on shadowed itself
-  under the first cascade. The constant bias needs 4 units on lavapipe and RADV, as before. The
-  reference images rendered again; RADV matches them as before. With *Nightwatch* in a window of
-  1901 × 2082 on the RX 6900 XT, the scene pass takes 458 µs, 421 µs with the last cascade alone
-  and 415 µs with the single map; the shadow pass 15 µs for 44 draws, 7.5 µs for 26 with the
-  single map. CI green on Linux and on Windows, Direct3D 12 with FXC included.
-
-### M3d.9 — Nightwatch at 3840 × 2160
-
-- **Goal.** The moon's shadows near the player are finer in the game.
-- **Crates.** `games/nightwatch`.
-- **Delivers.** The game's frame measured with cascades; images at 3840 × 2160, from which the
-  owner picks the moon's shadow distance; `CHANGELOG.md`.
-- **Done when.** The owner's decision on the distance; the checks and CI are green.
-- **How to test.** *Nightwatch* at 3840 × 2160; `--frames` in the headless Weston.
-- **Checked** on 2026-10-15: five views of the game rendered at 3840 × 2160 on the RX 6900 XT,
-  with the single map and with cascades, the moon's shadows reaching 30, 20 and 16 m. With the
-  single map, the moon's shadows near the player are blurred and stepped, and long steps run along
-  the crates' feet; with cascades, they are sharp, and the steps shrink to small teeth at 30 m,
-  smaller at 20 m, and fade at 16 m, where no shadow of the five views is lost: the views differ
-  only along shadows' edges. The owner chose 16 m. At 3840 × 2160, the scene pass takes 0.70 to
-  1.0 ms whatever the distance, and the moon's shadow pass 10 to 12 µs. In a window of 1901 ×
-  2082, the moon's shadows at 16 m take 25 draws, where 30 m took 44, for the same scene pass,
-  464 µs.
+Stage 4 is not planned yet. Stages 0, 1, 2, 3a, 3b, 3c and 3d are done; see
+[Completed stages](#completed-stages).
 
 ## Releasing
 
@@ -344,6 +59,7 @@ and its GitHub release carries the Windows examples that CI built from that comm
 | 3a — First renderer → 0.0.3 | M3.1 GPU resources for a renderer; M3.2 the render crate; M3.3 directional light and material; M3.4 textures and samplers; M3.5 a glTF scene and camera control; M3.6 statistics, GPU timings and the dev overlay; M3.7 Windows check, documentation, release | Done; released as 0.0.3 (tag `v0.0.3`). Content listed in [`CHANGELOG.md`](../CHANGELOG.md). |
 | 3b — Physically based renderer → 0.1 | M3b.1 GPU layer for multi-pass rendering; M3b.2 HDR rendering and tone mapping; M3b.3 physically based materials; M3b.4 light types; M3b.5 shadows; M3b.6 image-based lighting; M3b.7 bloom; M3b.8 render graph; a pass over the known debt; M3b.9 Windows check, documentation, release | Done; released as 0.1 (tag `v0.1.0`), with the Windows examples on its GitHub release. Content listed in [`CHANGELOG.md`](../CHANGELOG.md). |
 | 3c — A first game | M3c.1 skeleton; M3c.2 guards, detection and the objective; M3c.3 night, feel and the Windows check; M3c.4 findings for the next stages | Done; no release of its own: its game, *Nightwatch*, is released with 0.2. The stage each of its findings goes to is in [ADR-0057](adr/0057-what-the-first-game-asks-of-the-next-stages.md), and the two that became Stage 3d in [ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md). |
+| 3d — Anti-aliasing and the shadows of spot lights | M3d.1 multisampling in the GPU layer; M3d.2 anti-aliasing in the renderer; M3d.3 spot lights' shadows: what each tile sees; M3d.4 spot lights' shadows: drawn and read; M3d.5 *Nightwatch* and the Windows check; M3d.6 a smoother shadow filter; M3d.7 what each cascade sees; M3d.8 the cascades read; M3d.9 *Nightwatch* at 3840 × 2160 | Done; no release of its own: what it delivers is released with 0.2. Its decisions are in [ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md) and ADR-0058 to [ADR-0065](adr/0065-reading-the-cascades.md); the cost of its scene pass on Direct3D 12, with each shader compiler, is in the [Known debt](#known-debt). |
 
 The details of each completed milestone (what it delivered, how it was checked, what was measured)
 are in the history of this file and in the commits that implemented it; the measurements that
@@ -641,6 +357,11 @@ GitHub issues, linked from their entry; this list stays the reference.
   too, which costs overdraw. Not measured: compare the scene pass's GPU time on a scene with much
   overdraw against a build whose opaque materials use a fragment entry point without `discard`
   (six pipelines instead of three).
+- **Edges that a masked material cuts inside a triangle stay aliased** (ADR-0059). Multisampling
+  smooths the edges of triangles, but the scene shader runs once per pixel, and the `MASK` alpha
+  mode keeps or discards all of a pixel's samples at once. Smoothing those edges, alpha to
+  coverage, behaves differently from one driver to the next, which image tests would see, and no
+  game uses masked materials yet.
 - **Tangents that a glTF file lacks are computed per triangle, not with MikkTSpace** (ADR-0035),
   against which normal textures are usually baked. Such files shade slightly differently from
   other viewers, most at seams in the texture coordinates. The importer of Stage 4 computes

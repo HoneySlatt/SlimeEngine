@@ -7,24 +7,24 @@ games first, then open-world games, then large online worlds.
 ## Status
 
 Pre-alpha. Stages 0 (*Foundations*), 1 (*Core and platform*), 2 (*GPU layer*), 3a (*First
-renderer*), 3b (*Physically based renderer*) and 3c (*A first game*) are done; the latest release is
-0.1 (git tag `v0.1.0`). Applications run headless or with a window (Wayland or X11 on Linux, Win32
-on Windows) that receives keyboard and mouse input, with a fixed-step main loop, logging, panic
-reporting and a clean shutdown on Ctrl+C. The engine opens the GPU (Vulkan on Linux, Direct3D 12 on
-Windows), paces frames with its own schedule and the Mailbox present mode by default, names its GPU
-work for capture tools, reports a GPU whose memory runs out as an error a game can handle, and stops
-cleanly when the GPU device is lost. Its renderer, `slime-render`, draws instances of meshes with
-glTF's metallic-roughness materials, lit by directional, point and spot lights in physical units
-(lux and candelas), with the shadows of a sun around the camera and of spot lights, and the light of
-a procedural sky that surfaces reflect and that shows behind them; it draws in high dynamic range,
-at four samples per pixel so that edges are smooth, relative to the camera and with reversed depth
-so that large scenes keep their precision, then exposes the light, spreads a bloom around it, tone
-maps it and dithers it, into a window or into offscreen images that image tests compare with
-references. The `scene` example draws a glTF scene and its lights under a camera driven by the
-mouse, with the CPU time and the GPU time of each pass in a dev overlay. *Nightwatch*
-(`games/nightwatch`), a small stealth game made with the public API only, is the sample that every
-later stage grows. Stage 3d is under way: edges are smooth and spot lights cast shadows, which
-*Nightwatch* shows next; [`docs/PLAN.md`](docs/PLAN.md) lists the known debt.
+renderer*), 3b (*Physically based renderer*), 3c (*A first game*) and 3d (*Anti-aliasing and the
+shadows of spot lights*) are done; the latest release is 0.1 (git tag `v0.1.0`). Applications run
+headless or with a window (Wayland or X11 on Linux, Win32 on Windows) that receives keyboard and
+mouse input, with a fixed-step main loop, logging, panic reporting and a clean shutdown on Ctrl+C.
+The engine opens the GPU (Vulkan on Linux, Direct3D 12 on Windows), paces frames with its own
+schedule and the Mailbox present mode by default, names its GPU work for capture tools, reports a
+GPU whose memory runs out as an error a game can handle, and stops cleanly when the GPU device is
+lost. Its renderer, `slime-render`, draws instances of meshes with glTF's metallic-roughness
+materials, lit by directional, point and spot lights in physical units (lux and candelas), with the
+shadows of a sun, in cascades around the camera, and of spot lights, and the light of a procedural
+sky that surfaces reflect and that shows behind them; it draws in high dynamic range, at four
+samples per pixel so that edges are smooth, relative to the camera and with reversed depth so that
+large scenes keep their precision, then exposes the light, spreads a bloom around it, tone maps it
+and dithers it, into a window or into offscreen images that image tests compare with references. The
+`scene` example draws a glTF scene and its lights under a camera driven by the mouse, with the CPU
+time and the GPU time of each pass in a dev overlay. *Nightwatch* (`games/nightwatch`), a small
+stealth game made with the public API only, is the sample that every later stage grows. Next comes
+Stage 4, the asset pipeline; [`docs/PLAN.md`](docs/PLAN.md) lists the known debt.
 
 ## Getting started
 
