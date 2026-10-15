@@ -1,8 +1,8 @@
 //! Sampling textures: nearest and linear filtering, the address modes, set on their own for each
 //! direction of a sampler, a magnified texture read with the magnification filter rather than the
-//! minification one, the decoding of sRGB formats, and a texture created by another thread through
-//! a clone of the `Gpu`, checked by reading pixels back. Runs on whatever adapter the machine
-//! offers, like `device.rs`.
+//! minification one, the decoding of sRGB formats, a texture created by another thread through a
+//! clone of the `Gpu`, and a texture larger than the largest buffer, checked by reading pixels back.
+//! Runs on whatever adapter the machine offers, like `device.rs`.
 
 use slime_gfx::{
     AddressMode, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource,
@@ -249,6 +249,32 @@ fn a_texture_that_another_thread_creates_through_a_clone_of_the_gpu_draws() {
     let image = setup.draw(&texture, &sampler, [1.0, 1.0]);
     assert_eq!(pixel(&image, (1, 1)), rgb(RED));
     assert_eq!(pixel(&image, (6, 6)), rgb(WHITE));
+}
+
+#[test]
+fn a_texture_larger_than_the_largest_buffer_draws() {
+    let setup = Setup::new();
+    // As large as the device allows, with two levels: more bytes than the largest buffer holds
+    // (256 MiB with the default limits), so that its upload goes through several.
+    let side = setup.gpu.max_texture_dimension();
+    let level = |side: u32| -> Vec<u8> {
+        // The top half red, the bottom half green.
+        let half = (side * side / 2) as usize;
+        [RED.repeat(half), GREEN.repeat(half)].concat()
+    };
+    let levels = [level(side), level(side / 2)];
+    let levels: Vec<&[u8]> = levels.iter().map(Vec::as_slice).collect();
+    assert!(
+        levels.iter().map(|level| level.len() as u64).sum::<u64>() > setup.gpu.max_buffer_size()
+    );
+    let texture = setup
+        .gpu
+        .create_texture_with_levels("large", side, side, TextureFormat::Rgba8UnormSrgb, &levels)
+        .expect("the GPU has memory for it");
+    let sampler = setup.sampler(Filter::Nearest, AddressMode::ClampToEdge);
+    let image = setup.draw(&texture, &sampler, [1.0, 1.0]);
+    assert_eq!(pixel(&image, (1, 1)), rgb(RED));
+    assert_eq!(pixel(&image, (6, 6)), rgb(GREEN));
 }
 
 #[test]

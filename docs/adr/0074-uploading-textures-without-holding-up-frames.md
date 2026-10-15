@@ -33,10 +33,14 @@ Once the zone is drawn, nothing loads: in 1 800 frames, no interval passed 25 ms
 
 ## Decision
 
-- **`slime-gfx` uploads a texture's levels through a buffer of its own**, which the CPU writes while
-  it is mapped, then copies them into the texture with commands that it submits at once. The texels
-  are written outside any lock of wgpu's; the submission takes the queue's lock for as long as it
-  takes to hand the commands over. Every texture is created this way, on any thread.
+- **`slime-gfx` uploads a texture's levels through buffers of its own**, which the CPU writes while
+  they are mapped, then copies them into the texture with commands that it submits at once. The
+  texels are written outside any lock of wgpu's; the submission takes the queue's lock for as long
+  as it takes to hand the commands over. A buffer holds at most the device's largest, and an image
+  too large for one is cut into bands of rows; each copy starts at a multiple of 512 bytes, the
+  placement that Direct3D 12 asks of a copy's data on drivers without unrestricted pitches, where
+  wgpu would otherwise go through a buffer of its own. Every texture is created this way, on any
+  thread.
 - **`slime-render` gives the lights of a cooked scene without loading it** (`scene_lights`), as
   `LoadedScene::lights` holds them, so that a game knows its sun and its moon before its scene is
   loaded.
@@ -52,9 +56,10 @@ machine.
 
 ## Alternatives considered
 
-- **Fewer loading threads.** With one or two threads, intervals stayed below 22 ms where no shadow
-  first appeared, but the first shadows still pushed 5 runs in 80, or 7 in 30, past 33 ms; and the
-  zone loads slower.
+- **Fewer loading threads, and the queue's writes kept**: fewer threads make fewer copies wait for
+  the lock, not each copy shorter, and they load the zone slower. Measured with the texels already
+  written outside the lock, one or two threads kept intervals below 22 ms where no shadow first
+  appeared, but the first shadows still pushed 5 runs in 80, or 7 in 30, past 33 ms.
 - **The fallback of ADR-0072, uploads from the main thread within a budget of bytes per frame**:
   more code in the game's loop and a slower load, for a problem that writing the texels outside
   the lock removes.
@@ -66,7 +71,7 @@ machine.
 ## Consequences
 
 - A texture costs a submission when it is created, a small cost once per texture, and its levels
-  go through a buffer padded to the rows' alignment of copies, 256 bytes.
+  go through buffers padded to the rows' alignment of copies, 256 bytes.
 - A thread that loads no longer holds up the thread that submits frames by more than the time to
   hand over a submission; ADR-0073's expectation of a wait as long as each copy no longer holds.
 - A game that changes the shape of its frame while something loads, by drawing the first shadows
@@ -74,5 +79,6 @@ machine.
   hero from the first frame.
 - The window of *Hunna Wood* shows its first frame after the renderer, the hero and the two skies:
   145 to 180 ms on the RX 6900 XT. Before Stage 4b it showed nothing while the renderer, the zone,
-  the hero and the skies were made one after the other: about 400 to 500 ms, from the times that
-  ADR-0073 measured.
+  the hero and the skies were made one after the other: about 400 to 500 ms, an estimate from the
+  zone's and the hero's loads that ADR-0073 measured, 346 to 394 ms together in each run, and
+  the renderer's and the skies' time.

@@ -17,7 +17,7 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   through it.
 - `slime_render::scene_lights` gives the lights that a cooked scene's nodes place without loading
   the scene, so that a game knows its sun and its moon before its scene is loaded.
-- *Hunna Wood* draws while its zone loads: its window shows the hero under the sky about three
+- *Hunna Wood* draws while its zone loads: its window shows the hero under the sky two to three
   times sooner, and the zone appears, whole, once loaded; the hero waits for it. The log says after
   how many frames, and the longest interval between two of them
   ([ADR-0074](docs/adr/0074-uploading-textures-without-holding-up-frames.md)).

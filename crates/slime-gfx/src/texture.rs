@@ -224,21 +224,18 @@ impl Gpu {
                 bytes.len()
             );
         }
-        // The levels reach the texture through a buffer that the CPU writes while it is mapped,
-        // then a copy that the GPU runs, submitted at once. The queue's own writes
+        // The levels reach the texture through buffers that the CPU writes while they are mapped,
+        // then copies that the GPU runs, submitted at once. The queue's own writes
         // (`write_texture`) would copy them into wgpu's staging memory while holding a lock that
         // every submission takes, so that a thread uploading textures, as `slime-render`'s loading
-        // threads do, would hold up the thread that submits frames (ADR-0073). A copy from a
-        // buffer starts each row at a multiple of 256 bytes: each level's rows are laid out so.
-        let mut offsets = Vec::with_capacity(levels.len());
-        let mut size = 0u64;
-        for index in 0..levels.len() {
-            let (level_width, level_height) = level_size(index);
-            let (row, rows) = format.rows(level_width, level_height);
-            let pitch = row.next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
-            offsets.push((size, row, pitch, rows));
-            size += u64::from(pitch * rows * layers);
-        }
+        // threads do, would hold up the thread that submits frames (ADR-0074).
+        let level_rows: Vec<(u32, u32)> = (0..levels.len())
+            .map(|index| {
+                let (level_width, level_height) = level_size(index);
+                format.rows(level_width, level_height)
+            })
+            .collect();
+        let (bands, sizes) = bands(&level_rows, layers, self.max_buffer_size());
         let (texture, staging) = self.create(label, || {
             let texture = self.device.create_texture(&wgpu::TextureDescriptor {
                 label: Some(label),
@@ -254,61 +251,71 @@ impl Gpu {
                 usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
                 view_formats: &[],
             });
-            let staging = self.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some(label),
-                size,
-                usage: wgpu::BufferUsages::MAP_WRITE | wgpu::BufferUsages::COPY_SRC,
-                mapped_at_creation: true,
-            });
+            let staging: Vec<wgpu::Buffer> = sizes
+                .iter()
+                .map(|&size| {
+                    self.device.create_buffer(&wgpu::BufferDescriptor {
+                        label: Some(label),
+                        size,
+                        usage: wgpu::BufferUsages::MAP_WRITE | wgpu::BufferUsages::COPY_SRC,
+                        mapped_at_creation: true,
+                    })
+                })
+                .collect();
             (texture, staging)
         })?;
-        // A buffer that could not be created cannot be mapped either; `check` below reports why.
-        if let Ok(mut mapped) = staging.get_mapped_range_mut(..) {
-            for (bytes, &(offset, row, pitch, _)) in levels.iter().zip(&offsets) {
-                for (index, source) in bytes.chunks_exact(row as usize).enumerate() {
-                    let start = offset as usize + index * pitch as usize;
+        for band in &bands {
+            let (row, rows) = level_rows[band.level];
+            let size = u64::from(band.pitch) * u64::from(band.rows);
+            let first = (band.layer * rows + band.first_row) as usize * row as usize;
+            let source = &levels[band.level][first..first + band.rows as usize * row as usize];
+            // A buffer that could not be created cannot be mapped either; `check` below reports
+            // why.
+            if let Ok(mut mapped) =
+                staging[band.buffer].get_mapped_range_mut(band.offset..band.offset + size)
+            {
+                for (index, source_row) in source.chunks_exact(row as usize).enumerate() {
+                    let start = index * band.pitch as usize;
                     mapped
                         .slice(start..start + row as usize)
-                        .copy_from_slice(source);
+                        .copy_from_slice(source_row);
                 }
             }
-            drop(mapped);
-            staging.unmap();
         }
+        for buffer in &staging {
+            buffer.unmap();
+        }
+        // A level of a block-compressed format smaller than a block is copied as the whole block,
+        // which wgpu sizes it to.
+        let texels_per_row = if format.is_block_compressed() { 4 } else { 1 };
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some(label) });
-        for (index, &(offset, _, pitch, rows)) in offsets.iter().enumerate() {
-            let (level_width, level_height) = level_size(index);
-            // A level of a block-compressed format smaller than a block is copied as the whole
-            // block, which wgpu sizes it to.
-            let (level_width, level_height) = if format.is_block_compressed() {
-                (
-                    level_width.next_multiple_of(4),
-                    level_height.next_multiple_of(4),
-                )
-            } else {
-                (level_width, level_height)
-            };
+        for band in &bands {
+            let (level_width, _) = level_size(band.level);
             encoder.copy_buffer_to_texture(
                 wgpu::TexelCopyBufferInfo {
-                    buffer: &staging,
+                    buffer: &staging[band.buffer],
                     layout: wgpu::TexelCopyBufferLayout {
-                        offset,
-                        bytes_per_row: Some(pitch),
-                        rows_per_image: Some(rows),
+                        offset: band.offset,
+                        bytes_per_row: Some(band.pitch),
+                        rows_per_image: Some(band.rows),
                     },
                 },
                 wgpu::TexelCopyTextureInfo {
                     texture: &texture,
-                    mip_level: index as u32,
-                    origin: wgpu::Origin3d::ZERO,
+                    mip_level: band.level as u32,
+                    origin: wgpu::Origin3d {
+                        x: 0,
+                        y: band.first_row * texels_per_row,
+                        z: band.layer,
+                    },
                     aspect: wgpu::TextureAspect::All,
                 },
                 wgpu::Extent3d {
-                    width: level_width,
-                    height: level_height,
-                    depth_or_array_layers: layers,
+                    width: level_width.next_multiple_of(texels_per_row),
+                    height: band.rows * texels_per_row,
+                    depth_or_array_layers: 1,
                 },
             );
         }
@@ -469,9 +476,98 @@ fn unit_to_byte(value: f32) -> u8 {
     (value.clamp(0.0, 1.0) * 255.0).round() as u8
 }
 
+/// Where every copy of an upload starts in its buffer: at a multiple of 512 bytes, the placement
+/// that Direct3D 12 asks of a copy's data on drivers without unrestricted pitches, where wgpu would
+/// otherwise go through a buffer of its own.
+const PLACEMENT: u64 = 512;
+
+/// One copy of an upload: the rows `first_row..first_row + rows` of the image `layer` of the level
+/// `level`, which the staging buffer `buffer` holds from `offset`, each row `pitch` bytes after the
+/// one before. A row is a row of texels, or of blocks for a block-compressed format.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Band {
+    level: usize,
+    layer: u32,
+    first_row: u32,
+    rows: u32,
+    buffer: usize,
+    offset: u64,
+    pitch: u32,
+}
+
+/// How to upload levels of `layers` images each, whose rows `level_rows` gives (the bytes of a row,
+/// and the rows), through staging buffers of at most `largest` bytes: the copies, and the size of
+/// each buffer. Each row starts at a multiple of 256 bytes, as copies from a buffer ask, and each
+/// copy at a multiple of [`PLACEMENT`]; an image too large for a buffer is cut into bands of rows.
+fn bands(level_rows: &[(u32, u32)], layers: u32, largest: u64) -> (Vec<Band>, Vec<u64>) {
+    let mut bands = Vec::new();
+    let mut sizes = vec![0u64];
+    for (level, &(row, rows)) in level_rows.iter().enumerate() {
+        let pitch = row.next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
+        // A row always fits: the widest, 8192 float texels, takes 64 KiB.
+        let most = (largest / u64::from(pitch)).min(u64::from(rows)) as u32;
+        for layer in 0..layers {
+            let mut first_row = 0;
+            while first_row < rows {
+                let count = most.min(rows - first_row);
+                let size = u64::from(pitch) * u64::from(count);
+                let used = *sizes.last().expect("there is a buffer");
+                let mut offset = used.next_multiple_of(PLACEMENT);
+                if used > 0 && offset + size > largest {
+                    sizes.push(0);
+                    offset = 0;
+                }
+                *sizes.last_mut().expect("there is a buffer") = offset + size;
+                bands.push(Band {
+                    level,
+                    layer,
+                    first_row,
+                    rows: count,
+                    buffer: sizes.len() - 1,
+                    offset,
+                    pitch,
+                });
+                first_row += count;
+            }
+        }
+    }
+    (bands, sizes)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_upload_is_cut_into_bands_that_fit_the_largest_buffer() {
+        let band = |level, layer, first_row, rows, buffer, offset, pitch| Band {
+            level,
+            layer,
+            first_row,
+            rows,
+            buffer,
+            offset,
+            pitch,
+        };
+        // Rows of 300 bytes start 512 bytes apart: a buffer of 2048 bytes holds four of them.
+        // The second level's rows, of 100 bytes, start 256 bytes apart, after the first level's
+        // last band, at the next multiple of 512.
+        let (cut, sizes) = bands(&[(300, 6), (100, 3)], 1, 2048);
+        assert_eq!(
+            cut,
+            [
+                band(0, 0, 0, 4, 0, 0, 512),
+                band(0, 0, 4, 2, 1, 0, 512),
+                band(1, 0, 0, 3, 1, 1024, 256)
+            ]
+        );
+        assert_eq!(sizes, [2048, 1792]);
+        // Each image of a cube starts at a multiple of 512 bytes, whatever its size.
+        let (cut, sizes) = bands(&[(64, 1)], 6, 1 << 20);
+        let offsets: Vec<u64> = cut.iter().map(|band| band.offset).collect();
+        assert_eq!(offsets, [0, 512, 1024, 1536, 2048, 2560]);
+        assert_eq!(sizes, [2816]);
+    }
 
     #[test]
     fn a_gpu_without_bc_compression_is_named_when_it_refuses_a_compressed_texture() {

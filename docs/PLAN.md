@@ -85,7 +85,7 @@ Risks:
 
 - **Frames held up by loading.** In wgpu 30, writing a texture through the queue holds a lock that a
   submission takes too, so the loading threads can delay frames; M4b.2 measures it against the bar,
-  with the fallback that ADR-0072 names.
+  with the fallback that ADR-0072 names. M4b.2 removed it otherwise (ADR-0074).
 - **Recovery on real drivers.** A device destroyed by a test is not a driver reset. Real resets are
   checked by hand: on the owner's AMD GPU through the driver's recovery, which needs root and which
   the owner runs, and on Windows by a forced timeout detection and recovery (TDR) in the virtual
@@ -136,19 +136,19 @@ Risks:
   test shows the rules still until the zone is there; the game runs in the headless Weston; the
   owner plays it; CI is green.
 - **How to test.** `cargo run --release -p hunnawood`.
-- **Outcome.** Built on 2026-10-15; the owner has yet to play it. The bar holds: in 60 runs by day
-  and at night, the longest interval between frames was 22 ms
-  ([ADR-0074](adr/0074-uploading-textures-without-holding-up-frames.md), which holds the figures).
-  Measuring it found what held frames up, and changed three things that the milestone did not
-  plan: textures reach the GPU through a buffer of their own, in `slime-gfx`, rather than through
-  wgpu's queue writes, whose lock held up the renderer's submissions; `slime-render` gives the
-  lights of a cooked scene before it is loaded (`scene_lights`), so that the game computes its
-  night sky, around the zone's moon, before its first frame; and the hero loads before the first
-  frame, so that the first shadows do not come in the middle of the zone's load. The loading view
-  is the sky and the hero, lit by the zone's lights. On the RX 6900 XT, with the files in the
-  system's cache, the zone is drawn after 0 to 4 frames; it takes longer on slower machines. The
-  fallback of ADR-0072, uploads from the main thread, was not needed. The `scene` example loads its
-  scene in the background too, as the rule of one example per notable feature asks.
+- **Outcome.** Built on 2026-10-15; the owner has yet to play it. The bar holds, by day and at
+  night, with a margin ([ADR-0074](adr/0074-uploading-textures-without-holding-up-frames.md) holds
+  the figures). Measuring it found what held frames up, and changed three things that the
+  milestone did not plan: textures reach the GPU through buffers of their own, in `slime-gfx`,
+  rather than through wgpu's queue writes, whose lock held up the renderer's submissions;
+  `slime-render` gives the lights of a cooked scene before it is loaded (`scene_lights`), so that
+  the game computes its night sky, around the zone's moon, before its first frame; and the hero
+  loads before the first frame, so that the first shadows do not come in the middle of the zone's
+  load. The loading view is the sky and the hero, lit by the zone's lights. On the RX 6900 XT, with
+  the files in the system's cache, the zone is drawn after a few frames, or from the first; it takes
+  longer on slower machines. The fallback of ADR-0072, uploads from the main thread, was not
+  needed. The `scene` example loads its scene in the background too, as the rule of one example per
+  notable feature asks.
 
 ### M4b.3 — Recovering from a lost GPU device
 
@@ -311,8 +311,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   ([ADR-0074](adr/0074-uploading-textures-without-holding-up-frames.md)). It makes the renderer
   create its shadow atlas and its frame again; during a load, the GPU, busy with the load's copies,
   presents that frame late, past 33 ms in some runs. *Hunna Wood* draws its hero, and so its first
-  shadows, from its first frame. Creating the atlases with the renderer would remove it, at 64 MiB
-  for every program.
+  shadows, from its first frame. Creating the atlases with the renderer would remove it, at a cost in
+  memory for every program, shadows or not.
 - **The zone costs up to 8 s per frame on lavapipe**, the CPU driver of the checks, where the RX
   6900 XT takes under 2 ms: most of it goes to the four shadow cascades of the sun, each 2048 ×
   2048 texels, through which thousands of overlapping leaf cards are drawn with a shader that

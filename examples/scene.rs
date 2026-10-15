@@ -264,7 +264,8 @@ impl App for SceneExample {
         };
         if let Some((_, load)) = &mut self.loading {
             match load.take() {
-                // Until the scene is loaded, the frame shows the sky's horizon, exposed.
+                // Until the scene is loaded, the frame shows a plain color: the sky's horizon,
+                // exposed but not tone mapped.
                 None => {
                     let horizon = SKY.horizon;
                     let pass = RenderPassDescriptor {
@@ -371,7 +372,7 @@ impl App for SceneExample {
                             stats.shadow_draw_calls + stats.spot_shadow_draw_calls
                         ));
                         ui.label(format!(
-                            "sky computed on the CPU at startup: {:.1} ms",
+                            "sky computed on the CPU, once the scene was loaded: {:.1} ms",
                             environment_time.as_secs_f64() * 1000.0
                         ));
                         ui.label(format!("{} × {} pixels", size.0, size.1));

@@ -252,6 +252,17 @@ impl App for HunnaWood {
     }
 
     fn shutdown(&mut self, ctx: &mut Context) {
+        // A run that stops right after the zone's first frame, as the automated checks' do, logs
+        // the load here, without the interval that holds that frame.
+        if let Some(loading) = self.loading.take()
+            && self.drawn > 0
+        {
+            tracing::info!(
+                frames = loading.frames,
+                longest_interval = ?loading.longest,
+                "the zone is drawn"
+            );
+        }
         tracing::info!(
             drawn = self.drawn,
             draw_calls = self.stats.draw_calls,
