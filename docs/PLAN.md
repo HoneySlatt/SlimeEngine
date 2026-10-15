@@ -25,8 +25,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   reset, on Linux and on Windows, are M4b.9's. M4b.5 done on 2026-10-15: a game changes a
   material's values while it runs, and *Hunna Wood*'s campfire flickers. M4b.6 done on 2026-10-15: a
   texture changed on disk changes in the running game
-  ([ADR-0076](adr/0076-hot-reload-of-cooked-data.md)). M4b.7 built: a shader changed on disk
-  changes in the running game; the owner tries it.
+  ([ADR-0076](adr/0076-hot-reload-of-cooked-data.md)). M4b.7 done on 2026-10-15: a shader
+  changed on disk changes in the running game ([ADR-0077](adr/0077-hot-reload-of-shaders.md)).
+  Next: M4b.8, *Hunna Wood* refined with hot reload.
 
 ## Status
 
@@ -38,7 +39,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M4b.4](#m4b4--hunna-wood-goes-on-after-a-lost-device) | *Hunna Wood* goes on after a lost GPU device | Done |
 | [M4b.5](#m4b5--materials-that-change-in-place) | A game changes a material's values while it runs | Done |
 | [M4b.6](#m4b6--hot-reload-of-cooked-data) | A texture changed on disk changes in the running game | Done |
-| [M4b.7](#m4b7--hot-reload-of-shaders) | A shader changed on disk changes in the running game | Built; the owner tries it |
+| [M4b.7](#m4b7--hot-reload-of-shaders) | A shader changed on disk changes in the running game | Done |
 | [M4b.8](#m4b8--refining-hunna-wood) | *Hunna Wood* refined with hot reload, on the owner's list | Planned |
 | [M4b.9](#m4b9--windows-check-documentation-close) | Stage 4b is done; Stage 5 is planned | Planned |
 
@@ -99,8 +100,8 @@ Risks:
   machine. Direct3D 12's second swap chain on one window, the dev overlay's egui renderer, which can
   panic on a lost device (see [Known debt](#known-debt)), and threads still loading with the lost
   device are the likely failures.
-- **Shader reload on Direct3D 12**: making every pipeline again pauses the game, for a time not
-  measured yet.
+- **Shader reload on Direct3D 12**: making every pipeline again pauses the game: 62 ms with WARP
+  in a debug build, measured at M4b.7; on a GPU, not measured yet.
 - **The cost of the checks.** The zone costs up to 8 s per frame on lavapipe, and every scenario that
   draws it adds that; the Windows CI job takes 17 of the 20 minutes that the owner allows.
 
@@ -283,6 +284,15 @@ Risks:
   and reports its line and column; by hand, a change in a shader seen in the running game; CI is
   green on both platforms.
 - **How to test.** `cargo run -p hunnawood -- --watch`, then edit a shader.
+- **Outcome.** Done on 2026-10-15 ([ADR-0077](adr/0077-hot-reload-of-shaders.md)). The owner
+  changed `tone_mapping.wgsl` while the game ran: the change showed within a second, a shader broken
+  on purpose left the frames as they were while the log named its line and column, and the file
+  put back showed again. Making the ten pipelines again takes 7 ms on the RX 6900 XT in a release
+  build when the driver's cache holds the shaders, 76 ms when it does not, 45 ms on lavapipe, and
+  62 ms on Direct3D 12 with WARP, in CI's debug build; on a GPU under Direct3D 12, it is not
+  measured, the virtual machine being out of reach. Uniform bindings declare their sizes, which
+  the plan asked for. Beyond the plan, the review found a test that matched the end of a line,
+  which a checkout on Windows turns into CRLF, before CI ran it.
 
 ### M4b.8 — Refining Hunna Wood
 
