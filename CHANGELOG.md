@@ -29,7 +29,7 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   [ADR-0056](docs/adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md),
   [ADR-0060](docs/adr/0060-resolving-the-samples-weighed-by-their-brightness.md)).
   `RenderStats::resolve_gpu_time` gives the cost of that average, which the dev overlays show. A
-  renderer holds about 87 MiB more of GPU memory at 1920 × 1080, about 137 MiB in all.
+  renderer holds about 87 MiB more of GPU memory at 1920 × 1080.
 - `RenderPass::set_viewport` draws into part of a pass's targets, so that one pass can draw several
   views side by side.
 - Spot lights cast shadows: every one drawn that casts them, as `SpotLight::casts_shadows` says (on
@@ -48,6 +48,14 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - Shadows are filtered over 5 × 5 texels, as Castaño proposed, where they were filtered over 3 × 3:
   their edges fade smoothly over about six texels, and a shadow moves off its caster by up to 4.5
   texels ([ADR-0063](docs/adr/0063-a-smoother-shadow-filter.md)).
+- The directional light casts its shadows through four cascades, where it had one shadow map: what
+  the camera sees up to its `shadow_distance` is split into four slices, each twice as deep as the
+  one before, and each is shadowed by a map of 2048 × 2048 texels, the nearer ones finer
+  ([ADR-0064](docs/adr/0064-cascaded-shadow-maps.md)). The scene reads only the last cascade so
+  far, whose texels are as wide as the single map's: what lies nearer to the camera than its slice,
+  outside its square, is not shadowed. The cascades take 64 MiB of GPU memory, from the first
+  frame in which a directional light casts shadows, where the map took 16 MiB from the renderer's
+  creation; `RenderStats::shadow_draw_calls` counts an instance once in each cascade it reaches.
 
 ## [0.1.0] - 2026-10-14
 

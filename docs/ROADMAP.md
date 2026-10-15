@@ -188,6 +188,7 @@ The stage comes right after 0.1 (it was added by ADR-0052) and has no release of
 - Shadow maps for spot lights: every spot light drawn may cast shadows, each through a tile of one atlas, sized by how many cast them (ADR-0058)
 - The cost of the scene pass on Direct3D 12, measured with FXC and with DXC against Vulkan's (ADR-0057)
 - A smoother filter for the shadows of every light (ADR-0063)
+- Cascaded shadow maps for the directional light, moved from Stage 9a (ADR-0064)
 
 The stage comes right after Stage 3c and has no release of its own; what it delivers is released with 0.2.
 
@@ -266,7 +267,7 @@ Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b nee
 
 **Goal.** Render what a shipped game shows, beyond a simple scene.
 
-- Shadows: cascaded shadow maps for the directional light, shadows of point lights, the tiles of spot lights' shadows sized by how large each light shows on screen (ADR-0058)
+- Shadows: shadows of point lights, the tiles of spot lights' shadows sized by how large each light shows on screen (ADR-0058)
 - Many lights
 - Transparency
 - Temporal anti-aliasing

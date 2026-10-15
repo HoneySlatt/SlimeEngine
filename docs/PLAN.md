@@ -13,8 +13,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3d — Anti-aliasing and the shadows of spot lights: planned on 2026-10-15 and validated by
-  the owner. M3d.1 to M3d.4 are done; M3d.6, a smoother shadow filter, is in progress, before
-  M3d.5's check in the Windows virtual machine.
+  the owner. M3d.1 to M3d.4, M3d.6 and M3d.7 are done; M3d.8, the cascades read, is next, then
+  M3d.9; M3d.5's check in the Windows virtual machine comes last.
 
 ## Status
 
@@ -25,7 +25,10 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M3d.3](#m3d3--spot-lights-shadows-what-each-tile-sees) | The renderer draws each spot light's tile of the shadow atlas | Done |
 | [M3d.4](#m3d4--spot-lights-shadows-drawn-and-read) | Spot lights cast shadows | Done |
 | [M3d.5](#m3d5--nightwatch-and-the-windows-check) | Nightwatch shows both, on Linux and Windows | In progress |
-| [M3d.6](#m3d6--a-smoother-shadow-filter) | Shadows' edges fade smoothly | In progress |
+| [M3d.6](#m3d6--a-smoother-shadow-filter) | Shadows' edges fade smoothly | Done |
+| [M3d.7](#m3d7--what-each-cascade-sees) | The shadow pass draws the directional light's four cascades | Done |
+| [M3d.8](#m3d8--the-cascades-read) | Each point is shadowed by the finest cascade that holds it, without seams | Not started |
+| [M3d.9](#m3d9--nightwatch-at-3840--2160) | The moon's shadows near the player are finer in the game | Not started |
 
 Stages 0, 1, 2, 3a, 3b and 3c are done; see [Completed stages](#completed-stages).
 
@@ -44,12 +47,15 @@ the *resolve*. Spot lights cast shadows through shadow maps seen from each light
 tiles of one depth texture, an *atlas*
 ([ADR-0058](adr/0058-shadows-for-every-spot-light-in-one-atlas.md)). The stage also measures the
 cost of the scene pass on Direct3D 12, with each of its shader compilers, against Vulkan's
-([ADR-0057](adr/0057-what-the-first-game-asks-of-the-next-stages.md)). It has no release of its
+([ADR-0057](adr/0057-what-the-first-game-asks-of-the-next-stages.md)). Once the owner had played the
+game with both, it gained a smoother shadow filter and *cascaded shadow maps* for the directional
+light: what the camera sees is split along its axis into slices, each shadowed by a map of its own,
+finer near the camera ([ADR-0064](adr/0064-cascaded-shadow-maps.md)). It has no release of its
 own: what it delivers is released with 0.2.
 
-Out of scope: the shadows of point lights, cascaded shadow maps for the directional light, temporal
-anti-aliasing, tiles sized by how large a light shows on screen (Stage 9a, ADR-0058), smoothing the
-edges that a masked material cuts inside a triangle, and anti-aliasing the dev overlay.
+Out of scope: the shadows of point lights, temporal anti-aliasing, tiles sized by how large a light
+shows on screen (Stage 9a, ADR-0058), smoothing the edges that a masked material cuts inside a
+triangle, and anti-aliasing the dev overlay.
 
 Decisions taken when the stage was planned, by the owner on 2026-10-15:
 
@@ -70,13 +76,26 @@ Decisions taken when the stage was planned, by the owner on 2026-10-15:
   FXC, with DXC, and on Vulkan, before and after anti-aliasing (ADR-0057). DXC's two DLLs, from
   Microsoft's releases of the compiler, are put beside the game for that measurement only.
 
+Decisions taken by the owner on 2026-10-15, after M3d.6, which added M3d.7 to M3d.9
+([ADR-0064](adr/0064-cascaded-shadow-maps.md)):
+
+- **Four cascades, each twice as deep as the one before**, ending at 1, 3, 7 and 15 fifteenths of
+  the light's shadow distance.
+- **2048 × 2048 texels per cascade**, in one atlas of 4096 × 4096 (64 MiB) created by the first
+  frame in which a directional light casts shadows.
+- **A blend band between cascades**, a tenth of a cascade's width, and the shadows faded out over
+  the same band beyond the last cascade.
+
 Risks: the scene's targets grow fourfold with MSAA (about 87 MiB more at 1920 × 1080, and the
 atlas adds 64 MiB); a light inside the mesh of an instance that casts shadows is in that instance's
 shadow, which is *Nightwatch*'s case for its lamps and floodlights; FXC may refuse the shadow
 filter inside the scene shader's light loop; shadow acne differs between drivers (ADR-0047); the
 tests whose pixels lie on an edge change (the bloom's 0.6-pixel square covers no sample, and the
 furnace test's silhouette pixels mix in the sky); lavapipe draws four samples on the CPU, which
-lengthens `scripts/check.sh`.
+lengthens `scripts/check.sh`. With cascades, the shadow pass draws an instance in every cascade it
+reaches, up to four times as many draws; the scene shader chooses a cascade per pixel, which FXC
+may refuse around the filter's comparisons; the wide view of *Nightwatch*'s camera halves the
+texels near the player, not more (ADR-0064).
 
 ### M3d.1 — Multisampling in the GPU layer
 
@@ -208,7 +227,50 @@ not those that a shadow map's texels draw.
   the filter softens the steps of the moon's shadows along the crates' feet but does not remove
   them: they run nearly along the texels, longer than the filter reaches; texels half as wide, with
   the moon's shadows over 15 m instead of 30, halve them. Finer texels near the camera are what
-  cascaded shadow maps give: their timing goes to the owner.
+  cascaded shadow maps give: the owner decided to build them in this stage, M3d.7 to M3d.9
+  (ADR-0064). CI green on Linux and on Windows.
+
+### M3d.7 — What each cascade sees
+
+Added on 2026-10-15 with M3d.8 and M3d.9, when the owner decided to build cascaded shadow maps in
+this stage ([ADR-0064](adr/0064-cascaded-shadow-maps.md)).
+
+- **Goal.** The shadow pass draws the directional light's four cascades.
+- **Crates.** `slime-render`.
+- **Delivers.** Each cascade's slice, square and depth range (`shadow.rs`); the cascades' atlas,
+  created by the first frame that needs it; the shadow pass drawing, into each cascade's tile, the
+  instances whose boxes reach across its square; the frame's values holding each cascade's view,
+  place and texel width; the scene pass reading the last cascade, as it read the single map; the
+  ADR; the roadmap's Stage 9a giving cascades to this stage.
+- **Done when.** The cascades' unit tests pass; the renderer's tests pass on the three drivers.
+- **How to test.** `cargo test -p slime-render`.
+- **Checked so far** on 2026-10-15: the unit tests check the slices (2, 6, 14 and 30 m for 30 m,
+  and slices that end where they start for a distance below the near plane), the tiles, and each
+  square covering its slice and keeping the boxes that reach across it; the renderer's tests pass
+  on lavapipe, with glam's assertions too, and on an RX 6900 XT (RADV), their draw counts now
+  counted per cascade. Until M3d.8, the scene pass reads the last cascade alone: what lies nearer
+  to the camera than its slice and outside its square is lit, where the single map shadowed it.
+
+### M3d.8 — The cascades read
+
+- **Goal.** Each point is shadowed by the finest cascade that holds it, without seams.
+- **Crates.** `slime-render`.
+- **Delivers.** The cascade chosen per pixel, the blend band between cascades and the fade beyond
+  the last (ADR-0064); the directional light's lookup moved off the surface in the fragment shader,
+  by the texels of the cascade it reads; the shadow tests checking each cascade and the bands; the
+  reference images rendered again; the cost of the scene and shadow passes measured.
+- **Done when.** The shadow tests hold in every cascade and across the bands; no surface shadows
+  itself; the image tests pass on the three drivers; CI green, Direct3D 12 with FXC included.
+- **How to test.** `cargo test -p slime-render`.
+
+### M3d.9 — Nightwatch at 3840 × 2160
+
+- **Goal.** The moon's shadows near the player are finer in the game.
+- **Crates.** `games/nightwatch`.
+- **Delivers.** The game's frame measured with cascades; images at 3840 × 2160, from which the
+  owner picks the moon's shadow distance; `CHANGELOG.md`.
+- **Done when.** The owner's decision on the distance; the checks and CI are green.
+- **How to test.** *Nightwatch* at 3840 × 2160; `--frames` in the headless Weston.
 
 ## Releasing
 
@@ -517,16 +579,15 @@ GitHub issues, linked from their entry; this list stays the reference.
   instances that the camera does not see, and instances of the same mesh and material are not
   drawn together: a frame's CPU and GPU time grow with every instance of the scene, wherever it is.
   Frustum culling and instancing are left to Stage 9a (ADR-0052).
-- **One shadow map, without cascades** (ADR-0050). It covers what the camera sees up to the light's
-  shadow distance, with texels of one size (`DirectionalLight::shadow_distance` gives it): what is
-  near the camera gets the texels of what is far, and shadows end at the map's edge, without
-  fading. Cascades are left to Stage 9a (ADR-0052). Every renderer holds the map (`Renderer` gives
-  its size), even for scenes without a directional light.
+- **The scene reads the last of the directional light's cascades alone** (ADR-0064), until M3d.8
+  chooses one per pixel: what lies nearer to the camera than its slice, outside its square, is not
+  shadowed; what lies inside gets its texels, as wide as the single map's were, near the camera too;
+  shadows end at its edge, without fading.
 - **Shadows shift, and thin objects close to a surface lose theirs (peter-panning)** (ADR-0050).
-  The normal offset that keeps surfaces from shadowing themselves looks a point up 3 texels × the
-  sine of the light's incidence off its surface: at the default distance, 13 cm under a light 45°
-  from the normal, 18 cm at grazing. A shadow shifts by up to that much, and a sheet lying closer
-  than that above a floor casts nothing on it.
+  The normal offset that keeps surfaces from shadowing themselves looks a point up 4.5 texels × the
+  sine of the light's incidence off its surface (ADR-0063): at the default distance, in the last
+  cascade, 18 cm under a light 45° from the normal, 26 cm at grazing. A shadow shifts by up to that
+  much, and a sheet lying closer than that above a floor casts nothing on it.
 - **Every draw of the scene pass runs a shader that can discard fragments** (ADR-0035). The `MASK`
   alpha mode discards in the one fragment shader that every material uses, opaque materials with a
   cutoff of 0. Some GPUs then test depth after the shader rather than before, for opaque draws
@@ -592,7 +653,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   full it is).
 - **The render graph trusts what a pass says it samples from imported targets** (ADR-0041). The
   groups that sample transient targets are built from the declarations, but the scene pass's group
-  holding the shadow map is built with the renderer: a pass that binds an imported target must
+  holding the shadow atlases is built by the renderer: a pass that binds an imported target must
   declare it, or the graph orders it without knowing.
 - **A renderer whose frame changes shape at every call reports no tone-mapping or bloom time**
   (ADR-0041). Each change of shape (the output's size, the shadow pass or the bloom starting or

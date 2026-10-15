@@ -59,18 +59,21 @@ pub struct DirectionalLight {
     /// The illuminance the light gives a surface facing it, in lux (lumens per square metre):
     /// about 100 000 for the sun on a clear day, 400 at sunrise. Finite and not negative.
     pub illuminance: f32,
-    /// Whether the light casts shadows. The renderer has one shadow map (ADR-0038): the first
-    /// directional light of the scene that casts shadows casts them, and the others light
-    /// everything they face, as point and spot lights do. A scene whose directional lights all
-    /// set it to `false` draws no shadow, and skips the shadow pass.
+    /// Whether the light casts shadows. The renderer draws the shadows of one directional light
+    /// (ADR-0038): the first of the scene that casts shadows casts them, and the others light
+    /// everything they face, as point lights do. A scene whose directional lights all set it to
+    /// `false` draws no shadow of theirs, and skips the shadow pass.
     pub casts_shadows: bool,
     /// How far from the camera the light casts shadows, in metres, when it is the one that casts
-    /// them (ADR-0050). The shadow map covers the sphere around what the camera sees from its near
-    /// plane to that distance, its 2 048 texels spread across the sphere on a grid fixed in the
-    /// world, so that shadows do not shimmer as the camera moves: at the default 50 m, with a 60°
-    /// field of view and a 16:9 output, a texel covers 6 cm and a shadow's edge fades over three.
-    /// Beyond the map, nothing is shadowed. A shorter distance gives sharper shadows over less
-    /// ground. Positive and finite.
+    /// them (ADR-0050, ADR-0064). What the camera sees from its near plane to that distance is
+    /// split along its axis into four cascades, slices each twice as deep as the one before, which
+    /// end at 1, 3, 7 and 15 fifteenths of the distance; each covers the sphere around its slice
+    /// with 2 048 texels across, on a grid fixed in the world, so that shadows do not shimmer as
+    /// the camera moves. At the default 50 m, with a 60° field of view and a 16:9 output, a texel
+    /// covers 4 mm in the first cascade and 6 cm in the last. The scene reads only the last cascade
+    /// for now: a shadow's edge fades over about six of its texels, and what it does not cover,
+    /// nearer to the camera than its slice or beyond the distance, is not shadowed. A shorter
+    /// distance gives sharper shadows over less ground. Positive and finite.
     pub shadow_distance: f32,
 }
 

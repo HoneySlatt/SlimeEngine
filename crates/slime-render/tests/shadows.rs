@@ -4,11 +4,12 @@
 //! through computed here from the geometry: a square above a floor darkens a square of the floor,
 //! its edges blended by the filter; a lit floor, or a lit sphere, does not shadow itself; only the
 //! first directional light that casts shadows casts them; a masked material casts none where it
-//! discards; an instance that casts no shadow is left out of the map, and what lies beyond the map
-//! is lit. Runs on whatever adapter the machine offers.
+//! discards; an instance that casts no shadow is left out of the cascades, and what lies beyond
+//! them is lit. Runs on whatever adapter the machine offers.
 //!
-//! The floor is the plane z = 0, facing +Z, and "above" is along +Z. The shadow map covers what the
-//! camera sees up to the light's shadow distance, its texels on a grid fixed in the world along the
+//! The floor is the plane z = 0, facing +Z, and "above" is along +Z. The scene reads the last of the
+//! light's four cascades (ADR-0064), which covers what the camera sees from 7/15 of the light's
+//! shadow distance up to it, its texels on a grid fixed in the world along the
 //! light's axes (`light_axes`, `texel_width`): a caster's shadow is the texels whose centres it
 //! covers, and each point of the floor is looked up off it along its normal (`looked_up`), as the
 //! renderer does, so that the expected shadow is exact.
@@ -36,7 +37,7 @@ use slime_render::{
 use brdf::Surface;
 use shown::assert_shows;
 
-/// The shadow map's width in texels: `SHADOW_MAP_SIZE` in `crates/slime-render/src/shadow.rs`.
+/// The width of a cascade's tile, in texels: `CASCADE_SIZE` in `crates/slime-render/src/shadow.rs`.
 const SHADOW_MAP_SIZE: f64 = 2048.0;
 const SIZE: u32 = 64;
 const WHITE: Surface = Surface {
@@ -236,12 +237,14 @@ fn light_axes(direction: Vec3) -> [DVec3; 2] {
     [x, x.cross(forward)]
 }
 
-/// The width of a texel of the shadow map, in metres, for `camera` drawing the square output, and
+/// The width of a texel of the last cascade, in metres, for `camera` drawing the square output, and
 /// a light that casts shadows up to `distance` (`DirectionalLight::shadow_distance`): 1/2048 of the
 /// side of the square around the smallest sphere, centred on the view's axis, that holds the
-/// corners of the camera's near plane and of the plane at `distance`.
+/// corners of the planes at 7/15 of `distance` and at `distance`, where the last cascade's slice
+/// starts and ends (`cascade_slice` in `shadow.rs`).
 fn texel_width(camera: &Camera, distance: f32) -> f64 {
-    let (near, far) = (f64::from(camera.near), f64::from(distance));
+    let far = f64::from(distance);
+    let near = (far * 7.0 / 15.0).max(f64::from(camera.near));
     let tan = (f64::from(camera.fov_y) / 2.0).tan();
     let corner = 2.0 * tan * tan;
     let along = ((far + near) * (corner + 1.0) / 2.0).min(far);
@@ -343,9 +346,10 @@ fn a_square_above_a_floor_darkens_a_square_of_the_floor_blended_over_six_texels(
             &[Light::Directional(sun.0)],
             &[(&white, floor(side)), (&white, square)],
         );
+        // Both reach every cascade: each is drawn in all four.
         assert_eq!(
             (stats.draw_calls, stats.shadow_draw_calls),
-            (2, 2),
+            (2, 8),
             "{case}"
         );
         let mut dark = 0;
@@ -491,6 +495,7 @@ fn only_the_first_directional_light_that_casts_shadows_casts_them() {
         casts_shadows: false,
         ..light
     };
+    // The floor and the square reach every cascade of the light that casts shadows: 8 draws.
     for (lights, shadowed, draws, case) in [
         (
             [
@@ -499,7 +504,7 @@ fn only_the_first_directional_light_that_casts_shadows_casts_them() {
                 Light::Directional(above.0),
             ],
             true,
-            2,
+            8,
             "a point light, then the slanted light, then the one from above",
         ),
         (
@@ -509,7 +514,7 @@ fn only_the_first_directional_light_that_casts_shadows_casts_them() {
                 Light::Directional(slanted.0),
             ],
             false,
-            2,
+            8,
             "a point light, then the light from above, then the slanted one",
         ),
         (
@@ -519,7 +524,7 @@ fn only_the_first_directional_light_that_casts_shadows_casts_them() {
                 Light::Directional(slanted.0),
             ],
             true,
-            2,
+            8,
             "the light from above casting no shadows, then the slanted one",
         ),
         (
@@ -645,9 +650,9 @@ fn an_instance_that_casts_no_shadow_is_left_out_and_what_lies_beyond_the_map_is_
     let white = setup.white.clone();
     // A floor 1 km wide that casts no shadow, and a strip 1 m wide and 100 m long that does, 1 m
     // above it along +x, lit from straight above, the light casting shadows up to 5 m from a camera
-    // low beside the strip that looks along it. The map covers the strip's first 8 m: there, the
-    // strip's shadow darkens the floor; beyond, the floor under the strip is lit, as everything
-    // beyond the map is, though the map's far edge holds the strip's shadow.
+    // low beside the strip that looks along it. The cascades cover the strip up to about 9 m: there,
+    // the strip's shadow darkens the floor; beyond, the floor under the strip is lit, as everything
+    // beyond the cascades is, though the last one's far edge holds the strip's shadow.
     let (light, to_light) = sun(0.0, 0.4);
     let sun = (
         DirectionalLight {
@@ -668,7 +673,8 @@ fn an_instance_that_casts_no_shadow_is_left_out_and_what_lies_beyond_the_map_is_
         &[Light::Directional(sun.0)],
         &[(&white, floor(1_000.0), false), (&white, strip, true)],
     );
-    assert_eq!((stats.draw_calls, stats.shadow_draw_calls), (2, 1));
+    // The strip, 2 m beside the camera, reaches the two farther cascades only.
+    assert_eq!((stats.draw_calls, stats.shadow_draw_calls), (2, 2));
     let (mut near, mut far) = (0, 0);
     let (largest, _) = largest_differences(&image, |pixel| {
         let point = brdf::seen_point(&camera, (SIZE, SIZE), pixel, 0.0);
@@ -685,7 +691,7 @@ fn an_instance_that_casts_no_shadow_is_left_out_and_what_lies_beyond_the_map_is_
             far += usize::from(under);
             1.0
         } else {
-            // Near the strip's shadow's edges, or the map's.
+            // Near the strip's shadow's edges, or the last cascade's.
             return ([0.0; 3], true);
         };
         (floor_shows(&camera, pixel, sun, lit), false)

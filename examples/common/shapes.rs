@@ -17,7 +17,7 @@ use slime_render::{
 /// white matte surface facing it reflects about 0.97 nits (ADR-0035), shown as they are at an
 /// exposure of 1. Light in these units keeps the image of this test as it was before lights had
 /// physical units: it checks the shapes and their materials, not the units. It casts shadows as far
-/// as the shapes reach from the orbiting camera, about 7 m, so that the shadow map covers them and
+/// as the shapes reach from the orbiting camera, about 7 m, so that the cascades cover them and
 /// little else (ADR-0050).
 const SUN: DirectionalLight = DirectionalLight {
     direction: Vec3::new(-0.6, -1.0, -0.5),

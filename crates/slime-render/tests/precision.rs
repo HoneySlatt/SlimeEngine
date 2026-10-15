@@ -55,7 +55,7 @@ fn draw(offset: Vec3) -> FloatImage {
         Instance::new(&square, &glossy, moved * leaning),
     ];
     let lights = [
-        // Without shadows: the shadow map's texels lie on a grid fixed in the world (ADR-0050),
+        // Without shadows: the cascades' texels lie on a grid fixed in the world (ADR-0050),
         // which the moved scene meets elsewhere across a texel. `shadows.rs` checks that surfaces
         // far from the origin do not shadow themselves.
         Light::Directional(DirectionalLight {

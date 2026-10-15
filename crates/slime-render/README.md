@@ -8,11 +8,12 @@ the GPU layer (`slime-gfx`).
 Partial: the physically based renderer of Stage 3b (`docs/PLAN.md`). It draws instances of meshes
 from a perspective camera, each with a material in glTF's metallic-roughness model, lit by
 directional, point and spot lights in physical units and by a procedural sky that surfaces reflect
-and that shows behind them, with the shadows of one directional light around the camera and of every
-spot light that casts them. It draws in high dynamic range, then exposes the light, spreads a bloom
-around it, tone maps it and dithers it into the output, and reports what each frame cost on the CPU
-and the GPU. It smooths the edges of what it draws with four samples per pixel. It does not yet
-blend transparent surfaces or leave out what the camera does not see.
+and that shows behind them, with the shadows of one directional light around the camera, drawn in
+four cascades, and of every spot light that casts them. It draws in high dynamic range, then
+exposes the light, spreads a bloom around it, tone maps it and dithers it into the output, and
+reports what each frame cost on the CPU and the GPU. It smooths the edges of what it draws with four
+samples per pixel. It does not yet blend transparent surfaces or leave out what the camera does not
+see.
 
 ## Role
 
@@ -114,9 +115,9 @@ fn main() -> Result<(), RenderError> {
   the spot lights' shadows, scene, sky, resolve, bloom, tone mapping) and returns its `RenderStats`:
   draw calls, triangles, and the CPU and GPU time of its passes.
 - `Camera`: where the scene is seen from. `Light`: one of glTF's punctual lights, a
-  `DirectionalLight`, of which the first that casts shadows casts the scene's, a `PointLight` or a
-  `SpotLight`, every one of which may cast shadows into a tile of the shadow atlas; a scene has at
-  most `MAX_LIGHTS` of them drawn.
+  `DirectionalLight`, of which the first that casts shadows casts the scene's through cascades, a
+  `PointLight` or a `SpotLight`, every one of which may cast shadows into a tile of the shadow
+  atlas; a scene has at most `MAX_LIGHTS` of them drawn.
 - `RenderError`: an invalid mesh, or a failure of the GPU layer (`GfxError`): a shader or pipeline
   the driver rejects, memory that runs out, or a lost device.
 - `slime_render::glam` re-exports the math crate the API uses (`Mat4`, `Vec3`, `Quat`), so that

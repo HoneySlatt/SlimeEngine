@@ -27,6 +27,9 @@ const LARGEST_HALF: f32 = 65504.0;
 const HEADROOM: f32 = 64.0;
 // The most lights a scene holds: MAX_LIGHTS in light.rs, which a unit test compares with it.
 const MAX_LIGHTS: u32 = 16u;
+// How many cascades the shadowed light's shadows have: CASCADES in shadow.rs, which a unit test
+// compares with it.
+const CASCADES: u32 = 4u;
 // Light::kind of a directional light. Point lights are 1u and spot lights 2u, which the shader
 // treats alike: a point light's cone values give 1 in every direction.
 const DIRECTIONAL: u32 = 0u;
@@ -79,14 +82,17 @@ struct Light {
     tile: u32,
 }
 
-// A spot light's tile of the shadow atlas (ADR-0058, ADR-0061), as the renderer packs it.
-struct SpotTile {
-    // From the frame's space to the tile's clip space: x and y from -1 to 1 across the tile, depth
-    // 0.05 m / d at a distance d along the light's axis (reversed and infinite, ADR-0047).
+// A tile of a shadow atlas, a cascade's (ADR-0064) or a spot light's (ADR-0058, ADR-0061), as the
+// renderer packs it.
+struct ShadowTile {
+    // From the frame's space to the tile's clip space: x and y from -1 to 1 across the tile, and
+    // depth, reversed (ADR-0047): from 1 to 0 along the light for a cascade, orthographic, so
+    // that w stays 1; 0.05 m / d at a distance d along the light's axis for a spot light.
     view_proj: mat4x4<f32>,
     // The tile in the atlas's texture coordinates: its top left corner (x, y) and its side (z);
-    // and the width of its texels 1 m from the light along its axis, in metres (w): 2 tan(h) / N,
-    // h the angle from the axis to the tile's sides and N its side in texels.
+    // and the width of its texels (w): in metres for a cascade; for a spot light, 1 m from the
+    // light along its axis, 2 tan(h) / N, h the angle from the axis to the tile's sides and N its
+    // side in texels.
     place: vec4<f32>,
 }
 
@@ -102,17 +108,10 @@ struct FrameUniform {
     // What the light is multiplied by before it is written into the high-dynamic-range target
     // (pre-exposure, ADR-0037).
     exposure: f32,
-    // The width of the shadow map's texels, in metres (ADR-0050); 0 without a shadowed light. The
-    // 8 bytes after it are padding: a matrix is aligned on 16.
-    shadow_texel: f32,
-    // From the frame's space to the shadow map's clip space (ADR-0038): x and y from -1 to 1
-    // across the map, depth from 1 near the light to 0 away from it (reversed, ADR-0047).
-    // Orthographic: w stays 1.
-    light_view_proj: mat4x4<f32>,
     // How many entries of `lights` hold the scene's lights, from 0 to MAX_LIGHTS.
     light_count: u32,
-    // The index in `lights` of the light that the shadow map shadows, the scene's first
-    // directional light that casts shadows; light_count or more when none is.
+    // The index in `lights` of the light that the cascades shadow, the scene's first directional
+    // light that casts shadows; light_count or more when none is.
     shadowed_light: u32,
     // The unit direction towards the centre of the environment's sun's disc, and the disc's
     // radiance, in nits: 0 without a sun (ADR-0039).
@@ -121,7 +120,10 @@ struct FrameUniform {
     lights: array<Light, MAX_LIGHTS>,
     // The tiles of the spot lights that cast shadows, in the order of their lights; those beyond
     // the last such light are not read.
-    spot_tiles: array<SpotTile, MAX_LIGHTS>,
+    spot_tiles: array<ShadowTile, MAX_LIGHTS>,
+    // The cascades of the shadowed light, from the nearest to the camera to the farthest; not read
+    // without a shadowed light.
+    cascades: array<ShadowTile, CASCADES>,
 }
 @group(0) @binding(0) var<uniform> frame: FrameUniform;
 // The scene's environment, in nits (ADR-0039): level 0 the sky, level i prefiltered for a
@@ -174,10 +176,11 @@ struct InstanceUniform {
 }
 @group(2) @binding(0) var<uniform> instance: InstanceUniform;
 
-// The depths of what the shadowed light reaches first, drawn by the shadow pass, and the sampler
-// that compares a depth with them: 1 where the depth is at least the stored one (lit: depth is
-// reversed, nearer is greater), blending the 2 x 2 nearest texels.
-@group(3) @binding(0) var shadow_map: texture_depth_2d;
+// The cascades' atlas: each tile the depths of what the shadowed light reaches first across its
+// square, drawn by the shadow pass (ADR-0064); one texel, never read, until a directional light
+// casts shadows. And the sampler that compares a depth with them: 1 where the depth is at least
+// the stored one (lit: depth is reversed, nearer is greater), blending the 2 x 2 nearest texels.
+@group(3) @binding(0) var cascade_atlas: texture_depth_2d;
 @group(3) @binding(1) var shadow_sampler: sampler_comparison;
 // The spot lights' shadow atlas: each tile the depths that its light reaches first, drawn by the spot
 // lights' shadow pass, compared through the same sampler. One texel, never read, when no spot light
@@ -203,7 +206,7 @@ struct VertexOutput {
     // xyz with world space's axes, of any length; w: the bitangent's sign times the handedness.
     @location(3) tangent: vec4<f32>,
     // Where the shadowed light sees the vertex, moved off its surface (`shadow_lookup`), in the
-    // shadow map's clip space.
+    // last cascade's clip space.
     @location(4) light_position: vec3<f32>,
 }
 
@@ -225,7 +228,7 @@ fn vs_main(input: VertexInput) -> VertexOutput {
     return output;
 }
 
-// How many of the shadow map's texels a surface is looked up away from itself, along its normal,
+// How many of a shadow map's texels a surface is looked up away from itself, along its normal,
 // times the sine of the shadowed light's incidence (ADR-0050, ADR-0063). The filter compares a
 // point with texels up to three texels away along each axis of the map, 4.24 diagonally, where a
 // surface tilted by an angle t from facing the light lies up to 4.24 tan(t) texels' depth nearer to
@@ -235,9 +238,9 @@ fn vs_main(input: VertexInput) -> VertexOutput {
 const NORMAL_OFFSET_TEXELS: f32 = 4.5;
 
 // Where the shadowed light sees the point `position` of a surface whose normal is `normal`, of any
-// length, in the shadow map's clip space: the point moved towards the light along the normal by
-// NORMAL_OFFSET_TEXELS texels times the sine of the light's incidence, on the side of the surface
-// the light reaches (normal offset). Nothing without a shadowed light.
+// length, in the last cascade's clip space: the point moved towards the light along the normal by
+// NORMAL_OFFSET_TEXELS of the cascade's texels times the sine of the light's incidence, on the side
+// of the surface the light reaches (normal offset). Nothing without a shadowed light.
 fn shadow_lookup(position: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
     if frame.shadowed_light >= frame.light_count {
         return vec3<f32>(0.0);
@@ -247,21 +250,23 @@ fn shadow_lookup(position: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
     let n = select(vec3<f32>(0.0), normal * inverseSqrt(length_squared), length_squared > 0.0);
     let cosine = dot(n, -frame.lights[frame.shadowed_light].direction);
     let sine = sqrt(max(1.0 - cosine * cosine, 0.0));
-    let offset = n * (sign(cosine) * NORMAL_OFFSET_TEXELS * frame.shadow_texel * sine);
-    return (frame.light_view_proj * vec4<f32>(position + offset, 1.0)).xyz;
+    // The last cascade, which holds what the camera sees up to the shadow distance.
+    let cascade = frame.cascades[CASCADES - 1u];
+    let offset = n * (sign(cosine) * NORMAL_OFFSET_TEXELS * cascade.place.w * sine);
+    return (cascade.view_proj * vec4<f32>(position + offset, 1.0)).xyz;
 }
 
-// The shadow passes (ADR-0038, ADR-0061): each vertex where a light sees it, into the directional
-// light's shadow map or a spot light's tile of the atlas. The pipeline of opaque materials has no
+// The shadow passes (ADR-0038, ADR-0061, ADR-0064): each vertex where a light sees it, into a tile
+// of the cascades' atlas or of the spot lights'. The pipeline of opaque materials has no
 // fragment stage: it writes depth only; masked materials' runs `fs_shadow`.
 struct ShadowVertex {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) uv: vec2<f32>,
 }
 
-// From the frame's space to the clip space of the map or tile the shadow pass draws: one view per
-// map or tile, bound at its offset for each. Apart from group 3 of the scene pass, which holds the
-// maps it reads.
+// From the frame's space to the clip space of the tile the shadow pass draws: one view per tile,
+// bound at its offset for each. Apart from group 3 of the scene pass, which holds the atlases it
+// reads.
 struct ShadowView {
     view_proj: mat4x4<f32>,
 }
@@ -451,27 +456,46 @@ fn fs_sky(input: SkyVertex) -> @location(0) vec4<f32> {
 }
 
 // The share of the shadowed light that reaches `position`, from 0 in shadow to 1: its depth seen
-// from the light compared with the shadow map's through `compared`, whose filter fades a shadow's
+// from the light compared with the last cascade's through `compared`, whose filter fades a shadow's
 // edge smoothly over about six texels (ADR-0063).
 fn light_reaching(seen: vec3<f32>) -> f32 {
-    // Beyond the map's sides, outside the region around the camera, shadows end (ADR-0050): the
-    // point is lit. Beyond its far end, at depths below 0, a point lies behind every caster that
-    // reaches the region, and is compared as if it were at that end (ADR-0049).
+    // Beyond the cascade's sides, outside the region it covers, shadows end (ADR-0050): the point
+    // is lit. Beyond its far end, at depths below 0, a point lies behind every caster that
+    // reaches the cascade, and is compared as if it were at that end (ADR-0049).
     if any(abs(seen.xy) > vec2<f32>(1.0)) {
         return 1.0;
     }
     let depth = max(seen.z, 0.0);
+    let texel = 1.0 / vec2<f32>(textureDimensions(cascade_atlas));
+    let tile = in_tile(frame.cascades[CASCADES - 1u].place, seen.xy, texel);
+    return compared(cascade_atlas, tile.uv, depth, texel, tile.lowest, tile.highest);
+}
+
+// Where a point seen at `seen`, from -1 to 1 across a tile at `place` of an atlas whose texels are
+// `texel` wide, lies in the atlas's texture coordinates, and the corners between which the
+// filter's comparisons are kept, half a texel inside the tile, so that it reads none of another
+// tile's texels.
+struct InTile {
+    uv: vec2<f32>,
+    lowest: vec2<f32>,
+    highest: vec2<f32>,
+}
+
+fn in_tile(place: vec4<f32>, seen: vec2<f32>, texel: vec2<f32>) -> InTile {
     // Clip space has y up, texture coordinates y down.
-    let uv = seen.xy * vec2<f32>(0.5, -0.5) + 0.5;
-    let texel = 1.0 / vec2<f32>(textureDimensions(shadow_map));
-    return compared(shadow_map, uv, depth, texel, vec2<f32>(0.0), vec2<f32>(1.0));
+    let across = seen * vec2<f32>(0.5, -0.5) + 0.5;
+    return InTile(
+        place.xy + across * place.z,
+        place.xy + 0.5 * texel,
+        place.xy + place.z - 0.5 * texel,
+    );
 }
 
 // The share of `map` that is lit for a point at `depth` seen at `uv`, through Castaño's filter over
 // 5 x 5 texels (ADR-0063): nine comparisons of the depth with the map's, each blending the 2 x 2
 // texels nearest to it (percentage-closer filtering), placed and weighed so that together they
 // weigh each texel by a smooth bump around the point, three texels wide on each side. A shadow's
-// edge then fades smoothly over about four texels, where comparisons one texel apart, equally
+// edge then fades smoothly over about six texels, where comparisons one texel apart, equally
 // weighed, left the staircase of its texels showing. Each comparison is kept between `lowest` and
 // `highest`, so that a tile of the atlas reads none of its neighbours' texels. Sampled at level 0,
 // without derivatives: allowed outside uniform control flow.
@@ -513,19 +537,19 @@ fn compared(
 // tile of the atlas (ADR-0061): the point moved off its surface, whose unit normal is `normal`,
 // along it towards the light `l`, by NORMAL_OFFSET_TEXELS of the tile's texels at the point's
 // distance along the light's axis, times the sine of the light's incidence; then compared as the
-// directional light's shadow map is, within the tile. A point behind the light, or beyond the
+// directional light's cascades are, within the tile. A point behind the light, or beyond the
 // tile's sides, outside what the tile sees, is lit.
 fn spot_light_reaching(
     light: Light,
-    tile: SpotTile,
+    tile: ShadowTile,
     position: vec3<f32>,
     normal: vec3<f32>,
     l: vec3<f32>,
 ) -> f32 {
     // The tile's depths are distances along the light's axis, not along its rays: a surface
-    // tilted from facing the axis by an angle a lies up to 2.83 sin(a) / cos(i) texels' depth
-    // nearer at the filter's farthest points, i its incidence, and moved off itself by 3 sin(a)
-    // texels it lies 3 sin(a) / cos(i) nearer than its own surface along the ray: lit, as the
+    // tilted from facing the axis by an angle a lies up to 4.24 sin(a) / cos(i) texels' depth
+    // nearer at the filter's farthest points, i its incidence, and moved off itself by 4.5 sin(a)
+    // texels it lies 4.5 sin(a) / cos(i) nearer than its own surface along the ray: lit, as the
     // directional light's normal offset keeps it, where the axis and the rays are one.
     let facing_axis = dot(normal, -light.direction);
     let sine = sqrt(max(1.0 - facing_axis * facing_axis, 0.0));
@@ -542,10 +566,8 @@ fn spot_light_reaching(
         return 1.0;
     }
     let texel = 1.0 / vec2<f32>(textureDimensions(spot_atlas));
-    let uv = tile.place.xy + (seen.xy * vec2<f32>(0.5, -0.5) + 0.5) * tile.place.z;
-    let lowest = tile.place.xy + 0.5 * texel;
-    let highest = tile.place.xy + tile.place.z - 0.5 * texel;
-    return compared(spot_atlas, uv, seen.z, texel, lowest, highest);
+    let at = in_tile(tile.place, seen.xy, texel);
+    return compared(spot_atlas, at.uv, seen.z, texel, at.lowest, at.highest);
 }
 
 // The unit normal a fragment is shaded with: the mesh's interpolated normal, tilted by the normal

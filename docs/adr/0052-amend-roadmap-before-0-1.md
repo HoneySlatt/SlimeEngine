@@ -1,7 +1,8 @@
 # 0052. Amend the roadmap before 0.1
 
 - Status: Accepted; amends [0031](0031-dev-overlay-with-egui.md) (when the dev overlay is removed);
-  amended by [0056](0056-stage-3d-anti-aliasing-and-spot-light-shadows.md) (Stage 9a's content)
+  amended by [0056](0056-stage-3d-anti-aliasing-and-spot-light-shadows.md) and
+  [0064](0064-cascaded-shadow-maps.md) (Stage 9a's content)
 - Date: 2026-10-14
 
 ## Context

@@ -170,7 +170,7 @@ impl View {
         let courtyard = game.courtyard();
         let state = game.state();
         // The ground reaches past the outer walls, and casts no shadow: it would only stretch the
-        // depths the shadow map spans (ADR-0049).
+        // depths the cascades span (ADR-0049).
         let ground_size = (courtyard.half_size + 4.0) * 2.0;
         let mut ground = Instance::new(
             cube,

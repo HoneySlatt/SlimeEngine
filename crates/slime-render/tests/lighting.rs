@@ -337,10 +337,11 @@ fn the_statistics_give_the_gpu_time_of_each_pass_on_adapters_that_can_time_their
     let mut times = (None, None, None, None);
     for _frame in 0..8 {
         let (_, stats) = setup.center_of(&[Mat4::IDENTITY], (SIZE, SIZE));
-        // The scene's directional light casts shadows: the shadow pass draws the instance too.
+        // The scene's directional light casts shadows: the shadow pass draws the instance too, once
+        // in each of the four cascades it reaches.
         assert_eq!(
             (stats.draw_calls, stats.triangles, stats.shadow_draw_calls),
-            (1, 2, 1)
+            (1, 2, 4)
         );
         times = (
             times.0.or(stats.scene_gpu_time),

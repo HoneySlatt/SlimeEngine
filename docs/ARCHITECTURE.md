@@ -46,7 +46,7 @@ created only when code needs it.
 | [`slime-platform`](../crates/slime-platform/README.md) | The window, its events and keyboard and mouse input; the only crate that uses the windowing library (winit) | `winit`, `raw-window-handle`, `thiserror`, `tracing` | One window; window, keyboard and mouse events |
 | [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `slime-platform`, `slime-gfx`, `ctrlc`, `thiserror`, `tracing`, `tracing-subscriber` | Headless runs, and windowed runs drawn by the GPU |
 | [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu, apart from the dev overlay through its `wgpu` feature | `wgpu`, `pollster`, `raw-window-handle`, `thiserror`, `tracing` | Opens a GPU device; draws into offscreen images, 8-bit or 16-bit float, and reads them back; draws into a window; later passes sample what earlier ones drew; depth-only passes; images of four samples per pixel, resolved for anti-aliasing; textures and cube textures whose levels the caller gives, half-precision floats among their formats |
-| [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, lit by directional, point and spot lights, seen from a camera, into render targets, and reports what a frame cost; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `glam`, `thiserror`, `tracing` | Meshes with tangents, simple shapes made in code (a cube, a sphere, a square), glTF's metallic-roughness materials (five textures, masks, double-sided), a perspective camera, the depth test, up to 16 directional, point and spot lights in physical units (`KHR_lights_punctual`), a procedural sky computed on the CPU that surfaces reflect (image-based lighting) and that is drawn behind them with its sun's disc, the shadows of the first directional light that casts them (one shadow map, filtered over 5 × 5 texels) and of every spot light that casts them (a tile each of one atlas), mirrored instances drawn with their front faces, the scene drawn in HDR with its light exposed, at four samples per pixel (multisample anti-aliasing), an energy-conserving bloom, then tone mapped, the passes ordered by a render graph and recorded four to a submission, statistics with the GPU time of each pass |
+| [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, lit by directional, point and spot lights, seen from a camera, into render targets, and reports what a frame cost; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `glam`, `thiserror`, `tracing` | Meshes with tangents, simple shapes made in code (a cube, a sphere, a square), glTF's metallic-roughness materials (five textures, masks, double-sided), a perspective camera, the depth test, up to 16 directional, point and spot lights in physical units (`KHR_lights_punctual`), a procedural sky computed on the CPU that surfaces reflect (image-based lighting) and that is drawn behind them with its sun's disc, the shadows of the first directional light that casts them (four cascades in one atlas, filtered over 5 × 5 texels) and of every spot light that casts them (a tile each of one atlas), mirrored instances drawn with their front faces, the scene drawn in HDR with its light exposed, at four samples per pixel (multisample anti-aliasing), an energy-conserving bloom, then tone mapped, the passes ordered by a render graph and recorded four to a submission, statistics with the GPU time of each pass |
 | [`slime-devui`](../crates/slime-devui/README.md) | The dev overlay: egui drawn over the engine's frames, fed with the engine's events; tooling, removed once something does at least as well ([ADR-0052](adr/0052-amend-roadmap-before-0-1.md)) | `egui`, `egui-wgpu`, `slime-gfx` (with its `wgpu` feature), `slime-platform` | Panels over a frame; no clipboard or input methods |
 | [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `gltf`, `png`, `tracing` | `hello`, `headless`, `window`, `offscreen`, `scene`; the reference image tests; a temporary glTF loader |
 | [`nightwatch`](../games/nightwatch/README.md) | Nightwatch, the first game; a client of the engine through its public API only, not part of the engine ([ADR-0055](adr/0055-games-in-the-workspace.md)) | `slime-app`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `tracing` | The courtyard at night, the camera, the player's movement and collisions, guards and floodlights that see the player, a switch, winning and losing |
@@ -292,9 +292,10 @@ PNG within a tolerance ([ADR-0018](adr/0018-reference-image-tests.md)).
 
 `slime-render` draws meshes with the objects above. The application builds a `Scene` for each
 frame, a flat list of instances seen from a camera, and the renderer draws it into any render
-target, the window's image or an offscreen one, in passes: the shadow map, the scene in high
-dynamic range, the sky behind it, the bloom's chain, then tone mapping into the target, ordered
-and recorded by a render graph
+target, the window's image or an offscreen one, in passes: the directional light's shadows, in
+cascades, the spot lights' shadows, the scene in high dynamic range, the sky behind it, the resolve
+of its samples, the bloom's chain, then tone mapping into the target, ordered and recorded by a
+render graph
 ([`crates/slime-render/src/renderer.rs`](../crates/slime-render/src/renderer.rs),
 [`crates/slime-render/src/graph.rs`](../crates/slime-render/src/graph.rs), rules:
 [ADR-0027](adr/0027-the-render-crate.md), [ADR-0034](adr/0034-hdr-rendering-and-tone-mapping.md),
@@ -302,21 +303,24 @@ and recorded by a render graph
 [ADR-0037](adr/0037-lights-in-physical-units-and-pre-exposure.md),
 [ADR-0038](adr/0038-shadow-mapping.md),
 [ADR-0039](adr/0039-image-based-lighting-computed-on-the-cpu.md),
-[ADR-0040](adr/0040-bloom.md), [ADR-0041](adr/0041-render-graph.md)):
+[ADR-0040](adr/0040-bloom.md), [ADR-0041](adr/0041-render-graph.md),
+[ADR-0064](adr/0064-cascaded-shadow-maps.md)):
 
 ```text
-renderer = Renderer::new(&gpu, format)                 the output's format; three shaders and nine
+renderer = Renderer::new(&gpu, format)                 the output's format; four shaders and ten
 │                                                      pipelines: two depth-only ones for the
-│                                                      shadow pass (the second discards what
+│                                                      shadow passes (the second discards what
 │                                                      masked materials discard), three for the
 │                                                      scene (depth test, into Rgba16Float),
 │                                                      culling back faces, front faces or none,
-│                                                      the sky's, the bloom's two (down and up)
-│                                                      and the tone-mapping one (each a
-│                                                      fullscreen triangle); the BRDF table,
-│                                                      computed once per process; a black
-│                                                      environment; the 2048 × 2048 shadow map
-│                                                      and the group that reads it, bind group 3
+│                                                      the sky's, the resolve's, the bloom's two
+│                                                      (down and up) and the tone-mapping one
+│                                                      (each a fullscreen triangle); the BRDF
+│                                                      table, computed once per process; a black
+│                                                      environment; a texel of depth bound in
+│                                                      the place of either shadow atlas until
+│                                                      it exists, in the group that reads them,
+│                                                      bind group 3
 ├── create_environment(&gpu, &Sky)                     the sky drawn on the CPU into a 128-texel
 │                                                      cube, prefiltered into four levels on
 │                                                      every core (environment.rs), uploaded in
@@ -334,21 +338,23 @@ renderer = Renderer::new(&gpu, format)                 the output's format; thre
     │                                                  (ADR-0044); draws the first 16 lights
     ├── every position moved by −camera.eye, in f64 (ADR-0048): the GPU draws relative to the
     │   camera, so that what is near it keeps its precision however far from the origin
-    ├── the light-space matrix of the first directional light that casts shadows (shadow.rs,
-    │   ADR-0050): an orthographic projection across the light covering the sphere around what
-    │   the camera sees up to the light's shadow distance, moved to a texel grid fixed in the
-    │   world, and along it the boxes of the instances that cast shadows across that square
+    ├── the four cascades of the first directional light that casts shadows (shadow.rs,
+    │   ADR-0050, ADR-0064): what the camera sees up to the light's shadow distance split along
+    │   its axis into four slices, each twice as deep as the one before; for each, its tile of the
+    │   cascades' atlas, an orthographic projection across the light covering the sphere around
+    │   its slice, moved to a texel grid fixed in the world, the instances whose boxes reach
+    │   across that square, and along the light the depths their boxes span
     ├── each spot light that casts shadows, in the scene's order: its tile of the atlas, 2048 or
     │   1024 texels wide by how many cast them, its perspective view from the light, from 5 cm
     │   out, its cone and a margin, up to 80° from its axis, and the instances whose boxes reach
     │   into it (shadow.rs, ADR-0058, ADR-0061)
-    ├── the buffer of the shadow passes' views ← the light-space matrix, then each tile's view,
+    ├── the buffer of the shadow passes' views ← the cascades' views, then each spot light's,
     │   one slot each at the device's alignment; bound at group 3 of the shadow pipelines
     ├── the frame uniform ← the camera's projection times its rotation, the sky's directions from
-    │   clip space (its inverse), the exposure, the width of the shadow map's texels, the
-    │   light-space matrix, the number of lights and the shadowed light's index, the sun's disc
-    │   (direction, radiance), the lights (64 bytes each, at most 16, a spot light's with the index
-    │   of its tile), and the tiles' views and places in the atlas; bind group 0, with the
+    │   clip space (its inverse), the exposure, the number of lights and the shadowed light's index,
+    │   the sun's disc (direction, radiance), the lights (64 bytes each, at most 16, a spot
+    │   light's with the index of its tile), the spot lights' tiles' views and places in their
+    │   atlas, and the cascades' views, places and texel widths; bind group 0, with the
     │   environment, the BRDF table and their sampler, built again when the scene names another
     │   environment (a black one for none)
     ├── the instance buffer ← each instance's relative transform,     bind group 2, one dynamic
@@ -363,17 +369,19 @@ renderer = Renderer::new(&gpu, format)                 the output's format; thre
     │   from the passes' declarations; a GpuTimer per submission
     ├── the passes, in the graph's order, four to a submission named after the target, each timed
     │   by its submission's GpuTimer when the adapter can:
-    │   ├── the shadow pass into the shadow map, a depth-only pass skipped when no light or no
-    │   │   instance casts shadows: the first slot of the buffer of views bound at group 3; for each
-    │   │   instance that casts shadows, the shadow pipeline its material asks for (masked or not),
-    │   │   its bind groups and buffers, draw_indexed
+    │   ├── the shadow pass into the cascades' atlas, created by the first frame that needs it, a
+    │   │   depth-only pass skipped when no light or no instance casts shadows: for each cascade,
+    │   │   its tile (set_viewport) and its view's slot at group 3; for each instance that casts
+    │   │   shadows and whose box reaches across its square, the shadow pipeline its material
+    │   │   asks for (masked or not), its bind groups and buffers, draw_indexed
     │   ├── the spot lights' shadow pass into the atlas, created by the first frame that needs it,
     │   │   skipped when no spot light casts shadows: for each such light, its tile
     │   │   (set_viewport) and its view's slot; for each instance that casts shadows and whose box
     │   │   reaches into its cone and range, as above (ADR-0058, ADR-0061)
-    │   ├── the scene pass into the multisampled HDR target, cleared to black, the group of the
-    │   │   shadow map and the atlas (a texel of its own until the atlas exists) bound at group 3,
-    │   │   each spot light that casts shadows looked up in its tile (ADR-0062): for each instance,
+    │   ├── the scene pass into the multisampled HDR target, cleared to black, the group of both
+    │   │   atlases (a texel in the place of each until it exists) bound at group 3, the shadowed
+    │   │   light looked up in its last cascade, each spot light that casts shadows in its tile
+    │   │   (ADR-0062): for each instance,
     │   │   the pipeline that its material's double-sidedness and its transform's mirroring choose
     │   │   (set when it changes), its material's bind group 1, its slot, its buffers, draw_indexed
     │   ├── the sky pass into the multisampled HDR target, keeping it and the depth target: one
@@ -412,24 +420,25 @@ shaded with glTF's metallic-roughness model (ADR-0035): the GGX distribution, Sm
 Schlick's Fresnel under each of the scene's lights (ADR-0037), whose illuminance at the fragment is
 a directional light's illuminance, or a point or spot light's intensity over the square of the
 distance (as at 1 cm within 1 cm), brought to zero at its range and, for a spot light, times its
-cone's attenuation, as `KHR_lights_punctual` recommends; the shadowed light times the share of the
-shadow map's nine comparisons over 5 × 5 texels, weighed as Castaño proposed, that find the fragment
-lit, at the position in the map that the vertex shader computes for the vertex moved off its surface
-along its normal by 4.5 texels times the sine of the light's incidence (ADR-0050, ADR-0063); each
-spot light that casts shadows times the same share in its tile of the atlas, the fragment moved off
-its triangle by the sine of its tilt from the light's axis (ADR-0062); the environment's light
-(ADR-0039), the diffuse light read from its roughest level along the normal and the specular light
-from the level of the roughness along the reflection, weighted by the split sum's Fresnel from the
-BRDF table with the light that rough surfaces scatter more than once, times the occlusion; the
-emission added; the normal tilted by the normal texture in the frame of the tangent, which follows
-the model matrix, and of its bitangent, rebuilt per fragment; back faces of double-sided materials
-shaded with the normal reversed; fragments of masked materials below their cutoff discarded; the sum
-multiplied by the exposure and divided by 64, so that half precision holds light up to 64 × 65 504
-for the bloom (ADR-0040), and brighter light written as 65 504. The material's textures are read at
-the texture coordinates of the vertex. Its sky stages turn each pixel, at infinity, into a
-direction, read the environment's first level along it and add the sun's disc, its edge blended over
-a pixel. The bloom's shader ([`bloom.wgsl`](../crates/slime-render/src/bloom.wgsl)) filters that
-light down and averages it back up into a blurred copy, which the tone-mapping shader
+cone's attenuation, as `KHR_lights_punctual` recommends; the shadowed light times the share of its
+last cascade's nine comparisons over 5 × 5 texels, weighed as Castaño proposed, that find the
+fragment lit, at the position in the cascade that the vertex shader computes for the vertex moved
+off its surface along its normal by 4.5 texels times the sine of the light's incidence (ADR-0050,
+ADR-0063); each spot light that casts shadows times the same share in its tile of the atlas, the
+fragment moved off its triangle by the sine of its tilt from the light's axis (ADR-0062); the
+environment's light (ADR-0039), the diffuse light read from its roughest level along the normal
+and the specular light from the level of the roughness along the reflection, weighted by the split
+sum's Fresnel from the BRDF table with the light that rough surfaces scatter more than once, times
+the occlusion; the emission added; the normal tilted by the normal texture in the frame of the
+tangent, which follows the model matrix, and of its bitangent, rebuilt per fragment; back faces of
+double-sided materials shaded with the normal reversed; fragments of masked materials below their
+cutoff discarded; the sum multiplied by the exposure and divided by 64, so that half precision holds
+light up to 64 × 65 504 for the bloom (ADR-0040), and brighter light written as 65 504. The
+material's textures are read at the texture coordinates of the vertex. Its sky stages turn each
+pixel, at infinity, into a direction, read the environment's first level along it and add the sun's
+disc, its edge blended over a pixel. The bloom's shader
+([`bloom.wgsl`](../crates/slime-render/src/bloom.wgsl)) filters that light down and averages it
+back up into a blurred copy, which the tone-mapping shader
 ([`tone_mapping.wgsl`](../crates/slime-render/src/tone_mapping.wgsl)) mixes in before it maps the
 light to the display's range. The examples' temporary glTF loader
 ([`examples/common/gltf.rs`](../examples/common/gltf.rs),

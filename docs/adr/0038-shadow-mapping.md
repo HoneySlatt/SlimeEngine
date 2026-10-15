@@ -11,7 +11,8 @@
   [0050](0050-a-shadow-region-that-follows-the-camera.md) (the map follows the camera; a normal
   offset instead of the slope-scaled bias), by
   [0061](0061-projecting-the-shadows-of-spot-lights.md) (the shadow pass reads its view from a
-  buffer of views) and by [0063](0063-a-smoother-shadow-filter.md) (the filter)
+  buffer of views), by [0063](0063-a-smoother-shadow-filter.md) (the filter) and by
+  [0064](0064-cascaded-shadow-maps.md) (four cascades instead of one map)
 - Date: 2026-10-13
 
 ## Context

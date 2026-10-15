@@ -105,7 +105,7 @@ the ADR linking to it.
 | [0035](0035-physically-based-materials.md) | Physically based materials | Accepted; amended by 0037 and 0039 |
 | [0036](0036-direct3d-12-shader-compiler.md) | The shader compiler of Direct3D 12 | Accepted |
 | [0037](0037-lights-in-physical-units-and-pre-exposure.md) | Lights in physical units, and pre-exposure | Accepted; amended by 0038, 0039, 0040 and 0042 |
-| [0038](0038-shadow-mapping.md) | Shadow mapping | Accepted; amended by 0039, 0041, 0047, 0049, 0050, 0061 and 0063 |
+| [0038](0038-shadow-mapping.md) | Shadow mapping | Accepted; amended by 0039, 0041, 0047, 0049, 0050, 0061, 0063 and 0064 |
 | [0039](0039-image-based-lighting-computed-on-the-cpu.md) | Image-based lighting computed on the CPU | Accepted; amended by 0041 |
 | [0040](0040-bloom.md) | Bloom | Accepted; amended by 0041 |
 | [0041](0041-render-graph.md) | The render graph | Accepted |
@@ -117,17 +117,18 @@ the ADR linking to it.
 | [0047](0047-reversed-depth-with-an-infinite-far-plane.md) | Reversed depth with an infinite far plane | Accepted |
 | [0048](0048-rendering-relative-to-the-camera.md) | Rendering relative to the camera | Accepted |
 | [0049](0049-instances-that-cast-no-shadow.md) | Instances that cast no shadow | Accepted; amended by 0050 |
-| [0050](0050-a-shadow-region-that-follows-the-camera.md) | A shadow region that follows the camera | Accepted; amended by 0063 |
+| [0050](0050-a-shadow-region-that-follows-the-camera.md) | A shadow region that follows the camera | Accepted; amended by 0063 and 0064 |
 | [0051](0051-dithering-8-bit-outputs.md) | Dithering 8-bit outputs | Accepted |
-| [0052](0052-amend-roadmap-before-0-1.md) | Amend the roadmap before 0.1 | Accepted; amended by 0056 |
+| [0052](0052-amend-roadmap-before-0-1.md) | Amend the roadmap before 0.1 | Accepted; amended by 0056 and 0064 |
 | [0053](0053-one-home-per-fact.md) | One home per fact in the documentation | Accepted |
 | [0054](0054-image-tests-allow-0-2-percent-on-other-drivers.md) | Image tests allow 0.2 % of the pixels to differ on other drivers | Accepted |
 | [0055](0055-games-in-the-workspace.md) | Games in the workspace | Accepted |
-| [0056](0056-stage-3d-anti-aliasing-and-spot-light-shadows.md) | Stage 3d: anti-aliasing and the shadows of spot lights | Accepted; amended by 0058 |
+| [0056](0056-stage-3d-anti-aliasing-and-spot-light-shadows.md) | Stage 3d: anti-aliasing and the shadows of spot lights | Accepted; amended by 0058 and 0064 |
 | [0057](0057-what-the-first-game-asks-of-the-next-stages.md) | What the first game asks of the next stages | Accepted |
 | [0058](0058-shadows-for-every-spot-light-in-one-atlas.md) | Shadows for every spot light, in one atlas | Accepted |
 | [0059](0059-multisampling-in-the-gpu-layer.md) | Multisampling in the GPU layer | Accepted; amended by 0060 |
 | [0060](0060-resolving-the-samples-weighed-by-their-brightness.md) | Resolving the samples weighed by their brightness | Accepted |
 | [0061](0061-projecting-the-shadows-of-spot-lights.md) | Projecting the shadows of spot lights | Accepted; amended by 0062 and 0063 |
 | [0062](0062-looking-spot-shadows-up-off-the-triangle.md) | Looking spot lights' shadows up off the triangle | Accepted; amended by 0063 |
-| [0063](0063-a-smoother-shadow-filter.md) | A smoother shadow filter | Accepted |
+| [0063](0063-a-smoother-shadow-filter.md) | A smoother shadow filter | Accepted; amended by 0064 |
+| [0064](0064-cascaded-shadow-maps.md) | Cascaded shadow maps | Accepted |

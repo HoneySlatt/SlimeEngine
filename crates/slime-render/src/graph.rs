@@ -49,7 +49,7 @@ impl From<DepthId> for TargetId {
 }
 
 /// A target that outlives the graph, given to each [`Graph::record`]: the output, a window's image
-/// that changes every frame, or the shadow map, which the renderer keeps.
+/// that changes every frame, or a shadow atlas, which the renderer keeps.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Imported<'a> {
     /// A render target.

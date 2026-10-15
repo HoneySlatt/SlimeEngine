@@ -3,7 +3,8 @@
 - Status: Accepted; amends [0038](0038-shadow-mapping.md) (the filter),
   [0050](0050-a-shadow-region-that-follows-the-camera.md) and
   [0062](0062-looking-spot-shadows-up-off-the-triangle.md) (the normal offset's texels) and
-  [0061](0061-projecting-the-shadows-of-spot-lights.md) (the tiles' margin)
+  [0061](0061-projecting-the-shadows-of-spot-lights.md) (the tiles' margin); amended by
+  [0064](0064-cascaded-shadow-maps.md) (cascades)
 - Date: 2026-10-15
 
 ## Context

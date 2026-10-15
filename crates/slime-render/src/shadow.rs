@@ -1,6 +1,6 @@
-//! Shadows: those of the first directional light of a scene that casts shadows, the shadow map's
-//! size and depth bias, and the projection that fits the map to the region around the camera
-//! (ADR-0038, ADR-0050); and those of spot lights, the tiles of their atlas and what each sees
+//! Shadows: those of the first directional light of a scene that casts shadows, its cascades, their
+//! depth bias, and the projection that fits each to its slice of the view (ADR-0038, ADR-0050,
+//! ADR-0064); and those of spot lights, the tiles of their atlas and what each sees
 //! (ADR-0058, ADR-0061).
 
 use glam::camera::rh::proj::directx::{orthographic, perspective_infinite_reverse};
@@ -11,125 +11,202 @@ use slime_gfx::DepthBias;
 use crate::camera::Camera;
 use crate::light::{MAX_LIGHTS, SpotLight, unit};
 
-/// The width and the height of the shadow map, in texels: 16 MiB of 32-bit depths.
-pub(crate) const SHADOW_MAP_SIZE: u32 = 2048;
-
 /// How far the shadow pass pushes away each depth it stores, towards 0 (depth is reversed,
 /// ADR-0047), so that a lit surface compared with its own depths is not found behind them (shadow
 /// acne): 32 units of the depth's last bit, which cover what rounding leaves, as the shadow pass
 /// and the scene pass compute a depth along two paths. Its unit shrinks with the depth: the
-/// surfaces farthest from the light, the ground under what casts shadows, have the smallest
-/// depths, down to about 1/66 with the padding of [`light_view_projection`], whose last bit is up
-/// to 64 times finer than near 1; there, 4 suffice on lavapipe and RADV. Nothing scales with the
+/// surfaces farthest from the light, the ground under what casts shadows, have the smallest depths,
+/// down to about 1/66 with the padding of [`CascadeView::view_projection`], whose last bit is up to
+/// 64 times finer than near 1; there, 4 suffice on lavapipe and RADV. Nothing scales with the
 /// surface's slope: the scene shader looks a surface up off itself along its normal instead
-/// (`NORMAL_OFFSET_TEXELS` in `shader.wgsl`, ADR-0050), by what the filter's reach across a
-/// sloping or curved surface needs.
+/// (`NORMAL_OFFSET_TEXELS` in `shader.wgsl`, ADR-0050), by what the filter's reach across a sloping
+/// or curved surface needs.
 pub(crate) const SHADOW_BIAS: DepthBias = DepthBias {
     constant: -32,
     slope_scale: 0.0,
 };
 
-/// The matrix from the frame's space (world space moved by −`camera.eye`, ADR-0048) to the clip
-/// space of the shadow map of a directional light travelling along `direction`, not zero, which
-/// casts shadows up to `distance` from `camera` (ADR-0050): an orthographic projection along the
-/// light whose x and y run from −1 to 1 across the square, perpendicular to the light, around the
-/// sphere that [`view_sphere`] gives, and whose depth, reversed as the camera's (ADR-0047), runs
-/// from 1 to 0 along the light, from a little before the box nearest to it to a little after the
-/// farthest, among the boxes of `boxes` that reach across that square. Each box is a transform from
-/// its own space to the frame's space, its center and half its size, in its own space: an instance
-/// that casts shadows and the box around its mesh.
-///
-/// The square's size depends on the camera's field of view and near plane, `aspect` and
-/// `distance` only, not on where the camera looks or what the scene holds, and its center is moved
-/// across the light to a corner of the texels of a grid fixed in the world: as the camera turns
-/// and moves, each texel keeps covering the same ground, and shadows' edges do not shimmer. The
-/// depth range is padded by 1/64 of the larger of the square's side and the range itself on each
-/// side, so that rounding does not clip the instances nearest to the light or farthest from it.
-/// A box at no finite place (an instance thrown to infinity) or flattened to a point is left out.
-/// `None` when no box is left, when nothing would cast a shadow in the square, or for a camera
-/// that sees nothing (see [`Camera`]).
-pub(crate) fn light_view_projection(
-    direction: Vec3,
-    camera: &Camera,
-    aspect: f32,
-    distance: f32,
-    boxes: impl IntoIterator<Item = (Mat4, Vec3, Vec3)>,
-) -> Option<Mat4> {
-    let (center, radius) = view_sphere(camera, aspect, distance);
-    if !(center.is_finite() && radius.is_finite() && radius > 0.0) {
-        return None;
+/// How many cascades the shadows of the directional light are split into, each a tile of the
+/// cascades' atlas covering a slice of what the camera sees (ADR-0064).
+pub(crate) const CASCADES: usize = 4;
+
+/// The width and the height of each cascade's tile, in texels.
+pub(crate) const CASCADE_SIZE: u32 = 2048;
+
+/// The width and the height of the cascades' atlas, 2 × 2 tiles: 64 MiB of 32-bit depths.
+pub(crate) const CASCADE_ATLAS_SIZE: u32 = 2 * CASCADE_SIZE;
+
+/// A tile of a shadow atlas, the cascades' or the spot lights': its top left texel and its side,
+/// in texels.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ShadowTile {
+    pub(crate) x: u32,
+    pub(crate) y: u32,
+    pub(crate) size: u32,
+}
+
+/// The tile of cascade `index` in the cascades' atlas, row by row from its top left corner.
+pub(crate) fn cascade_tile(index: usize) -> ShadowTile {
+    let index = u32::try_from(index).expect("below CASCADES");
+    ShadowTile {
+        x: index % 2 * CASCADE_SIZE,
+        y: index / 2 * CASCADE_SIZE,
+        size: CASCADE_SIZE,
     }
-    let texel = texel_width(radius);
-    // The light's axes as glam's views have them: x and y across the light, z against it.
-    let forward = direction.as_dvec3().normalize();
-    let x = forward.cross(forward.any_orthogonal_vector()).normalize();
-    let y = x.cross(forward);
-    // Across the light, the center moves to the nearest multiple of a texel from the world's
-    // origin, computed in f64 so that the grid stays exact far from it.
-    let eye = camera.eye.as_dvec3();
-    let snapped = |axis: DVec3| ((eye + center).dot(axis) / texel).round() * texel - eye.dot(axis);
-    let center = x * snapped(x) + y * snapped(y) + forward * center.dot(forward);
-    let view = DMat4::from_cols(
-        DVec4::new(x.x, y.x, -forward.x, 0.0),
-        DVec4::new(x.y, y.y, -forward.y, 0.0),
-        DVec4::new(x.z, y.z, -forward.z, 0.0),
-        DVec4::new(-x.dot(center), -y.dot(center), forward.dot(center), 1.0),
-    )
-    .as_mat4();
-    let half_side = radius as f32;
-    // The light looks down its −Z axis: the nearest point has the largest z.
-    let (mut nearest, mut farthest) = (f32::NEG_INFINITY, f32::INFINITY);
-    for (transform, center, half_size) in boxes {
+}
+
+/// The slice of what `camera` sees, along its axis, that cascade `index` covers when its light
+/// casts shadows up to `distance`: each cascade twice as deep as the one before, so that the four
+/// end at 1, 3, 7 and 15 fifteenths of the distance; the first starts at the camera's near plane
+/// (ADR-0064). A slice that would end before it starts ends at its start.
+pub(crate) fn cascade_slice(camera: &Camera, distance: f32, index: usize) -> (f32, f32) {
+    let end = |index: usize| {
+        let shares = (1u32 << (index + 1)) - 1;
+        distance * shares as f32 / ((1u32 << CASCADES) - 1) as f32
+    };
+    let near = if index == 0 {
+        camera.near
+    } else {
+        end(index - 1).max(camera.near)
+    };
+    (near, end(index).max(near))
+}
+
+/// What a cascade of the directional light sees: an orthographic view along the light of the
+/// square, across it, around the sphere that holds the cascade's slice of what the camera sees
+/// ([`view_sphere`]), moved across the light to a corner of the texels of a grid fixed in the world
+/// (ADR-0050).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct CascadeView {
+    /// From the frame's space (world space moved by −the camera's eye, ADR-0048) to the light's:
+    /// x and y across it, z against it.
+    view: Mat4,
+    /// Half the side of the square, in metres.
+    half_side: f32,
+    /// The width of the cascade's texels, in metres.
+    pub(crate) texel: f32,
+}
+
+impl CascadeView {
+    /// The view of the cascade covering the slice of what `camera` sees from `near` to `far` along
+    /// its axis, for an output `aspect` times as wide as it is high, of a directional light
+    /// travelling along `direction`, not zero. The square's size depends on the camera's field of
+    /// view, `aspect` and the slice only, not on where the camera looks; its center is moved across
+    /// the light to a corner of a texel of a grid fixed in the world, computed in `f64`, so that as
+    /// the camera turns and moves, each texel keeps covering the same ground and shadows' edges do
+    /// not shimmer. `None` for a camera that sees nothing (see [`Camera`]).
+    pub(crate) fn new(
+        direction: Vec3,
+        camera: &Camera,
+        aspect: f32,
+        near: f32,
+        far: f32,
+    ) -> Option<Self> {
+        let (center, radius) = view_sphere(camera, aspect, near, far);
+        if !(center.is_finite() && radius.is_finite() && radius > 0.0) {
+            return None;
+        }
+        let texel = 2.0 * radius / f64::from(CASCADE_SIZE);
+        // The light's axes as glam's views have them: x and y across the light, z against it.
+        let forward = direction.as_dvec3().normalize();
+        let x = forward.cross(forward.any_orthogonal_vector()).normalize();
+        let y = x.cross(forward);
+        // Across the light, the center moves to the nearest multiple of a texel from the world's
+        // origin, computed in f64 so that the grid stays exact far from it.
+        let eye = camera.eye.as_dvec3();
+        let snapped =
+            |axis: DVec3| ((eye + center).dot(axis) / texel).round() * texel - eye.dot(axis);
+        let center = x * snapped(x) + y * snapped(y) + forward * center.dot(forward);
+        let view = DMat4::from_cols(
+            DVec4::new(x.x, y.x, -forward.x, 0.0),
+            DVec4::new(x.y, y.y, -forward.y, 0.0),
+            DVec4::new(x.z, y.z, -forward.z, 0.0),
+            DVec4::new(-x.dot(center), -y.dot(center), forward.dot(center), 1.0),
+        )
+        .as_mat4();
+        Some(Self {
+            view,
+            half_side: radius as f32,
+            texel: texel as f32,
+        })
+    }
+
+    /// The box of `(transform, center, half_size)` in the light's space, if it is somewhere and
+    /// not flattened to a point: its center and half its size. The transform takes the box from
+    /// its own space to the frame's space, its center and half its size in its own space.
+    fn in_light_space(
+        &self,
+        (transform, center, half_size): (Mat4, Vec3, Vec3),
+    ) -> Option<(Vec3, Vec3)> {
         if !transform.is_finite() {
-            continue;
+            return None;
         }
         // The box of a box turned and scaled into the light's space: its center moves with the
         // transform, and each of its half sizes gathers the absolute values of the transform's
         // rows (Arvo's method), exactly the box around its eight corners.
-        let to_view = view * transform;
+        let to_view = self.view * transform;
         let center = to_view.transform_point3(center);
         let half_size = Mat3::from_mat4(to_view).abs() * half_size;
         // A finite transform can still carry a box beyond the largest float.
-        if !(center.is_finite() && half_size.is_finite()) || half_size == Vec3::ZERO {
-            continue;
-        }
-        // Only what reaches across the square can shadow a point of it.
-        if center.x.abs() - half_size.x > half_side || center.y.abs() - half_size.y > half_side {
-            continue;
-        }
-        nearest = nearest.max(center.z + half_size.z);
-        farthest = farthest.min(center.z - half_size.z);
+        let placed = center.is_finite() && half_size.is_finite() && half_size != Vec3::ZERO;
+        placed.then_some((center, half_size))
     }
-    if farthest > nearest {
-        return None;
-    }
-    let pad = (2.0 * half_side).max(nearest - farthest) / 64.0;
-    // The nearest point at depth 1, the farthest at 0: glam's `near` and `far`, swapped.
-    let projection = orthographic(
-        -half_side,
-        half_side,
-        -half_side,
-        half_side,
-        -(farthest - pad),
-        -(nearest + pad),
-    );
-    Some(projection * view)
-}
 
-/// The width of the shadow map's texels, in metres, when it covers the square around a sphere of
-/// `radius`, as [`view_sphere`] gives it.
-pub(crate) fn texel_width(radius: f64) -> f64 {
-    2.0 * radius / f64::from(SHADOW_MAP_SIZE)
+    /// Whether the box of an instance that casts shadows, as [`Self::in_light_space`] takes it,
+    /// reaches across the cascade's square: only such a box can shadow a point of it.
+    pub(crate) fn reaches(&self, boxed: (Mat4, Vec3, Vec3)) -> bool {
+        self.in_light_space(boxed)
+            .is_some_and(|(center, half_size)| {
+                center.x.abs() - half_size.x <= self.half_side
+                    && center.y.abs() - half_size.y <= self.half_side
+            })
+    }
+
+    /// The matrix from the frame's space to the cascade's clip space: x and y from −1 to 1 across
+    /// its square, and depth, reversed as the camera's (ADR-0047), from 1 to 0 along the light,
+    /// from a little before the nearest of `boxes` that reach across the square to a little after
+    /// the farthest; padded by 1/64 of the larger of the square's side and the range itself on each
+    /// side, so that rounding does not clip them. `None` when no box reaches across it.
+    pub(crate) fn view_projection(
+        &self,
+        boxes: impl IntoIterator<Item = (Mat4, Vec3, Vec3)>,
+    ) -> Option<Mat4> {
+        // The light looks down its −Z axis: the nearest point has the largest z.
+        let (mut nearest, mut farthest) = (f32::NEG_INFINITY, f32::INFINITY);
+        for boxed in boxes {
+            if !self.reaches(boxed) {
+                continue;
+            }
+            let (center, half_size) = self.in_light_space(boxed).expect("it reaches");
+            nearest = nearest.max(center.z + half_size.z);
+            farthest = farthest.min(center.z - half_size.z);
+        }
+        if farthest > nearest {
+            return None;
+        }
+        let half_side = self.half_side;
+        let pad = (2.0 * half_side).max(nearest - farthest) / 64.0;
+        // The nearest point at depth 1, the farthest at 0: glam's `near` and `far`, swapped.
+        let projection = orthographic(
+            -half_side,
+            half_side,
+            -half_side,
+            half_side,
+            -(farthest - pad),
+            -(nearest + pad),
+        );
+        Some(projection * self.view)
+    }
 }
 
 /// The sphere around what `camera` sees, for an output `aspect` times as wide as it is high, from
-/// its near plane to `distance`, or to its near plane when `distance` is nearer: its center,
-/// relative to the eye, and its radius, in f64. It is the smallest sphere centred on the view's
-/// axis that holds the corners of both planes: its radius depends on the field of view, the
-/// aspect and the two distances, not on where the camera looks.
-pub(crate) fn view_sphere(camera: &Camera, aspect: f32, distance: f32) -> (DVec3, f64) {
-    let near = f64::from(camera.near);
-    let far = f64::from(distance).max(near);
+/// `near` to `far` along its axis, or to `near` when `far` is nearer: its center, relative to the
+/// eye, and its radius, in f64. It is the smallest sphere centred on the view's axis that holds the
+/// corners of both planes: its radius depends on the field of view, the aspect and the two
+/// distances, not on where the camera looks.
+pub(crate) fn view_sphere(camera: &Camera, aspect: f32, near: f32, far: f32) -> (DVec3, f64) {
+    let near = f64::from(near);
+    let far = f64::from(far).max(near);
     let tan_y = (f64::from(camera.fov_y) / 2.0).tan();
     // The squared tangent of the angle from the axis to a corner.
     let corner = tan_y * tan_y * (1.0 + f64::from(aspect) * f64::from(aspect));
@@ -160,14 +237,6 @@ pub(crate) const SPOT_WIDEST: f32 = 1.396_263_4;
 /// (`NORMAL_OFFSET_TEXELS` in `shader.wgsl`, ADR-0061).
 const TILE_MARGIN_TEXELS: u32 = 8;
 
-/// A tile of the spot lights' shadow atlas: its top left texel and its side, in texels.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct SpotTile {
-    pub(crate) x: u32,
-    pub(crate) y: u32,
-    pub(crate) size: u32,
-}
-
 /// The tiles of the atlas for `count` spot lights that cast shadows, in the scene's order: 2048 ×
 /// 2048 texels each for up to four lights, 1024 × 1024 each from five to [`MAX_LIGHTS`], row by
 /// row from the atlas's top left corner (ADR-0058).
@@ -175,11 +244,11 @@ pub(crate) struct SpotTile {
 /// # Panics
 ///
 /// If `count` is above [`MAX_LIGHTS`], the most lights a scene draws.
-pub(crate) fn spot_tiles(count: usize) -> impl Iterator<Item = SpotTile> {
+pub(crate) fn spot_tiles(count: usize) -> impl Iterator<Item = ShadowTile> {
     assert!(count <= MAX_LIGHTS, "{count} spot lights cast shadows");
     let per_row: u32 = if count <= 4 { 2 } else { 4 };
     let size = SPOT_ATLAS_SIZE / per_row;
-    (0..u32::try_from(count).expect("at most MAX_LIGHTS")).map(move |index| SpotTile {
+    (0..u32::try_from(count).expect("at most MAX_LIGHTS")).map(move |index| ShadowTile {
         x: index % per_row * size,
         y: index / per_row * size,
         size,
@@ -259,6 +328,18 @@ mod tests {
     use super::*;
 
     const ASPECT: f32 = 16.0 / 9.0;
+
+    /// The view of a single cascade covering what `camera` sees up to `distance`, fitted to
+    /// `boxes`: what every cascade does over its own slice.
+    fn light_view_projection(
+        direction: Vec3,
+        camera: &Camera,
+        aspect: f32,
+        distance: f32,
+        boxes: impl IntoIterator<Item = (Mat4, Vec3, Vec3)>,
+    ) -> Option<Mat4> {
+        CascadeView::new(direction, camera, aspect, camera.near, distance)?.view_projection(boxes)
+    }
 
     /// The eight corners of a box.
     fn corners((transform, center, half_size): (Mat4, Vec3, Vec3)) -> Vec<Vec3> {
@@ -366,8 +447,8 @@ mod tests {
             Vec3::new(10_000.0, 2.0, -10_000.0),
         ] {
             let camera = camera(eye, Vec3::new(0.0, -0.3, -1.0));
-            let (_, radius) = view_sphere(&camera, ASPECT, 30.0);
-            let texel = 2.0 * radius / f64::from(SHADOW_MAP_SIZE);
+            let (_, radius) = view_sphere(&camera, ASPECT, camera.near, 30.0);
+            let texel = 2.0 * radius / f64::from(CASCADE_SIZE);
             let relative = (Mat4::from_translation(-eye) * floor.0, floor.1, floor.2);
             let matrix = light_view_projection(direction, &camera, ASPECT, 30.0, [relative])
                 .expect("the floor casts across the map");
@@ -377,7 +458,7 @@ mod tests {
             let at = projected(matrix, offset);
             let point = eye.as_dvec3() + offset.as_dvec3();
             for (index, axis) in axes.iter().enumerate() {
-                let texels = (f64::from(at[index]) + 1.0) / 2.0 * f64::from(SHADOW_MAP_SIZE);
+                let texels = (f64::from(at[index]) + 1.0) / 2.0 * f64::from(CASCADE_SIZE);
                 let expected = point.dot(*axis) / texel;
                 let apart = (texels - expected).rem_euclid(1.0);
                 assert!(
@@ -479,20 +560,94 @@ mod tests {
                 fov_y: fov_degrees.to_radians(),
                 ..camera(Vec3::ZERO, Vec3::new(0.2, 0.1, -1.0))
             };
-            let (center, radius) = view_sphere(&camera, aspect, 50.0);
-            let inverse = (camera.projection(aspect) * camera.view_from_eye())
-                .as_dmat4()
-                .inverse();
-            let mut largest = 0.0f64;
-            for depth in [1.0, f64::from(camera.near) / 50.0] {
-                for (x, y) in [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] {
-                    let corner = inverse.project_point3(glam::DVec3::new(x, y, depth));
-                    largest = largest.max(corner.distance(center));
+            // The whole view up to 50 m, then slices of it, as the cascades have them.
+            for (near, far) in [(camera.near, 50.0), (6.0, 14.0), (14.0, 30.0)] {
+                let (center, radius) = view_sphere(&camera, aspect, near, far);
+                let inverse = (camera.projection(aspect) * camera.view_from_eye())
+                    .as_dmat4()
+                    .inverse();
+                let mut largest = 0.0f64;
+                // Depth is the camera's near plane over the distance (ADR-0047).
+                for distance in [near, far] {
+                    let depth = f64::from(camera.near) / f64::from(distance);
+                    for (x, y) in [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] {
+                        let corner = inverse.project_point3(glam::DVec3::new(x, y, depth));
+                        largest = largest.max(corner.distance(center));
+                    }
                 }
+                assert!(
+                    largest <= radius * (1.0 + 1e-6) && largest >= radius * (1.0 - 1e-6),
+                    "{fov_degrees}°, {aspect}, {near} to {far} m: corners up to {largest} from \
+                     the center, radius {radius}"
+                );
             }
+        }
+    }
+
+    #[test]
+    fn the_cascades_split_the_distance_each_twice_as_deep_as_the_one_before() {
+        let camera = camera(Vec3::ZERO, Vec3::NEG_Z);
+        let slices: Vec<(f32, f32)> = (0..CASCADES)
+            .map(|index| cascade_slice(&camera, 30.0, index))
+            .collect();
+        assert_eq!(
+            slices,
+            [(camera.near, 2.0), (2.0, 6.0), (6.0, 14.0), (14.0, 30.0)]
+        );
+        // A distance nearer than the camera's near plane leaves slices of no depth there.
+        let short: Vec<(f32, f32)> = (0..CASCADES)
+            .map(|index| cascade_slice(&camera, 0.5, index))
+            .collect();
+        assert_eq!(short[0], (camera.near, camera.near));
+        assert_eq!(short[3], (7.0 / 30.0, 0.5));
+        // The tiles fill the atlas, 2 × 2.
+        let tiles: Vec<ShadowTile> = (0..CASCADES).map(cascade_tile).collect();
+        let tile = |x, y| ShadowTile { x, y, size: 2048 };
+        assert_eq!(
+            tiles,
+            [tile(0, 0), tile(2048, 0), tile(0, 2048), tile(2048, 2048)]
+        );
+    }
+
+    #[test]
+    fn each_cascade_covers_its_slice_and_keeps_the_boxes_that_reach_across_it() {
+        let direction = Vec3::new(-0.5, -1.0, -0.6);
+        let floor = (
+            Mat4::IDENTITY,
+            Vec3::new(0.0, -2.0, 0.0),
+            Vec3::new(100.0, 0.0, 100.0),
+        );
+        for forward in [Vec3::NEG_Z, Vec3::new(0.3, -0.8, 0.2)] {
+            let camera = camera(Vec3::new(3.0, 2.0, -1.0), forward);
+            let mut texels = Vec::new();
+            for index in 0..CASCADES {
+                let (near, far) = cascade_slice(&camera, 30.0, index);
+                let cascade = CascadeView::new(direction, &camera, ASPECT, near, far)
+                    .expect("the camera sees something");
+                texels.push(cascade.texel);
+                let matrix = cascade
+                    .view_projection([floor])
+                    .expect("the floor casts across every cascade");
+                let inverse = (camera.projection(ASPECT) * camera.view_from_eye()).inverse();
+                for distance in [near, far] {
+                    for (x, y) in [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] {
+                        let point = inverse.project_point3(Vec3::new(x, y, camera.near / distance));
+                        let at = projected(matrix, point);
+                        assert!(
+                            at.x.abs() <= 1.0 && at.y.abs() <= 1.0,
+                            "{forward}, cascade {index}: {point} at {at}"
+                        );
+                    }
+                }
+                // A cube under the slice's middle reaches across it; one 1 km beside it does not.
+                let middle = forward.normalize() * (near + far) / 2.0;
+                assert!(cascade.reaches(cube(middle)));
+                assert!(!cascade.reaches(cube(middle + Vec3::new(1000.0, 0.0, 0.0))));
+            }
+            // Each cascade's texels are finer than the next one's.
             assert!(
-                largest <= radius * (1.0 + 1e-6) && largest >= radius * (1.0 - 1e-6),
-                "{fov_degrees}°, {aspect}: corners up to {largest} from the center, radius {radius}"
+                texels.windows(2).all(|pair| pair[0] < pair[1]),
+                "{texels:?}"
             );
         }
     }
@@ -500,7 +655,7 @@ mod tests {
     #[test]
     fn spot_tiles_split_the_atlas_by_how_many_lights_cast_shadows() {
         assert_eq!(spot_tiles(0).count(), 0);
-        let tile = |x, y, size| SpotTile { x, y, size };
+        let tile = |x, y, size| ShadowTile { x, y, size };
         assert_eq!(spot_tiles(1).collect::<Vec<_>>(), [tile(0, 0, 2048)]);
         assert_eq!(
             spot_tiles(4).collect::<Vec<_>>(),
@@ -522,7 +677,7 @@ mod tests {
             ]
         );
         // Sixteen tiles fill the atlas without overlapping.
-        let tiles: Vec<SpotTile> = spot_tiles(MAX_LIGHTS).collect();
+        let tiles: Vec<ShadowTile> = spot_tiles(MAX_LIGHTS).collect();
         let mut covered = [false; 16];
         for tile in &tiles {
             assert_eq!(tile.size, 1024);

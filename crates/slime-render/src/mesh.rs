@@ -47,7 +47,7 @@ impl MeshData {
             }
         }
         // A value that is not finite would put a vertex nowhere, or shade it with NaN, and an
-        // infinite position would leave the scene's shadow map without a size.
+        // infinite position would leave the shadows' views without a size.
         fn not_finite(values: impl IntoIterator<Item = f32>) -> Option<f32> {
             values.into_iter().find(|value| !value.is_finite())
         }
@@ -103,7 +103,7 @@ impl MeshData {
     }
 
     /// The smallest and the largest coordinates of the positions along each axis: the corners of
-    /// the smallest box around them, which the shadow map is fitted to (ADR-0038).
+    /// the smallest box around them, which the shadows' views are fitted to (ADR-0038).
     fn bounds(&self) -> (Vec3, Vec3) {
         self.positions
             .iter()

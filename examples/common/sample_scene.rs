@@ -115,7 +115,7 @@ impl SampleScene {
     /// Draws the scene into `target` as `camera` sees it, its light multiplied by `exposure`
     /// ([`EXPOSURE`] for the sample), with a bloom of strength `bloom` ([`BLOOM`] for the sample)
     /// mixed in before tone mapping. The directional lights cast shadows as far as the far side of
-    /// the scene's bounds from the camera, and no farther: the shadow map covers the scene and
+    /// the scene's bounds from the camera, and no farther: the cascades cover the scene and
     /// nothing beyond it, as a game sets the distance for its own scenes (ADR-0050).
     ///
     /// # Errors

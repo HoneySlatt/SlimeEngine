@@ -54,6 +54,12 @@ origin: the renderer subtracts the eye from every position in `f64` on the CPU, 
 32-bit floats hold small numbers near the camera, as precise 10 km from the world's origin as at
 it ([ADR-0048](adr/0048-rendering-relative-to-the-camera.md)).
 
+**Cascade (cascaded shadow maps).** One of the *shadow maps* that together hold the shadows of a
+directional light: what the camera sees up to the light's shadow distance is split along its axis
+into slices, and each slice gets its own map, as many texels across for less ground near the camera,
+so that shadows there are finer. The renderer draws four, each twice as deep as the one before, in
+the tiles of one *shadow atlas* ([ADR-0064](adr/0064-cascaded-shadow-maps.md)).
+
 **Checks (the).** The automated checks of the *definition of done*, which `scripts/check.sh` runs
 and the Linux CI job runs unchanged: formatting, clippy (for Windows too), the build, the tests on
 lavapipe, rustdoc, the dependency rules, the samples without a display server and in a headless
@@ -425,15 +431,17 @@ renderer keeps nothing between frames, and the world model of Stage 5 will produ
 stored in the *shadow map* differ only by rounding or by the map's texels; a *depth bias* and a
 *normal offset* remove them.
 
-**Shadow atlas.** One *depth target* split into square tiles, each the *shadow map* of one light:
-how spot lights cast shadows ([ADR-0058](adr/0058-shadows-for-every-spot-light-in-one-atlas.md)).
+**Shadow atlas.** One *depth target* split into square tiles, each a *shadow map*: of one spot light
+([ADR-0058](adr/0058-shadows-for-every-spot-light-in-one-atlas.md)), or of one *cascade* of the
+directional light ([ADR-0064](adr/0064-cascaded-shadow-maps.md)), each in an atlas of its own.
 
 **Shadow map.** A *depth target* drawn from a light's point of view by a *depth-only pass*: a
 point is in shadow where something nearer to the light is stored at its place in the map. The
-renderer's is 2048 × 2048, drawn each frame for the first directional light that casts shadows,
-through an orthographic projection that covers what the camera sees up to the light's shadow
-distance, its texels on a grid fixed in the world ([ADR-0038](adr/0038-shadow-mapping.md),
-[ADR-0050](adr/0050-a-shadow-region-that-follows-the-camera.md)).
+renderer draws one each frame for each *cascade* of the first directional light that casts shadows,
+through an orthographic projection that covers the cascade's slice of what the camera sees, its
+texels on a grid fixed in the world ([ADR-0038](adr/0038-shadow-mapping.md),
+[ADR-0050](adr/0050-a-shadow-region-that-follows-the-camera.md)), and one for each spot light
+that casts shadows, in perspective.
 
 **Shape (of a frame).** What decides the renderer's passes and targets: the output's size, whether
 the shadow pass runs and whether the bloom's passes do. The *render graph* is built again, and its
