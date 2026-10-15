@@ -8,3 +8,6 @@
 *.jpg binary
 *.jpeg binary
 *.meta text eol=lf
+# The list of the sample game's source assets, which scripts/fetch-assets.sh reads line by line
+# and field by field: a carriage return would end up in its last field.
+*.tsv text eol=lf
