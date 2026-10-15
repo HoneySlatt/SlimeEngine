@@ -16,6 +16,9 @@ pub const MAX_LIGHTS: usize = 16;
 
 /// The size of one light's values, as `Light` in `shader.wgsl` lays them out: four 16-byte rows.
 pub(crate) const LIGHT_VALUES_SIZE: usize = 64;
+/// The tile index of a light that has no tile of the spot lights' shadow atlas (`NO_TILE` in
+/// `shader.wgsl`).
+pub(crate) const NO_TILE: u32 = u32::MAX;
 
 /// The kinds of light as the scene shader numbers them (`Light::kind` in `shader.wgsl`).
 const DIRECTIONAL: u32 = 0;
@@ -232,9 +235,10 @@ impl Light {
 
     /// Appends the values the scene shader reads for this light, laid out as `Light` in
     /// `shader.wgsl`: [`LIGHT_VALUES_SIZE`] bytes. What a kind of light does not use is zero, but
-    /// for the cone: a scale of 0 and an offset of 1 leave a point light's light whole. The
-    /// position is relative to `origin`, the camera's eye (ADR-0048), computed in `f64`.
-    pub(crate) fn push_values(&self, bytes: &mut Vec<u8>, origin: Vec3) {
+    /// for the cone, a scale of 0 and an offset of 1, which leave a point light's light whole, and
+    /// for `tile`, the index of the light's tile of the spot lights' shadow atlas, [`NO_TILE`] for
+    /// none. The position is relative to `origin`, the camera's eye (ADR-0048), computed in `f64`.
+    pub(crate) fn push_values(&self, bytes: &mut Vec<u8>, origin: Vec3, tile: u32) {
         let start = bytes.len();
         let (kind, color, intensity, position, range, direction, cone) = match *self {
             Self::Directional(light) => (
@@ -274,7 +278,8 @@ impl Light {
         push_f32s(bytes, &position.to_array());
         push_f32s(bytes, &[inverse_range_squared]);
         push_f32s(bytes, &direction.to_array());
-        push_f32s(bytes, &[cone.0, cone.1, 0.0, 0.0, 0.0]);
+        push_f32s(bytes, &[cone.0, cone.1]);
+        push_u32s(bytes, &[tile, 0, 0]);
         debug_assert_eq!(bytes.len() - start, LIGHT_VALUES_SIZE);
     }
 }
@@ -423,7 +428,7 @@ mod tests {
             outer_cone_angle: std::f32::consts::FRAC_PI_2,
             casts_shadows: true,
         })
-        .push_values(&mut bytes, Vec3::new(10_000.0, 0.0, 0.0));
+        .push_values(&mut bytes, Vec3::new(10_000.0, 0.0, 0.0), 3);
         assert_eq!(bytes.len(), LIGHT_VALUES_SIZE);
         let packed = words(&bytes);
         let floats: Vec<f32> = packed.iter().map(|&word| float(word)).collect();
@@ -441,12 +446,14 @@ mod tests {
         );
         // cos 0 = 1 and cos π/2 ≈ 0: the cone's attenuation is the cosine itself.
         assert!((floats[11] - 1.0).abs() < 1e-6 && floats[12].abs() < 1e-6);
-        assert_eq!(&floats[13..], &[0.0; 3]);
+        assert_eq!(u32::from_le_bytes(packed[13]), 3, "the tile");
+        assert_eq!(&floats[14..], &[0.0; 2]);
 
         let mut bytes = Vec::new();
-        Light::Point(PointLight::default()).push_values(&mut bytes, Vec3::ZERO);
+        Light::Point(PointLight::default()).push_values(&mut bytes, Vec3::ZERO, NO_TILE);
         let packed = words(&bytes);
         assert_eq!(u32::from_le_bytes(packed[3]), POINT);
+        assert_eq!(u32::from_le_bytes(packed[13]), NO_TILE, "no tile");
         assert_eq!(float(packed[7]), 0.0, "no range");
         assert_eq!(
             (float(packed[11]), float(packed[12])),
@@ -459,7 +466,7 @@ mod tests {
             direction: Vec3::new(0.0, 0.0, -5.0),
             ..DirectionalLight::default()
         })
-        .push_values(&mut bytes, Vec3::ZERO);
+        .push_values(&mut bytes, Vec3::ZERO, NO_TILE);
         let packed = words(&bytes);
         assert_eq!(u32::from_le_bytes(packed[3]), DIRECTIONAL);
         assert_eq!(
@@ -507,7 +514,7 @@ mod tests {
                 }),
             ] {
                 let mut bytes = Vec::new();
-                light.push_values(&mut bytes, Vec3::ZERO);
+                light.push_values(&mut bytes, Vec3::ZERO, NO_TILE);
                 let floats: Vec<f32> = words(&bytes).into_iter().map(float).collect();
                 assert_eq!(&floats[8..11], &[0.0, -1.0, 0.0], "{light:?}");
             }

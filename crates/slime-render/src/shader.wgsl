@@ -30,6 +30,9 @@ const MAX_LIGHTS: u32 = 16u;
 // Light::kind of a directional light. Point lights are 1u and spot lights 2u, which the shader
 // treats alike: a point light's cone values give 1 in every direction.
 const DIRECTIONAL: u32 = 0u;
+// Light::tile of a light without a tile of the spot lights' shadow atlas: NO_TILE in light.rs, which
+// a unit test compares with it.
+const NO_TILE: u32 = 0xffffffffu;
 // The square of the distance, in square metres, within which a point or spot light gives what it
 // gives 1 cm away, as Filament and Bevy do: the inverse square of the distance would grow without
 // bound at the light.
@@ -71,6 +74,20 @@ struct Light {
     // other lights: no cone.
     cone_scale: f32,
     cone_offset: f32,
+    // Spot lights that cast shadows: the index of their tile in FrameUniform::spot_tiles; NO_TILE
+    // for the other lights.
+    tile: u32,
+}
+
+// A spot light's tile of the shadow atlas (ADR-0058, ADR-0061), as the renderer packs it.
+struct SpotTile {
+    // From the frame's space to the tile's clip space: x and y from -1 to 1 across the tile, depth
+    // 0.05 m / d at a distance d along the light's axis (reversed and infinite, ADR-0047).
+    view_proj: mat4x4<f32>,
+    // The tile in the atlas's texture coordinates: its top left corner (x, y) and its side (z);
+    // and the width of its texels 1 m from the light along its axis, in metres (w): 2 tan(h) / N,
+    // h the angle from the axis to the tile's sides and N its side in texels.
+    place: vec4<f32>,
 }
 
 // Positions are in the frame's space: world space moved so that the camera's eye is at its origin
@@ -102,6 +119,9 @@ struct FrameUniform {
     to_sun: vec3<f32>,
     sun_radiance: vec3<f32>,
     lights: array<Light, MAX_LIGHTS>,
+    // The tiles of the spot lights that cast shadows, in the order of their lights; those beyond
+    // the last such light are not read.
+    spot_tiles: array<SpotTile, MAX_LIGHTS>,
 }
 @group(0) @binding(0) var<uniform> frame: FrameUniform;
 // The scene's environment, in nits (ADR-0039): level 0 the sky, level i prefiltered for a
@@ -159,6 +179,10 @@ struct InstanceUniform {
 // reversed, nearer is greater), blending the 2 x 2 nearest texels.
 @group(3) @binding(0) var shadow_map: texture_depth_2d;
 @group(3) @binding(1) var shadow_sampler: sampler_comparison;
+// The spot lights' shadow atlas: each tile the depths that its light reaches first, drawn by the spot
+// lights' shadow pass, compared through the same sampler. One texel, never read, when no spot light
+// has cast shadows yet.
+@group(3) @binding(2) var spot_atlas: texture_depth_2d;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -262,7 +286,8 @@ fn fs_main(
     input: VertexOutput,
     @builtin(front_facing) front_facing: bool,
 ) -> @location(0) vec4<f32> {
-    // Every texture is read first, in uniform control flow, before a fragment may be discarded.
+    // Every texture is read first, and the derivatives taken, in uniform control flow, before a
+    // fragment may be discarded.
     let base = material.base_color
         * textureSample(base_color_texture, base_color_sampler, input.uv);
     let metallic_roughness =
@@ -271,6 +296,12 @@ fn fs_main(
     let occlusion = textureSample(occlusion_texture, occlusion_sampler, input.uv).r;
     let emitted = material.emissive
         * textureSample(emissive_texture, emissive_sampler, input.uv).rgb;
+    // The normal of the triangle itself, flat, which spot lights' shadows are looked up off: the
+    // surface their tiles hold, where a smooth normal leans across a facet. A pixel that sees the
+    // triangle edge on has none, and moves the point nowhere.
+    let face = cross(dpdx(input.position), dpdy(input.position));
+    let face_squared = dot(face, face);
+    let geometric = select(vec3<f32>(0.0), face * inverseSqrt(face_squared), face_squared > 0.0);
     // glTF's MASK alpha mode: below the cutoff, nothing is drawn, not even depth.
     if base.a < material.alpha_cutoff {
         discard;
@@ -286,8 +317,9 @@ fn fs_main(
     if frame.shadowed_light < frame.light_count {
         shadow = light_reaching(input.light_position);
     }
-    // The loop's bound and each light are the same for every fragment: control flow stays
-    // uniform, and every light is evaluated whatever lies around it.
+    // The loop's bound and each light are the same for every fragment, and every light is
+    // evaluated whatever lies around it; a spot light's shadow is read only where its light
+    // reaches, at level 0, which control flow that differs between fragments allows.
     var direct = vec3<f32>(0.0);
     for (var i = 0u; i < frame.light_count; i += 1u) {
         let light = frame.lights[i];
@@ -311,6 +343,11 @@ fn fs_main(
             let window = saturate(1.0 - ratio * ratio);
             let cone = saturate(dot(light.direction, -l) * light.cone_scale + light.cone_offset);
             attenuation = window / max(distance_squared, MIN_DISTANCE_SQUARED) * cone * cone;
+            // A spot light's shadow, where its light reaches (ADR-0061).
+            if light.tile != NO_TILE && attenuation > 0.0 {
+                let tile = frame.spot_tiles[light.tile];
+                attenuation *= spot_light_reaching(light, tile, input.position, geometric, l);
+            }
         }
         direct += light.color * attenuation
             * reflected(base.rgb, metallic, roughness, normal, l, to_camera);
@@ -429,14 +466,69 @@ fn light_reaching(seen: vec3<f32>) -> f32 {
     // Clip space has y up, texture coordinates y down.
     let uv = seen.xy * vec2<f32>(0.5, -0.5) + 0.5;
     let texel = 1.0 / vec2<f32>(textureDimensions(shadow_map));
+    return compared(shadow_map, uv, depth, texel, vec2<f32>(0.0), vec2<f32>(1.0));
+}
+
+// The share of `map` that is lit for a point at `depth` seen at `uv`: the depth compared with the
+// map's at 3 x 3 points one texel apart, each comparison blending the 2 x 2 texels nearest to it
+// (percentage-closer filtering), so that a shadow's edge fades over three texels; each point kept
+// between `lowest` and `highest`, so that a tile of the atlas reads none of its neighbours'
+// texels. Sampled at level 0, without derivatives: allowed outside uniform control flow.
+fn compared(
+    map: texture_depth_2d,
+    uv: vec2<f32>,
+    depth: f32,
+    texel: vec2<f32>,
+    lowest: vec2<f32>,
+    highest: vec2<f32>,
+) -> f32 {
     var lit = 0.0;
     for (var y = -1; y <= 1; y += 1) {
         for (var x = -1; x <= 1; x += 1) {
-            let at = uv + vec2<f32>(f32(x), f32(y)) * texel;
-            lit += textureSampleCompareLevel(shadow_map, shadow_sampler, at, depth);
+            let at = clamp(uv + vec2<f32>(f32(x), f32(y)) * texel, lowest, highest);
+            lit += textureSampleCompareLevel(map, shadow_sampler, at, depth);
         }
     }
     return lit / 9.0;
+}
+
+// The share of the spot light `light` that reaches `position`, from 0 in shadow to 1, through its
+// tile of the atlas (ADR-0061): the point moved off its surface, whose unit normal is `normal`,
+// along it towards the light `l`, by NORMAL_OFFSET_TEXELS of the tile's texels at the point's
+// distance along the light's axis, times the sine of the light's incidence; then compared as the
+// directional light's shadow map is, within the tile. A point behind the light, or beyond the
+// tile's sides, outside what the tile sees, is lit.
+fn spot_light_reaching(
+    light: Light,
+    tile: SpotTile,
+    position: vec3<f32>,
+    normal: vec3<f32>,
+    l: vec3<f32>,
+) -> f32 {
+    // The tile's depths are distances along the light's axis, not along its rays: a surface
+    // tilted from facing the axis by an angle a lies up to 2.83 sin(a) / cos(i) texels' depth
+    // nearer at the filter's farthest points, i its incidence, and moved off itself by 3 sin(a)
+    // texels it lies 3 sin(a) / cos(i) nearer than its own surface along the ray: lit, as the
+    // directional light's normal offset keeps it, where the axis and the rays are one.
+    let facing_axis = dot(normal, -light.direction);
+    let sine = sqrt(max(1.0 - facing_axis * facing_axis, 0.0));
+    let along = dot(position - light.position, light.direction);
+    let texel_width = tile.place.w * max(along, 0.0);
+    let side = sign(dot(normal, l));
+    let offset = normal * (side * NORMAL_OFFSET_TEXELS * texel_width * sine);
+    let clip = tile.view_proj * vec4<f32>(position + offset, 1.0);
+    if clip.w <= 0.0 {
+        return 1.0;
+    }
+    let seen = clip.xyz / clip.w;
+    if any(abs(seen.xy) > vec2<f32>(1.0)) {
+        return 1.0;
+    }
+    let texel = 1.0 / vec2<f32>(textureDimensions(spot_atlas));
+    let uv = tile.place.xy + (seen.xy * vec2<f32>(0.5, -0.5) + 0.5) * tile.place.z;
+    let lowest = tile.place.xy + 0.5 * texel;
+    let highest = tile.place.xy + tile.place.z - 0.5 * texel;
+    return compared(spot_atlas, uv, seen.z, texel, lowest, highest);
 }
 
 // The unit normal a fragment is shaded with: the mesh's interpolated normal, tilted by the normal

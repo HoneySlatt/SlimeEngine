@@ -8,11 +8,11 @@ the GPU layer (`slime-gfx`).
 Partial: the physically based renderer of Stage 3b (`docs/PLAN.md`). It draws instances of meshes
 from a perspective camera, each with a material in glTF's metallic-roughness model, lit by
 directional, point and spot lights in physical units and by a procedural sky that surfaces reflect
-and that shows behind them, with the shadows of one directional light around the camera. It draws in
-high dynamic range, then exposes the light, spreads a bloom around it, tone maps it and dithers it
-into the output, and reports what each frame cost on the CPU and the GPU. It smooths the edges of
-what it draws with four samples per pixel. It does not yet blend transparent surfaces or leave out
-what the camera does not see.
+and that shows behind them, with the shadows of one directional light around the camera and of every
+spot light that casts them. It draws in high dynamic range, then exposes the light, spreads a bloom
+around it, tone maps it and dithers it into the output, and reports what each frame cost on the CPU
+and the GPU. It smooths the edges of what it draws with four samples per pixel. It does not yet
+blend transparent surfaces or leave out what the camera does not see.
 
 ## Role
 

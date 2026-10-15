@@ -15,16 +15,16 @@ Windows), paces frames with its own schedule and the Mailbox present mode by def
 work for capture tools, reports a GPU whose memory runs out as an error a game can handle, and stops
 cleanly when the GPU device is lost. Its renderer, `slime-render`, draws instances of meshes with
 glTF's metallic-roughness materials, lit by directional, point and spot lights in physical units
-(lux and candelas), with the shadows of a sun around the camera and the light of a procedural sky
-that surfaces reflect and that shows behind them; it draws in high dynamic range, at four samples
-per pixel so that edges are smooth, relative to the camera and with reversed depth so that large
-scenes keep their precision, then exposes the light, spreads a bloom around it, tone maps it and
-dithers it, into a window or into offscreen images that image tests compare with references. The
-`scene` example draws a glTF scene and its lights under a camera driven by the mouse, with the CPU
-time and the GPU time of each pass in a dev overlay. *Nightwatch* (`games/nightwatch`), a small
-stealth game made with the public API only, is the sample that every later stage grows. Stage 3d is
-under way: it has smoothed the edges, and gives spot lights their shadows next;
-[`docs/PLAN.md`](docs/PLAN.md) lists the known debt.
+(lux and candelas), with the shadows of a sun around the camera and of spot lights, and the light of
+a procedural sky that surfaces reflect and that shows behind them; it draws in high dynamic range,
+at four samples per pixel so that edges are smooth, relative to the camera and with reversed depth
+so that large scenes keep their precision, then exposes the light, spreads a bloom around it, tone
+maps it and dithers it, into a window or into offscreen images that image tests compare with
+references. The `scene` example draws a glTF scene and its lights under a camera driven by the
+mouse, with the CPU time and the GPU time of each pass in a dev overlay. *Nightwatch*
+(`games/nightwatch`), a small stealth game made with the public API only, is the sample that every
+later stage grows. Stage 3d is under way: edges are smooth and spot lights cast shadows, which
+*Nightwatch* shows next; [`docs/PLAN.md`](docs/PLAN.md) lists the known debt.
 
 ## Getting started
 
@@ -91,7 +91,8 @@ today has:
   later.
 - No world or scene graph: the game gives the renderer the list of what to draw at every frame.
 - A renderer without blended transparency or culling of what the camera does not see; with a
-  capped number of lights, and shadows from one directional light only.
+  capped number of lights, and shadows from one directional light and from spot lights, none from
+  point lights.
 - One window, which cannot go fullscreen, grab or hide the cursor, or report raw mouse motion; no
   gamepads, touch input or input methods.
 - A run that stops when the GPU device is lost.

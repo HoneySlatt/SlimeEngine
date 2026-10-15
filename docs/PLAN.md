@@ -13,16 +13,16 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3d — Anti-aliasing and the shadows of spot lights: planned on 2026-10-15 and validated by
-  the owner. M3d.1 is done; M3d.2 waits for its check on WARP by CI; M3d.3 is in progress.
+  the owner. M3d.1, M3d.2 and M3d.3 are done; M3d.4 waits for its check on WARP by CI.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
 | [M3d.1](#m3d1--multisampling-in-the-gpu-layer) | `slime-gfx` draws into targets of four samples and resolves them | Done |
-| [M3d.2](#m3d2--anti-aliasing-in-the-renderer) | The edges of the scene are smooth | In progress |
-| [M3d.3](#m3d3--spot-lights-shadows-what-each-tile-sees) | The renderer draws each spot light's tile of the shadow atlas | In progress |
-| [M3d.4](#m3d4--spot-lights-shadows-drawn-and-read) | Spot lights cast shadows | Planned |
+| [M3d.2](#m3d2--anti-aliasing-in-the-renderer) | The edges of the scene are smooth | Done |
+| [M3d.3](#m3d3--spot-lights-shadows-what-each-tile-sees) | The renderer draws each spot light's tile of the shadow atlas | Done |
+| [M3d.4](#m3d4--spot-lights-shadows-drawn-and-read) | Spot lights cast shadows | In progress |
 | [M3d.5](#m3d5--nightwatch-and-the-windows-check) | Nightwatch shows both, on Linux and Windows | Planned |
 
 Stages 0, 1, 2, 3a, 3b and 3c are done; see [Completed stages](#completed-stages).
@@ -110,14 +110,15 @@ lengthens `scripts/check.sh`.
   it; the image tests pass on lavapipe, an AMD GPU and WARP within ADR-0054's tolerance; the owner
   has chosen the resolve.
 - **How to test.** `cargo test --workspace`; `cargo run -p nightwatch`; the `scene` example.
-- **Checked so far** on 2026-10-15: the owner looked at *Nightwatch* with the plain average of the
+- **Checked** on 2026-10-15: the owner looked at *Nightwatch* with the plain average of the
   samples and with the weighted one, and kept the weighted one (ADR-0060). On lavapipe and an RX
   6900 XT (RADV): an edge between an emissive square and the black sky, a quarter of the way across
   a pixel, shows its samples weighed as ADR-0060 says; the analytic tests hold inside surfaces; the
   graph orders the resolve before what reads it; the reference images, rendered again on lavapipe,
   differ on RADV as before (77 pixels by more than 8 at most, of 131 allowed). With *Nightwatch* in
   a window of 1901 × 2082 on the RX 6900 XT, the scene pass costs the same, 375 µs, and the resolve
-  57 µs; the renderer holds 87 MiB more at 1920 × 1080. Waiting: WARP, by CI.
+  57 µs; the renderer holds 87 MiB more at 1920 × 1080. CI green on Linux and on Windows, WARP
+  included.
 
 ### M3d.3 — Spot lights' shadows: what each tile sees
 
@@ -135,12 +136,14 @@ lengthens `scripts/check.sh`.
   draws into two parts of one depth target, which a later pass samples. The directional light's
   shadow tests and the image tests hold unchanged.
 - **How to test.** `cargo test -p slime-gfx -p slime-render`.
-- **Checked so far** on 2026-10-15: ADR-0061; unit tests of the tiles of 0, 1, 4, 5 and 16 lights,
+- **Checked** on 2026-10-15: ADR-0061; unit tests of the tiles of 0, 1, 4, 5 and 16 lights,
   of a cone held by its tile with a margin of 6 texels at three sizes and angles, an 80° cut for a
   cone of π / 2, and of the instances kept and left out; a pass that draws into two halves of one
   depth target, read by a later pass, on lavapipe and an RX 6900 XT (RADV). The directional
   light's shadow tests and the image tests hold unchanged. In *Nightwatch*, on the RX 6900 XT, the
   five tiles cost 46 draws, of 155 without culling, and about 10 µs of GPU time.
+  CI green on Linux and on Windows, WARP included. Found by the checks, which run the renderer's
+  tests with glam's assertions on: the up vector of a tile's view must be of length one.
 
 ### M3d.4 — Spot lights' shadows: drawn and read
 
@@ -154,6 +157,15 @@ lengthens `scripts/check.sh`.
   that casts no shadows lights through; sixteen lights each get a tile; a masked cut-out casts the
   shape it cuts; the pass's CPU and GPU cost measured.
 - **How to test.** `cargo test -p slime-render` on the three drivers.
+- **Checked so far** on 2026-10-15: the tests of spot lights' shadows, on lavapipe and an RX 6900
+  XT (RADV): a square shadows a floor exactly where the light's rays through it land, its edge
+  left out over 1 cm; a floor that casts shadows, under lights leaning up to 60° from it, and a
+  sphere of 5 cm facets show what they show casting none; a light that casts no shadows lights
+  through and draws no tile; with 1, 4, 5 and 16 lights casting, the one that lights reads its own
+  tile; a cut-out casts nothing. Writing them found that a surface off a tile's axis shadows
+  itself when looked up by its incidence, and a coarse facet when looked up off its smooth normal:
+  ADR-0062. The glTF sample's spot light now shadows its sphere: its reference images are rendered
+  again. Waiting: WARP, by CI; the cost, measured with *Nightwatch* in M3d.5.
 
 ### M3d.5 — Nightwatch and the Windows check
 

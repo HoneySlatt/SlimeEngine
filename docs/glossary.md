@@ -307,7 +307,9 @@ the culling.
 towards the light, rather than pushing the stored depths back: the renderer moves it by three of
 the map's texels times the sine of the light's incidence, which keeps flat and curved surfaces from
 shadowing themselves while a shadow moves by at most three texels
-([ADR-0050](adr/0050-a-shadow-region-that-follows-the-camera.md)).
+([ADR-0050](adr/0050-a-shadow-region-that-follows-the-camera.md)). For a spot light's tile, whose
+depths run along the light's axis, the sine of the angle between the triangle's own normal and that
+axis replaces the incidence's ([ADR-0062](adr/0062-looking-spot-shadows-up-off-the-triangle.md)).
 
 **Normal texture.** A texture of normals in *tangent space*, which replace a mesh's normals to give
 it detail without more triangles: red along the tangent, green up the image, blue along the

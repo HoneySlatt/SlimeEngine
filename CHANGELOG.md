@@ -32,6 +32,13 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   renderer holds about 87 MiB more of GPU memory at 1920 × 1080, about 137 MiB in all.
 - `RenderPass::set_viewport` draws into part of a pass's targets, so that one pass can draw several
   views side by side.
+- Spot lights cast shadows: every one drawn that casts them, as `SpotLight::casts_shadows` says (on
+  by default), through a tile of one shadow atlas, sized by how many cast them, 2048 or 1024 texels
+  wide ([ADR-0058](docs/adr/0058-shadows-for-every-spot-light-in-one-atlas.md),
+  [ADR-0061](docs/adr/0061-projecting-the-shadows-of-spot-lights.md),
+  [ADR-0062](docs/adr/0062-looking-spot-shadows-up-off-the-triangle.md)). The atlas takes 64 MiB,
+  from the first frame in which a spot light casts shadows. `RenderStats::spot_shadow_draw_calls`
+  and `spot_shadow_gpu_time` give the cost of its pass, which the dev overlays show.
 
 ### Changed
 
