@@ -1,7 +1,7 @@
 # 0062. Looking spot lights' shadows up off the triangle
 
 - Status: Accepted; amends [0061](0061-projecting-the-shadows-of-spot-lights.md) (the normal
-  offset of spot lights)
+  offset of spot lights); amended by [0063](0063-a-smoother-shadow-filter.md) (the offset's texels)
 - Date: 2026-10-15
 
 ## Context

@@ -201,20 +201,31 @@ fn floor_shows(
 
 /// The share of a shadow at `u`, in texels along one of the map's axes, counted from the world's
 /// origin, where a caster covers from `from` to `to`: the texels whose centres it covers hold it,
-/// and the filter averages three comparisons one texel apart, each blending the two texels nearest
-/// to it. Where `from` and `to` are texel edges, the shadow ramps linearly over three texels
-/// centred on each.
+/// and Castaño's filter (ADR-0063) weighs three comparisons, each blending the two texels nearest
+/// to it, by weights that add up to 12, placed from the centre of the texel before the corner
+/// between texels nearest to `u`, as `compared` in `shader.wgsl` does, computed here apart.
 fn shadowed_along(u: f64, (from, to): (f64, f64)) -> f64 {
     let covered = |texel: f64| f64::from(u8::from(from < texel + 0.5 && texel + 0.5 < to));
-    [-1.0, 0.0, 1.0]
+    let blended = |at: f64| {
+        let at = at - 0.5;
+        let (texel, weight) = (at.floor(), at - at.floor());
+        (1.0 - weight) * covered(texel) + weight * covered(texel + 1.0)
+    };
+    let corner = (u + 0.5).floor();
+    let s = u + 0.5 - corner;
+    let first = corner - 0.5;
+    let weights = [4.0 - 3.0 * s, 7.0, 1.0 + 3.0 * s];
+    let places = [
+        (3.0 - 2.0 * s) / weights[0] - 2.0,
+        (3.0 + s) / weights[1],
+        s / weights[2] + 2.0,
+    ];
+    weights
         .iter()
-        .map(|offset| {
-            let at = u + offset - 0.5;
-            let (texel, weight) = (at.floor(), at - at.floor());
-            (1.0 - weight) * covered(texel) + weight * covered(texel + 1.0)
-        })
+        .zip(places)
+        .map(|(weight, place)| weight * blended(first + place))
         .sum::<f64>()
-        / 3.0
+        / 12.0
 }
 
 /// The axes of the shadow map of a light travelling along `direction`, across it, as the renderer
@@ -239,11 +250,11 @@ fn texel_width(camera: &Camera, distance: f32) -> f64 {
 }
 
 /// Where the shadow map is read for the floor's point `point` under a light arriving from
-/// `to_light`: the point moved along the floor's normal towards the light by 3 texels of `texel`
+/// `to_light`: the point moved along the floor's normal towards the light by 4.5 texels of `texel`
 /// metres times the sine of the light's incidence (`NORMAL_OFFSET_TEXELS` in `shader.wgsl`).
 fn looked_up(point: DVec3, to_light: DVec3, texel: f64) -> DVec3 {
     let cosine = DVec3::Z.dot(to_light);
-    point + DVec3::Z * (3.0 * texel * (1.0 - cosine * cosine).sqrt())
+    point + DVec3::Z * (4.5 * texel * (1.0 - cosine * cosine).sqrt())
 }
 
 /// What `squares`, given as transforms of the unit square, cover along each of the map's `axes`,
@@ -302,14 +313,14 @@ fn largest_differences(
 }
 
 #[test]
-fn a_square_above_a_floor_darkens_a_square_of_the_floor_blended_over_three_texels() {
+fn a_square_above_a_floor_darkens_a_square_of_the_floor_blended_over_six_texels() {
     let mut setup = Setup::new();
     let white = setup.white.clone();
     // A floor 256 m wide, and a square 1 m wide, 1.5 m above it and off its center, under a light
     // 45° from the normal that casts shadows up to 150 m from the camera: the map covers about
     // 250 m around it, in texels of about 12 cm. The square shadows x from 1 to 2 and y from 0.25 to
     // 1.25. The camera above the shadow's center sees 3.5 m of floor, 54 mm per pixel, the penumbra
-    // over 7 pixels, and not the square.
+    // over 13 pixels (6 texels, ADR-0063), and not the square.
     let side = 256.0;
     let (light, to_light) = sun(45.0, 0.4);
     let sun = (
@@ -356,8 +367,8 @@ fn a_square_above_a_floor_darkens_a_square_of_the_floor_blended_over_three_texel
              {elsewhere} outside the penumbra, {in_penumbra} in it",
             setup.gpu.adapter_name()
         );
-        // About 11 × 11 pixels: 1 m less the penumbra's 37 cm, of 54 mm pixels.
-        assert!(dark > 100, "{case}: {dark} pixels in full shadow");
+        // About 5 × 5 pixels: 1 m less the penumbra's 72 cm, of 54 mm pixels.
+        assert!(dark > 15, "{case}: {dark} pixels in full shadow");
         // Within 2 × 10⁻³ as `shown.rs` explains; in the penumbra 4 × 10⁻³, for GPUs that keep
         // the filter's weights in 8 bits: up to 1/256 of the light there.
         assert!(elsewhere <= 2e-3, "{case}: off by {elsewhere}");
@@ -586,7 +597,16 @@ fn a_masked_material_casts_no_shadow_where_it_discards() {
         .expect("the GPU has memory for it");
     let side = (SHADOW_MAP_SIZE / 8.0) as f32;
     let camera = camera_above(1.5, 0.0);
-    let sun = sun(45.0, 0.4);
+    // Shadows up to 20 m from the camera: texels of about 2 cm, so that the filter of a point
+    // under the middle of a half, and its normal offset, reach neither of the half's edges.
+    let (light, to_light) = sun(45.0, 0.4);
+    let sun = (
+        DirectionalLight {
+            shadow_distance: 20.0,
+            ..light
+        },
+        to_light,
+    );
     let (image, _) = setup.draw(
         camera,
         &[Light::Directional(sun.0)],

@@ -1,7 +1,8 @@
 # 0050. A shadow region that follows the camera
 
 - Status: Accepted; amends [0038](0038-shadow-mapping.md) and
-  [0049](0049-instances-that-cast-no-shadow.md)
+  [0049](0049-instances-that-cast-no-shadow.md); amended by
+  [0063](0063-a-smoother-shadow-filter.md) (the normal offset's texels)
 - Date: 2026-10-14
 
 ## Context

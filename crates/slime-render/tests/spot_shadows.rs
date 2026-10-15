@@ -165,9 +165,10 @@ fn a_square_under_a_spot_light_shadows_the_floor_where_its_rays_land() {
                 .abs()
                 .max_element()
                 - 0.5;
-            // The filter blends the shadow's edge over a few millimetres of the square: 1 cm on
-            // either side of it is left out.
-            if from_edge.abs() < 0.01 {
+            // The filter blends the shadow's edge over 6 of the tile's texels, about 1.4 cm at the
+            // square, which the normal offset moves by a few millimetres: 2 cm on either side of it
+            // is left out.
+            if from_edge.abs() < 0.02 {
                 continue;
             }
             checked += 1;
@@ -378,7 +379,8 @@ fn every_spot_light_reads_its_own_tile_however_many_cast_shadows() {
                     .abs()
                     .max_element()
                     - 0.5;
-                if from_edge.abs() < 0.01 {
+                // Tiles of 1024 texels blend the edge over 2.5 cm at the square.
+                if from_edge.abs() < 0.03 {
                     continue;
                 }
                 let expected = if from_edge < 0.0 {

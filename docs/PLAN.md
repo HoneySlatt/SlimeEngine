@@ -13,8 +13,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3d — Anti-aliasing and the shadows of spot lights: planned on 2026-10-15 and validated by
-  the owner. M3d.1, M3d.2 and M3d.3 are done; M3d.4 waits for its check on WARP by CI; M3d.5 is in
-  progress.
+  the owner. M3d.1 to M3d.4 are done; M3d.6, a smoother shadow filter, is in progress, before
+  M3d.5's check in the Windows virtual machine.
 
 ## Status
 
@@ -23,8 +23,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M3d.1](#m3d1--multisampling-in-the-gpu-layer) | `slime-gfx` draws into targets of four samples and resolves them | Done |
 | [M3d.2](#m3d2--anti-aliasing-in-the-renderer) | The edges of the scene are smooth | Done |
 | [M3d.3](#m3d3--spot-lights-shadows-what-each-tile-sees) | The renderer draws each spot light's tile of the shadow atlas | Done |
-| [M3d.4](#m3d4--spot-lights-shadows-drawn-and-read) | Spot lights cast shadows | In progress |
+| [M3d.4](#m3d4--spot-lights-shadows-drawn-and-read) | Spot lights cast shadows | Done |
 | [M3d.5](#m3d5--nightwatch-and-the-windows-check) | Nightwatch shows both, on Linux and Windows | In progress |
+| [M3d.6](#m3d6--a-smoother-shadow-filter) | Shadows' edges fade smoothly | In progress |
 
 Stages 0, 1, 2, 3a, 3b and 3c are done; see [Completed stages](#completed-stages).
 
@@ -158,7 +159,7 @@ lengthens `scripts/check.sh`.
   that casts no shadows lights through; sixteen lights each get a tile; a masked cut-out casts the
   shape it cuts; the pass's CPU and GPU cost measured.
 - **How to test.** `cargo test -p slime-render` on the three drivers.
-- **Checked so far** on 2026-10-15: the tests of spot lights' shadows, on lavapipe and an RX 6900
+- **Checked** on 2026-10-15: the tests of spot lights' shadows, on lavapipe and an RX 6900
   XT (RADV): a square shadows a floor exactly where the light's rays through it land, its edge
   left out over 1 cm; a floor that casts shadows, under lights leaning up to 60° from it, and a
   sphere of 5 cm facets show what they show casting none; a light that casts no shadows lights
@@ -167,8 +168,9 @@ lengthens `scripts/check.sh`.
   itself when looked up by its incidence, and a coarse facet when looked up off its smooth normal:
   ADR-0062. The glTF sample's spot light now shadows its sphere: its reference images are rendered
   again. With *Nightwatch* in a window of 947 × 1028 on the RX 6900 XT, the scene pass takes 104 µs
-  with its five spot lights' tiles read, 99 µs before, and the spot lights' pass about 9 µs.
-  Waiting: WARP, by CI.
+  with its five spot lights' tiles read, 99 µs before, and the spot lights' pass about 9 µs. CI
+  green on Linux and on Windows, WARP included: FXC compiles the lookup in the loop over the
+  lights.
 
 ### M3d.5 — Nightwatch and the Windows check
 
@@ -184,6 +186,29 @@ lengthens `scripts/check.sh`.
 - **Checked so far** on 2026-10-15: the lamps cast no shadow, and a floodlight's light stands
   30 cm out of its lamp along its aim, where its pole no longer hides it; looked at offscreen, walls
   and crates cut the floodlights' pools and the flashlights' beams.
+
+### M3d.6 — A smoother shadow filter
+
+Added on 2026-10-15, after the owner played *Nightwatch* at 3840 × 2160 with smooth edges and saw
+the steps of the moon's shadows still: multisample anti-aliasing smooths the edges of triangles,
+not those that a shadow map's texels draw.
+
+- **Goal.** Shadows' edges fade smoothly.
+- **Crates.** `slime-render`.
+- **Delivers.** Castaño's filter over 5 × 5 texels for every shadow, a normal offset and tiles'
+  margins grown for its reach; the shadow tests modelling it; the reference images rendered again;
+  the ADR.
+- **Done when.** The shadow tests match the new filter's model; the floors and spheres shadow
+  nothing of themselves; the image tests pass on the three drivers.
+- **How to test.** `cargo test -p slime-render`; *Nightwatch* at 3840 × 2160.
+- **Checked so far** on 2026-10-15: ADR-0063; the shadow tests' model of the filter, computed apart
+  from the shader, matches its shadows within 5.3 × 10⁻⁴, outside and inside the penumbra, on
+  lavapipe and an RX 6900 XT (RADV); the spot lights' tests hold with an edge band of 2 cm; the
+  reference images rendered again, which RADV matches as before. On *Nightwatch* at 3840 × 2160,
+  the filter softens the steps of the moon's shadows along the crates' feet but does not remove
+  them: they run nearly along the texels, longer than the filter reaches; texels half as wide, with
+  the moon's shadows over 15 m instead of 30, halve them. Finer texels near the camera are what
+  cascaded shadow maps give: their timing goes to the owner.
 
 ## Releasing
 

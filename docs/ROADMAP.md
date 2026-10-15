@@ -187,6 +187,7 @@ The stage comes right after 0.1 (it was added by ADR-0052) and has no release of
 - Multisample anti-aliasing (four samples) on the scene pass
 - Shadow maps for spot lights: every spot light drawn may cast shadows, each through a tile of one atlas, sized by how many cast them (ADR-0058)
 - The cost of the scene pass on Direct3D 12, measured with FXC and with DXC against Vulkan's (ADR-0057)
+- A smoother filter for the shadows of every light (ADR-0063)
 
 The stage comes right after Stage 3c and has no release of its own; what it delivers is released with 0.2.
 

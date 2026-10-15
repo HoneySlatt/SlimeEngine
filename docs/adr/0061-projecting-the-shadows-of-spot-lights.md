@@ -2,7 +2,7 @@
 
 - Status: Accepted; amends [0038](0038-shadow-mapping.md) (the shadow pass reads its view from a
   buffer of views); amended by [0062](0062-looking-spot-shadows-up-off-the-triangle.md) (the
-  normal offset of spot lights)
+  normal offset of spot lights) and by [0063](0063-a-smoother-shadow-filter.md) (the tiles' margin)
 - Date: 2026-10-15
 
 ## Context

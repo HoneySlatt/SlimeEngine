@@ -304,10 +304,11 @@ flattened along one axis. It is negated for a *mirrored instance*, by the same t
 the culling.
 
 **Normal offset.** Looking a point up in the *shadow map* moved off its surface along its normal,
-towards the light, rather than pushing the stored depths back: the renderer moves it by three of
-the map's texels times the sine of the light's incidence, which keeps flat and curved surfaces from
-shadowing themselves while a shadow moves by at most three texels
-([ADR-0050](adr/0050-a-shadow-region-that-follows-the-camera.md)). For a spot light's tile, whose
+towards the light, rather than pushing the stored depths back: the renderer moves it by 4.5 of the
+map's texels times the sine of the light's incidence, which keeps flat and curved surfaces from
+shadowing themselves while a shadow moves by at most 4.5 texels
+([ADR-0050](adr/0050-a-shadow-region-that-follows-the-camera.md),
+[ADR-0063](adr/0063-a-smoother-shadow-filter.md)). For a spot light's tile, whose
 depths run along the light's axis, the sine of the angle between the triangle's own normal and that
 axis replaces the incidence's ([ADR-0062](adr/0062-looking-spot-shadows-up-off-the-triangle.md)).
 
@@ -331,12 +332,13 @@ well ([ADR-0052](adr/0052-amend-roadmap-before-0-1.md)).
 **Percentage-closer filtering (PCF).** Reading a *shadow map* by comparing a point's depth with
 several stored depths around it and averaging the results, so that the edges of shadows are soft
 instead of blocky. A *comparison sampler* with linear filtering does it over 2 × 2 pixels in the
-GPU; the renderer makes 3 × 3 such comparisons one texel apart, so that a shadow's edge fades
-over three texels ([ADR-0038](adr/0038-shadow-mapping.md)).
+GPU; the renderer makes nine such comparisons over 5 × 5 texels, placed and weighed as Castaño
+proposed, so that a shadow's edge fades smoothly over about six texels
+([ADR-0063](adr/0063-a-smoother-shadow-filter.md)).
 
 **Peter-panning.** A shadow that starts a little away from the object that casts it, because the
 *depth bias* pushes the stored depths back, or the *normal offset* moves the point looked up: in
-the renderer, by up to three of the shadow map's texels.
+the renderer, by up to 4.5 of the shadow map's texels.
 
 **Physical key.** The position of a key on the keyboard, whatever the layout
 (`slime_platform::KeyCode`), named after the character it produces on a US keyboard: the first

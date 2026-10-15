@@ -956,28 +956,29 @@ impl Renderer {
     /// high-dynamic-range target of four samples per pixel with the depth test, so that nearer
     /// surfaces hide farther ones whatever their order, each surface shaded by the scene's light
     /// with glTF's metallic-roughness model and its material's textures, the shadowed light's only
-    /// where the shadow map holds nothing nearer to it, looked up at most 3 texels off the surface
-    /// along its normal, compared at 3 × 3 points one texel apart so that its edges fade over three
-    /// texels, and culled or not as its material and its transform ask (ADR-0035), the scene's
-    /// environment reflected as its material reflects it (ADR-0039), its light multiplied by the
-    /// scene's exposure (ADR-0037). Each spot light that casts shadows lights a point only where
-    /// its tile holds nothing nearer to it, looked up off the triangle by up to 3 of the tile's
-    /// texels and compared as the directional light's map is (ADR-0061, ADR-0062); point lights
-    /// cast no shadows. The sky pass draws the environment, exposed, where no surface was drawn,
-    /// with its sun's disc. The resolve pass then averages the samples of each pixel, each weighed
-    /// by 1 / (1 + its brightest channel), which smooths the edges of what both passes drew, the
-    /// bright ones too (ADR-0056, ADR-0060). Unless `scene.bloom` is 0 or `target` is smaller than
-    /// 15 × 15, the bloom's passes filter that light down into levels of half the size of the one
-    /// before, to a side of at least 8 texels, with Jimenez's 13-tap filter, then average them back
-    /// up through 3 × 3 tents, every level with the same weight, into a blurred copy (ADR-0040): 11
-    /// passes at 1280 × 720, 13 at 1920 × 1080. The tone-mapping pass then mixes the blurred copy
-    /// in by `scene.bloom`, maps that light to the range a display shows with Khronos PBR Neutral,
-    /// which lowers a color whose channels all lie between 0.08 and 0.8 by 0.04, a darker one less,
-    /// and compresses a brighter one towards 1 and turns it towards white, dithers it when `target`
-    /// has 8 bits per channel, with noise of up to one step that keeps its average and leaves black
-    /// and white as they are (ADR-0051), and writes it into `target`, opaque. A render graph orders
-    /// the passes, and they are recorded in that order, four to a submission named after `target`
-    /// (ADR-0041); the work runs on the GPU after this method returns.
+    /// where the shadow map holds nothing nearer to it, looked up at most 4.5 texels off the
+    /// surface along its normal, compared through a filter over 5 × 5 texels so that its edges fade
+    /// smoothly over about six texels (ADR-0063), and culled or not as its material and its
+    /// transform ask (ADR-0035), the scene's environment reflected as its material reflects it
+    /// (ADR-0039), its light multiplied by the scene's exposure (ADR-0037). Each spot light that
+    /// casts shadows lights a point only where its tile holds nothing nearer to it, looked up off
+    /// the triangle by up to 4.5 of the tile's texels and compared as the directional light's map
+    /// is (ADR-0061, ADR-0062); point lights cast no shadows. The sky pass draws the environment,
+    /// exposed, where no surface was drawn, with its sun's disc. The resolve pass then averages the
+    /// samples of each pixel, each weighed by 1 / (1 + its brightest channel), which smooths the
+    /// edges of what both passes drew, the bright ones too (ADR-0056, ADR-0060). Unless
+    /// `scene.bloom` is 0 or `target` is smaller than 15 × 15, the bloom's passes filter that light
+    /// down into levels of half the size of the one before, to a side of at least 8 texels, with
+    /// Jimenez's 13-tap filter, then average them back up through 3 × 3 tents, every level with the
+    /// same weight, into a blurred copy (ADR-0040): 11 passes at 1280 × 720, 13 at 1920 × 1080. The
+    /// tone-mapping pass then mixes the blurred copy in by `scene.bloom`, maps that light to the
+    /// range a display shows with Khronos PBR Neutral, which lowers a color whose channels all lie
+    /// between 0.08 and 0.8 by 0.04, a darker one less, and compresses a brighter one towards 1 and
+    /// turns it towards white, dithers it when `target` has 8 bits per channel, with noise of up to
+    /// one step that keeps its average and leaves black and white as they are (ADR-0051), and
+    /// writes it into `target`, opaque. A render graph orders the passes, and they are recorded in
+    /// that order, four to a submission named after `target` (ADR-0041); the work runs on the GPU
+    /// after this method returns.
     ///
     /// The high-dynamic-range and depth targets are created at the size of `target` the first
     /// time, and again whenever that size changes; the bloom's levels (4.7 MiB at 1280 × 720,

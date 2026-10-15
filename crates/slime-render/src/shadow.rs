@@ -156,9 +156,9 @@ pub(crate) const SPOT_WIDEST: f32 = 1.396_263_4;
 
 /// How many texels a tile sees beyond its light's cone on each side, so that the filter of a point
 /// at the cone's edge, looked up off its surface, still reads the tile's own texels: the filter
-/// reaches a texel and a half from the point, which the normal offset moves by up to three
+/// reads texels up to three from the point (ADR-0063), which the normal offset moves by up to 4.5
 /// (`NORMAL_OFFSET_TEXELS` in `shader.wgsl`, ADR-0061).
-const TILE_MARGIN_TEXELS: u32 = 6;
+const TILE_MARGIN_TEXELS: u32 = 8;
 
 /// A tile of the spot lights' shadow atlas: its top left texel and its side, in texels.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -579,7 +579,7 @@ mod tests {
         // A cone of π / 2 is seen up to 80° from its axis.
         let wide = SpotView::new(&spot(origin, direction, FRAC_PI_2, None), origin, 1024);
         let cone = SPOT_WIDEST.tan();
-        assert!((wide.tan_half / cone - 1024.0 / 1012.0).abs() < 1e-5);
+        assert!((wide.tan_half / cone - 1024.0 / 1008.0).abs() < 1e-5);
     }
 
     #[test]

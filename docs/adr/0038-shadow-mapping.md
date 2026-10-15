@@ -9,9 +9,9 @@
   reversed, its comparison and bias), by [0049](0049-instances-that-cast-no-shadow.md)
   (instances that cast no shadow; points beyond the map lit) and by
   [0050](0050-a-shadow-region-that-follows-the-camera.md) (the map follows the camera; a normal
-  offset instead of the slope-scaled bias) and by
+  offset instead of the slope-scaled bias), by
   [0061](0061-projecting-the-shadows-of-spot-lights.md) (the shadow pass reads its view from a
-  buffer of views)
+  buffer of views) and by [0063](0063-a-smoother-shadow-filter.md) (the filter)
 - Date: 2026-10-13
 
 ## Context

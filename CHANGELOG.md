@@ -45,6 +45,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - `RenderPipelineDescriptor` has a new field, `multisampled`, and `RenderPassDescriptor` one,
   `resolve`: a literal written in full names them, `false` and `None` for what it drew before.
 - `SpotLight` has a new field, `casts_shadows`, on by default: a literal written in full names it.
+- Shadows are filtered over 5 × 5 texels, as Castaño proposed, where they were filtered over 3 × 3:
+  their edges fade smoothly over about six texels, and a shadow moves off its caster by up to 4.5
+  texels ([ADR-0063](docs/adr/0063-a-smoother-shadow-filter.md)).
 
 ## [0.1.0] - 2026-10-14
 

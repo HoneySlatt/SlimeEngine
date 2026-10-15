@@ -226,13 +226,13 @@ fn vs_main(input: VertexInput) -> VertexOutput {
 }
 
 // How many of the shadow map's texels a surface is looked up away from itself, along its normal,
-// times the sine of the shadowed light's incidence (ADR-0050). The filter compares a point with
-// texels up to two texels away along each axis of the map, 2.83 diagonally, where a surface tilted
-// by an angle t from facing the light lies up to 2.83 tan(t) texels' depth nearer to the light;
-// moved by 3 sin(t) texels along its normal, the point lies 3 tan(t) texels' depth nearer than
-// its own surface, whatever t: no surface shadows itself, flat or curved, while a shadow moves by
-// at most 3 texels.
-const NORMAL_OFFSET_TEXELS: f32 = 3.0;
+// times the sine of the shadowed light's incidence (ADR-0050, ADR-0063). The filter compares a
+// point with texels up to three texels away along each axis of the map, 4.24 diagonally, where a
+// surface tilted by an angle t from facing the light lies up to 4.24 tan(t) texels' depth nearer to
+// the light; moved by 4.5 sin(t) texels along its normal, the point lies 4.5 tan(t) texels' depth
+// nearer than its own surface, whatever t: no surface shadows itself, flat or curved, while a
+// shadow moves by at most 4.5 texels.
+const NORMAL_OFFSET_TEXELS: f32 = 4.5;
 
 // Where the shadowed light sees the point `position` of a surface whose normal is `normal`, of any
 // length, in the shadow map's clip space: the point moved towards the light along the normal by
@@ -451,10 +451,8 @@ fn fs_sky(input: SkyVertex) -> @location(0) vec4<f32> {
 }
 
 // The share of the shadowed light that reaches `position`, from 0 in shadow to 1: its depth seen
-// from the light compared with the shadow map's at 3 x 3 points one texel apart, each comparison
-// blending the 2 x 2 texels nearest to it (percentage-closer filtering), so that a shadow's edge
-// fades over three texels. Sampled at level 0, without derivatives: allowed outside uniform
-// control flow.
+// from the light compared with the shadow map's through `compared`, whose filter fades a shadow's
+// edge smoothly over about six texels (ADR-0063).
 fn light_reaching(seen: vec3<f32>) -> f32 {
     // Beyond the map's sides, outside the region around the camera, shadows end (ADR-0050): the
     // point is lit. Beyond its far end, at depths below 0, a point lies behind every caster that
@@ -469,11 +467,14 @@ fn light_reaching(seen: vec3<f32>) -> f32 {
     return compared(shadow_map, uv, depth, texel, vec2<f32>(0.0), vec2<f32>(1.0));
 }
 
-// The share of `map` that is lit for a point at `depth` seen at `uv`: the depth compared with the
-// map's at 3 x 3 points one texel apart, each comparison blending the 2 x 2 texels nearest to it
-// (percentage-closer filtering), so that a shadow's edge fades over three texels; each point kept
-// between `lowest` and `highest`, so that a tile of the atlas reads none of its neighbours'
-// texels. Sampled at level 0, without derivatives: allowed outside uniform control flow.
+// The share of `map` that is lit for a point at `depth` seen at `uv`, through Castaño's filter over
+// 5 x 5 texels (ADR-0063): nine comparisons of the depth with the map's, each blending the 2 x 2
+// texels nearest to it (percentage-closer filtering), placed and weighed so that together they
+// weigh each texel by a smooth bump around the point, three texels wide on each side. A shadow's
+// edge then fades smoothly over about four texels, where comparisons one texel apart, equally
+// weighed, left the staircase of its texels showing. Each comparison is kept between `lowest` and
+// `highest`, so that a tile of the atlas reads none of its neighbours' texels. Sampled at level 0,
+// without derivatives: allowed outside uniform control flow.
 fn compared(
     map: texture_depth_2d,
     uv: vec2<f32>,
@@ -482,14 +483,30 @@ fn compared(
     lowest: vec2<f32>,
     highest: vec2<f32>,
 ) -> f32 {
+    // In texels: the corner between texels nearest to the point, and where the point lies from
+    // the texel centre before it, 0 to 1 along each axis.
+    let at = uv / texel;
+    let corner = floor(at + 0.5);
+    let s = at + 0.5 - corner;
+    let first = corner - 0.5;
+    // Along each axis, three comparisons' weights, which add up to 12, and their places from the
+    // texel centre before the corner (Castaño, "Shadow Mapping Summary", 2013).
+    var weights = array<vec2<f32>, 3>(4.0 - 3.0 * s, vec2<f32>(7.0), 1.0 + 3.0 * s);
+    var places = array<vec2<f32>, 3>(
+        (3.0 - 2.0 * s) / weights[0] - 2.0,
+        (3.0 + s) / weights[1],
+        s / weights[2] + 2.0,
+    );
     var lit = 0.0;
-    for (var y = -1; y <= 1; y += 1) {
-        for (var x = -1; x <= 1; x += 1) {
-            let at = clamp(uv + vec2<f32>(f32(x), f32(y)) * texel, lowest, highest);
-            lit += textureSampleCompareLevel(map, shadow_sampler, at, depth);
+    for (var y = 0; y < 3; y += 1) {
+        for (var x = 0; x < 3; x += 1) {
+            let place = vec2<f32>(places[x].x, places[y].y);
+            let tap = clamp((first + place) * texel, lowest, highest);
+            let weight = weights[x].x * weights[y].y;
+            lit += weight * textureSampleCompareLevel(map, shadow_sampler, tap, depth);
         }
     }
-    return lit / 9.0;
+    return lit / 144.0;
 }
 
 // The share of the spot light `light` that reaches `position`, from 0 in shadow to 1, through its
