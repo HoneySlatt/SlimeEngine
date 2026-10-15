@@ -108,6 +108,10 @@ fn main() -> Result<(), RenderError> {
   is returned as `RenderError::InvalidMesh`. `Renderer::create_material(gpu, label,
   &MaterialData)` creates a `Material` with glTF's metallic-roughness model, its textures given as
   `SampledTexture`s. Meshes, materials and environments are shared by their clones.
+- `Renderer::create_texture(gpu, label, &TextureData)` uploads a texture cooked by the asset
+  pipeline, read from a directory of cooked data with `slime_assets::CookedAssets::texture`: BC7,
+  BC5 or 8-bit texels, every level as the cooker made it (ADR-0071). Normal textures are read by
+  their x and y, z rebuilt, so that BC5 serves.
 - `Scene::new(camera, &instances)` and `Instance::new(mesh, material, transform)` make what a
   frame draws; their other fields, such as the scene's `lights`, `environment`, `exposure` and
   `bloom`, or whether an instance casts shadows, are set once they are made (ADR-0046).
@@ -142,6 +146,8 @@ errors.
 ## Dependencies
 
 - `slime-gfx`: the GPU objects and the render passes.
+- `slime-assets`: the cooked data of the asset pipeline, which the renderer turns into its own GPU
+  objects (ADR-0069).
 - `glam`: vectors, matrices and quaternions.
 - `thiserror`: derives `RenderError`'s `Display` and `Error` implementations.
 - `tracing`: logging.

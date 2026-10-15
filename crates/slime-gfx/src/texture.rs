@@ -63,8 +63,8 @@ impl Gpu {
     ///
     /// # Panics
     ///
-    /// If `format` is `Rgba16Float` or block-compressed, whose textures take levels the caller gives
-    /// ([`Gpu::create_texture_with_levels`]); if `width` or `height` is
+    /// If `format` is `Rgba16Float` or block-compressed, whose textures take levels the caller
+    /// gives ([`Gpu::create_texture_with_levels`]); if `width` or `height` is
     /// zero or larger than the device allows ([`Gpu::max_texture_dimension`], 8192 with the
     /// default limits); or if `pixels` does not hold `width * height * 4` bytes.
     pub fn create_texture(
@@ -291,9 +291,9 @@ impl Gpu {
 
 impl Gpu {
     /// Whether the GPU can sample textures of the block-compressed formats
-    /// ([`TextureFormat::is_block_compressed`]): whether it has BC texture compression. Every desktop
-    /// GPU of Linux and Windows has it, and lavapipe and WARP too; `crates/slime-gfx/tests/blocks.rs`
-    /// checks it on the drivers the tests run on.
+    /// ([`TextureFormat::is_block_compressed`]): whether it has BC texture compression. Every
+    /// desktop GPU of Linux and Windows has it, and lavapipe and WARP too;
+    /// `crates/slime-gfx/tests/blocks.rs` checks it on the drivers the tests run on.
     pub fn can_sample_bc(&self) -> bool {
         self.device
             .features()

@@ -22,6 +22,7 @@ mod tone_curve;
 
 use std::f32::consts::PI;
 
+use slime_assets::{TextureData, TextureEncoding};
 use slime_gfx::{
     AddressMode, Filter, FloatImage, Gpu, LinearColor, RenderTarget, Sampler, SamplerDescriptor,
     Texture, TextureFormat,
@@ -223,11 +224,11 @@ fn with_normal_texture(
     )
 }
 
-/// The decoded, normalized normal of a normal texture's texel.
+/// The decoded normal of a normal texture's texel: its x and y, and z rebuilt from them, as the
+/// renderer reads it, its blue unread.
 fn decoded(texel: [u8; 4]) -> DVec3 {
-    DVec3::new(texel[0].into(), texel[1].into(), texel[2].into())
-        .map(|channel| channel / 255.0 * 2.0 - 1.0)
-        .normalize()
+    let [x, y] = [texel[0], texel[1]].map(|channel| f64::from(channel) / 255.0 * 2.0 - 1.0);
+    DVec3::new(x, y, (1.0 - x * x - y * y).max(0.0).sqrt())
 }
 
 #[test]
@@ -422,6 +423,42 @@ fn the_metallic_roughness_texture_gives_roughness_in_green_and_metallic_in_blue(
         expected(surface, DVec3::Z, Vec3::Z, 0.4, 3.0),
         "metallic 1, roughness 128/255",
     );
+}
+
+#[test]
+fn a_normal_texture_of_two_channels_in_bc5_blocks_shades_as_one_of_three() {
+    let mut setup = Setup::new();
+    // BC5 blocks of one value per channel: each half of a block, two equal values and indices 0,
+    // decodes to that value: the x and y of TOWARDS_TANGENT, whose z the renderer rebuilds.
+    let [x, y, _, _] = TOWARDS_TANGENT;
+    let block = [x, x, 0, 0, 0, 0, 0, 0, y, y, 0, 0, 0, 0, 0, 0];
+    let texture = setup
+        .renderer
+        .create_texture(
+            &setup.gpu,
+            "bc5",
+            &TextureData {
+                width: 4,
+                height: 4,
+                encoding: TextureEncoding::Bc5,
+                levels: vec![block.to_vec(); 3],
+            },
+        )
+        .expect("the GPU can sample BC5 blocks");
+    assert_eq!(texture.format(), TextureFormat::Bc5RgUnorm);
+    let material = setup.material(&MaterialData {
+        normal_texture: Some(setup.sampled(&texture)),
+        ..MaterialData::default()
+    });
+    let image = setup.draw(
+        camera(3.0),
+        lighting(Vec3::Z, PI / 2.0, 0.0),
+        &[(&material, Mat4::IDENTITY)],
+    );
+    let light = expected(WHITE, decoded(TOWARDS_TANGENT), Vec3::Z, PI / 2.0, 3.0);
+    assert_shows(&image, CENTER, light, "BC5");
+    let three = with_normal_texture(&mut setup, TOWARDS_TANGENT, 1.0, Mat4::IDENTITY, Vec3::Z);
+    assert_shows(&three, CENTER, light, "8-bit texels");
 }
 
 #[test]

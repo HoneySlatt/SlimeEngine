@@ -8,6 +8,7 @@
 use std::time::{Duration, Instant};
 
 use glam::{DMat4, Mat3, Mat4, Vec3};
+use slime_assets::{TextureData, TextureEncoding};
 use slime_gfx::{
     AddressMode, BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource,
     BindingType, ComparisonSampler, CullMode, DepthBias, DepthCompare, DepthState, DepthTarget,
@@ -865,6 +866,41 @@ impl Renderer {
     /// the caller. A clear sky stays below about 30 000 nits away from the sun.
     pub fn create_environment(&self, gpu: &Gpu, sky: &Sky) -> Result<Environment, RenderError> {
         Ok(Environment::new(gpu, sky)?)
+    }
+
+    /// Uploads a cooked texture, every level as the cooker made it, in the GPU format of its
+    /// encoding: BC7 with or without sRGB, BC5, or 8-bit texels with or without sRGB. A game reads
+    /// it from its cooked data with `slime_assets::CookedAssets::texture`, and gives it, with a
+    /// sampler, to a material's slot of the same kind: colors (sRGB) or data. `label` names it in
+    /// error messages and in GPU capture tools.
+    ///
+    /// # Errors
+    ///
+    /// [`RenderError::Gfx`] with [`GfxError::UnsupportedTexture`] for a texture of blocks on a GPU
+    /// that cannot sample them, which no desktop GPU of Linux and Windows is; with
+    /// [`GfxError::OutOfMemory`] if the GPU's memory cannot hold it, or with
+    /// [`GfxError::DeviceLost`] once the device is lost.
+    ///
+    /// # Panics
+    ///
+    /// If `data`'s levels are not those of its size and encoding, which a texture read from a
+    /// cooked file always has, or if it is larger than the device allows
+    /// ([`Gpu::max_texture_dimension`]).
+    pub fn create_texture(
+        &self,
+        gpu: &Gpu,
+        label: &str,
+        data: &TextureData,
+    ) -> Result<Texture, RenderError> {
+        let format = match data.encoding {
+            TextureEncoding::Bc7Srgb => TextureFormat::Bc7RgbaUnormSrgb,
+            TextureEncoding::Bc7 => TextureFormat::Bc7RgbaUnorm,
+            TextureEncoding::Bc5 => TextureFormat::Bc5RgUnorm,
+            TextureEncoding::Rgba8Srgb => TextureFormat::Rgba8UnormSrgb,
+            TextureEncoding::Rgba8 => TextureFormat::Rgba8Unorm,
+        };
+        let levels: Vec<&[u8]> = data.levels.iter().map(Vec::as_slice).collect();
+        Ok(gpu.create_texture_with_levels(label, data.width, data.height, format, &levels)?)
     }
 
     /// Uploads a mesh: 48 bytes per vertex and 4 per index. `label` names its buffers in error

@@ -14,7 +14,7 @@ it is built this way.
 ├── Cargo.lock           the exact version of every dependency, checked in
 ├── crates/              engine crates, one directory per crate, named after the package
 │   ├── slime-app/       application lifecycle and main loop
-│   ├── slime-assets/    assets as games load them: asset IDs
+│   ├── slime-assets/    assets as games load them: asset IDs, cooked data, the manifest
 │   ├── slime-cook/      the asset pipeline's cooker, a library and its program
 │   ├── slime-devui/     dev overlay (egui), temporary tooling
 │   ├── slime-gfx/       GPU layer (wgpu)
@@ -49,9 +49,9 @@ created only when code needs it.
 | [`slime-platform`](../crates/slime-platform/README.md) | The window, its events and keyboard and mouse input; the only crate that uses the windowing library (winit) | `winit`, `raw-window-handle`, `thiserror`, `tracing` | One window; window, keyboard and mouse events |
 | [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `slime-platform`, `slime-gfx`, `ctrlc`, `thiserror`, `tracing`, `tracing-subscriber` | Headless runs, and windowed runs drawn by the GPU |
 | [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu, apart from the dev overlay through its `wgpu` feature | `wgpu`, `pollster`, `raw-window-handle`, `thiserror`, `tracing` | Opens a GPU device; draws into offscreen images, 8-bit or 16-bit float, and reads them back; draws into a window; later passes sample what earlier ones drew; depth-only passes; images of four samples per pixel, resolved for anti-aliasing; textures and cube textures whose levels the caller gives, half-precision floats and BC7 and BC5 blocks among their formats |
-| [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, lit by directional, point and spot lights, seen from a camera, into render targets, and reports what a frame cost; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `glam`, `thiserror`, `tracing` | Meshes with tangents, simple shapes made in code (a cube, a sphere, a square), glTF's metallic-roughness materials (five textures, masks, double-sided), a perspective camera, the depth test, up to 16 directional, point and spot lights in physical units (`KHR_lights_punctual`), a procedural sky computed on the CPU that surfaces reflect (image-based lighting) and that is drawn behind them with its sun's disc, the shadows of the first directional light that casts them (four cascades in one atlas, filtered over 5 × 5 texels) and of every spot light that casts them (a tile each of one atlas), mirrored instances drawn with their front faces, the scene drawn in HDR with its light exposed, at four samples per pixel (multisample anti-aliasing), an energy-conserving bloom, then tone mapped, the passes ordered by a render graph and recorded four to a submission, statistics with the GPU time of each pass |
-| [`slime-assets`](../crates/slime-assets/README.md) | The assets as games load them: asset IDs, and, as Stage 4a builds them, cooked data and its manifest ([ADR-0069](adr/0069-the-asset-pipeline.md)); headless | `thiserror` | The asset ID and its text form, a UUID |
-| [`slime-cook`](../crates/slime-cook/README.md) | The cooker: turns source assets into cooked data before games run; a library and its program, which no game links ([ADR-0069](adr/0069-the-asset-pipeline.md)) | `slime-assets`, `blake3`, `uuid`, `thiserror` | IDs for source files in metadata files beside them, their check, and the IDs of the assets inside a file |
+| [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, lit by directional, point and spot lights, seen from a camera, into render targets, and reports what a frame cost; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `slime-assets`, `glam`, `thiserror`, `tracing` | Textures cooked by the asset pipeline, BC7 and BC5 among them, normal textures read by x and y; meshes with tangents, simple shapes made in code (a cube, a sphere, a square), glTF's metallic-roughness materials (five textures, masks, double-sided), a perspective camera, the depth test, up to 16 directional, point and spot lights in physical units (`KHR_lights_punctual`), a procedural sky computed on the CPU that surfaces reflect (image-based lighting) and that is drawn behind them with its sun's disc, the shadows of the first directional light that casts them (four cascades in one atlas, filtered over 5 × 5 texels) and of every spot light that casts them (a tile each of one atlas), mirrored instances drawn with their front faces, the scene drawn in HDR with its light exposed, at four samples per pixel (multisample anti-aliasing), an energy-conserving bloom, then tone mapped, the passes ordered by a render graph and recorded four to a submission, statistics with the GPU time of each pass |
+| [`slime-assets`](../crates/slime-assets/README.md) | The assets as games load them: asset IDs, cooked data and its manifest, read by ID from a directory of cooked data ([ADR-0069](adr/0069-the-asset-pipeline.md)); headless | `ktx2`, `thiserror` | The asset ID and its text form, a UUID; cooked textures in KTX2 files ([ADR-0071](adr/0071-cooked-textures.md)); the manifest; reading textures by ID |
+| [`slime-cook`](../crates/slime-cook/README.md) | The cooker: turns source assets into cooked data before games run; a library and its program, which no game links ([ADR-0069](adr/0069-the-asset-pipeline.md)) | `slime-assets`, `blake3`, `block_compression`, `png`, `uuid`, `zune-jpeg`, `thiserror` | IDs for source files in metadata files beside them, their check, and the IDs of the assets inside a file; PNG and JPEG images cooked into textures compressed in BC7 or BC5, every level computed; a directory cooked again only where it changed, with its manifest |
 | [`slime-devui`](../crates/slime-devui/README.md) | The dev overlay: egui drawn over the engine's frames, fed with the engine's events; tooling, removed once something does at least as well ([ADR-0052](adr/0052-amend-roadmap-before-0-1.md)) | `egui`, `egui-wgpu`, `slime-gfx` (with its `wgpu` feature), `slime-platform` | Panels over a frame; no clipboard or input methods |
 | [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `gltf`, `png`, `tracing` | `hello`, `headless`, `window`, `offscreen`, `scene`; the reference image tests; a temporary glTF loader |
 | [`hunnawood`](../games/hunnawood/README.md) | Hunna Wood, the game that every stage grows from Stage 4a on; a client of the engine through its public API only, not part of the engine ([ADR-0055](adr/0055-games-in-the-workspace.md), [ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)) | `slime-app`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `tracing` | A test ground made in code, the camera behind the hero, the hero's movement and its collisions with boxes turned about the vertical and cylinders |
@@ -72,6 +72,7 @@ hunnawood  ──▶ slime-app, slime-render, slime-platform, slime-gfx, slime-d
 nightwatch ──▶ the same
 
 slime-cook ──▶ slime-assets
+slime-render ──▶ slime-assets (cooked data)
 ```
 
 - Dependencies between crates point one way: `slime-app` depends on `slime-platform` and
@@ -91,8 +92,8 @@ slime-cook ──▶ slime-assets
   ([ADR-0055](adr/0055-games-in-the-workspace.md)).
 - `slime-assets` depends on no engine crate and on no GPU, so that it runs headless; the cooker,
   `slime-cook`, depends on it, and no game links the cooker
-  ([ADR-0069](adr/0069-the-asset-pipeline.md)). From Stage 4a's images on, `slime-render` depends
-  on `slime-assets` to load its own kinds of asset.
+  ([ADR-0069](adr/0069-the-asset-pipeline.md)). `slime-render` depends on `slime-assets` to turn
+  cooked data into its own GPU objects: each system loads its own kinds of asset.
 - Only `slime-platform` uses winit, and winit's types never appear in a public API
   ([ADR-0011](adr/0011-windowing-with-winit.md)). `slime_platform::Window` exposes the
   `raw-window-handle` traits so that graphics libraries can draw into it.
@@ -495,6 +496,32 @@ pass of frame 42 appears as `window, frame 42`, and `RenderPass::debug_group` na
 commands inside it; the samples' triangle is drawn in a group named `triangle`. On Vulkan, debug
 builds pass these names to the driver, and release builds do with `WGPU_DEBUG=1`; Direct3D 12
 receives them in every build ([ADR-0016](adr/0016-gpu-layer-with-wgpu.md)).
+
+### Cooking and loading a texture
+
+The asset pipeline ([ADR-0069](adr/0069-the-asset-pipeline.md),
+[ADR-0071](adr/0071-cooked-textures.md)) runs in two programs: the cooker before the game, the
+game after it. Nothing passes between them but files.
+
+```text
+slime-cook cook <sources> <output>                     the cooker's program, before the game runs
+└── slime_cook::cook(sources, output)
+    ├── scan(sources, GiveIds)                         every source file and its ID, from the
+    │                                                  `.meta` beside it, given if it has none
+    ├── for each image: name = BLAKE3(role, ID, bytes, cooker's version)
+    │   ├── output/<name>.ktx2 there already?         reused: nothing is cooked again
+    │   └── otherwise image::decode                    PNG or JPEG into 8-bit texels
+    │       └── texture::cook_texture(image, role)     every level, averaged for the role, then
+    │           └── TextureData::to_ktx2               BC7 or BC5 blocks on every thread; written
+    │                                                  under a temporary name, then renamed
+    └── Manifest::to_bytes ──▶ output/manifest         each asset's kind, file, size, source
+
+the game, at startup
+├── slime_assets::CookedAssets::open(output)          reads the manifest
+├── assets.texture(id)                                 reads <name>.ktx2 into a TextureData
+└── renderer.create_texture(gpu, label, &data)         slime-render: the GPU format of its
+                                                       encoding, every level as cooked
+```
 
 ### Losing the GPU
 

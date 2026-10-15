@@ -282,7 +282,7 @@ fn fs_main(
         * textureSample(base_color_texture, base_color_sampler, input.uv);
     let metallic_roughness =
         textureSample(metallic_roughness_texture, metallic_roughness_sampler, input.uv);
-    let encoded_normal = textureSample(normal_texture, normal_sampler, input.uv).xyz;
+    let encoded_normal = textureSample(normal_texture, normal_sampler, input.uv).xy;
     let occlusion = textureSample(occlusion_texture, occlusion_sampler, input.uv).r;
     let emitted = material.emissive
         * textureSample(emissive_texture, emissive_sampler, input.uv).rgb;
@@ -588,12 +588,12 @@ fn spot_light_reaching(
 
 // The unit normal a fragment is shaded with: the mesh's interpolated normal, tilted by the normal
 // texture in tangent space (x along the tangent, y along the bitangent, up the texture's image,
-// z along the normal), and turned around on a face seen from behind, which only double-sided
-// materials draw (glTF).
+// z along the normal, rebuilt from x and y), and turned around on a face seen from behind, which
+// only double-sided materials draw (glTF).
 fn shading_normal(
     normal: vec3<f32>,
     tangent: vec4<f32>,
-    encoded: vec3<f32>,
+    encoded: vec2<f32>,
     front_facing: bool,
 ) -> vec3<f32> {
     var n = normalize(normal);
@@ -605,8 +605,12 @@ fn shading_normal(
         // glTF's bitangent, cross(normal, tangent) times w, built per fragment from the
         // interpolated normal, as MikkTSpace recommends.
         let b = cross(n, t) * tangent.w;
-        let scale = vec3<f32>(material.normal_scale, material.normal_scale, 1.0);
-        n = normalize(mat3x3<f32>(t, b, n) * normalize((encoded * 2.0 - 1.0) * scale));
+        // The texture's x and y; its z is rebuilt from them, the normal being of length one, so
+        // that a texture of two channels (BC5) serves as well as one of three: blue is not read.
+        let xy = encoded * 2.0 - 1.0;
+        let z = sqrt(max(1.0 - dot(xy, xy), 0.0));
+        let tilted = vec3<f32>(xy * material.normal_scale, z);
+        n = normalize(mat3x3<f32>(t, b, n) * normalize(tilted));
     }
     // A mirrored instance's front faces wind clockwise on screen: the rasterizer calls them back
     // faces.

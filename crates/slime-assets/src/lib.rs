@@ -1,14 +1,24 @@
-//! SlimeEngine's assets as games load them: the identity of an asset, and, as Stage 4a builds
-//! them, the cooked data that the cooker makes and the manifest that lists it
-//! (`docs/adr/0069-the-asset-pipeline.md`).
+//! SlimeEngine's assets as games load them: the identity of an asset, the cooked data that the
+//! cooker makes, and the manifest that lists it (`docs/adr/0069-the-asset-pipeline.md`). A game
+//! opens a directory of cooked data with [`CookedAssets::open`] and reads its assets by ID.
 //!
 //! An *asset* is data that a game loads rather than builds in code: a texture, a mesh, a material,
 //! a scene. Each has an [`AssetId`], which stays the same when its source file is moved or renamed.
 //! This crate depends on no other engine crate and on no GPU, so that it runs headless; the
 //! cooker, `slime-cook`, makes what it reads.
 
+mod cooked;
+mod error;
+mod manifest;
+mod texture;
+
 use std::fmt;
 use std::str::FromStr;
+
+pub use cooked::CookedAssets;
+pub use error::{CookedError, LoadError};
+pub use manifest::{AssetKind, MANIFEST_FILE, Manifest, ManifestEntry};
+pub use texture::{TextureData, TextureEncoding};
 
 /// The identity of an asset: a 128-bit number, written as a UUID.
 ///

@@ -1,6 +1,7 @@
 # 0032. Mipmaps computed by the engine when a texture is created
 
 - Status: Accepted; amended by [0039](0039-image-based-lighting-computed-on-the-cpu.md) (callers may give a texture's levels)
+  and [0071](0071-cooked-textures.md) (cooked textures carry their levels)
 - Date: 2026-10-13
 
 ## Context

@@ -62,8 +62,10 @@ pub struct MaterialData<'a> {
     pub metallic_roughness_texture: Option<SampledTexture<'a>>,
     /// Normals in tangent space ([`MeshData::tangents`](crate::MeshData::tangents)), which replace
     /// the mesh's: red for x, along the tangent; green for y, along the bitangent, up the texture's
-    /// image; blue for z, along the mesh's normal; each from −1 to 1 stored as 0 to 1 (glTF).
-    /// `Rgba8Unorm`.
+    /// image; each from −1 to 1 stored as 0 to 1 (glTF). Blue is not read: z, along the mesh's
+    /// normal, is rebuilt from x and y, the normal being of length one, so that a two-channel
+    /// `Bc5RgUnorm` texture, as the cooker makes normal maps, serves as well as `Rgba8Unorm`
+    /// (ADR-0071).
     pub normal_texture: Option<SampledTexture<'a>>,
     /// Multiplies the x and y of the normal texture's normals: 0 keeps the mesh's normal. Not used
     /// without a normal texture.

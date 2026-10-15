@@ -11,4 +11,5 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+ktx2.workspace = true
 thiserror.workspace = true

@@ -35,16 +35,17 @@ pub enum TextureFormat {
     /// [`Gpu::create_cube_texture`]), not by [`Gpu::create_texture`], whose levels are computed
     /// from 8-bit pixels.
     Rgba16Float,
-    /// Red, green, blue and alpha in BC7 blocks of 4 × 4 texels, 16 bytes each, one byte per texel,
-    /// with sRGB encoding: textures of colors made by the asset pipeline's cooker, which shaders read
-    /// decoded to linear values. Textures only, from levels the caller gives
-    /// ([`Gpu::create_texture_with_levels`]), on GPUs that can sample them ([`Gpu::can_sample_bc`]).
+    /// Red, green, blue and alpha in BC7 blocks of 4 × 4 texels, 16 bytes each, one byte per
+    /// texel, with sRGB encoding: textures of colors made by the asset pipeline's cooker, which
+    /// shaders read decoded to linear values. Textures only, from levels the caller gives
+    /// ([`Gpu::create_texture_with_levels`]), on GPUs that can sample them
+    /// ([`Gpu::can_sample_bc`]).
     Bc7RgbaUnormSrgb,
     /// The same blocks, linear: textures of data that are not colors.
     Bc7RgbaUnorm,
     /// Red and green in BC5 blocks of 4 × 4 texels, 16 bytes each, linear: two channels of 8 bits
-    /// each, compressed apart, which shaders read with blue 0 and alpha 1; the cooker stores the x and
-    /// y of normal maps in them.
+    /// each, compressed apart, which shaders read with blue 0 and alpha 1; the cooker stores the x
+    /// and y of normal maps in them.
     Bc5RgUnorm,
 }
 

@@ -557,6 +557,9 @@ terminal), SIGTERM (a service manager or `kill`) or SIGHUP (the terminal closing
 stops a run cleanly; a second one, half a second or more later, ends the process at once
 ([ADR-0012](adr/0012-clean-shutdown-on-termination-signals.md)).
 
+**Texture role.** What a cooked texture is used for: colors, data or normals, which sets how the
+cooker averages its levels and compresses it ([ADR-0071](adr/0071-cooked-textures.md)).
+
 **Timestamp query.** A GPU feature that writes the GPU's clock at a point of its command stream;
 two of them, around a render pass, give its *GPU time* (`slime_gfx::GpuTimer`). Optional: the
 device asks for it only when the adapter offers it (`Gpu::can_time`,

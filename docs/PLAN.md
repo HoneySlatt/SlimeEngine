@@ -20,9 +20,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 - After Stage 3d's measurements, on 2026-10-15: Direct3D 12 compiles shaders with DXC when its
   library lies beside the program, as it does beside the Windows programs that CI builds
   ([ADR-0066](adr/0066-shipping-dxc-beside-the-programs.md)).
-- Stage 4a — Cooked assets: planned on 2026-10-15 and validated by the owner. M4a.1 and M4a.2 done
-  on 2026-10-15: *Hunna Wood* runs on a test ground, and every source asset has an ID of its own.
-  Next: M4a.3.
+- Stage 4a — Cooked assets: planned on 2026-10-15 and validated by the owner. M4a.1 to M4a.3 done
+  on 2026-10-15: *Hunna Wood* runs on a test ground, every source asset has an ID of its own, and
+  images cook into compressed textures that the renderer draws. Next: M4a.4.
 
 ## Status
 
@@ -30,7 +30,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 |---|---|---|
 | [M4a.1](#m4a1--hunna-woods-skeleton) | *Hunna Wood* runs: the hero walks a test ground in the third person | Done |
 | [M4a.2](#m4a2--asset-identity) | Every source file has an ID that survives a move | Done |
-| [M4a.3](#m4a3--images) | PNG and JPEG files become compressed textures that the renderer draws | Planned |
+| [M4a.3](#m4a3--images) | PNG and JPEG files become compressed textures that the renderer draws | Done |
 | [M4a.4](#m4a4--gltf) | glTF files become cooked meshes, materials and scenes | Planned |
 | [M4a.5](#m4a5--the-sample-scene-through-the-pipeline) | The `scene` example draws cooked data; the temporary loader is deleted | Planned |
 | [M4a.6](#m4a6--the-zones-sources) | The zone exists as source assets that anyone can fetch and cook | Planned |
@@ -152,8 +152,9 @@ artifact, which grows by the cooked zone.
   files written and read; the cache and the manifest; the compressed formats in `slime-gfx`, which
   asks the device for them and sizes levels in blocks of 4 × 4 texels; textures created by
   `slime-render` from cooked ones, normal maps in BC5 whose third component the shader rebuilds; the
-  encoder's speed measured on a texture of 4096 texels; `scripts/check.sh` cooking twice from empty
-  caches and comparing; the ADR on cooked textures; the documents.
+  encoder's speed measured on a texture of 4096 texels; the ADR on cooked textures; the documents.
+  `scripts/check.sh` cooks with the glTF importer, at M4a.4, when the sample has sources the cooker
+  takes.
 - **Done when.** Tests: cooking twice gives the same bytes; cooking a third time cooks nothing;
   changing one image cooks only its textures again; a BC7 texture sampled on lavapipe, an AMD GPU
   and WARP matches its decoded levels; a texture whose side is not a multiple of four stays
@@ -169,7 +170,9 @@ artifact, which grows by the cooked zone.
   images by ID, `KHR_lights_punctual`, `KHR_materials_emissive_strength`, node names and `extras`;
   tangents computed with MikkTSpace; primitives compacted to the vertices they name; limits on what
   one file may make the cooker allocate; the temporary loader's tests moved to the importer; the
-  cooked formats of meshes, materials and scenes, which `slime-render` loads; the documents.
+  cooked formats of meshes, materials and scenes, which `slime-render` loads; textures of data and
+  of normals for the materials' slots, under IDs derived from their images'; `scripts/check.sh`
+  cooking the sample twice from empty directories and comparing; the documents.
 - **Done when.** The loader's tests pass against the importer; MikkTSpace tangents match Blender's
   within a tolerance on a test mesh; two primitives that share attributes keep only the vertices
   each names; a file past the limits is refused with a message that says which; `extras` arrive as
@@ -367,11 +370,18 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **The dev overlay blends in an sRGB framebuffer.** egui prefers a linear one for its blending,
   warns once at startup, and its panels look slightly lighter than egui's own demos (ADR-0031).
   Harmless for tooling.
-- **Mipmaps are computed on the CPU when a texture is created** (`Gpu::create_texture`, whose
-  documentation gives the cost), on the calling thread, in work proportional to the texture's pixels
-  (ADR-0032): a level of tens of large textures waits seconds. A caller with levels of its own gives
-  them to `Gpu::create_texture_with_levels` (ADR-0039). To move to the GPU, or to the asset pipeline
-  of Stage 4.
+- **Mipmaps of textures made in code are computed on the CPU when they are created**
+  (`Gpu::create_texture`, whose documentation gives the cost), on the calling thread, in work
+  proportional to the texture's pixels (ADR-0032): a level of tens of large textures waits seconds.
+  A caller with levels of its own gives them to `Gpu::create_texture_with_levels` (ADR-0039), as
+  cooked textures do, whose levels the cooker computed (ADR-0071).
+- **Cooked bytes are the same from one cook to the next on one platform, not across platforms**
+  (ADR-0071): the cooker computes the sRGB curve with the platform's mathematical functions, which
+  may round differently on Linux and Windows. Tests compare decoded values across platforms; a
+  table of the curve's values would make the bytes the same everywhere.
+- **A cook reads and hashes every source file at every run**, and cooked files that no source makes
+  any more stay in the output directory (ADR-0071): nothing records a source's size and time to
+  skip unchanged ones, nor cleans the output. To measure on *Hunna Wood*'s zone.
 - **Every offscreen render target and depth target can be sampled** (ADR-0033): they all carry the
   usage that allows it, which may cost some compression on some GPUs. Measured at M3b.5 on an RX
   6900 XT (RADV), with two builds that differ only by it: no cost (the scene pass took 43.9 µs

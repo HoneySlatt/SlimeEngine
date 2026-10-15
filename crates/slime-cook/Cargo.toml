@@ -12,6 +12,9 @@ workspace = true
 
 [dependencies]
 blake3.workspace = true
+block_compression.workspace = true
+png.workspace = true
 slime-assets.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
+zune-jpeg.workspace = true

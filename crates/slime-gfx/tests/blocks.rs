@@ -1,7 +1,7 @@
 //! Textures of the block-compressed formats, BC7 and BC5: blocks encoded on the CPU and read back
 //! from every level of the texture as `textureLoad` gives them, compared with the CPU's decoding of
-//! the same blocks. Runs on whatever adapter the machine offers, like `device.rs`; the checks run it
-//! on lavapipe and CI on WARP, so that every driver the project tests samples them.
+//! the same blocks. Runs on whatever adapter the machine offers, like `device.rs`; the checks run
+//! it on lavapipe and CI on WARP, so that every driver the project tests samples them.
 
 use block_compression::decode::decompress_blocks_as_rgba8;
 use block_compression::encode::compress_rgba8;

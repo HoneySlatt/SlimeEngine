@@ -25,6 +25,13 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   levels the caller gives (`Gpu::create_texture_with_levels`). The device asks for BC compression
   when the GPU has it; `Gpu::can_sample_bc` tells, and a compressed texture on a GPU without it is
   refused with `GfxError::UnsupportedTexture`, which names the GPU.
+- The cooker cooks PNG and JPEG images into textures ([ADR-0071](docs/adr/0071-cooked-textures.md)):
+  `slime-cook cook <sources> <output>` computes every level of detail of each image, in linear
+  light for colors, compresses them in BC7 blocks, and writes them to KTX2 files in `output`, with
+  a manifest; a second cook cooks only what changed. A game opens that directory with
+  `slime_assets::CookedAssets`, reads a texture by its image's ID, and uploads it with
+  `Renderer::create_texture`. A texture of 2048 × 2048 texels takes about a second to cook in a
+  release build.
 - *Nightwatch*, the first game made with the engine, through its public API only, in
   `games/nightwatch` ([ADR-0055](docs/adr/0055-games-in-the-workspace.md)): so far, a courtyard at
   night under the moon, which the player, a small glowing slime, crosses with the keyboard, stopped
@@ -59,6 +66,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- The renderer reads a normal texture's x and y only, from red and green, and rebuilds z, the
+  normal being of length one as glTF asks: two-channel BC5 textures serve as normal textures, and
+  their blue is not read ([ADR-0071](docs/adr/0071-cooked-textures.md)).
 - `RenderPipelineDescriptor` has a new field, `multisampled`, and `RenderPassDescriptor` one,
   `resolve`: a literal written in full names them, `false` and `None` for what it drew before.
 - `SpotLight` has a new field, `casts_shadows`, on by default: a literal written in full names it.

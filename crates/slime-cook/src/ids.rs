@@ -62,8 +62,8 @@ const CONTEXT: &str = "SlimeEngine 2026-10-15 the ID of an asset inside a source
 /// Each ID is derived from the file's ID, the kind and the name, with BLAKE3's key derivation, so
 /// that it stays the same as long as the sub-asset keeps its name, wherever it moves in the file. A
 /// sub-asset without a name, or with an empty one, or whose name another of the list shares, takes
-/// its index in the list instead. The IDs are UUIDs of version 8, which a random file ID, of version
-/// 4, never equals.
+/// its index in the list instead. The IDs are UUIDs of version 8, which a random file ID, of
+/// version 4, never equals.
 ///
 /// ```
 /// use slime_assets::AssetId;
