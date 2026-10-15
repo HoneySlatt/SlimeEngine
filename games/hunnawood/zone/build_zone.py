@@ -46,7 +46,7 @@ HERO = os.path.join(ASSETS, "zone", "hero.gltf")
 # The day is overcast: a sun of 12 000 lux behind the clouds, from the south-west, 48 degrees
 # high. The night is lit by the moon, the lanterns and the campfire.
 SUN = (12_000.0, (0.5, 0.5, -0.8), (1.0, 0.97, 0.92))
-MOON = (0.3, (-0.4, 0.3, -0.85), (0.62, 0.72, 1.0))
+MOON = (0.8, (-0.4, 0.3, -0.85), (0.62, 0.72, 1.0))
 
 
 def arguments():

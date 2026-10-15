@@ -1,6 +1,6 @@
-//! What the player sees: the zone on an overcast day and the hero, drawn by the engine's renderer
-//! from the cooked data and the game's state. The GPU objects are made once, when the window opens,
-//! and kept for every frame and every new game.
+//! What the player sees: the zone and the hero, on an overcast day or at night, drawn by the
+//! engine's renderer from the cooked data and the game's state. The GPU objects are made once,
+//! when the window opens, and kept for every frame and every new game.
 
 use slime_app::AppError;
 use slime_assets::CookedAssets;
@@ -23,11 +23,31 @@ const OVERCAST: Sky = Sky {
     ground: LinearColor::rgb(540.0, 530.0, 500.0),
     sun: None,
 };
-/// What the scene's light is multiplied by: a white matte surface facing the sun, which receives
-/// about 17 000 lux from it and the sky, shows at about 0.7, the light of a grey day.
-const EXPOSURE: f32 = std::f32::consts::PI / 25_000.0;
+/// What the scene's light is multiplied by by day: a white matte surface facing the sun, which
+/// receives about 17 000 lux from it and the sky, shows at about 0.7, the light of a grey day.
+const DAY_EXPOSURE: f32 = std::f32::consts::PI / 25_000.0;
+/// The night sky, in nits: a dark blue, lighter towards the horizon, the moon's disc in it; the
+/// ground below the horizon nearly black.
+const NIGHT_SKY: Sky = Sky {
+    zenith: LinearColor::rgb(0.03, 0.045, 0.1),
+    horizon: LinearColor::rgb(0.06, 0.075, 0.12),
+    ground: LinearColor::rgb(0.006, 0.006, 0.007),
+    sun: None,
+};
+/// What the scene's light is multiplied by at night: a white matte surface 2 m below a lantern,
+/// which receives about 35 lux, shows at about 3, bright under its light, while what the moon's
+/// 0.8 lux alone light stays dim but readable.
+const NIGHT_EXPOSURE: f32 = 0.3;
 /// The bloom's strength, as in the engine's samples.
 const BLOOM: f32 = 0.04;
+
+/// What lights the zone at one time of day.
+struct Lighting {
+    /// The zone's lights of that time.
+    lights: Vec<Light>,
+    environment: Environment,
+    exposure: f32,
+}
 
 /// The renderer and the GPU objects of the zone and the hero, for targets of one format.
 pub struct View {
@@ -37,14 +57,27 @@ pub struct View {
     /// door's leaves once open.
     zone_nodes: Vec<usize>,
     hero: LoadedScene,
-    environment: Environment,
-    /// The zone's lights of the day.
-    day_lights: Vec<Light>,
+    day: Lighting,
+    night: Lighting,
+}
+
+/// The lights of `zone` whose node's `time` is `time`, in the order of the nodes.
+fn lights_of(zone: &LoadedScene, time: &str) -> Vec<Light> {
+    // The scene's lights come in the order of the nodes that place them.
+    zone.scene
+        .nodes
+        .iter()
+        .filter(|node| node.light.is_some())
+        .zip(&zone.lights)
+        .filter(|(node, _)| text(node, "time") == Some(time))
+        .map(|(_, light)| *light)
+        .collect()
 }
 
 impl View {
-    /// Creates the renderer, loads the zone and the hero from `assets`, and computes the overcast
-    /// sky's light, for targets of `format`.
+    /// Creates the renderer, loads the zone and the hero from `assets`, and computes the light of
+    /// the overcast sky and of the night sky, whose moon is the zone's directional light of the
+    /// night, for targets of `format`.
     ///
     /// # Errors
     ///
@@ -62,28 +95,35 @@ impl View {
         };
         let zone = load("zone", assets::zone_id())?;
         let hero = load("hero", assets::hero_id())?;
-        // The scene's lights come in the order of the nodes that place them.
-        let day_lights = zone
-            .scene
-            .nodes
-            .iter()
-            .filter(|node| node.light.is_some())
-            .zip(&zone.lights)
-            .filter(|(node, _)| text(node, "time") == Some("day"))
-            .map(|(_, light)| *light)
-            .collect();
+        let night_lights = lights_of(&zone, "night");
+        let moon = night_lights.iter().find_map(|light| match light {
+            Light::Directional(moon) => Some(*moon),
+            _ => None,
+        });
+        let night_sky = Sky {
+            sun: moon,
+            ..NIGHT_SKY
+        };
         Ok(Self {
+            day: Lighting {
+                lights: lights_of(&zone, "day"),
+                environment: renderer.create_environment(gpu, &OVERCAST)?,
+                exposure: DAY_EXPOSURE,
+            },
+            night: Lighting {
+                lights: night_lights,
+                environment: renderer.create_environment(gpu, &night_sky)?,
+                exposure: NIGHT_EXPOSURE,
+            },
             zone_nodes: zone.instance_nodes(),
-            environment: renderer.create_environment(gpu, &OVERCAST)?,
             zone,
             hero,
-            day_lights,
             renderer,
         })
     }
 
-    /// Draws `game` into `target` as `camera` sees it, the hero `alpha` of the way between its last
-    /// two fixed steps ([`Game::hero_between`]).
+    /// Draws `game` into `target` as `camera` sees it, by day or at night as the game is, the hero
+    /// `alpha` of the way between its last two fixed steps ([`Game::hero_between`]).
     pub fn draw(
         &mut self,
         gpu: &Gpu,
@@ -116,10 +156,11 @@ impl View {
             instance.transform = place * instance.transform;
             instances.push(instance);
         }
+        let lighting = if game.night() { &self.night } else { &self.day };
         let mut scene = Scene::new(camera, &instances);
-        scene.lights = &self.day_lights;
-        scene.environment = Some(&self.environment);
-        scene.exposure = EXPOSURE;
+        scene.lights = &lighting.lights;
+        scene.environment = Some(&lighting.environment);
+        scene.exposure = lighting.exposure;
         scene.bloom = BLOOM;
         self.renderer.render(gpu, target, &scene)
     }

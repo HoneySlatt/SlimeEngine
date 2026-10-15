@@ -28,7 +28,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   a Blender script builds from them are listed, mirrored, fetched, cooked and tested; the owner
   looked at renders of it and chose to refine its look while playing it. M4a.7 done on 2026-10-15:
   the game plays the cooked zone, which the owner played on Linux, and *Nightwatch* is deleted.
-  Next: M4a.8.
+  M4a.8 in progress: the night is drawn, and resting by the campfire turns the day to night and
+  back; the owner plays it next, on Linux and in the Windows virtual machine.
 
 ## Status
 
@@ -41,7 +42,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M4a.5](#m4a5--the-sample-scene-through-the-pipeline) | The `scene` example draws cooked data; the temporary loader is deleted | Done |
 | [M4a.6](#m4a6--the-zones-sources) | The zone exists as source assets that anyone can fetch and cook | Done |
 | [M4a.7](#m4a7--hunna-wood-by-day) | *Hunna Wood* is played by day; *Nightwatch* is deleted | Done |
-| [M4a.8](#m4a8--night) | The zone by night; resting switches day and night | Planned |
+| [M4a.8](#m4a8--night) | The zone by night; resting switches day and night | In progress |
 | [M4a.9](#m4a9--windows-check-documentation-release-02) | 0.2 is released with *Hunna Wood* | Planned |
 
 Stages 0, 1, 2, 3a, 3b, 3c and 3d are done; see [Completed stages](#completed-stages).
@@ -231,8 +232,9 @@ artifact, which grows by the cooked zone.
   cascades (see [Known debt](#known-debt)).
 - **Left to refine while playing**, by the owner's decision of 2026-10-15: the leaf cards, which
   read as cards up close; the stone and the ground, warmer than the zone's grey palette; the fire,
-  three glowing tongues until particles; the painted capital, which must seem much farther; the
-  hero's smooth face.
+  three glowing tongues until particles; the hero's smooth face. Done at M4a.8: the painted capital,
+  twice as far, and a larger brass key that glints at night, which the owner had to be told where
+  to find.
 
 ### M4a.7 — Hunna Wood by day
 
@@ -320,7 +322,7 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **The zone costs up to 8 s per frame on lavapipe**, the CPU driver of the checks, where the RX
   6900 XT takes under 2 ms: most of it goes to the four shadow cascades of the sun, each 2048 ×
   2048 texels, through which thousands of overlapping leaf cards are drawn with a shader that
-  discards. The checks will run the game for a few frames only. Leaves that cast no shadow in the
+  discards. The checks run the game for one frame by day and one at night. Leaves that cast no shadow in the
   farther cascades, or fewer and smaller cards, would lower it; to measure with the views of the
   zone, as at M4a.6.
 - **The tests of the cooked zone run in `scripts/check.sh` only**: they need the zone fetched and

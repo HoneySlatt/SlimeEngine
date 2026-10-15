@@ -96,12 +96,14 @@ env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_
 env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
     timeout -k 10 120 cargo run --locked --example scene -- --assets "$cooked/first" --frames 120 ||
     { cat "$runtime/slime-check.log"; exit 1; }
-# The game too (ADR-0055). It draws the zone cooked above; a frame of it takes seconds on lavapipe,
-# most of them in the sun's shadows through the leaves (docs/PLAN.md, known debt), so it runs for
-# two frames only.
-env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
-    timeout -k 10 300 cargo run --locked -p hunnawood -- --frames 2 ||
-    { cat "$runtime/slime-check.log"; exit 1; }
+# The game too (ADR-0055), by day and at night. It draws the zone cooked above; a frame of it takes
+# seconds on lavapipe, most of them in the shadows of the sun or the moon through the leaves
+# (docs/PLAN.md, known debt), so each run draws one frame only.
+for time in "" --night; do
+    env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+        timeout -k 10 300 cargo run --locked -p hunnawood -- --frames 1 ${time:+"$time"} ||
+        { cat "$runtime/slime-check.log"; exit 1; }
+done
 # The windowed lifecycle test needs the compositor too, so it is outside the default test run
 # (ADR-0024).
 env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \

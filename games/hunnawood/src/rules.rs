@@ -54,7 +54,8 @@ fn turn_towards(from: f32, to: f32, by: f32) -> f32 {
     from + shortest_turn(from, to).clamp(-by, by)
 }
 
-/// A game in progress: the hero, and the zone's loop, a key that opens a door.
+/// A game in progress: the hero, the zone's loop, a key that opens a door, and the time of day,
+/// which resting by the campfire turns.
 pub struct Game {
     zone: Zone,
     hero: Hero,
@@ -66,10 +67,14 @@ pub struct Game {
     door_open: bool,
     /// The colliders that stop the hero now: the zone's, but the door's once it is open.
     colliders: Vec<Collider>,
+    /// Whether it is night.
+    night: bool,
+    /// Whether a new game starts at night.
+    starts_at_night: bool,
 }
 
 impl Game {
-    /// A new game in `zone`: the hero at its start, facing the way it says.
+    /// A new game in `zone`, by day: the hero at its start, facing the way it says.
     pub fn new(zone: Zone) -> Self {
         let start = start(&zone);
         Self {
@@ -79,17 +84,42 @@ impl Game {
             previous_hero: start,
             has_item: false,
             door_open: false,
+            night: false,
+            starts_at_night: false,
         }
     }
 
+    /// The same game, starting at night, and starting again at night.
+    pub fn starting_at_night(mut self) -> Self {
+        self.night = true;
+        self.starts_at_night = true;
+        self
+    }
+
     /// Starts a new game in the same zone, as [`Game::new`] does: the hero at the start, the key
-    /// in its place, the door closed.
+    /// in its place, the door closed, at the time of day the game started at.
     pub fn restart(&mut self) {
         self.hero = start(&self.zone);
         self.previous_hero = self.hero;
         self.has_item = false;
         self.door_open = false;
         self.colliders = self.zone.colliders.clone();
+        self.night = self.starts_at_night;
+    }
+
+    /// Whether it is night.
+    pub fn night(&self) -> bool {
+        self.night
+    }
+
+    /// Rests by the campfire, when the hero is near enough to it ([`Game::can_rest`]): the day
+    /// turns to night, or the night to day. Returns whether the hero rested.
+    pub fn rest(&mut self) -> bool {
+        let rested = self.can_rest();
+        if rested {
+            self.night = !self.night;
+        }
+        rested
     }
 
     pub fn zone(&self) -> &Zone {
@@ -281,11 +311,31 @@ mod tests {
     }
 
     #[test]
-    fn the_hero_rests_only_by_the_campfire() {
+    fn resting_by_the_campfire_turns_the_day_to_night_and_back() {
         let mut game = Game::new(walled([0.0, 30.0]));
         assert!(!game.can_rest());
+        assert!(
+            !game.rest() && !game.night(),
+            "rested far from the campfire"
+        );
         hold(&mut game, -Vec2::Y, 2.8);
         assert!(game.can_rest(), "{}", game.hero().position);
+        assert!(game.rest() && game.night());
+        assert!(game.rest() && !game.night());
+        assert!(game.rest() && game.night());
+        // A new game starts by day again, as this one did.
+        game.restart();
+        assert!(!game.night());
+    }
+
+    #[test]
+    fn a_game_started_at_night_starts_again_at_night() {
+        let mut game = Game::new(walled([0.0, 30.0])).starting_at_night();
+        assert!(game.night());
+        hold(&mut game, -Vec2::Y, 2.8);
+        assert!(game.rest() && !game.night());
+        game.restart();
+        assert!(game.night());
     }
 
     fn turned_box(center: [f32; 2], size: [f32; 2], yaw: f32) -> Collider {

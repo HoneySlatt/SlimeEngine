@@ -171,24 +171,33 @@ def door(place, models):
 
 
 def key(place):
-    """The item that opens the door: an old iron key, on a fallen block in the nave, under the
-    `item` marker, which the game hides once the hero picks it up."""
+    """The item that opens the door: a large old key of brass, 0.7 m long, on a fallen block in
+    the nave, under the `item` marker, which the game hides once the hero picks it up. Polished, it
+    catches the day's light; at night it glints faintly, enough to be found by."""
     x, y = place["item"]["at"]
-    iron = common.material("iron", (0.32, 0.29, 0.26), roughness=0.45, metallic=1.0)
+    brass = common.material("brass", (0.85, 0.66, 0.32), roughness=0.3, metallic=1.0)
+    bsdf = brass.node_tree.nodes["Principled BSDF"]
+    bsdf.inputs["Emission Color"].default_value = (1.0, 0.75, 0.35, 1.0)
+    bsdf.inputs["Emission Strength"].default_value = 6.0
     marker = common.marker("item", "item", (x, y, 0.0))
     stone_block = ruins.box("block", (x - 0.35, y - 0.3, 0.0), (x + 0.35, y + 0.3, 0.5), None)
+    # Made about its middle at its true size, then scaled up and laid on the block: the bow, a
+    # ring of eight segments; the shaft; the bit, two teeth.
+    scale = 2.2
     parts = []
-    # The bow, a ring of eight segments; the shaft; the bit, two teeth.
-    z = 0.53
     for k in range(8):
         a, b = 2 * math.pi * k / 8, 2 * math.pi * (k + 1) / 8
-        p = Vector((x - 0.12 + 0.05 * math.cos(a), y + 0.05 * math.sin(a), z))
-        q = Vector((x - 0.12 + 0.05 * math.cos(b), y + 0.05 * math.sin(b), z))
+        p = Vector((-0.12 + 0.05 * math.cos(a), 0.05 * math.sin(a), 0.0))
+        q = Vector((-0.12 + 0.05 * math.cos(b), 0.05 * math.sin(b), 0.0))
         mid = (p + q) / 2
-        parts.append(ruins.box("bow", mid - Vector((0.012, 0.012, 0.012)), mid + Vector((0.012, 0.012, 0.012)), iron))
-    parts.append(ruins.box("shaft", (x - 0.07, y - 0.008, z - 0.008), (x + 0.16, y + 0.008, z + 0.008), iron))
-    parts.append(ruins.box("tooth", (x + 0.10, y - 0.04, z - 0.006), (x + 0.12, y, z + 0.006), iron))
-    parts.append(ruins.box("tooth", (x + 0.14, y - 0.03, z - 0.006), (x + 0.16, y, z + 0.006), iron))
+        parts.append(ruins.box("bow", mid - Vector((0.012, 0.012, 0.012)),
+                               mid + Vector((0.012, 0.012, 0.012)), brass))
+    parts.append(ruins.box("shaft", (-0.07, -0.008, -0.008), (0.16, 0.008, 0.008), brass))
+    parts.append(ruins.box("tooth", (0.10, -0.04, -0.006), (0.12, 0.0, 0.006), brass))
+    parts.append(ruins.box("tooth", (0.14, -0.03, -0.006), (0.16, 0.0, 0.006), brass))
     obj = common.join(parts, "key")
+    obj.location = (x, y, 0.5 + 0.03 * scale)
+    obj.rotation_euler = (0.0, 0.0, 0.4)
+    obj.scale = (scale, scale, scale)
     common.reparent(obj, marker)
     return stone_block, marker

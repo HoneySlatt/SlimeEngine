@@ -8,13 +8,14 @@ person, in a dark-fantasy world: the sample that every stage grows, since Stage 
 ## The game
 
 Stage 4a makes one zone of the game's starting region, a forest path, which the hero explores by day
-and, from M4a.8, by night ([`docs/PLAN.md`](../../docs/PLAN.md#stage-4a--cooked-assets)). The game
-reads it from cooked data ([below](#the-zone)). The hero starts in the south, under an overcast sky,
-and follows the path through the forest, over a stone bridge, past a campfire in a clearing, to a
-ruined chapel. In the nave lies an old key: the hero takes it on walking up to it. The key opens the
-sealed door in the chapel's north wall, which opens as the hero comes to it, onto a terrace that
-looks over the valley towards the region's capital. Without the key, the door does not move. By
-the campfire, the hero can rest.
+and by night ([`docs/PLAN.md`](../../docs/PLAN.md#stage-4a--cooked-assets)). The game reads it from
+cooked data ([below](#the-zone)). The hero starts in the south, under an overcast sky, and follows
+the path through the forest, over a stone bridge, past a campfire in a clearing, to a ruined chapel.
+In the nave lies an old brass key: the hero takes it on walking up to it. The key opens the sealed
+door in the chapel's north wall, which opens as the hero comes to it, onto a terrace that looks
+over the valley towards the region's capital, far away. Without the key, the door does not move.
+Resting by the campfire turns the day to night, and the night to day: by night, the moon lights the
+forest dimly, lanterns light the path and cast their shadows, the fire glows, and the key glints.
 
 The hero moves relative to the camera, which stays behind it and a little above, turns to face
 where it moves, and is stopped by trees, rocks, walls and the edge of the zone, sliding along them.
@@ -34,6 +35,7 @@ cargo run --release -p slime-cook -- cook games/hunnawood/assets/zone target/coo
 cargo run -p hunnawood                     # play
 cargo run -p hunnawood -- --frames 120     # closes itself after 120 frames
 cargo run -p hunnawood -- --assets <dir>   # reads the cooked data of another directory
+cargo run -p hunnawood -- --night          # starts at night, and starts again at night
 ```
 
 Without `--assets`, it reads `hunnawood` beside the program if that directory holds a manifest, as
@@ -43,8 +45,8 @@ where CI ships it, and `target/cooked/hunnawood` otherwise.
 |---|---|
 | W, A, S, D (Z, Q, S, D on a French keyboard) | Move, relative to the camera |
 | Left and right arrows | Turn the camera around the hero |
-| E | Rest, by the campfire |
-| R | Start again: the hero at the start, the key in its place, the door closed |
+| E | Rest, by the campfire: the day turns to night, the night to day |
+| R | Start again: the hero at the start, the key in its place, the door closed, at the time the game started at |
 | F1 | Show or hide what each frame costs, in the engine's dev overlay |
 | Escape | Quit |
 
@@ -62,7 +64,7 @@ place on every layout. CI builds the game for Windows with the examples: `hunnaw
 | `zone.rs` | The zone, read from the cooked scene: its ground, its colliders, boxes turned about the vertical and cylinders, where the hero starts, and the places of the key, the door and the campfire; the tests of the cooked zone |
 | `controls.rs` | Which of the game's keys are held |
 | `camera.rs` | The camera that follows the hero, coming nearer when a collider would stand between them |
-| `view.rs` | What the player sees: the renderer, the cooked zone and hero, the overcast sky and the zone's sun behind its clouds |
+| `view.rs` | What the player sees: the renderer, the cooked zone and hero; by day, the overcast sky and the zone's sun behind its clouds; by night, a dark sky with the moon's disc and the zone's lights of the night |
 | `statistics.rs` | The dev overlay that shows what each frame costs |
 
 The rules run at the engine's fixed step, 1/60 s, so that a game plays the same on every machine;

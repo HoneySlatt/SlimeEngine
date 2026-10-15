@@ -11,10 +11,12 @@
 //! cargo run -p hunnawood                     # play
 //! cargo run -p hunnawood -- --frames 120     # closes itself after 120 frames
 //! cargo run -p hunnawood -- --assets <dir>   # reads the cooked data of another directory
+//! cargo run -p hunnawood -- --night          # starts at night
 //! ```
 //!
 //! W, A, S and D move (Z, Q, S and D on a French keyboard), the left and right arrows turn the
-//! camera, E rests by the campfire, R starts again, F1 shows what each frame costs, Escape quits.
+//! camera, E rests by the campfire, which turns the day to night and back, R starts again, F1 shows
+//! what each frame costs, Escape quits.
 
 mod assets;
 mod camera;
@@ -24,6 +26,7 @@ mod statistics;
 mod view;
 mod zone;
 
+use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::Duration;
@@ -42,7 +45,7 @@ use statistics::Statistics;
 use view::View;
 use zone::Zone;
 
-const USAGE: &str = "usage: hunnawood [--assets <directory>] [--frames <count>]";
+const USAGE: &str = "usage: hunnawood [--assets <directory>] [--frames <count>] [--night]";
 
 /// The game: its rules, the keys held, the camera, and what draws them once the window is open.
 struct HunnaWood {
@@ -64,11 +67,17 @@ struct HunnaWood {
 }
 
 impl HunnaWood {
-    fn new(assets: CookedAssets, zone: Zone, must_draw: bool) -> Self {
+    /// The game in `zone`, starting at night if `night`, which draws what `assets` holds.
+    fn new(assets: CookedAssets, zone: Zone, night: bool, must_draw: bool) -> Self {
+        let game = Game::new(zone);
         Self {
             assets,
-            camera: FollowCamera::looking_along(zone.facing),
-            game: Game::new(zone),
+            camera: FollowCamera::looking_along(game.zone().facing),
+            game: if night {
+                game.starting_at_night()
+            } else {
+                game
+            },
             controls: Controls::default(),
             view: None,
             statistics: None,
@@ -112,8 +121,11 @@ impl App for HunnaWood {
                     self.game.restart();
                     self.camera = FollowCamera::looking_along(self.game.zone().facing);
                 }
-                KeyCode::KeyE if self.game.can_rest() => {
-                    tracing::info!("the hero rests by the campfire");
+                KeyCode::KeyE => {
+                    if self.game.rest() {
+                        let time = if self.game.night() { "night" } else { "day" };
+                        tracing::info!("the hero rests by the campfire until the {time}");
+                    }
                 }
                 KeyCode::F1 => {
                     if let Some(statistics) = &mut self.statistics {
@@ -166,9 +178,11 @@ impl App for HunnaWood {
             drawn = self.drawn,
             draw_calls = self.stats.draw_calls,
             shadow_draw_calls = self.stats.shadow_draw_calls,
+            spot_shadow_draw_calls = self.stats.spot_shadow_draw_calls,
             triangles = self.stats.triangles,
             cpu_time = ?self.stats.cpu_time,
             shadow_gpu_time = ?self.stats.shadow_gpu_time,
+            spot_shadow_gpu_time = ?self.stats.spot_shadow_gpu_time,
             scene_gpu_time = ?self.stats.scene_gpu_time,
             sky_gpu_time = ?self.stats.sky_gpu_time,
             resolve_gpu_time = ?self.stats.resolve_gpu_time,
@@ -183,7 +197,7 @@ impl App for HunnaWood {
 }
 
 fn main() -> ExitCode {
-    let options = match parse_options() {
+    let options = match parse_options(std::env::args_os().skip(1)) {
         Ok(options) => options,
         Err(message) => {
             eprintln!("{message}\n{USAGE}");
@@ -220,7 +234,12 @@ fn main() -> ExitCode {
         frame_limit,
         ..AppConfig::default()
     };
-    let mut game = HunnaWood::new(cooked, zone, frame_limit.is_some_and(|limit| limit > 0));
+    let mut game = HunnaWood::new(
+        cooked,
+        zone,
+        options.night,
+        frame_limit.is_some_and(|limit| limit > 0),
+    );
     match slime_app::run(&mut game, &config) {
         Ok(()) => ExitCode::SUCCESS,
         // `run` has logged the error with its causes.
@@ -235,13 +254,17 @@ struct Options {
     assets: Option<PathBuf>,
     /// The number of frames after which the game closes itself, if `--frames` gives one.
     frame_limit: Option<u64>,
+    /// Whether the game starts at night, as `--night` asks.
+    night: bool,
 }
 
-fn parse_options() -> Result<Options, String> {
+/// The options that `arguments`, the command line without the program's name, give.
+fn parse_options(arguments: impl IntoIterator<Item = OsString>) -> Result<Options, String> {
     let mut options = Options::default();
-    let mut arguments = std::env::args_os().skip(1);
+    let mut arguments = arguments.into_iter();
     while let Some(argument) = arguments.next() {
         match argument.to_str() {
+            Some("--night") => options.night = true,
             Some("--assets") => {
                 let value = arguments.next().ok_or("--assets needs a directory")?;
                 options.assets = Some(PathBuf::from(value));
@@ -258,4 +281,22 @@ fn parse_options() -> Result<Options, String> {
         }
     }
     Ok(options)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(arguments: &[&str]) -> Result<Options, String> {
+        parse_options(arguments.iter().map(OsString::from))
+    }
+
+    #[test]
+    fn night_starts_the_game_at_night() {
+        assert!(!parse(&[]).expect("no option").night);
+        let options = parse(&["--frames", "2", "--night"]).expect("valid options");
+        assert!(options.night);
+        assert_eq!(options.frame_limit, Some(2));
+        assert!(parse(&["--day"]).is_err());
+    }
 }

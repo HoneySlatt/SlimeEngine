@@ -55,8 +55,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   zone keeps within its budgets.
 - *Hunna Wood* is played in that zone: it reads its colliders, its places and its lights from the
   cooked scene, and draws the zone and the hero as cooked. The hero takes the key on walking up to
-  it, the key opens the sealed door, E rests by the campfire, and R starts again from the same
-  state. The game needs its zone fetched and cooked first, which its README explains; `--assets`
+  it, the key opens the sealed door, and R starts again from the same state. Resting by the
+  campfire, with E, turns the day to night and the night to day: by night, the moon, the lanterns
+  whose spot lights cast shadows and the campfire light the zone; `--night` starts the game at
+  night. The game needs its zone fetched and cooked first, which its README explains; `--assets`
   reads another directory of cooked data, and the Windows programs that CI builds hold the zone
   cooked beside `hunnawood.exe`.
 - `LoadedScene::instance_nodes` gives the node that places each instance, so that a game can leave

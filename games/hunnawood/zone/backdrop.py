@@ -105,12 +105,12 @@ def capital(stone, rock, windows, origin, random):
     """The capital: a cliff rising from the valley, houses stacked on its ledges, the cathedral
     fortress on its top, and aqueducts crossing the valley in front of it. Returns its objects."""
     objects = []
-    base_y = origin.y + 700.0
+    base_y = origin.y + 1400.0
     # The cliff: a rough wall of rock, its face toward the terrace, with ledges.
     columns, rows = 60, 24
     v, faces, uvs = [], [], []
     for i in range(columns + 1):
-        x = -420.0 + 840.0 * i / columns
+        x = -700.0 + 1400.0 * i / columns
         crest = 140.0 + 40.0 * math.sin(i * 0.37) + random.uniform(-12, 12)
         if abs(x) < 120:
             crest += 30.0 * (1 - abs(x) / 120)
@@ -147,7 +147,7 @@ def capital(stone, rock, windows, origin, random):
     for x in range(-35, 40, 10):
         objects.append(spire(x, base_y + 10, top + 45, 2.5, 14, stone))
     # The aqueduct: two tiers of pointed arches crossing the valley from the west to the city.
-    y = origin.y + 450.0
+    y = origin.y + 900.0
     for (bottom, top_z, width) in ((-220.0, -30.0, 30.0), (-30.0, 12.0, 15.0)):
         wall = ruins.box("aqueduct", (-640.0, y - 5, bottom), (-80.0, y + 5, top_z), stone)
         holes = []
@@ -210,12 +210,12 @@ def vista(sources, place, scratch):
     camera = bpy.data.cameras.new("capital camera")
     camera.angle = VISTA_FOV
     camera.sensor_fit = "HORIZONTAL"
-    camera.clip_end = 3000.0
+    camera.clip_end = 5000.0
     cam = bpy.data.objects.new("capital camera", camera)
     cam.location = origin
     cam.rotation_euler = (math.pi / 2, 0.0, 0.0)
     view.collection.objects.link(cam)
-    hazed(view, cam, color, VISTA_SIZE, (0.6, 0.63, 0.68), 200.0, 1500.0)
+    hazed(view, cam, color, VISTA_SIZE, (0.6, 0.63, 0.68), 300.0, 2600.0)
     # The windows alone, for the night: everything else black.
     black = common.material("black", (0.0, 0.0, 0.0), roughness=1.0)
     for obj in objects:
