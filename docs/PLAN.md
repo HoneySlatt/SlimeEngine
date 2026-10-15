@@ -13,8 +13,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3d — Anti-aliasing and the shadows of spot lights: planned on 2026-10-15 and validated by
-  the owner. M3d.1 to M3d.4 and M3d.6 to M3d.8 are done; M3d.9, *Nightwatch* at 3840 × 2160, is
-  next; M3d.5's check in the Windows virtual machine comes last.
+  the owner. M3d.1 to M3d.4 and M3d.6 to M3d.9 are done; M3d.5, the check in the Windows virtual
+  machine, remains.
 
 ## Status
 
@@ -28,7 +28,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M3d.6](#m3d6--a-smoother-shadow-filter) | Shadows' edges fade smoothly | Done |
 | [M3d.7](#m3d7--what-each-cascade-sees) | The shadow pass draws the directional light's four cascades | Done |
 | [M3d.8](#m3d8--the-cascades-read) | Each point is shadowed by the finest cascade that holds it, without seams | Done |
-| [M3d.9](#m3d9--nightwatch-at-3840--2160) | The moon's shadows near the player are finer in the game | Not started |
+| [M3d.9](#m3d9--nightwatch-at-3840--2160) | The moon's shadows near the player are finer in the game | Done |
 
 Stages 0, 1, 2, 3a, 3b and 3c are done; see [Completed stages](#completed-stages).
 
@@ -85,6 +85,8 @@ Decisions taken by the owner on 2026-10-15, after M3d.6, which added M3d.7 to M3
   frame in which a directional light casts shadows.
 - **A blend band between cascades**, a tenth of a cascade's width, and the shadows faded out over
   the same band beyond the last cascade.
+- **The moon's shadows reach 16 m from the camera**, chosen at M3d.9 on images of *Nightwatch* at
+  3840 × 2160, among 30, 20 and 16 m.
 
 Risks: the scene's targets grow fourfold with MSAA (about 87 MiB more at 1920 × 1080, and the
 atlas adds 64 MiB); a light inside the mesh of an instance that casts shadows is in that instance's
@@ -275,7 +277,7 @@ this stage ([ADR-0064](adr/0064-cascaded-shadow-maps.md)).
   reference images rendered again; RADV matches them as before. With *Nightwatch* in a window of
   1901 × 2082 on the RX 6900 XT, the scene pass takes 458 µs, 421 µs with the last cascade alone
   and 415 µs with the single map; the shadow pass 15 µs for 44 draws, 7.5 µs for 26 with the
-  single map.
+  single map. CI green on Linux and on Windows, Direct3D 12 with FXC included.
 
 ### M3d.9 — Nightwatch at 3840 × 2160
 
@@ -285,6 +287,15 @@ this stage ([ADR-0064](adr/0064-cascaded-shadow-maps.md)).
   owner picks the moon's shadow distance; `CHANGELOG.md`.
 - **Done when.** The owner's decision on the distance; the checks and CI are green.
 - **How to test.** *Nightwatch* at 3840 × 2160; `--frames` in the headless Weston.
+- **Checked** on 2026-10-15: five views of the game rendered at 3840 × 2160 on the RX 6900 XT,
+  with the single map and with cascades, the moon's shadows reaching 30, 20 and 16 m. With the
+  single map, the moon's shadows near the player are blurred and stepped, and long steps run along
+  the crates' feet; with cascades, they are sharp, and the steps shrink to small teeth at 30 m,
+  smaller at 20 m, and fade at 16 m, where no shadow of the five views is lost: the views differ
+  only along shadows' edges. The owner chose 16 m. At 3840 × 2160, the scene pass takes 0.70 to
+  1.0 ms whatever the distance, and the moon's shadow pass 10 to 12 µs. In a window of 1901 ×
+  2082, the moon's shadows at 16 m take 25 draws, where 30 m took 44, for the same scene pass,
+  464 µs.
 
 ## Releasing
 
@@ -595,8 +606,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   Frustum culling and instancing are left to Stage 9a (ADR-0052).
 - **Cascades are fitted to spheres around slices of the view** (ADR-0064). Each covers its slice
   whichever way the camera looks, which keeps its texels steady, but a wide view makes the spheres
-  large: in *Nightwatch*, the texels near the player are about half as wide as the single map's,
-  by ADR-0064's study, not a quarter. Fitting the cascades to what the camera sees at each frame,
+  large: in *Nightwatch*, with the single map's 30 m, the texels near the player would be about
+  half as wide as its texels, not a quarter, by ADR-0064's study; the game's moon casts its
+  shadows up to 16 m to make them finer. Fitting the cascades to what the camera sees at each frame,
   or virtual shadow maps, is left to Stage 9a.
 - **Shadows shift, and thin objects close to a surface lose theirs (peter-panning)** (ADR-0050).
   The normal offset that keeps surfaces from shadowing themselves looks a point up 4.5 texels × the

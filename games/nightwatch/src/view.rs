@@ -16,13 +16,16 @@ use crate::rules::{
 };
 
 /// The moon: a slightly blue light of 0.3 lux, about a full moon's, high in the south-west, which
-/// casts the shadows the player hides in over the whole courtyard and a little beyond.
+/// casts the shadows the player hides in, up to 16 m from the camera, which sees the ground from
+/// about 8 to 16 m away. Its cascades' squares reach beyond that distance, over all the camera
+/// sees, and a shorter distance makes their texels finer near the player: 16 m was chosen on
+/// images at 3840 × 2160, where 30 m left small steps along the crates' feet.
 const MOON: DirectionalLight = DirectionalLight {
     direction: Vec3::new(0.35, -1.0, -0.45),
     color: LinearColor::rgb(0.75, 0.82, 1.0),
     illuminance: 0.3,
     casts_shadows: true,
-    shadow_distance: 30.0,
+    shadow_distance: 16.0,
 };
 /// The sky of a moonlit night, in nits, about a millionth of a clear day's, with the moon's disc.
 const NIGHT: Sky = Sky {
