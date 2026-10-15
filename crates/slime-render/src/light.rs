@@ -188,11 +188,11 @@ impl Light {
         let color = |color: LinearColor| {
             let color = rgb(color);
             (!color.is_finite() || color.min_element() < 0.0)
-                .then(|| format!("its color {color} is not finite and not negative"))
+                .then(|| format!("its color {color} is negative or not finite"))
         };
         let strength = |name: &str, value: f32| {
             (!value.is_finite() || value < 0.0)
-                .then(|| format!("its {name} {value} is not finite and not negative"))
+                .then(|| format!("its {name} {value} is negative or not finite"))
         };
         let position = |position: Vec3| {
             (!position.is_finite()).then(|| format!("its position {position} is not finite"))
@@ -333,14 +333,14 @@ mod tests {
                     color: LinearColor::rgb(1.0, -0.1, 1.0),
                     ..directional
                 }),
-                "its color [1, -0.1, 1] is not finite and not negative",
+                "its color [1, -0.1, 1] is negative or not finite",
             ),
             (
                 Light::Directional(DirectionalLight {
                     illuminance: f32::NAN,
                     ..directional
                 }),
-                "its illuminance NaN is not finite and not negative",
+                "its illuminance NaN is negative or not finite",
             ),
             (
                 Light::Directional(DirectionalLight {
@@ -361,7 +361,7 @@ mod tests {
                     intensity: -1.0,
                     ..point
                 }),
-                "its intensity -1 is not finite and not negative",
+                "its intensity -1 is negative or not finite",
             ),
             (
                 Light::Point(PointLight {

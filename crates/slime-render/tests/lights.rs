@@ -451,7 +451,7 @@ fn a_negative_exposure_is_a_bug() {
 
 #[test]
 #[should_panic(
-    expected = "light 1 of the scene is not valid: its intensity -64 is not finite and not negative"
+    expected = "light 1 of the scene is not valid: its intensity -64 is negative or not finite"
 )]
 fn a_light_outside_its_documented_range_is_a_bug_named_in_the_message() {
     Setup::new().draw(&[point(1.0, 1.0, None), point(1.0, -64.0, None)], 1.0);
