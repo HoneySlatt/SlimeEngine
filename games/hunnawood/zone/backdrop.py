@@ -9,16 +9,23 @@ import os
 
 import bpy
 import numpy as np
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 import common
 import ruins
 import vegetation
 
-# The capital's picture: rendered from the terrace, looking north, onto a card this far away.
-VISTA_SIZE = (4096, 1536)
-VISTA_FOV = math.radians(110)
+# The capital's picture: rendered from the terrace, looking north, onto a card this far away; as
+# large as the zone's largest textures, framed on the city and the aqueduct.
+VISTA_SIZE = (2048, 768)
+VISTA_FOV = math.radians(80)
 VISTA_DISTANCE = 520.0
+# The capital is built this far north of the terrace, then moved `FARTHER` times as far and made
+# `LARGER` times as large: it shows smaller, beyond more of the valley's haze, and seems much
+# farther, as large as it is.
+CITY_DISTANCE = 1400.0
+FARTHER = 1.6
+LARGER = 1.25
 TREELINE_SIZE = (4096, 512)
 
 
@@ -105,7 +112,7 @@ def capital(stone, rock, windows, origin, random):
     """The capital: a cliff rising from the valley, houses stacked on its ledges, the cathedral
     fortress on its top, and aqueducts crossing the valley in front of it. Returns its objects."""
     objects = []
-    base_y = origin.y + 1400.0
+    base_y = origin.y + CITY_DISTANCE
     # The cliff: a rough wall of rock, its face toward the terrace, with ledges.
     columns, rows = 60, 24
     v, faces, uvs = [], [], []
@@ -200,7 +207,11 @@ def vista(sources, place, scratch):
                            tint=(0.5, 0.53, 0.6))
     windows = emissive("capital windows", (1.0, 0.62, 0.3), 30.0)
     objects = capital(stone, rock, windows, origin, random)
+    pivot = Vector((origin.x, origin.y + CITY_DISTANCE, 0.0))
+    moved = Vector((origin.x, origin.y + CITY_DISTANCE * FARTHER, 0.0))
+    farther = Matrix.Translation(moved) @ Matrix.Scale(LARGER, 4) @ Matrix.Translation(-pivot)
     for obj in objects:
+        obj.matrix_world = farther @ obj.matrix_world
         link(view, obj)
     sun = bpy.data.lights.new("capital sun", "SUN")
     sun.energy = 2.0
@@ -215,7 +226,7 @@ def vista(sources, place, scratch):
     cam.location = origin
     cam.rotation_euler = (math.pi / 2, 0.0, 0.0)
     view.collection.objects.link(cam)
-    hazed(view, cam, color, VISTA_SIZE, (0.6, 0.63, 0.68), 300.0, 2600.0)
+    hazed(view, cam, color, VISTA_SIZE, (0.6, 0.63, 0.68), 300.0, 3400.0)
     # The windows alone, for the night: everything else black.
     black = common.material("black", (0.0, 0.0, 0.0), roughness=1.0)
     for obj in objects:

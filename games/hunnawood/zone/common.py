@@ -12,6 +12,7 @@ import zipfile
 
 import bmesh
 import bpy
+import numpy as np
 from mathutils import Vector
 
 # Light in physical units, as KHR_lights_punctual and the engine read them (ADR-0037). Blender's
@@ -50,6 +51,38 @@ def load_image(path, data=False):
     image = bpy.data.images.get(name) or bpy.data.images.load(path)
     if data:
         image.colorspace_settings.name = "Non-Color"
+    return image
+
+
+# The zone's palette is cold and grey (its reference picture): the photographed ground, rocks and
+# stone, warmer, are brought toward it by `grade`, which multiplies their colors by this gain once
+# it has taken most of their saturation away.
+COLD = (0.92, 0.96, 1.0)
+
+
+def grade(image, scratch, saturation, gain=COLD):
+    """Brings `image`, a photographed color texture, toward the zone's palette: each texel moved
+    `1 - saturation` of the way to its grey, then multiplied by `gain`. The graded image is written
+    into `scratch` under the image's own name, which the export keeps, so that the exported texture
+    keeps its asset ID; an image already graded is left as it is."""
+    if image.get("graded"):
+        return image
+    pixels = np.empty(len(image.pixels), dtype=np.float32)
+    image.pixels.foreach_get(pixels)
+    rgb = pixels.reshape(-1, 4)[:, :3]
+    grey = rgb @ np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
+    rgb[:] = (grey[:, None] + (rgb - grey[:, None]) * saturation) * np.array(gain, dtype=np.float32)
+    np.clip(pixels, 0.0, 1.0, out=pixels)
+    image.pixels.foreach_set(pixels)
+    path = os.path.join(scratch, os.path.basename(image.filepath))
+    image.filepath_raw = path
+    image.file_format = "JPEG" if path.lower().endswith((".jpg", ".jpeg")) else "PNG"
+    image.save(filepath=path, quality=92)
+    # The glTF importer packs the images of the models it reads: the export would write the packed,
+    # ungraded one.
+    if image.packed_file is not None:
+        image.unpack(method="REMOVE")
+    image["graded"] = True
     return image
 
 
@@ -136,9 +169,10 @@ def cut(mat, coverage):
     mat.use_backface_culling = False
 
 
-def poly_haven_set(sources, name, resolution, double_sided=False, tint=None):
+def poly_haven_set(sources, name, resolution, double_sided=False, tint=None, saturation=None):
     """The material of the Poly Haven texture set `name` at `resolution` ("1k" or "2k"), its
-    colors multiplied by `tint`."""
+    colors multiplied by `tint`; its color image graded toward the zone's palette (`grade`) when
+    `saturation` is given."""
     folder = sources.path(name)
     names = sorted(os.listdir(folder))
 
@@ -149,6 +183,8 @@ def poly_haven_set(sources, name, resolution, double_sided=False, tint=None):
         return os.path.join(folder, found[0])
 
     diffuse = [n for n in names if f"_diff_{resolution}." in n or f"_diffuse_{resolution}." in n]
+    if saturation is not None:
+        grade(load_image(os.path.join(folder, diffuse[0])), sources.scratch, saturation)
     return textured(name, os.path.join(folder, diffuse[0]), find("nor_gl"), find("arm"),
                     double_sided=double_sided, tint=tint)
 

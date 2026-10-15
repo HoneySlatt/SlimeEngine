@@ -162,19 +162,27 @@ def cards_material(name, image_path, alpha_path=None):
 # Trees.
 
 class Builder:
-    """Gathers the vertices, faces and texture coordinates of one mesh."""
+    """Gathers the vertices, faces and texture coordinates of one mesh, and the normals of its
+    vertices when they are given: a crown's, which point out of the crown rather than out of each
+    card, so that the crown is lit as a mass of leaves, not card by card."""
 
     def __init__(self):
-        self.vertices, self.faces, self.uvs = [], [], []
+        self.vertices, self.faces, self.uvs, self.normals = [], [], [], []
 
-    def add(self, corners, uv):
+    def add(self, corners, uv, normals=None):
         base = len(self.vertices)
         self.vertices.extend(corners)
         self.faces.append(tuple(range(base, base + len(corners))))
         self.uvs.extend(uv)
+        if normals is not None:
+            self.normals.extend(normals)
 
     def object(self, name, mat, smooth):
-        return common.mesh_object(name, self.vertices, self.faces, self.uvs, mat, smooth=smooth)
+        obj = common.mesh_object(name, self.vertices, self.faces, self.uvs, mat,
+                                 smooth=smooth or bool(self.normals))
+        if self.normals:
+            obj.data.normals_split_custom_set_from_vertices([tuple(n) for n in self.normals])
+        return obj
 
 
 def tube(builder, points, radii, sides, repeat):
@@ -218,10 +226,16 @@ def bent(start, direction, length, count, droop, random):
     return points
 
 
-def card(builder, center, size, random, cell, up_bias=0.5):
-    """A square leaf card of `size` at `center`, facing a random way leaning up, showing the
-    twig of the atlas's `cell`."""
-    normal = Vector((random.uniform(-1, 1), random.uniform(-1, 1), random.uniform(-1, 1) + up_bias)).normalized()
+def card(builder, center, size, random, cell, crown_center, up_bias=0.5):
+    """A square leaf card of `size` at `center`, showing the twig of the atlas's `cell`: facing a
+    random way leaning up and out of the crown around `crown_center`, its front out of the crown,
+    so that what is seen from outside is the cards' fronts. Its vertices' normals point out of the
+    crown, from `crown_center`, a little up."""
+    out = (center - crown_center).normalized()
+    normal = (Vector((random.uniform(-1, 1), random.uniform(-1, 1), random.uniform(-1, 1) + up_bias))
+              + out).normalized()
+    if normal.dot(out) < 0:
+        normal = -normal
     u = normal.orthogonal().normalized()
     u = Matrix.Rotation(random.uniform(0, 2 * math.pi), 3, normal) @ u
     v = normal.cross(u)
@@ -229,8 +243,10 @@ def card(builder, center, size, random, cell, up_bias=0.5):
     col, row = cell % TWIG_CELLS, cell // TWIG_CELLS
     u0, v0 = col / TWIG_CELLS, row / TWIG_CELLS
     u1, v1 = u0 + 1 / TWIG_CELLS, v0 + 1 / TWIG_CELLS
-    builder.add([center - u * h - v * h, center + u * h - v * h, center + u * h + v * h, center - u * h + v * h],
-                [(u0, v0), (u1, v0), (u1, v1), (u0, v1)])
+    corners = [center - u * h - v * h, center + u * h - v * h, center + u * h + v * h, center - u * h + v * h]
+    normals = [(corner - crown_center + Vector((0, 0, 0.4)) * (corner - crown_center).length).normalized()
+               for corner in corners]
+    builder.add(corners, [(u0, v0), (u1, v0), (u1, v1), (u0, v1)], normals)
 
 
 def oak(name, seed, bark, leaves):
@@ -266,10 +282,14 @@ def oak(name, seed, bark, leaves):
             clusters.append(sub[-2])
     # A top of leaves above the trunk.
     clusters.append(trunk[-1] + Vector((0, 0, 0.8)))
+    crown_center = sum(clusters, Vector()) / len(clusters)
+    # Many small cards, whose leaves are a hand long: cards of a metre and more, with leaves of a
+    # foot, read as cards up close.
     for c in clusters:
-        for _ in range(random.randint(9, 13)):
+        for _ in range(random.randint(34, 44)):
             offset = Vector((random.gauss(0, 0.7), random.gauss(0, 0.7), random.gauss(0.2, 0.5)))
-            card(crown, c + offset, random.uniform(1.2, 1.7), random, random.randrange(TWIG_CELLS ** 2))
+            card(crown, c + offset, random.uniform(0.55, 0.8), random,
+                 random.randrange(TWIG_CELLS ** 2), crown_center)
     return (wood.object(name + " wood", bark, smooth=True),
             crown.object(name + " leaves", leaves, smooth=False), r * 1.6)
 
@@ -299,14 +319,17 @@ def conifer(name, seed, bark, needles):
             across = Vector((-out.y, out.x, 0.0)) * (0.32 + 0.22 * length ** 0.5)
             u0, v0, u1, v1 = sprigs[random.randrange(3)]
             root = Vector((0, 0, z))
+            # Lit as the outside of the tree, out from the trunk and a little up, rather than as a
+            # flat card, whose underside would be dark.
+            normal = (out + Vector((0, 0, 0.6))).normalized()
             crown.add([root - across * 0.4, tip - across, tip + across, root + across * 0.4],
-                      [(u1, v0), (u0, v0), (u0, v1), (u1, v1)])
+                      [(u1, v0), (u0, v0), (u0, v1), (u1, v1)], [normal] * 4)
         z += random.uniform(0.5, 0.7)
     top = Vector((0, 0, height - 0.6))
     for a in (0.0, math.pi / 2):
         side = Vector((math.cos(a), math.sin(a), 0.0)) * 0.35
         crown.add([top - side, top + side, top + side + Vector((0, 0, 1.2)), top - side + Vector((0, 0, 1.2))],
-                  [(0.93, 0.02), (0.93, 0.36), (0.03, 0.36), (0.03, 0.02)])
+                  [(0.93, 0.02), (0.93, 0.36), (0.03, 0.36), (0.03, 0.02)], [Vector((0, 0, 1))] * 4)
     return (wood.object(name + " wood", bark, smooth=True),
             crown.object(name + " needles", needles, smooth=False), r * 1.3)
 

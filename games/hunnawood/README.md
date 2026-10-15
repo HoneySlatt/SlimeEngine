@@ -156,18 +156,19 @@ The hero starts in the south, walks a path under oaks and conifers, among mossy 
 crosses a dry gully on a stone bridge, passes a campfire in a clearing, and reaches a ruined gothic
 chapel; its north wall holds a sealed door, behind which a walled terrace looks over a cliff
 towards the region's capital, painted on a card far away. A line of trees painted the same way
-closes the other sides. Lanterns on posts line the path. The script also makes the hero: Blender
+closes the other sides. Lanterns on posts line the path. The ground, the rocks and the stone, photographed
+warmer, are graded toward the zone's palette, cold and grey. The script also makes the hero: Blender
 Studio's body, its arms lowered, dressed in a tunic, trousers, boots and a hooded cloak. Its
 modules:
 
 | Module | What it makes |
 |---|---|
 | `build_zone.py` | Runs the others, exports the zone and the hero, and with `--preview DIR` renders views of the zone with EEVEE |
-| `common.py` | Materials, meshes, and the colliders, markers and lights that the game reads |
+| `common.py` | Materials, the photographed textures graded toward the zone's cold grey palette, meshes, and the colliders, markers and lights that the game reads |
 | `land.py` | The ground, the path, the gully and the cliff |
 | `ruins.py` | The bridge, the chapel, its door's wall and the terrace |
 | `props.py` | Poly Haven's models, made lighter, the lanterns and their posts, the campfire, the door and the key |
-| `vegetation.py` | The oaks and conifers, their leaf cards, and the scatter of trees, rocks and ferns |
+| `vegetation.py` | The oaks and conifers, their leaf cards, lit as masses of leaves, and the scatter of trees, rocks and ferns |
 | `backdrop.py` | The pictures of the capital and of the forest beyond, rendered with Cycles, and their cards |
 | `hero.py` | The hero |
 | `preview.py` | The views of `--preview` |

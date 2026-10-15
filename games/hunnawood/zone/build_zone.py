@@ -62,9 +62,12 @@ def arguments():
 def build(place, sources):
     seed = place["zone"]["seed"]
     materials = {
-        "forest floor": common.poly_haven_set(sources, "forest_leaves_02", "2k", tint=(0.62, 0.7, 0.8)),
-        "path": common.poly_haven_set(sources, "stony_dirt_path", "2k"),
-        "stone": common.poly_haven_set(sources, "medieval_blocks_02", "2k", tint=(0.56, 0.66, 0.86)),
+        # The ground and the stone, photographed warmer than the zone's palette, graded toward it.
+        "forest floor": common.poly_haven_set(sources, "forest_leaves_02", "2k", tint=(0.62, 0.7, 0.8),
+                                              saturation=0.55),
+        "path": common.poly_haven_set(sources, "stony_dirt_path", "2k", saturation=0.45),
+        "stone": common.poly_haven_set(sources, "medieval_blocks_02", "2k", tint=(0.62, 0.66, 0.72),
+                                       saturation=0.4),
         "oak bark": common.poly_haven_set(sources, "jolcham_oak_bark_01", "1k"),
         "pine bark": common.poly_haven_set(sources, "pine_bark", "1k"),
     }
@@ -137,6 +140,8 @@ def rocks(place, models, keepout, random, taken):
     gully, the cliff and the edges of the ground."""
     rock_meshes = list(models.load("rock_moss_set_01", "1k", 2500).values())
     rock_meshes += list(models.load("rock_moss_set_02", "1k", 2500).values())
+    for asset in ("rock_moss_set_01", "rock_moss_set_02"):
+        models.grade(asset, 0.45)
     for i, (x, y, _) in enumerate(vegetation.scatter_points(place, keepout, place["scatter"]["rocks"],
                                                             1.2, 2.5, random, taken)):
         mesh = rock_meshes[i % len(rock_meshes)]
@@ -156,6 +161,8 @@ def rocks(place, models, keepout, random, taken):
                      random.uniform(0, 2 * math.pi), random.uniform(0.7, 1.4))
     faces = list(models.load("rock_face_01", "2k", 6000).values())
     faces += list(models.load("rock_face_02", "2k", 6000).values())
+    for asset in ("rock_face_01", "rock_face_02"):
+        models.grade(asset, 0.45)
     cliff = place["chapel"]["cliff"]
     hx_zone, hy_zone = place["zone"]["half_size"]
     spots = [

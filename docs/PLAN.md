@@ -27,7 +27,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   texture changed on disk changes in the running game
   ([ADR-0076](adr/0076-hot-reload-of-cooked-data.md)). M4b.7 done on 2026-10-15: a shader
   changed on disk changes in the running game ([ADR-0077](adr/0077-hot-reload-of-shaders.md)).
-  Next: M4b.8, *Hunna Wood* refined with hot reload.
+  M4b.8 built: *Hunna Wood* refined on the owner's three
+  points, its zone published on the mirror; CI checks it.
 
 ## Status
 
@@ -40,7 +41,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M4b.5](#m4b5--materials-that-change-in-place) | A game changes a material's values while it runs | Done |
 | [M4b.6](#m4b6--hot-reload-of-cooked-data) | A texture changed on disk changes in the running game | Done |
 | [M4b.7](#m4b7--hot-reload-of-shaders) | A shader changed on disk changes in the running game | Done |
-| [M4b.8](#m4b8--refining-hunna-wood) | *Hunna Wood* refined with hot reload, on the owner's list | Planned |
+| [M4b.8](#m4b8--refining-hunna-wood) | *Hunna Wood* refined with hot reload, on the owner's list | Built; CI checks it |
 | [M4b.9](#m4b9--windows-check-documentation-close) | Stage 4b is done; Stage 5 is planned | Planned |
 
 Stages 0, 1, 2, 3a, 3b, 3c, 3d and 4a are done; see [Completed stages](#completed-stages).
@@ -302,7 +303,7 @@ Risks:
   what was left to refine while playing at Stage 4a or what they noticed since: the leaf cards,
   which read as cards up close; the stone and the ground, warmer than the zone's grey palette; the
   fire, three glowing tongues until particles; the hero's smooth face; the capital's picture,
-  larger than the sizes decided (see [Known debt](#known-debt)). No new engine feature; new source
+  larger than the sizes decided at Stage 4a. No new engine feature; new source
   assets and new releases of the mirror only with the owner's agreement
   ([ADR-0070](adr/0070-the-sample-games-source-assets.md)).
 - **Done when.** The owner's report on each point; the tests of the cooked zone, budgets included,
@@ -386,9 +387,6 @@ GitHub issues, linked from their entry; this list stays the reference.
   farther cascades, or fewer and smaller cards, would lower it, to measure with views of the zone.
 - **The tests of the cooked zone run in `scripts/check.sh` only**: they need the zone fetched and
   cooked, so `cargo test` leaves them out (`#[ignore]`), and CI runs them on Linux, not on Windows.
-- **The capital's picture is 4096 × 1536 texels**, beyond the sizes decided for Stage 4a (2048 for
-  the ground, the walls, the cliffs and the hero, 1024 for small props): it spans the whole view
-  north of the zone. It takes 8 MiB compressed.
 - **Frames are not synchronized with the display's refresh** (ADR-0021; issue
   [#1](https://github.com/HoneySlatt/SlimeEngine/issues/1)). With Mailbox, the default, the
   schedule alone paces frames: on a 60 Hz display, an image is now and then shown twice while the

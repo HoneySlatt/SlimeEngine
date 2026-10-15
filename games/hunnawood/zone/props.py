@@ -47,6 +47,26 @@ class Models:
         self.meshes[asset] = meshes
         return meshes
 
+    def grade(self, asset, saturation):
+        """Grades toward the zone's palette (`common.grade`) the color images of the materials of
+        `asset`'s meshes, loaded before."""
+        def color_images(socket):
+            for link in socket.links:
+                node = link.from_node
+                if node.type == "TEX_IMAGE" and node.image is not None:
+                    yield node.image
+                for upstream in node.inputs:
+                    yield from color_images(upstream)
+
+        for mesh in self.meshes[asset].values():
+            for mat in mesh.materials:
+                if mat is None or not mat.use_nodes:
+                    continue
+                for node in mat.node_tree.nodes:
+                    if node.type == "BSDF_PRINCIPLED":
+                        for image in color_images(node.inputs["Base Color"]):
+                            common.grade(image, self.sources.scratch, saturation)
+
     def place(self, mesh, name, location, yaw=0.0, scale=1.0, tilt=(0.0, 0.0), as_part=False):
         """An object of `mesh` at `location`, turned by `yaw` about the vertical and `tilt` about x
         and y, scaled; `as_part` keeps it where it stood in its model, relative to `location`, as a

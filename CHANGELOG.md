@@ -54,6 +54,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- *Hunna Wood*'s zone, refined on three points that the owner chose (M4b.8): the oaks' leaf
+  cards, smaller and four times as many, are lit as masses of leaves rather than card by card; the
+  ground, the rocks and the stone are graded toward the zone's cold grey palette; the capital's
+  picture is 2048 × 768 texels, within the sizes decided for the zone, the city farther and hazier.
 - `BindingType::UniformBuffer` declares the size of the values its shaders read (`size`): a
   pipeline whose shader reads more is refused when it is made, rather than failing when it draws
   (ADR-0077).
