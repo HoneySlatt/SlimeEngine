@@ -13,8 +13,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3d — Anti-aliasing and the shadows of spot lights: planned on 2026-10-15 and validated by
-  the owner. M3d.1 to M3d.4 and M3d.6 to M3d.9 are done; M3d.5, the check in the Windows virtual
-  machine, remains.
+  the owner. M3d.1 to M3d.9 are done.
 
 ## Status
 
@@ -24,7 +23,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M3d.2](#m3d2--anti-aliasing-in-the-renderer) | The edges of the scene are smooth | Done |
 | [M3d.3](#m3d3--spot-lights-shadows-what-each-tile-sees) | The renderer draws each spot light's tile of the shadow atlas | Done |
 | [M3d.4](#m3d4--spot-lights-shadows-drawn-and-read) | Spot lights cast shadows | Done |
-| [M3d.5](#m3d5--nightwatch-and-the-windows-check) | Nightwatch shows both, on Linux and Windows | In progress |
+| [M3d.5](#m3d5--nightwatch-and-the-windows-check) | Nightwatch shows both, on Linux and Windows | Done |
 | [M3d.6](#m3d6--a-smoother-shadow-filter) | Shadows' edges fade smoothly | Done |
 | [M3d.7](#m3d7--what-each-cascade-sees) | The shadow pass draws the directional light's four cascades | Done |
 | [M3d.8](#m3d8--the-cascades-read) | Each point is shadowed by the finest cascade that holds it, without seams | Done |
@@ -204,9 +203,24 @@ texels near the player, not more (ADR-0064).
   with FXC and with DXC and on Vulkan; `CHANGELOG.md`; Stage 3d marked done.
 - **Done when.** The owner's reports from Linux and Windows; the checks and CI are green.
 - **How to test.** Playing it; `--frames` in the headless Weston.
-- **Checked so far** on 2026-10-15: the lamps cast no shadow, and a floodlight's light stands
-  30 cm out of its lamp along its aim, where its pole no longer hides it; looked at offscreen, walls
-  and crates cut the floodlights' pools and the flashlights' beams.
+- **Checked** on 2026-10-15: the lamps cast no shadow, and a floodlight's light stands 30 cm out of
+  its lamp along its aim, where its pole no longer hides it; looked at offscreen, walls and crates
+  cut the floodlights' pools and the flashlights' beams. On Linux, the owner played the game at
+  3840 × 2160 after M3d.4: edges smooth, the lights stopped by walls and crates, and the moon's
+  shadows still stepped, which M3d.6 to M3d.9 took on; the cascades were judged on images at M3d.9.
+  In the Windows virtual machine, on the same RX 6900 XT, with the build of CI from 57e4a9e, on
+  Direct3D 12 with FXC: played for nearly five minutes, at 1920 × 1080 then 3840 × 2054, won once
+  and lost once; edges smooth, bright lamps on the dark included; flashlights and floodlights
+  stopped by walls and crates; the moon's shadows sharp near the player, without steps along the
+  crates' feet, and still there at the far end of the courtyard; no acne, no shimmer as the camera
+  moves and turns, no line where one cascade hands over to the next; Escape and `--frames` end it
+  with exit code 0, without an error, with the one known warning of the dev overlay's sRGB
+  framebuffer. At 3840 × 2054 with FXC, the scene pass takes 10.4 ms. Over 600 frames of the first
+  view at 1920 × 1080, the scene pass took 2.89 ms on Direct3D 12 with FXC, 1.15 ms with DXC
+  1.9.2609 and 1.15 ms on Vulkan before the stage (the build of c0fe105), and 3.74, 1.97 and
+  1.79 ms after it: FXC's code is the cause of the gap that ADR-0057 recorded. The moon's shadow
+  pass takes 0.08 to 0.10 ms, the spot lights' 0.05 to 0.07 ms and the resolve 0.14 to 0.15 ms,
+  with either compiler and on Vulkan. ADR-0036 is to be reopened with these figures (ADR-0057).
 
 ### M3d.6 — A smoother shadow filter
 
@@ -595,6 +609,12 @@ GitHub issues, linked from their entry; this list stays the reference.
   1080 fragments on an RX 6900 XT (2026-10-13), 338 µs for 16, the most a scene holds, and 10 to 20
   times more on an integrated GPU; a light's range saves no work. More lights would need clustered
   or tiled culling and a storage buffer, a measured decision of Stage 9a (ADR-0052).
+- **On Direct3D 12, the scene pass is about twice as slow with FXC's code as with DXC's**
+  (ADR-0036). The engine asks wgpu for FXC, part of Windows, so that shaders compile the same way
+  on every machine. In *Nightwatch*'s first view at 1920 × 1080, on an RX 6900 XT, the scene pass
+  takes 3.74 ms with FXC, 1.97 ms with DXC and 1.79 ms on Vulkan, and 10.4 ms with FXC at
+  3840 × 2054 (2026-10-15). `WGPU_DX12_COMPILER=dxc` asks for DXC, whose DLLs a developer puts
+  beside the program. ADR-0036 is to be reopened with these figures (ADR-0057).
 - **Point lights cast no shadows, and light what objects hide** (ADR-0037; the first directional
   light that casts shadows casts them, ADR-0038, and so do spot lights, ADR-0058). The sample's ring
   light, a point light, reaches 4 m, and gives little beyond a metre. The shadows of point lights
