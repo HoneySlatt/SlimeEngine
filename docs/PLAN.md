@@ -27,8 +27,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   texture changed on disk changes in the running game
   ([ADR-0076](adr/0076-hot-reload-of-cooked-data.md)). M4b.7 done on 2026-10-15: a shader
   changed on disk changes in the running game ([ADR-0077](adr/0077-hot-reload-of-shaders.md)).
-  M4b.8 built: *Hunna Wood* refined on the owner's three
-  points, its zone published on the mirror; CI checks it.
+  M4b.8 done on 2026-10-15: *Hunna Wood* refined on the three points that the owner chose. Next:
+  M4b.9, the documents reread and the checks by hand that M4b.4 left, then Stage 5 planned with the
+  owner.
 
 ## Status
 
@@ -41,7 +42,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M4b.5](#m4b5--materials-that-change-in-place) | A game changes a material's values while it runs | Done |
 | [M4b.6](#m4b6--hot-reload-of-cooked-data) | A texture changed on disk changes in the running game | Done |
 | [M4b.7](#m4b7--hot-reload-of-shaders) | A shader changed on disk changes in the running game | Done |
-| [M4b.8](#m4b8--refining-hunna-wood) | *Hunna Wood* refined with hot reload, on the owner's list | Built; CI checks it |
+| [M4b.8](#m4b8--refining-hunna-wood) | *Hunna Wood* refined with hot reload, on the owner's list | Done |
 | [M4b.9](#m4b9--windows-check-documentation-close) | Stage 4b is done; Stage 5 is planned | Planned |
 
 Stages 0, 1, 2, 3a, 3b, 3c, 3d and 4a are done; see [Completed stages](#completed-stages).
@@ -309,6 +310,22 @@ Risks:
 - **Done when.** The owner's report on each point; the tests of the cooked zone, budgets included,
   pass; CI is green.
 - **How to test.** Playing it.
+- **Outcome.** Done on 2026-10-15. The owner chose three points: the leaf cards; the stone and the
+  ground, made colder and greyer, the rocks with them, as the note taken while playing at Stage 4a
+  asked; and the capital's picture, within the sizes of Stage 4a and farther away, as the same note
+  asked. The oaks' cards
+  are 55 to 80 cm instead of 1.2 to 1.7 m, four times as many, facing out of the crown, with normals
+  that point out of it, so that a crown is lit as a mass of leaves; the conifers' cards carry such
+  normals too. The photographed textures of the ground, the rocks and the stone lose most of their
+  saturation and take a cold gain, written under their own names so that their asset IDs stay. The
+  capital's picture is 2048 × 768, the city farther and hazier. The owner looked at the zone in the
+  game and approved it, and the mirror's release `hunnawood-6`, which holds the twelve exported
+  files that changed. The zone keeps within its budgets: 705 859 triangles and 144 MiB of
+  textures; on lavapipe, the day's shadow pass took 6.0 s instead of 6.2 s (see
+  [Known debt](#known-debt)). Two things were found on the way: Blender's glTF importer packs the
+  images it reads, so the export wrote the original of a graded image until the script unpacked
+  them; and Blender exported the hero again with other bytes though nothing of it changed, so the
+  file already on the mirror was kept.
 
 ### M4b.9 — Windows check, documentation, close
 
