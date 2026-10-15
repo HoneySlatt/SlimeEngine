@@ -102,6 +102,10 @@ if slime_app::run(&mut Game, &config).is_err() {
     Vulkan (on Direct3D 12, the engine waits up to one second for it, then draws the frame late;
     on Windows with Vulkan, wgpu treats a wait of more than one second as a lost device, and the
     run stops).
+  - `gpu_lost(ctx)` and `gpu_restored(ctx)` are called between frames when the GPU device was lost
+    and the run replaces it, which an application asks for with `AppConfig::restore_lost_device`:
+    it drops its GPU objects in the first, before the new device opens, and creates them again in
+    the second (`docs/adr/0075-recovering-from-a-lost-gpu-device.md`).
 - `run(&mut app, &config)`: sets up diagnostics and a handler for termination signals, then runs
   the application until it calls `Context::request_exit`, the window is closed, the process
   receives SIGINT (Ctrl+C), SIGTERM or SIGHUP, or `AppConfig::frame_limit` is reached. In every
@@ -128,7 +132,10 @@ if slime_app::run(&mut Game, &config).is_err() {
     a display server) or its event loop fails, `Gfx` when no GPU can draw into the window or when
     the GPU device or the window's surface is lost for good during the run. After a loss, the run
     stops like after an exit request, `shutdown` included
-    (`docs/adr/0022-losing-the-gpu-device.md`, `docs/adr/0025-giving-up-a-lost-surface.md`). Only
+    (`docs/adr/0022-losing-the-gpu-device.md`, `docs/adr/0025-giving-up-a-lost-surface.md`),
+    unless the application set `AppConfig::restore_lost_device`: the run then opens a new device
+    and goes on. It gives up after three new devices in a row without a frame shown, and when no
+    device should or can replace the lost one; it does not try when it is stopping anyway. Only
     one windowed run, or attempt, is possible per process. A failed run is logged at the `error`
     level with each of its causes (`the run failed: cannot draw into the window: no GPU adapter is
     available: ...`), which the error's own message, the most general, does not give.

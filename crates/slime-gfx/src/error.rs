@@ -23,13 +23,24 @@ pub enum GfxError {
         /// The formats the window offers, as wgpu names them.
         offered: String,
     },
-    /// The GPU device was lost: the driver crashed or was reset, the GPU was removed, or it ran out
-    /// of memory where wgpu cannot recover (see [`OutOfMemory`](Self::OutOfMemory)). Objects
-    /// created from the device can no longer be used.
+    /// The GPU device was lost: the driver crashed or was reset, the GPU was removed, it ran out of
+    /// memory where wgpu cannot recover (see [`OutOfMemory`](Self::OutOfMemory)), or the program
+    /// lost it on purpose ([`Gpu::lose`](crate::Gpu::lose)). Objects created from the device can no
+    /// longer be used.
     #[error("the GPU device was lost: {message}")]
     DeviceLost {
-        /// The reason the driver gave.
+        /// Why: the driver, the program, or memory that ran out.
+        kind: crate::LossKind,
+        /// The reason the driver or the engine gave.
         message: String,
+    },
+    /// No device replaces the one that was lost ([`Gpu::restore`](crate::Gpu::restore),
+    /// [`Surface::restore`](crate::Surface::restore)): it was lost because memory ran out, or the
+    /// only adapter left renders on the CPU where the lost one did not.
+    #[error("no GPU device replaces the lost one: {reason}")]
+    CannotRestore {
+        /// Why.
+        reason: String,
     },
     /// The GPU's memory cannot hold an object being created: a buffer, a texture, a render or
     /// depth target, a sampler, a timer's queries and buffers, or the buffer of a readback. Nothing

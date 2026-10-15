@@ -15,6 +15,13 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   task pool of the renderer's own; dropping a `SceneLoad` cancels its load.
 - `Gpu` is `Clone`: its clones share the device, so that several threads create GPU objects
   through it.
+- An application can go on after a lost GPU device
+  ([ADR-0075](docs/adr/0075-recovering-from-a-lost-gpu-device.md)): with
+  `AppConfig::restore_lost_device`, the run calls `App::gpu_lost`, where the application drops its
+  GPU objects, opens a new device between frames, and calls `App::gpu_restored`, where the
+  application creates them again; it gives up after three new devices in a row without a frame
+  shown. Without `slime-app`, `Gpu::restore` and
+  `Surface::restore` open the new device; `Gpu::lose` loses one on purpose, for tests and tools.
 - `slime_render::scene_lights` gives the lights that a cooked scene's nodes place without loading
   the scene, so that a game knows its sun and its moon before its scene is loaded.
 - *Hunna Wood* draws while its zone loads: its window shows the hero under the sky two to three
@@ -29,6 +36,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   loading thread is raised again on the thread that waits. When several assets of a scene fail, the
   error returned is the first that a loading thread reports, which can change from one run to the
   next.
+- `GfxError::DeviceLost` says why the device was lost (`LossKind`: the driver, the program, or
+  memory that ran out), and `GfxError::CannotRestore` says why no device replaces a lost one.
 - Textures reach the GPU through a buffer of their own and a copy submitted at once, rather than
   through wgpu's queue writes, so that a thread that loads them does not hold up the thread that
   submits frames (ADR-0074). Creating a texture costs a submission.

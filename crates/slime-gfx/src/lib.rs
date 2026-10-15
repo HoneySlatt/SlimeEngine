@@ -33,7 +33,7 @@ pub use color::LinearColor;
 pub use depth_target::DepthTarget;
 pub use error::GfxError;
 pub use float16::f32_to_f16;
-pub use gpu::{Gpu, MEMORY_BUDGET_ENV_VAR};
+pub use gpu::{Gpu, LossKind, MEMORY_BUDGET_ENV_VAR};
 pub use image::{FloatImage, Image};
 pub use index_buffer::IndexBuffer;
 pub use pass::{Commands, DepthPassDescriptor, RenderPass, RenderPassDescriptor};

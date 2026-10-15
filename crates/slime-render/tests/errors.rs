@@ -29,11 +29,8 @@ fn creations_on_a_lost_device_return_the_loss() {
         .render(&gpu, &small, &scene)
         .expect("the frame is drawn");
 
-    // A loss that wgpu records when it is next polled, as a driver reset would.
-    gpu.wgpu_device().destroy();
-    let _ = gpu
-        .wgpu_device()
-        .poll(slime_gfx::wgpu::PollType::wait_indefinitely());
+    // A loss, as a driver reset would cause.
+    gpu.lose();
 
     // A frame of the same size creates nothing, and is not drawn either.
     let frame = renderer.render(&gpu, &small, &scene);

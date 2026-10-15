@@ -76,11 +76,45 @@ pub trait App {
         let _ = (ctx, target);
     }
 
+    /// Called between frames when the GPU device was lost and the run is about to open a new one,
+    /// as an application asks with [`AppConfig::restore_lost_device`]: the application drops every
+    /// GPU object it made with the lost device, which [`Context::gpu`] still is, and every clone of
+    /// that `Gpu`, its loads in progress included, whatever their state. The run then releases its
+    /// own and opens the new device, which Direct3D 12 does only once nothing holds the lost one
+    /// (ADR-0075). Objects kept past this call make the new device open on another adapter, if
+    /// any, and panic if used with it. The default does nothing, which suits an application that
+    /// keeps no GPU object between frames.
+    fn gpu_lost(&mut self, ctx: &mut Context) {
+        let _ = ctx;
+    }
+
+    /// Called between frames once the run opened a new GPU device after [`gpu_lost`](Self::gpu_lost):
+    /// [`Context::gpu`] is the new device, and [`Context::surface_format`] the format of the
+    /// window's images, which another adapter may change. The application creates its GPU objects
+    /// again here, as in [`init`](Self::init). The default does nothing.
+    ///
+    /// The run does not restore, and stops as without the setting, once it has opened three devices
+    /// in a row without a frame shown in between, when the device was lost because memory ran out,
+    /// when only a CPU adapter is left where the lost device was a GPU's, or when no device opens
+    /// ([`Surface::restore`]); nor when the run is stopping anyway, or the window's surface was lost
+    /// for good. When no device opens after `gpu_lost`, [`Context::gpu`] is `None` from then on,
+    /// [`App::shutdown`] included.
+    ///
+    /// # Errors
+    ///
+    /// An application returns an error when it cannot go on with the new device. The run then stops
+    /// as after [`Context::exit_with_error`], and [`run`] returns [`RunError::App`] with this error.
+    fn gpu_restored(&mut self, ctx: &mut Context) -> Result<(), AppError> {
+        let _ = ctx;
+        Ok(())
+    }
+
     /// Called once, after the last frame, however the run stopped, unless [`init`](Self::init)
     /// failed or the process ends before the run stops: on a second termination signal, when the
     /// console closes or Windows logs off or shuts down (see [`run`](crate::run)), or when the
-    /// connection to the X server is lost. With a window, the window and the GPU still exist; an
-    /// application that keeps a clone of the window should drop it here.
+    /// connection to the X server is lost. With a window, the window and the GPU still exist, but for
+    /// a GPU lost that no new one replaced after [`gpu_lost`](Self::gpu_lost); an application that
+    /// keeps a clone of the window should drop it here.
     fn shutdown(&mut self, ctx: &mut Context) {
         let _ = ctx;
     }
@@ -126,6 +160,12 @@ pub struct AppConfig {
     /// Default: [`PresentMode::Mailbox`], which never makes a frame wait for the display, and is
     /// replaced by [`PresentMode::Fifo`] on windows that do not offer it.
     pub present_mode: PresentMode,
+    /// With a window, whether the run opens a new GPU device when it loses its own, and lets the
+    /// application create its GPU objects again ([`App::gpu_restored`]), rather than stopping
+    /// (ADR-0075). Headless runs ignore it: they open no GPU. Default: `false`, so that an
+    /// application that does not create its objects again stops cleanly, as the engine did
+    /// before.
+    pub restore_lost_device: bool,
 }
 
 impl Default for AppConfig {
@@ -138,6 +178,7 @@ impl Default for AppConfig {
             max_frame_delta: Duration::from_millis(250),
             max_frame_rate: 60,
             present_mode: PresentMode::default(),
+            restore_lost_device: false,
         }
     }
 }
@@ -180,8 +221,8 @@ impl Context {
     }
 
     /// Whether the run is going to stop: the application requested an exit, the window was closed,
-    /// the process received a termination signal, the GPU device was lost, or the window's surface
-    /// was lost for good.
+    /// the process received a termination signal, the GPU device was lost and not replaced
+    /// ([`AppConfig::restore_lost_device`]), or the window's surface was lost for good.
     ///
     /// A termination signal shows here as soon as it is received, even during [`App::init`] or in
     /// the middle of a frame, so that a long loading or a long update that checks it can stop
@@ -228,6 +269,12 @@ impl Context {
     pub(crate) fn set_gpu(&mut self, gpu: Option<Gpu>, surface_format: Option<TextureFormat>) {
         self.gpu = gpu;
         self.surface_format = surface_format;
+    }
+
+    /// Takes the GPU out, with the format of the window's images.
+    pub(crate) fn take_gpu(&mut self) -> Option<Gpu> {
+        self.surface_format = None;
+        self.gpu.take()
     }
 
     /// The error passed to `exit_with_error`, if there is one.
@@ -310,7 +357,10 @@ pub(crate) enum ExitReason {
 ///   or it ran out of memory), or the window's surface was lost for good (`GfxError::SurfaceLost`:
 ///   it could not be created again after a loss, or was lost again each time). After a loss, the
 ///   run stops like after an exit request: the frame in progress finishes, without drawing, and
-///   `shutdown` is called.
+///   `shutdown` is called. An application that sets [`AppConfig::restore_lost_device`] goes on
+///   with a new device instead ([`App::gpu_lost`], [`App::gpu_restored`]): its run returns
+///   `GfxError::DeviceLost` after three new devices in a row without a frame shown, and
+///   `GfxError::CannotRestore`, or the error of opening a device, when none replaces the lost one.
 ///
 /// When the window or the GPU could not be opened, neither `init` nor `shutdown` is called.
 /// Headless runs fail only when the application does. A failed run is logged at the `error` level, with
@@ -353,10 +403,10 @@ fn run_headless(app: &mut impl App, config: &AppConfig) -> Result<(), RunError> 
     tracing::debug!(?config, "running headless");
     app.init(&mut ctx).map_err(RunError::Init)?;
     let reason = loop {
-        if let Some(reason) = frames.check_stop(&mut ctx, None) {
+        if let Some(reason) = frames.check_stop(&mut ctx, None, false) {
             break reason;
         }
-        frames.run_one(app, &mut ctx, config.fixed_step, None);
+        let _ = frames.run_one(app, &mut ctx, config.fixed_step, None);
     };
     tracing::info!(frames = frames.count(), "stopping: {reason}");
     app.shutdown(&mut ctx);
@@ -389,17 +439,20 @@ impl Frames {
 
     /// Why no further frame must run, if that is the case. A termination signal received since the
     /// last check, or the loss of the GPU or of the window's `surface`, is recorded in `ctx` first,
-    /// as the reason the run stops. From then on, the application also sees a loss as an exit
-    /// request; it sees a signal as one as soon as it arrives (`Context::exit_requested`).
+    /// as the reason the run stops; not the loss of the GPU when the run can still replace it, as
+    /// `restorable` says, which it does before the next frame. From then on, the application also
+    /// sees a loss as an exit request; it sees a signal as one as soon as it arrives
+    /// (`Context::exit_requested`).
     pub(crate) fn check_stop(
         &self,
         ctx: &mut Context,
         surface: Option<&Surface>,
+        restorable: bool,
     ) -> Option<&'static str> {
         if signal::received() {
             ctx.exit_because(ExitReason::Signal);
         }
-        if ctx.gpu().is_some_and(|gpu| gpu.check().is_err()) {
+        if !restorable && ctx.gpu().is_some_and(|gpu| gpu.check().is_err()) {
             ctx.exit_because(ExitReason::DeviceLost);
         }
         if surface.is_some_and(|surface| surface.check().is_err()) {
@@ -420,14 +473,14 @@ impl Frames {
     }
 
     /// Runs one frame that represents `raw_delta` of time, and draws it into `surface` when there
-    /// is one and it can show a new image.
+    /// is one and it can show a new image. Returns whether the window showed the frame's image.
     pub(crate) fn run_one(
         &mut self,
         app: &mut impl App,
         ctx: &mut Context,
         raw_delta: Duration,
         surface: Option<&mut Surface>,
-    ) {
+    ) -> bool {
         let frame = self.clock.advance(raw_delta);
         let _frame_span = tracing::trace_span!("frame", index = frame.index()).entered();
         let steps = self.fixed.advance(frame.delta());
@@ -444,6 +497,7 @@ impl Frames {
             let _span = tracing::trace_span!("acquire").entered();
             surface.acquire(&format!("window, frame {}", frame.index()))
         });
+        let mut shown = false;
         if let Some(image) = image {
             {
                 let _span = tracing::trace_span!("render").entered();
@@ -451,7 +505,10 @@ impl Frames {
             }
             let _span = tracing::trace_span!("present").entered();
             image.present();
+            // Once the device is lost, the image is released rather than shown.
+            shown = ctx.gpu().is_some_and(|gpu| gpu.check().is_ok());
         }
         self.count += 1;
+        shown
     }
 }

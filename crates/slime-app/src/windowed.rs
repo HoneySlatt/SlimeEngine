@@ -9,6 +9,10 @@ use slime_platform::{Event, EventHandler, LoopControl, Window, WindowConfig};
 use crate::app::{App, AppConfig, Context, ExitReason, Frames};
 use crate::error::RunError;
 
+/// How many devices in a row the run opens after losses with no frame shown in between: at the
+/// next loss, it gives up, since a device lost again at once every time will not come back.
+const MAX_RESTORES_IN_A_ROW: u32 = 3;
+
 pub(crate) fn run_windowed(
     app: &mut impl App,
     config: &AppConfig,
@@ -25,6 +29,8 @@ pub(crate) fn run_windowed(
         frames: Frames::new(config),
         surface: None,
         present_mode: config.present_mode,
+        restore_lost_device: config.restore_lost_device,
+        restores_in_a_row: 0,
         frame_period: Duration::from_secs(1) / config.max_frame_rate,
         last_frame: now,
         next_frame: now,
@@ -44,6 +50,11 @@ struct WindowedDriver<'a, A> {
     /// The window's surface; the GPU that draws into it is in `ctx`.
     surface: Option<Surface>,
     present_mode: PresentMode,
+    /// Whether a lost device is replaced (`AppConfig::restore_lost_device`); cleared when the run
+    /// gives up replacing it.
+    restore_lost_device: bool,
+    /// How many devices the run opened since the last frame shown.
+    restores_in_a_row: u32,
     /// The interval at which frames are scheduled, from `AppConfig::max_frame_rate`.
     frame_period: Duration,
     last_frame: Instant,
@@ -66,6 +77,61 @@ impl<A: App> WindowedDriver<'_, A> {
         self.ctx.set_gpu(Some(gpu), Some(surface.format()));
         self.surface = Some(surface);
         self.app.init(&mut self.ctx).map_err(RunError::Init)
+    }
+
+    /// When the GPU device is lost and the application chose to replace it, lets the application
+    /// drop its objects of the lost device (`App::gpu_lost`), releases the run's own, opens a new
+    /// device for the window and lets the application create its objects again
+    /// (`App::gpu_restored`), between frames. Does nothing when the run is stopping anyway, or the
+    /// window's surface was lost for good. Gives up, leaving the loss to stop the run, once
+    /// `MAX_RESTORES_IN_A_ROW` devices were opened in a row without a frame shown; and when no
+    /// device opens, stops the run with that error.
+    fn restore(&mut self) {
+        if !self.restore_lost_device || self.stop.is_some() || self.ctx.exit_requested() {
+            return;
+        }
+        let Some(Err(loss)) = self.ctx.gpu().map(Gpu::check) else {
+            return;
+        };
+        if !self
+            .surface
+            .as_ref()
+            .is_some_and(|surface| surface.check().is_ok())
+        {
+            return;
+        }
+        if self.restores_in_a_row >= MAX_RESTORES_IN_A_ROW {
+            tracing::error!(
+                %loss,
+                "the GPU device was lost again after {MAX_RESTORES_IN_A_ROW} new ones in a row, \
+                 without a frame shown: no new one replaces it"
+            );
+            self.restore_lost_device = false;
+            return;
+        }
+        // Nothing may hold the lost device when the new one opens: Direct3D 12 would not open it on
+        // the same adapter (ADR-0075). The application drops its objects, then the run its own.
+        self.app.gpu_lost(&mut self.ctx);
+        let lost = self.ctx.take_gpu().expect("the device that was found lost");
+        let surface = self.surface.take().expect("checked above");
+        match surface.restore(lost) {
+            Ok((gpu, surface)) => {
+                self.restores_in_a_row += 1;
+                tracing::warn!(%loss, "the GPU device was lost; a new one replaces it");
+                self.ctx.set_gpu(Some(gpu), Some(surface.format()));
+                self.surface = Some(surface);
+                if let Err(error) = self.app.gpu_restored(&mut self.ctx) {
+                    self.ctx.exit_with_error(error);
+                }
+            }
+            Err(error) => {
+                // The run has neither device nor surface left: it stops, with this error.
+                tracing::error!(%error, "no new GPU device replaces the lost one");
+                self.error.get_or_insert(RunError::Gfx(error));
+                self.restore_lost_device = false;
+                self.ctx.exit_because(ExitReason::DeviceLost);
+            }
+        }
     }
 }
 
@@ -101,29 +167,46 @@ impl<A: App> EventHandler for WindowedDriver<'_, A> {
     }
 
     fn redraw_requested(&mut self) {
+        if self.started {
+            self.restore();
+        }
         if !self.started
             || self.stop.is_some()
             || self
                 .frames
-                .check_stop(&mut self.ctx, self.surface.as_ref())
+                .check_stop(
+                    &mut self.ctx,
+                    self.surface.as_ref(),
+                    self.restore_lost_device,
+                )
                 .is_some()
         {
             return;
         }
         let now = Instant::now();
-        self.frames.run_one(
+        let shown = self.frames.run_one(
             self.app,
             &mut self.ctx,
             now - self.last_frame,
             self.surface.as_mut(),
         );
+        if shown {
+            self.restores_in_a_row = 0;
+        }
         self.last_frame = now;
         self.next_frame = next_due(self.next_frame, now, self.frame_period);
     }
 
     fn about_to_wait(&mut self) -> LoopControl {
+        if self.started {
+            self.restore();
+        }
         if self.stop.is_none() {
-            self.stop = self.frames.check_stop(&mut self.ctx, self.surface.as_ref());
+            self.stop = self.frames.check_stop(
+                &mut self.ctx,
+                self.surface.as_ref(),
+                self.restore_lost_device,
+            );
         }
         if self.stop.is_some() {
             return LoopControl::Exit;

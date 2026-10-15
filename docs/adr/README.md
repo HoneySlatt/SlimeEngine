@@ -89,7 +89,7 @@ the ADR linking to it.
 | [0019](0019-default-log-filter.md) | Default log filter | Accepted |
 | [0020](0020-rendering-in-the-main-loop.md) | Rendering in the main loop, and application errors | Accepted; amended by 0021, 0022, 0025 and 0043 |
 | [0021](0021-frame-pacing.md) | Frame pacing | Accepted |
-| [0022](0022-losing-the-gpu-device.md) | Losing the GPU device | Accepted; amended by 0025 and 0044 |
+| [0022](0022-losing-the-gpu-device.md) | Losing the GPU device | Accepted; amended by 0025, 0044 and 0075 |
 | [0023](0023-dependency-checks-for-the-supported-targets.md) | Check the dependencies of the supported targets only | Accepted |
 | [0024](0024-windowed-lifecycle-check-in-weston.md) | Windowed lifecycle check in the headless compositor | Accepted; extended on 2026-10-13 |
 | [0025](0025-giving-up-a-lost-surface.md) | Giving up a window's surface that is lost for good | Accepted |
@@ -142,3 +142,4 @@ the ADR linking to it.
 | [0072](0072-stage-4b-live-assets.md) | Stage 4b: live assets | Accepted |
 | [0073](0073-loading-scenes-in-the-background.md) | Loading scenes in the background | Accepted; amended by 0074 |
 | [0074](0074-uploading-textures-without-holding-up-frames.md) | Uploading textures without holding up frames | Accepted |
+| [0075](0075-recovering-from-a-lost-gpu-device.md) | Recovering from a lost GPU device | Accepted |

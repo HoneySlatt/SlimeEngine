@@ -23,11 +23,6 @@ tracing-subscriber = { workspace = true, features = ["tracing-log"] }
 [target.'cfg(windows)'.dependencies]
 nu-ansi-term.workspace = true
 
-# The windowed lifecycle test destroys the GPU device, which needs wgpu: the engine's own tests may
-# reach it through slime-gfx's `wgpu` feature (ADR-0031).
-[dev-dependencies]
-slime-gfx = { workspace = true, features = ["wgpu"] }
-
 # Runs on the main thread, which the windowing library requires: see the test's module comment.
 [[test]]
 name = "windowed_errors"

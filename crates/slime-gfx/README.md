@@ -108,8 +108,12 @@ fn main() -> Result<(), GfxError> {
 - `Gpu::new()` opens the most capable GPU of the machine, without a window, and
   `Gpu::new_for_window(window, width, height, present_mode)` one that can draw into a window,
   together with the window's `Surface` (ADR-0020). `Gpu::check()` says whether the device was lost;
-  once it is, the methods that return a `Result` return `GfxError::DeviceLost` (ADR-0022). Clones
-  of a `Gpu` share its device, so that threads create GPU objects through it (ADR-0073).
+  once it is, the methods that return a `Result` return `GfxError::DeviceLost`, which says why
+  (`LossKind`; ADR-0022). `Gpu::restore` takes a lost device and opens one to replace it,
+  and `Surface::restore` does it for a window, whose surface it creates again; nothing else may hold
+  the lost device then, since Direct3D 12 would not open the new one on the same adapter; `Gpu::lose` loses a
+  device on purpose, for tests and tools (ADR-0075). Clones of a `Gpu` share its device, so that
+  threads create GPU objects through it (ADR-0073).
 - Every method that creates a GPU object returns a `Result`: a buffer, texture or timer that the
   GPU's memory cannot hold is `GfxError::OutOfMemory`, so that a game can free memory or ask for
   less (ADR-0044).

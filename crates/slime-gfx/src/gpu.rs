@@ -25,14 +25,78 @@ const DEFAULT_BACKENDS: wgpu::Backends = wgpu::Backends::VULKAN;
 /// reliably catches. Each of those calls opens its own wgpu instance, whose objects are numbered
 /// from zero, so the call may panic inside wgpu, or act on the object of the other `Gpu` that has
 /// the same number: a render target read back with another `Gpu` can return the pixels of that
-/// `Gpu`'s own target.
+/// `Gpu`'s own target. A device opened to replace a lost one ([`Gpu::restore`],
+/// [`Surface::restore`](crate::Surface::restore)) shares its instance, where wgpu refuses an object
+/// of the lost device: that use panics as the bug it is.
 #[derive(Clone, Debug)]
 pub struct Gpu {
     pub(crate) device: wgpu::Device,
     pub(crate) queue: wgpu::Queue,
+    /// The wgpu instance that opened the device, which opens the device that replaces it.
+    instance: wgpu::Instance,
     adapter_name: String,
-    /// Why the device was lost, once it has been: set by wgpu's device-lost callback.
-    pub(crate) loss: Arc<OnceLock<String>>,
+    /// Whether the adapter renders on the CPU (lavapipe, WARP).
+    software: bool,
+    /// Why the device was lost, once it has been: set by wgpu's device-lost callback, by the error
+    /// handler when memory runs out where no caller can be told, or by [`Gpu::lose`].
+    pub(crate) loss: Arc<OnceLock<Loss>>,
+}
+
+/// Why a GPU device was lost ([`GfxError::DeviceLost`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum LossKind {
+    /// The driver lost it: it crashed or was reset, as Windows resets a GPU that takes too long to
+    /// answer, or the GPU was removed.
+    Driver,
+    /// The program lost it on purpose ([`Gpu::lose`]), or destroyed it.
+    Destroyed,
+    /// Memory ran out where no caller could be told (ADR-0044), and the engine gave the device up.
+    /// A device that replaced it would run out the same way, so none does
+    /// ([`Gpu::restore`]).
+    OutOfMemory,
+}
+
+/// A device's loss: why, and what the driver or the engine said of it.
+#[derive(Clone, Debug)]
+pub(crate) struct Loss {
+    pub(crate) kind: LossKind,
+    pub(crate) message: String,
+}
+
+/// What opening a device to replace a lost one needs to know of it, once the lost `Gpu` is
+/// released: whether it rendered on the CPU, and its adapter's name.
+pub(crate) struct Lost {
+    software: bool,
+    adapter_name: String,
+}
+
+impl Lost {
+    /// The description of `gpu`, which is released, or why no device should replace it: it was
+    /// lost because memory ran out.
+    ///
+    /// # Panics
+    ///
+    /// If `gpu` is not lost.
+    pub(crate) fn of(gpu: Gpu) -> Result<Self, GfxError> {
+        let loss = gpu
+            .loss
+            .get()
+            .expect("only a lost device is restored: Gpu::check says whether it is");
+        if loss.kind == LossKind::OutOfMemory {
+            return Err(GfxError::CannotRestore {
+                reason: format!(
+                    "it was lost because memory ran out, and a new one would run out the same way \
+                     ({})",
+                    loss.message
+                ),
+            });
+        }
+        Ok(Self {
+            software: gpu.software,
+            adapter_name: gpu.adapter_name.clone(),
+        })
+    }
 }
 
 impl Gpu {
@@ -79,14 +143,55 @@ impl Gpu {
     /// [`GfxError::RequestDevice`] if the adapter refuses to open a device, as when the memory
     /// budget is too small for it.
     pub fn new() -> Result<Self, GfxError> {
-        Self::open(&create_instance(), None).map(|(gpu, _adapter)| gpu)
+        Self::open(&create_instance(), None, None).map(|(gpu, _adapter)| gpu)
+    }
+
+    /// Opens a device to replace this one, which was lost, without a window: the most capable
+    /// adapter of the same wgpu instance, as [`Gpu::new`] chooses it, which is the lost device's
+    /// adapter again after a driver reset. It takes the lost `Gpu`, and releases it before the new
+    /// device opens: every other clone of it, and every object it created, must be dropped first,
+    /// since Direct3D 12 opens no device on an adapter while a removed one still exists in the
+    /// process, and would offer only another adapter. Every object must then be created again with
+    /// the new device; using one of the lost device's with it panics. A program that draws into a
+    /// window replaces its device with [`Surface::restore`](crate::Surface::restore) instead, which
+    /// opens one that can draw into the window. Applications built on `slime-app` choose with
+    /// `AppConfig` whether the run does it for them (ADR-0075).
+    ///
+    /// # Errors
+    ///
+    /// [`GfxError::CannotRestore`] when no device should replace this one: it was lost because
+    /// memory ran out ([`LossKind::OutOfMemory`]), or the only adapter left renders on the CPU
+    /// where the lost one did not, which would draw a frame in seconds rather than milliseconds.
+    /// As [`Gpu::new`] when no device opens.
+    ///
+    /// # Panics
+    ///
+    /// If the device is not lost ([`Gpu::check`]).
+    pub fn restore(self) -> Result<Gpu, GfxError> {
+        let instance = self.instance.clone();
+        let lost = Lost::of(self)?;
+        Self::open(&instance, None, Some(&lost)).map(|(gpu, _adapter)| gpu)
+    }
+
+    /// Loses the device on purpose, as a driver reset would: every object it created can no longer
+    /// be used, and [`Gpu::check`] reports the loss at once, as [`LossKind::Destroyed`] unless it
+    /// was already lost otherwise. For the tests and tools that check how a program goes on after a
+    /// lost device.
+    pub fn lose(&self) {
+        let _ = self.loss.set(Loss {
+            kind: LossKind::Destroyed,
+            message: "the program lost it on purpose".to_owned(),
+        });
+        self.device.destroy();
     }
 
     /// Opens the most capable adapter of `instance`, among those that can present to
-    /// `compatible_surface` if there is one, and its device.
+    /// `compatible_surface` if there is one, and its device; to replace the device that `lost`
+    /// describes if it is given, refusing a CPU adapter after a hardware one.
     pub(crate) fn open(
         instance: &wgpu::Instance,
         compatible_surface: Option<&wgpu::Surface<'_>>,
+        lost: Option<&Lost>,
     ) -> Result<(Self, wgpu::Adapter), GfxError> {
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
@@ -95,6 +200,18 @@ impl Gpu {
         }))
         .map_err(|error| GfxError::NoAdapter(Box::new(error)))?;
         let info = adapter.get_info();
+        let software = info.device_type == wgpu::DeviceType::Cpu;
+        if let Some(lost) = lost
+            && software
+            && !lost.software
+        {
+            return Err(GfxError::CannotRestore {
+                reason: format!(
+                    "the only adapter left, {}, renders on the CPU, where the lost device was {}",
+                    info.name, lost.adapter_name
+                ),
+            });
+        }
         tracing::info!(
             name = %info.name,
             api = ?info.backend,
@@ -118,12 +235,18 @@ impl Gpu {
         device.set_device_lost_callback({
             let loss = Arc::clone(&loss);
             move |reason, message| {
-                match reason {
-                    wgpu::DeviceLostReason::Destroyed => tracing::debug!("GPU device destroyed"),
-                    _ => tracing::error!(%message, "GPU device lost"),
-                }
-                // Only the first loss counts.
-                let _ = loss.set(message);
+                let kind = match reason {
+                    wgpu::DeviceLostReason::Destroyed => {
+                        tracing::debug!("GPU device destroyed");
+                        LossKind::Destroyed
+                    }
+                    _ => {
+                        tracing::error!(%message, "GPU device lost");
+                        LossKind::Driver
+                    }
+                };
+                // Only the first loss counts: one that `lose` recorded is not overwritten.
+                let _ = loss.set(Loss { kind, message });
             }
         });
         device.on_uncaptured_error(Arc::new({
@@ -139,9 +262,10 @@ impl Gpu {
                     tracing::debug!(%error, "GPU error after the device was lost");
                 } else if let wgpu::Error::OutOfMemory { .. } = error {
                     tracing::error!(%error, "out of GPU memory where no caller can be told");
-                    let _ = loss.set(format!(
-                        "out of GPU memory where no caller can be told: {error}"
-                    ));
+                    let _ = loss.set(Loss {
+                        kind: LossKind::OutOfMemory,
+                        message: format!("out of GPU memory where no caller can be told: {error}"),
+                    });
                 } else {
                     panic!("wgpu error: {error}");
                 }
@@ -151,7 +275,9 @@ impl Gpu {
         let gpu = Self {
             device,
             queue,
+            instance: instance.clone(),
             adapter_name: info.name,
+            software,
             loss,
         };
         Ok((gpu, adapter))
@@ -166,11 +292,13 @@ impl Gpu {
     ///
     /// # Errors
     ///
-    /// [`GfxError::DeviceLost`] once the device is lost, with the reason the driver gave.
+    /// [`GfxError::DeviceLost`] once the device is lost, with why ([`LossKind`]) and the reason
+    /// the driver gave.
     pub fn check(&self) -> Result<(), GfxError> {
         match self.loss.get() {
-            Some(message) => Err(GfxError::DeviceLost {
-                message: message.clone(),
+            Some(loss) => Err(GfxError::DeviceLost {
+                kind: loss.kind,
+                message: loss.message.clone(),
             }),
             None => Ok(()),
         }
@@ -523,6 +651,25 @@ mod tests {
     }
 
     #[test]
+    fn a_device_lost_on_hardware_is_not_replaced_by_one_that_renders_on_the_cpu() {
+        let mut lost =
+            Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+        let cpu_only = lost.software;
+        lost.lose();
+        // As if the lost device had rendered on a GPU, whatever this machine's adapter is.
+        lost.software = false;
+        let restored = lost.restore();
+        if cpu_only {
+            assert!(
+                matches!(restored, Err(GfxError::CannotRestore { .. })),
+                "{restored:?}"
+            );
+        } else {
+            assert!(restored.is_ok(), "{restored:?}");
+        }
+    }
+
+    #[test]
     fn a_device_lost_while_creating_is_reported() {
         let gpu =
             Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
@@ -723,15 +870,17 @@ mod tests {
                 view_formats: &[],
             }));
         }
-        let Err(GfxError::DeviceLost { message }) = gpu.check() else {
+        let Err(GfxError::DeviceLost { kind, message }) = gpu.check() else {
             unreachable!("the loop ends on a loss");
         };
+        assert_eq!(kind, LossKind::OutOfMemory);
         assert!(
             message.starts_with("out of GPU memory where no caller can be told"),
             "{message}"
         );
-        // Like a lost device, a given-up one creates nothing more.
+        // Like a lost device, a given-up one creates nothing more, and no device replaces it.
         assert!(matches!(filler(&gpu), Err(GfxError::DeviceLost { .. })));
+        assert!(matches!(gpu.restore(), Err(GfxError::CannotRestore { .. })));
         println!("given up");
     }
 }

@@ -19,7 +19,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   scenes on threads of its own, which create their GPU objects through clones of the `Gpu`
   ([ADR-0073](adr/0073-loading-scenes-in-the-background.md)). M4b.2 done on 2026-10-15: the game
   draws while its zone loads ([ADR-0074](adr/0074-uploading-textures-without-holding-up-frames.md)).
-  Next: M4b.3, recovering from a lost GPU device.
+  M4b.3 done on 2026-10-15: an application that asks for it goes on after a lost GPU device, with a
+  new one ([ADR-0075](adr/0075-recovering-from-a-lost-gpu-device.md)). Next: M4b.4, *Hunna Wood*
+  going on after a lost device.
 
 ## Status
 
@@ -27,7 +29,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 |---|---|---|
 | [M4b.1](#m4b1--a-shared-gpu-and-a-task-pool) | The renderer loads a scene on threads of its own, which create its GPU objects | Done |
 | [M4b.2](#m4b2--the-zone-loads-while-frames-go-on) | *Hunna Wood* draws while its zone loads | Done |
-| [M4b.3](#m4b3--recovering-from-a-lost-gpu-device) | An application that chooses it goes on after a lost GPU device | Planned |
+| [M4b.3](#m4b3--recovering-from-a-lost-gpu-device) | An application that chooses it goes on after a lost GPU device | Done |
 | [M4b.4](#m4b4--hunna-wood-goes-on-after-a-lost-device) | *Hunna Wood* goes on after a lost GPU device | Planned |
 | [M4b.5](#m4b5--materials-that-change-in-place) | A game changes a material's values while it runs | Planned |
 | [M4b.6](#m4b6--hot-reload-of-cooked-data) | A texture changed on disk changes in the running game | Planned |
@@ -168,6 +170,18 @@ Risks:
   application that does not choose recovery stops as before; the two scenarios pass in the headless
   Weston; CI is green.
 - **How to test.** `cargo test -p slime-gfx -p slime-app`; `scripts/check.sh`.
+- **Outcome.** Done on 2026-10-15
+  ([ADR-0075](adr/0075-recovering-from-a-lost-gpu-device.md)). `Gpu::lose` records the loss at
+  once, without the poll that destroying a device through wgpu needed: the `device-lost` scenario
+  now goes through the release of the window's image by `SurfaceFrame::present` after a loss,
+  which was checked by hand only, and the tests of `slime-app` and `slime-render` no longer need
+  wgpu. A device lost because memory ran out is refused by the test that makes it run out; the
+  refusal of a CPU adapter is tested where the tests run on one, lavapipe and WARP. A real driver
+  reset is M4b.4's, by hand. A review found that Direct3D 12 opens no device on an adapter while a
+  removed one exists in the process: the owner chose two steps, `App::gpu_lost` to release every
+  object of the lost device, then `App::gpu_restored`, as Microsoft's templates do, over keeping
+  one step and recovering on Vulkan only. The `lost-now-and-then` scenario checks that the count of
+  new devices in a row starts again after a frame shown.
 
 ### M4b.4 — Hunna Wood goes on after a lost device
 
@@ -356,10 +370,12 @@ GitHub issues, linked from their entry; this list stays the reference.
   device, `GfxError::DeviceLost`); a window's surface that the graphics API refuses to configure
   counts as lost (ADR-0025). The refusal of a configuration is not tested: nothing the tests
   control makes a conformant driver refuse one.
-- **A lost GPU device is not replaced** (ADR-0022; issue
-  [#2](https://github.com/HoneySlatt/SlimeEngine/issues/2)): the run stops with an error, and
-  since winit allows one event loop per process, carrying on means starting the process again.
-  Recovering from a loss is planned for Stage 4b (ADR-0052, ADR-0068).
+- **A lost GPU device is replaced only for the applications that ask for it** (ADR-0075; issue
+  [#2](https://github.com/HoneySlatt/SlimeEngine/issues/2)): the others stop with an error, and
+  since winit allows one event loop per process, carrying on means starting the process again. An
+  application that asks drops and creates its GPU objects again itself; *Hunna Wood* does at
+  M4b.4. A real driver reset can only be checked by hand. A restore that fails in a windowed run is
+  not tested: nothing makes one fail on purpose there.
 - **In capture tools, the sky pass shows as a second `scene`.** A pass is named after the target it
   draws into, and the sky pass draws into the scene's high-dynamic-range target, after the scene
   pass (`declare_frame` in `crates/slime-render/src/renderer.rs`); only its pipeline is named `sky`.
@@ -440,19 +456,6 @@ GitHub issues, linked from their entry; this list stays the reference.
   ends the process, with exit code 130. This matters for a program that keeps working after
   `run`, for example under a service manager, which waits out its stop timeout. Ending the process
   at once when no run is active would amend ADR-0012.
-- **A GPU device lost by a frame's own submission is checked by hand only** (ADR-0022). The
-  `device-lost` scenario of `crates/slime-app/tests/windowed_lifecycle.rs` destroys the device in
-  the middle of a frame and checks that the run stops: no frame drawn after it, `shutdown` called
-  once, and `run` returning `RunError::Gfx(GfxError::DeviceLost)`. The most likely loss in a
-  windowed frame is one that a submission of `App::render` finds, between `Surface::acquire` and
-  `SurfaceFrame::present`: wgpu 30 then refuses to present the image and keeps it, and on Vulkan,
-  dropping the surface at the end of the run panicked in wgpu-hal. `present` now destroys the
-  image's texture instead, which releases what wgpu-hal holds for it (it relies on wgpu-core 30's
-  `Texture::destroy`, to check again when wgpu is upgraded). This was checked by hand on 2026-10-13
-  in a headless Weston with lavapipe, with a temporary hook that destroys the device from
-  `App::render`: before the fix the run panicked, after it `run` returns `DeviceLost`. A test cannot
-  keep this check: a destroyed device records its loss only in a poll, and that poll releases the
-  image itself.
 - **A window frame dropped without being presented keeps one of the window's images on Vulkan.**
   wgpu 30 discards such a frame with wgpu-hal's `discard_texture`, which does nothing on Vulkan.
   The image stays acquired until the surface is configured again, and once none is left,

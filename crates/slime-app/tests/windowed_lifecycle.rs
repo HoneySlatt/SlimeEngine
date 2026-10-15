@@ -2,8 +2,9 @@
 //! `init`, the order of the calls, the stop conditions, the frame schedule after a burst of
 //! redraws, the time each frame represents, the profiling spans of each frame, the memory of a run
 //! whose frames draw nothing, a run whose GPU cannot open, a window larger than the GPU can draw
-//! into, a GPU device lost in the middle of a frame, an application that stops the run with an error,
-//! and a window resized during the run.
+//! into, a GPU device lost in the middle of a frame, replaced by a new one, and lost again at every
+//! frame until the run gives up, an application that stops the run with an error, and a window
+//! resized during the run.
 //! `scripts/check.sh` runs it in a headless Weston with lavapipe, then runs it again in a second
 //! one, at scale 2, for the resize alone (ADR-0024). It is not in the default run of `cargo test`
 //! (`test = false` in Cargo.toml), since it needs a compositor, and it has no harness, since the
@@ -35,7 +36,7 @@ mod linux {
     use slime_platform::{Event, PlatformError, WindowConfig};
 
     const SCENARIO_ENV: &str = "SLIME_APP_TEST_SCENARIO";
-    const SCENARIOS: [&str; 9] = [
+    const SCENARIOS: [&str; 12] = [
         "calls",
         "spans",
         "init-error",
@@ -44,6 +45,9 @@ mod linux {
         "no-gpu",
         "oversize",
         "device-lost",
+        "device-restored",
+        "lost-again",
+        "lost-now-and-then",
         "error-in-render",
     ];
     /// When this variable is set, the program runs `SCALED_SCENARIOS` instead of `SCENARIOS`, as
@@ -52,7 +56,9 @@ mod linux {
     /// window once it exists.
     const SCALED_ENV: &str = "SLIME_APP_TEST_SCALED";
     const SCALED_SCENARIOS: [&str; 1] = ["resized"];
-    /// The frame in whose `render` the `device-lost` scenario destroys the GPU device, and the
+    /// The frame in whose `render` the `device-lost` and `device-restored` scenarios lose the GPU
+    /// device, from which the `lost-again` scenario loses it at every frame and the
+    /// `lost-now-and-then` scenario at every other frame, four times, and in which the
     /// `error-in-render` scenario stops the run with an error.
     const STOP_FRAME: u64 = 5;
 
@@ -147,16 +153,18 @@ mod linux {
                     resolve: None,
                 };
                 let gpu = ctx.gpu().expect("windowed run");
-                if self.scenario == "device-lost" && self.last_update == STOP_FRAME {
-                    // A loss that the frame's own submission finds, between acquiring the
-                    // window's image and presenting it, as a driver reset would. Destroying the
-                    // device needs wgpu, which the engine keeps inside slime-gfx: its tests reach it
-                    // through the `wgpu` feature (ADR-0031). wgpu records the loss when it is
-                    // polled.
-                    gpu.wgpu_device().destroy();
-                    let _ = gpu
-                        .wgpu_device()
-                        .poll(slime_gfx::wgpu::PollType::wait_indefinitely());
+                let lost_here = match self.scenario {
+                    "device-lost" | "device-restored" => self.last_update == STOP_FRAME,
+                    "lost-again" => self.last_update >= STOP_FRAME,
+                    "lost-now-and-then" => [0, 2, 4, 6]
+                        .iter()
+                        .any(|&later| self.last_update == STOP_FRAME + later),
+                    _ => false,
+                };
+                if lost_here {
+                    // A loss between acquiring the window's image and presenting it, which the
+                    // frame's own submission would find, as a driver reset would.
+                    gpu.lose();
                 }
                 gpu.render(&pass, |_pass| {});
             }
@@ -174,6 +182,22 @@ mod linux {
             if self.scenario == "error-in-render" && self.last_update == STOP_FRAME {
                 ctx.exit_with_error("the frame failed");
             }
+        }
+
+        fn gpu_lost(&mut self, ctx: &mut Context) {
+            println!(
+                "call gpu_lost lost={}",
+                ctx.gpu().is_some_and(|gpu| gpu.check().is_err())
+            );
+        }
+
+        fn gpu_restored(&mut self, ctx: &mut Context) -> Result<(), AppError> {
+            println!(
+                "call gpu_restored gpu={} format={:?}",
+                ctx.gpu().is_some_and(|gpu| gpu.check().is_ok()),
+                ctx.surface_format()
+            );
+            Ok(())
         }
 
         fn shutdown(&mut self, ctx: &mut Context) {
@@ -196,6 +220,10 @@ mod linux {
                 // Frames as fast as they come, so that many of them take a few seconds.
                 config.frame_limit = Some(UNDRAWN_FRAMES);
                 config.max_frame_rate = 1000;
+            }
+            "device-restored" | "lost-again" | "lost-now-and-then" => {
+                config.restore_lost_device = true;
+                config.frame_limit = Some(STOP_FRAME + 10);
             }
             "oversize" => {
                 // Wider than the largest image the device accepts (8192 pixels with the default
@@ -266,6 +294,9 @@ mod linux {
                 "no-gpu" => check_no_gpu(&lines),
                 "oversize" => check_oversize(&lines),
                 "device-lost" => check_device_lost(&lines),
+                "device-restored" => check_device_restored(&lines),
+                "lost-again" => check_lost_again(&lines),
+                "lost-now-and-then" => check_lost_now_and_then(&lines),
                 "error-in-render" => check_error_in_render(&lines),
                 "resized" => check_resized(&lines),
                 _ => unreachable!(),
@@ -629,9 +660,8 @@ mod linux {
     }
 
     /// The run stops after the frame that lost the device, as `check_stopped_after_frame` says, and
-    /// `run` returns `DeviceLost`. The poll that records the loss also releases the frame's image,
-    /// so this does not reach the release that `SurfaceFrame::present` makes for a loss found by a
-    /// submission (checked by hand, see the known debt in `docs/PLAN.md`).
+    /// `run` returns `DeviceLost`. The frame's image is still held when the device is lost, so
+    /// `SurfaceFrame::present` releases it rather than show it, and the surface can then be dropped.
     fn check_device_lost(lines: &[&str]) {
         check_stopped_after_frame(lines);
         assert!(
@@ -639,6 +669,76 @@ mod linux {
                 .iter()
                 .any(|line| line.starts_with("result Gfx(DeviceLost")),
             "the run returns DeviceLost: {lines:?}"
+        );
+    }
+
+    /// The run opens a new device after the frame that lost the first, the application creates its
+    /// objects again once, and the frames after it are drawn up to the frame limit: `run` returns
+    /// `Ok`.
+    fn check_device_restored(lines: &[&str]) {
+        let calls = calls(lines);
+        let restored = restores(lines);
+        assert_eq!(restored.len(), 1, "one new device: {lines:?}");
+        let drawn_after = calls[restored[0]..]
+            .iter()
+            .filter(|call| call[0] == "render")
+            .count();
+        assert!(
+            drawn_after > 0,
+            "frames are drawn after the new device: {lines:?}"
+        );
+        assert!(
+            lines.contains(&"result Ok"),
+            "the run goes on to its end: {lines:?}"
+        );
+        assert_eq!(
+            calls.iter().filter(|call| call[0] == "shutdown").count(),
+            1,
+            "{lines:?}"
+        );
+    }
+
+    /// Where each new device comes among the calls: each `gpu_restored` right after a `gpu_lost`
+    /// that saw the lost device, which the application drops its objects of.
+    fn restores(lines: &[&str]) -> Vec<usize> {
+        let calls = calls(lines);
+        let restored: Vec<usize> = (0..calls.len())
+            .filter(|&index| calls[index][0] == "gpu_restored")
+            .collect();
+        for &index in &restored {
+            assert!(
+                index > 0 && calls[index - 1] == ["gpu_lost", "lost=true"],
+                "the application drops its objects of the lost device first: {lines:?}"
+            );
+        }
+        restored
+    }
+
+    /// A device lost at every other frame is replaced each time, since a frame is shown between
+    /// two losses: four new devices, and the run goes on to its end.
+    fn check_lost_now_and_then(lines: &[&str]) {
+        assert_eq!(restores(lines).len(), 4, "four new devices: {lines:?}");
+        assert!(
+            lines.contains(&"result Ok"),
+            "the run goes on to its end: {lines:?}"
+        );
+    }
+
+    /// A device lost at every frame is replaced three times in a row, then the run gives up: it
+    /// stops, and `run` returns `DeviceLost`.
+    fn check_lost_again(lines: &[&str]) {
+        let calls = calls(lines);
+        assert_eq!(restores(lines).len(), 3, "three new devices: {lines:?}");
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.starts_with("result Gfx(DeviceLost")),
+            "the run returns DeviceLost: {lines:?}"
+        );
+        assert_eq!(
+            calls.iter().filter(|call| call[0] == "shutdown").count(),
+            1,
+            "{lines:?}"
         );
     }
 

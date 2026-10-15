@@ -7,7 +7,7 @@ use std::sync::{Arc, OnceLock};
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 use crate::error::GfxError;
-use crate::gpu::{Gpu, within_error_scopes};
+use crate::gpu::{Gpu, Loss, Lost, within_error_scopes};
 use crate::render_target::{RenderTarget, TextureFormat};
 
 /// What a window must provide to be drawn into: the `raw-window-handle` traits, and being usable
@@ -68,8 +68,10 @@ pub struct Surface {
     device: wgpu::Device,
     queue: wgpu::Queue,
     /// Why the device was lost, once it has been: the [`Gpu`]'s record.
-    device_loss: Arc<OnceLock<String>>,
+    device_loss: Arc<OnceLock<Loss>>,
     config: wgpu::SurfaceConfiguration,
+    /// The present mode asked for, which a surface created again for a new device asks for too.
+    present_mode: PresentMode,
     format: TextureFormat,
     /// The largest width or height the device accepts for an image (8192 with the default limits).
     max_dimension: u32,
@@ -113,6 +115,75 @@ impl Gpu {
     {
         let instance = crate::gpu::create_instance();
         let window: Arc<dyn WindowHandles> = Arc::new(window);
+        Surface::open(instance, window, (width, height), present_mode, None)
+    }
+}
+
+impl Surface {
+    /// Opens a device to replace `lost`, which drew into this surface's window, and creates the
+    /// window's surface again for it, of the same size and present mode: the most capable adapter
+    /// of the same wgpu instance that can draw into the window, the lost device's adapter again
+    /// after a driver reset. It takes the lost `Gpu` and the lost device's surface, and releases
+    /// both before the new device opens: a window has one swap chain at a time on Vulkan and on
+    /// Direct3D 12, and Direct3D 12 opens no device on an adapter while a removed one still exists
+    /// in the process. Every other clone of `lost`, and every object it created, must be dropped
+    /// first, as [`Gpu::restore`] says, then created again with the new device, for targets of the
+    /// new surface's [`format`](Self::format), which another adapter may change; using one of the
+    /// lost device's with it panics. The size is the surface's last, limited to what the lost device
+    /// accepted until the window is next resized. Applications built on `slime-app` choose with
+    /// `AppConfig` whether the run does it for them (ADR-0075).
+    ///
+    /// # Errors
+    ///
+    /// [`GfxError::CannotRestore`] as [`Gpu::restore`] says, and as [`Gpu::new_for_window`] when
+    /// no device or surface opens. The window then has no surface left.
+    ///
+    /// # Panics
+    ///
+    /// If `lost` is not lost ([`Gpu::check`]) or is not this surface's device, or a
+    /// [`SurfaceFrame`] of this surface still exists.
+    pub fn restore(self, lost: Gpu) -> Result<(Gpu, Surface), GfxError> {
+        assert!(
+            !self.frame_outstanding.load(Ordering::Relaxed),
+            "the window's image is still held: present each SurfaceFrame before restoring the \
+             device"
+        );
+        assert!(
+            Arc::ptr_eq(&self.device_loss, &lost.loss),
+            "the lost device given to Surface::restore is not the one that drew into the window"
+        );
+        // Refused before the window's surface goes, when the device ran out of memory.
+        let lost = Lost::of(lost)?;
+        let Surface {
+            surface,
+            instance,
+            window,
+            device,
+            queue,
+            config,
+            present_mode,
+            ..
+        } = self;
+        // Every reference to the lost device goes before the new one opens.
+        drop((surface, device, queue));
+        Surface::open(
+            instance,
+            window,
+            (config.width, config.height),
+            present_mode,
+            Some(&lost),
+        )
+    }
+
+    /// Creates the surface of `window` with `instance`, and opens the most capable GPU that can
+    /// draw into it, as [`Gpu::new_for_window`] says, to replace `lost` if it is given.
+    fn open(
+        instance: wgpu::Instance,
+        window: Arc<dyn WindowHandles>,
+        (width, height): (u32, u32),
+        present_mode: PresentMode,
+        lost: Option<&Lost>,
+    ) -> Result<(Gpu, Surface), GfxError> {
         let surface = match instance.create_surface(Arc::clone(&window)) {
             Ok(surface) => surface,
             Err(error) => {
@@ -125,7 +196,7 @@ impl Gpu {
                 return Err(GfxError::CreateSurface(Box::new(error)));
             }
         };
-        let (gpu, adapter) = Gpu::open(&instance, Some(&surface))?;
+        let (gpu, adapter) = Gpu::open(&instance, Some(&surface), lost)?;
 
         let capabilities = surface.get_capabilities(&adapter);
         let format = capabilities
@@ -166,6 +237,7 @@ impl Gpu {
             queue: gpu.queue.clone(),
             device_loss: Arc::clone(&gpu.loss),
             config,
+            present_mode,
             format,
             max_dimension: gpu.max_texture_dimension(),
             oversize: false,
@@ -177,9 +249,7 @@ impl Gpu {
         surface.resize(width, height);
         Ok((gpu, surface))
     }
-}
 
-impl Surface {
     /// The format of the window's images: the format of every target that
     /// [`acquire`](Self::acquire) returns, for which pipelines must be created.
     pub fn format(&self) -> TextureFormat {
@@ -437,7 +507,7 @@ pub struct SurfaceFrame {
     target: RenderTarget,
     queue: wgpu::Queue,
     /// Why the device was lost, once it has been: the [`Gpu`]'s record.
-    device_loss: Arc<OnceLock<String>>,
+    device_loss: Arc<OnceLock<Loss>>,
     /// Tells the surface that the frame is gone, when it is presented or dropped.
     _outstanding: Outstanding,
 }

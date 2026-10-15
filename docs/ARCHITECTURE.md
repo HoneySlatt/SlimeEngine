@@ -551,13 +551,38 @@ memory. Memory that runs out in a creation that no caller hears of, made by a li
 wgpu such as egui's renderer, gives the device up the same way
 ([ADR-0044](adr/0044-running-out-of-gpu-memory.md)). `slime-gfx` records the loss in wgpu's
 device-lost callback, and from then on its error handler logs wgpu's errors instead of panicking,
-since every use of the device fails, and creations return `GfxError::DeviceLost`. Before each
-frame, the windowed driver checks `Gpu::check()` with the other reasons to stop: after a loss, the
-run stops like after an exit request, and `run` returns `RunError::Gfx` with
-`GfxError::DeviceLost` ([ADR-0022](adr/0022-losing-the-gpu-device.md)). The window's surface can be
-lost for good as well, when it cannot be created again after a loss or is lost again each time it
-is: `Surface::check` reports it, and the run stops the same way with `GfxError::SurfaceLost`
-([ADR-0025](adr/0025-giving-up-a-lost-surface.md)).
+since every use of the device fails, and creations return `GfxError::DeviceLost`, which says why
+(`LossKind`); `Gpu::lose` loses a device on purpose, for tests and tools. Before each frame, the
+windowed driver checks `Gpu::check()` with the other reasons to stop: after a loss, the run stops
+like after an exit request, and `run` returns `RunError::Gfx` with `GfxError::DeviceLost`
+([ADR-0022](adr/0022-losing-the-gpu-device.md)). An application that sets
+`AppConfig::restore_lost_device` goes on instead
+([ADR-0075](adr/0075-recovering-from-a-lost-gpu-device.md)):
+
+```text
+between two frames, the device lost
+└── WindowedDriver::restore                          slime-app, before deciding to stop
+    ├── App::gpu_lost(ctx)                           the application drops its objects of the
+    │                                                lost device, and its clones of the Gpu
+    ├── Context::take_gpu()                          the run's last reference but the surface's
+    ├── Surface::restore(lost)                       slime-gfx: the lost device and its surface
+    │   │                                            released, the window's surface created
+    │   │                                            again through the same wgpu instance
+    │   └── Gpu::open(instance, surface, lost)       a new device; refused after a loss to memory,
+    │                                                or for a CPU adapter after a hardware one
+    ├── Context::set_gpu(new, format)
+    └── App::gpu_restored(ctx)                       the application creates its objects again
+```
+
+Nothing may hold the lost device when the new one opens: Direct3D 12 opens no device on an
+adapter while a removed one exists in the process. The run does not restore when it is stopping
+anyway or its window's surface was lost for good; after three new devices in a row without a frame
+shown, or when none opens, it gives up and stops as without the setting. A program without
+`slime-app` replaces its device with `Gpu::restore`, or `Surface::restore` for a window.
+
+The window's surface can be lost for good as well, when it cannot be created again after a loss or
+is lost again each time it is: `Surface::check` reports it, and the run stops the same way with
+`GfxError::SurfaceLost` ([ADR-0025](adr/0025-giving-up-a-lost-surface.md)).
 
 ### Termination signals
 

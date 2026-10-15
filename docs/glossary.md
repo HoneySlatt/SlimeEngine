@@ -130,7 +130,9 @@ a *shadow map* is read. Depths are reversed (*reversed depth*).
 **Device (GPU).** The engine's connection to an adapter: it creates GPU resources, and its
 *queue* receives the work to execute (`slime_gfx::Gpu`). It is *lost* when the driver crashes or
 is reset, the GPU is removed, or it runs out of memory: its objects can then no longer be used,
-and the run stops ([ADR-0022](adr/0022-losing-the-gpu-device.md)).
+and the run stops ([ADR-0022](adr/0022-losing-the-gpu-device.md)), unless the application chose to
+go on with a new device, for which it creates its objects again
+([ADR-0075](adr/0075-recovering-from-a-lost-gpu-device.md)).
 
 **Dithering.** Adding a little noise to values before they are rounded to the steps of an output,
 so that the rounding keeps their average and a slow gradient shows an even grain instead of bands
