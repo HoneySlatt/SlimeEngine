@@ -14,7 +14,8 @@ Windows) that receives keyboard and mouse input, with a fixed-step main loop, lo
 reporting and a clean shutdown on Ctrl+C. The engine opens the GPU (Vulkan on Linux, Direct3D
 12 on Windows), paces frames with its own schedule and the Mailbox present mode by default,
 names its GPU work for capture tools, reports a GPU whose memory runs out as an error a game
-can handle, and stops cleanly when the GPU device is lost. Its renderer, `slime-render`, draws
+can handle, and, when the GPU device is lost, stops cleanly or, for a game that asks, goes on with a
+new one. Its renderer, `slime-render`, draws
 instances of meshes with glTF's metallic-roughness materials, lit by directional, point and spot
 lights in physical units (lux and candelas), with the shadows of a sun, in cascades around the
 camera, and of spot lights, and the light of a procedural sky that surfaces reflect and that
@@ -30,8 +31,11 @@ BC7 and BC5, which a game reads by ID ([ADR-0069](docs/adr/0069-the-asset-pipeli
 sample game, *Hunna Wood* (`games/hunnawood`), a role-playing game seen in the
 third person and made with the public API only, loads its first zone from cooked assets
 ([ADR-0067](docs/adr/0067-hunna-wood-replaces-nightwatch.md)): a forest path to a ruined chapel,
-where the hero finds a key that opens a door, by day and by night. Next comes Stage 4b, which makes
-loaded assets live; [`docs/PLAN.md`](docs/PLAN.md) lists the milestones and the known debt.
+where the hero finds a key that opens a door, by day and by night. Stage 4b, which makes loaded
+assets live, is under way: scenes load on threads of the renderer's own while the game draws, a
+game can go on after a lost GPU device, a material's values change while it runs, and a texture or
+a shader changed on disk changes in the running game; [`docs/PLAN.md`](docs/PLAN.md) says what is
+left of it, and lists the known debt.
 
 ## Getting started
 

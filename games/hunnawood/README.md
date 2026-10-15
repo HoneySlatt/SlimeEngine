@@ -127,13 +127,13 @@ scripts/fetch-assets.sh            # every file, into games/hunnawood/assets/
 
 The script checks the whole list first, and refuses an asset under another licence than CC0; then
 it downloads each file from the mirror, or from where it was published if the mirror fails, and
-checks it against its SHA-256. A file already there is not downloaded again. Git ignores what it
-fetches, and keeps the list and the metadata files.
+checks it against its SHA-256. A file already there with the right SHA-256 is not downloaded again.
+Git ignores what it fetches, and keeps the list and the metadata files.
 
 `assets/sources/` holds the files as they were published, about 190 MB: textures and models from
 Poly Haven, leaves from ambientCG, and the human body of Blender Studio's *Human Base Meshes*, which
 the zone's Blender script reads. `assets/zone/` holds what that script exports from them, about
-120 MB, which the cooker cooks; the game needs only that part:
+115 MB, which the cooker cooks; the game needs only that part:
 
 ```sh
 scripts/fetch-assets.sh zone/

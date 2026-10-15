@@ -10,10 +10,11 @@ Started in M4a.2. It gives every source file an asset ID that survives a move, k
 file beside it, and checks the metadata files of a directory. It imports PNG and JPEG images and
 cooks them into textures, their levels of detail computed and compressed in BC7 or BC5
 ([ADR-0071](../../docs/adr/0071-cooked-textures.md)), into a directory of cooked data with its
-manifest, cooking again only what changed. It cooks a directory again each time one of its files changes, for games that
-load their data again while they run ([ADR-0076](../../docs/adr/0076-hot-reload-of-cooked-data.md)). It imports glTF files, `.gltf` with their buffers and
+manifest, cooking again only what changed. It imports glTF files, `.gltf` with their buffers and
 images beside them or GLB, into meshes, with MikkTSpace tangents when they have none, materials and
-scenes, and cooks the textures their materials read in the roles they read them.
+scenes, and cooks the textures their materials read in the roles they read them. It cooks a
+directory again each time one of its files changes, for games that load their data again while
+they run ([ADR-0076](../../docs/adr/0076-hot-reload-of-cooked-data.md)).
 
 ## Role
 

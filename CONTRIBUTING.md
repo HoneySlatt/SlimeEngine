@@ -204,10 +204,12 @@ Windows without a Windows machine.
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push to `main` and every
 pull request. A Linux job runs the same script; a Windows job runs clippy, the tests, then the
-image tests, the GPU timing test and the multi-pass test again with `--nocapture` so that its log
-shows what they measured on WARP, then the headless samples on Windows, runs the release build of
-the headless ones, and publishes the `hello`, `headless`, `window`, `offscreen` and `scene`
-examples built for Windows, with the sample cooked for `scene`, as an artifact named
+image tests, the GPU timing test, the multi-pass test and the test that makes the renderer's
+shaders again with `--nocapture` so that its log shows what they measured on WARP, then the
+headless samples on Windows, fetches and cooks the sample game's zone and runs the tests that read
+it, runs the release build of the headless samples, and publishes the `hello`, `headless`,
+`window`, `offscreen` and `scene` examples and the `hunnawood` game built for Windows, with the
+sample cooked for `scene` and the zone cooked for the game, as an artifact named
 `slime-examples-windows`, to run by hand on a Windows machine. The Windows job runs the tests one
 at a time (`--test-threads=1`): WARP's shader compiler crashes the process, now and then, when
 several threads compile shaders at once. It does not stop at the first test program that fails,

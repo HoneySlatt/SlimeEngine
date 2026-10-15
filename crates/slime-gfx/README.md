@@ -19,6 +19,8 @@ them back, and draws into a window:
 - Later passes sample the render and depth targets that earlier ones drew into. Several passes
   can be recorded into one submission.
 - It times render passes, each pass of a submission apart, on adapters that have timestamp queries.
+- It opens a new device in place of a lost one, with or without a window, for a program that
+  creates its GPU objects again.
 - It creates textures from the CPU: two-dimensional ones whose levels of detail it computes, or
   whose levels the caller gives, in 8-bit or half-precision float formats, or in blocks of BC7 and
   BC5 compression, which the asset pipeline's cooked textures use, and cube textures.

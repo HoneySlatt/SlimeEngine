@@ -6,10 +6,12 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ## [Unreleased]
 
+Stage 4b of the roadmap, live assets, which 0.3 will release: scenes load in the background
+while a game draws, a game can go on after a lost GPU device, a material's values change while it
+runs, and a texture or a shader changed on disk changes in the running game.
+
 ### Added
 
-- `slime_app::error_chain`: an error's message followed by the message of each of its causes,
-  the line that `run` logs for a failed run, for programs that do not use `run`.
 - Scenes load in the background
   ([ADR-0073](docs/adr/0073-loading-scenes-in-the-background.md)):
   `Renderer::load_scene_in_background` returns a `SceneLoad` at once, which a game polls at each
@@ -17,22 +19,29 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   task pool of the renderer's own; dropping a `SceneLoad` cancels its load.
 - `Gpu` is `Clone`: its clones share the device, so that several threads create GPU objects
   through it.
+- `slime_render::scene_lights` gives the lights that a cooked scene's nodes place without loading
+  the scene, so that a game knows its sun and its moon before its scene is loaded.
+- *Hunna Wood* draws while its zone loads: its window shows the hero under the sky two to three
+  times sooner, and the zone appears, whole, once loaded; the hero waits for it. The log says after
+  how many frames, and the longest interval between two of them
+  ([ADR-0074](docs/adr/0074-uploading-textures-without-holding-up-frames.md)).
 - An application can go on after a lost GPU device
   ([ADR-0075](docs/adr/0075-recovering-from-a-lost-gpu-device.md)): with
   `AppConfig::restore_lost_device`, the run calls `App::gpu_lost`, where the application drops its
   GPU objects, opens a new device between frames, and calls `App::gpu_restored`, where the
   application creates them again; it gives up after three new devices in a row without a frame
-  shown. Without `slime-app`, `Gpu::restore` and
-  `Surface::restore` open the new device; `Gpu::lose` loses one on purpose, for tests and tools.
+  shown. Without `slime-app`, `Gpu::restore` and `Surface::restore` open the new device;
+  `Gpu::lose` loses one on purpose, for tests and tools.
 - *Hunna Wood* goes on after a lost GPU device: it loads its zone again with a new device, and the
   run goes on where it was. `--lose-device-at <frame>`, and a button of its dev overlay, lose the
   device on purpose, to try it.
-- `slime_render::scene_lights` gives the lights that a cooked scene's nodes place without loading
-  the scene, so that a game knows its sun and its moon before its scene is loaded.
 - A material's values change while a game runs: `Material::set_values` takes `MaterialValues`,
   all of a material's data but its textures and its sidedness, and the frames submitted after it
   draw with them; `Material::values` reads them. `LoadedScene::material` finds a loaded scene's
   materials by their names.
+- *Hunna Wood*'s campfire flickers, its flames, its embers and its light together, and the key
+  glows in pulses at night. The `scene` example's overlay has a slider of how strongly its ring
+  glows.
 - Hot reload of cooked data ([ADR-0076](docs/adr/0076-hot-reload-of-cooked-data.md)):
   `slime-cook watch <sources> <output>` cooks again each source that changes;
   `Renderer::reload_scene_in_background` loads a scene again, keeping the meshes and textures whose
@@ -44,43 +53,40 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   again from new WGSL sources, all or none, keeping the old ones on an error that names the
   shader's file, line and column; `ShaderSources` and `ShaderWatch` read the shaders' files, which
   `--watch` in *Hunna Wood* and the `scene` example gives the renderer when they change.
-- *Hunna Wood*'s campfire flickers, its flames, its embers and its light together, and the key
-  glows in pulses at night. The `scene` example's overlay has a slider of how strongly its ring
-  glows.
-- *Hunna Wood* draws while its zone loads: its window shows the hero under the sky two to three
-  times sooner, and the zone appears, whole, once loaded; the hero waits for it. The log says after
-  how many frames, and the longest interval between two of them
-  ([ADR-0074](docs/adr/0074-uploading-textures-without-holding-up-frames.md)).
+- `slime_app::error_chain`: an error's message followed by the message of each of its causes,
+  the line that `run` logs for a failed run, for programs that do not use `run`.
 
 ### Changed
 
-- *Hunna Wood*'s zone, refined on three points that the owner chose (M4b.8): the oaks' leaf
-  cards, smaller and four times as many, are lit as masses of leaves rather than card by card; the
-  ground, the rocks and the stone are graded toward the zone's cold grey palette; the capital's
-  picture is 2048 × 768 texels, within the sizes decided for the zone, the city farther and hazier.
-- `BindingType::UniformBuffer` declares the size of the values its shaders read (`size`): a
-  pipeline whose shader reads more is refused when it is made, rather than failing when it draws
-  (ADR-0077).
-- The cooker writes its temporary files under names of the process's own, so that two cooks of
-  the same sources at once leave the cooked data whole, and writes the manifest only when what it
-  lists changed.
-- `Renderer::create_material`, and the loads of cooked scenes, refuse material values out of the
-  ranges that glTF keeps them in, or that are not finite, with `RenderError::InvalidMaterial`:
-  such a value drew nothing that a surface can look like, and one that is not a number spread
-  through the bloom over the whole frame. `slime-cook` refuses such materials in glTF files, as it
-  refuses the lights that glTF forbids: cook again data that was cooked before.
 - `Renderer::load_scene` starts a load in the background and waits for it: it loads on several
   threads, about twice as fast as before on the sample game's zone (ADR-0073). A panic of a
   loading thread is raised again on the thread that waits. When several assets of a scene fail, the
   error returned is the first that a loading thread reports, which can change from one run to the
   next.
-- `GfxError::DeviceLost` says why the device was lost (`LossKind`: the driver, the program, or
-  memory that ran out), and `GfxError::CannotRestore` says why no device replaces a lost one.
 - Textures reach the GPU through a buffer of their own and a copy submitted at once, rather than
   through wgpu's queue writes, so that a thread that loads them does not hold up the thread that
   submits frames (ADR-0074). Creating a texture costs a submission.
 - `--frames` counts the frames that draw the zone in *Hunna Wood*, and the frames that draw the
   scene in the `scene` example, which loads it in the background too.
+- `GfxError::DeviceLost` says why the device was lost (`LossKind`: the driver, the program, or
+  memory that ran out), and `GfxError::CannotRestore` says why no device replaces a lost one.
+- `Renderer::create_material`, and the loads of cooked scenes, refuse material values out of the
+  ranges that glTF keeps them in, or that are not finite, with `RenderError::InvalidMaterial`:
+  such a value drew nothing that a surface can look like, and one that is not a number spread
+  through the bloom over the whole frame. `slime-cook` refuses such materials in glTF files, as it
+  refuses the lights that glTF forbids: cook again data that was cooked before.
+- The cooker writes its temporary files under names of the process's own, so that two cooks of
+  the same sources at once leave the cooked data whole, and writes the manifest only when what it
+  lists changed.
+- `BindingType::UniformBuffer` declares the size of the values its shaders read (`size`): a
+  pipeline whose shader reads more is refused when it is made, rather than failing when it draws
+  (ADR-0077).
+- *Hunna Wood*'s zone is refined: the oaks' leaf cards, smaller and four times as many, are lit as
+  masses of leaves rather than card by card; the ground, the rocks and the stone are graded toward
+  the zone's cold grey palette; the capital's picture is 2048 × 768 texels, within the sizes
+  decided for the zone, the city farther and hazier. Its list of sources names the new files, on
+  the mirror's release `hunnawood-6`: `scripts/fetch-assets.sh zone/` fetches them, then cook the
+  zone again.
 
 ### Fixed
 

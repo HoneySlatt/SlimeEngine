@@ -216,7 +216,7 @@ Stage 4, the asset pipeline, is split in two halves (ADR-0068): a reference to S
 
 - Asynchronous loading on a basic task pool, the renderer's own (ADR-0072); loading threads create GPU objects through the `Gpu` they share
 - Hot reload, and materials whose values change in place, for it and for a game (ADR-0057)
-- Recovering from a lost GPU device: the GPU objects are created again from their sources, where the run stops today (ADR-0022)
+- Recovering from a lost GPU device, for the applications that choose it: the GPU objects are created again from their sources, where a loss stopped the run (ADR-0022, ADR-0075)
 
 The stage comes right after Stage 4a and has no release of its own; what it delivers is released with 0.3.
 

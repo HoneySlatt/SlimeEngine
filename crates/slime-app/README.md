@@ -7,8 +7,9 @@ down.
 
 Applications run headless or with one window that receives keyboard and mouse input and that they
 draw into with the GPU; the main loop, frame timing, exit requests, errors at startup, clean
-shutdown on Ctrl+C and other termination signals, profiling spans and diagnostics work. What is
-missing is listed in `docs/PLAN.md` (known debt).
+shutdown on Ctrl+C and other termination signals, profiling spans and diagnostics work; a windowed
+run that asks for it goes on with a new GPU device after a lost one. What is missing is listed in
+`docs/PLAN.md` (known debt).
 
 ## Role
 
@@ -148,7 +149,8 @@ if slime_app::run(&mut Game, &config).is_err() {
     without `shutdown` too.
 - `AppConfig`: the window (`None`, the default, runs headless), frame limit, fixed step
   (1/60 s), maximum fixed steps per frame (8), maximum frame delta (250 ms), maximum frame rate
-  (60) and present mode (`PresentMode::Mailbox`). Write it as a struct literal ending with
+  (60), present mode (`PresentMode::Mailbox`) and whether a windowed run replaces a lost GPU device
+  (`restore_lost_device`, `false`). Write it as a struct literal ending with
   `..AppConfig::default()`.
 - `Context`: what an application can ask from the engine: the window (`Context::window`), the GPU
   that draws into it (`Context::gpu`) and the format of its images (`Context::surface_format`),

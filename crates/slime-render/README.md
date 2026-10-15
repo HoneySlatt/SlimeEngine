@@ -12,8 +12,9 @@ and that shows behind them, with the shadows of one directional light around the
 four cascades, and of every spot light that casts them. It draws in high dynamic range, then
 exposes the light, spreads a bloom around it, tone maps it and dithers it into the output, and
 reports what each frame cost on the CPU and the GPU. It smooths the edges of what it draws with four
-samples per pixel. It does not yet blend transparent surfaces or leave out what the camera does not
-see.
+samples per pixel. It loads cooked scenes in the background, and again when their cooked data
+changes; a material's values change while a game runs, and so do the renderer's shaders. It does
+not yet blend transparent surfaces or leave out what the camera does not see.
 
 ## Role
 
@@ -146,8 +147,8 @@ fn main() -> Result<(), RenderError> {
   `DirectionalLight`, of which the first that casts shadows casts the scene's through cascades, a
   `PointLight` or a `SpotLight`, every one of which may cast shadows into a tile of the shadow
   atlas; a scene has at most `MAX_LIGHTS` of them drawn.
-- `RenderError`: an invalid mesh, or a failure of the GPU layer (`GfxError`): a shader or pipeline
-  the driver rejects, memory that runs out, or a lost device.
+- `RenderError`: an invalid mesh or material, or a failure of the GPU layer (`GfxError`): a shader
+  or pipeline the driver rejects, memory that runs out, or a lost device.
 - `slime_render::glam` re-exports the math crate the API uses (`Mat4`, `Vec3`, `Quat`), so that
   callers use the same version.
 

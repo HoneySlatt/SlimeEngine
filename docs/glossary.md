@@ -77,8 +77,9 @@ with the finest cascade that holds it, which fades into the next across a band a
 
 **Checks (the).** The automated checks of the *definition of done*, which `scripts/check.sh` runs
 and the Linux CI job runs unchanged: formatting, clippy (for Windows too), the build, the tests on
-lavapipe, rustdoc, the dependency rules, the samples without a display server and in a headless
-Weston compositor, and the links between documents ([`CONTRIBUTING.md`](../CONTRIBUTING.md#checks)).
+lavapipe, rustdoc, the dependency rules, the source assets and their cooking, the samples without a
+display server and, with the sample game, in a headless Weston compositor, and the links between
+documents ([`CONTRIBUTING.md`](../CONTRIBUTING.md#checks)).
 
 **Client of the engine.** A crate or program built on the engine's public API only, which no engine
 crate depends on: the examples, the dev *overlay* (`slime-devui`) and, later, the editor.
@@ -247,8 +248,9 @@ from images of it, here an *environment*, rather than from *punctual lights* alo
 **Image test.** A test that renders offscreen and compares the result with a *reference image*,
 pixel by pixel, within a tolerance that absorbs how drivers round colors and filter textures
 ([ADR-0018](adr/0018-reference-image-tests.md), amended by
-[ADR-0028](adr/0028-image-tests-tolerate-a-few-pixels.md) and
-[ADR-0030](adr/0030-image-tests-strict-on-the-reference-driver.md)).
+[ADR-0028](adr/0028-image-tests-tolerate-a-few-pixels.md),
+[ADR-0030](adr/0030-image-tests-strict-on-the-reference-driver.md) and
+[ADR-0054](adr/0054-image-tests-allow-0-2-percent-on-other-drivers.md)).
 
 **Imported target.** A target of the *render graph* that outlives the frame and that the graph
 does not create: the output, which may be a window's image that changes every frame, and the
@@ -311,7 +313,8 @@ and size, and the IDs it needs to load ([ADR-0069](adr/0069-the-asset-pipeline.m
 **Material.** How a surface looks, with glTF's *metallic-roughness model*: a base color,
 metallic and roughness, normal, occlusion and emissive textures each read with a *sampler*, an
 alpha mode and double-sidedness (`slime_render::Material`, from `MaterialData`;
-[ADR-0035](adr/0035-physically-based-materials.md)).
+[ADR-0035](adr/0035-physically-based-materials.md)). Its values can change while a game runs,
+but not its textures, its sidedness or the kind of its alpha mode (`Material::set_values`).
 
 **Mesh.** Triangles given as vertices (a position, a normal, texture coordinates and a *tangent*
 each) and indices, uploaded to the GPU (`slime_render::Mesh`, from `MeshData`).

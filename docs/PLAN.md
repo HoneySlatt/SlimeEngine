@@ -383,8 +383,10 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **The zone costs up to 8 s per frame on lavapipe**, the CPU driver of the checks, where the RX
   6900 XT takes under 2 ms: most of it goes to the four shadow cascades of the sun, each 2048 ×
   2048 texels, through which thousands of overlapping leaf cards are drawn with a shader that
-  discards. The checks run the game for one frame by day and one at night. Leaves that cast no shadow in the
-  farther cascades, or fewer and smaller cards, would lower it, to measure with views of the zone.
+  discards. The checks run the game for one frame by day and one at night. The oaks' cards made
+  smaller and four times as many at M4b.8 changed it little: the day's shadow pass took 6.0 s
+  instead of 6.2 s, in a release build. Leaves that cast no shadow in the farther cascades would
+  lower it, to measure with views of the zone.
 - **The tests of the cooked zone run in `scripts/check.sh` only**: they need the zone fetched and
   cooked, so `cargo test` leaves them out (`#[ignore]`), and CI runs them on Linux, not on Windows.
 - **Frames are not synchronized with the display's refresh** (ADR-0021; issue
@@ -484,7 +486,12 @@ GitHub issues, linked from their entry; this list stays the reference.
   table of the curve's values would make the bytes the same everywhere.
 - **A cook reads and hashes every source file at every run**, and cooked files that no source makes
   any more stay in the output directory (ADR-0071): nothing records a source's size and time to
-  skip unchanged ones, nor cleans the output. To measure on *Hunna Wood*'s zone.
+  skip unchanged ones, which is to measure on *Hunna Wood*'s zone, nor cleans the output, where
+  each change that `slime-cook watch` cooks leaves the files it replaced (ADR-0076).
+- **Two watches repeat the same polling** (ADR-0077): `slime_assets::ManifestWatch` and
+  `slime_render::ShaderWatch` each read their files every half second and tell a failure once,
+  with the same dozen lines, over what each reads. No crate that both reach suits a type for both
+  yet.
 - **Every offscreen render target and depth target can be sampled** (ADR-0033): they all carry the
   usage that allows it, which may cost some compression on some GPUs. Measured at M3b.5 on an RX
   6900 XT (RADV), with two builds that differ only by it: no cost (the scene pass took 43.9 µs
@@ -658,9 +665,8 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **Edges that a masked material cuts inside a triangle stay aliased** (ADR-0059). Multisampling
   smooths the edges of triangles, but the scene shader runs once per pixel, and the `MASK` alpha
   mode keeps or discards all of a pixel's samples at once. Smoothing those edges, alpha to
-  coverage, behaves differently from one driver to the next, which image tests would see. No game
-  uses masked materials yet; the leaf cards of *Hunna Wood*'s trees and its ferns will, once the game loads its
-  zone (M4a.7).
+  coverage, behaves differently from one driver to the next, which image tests would see. The leaf
+  cards of *Hunna Wood*'s trees and its ferns are masked.
 - **The sky's light is neither shadowed nor occluded** (ADR-0039). A surface under an object, or
   inside a box, receives the whole sky, but for its material's occlusion texture: no ambient
   occlusion (screen-space effects are outside the stage), no reflection probes, and mirrors reflect
@@ -728,12 +734,12 @@ GitHub issues, linked from their entry; this list stays the reference.
   average dims the sun's halo and makes it flicker, measured), a highlight smaller than a pixel
   blooms as its coverage of the pixel changes from frame to frame. Temporal anti-aliasing, or a cap
   on the light a pixel brings to the chain, belong to Stage 9a (ADR-0052).
-- **A pixel whose light is not a number spreads through the bloom** (ADR-0040). Materials' values
-  are not checked: a NaN in a base color or an emission makes its pixels NaN in the
-  high-dynamic-range target, and the bloom averages them into its levels, and from there into
-  every pixel within reach of their halo, a blot where one surface was wrong. Checking materials'
-  values as lights' are (ADR-0042), or dropping such light before the bloom, would keep it to its
-  pixels.
+- **A pixel whose light is not a number spreads through the bloom** (ADR-0040). The renderer
+  refuses values that are not finite in meshes, materials, lights (ADR-0042) and skies, but not
+  everything that reaches the shaders is checked: a normal of zero length, which `MeshData` asks
+  callers not to give, can make its pixels NaN in the high-dynamic-range target, and the bloom
+  averages them into its levels, and from there into every pixel within reach of their halo, a blot
+  where one surface was wrong. Dropping such light before the bloom would keep it to its pixels.
 - **The bloom has one shape** (ADR-0040): every level the same weight, down to a side of 8 texels;
   no radius, threshold or tint for a game to set. A window resized across a power of two adds or
   removes a level: the glow's reach changes a little while the edge is dragged.
