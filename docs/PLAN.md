@@ -29,8 +29,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   looked at renders of it and chose to refine its look while playing it. M4a.7 done on 2026-10-15:
   the game plays the cooked zone, which the owner played on Linux, and *Nightwatch* is deleted.
   M4a.8 done on 2026-10-15: the night, and resting by the campfire, which turns the day to night
-  and back; the owner played it on Linux and in the Windows virtual machine. Next: M4a.9, the
-  release of 0.2.
+  and back; the owner played it on Linux and in the Windows virtual machine. M4a.9 done on
+  2026-10-15: Stage 4a is done and released as 0.2. Next: plan Stage 4b, live assets, with the
+  owner.
 
 ## Status
 
@@ -44,9 +45,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M4a.6](#m4a6--the-zones-sources) | The zone exists as source assets that anyone can fetch and cook | Done |
 | [M4a.7](#m4a7--hunna-wood-by-day) | *Hunna Wood* is played by day; *Nightwatch* is deleted | Done |
 | [M4a.8](#m4a8--night) | The zone by night; resting switches day and night | Done |
-| [M4a.9](#m4a9--windows-check-documentation-release-02) | 0.2 is released with *Hunna Wood* | Planned |
+| [M4a.9](#m4a9--windows-check-documentation-release-02) | 0.2 is released with *Hunna Wood* | Done |
 
-Stages 0, 1, 2, 3a, 3b, 3c and 3d are done; see [Completed stages](#completed-stages).
+Stages 0, 1, 2, 3a, 3b, 3c, 3d and 4a are done; see [Completed stages](#completed-stages).
 
 ## Stage 4a — Cooked assets
 
@@ -135,10 +136,6 @@ artifact, which grows by the cooked zone.
   cylinders, sliding along them, and never through one at the fixed step; the game runs on Linux and
   in the headless Weston; CI is green on both platforms.
 - **How to test.** `cargo test -p hunnawood`; `cargo run -p hunnawood`.
-- **Outcome.** The owner played the zone on Linux on 2026-10-15: rested by the campfire, took the
-  key, opened the door; the frame cost 1.9 ms of GPU time and 2.4 ms of CPU time on the RX 6900 XT
-  in their window (1.2 ms and 3.4 ms in a release build at 1280 × 720 by day). The last commit that
-  holds *Nightwatch* is `90f3a01`: `git show 90f3a01:games/nightwatch/README.md` reads it.
 
 ### M4a.2 — Asset identity
 
@@ -250,6 +247,10 @@ artifact, which grows by the cooked zone.
   the campfire; the door stops the hero before the item is found; a restart starts from the same
   state; the owner's report.
 - **How to test.** `cargo test -p hunnawood`; `cargo run -p hunnawood`.
+- **Outcome.** The owner played the zone on Linux on 2026-10-15: rested by the campfire, took the
+  key, opened the door; the frame cost 1.9 ms of GPU time and 2.4 ms of CPU time on the RX 6900 XT
+  in their window (1.2 ms and 3.4 ms in a release build at 1280 × 720 by day). The last commit that
+  holds *Nightwatch* is `90f3a01`: `git show 90f3a01:games/nightwatch/README.md` reads it.
 
 ### M4a.8 — Night
 
@@ -303,6 +304,9 @@ A release is an annotated git tag on a commit whose CI run is green on Linux and
 commit "Release 0.0.2", and 0.0.3 on 2026-10-13: the tag `v0.0.3` is on the commit
 "Release 0.0.3". 0.1 was released on 2026-10-14: the tag `v0.1.0` is on the commit "Release 0.1.0",
 and its GitHub release carries the Windows examples that CI built from that commit.
+0.2 was released on 2026-10-15: the tag `v0.2.0` is on the commit "Release 0.2.0", and its GitHub
+release carries the Windows programs that CI built from that commit, *Hunna Wood* with its zone
+cooked and the notice that credits its assets among them.
 
 ## Completed stages
 
@@ -315,6 +319,7 @@ and its GitHub release carries the Windows examples that CI built from that comm
 | 3b — Physically based renderer → 0.1 | M3b.1 GPU layer for multi-pass rendering; M3b.2 HDR rendering and tone mapping; M3b.3 physically based materials; M3b.4 light types; M3b.5 shadows; M3b.6 image-based lighting; M3b.7 bloom; M3b.8 render graph; a pass over the known debt; M3b.9 Windows check, documentation, release | Done; released as 0.1 (tag `v0.1.0`), with the Windows examples on its GitHub release. Content listed in [`CHANGELOG.md`](../CHANGELOG.md). |
 | 3c — A first game | M3c.1 skeleton; M3c.2 guards, detection and the objective; M3c.3 night, feel and the Windows check; M3c.4 findings for the next stages | Done; no release of its own: its game, *Nightwatch*, is never released, as *Hunna Wood* replaces it in Stage 4a ([ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)). The stage each of its findings goes to is in [ADR-0057](adr/0057-what-the-first-game-asks-of-the-next-stages.md), and the two that became Stage 3d in [ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md). |
 | 3d — Anti-aliasing and the shadows of spot lights | M3d.1 multisampling in the GPU layer; M3d.2 anti-aliasing in the renderer; M3d.3 spot lights' shadows: what each tile sees; M3d.4 spot lights' shadows: drawn and read; M3d.5 *Nightwatch* and the Windows check; M3d.6 a smoother shadow filter; M3d.7 what each cascade sees; M3d.8 the cascades read; M3d.9 *Nightwatch* at 3840 × 2160 | Done; no release of its own: what it delivers is released with 0.2. Its decisions are in [ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md) and ADR-0058 to [ADR-0065](adr/0065-reading-the-cascades.md); the cost of its scene pass on Direct3D 12, with each shader compiler, is in the [Known debt](#known-debt). |
+| 4a — Cooked assets → 0.2 | M4a.1 *Hunna Wood*'s skeleton; M4a.2 asset identity; M4a.3 images; M4a.4 glTF; M4a.5 the sample scene through the pipeline; M4a.6 the zone's sources; M4a.7 *Hunna Wood* by day; M4a.8 night; M4a.9 Windows check, documentation, release 0.2 | Done, released as 0.2 on 2026-10-15. Its decisions are in [ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md) to [ADR-0071](adr/0071-cooked-textures.md); the zone's budgets and what is left to refine are in [M4a.6](#m4a6--the-zones-sources). |
 
 The details of each completed milestone (what it delivered, how it was checked, what was measured)
 are in the history of this file and in the commits that implemented it; the measurements that

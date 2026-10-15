@@ -7,27 +7,31 @@ games first, then open-world games, then large online worlds.
 ## Status
 
 Pre-alpha. Stages 0 (*Foundations*), 1 (*Core and platform*), 2 (*GPU layer*), 3a (*First
-renderer*), 3b (*Physically based renderer*), 3c (*A first game*) and 3d (*Anti-aliasing and the
-shadows of spot lights*) are done; the latest release is 0.1 (git tag `v0.1.0`). Applications run
-headless or with a window (Wayland or X11 on Linux, Win32 on Windows) that receives keyboard and
-mouse input, with a fixed-step main loop, logging, panic reporting and a clean shutdown on Ctrl+C.
-The engine opens the GPU (Vulkan on Linux, Direct3D 12 on Windows), paces frames with its own
-schedule and the Mailbox present mode by default, names its GPU work for capture tools, reports a
-GPU whose memory runs out as an error a game can handle, and stops cleanly when the GPU device is
-lost. Its renderer, `slime-render`, draws instances of meshes with glTF's metallic-roughness
-materials, lit by directional, point and spot lights in physical units (lux and candelas), with the
-shadows of a sun, in cascades around the camera, and of spot lights, and the light of a procedural
-sky that surfaces reflect and that shows behind them; it draws in high dynamic range, at four
-samples per pixel so that edges are smooth, relative to the camera and with reversed depth so that
-large scenes keep their precision, then exposes the light, spreads a bloom around it, tone maps it
-and dithers it, into a window or into offscreen images that image tests compare with references. The
-`scene` example draws a scene cooked from a glTF file, and its lights, under a camera driven by the
-mouse, with the CPU time and the GPU time of each pass in a dev overlay. Stage 4a, the first half
-of the asset pipeline, is under way: its sample game, *Hunna Wood* (`games/hunnawood`), a
-role-playing game seen in the third person and made with the public API only, loads its first zone
-from cooked assets ([ADR-0067](docs/adr/0067-hunna-wood-replaces-nightwatch.md)), where the hero
-finds a key that opens a door; [`docs/PLAN.md`](docs/PLAN.md) lists the stage's milestones and the
-known debt.
+renderer*), 3b (*Physically based renderer*), 3c (*A first game*), 3d (*Anti-aliasing and the
+shadows of spot lights*) and 4a (*Cooked assets*) are done; the latest release is 0.2 (git
+tag `v0.2.0`). Applications run headless or with a window (Wayland or X11 on Linux, Win32 on
+Windows) that receives keyboard and mouse input, with a fixed-step main loop, logging, panic
+reporting and a clean shutdown on Ctrl+C. The engine opens the GPU (Vulkan on Linux, Direct3D
+12 on Windows), paces frames with its own schedule and the Mailbox present mode by default,
+names its GPU work for capture tools, reports a GPU whose memory runs out as an error a game
+can handle, and stops cleanly when the GPU device is lost. Its renderer, `slime-render`, draws
+instances of meshes with glTF's metallic-roughness materials, lit by directional, point and spot
+lights in physical units (lux and candelas), with the shadows of a sun, in cascades around the
+camera, and of spot lights, and the light of a procedural sky that surfaces reflect and that
+shows behind them; it draws in high dynamic range, at four samples per pixel so that edges are
+smooth, relative to the camera and with reversed depth so that large scenes keep their precision,
+then exposes the light, spreads a bloom around it, tone maps it and dithers it, into a window
+or into offscreen images that image tests compare with references. The `scene` example draws a
+scene cooked from a glTF file, and its lights, under a camera driven by the mouse, with the CPU
+time and the GPU time of each pass in a dev overlay. The first half of the asset pipeline gives
+every source file an ID that survives a move, and its cooker, `slime-cook`, turns glTF scenes
+and PNG and JPEG images into cooked data, meshes, materials, scenes and textures compressed in
+BC7 and BC5, which a game reads by ID ([ADR-0069](docs/adr/0069-the-asset-pipeline.md)). The
+sample game, *Hunna Wood* (`games/hunnawood`), a role-playing game seen in the
+third person and made with the public API only, loads its first zone from cooked assets
+([ADR-0067](docs/adr/0067-hunna-wood-replaces-nightwatch.md)): a forest path to a ruined chapel,
+where the hero finds a key that opens a door, by day and by night. Next comes Stage 4b, which makes
+loaded assets live; [`docs/PLAN.md`](docs/PLAN.md) lists the milestones and the known debt.
 
 ## Getting started
 
@@ -60,10 +64,11 @@ not move.
 
 ```toml
 [dependencies]
-slime-app = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.1.0" }
-slime-gfx = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.1.0" }
-slime-platform = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.1.0" }
-slime-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.1.0" }
+slime-app = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.2.0" }
+slime-assets = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.2.0" }
+slime-gfx = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.2.0" }
+slime-platform = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.2.0" }
+slime-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.2.0" }
 
 # The renderer computes a sky's lighting on the CPU, several times slower without optimizations.
 [profile.dev.package.slime-render]
@@ -71,9 +76,11 @@ opt-level = 3
 ```
 
 - `slime-app` runs the game (the `App` trait and `run`), `slime-platform` holds the window's
-  settings and the input events, `slime-gfx` the GPU's objects and colors, and `slime-render` the
-  renderer. Each crate's README shows its entry points, and [`examples/`](examples/README.md) holds
-  programs to start from; `scene` is the most complete.
+  settings and the input events, `slime-gfx` the GPU's objects and colors, `slime-render` the
+  renderer, and `slime-assets` the cooked data that the renderer loads. The cooker, `slime-cook`, is
+  a program of this repository that cooks a game's source assets before it runs, as
+  [`games/hunnawood`](games/hunnawood/README.md) shows. Each crate's README shows its entry points,
+  and [`examples/`](examples/README.md) holds programs to start from; `scene` is the most complete.
 - Building needs Rust 1.99 or later and, on Linux, the libraries that
   [`CONTRIBUTING.md`](CONTRIBUTING.md#on-linux-without-nix) lists and a [Vulkan
   driver](CONTRIBUTING.md#gpu).

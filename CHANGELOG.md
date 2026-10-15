@@ -6,6 +6,18 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-15
+
+The fifth release, which closes Stage 4a of the roadmap: cooked assets. Every source file has an
+asset ID that survives a move, kept in a metadata file beside it; the cooker, `slime-cook`, imports
+glTF scenes and PNG and JPEG images and cooks them into meshes, materials, scenes and textures
+compressed in BC7 and BC5, which a game reads by ID and the renderer loads, each once. The sample
+game is now *Hunna Wood*, a role-playing game seen in the third person: its first zone, a forest
+path to a ruined chapel built in Blender from free assets, is played by day and by night. Stages 3c
+and 3d, which came between 0.1 and this release, are in it too: anti-aliasing, the shadows of spot
+lights, the sun's shadows in cascades, and DXC beside the Windows programs. The Windows programs
+that CI builds, the game with its zone cooked among them, are attached to the release on GitHub.
+
 ### Added
 
 - *Hunna Wood*, the sample game that every stage grows, in `games/hunnawood`
@@ -112,19 +124,33 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   edge of the last ([ADR-0065](docs/adr/0065-reading-the-cascades.md)); a point is looked up off
   its triangle, as under spot lights. The cascades take 64 MiB of GPU memory, from the first
   frame in which a directional light casts shadows, where the map took 16 MiB from the renderer's
-  creation; `RenderStats::shadow_draw_calls` counts an instance once in each cascade it reaches. In a
-  courtyard lit by the moon, the scene pass costs about 10 % more on an RX 6900 XT.
+  creation; `RenderStats::shadow_draw_calls` counts an instance once in each cascade it reaches.
+  In a courtyard lit by the moon, the scene pass costs about 10 % more on an RX 6900 XT.
 - On Direct3D 12, shaders are compiled with DXC when its library, `dxcompiler.dll`, lies beside the
   program, and with FXC otherwise, with a warning in the log
   ([ADR-0066](docs/adr/0066-shipping-dxc-beside-the-programs.md)): DXC's code draws a
-  courtyard's scene pass about twice as fast. The Windows programs that CI builds come in one directory with
-  DXC and its licence; `scripts/fetch-dxc.sh` downloads it. `WGPU_DX12_COMPILER=fxc` asks for FXC.
+  courtyard's scene pass about twice as fast. The Windows programs that CI builds come in one
+  directory with DXC and its licence; `scripts/fetch-dxc.sh` downloads it. `WGPU_DX12_COMPILER=fxc`
+  asks for FXC.
 
 ### Removed
 
 - The examples' temporary glTF loader, `examples/common/gltf.rs`: the cooker imports glTF files,
   and `Renderer::load_scene` loads what it cooked ([ADR-0069](docs/adr/0069-the-asset-pipeline.md),
   which supersedes [ADR-0029](docs/adr/0029-temporary-gltf-loading.md)).
+
+### Known limitations
+
+See the known debt in [`docs/PLAN.md`](docs/PLAN.md#known-debt) and what the engine does not do yet
+in the [`README.md`](README.md#what-it-does-not-do-yet). In short: the asset pipeline is half done,
+so a game loads its assets whole, on the calling thread, without hot reload, and a lost GPU device
+still ends the run; the renderer has no transparency, culling or instancing, edges that masked
+materials cut stay aliased, at most 16 lights are drawn, point lights cast no shadow, and the sky's
+light is neither shadowed nor occluded; *Hunna Wood*'s zone takes seconds per frame on CPU drivers
+such as lavapipe; and limitations of 0.1 remain: frames are not synchronized with the display's
+refresh, frames pause on Windows while the window is moved, wgpu's errors other than running out of
+memory panic in release builds too, upgrading wgpu waits for egui, and input methods, touch,
+gestures and gamepads are not reported.
 
 ## [0.1.0] - 2026-10-14
 
