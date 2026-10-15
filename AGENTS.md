@@ -39,10 +39,12 @@ cargo fmt --all --check
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 scripts/check.sh                                          # everything above, plus the checks below
 cargo run -p slime-cook -- cook examples/assets target/cooked/examples  # cook what the scene example draws
+cargo run --release -p slime-cook -- watch <sources> <output>  # cook again each change (ADR-0076)
 cargo run --example <name>                                # run an example (list in examples/README.md)
 scripts/fetch-assets.sh                                   # fetch the game's source assets (games/hunnawood/README.md)
 blender --background --factory-startup --python games/hunnawood/zone/build_zone.py  # rebuild the game's zone (same README)
 cargo run -p hunnawood                                    # play the game (games/hunnawood/README.md)
+cargo run -p hunnawood -- --watch                         # load its zone again when its cooked data changes
 ```
 
 `scripts/check.sh` is what CI runs. Besides the commands above, it runs the renderer's tests once more with glam's assertions on (`--features glam/debug-glam-assert`), checks dependency licenses, security advisories and sources with `cargo deny --locked check` (needs network access), checks the list of the sample game's source assets with `scripts/fetch-assets.sh`, checks that every source asset has a metadata file of its own with `slime-cook check`, cooks the sample twice from empty directories and compares the bytes, fetches and cooks the sample game's zone and runs the tests that read it (`cargo test -p hunnawood -- --ignored`), runs the samples without a display server, the windowed samples, the game and the windowed lifecycle test inside a headless Weston compositor (and that test's resize scenario in a second one, at scale 2), and checks links between Markdown files with `lychee`. Run it before reporting a milestone done. It runs the tests on lavapipe, a Vulkan driver that renders on the CPU; to run one test the same way, prefix it with `VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD"`.

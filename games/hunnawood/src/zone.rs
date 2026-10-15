@@ -112,6 +112,19 @@ pub struct Zone {
     pub door_nodes: HashSet<usize>,
 }
 
+impl Zone {
+    /// Whether `other` lays the game out as this zone does: the same ground, colliders, start and
+    /// places. The nodes that are the key and the door's leaves may differ, as when a scene's nodes
+    /// are cooked in another order: they say what is drawn, not where the game is played.
+    pub fn same_layout(&self, other: &Zone) -> bool {
+        Zone {
+            item_nodes: other.item_nodes.clone(),
+            door_nodes: other.door_nodes.clone(),
+            ..self.clone()
+        } == *other
+    }
+}
+
 /// The text of `node`'s custom value `name`, if it has one that is a text.
 pub fn text<'a>(node: &'a SceneNode, name: &str) -> Option<&'a str> {
     node.extras

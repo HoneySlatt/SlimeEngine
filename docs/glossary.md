@@ -232,8 +232,10 @@ before it is mapped to the display's range by *tone mapping*. The engine draws t
 its tone-mapping pass reads.
 
 **Hot reload.** Replacing, in a running game, the *cooked data* or the shaders that changed on
-disk, without restarting the game. Stage 4b brings it; until then, a game reads its data and its
-shaders once ([ADR-0072](adr/0072-stage-4b-live-assets.md)).
+disk, without restarting the game. `slime-cook watch` cooks again the sources that change, and a
+game started with `--watch` loads its scenes again when their cooked data changes, keeping what did
+not change ([ADR-0076](adr/0076-hot-reload-of-cooked-data.md)); the shaders are read once until
+M4b.7 ([ADR-0072](adr/0072-stage-4b-live-assets.md)).
 
 **Illuminance.** The light a surface facing a light receives from it, in *lux*, which the *BRDF*
 turns into the light the surface reflects: a `DirectionalLight`'s `illuminance`, and what a point

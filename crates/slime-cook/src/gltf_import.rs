@@ -1129,8 +1129,8 @@ fn sampler(sampler: &gltf::texture::Sampler<'_>) -> TextureSampler {
     }
 }
 
-/// Refuses the material `cooked` if glTF does not allow its factors, which the `gltf` crate does not
-/// check, and which the renderer refuses too (`slime_render::MaterialValues`): a base color or
+/// Refuses the material `cooked` if glTF does not allow its factors, which the `gltf` crate does
+/// not check, and which the renderer refuses too (`slime_render::MaterialValues`): a base color or
 /// emissive channel, a metallic or roughness factor or an occlusion strength outside 0 to 1; an
 /// emissive strength (`KHR_materials_emissive_strength`) or an alpha cutoff below 0.
 fn check_factors(cooked: &CookedMaterial) -> Result<(), ImportError> {

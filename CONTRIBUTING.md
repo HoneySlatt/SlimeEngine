@@ -157,6 +157,25 @@ library path does not suit RenderDoc's interface), attach it to the running exam
 Running Instance), and trigger a capture. Captures on Windows, through Direct3D 12, have not been
 tried yet.
 
+### Changing assets while a game runs
+
+`slime-cook watch` cooks a directory of sources again each time one of its files changes, and a
+game started with `--watch` loads its scenes again when their cooked data changes, keeping what did
+not change: a texture saved in an image editor, or a scene exported again from Blender, shows in the
+running game shortly after ([ADR-0076](docs/adr/0076-hot-reload-of-cooked-data.md)).
+In two terminals:
+
+```sh
+cargo run --release -p slime-cook -- watch games/hunnawood/assets/zone target/cooked/hunnawood
+cargo run -p hunnawood -- --watch
+```
+
+The `scene` example takes `--watch` too, with `examples/assets` cooked into
+`target/cooked/examples`. A change of the zone's layout starts the game's run again; a change of how
+it looks does not ([`games/hunnawood/README.md`](games/hunnawood/README.md#playing)). Each change
+leaves the cooked files it replaced in the directory of cooked data, and a watch stopped with Ctrl+C
+the temporary files of its cook: delete the directory to clean it.
+
 ## Checks
 
 One script runs every automated check, exactly as CI does:

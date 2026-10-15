@@ -19,7 +19,7 @@ mod texture;
 use std::fmt;
 use std::str::FromStr;
 
-pub use cooked::CookedAssets;
+pub use cooked::{CookedAssets, ManifestWatch};
 pub use error::{CookedError, LoadError};
 pub use manifest::{AssetKind, MANIFEST_FILE, Manifest, ManifestEntry};
 pub use material::{CookedMaterial, MaterialTexture, TextureFilter, TextureSampler, TextureWrap};

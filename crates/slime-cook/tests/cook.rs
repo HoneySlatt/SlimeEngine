@@ -1,12 +1,18 @@
 //! Cooking directories of source images into directories of cooked data, in temporary
 //! directories: the same bytes from the same sources, nothing cooked again that has not changed,
-//! and textures that a game loads by the image's ID.
+//! not even the manifest, and textures that a game loads by the image's ID; a watch that cooks
+//! what changes, and two cooks at once, in two processes.
 
 use std::collections::BTreeMap;
 use std::fs;
+use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+use std::sync::mpsc;
+use std::thread;
+use std::time::{Duration, SystemTime};
 
-use slime_assets::{AssetId, CookedAssets, TextureEncoding};
+use slime_assets::{AssetId, CookedAssets, MANIFEST_FILE, TextureEncoding};
 use slime_cook::{CookError, cook, scan};
 
 /// An empty directory of its own for `name`, under Cargo's directory for temporary files of
@@ -173,4 +179,120 @@ fn a_damaged_image_fails_the_cook_with_its_path() {
     fs::write(root.join("broken.png"), "not an image").expect("written");
     let error = cook(&root, &root.with_file_name("cooked")).expect_err("refused");
     assert!(error.to_string().contains("broken.png"), "{error}");
+}
+
+#[test]
+fn a_cook_that_changes_nothing_leaves_the_manifest_alone() {
+    let root = sources("manifest");
+    let output = root.with_file_name("cooked");
+    cook(&root, &output).expect("the first cook succeeds");
+    let manifest = output.join(MANIFEST_FILE);
+    // Its time of change set long ago, which a manifest written again would not keep, however
+    // coarse the file system's clock.
+    let written = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000_000);
+    fs::File::options()
+        .write(true)
+        .open(&manifest)
+        .and_then(|file| file.set_modified(written))
+        .expect("the manifest's time of change is set");
+    cook(&root, &output).expect("the second cook succeeds");
+    let after = fs::metadata(&manifest)
+        .and_then(|metadata| metadata.modified())
+        .expect("the manifest is there");
+    assert_eq!(written, after, "the manifest was written again");
+}
+
+#[test]
+fn watch_cooks_a_changed_image_and_only_what_it_makes() {
+    let root = sources("watch");
+    let output = root.with_file_name("cooked");
+    let (sender, results) = mpsc::channel();
+    let watched = thread::spawn({
+        let (root, output) = (root.clone(), output.clone());
+        move || {
+            let mut cooks = 0;
+            slime_cook::watch(&root, &output, |result| {
+                sender.send(result).expect("the test hears");
+                cooks += 1;
+                if cooks == 2 {
+                    ControlFlow::Break(())
+                } else {
+                    ControlFlow::Continue(())
+                }
+            })
+        }
+    });
+    let wait = || {
+        results
+            .recv_timeout(Duration::from_secs(60))
+            .expect("a cook within a minute")
+            .expect("the cook succeeds")
+    };
+    let first = wait();
+    assert_eq!(first.cooked.len(), 2, "{first:?}");
+    let ids = scan(&root, slime_cook::Mode::Check).expect("scanned");
+    let id = |name: &str| {
+        ids.sources
+            .iter()
+            .find(|source| source.path.ends_with(name))
+            .expect("the source is there")
+            .id
+    };
+    // Of other sizes, so that the change shows in more than the time of change.
+    png(&root.join("rock.png"), 16, 12, 4);
+    let second = wait();
+    assert_eq!(second.cooked, [id("rock.png")]);
+    assert_eq!(second.reused, [id("leaf.png")]);
+    watched
+        .join()
+        .expect("the watch does not panic")
+        .expect("the sources are read");
+}
+
+#[test]
+fn two_cooks_at_once_leave_the_cooked_data_whole() {
+    let root = directory("at once").join("sources");
+    // Enough images that the two cooks, which cook them in the same order, write the same file at
+    // the same time.
+    for index in 0..16 {
+        png(
+            &root.join(format!("image {index}.png")),
+            28,
+            28,
+            2 * index + 1,
+        );
+    }
+    // The IDs first: two cooks that gave a new source an ID each would give it two.
+    scan(&root, slime_cook::Mode::GiveIds).expect("scanned");
+    let output = root.with_file_name("cooked");
+    let children: Vec<_> = (0..2)
+        .map(|_| {
+            Command::new(env!("CARGO_BIN_EXE_slime-cook"))
+                .arg("cook")
+                .arg(&root)
+                .arg(&output)
+                .stdout(Stdio::null())
+                .stderr(Stdio::piped())
+                .spawn()
+                .expect("the cooker starts")
+        })
+        .collect();
+    for child in children {
+        let output = child.wait_with_output().expect("the cooker ends");
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    let assets = CookedAssets::open(&output).expect("the manifest is read");
+    assert_eq!(assets.manifest().len(), 16);
+    for (id, _) in assets.manifest().iter() {
+        assets.texture(id).expect("each texture is whole");
+    }
+    let leftovers: Vec<String> = files(&output)
+        .into_keys()
+        .filter(|name| name.ends_with(".part"))
+        .collect();
+    assert!(leftovers.is_empty(), "{leftovers:?}");
 }

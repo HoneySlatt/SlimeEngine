@@ -1,8 +1,9 @@
 //! Loading a cooked scene: a directory of cooked data written in a temporary directory with the
 //! formats of `slime-assets`, loaded onto the GPU, its meshes placed by their nodes, each loaded
 //! once, its lights in world space, and drawn; loads polled, side by side, one of them dropped, and
-//! a panic of a loading thread raised again; a material found by its name, and changed. Runs on
-//! whatever adapter the machine offers.
+//! a panic of a loading thread raised again; a material found by its name, and changed; a scene
+//! loaded again, which keeps what did not change, and fails without harm to the scene before. Runs
+//! on whatever adapter the machine offers.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -488,4 +489,126 @@ fn a_material_found_by_its_name_changes_every_square_drawn_with_it() {
         let lit = r.max(g).max(b) > 100;
         assert_eq!(lit, index % 3 != 1, "{index}: {r} {g} {b}");
     }
+}
+
+#[test]
+fn a_reloaded_scene_draws_the_new_texture_and_keeps_what_did_not_change() {
+    let gpu = gpu();
+    let mut renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
+    let (directory, scene) = palette("reload", 4);
+    let assets = CookedAssets::open(&directory).expect("the manifest is read");
+    let previous = renderer
+        .load_scene(&gpu, &assets, scene)
+        .expect("the scene loads");
+
+    // The second material's texture, green, is cooked again white, under a new name, as the
+    // cooker names a changed image.
+    let texture = AssetId::from_u128(101);
+    let white = CookedTexture {
+        width: 4,
+        height: 1,
+        encoding: TextureEncoding::Rgba8Srgb,
+        levels: vec![[255; 4].repeat(4)],
+    }
+    .to_ktx2();
+    fs::write(directory.join("1-white.ktx2"), &white).expect("written");
+    let path = directory.join(MANIFEST_FILE);
+    let mut manifest = Manifest::from_bytes(&fs::read(&path).expect("read")).expect("a manifest");
+    let entry = manifest.get(texture).expect("listed").clone();
+    manifest.insert(
+        texture,
+        ManifestEntry {
+            file: "1-white.ktx2".to_owned(),
+            size: white.len() as u64,
+            ..entry
+        },
+    );
+    fs::write(&path, manifest.to_bytes()).expect("written");
+    // The meshes and the other textures are gone from the disk: what reads them fails.
+    for file in ["0.ktx2", "2.ktx2"]
+        .into_iter()
+        .map(str::to_owned)
+        .chain((0..6).map(|index| format!("{index}.mesh")))
+    {
+        fs::remove_file(directory.join(file)).expect("removed");
+    }
+    let assets = CookedAssets::open(&directory).expect("the manifest is read");
+    let Err(error) = renderer.load_scene(&gpu, &assets, scene) else {
+        panic!("a first load read nothing from the disk");
+    };
+    assert!(matches!(error, SceneError::Load(_)), "{error}");
+
+    // The reload keeps them, and uploads the new texture alone.
+    let reloaded = renderer
+        .reload_scene_in_background(&gpu, &assets, scene, &previous)
+        .wait()
+        .expect("the scene loads again");
+    for (index, instance) in reloaded.instances().iter().enumerate() {
+        let [r, g, b] = center_of(&gpu, &mut renderer, *instance);
+        let lit = [r, g, b].map(|channel| channel > 100);
+        let expected = match index % 3 {
+            1 => [true; 3],
+            _ => COLORS[index % 3].map(|channel| channel == 255)[..3]
+                .try_into()
+                .expect("three channels"),
+        };
+        assert_eq!(lit, expected, "{index}: {r} {g} {b}");
+    }
+    // The scene reloaded is whole, and drawn as before.
+    check_palette(&gpu, &mut renderer, &previous);
+}
+
+#[test]
+fn a_reload_of_data_that_did_not_change_reads_no_mesh_and_no_texture() {
+    let gpu = gpu();
+    let mut renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
+    let (directory, scene) = palette("unchanged", 4);
+    let assets = CookedAssets::open(&directory).expect("the manifest is read");
+    let previous = renderer
+        .load_scene(&gpu, &assets, scene)
+        .expect("the scene loads");
+    for index in 0..6 {
+        fs::remove_file(directory.join(format!("{index}.mesh"))).expect("removed");
+    }
+    for index in 0..3 {
+        fs::remove_file(directory.join(format!("{index}.ktx2"))).expect("removed");
+    }
+    let reloaded = renderer
+        .reload_scene_in_background(&gpu, &assets, scene, &previous)
+        .wait()
+        .expect("everything is kept");
+    check_palette(&gpu, &mut renderer, &reloaded);
+}
+
+#[test]
+fn a_reload_that_fails_leaves_the_scene_before_whole() {
+    let gpu = gpu();
+    let mut renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
+    let (directory, scene) = palette("fails", 4);
+    let assets = CookedAssets::open(&directory).expect("the manifest is read");
+    let previous = renderer
+        .load_scene(&gpu, &assets, scene)
+        .expect("the scene loads");
+    // The second material now names a file that is not there, read for its meshes, which are kept.
+    let material = AssetId::from_u128(201);
+    let path = directory.join(MANIFEST_FILE);
+    let mut manifest = Manifest::from_bytes(&fs::read(&path).expect("read")).expect("a manifest");
+    let entry = manifest.get(material).expect("listed").clone();
+    manifest.insert(
+        material,
+        ManifestEntry {
+            file: "1-gone.material".to_owned(),
+            ..entry
+        },
+    );
+    fs::write(&path, manifest.to_bytes()).expect("written");
+    let assets = CookedAssets::open(&directory).expect("the manifest is read");
+    let Err(error) = renderer
+        .reload_scene_in_background(&gpu, &assets, scene, &previous)
+        .wait()
+    else {
+        panic!("the scene loaded without its material");
+    };
+    assert!(error.to_string().contains("1-gone.material"), "{error}");
+    check_palette(&gpu, &mut renderer, &previous);
 }

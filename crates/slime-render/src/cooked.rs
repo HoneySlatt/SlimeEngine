@@ -64,6 +64,9 @@ pub struct LoadedScene {
     meshes: Vec<Mesh>,
     materials: Vec<Material>,
     placements: Vec<Placement>,
+    /// Its meshes and textures, by ID, with the cooked file each was read from, which a reload
+    /// keeps ([`Renderer::reload_scene_in_background`]).
+    reusable: Reusable,
     /// The scene as it was cooked: its nodes, their names, transforms and `extras`, which a game
     /// reads its own data from.
     pub scene: CookedScene,
@@ -100,10 +103,10 @@ impl LoadedScene {
     }
 
     /// The material named `name` among those its meshes are drawn with, its name being the cooked
-    /// material's (`slime_assets::CookedMaterial::name`): when several have it, the first that a mesh of
-    /// the scene is drawn with, in the order of the scene's meshes; `None` when none has it. A game
-    /// changes how the scene looks through it ([`Material::set_values`]), and keeps a clone of it
-    /// to do so at each frame.
+    /// material's (`slime_assets::CookedMaterial::name`): when several have it, the first that a
+    /// mesh of the scene is drawn with, in the order of the scene's meshes; `None` when none has
+    /// it. A game changes how the scene looks through it ([`Material::set_values`]), and keeps a
+    /// clone of it to do so at each frame.
     pub fn material(&self, name: &str) -> Option<&Material> {
         self.materials
             .iter()
@@ -231,11 +234,49 @@ impl Renderer {
         assets: &CookedAssets,
         id: AssetId,
     ) -> SceneLoad {
+        self.start_load(gpu, assets, id, Reusable::default())
+    }
+
+    /// Starts loading the cooked scene `id` from `assets` again, as
+    /// [`Renderer::load_scene_in_background`] does, once the cooked data has changed: the meshes
+    /// and textures of `previous` whose cooked file the manifest of `assets` still names are kept,
+    /// neither read nor uploaded again: the cooker names each cooked file after what made it
+    /// (`slime_cook::cook` says how), so the same name holds the same data. The materials are made
+    /// again, from the textures kept or uploaded, with the values the cooked data gives: the values
+    /// that a game set on the materials of `previous` ([`Material::set_values`]) are not carried
+    /// over, and a game that changes them finds them again in the new scene
+    /// ([`LoadedScene::material`]). `previous` stays whole, to be drawn while the load goes on; the
+    /// new scene and it share what was kept.
+    ///
+    /// # Panics
+    ///
+    /// As [`Renderer::load_scene_in_background`]; and when a material is made, if `previous` was
+    /// loaded on another device than `gpu`'s: wgpu refuses its textures.
+    pub fn reload_scene_in_background(
+        &self,
+        gpu: &Gpu,
+        assets: &CookedAssets,
+        id: AssetId,
+        previous: &LoadedScene,
+    ) -> SceneLoad {
+        self.start_load(gpu, assets, id, previous.reusable.clone())
+    }
+
+    /// Starts the load of the scene `id` from `assets`, which keeps what `reuse` holds whose cooked
+    /// file the manifest still names.
+    fn start_load(
+        &self,
+        gpu: &Gpu,
+        assets: &CookedAssets,
+        id: AssetId,
+        reuse: Reusable,
+    ) -> SceneLoad {
         let (sender, reports) = mpsc::channel();
         let loader = Loader {
             gpu: gpu.clone(),
             assets: Arc::new(assets.clone()),
             parts: self.material_parts.clone(),
+            reuse,
             sender: sender.clone(),
         };
         let thread = thread::Builder::new()
@@ -254,17 +295,43 @@ struct Loader {
     gpu: Gpu,
     assets: Arc<CookedAssets>,
     parts: MaterialParts,
+    /// What the scene that the load reloads was made of, to keep; empty for a first load.
+    reuse: Reusable,
     /// Where the load's tasks report.
     sender: Sender<Report>,
 }
 
 /// A mesh that a task of a load made.
+#[derive(Clone)]
 struct MadeMesh {
     mesh: Mesh,
     /// The material it is drawn with.
     material: AssetId,
     /// Its lowest corner, then its highest.
     bounds: [[f32; 3]; 2],
+}
+
+/// What a loaded scene was made of: its meshes and its textures, by ID, each with the name of the
+/// cooked file it was read from. A reload keeps those whose file the manifest still names: a cooked
+/// file's name says what made it, so the same name holds the same data.
+#[derive(Clone, Default)]
+struct Reusable {
+    meshes: HashMap<AssetId, (String, MadeMesh)>,
+    textures: HashMap<AssetId, (String, Texture)>,
+}
+
+/// What a load has made, or kept, so far.
+struct Assembly {
+    /// The scene's meshes, in the order of their IDs in `mesh_ids`.
+    meshes: Vec<Option<MadeMesh>>,
+    /// The materials that the meshes made so far are drawn with.
+    materials: HashMap<AssetId, CookedMaterial>,
+    /// The textures those materials read, `None` until uploaded.
+    textures: HashMap<AssetId, Option<Texture>>,
+    /// How many meshes were kept from the scene reloaded.
+    kept_meshes: usize,
+    /// How many textures were kept from the scene reloaded.
+    kept_textures: usize,
 }
 
 /// What a task of a load made.
@@ -392,7 +459,13 @@ impl Loader {
             pending: 0,
             ran: 0,
         };
+        // The meshes that the scene reloaded holds are kept; a task reads and uploads each other.
+        let mut kept = Vec::new();
         for (index, &id) in mesh_ids.iter().enumerate() {
+            if let Some(mesh) = self.kept(&self.reuse.meshes, id) {
+                kept.push((index, mesh));
+                continue;
+            }
             tasks.spawn(move |gpu, assets| {
                 let cooked = assets.mesh(id)?;
                 let data = MeshData {
@@ -416,15 +489,26 @@ impl Loader {
             });
         }
         // A mesh names its material, which is read here, small, and names its textures, which
-        // tasks upload: they start as soon as the first mesh that needs them is made.
-        let mut meshes: Vec<Option<MadeMesh>> = mesh_ids.iter().map(|_| None).collect();
-        let mut materials: HashMap<AssetId, CookedMaterial> = HashMap::new();
-        let mut textures: HashMap<AssetId, Option<Texture>> = HashMap::new();
+        // tasks upload: they start as soon as the first mesh that needs them is made, or kept.
+        let mut made = Assembly {
+            meshes: mesh_ids.iter().map(|_| None).collect(),
+            materials: HashMap::new(),
+            textures: HashMap::new(),
+            kept_meshes: kept.len(),
+            kept_textures: 0,
+        };
         let mut failure = None;
         let mut panicked = None;
         let mut dropped = false;
         // Once the load stops, how many tasks had started: their reports are waited for.
         let mut stopped: Option<usize> = None;
+        for (index, mesh) in kept {
+            if let Err(error) = self.take_mesh(index, mesh, &mut made, &mut tasks) {
+                failure = Some(error);
+                stopped = Some(tasks.stop());
+                break;
+            }
+        }
         while match stopped {
             Some(started) => tasks.ran < started,
             None => tasks.pending > 0,
@@ -448,55 +532,25 @@ impl Loader {
                     ran
                 }
             };
-            let made = match ran {
+            match ran {
                 Err(panic) => {
                     panicked.get_or_insert(panic);
                     stopped.get_or_insert_with(|| tasks.stop());
-                    continue;
                 }
                 Ok(Err(error)) => {
                     failure.get_or_insert(error);
                     stopped.get_or_insert_with(|| tasks.stop());
-                    continue;
                 }
                 // What a task made after the load stopped is dropped with it.
-                Ok(Ok(_)) if stopped.is_some() => continue,
-                Ok(Ok(made)) => made,
-            };
-            let (index, mesh) = match made {
-                Made::Texture(id, texture) => {
-                    textures.insert(id, Some(texture));
-                    continue;
+                Ok(Ok(_)) if stopped.is_some() => {}
+                Ok(Ok(Made::Texture(id, texture))) => {
+                    made.textures.insert(id, Some(texture));
                 }
-                Made::Mesh(index, mesh) => (index, mesh),
-            };
-            let material = mesh.material;
-            meshes[index] = Some(mesh);
-            if materials.contains_key(&material) {
-                continue;
-            }
-            match self.assets.material(material) {
-                Ok(cooked) => {
-                    for slot in cooked.textures().into_iter().flatten() {
-                        let id = slot.texture;
-                        if let Entry::Vacant(entry) = textures.entry(id) {
-                            entry.insert(None);
-                            // Named after its source, whichever material asks for it first.
-                            let label = match self.assets.manifest().get(id) {
-                                Some(entry) => format!("texture {id} from {}", entry.source),
-                                None => format!("texture {id}"),
-                            };
-                            tasks.spawn(move |gpu, assets| {
-                                let texture = upload_texture(gpu, &label, &assets.texture(id)?)?;
-                                Ok(Made::Texture(id, texture))
-                            });
-                        }
+                Ok(Ok(Made::Mesh(index, mesh))) => {
+                    if let Err(error) = self.take_mesh(index, mesh, &mut made, &mut tasks) {
+                        failure.get_or_insert(error);
+                        stopped.get_or_insert_with(|| tasks.stop());
                     }
-                    materials.insert(material, cooked);
-                }
-                Err(error) => {
-                    failure.get_or_insert(error.into());
-                    stopped.get_or_insert_with(|| tasks.stop());
                 }
             }
         }
@@ -509,38 +563,108 @@ impl Loader {
         if let Some(error) = failure {
             return Some(Err(error));
         }
-        let meshes = meshes
-            .into_iter()
-            .map(|mesh| mesh.expect("every mesh is made when nothing failed"))
-            .collect();
-        let textures = textures
-            .into_iter()
-            .map(|(id, texture)| {
-                (
-                    id,
-                    texture.expect("every texture is made when nothing failed"),
-                )
-            })
-            .collect();
-        Some(self.assemble(scene, &mesh_index, meshes, &materials, &textures))
+        Some(self.assemble(scene, &mesh_index, &mesh_ids, made))
     }
 
-    /// Puts the loaded scene together from what the tasks made: its materials, with the samplers
-    /// they need, and where its nodes place its meshes and lights.
+    /// Takes the mesh made or kept at `index` into `made`: reads its material, unless a mesh read
+    /// it before, and starts uploading the textures that the material reads, but those that the
+    /// load or the scene it reloads holds.
+    fn take_mesh(
+        &self,
+        index: usize,
+        mesh: MadeMesh,
+        made: &mut Assembly,
+        tasks: &mut Tasks,
+    ) -> Result<(), SceneError> {
+        let material = mesh.material;
+        made.meshes[index] = Some(mesh);
+        if made.materials.contains_key(&material) {
+            return Ok(());
+        }
+        let cooked = self.assets.material(material)?;
+        for slot in cooked.textures().into_iter().flatten() {
+            let id = slot.texture;
+            let Entry::Vacant(entry) = made.textures.entry(id) else {
+                continue;
+            };
+            if let Some(texture) = self.kept(&self.reuse.textures, id) {
+                entry.insert(Some(texture));
+                made.kept_textures += 1;
+                continue;
+            }
+            entry.insert(None);
+            // Named after its source, whichever material asks for it first.
+            let label = match self.assets.manifest().get(id) {
+                Some(entry) => format!("texture {id} from {}", entry.source),
+                None => format!("texture {id}"),
+            };
+            tasks.spawn(move |gpu, assets| {
+                let texture = upload_texture(gpu, &label, &assets.texture(id)?)?;
+                Ok(Made::Texture(id, texture))
+            });
+        }
+        made.materials.insert(material, cooked);
+        Ok(())
+    }
+
+    /// What `kept` holds of the asset `id`, if the manifest still names the cooked file it was read
+    /// from.
+    fn kept<T: Clone>(&self, kept: &HashMap<AssetId, (String, T)>, id: AssetId) -> Option<T> {
+        let (file, made) = kept.get(&id)?;
+        (self.assets.manifest().get(id)?.file == *file).then(|| made.clone())
+    }
+
+    /// Puts the loaded scene together from what the load `made`, once it made everything: its
+    /// materials, with the samplers they need, where its nodes place its meshes and lights, and
+    /// what a reload of it keeps. `mesh_ids` gives the ID of each of `made.meshes`, and
+    /// `mesh_index` the index of each ID.
     fn assemble(
         &self,
         scene: CookedScene,
         mesh_index: &HashMap<AssetId, usize>,
-        meshes: Vec<MadeMesh>,
-        materials: &HashMap<AssetId, CookedMaterial>,
-        textures: &HashMap<AssetId, Texture>,
+        mesh_ids: &[AssetId],
+        made: Assembly,
     ) -> Result<LoadedScene, SceneError> {
+        let meshes: Vec<MadeMesh> = made
+            .meshes
+            .into_iter()
+            .map(|mesh| mesh.expect("every mesh is made when nothing failed"))
+            .collect();
+        let textures: HashMap<AssetId, Texture> = made
+            .textures
+            .into_iter()
+            .map(|(id, texture)| {
+                let texture = texture.expect("every texture is made when nothing failed");
+                (id, texture)
+            })
+            .collect();
+        let materials = made.materials;
+        // Each with the cooked file it was read from, which the manifest names.
+        let file = |id: AssetId| -> String {
+            self.assets
+                .manifest()
+                .get(id)
+                .map(|entry| entry.file.clone())
+                .unwrap_or_default()
+        };
+        let reusable = Reusable {
+            meshes: mesh_ids
+                .iter()
+                .zip(&meshes)
+                .map(|(&id, mesh)| (id, (file(id), mesh.clone())))
+                .collect(),
+            textures: textures
+                .iter()
+                .map(|(&id, texture)| (id, (file(id), texture.clone())))
+                .collect(),
+        };
         let mut samplers: HashMap<TextureSampler, Sampler> = HashMap::new();
         let mut material_of: HashMap<AssetId, usize> = HashMap::new();
         let mut loaded = LoadedScene {
             meshes: Vec::with_capacity(meshes.len()),
             materials: Vec::new(),
             placements: Vec::new(),
+            reusable,
             scene: CookedScene::default(),
             lights: Vec::new(),
             bounds: None,
@@ -557,7 +681,7 @@ impl Loader {
                 Entry::Occupied(entry) => *entry.get(),
                 Entry::Vacant(entry) => {
                     let made =
-                        self.create_material(&materials[&material], textures, &mut samplers)?;
+                        self.create_material(&materials[&material], &textures, &mut samplers)?;
                     loaded.materials.push(made);
                     *entry.insert(loaded.materials.len() - 1)
                 }
@@ -594,6 +718,8 @@ impl Loader {
             textures = textures.len(),
             instances = loaded.placements.len(),
             lights = loaded.lights.len(),
+            kept_meshes = made.kept_meshes,
+            kept_textures = made.kept_textures,
             "cooked scene loaded"
         );
         loaded.scene = scene;

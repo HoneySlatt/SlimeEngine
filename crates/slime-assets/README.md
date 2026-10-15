@@ -29,6 +29,8 @@ ID, which `slime-render` does in the background, from threads of its own.
   is read by the file's own ID. A `CookedScene`'s nodes carry the glTF `extras` they were given, as
   `Extra` values, which a game reads its colliders and markers from, and `world_transforms` places
   them.
+- `ManifestWatch` tells a game that hot-reloads when the manifest of its cooked data changed, and
+  gives the cooked data again ([ADR-0076](../../docs/adr/0076-hot-reload-of-cooked-data.md)).
 - `CookedTexture` and its KTX2 file (`to_ktx2`, `from_ktx2`); `CookedMesh`, `CookedMaterial`,
   `CookedScene` and `Manifest`, and their binary files (`to_bytes`, `from_bytes`). Their rustdoc
   gives the formats.

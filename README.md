@@ -101,14 +101,16 @@ today has:
 - No text, game UI, audio, physics, animation or editor.
 - Half an asset pipeline: the cooker, `slime-cook`, imports glTF scenes and PNG and JPEG images
   into cooked data, which the renderer loads whole, on threads of its own while the game goes on
-  (`Renderer::load_scene_in_background`); no hot reload yet, which Stage 4b brings.
+  (`Renderer::load_scene_in_background`), and again when it changes (`slime-cook watch`); shaders
+  are not loaded again yet, which Stage 4b brings.
 - No world or scene graph: the game gives the renderer the list of what to draw at every frame.
 - A renderer without blended transparency or culling of what the camera does not see; with a
   capped number of lights, and shadows from one directional light and from spot lights, none from
   point lights.
 - One window, which cannot go fullscreen, grab or hide the cursor, or report raw mouse motion; no
   gamepads, touch input or input methods.
-- A run that stops when the GPU device is lost.
+- A run that stops when the GPU device is lost, unless the game asks to go on with a new one and
+  makes its GPU objects again itself.
 - Linux and Windows only, on x86_64.
 
 ## Where to read next

@@ -10,7 +10,8 @@ Started in M4a.2. It gives every source file an asset ID that survives a move, k
 file beside it, and checks the metadata files of a directory. It imports PNG and JPEG images and
 cooks them into textures, their levels of detail computed and compressed in BC7 or BC5
 ([ADR-0071](../../docs/adr/0071-cooked-textures.md)), into a directory of cooked data with its
-manifest, cooking again only what changed. It imports glTF files, `.gltf` with their buffers and
+manifest, cooking again only what changed. It cooks a directory again each time one of its files changes, for games that
+load their data again while they run ([ADR-0076](../../docs/adr/0076-hot-reload-of-cooked-data.md)). It imports glTF files, `.gltf` with their buffers and
 images beside them or GLB, into meshes, with MikkTSpace tangents when they have none, materials and
 scenes, and cooks the textures their materials read in the roles they read them.
 
@@ -32,7 +33,9 @@ scenes, and cooks the textures their materials read in the roles they read them.
   nodes with their transforms, meshes, lights and `extras`. It refuses what it cannot read right
   with a message that says what and where, and warns about what it leaves out.
 - Names each cooked file by the hash of all that made it, so that what is already cooked is not
-  cooked again, and the same sources cook into the same bytes on one platform.
+  cooked again, and the same sources cook into the same bytes on one platform. Writes its files
+  under temporary names of the process's own, then renames them, so that two cooks at once leave
+  the cooked data whole, and the manifest only when what it lists changed.
 
 ## Entry points
 
@@ -42,6 +45,7 @@ The program:
 cargo run -p slime-cook -- scan examples/assets              # gives an ID to each source without one
 cargo run -p slime-cook -- check examples/assets             # writes nothing; fails on what is wrong
 cargo run -p slime-cook -- cook <sources> target/cooked      # cooks the sources, with a manifest
+cargo run -p slime-cook -- watch <sources> target/cooked     # cooks them again at each change
 ```
 
 Cooking is slow in a debug build: `cargo run --release -p slime-cook` cooks a texture of 2048 ×
@@ -51,7 +55,8 @@ The library: `scan` (the module and its function) finds the source files of a di
 IDs, and what is wrong with their metadata; `metadata` reads and writes metadata files; `ids` makes
 new IDs and derives those of sub-assets and textures; `image` decodes images;
 `texture::cook_texture` makes a cooked texture of an image for a role; `gltf_import::GltfFile`
-opens and imports a glTF file; `cook` (the module and its function) cooks a directory.
+opens and imports a glTF file; `cook` (the module and its function) cooks a directory, and
+`watch` cooks it again at each change.
 Their rustdoc gives the formats and the rules.
 
 ## Dependencies

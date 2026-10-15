@@ -126,6 +126,9 @@ fn main() -> Result<(), RenderError> {
   places each (`instance_nodes`), the `lights` in world space, the box around them, its materials
   by their names (`material`), and the cooked scene itself, whose nodes carry the `extras` a game
   reads its own data from. What cannot be loaded is a `SceneError`.
+  `Renderer::reload_scene_in_background(gpu, &CookedAssets, id, &previous)` loads a scene again
+  once its cooked data changed, keeping the meshes and textures of the scene loaded before whose
+  cooked file did not change (ADR-0076).
 - `scene_lights(&CookedScene)` gives the lights that a cooked scene's nodes place, as a
   `LoadedScene` holds them, without loading the scene: a game knows its sun before its scene is
   loaded.

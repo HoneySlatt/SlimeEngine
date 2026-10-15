@@ -143,3 +143,4 @@ the ADR linking to it.
 | [0073](0073-loading-scenes-in-the-background.md) | Loading scenes in the background | Accepted; amended by 0074 |
 | [0074](0074-uploading-textures-without-holding-up-frames.md) | Uploading textures without holding up frames | Accepted |
 | [0075](0075-recovering-from-a-lost-gpu-device.md) | Recovering from a lost GPU device | Accepted |
+| [0076](0076-hot-reload-of-cooked-data.md) | Hot reload of cooked data | Accepted |

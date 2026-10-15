@@ -92,7 +92,7 @@ fn key_pulse(seconds: f64) -> f32 {
 
 /// The zone's lights, by the time of day they shine at, read from its cooked scene before it is
 /// loaded.
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct ZoneLights {
     /// The sun.
     day: Vec<Light>,
@@ -195,17 +195,87 @@ struct ZoneView {
     key: Option<Glowing>,
 }
 
+impl ZoneView {
+    /// What is drawn of the loaded zone `scene`.
+    fn new(scene: LoadedScene) -> Self {
+        Self {
+            nodes: scene.instance_nodes(),
+            flames: Glowing::find(&scene, FLAMES),
+            embers: Glowing::find(&scene, EMBERS),
+            key: Glowing::find(&scene, KEY),
+            scene,
+        }
+    }
+}
+
+/// The zone loaded again after its cooked data changed, with that data, which the game reads its
+/// rules from before the view shows it ([`View::show`]).
+pub struct ReloadedZone {
+    scene: LoadedScene,
+    assets: CookedAssets,
+}
+
+impl ReloadedZone {
+    /// The zone's scene as it was cooked.
+    pub fn scene(&self) -> &CookedScene {
+        &self.scene.scene
+    }
+
+    /// The cooked data it was loaded from.
+    pub fn assets(&self) -> &CookedAssets {
+        &self.assets
+    }
+}
+
+/// The night sky, whose moon is the directional light of the zone's `lights` at night.
+fn night_sky(lights: &ZoneLights) -> Sky {
+    let moon = lights.night.iter().find_map(|light| match light {
+        Light::Directional(moon) => Some(*moon),
+        _ => None,
+    });
+    Sky {
+        sun: moon,
+        ..NIGHT_SKY
+    }
+}
+
+/// The light of the overcast day, and of the night of the zone's `lights`, which `renderer`
+/// computes.
+fn lighting(
+    renderer: &Renderer,
+    gpu: &Gpu,
+    lights: &ZoneLights,
+) -> Result<(Lighting, Lighting), RenderError> {
+    let day = Lighting {
+        lights: lights.day.clone(),
+        environment: renderer.create_environment(gpu, &OVERCAST)?,
+        exposure: DAY_EXPOSURE,
+    };
+    let night = Lighting {
+        lights: lights.night.clone(),
+        environment: renderer.create_environment(gpu, &night_sky(lights))?,
+        exposure: NIGHT_EXPOSURE,
+    };
+    Ok((day, night))
+}
+
 /// The renderer, the light of each time of day, and the GPU objects of the zone and the hero, for
 /// targets of one format.
 pub struct View {
     renderer: Renderer,
+    /// The zone's lights that `day` and `night` were made from.
+    lights: ZoneLights,
     day: Lighting,
     night: Lighting,
-    /// The campfire's light, as the zone places it, and its index in `night`'s lights.
-    campfire: Option<(usize, PointLight)>,
     hero: LoadedScene,
-    /// The zone's load, until [`View::poll`] takes the zone from it.
+    /// The hero's load again, after the cooked data changed, until [`View::poll`] takes it.
+    hero_load: Option<SceneLoad>,
+    /// The zone's load, the first or again, until [`View::poll`] takes the zone from it.
     zone_load: Option<SceneLoad>,
+    /// The cooked data that the zone's load again reads.
+    reloaded_from: Option<CookedAssets>,
+    /// Whether the hero could not be loaded again from that data.
+    hero_failed: bool,
     zone: Option<ZoneView>,
 }
 
@@ -221,8 +291,8 @@ fn cannot_load(what: &str, error: SceneError) -> AppError {
 impl View {
     /// Creates the renderer, starts loading the zone from `assets` in the background, loads the
     /// hero, and computes the light of the overcast sky and of the night sky, whose moon is the
-    /// zone's directional light of the night, for targets of `format`. [`View::poll`] takes the zone
-    /// once it is loaded.
+    /// zone's directional light of the night (`lights`), for targets of `format`. [`View::poll`]
+    /// takes the zone once it is loaded.
     ///
     /// # Errors
     ///
@@ -240,55 +310,122 @@ impl View {
         // would wait for (ADR-0074). Its load goes first, and the skies are computed while it runs.
         let hero_load = renderer.load_scene_in_background(gpu, assets, assets::hero_id());
         let zone_load = renderer.load_scene_in_background(gpu, assets, assets::zone_id());
-        let moon = lights.night.iter().find_map(|light| match light {
-            Light::Directional(moon) => Some(*moon),
-            _ => None,
-        });
-        let night_sky = Sky {
-            sun: moon,
-            ..NIGHT_SKY
-        };
+        let (day, night) = lighting(&renderer, gpu, &lights)?;
         Ok(Self {
-            campfire: lights.campfire,
-            day: Lighting {
-                lights: lights.day,
-                environment: renderer.create_environment(gpu, &OVERCAST)?,
-                exposure: DAY_EXPOSURE,
-            },
-            night: Lighting {
-                lights: lights.night,
-                environment: renderer.create_environment(gpu, &night_sky)?,
-                exposure: NIGHT_EXPOSURE,
-            },
+            lights,
+            day,
+            night,
             hero: hero_load
                 .wait()
                 .map_err(|error| cannot_load("hero", error))?,
+            hero_load: None,
             zone_load: Some(zone_load),
+            reloaded_from: None,
+            hero_failed: false,
             zone: None,
             renderer,
         })
     }
 
-    /// Takes the zone from its load, once it is loaded. Called at each frame, before
-    /// [`View::draw`].
+    /// Starts loading the zone and the hero again from `assets`, whose cooked data changed: what
+    /// did not change is kept ([`Renderer::reload_scene_in_background`]), and the zone and the hero
+    /// drawn now stay until [`View::poll`] gives the new ones. A reload in progress is replaced,
+    /// which waits for its running tasks: a game calls it once [`View::reloading`] is false.
+    ///
+    /// # Panics
+    ///
+    /// If the zone is not shown yet ([`View::zone_shown`]): its rules come from the data drawn.
+    pub fn reload(&mut self, gpu: &Gpu, assets: CookedAssets) {
+        let zone = self
+            .zone
+            .as_ref()
+            .expect("the zone is shown before it is loaded again");
+        let renderer = &self.renderer;
+        self.hero_load =
+            Some(renderer.reload_scene_in_background(gpu, &assets, assets::hero_id(), &self.hero));
+        self.zone_load =
+            Some(renderer.reload_scene_in_background(gpu, &assets, assets::zone_id(), &zone.scene));
+        self.reloaded_from = Some(assets);
+    }
+
+    /// Whether the zone or the hero is being loaded again.
+    pub fn reloading(&self) -> bool {
+        self.reloaded_from.is_some() || self.hero_load.is_some()
+    }
+
+    /// Takes what its loads have loaded, once they have: the zone, the first time, which it draws
+    /// from then on, and the hero loaded again, which it draws in place of the one before; and
+    /// returns the zone loaded again, once the hero's load again has ended too, for the game to read
+    /// its rules from before the view draws it ([`View::show`]). Called at each frame, before
+    /// [`View::draw`]. A load again that fails keeps what is drawn, and logs why; a zone whose hero
+    /// could not be loaded again is not returned, so that the game keeps the data it came from.
     ///
     /// # Errors
     ///
-    /// When the zone could not be loaded, with a message that says how to cook it.
-    pub fn poll(&mut self) -> Result<(), AppError> {
-        if let Some(load) = &mut self.zone_load
+    /// When the zone could not be loaded the first time, with a message that says how to cook it.
+    pub fn poll(&mut self) -> Result<Option<ReloadedZone>, AppError> {
+        if let Some(load) = &mut self.hero_load
             && let Some(result) = load.take()
         {
-            self.zone_load = None;
-            let scene = result.map_err(|error| cannot_load("zone", error))?;
-            self.zone = Some(ZoneView {
-                nodes: scene.instance_nodes(),
-                flames: Glowing::find(&scene, FLAMES),
-                embers: Glowing::find(&scene, EMBERS),
-                key: Glowing::find(&scene, KEY),
-                scene,
-            });
+            self.hero_load = None;
+            match result {
+                Ok(hero) => self.hero = hero,
+                Err(error) => {
+                    tracing::warn!("the hero cannot be loaded again: {error}; it stays as it was");
+                    self.hero_failed = true;
+                }
+            }
         }
+        // A zone loaded again waits for the hero of the same data: the game takes the data with the
+        // zone, and loads the hero from it when it makes a new view.
+        if self.hero_load.is_some() {
+            return Ok(None);
+        }
+        let Some(result) = self.zone_load.as_mut().and_then(SceneLoad::take) else {
+            return Ok(None);
+        };
+        self.zone_load = None;
+        let Some(assets) = self.reloaded_from.take() else {
+            let scene = result.map_err(|error| cannot_load("zone", error))?;
+            self.zone = Some(ZoneView::new(scene));
+            return Ok(None);
+        };
+        match result {
+            Ok(_) if std::mem::take(&mut self.hero_failed) => {
+                tracing::warn!(
+                    "the zone stays as it was, since its hero could not be loaded again"
+                );
+                Ok(None)
+            }
+            Ok(scene) => Ok(Some(ReloadedZone { scene, assets })),
+            Err(error) => {
+                self.hero_failed = false;
+                tracing::warn!("the zone cannot be loaded again: {error}; it stays as it was");
+                Ok(None)
+            }
+        }
+    }
+
+    /// Draws `zone` from now on, in place of the zone drawn before, lit by its `lights`, which the
+    /// game read with its rules. The night sky is computed again if its moon moved, which holds up
+    /// the frame that shows the zone ([`Renderer::create_environment`]).
+    ///
+    /// # Errors
+    ///
+    /// When the night sky cannot be created.
+    pub fn show(
+        &mut self,
+        gpu: &Gpu,
+        zone: ReloadedZone,
+        lights: ZoneLights,
+    ) -> Result<(), RenderError> {
+        if night_sky(&lights) != night_sky(&self.lights) {
+            self.night.environment = self.renderer.create_environment(gpu, &night_sky(&lights))?;
+        }
+        self.day.lights = lights.day.clone();
+        self.night.lights = lights.night.clone();
+        self.lights = lights;
+        self.zone = Some(ZoneView::new(zone.scene));
         Ok(())
     }
 
@@ -315,7 +452,7 @@ impl View {
         camera: Camera,
     ) -> Result<RenderStats, RenderError> {
         let flicker = flicker(seconds);
-        if let Some((index, light)) = self.campfire {
+        if let Some((index, light)) = self.lights.campfire {
             self.night.lights[index] = Light::Point(PointLight {
                 intensity: light.intensity * flicker,
                 ..light

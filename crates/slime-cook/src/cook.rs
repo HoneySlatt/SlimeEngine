@@ -4,7 +4,10 @@
 use std::collections::HashMap;
 use std::fs;
 use std::io;
+use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
+use std::thread;
+use std::time::{Duration, SystemTime};
 
 use slime_assets::{AssetId, AssetKind, MANIFEST_FILE, Manifest, ManifestEntry};
 
@@ -93,8 +96,13 @@ pub enum CookError {
 /// source moved with its metadata neither. The same sources cooked into two empty directories give
 /// the same bytes, on one platform.
 ///
-/// Files are written under a temporary name, then renamed, so that a cook stopped half-way leaves
-/// no damaged file under a cooked name. Files that no source makes any more stay in `output`.
+/// Files are written under a temporary name of the process's own, then renamed, so that a cook
+/// stopped half-way leaves no damaged file under a cooked name, and two cooks of the same sources
+/// at once, which write the same bytes under the same names, leave the cooked data whole. The
+/// manifest is written last, and only when what it lists changed: a game that loads its data again
+/// when its manifest changes ([`slime_assets::ManifestWatch`]) loads nothing again after a cook
+/// that changed nothing.
+/// Files that no source makes any more stay in `output`.
 ///
 /// # Errors
 ///
@@ -169,8 +177,87 @@ pub fn cook(sources: &Path, output: &Path) -> Result<Cooked, CookError> {
             );
         }
     }
-    write(&output.join(MANIFEST_FILE), &manifest.to_bytes())?;
+    let path = output.join(MANIFEST_FILE);
+    let bytes = manifest.to_bytes();
+    if fs::read(&path).ok().as_deref() != Some(bytes.as_slice()) {
+        write(&path, &bytes)?;
+    }
     Ok(result)
+}
+
+/// How often [`watch`] looks for changes in the directory of sources: as often as a game reads its
+/// manifest ([`slime_assets::ManifestWatch`]).
+pub const WATCH_INTERVAL: Duration = slime_assets::ManifestWatch::INTERVAL;
+
+/// Cooks `sources` into `output` as [`cook`] does, then again each time a file inside `sources`
+/// changes, appears or goes, which it looks for every [`WATCH_INTERVAL`] by the size and the time
+/// of change of every file: a source, a metadata file, or a file that a source reads, such as a
+/// glTF file's buffers. It cooks once the files have stayed as they are for one interval, so that an
+/// export that writes several files, a glTF file and its buffers, is cooked whole. It gives `report`
+/// the result of each cook, and returns once `report` returns [`ControlFlow::Break`]. A cook that
+/// fails does not end the watch: an image read while an editor was still saving it fails to decode,
+/// and the end of the save, a change, cooks it again.
+///
+/// It reads no file between cooks, only the sizes and times of the files, and uses the operating
+/// system's clock rather than its notifications: a change is cooked between one and two intervals
+/// after it is made.
+///
+/// # Errors
+///
+/// [`ScanError::Io`] if `sources` itself cannot be read while it looks for changes, as when it is
+/// removed; a directory inside it that goes while it is read is a change.
+pub fn watch(
+    sources: &Path,
+    output: &Path,
+    mut report: impl FnMut(Result<Cooked, CookError>) -> ControlFlow<()>,
+) -> Result<(), ScanError> {
+    loop {
+        // The IDs first, so that the metadata files the cook would write are not taken for a
+        // change; what goes wrong is reported by the cook, which scans again.
+        let _ = scan::scan(sources, Mode::GiveIds);
+        // Taken before the cook, so that a change made while it runs is cooked after it.
+        let before = files(sources)?;
+        if report(cook(sources, output)).is_break() {
+            return Ok(());
+        }
+        // Cooked again once the files differ from before the cook, and stayed so for an interval.
+        let mut last = files(sources)?;
+        loop {
+            thread::sleep(WATCH_INTERVAL);
+            let now = files(sources)?;
+            if now != before && now == last {
+                break;
+            }
+            last = now;
+        }
+    }
+}
+
+/// A file's size and time of change, if it can be read.
+type FileState = Option<(u64, SystemTime)>;
+
+/// Every file inside `directory`, with its state, in the order of the paths.
+fn files(directory: &Path) -> Result<Vec<(PathBuf, FileState)>, ScanError> {
+    let mut paths = Vec::new();
+    if let Err(error) = scan::walk(directory, &mut paths) {
+        match error {
+            // A directory inside that went while the walk read it stands in the list without a
+            // state: a change, which the next look settles.
+            ScanError::Io { path, .. } if path != directory => paths.push(path),
+            error => return Err(error),
+        }
+    }
+    paths.sort();
+    Ok(paths
+        .into_iter()
+        .map(|path| {
+            // A file removed since the walk read its directory is a change too.
+            let state = fs::metadata(&path)
+                .ok()
+                .and_then(|metadata| Some((metadata.len(), metadata.modified().ok()?)));
+            (path, state)
+        })
+        .collect())
 }
 
 /// The extension of `path`, or nothing.
@@ -404,10 +491,12 @@ fn relative(root: &Path, path: &Path) -> String {
         .join("/")
 }
 
-/// Writes `bytes` to `path` under a temporary name beside it, then renames it to `path`.
+/// Writes `bytes` to `path` under a temporary name beside it, then renames it to `path`. The
+/// temporary name holds the process's ID, so that two processes that cook the same file at once do
+/// not write into one temporary file.
 fn write(path: &Path, bytes: &[u8]) -> Result<(), CookError> {
     let mut temporary = path.as_os_str().to_owned();
-    temporary.push(".part");
+    temporary.push(format!(".{}.part", std::process::id()));
     let temporary = PathBuf::from(temporary);
     let io = |source| CookError::Io {
         path: path.to_owned(),

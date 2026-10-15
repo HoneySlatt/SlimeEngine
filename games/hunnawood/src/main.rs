@@ -12,7 +12,8 @@
 //! cargo run -p hunnawood -- --frames 120     # closes itself after 120 frames that draw the zone
 //! cargo run -p hunnawood -- --assets <dir>   # reads the cooked data of another directory
 //! cargo run -p hunnawood -- --night          # starts at night
-//! cargo run -p hunnawood -- --lose-device-at 300   # loses its GPU device after 300 frames of the zone
+//! cargo run -p hunnawood -- --lose-device-at 300   # loses its GPU device after 300 zone frames
+//! cargo run -p hunnawood -- --watch          # loads its zone again when it is cooked again
 //! ```
 //!
 //! W, A, S and D move (Z, Q, S and D on a French keyboard), the left and right arrows turn the
@@ -34,21 +35,20 @@ use std::time::{Duration, Instant};
 
 use slime_app::time::FrameTime;
 use slime_app::{App, AppConfig, AppError, Context};
-use slime_assets::CookedAssets;
-use slime_gfx::RenderTarget;
+use slime_assets::{CookedAssets, ManifestWatch};
+use slime_gfx::{Gpu, RenderTarget};
 use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, WindowConfig};
-use slime_render::RenderStats;
+use slime_render::{RenderError, RenderStats};
 
 use camera::FollowCamera;
 use controls::Controls;
 use rules::Game;
 use statistics::Statistics;
-use view::{View, ZoneLights};
+use view::{ReloadedZone, View, ZoneLights};
 use zone::Zone;
 
 const USAGE: &str = "usage: hunnawood [--assets <directory>] [--frames <count>] [--night] \
-                     [--lose-device-at <frame>]";
-
+                     [--lose-device-at <frame>] [--watch]";
 /// The game: its rules, the keys held, the camera, and what draws them once the window is open.
 struct HunnaWood {
     /// The cooked data, which the view loads its GPU objects from once the window is open, and
@@ -77,6 +77,8 @@ struct HunnaWood {
     lose_device_at: Option<u64>,
     /// The frames drawn while the zone loads; `None` once they are logged.
     loading: Option<Loading>,
+    /// With `--watch`, what tells when the cooked data changes.
+    watch: Option<ManifestWatch>,
 }
 
 /// The frames drawn while the zone loads, and the longest interval between the starts of two
@@ -105,22 +107,15 @@ impl Loading {
 }
 
 impl HunnaWood {
-    /// The game in `zone`, lit by `lights`, starting at night if `night`, which draws what `assets`
-    /// holds, closes itself after `frame_limit` frames that draw the zone, and loses its GPU device
-    /// after `lose_device_at` of them, if they are given.
-    fn new(
-        assets: CookedAssets,
-        zone: Zone,
-        lights: ZoneLights,
-        night: bool,
-        (frame_limit, lose_device_at): (Option<u64>, Option<u64>),
-    ) -> Self {
+    /// The game in `zone`, lit by `lights`, which draws what `assets` holds, as `options` ask: at
+    /// night, for a number of frames, losing its GPU device after some, or loading its data again
+    /// when it changes.
+    fn new(assets: CookedAssets, zone: Zone, lights: ZoneLights, options: &Options) -> Self {
         let game = Game::new(zone);
         Self {
-            assets,
             lights,
             camera: FollowCamera::looking_along(game.zone().facing),
-            game: if night {
+            game: if options.night {
                 game.starting_at_night()
             } else {
                 game
@@ -131,11 +126,57 @@ impl HunnaWood {
             stats: RenderStats::default(),
             time: Duration::ZERO,
             drawn: 0,
-            frame_limit,
-            lose_device_at,
+            frame_limit: options.frame_limit,
+            lose_device_at: options.lose_device_at,
             loading: Some(Loading::default()),
+            watch: options
+                .watch
+                .then(|| ManifestWatch::new(&assets, Instant::now())),
+            assets,
         }
     }
+}
+
+/// Takes `zone`, the zone loaded again after its cooked data changed: `game` reads its rules from
+/// it, and starts again if its layout changed, `camera` with it; `view` draws it, lit by its
+/// lights; `lights` and `assets` keep its lights and the cooked data it came from, which the views
+/// to come load from. A zone whose rules cannot be read is not drawn, and changes nothing: the
+/// one before stays.
+///
+/// # Errors
+///
+/// When the view cannot compute its skies again.
+fn take_zone(
+    game: &mut Game,
+    camera: &mut FollowCamera,
+    (lights, assets): (&mut ZoneLights, &mut CookedAssets),
+    view: &mut View,
+    gpu: &Gpu,
+    zone: ReloadedZone,
+) -> Result<(), RenderError> {
+    let read = Zone::from_scene(zone.scene()).and_then(|rules| {
+        let lights =
+            ZoneLights::of(zone.scene(), rules.campfire).map_err(|error| error.to_string())?;
+        Ok((rules, lights))
+    });
+    let (rules, read) = match read {
+        Ok(read) => read,
+        Err(error) => {
+            tracing::warn!("the zone loaded again cannot be played: {error}; it stays as it was");
+            return Ok(());
+        }
+    };
+    let cooked = zone.assets().clone();
+    view.show(gpu, zone, read.clone())?;
+    *lights = read;
+    *assets = cooked;
+    if game.reload_zone(rules) {
+        *camera = FollowCamera::looking_along(game.zone().facing);
+        tracing::info!("the zone's layout changed: the run starts again");
+    } else {
+        tracing::info!("the zone is drawn again, and the run goes on");
+    }
+    Ok(())
 }
 
 /// Moves the hero of `game` by one fixed step of `step` as `controls` ask, relative to `camera`,
@@ -193,6 +234,10 @@ impl App for HunnaWood {
             statistics.restore(gpu, format, window.scale_factor());
         }
         self.loading = Some(Loading::default());
+        // A reload in progress went with the lost device: the data it loaded is given again.
+        if let Some(watch) = &mut self.watch {
+            watch.start_from(&self.assets);
+        }
         let hero = self.game.hero_between(1.0);
         tracing::info!(
             x = hero.position.x,
@@ -278,9 +323,37 @@ impl App for HunnaWood {
                 self.loading = None;
             }
         }
-        if let Err(error) = view.poll() {
-            ctx.exit_with_error(error);
-            return;
+        match view.poll() {
+            Ok(None) => {}
+            Ok(Some(zone)) => {
+                let (game, camera) = (&mut self.game, &mut self.camera);
+                let data = (&mut self.lights, &mut self.assets);
+                if let Err(error) = take_zone(game, camera, data, view, gpu, zone) {
+                    ctx.exit_with_error(error);
+                    return;
+                }
+            }
+            Err(error) => {
+                ctx.exit_with_error(error);
+                return;
+            }
+        }
+        // Once the zone is shown, so that its rules come from the data drawn, and once a reload has
+        // ended, so that none is dropped half-way, which waits for its running tasks.
+        if let Some(watch) = &mut self.watch
+            && view.zone_shown()
+            && !view.reloading()
+        {
+            match watch.poll(now) {
+                Ok(Some(assets)) => {
+                    tracing::info!("the cooked data changed: the zone and the hero load again");
+                    view.reload(gpu, assets);
+                }
+                Ok(None) => {}
+                Err(error) => tracing::warn!(
+                    "the cooked data cannot be read: {error}; the game goes on with what it loaded"
+                ),
+            }
         }
         // The hero is drawn between its last two fixed steps, the share of a step this frame comes
         // after the last one.
@@ -360,7 +433,10 @@ fn main() -> ExitCode {
         }
     };
     // The zone's colliders, places and lights come from the cooked scene, before the window opens.
-    let directory = options.assets.unwrap_or_else(assets::default_directory);
+    let directory = options
+        .assets
+        .clone()
+        .unwrap_or_else(assets::default_directory);
     let loaded = CookedAssets::open(&directory)
         .map_err(|error| error.to_string())
         .and_then(|cooked| {
@@ -393,13 +469,7 @@ fn main() -> ExitCode {
         restore_lost_device: true,
         ..AppConfig::default()
     };
-    let mut game = HunnaWood::new(
-        cooked,
-        zone,
-        lights,
-        options.night,
-        (options.frame_limit, options.lose_device_at),
-    );
+    let mut game = HunnaWood::new(cooked, zone, lights, &options);
     match slime_app::run(&mut game, &config) {
         Ok(()) => ExitCode::SUCCESS,
         // `run` has logged the error with its causes.
@@ -419,6 +489,9 @@ struct Options {
     /// The frame that draws the zone after which the game loses its GPU device, if
     /// `--lose-device-at` gives one.
     lose_device_at: Option<u64>,
+    /// Whether the game loads its zone and its hero again when their cooked data changes, as
+    /// `--watch` asks.
+    watch: bool,
 }
 
 /// The options that `arguments`, the command line without the program's name, give.
@@ -428,6 +501,7 @@ fn parse_options(arguments: impl IntoIterator<Item = OsString>) -> Result<Option
     while let Some(argument) = arguments.next() {
         match argument.to_str() {
             Some("--night") => options.night = true,
+            Some("--watch") => options.watch = true,
             Some("--assets") => {
                 let value = arguments.next().ok_or("--assets needs a directory")?;
                 options.assets = Some(PathBuf::from(value));
@@ -470,6 +544,12 @@ mod tests {
         assert!(options.night);
         assert_eq!(options.frame_limit, Some(2));
         assert!(parse(&["--day"]).is_err());
+    }
+
+    #[test]
+    fn watch_loads_the_cooked_data_again() {
+        assert!(!parse(&[]).expect("no option").watch);
+        assert!(parse(&["--watch", "--night"]).expect("valid options").watch);
     }
 
     #[test]

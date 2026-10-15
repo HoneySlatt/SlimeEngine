@@ -224,7 +224,7 @@ fn is_metadata(path: &Path) -> bool {
 
 /// Adds the paths of the files inside `directory`, and inside the directories inside it, to
 /// `files`.
-fn walk(directory: &Path, files: &mut Vec<PathBuf>) -> Result<(), ScanError> {
+pub(crate) fn walk(directory: &Path, files: &mut Vec<PathBuf>) -> Result<(), ScanError> {
     let io = |source| ScanError::Io {
         path: directory.to_owned(),
         source,

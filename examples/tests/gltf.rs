@@ -25,6 +25,10 @@ mod orbit;
 #[path = "../common/reference_image.rs"]
 mod reference_image;
 #[path = "../common/sample_scene.rs"]
+#[expect(
+    dead_code,
+    reason = "the `scene` example loads the scene again when it changes; this test does not"
+)]
 mod sample_scene;
 
 use std::borrow::Cow;

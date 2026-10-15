@@ -107,6 +107,20 @@ impl Game {
         self.night = self.starts_at_night;
     }
 
+    /// Takes `zone`, read again from the zone's cooked scene after it changed on disk: when its
+    /// layout changed ([`Zone::same_layout`]), the game starts again in it, as [`Game::restart`]
+    /// does, since the hero could stand in a new wall, or the key have moved after it was taken;
+    /// otherwise the game goes on, and draws the key and the door by the new zone's nodes. Returns
+    /// whether it started again.
+    pub fn reload_zone(&mut self, zone: Zone) -> bool {
+        let changed = !self.zone.same_layout(&zone);
+        self.zone = zone;
+        if changed {
+            self.restart();
+        }
+        changed
+    }
+
     /// Whether it is night.
     pub fn night(&self) -> bool {
         self.night
@@ -308,6 +322,28 @@ mod tests {
         assert_eq!(game.hero(), start(game.zone()));
         assert!(!game.has_item() && !game.door_open());
         assert_eq!(game.colliders(), game.zone().colliders.as_slice());
+    }
+
+    #[test]
+    fn a_change_of_layout_starts_the_run_again_and_a_change_of_looks_does_not() {
+        let mut game = Game::new(walled([5.0, 0.0]));
+        hold(&mut game, Vec2::X, 2.0);
+        assert!(game.has_item());
+        let hero = game.hero();
+        // The same layout, its nodes cooked in another order: the run goes on, by the new nodes.
+        let mut reordered = walled([5.0, 0.0]);
+        reordered.item_nodes = [7].into();
+        assert!(!game.reload_zone(reordered));
+        assert_eq!(game.hero(), hero);
+        assert!(game.has_item());
+        assert_eq!(game.zone().item_nodes, [7].into());
+        // A wall moved: the run starts again, in the new zone.
+        let mut moved = walled([5.0, 0.0]);
+        moved.colliders[1].center.x = 11.0;
+        assert!(game.reload_zone(moved.clone()));
+        assert_eq!(game.hero(), start(&moved));
+        assert!(!game.has_item());
+        assert_eq!(game.colliders(), moved.colliders.as_slice());
     }
 
     #[test]

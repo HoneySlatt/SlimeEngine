@@ -23,8 +23,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   new one ([ADR-0075](adr/0075-recovering-from-a-lost-gpu-device.md)). M4b.4 done on 2026-10-15:
   *Hunna Wood* goes on after a lost device, its run kept; its checks by hand with a real driver
   reset, on Linux and on Windows, are M4b.9's. M4b.5 done on 2026-10-15: a game changes a
-  material's values while it runs, and *Hunna Wood*'s campfire flickers. Next: M4b.6, hot reload
-  of cooked data.
+  material's values while it runs, and *Hunna Wood*'s campfire flickers. M4b.6 built: a texture
+  changed on disk changes in the running game; the owner tries it.
 
 ## Status
 
@@ -35,7 +35,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M4b.3](#m4b3--recovering-from-a-lost-gpu-device) | An application that chooses it goes on after a lost GPU device | Done |
 | [M4b.4](#m4b4--hunna-wood-goes-on-after-a-lost-device) | *Hunna Wood* goes on after a lost GPU device | Done |
 | [M4b.5](#m4b5--materials-that-change-in-place) | A game changes a material's values while it runs | Done |
-| [M4b.6](#m4b6--hot-reload-of-cooked-data) | A texture changed on disk changes in the running game | Planned |
+| [M4b.6](#m4b6--hot-reload-of-cooked-data) | A texture changed on disk changes in the running game | Built; the owner tries it |
 | [M4b.7](#m4b7--hot-reload-of-shaders) | A shader changed on disk changes in the running game | Planned |
 | [M4b.8](#m4b8--refining-hunna-wood) | *Hunna Wood* refined with hot reload, on the owner's list | Planned |
 | [M4b.9](#m4b9--windows-check-documentation-close) | Stage 4b is done; Stage 5 is planned | Planned |

@@ -7,12 +7,12 @@ use std::error::Error;
 use std::f32::consts::PI;
 use std::time::{Duration, Instant};
 
-use slime_assets::AssetId;
+use slime_assets::{AssetId, CookedAssets};
 use slime_gfx::{Gpu, LinearColor, RenderTarget};
 use slime_render::glam::Vec3;
 use slime_render::{
     Camera, DirectionalLight, Environment, Light, LoadedScene, RenderError, RenderStats, Renderer,
-    Scene, Sky,
+    Scene, SceneLoad, Sky,
 };
 
 /// The ID of the sample asset, `examples/assets/scene.glb`, made in Blender by
@@ -79,6 +79,8 @@ pub struct SampleScene {
     renderer: Renderer,
     loaded: LoadedScene,
     bounds: Bounds,
+    /// The sun of its sky, which `environment` was computed around.
+    sun: Option<DirectionalLight>,
     environment: Environment,
     environment_time: Duration,
 }
@@ -96,32 +98,44 @@ impl SampleScene {
         renderer: Renderer,
         loaded: LoadedScene,
     ) -> Result<Self, Box<dyn Error + Send + Sync>> {
-        let (min, max) = loaded
-            .bounds
-            .ok_or("the scene draws nothing: no node places a mesh")?;
-        let bounds = Bounds { min, max };
-        // The sky's sun is the scene's: the file's first directional light, or the sample's sun
-        // for a file without lights, so that its disc and glow lie where the light and its shadows
-        // come from.
-        let sun = loaded
-            .lights
-            .iter()
-            .find_map(|light| match light {
-                Light::Directional(light) => Some(*light),
-                _ => None,
-            })
-            .or(loaded.lights.is_empty().then_some(SUN));
-        let started = Instant::now();
-        let environment = renderer.create_environment(gpu, &Sky { sun, ..SKY })?;
-        let environment_time = started.elapsed();
-        tracing::info!(?environment_time, "the sky's environment is computed");
+        let (bounds, sun) = framing(&loaded)?;
+        let (environment, environment_time) = sky(gpu, &renderer, sun)?;
         Ok(Self {
             renderer,
             loaded,
             bounds,
+            sun,
             environment,
             environment_time,
         })
+    }
+
+    /// Starts loading the scene `id` from `assets` again, whose cooked data changed, keeping what
+    /// did not change of the scene drawn (`Renderer::reload_scene_in_background`).
+    pub fn reload(&self, gpu: &Gpu, assets: &CookedAssets, id: AssetId) -> SceneLoad {
+        self.renderer
+            .reload_scene_in_background(gpu, assets, id, &self.loaded)
+    }
+
+    /// Draws `loaded`, the scene loaded again, from now on, under its sky, computed again if its sun
+    /// moved.
+    ///
+    /// # Errors
+    ///
+    /// As [`SampleScene::new`]; the scene drawn before stays then.
+    pub fn replace(
+        &mut self,
+        gpu: &Gpu,
+        loaded: LoadedScene,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let (bounds, sun) = framing(&loaded)?;
+        if sun != self.sun {
+            (self.environment, self.environment_time) = sky(gpu, &self.renderer, sun)?;
+            self.sun = sun;
+        }
+        self.bounds = bounds;
+        self.loaded = loaded;
+        Ok(())
     }
 
     /// How long the CPU took to compute the sky's environment, when the scene was loaded.
@@ -177,4 +191,47 @@ impl SampleScene {
         scene.bloom = bloom;
         self.renderer.render(gpu, target, &scene)
     }
+}
+
+/// The box around `loaded`, and the sun of its sky.
+///
+/// # Errors
+///
+/// When the scene places no mesh.
+fn framing(
+    loaded: &LoadedScene,
+) -> Result<(Bounds, Option<DirectionalLight>), Box<dyn Error + Send + Sync>> {
+    let (min, max) = loaded
+        .bounds
+        .ok_or("the scene draws nothing: no node places a mesh")?;
+    let bounds = Bounds { min, max };
+    // The sky's sun is the scene's: the file's first directional light, or the sample's sun
+    // for a file without lights, so that its disc and glow lie where the light and its shadows
+    // come from.
+    let sun = loaded
+        .lights
+        .iter()
+        .find_map(|light| match light {
+            Light::Directional(light) => Some(*light),
+            _ => None,
+        })
+        .or(loaded.lights.is_empty().then_some(SUN));
+    Ok((bounds, sun))
+}
+
+/// The environment of the sky around `sun`, which `renderer` computes, and the time the CPU took to.
+///
+/// # Errors
+///
+/// The renderer's error when the sky cannot be created.
+fn sky(
+    gpu: &Gpu,
+    renderer: &Renderer,
+    sun: Option<DirectionalLight>,
+) -> Result<(Environment, Duration), RenderError> {
+    let started = Instant::now();
+    let environment = renderer.create_environment(gpu, &Sky { sun, ..SKY })?;
+    let environment_time = started.elapsed();
+    tracing::info!(?environment_time, "the sky's environment is computed");
+    Ok((environment, environment_time))
 }

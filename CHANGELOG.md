@@ -33,6 +33,12 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   all of a material's data but its textures and its sidedness, and the frames submitted after it
   draw with them; `Material::values` reads them. `LoadedScene::material` finds a loaded scene's
   materials by their names.
+- Hot reload of cooked data ([ADR-0076](docs/adr/0076-hot-reload-of-cooked-data.md)):
+  `slime-cook watch <sources> <output>` cooks again each source that changes;
+  `Renderer::reload_scene_in_background` loads a scene again, keeping the meshes and textures whose
+  cooked file did not change; `slime_assets::ManifestWatch` tells a game when its manifest changes;
+  *Hunna Wood* and the `scene` example take `--watch`, which loads their scenes again then.
+  *Hunna Wood* reads its zone's rules again, and starts the run again when its layout changed.
 - *Hunna Wood*'s campfire flickers, its flames, its embers and its light together, and the key
   glows in pulses at night. The `scene` example's overlay has a slider of how strongly its ring
   glows.
@@ -43,6 +49,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- The cooker writes its temporary files under names of the process's own, so that two cooks of
+  the same sources at once leave the cooked data whole, and writes the manifest only when what it
+  lists changed.
 - `Renderer::create_material`, and the loads of cooked scenes, refuse material values out of the
   ranges that glTF keeps them in, or that are not finite, with `RenderError::InvalidMaterial`:
   such a value drew nothing that a surface can look like, and one that is not a number spread

@@ -2,6 +2,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 use crate::AssetId;
 use crate::error::{CookedError, LoadError};
@@ -125,9 +126,130 @@ impl CookedAssets {
     }
 }
 
+/// Tells a game that hot-reloads when the manifest of its cooked data changes
+/// (`docs/adr/0076-hot-reload-of-cooked-data.md`): it reads the manifest again at most every
+/// [`ManifestWatch::INTERVAL`], and compares it with the last one it gave, or started from. The
+/// cooker writes a manifest last, and only when what it lists changed: a new manifest means new
+/// cooked data, whole.
+#[derive(Debug)]
+pub struct ManifestWatch {
+    directory: PathBuf,
+    /// The manifest of the cooked data it gave last, or started from.
+    seen: Manifest,
+    /// When it reads the manifest next.
+    next: Instant,
+    /// Whether the last read failed, so that a failure is told once.
+    failing: bool,
+}
+
+impl ManifestWatch {
+    /// How often it reads the manifest; `slime-cook watch` looks at the sources as often.
+    pub const INTERVAL: Duration = Duration::from_millis(500);
+
+    /// A watch of the directory of `assets`, which it starts from; it reads the manifest first
+    /// [`ManifestWatch::INTERVAL`] after `now`.
+    pub fn new(assets: &CookedAssets, now: Instant) -> Self {
+        Self {
+            directory: assets.directory.clone(),
+            seen: assets.manifest.clone(),
+            next: now + Self::INTERVAL,
+            failing: false,
+        }
+    }
+
+    /// Starts again from `assets`, the cooked data that the game drew from, so that a manifest
+    /// that differs from it is given again: after the game made its GPU objects again from
+    /// `assets`, for a new GPU device, while it was loading the data that the watch gave last.
+    pub fn start_from(&mut self, assets: &CookedAssets) {
+        self.seen = assets.manifest.clone();
+    }
+
+    /// The cooked data again, if [`ManifestWatch::INTERVAL`] has passed since the last read, at
+    /// `now`, and its manifest differs from the last one given; `None` otherwise.
+    ///
+    /// # Errors
+    ///
+    /// As [`CookedAssets::open`], the first time the manifest cannot be read after it could; the
+    /// reads that fail after that give `None`, so that a game tells the failure once.
+    pub fn poll(&mut self, now: Instant) -> Result<Option<CookedAssets>, LoadError> {
+        if now < self.next {
+            return Ok(None);
+        }
+        self.next = now + Self::INTERVAL;
+        match CookedAssets::open(&self.directory) {
+            Ok(assets) => {
+                self.failing = false;
+                if assets.manifest == self.seen {
+                    return Ok(None);
+                }
+                self.seen = assets.manifest.clone();
+                Ok(Some(assets))
+            }
+            Err(_) if self.failing => Ok(None),
+            Err(error) => {
+                self.failing = true;
+                Err(error)
+            }
+        }
+    }
+}
+
 fn read(path: &Path) -> Result<Vec<u8>, LoadError> {
     fs::read(path).map_err(|source| LoadError::Io {
         path: path.to_owned(),
         source,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::manifest::{AssetKind, ManifestEntry};
+
+    /// Writes a manifest that lists one texture, in file `file`, into `directory`.
+    fn write_manifest(directory: &Path, file: &str) {
+        let mut manifest = Manifest::new();
+        manifest.insert(
+            AssetId::from_u128(1),
+            ManifestEntry {
+                kind: AssetKind::Texture,
+                file: file.to_owned(),
+                size: 4,
+                needs: Vec::new(),
+                source: "rock.png".to_owned(),
+            },
+        );
+        fs::write(directory.join(MANIFEST_FILE), manifest.to_bytes()).expect("written");
+    }
+
+    #[test]
+    fn a_watch_gives_the_cooked_data_once_each_time_its_manifest_changes() {
+        let directory =
+            std::env::temp_dir().join(format!("slime-assets-watch-{}", std::process::id()));
+        fs::create_dir_all(&directory).expect("created");
+        write_manifest(&directory, "first.ktx2");
+        let start = Instant::now();
+        let assets = CookedAssets::open(&directory).expect("read");
+        let mut watch = ManifestWatch::new(&assets, start);
+        let later = |intervals: u32| start + ManifestWatch::INTERVAL * intervals;
+        assert!(watch.poll(later(1)).expect("read").is_none(), "unchanged");
+        write_manifest(&directory, "second.ktx2");
+        // Not before the interval has passed since the last read.
+        assert!(watch.poll(later(1)).expect("read").is_none());
+        let changed = watch.poll(later(2)).expect("read").expect("a new manifest");
+        let file = |assets: &CookedAssets| {
+            let (_, entry) = assets.manifest().iter().next().expect("one entry");
+            entry.file.clone()
+        };
+        assert_eq!(file(&changed), "second.ktx2");
+        assert!(watch.poll(later(3)).expect("read").is_none(), "given once");
+        // Started again from the first data, the watch gives the second again.
+        watch.start_from(&assets);
+        assert!(watch.poll(later(4)).expect("read").is_some());
+        // A manifest that cannot be read is told once.
+        fs::remove_file(directory.join(MANIFEST_FILE)).expect("removed");
+        assert!(watch.poll(later(5)).is_err());
+        assert!(watch.poll(later(6)).expect("told once").is_none());
+        fs::remove_dir_all(&directory).expect("removed");
+    }
 }

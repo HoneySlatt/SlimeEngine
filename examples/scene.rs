@@ -16,6 +16,7 @@
 //! cargo run --example scene                              # the scene of examples/assets/scene.glb
 //! cargo run --example scene -- --frames 120              # closes after 120 frames of the scene
 //! cargo run --example scene -- --assets <dir> --scene <id>   # another cooked scene, by its ID
+//! cargo run --example scene -- --watch                   # loads it again when it is cooked again
 //! ```
 //!
 //! Without `--assets`, it reads `assets` beside the program if there is one, as where CI ships it,
@@ -30,10 +31,11 @@ use std::f32::consts::TAU;
 use std::ops::RangeInclusive;
 use std::path::PathBuf;
 use std::process::ExitCode;
+use std::time::Instant;
 
 use slime_app::time::FrameTime;
 use slime_app::{App, AppConfig, AppError, Context};
-use slime_assets::{AssetId, CookedAssets};
+use slime_assets::{AssetId, CookedAssets, ManifestWatch};
 use slime_devui::{Overlay, egui};
 use slime_gfx::{LinearColor, RenderPassDescriptor, RenderTarget};
 use slime_platform::{
@@ -44,7 +46,8 @@ use slime_render::{Camera, Material, MaterialValues, RenderStats, Renderer, Scen
 
 use sample_scene::{BLOOM, EXPOSURE, SKY, SampleScene};
 
-const USAGE: &str = "usage: scene [--assets <directory>] [--scene <id>] [--frames <count>]";
+const USAGE: &str =
+    "usage: scene [--assets <directory>] [--scene <id>] [--frames <count>] [--watch]";
 
 /// Radians per pixel dragged.
 const DRAG_SPEED: f32 = 0.005;
@@ -206,6 +209,10 @@ struct SceneExample {
     ring: Option<(Material, MaterialValues)>,
     /// How many times as strongly as loaded the ring glows; the overlay's third slider changes it.
     glow: f32,
+    /// With `--watch`, what tells when the cooked data changes.
+    watch: Option<ManifestWatch>,
+    /// The load of the scene again, after its cooked data changed.
+    reload: Option<SceneLoad>,
 }
 
 impl App for SceneExample {
@@ -318,6 +325,42 @@ impl App for SceneExample {
         let Some(scene) = &mut self.scene else {
             return;
         };
+        // Once a reload has ended, so that none is dropped half-way, which waits for its tasks.
+        if let Some(watch) = &mut self.watch
+            && self.reload.is_none()
+        {
+            match watch.poll(Instant::now()) {
+                Ok(Some(assets)) => {
+                    tracing::info!("the cooked data changed: the scene loads again");
+                    self.reload = Some(scene.reload(gpu, &assets, self.scene_id));
+                }
+                Ok(None) => {}
+                Err(error) => tracing::warn!(
+                    "the cooked data cannot be read: {error}; the example goes on with what it \
+                     loaded"
+                ),
+            }
+        }
+        if let Some(result) = self.reload.as_mut().and_then(SceneLoad::take) {
+            self.reload = None;
+            // The ring's material is made again with the scene.
+            let taken = result.map_err(AppError::from).and_then(|loaded| {
+                let ring = loaded
+                    .material(RING)
+                    .map(|ring| (ring.clone(), ring.values()));
+                scene.replace(gpu, loaded)?;
+                Ok(ring)
+            });
+            match taken {
+                Ok(ring) => {
+                    self.ring = ring;
+                    tracing::info!("the scene is drawn again");
+                }
+                Err(error) => {
+                    tracing::warn!("the scene cannot be loaded again: {error}; it stays as it was");
+                }
+            }
+        }
         // The ring's light, which stands for its glow in the asset, stays as loaded.
         if let Some((ring, loaded)) = &self.ring {
             let values = MaterialValues {
@@ -468,7 +511,7 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let directory = options.assets.unwrap_or_else(default_assets);
+    let directory = options.assets.clone().unwrap_or_else(default_assets);
     let assets = match CookedAssets::open(&directory) {
         Ok(assets) => assets,
         Err(error) => {
@@ -488,6 +531,9 @@ fn main() -> ExitCode {
         // The example counts its frames itself: those that draw the scene.
         ..AppConfig::default()
     };
+    let watch = options
+        .watch
+        .then(|| ManifestWatch::new(&assets, Instant::now()));
     let mut example = SceneExample {
         assets,
         scene_id: options.scene.unwrap_or(sample_scene::SCENE),
@@ -500,6 +546,8 @@ fn main() -> ExitCode {
         bloom: BLOOM,
         ring: None,
         glow: 1.0,
+        watch,
+        reload: None,
         frame_ms: 0.0,
         drawn: 0,
         frame_limit: options.frame_limit,
@@ -534,6 +582,8 @@ struct Options {
     assets: Option<PathBuf>,
     scene: Option<AssetId>,
     frame_limit: Option<u64>,
+    /// Whether the example loads the scene again when its cooked data changes.
+    watch: bool,
 }
 
 fn parse_options() -> Result<Options, String> {
@@ -552,6 +602,7 @@ fn parse_options() -> Result<Options, String> {
                     .ok_or_else(|| format!("`{}` is not an asset ID", value.display()))?;
                 options.scene = Some(id);
             }
+            Some("--watch") => options.watch = true,
             Some("--frames") => {
                 let value = arguments.next().ok_or("--frames needs a value")?;
                 let count = value
