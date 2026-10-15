@@ -3,10 +3,11 @@
 //! the sample's sun for a scene without lights, seen from a camera that orbits it until the mouse
 //! takes over: drag with the left button to turn around it, roll the wheel to come nearer or go
 //! farther. A dev overlay shows what each frame costs, with the GPU time of each pass, a slider
-//! that changes the exposure, as a photographer's exposure value, and one that changes the bloom's
-//! strength; F1 hides and shows it. It loads the scene in the background, its frames showing the
-//! sky's horizon until the scene is loaded. The sample of Stages 3a, 3b and 4a. Escape, closing the
-//! window or Ctrl+C quits.
+//! that changes the exposure, as a photographer's exposure value, one that changes the bloom's
+//! strength and, for the sample's asset, one that changes how strongly its ring glows, through its
+//! material, found by its name; F1 hides and shows it. It loads the scene in the background, its
+//! frames showing the sky's horizon until the scene is loaded. The sample of Stages 3a, 3b and 4a.
+//! Escape, closing the window or Ctrl+C quits.
 //!
 //! It reads cooked data, which `slime-cook` makes first:
 //!
@@ -39,7 +40,7 @@ use slime_platform::{
     ButtonState, Event, KeyCode, KeyEvent, MouseButton, ScrollDelta, WindowConfig,
 };
 use slime_render::glam::Vec3;
-use slime_render::{Camera, RenderStats, Renderer, SceneLoad};
+use slime_render::{Camera, Material, MaterialValues, RenderStats, Renderer, SceneLoad};
 
 use sample_scene::{BLOOM, EXPOSURE, SKY, SampleScene};
 
@@ -65,6 +66,11 @@ const PITCH_RANGE: RangeInclusive<f32> = 0.0..=1.45;
 const EV100_RANGE: RangeInclusive<f32> = 18.0..=0.0;
 /// The bloom strengths the second slider covers: none, to five times the sample's.
 const BLOOM_RANGE: RangeInclusive<f32> = 0.0..=0.2;
+/// The name of the sample's material that its ring glows with (`assets/make_scene.py`).
+const RING: &str = "teal";
+/// How strongly the ring glows, as the third slider covers it: from none to four times as strongly
+/// as the asset makes it.
+const GLOW_RANGE: RangeInclusive<f32> = 0.0..=4.0;
 
 /// The exposure value at ISO 100 (EV100) that gives `exposure`, in the convention that Frostbite
 /// and Filament follow (Lagarde and de Rousiers, "Moving Frostbite to Physically Based Rendering",
@@ -195,6 +201,11 @@ struct SceneExample {
     ev100: f32,
     /// The strength of the bloom (ADR-0040); the overlay's second slider changes it.
     bloom: f32,
+    /// The material that the scene's ring glows with, and its values as loaded, if the scene has
+    /// one.
+    ring: Option<(Material, MaterialValues)>,
+    /// How many times as strongly as loaded the ring glows; the overlay's third slider changes it.
+    glow: f32,
 }
 
 impl App for SceneExample {
@@ -284,10 +295,12 @@ impl App for SceneExample {
                 }
                 Some(loaded) => {
                     let (renderer, _) = self.loading.take().expect("the scene was loading");
-                    match loaded
-                        .map_err(AppError::from)
-                        .and_then(|loaded| SampleScene::new(gpu, renderer, loaded))
-                    {
+                    match loaded.map_err(AppError::from).and_then(|loaded| {
+                        self.ring = loaded
+                            .material(RING)
+                            .map(|ring| (ring.clone(), ring.values()));
+                        SampleScene::new(gpu, renderer, loaded)
+                    }) {
                         Ok(scene) => {
                             let (center, radius) =
                                 (scene.bounds().center(), scene.bounds().radius());
@@ -305,6 +318,17 @@ impl App for SceneExample {
         let Some(scene) = &mut self.scene else {
             return;
         };
+        // The ring's light, which stands for its glow in the asset, stays as loaded.
+        if let Some((ring, loaded)) = &self.ring {
+            let values = MaterialValues {
+                emissive_strength: loaded.emissive_strength * self.glow,
+                ..*loaded
+            };
+            if let Err(error) = ring.set_values(gpu, values) {
+                ctx.exit_with_error(error);
+                return;
+            }
+        }
         match scene.render(
             gpu,
             target,
@@ -332,6 +356,8 @@ impl App for SceneExample {
             // The overlay's slider changes it; the scene is drawn with it from the next frame.
             let chosen = &mut self.ev100;
             let bloom = &mut self.bloom;
+            let has_ring = self.ring.is_some();
+            let glow = &mut self.glow;
             // Drawn with no panel while hidden, so that egui still takes the events handed to the
             // overlay as they come, not all at once when it is shown again.
             overlay.render(gpu, target, |ctx| {
@@ -392,6 +418,16 @@ impl App for SceneExample {
                                 .show_value(false)
                                 .text(format!("bloom {shown:.3}")),
                         );
+                        // For a scene with the sample's ring: how many times as strongly as loaded
+                        // it glows.
+                        if has_ring {
+                            let shown = *glow;
+                            ui.add(
+                                egui::Slider::new(glow, GLOW_RANGE)
+                                    .show_value(false)
+                                    .text(format!("ring's glow × {shown:.2}")),
+                            );
+                        }
                         ui.label("F1 hides this");
                     });
             });
@@ -462,6 +498,8 @@ fn main() -> ExitCode {
         show_overlay: true,
         ev100: ev100(EXPOSURE),
         bloom: BLOOM,
+        ring: None,
+        glow: 1.0,
         frame_ms: 0.0,
         drawn: 0,
         frame_limit: options.frame_limit,

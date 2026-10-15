@@ -15,7 +15,8 @@ In the nave lies an old brass key: the hero takes it on walking up to it. The ke
 door in the chapel's north wall, which opens as the hero comes to it, onto a terrace that looks
 over the valley towards the region's capital, far away. Without the key, the door does not move.
 Resting by the campfire turns the day to night, and the night to day: by night, the moon lights the
-forest dimly, lanterns light the path and cast their shadows, the fire glows, and the key glints.
+forest dimly, lanterns light the path and cast their shadows, the fire flickers, its flames, its
+embers and its light together, and the key glows in pulses, enough to be found by.
 
 The hero moves relative to the camera, which stays behind it and a little above, turns to face
 where it moves, and is stopped by trees, rocks, walls and the edge of the zone, sliding along them.
@@ -79,7 +80,7 @@ place on every layout. CI builds the game for Windows with the examples: `hunnaw
 | `zone.rs` | The zone, read from the cooked scene: its ground, its colliders, boxes turned about the vertical and cylinders, where the hero starts, and the places of the key, the door and the campfire; the tests of the cooked zone |
 | `controls.rs` | Which of the game's keys are held |
 | `camera.rs` | The camera that follows the hero, coming nearer when a collider would stand between them |
-| `view.rs` | What the player sees: the renderer, the cooked hero, and the cooked zone, which loads in the background (`Renderer::load_scene_in_background`); by day, the overcast sky and the zone's sun behind its clouds; by night, a dark sky with the moon's disc and the zone's lights of the night, all read from the cooked zone before it loads (`scene_lights`) |
+| `view.rs` | What the player sees: the renderer, the cooked hero, and the cooked zone, which loads in the background (`Renderer::load_scene_in_background`); by day, the overcast sky and the zone's sun behind its clouds; by night, a dark sky with the moon's disc and the zone's lights of the night, all read from the cooked zone before it loads (`scene_lights`); the fire that flickers and the key that pulses at night, their materials found by name in the loaded zone and changed at each frame (`Material::set_values`) |
 | `statistics.rs` | The dev overlay that shows what each frame costs, with a button that loses the GPU device on purpose |
 
 The rules run at the engine's fixed step, 1/60 s, so that a game plays the same on every machine;
@@ -182,13 +183,17 @@ of the scene's nodes, which the cooker passes on as their `extras`:
   the hero rests; `terrace`, behind the door; `bounds`, whose scale is half the size of the ground
   the hero may walk.
 - **Lights**: `time` is `"day"` or `"night"`: the sun by day; by night, the moon, a spot light in
-  each lantern, which casts shadows, and the campfire's point light.
+  each lantern, which casts shadows, and the campfire's point light, which flickers: the game
+  takes the night's point light within a metre of the `campfire` marker.
+- **Materials** that the game changes, by their names: `flames` and `embers`, the campfire's,
+  which flicker with its light, and `brass`, the key's, which pulses at night.
 
 Tests read the cooked zone. In `src/zone.rs`: one marker of each kind, a start clear of every
 collider, the key and the campfire within reach, the terrace not until the door opens, and the zone
 within the budgets that the test sets. In `src/rules.rs`: a walk along the path that rests by the
 campfire, takes the key, opens the door and reaches the terrace, then starts again from the same
-state; a walk to the door without the key, which it stops. They need the cooked zone, so `cargo test` leaves them out: `scripts/check.sh`
+state; a walk to the door without the key, which it stops. In `src/view.rs`: the campfire's light
+and the materials that glow. They need the cooked zone, so `cargo test` leaves them out: `scripts/check.sh`
 fetches and cooks it, then runs them, and after the commands above,
 `cargo test -p hunnawood -- --ignored` does.
 

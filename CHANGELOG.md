@@ -27,6 +27,13 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   device on purpose, to try it.
 - `slime_render::scene_lights` gives the lights that a cooked scene's nodes place without loading
   the scene, so that a game knows its sun and its moon before its scene is loaded.
+- A material's values change while a game runs: `Material::set_values` takes `MaterialValues`,
+  all of a material's data but its textures and its sidedness, and the frames submitted after it
+  draw with them; `Material::values` reads them. `LoadedScene::material` finds a loaded scene's
+  materials by their names.
+- *Hunna Wood*'s campfire flickers, its flames, its embers and its light together, and the key
+  glows in pulses at night. The `scene` example's overlay has a slider of how strongly its ring
+  glows.
 - *Hunna Wood* draws while its zone loads: its window shows the hero under the sky two to three
   times sooner, and the zone appears, whole, once loaded; the hero waits for it. The log says after
   how many frames, and the longest interval between two of them
@@ -34,6 +41,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- `Renderer::create_material`, and the loads of cooked scenes, refuse material values out of the
+  ranges that glTF keeps them in, or that are not finite, with `RenderError::InvalidMaterial`:
+  such a value drew nothing that a surface can look like, and one that is not a number spread
+  through the bloom over the whole frame.
 - `Renderer::load_scene` starts a load in the background and waits for it: it loads on several
   threads, about twice as fast as before on the sample game's zone (ADR-0073). A panic of a
   loading thread is raised again on the thread that waits. When several assets of a scene fail, the

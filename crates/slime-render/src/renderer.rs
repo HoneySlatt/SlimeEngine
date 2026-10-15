@@ -917,12 +917,15 @@ impl Renderer {
     }
 
     /// Creates a material. `label` names it in error messages and in GPU capture tools. The
-    /// material keeps its textures and samplers alive.
+    /// material keeps its textures and samplers alive; its values can change afterwards
+    /// ([`Material::set_values`]).
     ///
     /// # Errors
     ///
-    /// [`RenderError::Gfx`] with [`GfxError::OutOfMemory`] when the GPU's memory cannot hold it,
-    /// or [`GfxError::DeviceLost`] once the device is lost: nothing is created then.
+    /// [`RenderError::InvalidMaterial`] if a value of `data` is out of the range that
+    /// [`MaterialValues`](crate::MaterialValues) gives; [`RenderError::Gfx`] with
+    /// [`GfxError::OutOfMemory`] when the GPU's memory cannot hold it, or
+    /// [`GfxError::DeviceLost`] once the device is lost. Nothing is created then.
     ///
     /// # Panics
     ///

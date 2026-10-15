@@ -98,6 +98,17 @@ impl LoadedScene {
             .map(|placement| placement.node)
             .collect()
     }
+
+    /// The material named `name` among those its meshes are drawn with, its name being the cooked
+    /// material's (a glTF file's material name): when several have it, the first that a mesh of
+    /// the scene is drawn with, in the order of the scene's meshes; `None` when none has it. A game
+    /// changes how the scene looks through it ([`Material::set_values`]), and keeps a clone of it
+    /// to do so at each frame.
+    pub fn material(&self, name: &str) -> Option<&Material> {
+        self.materials
+            .iter()
+            .find(|material| &*material.label == name)
+    }
 }
 
 /// A cooked scene being loaded in the background, on threads of the renderer's own
@@ -178,8 +189,9 @@ impl Renderer {
     /// # Errors
     ///
     /// [`SceneError::Load`] if an asset cannot be read; [`SceneError::Render`] if the GPU's memory
-    /// cannot hold an object, the device is lost, or the GPU cannot sample the cooked textures
-    /// (`GfxError::UnsupportedTexture`); [`SceneError::Placement`] if a node places a mesh at a
+    /// cannot hold an object, the device is lost, the GPU cannot sample the cooked textures
+    /// (`GfxError::UnsupportedTexture`), or a material has values out of their ranges
+    /// ([`RenderError::InvalidMaterial`]); [`SceneError::Placement`] if a node places a mesh at a
     /// point that is not finite, which a transform that overflows gives, or a light at such a point
     /// or with no direction, as a transform that flattens its −Z axis gives. When several assets
     /// fail, the error is the first that a loading thread reports, which can change from one run to

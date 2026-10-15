@@ -110,7 +110,10 @@ fn main() -> Result<(), RenderError> {
 - `Renderer::create_mesh(gpu, label, &MeshData)` uploads a `Mesh`; mesh data that cannot be drawn
   is returned as `RenderError::InvalidMesh`. `Renderer::create_material(gpu, label,
   &MaterialData)` creates a `Material` with glTF's metallic-roughness model, its textures given as
-  `SampledTexture`s. Meshes, materials and environments are shared by their clones.
+  `SampledTexture`s; values out of their ranges are returned as `RenderError::InvalidMaterial`.
+  `Material::set_values(gpu, MaterialValues)` changes a material's values while a game runs, its
+  textures staying as made, for a fire that flickers; `Material::values` reads them. Meshes,
+  materials and environments are shared by their clones.
 - `Renderer::create_texture(gpu, label, &CookedTexture)` uploads a texture cooked by the asset
   pipeline, read from a directory of cooked data with `slime_assets::CookedAssets::texture`: BC7,
   BC5 or 8-bit texels, every level as the cooker made it (ADR-0071). Normal textures are read by
@@ -120,9 +123,9 @@ fn main() -> Result<(), RenderError> {
   frame with `take` until it gives the scene, whole; `Renderer::load_scene` starts a load and waits
   for it. A load reads every mesh its nodes place, the materials they are drawn with and the
   textures those read, each once; its `LoadedScene` gives the `instances` to draw and the node that
-  places each (`instance_nodes`), the `lights` in world space, the box around them, and the cooked
-  scene itself, whose nodes carry the `extras` a game reads its own data from. What cannot be
-  loaded is a `SceneError`.
+  places each (`instance_nodes`), the `lights` in world space, the box around them, its materials
+  by their names (`material`), and the cooked scene itself, whose nodes carry the `extras` a game
+  reads its own data from. What cannot be loaded is a `SceneError`.
 - `scene_lights(&CookedScene)` gives the lights that a cooked scene's nodes place, as a
   `LoadedScene` holds them, without loading the scene: a game knows its sun before its scene is
   loaded.

@@ -1,7 +1,8 @@
 //! Loading a cooked scene: a directory of cooked data written in a temporary directory with the
 //! formats of `slime-assets`, loaded onto the GPU, its meshes placed by their nodes, each loaded
 //! once, its lights in world space, and drawn; loads polled, side by side, one of them dropped, and
-//! a panic of a loading thread raised again. Runs on whatever adapter the machine offers.
+//! a panic of a loading thread raised again; a material found by its name, and changed. Runs on
+//! whatever adapter the machine offers.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -12,11 +13,11 @@ use slime_assets::{
     LightKind, MANIFEST_FILE, Manifest, ManifestEntry, MaterialTexture, SceneLight, SceneNode,
     TextureEncoding, TextureFilter, TextureSampler, TextureWrap,
 };
-use slime_gfx::{Gpu, TextureFormat};
+use slime_gfx::{Gpu, LinearColor, TextureFormat};
 use slime_render::glam::{Mat4, Vec3};
 use slime_render::{
-    Camera, DirectionalLight, Instance, Light, LoadedScene, MeshData, Renderer, Scene, SceneError,
-    scene_lights,
+    Camera, DirectionalLight, Instance, Light, LoadedScene, MaterialValues, MeshData, Renderer,
+    Scene, SceneError, scene_lights,
 };
 
 const TEXTURE: AssetId = AssetId::from_u128(1);
@@ -456,4 +457,35 @@ fn a_panic_on_a_loading_thread_is_raised_where_the_load_is_taken() {
     renderer
         .load_scene(&gpu, &assets, scene)
         .expect("the scene loads");
+}
+
+#[test]
+fn a_material_found_by_its_name_changes_every_square_drawn_with_it() {
+    let gpu = gpu();
+    let mut renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
+    let (directory, scene) = palette("by name", 4);
+    let assets = CookedAssets::open(directory).expect("the manifest is read");
+    let loaded = renderer
+        .load_scene(&gpu, &assets, scene)
+        .expect("the scene loads");
+    assert!(loaded.material("material 3").is_none());
+    let green = loaded.material("material 1").expect("the second material");
+    let instances = loaded.instances();
+    assert!(std::ptr::eq(green, instances[1].material));
+    // Its green texture times a base color without green: the squares 1 and 4 turn black.
+    let made = green.values();
+    green
+        .set_values(
+            &gpu,
+            MaterialValues {
+                base_color: LinearColor::rgb(1.0, 0.0, 1.0),
+                ..made
+            },
+        )
+        .expect("valid values");
+    for (index, instance) in instances.iter().enumerate() {
+        let [r, g, b] = center_of(&gpu, &mut renderer, *instance);
+        let lit = r.max(g).max(b) > 100;
+        assert_eq!(lit, index % 3 != 1, "{index}: {r} {g} {b}");
+    }
 }

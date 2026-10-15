@@ -64,6 +64,8 @@ struct HunnaWood {
     statistics: Option<Statistics>,
     /// What the last frame cost.
     stats: RenderStats,
+    /// The time since the start, which the fire flickers and the key pulses by.
+    time: Duration,
     /// How many frames drew the zone.
     drawn: u64,
     /// The number of frames that draw the zone after which the game closes itself, if `--frames`
@@ -127,6 +129,7 @@ impl HunnaWood {
             view: None,
             statistics: None,
             stats: RenderStats::default(),
+            time: Duration::ZERO,
             drawn: 0,
             frame_limit,
             lose_device_at,
@@ -251,6 +254,7 @@ impl App for HunnaWood {
     }
 
     fn update(&mut self, _ctx: &mut Context, frame: &FrameTime) {
+        self.time = frame.elapsed();
         let seconds = frame.delta().as_secs_f32();
         self.camera.turn(self.controls.turn(), seconds);
         if let Some(statistics) = &mut self.statistics {
@@ -283,7 +287,8 @@ impl App for HunnaWood {
         let alpha = ctx.fixed_step_alpha() as f32;
         let hero = self.game.hero_between(alpha);
         let camera = self.camera.camera(hero.position, self.game.colliders());
-        match view.draw(gpu, target, &self.game, alpha, camera) {
+        let seconds = self.time.as_secs_f64();
+        match view.draw(gpu, target, &self.game, alpha, seconds, camera) {
             Ok(stats) => {
                 self.stats = stats;
                 let lose_asked = match &mut self.statistics {
@@ -362,8 +367,10 @@ fn main() -> ExitCode {
             let scene = cooked
                 .scene(assets::zone_id())
                 .map_err(|error| error.to_string())?;
-            let lights = ZoneLights::of(&scene).map_err(|error| error.to_string())?;
-            Ok((cooked, Zone::from_scene(&scene)?, lights))
+            let zone = Zone::from_scene(&scene)?;
+            let lights =
+                ZoneLights::of(&scene, zone.campfire).map_err(|error| error.to_string())?;
+            Ok((cooked, zone, lights))
         });
     let (cooked, zone, lights) = match loaded {
         Ok(loaded) => loaded,

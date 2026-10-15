@@ -23,7 +23,7 @@ pub use cooked::{LoadedScene, SceneError, SceneLoad, scene_lights};
 pub use environment::{Environment, Sky};
 pub use error::RenderError;
 pub use light::{DirectionalLight, Light, MAX_LIGHTS, PointLight, SpotLight};
-pub use material::{AlphaMode, Material, MaterialData, SampledTexture};
+pub use material::{AlphaMode, Material, MaterialData, MaterialValues, SampledTexture};
 pub use mesh::{Mesh, MeshData};
 pub use renderer::{Instance, RenderStats, Renderer, Scene};
 

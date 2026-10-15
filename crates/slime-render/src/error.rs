@@ -20,4 +20,15 @@ pub enum RenderError {
         /// What is wrong with the data.
         reason: String,
     },
+    /// Material values out of the ranges that [`MaterialValues`](crate::MaterialValues) gives,
+    /// which [`Renderer::create_material`](crate::Renderer::create_material) and
+    /// [`Material::set_values`](crate::Material::set_values) refuse, or a change of alpha mode,
+    /// which `set_values` refuses; `reason` says which.
+    #[error("material `{label}` is invalid: {reason}")]
+    InvalidMaterial {
+        /// The label the material was given.
+        label: String,
+        /// What is wrong with its values.
+        reason: String,
+    },
 }

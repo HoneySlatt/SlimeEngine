@@ -1,7 +1,10 @@
 //! Materials: how a surface looks, with glTF's metallic-roughness model (ADR-0035).
 
+use std::sync::{Arc, Mutex, PoisonError};
+
 use slime_gfx::{
-    BindGroup, BindGroupEntry, BindGroupLayout, BindingResource, Gpu, LinearColor, Sampler, Texture,
+    BindGroup, BindGroupEntry, BindGroupLayout, BindingResource, Gpu, LinearColor, Sampler,
+    Texture, UniformBuffer,
 };
 
 use crate::bytes::push_f32s;
@@ -46,6 +49,8 @@ pub enum AlphaMode {
 /// a format without sRGB encoding, such as `Rgba8Unorm`, read as stored
 /// ([`Renderer::create_material`](crate::Renderer::create_material) panics otherwise). A slot left
 /// empty reads 1 in every channel: its factor alone counts.
+///
+/// Its values must lie in the ranges that [`MaterialValues`] gives, or the material is refused.
 #[derive(Clone, Copy, Debug)]
 pub struct MaterialData<'a> {
     /// The color a dielectric diffuses and a metal reflects: red, green and blue each from 0 to 1.
@@ -118,9 +123,98 @@ impl Default for MaterialData<'_> {
 }
 
 impl MaterialData<'_> {
-    /// The values the scene shader reads for this material, packed as `MaterialUniform` declares
-    /// them (ADR-0035).
-    pub(crate) fn values(&self) -> Vec<u8> {
+    /// Its values that can change once the material is made.
+    pub(crate) fn values(&self) -> MaterialValues {
+        MaterialValues {
+            base_color: self.base_color,
+            metallic: self.metallic,
+            roughness: self.roughness,
+            normal_scale: self.normal_scale,
+            occlusion_strength: self.occlusion_strength,
+            emissive: self.emissive,
+            emissive_strength: self.emissive_strength,
+            alpha_mode: self.alpha_mode,
+        }
+    }
+}
+
+/// The values of a material that can change once it is made, through [`Material::set_values`]:
+/// all of [`MaterialData`] but its textures and its sidedness. Each means what the field of the same
+/// name of `MaterialData` says.
+///
+/// Every value is finite; the base color's four channels, `metallic`, `roughness`,
+/// `occlusion_strength` and the emission's red, green and blue lie from 0 to 1, as glTF keeps
+/// them; `emissive_strength` and the cutoff of [`AlphaMode::Mask`] are not negative.
+/// [`Renderer::create_material`](crate::Renderer::create_material) and [`Material::set_values`]
+/// refuse values out of these ranges, which would draw nothing that a surface can look like: a
+/// value that is not a number spreads through the bloom over the whole frame.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MaterialValues {
+    /// As [`MaterialData::base_color`].
+    pub base_color: LinearColor,
+    /// As [`MaterialData::metallic`].
+    pub metallic: f32,
+    /// As [`MaterialData::roughness`].
+    pub roughness: f32,
+    /// As [`MaterialData::normal_scale`].
+    pub normal_scale: f32,
+    /// As [`MaterialData::occlusion_strength`].
+    pub occlusion_strength: f32,
+    /// As [`MaterialData::emissive`].
+    pub emissive: LinearColor,
+    /// As [`MaterialData::emissive_strength`].
+    pub emissive_strength: f32,
+    /// As [`MaterialData::alpha_mode`]. A material keeps the mode it was made with: its cutoff can
+    /// change, but not whether it has one.
+    pub alpha_mode: AlphaMode,
+}
+
+impl MaterialValues {
+    /// Which value is outside the range [`MaterialValues`] gives, if one is.
+    pub(crate) fn invalid(&self) -> Option<String> {
+        let LinearColor { r, g, b, a } = self.base_color;
+        let emissive = self.emissive;
+        let unit = [
+            ("base color's red", r),
+            ("base color's green", g),
+            ("base color's blue", b),
+            ("base color's alpha", a),
+            ("metallic", self.metallic),
+            ("roughness", self.roughness),
+            ("occlusion strength", self.occlusion_strength),
+            ("emission's red", emissive.r),
+            ("emission's green", emissive.g),
+            ("emission's blue", emissive.b),
+        ];
+        let not_negative = [
+            Some(("emissive strength", self.emissive_strength)),
+            match self.alpha_mode {
+                AlphaMode::Opaque => None,
+                AlphaMode::Mask { cutoff } => Some(("alpha cutoff", cutoff)),
+            },
+        ];
+        // Comparisons with NaN are false: each test holds only for a number in its range.
+        unit.into_iter()
+            .find(|(_, value)| !(0.0..=1.0).contains(value))
+            .map(|(name, value)| format!("its {name} {value} is not from 0 to 1"))
+            .or_else(|| {
+                not_negative
+                    .into_iter()
+                    .flatten()
+                    .find(|(_, value)| !(value.is_finite() && *value >= 0.0))
+                    .map(|(name, value)| {
+                        format!("its {name} {value} is not finite and not negative")
+                    })
+            })
+            .or_else(|| {
+                (!self.normal_scale.is_finite())
+                    .then(|| format!("its normal scale {} is not finite", self.normal_scale))
+            })
+    }
+
+    /// The values the scene shader reads, packed as `MaterialUniform` declares them (ADR-0035),
+    /// for a material that has a normal texture if `normal_texture`.
+    pub(crate) fn bytes(&self, normal_texture: bool) -> Vec<u8> {
         let mut bytes = Vec::with_capacity(MATERIAL_VALUES_SIZE);
         let LinearColor { r, g, b, a } = self.base_color;
         push_f32s(&mut bytes, &[r, g, b, a]);
@@ -131,7 +225,7 @@ impl MaterialData<'_> {
             &[emissive.r, emissive.g, emissive.b].map(|channel| channel * strength),
         );
         // A scale of 0 keeps the mesh's normals exactly; a cutoff of 0 keeps every fragment.
-        let normal_scale = if self.normal_texture.is_some() {
+        let normal_scale = if normal_texture {
             self.normal_scale
         } else {
             0.0
@@ -157,14 +251,66 @@ impl MaterialData<'_> {
 /// A material on the GPU, created by [`Renderer::create_material`](crate::Renderer::create_material).
 /// It keeps its textures and samplers alive. Any renderer of the same `Gpu` draws with it.
 ///
-/// Clones refer to the same material.
+/// Clones refer to the same material: a change of values through one of them
+/// ([`Material::set_values`]) changes how every instance drawn with any of them looks.
 #[derive(Clone, Debug)]
 pub struct Material {
     pub(crate) group: BindGroup,
+    /// The buffer that the scene shader reads its values from.
+    uniform: UniformBuffer,
+    /// The values in `uniform`, which its clones share.
+    values: Arc<Mutex<MaterialValues>>,
+    /// The label it was created with: a cooked material's name.
+    pub(crate) label: Arc<str>,
+    /// Whether it has a normal texture, without which its normal scale is not used.
+    normal_texture: bool,
     /// Whether its draws cull no face (ADR-0035).
     pub(crate) double_sided: bool,
     /// Whether its shadow is cut out where it discards fragments (ADR-0038).
     pub(crate) masked: bool,
+}
+
+impl Material {
+    /// The values it is drawn with: those it was created with, or the last that
+    /// [`Material::set_values`] gave it, or one of its clones.
+    pub fn values(&self) -> MaterialValues {
+        *self.values.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Changes the values it is drawn with to `values`; its textures and its sidedness stay as
+    /// made. The frames submitted after this call draw with the new values, those submitted before
+    /// with the old ones.
+    ///
+    /// # Errors
+    ///
+    /// [`RenderError::InvalidMaterial`] if a value is out of the range that [`MaterialValues`]
+    /// gives, or if `values.alpha_mode` adds a cutoff to an opaque material or removes the cutoff
+    /// of a masked one. The material is not changed then.
+    ///
+    /// # Panics
+    ///
+    /// If `gpu` is not the one the material was created with: wgpu panics.
+    pub fn set_values(&self, gpu: &Gpu, values: MaterialValues) -> Result<(), RenderError> {
+        let invalid = |reason| RenderError::InvalidMaterial {
+            label: self.label.to_string(),
+            reason,
+        };
+        if let Some(reason) = values.invalid() {
+            return Err(invalid(reason));
+        }
+        if matches!(values.alpha_mode, AlphaMode::Mask { .. }) != self.masked {
+            return Err(invalid(format!(
+                "its alpha mode stays {}",
+                if self.masked { "a mask" } else { "opaque" }
+            )));
+        }
+        // A panic while the lock is held, when `gpu` is another device, leaves the values whole: the
+        // old ones. Under the lock, so that the buffer holds the values that the clones read.
+        let mut current = self.values.lock().unwrap_or_else(PoisonError::into_inner);
+        gpu.write_uniform_buffer(&self.uniform, &values.bytes(self.normal_texture));
+        *current = values;
+        Ok(())
+    }
 }
 
 /// What creating a material takes besides its data: the layout of its group, and the white pixel
@@ -190,7 +336,15 @@ impl MaterialParts {
         label: &str,
         data: &MaterialData<'_>,
     ) -> Result<Material, RenderError> {
-        let uniform = gpu.create_uniform_buffer(label, &data.values())?;
+        let values = data.values();
+        if let Some(reason) = values.invalid() {
+            return Err(RenderError::InvalidMaterial {
+                label: label.to_owned(),
+                reason,
+            });
+        }
+        let normal_texture = data.normal_texture.is_some();
+        let uniform = gpu.create_uniform_buffer(label, &values.bytes(normal_texture))?;
         // Each slot: its name, its texture, and whether it holds colors (sRGB) rather than data.
         let slots = [
             ("base color", data.base_color_texture, true),
@@ -233,6 +387,10 @@ impl MaterialParts {
         let group = gpu.create_bind_group(label, &self.layout, &entries)?;
         Ok(Material {
             group,
+            uniform,
+            values: Arc::new(Mutex::new(values)),
+            label: label.into(),
+            normal_texture,
             double_sided: data.double_sided,
             masked: matches!(data.alpha_mode, AlphaMode::Mask { .. }),
         })
@@ -265,16 +423,75 @@ mod tests {
             alpha_mode: AlphaMode::Mask { cutoff: 0.3 },
             ..MaterialData::default()
         };
-        let bytes = data.values();
+        let bytes = data.values().bytes(false);
         assert_eq!(bytes.len(), MATERIAL_VALUES_SIZE);
         assert_eq!(
             floats(&bytes),
             [0.1, 0.2, 0.3, 0.4, 4.0, 2.0, 1.0, 0.5, 0.6, 0.0, 0.7, 0.3]
         );
+        assert_eq!(floats(&data.values().bytes(true))[9], 2.0);
         let opaque = MaterialData {
             alpha_mode: AlphaMode::Opaque,
             ..data
         };
-        assert_eq!(floats(&opaque.values())[11], 0.0);
+        assert_eq!(floats(&opaque.values().bytes(false))[11], 0.0);
+    }
+
+    #[test]
+    fn values_out_of_their_ranges_are_named() {
+        let valid = MaterialData {
+            emissive_strength: 1000.0,
+            normal_scale: -3.0,
+            alpha_mode: AlphaMode::Mask { cutoff: 2.0 },
+            ..MaterialData::default()
+        }
+        .values();
+        assert_eq!(valid.invalid(), None);
+        for (values, reason) in [
+            (
+                MaterialValues {
+                    base_color: LinearColor::rgb(1.5, 0.0, 0.0),
+                    ..valid
+                },
+                "its base color's red 1.5 is not from 0 to 1",
+            ),
+            (
+                MaterialValues {
+                    roughness: f32::NAN,
+                    ..valid
+                },
+                "its roughness NaN is not from 0 to 1",
+            ),
+            (
+                MaterialValues {
+                    emissive: LinearColor::rgb(0.0, 0.0, -0.1),
+                    ..valid
+                },
+                "its emission's blue -0.1 is not from 0 to 1",
+            ),
+            (
+                MaterialValues {
+                    emissive_strength: f32::INFINITY,
+                    ..valid
+                },
+                "its emissive strength inf is not finite and not negative",
+            ),
+            (
+                MaterialValues {
+                    alpha_mode: AlphaMode::Mask { cutoff: -0.5 },
+                    ..valid
+                },
+                "its alpha cutoff -0.5 is not finite and not negative",
+            ),
+            (
+                MaterialValues {
+                    normal_scale: f32::NEG_INFINITY,
+                    ..valid
+                },
+                "its normal scale -inf is not finite",
+            ),
+        ] {
+            assert_eq!(values.invalid().as_deref(), Some(reason));
+        }
     }
 }

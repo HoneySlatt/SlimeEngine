@@ -2,7 +2,8 @@
 //! (ADR-0034): a base color texture is read at the texture coordinates of the mesh and multiplied
 //! with the base color, and an opaque material ignores the alpha of its base color (masks are in
 //! `shading.rs`); meshes, materials and environments are drawn by any renderer of their GPU, not
-//! only the one that made them. Runs on whatever adapter the machine offers.
+//! only the one that made them; a material changed in place draws as one made with its new values,
+//! and refuses the values that its creation refuses. Runs on whatever adapter the machine offers.
 
 #[path = "common/tone_curve.rs"]
 mod tone_curve;
@@ -12,8 +13,8 @@ use std::f32::consts::PI;
 use slime_gfx::{AddressMode, Filter, Gpu, Image, LinearColor, SamplerDescriptor, TextureFormat};
 use slime_render::glam::{Mat4, Vec3};
 use slime_render::{
-    Camera, DirectionalLight, Instance, Light, MaterialData, MeshData, Renderer, SampledTexture,
-    Scene,
+    AlphaMode, Camera, DirectionalLight, Instance, Light, Material, MaterialData, MaterialValues,
+    MeshData, RenderError, Renderer, SampledTexture, Scene,
 };
 
 const SIZE: u32 = 16;
@@ -230,4 +231,217 @@ fn meshes_materials_and_environments_are_drawn_by_any_renderer_of_their_gpu() {
         by_first.pixels == by_second.pixels,
         "the second renderer draws what the first made as the first does"
     );
+}
+
+/// Data made of `values` and of `textures`' base color and normal textures.
+fn with_values<'a>(
+    values: MaterialValues,
+    textures: (SampledTexture<'a>, SampledTexture<'a>),
+) -> MaterialData<'a> {
+    MaterialData {
+        base_color: values.base_color,
+        base_color_texture: Some(textures.0),
+        metallic: values.metallic,
+        roughness: values.roughness,
+        normal_texture: Some(textures.1),
+        normal_scale: values.normal_scale,
+        occlusion_strength: values.occlusion_strength,
+        emissive: values.emissive,
+        emissive_strength: values.emissive_strength,
+        alpha_mode: values.alpha_mode,
+        ..MaterialData::default()
+    }
+}
+
+#[test]
+fn a_material_changed_in_place_draws_as_one_made_with_the_new_values() {
+    let gpu =
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+    let target = gpu
+        .create_render_target("changed", SIZE, SIZE, TextureFormat::Rgba8UnormSrgb)
+        .expect("the GPU has memory for it");
+    let mut renderer = Renderer::new(&gpu, target.format()).expect("the renderer is created");
+    let square = renderer
+        .create_mesh(&gpu, "square", &MeshData::square())
+        .expect("the square is valid");
+    // A grey base color whose alpha fades from left to right, which the masks cut, and a normal
+    // tilted towards the tangent, which the normal scales bend by different angles.
+    let fading = gpu
+        .create_texture(
+            "fading",
+            2,
+            1,
+            TextureFormat::Rgba8UnormSrgb,
+            &[200, 200, 200, 255, 200, 200, 200, 60],
+        )
+        .expect("the GPU has memory for it");
+    let tilted = gpu
+        .create_texture(
+            "tilted",
+            1,
+            1,
+            TextureFormat::Rgba8Unorm,
+            &[191, 128, 238, 255],
+        )
+        .expect("the GPU has memory for it");
+    let sampler = gpu
+        .create_sampler(
+            "nearest",
+            &SamplerDescriptor {
+                mag_filter: Filter::Nearest,
+                min_filter: Filter::Nearest,
+                address_u: AddressMode::ClampToEdge,
+                address_v: AddressMode::ClampToEdge,
+            },
+        )
+        .expect("the GPU has memory for it");
+    let sampled = |texture| SampledTexture {
+        texture,
+        sampler: &sampler,
+    };
+    let textures = (sampled(&fading), sampled(&tilted));
+    let made = MaterialValues {
+        base_color: LinearColor::rgb(1.0, 0.8, 0.6),
+        metallic: 0.0,
+        roughness: 1.0,
+        normal_scale: 1.0,
+        occlusion_strength: 1.0,
+        emissive: LinearColor::BLACK,
+        emissive_strength: 1.0,
+        alpha_mode: AlphaMode::Mask { cutoff: 0.1 },
+    };
+    let changed_to = MaterialValues {
+        base_color: LinearColor::rgba(0.3, 0.6, 0.9, 1.0),
+        metallic: 0.5,
+        roughness: 0.4,
+        normal_scale: 0.5,
+        occlusion_strength: 0.5,
+        emissive: LinearColor::rgb(0.2, 0.1, 0.0),
+        emissive_strength: 2.0,
+        alpha_mode: AlphaMode::Mask { cutoff: 0.5 },
+    };
+    let changed = renderer
+        .create_material(&gpu, "changed", &with_values(made, textures))
+        .expect("the GPU has memory for it");
+    let fresh = renderer
+        .create_material(&gpu, "made so", &with_values(changed_to, textures))
+        .expect("the GPU has memory for it");
+    let light = [Light::Directional(DirectionalLight {
+        direction: Vec3::new(0.3, -0.2, -1.0),
+        color: LinearColor::WHITE,
+        illuminance: PI,
+        ..DirectionalLight::default()
+    })];
+    let camera = Camera {
+        eye: Vec3::new(0.0, 0.0, 3.0),
+        ..Camera::default()
+    };
+    let mut drawn = |material: &Material| {
+        let instances = [Instance::new(
+            &square,
+            material,
+            Mat4::from_scale(Vec3::splat(2.0)),
+        )];
+        let mut scene = Scene::new(camera, &instances);
+        scene.lights = &light;
+        renderer
+            .render(&gpu, &target, &scene)
+            .expect("the frame is drawn");
+        gpu.read_render_target(&target)
+            .expect("the image is read back")
+            .pixels
+    };
+    let before = drawn(&changed);
+    assert_eq!(changed.values(), made);
+    // Through a clone, which shares the material.
+    changed
+        .clone()
+        .set_values(&gpu, changed_to)
+        .expect("valid values");
+    assert_eq!(changed.values(), changed_to);
+    let after = drawn(&changed);
+    assert!(before != after, "the change shows");
+    assert!(
+        after == drawn(&fresh),
+        "the material changed draws as the one made with its values"
+    );
+}
+
+#[test]
+fn values_refused_at_creation_are_refused_in_place_too() {
+    let gpu =
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+    let renderer =
+        Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer is created");
+    let made = MaterialData::default();
+    let opaque = renderer
+        .create_material(&gpu, "refused", &made)
+        .expect("the GPU has memory for it");
+    let valid = opaque.values();
+    for values in [
+        MaterialValues {
+            roughness: f32::NAN,
+            ..valid
+        },
+        MaterialValues {
+            base_color: LinearColor::rgb(2.0, 1.0, 1.0),
+            ..valid
+        },
+        MaterialValues {
+            emissive_strength: -1.0,
+            ..valid
+        },
+    ] {
+        let data = MaterialData {
+            base_color: values.base_color,
+            roughness: values.roughness,
+            emissive_strength: values.emissive_strength,
+            ..made
+        };
+        let Err(at_creation) = renderer.create_material(&gpu, "refused", &data) else {
+            panic!("created with {values:?}");
+        };
+        let Err(in_place) = opaque.set_values(&gpu, values) else {
+            panic!("changed to {values:?}");
+        };
+        assert!(
+            matches!(at_creation, RenderError::InvalidMaterial { .. }),
+            "{at_creation}"
+        );
+        assert_eq!(at_creation.to_string(), in_place.to_string());
+        assert_eq!(opaque.values(), valid, "the material did not change");
+    }
+    // The alpha mode stays as made: an opaque material takes no cutoff, a mask keeps one.
+    let masked = renderer
+        .create_material(
+            &gpu,
+            "masked",
+            &MaterialData {
+                alpha_mode: AlphaMode::Mask { cutoff: 0.5 },
+                ..made
+            },
+        )
+        .expect("the GPU has memory for it");
+    for (material, alpha_mode) in [
+        (&opaque, AlphaMode::Mask { cutoff: 0.5 }),
+        (&masked, AlphaMode::Opaque),
+    ] {
+        let values = MaterialValues {
+            alpha_mode,
+            ..material.values()
+        };
+        let Err(error) = material.set_values(&gpu, values) else {
+            panic!("changed to {alpha_mode:?}");
+        };
+        assert!(error.to_string().contains("alpha mode stays"), "{error}");
+    }
+    masked
+        .set_values(
+            &gpu,
+            MaterialValues {
+                alpha_mode: AlphaMode::Mask { cutoff: 0.8 },
+                ..masked.values()
+            },
+        )
+        .expect("a mask's cutoff changes");
 }

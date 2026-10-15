@@ -2,15 +2,19 @@
 //! engine's renderer from the cooked data and the game's state. The GPU objects are made once, when
 //! the window opens, and kept for every frame and every new game. The hero loads before the first
 //! frame, and the zone in the background: the sky and the hero show at once, lit by the zone's
-//! lights, and the zone, whole, once it is loaded.
+//! lights, and the zone, whole, once it is loaded. The campfire flickers, its flames, its embers
+//! and its light together, and the key glows in pulses at night: the view changes their materials'
+//! values and the fire's light at each frame.
+
+use std::f64::consts::TAU;
 
 use slime_app::AppError;
 use slime_assets::{CookedAssets, CookedScene};
 use slime_gfx::{Gpu, LinearColor, RenderTarget, TextureFormat};
-use slime_render::glam::{Mat4, Quat, Vec3};
+use slime_render::glam::{Mat4, Quat, Vec2, Vec3};
 use slime_render::{
-    Camera, Environment, Light, LoadedScene, RenderError, RenderStats, Renderer, Scene, SceneError,
-    SceneLoad, Sky, scene_lights,
+    Camera, Environment, Light, LoadedScene, Material, MaterialValues, PointLight, RenderError,
+    RenderStats, Renderer, Scene, SceneError, SceneLoad, Sky, scene_lights,
 };
 
 use crate::assets;
@@ -43,6 +47,47 @@ const NIGHT_SKY: Sky = Sky {
 const NIGHT_EXPOSURE: f32 = 0.3;
 /// The bloom's strength, as in the engine's samples.
 const BLOOM: f32 = 0.04;
+/// The names of the zone's materials that the view changes: the campfire's flames and embers, which
+/// flicker, and the key's brass, which pulses at night (`games/hunnawood/zone/props.py`).
+const FLAMES: &str = "flames";
+const EMBERS: &str = "embers";
+const KEY: &str = "brass";
+/// How far from the campfire, on the ground, its light stands, at most, in metres: the zone places
+/// it above the fire pit.
+const CAMPFIRE_LIGHT_REACH: f32 = 1.0;
+/// The waves whose sum makes the fire flicker: each a frequency in hertz, an amplitude and a phase
+/// in turns. Their frequencies have no common multiple within minutes, so that the flicker does
+/// not show a period; their amplitudes add to at most a quarter of the fire's light.
+const FLICKER: [(f64, f64, f64); 4] = [
+    (1.3, 0.10, 0.0),
+    (2.9, 0.07, 0.17),
+    (6.1, 0.05, 0.42),
+    (11.7, 0.03, 0.71),
+];
+/// The seconds between two pulses of the key's glow, and how many times its glow its brightest
+/// pulse reaches.
+const KEY_PULSE_PERIOD: f64 = 2.0;
+const KEY_PULSE_PEAK: f64 = 5.0;
+
+/// What the fire's light and glow are multiplied by `seconds` after the start: from 0.75 to 1.25.
+fn flicker(seconds: f64) -> f32 {
+    // The part of a turn first, so that a run of hours keeps the waves smooth in f64's precision.
+    let waves: f64 = FLICKER
+        .iter()
+        .map(|&(frequency, amplitude, phase)| {
+            amplitude * (TAU * (seconds * frequency + phase).fract()).sin()
+        })
+        .sum();
+    (1.0 + waves) as f32
+}
+
+/// What the key's glow is multiplied by `seconds` after the start, at night: a smooth pulse every
+/// [`KEY_PULSE_PERIOD`], from 1 between pulses to [`KEY_PULSE_PEAK`] at their height.
+fn key_pulse(seconds: f64) -> f32 {
+    let rise = 0.5 - 0.5 * (TAU * (seconds / KEY_PULSE_PERIOD).fract()).cos();
+    // Cubed, so that the glow rises late and falls early: the key rests dim between pulses.
+    (1.0 + (KEY_PULSE_PEAK - 1.0) * rise.powi(3)) as f32
+}
 
 /// The zone's lights, by the time of day they shine at, read from its cooked scene before it is
 /// loaded.
@@ -52,16 +97,20 @@ pub struct ZoneLights {
     day: Vec<Light>,
     /// The moon, the lanterns and the campfire.
     night: Vec<Light>,
+    /// The index in `night` of the campfire's light, which flickers.
+    campfire: Option<usize>,
 }
 
 impl ZoneLights {
     /// The lights of the zone's cooked scene `zone`: those whose node's `time` is `"day"`, and
-    /// those whose node's `time` is `"night"`, each in the order of the nodes.
+    /// those whose node's `time` is `"night"`, each in the order of the nodes; the campfire's light
+    /// is the point light of the night within [`CAMPFIRE_LIGHT_REACH`] of `campfire`, on the
+    /// ground, if one is.
     ///
     /// # Errors
     ///
     /// When a node places a light where it cannot shine ([`scene_lights`]).
-    pub fn of(zone: &CookedScene) -> Result<Self, SceneError> {
+    pub fn of(zone: &CookedScene, campfire: Vec2) -> Result<Self, SceneError> {
         // The scene's lights come in the order of the nodes that place them.
         let lights = scene_lights(zone)?;
         let of = |time: &str| -> Vec<Light> {
@@ -73,9 +122,18 @@ impl ZoneLights {
                 .map(|(_, light)| *light)
                 .collect()
         };
+        let night = of("night");
+        let campfire = night.iter().position(|light| match light {
+            Light::Point(light) => {
+                Vec2::new(light.position.x, light.position.z).distance(campfire)
+                    <= CAMPFIRE_LIGHT_REACH
+            }
+            _ => false,
+        });
         Ok(Self {
             day: of("day"),
-            night: of("night"),
+            night,
+            campfire,
         })
     }
 }
@@ -88,12 +146,47 @@ struct Lighting {
     exposure: f32,
 }
 
+/// A material of the zone that the view changes at each frame, and the values it was made with.
+struct Glowing {
+    material: Material,
+    made: MaterialValues,
+}
+
+impl Glowing {
+    /// The material of `scene` named `name`, if it has one; a warning otherwise, since the zone
+    /// then looks as it was made.
+    fn find(scene: &LoadedScene, name: &str) -> Option<Self> {
+        let Some(material) = scene.material(name) else {
+            tracing::warn!("the zone has no material `{name}`: it does not change");
+            return None;
+        };
+        Some(Self {
+            made: material.values(),
+            material: material.clone(),
+        })
+    }
+
+    /// Draws it from now on with its emission's strength `times` as strong as it was made.
+    fn glow(&self, gpu: &Gpu, times: f32) -> Result<(), RenderError> {
+        self.material.set_values(
+            gpu,
+            MaterialValues {
+                emissive_strength: self.made.emissive_strength * times,
+                ..self.made
+            },
+        )
+    }
+}
+
 /// The zone, loaded, and what is drawn of it.
 struct ZoneView {
     scene: LoadedScene,
     /// The node that places each of the zone's instances, to leave out the key once taken and the
     /// door's leaves once open.
     nodes: Vec<usize>,
+    flames: Option<Glowing>,
+    embers: Option<Glowing>,
+    key: Option<Glowing>,
 }
 
 /// The renderer, the light of each time of day, and the GPU objects of the zone and the hero, for
@@ -102,6 +195,8 @@ pub struct View {
     renderer: Renderer,
     day: Lighting,
     night: Lighting,
+    /// The campfire's light, as the zone places it, and its index in `night`'s lights.
+    campfire: Option<(usize, PointLight)>,
     hero: LoadedScene,
     /// The zone's load, until [`View::poll`] takes the zone from it.
     zone_load: Option<SceneLoad>,
@@ -147,7 +242,12 @@ impl View {
             sun: moon,
             ..NIGHT_SKY
         };
+        let campfire = lights.campfire.and_then(|index| match lights.night[index] {
+            Light::Point(light) => Some((index, light)),
+            _ => None,
+        });
         Ok(Self {
+            campfire,
             day: Lighting {
                 lights: lights.day,
                 environment: renderer.create_environment(gpu, &OVERCAST)?,
@@ -181,6 +281,9 @@ impl View {
             let scene = result.map_err(|error| cannot_load("zone", error))?;
             self.zone = Some(ZoneView {
                 nodes: scene.instance_nodes(),
+                flames: Glowing::find(&scene, FLAMES),
+                embers: Glowing::find(&scene, EMBERS),
+                key: Glowing::find(&scene, KEY),
                 scene,
             });
         }
@@ -193,18 +296,47 @@ impl View {
     }
 
     /// Draws `game` into `target` as `camera` sees it, by day or at night as the game is, the hero
-    /// `alpha` of the way between its last two fixed steps ([`Game::hero_between`]): the sky, the
-    /// zone's lights and the hero, and the zone once it is loaded.
+    /// `alpha` of the way between its last two fixed steps ([`Game::hero_between`]), the fire and
+    /// the key as they glow `seconds` after the start: the sky, the zone's lights and the hero, and
+    /// the zone once it is loaded.
+    ///
+    /// # Errors
+    ///
+    /// As [`Renderer::render`].
     pub fn draw(
         &mut self,
         gpu: &Gpu,
         target: &RenderTarget,
         game: &Game,
         alpha: f32,
+        seconds: f64,
         camera: Camera,
     ) -> Result<RenderStats, RenderError> {
+        let flicker = flicker(seconds);
+        if let Some((index, light)) = self.campfire {
+            self.night.lights[index] = Light::Point(PointLight {
+                intensity: light.intensity * flicker,
+                ..light
+            });
+        }
         let mut instances = Vec::new();
         if let Some(zone) = &self.zone {
+            // The embers glow steadier than the flames, with the same flicker.
+            let embers = 1.0 + (flicker - 1.0) / 2.0;
+            let key = if game.night() {
+                key_pulse(seconds)
+            } else {
+                1.0
+            };
+            for (glowing, times) in [
+                (&zone.flames, flicker),
+                (&zone.embers, embers),
+                (&zone.key, key),
+            ] {
+                if let Some(glowing) = glowing {
+                    glowing.glow(gpu, times)?;
+                }
+            }
             let places = game.zone();
             instances.extend(
                 zone.scene
@@ -237,5 +369,86 @@ impl View {
         scene.exposure = lighting.exposure;
         scene.bloom = BLOOM;
         self.renderer.render(gpu, target, &scene)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use super::*;
+    use crate::assets;
+    use crate::zone::cooked::zone;
+
+    /// The values of `wave` over two minutes, at 600 frames a second.
+    fn sampled(wave: fn(f64) -> f32) -> Vec<f32> {
+        (0..72_000)
+            .map(|frame| wave(frame as f64 / 600.0))
+            .collect()
+    }
+
+    #[test]
+    fn the_fire_flickers_around_its_light_without_going_out() {
+        let values = sampled(flicker);
+        let (low, high) = values.iter().fold((f32::MAX, f32::MIN), |(low, high), &v| {
+            (low.min(v), high.max(v))
+        });
+        assert!((0.75..0.85).contains(&low), "{low}");
+        assert!((1.15..=1.25).contains(&high), "{high}");
+        let mean = values.iter().sum::<f32>() / values.len() as f32;
+        assert!((mean - 1.0).abs() < 0.01, "{mean}");
+        // Without jumps: at 600 frames a second, its waves change it by less than 0.011 a frame.
+        let steepest = values
+            .windows(2)
+            .map(|pair| (pair[1] - pair[0]).abs())
+            .fold(0.0, f32::max);
+        assert!(steepest < 0.011, "{steepest}");
+        // As smooth after a day of play.
+        let day = 86_400.0;
+        assert!((flicker(day + 1.0 / 600.0) - flicker(day)).abs() < 0.011);
+    }
+
+    #[test]
+    fn the_key_pulses_once_a_period_and_rests_dim_between_pulses() {
+        assert_eq!(key_pulse(0.0), 1.0);
+        let peak = key_pulse(KEY_PULSE_PERIOD / 2.0);
+        assert!((peak - KEY_PULSE_PEAK as f32).abs() < 1e-5, "{peak}");
+        assert_eq!(key_pulse(KEY_PULSE_PERIOD * 3.5), peak);
+        // Dim, within a tenth of the peak's rise, for nearly half of each period.
+        let values = sampled(key_pulse);
+        let dim = values
+            .iter()
+            .filter(|&&v| v < 1.0 + 0.1 * (KEY_PULSE_PEAK as f32 - 1.0))
+            .count() as f32
+            / values.len() as f32;
+        assert!((0.45..0.5).contains(&dim), "{dim}");
+    }
+
+    #[test]
+    #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
+    fn the_cooked_zone_has_the_fires_light_and_the_materials_that_glow() {
+        let (assets, zone) = zone();
+        let scene = assets.scene(assets::zone_id()).expect("the zone is cooked");
+        let lights = ZoneLights::of(&scene, zone.campfire).expect("the lights are placed");
+        let campfire = lights.campfire.expect("the campfire has a light");
+        assert!(matches!(lights.night[campfire], Light::Point(_)));
+        // The names of the materials that the zone's meshes are drawn with.
+        let mut meshes = HashSet::new();
+        let names: HashSet<String> = scene
+            .nodes
+            .iter()
+            .flat_map(|node| &node.meshes)
+            .filter(|&&id| meshes.insert(id))
+            .map(|&id| {
+                let material = assets.mesh(id).expect("the mesh is cooked").material;
+                assets
+                    .material(material)
+                    .expect("the material is cooked")
+                    .name
+            })
+            .collect();
+        for name in [FLAMES, EMBERS, KEY] {
+            assert!(names.contains(name), "no material `{name}`");
+        }
     }
 }
