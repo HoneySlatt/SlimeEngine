@@ -1,6 +1,7 @@
 //! *Nightwatch*, a small stealth game made with SlimeEngine: at night, in a courtyard closed by
-//! walls, the player crosses from the entrance to the gate. The first game of the engine and the
-//! sample that every stage grows (ADR-0052, ADR-0055); `README.md` beside this crate describes it.
+//! walls, the player crosses from the entrance to the gate. The first game of the engine, and the
+//! sample until *Hunna Wood* replaces it in Stage 4a (ADR-0055, ADR-0067); `README.md` beside this
+//! crate describes it.
 //!
 //! ```sh
 //! cargo run -p nightwatch                     # play

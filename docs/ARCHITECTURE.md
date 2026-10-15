@@ -24,6 +24,7 @@ it is built this way.
 ├── flake.nix            Nix development shell
 ├── flake.lock           pinned inputs of the development shell
 ├── games/               games made with the engine through its public API
+│   ├── hunnawood/       Hunna Wood, a role-playing game: the sample every stage grows
 │   └── nightwatch/      Nightwatch, a small stealth game: the sample until Stage 4a replaces it
 ├── rust-toolchain.toml  pinned Rust toolchain
 ├── scripts/check.sh     every automated check, as CI runs them
@@ -49,6 +50,7 @@ created only when code needs it.
 | [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, lit by directional, point and spot lights, seen from a camera, into render targets, and reports what a frame cost; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `glam`, `thiserror`, `tracing` | Meshes with tangents, simple shapes made in code (a cube, a sphere, a square), glTF's metallic-roughness materials (five textures, masks, double-sided), a perspective camera, the depth test, up to 16 directional, point and spot lights in physical units (`KHR_lights_punctual`), a procedural sky computed on the CPU that surfaces reflect (image-based lighting) and that is drawn behind them with its sun's disc, the shadows of the first directional light that casts them (four cascades in one atlas, filtered over 5 × 5 texels) and of every spot light that casts them (a tile each of one atlas), mirrored instances drawn with their front faces, the scene drawn in HDR with its light exposed, at four samples per pixel (multisample anti-aliasing), an energy-conserving bloom, then tone mapped, the passes ordered by a render graph and recorded four to a submission, statistics with the GPU time of each pass |
 | [`slime-devui`](../crates/slime-devui/README.md) | The dev overlay: egui drawn over the engine's frames, fed with the engine's events; tooling, removed once something does at least as well ([ADR-0052](adr/0052-amend-roadmap-before-0-1.md)) | `egui`, `egui-wgpu`, `slime-gfx` (with its `wgpu` feature), `slime-platform` | Panels over a frame; no clipboard or input methods |
 | [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `gltf`, `png`, `tracing` | `hello`, `headless`, `window`, `offscreen`, `scene`; the reference image tests; a temporary glTF loader |
+| [`hunnawood`](../games/hunnawood/README.md) | Hunna Wood, the game that every stage grows from Stage 4a on; a client of the engine through its public API only, not part of the engine ([ADR-0055](adr/0055-games-in-the-workspace.md), [ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)) | `slime-app`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `tracing` | A test ground made in code, the camera behind the hero, the hero's movement and its collisions with boxes turned about the vertical and cylinders |
 | [`nightwatch`](../games/nightwatch/README.md) | Nightwatch, the first game; a client of the engine through its public API only, not part of the engine ([ADR-0055](adr/0055-games-in-the-workspace.md)) | `slime-app`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `tracing` | The courtyard at night, the camera, the player's movement and collisions, guards and floodlights that see the player, a switch, winning and losing |
 
 ## Dependency rules
@@ -62,7 +64,8 @@ slime-examples ──▶ slime-app ──┬──▶ slime-platform ──▶ w
        │                   └───────▶ slime-platform (events)
        └──▶ slime-platform, slime-gfx (their types: events, GPU objects)
 
-nightwatch ──▶ slime-app, slime-render, slime-platform, slime-gfx, slime-devui (public API only)
+hunnawood  ──▶ slime-app, slime-render, slime-platform, slime-gfx, slime-devui (public API only)
+nightwatch ──▶ the same
 ```
 
 - Dependencies between crates point one way: `slime-app` depends on `slime-platform` and
@@ -77,7 +80,7 @@ nightwatch ──▶ slime-app, slime-render, slime-platform, slime-gfx, slime-d
   does to destroy the GPU device. `slime-devui` is tooling, a client of the engine like the
   examples: no engine crate depends on it, and
   games do not enable the feature.
-- A game, such as `nightwatch`, is a client of the engine like the examples: it uses the public API
+- A game, such as `hunnawood`, is a client of the engine like the examples: it uses the public API
   of the engine's crates only, and no engine crate depends on it
   ([ADR-0055](adr/0055-games-in-the-workspace.md)).
 - Only `slime-platform` uses winit, and winit's types never appear in a public API

@@ -1,6 +1,6 @@
 [package]
 name = "nightwatch"
-description = "Nightwatch, a small stealth game made with SlimeEngine: the sample that every stage grows."
+description = "Nightwatch, a small stealth game made with SlimeEngine: the first game, until Hunna Wood replaces it."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

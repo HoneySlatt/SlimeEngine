@@ -39,6 +39,7 @@ cargo fmt --all --check
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 scripts/check.sh                                          # everything above, plus the checks below
 cargo run --example <name>                                # run an example (list in examples/README.md)
+cargo run -p hunnawood                                    # play the game (games/hunnawood/README.md)
 cargo run -p nightwatch                                   # play the first game (games/nightwatch/README.md)
 ```
 

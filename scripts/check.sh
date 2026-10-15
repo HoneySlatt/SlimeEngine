@@ -76,9 +76,11 @@ for example in window scene; do
         { cat "$runtime/slime-check.log"; exit 1; }
 done
 # The games too (ADR-0055).
-env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
-    timeout -k 10 120 cargo run --locked -p nightwatch -- --frames 120 ||
-    { cat "$runtime/slime-check.log"; exit 1; }
+for game in hunnawood nightwatch; do
+    env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+        timeout -k 10 120 cargo run --locked -p "$game" -- --frames 120 ||
+        { cat "$runtime/slime-check.log"; exit 1; }
+done
 # The windowed lifecycle test needs the compositor too, so it is outside the default test run
 # (ADR-0024).
 env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \

@@ -8,6 +8,12 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- *Hunna Wood*, the game that replaces *Nightwatch* as the sample every stage grows, in
+  `games/hunnawood` ([ADR-0067](docs/adr/0067-hunna-wood-replaces-nightwatch.md)): a role-playing
+  game seen in the third person, so far a test ground under an overcast sky, where a stand-in for
+  the hero walks among the pieces of a ruined wall, pillars and trunks, stopped by them and sliding
+  along them, under a camera that follows it and comes nearer when one of them stands in between.
+  `cargo run -p hunnawood` plays it; CI builds it for Windows with the examples.
 - *Nightwatch*, the first game made with the engine, through its public API only, in
   `games/nightwatch` ([ADR-0055](docs/adr/0055-games-in-the-workspace.md)): so far, a courtyard at
   night under the moon, which the player, a small glowing slime, crosses with the keyboard, stopped

@@ -71,12 +71,12 @@ jobs:
       - name: Build the examples and the games for checks by hand
         run: |
           cargo build --locked --release --examples
-          cargo build --locked --release -p nightwatch
+          cargo build --locked --release -p hunnawood -p nightwatch
         env:
           RUSTFLAGS: -C target-feature=+crt-static
       - name: Check that the examples and the games do not import the Visual C++ runtime
         run: |
-          if grep -l -a -i 'vcruntime140' target/release/examples/*.exe target/release/nightwatch.exe; then
+          if grep -l -a -i 'vcruntime140' target/release/examples/*.exe target/release/{hunnawood,nightwatch}.exe; then
             echo 'these programs import VCRUNTIME140.dll'
             exit 1
           fi
@@ -84,7 +84,7 @@ jobs:
         run: |
           mkdir -p target/windows
           cp target/release/examples/{hello,headless,window,offscreen,scene}.exe target/windows/
-          cp target/release/nightwatch.exe target/windows/
+          cp target/release/{hunnawood,nightwatch}.exe target/windows/
           scripts/fetch-dxc.sh target/windows
       # The offscreen sample's log says which compiler Direct3D 12 took: DXC, beside it.
       - name: Run the headless samples of the release build

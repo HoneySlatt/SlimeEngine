@@ -20,13 +20,14 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 - After Stage 3d's measurements, on 2026-10-15: Direct3D 12 compiles shaders with DXC when its
   library lies beside the program, as it does beside the Windows programs that CI builds
   ([ADR-0066](adr/0066-shipping-dxc-beside-the-programs.md)).
-- Stage 4a — Cooked assets: planned on 2026-10-15 and validated by the owner. Next: M4a.1.
+- Stage 4a — Cooked assets: planned on 2026-10-15 and validated by the owner. M4a.1 done on
+  2026-10-15: *Hunna Wood* runs on a test ground. Next: M4a.2.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
-| [M4a.1](#m4a1--hunna-woods-skeleton) | *Hunna Wood* runs: the hero walks a test ground in the third person | Planned |
+| [M4a.1](#m4a1--hunna-woods-skeleton) | *Hunna Wood* runs: the hero walks a test ground in the third person | Done |
 | [M4a.2](#m4a2--asset-identity) | Every source file has an ID that survives a move | Planned |
 | [M4a.3](#m4a3--images) | PNG and JPEG files become compressed textures that the renderer draws | Planned |
 | [M4a.4](#m4a4--gltf) | glTF files become cooked meshes, materials and scenes | Planned |
