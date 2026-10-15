@@ -264,11 +264,12 @@ def reparent(child, parent):
     child.matrix_world = world
 
 
-def light(name, kind, time, location, direction, color, value, cone=None, radius=None):
+def light(name, kind, time, location, direction, color, value, cone=None):
     """A light of `time` ("day" or "night"), which the game reads from the node's `time`
     property: `kind` "SUN" of `value` lux, or "SPOT" or "POINT" of `value` candelas, shining
     along `direction`; `cone` is a spot light's outer and inner angles from its axis, in
-    radians; `radius` its range, in metres."""
+    radians. The exporter writes no range: the light fades with the square of the distance, without
+    end."""
     data = bpy.data.lights.new(name, kind)
     data.color = color
     if kind == "SUN":
@@ -279,9 +280,6 @@ def light(name, kind, time, location, direction, color, value, cone=None, radius
         outer, inner = cone
         data.spot_size = 2 * outer
         data.spot_blend = 1 - inner / outer
-    if radius is not None:
-        data.use_custom_distance = True
-        data.cutoff_distance = radius
     obj = bpy.data.objects.new(name, data)
     bpy.context.scene.collection.objects.link(obj)
     obj.location = location

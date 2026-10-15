@@ -148,8 +148,9 @@ def campfire(place, models):
     colliders += [common.collider_cylinder("stump seat", (x + dx, y + dy), 0.55, 0.4)
                   for dx, dy in ((2.4, -1.4), (-1.9, 2.1))]
     marker = common.marker("campfire", "campfire", (x, y, 0.0))
+    # 120 candelas: a small fire, a little below a lantern, which lights all around it.
     light = common.light("campfire", "POINT", "night", (x, y, 0.6), (0.0, 0.0, -1.0),
-                         (1.0, 0.55, 0.25), 420.0)
+                         (1.0, 0.55, 0.25), 120.0)
     return objects, colliders, marker, light
 
 
