@@ -22,8 +22,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   M4b.3 done on 2026-10-15: an application that asks for it goes on after a lost GPU device, with a
   new one ([ADR-0075](adr/0075-recovering-from-a-lost-gpu-device.md)). M4b.4 done on 2026-10-15:
   *Hunna Wood* goes on after a lost device, its run kept; its checks by hand with a real driver
-  reset, on Linux and on Windows, are M4b.9's. M4b.5 built: a game changes a material's values
-  while it runs, and *Hunna Wood*'s campfire flickers; the owner looks at the fire.
+  reset, on Linux and on Windows, are M4b.9's. M4b.5 done on 2026-10-15: a game changes a
+  material's values while it runs, and *Hunna Wood*'s campfire flickers. Next: M4b.6, hot reload
+  of cooked data.
 
 ## Status
 
@@ -33,7 +34,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M4b.2](#m4b2--the-zone-loads-while-frames-go-on) | *Hunna Wood* draws while its zone loads | Done |
 | [M4b.3](#m4b3--recovering-from-a-lost-gpu-device) | An application that chooses it goes on after a lost GPU device | Done |
 | [M4b.4](#m4b4--hunna-wood-goes-on-after-a-lost-device) | *Hunna Wood* goes on after a lost GPU device | Done |
-| [M4b.5](#m4b5--materials-that-change-in-place) | A game changes a material's values while it runs | Built; the owner looks at the fire |
+| [M4b.5](#m4b5--materials-that-change-in-place) | A game changes a material's values while it runs | Done |
 | [M4b.6](#m4b6--hot-reload-of-cooked-data) | A texture changed on disk changes in the running game | Planned |
 | [M4b.7](#m4b7--hot-reload-of-shaders) | A shader changed on disk changes in the running game | Planned |
 | [M4b.8](#m4b8--refining-hunna-wood) | *Hunna Wood* refined with hot reload, on the owner's list | Planned |
@@ -221,6 +222,16 @@ Risks:
   at creation are refused in place too; a name that no material has finds none; the owner sees the
   fire.
 - **How to test.** `cargo test -p slime-render`; `cargo run -p hunnawood -- --night`.
+- **Outcome.** Done on 2026-10-15. The owner looked at the fire and the key at night, on Linux. A
+  material keeps its values in its uniform buffer, which `Material::set_values` writes for the
+  frames submitted after it, and its clones share them. Creation refused no value before: the
+  test that the plan asked for needed it to, so creation and changes now refuse the same values,
+  out of glTF's ranges or not finite, which the cooked zone and the samples keep within; the
+  cooker refuses them in glTF files, as it refuses lights that glTF forbids. The
+  game finds the campfire's light as the night's point light at the campfire, since the light's
+  node has no name of its own (Blender named it `campfire.001`). The `scene` example changes how
+  strongly its ring glows, as the rule of one example per notable feature asks. The rustdoc of
+  `MaterialValues` and `Material::set_values` holds the contracts; ADR-0072 holds the decision.
 
 ### M4b.6 — Hot reload of cooked data
 
