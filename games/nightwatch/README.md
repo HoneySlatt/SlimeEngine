@@ -1,9 +1,10 @@
 # Nightwatch
 
 A small stealth game made with SlimeEngine, through the engine's public API only: the first game
-of the engine, made in Stage 3c, and the sample that every later stage grows
-([ADR-0052](../../docs/adr/0052-amend-roadmap-before-0-1.md),
-[ADR-0055](../../docs/adr/0055-games-in-the-workspace.md)).
+of the engine, made in Stage 3c, and the sample until *Hunna Wood* replaces it in Stage 4a, which
+deletes it ([ADR-0052](../../docs/adr/0052-amend-roadmap-before-0-1.md),
+[ADR-0055](../../docs/adr/0055-games-in-the-workspace.md),
+[ADR-0067](../../docs/adr/0067-hunna-wood-replaces-nightwatch.md)).
 
 ## The game
 

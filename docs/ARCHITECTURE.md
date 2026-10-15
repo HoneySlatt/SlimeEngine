@@ -24,7 +24,7 @@ it is built this way.
 ├── flake.nix            Nix development shell
 ├── flake.lock           pinned inputs of the development shell
 ├── games/               games made with the engine through its public API
-│   └── nightwatch/      Nightwatch, a small stealth game: the sample every stage grows
+│   └── nightwatch/      Nightwatch, a small stealth game: the sample until Stage 4a replaces it
 ├── rust-toolchain.toml  pinned Rust toolchain
 ├── scripts/check.sh     every automated check, as CI runs them
 ├── AGENTS.md            rules for every contributor

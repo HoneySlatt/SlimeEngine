@@ -37,7 +37,7 @@ The editor sits beside games, not inside the engine: it is a client of the engin
 1. **Dependency order beats feature appeal.** A system is built when what it depends on is solid.
 2. **Measure before optimising.** No custom containers or allocators without data showing the need.
 3. **No abstraction without a second concrete use.**
-4. **Every stage ends with a runnable sample.** An engine that is never used to build something drifts. From Stage 3c on, the sample is one game, grown by each stage.
+4. **Every stage ends with a runnable sample.** An engine that is never used to build something drifts. From Stage 3c on, the sample is one game, grown by each stage; a stage may replace it, with an ADR, as Stage 4a replaces *Nightwatch* with *Hunna Wood* (ADR-0067).
 5. **Headless is a normal configuration.** The engine must run without window, renderer or audio. This is what makes CI tests and dedicated servers possible.
 6. **Instrumented from day one.** Profiling spans and GPU markers are added as systems are written, not retrofitted.
 7. **Existing crates are used wherever they are not the point of the engine,** and wrapped at the boundary so they can be replaced.
@@ -65,7 +65,7 @@ Each is decided by ADR at the stage where it becomes necessary, not earlier.
 | Topic | Candidates | Decide at |
 |---|---|---|
 | Entity model | hecs, bevy_ecs, custom ECS, or non-ECS | Stage 5 |
-| Serialization format | Text for sources, binary for cooked data | Stage 4–5 |
+| Serialization format | Text for sources, binary for cooked data; Stage 4a fixes the formats of cooked data and of the metadata files beside sources (ADR-0069) | Stage 5 |
 | Editor UI | egui to start, as the dev overlay uses; an engine-owned, GPU-rendered framework (retained, immediate or hybrid) only for a measured need: performance, a limit of egui that the editor meets, or reuse for the UI of games. No Qt or GTK. (ADR-0052) | Stage 6 |
 | UI of games | The editor's framework, or one of their own | Stage 6, with the editor's |
 | Physics backend | rapier3d or other, behind an abstraction | Stage 7 |
@@ -123,7 +123,7 @@ Stages are ordered by dependency. They overlap in practice, and carry no dates o
 
 A Wayland window shows nothing until the application gives it pixels, and presenting pixels belongs to Stage 2. The Stage 1 sample therefore fills its window with a solid color from the CPU (softbuffer). This dependency is limited to the sample and is removed in Stage 2.
 
-**Not yet.** Rendering, scenes, entities, physics. IDs and handles (Stage 2, with their first user). Configuration files and a virtual filesystem (Stage 4).
+**Not yet.** Rendering, scenes, entities, physics. IDs and handles (Stage 2, with their first user). Configuration files and a virtual filesystem (when a stage needs them, ADR-0068).
 
 **Exit.** A window opens on Wayland, input events are logged, shutdown is clean. The same binary runs N frames headless in CI.
 
@@ -134,7 +134,7 @@ A Wayland window shows nothing until the application gives it pixels, and presen
 - Device, surface, resize, present (replaces the Stage 1 CPU fill), on Linux (Vulkan) and Windows (Direct3D 12)
 - Frame pacing, decided by measurement on each platform: on Wayland compositors without the FIFO protocol, presentation can stall while the window is hidden, so the Stage 1 frame scheduler may stay
 - Engine-owned resource types for what the triangle and the offscreen render use; their representation is decided by ADR, and the set grows with the renderer in Stage 3
-- WGSL shaders compiled from source text, with readable errors (loading from files and hot reload come with the asset pipeline, Stage 4)
+- WGSL shaders compiled from source text, with readable errors (loading from files and hot reload come with the asset pipeline, Stage 4b)
 - GPU debug labels and markers
 - Offscreen rendering
 
@@ -174,7 +174,7 @@ Stage 3 is split in two so that each half ends with a runnable, tested sample.
 - A small game that uses the public API only: the player moves, interacts with a few objects and reaches an objective, and the game restarts cleanly
 - What the game finds hard to do, recorded as proposals for Stages 4 and 5
 
-The stage comes right after 0.1 (it was added by ADR-0052) and has no release of its own; its game is the sample that every later stage grows.
+The stage comes right after 0.1 (it was added by ADR-0052) and has no release of its own. Its game, *Nightwatch*, is the sample until Stage 4a replaces it with *Hunna Wood*; it is never released (ADR-0067).
 
 **Not yet.** Text, physics, sound: the engine does not have them.
 
@@ -194,20 +194,33 @@ The stage comes right after Stage 3c and has no release of its own; what it deli
 
 **Exit.** In the game, walls and crates stop the light of flashlights and floodlights, and edges are smooth, on Linux and on Windows; image tests cover both.
 
-### Stage 4 — Asset pipeline → 0.2
+Stage 4, the asset pipeline, is split in two halves (ADR-0068): a reference to Stage 4 means both.
+
+### Stage 4a — Cooked assets → 0.2
 
 **Goal.** Replace "load a file at startup" with a real pipeline: source → import → engine asset → cook → runtime data.
 
 - Stable asset IDs (the path is not the identity)
 - Metadata, dependency tracking
-- Importers: glTF, images, then audio
+- Importers: glTF and images; audio comes with Stage 7 (ADR-0068)
 - Tangents computed, with MikkTSpace, for a mesh that has none (ADR-0057)
+- Textures compressed for the GPU (ADR-0069)
 - Cooked cache, incremental rebuilds
+- The sample game becomes *Hunna Wood*, a role-playing game seen in the third person, which loads its first zone from cooked assets (ADR-0067)
+
+**Exit.** *Hunna Wood* loads its zone from cooked assets and is played by day and by night, on Linux and on Windows. The temporary loader is deleted. Moving a source file breaks no reference.
+
+### Stage 4b — Live assets
+
+**Goal.** Loaded assets arrive in the background, change while the game runs, and outlive the GPU device.
+
 - Asynchronous loading on a basic task pool; loading threads create GPU objects through the `Gpu` they share
 - Hot reload, and materials whose values change in place, for it and for a game (ADR-0057)
 - Recovering from a lost GPU device: the GPU objects are created again from their sources, where the run stops today (ADR-0022)
 
-**Exit.** The game loads its scenes from cooked assets and the temporary loader is deleted. Moving a source file breaks no reference. A texture and a shader hot-reload at runtime.
+The stage comes right after Stage 4a and has no release of its own; what it delivers is released with 0.3.
+
+**Exit.** A texture and a shader hot-reload in the running game. The game's zone loads while frames go on. The game goes on after a lost GPU device.
 
 ### Stage 5 — Reflection, serialization, world → 0.3
 
@@ -243,7 +256,7 @@ The stage comes right after Stage 3c and has no release of its own; what it deli
 - Memory: frame, arena and pool allocators where measurements justify them; allocation tracking
 - Visual profiler: CPU, jobs, memory, GPU, frames, from a trace stream
 - Physics behind an engine abstraction: bodies, colliders, constraints, queries (a ray or a segment against the world, ADR-0057), character controller
-- Audio: sources, listener, spatialization, buses, mixing, streaming
+- Audio: sources, listener, spatialization, buses, mixing, streaming; the importer of audio files, moved from Stage 4 (ADR-0068)
 - Input action mapping, and the keys and buttons held if Stage 6 did not need them
 - UI of games: text, menus, HUD, on the framework decided at Stage 6
 
@@ -352,8 +365,8 @@ Direction only. None of this is planned work until Stage 11 is reached.
 |---|---|
 | platform | no engine crate (ADR-0004) |
 | gfx | no engine crate; window handles through the `raw-window-handle` traits, not `platform` |
-| render | gfx |
-| assets | core, basic task pool |
+| render | gfx, assets: it loads its own kinds of asset (ADR-0069) |
+| assets | no engine crate (ADR-0069); a basic task pool from Stage 4b |
 | serialization | reflect |
 | world | reflect, serialization, assets |
 | editor | world, render, assets, UI framework |
@@ -374,9 +387,10 @@ Direction only. None of this is planned work until Stage 11 is reached.
 | 0.0.2 | 2 | GPU layer |
 | 0.0.3 | 3a | First renderer |
 | 0.1 | 3b | Physically based renderer |
-| — | 3c | A first game, released with 0.2 |
+| — | 3c | A first game, never released: replaced at Stage 4a (ADR-0067) |
 | — | 3d | Anti-aliasing and the shadows of spot lights, released with 0.2 |
-| 0.2 | 4 | Assets |
+| 0.2 | 4a | Cooked assets |
+| — | 4b | Live assets, released with 0.3 |
 | 0.3 | 5 | Reflection, serialization, world |
 | 0.4 | 6 | Editor |
 | 0.5 | 7 | Runtime systems |

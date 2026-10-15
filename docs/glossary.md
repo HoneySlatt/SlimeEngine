@@ -23,10 +23,23 @@ anti-aliasing* ([ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadow
 **Application time.** The sum of the deltas of all frames so far (`FrameTime::elapsed`). It
 falls behind wall-clock time when a frame delta is limited, for example after a pause.
 
+**Asset.** Data that a game loads rather than builds in code: a texture, a mesh, a material, a
+scene. Each comes from a *source asset* and reaches the game as *cooked data*
+([ADR-0069](adr/0069-the-asset-pipeline.md)).
+
+**Asset ID.** The identity of an *asset*: a random 128-bit UUID kept in the *metadata file* beside
+its source, so that it stays the same when the file is moved or renamed. A *sub-asset*'s ID is
+derived from its file's ([ADR-0069](adr/0069-the-asset-pipeline.md)).
+
 **Bind group.** A set of GPU resources that a pipeline's shaders read together, bound at one
 `@group` index: uniform buffers, textures and samplers (`slime_gfx::BindGroup`). Its
 *bind group layout* says which bindings it has and what each holds (`slime_gfx::BindGroupLayout`,
 [ADR-0026](adr/0026-resource-binding-and-depth.md)).
+
+**Block compression (BC).** GPU texture formats that store each block of 4 × 4 texels in a fixed
+number of bytes, which the GPU decodes as it samples: BC7, one byte per texel, for colour and other
+data, and BC5, two channels, for normal maps. Cooked textures are compressed in them
+([ADR-0069](adr/0069-the-asset-pipeline.md)).
 
 **Bloom.** The light a lens or the eye scatters around where it lands, which the renderer adds by
 spreading a share of each pixel's exposed light, its strength (`Scene::bloom`), into a halo that
@@ -75,6 +88,14 @@ crate depends on: the examples, the dev *overlay* (`slime-devui`) and, later, th
 where it does not, and linear filtering blends the four nearest results
 (`slime_gfx::ComparisonSampler`, [ADR-0033](adr/0033-gpu-layer-for-multi-pass-rendering.md)).
 Shadow maps are read this way. See *percentage-closer filtering*.
+
+**Cooked data.** Files in the engine's own formats that a game loads without parsing or converting
+anything, made from *source assets* by *cooking*. They are never committed: the cooker keeps them
+in a cache under `target/` ([ADR-0069](adr/0069-the-asset-pipeline.md)).
+
+**Cooking.** Turning *source assets* into *cooked data*: importing them, computing what a game would
+otherwise compute as it loads them (mipmaps, tangents) and compressing textures. The engine's
+program `slime-cook` cooks, before the game runs ([ADR-0069](adr/0069-the-asset-pipeline.md)).
 
 **Cube texture (cube map).** Six square images on the faces of a cube, which shaders read by
 direction: the face is the axis along which the direction is longest
@@ -227,6 +248,9 @@ does not create: the output, which may be a window's image that changes every fr
 *shadow map*. It holds what it held before the frame, so a pass may sample it without an earlier
 pass drawing into it ([ADR-0041](adr/0041-render-graph.md)).
 
+**Importer.** The part of *cooking* that reads one kind of source file, glTF or an image, into the
+engine's types.
+
 **Index buffer.** A buffer of indices into a vertex buffer, so that the triangles of a mesh share
 vertices (`slime_gfx::IndexBuffer`).
 
@@ -242,12 +266,20 @@ Applications read it from `Context::fixed_step_alpha`.
 weighted by the cosine of its incidence, in *lux*: a matte surface of albedo c reflects
 c × irradiance / π. The roughest of the *prefiltered levels* holds the irradiance divided by π.
 
+**KTX2.** The Khronos Group's file format for GPU textures, which holds every mipmap level of a
+texture in its GPU format: the format of cooked textures
+([ADR-0069](adr/0069-the-asset-pipeline.md)).
+
 **Label (GPU object).** The name given to a GPU object when it is created, required by every
 creation method of `slime_gfx::Gpu`. Error messages and GPU capture tools show it.
 
 **lavapipe.** Mesa's Vulkan driver that renders on the CPU. The checks and CI use it on Linux, so
 that GPU tests give the same results on every machine, including machines without a GPU. It is
 the *reference driver* of the image tests.
+
+**Leaf card.** A quad textured with leaves, whose texture's alpha cuts them out (an *alpha mask*):
+many of them make the foliage of a tree for a fraction of the triangles that modelled leaves
+would take.
 
 **Linear color.** A color whose values are proportional to the light they stand for, so that
 light adds and multiplies them as they are: twice the value is twice the light. Displays and
@@ -266,6 +298,9 @@ display's, it covers. The sizes of `WindowConfig` are logical; `Window::inner_si
 **Lux (lx).** The unit of *illuminance*, lumens per square metre: the strength of a directional
 light (`illuminance`); about 100 000 for direct sunlight, 400 at sunrise.
 
+**Manifest (assets).** The list of what was cooked for a game: each *asset*'s ID, kind, cooked file
+and size, and the IDs it needs to load ([ADR-0069](adr/0069-the-asset-pipeline.md)).
+
 **Material.** How a surface looks, with glTF's *metallic-roughness model*: a base color,
 metallic and roughness, normal, occlusion and emissive textures each read with a *sampler*, an
 alpha mode and double-sidedness (`slime_render::Material`, from `MaterialData`;
@@ -274,6 +309,9 @@ alpha mode and double-sidedness (`slime_render::Material`, from `MaterialData`;
 **Mesh.** Triangles given as vertices (a position, a normal, texture coordinates and a *tangent*
 each) and indices, uploaded to the GPU (`slime_render::Mesh`, from `MeshData`).
 
+**Metadata file.** The file `<file>.meta` committed beside a *source asset*, which holds its *asset
+ID* ([ADR-0069](adr/0069-the-asset-pipeline.md)).
+
 **Metallic-roughness model.** glTF's physically based material: a dielectric's diffuse color
 under a specular layer, or a metal's reflection tinted by its color, blended by *metallic*, with
 highlights as wide as the *roughness* (glTF 2.0, Appendix B; ADR-0035).
@@ -281,6 +319,10 @@ highlights as wide as the *roughness* (glTF 2.0, Appendix B; ADR-0035).
 **Milestone.** A small, verifiable step of a stage, listed with its goal, its done criteria and
 how to test it in [`docs/PLAN.md`](PLAN.md). Milestones are numbered `M<stage>.<n>`, for example
 M1.3.
+
+**Mirror (source assets).** The copies of the sample game's downloaded *source assets*, attached to
+the releases of a GitHub repository of their own, from which `scripts/fetch-assets.sh` fetches
+them ([ADR-0070](adr/0070-the-sample-games-source-assets.md)).
 
 **Mirrored instance.** An instance whose transform has a negative determinant, such as a scale of
 −1 along one axis: it turns front faces clockwise on screen, and the renderer culls its other
@@ -464,6 +506,11 @@ drawn by the *sky pass*, not held.
 **Sky pass.** The render pass that draws the *environment* and the *sun's disc* where no surface
 was drawn, after the scene pass.
 
+**Source asset.** A file that people make or download and that *cooking* imports: a glTF scene, a
+PNG or JPEG image. Its *metadata file* is committed beside it; the file itself is committed too, or
+fetched from the *mirror* ([ADR-0069](adr/0069-the-asset-pipeline.md),
+[ADR-0070](adr/0070-the-sample-games-source-assets.md)).
+
 **Spiral of death.** A fixed-step loop that falls further behind at each frame because running
 the overdue steps takes longer than the time they cover. `FixedStep` avoids it by limiting the
 steps per frame and dropping the rest.
@@ -480,6 +527,10 @@ into sRGB targets; `LinearColor::from_srgb8` decodes bytes on the CPU.
 **Stage.** A step of [`docs/ROADMAP.md`](ROADMAP.md), ordered by dependency, with a goal and an exit
 criterion. Stages are numbered from 0; a stage may be split (Stage 3a and 3b), and a stage added
 later takes a letter (Stage 3c), so that the numbers cited elsewhere stay right.
+
+**Sub-asset.** An *asset* inside a source file, such as a mesh, a material or a scene of a glTF
+file, whose ID is derived from the file's ID, its kind and its name
+([ADR-0069](adr/0069-the-asset-pipeline.md)).
 
 **Submission.** Recorded GPU work handed to the GPU at once (`slime_gfx::Gpu::submit`, or the single
 pass of `Gpu::render`): one call into the driver, and a unit of synchronization on the GPU. Each
