@@ -8,6 +8,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- `slime_app::error_chain`: an error's message followed by the message of each of its causes,
+  the line that `run` logs for a failed run, for programs that do not use `run`.
 - Scenes load in the background
   ([ADR-0073](docs/adr/0073-loading-scenes-in-the-background.md)):
   `Renderer::load_scene_in_background` returns a `SceneLoad` at once, which a game polls at each

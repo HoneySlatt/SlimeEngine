@@ -5,7 +5,7 @@ use std::time::Duration;
 use slime_gfx::{Gpu, PresentMode, RenderTarget, Surface, TextureFormat};
 use slime_platform::{Event, Window, WindowConfig};
 
-use crate::diagnostics::init_diagnostics;
+use crate::diagnostics::{error_chain, init_diagnostics};
 use crate::error::{AppError, RunError};
 use crate::signal;
 use crate::time::{FixedStep, FrameClock, FrameTime};
@@ -364,8 +364,9 @@ pub(crate) enum ExitReason {
 ///
 /// When the window or the GPU could not be opened, neither `init` nor `shutdown` is called.
 /// Headless runs fail only when the application does. A failed run is logged at the `error` level, with
-/// the message of each of the error's causes in turn (`the run failed: cannot draw into the window:
-/// no GPU adapter is available: ...`), so that a caller only has to exit with a failure.
+/// the message of each of the error's causes in turn, as [`error_chain`] gives them (`the run
+/// failed: cannot draw into the window: no GPU adapter is available: ...`), so that a caller only
+/// has to exit with a failure.
 ///
 /// # Panics
 ///
@@ -383,15 +384,7 @@ pub fn run(app: &mut impl App, config: &AppConfig) -> Result<(), RunError> {
         Some(window) => run_windowed(app, config, window),
     };
     if let Err(error) = &result {
-        // The error's own message is the most general one: the cause is in its sources.
-        let mut message = error.to_string();
-        let mut source = std::error::Error::source(error);
-        while let Some(cause) = source {
-            message.push_str(": ");
-            message.push_str(&cause.to_string());
-            source = cause.source();
-        }
-        tracing::error!("the run failed: {message}");
+        tracing::error!("the run failed: {}", error_chain(error));
     }
     result
 }

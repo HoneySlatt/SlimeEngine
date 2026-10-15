@@ -63,6 +63,35 @@ pub fn init_diagnostics() {
     });
 }
 
+/// The message of `error` followed by the message of each of its causes in turn, as
+/// [`std::error::Error::source`] gives them, joined by `": "`: "error: cause: cause of cause".
+///
+/// An error's own message is its most general one, and by convention does not repeat its causes,
+/// which often say what to do (no GPU adapter, a missing file). [`run`](crate::run) logs a failed
+/// run with this message; a program that does not use `run` logs its errors with it too.
+///
+/// ```
+/// use slime_app::{RunError, error_chain};
+///
+/// let failed = RunError::Init("the save file is missing".into());
+/// assert_eq!(
+///     error_chain(&failed),
+///     "the application failed to start: the save file is missing"
+/// );
+/// let missing = std::io::Error::other("the save file is missing");
+/// assert_eq!(error_chain(&missing), "the save file is missing");
+/// ```
+pub fn error_chain(error: &dyn std::error::Error) -> String {
+    let mut chain = error.to_string();
+    let mut source = error.source();
+    while let Some(cause) = source {
+        chain.push_str(": ");
+        chain.push_str(&cause.to_string());
+        source = cause.source();
+    }
+    chain
+}
+
 fn install_subscriber() {
     let directives = std::env::var(LOG_ENV_VAR)
         .ok()

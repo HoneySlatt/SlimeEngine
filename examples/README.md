@@ -48,8 +48,7 @@ The log level of every example is set by the `SLIME_LOG` environment variable, f
   and exposure in physical units (`sample_scene.rs`) and the camera placed around a point
   (`orbit.rs`), which `scene` and its image test share; the shapes (a cube, a sphere, a checker
   texture, six small spheres of increasing roughness, dielectric and metal, their materials, light
-  and sky) of another image test; PNG writing; the comparison with a reference image; error messages
-  with their causes.
+  and sky) of another image test; PNG writing; and the comparison with a reference image.
 - [`assets/`](assets/README.md) holds the sample scene, the Blender script that made it, and its
   license.
 - The image tests compare a render with a reference, within a tolerance

@@ -170,6 +170,9 @@ if slime_app::run(&mut Game, &config).is_err() {
   above, except for wgpu-hal's details about the GPU, the Vulkan loader's messages, and the error
   that winit's client-side decorations log when no desktop portal answers
   (`docs/adr/0019-default-log-filter.md`).
+- `error_chain(&error)`: an error's message followed by the message of each of its causes
+  (`error: cause: cause of cause`), the line `run` logs for a failed run. A program that does not
+  use `run`, as the `offscreen` example, logs its errors with it.
 
 Engine code and games log through the `tracing` macros. The conventions for errors, log levels and
 assertions are in `docs/adr/0008-errors-logging-and-assertions.md`; why the engine owns the main

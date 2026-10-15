@@ -8,7 +8,7 @@ pub mod time;
 mod windowed;
 
 pub use app::{App, AppConfig, Context, run};
-pub use diagnostics::{DEFAULT_LOG_FILTER, LOG_ENV_VAR, init_diagnostics};
+pub use diagnostics::{DEFAULT_LOG_FILTER, LOG_ENV_VAR, error_chain, init_diagnostics};
 pub use error::{AppError, RunError};
 
 /// Which types may cross threads (`docs/ARCHITECTURE.md`, "Threads"): checked when the tests are

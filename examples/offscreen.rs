@@ -8,8 +8,6 @@
 //! VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo run --example offscreen   # on lavapipe
 //! ```
 
-#[path = "common/error_chain.rs"]
-mod error_chain;
 #[path = "common/png_file.rs"]
 mod png_file;
 #[path = "common/triangle.rs"]
@@ -20,7 +18,6 @@ use std::process::ExitCode;
 
 use slime_gfx::{Gpu, RenderPassDescriptor, TextureFormat};
 
-use error_chain::error_chain;
 use triangle::{BACKGROUND, Triangle};
 
 /// The size of the image, in pixels.
@@ -41,7 +38,7 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         Err(error) => {
-            tracing::error!("{}", error_chain(error.as_ref()));
+            tracing::error!("{}", slime_app::error_chain(error.as_ref()));
             ExitCode::FAILURE
         }
     }
