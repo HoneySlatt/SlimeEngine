@@ -304,7 +304,7 @@ render graph
 [ADR-0038](adr/0038-shadow-mapping.md),
 [ADR-0039](adr/0039-image-based-lighting-computed-on-the-cpu.md),
 [ADR-0040](adr/0040-bloom.md), [ADR-0041](adr/0041-render-graph.md),
-[ADR-0064](adr/0064-cascaded-shadow-maps.md)):
+[ADR-0064](adr/0064-cascaded-shadow-maps.md), [ADR-0065](adr/0065-reading-the-cascades.md)):
 
 ```text
 renderer = Renderer::new(&gpu, format)                 the output's format; four shaders and ten
@@ -380,10 +380,10 @@ renderer = Renderer::new(&gpu, format)                 the output's format; four
     │   │   reaches into its cone and range, as above (ADR-0058, ADR-0061)
     │   ├── the scene pass into the multisampled HDR target, cleared to black, the group of both
     │   │   atlases (a texel in the place of each until it exists) bound at group 3, the shadowed
-    │   │   light looked up in its last cascade, each spot light that casts shadows in its tile
-    │   │   (ADR-0062): for each instance,
-    │   │   the pipeline that its material's double-sidedness and its transform's mirroring choose
-    │   │   (set when it changes), its material's bind group 1, its slot, its buffers, draw_indexed
+    │   │   light looked up in the finest cascades that hold each fragment (ADR-0065), each spot
+    │   │   light that casts shadows in its tile (ADR-0062): for each instance, the pipeline that
+    │   │   its material's double-sidedness and its transform's mirroring choose (set when it
+    │   │   changes), its material's bind group 1, its slot, its buffers, draw_indexed
     │   ├── the sky pass into the multisampled HDR target, keeping it and the depth target: one
     │   │   triangle at depth 0, at infinity, drawn where the depth test of each sample finds no
     │   │   surface, reads the environment along each pixel's direction, adds the sun's disc, times
@@ -420,25 +420,25 @@ shaded with glTF's metallic-roughness model (ADR-0035): the GGX distribution, Sm
 Schlick's Fresnel under each of the scene's lights (ADR-0037), whose illuminance at the fragment is
 a directional light's illuminance, or a point or spot light's intensity over the square of the
 distance (as at 1 cm within 1 cm), brought to zero at its range and, for a spot light, times its
-cone's attenuation, as `KHR_lights_punctual` recommends; the shadowed light times the share of its
-last cascade's nine comparisons over 5 × 5 texels, weighed as Castaño proposed, that find the
-fragment lit, at the position in the cascade that the vertex shader computes for the vertex moved
-off its surface along its normal by 4.5 texels times the sine of the light's incidence (ADR-0050,
-ADR-0063); each spot light that casts shadows times the same share in its tile of the atlas, the
-fragment moved off its triangle by the sine of its tilt from the light's axis (ADR-0062); the
-environment's light (ADR-0039), the diffuse light read from its roughest level along the normal
-and the specular light from the level of the roughness along the reflection, weighted by the split
-sum's Fresnel from the BRDF table with the light that rough surfaces scatter more than once, times
-the occlusion; the emission added; the normal tilted by the normal texture in the frame of the
-tangent, which follows the model matrix, and of its bitangent, rebuilt per fragment; back faces of
-double-sided materials shaded with the normal reversed; fragments of masked materials below their
-cutoff discarded; the sum multiplied by the exposure and divided by 64, so that half precision holds
-light up to 64 × 65 504 for the bloom (ADR-0040), and brighter light written as 65 504. The
-material's textures are read at the texture coordinates of the vertex. Its sky stages turn each
-pixel, at infinity, into a direction, read the environment's first level along it and add the sun's
-disc, its edge blended over a pixel. The bloom's shader
-([`bloom.wgsl`](../crates/slime-render/src/bloom.wgsl)) filters that light down and averages it
-back up into a blurred copy, which the tone-mapping shader
+cone's attenuation, as `KHR_lights_punctual` recommends; the shadowed light times the share that its
+cascades let through, the finest that holds the fragment first, each fading into the next across a
+band at its edge (ADR-0064, ADR-0065): in each, the share of nine comparisons over 5 × 5 texels,
+weighed as Castaño proposed, that find the fragment lit, moved off its triangle by 4.5 of the
+cascade's texels times the sine of the light's incidence (ADR-0050, ADR-0063); each spot light that
+casts shadows times the same share in its tile of the atlas, the fragment moved off its triangle by
+the sine of its tilt from the light's axis (ADR-0062); the environment's light (ADR-0039), the
+diffuse light read from its roughest level along the normal and the specular light from the level of
+the roughness along the reflection, weighted by the split sum's Fresnel from the BRDF table with the
+light that rough surfaces scatter more than once, times the occlusion; the emission added; the
+normal tilted by the normal texture in the frame of the tangent, which follows the model matrix, and
+of its bitangent, rebuilt per fragment; back faces of double-sided materials shaded with the normal
+reversed; fragments of masked materials below their cutoff discarded; the sum multiplied by the
+exposure and divided by 64, so that half precision holds light up to 64 × 65 504 for the bloom
+(ADR-0040), and brighter light written as 65 504. The material's textures are read at the texture
+coordinates of the vertex. Its sky stages turn each pixel, at infinity, into a direction, read the
+environment's first level along it and add the sun's disc, its edge blended over a pixel. The
+bloom's shader ([`bloom.wgsl`](../crates/slime-render/src/bloom.wgsl)) filters that light down and
+averages it back up into a blurred copy, which the tone-mapping shader
 ([`tone_mapping.wgsl`](../crates/slime-render/src/tone_mapping.wgsl)) mixes in before it maps the
 light to the display's range. The examples' temporary glTF loader
 ([`examples/common/gltf.rs`](../examples/common/gltf.rs),

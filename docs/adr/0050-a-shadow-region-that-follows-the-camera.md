@@ -2,8 +2,9 @@
 
 - Status: Accepted; amends [0038](0038-shadow-mapping.md) and
   [0049](0049-instances-that-cast-no-shadow.md); amended by
-  [0063](0063-a-smoother-shadow-filter.md) (the normal offset's texels) and
-  [0064](0064-cascaded-shadow-maps.md) (one region per cascade)
+  [0063](0063-a-smoother-shadow-filter.md) (the normal offset's texels),
+  [0064](0064-cascaded-shadow-maps.md) (one region per cascade) and
+  [0065](0065-reading-the-cascades.md) (the depth range's padding; the lookup off the triangle)
 - Date: 2026-10-14
 
 ## Context

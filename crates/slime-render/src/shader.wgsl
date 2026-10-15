@@ -205,9 +205,6 @@ struct VertexOutput {
     @location(2) position: vec3<f32>,
     // xyz with world space's axes, of any length; w: the bitangent's sign times the handedness.
     @location(3) tangent: vec4<f32>,
-    // Where the shadowed light sees the vertex, moved off its surface (`shadow_lookup`), in the
-    // last cascade's clip space.
-    @location(4) light_position: vec3<f32>,
 }
 
 @vertex
@@ -217,7 +214,6 @@ fn vs_main(input: VertexInput) -> VertexOutput {
     output.clip_position = frame.view_proj * position;
     output.position = position.xyz;
     output.normal = instance.normal * input.normal;
-    output.light_position = shadow_lookup(position.xyz, output.normal);
     output.uv = input.uv;
     // A tangent lies in the surface: the model matrix carries it as it carries the surface. A
     // mirror reverses the cross product that gives the bitangent, which the handedness undoes.
@@ -228,33 +224,22 @@ fn vs_main(input: VertexInput) -> VertexOutput {
     return output;
 }
 
-// How many of a shadow map's texels a surface is looked up away from itself, along its normal,
-// times the sine of the shadowed light's incidence (ADR-0050, ADR-0063). The filter compares a
-// point with texels up to three texels away along each axis of the map, 4.24 diagonally, where a
-// surface tilted by an angle t from facing the light lies up to 4.24 tan(t) texels' depth nearer to
-// the light; moved by 4.5 sin(t) texels along its normal, the point lies 4.5 tan(t) texels' depth
-// nearer than its own surface, whatever t: no surface shadows itself, flat or curved, while a
-// shadow moves by at most 4.5 texels.
+// How many of a shadow map's texels a surface is looked up away from itself, along its triangle's
+// normal, times the sine of the light's incidence (ADR-0050, ADR-0062, ADR-0063, ADR-0065). The
+// filter compares a point with texels up to three texels away along each axis of the map, 4.24
+// diagonally, where a surface tilted by an angle t from facing the light lies up to 4.24 tan(t)
+// texels' depth nearer to the light; moved by 4.5 sin(t) texels along its normal, the point lies
+// 4.5 tan(t) texels' depth nearer than its own surface, whatever t: no surface shadows itself, flat
+// or curved, while a shadow moves by at most 4.5 texels.
 const NORMAL_OFFSET_TEXELS: f32 = 4.5;
 
-// Where the shadowed light sees the point `position` of a surface whose normal is `normal`, of any
-// length, in the last cascade's clip space: the point moved towards the light along the normal by
-// NORMAL_OFFSET_TEXELS of the cascade's texels times the sine of the light's incidence, on the side
-// of the surface the light reaches (normal offset). Nothing without a shadowed light.
-fn shadow_lookup(position: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
-    if frame.shadowed_light >= frame.light_count {
-        return vec3<f32>(0.0);
-    }
-    let length_squared = dot(normal, normal);
-    // A normal flattened to nothing moves the point nowhere.
-    let n = select(vec3<f32>(0.0), normal * inverseSqrt(length_squared), length_squared > 0.0);
-    let cosine = dot(n, -frame.lights[frame.shadowed_light].direction);
-    let sine = sqrt(max(1.0 - cosine * cosine, 0.0));
-    // The last cascade, which holds what the camera sees up to the shadow distance.
-    let cascade = frame.cascades[CASCADES - 1u];
-    let offset = n * (sign(cosine) * NORMAL_OFFSET_TEXELS * cascade.place.w * sine);
-    return (cascade.view_proj * vec4<f32>(position + offset, 1.0)).xyz;
-}
+// How far inside its edges a cascade holds a point, in its texels: the filter reads texels up to
+// three away from the point (`compared`), which then all lie in the cascade's tile (ADR-0065).
+const CASCADE_MARGIN_TEXELS: f32 = 4.0;
+
+// The width of the band, inside the edges of a cascade's square, over which its shadows fade into
+// the next cascade's, or out beyond the last: a tenth of its width, 2 in its clip space (ADR-0064).
+const CASCADE_BAND: f32 = 0.2;
 
 // The shadow passes (ADR-0038, ADR-0061, ADR-0064): each vertex where a light sees it, into a tile
 // of the cascades' atlas or of the spot lights'. The pipeline of opaque materials has no
@@ -301,8 +286,8 @@ fn fs_main(
     let occlusion = textureSample(occlusion_texture, occlusion_sampler, input.uv).r;
     let emitted = material.emissive
         * textureSample(emissive_texture, emissive_sampler, input.uv).rgb;
-    // The normal of the triangle itself, flat, which spot lights' shadows are looked up off: the
-    // surface their tiles hold, where a smooth normal leans across a facet. A pixel that sees the
+    // The normal of the triangle itself, flat, which shadows are looked up off: the surface that
+    // shadow maps hold, where a smooth normal leans across a facet. A pixel that sees the
     // triangle edge on has none, and moves the point nowhere.
     let face = cross(dpdx(input.position), dpdy(input.position));
     let face_squared = dot(face, face);
@@ -320,7 +305,7 @@ fn fs_main(
     // cannot unroll.
     var shadow = 1.0;
     if frame.shadowed_light < frame.light_count {
-        shadow = light_reaching(input.light_position);
+        shadow = light_reaching(input.position, geometric);
     }
     // The loop's bound and each light are the same for every fragment, and every light is
     // evaluated whatever lies around it; a spot light's shadow is read only where its light
@@ -455,20 +440,51 @@ fn fs_sky(input: SkyVertex) -> @location(0) vec4<f32> {
     return vec4<f32>(min(light * frame.exposure / HEADROOM, vec3<f32>(LARGEST_HALF)), 1.0);
 }
 
-// The share of the shadowed light that reaches `position`, from 0 in shadow to 1: its depth seen
-// from the light compared with the last cascade's through `compared`, whose filter fades a shadow's
-// edge smoothly over about six texels (ADR-0063).
-fn light_reaching(seen: vec3<f32>) -> f32 {
-    // Beyond the cascade's sides, outside the region it covers, shadows end (ADR-0050): the point
-    // is lit. Beyond its far end, at depths below 0, a point lies behind every caster that
-    // reaches the cascade, and is compared as if it were at that end (ADR-0049).
-    if any(abs(seen.xy) > vec2<f32>(1.0)) {
-        return 1.0;
-    }
-    let depth = max(seen.z, 0.0);
+// The share of the shadowed light that reaches `position`, from 0 in shadow to 1, through its
+// cascades (ADR-0064, ADR-0065), the finest first. Each cascade whose square holds the point,
+// CASCADE_MARGIN_TEXELS inside its edges, compares it through `compared`, whose filter fades a
+// shadow's edge smoothly over about six texels (ADR-0063), moved off its triangle, whose unit
+// normal is `normal` (0 for a pixel that sees it edge on), towards the light by
+// NORMAL_OFFSET_TEXELS of the cascade's texels times the sine of the light's incidence. A point
+// deeper inside a cascade than its band takes that cascade's share of light alone; within the
+// band, it takes it in part, from all of it at the band's inner edge to none at its outer edge,
+// and the cascades after it, or beyond the last the light itself, give the rest: shadows fade from
+// one cascade into the next, and out at the edge of the last, beyond which nothing is shadowed
+// (ADR-0050).
+fn light_reaching(position: vec3<f32>, normal: vec3<f32>) -> f32 {
+    let cosine = dot(normal, -frame.lights[frame.shadowed_light].direction);
+    let sine = sqrt(max(1.0 - cosine * cosine, 0.0));
+    // In texels of the cascade it is read from, on the side of the surface the light reaches.
+    let offset = normal * (sign(cosine) * NORMAL_OFFSET_TEXELS * sine);
     let texel = 1.0 / vec2<f32>(textureDimensions(cascade_atlas));
-    let tile = in_tile(frame.cascades[CASCADES - 1u].place, seen.xy, texel);
-    return compared(cascade_atlas, tile.uv, depth, texel, tile.lowest, tile.highest);
+    var lit = 0.0;
+    // The share of the light that no cascade has given yet.
+    var left = 1.0;
+    for (var i = 0u; i < CASCADES && left > 0.0; i += 1u) {
+        let cascade = frame.cascades[i];
+        let seen = (cascade.view_proj * vec4<f32>(position + offset * cascade.place.w, 1.0)).xyz;
+        // How far inside its square the point lies, in its clip space, 2 wide, where a texel is
+        // 2 / its tile's side in texels.
+        let margin = CASCADE_MARGIN_TEXELS * 2.0 * texel.x / cascade.place.z;
+        let held = saturate((1.0 - margin - max(abs(seen.x), abs(seen.y))) / CASCADE_BAND);
+        if held > 0.0 {
+            // Beyond the far end of the cascade's depths, at depths below 0, a point lies behind
+            // every caster that reaches the cascade, and is compared as if it were at that end
+            // (ADR-0049).
+            let tile = in_tile(cascade.place, seen.xy, texel);
+            let share = compared(
+                cascade_atlas,
+                tile.uv,
+                max(seen.z, 0.0),
+                texel,
+                tile.lowest,
+                tile.highest,
+            );
+            lit += left * held * share;
+            left *= 1.0 - held;
+        }
+    }
+    return lit + left;
 }
 
 // Where a point seen at `seen`, from -1 to 1 across a tile at `place` of an atlas whose texels are

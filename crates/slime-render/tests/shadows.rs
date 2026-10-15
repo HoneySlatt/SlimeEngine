@@ -2,17 +2,19 @@
 //! reading back an `Rgba16Float` output and comparing pixels with what `common/brdf.rs` predicts,
 //! through the tone curve of `common/tone_curve.rs`, with the share of light that the shadow lets
 //! through computed here from the geometry: a square above a floor darkens a square of the floor,
-//! its edges blended by the filter; a lit floor, or a lit sphere, does not shadow itself; only the
-//! first directional light that casts shadows casts them; a masked material casts none where it
-//! discards; an instance that casts no shadow is left out of the cascades, and what lies beyond
-//! them is lit. Runs on whatever adapter the machine offers.
+//! its edges blended by the filter; each cascade shadows what it holds and hands over to the next
+//! across its band, and shadows fade out beyond the last; a lit floor, or a lit sphere, does not
+//! shadow itself; only the first directional light that casts shadows casts them; a masked material
+//! casts none where it discards; an instance that casts no shadow is left out of the cascades, and
+//! what lies beyond them is lit. Runs on whatever adapter the machine offers.
 //!
-//! The floor is the plane z = 0, facing +Z, and "above" is along +Z. The scene reads the last of the
-//! light's four cascades (ADR-0064), which covers what the camera sees from 7/15 of the light's
-//! shadow distance up to it, its texels on a grid fixed in the world along the
-//! light's axes (`light_axes`, `texel_width`): a caster's shadow is the texels whose centres it
-//! covers, and each point of the floor is looked up off it along its normal (`looked_up`), as the
-//! renderer does, so that the expected shadow is exact.
+//! The floor is the plane z = 0, facing +Z, and "above" is along +Z. The light's four cascades are
+//! modelled here apart from the renderer (`cascades`, ADR-0064, ADR-0065): each covers a square
+//! across the light, its texels on a grid fixed in the world along the light's axes
+//! (`light_axes`); a caster's shadow is the texels whose centres it covers (`lit_under`); and each
+//! point of the floor is looked up off it along its normal (`looked_up`) in the finest cascade that
+//! holds it, and in the next ones across its band (`held`, `through_cascades`), as the renderer
+//! does, so that the expected shadow is exact.
 
 #[path = "common/brdf.rs"]
 mod brdf;
@@ -237,24 +239,100 @@ fn light_axes(direction: Vec3) -> [DVec3; 2] {
     [x, x.cross(forward)]
 }
 
-/// The width of a texel of the last cascade, in metres, for `camera` drawing the square output, and
-/// a light that casts shadows up to `distance` (`DirectionalLight::shadow_distance`): 1/2048 of the
-/// side of the square around the smallest sphere, centred on the view's axis, that holds the
-/// corners of the planes at 7/15 of `distance` and at `distance`, where the last cascade's slice
-/// starts and ends (`cascade_slice` in `shadow.rs`).
-fn texel_width(camera: &Camera, distance: f32) -> f64 {
-    let far = f64::from(distance);
-    let near = (far * 7.0 / 15.0).max(f64::from(camera.near));
-    let tan = (f64::from(camera.fov_y) / 2.0).tan();
-    let corner = 2.0 * tan * tan;
-    let along = ((far + near) * (corner + 1.0) / 2.0).min(far);
-    let radius = (far * far * corner + (far - along) * (far - along)).sqrt();
-    2.0 * radius / SHADOW_MAP_SIZE
+/// A cascade of the shadowed light, as `CascadeView` in `crates/slime-render/src/shadow.rs` places
+/// it: the width of its texels, and its square across the light, its center and half its side, in
+/// metres along the light's axes (`light_axes`) from the world's origin.
+struct Cascade {
+    texel: f64,
+    center: [f64; 2],
+    half_side: f64,
 }
 
-/// Where the shadow map is read for the floor's point `point` under a light arriving from
-/// `to_light`: the point moved along the floor's normal towards the light by 4.5 texels of `texel`
-/// metres times the sine of the light's incidence (`NORMAL_OFFSET_TEXELS` in `shader.wgsl`).
+/// The four cascades of a light whose axes are `axes`, casting shadows up to `distance` from
+/// `camera` drawing the square output (ADR-0064): the slices of the view end at 1, 3, 7 and 15
+/// fifteenths of `distance`, the first starting at the near plane; each cascade covers the square
+/// around the smallest sphere, centred on the view's axis, that holds the corners of its slice's
+/// two planes, 2048 texels across, its center moved to a multiple of a texel from the world's
+/// origin along each axis.
+fn cascades(camera: &Camera, distance: f32, axes: [DVec3; 2]) -> [Cascade; 4] {
+    let end = |index: usize| f64::from(distance) * ((2u32 << index) - 1) as f64 / 15.0;
+    let near_plane = f64::from(camera.near);
+    let tan = (f64::from(camera.fov_y) / 2.0).tan();
+    let corner = 2.0 * tan * tan;
+    let eye = camera.eye.as_dvec3();
+    let forward = (camera.target.as_dvec3() - eye).normalize();
+    std::array::from_fn(|index| {
+        let near = if index == 0 {
+            near_plane
+        } else {
+            end(index - 1).max(near_plane)
+        };
+        let far = end(index).max(near);
+        let along = ((far + near) * (corner + 1.0) / 2.0).min(far);
+        let half_side = (far * far * corner + (far - along) * (far - along)).sqrt();
+        let texel = 2.0 * half_side / SHADOW_MAP_SIZE;
+        let center = axes.map(|axis| ((eye + forward * along).dot(axis) / texel).round() * texel);
+        Cascade {
+            texel,
+            center,
+            half_side,
+        }
+    })
+}
+
+/// How much of the light's share `cascade` gives at `point`, where the point is looked up in it:
+/// all of it deeper inside its square than its band, a tenth of its width; none within 4 texels of
+/// its edges or beyond them; and in between, a share that falls across the band
+/// (`CASCADE_MARGIN_TEXELS` and `CASCADE_BAND` in `shader.wgsl`).
+fn held(cascade: &Cascade, axes: [DVec3; 2], point: DVec3) -> f64 {
+    let across = (0..2)
+        .map(|axis| ((point.dot(axes[axis]) - cascade.center[axis]) / cascade.half_side).abs())
+        .fold(0.0, f64::max);
+    let margin = 4.0 * cascade.texel / cascade.half_side;
+    ((1.0 - margin - across) / 0.2).clamp(0.0, 1.0)
+}
+
+/// The share of the light, arriving from `to_light`, that reaches the floor's point `point`
+/// through `cascades`, as `light_reaching` in `shader.wgsl` puts them together: each cascade that
+/// holds the point, the finest first, gives what `lit` says reaches the point looked up in it, for
+/// the part of the light it holds of what the ones before it left; what none gives reaches the
+/// point. Also whether the point lies in a cascade's band.
+fn through_cascades(
+    cascades: &[Cascade; 4],
+    axes: [DVec3; 2],
+    point: DVec3,
+    to_light: DVec3,
+    lit: impl Fn(&Cascade, DVec3) -> f64,
+) -> (f64, bool) {
+    let (mut reached, mut left, mut in_band) = (0.0, 1.0, false);
+    for cascade in cascades {
+        if left == 0.0 {
+            break;
+        }
+        let looked_up = looked_up(point, to_light, cascade.texel);
+        let held = held(cascade, axes, looked_up);
+        if held > 0.0 {
+            reached += left * held * lit(cascade, looked_up);
+            left *= 1.0 - held;
+            in_band |= held < 1.0;
+        }
+    }
+    (reached + left, in_band)
+}
+
+/// The share of the light that reaches `point`, looked up in `cascade`, under `squares` that cast
+/// shadows, their edges along the light's `axes`: their shadows are the boxes of their corners
+/// there, filtered (`shadowed_along`).
+fn lit_under(cascade: &Cascade, axes: [DVec3; 2], squares: &[Mat4], point: DVec3) -> f64 {
+    let covered = covered_along(axes, cascade.texel, squares);
+    let [u, v] = axes.map(|axis| point.dot(axis) / cascade.texel);
+    1.0 - shadowed_along(u, covered[0]) * shadowed_along(v, covered[1])
+}
+
+/// Where a cascade is read for the floor's point `point` under a light arriving from `to_light`:
+/// the point moved along the floor's normal, its triangles' too, towards the light by 4.5 texels of
+/// `texel` metres times the sine of the light's incidence (`NORMAL_OFFSET_TEXELS` in
+/// `shader.wgsl`).
 fn looked_up(point: DVec3, to_light: DVec3, texel: f64) -> DVec3 {
     let cosine = DVec3::Z.dot(to_light);
     point + DVec3::Z * (4.5 * texel * (1.0 - cosine * cosine).sqrt())
@@ -288,15 +366,18 @@ const SAMPLES: [(f64, f64); 4] = [
 ];
 
 /// The largest difference, in any channel, between each pixel of `image` and the tone-mapped
-/// light that `expected` gives for it, kept apart for the pixels it marks as in a penumbra.
+/// light that `expected` gives for it, kept apart for the pixels it marks as in a penumbra, and
+/// leaving out those it gives nothing for.
 fn largest_differences(
     image: &FloatImage,
-    mut expected: impl FnMut((u32, u32)) -> ([f64; 3], bool),
+    mut expected: impl FnMut((u32, u32)) -> Option<([f64; 3], bool)>,
 ) -> (f32, f32) {
     let (mut elsewhere, mut in_penumbra) = (0.0f32, 0.0f32);
     for y in 0..image.height {
         for x in 0..image.width {
-            let (light, penumbra) = expected((x, y));
+            let Some((light, penumbra)) = expected((x, y)) else {
+                continue;
+            };
             let shown = tone_curve::tone_map(light.map(|channel| channel as f32));
             let start = ((y * image.width + x) * 4) as usize;
             let difference = image.pixels[start..start + 3]
@@ -320,27 +401,26 @@ fn a_square_above_a_floor_darkens_a_square_of_the_floor_blended_over_six_texels(
     let mut setup = Setup::new();
     let white = setup.white.clone();
     // A floor 256 m wide, and a square 1 m wide, 1.5 m above it and off its center, under a light
-    // 45° from the normal that casts shadows up to 150 m from the camera: the map covers about
-    // 250 m around it, in texels of about 12 cm. The square shadows x from 1 to 2 and y from 0.25 to
-    // 1.25. The camera above the shadow's center sees 3.5 m of floor, 54 mm per pixel, the penumbra
-    // over 13 pixels (6 texels, ADR-0063), and not the square.
+    // 45° from the normal that casts shadows up to 2 250 m from the camera: its first cascade, up
+    // to 150 m, covers about 250 m around the camera, in texels of about 12 cm, and holds all the
+    // floor the camera sees. The square shadows x from 1 to 2 and y from 0.25 to 1.25. The camera
+    // above the shadow's center sees 3.5 m of floor, 54 mm per pixel, the penumbra over 13 pixels
+    // (6 texels, ADR-0063), and not the square.
     let side = 256.0;
     let (light, to_light) = sun(45.0, 0.4);
     let sun = (
         DirectionalLight {
-            shadow_distance: 150.0,
+            shadow_distance: 2250.0,
             ..light
         },
         to_light,
     );
     let camera = camera_above(1.5, 0.75);
-    let texel = texel_width(&camera, sun.0.shadow_distance);
     let axes = light_axes(sun.0.direction);
+    let cascades = cascades(&camera, sun.0.shadow_distance, axes);
     // Every face casts, whichever way it faces the light.
     for (facing_down, case) in [(false, "facing the light"), (true, "facing away from it")] {
         let square = blocker(Vec3::new(0.0, 0.75, 1.5), facing_down);
-        // Its edges run along the map's axes: its shadow is the box of its corners there.
-        let covered = covered_along(axes, texel, &[square]);
         let (image, stats) = setup.draw(
             camera,
             &[Light::Directional(sun.0)],
@@ -352,24 +432,30 @@ fn a_square_above_a_floor_darkens_a_square_of_the_floor_blended_over_six_texels(
             (2, 8),
             "{case}"
         );
-        let mut dark = 0;
+        let (mut dark, mut beyond_the_first) = (0, 0);
         let (elsewhere, in_penumbra) = largest_differences(&image, |pixel| {
             let point = brdf::seen_point(&camera, (SIZE, SIZE), pixel, 0.0);
-            let looked_up = looked_up(point, sun.1, texel);
-            let [u, v] = axes.map(|axis| looked_up.dot(axis) / texel);
-            let shadowed = shadowed_along(u, covered[0]) * shadowed_along(v, covered[1]);
-            if shadowed == 1.0 {
-                dark += 1;
-            }
-            (
-                floor_shows(&camera, pixel, sun, 1.0 - shadowed),
-                shadowed > 0.0 && shadowed < 1.0,
-            )
+            // Its edges run along the cascades' axes: its shadow is the box of its corners there.
+            let (lit, _) = through_cascades(&cascades, axes, point, sun.1, |cascade, at| {
+                lit_under(cascade, axes, &[square], at)
+            });
+            dark += usize::from(lit == 0.0);
+            let first = &cascades[0];
+            beyond_the_first +=
+                usize::from(held(first, axes, looked_up(point, sun.1, first.texel)) < 1.0);
+            Some((
+                floor_shows(&camera, pixel, sun, lit),
+                lit > 0.0 && lit < 1.0,
+            ))
         });
         eprintln!(
             "adapter `{}`, a square {case}: {dark} pixels in full shadow; largest difference \
              {elsewhere} outside the penumbra, {in_penumbra} in it",
             setup.gpu.adapter_name()
+        );
+        assert_eq!(
+            beyond_the_first, 0,
+            "{case}: the first cascade holds every pixel"
         );
         // About 5 × 5 pixels: 1 m less the penumbra's 72 cm, of 54 mm pixels.
         assert!(dark > 15, "{case}: {dark} pixels in full shadow");
@@ -447,10 +533,10 @@ fn a_lit_floor_does_not_shadow_itself() {
             );
             // The same as in the canonical frame: placing everything alike changes no light.
             let (largest, _) = largest_differences(&image, |pixel| {
-                (
+                Some((
                     floor_shows(&canonical, pixel, (light, to_light), 1.0),
                     false,
-                )
+                ))
             });
             if largest > 2e-3 {
                 failures.push((placement.w_axis.truncate(), polar, azimuth, largest));
@@ -472,9 +558,9 @@ fn only_the_first_directional_light_that_casts_shadows_casts_them() {
         (&white, floor(side)),
         (&white, blocker(Vec3::new(0.0, 0.0, 1.5), false)),
     ];
-    // At the center of the image, the floor at (1.5, 0, 0): 4 texels inside the shadow of a light
-    // 45° from the normal, outside the shadow of one from straight above, which falls under the
-    // square, out of view. A point light sees it behind the square.
+    // At the center of the image, the floor at (1.5, 0, 0): half a metre inside the shadow of a
+    // light 45° from the normal, outside the shadow of one from straight above, which falls under
+    // the square, out of view. A point light sees it behind the square.
     let camera = camera_above(1.5, 0.0);
     let center = (SIZE / 2, SIZE / 2);
     let slanted = sun(45.0, 0.2);
@@ -602,8 +688,8 @@ fn a_masked_material_casts_no_shadow_where_it_discards() {
         .expect("the GPU has memory for it");
     let side = (SHADOW_MAP_SIZE / 8.0) as f32;
     let camera = camera_above(1.5, 0.0);
-    // Shadows up to 20 m from the camera: texels of about 2 cm, so that the filter of a point
-    // under the middle of a half, and its normal offset, reach neither of the half's edges.
+    // Shadows up to 20 m from the camera: texels of a few millimetres there, so that the filter of
+    // a point under the middle of a half, and its normal offset, reach neither of the half's edges.
     let (light, to_light) = sun(45.0, 0.4);
     let sun = (
         DirectionalLight {
@@ -630,17 +716,17 @@ fn a_masked_material_casts_no_shadow_where_it_discards() {
     }
 }
 
-/// Whether each sample of `pixel` sees the plane z = 0 in front of `camera`, within 400 m of the
+/// Whether each sample of `pixel` sees the plane z = 0 in front of `camera`, within `metres` of the
 /// origin along x and y: near the horizon, the samples of one pixel see points hundreds of metres
 /// apart.
-fn within_400_m_at_every_sample(camera: &Camera, pixel: (u32, u32)) -> bool {
+fn within_at_every_sample(camera: &Camera, pixel: (u32, u32), metres: f64) -> bool {
     let forward = (camera.target - camera.eye).as_dvec3();
     SAMPLES.into_iter().all(|(dx, dy)| {
         let at = (f64::from(pixel.0) + dx, f64::from(pixel.1) + dy);
         let point = brdf::seen_point_at(camera, (SIZE, SIZE), at, 0.0);
         (point - camera.eye.as_dvec3()).dot(forward) > 0.0
-            && point.x.abs() < 400.0
-            && point.y.abs() < 400.0
+            && point.x.abs() < metres
+            && point.y.abs() < metres
     })
 }
 
@@ -650,9 +736,9 @@ fn an_instance_that_casts_no_shadow_is_left_out_and_what_lies_beyond_the_map_is_
     let white = setup.white.clone();
     // A floor 1 km wide that casts no shadow, and a strip 1 m wide and 100 m long that does, 1 m
     // above it along +x, lit from straight above, the light casting shadows up to 5 m from a camera
-    // low beside the strip that looks along it. The cascades cover the strip up to about 9 m: there,
-    // the strip's shadow darkens the floor; beyond, the floor under the strip is lit, as everything
-    // beyond the cascades is, though the last one's far edge holds the strip's shadow.
+    // low beside the strip that looks along it. The cascades cover the strip up to about 9 m:
+    // there, the strip's shadow darkens the floor; beyond, the floor under the strip is lit, as
+    // everything beyond the cascades is, though the last one's far edge holds the strip's shadow.
     let (light, to_light) = sun(0.0, 0.4);
     let sun = (
         DirectionalLight {
@@ -678,10 +764,10 @@ fn an_instance_that_casts_no_shadow_is_left_out_and_what_lies_beyond_the_map_is_
     let (mut near, mut far) = (0, 0);
     let (largest, _) = largest_differences(&image, |pixel| {
         let point = brdf::seen_point(&camera, (SIZE, SIZE), pixel, 0.0);
-        if !within_400_m_at_every_sample(&camera, pixel) {
+        if !within_at_every_sample(&camera, pixel, 400.0) {
             // Above the horizon, or beyond the floor's edge, 500 m away: the sky, for some of
             // the pixel's samples at least.
-            return ([0.0; 3], true);
+            return None;
         }
         let under = point.y.abs() < 0.4;
         let lit = if under && (1.0..3.0).contains(&point.x) {
@@ -692,9 +778,9 @@ fn an_instance_that_casts_no_shadow_is_left_out_and_what_lies_beyond_the_map_is_
             1.0
         } else {
             // Near the strip's shadow's edges, or the last cascade's.
-            return ([0.0; 3], true);
+            return None;
         };
-        (floor_shows(&camera, pixel, sun, lit), false)
+        Some((floor_shows(&camera, pixel, sun, lit), false))
     });
     assert!(near > 20 && far > 5, "{near} pixels near, {far} far");
     assert!(largest <= 2e-3, "off by {largest}");
@@ -707,8 +793,8 @@ fn an_instance_that_casts_no_shadow_is_left_out_and_what_lies_beyond_the_map_is_
     );
     assert_eq!((stats.shadow_draw_calls, stats.shadow_gpu_time), (0, None));
     let (largest, _) = largest_differences(&image, |pixel| {
-        let seen = within_400_m_at_every_sample(&camera, pixel);
-        (floor_shows(&camera, pixel, sun, 1.0), !seen)
+        within_at_every_sample(&camera, pixel, 400.0)
+            .then(|| (floor_shows(&camera, pixel, sun, 1.0), false))
     });
     assert!(largest <= 2e-3, "off by {largest}");
 }
@@ -716,10 +802,12 @@ fn an_instance_that_casts_no_shadow_is_left_out_and_what_lies_beyond_the_map_is_
 #[test]
 fn a_lit_sphere_does_not_shadow_itself() {
     let mut setup = Setup::new();
-    // A sphere 40 cm wide of 16 × 24 facets, each about 5 cm, as the samples' small spheres, under
-    // a light that casts shadows up to 30 m from the camera: texels of about 3 cm, so that the
-    // filter reaches across facets that slope otherwise. Where the sphere faces the light, it is
-    // drawn as without shadows: a convex surface casts none on itself there.
+    // A sphere 40 cm wide of 16 × 24 facets, each about 5 cm, as the samples' small spheres, 1.1 m
+    // from the camera, under a light that casts shadows up to 550 m from it, then up to 30 m: the
+    // first cascade holds the sphere, in texels of about 3 cm, so that the filter reaches across
+    // facets that slope otherwise, then of about 2 mm, much finer than the facets, which the
+    // smooth normal leans across (ADR-0062). Where the sphere faces the light, it is drawn as
+    // without shadows: a convex surface casts none on itself there.
     let mesh = setup
         .renderer
         .create_mesh(&setup.gpu, "sphere", &MeshData::sphere(16, 24))
@@ -731,7 +819,6 @@ fn a_lit_sphere_does_not_shadow_itself() {
     let light = DirectionalLight {
         direction: (-to_light).as_vec3(),
         illuminance: 3.0,
-        shadow_distance: 30.0,
         ..DirectionalLight::default()
     };
     let camera = Camera {
@@ -754,14 +841,13 @@ fn a_lit_sphere_does_not_shadow_itself() {
             .read_float_render_target(&setup.output)
             .expect("the image is read back")
     };
-    let shadowed = draw(light);
     let unshadowed = draw(DirectionalLight {
         casts_shadows: false,
         ..light
     });
     let inverse = camera.view_projection(1.0).as_dmat4().inverse();
     let eye = camera.eye.as_dvec3();
-    let (mut facing, mut largest) = (0, 0.0f32);
+    let mut facing = Vec::new();
     for y in 0..SIZE {
         for x in 0..SIZE {
             // Where the view ray through the pixel meets the smooth sphere, and its normal there.
@@ -778,18 +864,167 @@ fn a_lit_sphere_does_not_shadow_itself() {
             }
             let normal = (eye + ray * (along - squared.sqrt())).normalize();
             // Clear of the silhouette and of the terminator, where the facets part from the sphere.
-            if normal.dot(to_light) < 0.3 || normal.dot(-ray) < 0.3 {
-                continue;
-            }
-            facing += 1;
-            let start = ((y * SIZE + x) * 4) as usize;
-            for channel in 0..3 {
-                let difference =
-                    (shadowed.pixels[start + channel] - unshadowed.pixels[start + channel]).abs();
-                largest = largest.max(difference);
+            if normal.dot(to_light) >= 0.3 && normal.dot(-ray) >= 0.3 {
+                facing.push(((y * SIZE + x) * 4) as usize);
             }
         }
     }
-    assert!(facing > 200, "{facing} pixels facing the light");
-    assert!(largest <= 2e-3, "off by {largest}");
+    assert!(
+        facing.len() > 200,
+        "{} pixels facing the light",
+        facing.len()
+    );
+    for shadow_distance in [550.0, 30.0] {
+        let shadowed = draw(DirectionalLight {
+            shadow_distance,
+            ..light
+        });
+        let largest = facing
+            .iter()
+            .flat_map(|&start| start..start + 3)
+            .map(|channel| (shadowed.pixels[channel] - unshadowed.pixels[channel]).abs())
+            .fold(0.0f32, f32::max);
+        assert!(
+            largest <= 2e-3,
+            "shadows up to {shadow_distance} m: off by {largest}"
+        );
+    }
+}
+
+#[test]
+fn each_cascade_shadows_what_it_holds_and_hands_over_across_its_band() {
+    let mut setup = Setup::new();
+    let white = setup.white.clone();
+    // A floor 120 m wide, and a sheet 500 m wide, 3 m above it, which shadows the floor on x below
+    // 0.4 m, under a light that casts shadows up to 20 m from the camera. A camera 1.5 m above the
+    // floor looks along +y, a little down, at the floor up to 55 m away, the shadow's edge running
+    // away from it along the view: the finest cascade that holds a point of the floor shadows it,
+    // each in its own texels, and hands over to the next across its band. A camera 30 m above the
+    // floor looks straight down at it, beyond the last cascade, whose square ends about 16 m on
+    // either side along y: there, the shadow fades out. The sheet faces away from each camera,
+    // which culls it. The floor, lit beside the shadow, does not shadow itself in any cascade.
+    let low = Camera {
+        eye: Vec3::new(0.0, 0.0, 1.5),
+        target: Vec3::new(0.0, 10.0, 0.0),
+        up: Vec3::Z,
+        ..Camera::default()
+    };
+    let high = Camera {
+        eye: Vec3::new(0.0, 0.0, 30.0),
+        target: Vec3::ZERO,
+        ..Camera::default()
+    };
+    let (mut first_holding, mut beyond) = ([0; 4], 0);
+    for (camera, degrees) in [(low, 30.0), (low, 70.0), (high, 30.0)] {
+        let (light, to_light) = sun(degrees, 0.4);
+        let sun = (
+            DirectionalLight {
+                shadow_distance: 20.0,
+                ..light
+            },
+            to_light,
+        );
+        let edge = 0.4 - 3.0 * degrees.to_radians().tan();
+        // Facing away from the camera, which culls it.
+        let away = if camera.eye.z > 3.0 {
+            Mat4::from_rotation_x(PI)
+        } else {
+            Mat4::IDENTITY
+        };
+        let sheet =
+            Mat4::from_translation(Vec3::new(edge as f32 - 250.0, 0.0, 3.0)) * away * floor(500.0);
+        let axes = light_axes(sun.0.direction);
+        let cascades = cascades(&camera, sun.0.shadow_distance, axes);
+        let (image, _) = setup.draw(
+            camera,
+            &[Light::Directional(sun.0)],
+            &[(&white, floor(120.0)), (&white, sheet)],
+        );
+        let mut in_bands = 0;
+        let (mut elsewhere, mut in_penumbra) = (0.0f32, 0.0f32);
+        for y in 0..SIZE {
+            for x in 0..SIZE {
+                let pixel = (x, y);
+                if !within_at_every_sample(&camera, pixel, 55.0) {
+                    continue;
+                }
+                let lit_at = |(dx, dy): (f64, f64)| {
+                    let at = (f64::from(x) + 0.5 + dx, f64::from(y) + 0.5 + dy);
+                    let point = brdf::seen_point_at(&camera, (SIZE, SIZE), at, 0.0);
+                    through_cascades(&cascades, axes, point, sun.1, |cascade, at| {
+                        lit_under(cascade, axes, &[sheet], at)
+                    })
+                };
+                let (lit, in_band) = lit_at((0.0, 0.0));
+                let point = brdf::seen_point(&camera, (SIZE, SIZE), pixel, 0.0);
+                let first = cascades.iter().position(|cascade| {
+                    held(cascade, axes, looked_up(point, sun.1, cascade.texel)) > 0.0
+                });
+                match first {
+                    Some(index) => first_holding[index] += 1,
+                    None => beyond += 1,
+                }
+                in_bands += usize::from(in_band);
+                // A penumbra a fifth of a pixel wide, as each cascade's is here, turns the least
+                // error in the point a pixel is shaded at into a large one in its light: GPUs place
+                // a triangle on the pixels' grid to 1/256 of a pixel, and interpolate across it.
+                // Where the light changes within the pixel, it may be any the model gives within
+                // 1/100 of a pixel of the pixel's centre.
+                let partly = lit > 0.0 && lit < 1.0;
+                let near = 0.01;
+                let lits = if partly {
+                    [
+                        (0.0, 0.0),
+                        (near, 0.0),
+                        (-near, 0.0),
+                        (0.0, near),
+                        (0.0, -near),
+                    ]
+                    .map(|shift| lit_at(shift).0)
+                    .to_vec()
+                } else {
+                    vec![lit]
+                };
+                let lowest = lits.iter().copied().fold(f64::INFINITY, f64::min);
+                let highest = lits.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+                let shown = |lit| {
+                    tone_curve::tone_map(floor_shows(&camera, pixel, sun, lit).map(|c| c as f32))
+                };
+                let (low, high) = (shown(lowest), shown(highest));
+                let start = ((y * image.width + x) * 4) as usize;
+                let off = (0..3)
+                    .map(|channel| {
+                        let actual = image.pixels[start + channel];
+                        (low[channel] - actual).max(actual - high[channel]).max(0.0)
+                    })
+                    .fold(0.0, f32::max);
+                let largest = if partly {
+                    &mut in_penumbra
+                } else {
+                    &mut elsewhere
+                };
+                *largest = largest.max(off);
+            }
+        }
+        eprintln!(
+            "adapter `{}`, seen from {}, a light {degrees}° from the normal: first held by each \
+             cascade so far {first_holding:?}, {in_bands} pixels in a band, {beyond} beyond the \
+             cascades so far; largest difference {elsewhere} outside penumbras and bands, \
+             {in_penumbra} in them",
+            setup.gpu.adapter_name(),
+            camera.eye,
+        );
+        assert!(in_bands > 0, "seen from {}, {degrees}°", camera.eye);
+        // Within 2 × 10⁻³ as `shown.rs` explains, and 4 × 10⁻³ where the light is partly
+        // shadowed, for GPUs that keep the filter's weights in 8 bits.
+        assert!(elsewhere <= 2e-3, "{degrees}°: off by {elsewhere}");
+        assert!(
+            in_penumbra <= 4e-3,
+            "{degrees}°: off by {in_penumbra} in penumbras and bands"
+        );
+    }
+    assert!(
+        first_holding.iter().all(|&pixels| pixels > 0) && beyond > 0,
+        "{first_holding:?}, {beyond}"
+    );
 }

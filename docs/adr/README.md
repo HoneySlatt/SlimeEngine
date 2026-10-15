@@ -117,7 +117,7 @@ the ADR linking to it.
 | [0047](0047-reversed-depth-with-an-infinite-far-plane.md) | Reversed depth with an infinite far plane | Accepted |
 | [0048](0048-rendering-relative-to-the-camera.md) | Rendering relative to the camera | Accepted |
 | [0049](0049-instances-that-cast-no-shadow.md) | Instances that cast no shadow | Accepted; amended by 0050 |
-| [0050](0050-a-shadow-region-that-follows-the-camera.md) | A shadow region that follows the camera | Accepted; amended by 0063 and 0064 |
+| [0050](0050-a-shadow-region-that-follows-the-camera.md) | A shadow region that follows the camera | Accepted; amended by 0063, 0064 and 0065 |
 | [0051](0051-dithering-8-bit-outputs.md) | Dithering 8-bit outputs | Accepted |
 | [0052](0052-amend-roadmap-before-0-1.md) | Amend the roadmap before 0.1 | Accepted; amended by 0056 and 0064 |
 | [0053](0053-one-home-per-fact.md) | One home per fact in the documentation | Accepted |
@@ -129,6 +129,7 @@ the ADR linking to it.
 | [0059](0059-multisampling-in-the-gpu-layer.md) | Multisampling in the GPU layer | Accepted; amended by 0060 |
 | [0060](0060-resolving-the-samples-weighed-by-their-brightness.md) | Resolving the samples weighed by their brightness | Accepted |
 | [0061](0061-projecting-the-shadows-of-spot-lights.md) | Projecting the shadows of spot lights | Accepted; amended by 0062 and 0063 |
-| [0062](0062-looking-spot-shadows-up-off-the-triangle.md) | Looking spot lights' shadows up off the triangle | Accepted; amended by 0063 |
+| [0062](0062-looking-spot-shadows-up-off-the-triangle.md) | Looking spot lights' shadows up off the triangle | Accepted; amended by 0063 and 0065 |
 | [0063](0063-a-smoother-shadow-filter.md) | A smoother shadow filter | Accepted; amended by 0064 |
-| [0064](0064-cascaded-shadow-maps.md) | Cascaded shadow maps | Accepted |
+| [0064](0064-cascaded-shadow-maps.md) | Cascaded shadow maps | Accepted; amended by 0065 |
+| [0065](0065-reading-the-cascades.md) | Reading the cascades | Accepted |

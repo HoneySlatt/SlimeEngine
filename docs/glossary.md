@@ -58,7 +58,9 @@ it ([ADR-0048](adr/0048-rendering-relative-to-the-camera.md)).
 directional light: what the camera sees up to the light's shadow distance is split along its axis
 into slices, and each slice gets its own map, as many texels across for less ground near the camera,
 so that shadows there are finer. The renderer draws four, each twice as deep as the one before, in
-the tiles of one *shadow atlas* ([ADR-0064](adr/0064-cascaded-shadow-maps.md)).
+the tiles of one *shadow atlas* ([ADR-0064](adr/0064-cascaded-shadow-maps.md)), and shades a point
+with the finest cascade that holds it, which fades into the next across a band at its edge
+([ADR-0065](adr/0065-reading-the-cascades.md)).
 
 **Checks (the).** The automated checks of the *definition of done*, which `scripts/check.sh` runs
 and the Linux CI job runs unchanged: formatting, clippy (for Windows too), the build, the tests on
@@ -310,13 +312,14 @@ flattened along one axis. It is negated for a *mirrored instance*, by the same t
 the culling.
 
 **Normal offset.** Looking a point up in the *shadow map* moved off its surface along its normal,
-towards the light, rather than pushing the stored depths back: the renderer moves it by 4.5 of the
-map's texels times the sine of the light's incidence, which keeps flat and curved surfaces from
-shadowing themselves while a shadow moves by at most 4.5 texels
+towards the light, rather than pushing the stored depths back: the renderer moves it along its
+triangle's own normal by 4.5 of the map's texels times the sine of the light's incidence, which
+keeps flat and curved surfaces from shadowing themselves while a shadow moves by at most 4.5 texels
 ([ADR-0050](adr/0050-a-shadow-region-that-follows-the-camera.md),
-[ADR-0063](adr/0063-a-smoother-shadow-filter.md)). For a spot light's tile, whose
-depths run along the light's axis, the sine of the angle between the triangle's own normal and that
-axis replaces the incidence's ([ADR-0062](adr/0062-looking-spot-shadows-up-off-the-triangle.md)).
+[ADR-0063](adr/0063-a-smoother-shadow-filter.md), [ADR-0065](adr/0065-reading-the-cascades.md)). For
+a spot light's tile, whose depths run along the light's axis, the sine of the angle between the
+triangle's own normal and that axis replaces the incidence's
+([ADR-0062](adr/0062-looking-spot-shadows-up-off-the-triangle.md)).
 
 **Normal texture.** A texture of normals in *tangent space*, which replace a mesh's normals to give
 it detail without more triangles: red along the tangent, green up the image, blue along the

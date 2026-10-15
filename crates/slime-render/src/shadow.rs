@@ -165,12 +165,17 @@ impl CascadeView {
     /// The matrix from the frame's space to the cascade's clip space: x and y from −1 to 1 across
     /// its square, and depth, reversed as the camera's (ADR-0047), from 1 to 0 along the light,
     /// from a little before the nearest of `boxes` that reach across the square to a little after
-    /// the farthest; padded by 1/64 of the larger of the square's side and the range itself on each
-    /// side, so that rounding does not clip them. `None` when no box reaches across it.
+    /// the farthest; padded on each side by half the square's side, or by 1/64 of the range itself
+    /// when that is more, so that rounding does not clip them. The range is then at least as deep
+    /// as the square is wide, so that [`SHADOW_BIAS`], counted in the depths' last bit, outweighs
+    /// the rounding of the positions, which grows with the square's size, however close together
+    /// the boxes lie along the light (ADR-0065). Without such a box, a range around the square's
+    /// center, which the shadow pass leaves empty: the square still says which points the cascade
+    /// holds, all lit.
     pub(crate) fn view_projection(
         &self,
         boxes: impl IntoIterator<Item = (Mat4, Vec3, Vec3)>,
-    ) -> Option<Mat4> {
+    ) -> Mat4 {
         // The light looks down its −Z axis: the nearest point has the largest z.
         let (mut nearest, mut farthest) = (f32::NEG_INFINITY, f32::INFINITY);
         for boxed in boxes {
@@ -182,10 +187,10 @@ impl CascadeView {
             farthest = farthest.min(center.z - half_size.z);
         }
         if farthest > nearest {
-            return None;
+            (nearest, farthest) = (0.0, 0.0);
         }
         let half_side = self.half_side;
-        let pad = (2.0 * half_side).max(nearest - farthest) / 64.0;
+        let pad = half_side.max((nearest - farthest) / 64.0);
         // The nearest point at depth 1, the farthest at 0: glam's `near` and `far`, swapped.
         let projection = orthographic(
             -half_side,
@@ -195,7 +200,7 @@ impl CascadeView {
             -(farthest - pad),
             -(nearest + pad),
         );
-        Some(projection * self.view)
+        projection * self.view
     }
 }
 
@@ -337,8 +342,10 @@ mod tests {
         aspect: f32,
         distance: f32,
         boxes: impl IntoIterator<Item = (Mat4, Vec3, Vec3)>,
-    ) -> Option<Mat4> {
-        CascadeView::new(direction, camera, aspect, camera.near, distance)?.view_projection(boxes)
+    ) -> Mat4 {
+        CascadeView::new(direction, camera, aspect, camera.near, distance)
+            .expect("the camera sees something")
+            .view_projection(boxes)
     }
 
     /// The eight corners of a box.
@@ -413,8 +420,7 @@ mod tests {
                 Vec3::new(0.0, -2.0, 0.0),
                 Vec3::new(100.0, 0.0, 100.0),
             );
-            let matrix = light_view_projection(direction, &camera, ASPECT, distance, [floor])
-                .expect("the floor casts across the map");
+            let matrix = light_view_projection(direction, &camera, ASPECT, distance, [floor]);
             for point in seen(&camera, distance) {
                 let at = projected(matrix, point);
                 assert!(
@@ -450,8 +456,7 @@ mod tests {
             let (_, radius) = view_sphere(&camera, ASPECT, camera.near, 30.0);
             let texel = 2.0 * radius / f64::from(CASCADE_SIZE);
             let relative = (Mat4::from_translation(-eye) * floor.0, floor.1, floor.2);
-            let matrix = light_view_projection(direction, &camera, ASPECT, 30.0, [relative])
-                .expect("the floor casts across the map");
+            let matrix = light_view_projection(direction, &camera, ASPECT, 30.0, [relative]);
             // A point near the camera lies across a texel as its place in the world, measured along
             // the light's axes from the world's origin, says: texels' edges lie on a grid fixed in
             // the world, wherever the camera is.
@@ -474,8 +479,7 @@ mod tests {
         let camera = camera(Vec3::new(0.0, 2.0, 0.0), Vec3::new(0.0, -0.5, -1.0));
         let direction = Vec3::NEG_Y;
         let near = cube(Vec3::new(0.0, -1.0, -5.0));
-        let alone = light_view_projection(direction, &camera, ASPECT, 20.0, [near])
-            .expect("the cube casts across the map");
+        let alone = light_view_projection(direction, &camera, ASPECT, 20.0, [near]);
         // A tower 2 km away, beside the map, changes nothing.
         let beside = (
             Mat4::from_translation(Vec3::new(2000.0, 0.0, 0.0)),
@@ -484,23 +488,28 @@ mod tests {
         );
         assert_eq!(
             light_view_projection(direction, &camera, ASPECT, 20.0, [near, beside]),
-            Some(alone)
+            alone
         );
         // A cloud above the map, between it and the light, casts on it: it sets the near end.
         let above = cube(Vec3::new(1.0, 500.0, -5.0));
-        let matrix = light_view_projection(direction, &camera, ASPECT, 20.0, [near, above])
-            .expect("both cast across the map");
+        let matrix = light_view_projection(direction, &camera, ASPECT, 20.0, [near, above]);
         for corner in corners(near).into_iter().chain(corners(above)) {
             let depth = projected(matrix, corner).z;
             assert!(depth > 0.0 && depth < 1.0, "{corner} at depth {depth}");
         }
         // Depth falls along the light: it is reversed.
         assert!(projected(matrix, Vec3::ZERO).z < projected(matrix, Vec3::Y).z);
-        // Nothing across the map: no shadow.
+        // Nothing across the map: the same square, around an empty range of depths.
+        let empty = light_view_projection(direction, &camera, ASPECT, 20.0, [beside]);
+        let none: [(Mat4, Vec3, Vec3); 0] = [];
         assert_eq!(
-            light_view_projection(direction, &camera, ASPECT, 20.0, [beside]),
-            None
+            empty,
+            light_view_projection(direction, &camera, ASPECT, 20.0, none)
         );
+        for point in seen(&camera, 20.0) {
+            let (at, expected) = (projected(empty, point), projected(alone, point));
+            assert!((at.truncate() - expected.truncate()).abs().max_element() < 1e-6);
+        }
     }
 
     #[test]
@@ -509,8 +518,7 @@ mod tests {
         let camera = camera(Vec3::new(0.5, 1.0, 2.0), Vec3::new(0.0, -0.4, -1.0));
         let floor = (Mat4::IDENTITY, Vec3::ZERO, Vec3::new(3.0, 0.0, 3.0));
         for direction in [Vec3::NEG_Y, Vec3::X, Vec3::new(1.0, 0.0, 1.0)] {
-            let matrix = light_view_projection(direction, &camera, ASPECT, 10.0, [floor])
-                .expect("a floor has an area");
+            let matrix = light_view_projection(direction, &camera, ASPECT, 10.0, [floor]);
             assert!(matrix.is_finite(), "{direction}: {matrix}");
             for corner in corners(floor) {
                 let depth = projected(matrix, corner).z;
@@ -546,11 +554,6 @@ mod tests {
                 "{left_out:?}"
             );
         }
-        let none: [(Mat4, Vec3, Vec3); 0] = [];
-        assert_eq!(
-            light_view_projection(Vec3::NEG_Y, &camera, ASPECT, 10.0, none),
-            None
-        );
     }
 
     #[test]
@@ -625,9 +628,7 @@ mod tests {
                 let cascade = CascadeView::new(direction, &camera, ASPECT, near, far)
                     .expect("the camera sees something");
                 texels.push(cascade.texel);
-                let matrix = cascade
-                    .view_projection([floor])
-                    .expect("the floor casts across every cascade");
+                let matrix = cascade.view_projection([floor]);
                 let inverse = (camera.projection(ASPECT) * camera.view_from_eye()).inverse();
                 for distance in [near, far] {
                     for (x, y) in [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] {

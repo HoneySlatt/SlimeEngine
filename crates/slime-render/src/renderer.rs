@@ -263,31 +263,31 @@ pub struct RenderStats {
 /// atlas (ADR-0058, ADR-0061); the scene pass draws the instances into a target of half-precision
 /// floats, where light may exceed 1, of four samples per pixel, with a depth target of four samples
 /// too (ADR-0056), their light multiplied by the scene's exposure, the shadowed directional light's
-/// only where its last cascade shows nothing nearer to it, each spot light's that casts shadows
-/// only where its tile does, and the environment's; the sky pass draws the environment where no
-/// surface is, sample by sample; the resolve pass averages the samples of each pixel into a target
-/// of one sample per pixel, each weighed by its brightness (ADR-0060), so that the edges of what
-/// both passes drew are smooth (multisample anti-aliasing); the bloom's passes filter that light
-/// down into a chain of levels, each half the size of the one before, then average them back up
-/// into a blurred copy; the tone-mapping pass then mixes the blurred copy in by the scene's bloom
-/// strength and maps the light to the output's range with Khronos PBR Neutral. The renderer owns
-/// ten pipelines: two for the shadow pass (the second discards what masked materials discard),
-/// three for the scene pass, which differ by the faces they cull and among which each draw chooses
-/// (ADR-0035), the sky pass's, the resolve pass's, the bloom's two (down and up) and the
-/// tone-mapping pass's; the table of the BRDF's scale and bias and a black environment for scenes
-/// without one; the cascades' atlas, 4096 × 4096 depths (64 MiB) created by the first frame in
-/// which a directional light casts shadows; the spot lights' shadow atlas, as large, created by the
-/// first frame in which a spot light casts shadows; the buffer of the shadow passes' views; the
-/// buffer of the instances' values; and the frame's render graph (ADR-0041): its passes in order,
-/// the high-dynamic-range and depth targets and the bloom's levels at the size of the output it
-/// draws into, the groups that read them and GPU timers for its submissions, built again when the
-/// frame's shape changes (the output's size, either shadow pass or the bloom turned on or off). A
-/// renderer draws best into outputs of one size: drawing into outputs of two sizes in turn creates
-/// its targets again at every call, and reports no tone-mapping or bloom time; use one renderer per
-/// output size. At 1920 × 1080 with the bloom, a renderer holds about 122 MiB of GPU memory: 111
-/// for the high-dynamic-range and depth targets, 95 of them for their four samples per pixel, and
-/// 10.5 for the bloom's levels; then 64 more once a directional light has cast shadows, and 64 more
-/// once a spot light has; at 3840 × 2160, about 485 MiB, and as much more.
+/// only where the finest cascades that hold a point show nothing nearer to it, each spot light's
+/// that casts shadows only where its tile does, and the environment's; the sky pass draws the
+/// environment where no surface is, sample by sample; the resolve pass averages the samples of each
+/// pixel into a target of one sample per pixel, each weighed by its brightness (ADR-0060), so that
+/// the edges of what both passes drew are smooth (multisample anti-aliasing); the bloom's passes
+/// filter that light down into a chain of levels, each half the size of the one before, then
+/// average them back up into a blurred copy; the tone-mapping pass then mixes the blurred copy in
+/// by the scene's bloom strength and maps the light to the output's range with Khronos PBR Neutral.
+/// The renderer owns ten pipelines: two for the shadow pass (the second discards what masked
+/// materials discard), three for the scene pass, which differ by the faces they cull and among
+/// which each draw chooses (ADR-0035), the sky pass's, the resolve pass's, the bloom's two (down
+/// and up) and the tone-mapping pass's; the table of the BRDF's scale and bias and a black
+/// environment for scenes without one; the cascades' atlas, 4096 × 4096 depths (64 MiB) created by
+/// the first frame in which a directional light casts shadows; the spot lights' shadow atlas, as
+/// large, created by the first frame in which a spot light casts shadows; the buffer of the shadow
+/// passes' views; the buffer of the instances' values; and the frame's render graph (ADR-0041): its
+/// passes in order, the high-dynamic-range and depth targets and the bloom's levels at the size of
+/// the output it draws into, the groups that read them and GPU timers for its submissions, built
+/// again when the frame's shape changes (the output's size, either shadow pass or the bloom turned
+/// on or off). A renderer draws best into outputs of one size: drawing into outputs of two sizes in
+/// turn creates its targets again at every call, and reports no tone-mapping or bloom time; use one
+/// renderer per output size. At 1920 × 1080 with the bloom, a renderer holds about 122 MiB of GPU
+/// memory: 111 for the high-dynamic-range and depth targets, 95 of them for their four samples per
+/// pixel, and 10.5 for the bloom's levels; then 64 more once a directional light has cast shadows,
+/// and 64 more once a spot light has; at 3840 × 2160, about 485 MiB, and as much more.
 ///
 /// It does not yet smooth the edges that a masked material cuts inside a triangle, blend
 /// transparent surfaces, or leave out the instances that the camera does not see: every instance
@@ -972,31 +972,32 @@ impl Renderer {
     /// scene pass draws every instance into a high-dynamic-range target of four samples per pixel
     /// with the depth test, so that nearer surfaces hide farther ones whatever their order, each
     /// surface shaded by the scene's light with glTF's metallic-roughness model and its material's
-    /// textures, the shadowed light's only where the last cascade holds nothing nearer to it (the
-    /// scene pass reads no other cascade yet: a point outside the last cascade's square, nearer to
-    /// the camera than its slice, is lit), looked up at most 4.5 texels off the surface along its
-    /// normal, compared through a filter over 5 × 5 texels so that its edges fade smoothly over
-    /// about six texels (ADR-0063), and culled or not as its material and its transform ask
-    /// (ADR-0035), the scene's environment reflected as its material reflects it (ADR-0039), its
-    /// light multiplied by the scene's exposure (ADR-0037). Each spot light that casts shadows
-    /// lights a point only where its tile holds nothing nearer to it, looked up off the triangle by
-    /// up to 4.5 of the tile's texels and compared as the directional light's cascades are
-    /// (ADR-0061, ADR-0062); point lights cast no shadows. The sky pass draws the environment,
-    /// exposed, where no surface was drawn, with its sun's disc. The resolve pass then averages the
-    /// samples of each pixel, each weighed by 1 / (1 + its brightest channel), which smooths the
-    /// edges of what both passes drew, the bright ones too (ADR-0056, ADR-0060). Unless
-    /// `scene.bloom` is 0 or `target` is smaller than 15 × 15, the bloom's passes filter that light
-    /// down into levels of half the size of the one before, to a side of at least 8 texels, with
-    /// Jimenez's 13-tap filter, then average them back up through 3 × 3 tents, every level with the
-    /// same weight, into a blurred copy (ADR-0040): 11 passes at 1280 × 720, 13 at 1920 × 1080. The
-    /// tone-mapping pass then mixes the blurred copy in by `scene.bloom`, maps that light to the
-    /// range a display shows with Khronos PBR Neutral, which lowers a color whose channels all lie
-    /// between 0.08 and 0.8 by 0.04, a darker one less, and compresses a brighter one towards 1 and
-    /// turns it towards white, dithers it when `target` has 8 bits per channel, with noise of up to
-    /// one step that keeps its average and leaves black and white as they are (ADR-0051), and
-    /// writes it into `target`, opaque. A render graph orders the passes, and they are recorded in
-    /// that order, four to a submission named after `target` (ADR-0041); the work runs on the GPU
-    /// after this method returns.
+    /// textures, the shadowed light's only where its cascades hold nothing nearer to it: the finest
+    /// cascade whose square holds a point shades it, and fades into the next across a band, a tenth
+    /// of its width, at its edge, as the last one does into light, beyond which nothing is shadowed
+    /// (ADR-0065); a point is looked up in each cascade at most 4.5 of its texels off its triangle,
+    /// towards the light, and compared through a filter over 5 × 5 texels so that a shadow's edges
+    /// fade smoothly over about six texels (ADR-0063); each surface is culled or not as its
+    /// material and its transform ask (ADR-0035), the scene's environment reflected as its material
+    /// reflects it (ADR-0039), its light multiplied by the scene's exposure (ADR-0037). Each spot
+    /// light that casts shadows lights a point only where its tile holds nothing nearer to it,
+    /// looked up off the triangle by up to 4.5 of the tile's texels and compared as the directional
+    /// light's cascades are (ADR-0061, ADR-0062); point lights cast no shadows. The sky pass draws
+    /// the environment, exposed, where no surface was drawn, with its sun's disc. The resolve pass
+    /// then averages the samples of each pixel, each weighed by 1 / (1 + its brightest channel),
+    /// which smooths the edges of what both passes drew, the bright ones too (ADR-0056, ADR-0060).
+    /// Unless `scene.bloom` is 0 or `target` is smaller than 15 × 15, the bloom's passes filter
+    /// that light down into levels of half the size of the one before, to a side of at least 8
+    /// texels, with Jimenez's 13-tap filter, then average them back up through 3 × 3 tents, every
+    /// level with the same weight, into a blurred copy (ADR-0040): 11 passes at 1280 × 720, 13 at
+    /// 1920 × 1080. The tone-mapping pass then mixes the blurred copy in by `scene.bloom`, maps
+    /// that light to the range a display shows with Khronos PBR Neutral, which lowers a color whose
+    /// channels all lie between 0.08 and 0.8 by 0.04, a darker one less, and compresses a brighter
+    /// one towards 1 and turns it towards white, dithers it when `target` has 8 bits per channel,
+    /// with noise of up to one step that keeps its average and leaves black and white as they are
+    /// (ADR-0051), and writes it into `target`, opaque. A render graph orders the passes, and they
+    /// are recorded in that order, four to a submission named after `target` (ADR-0041); the work
+    /// runs on the GPU after this method returns.
     ///
     /// The high-dynamic-range and depth targets are created at the size of `target` the first
     /// time, and again whenever that size changes; the bloom's levels (4.7 MiB at 1280 × 720,
@@ -1116,12 +1117,11 @@ impl Renderer {
                             })
                             .map(|(slot, _)| slot)
                             .collect();
-                        // A cascade that nothing reaches is cleared, and found lit everywhere.
-                        let view_projection = view
-                            .view_projection(
-                                instances.iter().map(|&slot| boxed(&scene.instances[slot])),
-                            )
-                            .unwrap_or(Mat4::IDENTITY);
+                        // A cascade that nothing reaches is cleared: the points its square holds
+                        // are lit.
+                        let view_projection = view.view_projection(
+                            instances.iter().map(|&slot| boxed(&scene.instances[slot])),
+                        );
                         Some(CascadeDraw {
                             tile: cascade_tile(cascade),
                             view_projection,

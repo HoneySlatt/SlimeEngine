@@ -13,8 +13,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 ## Current
 
 - Stage 3d — Anti-aliasing and the shadows of spot lights: planned on 2026-10-15 and validated by
-  the owner. M3d.1 to M3d.4, M3d.6 and M3d.7 are done; M3d.8, the cascades read, is next, then
-  M3d.9; M3d.5's check in the Windows virtual machine comes last.
+  the owner. M3d.1 to M3d.4 and M3d.6 to M3d.8 are done; M3d.9, *Nightwatch* at 3840 × 2160, is
+  next; M3d.5's check in the Windows virtual machine comes last.
 
 ## Status
 
@@ -27,7 +27,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M3d.5](#m3d5--nightwatch-and-the-windows-check) | Nightwatch shows both, on Linux and Windows | In progress |
 | [M3d.6](#m3d6--a-smoother-shadow-filter) | Shadows' edges fade smoothly | Done |
 | [M3d.7](#m3d7--what-each-cascade-sees) | The shadow pass draws the directional light's four cascades | Done |
-| [M3d.8](#m3d8--the-cascades-read) | Each point is shadowed by the finest cascade that holds it, without seams | Not started |
+| [M3d.8](#m3d8--the-cascades-read) | Each point is shadowed by the finest cascade that holds it, without seams | Done |
 | [M3d.9](#m3d9--nightwatch-at-3840--2160) | The moon's shadows near the player are finer in the game | Not started |
 
 Stages 0, 1, 2, 3a, 3b and 3c are done; see [Completed stages](#completed-stages).
@@ -248,8 +248,8 @@ this stage ([ADR-0064](adr/0064-cascaded-shadow-maps.md)).
   and slices that end where they start for a distance below the near plane), the tiles, and each
   square covering its slice and keeping the boxes that reach across it; the renderer's tests pass
   on lavapipe, with glam's assertions too, and on an RX 6900 XT (RADV), their draw counts now
-  counted per cascade. Until M3d.8, the scene pass reads the last cascade alone: what lies nearer
-  to the camera than its slice and outside its square is lit, where the single map shadowed it.
+  counted per cascade. CI green on Linux and on Windows. The scene pass read the last cascade
+  alone until M3d.8.
 
 ### M3d.8 — The cascades read
 
@@ -262,6 +262,20 @@ this stage ([ADR-0064](adr/0064-cascaded-shadow-maps.md)).
 - **Done when.** The shadow tests hold in every cascade and across the bands; no surface shadows
   itself; the image tests pass on the three drivers; CI green, Direct3D 12 with FXC included.
 - **How to test.** `cargo test -p slime-render`.
+- **Checked so far** on 2026-10-15: ADR-0065. The shadow tests model the cascades apart from the
+  renderer, their squares, texels and bands, and a new test checks every pixel of a floor seen from
+  near to the horizon, and from above beyond the last cascade, against the model: within
+  5.3 × 10⁻⁴ on lavapipe and 1.0 × 10⁻³ on an RX 6900 XT (RADV), outside penumbras; in the
+  penumbras, a fifth of a pixel wide, RADV shades a point up to about 1/100 of a pixel from where
+  the model does, which the test allows. A shader whose band is a hard switch, or whose margin is
+  0, fails it. The floors and spheres shadow nothing of themselves, the sphere under texels as
+  wide as its facets and under texels 20 times finer; that took the triangle's normal, and a depth
+  range at least as deep as the cascade is wide, without which a floor lit head-on shadowed itself
+  under the first cascade. The constant bias needs 4 units on lavapipe and RADV, as before. The
+  reference images rendered again; RADV matches them as before. With *Nightwatch* in a window of
+  1901 × 2082 on the RX 6900 XT, the scene pass takes 458 µs, 421 µs with the last cascade alone
+  and 415 µs with the single map; the shadow pass 15 µs for 44 draws, 7.5 µs for 26 with the
+  single map.
 
 ### M3d.9 — Nightwatch at 3840 × 2160
 
@@ -579,14 +593,16 @@ GitHub issues, linked from their entry; this list stays the reference.
   instances that the camera does not see, and instances of the same mesh and material are not
   drawn together: a frame's CPU and GPU time grow with every instance of the scene, wherever it is.
   Frustum culling and instancing are left to Stage 9a (ADR-0052).
-- **The scene reads the last of the directional light's cascades alone** (ADR-0064), until M3d.8
-  chooses one per pixel: what lies nearer to the camera than its slice, outside its square, is not
-  shadowed; what lies inside gets its texels, as wide as the single map's were, near the camera too;
-  shadows end at its edge, without fading.
+- **Cascades are fitted to spheres around slices of the view** (ADR-0064). Each covers its slice
+  whichever way the camera looks, which keeps its texels steady, but a wide view makes the spheres
+  large: in *Nightwatch*, the texels near the player are about half as wide as the single map's,
+  by ADR-0064's study, not a quarter. Fitting the cascades to what the camera sees at each frame,
+  or virtual shadow maps, is left to Stage 9a.
 - **Shadows shift, and thin objects close to a surface lose theirs (peter-panning)** (ADR-0050).
   The normal offset that keeps surfaces from shadowing themselves looks a point up 4.5 texels × the
-  sine of the light's incidence off its surface (ADR-0063): at the default distance, in the last
-  cascade, 18 cm under a light 45° from the normal, 26 cm at grazing. A shadow shifts by up to that
+  sine of the light's incidence off its triangle (ADR-0063, ADR-0065): at the default distance,
+  under a light 45° from the normal, 1.2 cm in the first cascade and 18 cm in the last, and 26 cm
+  there at grazing. A shadow shifts by up to that
   much, and a sheet lying closer than that above a floor casts nothing on it.
 - **Every draw of the scene pass runs a shader that can discard fragments** (ADR-0035). The `MASK`
   alpha mode discards in the one fragment shader that every material uses, opaque materials with a

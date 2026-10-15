@@ -70,10 +70,11 @@ pub struct DirectionalLight {
     /// end at 1, 3, 7 and 15 fifteenths of the distance; each covers the sphere around its slice
     /// with 2 048 texels across, on a grid fixed in the world, so that shadows do not shimmer as
     /// the camera moves. At the default 50 m, with a 60° field of view and a 16:9 output, a texel
-    /// covers 4 mm in the first cascade and 6 cm in the last. The scene reads only the last cascade
-    /// for now: a shadow's edge fades over about six of its texels, and what it does not cover,
-    /// nearer to the camera than its slice or beyond the distance, is not shadowed. A shorter
-    /// distance gives sharper shadows over less ground. Positive and finite.
+    /// covers 4 mm in the first cascade and 6 cm in the last. A point is shadowed by the finest
+    /// cascade whose square holds it, a shadow's edge fading over about six of its texels
+    /// (ADR-0065); shadows fade out across the edges of the last cascade's square, which reaches
+    /// beyond the distance, and nothing outside it is shadowed. A shorter distance gives sharper
+    /// shadows over less ground. Positive and finite.
     pub shadow_distance: f32,
 }
 

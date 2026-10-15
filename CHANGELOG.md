@@ -51,11 +51,13 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - The directional light casts its shadows through four cascades, where it had one shadow map: what
   the camera sees up to its `shadow_distance` is split into four slices, each twice as deep as the
   one before, and each is shadowed by a map of 2048 × 2048 texels, the nearer ones finer
-  ([ADR-0064](docs/adr/0064-cascaded-shadow-maps.md)). The scene reads only the last cascade so
-  far, whose texels are as wide as the single map's: what lies nearer to the camera than its slice,
-  outside its square, is not shadowed. The cascades take 64 MiB of GPU memory, from the first
+  ([ADR-0064](docs/adr/0064-cascaded-shadow-maps.md)). A point is shadowed by the finest cascade
+  that holds it, which fades into the next across a band at its edge, and shadows fade out at the
+  edge of the last ([ADR-0065](docs/adr/0065-reading-the-cascades.md)); a point is looked up off
+  its triangle, as under spot lights. The cascades take 64 MiB of GPU memory, from the first
   frame in which a directional light casts shadows, where the map took 16 MiB from the renderer's
-  creation; `RenderStats::shadow_draw_calls` counts an instance once in each cascade it reaches.
+  creation; `RenderStats::shadow_draw_calls` counts an instance once in each cascade it reaches. In
+  *Nightwatch*, the scene pass costs about 10 % more on an RX 6900 XT.
 
 ## [0.1.0] - 2026-10-14
 
