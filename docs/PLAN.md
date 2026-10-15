@@ -17,16 +17,16 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 - Stage 4b — Live assets: planned on 2026-10-15 and validated by the owner
   ([ADR-0072](adr/0072-stage-4b-live-assets.md)). M4b.1 done on 2026-10-15: the renderer loads
   scenes on threads of its own, which create their GPU objects through clones of the `Gpu`
-  ([ADR-0073](adr/0073-loading-scenes-in-the-background.md)). M4b.2 built on 2026-10-15: the game
-  draws while its zone loads ([ADR-0074](adr/0074-uploading-textures-without-holding-up-frames.md));
-  the owner has yet to play it. Next: the owner's try, then M4b.3.
+  ([ADR-0073](adr/0073-loading-scenes-in-the-background.md)). M4b.2 done on 2026-10-15: the game
+  draws while its zone loads ([ADR-0074](adr/0074-uploading-textures-without-holding-up-frames.md)).
+  Next: M4b.3, recovering from a lost GPU device.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
 | [M4b.1](#m4b1--a-shared-gpu-and-a-task-pool) | The renderer loads a scene on threads of its own, which create its GPU objects | Done |
-| [M4b.2](#m4b2--the-zone-loads-while-frames-go-on) | *Hunna Wood* draws while its zone loads | Built; the owner plays it |
+| [M4b.2](#m4b2--the-zone-loads-while-frames-go-on) | *Hunna Wood* draws while its zone loads | Done |
 | [M4b.3](#m4b3--recovering-from-a-lost-gpu-device) | An application that chooses it goes on after a lost GPU device | Planned |
 | [M4b.4](#m4b4--hunna-wood-goes-on-after-a-lost-device) | *Hunna Wood* goes on after a lost GPU device | Planned |
 | [M4b.5](#m4b5--materials-that-change-in-place) | A game changes a material's values while it runs | Planned |
@@ -136,8 +136,9 @@ Risks:
   test shows the rules still until the zone is there; the game runs in the headless Weston; the
   owner plays it; CI is green.
 - **How to test.** `cargo run --release -p hunnawood`.
-- **Outcome.** Built on 2026-10-15; the owner has yet to play it. The bar holds, by day and at
-  night, with a margin ([ADR-0074](adr/0074-uploading-textures-without-holding-up-frames.md) holds
+- **Outcome.** Done on 2026-10-15. The owner ran it on Linux, in a window of 1901 × 2082 pixels:
+  the zone came after three frames, none more than 20 ms apart. The bar holds, by day and at night,
+  with a margin ([ADR-0074](adr/0074-uploading-textures-without-holding-up-frames.md) holds
   the figures). Measuring it found what held frames up, and changed three things that the
   milestone did not plan: textures reach the GPU through buffers of their own, in `slime-gfx`,
   rather than through wgpu's queue writes, whose lock held up the renderer's submissions;
@@ -147,8 +148,9 @@ Risks:
   load. The loading view is the sky and the hero, lit by the zone's lights. On the RX 6900 XT, with
   the files in the system's cache, the zone is drawn after a few frames, or from the first; it takes
   longer on slower machines. The fallback of ADR-0072, uploads from the main thread, was not
-  needed. The `scene` example loads its scene in the background too, as the rule of one example per
-  notable feature asks.
+  needed; the owner chose the buffers of `slime-gfx` over it, once the two were laid out. The
+  `scene` example loads its scene in the background too, as the rule of one example per notable
+  feature asks.
 
 ### M4b.3 — Recovering from a lost GPU device
 
