@@ -10,7 +10,7 @@
 Seven primitives, one per object, with 1696 vertices and 2274 triangles in all. Each has normals,
 one set of texture coordinates, which show the textures upright on every side of the boxes, and
 tangents (glTF's `TANGENT`), which Blender computes with MikkTSpace. Six materials use glTF's
-metallic-roughness model, so that one small file exercises each property the loader reads:
+metallic-roughness model, so that one small file exercises each property the importer reads:
 
 | Material | Drawn on | What it exercises |
 |---|---|---|
@@ -55,8 +55,8 @@ do not edit the GLB file by hand. Two runs give files that differ only in the or
 sphere's triangles, which Blender does not keep from one run to the next; the triangles
 themselves, and their winding, are the same.
 
-The glTF loader of the examples ([`examples/common/gltf.rs`](../common/gltf.rs),
-[ADR-0029](../../docs/adr/0029-temporary-gltf-loading.md)) reads GLB files that hold their buffer
-and PNG images in their binary chunk (what else it refuses, and what it ignores with a warning, is
-listed in its module comment), so a file exported from Blender with its default settings works
-when its textures are PNG; it is temporary, until the asset pipeline of Stage 4.
+The `scene` example draws this file once the cooker has cooked it
+([`examples/README.md`](../README.md)). The cooker
+([`crates/slime-cook`](../../crates/slime-cook/README.md)) imports glTF files exported from Blender
+with its default settings, GLB or `.gltf`, when their images are PNG or JPEG; its rustdoc lists
+what it refuses, and what it leaves out with a warning.

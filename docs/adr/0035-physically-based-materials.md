@@ -3,9 +3,10 @@
 - Status: Accepted; amends [0027](0027-the-render-crate.md), [0029](0029-temporary-gltf-loading.md)
   and [0034](0034-hdr-rendering-and-tone-mapping.md); amended by
   [0037](0037-lights-in-physical-units-and-pre-exposure.md) (the frame's values, the light's color
-  and illuminance, and the loader's lists: lights) and by
+  and illuminance, and the loader's lists: lights), by
   [0039](0039-image-based-lighting-computed-on-the-cpu.md) (the environment's light replaces the
-  ambient term)
+  ambient term) and by [0069](0069-the-asset-pipeline.md) (the examples' loader is deleted, with
+  ADR-0029)
 - Date: 2026-10-13
 
 ## Context

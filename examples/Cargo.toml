@@ -12,9 +12,12 @@ workspace = true
 
 # Examples are the only targets of this package, so their dependencies are dev-dependencies.
 [dev-dependencies]
+# The tests only: they write the small glTF files they cook.
 gltf.workspace = true
 png.workspace = true
 slime-app.workspace = true
+slime-assets.workspace = true
+slime-cook.workspace = true
 slime-devui.workspace = true
 slime-gfx.workspace = true
 slime-platform.workspace = true

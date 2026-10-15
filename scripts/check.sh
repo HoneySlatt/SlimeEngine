@@ -81,11 +81,13 @@ start_weston() {
 start_weston slime-check
 # Each run takes a few seconds; `timeout` ends a stalled one, with SIGTERM, which stops the engine
 # cleanly, then SIGKILL if that is not enough, and the failure then prints Weston's log.
-for example in window scene; do
-    env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
-        timeout -k 10 120 cargo run --locked --example "$example" -- --frames 120 ||
-        { cat "$runtime/slime-check.log"; exit 1; }
-done
+env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+    timeout -k 10 120 cargo run --locked --example window -- --frames 120 ||
+    { cat "$runtime/slime-check.log"; exit 1; }
+# The scene example draws the sample cooked above.
+env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+    timeout -k 10 120 cargo run --locked --example scene -- --assets "$cooked/first" --frames 120 ||
+    { cat "$runtime/slime-check.log"; exit 1; }
 # The games too (ADR-0055).
 for game in hunnawood nightwatch; do
     env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \

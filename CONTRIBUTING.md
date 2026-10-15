@@ -124,6 +124,7 @@ screenshot client, start the sample in it, and take the screenshot while it runs
 
 ```sh
 runtime=$(mktemp -d)
+cargo run -p slime-cook -- cook examples/assets target/cooked/examples   # what `scene` draws
 XDG_RUNTIME_DIR=$runtime weston --backend=headless --renderer=pixman --debug \
     --socket=slime-shot --idle-time=0 &
 XDG_RUNTIME_DIR=$runtime WAYLAND_DISPLAY=slime-shot VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
@@ -182,8 +183,8 @@ pull request. A Linux job runs the same script; a Windows job runs clippy, the t
 image tests, the GPU timing test and the multi-pass test again with `--nocapture` so that its log
 shows what they measured on WARP, then the headless samples on Windows, runs the release build of
 the headless ones, and publishes the `hello`, `headless`, `window`, `offscreen` and `scene`
-examples built for Windows as an artifact named `slime-examples-windows`, to run by hand on a
-Windows machine. The Windows job runs the tests one
+examples built for Windows, with the sample cooked for `scene`, as an artifact named
+`slime-examples-windows`, to run by hand on a Windows machine. The Windows job runs the tests one
 at a time (`--test-threads=1`): WARP's shader compiler crashes the process, now and then, when
 several threads compile shaders at once. It does not stop at the first test program that fails,
 and when a step fails, it publishes instead the images that the failing image tests rendered on

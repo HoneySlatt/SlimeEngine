@@ -1,16 +1,23 @@
-//! Draws a glTF scene with the renderer, lit in physical units by the lights of the file (the
-//! asset's sun, the light of its glowing ring and a spot light), or by the sample's sun for a file
-//! without lights, seen from a camera that orbits it until the mouse takes over: drag with the left
-//! button to turn around it, roll the wheel to come nearer or go farther. A dev overlay shows what
-//! each frame costs, with the GPU time of each pass, a slider that changes the exposure, as a
-//! photographer's exposure value, and one that changes the bloom's strength; F1 hides and shows
-//! it. The sample of Stages 3a and 3b. Escape, closing the window or Ctrl+C quits.
+//! Draws a scene cooked by the asset pipeline with the renderer, lit in physical units by the
+//! lights its nodes place (the asset's sun, the light of its glowing ring and a spot light), or by
+//! the sample's sun for a scene without lights, seen from a camera that orbits it until the mouse
+//! takes over: drag with the left button to turn around it, roll the wheel to come nearer or go
+//! farther. A dev overlay shows what each frame costs, with the GPU time of each pass, a slider
+//! that changes the exposure, as a photographer's exposure value, and one that changes the bloom's
+//! strength; F1 hides and shows it. The sample of Stages 3a, 3b and 4a. Escape, closing the window
+//! or Ctrl+C quits.
+//!
+//! It reads cooked data, which `slime-cook` makes first:
 //!
 //! ```sh
+//! cargo run -p slime-cook -- cook examples/assets target/cooked/examples
 //! cargo run --example scene                              # the scene of examples/assets/scene.glb
-//! cargo run --example scene -- --scene other.glb         # a GLB file holding its buffer and PNG images in its binary chunk
 //! cargo run --example scene -- --frames 120              # closes itself after 120 frames
+//! cargo run --example scene -- --assets <dir> --scene <id>   # another cooked scene, by its ID
 //! ```
+//!
+//! Without `--assets`, it reads `assets` beside the program if there is one, as where CI ships it,
+//! and `target/cooked/examples` otherwise.
 
 #[path = "common/orbit.rs"]
 mod orbit;
@@ -24,6 +31,7 @@ use std::process::ExitCode;
 
 use slime_app::time::FrameTime;
 use slime_app::{App, AppConfig, AppError, Context};
+use slime_assets::{AssetId, CookedAssets};
 use slime_devui::{Overlay, egui};
 use slime_gfx::RenderTarget;
 use slime_platform::{
@@ -34,7 +42,7 @@ use slime_render::{Camera, RenderStats};
 
 use sample_scene::{BLOOM, EXPOSURE, SampleScene};
 
-const USAGE: &str = "usage: scene [--scene <file.glb>] [--frames <count>]";
+const USAGE: &str = "usage: scene [--assets <directory>] [--scene <id>] [--frames <count>]";
 
 /// Radians per pixel dragged.
 const DRAG_SPEED: f32 = 0.005;
@@ -159,8 +167,9 @@ impl OrbitCamera {
 }
 
 struct SceneExample {
-    /// The GLB file to draw.
-    bytes: Vec<u8>,
+    /// The cooked data, and the scene to draw.
+    assets: CookedAssets,
+    scene_id: AssetId,
     scene: Option<SampleScene>,
     camera: OrbitCamera,
     overlay: Option<Overlay>,
@@ -189,7 +198,7 @@ impl App for SceneExample {
         else {
             return Err("the scene example needs a window".into());
         };
-        let scene = SampleScene::new(gpu, format, &self.bytes)?;
+        let scene = SampleScene::new(gpu, format, &self.assets, self.scene_id)?;
         let (center, radius) = (scene.bounds().center(), scene.bounds().radius());
         self.camera = OrbitCamera::new(center, radius, radius * 2.2, 0.6, 0.45);
         self.scene = Some(scene);
@@ -367,15 +376,16 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let bytes = match &options.scene {
-        None => sample_scene::ASSET.to_vec(),
-        Some(path) => match std::fs::read(path) {
-            Ok(bytes) => bytes,
-            Err(error) => {
-                eprintln!("cannot read {}: {error}", path.display());
-                return ExitCode::FAILURE;
-            }
-        },
+    let directory = options.assets.unwrap_or_else(default_assets);
+    let assets = match CookedAssets::open(&directory) {
+        Ok(assets) => assets,
+        Err(error) => {
+            eprintln!(
+                "{error}\nfor the sample: cargo run -p slime-cook -- cook examples/assets \
+                 target/cooked/examples"
+            );
+            return ExitCode::FAILURE;
+        }
     };
 
     let config = AppConfig {
@@ -387,7 +397,8 @@ fn main() -> ExitCode {
         ..AppConfig::default()
     };
     let mut example = SceneExample {
-        bytes,
+        assets,
+        scene_id: options.scene.unwrap_or(sample_scene::SCENE),
         scene: None,
         camera: OrbitCamera::new(Vec3::ZERO, 1.0, 1.0, 0.0, 0.0),
         overlay: None,
@@ -406,10 +417,27 @@ fn main() -> ExitCode {
     }
 }
 
+/// The directory of cooked data read without `--assets`: `assets` beside the program, where CI
+/// ships the Windows programs with the sample cooked, or else `target/cooked/examples` in the
+/// workspace, where the command that the module documents cooks it.
+fn default_assets() -> PathBuf {
+    let beside = std::env::current_exe()
+        .ok()
+        .and_then(|program| Some(program.parent()?.join("assets")));
+    match beside {
+        Some(directory) if directory.join(slime_assets::MANIFEST_FILE).is_file() => directory,
+        _ => PathBuf::from(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../target/cooked/examples"
+        )),
+    }
+}
+
 /// The command-line options of the example.
 #[derive(Default)]
 struct Options {
-    scene: Option<PathBuf>,
+    assets: Option<PathBuf>,
+    scene: Option<AssetId>,
     frame_limit: Option<u64>,
 }
 
@@ -418,8 +446,16 @@ fn parse_options() -> Result<Options, String> {
     let mut arguments = std::env::args_os().skip(1);
     while let Some(argument) = arguments.next() {
         match argument.to_str() {
+            Some("--assets") => {
+                options.assets = Some(arguments.next().ok_or("--assets needs a directory")?.into());
+            }
             Some("--scene") => {
-                options.scene = Some(arguments.next().ok_or("--scene needs a path")?.into());
+                let value = arguments.next().ok_or("--scene needs an ID")?;
+                let id = value
+                    .to_str()
+                    .and_then(|value| value.parse().ok())
+                    .ok_or_else(|| format!("`{}` is not an asset ID", value.display()))?;
+                options.scene = Some(id);
             }
             Some("--frames") => {
                 let value = arguments.next().ok_or("--frames needs a value")?;

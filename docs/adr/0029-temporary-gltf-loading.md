@@ -1,6 +1,9 @@
 # 0029. Temporary glTF loading, in the examples
 
-- Status: Accepted; amended by [0035](0035-physically-based-materials.md) (its lists of what the loader reads, refuses and warns about are replaced)
+- Status: Superseded by [0069](0069-the-asset-pipeline.md) (the loader was deleted at Stage 4a: the
+  cooker imports glTF files, and the renderer loads what it cooked); amended before by
+  [0035](0035-physically-based-materials.md) (its lists of what the loader reads, refuses and warns
+  about were replaced)
 - Date: 2026-10-13
 
 ## Context

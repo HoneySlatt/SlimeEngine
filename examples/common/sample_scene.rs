@@ -1,25 +1,42 @@
-//! The glTF scene that the `scene` example and its image test draw: the asset of
-//! `examples/assets/scene.glb` by default, or any GLB file the loader reads, lit by the lights the
-//! file places, or by the sample's sun when it places none, and by its sky, in physical units
-//! (ADR-0037, ADR-0039).
-
-#[path = "gltf.rs"]
-mod gltf;
+//! The cooked scene that the `scene` example and its image tests draw: the asset of
+//! `examples/assets/scene.glb` by default, or any scene that `slime-cook` cooked, lit by the lights
+//! its nodes place, or by the sample's sun when they place none, and by its sky, in physical units
+//! (ADR-0037, ADR-0039, ADR-0069).
 
 use std::error::Error;
 use std::f32::consts::PI;
 use std::time::{Duration, Instant};
 
+use slime_assets::{AssetId, CookedAssets};
 use slime_gfx::{Gpu, LinearColor, RenderTarget, TextureFormat};
 use slime_render::glam::Vec3;
 use slime_render::{
-    Camera, DirectionalLight, Environment, Light, RenderError, RenderStats, Renderer, Scene, Sky,
+    Camera, DirectionalLight, Environment, Light, LoadedScene, RenderError, RenderStats, Renderer,
+    Scene, Sky,
 };
 
-pub use gltf::Bounds;
+/// The ID of the sample asset, `examples/assets/scene.glb`, made in Blender by
+/// `examples/assets/make_scene.py`: the ID of its default scene too, which `scene.glb.meta` holds.
+pub const SCENE: AssetId = AssetId::from_u128(0x850ad551_5098_42f9_ae42_26ed6174951a);
 
-/// The sample asset, made in Blender by `examples/assets/make_scene.py`.
-pub const ASSET: &[u8] = include_bytes!("../assets/scene.glb");
+/// The smallest box around a loaded scene, in world space.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Bounds {
+    pub min: Vec3,
+    pub max: Vec3,
+}
+
+impl Bounds {
+    /// The center of the box.
+    pub fn center(&self) -> Vec3 {
+        (self.min + self.max) / 2.0
+    }
+
+    /// Half the diagonal of the box: the radius of the sphere around it.
+    pub fn radius(&self) -> f32 {
+        (self.max - self.min).length() / 2.0
+    }
+}
 
 /// The illuminance of the sample's sun, in lux: direct sunlight. The asset's sun has it too
 /// (`make_scene.py`).
@@ -57,28 +74,35 @@ const SUN: DirectionalLight = DirectionalLight {
     shadow_distance: 50.0,
 };
 
-/// A loaded glTF scene, its sky and the renderer that draws them, for targets of one format.
+/// A loaded cooked scene, its sky and the renderer that draws them, for targets of one format.
 pub struct SampleScene {
     renderer: Renderer,
-    loaded: gltf::LoadedScene,
+    loaded: LoadedScene,
+    bounds: Bounds,
     environment: Environment,
     environment_time: Duration,
 }
 
 impl SampleScene {
-    /// Loads the GLB file `bytes` for targets of `format`.
+    /// Loads the scene `scene` of the cooked data `assets` for targets of `format`.
     ///
     /// # Errors
     ///
     /// The renderer's error when it cannot be created, with its cause (the driver's message, or
-    /// why the device was lost); the loader's when the file cannot be drawn.
+    /// why the device was lost); the error of `Renderer::load_scene` when the scene cannot be
+    /// loaded; an error when it places no mesh.
     pub fn new(
         gpu: &Gpu,
         format: TextureFormat,
-        bytes: &[u8],
+        assets: &CookedAssets,
+        scene: AssetId,
     ) -> Result<Self, Box<dyn Error + Send + Sync>> {
         let renderer = Renderer::new(gpu, format)?;
-        let loaded = gltf::load(gpu, &renderer, bytes)?;
+        let loaded = renderer.load_scene(gpu, assets, scene)?;
+        let (min, max) = loaded
+            .bounds
+            .ok_or("the scene draws nothing: no node places a mesh")?;
+        let bounds = Bounds { min, max };
         // The sky's sun is the scene's: the file's first directional light, or the sample's sun
         // for a file without lights, so that its disc and glow lie where the light and its shadows
         // come from.
@@ -97,6 +121,7 @@ impl SampleScene {
         Ok(Self {
             renderer,
             loaded,
+            bounds,
             environment,
             environment_time,
         })
@@ -109,7 +134,7 @@ impl SampleScene {
 
     /// The smallest box around the scene, which the camera orbits.
     pub fn bounds(&self) -> &Bounds {
-        &self.loaded.bounds
+        &self.bounds
     }
 
     /// Draws the scene into `target` as `camera` sees it, its light multiplied by `exposure`
@@ -136,7 +161,7 @@ impl SampleScene {
         } else {
             &self.loaded.lights[..]
         };
-        let bounds = &self.loaded.bounds;
+        let bounds = &self.bounds;
         let reach = camera.eye.distance(bounds.center()) + bounds.radius();
         let lights: Vec<Light> = lights
             .iter()

@@ -206,8 +206,7 @@ and disappear into it: any loss or gain of light shows.
 
 **glTF.** The Khronos Group's format for 3D scenes: meshes, materials, textures and a node
 hierarchy, as a JSON file with binary buffers, or as one GLB file with everything embedded. The
-examples load GLB files with a temporary loader ([ADR-0029](adr/0029-temporary-gltf-loading.md));
-the asset pipeline of Stage 4 will import them.
+cooker, `slime-cook`, imports both ([ADR-0069](adr/0069-the-asset-pipeline.md)).
 
 **GPU time.** How long the GPU took to run a render pass, measured by timestamps written at its
 start and its end (`slime_gfx::GpuTimer`) and read back a few frames later; `None` on adapters

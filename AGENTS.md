@@ -38,6 +38,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all --check
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 scripts/check.sh                                          # everything above, plus the checks below
+cargo run -p slime-cook -- cook examples/assets target/cooked/examples  # cook what the scene example draws
 cargo run --example <name>                                # run an example (list in examples/README.md)
 cargo run -p hunnawood                                    # play the game (games/hunnawood/README.md)
 cargo run -p nightwatch                                   # play the first game (games/nightwatch/README.md)

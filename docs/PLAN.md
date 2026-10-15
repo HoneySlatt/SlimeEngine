@@ -20,10 +20,11 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 - After Stage 3d's measurements, on 2026-10-15: Direct3D 12 compiles shaders with DXC when its
   library lies beside the program, as it does beside the Windows programs that CI builds
   ([ADR-0066](adr/0066-shipping-dxc-beside-the-programs.md)).
-- Stage 4a — Cooked assets: planned on 2026-10-15 and validated by the owner. M4a.1 to M4a.4 done
+- Stage 4a — Cooked assets: planned on 2026-10-15 and validated by the owner. M4a.1 to M4a.5 done
   on 2026-10-15: *Hunna Wood* runs on a test ground, every source asset has an ID of its own,
   images cook into compressed textures, and glTF files into meshes, materials and scenes that the
-  renderer loads. Next: M4a.5.
+  renderer loads; the `scene` example draws the cooked sample, and the temporary loader is gone.
+  Next: M4a.6.
 
 ## Status
 
@@ -33,7 +34,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M4a.2](#m4a2--asset-identity) | Every source file has an ID that survives a move | Done |
 | [M4a.3](#m4a3--images) | PNG and JPEG files become compressed textures that the renderer draws | Done |
 | [M4a.4](#m4a4--gltf) | glTF files become cooked meshes, materials and scenes | Done |
-| [M4a.5](#m4a5--the-sample-scene-through-the-pipeline) | The `scene` example draws cooked data; the temporary loader is deleted | Planned |
+| [M4a.5](#m4a5--the-sample-scene-through-the-pipeline) | The `scene` example draws cooked data; the temporary loader is deleted | Done |
 | [M4a.6](#m4a6--the-zones-sources) | The zone exists as source assets that anyone can fetch and cook | Planned |
 | [M4a.7](#m4a7--hunna-wood-by-day) | *Hunna Wood* is played by day; *Nightwatch* is deleted | Planned |
 | [M4a.8](#m4a8--night) | The zone by night; resting switches day and night | Planned |
@@ -187,10 +188,10 @@ artifact, which grows by the cooked zone.
 - **Delivers.** The `scene` example and its image tests drawing the sample scene from what
   `slime-cook` cooked; the loader's tests that draw (a mirrored node, masked, blended and
   double-sided materials, a file's own tangents, a texture read as colors and as data, a file lit
-  by its own lights) drawing cooked data; `examples/common/gltf.rs` deleted and the `gltf` dependency gone from the
-  examples; ADR-0029 superseded; `scene.exe` with its cooked data in the Windows programs that CI
-  builds; the move test of the exit criterion; the known debt about the loader closed or moved to
-  the importer.
+  by its own lights) drawing cooked data; `examples/common/gltf.rs` deleted, the `gltf` dependency
+  kept by the examples' tests only, which write small glTF files for the cooker; ADR-0029
+  superseded; `scene.exe` with its cooked data in the Windows programs that CI builds; the move
+  test of the exit criterion; the known debt about the loader closed or moved to the importer.
 - **Done when.** The image tests pass on cooked data on lavapipe, an AMD GPU and WARP within
   ADR-0054's tolerance; in a temporary directory, a glTF file with an external PNG, moved and
   renamed with their metadata, keeps its IDs, cooks nothing again and draws the same pixels; CI is
@@ -500,12 +501,6 @@ GitHub issues, linked from their entry; this list stays the reference.
   runs. The translator cannot tell such a press from X11's unmarked first auto-repeat. On Windows,
   trusting `KeyEvent::repeat` would close the gap, at the cost of a rule that differs between
   platforms; left as documented.
-- **The examples' glTF loader sets no limit on a file's total memory** (left as it is by the owner's
-  decision of 2026-10-13: the loader is temporary). It checks each primitive alone against the GPU's
-  largest buffer, reads every primitive of every mesh before placing any, and gives primitives that
-  name the same accessors their own copy, three vertices per triangle when they have no normals. A
-  valid GLB of a few MiB that lists one primitive many times can make the process run out of memory
-  rather than be refused. Budgets for imported assets belong to the importer of Stage 4.
 - **No test covers the empty submission of frames without a window image.** When
   `Surface::acquire` gives no image, it submits an empty batch, so that wgpu releases the writes
   an application makes outside `App::render`. Without it, 2000 frames of a surface resized to
@@ -531,16 +526,6 @@ GitHub issues, linked from their entry; this list stays the reference.
   loss that egui-wgpu's own buffer upload is the first to find, and `Overlay::new` on a device
   already lost (egui-wgpu creates its buffers with `create_buffer_init`). Both are documented
   under `# Panics`; closing them needs a change in egui-wgpu or wgpu.
-- **The glTF loader copies shared vertex attributes into every primitive that uses them**
-  (`examples/common/gltf.rs`). Each primitive that has normals gets every vertex of its position,
-  normal and texture-coordinate accessors, including those its indices do not name. K primitives
-  that share one set of attributes over V vertices, each with its own indices (three.js writes a
-  mesh of several materials this way), therefore upload K × V vertices instead of about V, decode
-  the attributes K times and grow the bounds over K × V points. The sample asset does not share
-  attributes, and the importer of Stage 4 replaces the loader. The fix is to compact each
-  primitive to the vertices its indices name. To measure: load a three.js export of a mesh with
-  several materials, and compare the sum of `MeshData::positions.len()` over the meshes created,
-  and the load time, before and after.
 - **Exposed light beyond 64 × 65 504 is clamped** (ADR-0035, ADR-0037, ADR-0039, ADR-0040). The
   scene and sky shaders write exposed light divided by 64 into the `Rgba16Float` target, and light
   above 64 × 65 504 as 65 504, the largest half, rather than leave it to the driver, which may store
@@ -589,10 +574,6 @@ GitHub issues, linked from their entry; this list stays the reference.
   mode keeps or discards all of a pixel's samples at once. Smoothing those edges, alpha to
   coverage, behaves differently from one driver to the next, which image tests would see. No game
   uses masked materials yet; the leaf cards of *Hunna Wood*'s trees will, from M4a.6 on.
-- **Tangents that a glTF file lacks are computed per triangle, not with MikkTSpace** (ADR-0035),
-  against which normal textures are usually baked. Such files shade slightly differently from
-  other viewers, most at seams in the texture coordinates. The importer of Stage 4 computes
-  MikkTSpace tangents.
 - **The sky's light is neither shadowed nor occluded** (ADR-0039). A surface under an object, or
   inside a box, receives the whole sky, but for its material's occlusion texture: no ambient
   occlusion (screen-space effects are outside the stage), no reflection probes, and mirrors reflect
@@ -600,7 +581,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   until then, draw it without an environment, or with a sky of lower radiances, and light it with
   point and spot lights. Khronos's Sponza shows it (M3b.9): its arcades are lit by the sky as its
   open courtyard is, in the same blue.
-- **Glass is drawn opaque.** The examples' loader ignores glTF's `KHR_materials_transmission` and
+- **Glass is drawn opaque.** The importer leaves out glTF's `KHR_materials_transmission` and
   `KHR_materials_volume`, and warns that it does: the renderer neither lets light through a surface
   nor blends one (Khronos's FlightHelmet and ABeautifulGame, M3b.9). Transparency is left to
   Stage 9a (ADR-0052).
@@ -630,11 +611,12 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **A roughness between two prefiltered levels reads a blend of their lobes** (ADR-0039): the four
   levels are 0.25 apart, and a lobe in between is approximated by mixing the nearest two, the split
   sum's usual approximation; each level is within 2.2 % of its own lobe's average.
-- **The image tests use up to 76 of the 131 pixels that RADV may have off by more than 8**
-  (ADR-0030, ADR-0054): the glTF scene's front view 76, on the wall's mortar joints seen at a
-  grazing angle; `shapes` 28, on edges and the metal spheres' reflections of the sky (49 at M3b.6,
-  before the bloom; 33 before the shadow map followed the camera and the output was dithered). A
-  change that adds fine or reflective detail may exceed it; measure it again then.
+- **The image tests use up to 75 of the 131 pixels that RADV may have off by more than 8**
+  (ADR-0030, ADR-0054): the glTF scene's front view 75, on the wall's mortar joints seen at a
+  grazing angle (76 before its textures were cooked); `shapes` 28, on edges and the metal spheres'
+  reflections of the sky (49 at M3b.6, before the bloom; 33 before the shadow map followed the
+  camera and the output was dithered). A change that adds fine or reflective detail may exceed it;
+  measure it again then.
 - **Four passes per submission is a number measured on one machine** (ADR-0041). On the owner's
   RX 6900 XT (RADV), whose memory that the CPU can map is a 256 MiB window, one submission of a
   whole bloomed frame stalled in the kernel once the desktop's programs and a test program filled
@@ -676,8 +658,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   `tests/bloom.rs` at the size in question. A fix would pad the chain beyond those edges.
 - **glTF minification filters are approximated.** `slime-gfx` ties mip blending to the
   minification filter and gives every texture mipmaps, so only `NEAREST_MIPMAP_NEAREST` and
-  `LINEAR_MIPMAP_LINEAR` are exact (documented in the loader). Revisit when an engine-side user
-  needs a separate mipmap filter or a base-level-only read.
+  `LINEAR_MIPMAP_LINEAR` are exact (documented in the importer, `crates/slime-cook`). Revisit when
+  an engine-side user needs a separate mipmap filter or a base-level-only read.
 ## Notes
 
 - CI build cache: not added yet. With wgpu, the Linux job takes about 2.5 minutes and the Windows

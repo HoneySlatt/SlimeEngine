@@ -79,6 +79,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - The renderer reads a normal texture's x and y only, from red and green, and rebuilds z, the
   normal being of length one as glTF asks: two-channel BC5 textures serve as normal textures, and
   their blue is not read ([ADR-0071](docs/adr/0071-cooked-textures.md)).
+- The `scene` example draws cooked data, which the cooker makes first:
+  `cargo run -p slime-cook -- cook examples/assets target/cooked/examples` cooks the sample, which
+  it reads by default. `--assets <directory>` reads another directory of cooked data, and
+  `--scene <id>` another of its scenes, by its ID, where `--scene` took a GLB file. The Windows
+  programs that CI builds come with the sample cooked, in `assets` beside `scene.exe`.
 - `RenderPipelineDescriptor` has a new field, `multisampled`, and `RenderPassDescriptor` one,
   `resolve`: a literal written in full names them, `false` and `None` for what it drew before.
 - `SpotLight` has a new field, `casts_shadows`, on by default: a literal written in full names it.
@@ -100,6 +105,12 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   ([ADR-0066](docs/adr/0066-shipping-dxc-beside-the-programs.md)): DXC's code draws *Nightwatch*'s
   scene pass about twice as fast. The Windows programs that CI builds come in one directory with
   DXC and its licence; `scripts/fetch-dxc.sh` downloads it. `WGPU_DX12_COMPILER=fxc` asks for FXC.
+
+### Removed
+
+- The examples' temporary glTF loader, `examples/common/gltf.rs`: the cooker imports glTF files,
+  and `Renderer::load_scene` loads what it cooked ([ADR-0069](docs/adr/0069-the-asset-pipeline.md),
+  which supersedes [ADR-0029](docs/adr/0029-temporary-gltf-loading.md)).
 
 ## [0.1.0] - 2026-10-14
 

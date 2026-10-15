@@ -2055,6 +2055,8 @@ dependencies = [
  "gltf",
  "png",
  "slime-app",
+ "slime-assets",
+ "slime-cook",
  "slime-devui",
  "slime-gfx",
  "slime-platform",

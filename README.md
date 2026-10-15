@@ -21,11 +21,11 @@ sky that surfaces reflect and that shows behind them; it draws in high dynamic r
 samples per pixel so that edges are smooth, relative to the camera and with reversed depth so that
 large scenes keep their precision, then exposes the light, spreads a bloom around it, tone maps it
 and dithers it, into a window or into offscreen images that image tests compare with references. The
-`scene` example draws a glTF scene and its lights under a camera driven by the mouse, with the CPU
-time and the GPU time of each pass in a dev overlay. *Nightwatch* (`games/nightwatch`), a small
-stealth game made with the public API only, is the sample game for now. Next comes Stage 4a, the
-first half of the asset pipeline, in which *Hunna Wood*, a role-playing game seen in the third
-person, replaces it and loads its first zone from cooked assets
+`scene` example draws a scene cooked from a glTF file, and its lights, under a camera driven by the
+mouse, with the CPU time and the GPU time of each pass in a dev overlay. *Nightwatch*
+(`games/nightwatch`), a small stealth game made with the public API only, is the sample game for
+now. Stage 4a, the first half of the asset pipeline, is under way: in it *Hunna Wood*, a
+role-playing game seen in the third person, replaces it and loads its first zone from cooked assets
 ([ADR-0067](docs/adr/0067-hunna-wood-replaces-nightwatch.md)); [`docs/PLAN.md`](docs/PLAN.md) lists
 its milestones and the known debt.
 
@@ -93,9 +93,9 @@ known debt in [`docs/PLAN.md`](docs/PLAN.md#known-debt) lists the smaller gaps. 
 today has:
 
 - No text, game UI, audio, physics, animation or editor.
-- No asset files: the engine reads no image or model format. The examples' glTF loader
-  (`examples/common/gltf.rs`) is example code to copy, not an API, and the asset pipeline comes
-  later.
+- Half an asset pipeline: the cooker, `slime-cook`, imports glTF scenes and PNG and JPEG images
+  into cooked data, which the renderer loads whole, on the calling thread
+  (`Renderer::load_scene`); no loading in the background, no hot reload, which Stage 4b brings.
 - No world or scene graph: the game gives the renderer the list of what to draw at every frame.
 - A renderer without blended transparency or culling of what the camera does not see; with a
   capped number of lights, and shadows from one directional light and from spot lights, none from

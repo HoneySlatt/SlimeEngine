@@ -80,12 +80,13 @@ jobs:
             echo 'these programs import VCRUNTIME140.dll'
             exit 1
           fi
-      - name: Gather the programs for checks by hand, with DXC beside them
+      - name: Gather the programs for checks by hand, with DXC beside them and the sample cooked
         run: |
           mkdir -p target/windows
           cp target/release/examples/{hello,headless,window,offscreen,scene}.exe target/windows/
           cp target/release/{hunnawood,nightwatch}.exe target/windows/
           scripts/fetch-dxc.sh target/windows
+          cargo run --locked -p slime-cook -- cook examples/assets target/windows/assets
       # The offscreen sample's log says which compiler Direct3D 12 took: DXC, beside it.
       - name: Run the headless samples of the release build
         run: |

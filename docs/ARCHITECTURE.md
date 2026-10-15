@@ -53,7 +53,7 @@ created only when code needs it.
 | [`slime-assets`](../crates/slime-assets/README.md) | The assets as games load them: asset IDs, cooked data and its manifest, read by ID from a directory of cooked data ([ADR-0069](adr/0069-the-asset-pipeline.md)); headless | `ktx2`, `thiserror` | The asset ID and its text form, a UUID; cooked textures in KTX2 files ([ADR-0071](adr/0071-cooked-textures.md)), meshes, materials and scenes, their nodes' extras among them; the manifest; reading them by ID |
 | [`slime-cook`](../crates/slime-cook/README.md) | The cooker: turns source assets into cooked data before games run; a library and its program, which no game links ([ADR-0069](adr/0069-the-asset-pipeline.md)) | `slime-assets`, `bevy_mikktspace`, `blake3`, `block_compression`, `glam`, `gltf`, `png`, `uuid`, `zune-jpeg`, `thiserror` | IDs for source files in metadata files beside them, their check, and the IDs of the assets inside a file; PNG and JPEG images cooked into textures compressed in BC7 or BC5, every level computed; glTF files imported into meshes (MikkTSpace tangents), materials and scenes; a directory cooked again only where it changed, with its manifest |
 | [`slime-devui`](../crates/slime-devui/README.md) | The dev overlay: egui drawn over the engine's frames, fed with the engine's events; tooling, removed once something does at least as well ([ADR-0052](adr/0052-amend-roadmap-before-0-1.md)) | `egui`, `egui-wgpu`, `slime-gfx` (with its `wgpu` feature), `slime-platform` | Panels over a frame; no clipboard or input methods |
-| [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `gltf`, `png`, `tracing` | `hello`, `headless`, `window`, `offscreen`, `scene`; the reference image tests; a temporary glTF loader |
+| [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-assets`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `png`, `tracing`; for the tests, `slime-cook` and `gltf` | `hello`, `headless`, `window`, `offscreen`, `scene`, which draws a cooked scene; the reference image tests, and tests that cook glTF files and draw them |
 | [`hunnawood`](../games/hunnawood/README.md) | Hunna Wood, the game that every stage grows from Stage 4a on; a client of the engine through its public API only, not part of the engine ([ADR-0055](adr/0055-games-in-the-workspace.md), [ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)) | `slime-app`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `tracing` | A test ground made in code, the camera behind the hero, the hero's movement and its collisions with boxes turned about the vertical and cylinders |
 | [`nightwatch`](../games/nightwatch/README.md) | Nightwatch, the first game; a client of the engine through its public API only, not part of the engine ([ADR-0055](adr/0055-games-in-the-workspace.md)) | `slime-app`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `tracing` | The courtyard at night, the camera, the player's movement and collisions, guards and floodlights that see the player, a switch, winning and losing |
 
@@ -63,6 +63,7 @@ created only when code needs it.
 slime-examples ──▶ slime-app ──┬──▶ slime-platform ──▶ winit
        │                       └──▶ slime-gfx ──────▶ wgpu
        ├──▶ slime-render ──────────▶ slime-gfx
+       ├──▶ slime-assets (cooked data); the tests: slime-cook (they cook first)
        ├──▶ slime-devui ───┬───────▶ slime-gfx (feature wgpu) ──▶ wgpu
        │                   ├───────▶ egui, egui-wgpu ──────────▶ wgpu
        │                   └───────▶ slime-platform (events)
@@ -454,12 +455,10 @@ environment's first level along it and add the sun's disc, its edge blended over
 bloom's shader ([`bloom.wgsl`](../crates/slime-render/src/bloom.wgsl)) filters that light down and
 averages it back up into a blurred copy, which the tone-mapping shader
 ([`tone_mapping.wgsl`](../crates/slime-render/src/tone_mapping.wgsl)) mixes in before it maps the
-light to the display's range. The examples' temporary glTF loader
-([`examples/common/gltf.rs`](../examples/common/gltf.rs),
-[ADR-0029](adr/0029-temporary-gltf-loading.md), ADR-0035, ADR-0037) builds `MeshData` (tangents read
-or computed), materials and textures, each in its slot's format, and the lights of
-`KHR_lights_punctual` from a GLB file, and flattens its node hierarchy into instances and lights;
-mirrored nodes keep their front faces through the renderer. Conventions: world space is right-handed
+light to the display's range. A scene that the asset pipeline cooked reaches the renderer through
+`Renderer::load_scene` ([below](#cooking-and-loading-assets)), which creates its meshes, materials
+and textures and flattens its node hierarchy into instances and lights; mirrored nodes keep their
+front faces through the renderer. Conventions: world space is right-handed
 with +Y up, distances are in metres and light in physical units (lux, candelas, and nits for the
 light of surfaces and the sky), the camera looks down −Z, front faces wind counter-clockwise (a
 mirrored instance keeps its front faces), tangents follow glTF, depth is reversed, from 1 at the

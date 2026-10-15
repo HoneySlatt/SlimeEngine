@@ -6,7 +6,7 @@ Run it inside Blender (5.2 was used), from the repository root:
 
 The scene is small on purpose: a tiled floor, two wooden crates (the small one a child of the big
 one), a sphere and a pillar under a turned empty, a brick wall and a ring, lit by a sun, a point
-light in the ring and a spot light, so that the loader meets textured and plain materials, smooth
+light in the ring and a spot light, so that the importer meets textured and plain materials, smooth
 and flat shading, nested transforms, glTF's physically based properties (metallic-roughness,
 normal, occlusion and emissive textures, an emissive strength above 1, metals and dielectrics of
 several roughnesses, single- and double-sided materials, tangents) and lights in physical units
