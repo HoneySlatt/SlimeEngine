@@ -112,6 +112,11 @@ fn main() -> Result<(), RenderError> {
   pipeline, read from a directory of cooked data with `slime_assets::CookedAssets::texture`: BC7,
   BC5 or 8-bit texels, every level as the cooker made it (ADR-0071). Normal textures are read by
   their x and y, z rebuilt, so that BC5 serves.
+- `Renderer::load_scene(gpu, &CookedAssets, id)` loads a cooked scene onto the GPU: every mesh its
+  nodes place, the materials they are drawn with and the textures those read, each once; its
+  `LoadedScene` gives the `instances` to draw, the `lights` in world space, the box around them,
+  and the cooked scene itself, whose nodes carry the `extras` a game reads its own data from. What
+  cannot be loaded is a `SceneError`.
 - `Scene::new(camera, &instances)` and `Instance::new(mesh, material, transform)` make what a
   frame draws; their other fields, such as the scene's `lights`, `environment`, `exposure` and
   `bloom`, or whether an instance casts shadows, are set once they are made (ADR-0046).

@@ -39,6 +39,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   lights and `extras`, which a game reads its own data from. `slime_assets::CookedAssets` reads
   them by ID, a file's default scene by the file's own ID. The importer refuses what it cannot read
   right with a message that says what and where, and warns about what it leaves out.
+- `Renderer::load_scene` loads a cooked scene onto the GPU, each mesh, material and texture once:
+  its `LoadedScene` gives the instances to draw, the lights in world space, the box around them,
+  and the scene's nodes with their `extras`.
 - *Nightwatch*, the first game made with the engine, through its public API only, in
   `games/nightwatch` ([ADR-0055](docs/adr/0055-games-in-the-workspace.md)): so far, a courtyard at
   night under the moon, which the player, a small glowing slime, crosses with the keyboard, stopped

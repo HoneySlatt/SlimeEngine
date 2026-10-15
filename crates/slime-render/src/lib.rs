@@ -2,6 +2,7 @@
 
 mod bytes;
 mod camera;
+mod cooked;
 mod environment;
 mod error;
 mod graph;
@@ -17,6 +18,7 @@ mod shapes;
 pub use glam;
 
 pub use camera::Camera;
+pub use cooked::{LoadedScene, SceneError};
 pub use environment::{Environment, Sky};
 pub use error::RenderError;
 pub use light::{DirectionalLight, Light, MAX_LIGHTS, PointLight, SpotLight};

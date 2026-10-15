@@ -168,11 +168,11 @@ tests of every target, the renderer's tests again with glam's assertions on (whi
 them on also turns on in the engine), rustdoc with warnings as errors, `cargo deny` (dependency
 licenses, security advisories and sources; it downloads the advisory database, so it needs network
 access), `slime-cook check` (every source asset has a metadata file of its own,
-[ADR-0069](docs/adr/0069-the-asset-pipeline.md)), the samples with no display server available,
-the windowed samples, the games and the windowed lifecycle test inside a headless Weston
-compositor (and that test's resize scenario in a second one, at scale 2), and `lychee` (links
-between Markdown files). The individual commands are listed in
-[`AGENTS.md`](AGENTS.md#environment-and-commands) for when you want to run only one of them.
+[ADR-0069](docs/adr/0069-the-asset-pipeline.md)), the sample's assets cooked twice and compared, the
+samples with no display server available, the windowed samples, the games and the windowed
+lifecycle test inside a headless Weston compositor (and that test's resize scenario in a second
+one, at scale 2), and `lychee` (links between Markdown files). The individual commands are listed
+in [`AGENTS.md`](AGENTS.md#environment-and-commands) for when you want to run only one of them.
 
 The script also runs clippy for the Windows target, which catches code that does not compile on
 Windows without a Windows machine.

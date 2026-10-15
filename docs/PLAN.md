@@ -20,9 +20,10 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 - After Stage 3d's measurements, on 2026-10-15: Direct3D 12 compiles shaders with DXC when its
   library lies beside the program, as it does beside the Windows programs that CI builds
   ([ADR-0066](adr/0066-shipping-dxc-beside-the-programs.md)).
-- Stage 4a — Cooked assets: planned on 2026-10-15 and validated by the owner. M4a.1 to M4a.3 done
-  on 2026-10-15: *Hunna Wood* runs on a test ground, every source asset has an ID of its own, and
-  images cook into compressed textures that the renderer draws. Next: M4a.4.
+- Stage 4a — Cooked assets: planned on 2026-10-15 and validated by the owner. M4a.1 to M4a.4 done
+  on 2026-10-15: *Hunna Wood* runs on a test ground, every source asset has an ID of its own,
+  images cook into compressed textures, and glTF files into meshes, materials and scenes that the
+  renderer loads. Next: M4a.5.
 
 ## Status
 
@@ -31,7 +32,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M4a.1](#m4a1--hunna-woods-skeleton) | *Hunna Wood* runs: the hero walks a test ground in the third person | Done |
 | [M4a.2](#m4a2--asset-identity) | Every source file has an ID that survives a move | Done |
 | [M4a.3](#m4a3--images) | PNG and JPEG files become compressed textures that the renderer draws | Done |
-| [M4a.4](#m4a4--gltf) | glTF files become cooked meshes, materials and scenes | Planned |
+| [M4a.4](#m4a4--gltf) | glTF files become cooked meshes, materials and scenes | Done |
 | [M4a.5](#m4a5--the-sample-scene-through-the-pipeline) | The `scene` example draws cooked data; the temporary loader is deleted | Planned |
 | [M4a.6](#m4a6--the-zones-sources) | The zone exists as source assets that anyone can fetch and cook | Planned |
 | [M4a.7](#m4a7--hunna-wood-by-day) | *Hunna Wood* is played by day; *Nightwatch* is deleted | Planned |
@@ -184,7 +185,9 @@ artifact, which grows by the cooked zone.
 - **Goal.** The `scene` example draws cooked data; the temporary loader is deleted.
 - **Crates.** `slime-examples`, `slime-render`.
 - **Delivers.** The `scene` example and its image tests drawing the sample scene from what
-  `slime-cook` cooked; `examples/common/gltf.rs` deleted and the `gltf` dependency gone from the
+  `slime-cook` cooked; the loader's tests that draw (a mirrored node, masked, blended and
+  double-sided materials, a file's own tangents, a texture read as colors and as data, a file lit
+  by its own lights) drawing cooked data; `examples/common/gltf.rs` deleted and the `gltf` dependency gone from the
   examples; ADR-0029 superseded; `scene.exe` with its cooked data in the Windows programs that CI
   builds; the move test of the exit criterion; the known debt about the loader closed or moved to
   the importer.
