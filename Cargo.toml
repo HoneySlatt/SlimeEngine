@@ -15,6 +15,10 @@ publish = false
 # Third-party dependencies, one version for the whole workspace. Each one is listed with its
 # reason in docs/dependencies.md (ADR-0006).
 [workspace.dependencies]
+# The asset pipeline's cooker only: hashes what made a cooked file and derives the IDs of the assets
+# inside a source file (ADR-0069). Built without its SIMD code in C and assembly (`pure`), so that
+# no C compiler is needed.
+blake3 = { version = "1.8.7", features = ["pure"] }
 # `termination` also handles SIGTERM and SIGHUP, not only SIGINT.
 ctrlc = { version = "3.5.2", features = ["termination"] }
 # Vectors, matrices and quaternions for the renderer; its types are part of slime-render's API
@@ -44,6 +48,9 @@ thiserror = "2.0.21"
 # The `attributes` feature (`#[instrument]`) is left out: it pulls in a proc-macro stack.
 tracing = { version = "0.1.44", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+# The asset pipeline's cooker only: random IDs for source files (`v4`), and the IDs derived for the
+# assets inside them (`v8`), as UUIDs (ADR-0069).
+uuid = { version = "1.28.0", features = ["v4", "v8"] }
 # Vulkan on Linux, Direct3D 12 on Windows, WGSL shaders (ADR-0016). OpenGL, Metal and WebGPU are
 # left out; `vulkan` also builds on Windows, where it is not used by default.
 wgpu = { version = "30.0.1", default-features = false, features = ["std", "parking_lot", "vulkan", "dx12", "wgsl"] }
@@ -54,6 +61,8 @@ winit = { version = "0.30.13", default-features = false, features = ["rwh_06", "
 
 # Workspace crates.
 slime-app = { path = "crates/slime-app" }
+slime-assets = { path = "crates/slime-assets" }
+slime-cook = { path = "crates/slime-cook" }
 slime-devui = { path = "crates/slime-devui" }
 slime-gfx = { path = "crates/slime-gfx" }
 slime-platform = { path = "crates/slime-platform" }

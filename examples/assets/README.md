@@ -3,6 +3,7 @@
 | File | What it is | Made with | License |
 |---|---|---|---|
 | `scene.glb` | The scene of the `scene` example and its image test: a tiled floor, two wooden crates, a sphere, a pillar, a brick wall and a ring, with seven textures drawn in code and embedded as PNG images, and three lights; 128 400 bytes | [`make_scene.py`](make_scene.py), run in Blender 5.2: `blender --background --python examples/assets/make_scene.py -- examples/assets/scene.glb` | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/): public domain |
+| `scene.glb.meta` | The metadata file of `scene.glb`, which holds its asset ID: the identity that the asset pipeline knows it by, whatever its path ([ADR-0069](../../docs/adr/0069-the-asset-pipeline.md)) | `cargo run -p slime-cook -- scan examples/assets`, which gives an ID to each source file without one | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/): public domain |
 
 ## What `scene.glb` holds
 

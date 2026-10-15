@@ -1,0 +1,10 @@
+# The asset pipeline reads source files byte for byte, and names what it cooks from their contents
+# (docs/adr/0069-the-asset-pipeline.md): no line-ending conversion on checkout, whatever the
+# platform's settings, and metadata files with LF endings everywhere.
+*.glb binary
+*.gltf -text
+*.bin binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.meta text eol=lf

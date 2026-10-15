@@ -39,6 +39,9 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
 step "Dependencies (licenses, advisories, sources)"
 cargo deny --locked check
 
+step "Source assets (each with a metadata file of its own, ADR-0069)"
+cargo run --locked -p slime-cook -- check examples/assets
+
 step "Headless samples (no display server)"
 env -u WAYLAND_DISPLAY -u DISPLAY cargo run --locked --example headless -- --frames 600
 env -u WAYLAND_DISPLAY -u DISPLAY cargo run --locked --example window -- --headless --frames 600

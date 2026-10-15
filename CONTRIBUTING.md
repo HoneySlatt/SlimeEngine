@@ -167,11 +167,12 @@ nix develop -c scripts/check.sh
 tests of every target, the renderer's tests again with glam's assertions on (which a game that turns
 them on also turns on in the engine), rustdoc with warnings as errors, `cargo deny` (dependency
 licenses, security advisories and sources; it downloads the advisory database, so it needs network
-access), the samples with no display server available, the windowed samples, the games and the
-windowed lifecycle test inside a headless Weston compositor (and that test's resize scenario in a
-second one, at scale 2), and `lychee` (links between Markdown files). The individual commands are
-listed in [`AGENTS.md`](AGENTS.md#environment-and-commands) for when you want to run only one of
-them.
+access), `slime-cook check` (every source asset has a metadata file of its own,
+[ADR-0069](docs/adr/0069-the-asset-pipeline.md)), the samples with no display server available,
+the windowed samples, the games and the windowed lifecycle test inside a headless Weston
+compositor (and that test's resize scenario in a second one, at scale 2), and `lychee` (links
+between Markdown files). The individual commands are listed in
+[`AGENTS.md`](AGENTS.md#environment-and-commands) for when you want to run only one of them.
 
 The script also runs clippy for the Windows target, which catches code that does not compile on
 Windows without a Windows machine.
@@ -203,6 +204,11 @@ code.
    the others link to ([one home per fact](AGENTS.md#one-home-per-fact)).
 3. Do not commit code that fails the checks of the
    [definition of done](AGENTS.md#definition-of-done).
+4. A source asset, a glTF, PNG or JPEG file that the asset pipeline imports, is committed with its
+   metadata file, `<file>.meta`, which holds its asset ID
+   ([ADR-0069](docs/adr/0069-the-asset-pipeline.md)): `cargo run -p slime-cook -- scan <directory>`
+   writes one for each new file. Move or rename the two together, so that the asset keeps its ID;
+   a copied file needs its own, so do not copy the metadata file with it.
 
 ## Architecture decisions
 
