@@ -159,6 +159,7 @@ fn a_cooked_scene_is_placed_lit_and_drawn() {
     assert_eq!(instances.len(), 2);
     assert!(std::ptr::eq(instances[0].mesh, instances[1].mesh));
     assert_eq!(instances[1].transform.w_axis.x, 2.0);
+    assert_eq!(loaded.instance_nodes(), [0, 1]);
     assert_eq!(
         loaded.bounds,
         Some((Vec3::new(-0.5, -0.5, 0.0), Vec3::new(2.5, 0.5, 0.0)))

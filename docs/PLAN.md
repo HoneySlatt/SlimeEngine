@@ -26,7 +26,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   renderer loads; the `scene` example draws the cooked sample, and the temporary loader is gone.
   M4a.6 done on 2026-10-15: the zone's 22 source assets, which the owner agreed to, and the zone that
   a Blender script builds from them are listed, mirrored, fetched, cooked and tested; the owner
-  looked at renders of it and chose to refine its look while playing it. Next: M4a.7.
+  looked at renders of it and chose to refine its look while playing it. M4a.7 in progress: the
+  game plays the cooked zone; the owner plays it next, then *Nightwatch* is deleted.
 
 ## Status
 
@@ -38,7 +39,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M4a.4](#m4a4--gltf) | glTF files become cooked meshes, materials and scenes | Done |
 | [M4a.5](#m4a5--the-sample-scene-through-the-pipeline) | The `scene` example draws cooked data; the temporary loader is deleted | Done |
 | [M4a.6](#m4a6--the-zones-sources) | The zone exists as source assets that anyone can fetch and cook | Done |
-| [M4a.7](#m4a7--hunna-wood-by-day) | *Hunna Wood* is played by day; *Nightwatch* is deleted | Planned |
+| [M4a.7](#m4a7--hunna-wood-by-day) | *Hunna Wood* is played by day; *Nightwatch* is deleted | In progress |
 | [M4a.8](#m4a8--night) | The zone by night; resting switches day and night | Planned |
 | [M4a.9](#m4a9--windows-check-documentation-release-02) | 0.2 is released with *Hunna Wood* | Planned |
 

@@ -14,6 +14,14 @@ pub const HERO_RADIUS: f32 = 0.35;
 pub const HERO_SPEED: f32 = 3.0;
 /// How fast the hero turns to face where it moves, in radians per second.
 const HERO_TURN_SPEED: f32 = 10.0;
+/// How near the hero must come to the key's place to take it, in metres: the key lies on a block
+/// the hero walks up to.
+pub const REACH_ITEM: f32 = 1.2;
+/// How near the hero must come to the middle of the door, which stands in a thick wall, to open
+/// it with the key.
+pub const REACH_DOOR: f32 = 2.0;
+/// How near the hero must come to the campfire to rest there.
+pub const REACH_CAMPFIRE: f32 = 2.6;
 
 /// The hero as it is drawn: where it stands, and which way it faces.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -46,12 +54,18 @@ fn turn_towards(from: f32, to: f32, by: f32) -> f32 {
     from + shortest_turn(from, to).clamp(-by, by)
 }
 
-/// A game in progress.
+/// A game in progress: the hero, and the zone's loop, a key that opens a door.
 pub struct Game {
     zone: Zone,
     hero: Hero,
     /// The hero before the last step, so that it is drawn between its last two steps.
     previous_hero: Hero,
+    /// Whether the hero has taken the key.
+    has_item: bool,
+    /// Whether the key has opened the door.
+    door_open: bool,
+    /// The colliders that stop the hero now: the zone's, but the door's once it is open.
+    colliders: Vec<Collider>,
 }
 
 impl Game {
@@ -59,20 +73,47 @@ impl Game {
     pub fn new(zone: Zone) -> Self {
         let start = start(&zone);
         Self {
+            colliders: zone.colliders.clone(),
             zone,
             hero: start,
             previous_hero: start,
+            has_item: false,
+            door_open: false,
         }
     }
 
-    /// Starts a new game in the same zone, as [`Game::new`] does.
+    /// Starts a new game in the same zone, as [`Game::new`] does: the hero at the start, the key
+    /// in its place, the door closed.
     pub fn restart(&mut self) {
         self.hero = start(&self.zone);
         self.previous_hero = self.hero;
+        self.has_item = false;
+        self.door_open = false;
+        self.colliders = self.zone.colliders.clone();
     }
 
     pub fn zone(&self) -> &Zone {
         &self.zone
+    }
+
+    /// Whether the hero has taken the key.
+    pub fn has_item(&self) -> bool {
+        self.has_item
+    }
+
+    /// Whether the key has opened the door.
+    pub fn door_open(&self) -> bool {
+        self.door_open
+    }
+
+    /// The colliders that stop the hero now: the zone's, but the door's once it is open.
+    pub fn colliders(&self) -> &[Collider] {
+        &self.colliders
+    }
+
+    /// Whether the hero is near enough to the campfire to rest there.
+    pub fn can_rest(&self) -> bool {
+        self.hero.position.distance(self.zone.campfire) <= REACH_CAMPFIRE
     }
 
     /// The hero after the last step. The game draws [`Game::hero_between`] instead; the tests read
@@ -95,7 +136,9 @@ impl Game {
 
     /// Plays `step` seconds: the hero moves towards `direction`, on the ground, at the share of
     /// its speed that the direction's length gives, at most 1, stopped by the colliders and the
-    /// zone's edge and sliding along them, and turns to face that direction.
+    /// zone's edge and sliding along them, and turns to face that direction. Then the hero takes
+    /// the key once near it ([`REACH_ITEM`]), and with it opens the door once near it
+    /// ([`REACH_DOOR`]), whose colliders stop it no more.
     pub fn step(&mut self, direction: Vec2, step: f32) {
         self.previous_hero = self.hero;
         let travel = direction.clamp_length_max(1.0) * HERO_SPEED * step;
@@ -104,7 +147,7 @@ impl Game {
         let parts = (travel.length() / (HERO_RADIUS / 2.0)).ceil().max(1.0);
         let part = travel / parts;
         for _ in 0..parts as u32 {
-            let position = push_out(self.hero.position + part, HERO_RADIUS, &self.zone.colliders);
+            let position = push_out(self.hero.position + part, HERO_RADIUS, &self.colliders);
             let inside = self.zone.half_size - HERO_RADIUS;
             self.hero.position = position.clamp(-inside, inside);
         }
@@ -116,6 +159,20 @@ impl Game {
             );
             // Kept from −π to π, however many times the hero turns round.
             self.hero.heading = (heading + PI).rem_euclid(TAU) - PI;
+        }
+        let position = self.hero.position;
+        if !self.has_item && position.distance(self.zone.item) <= REACH_ITEM {
+            self.has_item = true;
+            tracing::info!("the hero takes the key");
+        }
+        if self.has_item && !self.door_open && position.distance(self.zone.door) <= REACH_DOOR {
+            self.door_open = true;
+            let door = &self.zone.door_colliders;
+            self.colliders = (0..self.zone.colliders.len())
+                .filter(|index| !door.contains(index))
+                .map(|index| self.zone.colliders[index])
+                .collect();
+            tracing::info!("the key opens the door");
         }
     }
 }
@@ -155,14 +212,80 @@ mod tests {
     /// The fixed step the game runs at: 1/60 s.
     const STEP: f32 = 1.0 / 60.0;
 
-    /// A large zone of the given colliders, the hero starting at `start` and facing +x.
+    /// A large zone of the given colliders, the hero starting at `start` and facing +x; the key,
+    /// the door and the campfire far away.
     fn zone(start: [f32; 2], colliders: Vec<Collider>) -> Zone {
+        let far = Vec2::splat(1000.0);
         Zone {
             half_size: Vec2::splat(50.0),
             colliders,
             start: Vec2::from(start),
             facing: Vec2::X,
+            item: far,
+            door: far,
+            campfire: far,
+            terrace: far,
+            door_colliders: Vec::new(),
+            item_nodes: Default::default(),
+            door_nodes: Default::default(),
         }
+    }
+
+    /// A zone crossed by a wall along x = 10, but for a door in it at the origin of z, which
+    /// its own collider closes; the key lies on the way, at x = 5.
+    fn walled(item: [f32; 2]) -> Zone {
+        let mut zone = zone(
+            [0.0, 0.0],
+            vec![
+                turned_box([10.0, 0.0], [0.6, 2.0], 0.0),
+                turned_box([10.0, 21.0], [0.6, 40.0], 0.0),
+                turned_box([10.0, -21.0], [0.6, 40.0], 0.0),
+            ],
+        );
+        zone.item = Vec2::from(item);
+        zone.door = Vec2::new(10.0, 0.0);
+        zone.door_colliders = vec![0];
+        zone.campfire = Vec2::new(0.0, -10.0);
+        zone
+    }
+
+    #[test]
+    fn the_key_taken_on_the_way_opens_the_door() {
+        let mut game = Game::new(walled([5.0, 0.0]));
+        hold(&mut game, Vec2::X, 2.0);
+        assert!(game.has_item() && !game.door_open());
+        hold(&mut game, Vec2::X, 4.0);
+        assert!(game.door_open());
+        assert_eq!(game.colliders().len(), 2);
+        assert!(game.hero().position.x > 12.0, "{}", game.hero().position);
+    }
+
+    #[test]
+    fn without_the_key_the_door_stops_the_hero() {
+        let mut game = Game::new(walled([0.0, 30.0]));
+        hold(&mut game, Vec2::X, 6.0);
+        assert!(!game.has_item() && !game.door_open());
+        let x = game.hero().position.x;
+        assert!((x - (9.7 - HERO_RADIUS)).abs() < 1e-4, "{x}");
+    }
+
+    #[test]
+    fn a_restart_puts_back_the_key_and_closes_the_door() {
+        let mut game = Game::new(walled([5.0, 0.0]));
+        hold(&mut game, Vec2::X, 6.0);
+        assert!(game.door_open());
+        game.restart();
+        assert_eq!(game.hero(), start(game.zone()));
+        assert!(!game.has_item() && !game.door_open());
+        assert_eq!(game.colliders(), game.zone().colliders.as_slice());
+    }
+
+    #[test]
+    fn the_hero_rests_only_by_the_campfire() {
+        let mut game = Game::new(walled([0.0, 30.0]));
+        assert!(!game.can_rest());
+        hold(&mut game, -Vec2::Y, 2.8);
+        assert!(game.can_rest(), "{}", game.hero().position);
     }
 
     fn turned_box(center: [f32; 2], size: [f32; 2], yaw: f32) -> Collider {
@@ -394,9 +517,87 @@ mod tests {
         assert_eq!(game.zone(), first.zone());
     }
 
+    /// Walks the hero to each of `waypoints` in turn, (x, z), straight, sliding along what it
+    /// meets; fails if one is not reached within a minute.
+    fn walk(game: &mut Game, waypoints: &[[f32; 2]]) {
+        for &waypoint in waypoints {
+            let waypoint = Vec2::from(waypoint);
+            let mut steps = 0;
+            while game.hero().position.distance(waypoint) > 0.3 {
+                game.step((waypoint - game.hero().position).normalize(), STEP);
+                steps += 1;
+                assert!(
+                    steps < 3600,
+                    "stuck at {} on the way to {waypoint}",
+                    game.hero().position
+                );
+            }
+        }
+    }
+
+    /// The way from the start along the path to the chapel's portal, in the cooked zone.
+    const TO_THE_CHAPEL: [[f32; 2]; 10] = [
+        [0.6, 45.0],
+        [-0.8, 40.0],
+        [0.4, 30.0],
+        [2.0, 23.0],
+        [2.0, 7.0],
+        [0.6, 0.0],
+        [-0.4, -3.5],
+        [-1.6, -8.0],
+        [-1.0, -16.0],
+        [0.0, -22.5],
+    ];
+
     #[test]
-    fn the_hero_stays_on_the_test_ground_and_out_of_its_colliders() {
-        let mut game = Game::new(Zone::test_ground());
+    #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
+    fn a_walk_rests_at_the_campfire_takes_the_key_and_opens_the_door() {
+        let (_, zone) = crate::zone::cooked::zone();
+        let mut game = Game::new(zone);
+        walk(&mut game, &TO_THE_CHAPEL[..7]);
+        // The branch to the campfire, and back.
+        walk(&mut game, &[[-5.0, -4.5], [-9.0, -4.0], [-11.0, -4.0]]);
+        assert!(game.can_rest(), "{}", game.hero().position);
+        walk(&mut game, &[[-5.0, -4.5], [-0.4, -3.5]]);
+        walk(&mut game, &TO_THE_CHAPEL[7..]);
+        assert!(!game.has_item());
+        // Up the nave to the key, then to the door, which it opens, and onto the terrace.
+        walk(&mut game, &[[0.0, -27.0], [0.0, -38.0], [0.8, -41.6]]);
+        assert!(game.has_item() && !game.door_open());
+        walk(&mut game, &[[0.0, -43.4]]);
+        assert!(game.door_open());
+        walk(&mut game, &[[0.0, -46.0], [0.0, -49.0]]);
+        assert!(game.hero().position.distance(game.zone().terrace) < 1.0);
+        // A new game starts from the same state as the first.
+        game.restart();
+        assert_eq!(game.hero(), start(game.zone()));
+        assert!(!game.has_item() && !game.door_open());
+        assert_eq!(game.colliders(), game.zone().colliders.as_slice());
+    }
+
+    #[test]
+    #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
+    fn the_door_stops_the_hero_before_the_key_is_found() {
+        let (_, zone) = crate::zone::cooked::zone();
+        let door = zone.door;
+        let mut game = Game::new(zone);
+        walk(&mut game, &TO_THE_CHAPEL);
+        // Up the west side of the nave, away from the key, to the door, and on against it.
+        walk(&mut game, &[[-0.8, -38.0], [-0.8, -43.3]]);
+        hold(&mut game, -Vec2::Y, 3.0);
+        assert!(!game.has_item() && !game.door_open());
+        assert!(
+            game.hero().position.y > door.y + 0.4,
+            "{}",
+            game.hero().position
+        );
+    }
+
+    #[test]
+    #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
+    fn the_hero_stays_in_the_cooked_zone_and_out_of_its_colliders() {
+        let (_, zone) = crate::zone::cooked::zone();
+        let mut game = Game::new(zone);
         let colliders = game.zone().colliders.clone();
         for direction in [
             -Vec2::Y,

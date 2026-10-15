@@ -26,10 +26,7 @@ def body(sources):
     obj.modifiers.clear()
     obj.data = obj.data.copy()
     obj.matrix_world = Matrix.Rotation(math.pi, 4, "Z") @ obj.matrix_world
-    bpy.context.view_layer.objects.active = obj
-    obj.select_set(True)
-    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-    obj.select_set(False)
+    common.apply_transform(obj)
     lower_arms(obj)
     low = min(v.co.z for v in obj.data.vertices)
     for v in obj.data.vertices:

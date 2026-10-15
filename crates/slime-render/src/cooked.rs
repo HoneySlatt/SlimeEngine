@@ -41,11 +41,13 @@ pub enum SceneError {
     },
 }
 
-/// A placed mesh: indices into the scene's meshes and materials, and its transform.
+/// A placed mesh: indices into the scene's meshes and materials, its transform, and the node that
+/// places it.
 struct Placement {
     mesh: usize,
     material: usize,
     transform: Mat4,
+    node: usize,
 }
 
 /// A cooked scene on the GPU ([`Renderer::load_scene`]): its meshes and materials, which keep
@@ -76,6 +78,16 @@ impl LoadedScene {
                     placement.transform,
                 )
             })
+            .collect()
+    }
+
+    /// The node that places each of [`LoadedScene::instances`], in the same order: an index into
+    /// `scene.nodes`, so that a game can leave out or move what some nodes place, such as a door
+    /// that opens.
+    pub fn instance_nodes(&self) -> Vec<usize> {
+        self.placements
+            .iter()
+            .map(|placement| placement.node)
             .collect()
     }
 }
@@ -162,6 +174,7 @@ impl Renderer {
                     mesh,
                     material,
                     transform,
+                    node: index,
                 });
             }
             if let Some(light) = node.light {

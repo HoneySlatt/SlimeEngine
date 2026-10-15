@@ -40,7 +40,7 @@ Nix, and the setup on Windows. Then:
 cargo build --workspace
 cargo test --workspace
 cargo run --example window   # the examples are listed in examples/README.md
-cargo run -p hunnawood       # the game, games/hunnawood/README.md
+cargo run -p hunnawood       # the game, once its zone is cooked: games/hunnawood/README.md
 cargo run -p nightwatch      # the first game, until Stage 4a deletes it
 scripts/check.sh             # every check, exactly as CI runs them (Linux only)
 ```

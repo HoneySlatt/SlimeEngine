@@ -241,8 +241,5 @@ def drum(x, y, yaw, stone):
     obj = prism("drum", (0.0, 0.0), 0.38, -0.45, 0.45, stone)
     obj.rotation_euler = (math.pi / 2, 0.0, yaw)
     obj.location = (x, y, 0.36)
-    bpy.context.view_layer.objects.active = obj
-    obj.select_set(True)
-    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-    obj.select_set(False)
+    common.apply_transform(obj)
     return obj

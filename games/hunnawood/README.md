@@ -8,50 +8,61 @@ person, in a dark-fantasy world: the sample that every stage grows, since Stage 
 ## The game
 
 Stage 4a makes one zone of the game's starting region, a forest path, which the hero explores by day
-and by night ([`docs/PLAN.md`](../../docs/PLAN.md#stage-4a--cooked-assets)). The zone is made and
-cooked ([below](#the-zone)), but the game does not load it yet: until it does, the game is played
-on a test ground built in code, a flat square of ground 40 m wide, under an overcast sky, where the
-hero walks among the pieces of a ruined wall, a fallen block, a colonnade of four pillars and the
-trunks of a few trees, all shapes made in code.
+and, from M4a.8, by night ([`docs/PLAN.md`](../../docs/PLAN.md#stage-4a--cooked-assets)). The game
+reads it from cooked data ([below](#the-zone)). The hero starts in the south, under an overcast sky,
+and follows the path through the forest, over a stone bridge, past a campfire in a clearing, to a
+ruined chapel. In the nave lies an old key: the hero takes it on walking up to it. The key opens the
+sealed door in the chapel's north wall, which opens as the hero comes to it, onto a terrace that
+looks over the valley towards the region's capital. Without the key, the door does not move. By
+the campfire, the hero can rest.
 
-The hero is a stand-in for now: a dark body, a head, and a face on the side it looks to. It moves
-relative to the camera, which stays behind it and a little above, turns to face where it moves,
-and is stopped by the ruins, the pillars, the trunks and the edge of the ground, sliding along
-them. When one of them stands between the camera and the hero, the camera comes nearer, in front of
-it.
+The hero moves relative to the camera, which stays behind it and a little above, turns to face
+where it moves, and is stopped by trees, rocks, walls and the edge of the zone, sliding along them.
+When one of them stands between the camera and the hero, the camera comes nearer, in front of it.
 
 There is no combat, dialogue, physics, animation or sound: the engine has none of them yet. The
-game moves the hero on its own, on a flat ground, without jumping.
+hero is a still figure that glides on a flat ground, without jumping; no text tells the player
+what happens, which the log says (`SLIME_LOG=info`).
 
 ## Playing
 
+The game needs its zone cooked first, from the repository's root ([its assets](#its-assets)):
+
 ```sh
+scripts/fetch-assets.sh zone/
+cargo run --release -p slime-cook -- cook games/hunnawood/assets/zone target/cooked/hunnawood
 cargo run -p hunnawood                     # play
 cargo run -p hunnawood -- --frames 120     # closes itself after 120 frames
+cargo run -p hunnawood -- --assets <dir>   # reads the cooked data of another directory
 ```
+
+Without `--assets`, it reads `hunnawood` beside the program if that directory holds a manifest, as
+where CI ships it, and `target/cooked/hunnawood` otherwise.
 
 | Key | Does |
 |---|---|
 | W, A, S, D (Z, Q, S, D on a French keyboard) | Move, relative to the camera |
 | Left and right arrows | Turn the camera around the hero |
-| R | Start again |
+| E | Rest, by the campfire |
+| R | Start again: the hero at the start, the key in its place, the door closed |
 | F1 | Show or hide what each frame costs, in the engine's dev overlay |
 | Escape | Quit |
 
 Keys are read by their position on the keyboard, so that the four movement keys sit in the same
 place on every layout. CI builds the game for Windows with the examples: `hunnawood.exe` is in the
-`slime-examples-windows` artifact of each run.
+`slime-examples-windows` artifact of each run, with its cooked zone beside it.
 
 ## How it is made
 
 | Module | What it holds |
 |---|---|
 | `main.rs` | The application: the window, the game's loop through `slime_app::App`, the command line |
-| `rules.rs` | The rules, without the GPU: the hero's movement, its heading, and its collisions, as a circle on the ground against the zone's colliders and edge |
-| `zone.rs` | The zone: its ground, its colliders, boxes turned about the vertical and cylinders, and where the hero starts; the test ground; the tests of the cooked zone |
+| `assets.rs` | Where the cooked data is, and the IDs of the zone and the hero, from their metadata files |
+| `rules.rs` | The rules, without the GPU: the hero's movement, its heading, and its collisions, as a circle on the ground against the zone's colliders and edge; the key, the door and the campfire |
+| `zone.rs` | The zone, read from the cooked scene: its ground, its colliders, boxes turned about the vertical and cylinders, where the hero starts, and the places of the key, the door and the campfire; the tests of the cooked zone |
 | `controls.rs` | Which of the game's keys are held |
 | `camera.rs` | The camera that follows the hero, coming nearer when a collider would stand between them |
-| `view.rs` | What the player sees: the renderer, the engine's cube and sphere and a cylinder made here, the materials, the overcast sky and the sun behind its clouds, the hero's stand-in |
+| `view.rs` | What the player sees: the renderer, the cooked zone and hero, the overcast sky and the zone's sun behind its clouds |
 | `statistics.rs` | The dev overlay that shows what each frame costs |
 
 The rules run at the engine's fixed step, 1/60 s, so that a game plays the same on every machine;
@@ -59,13 +70,13 @@ the hero is drawn between its last two steps, by the share of a step that the fr
 last one (`Context::fixed_step_alpha`), so that it moves smoothly at any frame rate, and the camera
 turns at the frame's rate. The rules need no GPU, so that their tests run anywhere. A move is made
 in parts of at most half the hero's radius, each pushed out of the colliders it overlaps, so that no
-step carries the hero through a thin collider or past a corner.
+step carries the hero through a thin collider or past a corner. The view leaves out what the zone's
+nodes under the key's and the door's markers place once the key is taken and the door open
+(`LoadedScene::instance_nodes`).
 
 The game keeps the workarounds that *Nightwatch* found for what the engine does not give yet: it
 keeps the keys held, its own collisions, and the hero's previous position
-([ADR-0057](../../docs/adr/0057-what-the-first-game-asks-of-the-next-stages.md)). The engine's
-simple shapes include no cylinder, so `view.rs` makes one for the test ground's pillars and trunks
-and the hero's stand-in, until the zone's models replace them.
+([ADR-0057](../../docs/adr/0057-what-the-first-game-asks-of-the-next-stages.md)).
 
 ## Its assets
 
@@ -152,19 +163,21 @@ of the scene's nodes, which the cooker passes on as their `extras`:
 - **Lights**: `time` is `"day"` or `"night"`: the sun by day; by night, the moon, a spot light in
   each lantern, which casts shadows, and the campfire's point light.
 
-Tests in `src/zone.rs` read the cooked zone: one marker of each kind, a start clear of every
-collider, a hero who walks from the start to the key and the campfire but not to the terrace until
-the door opens, and the zone within its budgets, which
-[`docs/PLAN.md`](../../docs/PLAN.md#m4a6--the-zones-sources) sets. They need the cooked zone, so
-`cargo test` leaves them out: `scripts/check.sh` fetches and cooks it, then runs them, and after the
-commands above, `cargo test -p hunnawood -- --ignored` does.
+Tests read the cooked zone. In `src/zone.rs`: one marker of each kind, a start clear of every
+collider, the key and the campfire within reach, the terrace not until the door opens, and the zone
+within its budgets, which [`docs/PLAN.md`](../../docs/PLAN.md#m4a6--the-zones-sources) sets. In
+`src/rules.rs`: a walk along the path that rests by the campfire, takes the key, opens the door and
+reaches the terrace, then starts again from the same state; a walk to the door without the key,
+which it stops. They need the cooked zone, so `cargo test` leaves them out: `scripts/check.sh`
+fetches and cooks it, then runs them, and after the commands above,
+`cargo test -p hunnawood -- --ignored` does.
 
 ## Dependencies
 
 The engine's crates only: `slime-app`, `slime-gfx`, `slime-platform`, `slime-render`, and
 `slime-devui` for the dev overlay, engine tooling that turns `slime-gfx`'s `wgpu` feature on for
-itself (the game uses no wgpu type); and `tracing` for the log. Its tests read the cooked zone with
-`slime-assets`.
+itself (the game uses no wgpu type); `slime-assets`, which reads the cooked zone; and `tracing` for
+the log.
 
 ## Must not
 

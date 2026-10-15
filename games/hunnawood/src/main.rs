@@ -2,14 +2,21 @@
 //! dark-fantasy world. The sample that every stage grows (ADR-0067); `README.md` beside this crate
 //! describes what can be played.
 //!
+//! It reads its zone and its hero from cooked data, which the asset pipeline makes first (see
+//! `README.md`):
+//!
 //! ```sh
+//! scripts/fetch-assets.sh zone/
+//! cargo run --release -p slime-cook -- cook games/hunnawood/assets/zone target/cooked/hunnawood
 //! cargo run -p hunnawood                     # play
 //! cargo run -p hunnawood -- --frames 120     # closes itself after 120 frames
+//! cargo run -p hunnawood -- --assets <dir>   # reads the cooked data of another directory
 //! ```
 //!
 //! W, A, S and D move (Z, Q, S and D on a French keyboard), the left and right arrows turn the
-//! camera, R starts again, F1 shows what each frame costs, Escape quits.
+//! camera, E rests by the campfire, R starts again, F1 shows what each frame costs, Escape quits.
 
+mod assets;
 mod camera;
 mod controls;
 mod rules;
@@ -17,11 +24,13 @@ mod statistics;
 mod view;
 mod zone;
 
+use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::Duration;
 
 use slime_app::time::FrameTime;
 use slime_app::{App, AppConfig, AppError, Context};
+use slime_assets::CookedAssets;
 use slime_gfx::RenderTarget;
 use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, WindowConfig};
 use slime_render::RenderStats;
@@ -33,10 +42,12 @@ use statistics::Statistics;
 use view::View;
 use zone::Zone;
 
-const USAGE: &str = "usage: hunnawood [--frames <count>]";
+const USAGE: &str = "usage: hunnawood [--assets <directory>] [--frames <count>]";
 
 /// The game: its rules, the keys held, the camera, and what draws them once the window is open.
 struct HunnaWood {
+    /// The cooked data, which the view loads its GPU objects from once the window is open.
+    assets: CookedAssets,
     game: Game,
     controls: Controls,
     camera: FollowCamera,
@@ -53,8 +64,9 @@ struct HunnaWood {
 }
 
 impl HunnaWood {
-    fn new(zone: Zone, must_draw: bool) -> Self {
+    fn new(assets: CookedAssets, zone: Zone, must_draw: bool) -> Self {
         Self {
+            assets,
             camera: FollowCamera::looking_along(zone.facing),
             game: Game::new(zone),
             controls: Controls::default(),
@@ -74,7 +86,7 @@ impl App for HunnaWood {
         else {
             return Err("Hunna Wood needs a window".into());
         };
-        self.view = Some(View::new(gpu, format)?);
+        self.view = Some(View::new(gpu, format, &self.assets)?);
         self.statistics = Some(Statistics::new(gpu, format, window.scale_factor()));
         Ok(())
     }
@@ -99,6 +111,9 @@ impl App for HunnaWood {
                 KeyCode::KeyR => {
                     self.game.restart();
                     self.camera = FollowCamera::looking_along(self.game.zone().facing);
+                }
+                KeyCode::KeyE if self.game.can_rest() => {
+                    tracing::info!("the hero rests by the campfire");
                 }
                 KeyCode::F1 => {
                     if let Some(statistics) = &mut self.statistics {
@@ -131,9 +146,7 @@ impl App for HunnaWood {
         // after the last one.
         let alpha = ctx.fixed_step_alpha() as f32;
         let hero = self.game.hero_between(alpha);
-        let camera = self
-            .camera
-            .camera(hero.position, &self.game.zone().colliders);
+        let camera = self.camera.camera(hero.position, self.game.colliders());
         match view.draw(gpu, target, &self.game, alpha, camera) {
             Ok(stats) => {
                 self.stats = stats;
@@ -170,11 +183,33 @@ impl App for HunnaWood {
 }
 
 fn main() -> ExitCode {
-    let frame_limit = match parse_options() {
-        Ok(frame_limit) => frame_limit,
+    let options = match parse_options() {
+        Ok(options) => options,
         Err(message) => {
             eprintln!("{message}\n{USAGE}");
             return ExitCode::from(2);
+        }
+    };
+    let frame_limit = options.frame_limit;
+    // The zone's colliders and places come from the cooked scene, before the window opens.
+    let directory = options.assets.unwrap_or_else(assets::default_directory);
+    let loaded = CookedAssets::open(&directory)
+        .map_err(|error| error.to_string())
+        .and_then(|cooked| {
+            let scene = cooked
+                .scene(assets::zone_id())
+                .map_err(|error| error.to_string())?;
+            Ok((cooked, Zone::from_scene(&scene)?))
+        });
+    let (cooked, zone) = match loaded {
+        Ok(loaded) => loaded,
+        Err(error) => {
+            eprintln!(
+                "cannot read the cooked zone in {}: {error}\n{}",
+                directory.display(),
+                assets::HOW_TO_COOK
+            );
+            return ExitCode::FAILURE;
         }
     };
     let config = AppConfig {
@@ -185,10 +220,7 @@ fn main() -> ExitCode {
         frame_limit,
         ..AppConfig::default()
     };
-    let mut game = HunnaWood::new(
-        Zone::test_ground(),
-        frame_limit.is_some_and(|limit| limit > 0),
-    );
+    let mut game = HunnaWood::new(cooked, zone, frame_limit.is_some_and(|limit| limit > 0));
     match slime_app::run(&mut game, &config) {
         Ok(()) => ExitCode::SUCCESS,
         // `run` has logged the error with its causes.
@@ -196,22 +228,34 @@ fn main() -> ExitCode {
     }
 }
 
-/// The number of frames after which the game closes itself, if `--frames` gives one.
-fn parse_options() -> Result<Option<u64>, String> {
-    let mut frame_limit = None;
+/// The command line's options.
+#[derive(Default)]
+struct Options {
+    /// The directory of cooked data to read, if `--assets` gives one.
+    assets: Option<PathBuf>,
+    /// The number of frames after which the game closes itself, if `--frames` gives one.
+    frame_limit: Option<u64>,
+}
+
+fn parse_options() -> Result<Options, String> {
+    let mut options = Options::default();
     let mut arguments = std::env::args_os().skip(1);
     while let Some(argument) = arguments.next() {
         match argument.to_str() {
+            Some("--assets") => {
+                let value = arguments.next().ok_or("--assets needs a directory")?;
+                options.assets = Some(PathBuf::from(value));
+            }
             Some("--frames") => {
                 let value = arguments.next().ok_or("--frames needs a value")?;
                 let count = value
                     .to_str()
                     .and_then(|value| value.parse().ok())
                     .ok_or_else(|| format!("invalid frame count `{}`", value.display()))?;
-                frame_limit = Some(count);
+                options.frame_limit = Some(count);
             }
             _ => return Err(format!("unknown argument `{}`", argument.display())),
         }
     }
-    Ok(frame_limit)
+    Ok(options)
 }

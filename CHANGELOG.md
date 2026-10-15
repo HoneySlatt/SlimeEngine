@@ -10,10 +10,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 - *Hunna Wood*, the game that replaces *Nightwatch* as the sample every stage grows, in
   `games/hunnawood` ([ADR-0067](docs/adr/0067-hunna-wood-replaces-nightwatch.md)): a role-playing
-  game seen in the third person, so far a test ground under an overcast sky, where a stand-in for
-  the hero walks among the pieces of a ruined wall, pillars and trunks, stopped by them and sliding
-  along them, under a camera that follows it and comes nearer when one of them stands in between.
-  `cargo run -p hunnawood` plays it; CI builds it for Windows with the examples.
+  game seen in the third person, whose hero walks the zone below, stopped by what stands in it and
+  sliding along it, under a camera that follows it and comes nearer when something stands in
+  between. `cargo run -p hunnawood` plays it; CI builds it for Windows with the examples.
 - The asset pipeline's first two crates ([ADR-0069](docs/adr/0069-the-asset-pipeline.md)):
   `slime-assets`, whose `AssetId` names an asset by a UUID that stays the same when its source file
   moves, and the cooker, `slime-cook`, whose `scan` command gives each glTF, PNG or JPEG source file
@@ -52,7 +51,15 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   item, the door, the campfire) and lights of day and night are custom properties of its nodes,
   which the game reads from the cooked data. `scripts/check.sh` fetches and cooks it, and checks
   that the hero can reach the item and the campfire, but not what the door closes, and that the
-  zone keeps within its budgets. The game does not load it yet.
+  zone keeps within its budgets.
+- *Hunna Wood* is played in that zone: it reads its colliders, its places and its lights from the
+  cooked scene, and draws the zone and the hero as cooked. The hero takes the key on walking up to
+  it, the key opens the sealed door, E rests by the campfire, and R starts again from the same
+  state. The game needs its zone fetched and cooked first, which its README explains; `--assets`
+  reads another directory of cooked data, and the Windows programs that CI builds hold the zone
+  cooked beside `hunnawood.exe`.
+- `LoadedScene::instance_nodes` gives the node that places each instance, so that a game can leave
+  out what some nodes place, such as a door that opens.
 - *Nightwatch*, the first game made with the engine, through its public API only, in
   `games/nightwatch` ([ADR-0055](docs/adr/0055-games-in-the-workspace.md)): so far, a courtyard at
   night under the moon, which the player, a small glowing slime, crosses with the keyboard, stopped

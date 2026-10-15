@@ -293,3 +293,14 @@ def light(name, kind, time, location, direction, color, value, cone=None, radius
 def rng(seed):
     return random.Random(seed)
 
+
+
+def apply_transform(obj):
+    """Bakes `obj`'s location, rotation and scale into its mesh. The operator works on every
+    selected object, and new empties are left selected: everything else is deselected first, or
+    the colliders made before would lose their places."""
+    bpy.ops.object.select_all(action="DESELECT")
+    bpy.context.view_layer.objects.active = obj
+    obj.select_set(True)
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    obj.select_set(False)

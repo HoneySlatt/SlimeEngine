@@ -13,13 +13,11 @@ workspace = true
 # The engine's crates, through their public API only (ADR-0055).
 [dependencies]
 slime-app.workspace = true
+# The cooked zone and hero, which the game reads by ID.
+slime-assets.workspace = true
 # The engine's dev overlay, for the frame's statistics on F1: tooling.
 slime-devui.workspace = true
 slime-gfx.workspace = true
 slime-platform.workspace = true
 slime-render.workspace = true
 tracing.workspace = true
-
-# The tests of the cooked zone read it with the engine's cooked data.
-[dev-dependencies]
-slime-assets.workspace = true

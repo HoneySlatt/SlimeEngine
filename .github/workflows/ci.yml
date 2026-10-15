@@ -83,19 +83,38 @@ jobs:
           cargo build --locked --release -p hunnawood -p nightwatch
         env:
           RUSTFLAGS: -C target-feature=+crt-static
+      # The sample game's zone, fetched from its mirror and kept between runs while its list is
+      # unchanged, then cooked for the tests that read it and for the game that CI ships
+      # (docs/adr/0070-the-sample-games-source-assets.md). The cooker is built as the examples were
+      # above, which already built its library.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            games/hunnawood/assets/zone
+            !games/hunnawood/assets/zone/**/*.meta
+          key: hunnawood-zone-${{ hashFiles('games/hunnawood/assets/sources.tsv') }}
+      - name: Fetch and cook the sample game's zone
+        run: |
+          scripts/fetch-assets.sh zone/
+          cargo run --locked --release -p slime-cook -- cook games/hunnawood/assets/zone target/cooked/hunnawood
+        env:
+          RUSTFLAGS: -C target-feature=+crt-static
+      - name: The tests that read the sample game's zone
+        run: cargo test --locked -p hunnawood -- --ignored
       - name: Check that the examples and the games do not import the Visual C++ runtime
         run: |
           if grep -l -a -i 'vcruntime140' target/release/examples/*.exe target/release/{hunnawood,nightwatch}.exe; then
             echo 'these programs import VCRUNTIME140.dll'
             exit 1
           fi
-      - name: Gather the programs for checks by hand, with DXC beside them and the sample cooked
+      - name: Gather the programs for checks by hand, with DXC beside them and their data cooked
         run: |
           mkdir -p target/windows
           cp target/release/examples/{hello,headless,window,offscreen,scene}.exe target/windows/
           cp target/release/{hunnawood,nightwatch}.exe target/windows/
           scripts/fetch-dxc.sh target/windows
           cargo run --locked -p slime-cook -- cook examples/assets target/windows/assets
+          cp -r target/cooked/hunnawood target/windows/hunnawood
       # The offscreen sample's log says which compiler Direct3D 12 took: DXC, beside it.
       - name: Run the headless samples of the release build
         run: |
