@@ -404,8 +404,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   smaller and four times as many at M4b.8 changed it little: the day's shadow pass took 6.0 s
   instead of 6.2 s, in a release build. Leaves that cast no shadow in the farther cascades would
   lower it, to measure with views of the zone.
-- **The tests of the cooked zone run in `scripts/check.sh` only**: they need the zone fetched and
-  cooked, so `cargo test` leaves them out (`#[ignore]`), and CI runs them on Linux, not on Windows.
+- **`cargo test` leaves out the tests of the cooked zone**: they need the zone fetched and cooked,
+  so they are ignored (`#[ignore]`); `scripts/check.sh` and CI's Windows job fetch and cook the
+  zone, then run them (`cargo test -p hunnawood -- --ignored`).
 - **Frames are not synchronized with the display's refresh** (ADR-0021; issue
   [#1](https://github.com/HoneySlatt/SlimeEngine/issues/1)). With Mailbox, the default, the
   schedule alone paces frames: on a 60 Hz display, an image is now and then shown twice while the
