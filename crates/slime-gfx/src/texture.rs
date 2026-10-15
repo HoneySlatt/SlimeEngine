@@ -63,7 +63,7 @@ impl Gpu {
     ///
     /// # Panics
     ///
-    /// If `format` is `Rgba16Float`, whose textures take levels the caller gives
+    /// If `format` is `Rgba16Float` or block-compressed, whose textures take levels the caller gives
     /// ([`Gpu::create_texture_with_levels`]); if `width` or `height` is
     /// zero or larger than the device allows ([`Gpu::max_texture_dimension`], 8192 with the
     /// default limits); or if `pixels` does not hold `width * height * 4` bytes.
@@ -76,8 +76,8 @@ impl Gpu {
         pixels: &[u8],
     ) -> Result<Texture, GfxError> {
         assert!(
-            format != TextureFormat::Rgba16Float,
-            "texture `{label}`: Rgba16Float textures take levels given by the caller \
+            format != TextureFormat::Rgba16Float && !format.is_block_compressed(),
+            "texture `{label}`: {format:?} textures take levels given by the caller \
              (Gpu::create_texture_with_levels)"
         );
         let expected = width as usize * height as usize * 4;
@@ -111,19 +111,24 @@ impl Gpu {
     /// levels than down to one pixel, but at least one. Each level holds its rows from top to
     /// bottom, in the byte order of `format`: 4 bytes per pixel for the 8-bit formats, 8 for
     /// `Rgba16Float`, whose channels are half-precision floats, little-endian, as
-    /// [`f32_to_f16`](crate::f32_to_f16) gives them. Sampled like the textures of
+    /// [`f32_to_f16`](crate::f32_to_f16) gives them. A block-compressed format holds rows of blocks
+    /// of 4 × 4 texels instead, 16 bytes each, a level's width and height rounded up to whole
+    /// blocks: a level of 2 × 1 texels is one block. Sampled like the textures of
     /// [`Gpu::create_texture`]; a sampler reads no level beyond the last given.
     ///
     /// # Errors
     ///
     /// [`GfxError::OutOfMemory`] if the GPU's memory cannot hold it, and [`GfxError::DeviceLost`]
     /// once the device is lost ([`Gpu::check`]): nothing is created then.
+    /// [`GfxError::UnsupportedTexture`] for a block-compressed format on a GPU that cannot sample
+    /// it ([`Gpu::can_sample_bc`]).
     ///
     /// # Panics
     ///
     /// If `width` or `height` is zero or larger than the device allows
-    /// ([`Gpu::max_texture_dimension`]), if `levels` is empty or has more levels than down to one
-    /// pixel, or if a level does not hold exactly its pixels' bytes.
+    /// ([`Gpu::max_texture_dimension`]), or, for a block-compressed format, not a multiple of 4; if
+    /// `levels` is empty or has more levels than down to one pixel; or if a level does not hold
+    /// exactly its bytes.
     pub fn create_texture_with_levels(
         &self,
         label: &str,
@@ -194,11 +199,19 @@ impl Gpu {
              were given",
             levels.len()
         );
-        let texel_size = format.texel_size();
+        if format.is_block_compressed() {
+            assert!(
+                width.is_multiple_of(4) && height.is_multiple_of(4),
+                "texture `{label}` is {width}x{height}: a texture of {format:?} is a whole number \
+                 of blocks of 4x4 texels"
+            );
+            supports_bc(self.can_sample_bc(), self.adapter_name(), label)?;
+        }
         let level_size = |index: usize| ((width >> index).max(1), (height >> index).max(1));
         for (index, bytes) in levels.iter().enumerate() {
             let (level_width, level_height) = level_size(index);
-            let expected = (level_width * level_height * layers * texel_size) as usize;
+            let (row, rows) = format.rows(level_width, level_height);
+            let expected = (row * rows * layers) as usize;
             assert!(
                 bytes.len() == expected,
                 "level {index} of texture `{label}` is {level_width}x{level_height}x{layers} and \
@@ -224,6 +237,17 @@ impl Gpu {
         })?;
         for (index, bytes) in levels.iter().enumerate() {
             let (level_width, level_height) = level_size(index);
+            let (row, rows) = format.rows(level_width, level_height);
+            // A level of a block-compressed format smaller than a block is copied as the whole
+            // block, which wgpu sizes it to.
+            let (level_width, level_height) = if format.is_block_compressed() {
+                (
+                    level_width.next_multiple_of(4),
+                    level_height.next_multiple_of(4),
+                )
+            } else {
+                (level_width, level_height)
+            };
             // Unlike copies recorded in a command encoder, this write needs no row alignment.
             self.queue.write_texture(
                 wgpu::TexelCopyTextureInfo {
@@ -235,8 +259,8 @@ impl Gpu {
                 bytes,
                 wgpu::TexelCopyBufferLayout {
                     offset: 0,
-                    bytes_per_row: Some(level_width * texel_size),
-                    rows_per_image: Some(level_height),
+                    bytes_per_row: Some(row),
+                    rows_per_image: Some(rows),
                 },
                 wgpu::Extent3d {
                     width: level_width,
@@ -261,6 +285,30 @@ impl Gpu {
             width,
             height,
             format,
+        })
+    }
+}
+
+impl Gpu {
+    /// Whether the GPU can sample textures of the block-compressed formats
+    /// ([`TextureFormat::is_block_compressed`]): whether it has BC texture compression. Every desktop
+    /// GPU of Linux and Windows has it, and lavapipe and WARP too; `crates/slime-gfx/tests/blocks.rs`
+    /// checks it on the drivers the tests run on.
+    pub fn can_sample_bc(&self) -> bool {
+        self.device
+            .features()
+            .contains(wgpu::Features::TEXTURE_COMPRESSION_BC)
+    }
+}
+
+/// Refuses the block-compressed texture `label` on the GPU `adapter` when it `can_sample` none.
+fn supports_bc(can_sample: bool, adapter: &str, label: &str) -> Result<(), GfxError> {
+    if can_sample {
+        Ok(())
+    } else {
+        Err(GfxError::UnsupportedTexture {
+            adapter: adapter.to_owned(),
+            label: label.to_owned(),
         })
     }
 }
@@ -380,6 +428,16 @@ fn unit_to_byte(value: f32) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_gpu_without_bc_compression_is_named_when_it_refuses_a_compressed_texture() {
+        assert!(supports_bc(true, "RX", "rock").is_ok());
+        let error = supports_bc(false, "Old GPU", "rock").expect_err("refused");
+        assert_eq!(
+            error.to_string(),
+            "the GPU `Old GPU` cannot sample `rock`, a texture compressed in BC blocks"
+        );
+    }
 
     #[test]
     fn a_level_averages_four_pixels_in_linear_light() {

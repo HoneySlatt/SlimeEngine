@@ -35,19 +35,57 @@ pub enum TextureFormat {
     /// [`Gpu::create_cube_texture`]), not by [`Gpu::create_texture`], whose levels are computed
     /// from 8-bit pixels.
     Rgba16Float,
+    /// Red, green, blue and alpha in BC7 blocks of 4 × 4 texels, 16 bytes each, one byte per texel,
+    /// with sRGB encoding: textures of colors made by the asset pipeline's cooker, which shaders read
+    /// decoded to linear values. Textures only, from levels the caller gives
+    /// ([`Gpu::create_texture_with_levels`]), on GPUs that can sample them ([`Gpu::can_sample_bc`]).
+    Bc7RgbaUnormSrgb,
+    /// The same blocks, linear: textures of data that are not colors.
+    Bc7RgbaUnorm,
+    /// Red and green in BC5 blocks of 4 × 4 texels, 16 bytes each, linear: two channels of 8 bits
+    /// each, compressed apart, which shaders read with blue 0 and alpha 1; the cooker stores the x and
+    /// y of normal maps in them.
+    Bc5RgUnorm,
 }
 
 impl TextureFormat {
     /// Whether the format is sRGB-encoded, so that shaders write and read linear values.
     pub fn is_srgb(self) -> bool {
-        matches!(self, Self::Rgba8UnormSrgb | Self::Bgra8UnormSrgb)
+        matches!(
+            self,
+            Self::Rgba8UnormSrgb | Self::Bgra8UnormSrgb | Self::Bc7RgbaUnormSrgb
+        )
     }
 
-    /// The size of a texel in bytes: 4, or 8 for `Rgba16Float`.
+    /// Whether the format stores blocks of 4 × 4 texels rather than texels: the BC formats, which
+    /// only textures take, never render targets.
+    pub fn is_block_compressed(self) -> bool {
+        matches!(
+            self,
+            Self::Bc7RgbaUnormSrgb | Self::Bc7RgbaUnorm | Self::Bc5RgUnorm
+        )
+    }
+
+    /// The bytes of one row of an image of `width` × `height` texels in this format, and its rows:
+    /// rows of texels, or for the block-compressed formats rows of blocks, each 4 texels high, the
+    /// width and the height rounded up to whole blocks.
+    pub(crate) fn rows(self, width: u32, height: u32) -> (u32, u32) {
+        if self.is_block_compressed() {
+            (width.div_ceil(4) * 16, height.div_ceil(4))
+        } else {
+            (width * self.texel_size(), height)
+        }
+    }
+
+    /// The size of a texel in bytes: 4, or 8 for `Rgba16Float`; the block-compressed formats have
+    /// none (see [`TextureFormat::rows`]).
     pub(crate) fn texel_size(self) -> u32 {
         match self {
             Self::Rgba16Float => 8,
             Self::Rgba8UnormSrgb | Self::Bgra8UnormSrgb | Self::Rgba8Unorm => 4,
+            Self::Bc7RgbaUnormSrgb | Self::Bc7RgbaUnorm | Self::Bc5RgUnorm => {
+                unreachable!("{self:?} stores blocks of texels, not texels")
+            }
         }
     }
 
@@ -63,6 +101,9 @@ impl TextureFormat {
             Self::Bgra8UnormSrgb => wgpu::TextureFormat::Bgra8UnormSrgb,
             Self::Rgba8Unorm => wgpu::TextureFormat::Rgba8Unorm,
             Self::Rgba16Float => wgpu::TextureFormat::Rgba16Float,
+            Self::Bc7RgbaUnormSrgb => wgpu::TextureFormat::Bc7RgbaUnormSrgb,
+            Self::Bc7RgbaUnorm => wgpu::TextureFormat::Bc7RgbaUnorm,
+            Self::Bc5RgUnorm => wgpu::TextureFormat::Bc5RgUnorm,
         }
     }
 
@@ -137,7 +178,7 @@ impl Gpu {
     /// # Panics
     ///
     /// If `width` or `height` is zero or larger than the device allows (8192 with the default
-    /// limits).
+    /// limits), or if `format` is block-compressed ([`TextureFormat::is_block_compressed`]).
     pub fn create_render_target(
         &self,
         label: &str,
@@ -207,6 +248,10 @@ impl Gpu {
         sample_count: u32,
         usage: wgpu::TextureUsages,
     ) -> Result<RenderTarget, GfxError> {
+        assert!(
+            !format.is_block_compressed(),
+            "render target `{label}`: {format:?} stores blocks of texels, which only textures take"
+        );
         let texture = self.create(label, || {
             self.device.create_texture(&wgpu::TextureDescriptor {
                 label: Some(label),

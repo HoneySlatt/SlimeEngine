@@ -81,4 +81,15 @@ pub enum GfxError {
         #[source]
         source: Source,
     },
+    /// The GPU cannot sample the texture's format: a block-compressed format
+    /// ([`TextureFormat::is_block_compressed`](crate::TextureFormat::is_block_compressed)) on a GPU
+    /// without BC texture compression, which every desktop GPU of Linux and Windows has, and which
+    /// the asset pipeline's cooked textures use (`docs/adr/0069-the-asset-pipeline.md`).
+    #[error("the GPU `{adapter}` cannot sample `{label}`, a texture compressed in BC blocks")]
+    UnsupportedTexture {
+        /// The GPU, as the driver names it.
+        adapter: String,
+        /// The label given to the texture.
+        label: String,
+    },
 }

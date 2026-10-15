@@ -22,3 +22,7 @@ raw-window-handle = { workspace = true, features = ["alloc"] }
 thiserror.workspace = true
 tracing.workspace = true
 wgpu.workspace = true
+
+[dev-dependencies]
+# Encodes and decodes the BC blocks of the tests of compressed textures (`tests/blocks.rs`).
+block_compression.workspace = true

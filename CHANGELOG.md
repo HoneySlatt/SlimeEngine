@@ -20,6 +20,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   an ID in a metadata file beside it, `<file>.meta`, and whose `check` command, which the checks
   run, refuses a source file without one, a metadata file left without its source, and two that
   hold one ID.
+- `slime-gfx` creates textures from blocks of BC7 and BC5 compression, a quarter of the memory of
+  8-bit texels for BC7: `TextureFormat::Bc7RgbaUnormSrgb`, `Bc7RgbaUnorm` and `Bc5RgUnorm`, from
+  levels the caller gives (`Gpu::create_texture_with_levels`). The device asks for BC compression
+  when the GPU has it; `Gpu::can_sample_bc` tells, and a compressed texture on a GPU without it is
+  refused with `GfxError::UnsupportedTexture`, which names the GPU.
 - *Nightwatch*, the first game made with the engine, through its public API only, in
   `games/nightwatch` ([ADR-0055](docs/adr/0055-games-in-the-workspace.md)): so far, a courtyard at
   night under the moon, which the player, a small glowing slime, crosses with the keyboard, stopped

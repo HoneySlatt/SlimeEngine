@@ -20,7 +20,8 @@ them back, and draws into a window:
   can be recorded into one submission.
 - It times render passes, each pass of a submission apart, on adapters that have timestamp queries.
 - It creates textures from the CPU: two-dimensional ones whose levels of detail it computes, or
-  whose levels the caller gives, in 8-bit or half-precision float formats, and cube textures.
+  whose levels the caller gives, in 8-bit or half-precision float formats, or in blocks of BC7 and
+  BC5 compression, which the asset pipeline's cooked textures use, and cube textures.
 
 Not there yet: blending and array textures.
 

@@ -47,7 +47,7 @@ impl Gpu {
     /// it rejects is a bug that panics, except once the device is lost ([`Gpu::check`]). Memory
     /// that runs out is not a bug: see [`GfxError::OutOfMemory`]. The device has the default
     /// limits, and the optional features the adapter offers among those the engine uses:
-    /// timestamp queries ([`Gpu::can_time`]).
+    /// timestamp queries ([`Gpu::can_time`]) and BC texture compression ([`Gpu::can_sample_bc`]).
     ///
     /// On Direct3D 12, shaders are compiled with DXC when its library, `dxcompiler.dll`, lies
     /// beside the program, and otherwise with FXC, which is part of Windows but whose code runs
@@ -98,9 +98,11 @@ impl Gpu {
             "GPU adapter"
         );
 
-        // Optional features are asked for only when the adapter offers them, and everything works
-        // without them (ADR-0031): timestamp queries, which time the GPU's work.
-        let required_features = adapter.features() & wgpu::Features::TIMESTAMP_QUERY;
+        // Optional features are asked for only when the adapter offers them: timestamp queries,
+        // which time the GPU's work and without which everything works (ADR-0031), and BC texture
+        // compression, which only the asset pipeline's cooked textures need (ADR-0069).
+        let required_features = adapter.features()
+            & (wgpu::Features::TIMESTAMP_QUERY | wgpu::Features::TEXTURE_COMPRESSION_BC);
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             label: Some("SlimeEngine device"),
             required_features,
