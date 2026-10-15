@@ -26,8 +26,9 @@ writes that as `doubleSided` false.
 
 Three lights of `KHR_lights_punctual` light the scene, in its physical units
 ([ADR-0037](../../docs/adr/0037-lights-in-physical-units-and-pre-exposure.md)). The sun casts
-shadows ([ADR-0038](../../docs/adr/0038-shadow-mapping.md)); the ring light and the spot light cast
-none.
+shadows ([ADR-0038](../../docs/adr/0038-shadow-mapping.md)), and so does the spot light, on the
+sphere ([ADR-0058](../../docs/adr/0058-shadows-for-every-spot-light-in-one-atlas.md)); the ring
+light, a point light, casts none.
 
 | Light | Kind and place | Strength | What it exercises |
 |---|---|---|---|

@@ -595,11 +595,10 @@ GitHub issues, linked from their entry; this list stays the reference.
   1080 fragments on an RX 6900 XT (2026-10-13), 338 µs for 16, the most a scene holds, and 10 to 20
   times more on an integrated GPU; a light's range saves no work. More lights would need clustered
   or tiled culling and a storage buffer, a measured decision of Stage 9a (ADR-0052).
-- **Point and spot lights cast no shadows, and light what objects hide** (ADR-0037, ADR-0038: only
-  the first directional light that casts shadows casts them). The sample's spot light is aimed up,
-  so that the light the wall would stop goes into the sky; its ring light reaches 4 m, and gives
-  little beyond a metre. The shadows of spot lights come with Stage 3d (ADR-0056), those of point
-  lights with Stage 9a (ADR-0052).
+- **Point lights cast no shadows, and light what objects hide** (ADR-0037; the first directional
+  light that casts shadows casts them, ADR-0038, and so do spot lights, ADR-0058). The sample's ring
+  light, a point light, reaches 4 m, and gives little beyond a metre. The shadows of point lights
+  come with Stage 9a (ADR-0052).
 - **Every instance is drawn, with a draw call of its own** (`Renderer`). Nothing leaves out the
   instances that the camera does not see, and instances of the same mesh and material are not
   drawn together: a frame's CPU and GPU time grow with every instance of the scene, wherever it is.
@@ -614,8 +613,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   The normal offset that keeps surfaces from shadowing themselves looks a point up 4.5 texels × the
   sine of the light's incidence off its triangle (ADR-0063, ADR-0065): at the default distance,
   under a light 45° from the normal, 1.2 cm in the first cascade and 18 cm in the last, and 26 cm
-  there at grazing. A shadow shifts by up to that
-  much, and a sheet lying closer than that above a floor casts nothing on it.
+  there at grazing. A shadow shifts by up to that much, and a sheet lying closer than that above a
+  floor casts nothing on it.
 - **Every draw of the scene pass runs a shader that can discard fragments** (ADR-0035). The `MASK`
   alpha mode discards in the one fragment shader that every material uses, opaque materials with a
   cutoff of 0. Some GPUs then test depth after the shader rather than before, for opaque draws
