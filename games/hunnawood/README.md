@@ -66,6 +66,33 @@ keeps the keys held, its own collisions, and the hero's previous position
 simple shapes include no cylinder, so `view.rs` makes one for the test ground's pillars and trunks
 and the hero's stand-in, until the zone's models replace them.
 
+## Its assets
+
+The zone is made from free assets, all under CC0 1.0, and from what a Blender script adds to them
+([ADR-0070](../../docs/adr/0070-the-sample-games-source-assets.md)). They are not in git:
+[`assets/sources.tsv`](assets/sources.tsv) lists each of them, where it was published, its authors
+and its licence, and for each of its files its size, its SHA-256, the address it was published at
+and the address of its copy on the game's mirror, the immutable releases of
+[HoneySlatt/SlimeEngine-assets](https://github.com/HoneySlatt/SlimeEngine-assets). Fetch them
+from the repository's root:
+
+```sh
+scripts/fetch-assets.sh            # every file, into games/hunnawood/assets/
+```
+
+The script checks the whole list first, and refuses an asset under another licence than CC0; then
+it downloads each file from the mirror, or from where it was published if the mirror fails, and
+checks it against its SHA-256. A file already there is not downloaded again. Git ignores what it
+fetches, and keeps the list and the metadata files.
+
+`assets/sources/` holds the files as they were published, about 190 MB: textures and models from
+Poly Haven, leaves from ambientCG, and the human body of Blender Studio's *Human Base Meshes*, which
+the zone's Blender script reads. The zone itself is not made yet: until it is, the game is played
+on the test ground.
+
+To add an asset: take it from a site that publishes it under CC0, add it to the list with its
+files, attach the files to a new release of the mirror, and give each its mirror's address.
+
 ## Dependencies
 
 The engine's crates only: `slime-app`, `slime-gfx`, `slime-platform`, `slime-render`, and

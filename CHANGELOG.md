@@ -42,6 +42,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - `Renderer::load_scene` loads a cooked scene onto the GPU, each mesh, material and texture once:
   its `LoadedScene` gives the instances to draw, the lights in world space, the box around them,
   and the scene's nodes with their `extras`.
+- `scripts/fetch-assets.sh` fetches the source assets of *Hunna Wood*, which
+  `games/hunnawood/assets/sources.tsv` lists with their authors and licences, all CC0, from their
+  mirror, the immutable releases of github.com/HoneySlatt/SlimeEngine-assets
+  ([ADR-0070](docs/adr/0070-the-sample-games-source-assets.md)), and checks each file's SHA-256.
 - *Nightwatch*, the first game made with the engine, through its public API only, in
   `games/nightwatch` ([ADR-0055](docs/adr/0055-games-in-the-workspace.md)): so far, a courtyard at
   night under the moon, which the player, a small glowing slime, crosses with the keyboard, stopped

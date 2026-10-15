@@ -29,7 +29,8 @@ it is built this way.
 │   ├── hunnawood/       Hunna Wood, a role-playing game: the sample every stage grows
 │   └── nightwatch/      Nightwatch, a small stealth game: the sample until Stage 4a replaces it
 ├── rust-toolchain.toml  pinned Rust toolchain
-├── scripts/check.sh     every automated check, as CI runs them
+├── scripts/             check.sh, every automated check as CI runs them; the scripts that fetch
+│                        DXC and the sample game's source assets
 ├── AGENTS.md            rules for every contributor
 ├── CHANGELOG.md         notable changes, per release
 ├── CONTRIBUTING.md      environment, checks, how a change is made and reviewed

@@ -168,7 +168,8 @@ nix develop -c scripts/check.sh
 tests of every target, the renderer's tests again with glam's assertions on (which a game that turns
 them on also turns on in the engine), rustdoc with warnings as errors, `cargo deny` (dependency
 licenses, security advisories and sources; it downloads the advisory database, so it needs network
-access), `slime-cook check` (every source asset has a metadata file of its own,
+access), the list of the sample game's source assets (`scripts/fetch-assets.sh`), `slime-cook check`
+(every source asset has a metadata file of its own,
 [ADR-0069](docs/adr/0069-the-asset-pipeline.md)), the sample's assets cooked twice and compared, the
 samples with no display server available, the windowed samples, the games and the windowed
 lifecycle test inside a headless Weston compositor (and that test's resize scenario in a second
@@ -210,6 +211,10 @@ code.
    ([ADR-0069](docs/adr/0069-the-asset-pipeline.md)): `cargo run -p slime-cook -- scan <directory>`
    writes one for each new file. Move or rename the two together, so that the asset keeps its ID;
    a copied file needs its own, so do not copy the metadata file with it.
+   The source assets that the sample game downloads are not committed: they are listed, with
+   their authors and licences, in `games/hunnawood/assets/sources.tsv`, mirrored, and fetched by
+   `scripts/fetch-assets.sh` ([ADR-0070](docs/adr/0070-the-sample-games-source-assets.md);
+   [`games/hunnawood/README.md`](games/hunnawood/README.md#its-assets) says how to add one).
 
 ## Architecture decisions
 

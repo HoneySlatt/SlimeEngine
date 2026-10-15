@@ -39,6 +39,9 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
 step "Dependencies (licenses, advisories, sources)"
 cargo deny --locked check
 
+step "The sample game's list of source assets, and the files of it that are cooked (ADR-0070)"
+scripts/fetch-assets.sh zone/
+
 step "Source assets (each with a metadata file of its own, ADR-0069)"
 cargo run --locked -p slime-cook -- check examples/assets
 

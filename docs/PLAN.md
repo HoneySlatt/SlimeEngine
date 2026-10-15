@@ -24,7 +24,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   on 2026-10-15: *Hunna Wood* runs on a test ground, every source asset has an ID of its own,
   images cook into compressed textures, and glTF files into meshes, materials and scenes that the
   renderer loads; the `scene` example draws the cooked sample, and the temporary loader is gone.
-  Next: M4a.6.
+  M4a.6 in progress: the owner agreed to the list of the zone's 22 source assets on 2026-10-15;
+  they are listed, mirrored and fetched; the zone's Blender script comes next.
 
 ## Status
 
@@ -35,7 +36,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M4a.3](#m4a3--images) | PNG and JPEG files become compressed textures that the renderer draws | Done |
 | [M4a.4](#m4a4--gltf) | glTF files become cooked meshes, materials and scenes | Done |
 | [M4a.5](#m4a5--the-sample-scene-through-the-pipeline) | The `scene` example draws cooked data; the temporary loader is deleted | Done |
-| [M4a.6](#m4a6--the-zones-sources) | The zone exists as source assets that anyone can fetch and cook | Planned |
+| [M4a.6](#m4a6--the-zones-sources) | The zone exists as source assets that anyone can fetch and cook | In progress |
 | [M4a.7](#m4a7--hunna-wood-by-day) | *Hunna Wood* is played by day; *Nightwatch* is deleted | Planned |
 | [M4a.8](#m4a8--night) | The zone by night; resting switches day and night | Planned |
 | [M4a.9](#m4a9--windows-check-documentation-release-02) | 0.2 is released with *Hunna Wood* | Planned |

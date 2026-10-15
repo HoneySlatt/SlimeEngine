@@ -1,3 +1,9 @@
 /target/
 # Written by `cargo run --example offscreen` from the repository root.
 /triangle.png
+# What scripts/fetch-assets.sh fetches (docs/adr/0070-the-sample-games-source-assets.md): git keeps
+# the list and the metadata files.
+/games/hunnawood/assets/**
+!/games/hunnawood/assets/**/
+!/games/hunnawood/assets/sources.tsv
+!/games/hunnawood/assets/**/*.meta
