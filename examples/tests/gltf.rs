@@ -38,6 +38,7 @@ use slime_gfx::{Gpu, Image, TextureFormat};
 use slime_render::glam::{Quat, Vec3};
 
 use sample_scene::{BLOOM, EXPOSURE, SCENE, SampleScene};
+use slime_render::Renderer;
 
 const SIZE: u32 = 256;
 
@@ -56,6 +57,15 @@ fn directory(name: &str) -> PathBuf {
     }
     fs::create_dir_all(&path).expect("the test's directory can be created");
     path
+}
+
+/// The scene `scene` of `assets`, loaded and drawn by a renderer for targets of `format`.
+fn load(gpu: &Gpu, format: TextureFormat, assets: &CookedAssets, scene: AssetId) -> SampleScene {
+    let renderer = Renderer::new(gpu, format).expect("the renderer");
+    let loaded = renderer
+        .load_scene(gpu, assets, scene)
+        .expect("the scene loads");
+    SampleScene::new(gpu, renderer, loaded).expect("the scene places a mesh, under a sky")
 }
 
 /// The sample's sources cooked, once for the tests of this program.
@@ -78,8 +88,7 @@ fn the_gltf_scene_matches_its_reference_images() {
     let target = gpu
         .create_render_target("reference glTF", SIZE, SIZE, TextureFormat::Rgba8UnormSrgb)
         .expect("the GPU has memory for it");
-    let mut scene =
-        SampleScene::new(&gpu, target.format(), sample(), SCENE).expect("the sample asset loads");
+    let mut scene = load(&gpu, target.format(), sample(), SCENE);
     // The budget of the plan is for release builds; this is a debug build's, among other tests.
     println!(
         "the sky's environment took {:?} on the CPU",
@@ -368,8 +377,7 @@ fn image_of(gpu: &Gpu, assets: &CookedAssets, scene: AssetId, centre: Vec3, yaw:
     let target = gpu
         .create_render_target("triangle", 64, 64, TextureFormat::Rgba8UnormSrgb)
         .expect("the GPU has memory for it");
-    let mut sample =
-        SampleScene::new(gpu, target.format(), assets, scene).expect("the scene loads");
+    let mut sample = load(gpu, target.format(), assets, scene);
     sample
         .render(
             gpu,

@@ -1,6 +1,7 @@
 # 0073. Loading scenes in the background
 
-- Status: Accepted
+- Status: Accepted; amended by [0074](0074-uploading-textures-without-holding-up-frames.md) (what a
+  load costs the frames)
 - Date: 2026-10-15
 
 ## Context

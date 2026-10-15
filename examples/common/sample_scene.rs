@@ -7,8 +7,8 @@ use std::error::Error;
 use std::f32::consts::PI;
 use std::time::{Duration, Instant};
 
-use slime_assets::{AssetId, CookedAssets};
-use slime_gfx::{Gpu, LinearColor, RenderTarget, TextureFormat};
+use slime_assets::AssetId;
+use slime_gfx::{Gpu, LinearColor, RenderTarget};
 use slime_render::glam::Vec3;
 use slime_render::{
     Camera, DirectionalLight, Environment, Light, LoadedScene, RenderError, RenderStats, Renderer,
@@ -84,21 +84,18 @@ pub struct SampleScene {
 }
 
 impl SampleScene {
-    /// Loads the scene `scene` of the cooked data `assets` for targets of `format`.
+    /// The cooked scene `loaded`, which `renderer` loaded (`Renderer::load_scene`, or
+    /// `Renderer::load_scene_in_background` as the `scene` example does), drawn by `renderer`; its
+    /// sky is computed here.
     ///
     /// # Errors
     ///
-    /// The renderer's error when it cannot be created, with its cause (the driver's message, or
-    /// why the device was lost); the error of `Renderer::load_scene` when the scene cannot be
-    /// loaded; an error when it places no mesh.
+    /// The renderer's error when the sky cannot be created; an error when the scene places no mesh.
     pub fn new(
         gpu: &Gpu,
-        format: TextureFormat,
-        assets: &CookedAssets,
-        scene: AssetId,
+        renderer: Renderer,
+        loaded: LoadedScene,
     ) -> Result<Self, Box<dyn Error + Send + Sync>> {
-        let renderer = Renderer::new(gpu, format)?;
-        let loaded = renderer.load_scene(gpu, assets, scene)?;
         let (min, max) = loaded
             .bounds
             .ok_or("the scene draws nothing: no node places a mesh")?;

@@ -116,6 +116,11 @@ impl Gpu {
     /// blocks: a level of 2 × 1 texels is one block. Sampled like the textures of
     /// [`Gpu::create_texture`]; a sampler reads no level beyond the last given.
     ///
+    /// The levels reach the GPU through a buffer of the texture's own, which the CPU writes, and a
+    /// copy submitted at once: creating a texture costs a submission, and does not hold up the
+    /// submissions of other threads while the texels are written (ADR-0074). Every texture of this
+    /// crate is created so.
+    ///
     /// # Errors
     ///
     /// [`GfxError::OutOfMemory`] if the GPU's memory cannot hold it, and [`GfxError::DeviceLost`]
@@ -219,8 +224,23 @@ impl Gpu {
                 bytes.len()
             );
         }
-        let texture = self.create(label, || {
-            self.device.create_texture(&wgpu::TextureDescriptor {
+        // The levels reach the texture through a buffer that the CPU writes while it is mapped,
+        // then a copy that the GPU runs, submitted at once. The queue's own writes
+        // (`write_texture`) would copy them into wgpu's staging memory while holding a lock that
+        // every submission takes, so that a thread uploading textures, as `slime-render`'s loading
+        // threads do, would hold up the thread that submits frames (ADR-0073). A copy from a
+        // buffer starts each row at a multiple of 256 bytes: each level's rows are laid out so.
+        let mut offsets = Vec::with_capacity(levels.len());
+        let mut size = 0u64;
+        for index in 0..levels.len() {
+            let (level_width, level_height) = level_size(index);
+            let (row, rows) = format.rows(level_width, level_height);
+            let pitch = row.next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
+            offsets.push((size, row, pitch, rows));
+            size += u64::from(pitch * rows * layers);
+        }
+        let (texture, staging) = self.create(label, || {
+            let texture = self.device.create_texture(&wgpu::TextureDescriptor {
                 label: Some(label),
                 size: wgpu::Extent3d {
                     width,
@@ -233,11 +253,33 @@ impl Gpu {
                 format: format.to_wgpu(),
                 usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
                 view_formats: &[],
-            })
+            });
+            let staging = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some(label),
+                size,
+                usage: wgpu::BufferUsages::MAP_WRITE | wgpu::BufferUsages::COPY_SRC,
+                mapped_at_creation: true,
+            });
+            (texture, staging)
         })?;
-        for (index, bytes) in levels.iter().enumerate() {
+        // A buffer that could not be created cannot be mapped either; `check` below reports why.
+        if let Ok(mut mapped) = staging.get_mapped_range_mut(..) {
+            for (bytes, &(offset, row, pitch, _)) in levels.iter().zip(&offsets) {
+                for (index, source) in bytes.chunks_exact(row as usize).enumerate() {
+                    let start = offset as usize + index * pitch as usize;
+                    mapped
+                        .slice(start..start + row as usize)
+                        .copy_from_slice(source);
+                }
+            }
+            drop(mapped);
+            staging.unmap();
+        }
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some(label) });
+        for (index, &(offset, _, pitch, rows)) in offsets.iter().enumerate() {
             let (level_width, level_height) = level_size(index);
-            let (row, rows) = format.rows(level_width, level_height);
             // A level of a block-compressed format smaller than a block is copied as the whole
             // block, which wgpu sizes it to.
             let (level_width, level_height) = if format.is_block_compressed() {
@@ -248,19 +290,20 @@ impl Gpu {
             } else {
                 (level_width, level_height)
             };
-            // Unlike copies recorded in a command encoder, this write needs no row alignment.
-            self.queue.write_texture(
+            encoder.copy_buffer_to_texture(
+                wgpu::TexelCopyBufferInfo {
+                    buffer: &staging,
+                    layout: wgpu::TexelCopyBufferLayout {
+                        offset,
+                        bytes_per_row: Some(pitch),
+                        rows_per_image: Some(rows),
+                    },
+                },
                 wgpu::TexelCopyTextureInfo {
                     texture: &texture,
                     mip_level: index as u32,
                     origin: wgpu::Origin3d::ZERO,
                     aspect: wgpu::TextureAspect::All,
-                },
-                bytes,
-                wgpu::TexelCopyBufferLayout {
-                    offset: 0,
-                    bytes_per_row: Some(row),
-                    rows_per_image: Some(rows),
                 },
                 wgpu::Extent3d {
                     width: level_width,
@@ -269,6 +312,7 @@ impl Gpu {
                 },
             );
         }
+        self.queue.submit([encoder.finish()]);
         let view = texture.create_view(&wgpu::TextureViewDescriptor {
             dimension: Some(if layers == 6 {
                 wgpu::TextureViewDimension::Cube

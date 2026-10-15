@@ -532,7 +532,8 @@ the game
 │       │                                              of the Gpu
 │       ├── assets.material(id), as meshes name them   each read once; then a task per texture:
 │       │                                              assets.texture(id), uploaded in the GPU
-│       │                                              format of its encoding
+│       │                                              format of its encoding, through a buffer
+│       │                                              of its own and a copy (ADR-0074)
 │       └── once every task has reported              materials and samplers created, nodes
 │                                                      placed: the LoadedScene, its instances and
 │                                                      its lights in world space

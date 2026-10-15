@@ -15,6 +15,12 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   task pool of the renderer's own; dropping a `SceneLoad` cancels its load.
 - `Gpu` is `Clone`: its clones share the device, so that several threads create GPU objects
   through it.
+- `slime_render::scene_lights` gives the lights that a cooked scene's nodes place without loading
+  the scene, so that a game knows its sun and its moon before its scene is loaded.
+- *Hunna Wood* draws while its zone loads: its window shows the hero under the sky about three
+  times sooner, and the zone appears, whole, once loaded; the hero waits for it. The log says after
+  how many frames, and the longest interval between two of them
+  ([ADR-0074](docs/adr/0074-uploading-textures-without-holding-up-frames.md)).
 
 ### Changed
 
@@ -23,6 +29,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   loading thread is raised again on the thread that waits. When several assets of a scene fail, the
   error returned is the first that a loading thread reports, which can change from one run to the
   next.
+- Textures reach the GPU through a buffer of their own and a copy submitted at once, rather than
+  through wgpu's queue writes, so that a thread that loads them does not hold up the thread that
+  submits frames (ADR-0074). Creating a texture costs a submission.
+- `--frames` counts the frames that draw the zone in *Hunna Wood*, and the frames that draw the
+  scene in the `scene` example, which loads it in the background too.
 
 ## [0.2.0] - 2026-10-15
 

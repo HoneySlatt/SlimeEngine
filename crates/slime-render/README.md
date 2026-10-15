@@ -123,6 +123,9 @@ fn main() -> Result<(), RenderError> {
   places each (`instance_nodes`), the `lights` in world space, the box around them, and the cooked
   scene itself, whose nodes carry the `extras` a game reads its own data from. What cannot be
   loaded is a `SceneError`.
+- `scene_lights(&CookedScene)` gives the lights that a cooked scene's nodes place, as a
+  `LoadedScene` holds them, without loading the scene: a game knows its sun before its scene is
+  loaded.
 - `Scene::new(camera, &instances)` and `Instance::new(mesh, material, transform)` make what a
   frame draws; their other fields, such as the scene's `lights`, `environment`, `exposure` and
   `bloom`, or whether an instance casts shadows, are set once they are made (ADR-0046).

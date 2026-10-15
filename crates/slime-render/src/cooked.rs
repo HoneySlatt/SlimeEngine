@@ -206,9 +206,9 @@ impl Renderer {
     ///
     /// The renderer's threads are as many as the machine's cores but one, at least 1 and at most
     /// 4, shared by every load of the process; each load has a thread of its own besides, which
-    /// reads the scene and its materials and puts the loaded scene together. While the threads
-    /// upload textures, the thread that submits frames can wait for them, by about the time each
-    /// texture takes to copy: wgpu's queue takes the same lock for both.
+    /// reads the scene and its materials and puts the loaded scene together. Their uploads do not
+    /// hold up the thread that submits frames (ADR-0074); a frame that draws the first shadows, or
+    /// changes the shape of the frame otherwise, still costs more during a load than after it.
     ///
     /// # Panics
     ///
@@ -573,12 +573,8 @@ impl Loader {
                     node: index,
                 });
             }
-            if let Some(light) = node.light {
-                loaded.lights.push(
-                    place_light(light, transform).map_err(|reason| placement(index, reason))?,
-                );
-            }
         }
+        loaded.lights = scene_lights(&scene)?;
         tracing::info!(
             scene = %scene.name,
             meshes = loaded.meshes.len(),
@@ -638,6 +634,35 @@ impl Loader {
         };
         Ok(self.parts.create(&self.gpu, &cooked.name, &data)?)
     }
+}
+
+/// The lights that the nodes of the cooked scene `scene` place, in world space, in the order of the
+/// nodes: each at its node's origin, along its node's −Z axis whatever its scale, as
+/// [`LoadedScene::lights`] holds them. It reads no file and creates nothing on the GPU, so that a
+/// game knows a scene's lights before the scene is loaded: to compute a sky around its sun, for
+/// example.
+///
+/// # Errors
+///
+/// [`SceneError::Placement`] for a light at a point that is not finite, which a transform that
+/// overflows gives, or with no direction, as a transform that flattens its −Z axis gives.
+pub fn scene_lights(scene: &CookedScene) -> Result<Vec<Light>, SceneError> {
+    scene
+        .nodes
+        .iter()
+        .zip(scene.world_transforms())
+        .enumerate()
+        .filter_map(|(index, (node, transform))| Some((index, node.light?, transform)))
+        .map(|(index, light, transform)| {
+            place_light(light, Mat4::from_cols_array(&transform)).map_err(|reason| {
+                SceneError::Placement {
+                    scene: scene.name.clone(),
+                    node: index,
+                    reason,
+                }
+            })
+        })
+        .collect()
 }
 
 /// The light that a node placed by `transform` holds, in world space: at the node's origin, along

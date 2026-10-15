@@ -4,15 +4,16 @@
 //! takes over: drag with the left button to turn around it, roll the wheel to come nearer or go
 //! farther. A dev overlay shows what each frame costs, with the GPU time of each pass, a slider
 //! that changes the exposure, as a photographer's exposure value, and one that changes the bloom's
-//! strength; F1 hides and shows it. The sample of Stages 3a, 3b and 4a. Escape, closing the window
-//! or Ctrl+C quits.
+//! strength; F1 hides and shows it. It loads the scene in the background, its frames showing the
+//! sky's horizon until the scene is loaded. The sample of Stages 3a, 3b and 4a. Escape, closing the
+//! window or Ctrl+C quits.
 //!
 //! It reads cooked data, which `slime-cook` makes first:
 //!
 //! ```sh
 //! cargo run -p slime-cook -- cook examples/assets target/cooked/examples
 //! cargo run --example scene                              # the scene of examples/assets/scene.glb
-//! cargo run --example scene -- --frames 120              # closes itself after 120 frames
+//! cargo run --example scene -- --frames 120              # closes after 120 frames of the scene
 //! cargo run --example scene -- --assets <dir> --scene <id>   # another cooked scene, by its ID
 //! ```
 //!
@@ -33,14 +34,14 @@ use slime_app::time::FrameTime;
 use slime_app::{App, AppConfig, AppError, Context};
 use slime_assets::{AssetId, CookedAssets};
 use slime_devui::{Overlay, egui};
-use slime_gfx::RenderTarget;
+use slime_gfx::{LinearColor, RenderPassDescriptor, RenderTarget};
 use slime_platform::{
     ButtonState, Event, KeyCode, KeyEvent, MouseButton, ScrollDelta, WindowConfig,
 };
 use slime_render::glam::Vec3;
-use slime_render::{Camera, RenderStats};
+use slime_render::{Camera, RenderStats, Renderer, SceneLoad};
 
-use sample_scene::{BLOOM, EXPOSURE, SampleScene};
+use sample_scene::{BLOOM, EXPOSURE, SKY, SampleScene};
 
 const USAGE: &str = "usage: scene [--assets <directory>] [--scene <id>] [--frames <count>]";
 
@@ -170,6 +171,9 @@ struct SceneExample {
     /// The cooked data, and the scene to draw.
     assets: CookedAssets,
     scene_id: AssetId,
+    /// The renderer, and the load of the scene that it runs in the background, until the scene is
+    /// loaded.
+    loading: Option<(Renderer, SceneLoad)>,
     scene: Option<SampleScene>,
     camera: OrbitCamera,
     overlay: Option<Overlay>,
@@ -179,9 +183,11 @@ struct SceneExample {
     frame_ms: f32,
     /// How many frames drew the scene.
     drawn: u64,
-    /// Whether a run that drew nothing has failed. The automated checks run this example for a
-    /// number of frames in a compositor without a screen, to prove that the scene is drawn.
-    must_draw: bool,
+    /// The number of frames that draw the scene after which the example closes itself, if
+    /// `--frames` gives one. A run that sets one fails if no frame drew the scene: the automated
+    /// checks run this example for a number of frames in a compositor without a screen, to prove
+    /// that the scene is drawn.
+    frame_limit: Option<u64>,
     /// What the last frame cost.
     stats: RenderStats,
     /// The exposure the scene is drawn at, as an exposure value at ISO 100 (see [`ev100`]); the
@@ -198,11 +204,15 @@ impl App for SceneExample {
         else {
             return Err("the scene example needs a window".into());
         };
-        let scene = SampleScene::new(gpu, format, &self.assets, self.scene_id)?;
-        let (center, radius) = (scene.bounds().center(), scene.bounds().radius());
-        self.camera = OrbitCamera::new(center, radius, radius * 2.2, 0.6, 0.45);
-        self.scene = Some(scene);
+        // The scene loads in the background: the window shows at once, and `render` takes the
+        // scene once it is loaded.
+        let renderer = Renderer::new(gpu, format)?;
+        let load = renderer.load_scene_in_background(gpu, &self.assets, self.scene_id);
+        self.loading = Some((renderer, load));
         self.overlay = Some(Overlay::new(gpu, format, window.scale_factor()));
+        if self.frame_limit == Some(0) {
+            ctx.request_exit();
+        }
         Ok(())
     }
 
@@ -249,7 +259,49 @@ impl App for SceneExample {
     }
 
     fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
-        let (Some(gpu), Some(scene)) = (ctx.gpu(), &mut self.scene) else {
+        let Some(gpu) = ctx.gpu() else {
+            return;
+        };
+        if let Some((_, load)) = &mut self.loading {
+            match load.take() {
+                // Until the scene is loaded, the frame shows the sky's horizon, exposed.
+                None => {
+                    let horizon = SKY.horizon;
+                    let pass = RenderPassDescriptor {
+                        target,
+                        clear: Some(LinearColor::rgb(
+                            horizon.r * EXPOSURE,
+                            horizon.g * EXPOSURE,
+                            horizon.b * EXPOSURE,
+                        )),
+                        depth: None,
+                        timer: None,
+                        resolve: None,
+                    };
+                    gpu.render(&pass, |_| {});
+                    return;
+                }
+                Some(loaded) => {
+                    let (renderer, _) = self.loading.take().expect("the scene was loading");
+                    match loaded
+                        .map_err(AppError::from)
+                        .and_then(|loaded| SampleScene::new(gpu, renderer, loaded))
+                    {
+                        Ok(scene) => {
+                            let (center, radius) =
+                                (scene.bounds().center(), scene.bounds().radius());
+                            self.camera = OrbitCamera::new(center, radius, radius * 2.2, 0.6, 0.45);
+                            self.scene = Some(scene);
+                        }
+                        Err(error) => {
+                            ctx.exit_with_error(error);
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+        let Some(scene) = &mut self.scene else {
             return;
         };
         match scene.render(
@@ -343,6 +395,9 @@ impl App for SceneExample {
                     });
             });
         }
+        if self.frame_limit.is_some_and(|limit| self.drawn >= limit) {
+            ctx.request_exit();
+        }
     }
 
     fn shutdown(&mut self, ctx: &mut Context) {
@@ -362,7 +417,7 @@ impl App for SceneExample {
             tone_mapping_gpu_time = ?self.stats.tone_mapping_gpu_time,
             "shutdown"
         );
-        if self.must_draw && self.drawn == 0 {
+        if self.frame_limit.is_some_and(|limit| limit > 0) && self.drawn == 0 {
             ctx.exit_with_error("no frame drew the scene");
         }
     }
@@ -393,12 +448,13 @@ fn main() -> ExitCode {
             title: "SlimeEngine scene example".to_owned(),
             ..WindowConfig::default()
         }),
-        frame_limit: options.frame_limit,
+        // The example counts its frames itself: those that draw the scene.
         ..AppConfig::default()
     };
     let mut example = SceneExample {
         assets,
         scene_id: options.scene.unwrap_or(sample_scene::SCENE),
+        loading: None,
         scene: None,
         camera: OrbitCamera::new(Vec3::ZERO, 1.0, 1.0, 0.0, 0.0),
         overlay: None,
@@ -407,7 +463,7 @@ fn main() -> ExitCode {
         bloom: BLOOM,
         frame_ms: 0.0,
         drawn: 0,
-        must_draw: options.frame_limit.is_some_and(|limit| limit > 0),
+        frame_limit: options.frame_limit,
         stats: RenderStats::default(),
     };
     match slime_app::run(&mut example, &config) {

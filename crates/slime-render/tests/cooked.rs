@@ -16,6 +16,7 @@ use slime_gfx::{Gpu, TextureFormat};
 use slime_render::glam::{Mat4, Vec3};
 use slime_render::{
     Camera, DirectionalLight, Instance, Light, LoadedScene, MeshData, Renderer, Scene, SceneError,
+    scene_lights,
 };
 
 const TEXTURE: AssetId = AssetId::from_u128(1);
@@ -339,6 +340,11 @@ fn a_cooked_scene_is_placed_lit_and_drawn() {
     };
     assert!(sun.direction.abs_diff_eq(Vec3::NEG_Z, 1e-6));
     assert_eq!(loaded.scene.nodes[2].name, "sun");
+    // The same lights, read from the cooked scene without loading it.
+    assert_eq!(
+        scene_lights(&assets.scene(SCENE).expect("the scene is read")).expect("placed"),
+        loaded.lights
+    );
 
     // Seen from the front, under its light, the first square shows red.
     let target = gpu

@@ -33,13 +33,19 @@ The game needs its zone cooked first, from the repository's root ([its assets](#
 scripts/fetch-assets.sh zone/
 cargo run --release -p slime-cook -- cook games/hunnawood/assets/zone target/cooked/hunnawood
 cargo run -p hunnawood                     # play
-cargo run -p hunnawood -- --frames 120     # closes itself after 120 frames
+cargo run -p hunnawood -- --frames 120     # closes itself after 120 frames that draw the zone
 cargo run -p hunnawood -- --assets <dir>   # reads the cooked data of another directory
 cargo run -p hunnawood -- --night          # starts at night, and starts again at night
 ```
 
 Without `--assets`, it reads `hunnawood-assets` beside the program if that directory holds a
 manifest, as where CI ships it, and `target/cooked/hunnawood` otherwise.
+
+The window shows its first frame once the hero is loaded and the skies computed, while the zone
+loads in the background: until it is drawn, the hero stands at the start under the sky, the camera
+turns around it, and the hero does not move. The log says when the zone is first drawn, after how
+many frames, and the longest interval between two of them, the measure that
+[ADR-0074](../../docs/adr/0074-uploading-textures-without-holding-up-frames.md) gives.
 
 | Key | Does |
 |---|---|
@@ -64,13 +70,14 @@ place on every layout. CI builds the game for Windows with the examples: `hunnaw
 | `zone.rs` | The zone, read from the cooked scene: its ground, its colliders, boxes turned about the vertical and cylinders, where the hero starts, and the places of the key, the door and the campfire; the tests of the cooked zone |
 | `controls.rs` | Which of the game's keys are held |
 | `camera.rs` | The camera that follows the hero, coming nearer when a collider would stand between them |
-| `view.rs` | What the player sees: the renderer, the cooked zone and hero; by day, the overcast sky and the zone's sun behind its clouds; by night, a dark sky with the moon's disc and the zone's lights of the night |
+| `view.rs` | What the player sees: the renderer, the cooked hero, and the cooked zone, which loads in the background (`Renderer::load_scene_in_background`); by day, the overcast sky and the zone's sun behind its clouds; by night, a dark sky with the moon's disc and the zone's lights of the night, all read from the cooked zone before it loads (`scene_lights`) |
 | `statistics.rs` | The dev overlay that shows what each frame costs |
 
 The rules run at the engine's fixed step, 1/60 s, so that a game plays the same on every machine;
 the hero is drawn between its last two steps, by the share of a step that the frame comes after the
 last one (`Context::fixed_step_alpha`), so that it moves smoothly at any frame rate, and the camera
-turns at the frame's rate. The rules need no GPU, so that their tests run anywhere. A move is made
+turns at the frame's rate. The rules need no GPU, so that their tests run anywhere. They wait
+until the zone is drawn, so that the hero does not walk where the player cannot see. A move is made
 in parts of at most half the hero's radius, each pushed out of the colliders it overlaps, so that no
 step carries the hero through a thin collider or past a corner. The view leaves out what the zone's
 nodes under the key's and the door's markers place once the key is taken and the door open

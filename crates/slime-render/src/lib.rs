@@ -19,7 +19,7 @@ mod shapes;
 pub use glam;
 
 pub use camera::Camera;
-pub use cooked::{LoadedScene, SceneError, SceneLoad};
+pub use cooked::{LoadedScene, SceneError, SceneLoad, scene_lights};
 pub use environment::{Environment, Sky};
 pub use error::RenderError;
 pub use light::{DirectionalLight, Light, MAX_LIGHTS, PointLight, SpotLight};

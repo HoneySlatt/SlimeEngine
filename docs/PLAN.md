@@ -17,14 +17,16 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 - Stage 4b — Live assets: planned on 2026-10-15 and validated by the owner
   ([ADR-0072](adr/0072-stage-4b-live-assets.md)). M4b.1 done on 2026-10-15: the renderer loads
   scenes on threads of its own, which create their GPU objects through clones of the `Gpu`
-  ([ADR-0073](adr/0073-loading-scenes-in-the-background.md)). Next: M4b.2.
+  ([ADR-0073](adr/0073-loading-scenes-in-the-background.md)). M4b.2 built on 2026-10-15: the game
+  draws while its zone loads ([ADR-0074](adr/0074-uploading-textures-without-holding-up-frames.md));
+  the owner has yet to play it. Next: the owner's try, then M4b.3.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
 | [M4b.1](#m4b1--a-shared-gpu-and-a-task-pool) | The renderer loads a scene on threads of its own, which create its GPU objects | Done |
-| [M4b.2](#m4b2--the-zone-loads-while-frames-go-on) | *Hunna Wood* draws while its zone loads | Planned |
+| [M4b.2](#m4b2--the-zone-loads-while-frames-go-on) | *Hunna Wood* draws while its zone loads | Built; the owner plays it |
 | [M4b.3](#m4b3--recovering-from-a-lost-gpu-device) | An application that chooses it goes on after a lost GPU device | Planned |
 | [M4b.4](#m4b4--hunna-wood-goes-on-after-a-lost-device) | *Hunna Wood* goes on after a lost GPU device | Planned |
 | [M4b.5](#m4b5--materials-that-change-in-place) | A game changes a material's values while it runs | Planned |
@@ -134,6 +136,19 @@ Risks:
   test shows the rules still until the zone is there; the game runs in the headless Weston; the
   owner plays it; CI is green.
 - **How to test.** `cargo run --release -p hunnawood`.
+- **Outcome.** Built on 2026-10-15; the owner has yet to play it. The bar holds: in 60 runs by day
+  and at night, the longest interval between frames was 22 ms
+  ([ADR-0074](adr/0074-uploading-textures-without-holding-up-frames.md), which holds the figures).
+  Measuring it found what held frames up, and changed three things that the milestone did not
+  plan: textures reach the GPU through a buffer of their own, in `slime-gfx`, rather than through
+  wgpu's queue writes, whose lock held up the renderer's submissions; `slime-render` gives the
+  lights of a cooked scene before it is loaded (`scene_lights`), so that the game computes its
+  night sky, around the zone's moon, before its first frame; and the hero loads before the first
+  frame, so that the first shadows do not come in the middle of the zone's load. The loading view
+  is the sky and the hero, lit by the zone's lights. On the RX 6900 XT, with the files in the
+  system's cache, the zone is drawn after 0 to 4 frames; it takes longer on slower machines. The
+  fallback of ADR-0072, uploads from the main thread, was not needed. The `scene` example loads its
+  scene in the background too, as the rule of one example per notable feature asks.
 
 ### M4b.3 — Recovering from a lost GPU device
 
@@ -292,6 +307,12 @@ justify a decision are also in its ADR.
 Limitations known and accepted for now. The ones that a contributor could take on alone are also
 GitHub issues, linked from their entry; this list stays the reference.
 
+- **The first frame that draws shadows costs more, and more still while a scene loads**
+  ([ADR-0074](adr/0074-uploading-textures-without-holding-up-frames.md)). It makes the renderer
+  create its shadow atlas and its frame again; during a load, the GPU, busy with the load's copies,
+  presents that frame late, past 33 ms in some runs. *Hunna Wood* draws its hero, and so its first
+  shadows, from its first frame. Creating the atlases with the renderer would remove it, at 64 MiB
+  for every program.
 - **The zone costs up to 8 s per frame on lavapipe**, the CPU driver of the checks, where the RX
   6900 XT takes under 2 ms: most of it goes to the four shadow cascades of the sun, each 2048 ×
   2048 texels, through which thousands of overlapping leaf cards are drawn with a shader that

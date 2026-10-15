@@ -9,7 +9,7 @@
 //! scripts/fetch-assets.sh zone/
 //! cargo run --release -p slime-cook -- cook games/hunnawood/assets/zone target/cooked/hunnawood
 //! cargo run -p hunnawood                     # play
-//! cargo run -p hunnawood -- --frames 120     # closes itself after 120 frames
+//! cargo run -p hunnawood -- --frames 120     # closes itself after 120 frames that draw the zone
 //! cargo run -p hunnawood -- --assets <dir>   # reads the cooked data of another directory
 //! cargo run -p hunnawood -- --night          # starts at night
 //! ```
@@ -29,7 +29,7 @@ mod zone;
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::ExitCode;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use slime_app::time::FrameTime;
 use slime_app::{App, AppConfig, AppError, Context};
@@ -42,7 +42,7 @@ use camera::FollowCamera;
 use controls::Controls;
 use rules::Game;
 use statistics::Statistics;
-use view::View;
+use view::{View, ZoneLights};
 use zone::Zone;
 
 const USAGE: &str = "usage: hunnawood [--assets <directory>] [--frames <count>] [--night]";
@@ -51,6 +51,8 @@ const USAGE: &str = "usage: hunnawood [--assets <directory>] [--frames <count>] 
 struct HunnaWood {
     /// The cooked data, which the view loads its GPU objects from once the window is open.
     assets: CookedAssets,
+    /// The zone's lights, which the view takes when the window opens.
+    lights: Option<ZoneLights>,
     game: Game,
     controls: Controls,
     camera: FollowCamera,
@@ -59,19 +61,42 @@ struct HunnaWood {
     statistics: Option<Statistics>,
     /// What the last frame cost.
     stats: RenderStats,
-    /// How many frames were drawn.
+    /// How many frames drew the zone.
     drawn: u64,
-    /// Whether a run that drew nothing has failed: the automated checks run the game for a number
-    /// of frames in a compositor without a screen, to prove that it draws.
-    must_draw: bool,
+    /// The number of frames that draw the zone after which the game closes itself, if `--frames`
+    /// gives one. A run that sets one fails if no frame drew the zone: the automated checks run the
+    /// game for a number of frames in a compositor without a screen, to prove that it draws.
+    frame_limit: Option<u64>,
+    /// The frames drawn while the zone loads; `None` once they are logged.
+    loading: Option<Loading>,
+}
+
+/// The frames drawn while the zone loads, and the longest interval between the starts of two
+/// frames, until the first frame that draws the zone has been followed by another: what loading
+/// costs the player, logged once it is over.
+#[derive(Default)]
+struct Loading {
+    /// How many frames were drawn without the zone.
+    frames: u64,
+    /// When the last frame started.
+    last: Option<Instant>,
+    longest: Duration,
 }
 
 impl HunnaWood {
-    /// The game in `zone`, starting at night if `night`, which draws what `assets` holds.
-    fn new(assets: CookedAssets, zone: Zone, night: bool, must_draw: bool) -> Self {
+    /// The game in `zone`, starting at night if `night`, which draws what `assets` holds and closes
+    /// itself after `frame_limit` frames that draw the zone, if it is given.
+    fn new(
+        assets: CookedAssets,
+        zone: Zone,
+        lights: ZoneLights,
+        night: bool,
+        frame_limit: Option<u64>,
+    ) -> Self {
         let game = Game::new(zone);
         Self {
             assets,
+            lights: Some(lights),
             camera: FollowCamera::looking_along(game.zone().facing),
             game: if night {
                 game.starting_at_night()
@@ -83,8 +108,24 @@ impl HunnaWood {
             statistics: None,
             stats: RenderStats::default(),
             drawn: 0,
-            must_draw,
+            frame_limit,
+            loading: Some(Loading::default()),
         }
+    }
+}
+
+/// Moves the hero of `game` by one fixed step of `step` as `controls` ask, relative to `camera`,
+/// once the zone is drawn, as `zone_shown` says: until then, the game waits, so that the hero does
+/// not walk where the player cannot see.
+fn step(
+    game: &mut Game,
+    camera: &FollowCamera,
+    controls: &Controls,
+    zone_shown: bool,
+    step: Duration,
+) {
+    if zone_shown {
+        game.step(camera.on_ground(controls.movement()), step.as_secs_f32());
     }
 }
 
@@ -95,8 +136,12 @@ impl App for HunnaWood {
         else {
             return Err("Hunna Wood needs a window".into());
         };
-        self.view = Some(View::new(gpu, format, &self.assets)?);
+        let lights = self.lights.take().expect("the window opens once");
+        self.view = Some(View::new(gpu, format, &self.assets, lights)?);
         self.statistics = Some(Statistics::new(gpu, format, window.scale_factor()));
+        if self.frame_limit == Some(0) {
+            ctx.request_exit();
+        }
         Ok(())
     }
 
@@ -137,9 +182,15 @@ impl App for HunnaWood {
         }
     }
 
-    fn fixed_update(&mut self, _ctx: &mut Context, step: Duration) {
-        let direction = self.camera.on_ground(self.controls.movement());
-        self.game.step(direction, step.as_secs_f32());
+    fn fixed_update(&mut self, _ctx: &mut Context, duration: Duration) {
+        let zone_shown = self.view.as_ref().is_some_and(View::zone_shown);
+        step(
+            &mut self.game,
+            &self.camera,
+            &self.controls,
+            zone_shown,
+            duration,
+        );
     }
 
     fn update(&mut self, _ctx: &mut Context, frame: &FrameTime) {
@@ -154,6 +205,26 @@ impl App for HunnaWood {
         let (Some(gpu), Some(view)) = (ctx.gpu(), &mut self.view) else {
             return;
         };
+        let now = Instant::now();
+        if let Some(loading) = &mut self.loading {
+            if let Some(last) = loading.last {
+                loading.longest = loading.longest.max(now - last);
+            }
+            loading.last = Some(now);
+            // The interval that ends here holds the first frame that drew the zone.
+            if self.drawn > 0 {
+                tracing::info!(
+                    frames = loading.frames,
+                    longest_interval = ?loading.longest,
+                    "the zone is drawn"
+                );
+                self.loading = None;
+            }
+        }
+        if let Err(error) = view.poll() {
+            ctx.exit_with_error(error);
+            return;
+        }
         // The hero is drawn between its last two fixed steps, the share of a step this frame comes
         // after the last one.
         let alpha = ctx.fixed_step_alpha() as f32;
@@ -162,9 +233,16 @@ impl App for HunnaWood {
         match view.draw(gpu, target, &self.game, alpha, camera) {
             Ok(stats) => {
                 self.stats = stats;
-                self.drawn += 1;
                 if let Some(statistics) = &mut self.statistics {
                     statistics.draw(gpu, target, &self.stats);
+                }
+                if view.zone_shown() {
+                    self.drawn += 1;
+                    if self.frame_limit.is_some_and(|limit| self.drawn >= limit) {
+                        ctx.request_exit();
+                    }
+                } else if let Some(loading) = &mut self.loading {
+                    loading.frames += 1;
                 }
             }
             // The GPU's memory cannot hold the targets of the window's new size, or the device was
@@ -190,8 +268,8 @@ impl App for HunnaWood {
             tone_mapping_gpu_time = ?self.stats.tone_mapping_gpu_time,
             "shutdown"
         );
-        if self.must_draw && self.drawn == 0 {
-            ctx.exit_with_error("no frame drew the game");
+        if self.frame_limit.is_some_and(|limit| limit > 0) && self.drawn == 0 {
+            ctx.exit_with_error("no frame drew the zone");
         }
     }
 }
@@ -204,8 +282,7 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let frame_limit = options.frame_limit;
-    // The zone's colliders and places come from the cooked scene, before the window opens.
+    // The zone's colliders, places and lights come from the cooked scene, before the window opens.
     let directory = options.assets.unwrap_or_else(assets::default_directory);
     let loaded = CookedAssets::open(&directory)
         .map_err(|error| error.to_string())
@@ -213,9 +290,10 @@ fn main() -> ExitCode {
             let scene = cooked
                 .scene(assets::zone_id())
                 .map_err(|error| error.to_string())?;
-            Ok((cooked, Zone::from_scene(&scene)?))
+            let lights = ZoneLights::of(&scene).map_err(|error| error.to_string())?;
+            Ok((cooked, Zone::from_scene(&scene)?, lights))
         });
-    let (cooked, zone) = match loaded {
+    let (cooked, zone, lights) = match loaded {
         Ok(loaded) => loaded,
         Err(error) => {
             eprintln!(
@@ -231,15 +309,10 @@ fn main() -> ExitCode {
             title: "Hunna Wood".to_owned(),
             ..WindowConfig::default()
         }),
-        frame_limit,
+        // The game counts its frames itself: those that draw the zone.
         ..AppConfig::default()
     };
-    let mut game = HunnaWood::new(
-        cooked,
-        zone,
-        options.night,
-        frame_limit.is_some_and(|limit| limit > 0),
-    );
+    let mut game = HunnaWood::new(cooked, zone, lights, options.night, options.frame_limit);
     match slime_app::run(&mut game, &config) {
         Ok(()) => ExitCode::SUCCESS,
         // `run` has logged the error with its causes.
@@ -285,6 +358,9 @@ fn parse_options(arguments: impl IntoIterator<Item = OsString>) -> Result<Option
 
 #[cfg(test)]
 mod tests {
+    use slime_platform::Key;
+    use slime_render::glam::Vec2;
+
     use super::*;
 
     fn parse(arguments: &[&str]) -> Result<Options, String> {
@@ -298,5 +374,42 @@ mod tests {
         assert!(options.night);
         assert_eq!(options.frame_limit, Some(2));
         assert!(parse(&["--day"]).is_err());
+    }
+
+    #[test]
+    fn the_hero_waits_for_the_zone_to_be_drawn() {
+        let far = Vec2::splat(1000.0);
+        let mut game = Game::new(Zone {
+            half_size: Vec2::splat(50.0),
+            colliders: Vec::new(),
+            start: Vec2::ZERO,
+            facing: Vec2::X,
+            item: far,
+            door: far,
+            campfire: far,
+            terrace: far,
+            door_colliders: Vec::new(),
+            item_nodes: Default::default(),
+            door_nodes: Default::default(),
+        });
+        let camera = FollowCamera::looking_along(Vec2::X);
+        let mut controls = Controls::default();
+        controls.handle(&KeyEvent {
+            physical: KeyCode::KeyW,
+            logical: Key::Unidentified,
+            text: None,
+            state: ButtonState::Pressed,
+            repeat: false,
+        });
+        let tick = Duration::from_secs(1) / 60;
+        // Half a second with the key held while the zone loads: the hero stays at its start.
+        for _ in 0..30 {
+            step(&mut game, &camera, &controls, false, tick);
+        }
+        assert_eq!(game.hero().position, Vec2::ZERO);
+        for _ in 0..30 {
+            step(&mut game, &camera, &controls, true, tick);
+        }
+        assert!(game.hero().position.x > 0.5, "{}", game.hero().position);
     }
 }
