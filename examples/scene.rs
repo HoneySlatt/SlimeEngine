@@ -16,7 +16,7 @@
 //! cargo run --example scene                              # the scene of examples/assets/scene.glb
 //! cargo run --example scene -- --frames 120              # closes after 120 frames of the scene
 //! cargo run --example scene -- --assets <dir> --scene <id>   # another cooked scene, by its ID
-//! cargo run --example scene -- --watch                   # loads it again when it is cooked again
+//! cargo run --example scene -- --watch                   # loads it and the shaders again as they change
 //! ```
 //!
 //! Without `--assets`, it reads `assets` beside the program if there is one, as where CI ships it,
@@ -42,7 +42,9 @@ use slime_platform::{
     ButtonState, Event, KeyCode, KeyEvent, MouseButton, ScrollDelta, WindowConfig,
 };
 use slime_render::glam::Vec3;
-use slime_render::{Camera, Material, MaterialValues, RenderStats, Renderer, SceneLoad};
+use slime_render::{
+    Camera, Material, MaterialValues, RenderStats, Renderer, SceneLoad, ShaderSources, ShaderWatch,
+};
 
 use sample_scene::{BLOOM, EXPOSURE, SKY, SampleScene};
 
@@ -211,6 +213,8 @@ struct SceneExample {
     glow: f32,
     /// With `--watch`, what tells when the cooked data changes.
     watch: Option<ManifestWatch>,
+    /// With `--watch`, what tells when the renderer's shader files change.
+    shader_watch: Option<ShaderWatch>,
     /// The load of the scene again, after its cooked data changed.
     reload: Option<SceneLoad>,
 }
@@ -325,6 +329,29 @@ impl App for SceneExample {
         let Some(scene) = &mut self.scene else {
             return;
         };
+        if let Some(shader_watch) = &mut self.shader_watch {
+            match shader_watch.poll(Instant::now()) {
+                Ok(Some(sources)) => {
+                    let started = Instant::now();
+                    match scene.set_shaders(gpu, &sources) {
+                        Ok(()) => tracing::info!(
+                            time = ?started.elapsed(),
+                            "the shaders changed: the frames are drawn with them"
+                        ),
+                        Err(error) => tracing::warn!(
+                            "the shaders cannot be used: {}; the frames are drawn as before",
+                            slime_app::error_chain(&error)
+                        ),
+                    }
+                }
+                Ok(None) => {}
+                Err(error) => tracing::warn!(
+                    "the shaders cannot be read from {}: {error}; the example draws with those it \
+                     has",
+                    ShaderSources::DIRECTORY
+                ),
+            }
+        }
         // Once a reload has ended, so that none is dropped half-way, which waits for its tasks.
         if let Some(watch) = &mut self.watch
             && self.reload.is_none()
@@ -547,6 +574,9 @@ fn main() -> ExitCode {
         ring: None,
         glow: 1.0,
         watch,
+        shader_watch: options
+            .watch
+            .then(|| ShaderWatch::new(ShaderSources::DIRECTORY, Instant::now())),
         reload: None,
         frame_ms: 0.0,
         drawn: 0,
@@ -582,7 +612,8 @@ struct Options {
     assets: Option<PathBuf>,
     scene: Option<AssetId>,
     frame_limit: Option<u64>,
-    /// Whether the example loads the scene again when its cooked data changes.
+    /// Whether the example loads the scene again when its cooked data changes, and the renderer's
+    /// shaders when their files do.
     watch: bool,
 }
 

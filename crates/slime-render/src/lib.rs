@@ -11,6 +11,7 @@ mod material;
 mod mesh;
 mod pool;
 mod renderer;
+mod shaders;
 mod shadow;
 mod shapes;
 
@@ -26,6 +27,7 @@ pub use light::{DirectionalLight, Light, MAX_LIGHTS, PointLight, SpotLight};
 pub use material::{AlphaMode, Material, MaterialData, MaterialValues, SampledTexture};
 pub use mesh::{Mesh, MeshData};
 pub use renderer::{Instance, RenderStats, Renderer, Scene};
+pub use shaders::{ShaderSources, ShaderWatch};
 
 /// Which types may cross threads (`docs/ARCHITECTURE.md`, "Threads"): checked when the tests are
 /// compiled.

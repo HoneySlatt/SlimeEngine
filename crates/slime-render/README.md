@@ -101,6 +101,10 @@ fn main() -> Result<(), RenderError> {
 - `Renderer::new(gpu, format)` creates a renderer for output targets of one format: the window's
   for a windowed application (`Context::surface_format` in `slime-app`). Use one renderer per output
   size.
+- `Renderer::set_shaders(gpu, &ShaderSources)` makes the renderer's pipelines again from new WGSL
+  sources, all or none, so that a game sees a shader change while it runs; `ShaderSources` holds
+  the embedded sources or those of the shaders' files, and `ShaderWatch` tells a game when the
+  files change (ADR-0077).
 - `Renderer::create_environment(gpu, &Sky)` computes, on the CPU, the `Environment` that lights a
   scene and shows behind it: a procedural sky of a zenith, a horizon, a ground and an optional sun.
   It is slow: create one per sky, not per frame.

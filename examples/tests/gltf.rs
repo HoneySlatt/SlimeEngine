@@ -27,7 +27,8 @@ mod reference_image;
 #[path = "../common/sample_scene.rs"]
 #[expect(
     dead_code,
-    reason = "the `scene` example loads the scene again when it changes; this test does not"
+    reason = "the `scene` example loads the scene and the shaders again when they change; this test \
+              does not"
 )]
 mod sample_scene;
 

@@ -162,7 +162,10 @@ tried yet.
 `slime-cook watch` cooks a directory of sources again each time one of its files changes, and a
 game started with `--watch` loads its scenes again when their cooked data changes, keeping what did
 not change: a texture saved in an image editor, or a scene exported again from Blender, shows in the
-running game shortly after ([ADR-0076](docs/adr/0076-hot-reload-of-cooked-data.md)).
+running game shortly after ([ADR-0076](docs/adr/0076-hot-reload-of-cooked-data.md)). The
+same option reads the renderer's shaders, in `crates/slime-render/src`, when they change: a shader
+that compiles draws the next frame, and one that does not leaves the frames as they were, the log
+naming its file, line and column ([ADR-0077](docs/adr/0077-hot-reload-of-shaders.md)).
 In two terminals:
 
 ```sh

@@ -144,3 +144,4 @@ the ADR linking to it.
 | [0074](0074-uploading-textures-without-holding-up-frames.md) | Uploading textures without holding up frames | Accepted |
 | [0075](0075-recovering-from-a-lost-gpu-device.md) | Recovering from a lost GPU device | Accepted |
 | [0076](0076-hot-reload-of-cooked-data.md) | Hot reload of cooked data | Accepted |
+| [0077](0077-hot-reload-of-shaders.md) | Hot reload of shaders | Accepted |

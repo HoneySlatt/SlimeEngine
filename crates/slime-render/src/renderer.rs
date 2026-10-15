@@ -13,7 +13,8 @@ use slime_gfx::{
     AddressMode, BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource,
     BindingType, ComparisonSampler, CullMode, DepthBias, DepthCompare, DepthState, DepthTarget,
     Filter, FragmentState, GfxError, Gpu, RenderPass, RenderPipeline, RenderPipelineDescriptor,
-    RenderTarget, Sampler, SamplerDescriptor, ShaderStages, Texture, TextureFormat, UniformBuffer,
+    RenderTarget, Sampler, SamplerDescriptor, ShaderModule, ShaderStages, Texture, TextureFormat,
+    UniformBuffer,
 };
 
 use crate::bytes::{push_f32s, push_mat3, push_mat4, push_u32s};
@@ -23,21 +24,20 @@ use crate::environment::{Environment, Sky, brdf_table};
 use crate::error::RenderError;
 use crate::graph::{ColorId, Draws, Graph, Imported, PassDeclaration, scaled_side};
 use crate::light::{LIGHT_VALUES_SIZE, Light, MAX_LIGHTS, NO_TILE, SpotLight};
-use crate::material::{Material, MaterialData, MaterialParts};
+use crate::material::{MATERIAL_VALUES_SIZE, Material, MaterialData, MaterialParts};
 use crate::mesh::{Mesh, MeshData, VERTEX_LAYOUT};
+use crate::shaders::ShaderSources;
 use crate::shadow::{
     CASCADE_ATLAS_SIZE, CASCADES, CascadeView, SHADOW_BIAS, SPOT_ATLAS_SIZE, ShadowTile, SpotView,
     cascade_slice, cascade_tile, spot_tiles,
 };
 
-/// The shader of the scene pass.
-const SCENE_SHADER: &str = include_str!("shader.wgsl");
-/// The shader of the tone-mapping pass.
-const TONE_MAPPING_SHADER: &str = include_str!("tone_mapping.wgsl");
-/// The shader of the bloom's passes.
-const BLOOM_SHADER: &str = include_str!("bloom.wgsl");
-/// The shader of the resolve pass.
-const RESOLVE_SHADER: &str = include_str!("resolve.wgsl");
+/// The size of the buffer of the tone-mapping pass's settings: `Settings` in `tone_mapping.wgsl`,
+/// three numbers, which the renderer writes followed by a fourth, unused.
+const TONE_MAPPING_SETTINGS_SIZE: usize = 16;
+/// The size of the buffer of a level's weight in the bloom's average up: `Weight` in `bloom.wgsl`,
+/// one number, which the renderer writes followed by three, unused.
+const BLOOM_WEIGHT_SIZE: usize = 16;
 /// The bloom's chain stops before a level with a side shorter than this, in texels: its coarsest
 /// texel is then an eighth to a sixteenth of the output's shorter side, whatever its resolution, so
 /// that the halo reaches the same share of the screen (ADR-0040).
@@ -298,17 +298,13 @@ pub struct RenderStats {
 pub struct Renderer {
     /// The output's format.
     format: TextureFormat,
-    scene_pipelines: ScenePipelines,
-    tone_mapping_pipeline: RenderPipeline,
+    /// Its pipelines, made from its shaders' sources ([`Renderer::set_shaders`]).
+    pipelines: Pipelines,
+    /// The layouts of the groups that its pipelines read.
+    layouts: Layouts,
     /// What creating a material takes besides its data.
     pub(crate) material_parts: MaterialParts,
-    instance_layout: BindGroupLayout,
-    /// The layout of the group through which the tone-mapping pass reads the scene's target.
-    tone_mapping_layout: BindGroupLayout,
     frame_uniform: UniformBuffer,
-    /// The layout of the frame's group: the frame's values, the environment, the BRDF table and
-    /// their sampler.
-    frame_layout: BindGroupLayout,
     /// The environment the frame's group was last built with, kept alive by it, and that group.
     frame_group: (Environment, BindGroup),
     /// One black texel, the environment of scenes without one.
@@ -316,20 +312,10 @@ pub struct Renderer {
     brdf_table: Texture,
     /// Reads the environment and the BRDF table.
     environment_sampler: Sampler,
-    /// Draws the environment where no surface is.
-    sky_pipeline: RenderPipeline,
-    /// Averages the samples of each pixel, weighed by their brightness.
-    resolve_pipeline: RenderPipeline,
-    /// The layout of the group through which the resolve pass reads the scene's samples.
-    resolve_layout: BindGroupLayout,
     instances: InstanceSlots,
     /// The frame's graph and what reads its targets: created by the first `render`, and again
     /// when the frame's shape changes.
     frame: Option<Frame>,
-    /// Draws the instances' depths as the shadowed light sees them, culling no face.
-    shadow_pipeline: RenderPipeline,
-    /// The same, discarding what masked materials discard.
-    masked_shadow_pipeline: RenderPipeline,
     /// The cascades' atlas (ADR-0064): the depths that the shadow pass draws into the tile of each
     /// cascade, which the scene pass compares with; created by the first frame in which a
     /// directional light casts shadows, then kept.
@@ -339,7 +325,6 @@ pub struct Renderer {
     /// The cascades' atlas, its comparison sampler and the spot lights' atlas, bound at group 3 of
     /// the scene pass, built again when either atlas is created.
     shadow_group: BindGroup,
-    shadow_layout: BindGroupLayout,
     shadow_sampler: ComparisonSampler,
     /// The view of each tile that the shadow passes draw: the cascades' in the first [`CASCADES`]
     /// slots, then one per spot light that casts shadows, each slot `shadow_view_stride` bytes
@@ -351,14 +336,6 @@ pub struct Renderer {
     /// The spot lights' shadow atlas (ADR-0058): created by the first frame in which a spot light
     /// casts shadows, then kept.
     spot_atlas: Option<DepthTarget>,
-    /// Filters a level down from the one above, the scene's light for the first.
-    bloom_down_pipeline: RenderPipeline,
-    /// Averages a level with the coarser ones.
-    bloom_up_pipeline: RenderPipeline,
-    /// The layouts of the groups that the bloom's passes read: down, the finer level and the
-    /// sampler; up, the coarser average, the sampler, the level's own light and its weight.
-    bloom_down_layout: BindGroupLayout,
-    bloom_up_layout: BindGroupLayout,
     /// Linear, mirrored at the edges: reads the levels between their texels, and beyond them their
     /// texels mirrored, so that a pixel near an edge keeps its light and none wraps around.
     bloom_sampler: Sampler,
@@ -462,18 +439,21 @@ impl Renderer {
     ///
     /// # Errors
     ///
-    /// [`RenderError::Gfx`] if the graphics driver rejects one of the renderer's three shaders or
-    /// nine pipelines; with [`GfxError::OutOfMemory`] if the GPU's memory cannot hold the shadow
-    /// map or the renderer's other objects; or with [`GfxError::DeviceLost`] if the device is lost.
+    /// [`RenderError::Gfx`] if the graphics driver rejects one of the renderer's four shaders or
+    /// ten pipelines, made from the embedded sources ([`ShaderSources::embedded`]); with
+    /// [`GfxError::OutOfMemory`] if the GPU's memory cannot hold the shadow map or the renderer's
+    /// other objects; or with [`GfxError::DeviceLost`] if the device is lost.
     pub fn new(gpu: &Gpu, format: TextureFormat) -> Result<Self, RenderError> {
-        let shader = gpu.create_shader_module("scene", SCENE_SHADER)?;
-        let uniform = |label: &str, dynamic_offset: bool| {
+        let uniform = |label: &str, dynamic_offset: bool, size: usize| {
             gpu.create_bind_group_layout(
                 label,
                 &[BindGroupLayoutEntry {
                     binding: 0,
                     visible_to: ShaderStages::VertexAndFragment,
-                    ty: BindingType::UniformBuffer { dynamic_offset },
+                    ty: BindingType::UniformBuffer {
+                        dynamic_offset,
+                        size: size as u64,
+                    },
                 }],
             )
         };
@@ -486,6 +466,7 @@ impl Renderer {
                     visible_to: ShaderStages::VertexAndFragment,
                     ty: BindingType::UniformBuffer {
                         dynamic_offset: false,
+                        size: FRAME_VALUES_SIZE as u64,
                     },
                 },
                 BindGroupLayoutEntry {
@@ -511,6 +492,7 @@ impl Renderer {
             visible_to: ShaderStages::Fragment,
             ty: BindingType::UniformBuffer {
                 dynamic_offset: false,
+                size: MATERIAL_VALUES_SIZE as u64,
             },
         }];
         for slot in 0..MATERIAL_TEXTURE_SLOTS {
@@ -526,7 +508,7 @@ impl Renderer {
             }
         }
         let material_layout = gpu.create_bind_group_layout("material", &material_entries)?;
-        let instance_layout = uniform("instance", true)?;
+        let instance_layout = uniform("instance", true, INSTANCE_VALUES_SIZE)?;
         // Apart from the frame's group, which the shadow pass binds: a pass cannot bind what it
         // draws into.
         let shadow_layout = gpu.create_bind_group_layout(
@@ -549,31 +531,6 @@ impl Renderer {
                 },
             ],
         )?;
-        let scene_pipeline = |label: &str, cull: CullMode| {
-            gpu.create_render_pipeline(&RenderPipelineDescriptor {
-                label,
-                shader: &shader,
-                vertex_entry_point: "vs_main",
-                vertex_layout: Some(VERTEX_LAYOUT),
-                fragment: Some(FragmentState {
-                    entry_point: "fs_main",
-                    target_format: Some(HDR_FORMAT),
-                }),
-                bind_group_layouts: &[
-                    &frame_layout,
-                    &material_layout,
-                    &instance_layout,
-                    &shadow_layout,
-                ],
-                depth: Some(DepthState {
-                    compare: DepthCompare::Greater,
-                    write: true,
-                    bias: DepthBias::default(),
-                }),
-                cull,
-                multisampled: true,
-            })
-        };
         // The view of the map or tile a shadow pass draws, one slot per view (`ShadowView` in
         // `shader.wgsl`).
         let shadow_views_layout = gpu.create_bind_group_layout(
@@ -583,41 +540,10 @@ impl Renderer {
                 visible_to: ShaderStages::Vertex,
                 ty: BindingType::UniformBuffer {
                     dynamic_offset: true,
+                    size: SHADOW_VIEW_SIZE as u64,
                 },
             }],
         )?;
-        // Every face casts, whichever way it faces the light: a single-sided surface stops light
-        // from behind too, and mirrored instances need no other pipeline.
-        let shadow_pipeline = |label: &str, fragment: Option<FragmentState<'_>>| {
-            gpu.create_render_pipeline(&RenderPipelineDescriptor {
-                label,
-                shader: &shader,
-                vertex_entry_point: "vs_shadow",
-                vertex_layout: Some(VERTEX_LAYOUT),
-                fragment,
-                bind_group_layouts: &[
-                    &frame_layout,
-                    &material_layout,
-                    &instance_layout,
-                    &shadow_views_layout,
-                ],
-                depth: Some(DepthState {
-                    compare: DepthCompare::Greater,
-                    write: true,
-                    bias: SHADOW_BIAS,
-                }),
-                cull: CullMode::None,
-                multisampled: false,
-            })
-        };
-        let masked_shadow_pipeline = shadow_pipeline(
-            "shadow, masked",
-            Some(FragmentState {
-                entry_point: "fs_shadow",
-                target_format: None,
-            }),
-        )?;
-        let shadow_pipeline = shadow_pipeline("shadow", None)?;
         let shadow_sampler = gpu.create_comparison_sampler(
             "shadow map",
             DepthCompare::GreaterEqual,
@@ -645,32 +571,6 @@ impl Renderer {
                 },
             }],
         )?;
-        let scene_pipelines = ScenePipelines {
-            back_culled: scene_pipeline("scene, back faces culled", CullMode::Back)?,
-            front_culled: scene_pipeline("scene, front faces culled", CullMode::Front)?,
-            unculled: scene_pipeline("scene, no face culled", CullMode::None)?,
-        };
-        // Where the depth target still holds the farthest depth, which the sky's triangle has.
-        let sky_pipeline = gpu.create_render_pipeline(&RenderPipelineDescriptor {
-            label: "sky",
-            shader: &shader,
-            vertex_entry_point: "vs_sky",
-            vertex_layout: None,
-            fragment: Some(FragmentState {
-                entry_point: "fs_sky",
-                target_format: Some(HDR_FORMAT),
-            }),
-            bind_group_layouts: &[&frame_layout],
-            depth: Some(DepthState {
-                compare: DepthCompare::GreaterEqual,
-                write: false,
-                bias: DepthBias::default(),
-            }),
-            cull: CullMode::None,
-            multisampled: true,
-        })?;
-
-        let tone_mapping_shader = gpu.create_shader_module("tone mapping", TONE_MAPPING_SHADER)?;
         let fragment_entries = |types: &[BindingType]| -> Vec<BindGroupLayoutEntry> {
             (0..)
                 .zip(types)
@@ -681,8 +581,9 @@ impl Renderer {
                 })
                 .collect()
         };
-        let values = BindingType::UniformBuffer {
+        let values = |size: usize| BindingType::UniformBuffer {
             dynamic_offset: false,
+            size: size as u64,
         };
         // The scene's light, the bloom's blurred copy, the sampler that magnifies it, the strength.
         let tone_mapping_layout = gpu.create_bind_group_layout(
@@ -691,10 +592,9 @@ impl Renderer {
                 BindingType::Texture,
                 BindingType::Texture,
                 BindingType::Sampler,
-                values,
+                values(TONE_MAPPING_SETTINGS_SIZE),
             ]),
         )?;
-        let bloom_shader = gpu.create_shader_module("bloom", BLOOM_SHADER)?;
         let bloom_down_layout = gpu.create_bind_group_layout(
             "bloom down",
             &fragment_entries(&[BindingType::Texture, BindingType::Sampler]),
@@ -705,28 +605,9 @@ impl Renderer {
                 BindingType::Texture,
                 BindingType::Sampler,
                 BindingType::Texture,
-                values,
+                values(BLOOM_WEIGHT_SIZE),
             ]),
         )?;
-        let bloom_pipeline = |label: &str, entry_point: &str, layout: &BindGroupLayout| {
-            gpu.create_render_pipeline(&RenderPipelineDescriptor {
-                label,
-                shader: &bloom_shader,
-                vertex_entry_point: "vs_main",
-                vertex_layout: None,
-                fragment: Some(FragmentState {
-                    entry_point,
-                    target_format: Some(HDR_FORMAT),
-                }),
-                bind_group_layouts: &[layout],
-                depth: None,
-                cull: CullMode::None,
-                multisampled: false,
-            })
-        };
-        let bloom_down_pipeline =
-            bloom_pipeline("bloom down", "fs_downsample", &bloom_down_layout)?;
-        let bloom_up_pipeline = bloom_pipeline("bloom up", "fs_upsample", &bloom_up_layout)?;
         let bloom_sampler = gpu.create_sampler(
             "bloom",
             &SamplerDescriptor {
@@ -740,36 +621,20 @@ impl Renderer {
             "resolve",
             &fragment_entries(&[BindingType::MultisampledTexture]),
         )?;
-        let resolve_shader = gpu.create_shader_module("resolve", RESOLVE_SHADER)?;
-        let resolve_pipeline = gpu.create_render_pipeline(&RenderPipelineDescriptor {
-            label: "resolve",
-            shader: &resolve_shader,
-            vertex_entry_point: "vs_main",
-            vertex_layout: None,
-            fragment: Some(FragmentState {
-                entry_point: "fs_main",
-                target_format: Some(HDR_FORMAT),
-            }),
-            bind_group_layouts: &[&resolve_layout],
-            depth: None,
-            cull: CullMode::None,
-            multisampled: false,
-        })?;
-        let tone_mapping_settings = gpu.create_uniform_buffer("tone-mapping settings", &[0; 16])?;
-        let tone_mapping_pipeline = gpu.create_render_pipeline(&RenderPipelineDescriptor {
-            label: "tone mapping",
-            shader: &tone_mapping_shader,
-            vertex_entry_point: "vs_main",
-            vertex_layout: None,
-            fragment: Some(FragmentState {
-                entry_point: "fs_main",
-                target_format: Some(format),
-            }),
-            bind_group_layouts: &[&tone_mapping_layout],
-            depth: None,
-            cull: CullMode::None,
-            multisampled: false,
-        })?;
+        let layouts = Layouts {
+            frame: frame_layout,
+            material: material_layout.clone(),
+            instance: instance_layout,
+            shadow: shadow_layout,
+            shadow_views: shadow_views_layout,
+            tone_mapping: tone_mapping_layout,
+            bloom_down: bloom_down_layout,
+            bloom_up: bloom_up_layout,
+            resolve: resolve_layout,
+        };
+        let pipelines = Pipelines::new(gpu, &ShaderSources::embedded(), &layouts, format)?;
+        let tone_mapping_settings =
+            gpu.create_uniform_buffer("tone-mapping settings", &[0; TONE_MAPPING_SETTINGS_SIZE])?;
         let frame_uniform = gpu.create_uniform_buffer("frame", &[0; FRAME_VALUES_SIZE])?;
         let no_environment = Environment::black(gpu)?;
         let brdf_table = brdf_table(gpu)?;
@@ -783,7 +648,7 @@ impl Renderer {
         )?;
         let frame_group = frame_group(
             gpu,
-            &frame_layout,
+            &layouts.frame,
             &frame_uniform,
             &no_environment,
             &brdf_table,
@@ -797,51 +662,61 @@ impl Renderer {
             &[255, 255, 255, 255],
         )?;
         let default_sampler = gpu.create_sampler("default", &SamplerDescriptor::default())?;
-        let instances = InstanceSlots::new(gpu, &instance_layout, INITIAL_INSTANCE_CAPACITY)?;
+        let instances = InstanceSlots::new(gpu, &layouts.instance, INITIAL_INSTANCE_CAPACITY)?;
         if !gpu.can_time() {
             tracing::info!("the adapter cannot time its work: the statistics have no GPU time");
         }
         Ok(Self {
             format,
-            scene_pipelines,
-            tone_mapping_pipeline,
+            pipelines,
+            layouts,
             material_parts: MaterialParts {
                 layout: material_layout,
                 white,
                 sampler: default_sampler,
             },
-            instance_layout,
-            tone_mapping_layout,
             frame_uniform,
-            frame_layout,
             frame_group: (no_environment.clone(), frame_group),
             no_environment,
             brdf_table,
             environment_sampler,
-            sky_pipeline,
-            resolve_pipeline,
-            resolve_layout,
             instances,
             frame: None,
-            shadow_pipeline,
-            masked_shadow_pipeline,
             cascade_atlas: None,
             no_atlas,
             shadow_group,
-            shadow_layout,
             shadow_sampler,
             shadow_views,
             shadow_view_stride,
             shadow_views_group,
             spot_atlas: None,
-            bloom_down_pipeline,
-            bloom_up_pipeline,
-            bloom_down_layout,
-            bloom_up_layout,
             bloom_sampler,
             tone_mapping_settings,
             warned_of_lights: false,
         })
+    }
+
+    /// Makes the renderer's pipelines again from `sources`, all of them or none: when a shader
+    /// does not compile or a pipeline is refused, the renderer keeps the pipelines it had, and
+    /// draws on with them (ADR-0077). A game that hot-reloads gives it the sources of the shaders'
+    /// files when they change ([`ShaderWatch`](crate::ShaderWatch)).
+    ///
+    /// It compiles the four shaders and makes the ten pipelines on the calling thread, which waits
+    /// for the driver: the frame that calls it is late by that long. In a release build on an RX
+    /// 6900 XT (RADV), 7 ms when the driver's cache holds the shaders already, as when one file
+    /// changed, and 76 ms when it does not; 45 ms on lavapipe. A debug build takes about twice as
+    /// long, in wgpu's own work. Direct3D 12 compiles the shaders again with DXC for each pipeline.
+    ///
+    /// # Errors
+    ///
+    /// [`RenderError::Gfx`] with [`GfxError::Shader`] if a shader does not compile, whose message
+    /// names the shader's file and gives the line and column of the error; with
+    /// [`GfxError::Pipeline`] if a pipeline is refused, as when a shader reads more values than the
+    /// renderer gives it at a uniform binding, or, on Direct3D 12, when the shader compiler
+    /// rejects one; with [`GfxError::DeviceLost`] once the device is lost.
+    pub fn set_shaders(&mut self, gpu: &Gpu, sources: &ShaderSources) -> Result<(), RenderError> {
+        self.pipelines = Pipelines::new(gpu, sources, &self.layouts, self.format)?;
+        Ok(())
     }
 
     /// Computes the environment of `sky` on the CPU and uploads it (ADR-0039): the sky drawn into a
@@ -1062,7 +937,7 @@ impl Renderer {
             1.0 / 255.0
         };
         let srgb = if self.format.is_srgb() { 1.0 } else { 0.0 };
-        let mut settings = Vec::with_capacity(16);
+        let mut settings = Vec::with_capacity(TONE_MAPPING_SETTINGS_SIZE);
         push_f32s(
             &mut settings,
             &[if bloom { scene.bloom } else { 0.0 }, step, srgb, 0.0],
@@ -1175,7 +1050,7 @@ impl Renderer {
         if created {
             self.shadow_group = shadow_group(
                 gpu,
-                &self.shadow_layout,
+                &self.layouts.shadow,
                 self.cascade_atlas.as_ref().unwrap_or(&self.no_atlas),
                 &self.shadow_sampler,
                 self.spot_atlas.as_ref().unwrap_or(&self.no_atlas),
@@ -1281,7 +1156,7 @@ impl Renderer {
         if !self.frame_group.0.is(environment) {
             let group = frame_group(
                 gpu,
-                &self.frame_layout,
+                &self.layouts.frame,
                 &self.frame_uniform,
                 environment,
                 &self.brdf_table,
@@ -1294,7 +1169,7 @@ impl Renderer {
         let capacity = instance_capacity(self.instances.capacity, scene.instances.len());
         if capacity != self.instances.capacity {
             tracing::debug!(capacity, "resizing the instance buffer");
-            self.instances = InstanceSlots::new(gpu, &self.instance_layout, capacity)?;
+            self.instances = InstanceSlots::new(gpu, &self.layouts.instance, capacity)?;
         }
         let stride = self.instances.stride;
         // The slots are written one after another, each padded to the stride, and the slots no
@@ -1382,9 +1257,9 @@ impl Renderer {
         let masked = instance.material.masked;
         if *bound != Some(masked) {
             render_pass.set_pipeline(if masked {
-                &self.masked_shadow_pipeline
+                &self.pipelines.masked_shadow
             } else {
-                &self.shadow_pipeline
+                &self.pipelines.shadow
             });
             *bound = Some(masked);
         }
@@ -1453,7 +1328,7 @@ impl Renderer {
                         is_mirrored(instance.transform),
                     );
                     if bound != Some(cull) {
-                        render_pass.set_pipeline(self.scene_pipelines.get(cull));
+                        render_pass.set_pipeline(self.pipelines.scene.get(cull));
                         bound = Some(cull);
                     }
                     self.instances.draw(render_pass, slot, instance);
@@ -1462,26 +1337,26 @@ impl Renderer {
                 }
             }
             Pass::Sky => {
-                render_pass.set_pipeline(&self.sky_pipeline);
+                render_pass.set_pipeline(&self.pipelines.sky);
                 render_pass.set_bind_group(0, frame_group, &[]);
                 render_pass.draw(0..3);
             }
             Pass::Resolve => {
-                render_pass.set_pipeline(&self.resolve_pipeline);
+                render_pass.set_pipeline(&self.pipelines.resolve);
                 render_pass.set_bind_group(0, group.expect("the resolve reads the samples"), &[]);
                 render_pass.draw(0..3);
             }
             Pass::BloomDown(_) | Pass::BloomUp(_) => {
                 render_pass.set_pipeline(if matches!(pass, Pass::BloomDown(_)) {
-                    &self.bloom_down_pipeline
+                    &self.pipelines.bloom_down
                 } else {
-                    &self.bloom_up_pipeline
+                    &self.pipelines.bloom_up
                 });
                 render_pass.set_bind_group(0, group.expect("a bloom pass reads its levels"), &[]);
                 render_pass.draw(0..3);
             }
             Pass::ToneMapping => render_pass.debug_group("tone mapping", |render_pass| {
-                render_pass.set_pipeline(&self.tone_mapping_pipeline);
+                render_pass.set_pipeline(&self.pipelines.tone_mapping);
                 render_pass.set_bind_group(0, group.expect("tone mapping reads the scene"), &[]);
                 render_pass.draw(0..3);
             }),
@@ -1513,14 +1388,14 @@ impl Renderer {
                     Pass::Shadow | Pass::SpotShadows | Pass::Scene | Pass::Sky => return Ok(None),
                     Pass::Resolve => (
                         "resolve".to_owned(),
-                        &self.resolve_layout,
+                        &self.layouts.resolve,
                         vec![BindingResource::RenderTarget(read(0).expect("declared"))],
                         None,
                     ),
                     // The level above: the scene's light for the first.
                     Pass::BloomDown(level) => (
                         format!("bloom down {level}"),
-                        &self.bloom_down_layout,
+                        &self.layouts.bloom_down,
                         vec![
                             BindingResource::RenderTarget(read(0).expect("declared")),
                             BindingResource::Sampler(&self.bloom_sampler),
@@ -1533,11 +1408,11 @@ impl Renderer {
                     // exceeds the light it averages, which a sum would beyond half precision near
                     // the sun.
                     Pass::BloomUp(level) => {
-                        let mut weight = Vec::with_capacity(16);
+                        let mut weight = Vec::with_capacity(BLOOM_WEIGHT_SIZE);
                         push_f32s(&mut weight, &[1.0 / (levels - level) as f32, 0.0, 0.0, 0.0]);
                         (
                             format!("bloom up {level}"),
-                            &self.bloom_up_layout,
+                            &self.layouts.bloom_up,
                             vec![
                                 BindingResource::RenderTarget(read(0).expect("declared")),
                                 BindingResource::Sampler(&self.bloom_sampler),
@@ -1552,7 +1427,7 @@ impl Renderer {
                         let hdr = read(0).expect("declared");
                         (
                             "tone mapping".to_owned(),
-                            &self.tone_mapping_layout,
+                            &self.layouts.tone_mapping,
                             vec![
                                 BindingResource::RenderTarget(hdr),
                                 BindingResource::RenderTarget(read(1).unwrap_or(hdr)),
@@ -1840,6 +1715,206 @@ fn normal_matrix(transform: Mat4) -> Mat3 {
         }
 }
 
+/// The layouts of the groups that the renderer's pipelines read, made once: the shaders' sources
+/// can change, the layouts do not.
+struct Layouts {
+    /// The frame's group: the frame's values, the environment, the BRDF table and their sampler.
+    frame: BindGroupLayout,
+    /// A material's group: its values, and its five textures with their samplers.
+    material: BindGroupLayout,
+    /// An instance's values, at an offset given when the group is bound.
+    instance: BindGroupLayout,
+    /// The atlases and their comparison sampler, which the scene pass reads.
+    shadow: BindGroupLayout,
+    /// The view of a shadow pass's tile, at an offset given when the group is bound.
+    shadow_views: BindGroupLayout,
+    /// What the tone-mapping pass reads: the scene's light, the bloom's blurred copy, the sampler
+    /// that magnifies it, and its settings.
+    tone_mapping: BindGroupLayout,
+    /// What the bloom's passes read: down, the finer level and the sampler; up, the coarser
+    /// average, the sampler, the level's own light and its weight.
+    bloom_down: BindGroupLayout,
+    bloom_up: BindGroupLayout,
+    /// The scene's samples, which the resolve pass reads one by one.
+    resolve: BindGroupLayout,
+}
+
+/// The renderer's ten pipelines, made from the sources of its four shaders.
+struct Pipelines {
+    /// The scene pass's.
+    scene: ScenePipelines,
+    /// Draws the environment where no surface is.
+    sky: RenderPipeline,
+    /// Draws the instances' depths as the shadowed light sees them, culling no face.
+    shadow: RenderPipeline,
+    /// The same, discarding what masked materials discard.
+    masked_shadow: RenderPipeline,
+    /// Averages the samples of each pixel, weighed by their brightness.
+    resolve: RenderPipeline,
+    /// Filters a level of the bloom down from the one above, the scene's light for the first.
+    bloom_down: RenderPipeline,
+    /// Averages a level of the bloom with the coarser ones.
+    bloom_up: RenderPipeline,
+    /// Maps the light to the output's range, the bloom mixed in.
+    tone_mapping: RenderPipeline,
+}
+
+impl Pipelines {
+    /// The pipelines that `sources` make, reading groups of `layouts`, the tone-mapping pass's
+    /// drawing into targets of `format`. Each shader module is named after its file, so that an
+    /// error says which file its line and column are in.
+    fn new(
+        gpu: &Gpu,
+        sources: &ShaderSources,
+        layouts: &Layouts,
+        format: TextureFormat,
+    ) -> Result<Self, GfxError> {
+        // The four modules first, so that a shader that does not compile is found before any
+        // pipeline is made.
+        let shader = gpu.create_shader_module("shader.wgsl", &sources.scene)?;
+        let bloom_shader = gpu.create_shader_module("bloom.wgsl", &sources.bloom)?;
+        let resolve_shader = gpu.create_shader_module("resolve.wgsl", &sources.resolve)?;
+        let tone_mapping_shader =
+            gpu.create_shader_module("tone_mapping.wgsl", &sources.tone_mapping)?;
+        let scene_pipeline = |label: &str, cull: CullMode| {
+            gpu.create_render_pipeline(&RenderPipelineDescriptor {
+                label,
+                shader: &shader,
+                vertex_entry_point: "vs_main",
+                vertex_layout: Some(VERTEX_LAYOUT),
+                fragment: Some(FragmentState {
+                    entry_point: "fs_main",
+                    target_format: Some(HDR_FORMAT),
+                }),
+                bind_group_layouts: &[
+                    &layouts.frame,
+                    &layouts.material,
+                    &layouts.instance,
+                    &layouts.shadow,
+                ],
+                depth: Some(DepthState {
+                    compare: DepthCompare::Greater,
+                    write: true,
+                    bias: DepthBias::default(),
+                }),
+                cull,
+                multisampled: true,
+            })
+        };
+        // Every face casts, whichever way it faces the light: a single-sided surface stops light
+        // from behind too, and mirrored instances need no other pipeline.
+        let shadow_pipeline = |label: &str, fragment: Option<FragmentState<'_>>| {
+            gpu.create_render_pipeline(&RenderPipelineDescriptor {
+                label,
+                shader: &shader,
+                vertex_entry_point: "vs_shadow",
+                vertex_layout: Some(VERTEX_LAYOUT),
+                fragment,
+                bind_group_layouts: &[
+                    &layouts.frame,
+                    &layouts.material,
+                    &layouts.instance,
+                    &layouts.shadow_views,
+                ],
+                depth: Some(DepthState {
+                    compare: DepthCompare::Greater,
+                    write: true,
+                    bias: SHADOW_BIAS,
+                }),
+                cull: CullMode::None,
+                multisampled: false,
+            })
+        };
+        let masked_shadow = shadow_pipeline(
+            "shadow, masked",
+            Some(FragmentState {
+                entry_point: "fs_shadow",
+                target_format: None,
+            }),
+        )?;
+        let shadow = shadow_pipeline("shadow", None)?;
+        let scene = ScenePipelines {
+            back_culled: scene_pipeline("scene, back faces culled", CullMode::Back)?,
+            front_culled: scene_pipeline("scene, front faces culled", CullMode::Front)?,
+            unculled: scene_pipeline("scene, no face culled", CullMode::None)?,
+        };
+        // Where the depth target still holds the farthest depth, which the sky's triangle has.
+        let sky = gpu.create_render_pipeline(&RenderPipelineDescriptor {
+            label: "sky",
+            shader: &shader,
+            vertex_entry_point: "vs_sky",
+            vertex_layout: None,
+            fragment: Some(FragmentState {
+                entry_point: "fs_sky",
+                target_format: Some(HDR_FORMAT),
+            }),
+            bind_group_layouts: &[&layouts.frame],
+            depth: Some(DepthState {
+                compare: DepthCompare::GreaterEqual,
+                write: false,
+                bias: DepthBias::default(),
+            }),
+            cull: CullMode::None,
+            multisampled: true,
+        })?;
+        // The passes that cover their target with one triangle, without depth.
+        let fullscreen = |label: &str,
+                          shader: &ShaderModule,
+                          entry_point: &str,
+                          layout: &BindGroupLayout,
+                          target_format: TextureFormat| {
+            gpu.create_render_pipeline(&RenderPipelineDescriptor {
+                label,
+                shader,
+                vertex_entry_point: "vs_main",
+                vertex_layout: None,
+                fragment: Some(FragmentState {
+                    entry_point,
+                    target_format: Some(target_format),
+                }),
+                bind_group_layouts: &[layout],
+                depth: None,
+                cull: CullMode::None,
+                multisampled: false,
+            })
+        };
+        Ok(Self {
+            scene,
+            sky,
+            shadow,
+            masked_shadow,
+            resolve: fullscreen(
+                "resolve",
+                &resolve_shader,
+                "fs_main",
+                &layouts.resolve,
+                HDR_FORMAT,
+            )?,
+            bloom_down: fullscreen(
+                "bloom down",
+                &bloom_shader,
+                "fs_downsample",
+                &layouts.bloom_down,
+                HDR_FORMAT,
+            )?,
+            bloom_up: fullscreen(
+                "bloom up",
+                &bloom_shader,
+                "fs_upsample",
+                &layouts.bloom_up,
+                HDR_FORMAT,
+            )?,
+            tone_mapping: fullscreen(
+                "tone mapping",
+                &tone_mapping_shader,
+                "fs_main",
+                &layouts.tone_mapping,
+                format,
+            )?,
+        })
+    }
+}
+
 /// The scene pass's pipelines, which differ only by the faces they cull (ADR-0035).
 struct ScenePipelines {
     /// Back faces culled: single-sided materials.
@@ -2050,23 +2125,27 @@ mod tests {
         // WGSL sizes the array of lights with a constant of its own, which cannot come from Rust.
         let declared = format!("const MAX_LIGHTS: u32 = {MAX_LIGHTS}u;");
         assert!(
-            SCENE_SHADER.contains(&declared),
+            ShaderSources::embedded().scene.contains(&declared),
             "shader.wgsl lacks `{declared}`"
         );
         // And as many cascades.
         let cascades = format!("const CASCADES: u32 = {CASCADES}u;");
         assert!(
-            SCENE_SHADER.contains(&cascades),
+            ShaderSources::embedded().scene.contains(&cascades),
             "shader.wgsl lacks `{cascades}`"
         );
         // And the index of no tile, the largest u32.
         assert_eq!(NO_TILE, u32::MAX);
-        assert!(SCENE_SHADER.contains("const NO_TILE: u32 = 0xffffffffu;"));
+        assert!(
+            ShaderSources::embedded()
+                .scene
+                .contains("const NO_TILE: u32 = 0xffffffffu;")
+        );
     }
 
     /// The value of the WGSL constant `name` in the scene shader.
     fn shader_constant(name: &str) -> f64 {
-        constant_of(SCENE_SHADER, name)
+        constant_of(&ShaderSources::embedded().scene, name)
     }
 
     /// The value of the WGSL constant `name` in `shader`.
@@ -2083,8 +2162,14 @@ mod tests {
     fn the_tone_mapping_pass_restores_the_light_the_scene_pass_divided() {
         // Both shaders scale by the same power of two, which half precision multiplies exactly.
         let headroom = shader_constant("HEADROOM");
-        assert_eq!(constant_of(TONE_MAPPING_SHADER, "HEADROOM"), headroom);
-        assert_eq!(constant_of(RESOLVE_SHADER, "HEADROOM"), headroom);
+        assert_eq!(
+            constant_of(&ShaderSources::embedded().tone_mapping, "HEADROOM"),
+            headroom
+        );
+        assert_eq!(
+            constant_of(&ShaderSources::embedded().resolve, "HEADROOM"),
+            headroom
+        );
         assert_eq!(headroom, 64.0);
     }
 

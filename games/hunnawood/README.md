@@ -38,7 +38,7 @@ cargo run -p hunnawood -- --frames 120     # closes itself after 120 frames that
 cargo run -p hunnawood -- --assets <dir>   # reads the cooked data of another directory
 cargo run -p hunnawood -- --night          # starts at night, and starts again at night
 cargo run -p hunnawood -- --lose-device-at 300   # loses its GPU device after 300 frames of the zone
-cargo run -p hunnawood -- --watch          # loads its zone and its hero again when they are cooked again
+cargo run -p hunnawood -- --watch          # loads its zone, hero and shaders again as they change
 ```
 
 Without `--assets`, it reads `hunnawood-assets` beside the program if that directory holds a
@@ -67,6 +67,9 @@ zone drawn until then stays until the new one is loaded. It reads the zone's rul
 when the layout changed, a collider, the start, the key, the door, the campfire, the terrace or the
 bounds, the run starts again, as R does; when only the looks changed, it goes on. A reload that
 fails, or a zone whose rules cannot be read, keeps what is drawn, and the log says why.
+The same option reads the renderer's shaders, in `crates/slime-render/src`, when they change, and
+draws with them from the next frame; a shader that does not compile leaves the frames as they were,
+and the log says where it fails ([ADR-0077](../../docs/adr/0077-hot-reload-of-shaders.md)).
 
 | Key | Does |
 |---|---|

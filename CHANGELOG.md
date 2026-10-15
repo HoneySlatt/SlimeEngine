@@ -39,6 +39,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   cooked file did not change; `slime_assets::ManifestWatch` tells a game when its manifest changes;
   *Hunna Wood* and the `scene` example take `--watch`, which loads their scenes again then.
   *Hunna Wood* reads its zone's rules again, and starts the run again when its layout changed.
+- The renderer's shaders change while a game runs
+  ([ADR-0077](docs/adr/0077-hot-reload-of-shaders.md)): `Renderer::set_shaders` makes its pipelines
+  again from new WGSL sources, all or none, keeping the old ones on an error that names the
+  shader's file, line and column; `ShaderSources` and `ShaderWatch` read the shaders' files, which
+  `--watch` in *Hunna Wood* and the `scene` example gives the renderer when they change.
 - *Hunna Wood*'s campfire flickers, its flames, its embers and its light together, and the key
   glows in pulses at night. The `scene` example's overlay has a slider of how strongly its ring
   glows.
@@ -49,6 +54,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- `BindingType::UniformBuffer` declares the size of the values its shaders read (`size`): a
+  pipeline whose shader reads more is refused when it is made, rather than failing when it draws
+  (ADR-0077).
 - The cooker writes its temporary files under names of the process's own, so that two cooks of
   the same sources at once leave the cooked data whole, and writes the manifest only when what it
   lists changed.

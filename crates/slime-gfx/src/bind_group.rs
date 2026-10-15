@@ -42,6 +42,12 @@ pub enum BindingType {
         /// holds the values of many draws, one range each. The group then binds a
         /// [`BindingResource::UniformBufferRange`].
         dynamic_offset: bool,
+        /// The size, in bytes, of the values bound there: the buffer or range that a group binds,
+        /// at least what the shaders read, and not zero. A pipeline whose shader reads more is
+        /// refused when it is made ([`Gpu::create_render_pipeline`]), rather than when a draw binds
+        /// the group; binding a smaller buffer or range panics when the group is made
+        /// ([`Gpu::create_bind_group`]).
+        size: u64,
     },
     /// A [`Texture`], or a [`RenderTarget`] that an earlier pass drew into, declared
     /// `texture_2d<f32>` in WGSL: sampled through a [`Sampler`] (`textureSample`), or read texel by
@@ -150,7 +156,8 @@ impl Gpu {
     ///
     /// # Panics
     ///
-    /// If two entries have the same binding number: this is a bug in the caller (ADR-0016).
+    /// If two entries have the same binding number, or a uniform binding a size of zero: this is a
+    /// bug in the caller (ADR-0016).
     pub fn create_bind_group_layout(
         &self,
         label: &str,
@@ -162,10 +169,15 @@ impl Gpu {
                 binding: entry.binding,
                 visibility: entry.visible_to.to_wgpu(),
                 ty: match entry.ty {
-                    BindingType::UniformBuffer { dynamic_offset } => wgpu::BindingType::Buffer {
+                    BindingType::UniformBuffer {
+                        dynamic_offset,
+                        size,
+                    } => wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: dynamic_offset,
-                        min_binding_size: None,
+                        min_binding_size: Some(
+                            NonZeroU64::new(size).expect("a uniform binding's size is not zero"),
+                        ),
                     },
                     BindingType::Texture => wgpu::BindingType::Texture {
                         sample_type: wgpu::TextureSampleType::Float { filterable: true },
@@ -219,12 +231,12 @@ impl Gpu {
     /// # Panics
     ///
     /// If a range has a size of zero or larger than its buffer, or if the entries do not match the
-    /// layout: a binding missing, or a resource of another kind than its entry declares, such as a
-    /// depth target at a `Texture` binding, a cube texture at a `Texture` binding or the reverse, a
-    /// render target or texture at a `DepthTexture` binding, or a [`Sampler`] at a
-    /// `ComparisonSampler` binding or the reverse. Also if a render target is the image of a
-    /// window, which cannot be sampled. These are bugs in the caller, which wgpu rejects
-    /// (ADR-0016).
+    /// layout: a binding missing, a buffer or range smaller than its uniform binding's size, or a
+    /// resource of another kind than its entry declares, such as a depth target at a `Texture`
+    /// binding, a cube texture at a `Texture` binding or the reverse, a render target or texture at
+    /// a `DepthTexture` binding, or a [`Sampler`] at a `ComparisonSampler` binding or the reverse.
+    /// Also if a render target is the image of a window, which cannot be sampled. These are bugs in
+    /// the caller, which wgpu rejects (ADR-0016).
     pub fn create_bind_group(
         &self,
         label: &str,

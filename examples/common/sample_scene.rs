@@ -12,7 +12,7 @@ use slime_gfx::{Gpu, LinearColor, RenderTarget};
 use slime_render::glam::Vec3;
 use slime_render::{
     Camera, DirectionalLight, Environment, Light, LoadedScene, RenderError, RenderStats, Renderer,
-    Scene, SceneLoad, Sky,
+    Scene, SceneLoad, ShaderSources, Sky,
 };
 
 /// The ID of the sample asset, `examples/assets/scene.glb`, made in Blender by
@@ -136,6 +136,16 @@ impl SampleScene {
         self.bounds = bounds;
         self.loaded = loaded;
         Ok(())
+    }
+
+    /// Makes the renderer's pipelines again from `sources` (`Renderer::set_shaders`), as the
+    /// `scene` example does with `--watch`.
+    ///
+    /// # Errors
+    ///
+    /// As `Renderer::set_shaders`: the scene is drawn as before then.
+    pub fn set_shaders(&mut self, gpu: &Gpu, sources: &ShaderSources) -> Result<(), RenderError> {
+        self.renderer.set_shaders(gpu, sources)
     }
 
     /// How long the CPU took to compute the sky's environment, when the scene was loaded.

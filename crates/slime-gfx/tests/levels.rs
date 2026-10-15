@@ -73,6 +73,8 @@ fn sample(
                     2,
                     BindingType::UniformBuffer {
                         dynamic_offset: false,
+                        // One `vec4<f32>` for each lookup.
+                        size: 16 * lookups.len() as u64,
                     },
                 ),
             ],

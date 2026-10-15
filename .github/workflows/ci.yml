@@ -67,8 +67,10 @@ jobs:
       # job can tell for WARP; the step above has run them already.
       - name: Image tests, printing their measurements
         run: cargo test --locked -p slime-examples -- --nocapture --test-threads=1
-      - name: GPU timing and multi-pass tests, printing what WARP measures
-        run: cargo test --locked -p slime-gfx --test timing --test passes -- --nocapture --test-threads=1
+      - name: GPU timing and multi-pass tests, and the renderer's shaders made again, printing what WARP measures
+        run: |
+          cargo test --locked -p slime-gfx --test timing --test passes -- --nocapture --test-threads=1
+          cargo test --locked -p slime-render --test shaders -- --nocapture --test-threads=1
       - name: Headless samples
         run: |
           cargo run --locked --example headless -- --frames 600

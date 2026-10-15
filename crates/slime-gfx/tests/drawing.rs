@@ -1,12 +1,13 @@
 //! Drawing with the resources a renderer needs: indexed draws, a uniform buffer read through a
 //! bind group, a pass that keeps the image and its depth, depth testing and face culling, checked
-//! by reading pixels back. The colors are pure, whose sRGB encoding every driver gets exactly. Runs
-//! on whatever adapter the machine offers, like `device.rs`.
+//! by reading pixels back; a shader that reads more than a uniform binding holds, refused. The
+//! colors are pure, whose sRGB encoding every driver gets exactly. Runs on whatever adapter the
+//! machine offers, like `device.rs`.
 
 use slime_gfx::{
     BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource, BindingType,
-    CullMode, DepthBias, DepthCompare, DepthState, DepthTarget, FragmentState, Gpu, Image,
-    LinearColor, RenderPass, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor,
+    CullMode, DepthBias, DepthCompare, DepthState, DepthTarget, FragmentState, GfxError, Gpu,
+    Image, LinearColor, RenderPass, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor,
     RenderTarget, ShaderStages, TextureFormat, UniformBuffer, VertexAttribute, VertexBuffer,
     VertexFormat, VertexLayout,
 };
@@ -86,6 +87,7 @@ impl Scene {
                     visible_to: ShaderStages::Vertex,
                     ty: BindingType::UniformBuffer {
                         dynamic_offset: false,
+                        size: 16,
                     },
                 }],
             )
@@ -416,6 +418,17 @@ fn pipeline_for(
     depth: Option<DepthState>,
     cull: CullMode,
 ) -> RenderPipeline {
+    try_pipeline_for(gpu, layout, format, depth, cull).expect("the pipeline is valid")
+}
+
+/// The same, or why wgpu refuses it.
+fn try_pipeline_for(
+    gpu: &Gpu,
+    layout: &BindGroupLayout,
+    format: TextureFormat,
+    depth: Option<DepthState>,
+    cull: CullMode,
+) -> Result<RenderPipeline, GfxError> {
     let shader = gpu
         .create_shader_module("drawing", SHADER)
         .expect("the shader compiles");
@@ -447,7 +460,37 @@ fn pipeline_for(
         cull,
         multisampled: false,
     })
-    .expect("the pipeline is valid")
+}
+
+#[test]
+fn a_shader_that_reads_more_than_a_uniform_binding_holds_is_refused_with_its_pipeline() {
+    let scene = Scene::new();
+    // Half of the `vec4<f32>` that `SHADER` reads.
+    let layout = scene
+        .gpu
+        .create_bind_group_layout(
+            "too small",
+            &[BindGroupLayoutEntry {
+                binding: 0,
+                visible_to: ShaderStages::Vertex,
+                ty: BindingType::UniformBuffer {
+                    dynamic_offset: false,
+                    size: 8,
+                },
+            }],
+        )
+        .expect("the GPU has memory for it");
+    let refused = try_pipeline_for(
+        &scene.gpu,
+        &layout,
+        TextureFormat::Rgba8UnormSrgb,
+        None,
+        CullMode::None,
+    );
+    assert!(
+        matches!(refused, Err(GfxError::Pipeline { .. })),
+        "{refused:?}"
+    );
 }
 
 #[test]
@@ -471,6 +514,7 @@ fn a_dynamic_offset_selects_the_values_of_each_draw() {
                 visible_to: ShaderStages::Vertex,
                 ty: BindingType::UniformBuffer {
                     dynamic_offset: true,
+                    size: 16,
                 },
             }],
         )

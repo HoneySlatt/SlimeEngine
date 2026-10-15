@@ -14,7 +14,7 @@ use slime_gfx::{Gpu, LinearColor, RenderTarget, TextureFormat};
 use slime_render::glam::{Mat4, Quat, Vec2, Vec3};
 use slime_render::{
     Camera, Environment, Light, LoadedScene, Material, MaterialValues, PointLight, RenderError,
-    RenderStats, Renderer, Scene, SceneError, SceneLoad, Sky, scene_lights,
+    RenderStats, Renderer, Scene, SceneError, SceneLoad, ShaderSources, Sky, scene_lights,
 };
 
 use crate::assets;
@@ -346,6 +346,16 @@ impl View {
         self.zone_load =
             Some(renderer.reload_scene_in_background(gpu, &assets, assets::zone_id(), &zone.scene));
         self.reloaded_from = Some(assets);
+    }
+
+    /// Makes the renderer's pipelines again from `sources` ([`Renderer::set_shaders`]): the frames
+    /// are drawn with them from now on, or as before if they do not compile.
+    ///
+    /// # Errors
+    ///
+    /// As [`Renderer::set_shaders`].
+    pub fn set_shaders(&mut self, gpu: &Gpu, sources: &ShaderSources) -> Result<(), RenderError> {
+        self.renderer.set_shaders(gpu, sources)
     }
 
     /// Whether the zone or the hero is being loaded again.

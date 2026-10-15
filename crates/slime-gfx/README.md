@@ -121,8 +121,9 @@ fn main() -> Result<(), GfxError> {
   and capture tools, are handles that their clones share (ADR-0017): `RenderTarget` and
   `DepthTarget`, which passes draw into and later passes sample; `Texture`, `Sampler` and
   `ComparisonSampler`; `VertexBuffer`, `IndexBuffer` and `UniformBuffer`; `BindGroupLayout` and
-  `BindGroup`, the resources a pipeline's shaders read (ADR-0026); `ShaderModule` and
-  `RenderPipeline`; and `GpuTimer`, which times passes on the GPU.
+  `BindGroup`, the resources a pipeline's shaders read (ADR-0026), whose uniform bindings declare
+  the size of their values, so that a pipeline whose shader reads more is refused when it is made
+  (ADR-0077); `ShaderModule` and `RenderPipeline`; and `GpuTimer`, which times passes on the GPU.
 - `Gpu::render` and `Gpu::render_depth` run one pass, through a `RenderPass`, and `Gpu::submit`
   records several into one submission (ADR-0033). `RenderPass::set_viewport` draws into part of a
   pass's targets, so that one pass can draw several views side by side, as a shadow atlas holds

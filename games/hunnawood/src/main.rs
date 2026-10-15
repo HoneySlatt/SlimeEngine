@@ -13,7 +13,7 @@
 //! cargo run -p hunnawood -- --assets <dir>   # reads the cooked data of another directory
 //! cargo run -p hunnawood -- --night          # starts at night
 //! cargo run -p hunnawood -- --lose-device-at 300   # loses its GPU device after 300 zone frames
-//! cargo run -p hunnawood -- --watch          # loads its zone again when it is cooked again
+//! cargo run -p hunnawood -- --watch          # loads its zone and the shaders again as they change
 //! ```
 //!
 //! W, A, S and D move (Z, Q, S and D on a French keyboard), the left and right arrows turn the
@@ -38,7 +38,7 @@ use slime_app::{App, AppConfig, AppError, Context};
 use slime_assets::{CookedAssets, ManifestWatch};
 use slime_gfx::{Gpu, RenderTarget};
 use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, WindowConfig};
-use slime_render::{RenderError, RenderStats};
+use slime_render::{RenderError, RenderStats, ShaderSources, ShaderWatch};
 
 use camera::FollowCamera;
 use controls::Controls;
@@ -79,6 +79,8 @@ struct HunnaWood {
     loading: Option<Loading>,
     /// With `--watch`, what tells when the cooked data changes.
     watch: Option<ManifestWatch>,
+    /// With `--watch`, what tells when the renderer's shader files change.
+    shader_watch: Option<ShaderWatch>,
 }
 
 /// The frames drawn while the zone loads, and the longest interval between the starts of two
@@ -132,6 +134,9 @@ impl HunnaWood {
             watch: options
                 .watch
                 .then(|| ManifestWatch::new(&assets, Instant::now())),
+            shader_watch: options
+                .watch
+                .then(|| ShaderWatch::new(ShaderSources::DIRECTORY, Instant::now())),
             assets,
         }
     }
@@ -238,6 +243,10 @@ impl App for HunnaWood {
         if let Some(watch) = &mut self.watch {
             watch.start_from(&self.assets);
         }
+        // The new view's renderer has the embedded shaders: the files that differ are given again.
+        if let Some(shader_watch) = &mut self.shader_watch {
+            shader_watch.start_again();
+        }
         let hero = self.game.hero_between(1.0);
         tracing::info!(
             x = hero.position.x,
@@ -336,6 +345,29 @@ impl App for HunnaWood {
             Err(error) => {
                 ctx.exit_with_error(error);
                 return;
+            }
+        }
+        if let Some(shader_watch) = &mut self.shader_watch {
+            match shader_watch.poll(now) {
+                Ok(Some(sources)) => {
+                    let started = Instant::now();
+                    match view.set_shaders(gpu, &sources) {
+                        Ok(()) => tracing::info!(
+                            time = ?started.elapsed(),
+                            "the shaders changed: the frames are drawn with them"
+                        ),
+                        Err(error) => tracing::warn!(
+                            "the shaders cannot be used: {}; the frames are drawn as before",
+                            slime_app::error_chain(&error)
+                        ),
+                    }
+                }
+                Ok(None) => {}
+                Err(error) => tracing::warn!(
+                    "the shaders cannot be read from {}: {error}; the game draws with those it \
+                     has",
+                    ShaderSources::DIRECTORY
+                ),
             }
         }
         // Once the zone is shown, so that its rules come from the data drawn, and once a reload has
@@ -489,8 +521,8 @@ struct Options {
     /// The frame that draws the zone after which the game loses its GPU device, if
     /// `--lose-device-at` gives one.
     lose_device_at: Option<u64>,
-    /// Whether the game loads its zone and its hero again when their cooked data changes, as
-    /// `--watch` asks.
+    /// Whether the game loads its zone and its hero again when their cooked data changes, and the
+    /// renderer's shaders when their files do, as `--watch` asks.
     watch: bool,
 }
 
