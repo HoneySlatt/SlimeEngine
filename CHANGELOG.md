@@ -58,6 +58,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   frame in which a directional light casts shadows, where the map took 16 MiB from the renderer's
   creation; `RenderStats::shadow_draw_calls` counts an instance once in each cascade it reaches. In
   *Nightwatch*, the scene pass costs about 10 % more on an RX 6900 XT.
+- On Direct3D 12, shaders are compiled with DXC when its library, `dxcompiler.dll`, lies beside the
+  program, and with FXC otherwise, with a warning in the log
+  ([ADR-0066](docs/adr/0066-shipping-dxc-beside-the-programs.md)): DXC's code draws *Nightwatch*'s
+  scene pass about twice as fast. The Windows programs that CI builds come in one directory with
+  DXC and its licence; `scripts/fetch-dxc.sh` downloads it. `WGPU_DX12_COMPILER=fxc` asks for FXC.
 
 ## [0.1.0] - 2026-10-14
 

@@ -75,6 +75,13 @@ The GPU layer uses Vulkan on Linux and Direct3D 12 on Windows
   (`cargo test --workspace -- --test-threads=1`), as the Windows CI job does: WARP's shader
   compiler crashes the process now and then when several threads compile shaders at once (see
   [Known debt](docs/PLAN.md#known-debt)).
+- On Windows, Direct3D 12 compiles shaders with DXC when its library, `dxcompiler.dll`, lies
+  beside the program, and otherwise with FXC, part of Windows, whose code runs slower: a warning in
+  the log says so ([ADR-0066](docs/adr/0066-shipping-dxc-beside-the-programs.md)). From Git Bash,
+  `scripts/fetch-dxc.sh target/debug/deps target/debug/examples target/debug` downloads DXC and
+  puts it beside the tests, the samples and the game that cargo builds, as the Windows CI job does.
+  `WGPU_DX12_COMPILER=fxc` asks for FXC, and `WGPU_DX12_COMPILER=dxc` for DXC wherever Windows
+  finds `dxcompiler.dll`.
 - `scripts/check.sh` runs the tests and the samples on lavapipe, Mesa's Vulkan driver that renders
   on the CPU, so that they give the same results on every machine and in CI. To run the GPU tests
   on your own GPU, run `cargo test` without `VK_DRIVER_FILES`; to reproduce the checks, run
@@ -85,10 +92,7 @@ The GPU layer uses Vulkan on Linux and Direct3D 12 on Windows
   Windows), `WGPU_VALIDATION=1` turns on the validation layers of Vulkan or Direct3D 12, when
   they are installed, and `WGPU_DEBUG=1` passes the engine's labels and debug groups to the
   Vulkan driver in release builds, as debug builds always do (Direct3D 12 receives them in every
-  build; `WGPU_DISCARD_HAL_LABELS=1` keeps them back). On Direct3D 12, shaders are compiled with
-  FXC, part of Windows; `WGPU_DX12_COMPILER=dxc` asks for DXC instead, loaded from a
-  `dxcompiler.dll` that you provide
-  ([ADR-0036](docs/adr/0036-direct3d-12-shader-compiler.md)).
+  build; `WGPU_DISCARD_HAL_LABELS=1` keeps them back).
 - `SLIME_GPU_MEMORY_BUDGET`, a percentage from 1 to 100, makes creations fail with
   `GfxError::OutOfMemory` once the memory in use would pass that share of what the driver allows,
   to try how a game handles a full GPU memory

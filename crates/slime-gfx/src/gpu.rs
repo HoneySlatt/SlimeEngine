@@ -49,9 +49,14 @@ impl Gpu {
     /// limits, and the optional features the adapter offers among those the engine uses:
     /// timestamp queries ([`Gpu::can_time`]).
     ///
-    /// On Direct3D 12, shaders are compiled with FXC, which is part of Windows, unless
-    /// `WGPU_DX12_COMPILER=dxc` asks for DXC, loaded from a `dxcompiler.dll` that the caller
-    /// provides (ADR-0036).
+    /// On Direct3D 12, shaders are compiled with DXC when its library, `dxcompiler.dll`, lies
+    /// beside the program, and otherwise with FXC, which is part of Windows but whose code runs
+    /// slower: `slime-render`'s scene pass takes about twice as long. Which one compiles is
+    /// logged, at the `warn` level for FXC when no `dxcompiler.dll` was found (ADR-0066).
+    /// `WGPU_DX12_COMPILER=fxc` asks for FXC, and `WGPU_DX12_COMPILER=dxc` for DXC wherever Windows
+    /// finds `dxcompiler.dll`. A `dxcompiler.dll` that does not load, beside the program or where
+    /// `dxc` asks for it, leaves no Direct3D 12 adapter, and so does, with DXC, a driver that offers
+    /// no shader model 6.
     ///
     /// The `SLIME_GPU_MEMORY_BUDGET` environment variable ([`MEMORY_BUDGET_ENV_VAR`]), a percentage
     /// from 1 to 100, makes the creation of buffers, textures and timers fail with
@@ -322,12 +327,28 @@ pub(crate) fn within_error_scopes<T>(
 }
 
 /// The wgpu instance, limited to the platform's graphics API unless `WGPU_BACKEND` chooses another,
-/// with the shader compiler of Direct3D 12 that [`dx12_compiler`] chooses.
+/// with the shader compiler of Direct3D 12 that [`dx12_compiler`] chooses, logged.
 pub(crate) fn create_instance() -> wgpu::Instance {
     let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
     descriptor.backends = wgpu::Backends::from_env().unwrap_or(DEFAULT_BACKENDS);
     descriptor.flags = instance_flags();
-    descriptor.backend_options.dx12.shader_compiler = dx12_compiler(wgpu::Dx12Compiler::from_env());
+    if cfg!(windows) && descriptor.backends.contains(wgpu::Backends::DX12) {
+        let requested = wgpu::Dx12Compiler::from_env();
+        let compiler = dx12_compiler(requested.clone(), dxc_beside_program());
+        match (&compiler, requested) {
+            (wgpu::Dx12Compiler::DynamicDxc { dxc_path }, _) => {
+                tracing::info!(path = %dxc_path, "Direct3D 12 compiles shaders with DXC");
+            }
+            (_, Some(wgpu::Dx12Compiler::Fxc)) => {
+                tracing::info!("Direct3D 12 compiles shaders with FXC, as WGPU_DX12_COMPILER asks");
+            }
+            _ => tracing::warn!(
+                "Direct3D 12 compiles shaders with FXC, whose code runs slower than DXC's: no \
+                 {DXC_LIBRARY} lies beside the program (ADR-0066)"
+            ),
+        }
+        descriptor.backend_options.dx12.shader_compiler = compiler;
+    }
     descriptor.memory_budget_thresholds.for_resource_creation =
         memory_budget(std::env::var(MEMORY_BUDGET_ENV_VAR).ok().as_deref());
     wgpu::Instance::new(descriptor)
@@ -353,16 +374,37 @@ fn memory_budget(value: Option<&str>) -> Option<u8> {
     }
 }
 
-/// The shader compiler of Direct3D 12 (ADR-0036): FXC, which is part of Windows, so that every
-/// machine compiles shaders the same way, unless `WGPU_DX12_COMPILER` asks for DXC loaded from
-/// `dxcompiler.dll` (`dxc` or `dynamicdxc`), given here as `requested`. wgpu's default, `Auto`,
-/// takes any `dxcompiler.dll` that Windows finds, whatever its version; its other choices are
-/// ignored: `staticdxc` needs a wgpu feature the engine does not build, on which wgpu panics.
-fn dx12_compiler(requested: Option<wgpu::Dx12Compiler>) -> wgpu::Dx12Compiler {
-    match requested {
-        Some(dxc @ wgpu::Dx12Compiler::DynamicDxc { .. }) => dxc,
-        _ => wgpu::Dx12Compiler::Fxc,
+/// The file name of DXC's library, which the engine looks for beside the program (ADR-0066).
+const DXC_LIBRARY: &str = "dxcompiler.dll";
+
+/// The shader compiler of Direct3D 12 (ADR-0066): what `WGPU_DX12_COMPILER` asks for, given here
+/// as `requested`, if it is FXC (`fxc`) or DXC wherever Windows finds `dxcompiler.dll` (`dxc` or
+/// `dynamicdxc`); otherwise DXC loaded from `beside`, the path of the `dxcompiler.dll` beside the
+/// program if there is one, and FXC without it. wgpu's other choices are ignored: `auto` takes any
+/// `dxcompiler.dll` that Windows finds, on `PATH` too, whatever its version, and `staticdxc` needs
+/// a wgpu feature the engine does not build, on which wgpu panics.
+fn dx12_compiler(
+    requested: Option<wgpu::Dx12Compiler>,
+    beside: Option<String>,
+) -> wgpu::Dx12Compiler {
+    match (requested, beside) {
+        (Some(asked @ (wgpu::Dx12Compiler::Fxc | wgpu::Dx12Compiler::DynamicDxc { .. })), _) => {
+            asked
+        }
+        (_, Some(dxc_path)) => wgpu::Dx12Compiler::DynamicDxc { dxc_path },
+        (_, None) => wgpu::Dx12Compiler::Fxc,
     }
+}
+
+/// The path of the `dxcompiler.dll` that lies beside the running program, if there is one and its
+/// path is valid Unicode, as wgpu needs: a full path, so that Windows loads that very file, never
+/// another `dxcompiler.dll` on its search path.
+fn dxc_beside_program() -> Option<String> {
+    let path = std::env::current_exe().ok()?.with_file_name(DXC_LIBRARY);
+    if !path.is_file() {
+        return None;
+    }
+    path.into_os_string().into_string().ok()
 }
 
 /// Debug labels in debug builds, which Vulkan needs to receive them (Direct3D 12 receives them in
@@ -383,10 +425,10 @@ mod tests {
     use crate::{LinearColor, RenderPassDescriptor, RenderTarget, TextureFormat};
 
     #[test]
-    fn direct3d_12_compiles_shaders_with_fxc_unless_dxc_is_asked_for() {
+    fn direct3d_12_compiles_shaders_with_the_dxc_beside_the_program_unless_asked_otherwise() {
+        let beside = r"C:\game\dxcompiler.dll";
         for (requested, case) in [
             (None, "nothing asked"),
-            (Some(wgpu::Dx12Compiler::Fxc), "FXC"),
             (
                 Some(wgpu::Dx12Compiler::StaticDxc),
                 "a DXC the engine does not build",
@@ -394,18 +436,33 @@ mod tests {
             (Some(wgpu::Dx12Compiler::Auto), "wgpu's choice"),
         ] {
             assert!(
-                matches!(dx12_compiler(requested), wgpu::Dx12Compiler::Fxc),
-                "{case}"
+                matches!(
+                    dx12_compiler(requested.clone(), Some(beside.to_owned())),
+                    wgpu::Dx12Compiler::DynamicDxc { dxc_path } if dxc_path == beside
+                ),
+                "{case}, with DXC beside the program"
+            );
+            assert!(
+                matches!(dx12_compiler(requested, None), wgpu::Dx12Compiler::Fxc),
+                "{case}, without DXC beside the program"
             );
         }
-        let dxc = wgpu::Dx12Compiler::default_dynamic_dxc();
-        assert!(
-            matches!(
-                dx12_compiler(Some(dxc)),
-                wgpu::Dx12Compiler::DynamicDxc { dxc_path } if dxc_path == "dxcompiler.dll"
-            ),
-            "DXC asked for"
-        );
+        for found in [Some(beside.to_owned()), None] {
+            assert!(
+                matches!(
+                    dx12_compiler(Some(wgpu::Dx12Compiler::Fxc), found.clone()),
+                    wgpu::Dx12Compiler::Fxc
+                ),
+                "FXC asked for, {found:?} beside the program"
+            );
+            assert!(
+                matches!(
+                    dx12_compiler(Some(wgpu::Dx12Compiler::default_dynamic_dxc()), found.clone()),
+                    wgpu::Dx12Compiler::DynamicDxc { dxc_path } if dxc_path == DXC_LIBRARY
+                ),
+                "DXC asked for wherever Windows finds it, {found:?} beside the program"
+            );
+        }
     }
 
     #[test]

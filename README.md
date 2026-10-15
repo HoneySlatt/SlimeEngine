@@ -74,6 +74,9 @@ opt-level = 3
 - Building needs Rust 1.99 or later and, on Linux, the libraries that
   [`CONTRIBUTING.md`](CONTRIBUTING.md#on-linux-without-nix) lists and a [Vulkan
   driver](CONTRIBUTING.md#gpu).
+- On Windows, put DXC's `dxcompiler.dll` beside the game's program, as `scripts/fetch-dxc.sh` does:
+  without it, Direct3D 12 compiles the shaders with FXC, whose code draws about half as fast
+  ([ADR-0066](docs/adr/0066-shipping-dxc-beside-the-programs.md)).
 - A game kept inside a clone of this repository needs an empty `[workspace]` table in its
   `Cargo.toml`, or cargo takes it for a member of the engine's workspace and refuses to build it.
 - Nothing is stable before 1.0: a release can break the API, and [`CHANGELOG.md`](CHANGELOG.md)

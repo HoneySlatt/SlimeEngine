@@ -17,9 +17,10 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   shadows are sharp near the player, on Linux and on Windows; image tests cover them
   ([ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md),
   [ADR-0064](adr/0064-cascaded-shadow-maps.md)).
-- Next: ADR-0036 is reopened, now that FXC's code is known to make the scene pass about twice as
-  slow on Direct3D 12 ([Known debt](#known-debt)); the owner decides how. Then Stage 4, the asset
-  pipeline, whose plan is to be proposed to the owner.
+- After Stage 3d's measurements, on 2026-10-15: Direct3D 12 compiles shaders with DXC when its
+  library lies beside the program, as it does beside the Windows programs that CI builds
+  ([ADR-0066](adr/0066-shipping-dxc-beside-the-programs.md)).
+- Next: Stage 4, the asset pipeline, whose plan is to be proposed to the owner.
 
 ## Status
 
@@ -39,9 +40,10 @@ A release is an annotated git tag on a commit whose CI run is green on Linux and
    `git tag -a v<version> -m "SlimeEngine <version>" <commit>`.
 4. From 0.1 on, create the GitHub release of the tag, its `CHANGELOG.md` section as its notes,
    with the `slime-examples-windows` artifact of that commit's CI run attached as
-   `slime-examples-windows-<version>.zip`, holding beside the programs `LICENSE.txt`, a
-   `NOTICE.txt` and the licenses of the egui fonts that `scene.exe` embeds, which the Ubuntu Font
-   Licence asks to travel with them: CI keeps its artifacts 14 days, a release keeps them.
+   `slime-examples-windows-<version>.zip`, holding beside the programs, and DXC's library and
+   licence that CI puts with them, `LICENSE.txt`, a `NOTICE.txt` and the licenses of the egui fonts
+   that `scene.exe` embeds, which the Ubuntu Font Licence asks to travel with them: CI keeps its
+   artifacts 14 days, a release keeps them.
 
 0.0.1 was released on 2026-10-12, before Windows joined CI: the tag `v0.0.1` is on the commit
 "Release 0.0.1". 0.0.2 was released the same way on 2026-10-12: the tag `v0.0.2` is on the
@@ -325,12 +327,6 @@ GitHub issues, linked from their entry; this list stays the reference.
   1080 fragments on an RX 6900 XT (2026-10-13), 338 µs for 16, the most a scene holds, and 10 to 20
   times more on an integrated GPU; a light's range saves no work. More lights would need clustered
   or tiled culling and a storage buffer, a measured decision of Stage 9a (ADR-0052).
-- **On Direct3D 12, the scene pass is about twice as slow with FXC's code as with DXC's**
-  (ADR-0036). The engine asks wgpu for FXC, part of Windows, so that shaders compile the same way
-  on every machine. In *Nightwatch*'s first view at 1920 × 1080, on an RX 6900 XT, the scene pass
-  takes 3.74 ms with FXC, 1.97 ms with DXC and 1.79 ms on Vulkan, and 10.4 ms with FXC at
-  3840 × 2054 (2026-10-15). `WGPU_DX12_COMPILER=dxc` asks for DXC, whose DLLs a developer puts
-  beside the program. ADR-0036 is to be reopened with these figures (ADR-0057).
 - **Point lights cast no shadows, and light what objects hide** (ADR-0037; the first directional
   light that casts shadows casts them, ADR-0038, and so do spot lights, ADR-0058). The sample's ring
   light, a point light, reaches 4 m, and gives little beyond a metre. The shadows of point lights

@@ -43,6 +43,11 @@ jobs:
         run: rustup toolchain install
       - name: Clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      # Direct3D 12 compiles shaders with the DXC that lies beside the program, as where the
+      # engine's programs are shipped (docs/adr/0066-shipping-dxc-beside-the-programs.md): here,
+      # beside the tests and the samples that cargo runs.
+      - name: Put DXC beside the tests and the samples
+        run: scripts/fetch-dxc.sh target/debug/deps target/debug/examples
       # The tests run one at a time: WARP's shader compiler crashes the process, now and then, when
       # several threads compile shaders at once, even on separate devices (an access violation in
       # d3d10warp.dll, which no test can catch; seen in other projects too). Without failing fast,
@@ -75,20 +80,24 @@ jobs:
             echo 'these programs import VCRUNTIME140.dll'
             exit 1
           fi
+      - name: Gather the programs for checks by hand, with DXC beside them
+        run: |
+          mkdir -p target/windows
+          cp target/release/examples/{hello,headless,window,offscreen,scene}.exe target/windows/
+          cp target/release/nightwatch.exe target/windows/
+          scripts/fetch-dxc.sh target/windows
+      # The offscreen sample's log says which compiler Direct3D 12 took: DXC, beside it.
       - name: Run the headless samples of the release build
         run: |
-          target/release/examples/headless.exe --frames 600
-          target/release/examples/offscreen.exe --output target/triangle-release.png
+          target/windows/headless.exe --frames 600
+          SLIME_LOG=info target/windows/offscreen.exe --output target/triangle-release.png \
+            > target/offscreen.log 2>&1 || { cat target/offscreen.log; exit 1; }
+          cat target/offscreen.log
+          grep -q 'compiles shaders with DXC' target/offscreen.log
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: slime-examples-windows
-          path: |
-            target/release/examples/hello.exe
-            target/release/examples/headless.exe
-            target/release/examples/window.exe
-            target/release/examples/offscreen.exe
-            target/release/examples/scene.exe
-            target/release/nightwatch.exe
+          path: target/windows/
           if-no-files-found: error
           retention-days: 14
       # An image test that fails writes the image it rendered in target/tmp (CARGO_TARGET_TMPDIR).

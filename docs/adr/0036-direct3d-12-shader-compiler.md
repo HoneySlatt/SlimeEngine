@@ -1,6 +1,7 @@
 # 0036. The shader compiler of Direct3D 12
 
-- Status: Accepted; amends [0016](0016-gpu-layer-with-wgpu.md)
+- Status: Accepted; amends [0016](0016-gpu-layer-with-wgpu.md); amended by
+  [0066](0066-shipping-dxc-beside-the-programs.md) (DXC when it lies beside the program)
 - Date: 2026-10-13
 
 ## Context
