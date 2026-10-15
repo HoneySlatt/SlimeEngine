@@ -35,13 +35,13 @@ pub fn cooked_in_target() -> PathBuf {
     concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/cooked/hunnawood").into()
 }
 
-/// The directory of cooked data that the game reads unless told another: `hunnawood` beside the
-/// program when it holds a manifest, as where CI ships the game, and [`cooked_in_target`]
-/// otherwise.
+/// The directory of cooked data that the game reads unless told another: `hunnawood-assets` beside
+/// the program when it holds a manifest, as where CI ships the game, and [`cooked_in_target`]
+/// otherwise. Not `hunnawood`: Git for Windows' shell takes that name for `hunnawood.exe`.
 pub fn default_directory() -> PathBuf {
     let beside = std::env::current_exe()
         .ok()
-        .and_then(|program| Some(program.parent()?.join("hunnawood")));
+        .and_then(|program| Some(program.parent()?.join("hunnawood-assets")));
     match beside {
         Some(directory) if directory.join(MANIFEST_FILE).is_file() => directory,
         _ => cooked_in_target(),

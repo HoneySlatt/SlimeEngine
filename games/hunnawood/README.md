@@ -38,8 +38,8 @@ cargo run -p hunnawood -- --assets <dir>   # reads the cooked data of another di
 cargo run -p hunnawood -- --night          # starts at night, and starts again at night
 ```
 
-Without `--assets`, it reads `hunnawood` beside the program if that directory holds a manifest, as
-where CI ships it, and `target/cooked/hunnawood` otherwise.
+Without `--assets`, it reads `hunnawood-assets` beside the program if that directory holds a
+manifest, as where CI ships it, and `target/cooked/hunnawood` otherwise.
 
 | Key | Does |
 |---|---|
