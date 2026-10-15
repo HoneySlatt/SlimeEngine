@@ -20,8 +20,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0073](adr/0073-loading-scenes-in-the-background.md)). M4b.2 done on 2026-10-15: the game
   draws while its zone loads ([ADR-0074](adr/0074-uploading-textures-without-holding-up-frames.md)).
   M4b.3 done on 2026-10-15: an application that asks for it goes on after a lost GPU device, with a
-  new one ([ADR-0075](adr/0075-recovering-from-a-lost-gpu-device.md)). Next: M4b.4, *Hunna Wood*
-  going on after a lost device.
+  new one ([ADR-0075](adr/0075-recovering-from-a-lost-gpu-device.md)). M4b.4 done on 2026-10-15:
+  *Hunna Wood* goes on after a lost device, its run kept; its checks by hand with a real driver
+  reset, on Linux and on Windows, are M4b.9's. Next: M4b.5, materials that change in place.
 
 ## Status
 
@@ -30,7 +31,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M4b.1](#m4b1--a-shared-gpu-and-a-task-pool) | The renderer loads a scene on threads of its own, which create its GPU objects | Done |
 | [M4b.2](#m4b2--the-zone-loads-while-frames-go-on) | *Hunna Wood* draws while its zone loads | Done |
 | [M4b.3](#m4b3--recovering-from-a-lost-gpu-device) | An application that chooses it goes on after a lost GPU device | Done |
-| [M4b.4](#m4b4--hunna-wood-goes-on-after-a-lost-device) | *Hunna Wood* goes on after a lost GPU device | Planned |
+| [M4b.4](#m4b4--hunna-wood-goes-on-after-a-lost-device) | *Hunna Wood* goes on after a lost GPU device | Done |
 | [M4b.5](#m4b5--materials-that-change-in-place) | A game changes a material's values while it runs | Planned |
 | [M4b.6](#m4b6--hot-reload-of-cooked-data) | A texture changed on disk changes in the running game | Planned |
 | [M4b.7](#m4b7--hot-reload-of-shaders) | A shader changed on disk changes in the running game | Planned |
@@ -197,6 +198,16 @@ Risks:
   machine, with a forced TDR.
 - **How to test.** `cargo run -p hunnawood -- --lose-device-at 300`; the button of the dev overlay
   (F1).
+- **Outcome.** Done on 2026-10-15, without the owner's reports, which M4b.9 takes. The game
+  loses its device on purpose, from `--lose-device-at` or the dev overlay, and goes on with a new
+  one: on the RX 6900 XT, in a window, and on lavapipe, in the headless Weston, where
+  `scripts/check.sh` now runs it. Its run is kept, and the log says where it was. On Windows, CI's
+  tests replace a lost device without a window on WARP, through Direct3D 12; nothing has yet
+  replaced one with a window there. A real driver reset was not checked: on Linux, the two that
+  happened on the owner's machine that day, caused by other programs, ended the compositor and the
+  session with it (see [Known debt](#known-debt)), and the Windows virtual machine was out of
+  reach. The owner chose to leave both checks to M4b.9: on Linux in a KDE Plasma session, on
+  Windows with the button and a forced TDR.
 
 ### M4b.5 — Materials that change in place
 
@@ -266,9 +277,11 @@ Risks:
 - **Goal.** Stage 4b is done; Stage 5 is planned.
 - **Crates.** All, for their documents.
 - **Delivers.** The documents reread as a newcomer would; `CHANGELOG.md`'s `[Unreleased]` section;
-  the owner plays the game from CI's Windows programs; Stage 4b marked done; Stage 5 planned with
-  the owner. No release: what the stage delivers is released with 0.3, at the end of Stage 5
-  (ADR-0068).
+  the owner plays the game from CI's Windows programs, and loses its device there, from the dev
+  overlay and with a forced TDR (`dxcap -forcetdr`); the driver reset on Linux, in a KDE Plasma
+  session, since niri and Hyprland do not survive one (see [Known debt](#known-debt)): the checks
+  by hand that M4b.4 left; Stage 4b marked done; Stage 5 planned with the owner. No release: what
+  the stage delivers is released with 0.3, at the end of Stage 5 (ADR-0068).
 - **Done when.** The exit criterion holds, on Linux and on Windows: hot reload by hand on Linux and
   through CI's tests on Windows, since CI's Windows programs hold no cooker and no shader sources
   (ADR-0072); CI is green.
@@ -370,11 +383,18 @@ GitHub issues, linked from their entry; this list stays the reference.
   device, `GfxError::DeviceLost`); a window's surface that the graphics API refuses to configure
   counts as lost (ADR-0025). The refusal of a configuration is not tested: nothing the tests
   control makes a conformant driver refuse one.
+- **On Linux, a game goes on after a real reset of the GPU only if the compositor does**
+  (ADR-0075). A reset reaches every program that uses the GPU. Mesa ends the ones that did not ask
+  to be told of it, as niri, Hyprland and COSMIC do not: on 2026-10-15, programs that hung the
+  owner's RX 6900 XT made the amdgpu driver reset it twice, and niri ended each time, taking the
+  session with it. KDE Plasma's KWin recovers from resets, and a game built on SlimeEngine can go
+  on there; checking it by hand is part of M4b.9. On Windows, the desktop's compositor survives
+  resets.
 - **A lost GPU device is replaced only for the applications that ask for it** (ADR-0075; issue
   [#2](https://github.com/HoneySlatt/SlimeEngine/issues/2)): the others stop with an error, and
   since winit allows one event loop per process, carrying on means starting the process again. An
-  application that asks drops and creates its GPU objects again itself; *Hunna Wood* does at
-  M4b.4. A real driver reset can only be checked by hand. A restore that fails in a windowed run is
+  application that asks drops and creates its GPU objects again itself, as *Hunna Wood* does. A
+  real driver reset can only be checked by hand, which M4b.9 does. A restore that fails in a windowed run is
   not tested: nothing makes one fail on purpose there.
 - **In capture tools, the sky pass shows as a second `scene`.** A pass is named after the target it
   draws into, and the sky pass draws into the scene's high-dynamic-range target, after the scene
