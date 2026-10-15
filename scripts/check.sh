@@ -115,8 +115,8 @@ env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_
     timeout -k 10 120 cargo test --locked -p slime-app --test windowed_lifecycle ||
     { cat "$runtime/slime-check.log"; exit 1; }
 # Nothing resizes a window in that compositor once it exists. One at scale 2 reports its scale after
-# the first frame, and the window then doubles in size: the lifecycle test's `resized` scenario runs
-# there, alone (ADR-0024).
+# the first frame, and the window then doubles in size: the lifecycle test's `resized` scenarios run
+# there, alone (ADR-0024): the window resized, alone, and while another thread submits work.
 start_weston slime-check-scaled --scale=2
 env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check-scaled \
     SLIME_APP_TEST_SCALED=1 VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \

@@ -4,7 +4,7 @@ use std::borrow::Cow;
 use std::sync::LazyLock;
 
 use crate::error::GfxError;
-use crate::gpu::Gpu;
+use crate::gpu::{Gpu, submit};
 use crate::render_target::TextureFormat;
 
 /// A texture that shaders sample through a bind group
@@ -319,7 +319,7 @@ impl Gpu {
                 },
             );
         }
-        self.queue.submit([encoder.finish()]);
+        submit(self, [encoder.finish()]);
         let view = texture.create_view(&wgpu::TextureViewDescriptor {
             dimension: Some(if layers == 6 {
                 wgpu::TextureViewDimension::Cube

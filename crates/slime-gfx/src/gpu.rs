@@ -1,6 +1,6 @@
 //! Opening the GPU: the adapter, the device and its queue.
 
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, OnceLock, PoisonError, RwLock};
 
 use crate::error::GfxError;
 
@@ -19,6 +19,8 @@ const DEFAULT_BACKENDS: wgpu::Backends = wgpu::Backends::VULKAN;
 /// Cloning a `Gpu` gives another handle to the same device and queue, cheaply: threads that share
 /// the device each hold a clone, and an object that one clone creates is used with any other, as
 /// `slime-render`'s loading threads do. Each clone sees the loss of the device ([`Gpu::check`]).
+/// The work that a clone submits waits while the device's window surface is configured, which wgpu
+/// would otherwise fail: a resize of the window during a load does not lose the surface.
 ///
 /// Every object a `Gpu` creates belongs to its device: using one with a `Gpu` that another call to
 /// [`Gpu::new`] or [`Gpu::new_for_window`] opened is a bug that neither the engine nor wgpu
@@ -40,6 +42,11 @@ pub struct Gpu {
     /// Why the device was lost, once it has been: set by wgpu's device-lost callback, by the error
     /// handler when memory runs out where no caller can be told, or by [`Gpu::lose`].
     pub(crate) loss: Arc<OnceLock<Loss>>,
+    /// Taken, shared, by each submission of work that the clones make ([`submit`]), and alone by
+    /// the configuration of the device's window surface: wgpu fails to configure a surface when
+    /// another thread submits while it waits for the GPU, as threads that load a scene do
+    /// (ADR-0074).
+    pub(crate) submissions: Arc<RwLock<()>>,
 }
 
 /// Why a GPU device was lost ([`GfxError::DeviceLost`]).
@@ -279,6 +286,7 @@ impl Gpu {
             adapter_name: info.name,
             software,
             loss,
+            submissions: Arc::default(),
         };
         Ok((gpu, adapter))
     }
@@ -435,7 +443,7 @@ impl Gpu {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("SlimeEngine wait_idle"),
             });
-        self.queue.submit([encoder.finish()]);
+        submit(self, [encoder.finish()]);
         // wgpu reports a wait that timed out or that named a submission not made yet; an indefinite
         // wait without a submission index does neither.
         self.device
@@ -448,6 +456,17 @@ impl Gpu {
 /// Runs `run` inside a validation and an internal error scope of `device`, and returns what it
 /// gave, with the error wgpu reported in either scope, if any; errors of other kinds reach the
 /// error handler.
+/// Submits `commands` to the queue of `gpu`, unless a surface of its device is being configured,
+/// which it waits for ([`Gpu::submissions`]).
+pub(crate) fn submit(gpu: &Gpu, commands: impl IntoIterator<Item = wgpu::CommandBuffer>) {
+    // Nothing is guarded but the order of the calls: a lock poisoned is as good as whole.
+    let _shared = gpu
+        .submissions
+        .read()
+        .unwrap_or_else(PoisonError::into_inner);
+    gpu.queue.submit(commands);
+}
+
 pub(crate) fn within_error_scopes<T>(
     device: &wgpu::Device,
     run: impl FnOnce() -> T,

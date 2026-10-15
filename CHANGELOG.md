@@ -61,6 +61,13 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - `--frames` counts the frames that draw the zone in *Hunna Wood*, and the frames that draw the
   scene in the `scene` example, which loads it in the background too.
 
+### Fixed
+
+- A window resized while a scene loads in the background, as Hyprland resizes a window it tiles
+  as it opens, no longer has its surface refused, nor the run stopped after three refusals: wgpu
+  fails to configure a surface when another thread submits work meanwhile, as loading threads do
+  (ADR-0074), and the `Gpu`'s submissions now wait while a surface is configured.
+
 ## [0.2.0] - 2026-10-15
 
 The fifth release, which closes Stage 4a of the roadmap: cooked assets. Every source file has an

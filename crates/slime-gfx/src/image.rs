@@ -4,7 +4,7 @@ use std::sync::mpsc;
 
 use crate::error::GfxError;
 use crate::float16::f16_to_f32;
-use crate::gpu::Gpu;
+use crate::gpu::{Gpu, submit};
 use crate::render_target::{RenderTarget, TextureFormat};
 
 /// An image in CPU memory: `width` × `height` pixels, rows from top to bottom, 4 bytes per pixel
@@ -182,7 +182,7 @@ impl Gpu {
                     depth_or_array_layers: 1,
                 },
             );
-            self.queue.submit([encoder.finish()]);
+            submit(self, [encoder.finish()]);
 
             let (sender, receiver) = mpsc::channel();
             buffer.map_async(wgpu::MapMode::Read, .., move |result| {

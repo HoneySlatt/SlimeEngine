@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crate::bind_group::BindGroup;
 use crate::color::LinearColor;
 use crate::depth_target::DepthTarget;
-use crate::gpu::Gpu;
+use crate::gpu::{Gpu, submit};
 use crate::index_buffer::IndexBuffer;
 use crate::pipeline::RenderPipeline;
 use crate::render_target::RenderTarget;
@@ -201,7 +201,7 @@ impl Gpu {
         let commands = encoder.finish();
         {
             let _span = tracing::trace_span!("submit").entered();
-            self.queue.submit([commands]);
+            submit(self, [commands]);
         }
         for flag in drawn {
             flag.store(true, Ordering::Relaxed);

@@ -4,9 +4,10 @@
 //! whose frames draw nothing, a run whose GPU cannot open, a window larger than the GPU can draw
 //! into, a GPU device lost in the middle of a frame, replaced by a new one, and lost again at every
 //! frame until the run gives up, an application that stops the run with an error, and a window
-//! resized during the run.
+//! resized during the run, alone or while another thread submits work to the GPU, as threads that
+//! load a scene do.
 //! `scripts/check.sh` runs it in a headless Weston with lavapipe, then runs it again in a second
-//! one, at scale 2, for the resize alone (ADR-0024). It is not in the default run of `cargo test`
+//! one, at scale 2, for the resizes alone (ADR-0024). It is not in the default run of `cargo test`
 //! (`test = false` in Cargo.toml), since it needs a compositor, and it has no harness, since the
 //! windowing library needs the main thread.
 //!
@@ -28,11 +29,14 @@ fn main() {
 #[cfg(target_os = "linux")]
 mod linux {
     use std::process::Command;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::thread::{self, JoinHandle};
     use std::time::Instant;
 
     use slime_app::time::FrameTime;
     use slime_app::{App, AppConfig, AppError, Context, RunError};
-    use slime_gfx::{LinearColor, RenderPassDescriptor, RenderTarget};
+    use slime_gfx::{LinearColor, RenderPassDescriptor, RenderTarget, TextureFormat};
     use slime_platform::{Event, PlatformError, WindowConfig};
 
     const SCENARIO_ENV: &str = "SLIME_APP_TEST_SCENARIO";
@@ -55,7 +59,7 @@ mod linux {
     /// after the first frame, and the window then doubles in size; at scale 1, nothing resizes a
     /// window once it exists.
     const SCALED_ENV: &str = "SLIME_APP_TEST_SCALED";
-    const SCALED_SCENARIOS: [&str; 1] = ["resized"];
+    const SCALED_SCENARIOS: [&str; 2] = ["resized", "resized-while-submitting"];
     /// The frame in whose `render` the `device-lost` and `device-restored` scenarios lose the GPU
     /// device, from which the `lost-again` scenario loses it at every frame and the
     /// `lost-now-and-then` scenario at every other frame, four times, and in which the
@@ -88,6 +92,9 @@ mod linux {
         /// When `init` returned, which the times of the frames count from.
         start: Option<Instant>,
         last_update: u64,
+        /// In `resized-while-submitting`, the thread that submits work to the GPU while the run
+        /// goes on, as threads that load a scene do, and what stops it.
+        submitter: Option<(Arc<AtomicBool>, JoinHandle<()>)>,
     }
 
     impl App for Recorder {
@@ -101,6 +108,35 @@ mod linux {
             match self.scenario {
                 "init-error" => return Err("no save file".into()),
                 "exit-in-init" => ctx.request_exit(),
+                "resized-while-submitting" => {
+                    let gpu = ctx.gpu().expect("windowed run").clone();
+                    let stop = Arc::new(AtomicBool::new(false));
+                    let submitting = Arc::clone(&stop);
+                    let thread = thread::spawn(move || {
+                        let target = gpu
+                            .create_render_target("submitted", 4, 4, TextureFormat::Rgba8Unorm)
+                            .expect("the GPU has memory for it");
+                        let pass = RenderPassDescriptor {
+                            target: &target,
+                            clear: Some(LinearColor::BLACK),
+                            depth: None,
+                            timer: None,
+                            resolve: None,
+                        };
+                        // Submissions back to back, as the uploads of a load come, and a wait now
+                        // and then, so that they do not pile up.
+                        for count in 0.. {
+                            if submitting.load(Ordering::Relaxed) {
+                                break;
+                            }
+                            gpu.render(&pass, |_| {});
+                            if count % 64 == 0 {
+                                gpu.wait_idle().expect("the device is not lost");
+                            }
+                        }
+                    });
+                    self.submitter = Some((stop, thread));
+                }
                 _ => {}
             }
             self.start = Some(Instant::now());
@@ -168,7 +204,10 @@ mod linux {
                 }
                 gpu.render(&pass, |_pass| {});
             }
-            if matches!(self.scenario, "oversize" | "resized") {
+            if matches!(
+                self.scenario,
+                "oversize" | "resized" | "resized-while-submitting"
+            ) {
                 let window = ctx.window().expect("windowed run").inner_size();
                 println!(
                     "image {} {} window {} {}",
@@ -202,6 +241,10 @@ mod linux {
 
         fn shutdown(&mut self, ctx: &mut Context) {
             println!("call shutdown exit_requested={}", ctx.exit_requested());
+            if let Some((stop, thread)) = self.submitter.take() {
+                stop.store(true, Ordering::Relaxed);
+                thread.join().expect("the submitting thread does not panic");
+            }
         }
     }
 
@@ -272,6 +315,11 @@ mod linux {
             command
                 .env(SCENARIO_ENV, scenario)
                 .env_remove(slime_app::LOG_ENV_VAR);
+            if scenario == "resized-while-submitting" {
+                // A configuration that fails is logged, and the surface created again: the run goes
+                // on, and only the log tells.
+                command.env(slime_app::LOG_ENV_VAR, "warn");
+            }
             if scenario == "no-gpu" {
                 // A graphics API this build does not have: no adapter at all, whatever the drivers.
                 command.env("WGPU_BACKEND", "gl");
@@ -299,6 +347,13 @@ mod linux {
                 "lost-now-and-then" => check_lost_now_and_then(&lines),
                 "error-in-render" => check_error_in_render(&lines),
                 "resized" => check_resized(&lines),
+                "resized-while-submitting" => {
+                    check_resized(&lines);
+                    assert!(
+                        !stderr.contains("cannot be configured"),
+                        "the surface is configured while another thread submits: {stderr}"
+                    );
+                }
                 _ => unreachable!(),
             }
             println!("scenario {scenario} ... ok");
@@ -312,6 +367,7 @@ mod linux {
             scenario,
             start: None,
             last_update: 0,
+            submitter: None,
         };
         let result = if scenario == "spans" {
             // The event loop, and every frame with it, runs on this thread.

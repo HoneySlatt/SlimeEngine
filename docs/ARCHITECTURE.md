@@ -623,6 +623,9 @@ rely on it, and checked when each crate's tests compile (a `threads` module in i
   cameras, lights, scenes and instances, loaded scenes and loads in progress, statistics, windows,
   events, the application's `Context` and `AppConfig`, the dev overlay, and every error type. wgpu
   keeps its error scopes per thread, so GPU objects can be created from several threads.
+  wgpu fails to configure a window's surface when another thread submits work while it waits for
+  the GPU, as the threads of a load do: the `Gpu`'s submissions, from any thread, wait while the
+  surface is configured.
 - **Moved between threads, used by one at a time** (`Send` only): a `GpuTimer`, which reads its
   times back through a cell, and so the `Renderer` that holds them; `Renderer::render` takes it
   mutably anyway.

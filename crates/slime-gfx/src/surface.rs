@@ -2,7 +2,7 @@
 
 use std::fmt;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, OnceLock, PoisonError, RwLock};
 
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
@@ -69,6 +69,8 @@ pub struct Surface {
     queue: wgpu::Queue,
     /// Why the device was lost, once it has been: the [`Gpu`]'s record.
     device_loss: Arc<OnceLock<Loss>>,
+    /// The [`Gpu`]'s lock on its submissions, which a configuration takes alone.
+    submissions: Arc<RwLock<()>>,
     config: wgpu::SurfaceConfiguration,
     /// The present mode asked for, which a surface created again for a new device asks for too.
     present_mode: PresentMode,
@@ -236,6 +238,7 @@ impl Surface {
             device: gpu.device.clone(),
             queue: gpu.queue.clone(),
             device_loss: Arc::clone(&gpu.loss),
+            submissions: Arc::clone(&gpu.submissions),
             config,
             present_mode,
             format,
@@ -415,9 +418,17 @@ impl Surface {
     /// the display went away, a swap chain that cannot be created): the surface then counts as
     /// lost, and is created again, or given up (`docs/adr/0025-giving-up-a-lost-surface.md`).
     fn configure(&mut self) -> bool {
+        // wgpu waits for the GPU to finish its work, then fails if work came meanwhile: no thread
+        // submits until the surface is configured. The thread that owns the surface makes its own
+        // submissions, and those of the frames, outside of this call.
+        let alone = self
+            .submissions
+            .write()
+            .unwrap_or_else(PoisonError::into_inner);
         let ((), error) = within_error_scopes(&self.device, || {
             self.surface.configure(&self.device, &self.config);
         });
+        drop(alone);
         if self.device_loss.get().is_some() {
             tracing::debug!("frame not drawn: the GPU device is lost");
             return false;
