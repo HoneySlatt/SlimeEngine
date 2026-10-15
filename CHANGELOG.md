@@ -20,7 +20,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 - `Renderer::load_scene` starts a load in the background and waits for it: it loads on several
   threads, about twice as fast as before on the sample game's zone (ADR-0073). A panic of a
-  loading thread is raised again on the thread that waits.
+  loading thread is raised again on the thread that waits. When several assets of a scene fail, the
+  error returned is the first that a loading thread reports, which can change from one run to the
+  next.
 
 ## [0.2.0] - 2026-10-15
 

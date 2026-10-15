@@ -112,9 +112,14 @@ Risks:
 - **How to test.** `cargo test -p slime-gfx -p slime-render`.
 - **Outcome.** Done on 2026-10-15 ([ADR-0073](adr/0073-loading-scenes-in-the-background.md)). The
   baseline, before the change: *Hunna Wood*'s window showed nothing while its zone and its hero
-  loaded, one after the other, on the main thread. On the pool's threads, both load in under half
-  the time; the ADR holds the figures. The game still loads before its first frame, by waiting:
-  M4b.2 makes it draw meanwhile.
+  loaded, one after the other, on the main thread, so no interval between frames could be measured
+  then. On the pool's threads, both load in under half the time; the ADR holds the figures. The game
+  still loads before its first frame, by waiting: M4b.2 makes it draw meanwhile. Two checks were
+  changed from what this milestone planned. No loader on the calling thread remains to compare
+  pixels with, so the test of a scene loaded in the background checks where each mesh is placed,
+  which meshes and materials are shared, and the color each square shows. A load cannot be dropped
+  half-way on purpose, so the test of a dropped load drops it while every thread of the pool is
+  busy and its tasks wait in the queue, and checks that the drop returns at once.
 
 ### M4b.2 — The zone loads while frames go on
 

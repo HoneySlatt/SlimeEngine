@@ -14,9 +14,8 @@ use crate::texture::CookedTexture;
 /// A directory of cooked data: the manifest that `slime-cook cook` wrote, and the files it lists,
 /// which a game loads by ID.
 ///
-/// It reads files on the thread that calls it, when asked. `slime-render` loads scenes in the
-/// background by reading it from threads of its own, each through a clone, which holds the manifest
-/// and the directory.
+/// It reads files on the thread that calls it, when asked. It can be cloned, and shared between
+/// threads.
 #[derive(Clone, Debug)]
 pub struct CookedAssets {
     directory: PathBuf,

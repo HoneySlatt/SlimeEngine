@@ -1,7 +1,7 @@
 //! Loading a cooked scene: a directory of cooked data written in a temporary directory with the
 //! formats of `slime-assets`, loaded onto the GPU, its meshes placed by their nodes, each loaded
-//! once, its lights in world space, and drawn; loads polled, side by side, dropped, and a panic of
-//! a loading thread raised again. Runs on whatever adapter the machine offers.
+//! once, its lights in world space, and drawn; loads polled, side by side, one of them dropped, and
+//! a panic of a loading thread raised again. Runs on whatever adapter the machine offers.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -409,14 +409,14 @@ fn a_scene_loaded_in_the_background_holds_each_asset_once_where_its_nodes_place_
 }
 
 #[test]
-fn loads_go_on_side_by_side_and_a_dropped_load_is_cancelled() {
+fn loads_go_on_side_by_side_and_dropping_one_leaves_the_others_alone() {
     let gpu = gpu();
     let mut renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
     let (directory, scene) = palette("side by side", 4);
     let assets = CookedAssets::open(directory).expect("the manifest is read");
     let first = renderer.load_scene_in_background(&gpu, &assets, scene);
     let second = renderer.load_scene_in_background(&gpu, &assets, scene);
-    // Dropped at once, the third waits for its running tasks and leaves the others alone.
+    // Dropped at once, the third leaves the other two to finish.
     drop(renderer.load_scene_in_background(&gpu, &assets, scene));
     for load in [first, second] {
         let loaded = load.wait().expect("the scene loads");

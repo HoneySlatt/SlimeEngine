@@ -29,10 +29,7 @@ pub(crate) fn run(task: impl FnOnce() + Send + 'static) {
 fn start() -> Sender<Task> {
     let (sender, receiver) = mpsc::channel::<Task>();
     let receiver = Arc::new(Mutex::new(receiver));
-    let count = thread::available_parallelism()
-        .map_or(1, |cores| cores.get().saturating_sub(1))
-        .clamp(1, 4);
-    for index in 0..count {
+    for index in 0..threads() {
         let receiver = Arc::clone(&receiver);
         thread::Builder::new()
             .name(format!("slime-render loader {index}"))
@@ -56,4 +53,11 @@ fn work(receiver: &Mutex<Receiver<Task>>) {
             Err(_) => return,
         }
     }
+}
+
+/// How many threads the pool has: as many as the machine's cores but one, at least 1 and at most 4.
+pub(crate) fn threads() -> usize {
+    thread::available_parallelism()
+        .map_or(1, |cores| cores.get().saturating_sub(1))
+        .clamp(1, 4)
 }

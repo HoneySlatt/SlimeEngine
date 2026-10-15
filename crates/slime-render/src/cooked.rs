@@ -5,9 +5,8 @@
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::panic::{self, AssertUnwindSafe};
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 
 use glam::{Mat4, Vec3};
@@ -106,13 +105,15 @@ impl LoadedScene {
 /// [`SceneLoad::take`], which gives the whole scene once it is loaded, never a part of it; or waits
 /// for it with [`SceneLoad::wait`].
 ///
-/// Dropping it cancels the load: the drop skips the tasks that have not started, waits for those
-/// running, a texture or a mesh each, and drops what they made.
+/// Dropping it cancels the load. The drop waits for the load's tasks that are running, a mesh or a
+/// texture each, and drops what they made; the tasks that have not started then do nothing when
+/// their turn comes, and never use the GPU. Once the drop returns, no thread of the load holds the
+/// `Gpu`.
 pub struct SceneLoad {
     /// The thread that runs the load; `None` once its result is taken.
     thread: Option<JoinHandle<Option<Result<LoadedScene, SceneError>>>>,
-    /// Set to cancel the load.
-    cancel: Arc<AtomicBool>,
+    /// Tells the load's thread, which waits for the reports of its tasks, that the load is dropped.
+    reports: Sender<Report>,
 }
 
 impl SceneLoad {
@@ -125,8 +126,9 @@ impl SceneLoad {
     ///
     /// # Panics
     ///
-    /// With the panic of a loading thread, if one panicked: a bug, as when a texture is larger
-    /// than the device allows ([`Renderer::create_texture`]).
+    /// With the panic of a loading thread, if one panicked, even when an asset also failed: a bug,
+    /// as when a texture is larger than the device allows ([`Renderer::create_texture`]). Also if
+    /// the operating system could not start the renderer's threads.
     pub fn take(&mut self) -> Option<Result<LoadedScene, SceneError>> {
         if !self.thread.as_ref()?.is_finished() {
             return None;
@@ -151,7 +153,8 @@ impl SceneLoad {
 impl Drop for SceneLoad {
     fn drop(&mut self) {
         if let Some(thread) = self.thread.take() {
-            self.cancel.store(true, Ordering::Relaxed);
+            // The load's thread is gone if it has finished: it has nothing to cancel then.
+            let _ = self.reports.send(Report::Dropped);
             // What the load gives, its panic included, is dropped with it.
             let _ = thread.join();
         }
@@ -163,7 +166,7 @@ fn finish(
     thread: JoinHandle<Option<Result<LoadedScene, SceneError>>>,
 ) -> Result<LoadedScene, SceneError> {
     match thread.join() {
-        Ok(result) => result.expect("only a dropped load is cancelled"),
+        Ok(result) => result.expect("only a dropped load gives no result"),
         Err(panic) => panic::resume_unwind(panic),
     }
 }
@@ -179,11 +182,12 @@ impl Renderer {
     /// (`GfxError::UnsupportedTexture`); [`SceneError::Placement`] if a node places a mesh at a
     /// point that is not finite, which a transform that overflows gives, or a light at such a point
     /// or with no direction, as a transform that flattens its −Z axis gives. When several assets
-    /// fail, the error is the first that a loading thread reports.
+    /// fail, the error is the first that a loading thread reports, which can change from one run to
+    /// the next.
     ///
     /// # Panics
     ///
-    /// As [`SceneLoad::take`].
+    /// As [`Renderer::load_scene_in_background`] and [`SceneLoad::take`].
     pub fn load_scene(
         &self,
         gpu: &Gpu,
@@ -208,27 +212,27 @@ impl Renderer {
     ///
     /// # Panics
     ///
-    /// If the operating system cannot start a thread.
+    /// If the operating system cannot start the load's thread.
     pub fn load_scene_in_background(
         &self,
         gpu: &Gpu,
         assets: &CookedAssets,
         id: AssetId,
     ) -> SceneLoad {
-        let cancel = Arc::new(AtomicBool::new(false));
+        let (sender, reports) = mpsc::channel();
         let loader = Loader {
             gpu: gpu.clone(),
             assets: Arc::new(assets.clone()),
             parts: self.material_parts.clone(),
-            cancel: Arc::clone(&cancel),
+            sender: sender.clone(),
         };
         let thread = thread::Builder::new()
             .name("slime-render scene load".to_owned())
-            .spawn(move || loader.load(id))
+            .spawn(move || loader.load(id, &reports))
             .expect("the operating system starts a thread");
         SceneLoad {
             thread: Some(thread),
-            cancel,
+            reports: sender,
         }
     }
 }
@@ -238,7 +242,8 @@ struct Loader {
     gpu: Gpu,
     assets: Arc<CookedAssets>,
     parts: MaterialParts,
-    cancel: Arc<AtomicBool>,
+    /// Where the load's tasks report.
+    sender: Sender<Report>,
 }
 
 /// A mesh that a task of a load made.
@@ -258,25 +263,105 @@ enum Made {
     Texture(AssetId, Texture),
 }
 
-/// What a task reports: `None` if the load was cancelled before it started; otherwise what it
-/// made or the error that stopped it, or its panic.
-type Report = Option<thread::Result<Result<Made, SceneError>>>;
+/// What the thread of a load hears from its tasks and from its [`SceneLoad`].
+enum Report {
+    /// A task ran: what it made, or the error that stopped it, or its panic.
+    Ran(thread::Result<Result<Made, SceneError>>),
+    /// A task's turn came after the load stopped: it did nothing.
+    Skipped,
+    /// The `SceneLoad` was dropped.
+    Dropped,
+}
 
-/// The tasks of a load on the pool, and their reports.
+/// What the tasks of a load work with, shared by them: emptied when the load stops, so that the
+/// tasks that start after that do nothing, and never use the GPU.
+struct Work {
+    /// The GPU and the cooked data; `None` once the load has stopped.
+    shared: Option<(Gpu, Arc<CookedAssets>)>,
+    /// How many tasks took them.
+    started: usize,
+}
+
+/// The tasks of a load on the pool.
 struct Tasks {
+    work: Arc<Mutex<Work>>,
     sender: Sender<Report>,
-    reports: Receiver<Report>,
-    /// How many tasks have not reported yet.
+    /// How many tasks have not reported.
     pending: usize,
+    /// How many tasks that ran have reported.
+    ran: usize,
+}
+
+impl Tasks {
+    /// Runs `task` on the pool with the load's GPU and cooked data, unless the load has stopped
+    /// when its turn comes; it reports to the load's thread. The task drops its clones of the GPU
+    /// and of the cooked data before it reports, so that none outlives the load.
+    fn spawn(
+        &mut self,
+        task: impl FnOnce(&Gpu, &CookedAssets) -> Result<Made, SceneError> + Send + 'static,
+    ) {
+        self.pending += 1;
+        let work = Arc::clone(&self.work);
+        let sender = self.sender.clone();
+        pool::run(move || {
+            let shared = {
+                let mut work = work
+                    .lock()
+                    .expect("no thread panics while it holds a load's work");
+                let shared = work.shared.clone();
+                work.started += usize::from(shared.is_some());
+                shared
+            };
+            let report = match shared {
+                Some((gpu, assets)) => {
+                    Report::Ran(panic::catch_unwind(AssertUnwindSafe(move || {
+                        task(&gpu, &assets)
+                    })))
+                }
+                None => Report::Skipped,
+            };
+            // The load's thread waits for the report of every task that ran; a task skipped after
+            // the load ended finds it gone.
+            let _ = sender.send(report);
+        });
+    }
+
+    /// Stops the load: the tasks that start from now on do nothing. Returns how many started
+    /// before, whose reports the load's thread waits for.
+    fn stop(&self) -> usize {
+        let mut work = self
+            .work
+            .lock()
+            .expect("no thread panics while it holds a load's work");
+        work.shared = None;
+        work.started
+    }
+}
+
+impl Drop for Tasks {
+    /// Stops the load when its thread ends, a panic of its own included, so that no task left in
+    /// the pool's queue uses the GPU after it.
+    fn drop(&mut self) {
+        self.stop();
+    }
 }
 
 impl Loader {
-    /// Loads the scene `id`: `None` if the load was cancelled from outside, by a drop.
-    fn load(&self, id: AssetId) -> Option<Result<LoadedScene, SceneError>> {
+    /// Loads the scene `id`, hearing from its tasks and its [`SceneLoad`] through `reports`:
+    /// `None` if the `SceneLoad` was dropped.
+    fn load(
+        &self,
+        id: AssetId,
+        reports: &Receiver<Report>,
+    ) -> Option<Result<LoadedScene, SceneError>> {
         let scene = match self.assets.scene(id) {
             Ok(scene) => scene,
             Err(error) => return Some(Err(error.into())),
         };
+        // No task has started: the only report there can be is the drop of the `SceneLoad`.
+        if reports.try_recv().is_ok() {
+            return None;
+        }
         // The meshes, each once, in the order in which the nodes first place them.
         let mut mesh_index: HashMap<AssetId, usize> = HashMap::new();
         let mut mesh_ids = Vec::new();
@@ -286,14 +371,17 @@ impl Loader {
                 mesh_ids.push(mesh);
             }
         }
-        let (sender, reports) = mpsc::channel();
         let mut tasks = Tasks {
-            sender,
-            reports,
+            work: Arc::new(Mutex::new(Work {
+                shared: Some((self.gpu.clone(), Arc::clone(&self.assets))),
+                started: 0,
+            })),
+            sender: self.sender.clone(),
             pending: 0,
+            ran: 0,
         };
         for (index, &id) in mesh_ids.iter().enumerate() {
-            self.spawn(&mut tasks, move |gpu, assets| {
+            tasks.spawn(move |gpu, assets| {
                 let cooked = assets.mesh(id)?;
                 let data = MeshData {
                     positions: cooked.positions,
@@ -322,25 +410,46 @@ impl Loader {
         let mut textures: HashMap<AssetId, Option<Texture>> = HashMap::new();
         let mut failure = None;
         let mut panicked = None;
-        while tasks.pending > 0 {
-            let report = tasks
-                .reports
+        let mut dropped = false;
+        // Once the load stops, how many tasks had started: their reports are waited for.
+        let mut stopped: Option<usize> = None;
+        while match stopped {
+            Some(started) => tasks.ran < started,
+            None => tasks.pending > 0,
+        } {
+            let ran = match reports
                 .recv()
-                .expect("the load keeps a sender while tasks are pending");
-            tasks.pending -= 1;
-            let made = match report {
-                None => continue,
-                Some(Err(panic)) => {
-                    self.cancel.store(true, Ordering::Relaxed);
+                .expect("the load's thread keeps a sender of its reports")
+            {
+                Report::Dropped => {
+                    dropped = true;
+                    stopped.get_or_insert_with(|| tasks.stop());
+                    continue;
+                }
+                Report::Skipped => {
+                    tasks.pending -= 1;
+                    continue;
+                }
+                Report::Ran(ran) => {
+                    tasks.pending -= 1;
+                    tasks.ran += 1;
+                    ran
+                }
+            };
+            let made = match ran {
+                Err(panic) => {
                     panicked.get_or_insert(panic);
+                    stopped.get_or_insert_with(|| tasks.stop());
                     continue;
                 }
-                Some(Ok(Err(error))) => {
-                    self.cancel.store(true, Ordering::Relaxed);
+                Ok(Err(error)) => {
                     failure.get_or_insert(error);
+                    stopped.get_or_insert_with(|| tasks.stop());
                     continue;
                 }
-                Some(Ok(Ok(made))) => made,
+                // What a task made after the load stopped is dropped with it.
+                Ok(Ok(_)) if stopped.is_some() => continue,
+                Ok(Ok(made)) => made,
             };
             let (index, mesh) = match made {
                 Made::Texture(id, texture) => {
@@ -351,7 +460,7 @@ impl Loader {
             };
             let material = mesh.material;
             meshes[index] = Some(mesh);
-            if self.cancel.load(Ordering::Relaxed) || materials.contains_key(&material) {
+            if materials.contains_key(&material) {
                 continue;
             }
             match self.assets.material(material) {
@@ -360,8 +469,12 @@ impl Loader {
                         let id = slot.texture;
                         if let Entry::Vacant(entry) = textures.entry(id) {
                             entry.insert(None);
-                            let label = format!("{} texture {id}", cooked.name);
-                            self.spawn(&mut tasks, move |gpu, assets| {
+                            // Named after its source, whichever material asks for it first.
+                            let label = match self.assets.manifest().get(id) {
+                                Some(entry) => format!("texture {id} from {}", entry.source),
+                                None => format!("texture {id}"),
+                            };
+                            tasks.spawn(move |gpu, assets| {
                                 let texture = upload_texture(gpu, &label, &assets.texture(id)?)?;
                                 Ok(Made::Texture(id, texture))
                             });
@@ -370,19 +483,19 @@ impl Loader {
                     materials.insert(material, cooked);
                 }
                 Err(error) => {
-                    self.cancel.store(true, Ordering::Relaxed);
                     failure.get_or_insert(error.into());
+                    stopped.get_or_insert_with(|| tasks.stop());
                 }
             }
         }
         if let Some(panic) = panicked {
             panic::resume_unwind(panic);
         }
+        if dropped {
+            return None;
+        }
         if let Some(error) = failure {
             return Some(Err(error));
-        }
-        if self.cancel.load(Ordering::Relaxed) {
-            return None;
         }
         let meshes = meshes
             .into_iter()
@@ -398,26 +511,6 @@ impl Loader {
             })
             .collect();
         Some(self.assemble(scene, &mesh_index, meshes, &materials, &textures))
-    }
-
-    /// Runs `task` on the pool, with this load's GPU and cooked data, unless the load is cancelled
-    /// before it starts; it reports to `tasks`.
-    fn spawn(
-        &self,
-        tasks: &mut Tasks,
-        task: impl FnOnce(&Gpu, &CookedAssets) -> Result<Made, SceneError> + Send + 'static,
-    ) {
-        tasks.pending += 1;
-        let gpu = self.gpu.clone();
-        let assets = Arc::clone(&self.assets);
-        let cancel = Arc::clone(&self.cancel);
-        let sender = tasks.sender.clone();
-        pool::run(move || {
-            let report = (!cancel.load(Ordering::Relaxed))
-                .then(|| panic::catch_unwind(AssertUnwindSafe(|| task(&gpu, &assets))));
-            // The load waits for every report, so its receiver is there.
-            let _ = sender.send(report);
-        });
     }
 
     /// Puts the loaded scene together from what the tasks made: its materials, with the samplers
@@ -660,4 +753,139 @@ fn grow(
         });
     }
     Ok(bounds)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::sync::Barrier;
+    use std::time::Duration;
+
+    use slime_assets::{AssetKind, CookedMesh, MANIFEST_FILE, Manifest, ManifestEntry, SceneNode};
+    use slime_gfx::TextureFormat;
+
+    use super::*;
+
+    /// A directory of cooked data, in the system's temporary directory, holding a scene of
+    /// `count` squares, each a mesh of its own, all drawn with one material without textures.
+    /// Returns the cooked data and the scene's ID.
+    fn squares(name: &str, count: u128) -> (CookedAssets, AssetId) {
+        let directory = std::env::temp_dir()
+            .join(format!("slime-render-{}", std::process::id()))
+            .join(name);
+        if directory.exists() {
+            fs::remove_dir_all(&directory).expect("the old directory can be removed");
+        }
+        fs::create_dir_all(&directory).expect("the directory can be created");
+        let mut manifest = Manifest::new();
+        let mut write = |id: AssetId, kind, file: String, bytes: Vec<u8>, needs| {
+            fs::write(directory.join(&file), &bytes).expect("written");
+            let size = bytes.len() as u64;
+            let source = "squares.gltf".to_owned();
+            manifest.insert(
+                id,
+                ManifestEntry {
+                    kind,
+                    file,
+                    size,
+                    needs,
+                    source,
+                },
+            );
+        };
+        let material = AssetId::from_u128(1);
+        let scene = AssetId::from_u128(2);
+        write(
+            material,
+            AssetKind::Material,
+            "square.material".to_owned(),
+            CookedMaterial::default().to_bytes(),
+            Vec::new(),
+        );
+        let square = MeshData::square();
+        let mut nodes = Vec::new();
+        for index in 0..count {
+            let id = AssetId::from_u128(100 + index);
+            let mesh = CookedMesh {
+                name: format!("square {index}"),
+                material,
+                positions: square.positions.clone(),
+                normals: square.normals.clone(),
+                uvs: square.uvs.clone(),
+                tangents: square.tangents.clone(),
+                indices: square.indices.clone(),
+                bounds: [[-0.5, -0.5, 0.0], [0.5, 0.5, 0.0]],
+            };
+            write(
+                id,
+                AssetKind::Mesh,
+                format!("{index}.mesh"),
+                mesh.to_bytes(),
+                vec![material],
+            );
+            nodes.push(SceneNode {
+                name: format!("square {index}"),
+                parent: None,
+                transform: Mat4::IDENTITY.to_cols_array(),
+                meshes: vec![id],
+                light: None,
+                extras: Vec::new(),
+            });
+        }
+        let cooked = CookedScene {
+            name: "squares".to_owned(),
+            nodes,
+        };
+        write(
+            scene,
+            AssetKind::Scene,
+            "squares.scene".to_owned(),
+            cooked.to_bytes(),
+            Vec::new(),
+        );
+        fs::write(directory.join(MANIFEST_FILE), manifest.to_bytes()).expect("written");
+        let assets = CookedAssets::open(&directory).expect("the manifest is read");
+        (assets, scene)
+    }
+
+    #[test]
+    fn a_load_dropped_while_its_tasks_wait_in_the_pool_returns_at_once() {
+        let gpu = Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists them");
+        let renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
+        let (assets, scene) = squares("dropped", 8);
+        // Every thread of the pool waits for the test, so that the load's tasks wait in its queue.
+        let threads = pool::threads();
+        let barrier = Arc::new(Barrier::new(threads + 1));
+        let (busy, all_busy) = mpsc::channel();
+        for _ in 0..threads {
+            let barrier = Arc::clone(&barrier);
+            let busy = busy.clone();
+            pool::run(move || {
+                busy.send(()).expect("the test waits");
+                barrier.wait();
+            });
+        }
+        for _ in 0..threads {
+            all_busy.recv().expect("every thread of the pool is busy");
+        }
+        let load = renderer.load_scene_in_background(&gpu, &assets, scene);
+        let (dropped, done) = mpsc::channel();
+        thread::spawn(move || {
+            drop(load);
+            dropped.send(()).expect("the test waits");
+        });
+        let returned = done.recv_timeout(Duration::from_secs(10)).is_ok();
+        barrier.wait();
+        assert!(returned, "the drop waited for tasks that had not started");
+
+        // The pool goes on: the tasks of the dropped load skip, and another load runs.
+        let loaded = renderer
+            .load_scene(&gpu, &assets, scene)
+            .expect("the scene loads");
+        assert_eq!(loaded.instances().len(), 8);
+        drop(assets);
+        let _ = fs::remove_dir_all(
+            std::env::temp_dir().join(format!("slime-render-{}", std::process::id())),
+        );
+    }
 }

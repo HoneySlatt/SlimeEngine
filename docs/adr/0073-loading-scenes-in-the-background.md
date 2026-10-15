@@ -34,7 +34,8 @@ hero (5 meshes, 9 textures) in 172 to 217 ms, before its window showed anything.
   mesh that its nodes place, each once; as each mesh is made, it reads the material that the mesh
   names, if new, a small file, and starts a task per texture of that material not asked for yet.
   When every task has reported, it creates the samplers and materials and places the nodes, in the
-  order of the nodes, so that the loaded scene does not depend on which task finished first.
+  order of the nodes, so that the loaded scene does not depend on which task finished first. A
+  texture is named, in error messages and capture tools, after its ID and its source file.
 - **The tasks run on the renderer's task pool**: threads started at the first load, as many as the
   machine's cores but one, at least 1 and at most 4, shared by every load of the process and living
   as long as it, which wait for tasks while there are none. A task reads one asset from the cooked
@@ -42,14 +43,21 @@ hero (5 meshes, 9 textures) in 172 to 217 ms, before its window showed anything.
   pool cannot block itself.
 - **What creating a material takes is a value of its own**, `MaterialParts`, private, which the
   renderer keeps and clones into each load.
-- **The first error wins.** A task that fails, or a material that cannot be read, cancels the load:
-  the tasks not started yet are skipped, the coordinator waits for those running, drops what they
-  made, and returns the error.
+- **A load stops without waiting for its queued tasks.** Its tasks take the `Gpu` and the cooked
+  data from one place that they share, under a lock, and count themselves as they take them; to
+  stop the load, the coordinator empties that place and waits only for the tasks counted, which are
+  running or done. A task whose turn comes later finds the place empty, and reports that it did
+  nothing, without touching the GPU. Each task drops its clones before it reports, so that once the
+  coordinator has returned, no thread of the load holds the `Gpu`: a device that is lost and
+  replaced (M4b.3) is not kept alive by a load.
+- **The first error wins.** A task that fails, or a material that cannot be read, stops the load;
+  the coordinator drops what the running tasks made and returns the error. Which error is first can
+  change from one run to the next.
 - **A panic is raised again where the load is taken.** A task catches its panic and reports it; the
-  coordinator cancels the load, then raises it, and `take` or `wait` raises it on the caller's
-  thread with its message. The pool's threads go on.
-- **Dropping a `SceneLoad` cancels it** and waits for its coordinator, so that no thread of the load
-  holds the `Gpu` after the drop.
+  coordinator stops the load, then raises it, and `take` or `wait` raises it on the caller's thread
+  with its message, even when an asset also failed. The pool's threads go on.
+- **Dropping a `SceneLoad` stops its load**: the drop sends the coordinator a message, which reaches
+  it at once wherever its tasks are in the pool's queue, and waits for the coordinator to return.
 
 Measured after the change, as before: the zone loads in 75 to 83 ms and the hero in 71 to 74 ms,
 with four threads in the pool.
@@ -57,8 +65,11 @@ with four threads in the pool.
 ## Alternatives considered
 
 - **Threads started by each load, in a scope** (`std::thread::scope`): no thread outlives a load,
-  but two loads at once would run twice as many threads as the machine has cores to spare, and a
-  panic of a scoped thread reaches the scope with its message lost.
+  but two loads at once would run twice as many threads as the machine has cores to spare.
+- **A flag that tasks read when their turn comes, and a coordinator that waits for every task**:
+  simpler, but dropping a load, or a failure, would wait until the pool's queue reached each of the
+  load's tasks, behind those of other loads, tens of milliseconds while a zone loads; and a task
+  that kept its clone of the `Gpu` until it reported could keep the device alive after the load.
 - **A pool owned by the `Renderer`**: its threads would end with it, but a load in progress would
   have to keep the pool alive past the renderer's drop, and every renderer of a process would
   start its own.
@@ -79,7 +90,10 @@ with four threads in the pool.
   faster, the textures of a scene uploading on several threads.
 - The pool's threads live as long as the process, idle once nothing loads. Stage 7's job system is
   to replace them (ADR-0002).
-- A load cannot be paused or given a priority, and gives nothing before its whole scene.
+- A load cannot be paused or given a priority, and gives nothing before its whole scene. Dropping
+  one costs the caller at most the tasks of that load that are running, a mesh or a texture each.
+- A coordinator that panics, a bug, stops its load as it unwinds, so that its queued tasks skip;
+  its running tasks drop what they made on the pool's threads.
 - While the pool's threads upload textures, the thread that submits frames can wait for the queue's
   lock; how long, on the zone, is M4b.2's measurement.
 - After a lost device, a load in progress fails with `SceneError::Render`; a game that recovers
