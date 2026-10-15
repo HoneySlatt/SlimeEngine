@@ -7,9 +7,13 @@
 //! This crate depends on no other engine crate and on no GPU, so that it runs headless; the
 //! cooker, `slime-cook`, makes what it reads.
 
+mod bytes;
 mod cooked;
 mod error;
 mod manifest;
+mod material;
+mod mesh;
+mod scene;
 mod texture;
 
 use std::fmt;
@@ -18,7 +22,10 @@ use std::str::FromStr;
 pub use cooked::CookedAssets;
 pub use error::{CookedError, LoadError};
 pub use manifest::{AssetKind, MANIFEST_FILE, Manifest, ManifestEntry};
-pub use texture::{TextureData, TextureEncoding};
+pub use material::{CookedMaterial, MaterialTexture, TextureFilter, TextureSampler, TextureWrap};
+pub use mesh::CookedMesh;
+pub use scene::{CookedScene, Extra, LightKind, SceneLight, SceneNode};
+pub use texture::{CookedTexture, TextureEncoding};
 
 /// The identity of an asset: a 128-bit number, written as a UUID.
 ///

@@ -3,6 +3,8 @@
 
 use slime_assets::AssetId;
 
+use crate::texture::TextureRole;
+
 /// A new random asset ID, for a source file that has none: a UUID of version 4, 122 random bits,
 /// from the operating system's random source.
 ///
@@ -83,31 +85,51 @@ pub fn sub_asset_ids(file: AssetId, kind: SubAssetKind, names: &[Option<&str>]) 
     };
     (0..names.len())
         .map(|index| {
-            // What the ID is derived from: the file's ID, the kind, then either 0 and the name, or
-            // 1 and the index, so that no name and no index give the same bytes.
-            let mut material = file.as_u128().to_be_bytes().to_vec();
-            material.push(kind.tag());
+            // After the file's ID and the kind, either 0 and the name, or 1 and the index, so that
+            // no name and no index give the same bytes.
             let name = named(index);
-            match name {
-                Some(name) => {
-                    material.push(0);
-                    material.extend_from_slice(name.as_bytes());
-                }
-                None => {
-                    material.push(1);
-                    material.extend_from_slice(&(index as u64).to_le_bytes());
-                }
-            }
-            let key = blake3::derive_key(CONTEXT, &material);
-            let mut bytes = [0; 16];
-            bytes.copy_from_slice(&key[..16]);
+            let id = match name {
+                Some(name) => derive(file, kind.tag(), 0, name.as_bytes()),
+                None => derive(file, kind.tag(), 1, &(index as u64).to_le_bytes()),
+            };
             SubAssetId {
-                id: AssetId::from_u128(uuid::Uuid::new_v8(bytes).as_u128()),
+                id,
                 by_index: name.is_none(),
             }
         })
         .collect()
 }
+
+/// The ID derived from `base`, the byte `kind`, the byte `tag` and `payload`, with BLAKE3's key
+/// derivation: a UUID of version 8.
+fn derive(base: AssetId, kind: u8, tag: u8, payload: &[u8]) -> AssetId {
+    let mut material = base.as_u128().to_be_bytes().to_vec();
+    material.extend_from_slice(&[kind, tag]);
+    material.extend_from_slice(payload);
+    let key = blake3::derive_key(CONTEXT, &material);
+    let mut bytes = [0; 16];
+    bytes.copy_from_slice(&key[..16]);
+    AssetId::from_u128(uuid::Uuid::new_v8(bytes).as_u128())
+}
+
+/// The ID of the material that a glTF file's primitives without one are drawn with, glTF's
+/// default material: derived from the file's ID, apart from every named or numbered material.
+pub fn default_material_id(file: AssetId) -> AssetId {
+    derive(file, SubAssetKind::Material.tag(), 2, &[])
+}
+
+/// The ID of the texture that the image `image` is cooked into for `role`: the image's own ID for
+/// colors, so that a game loads an image alone by its ID, and IDs derived from it for data and
+/// normals.
+pub fn texture_id(image: AssetId, role: TextureRole) -> AssetId {
+    match role {
+        TextureRole::Color => image,
+        TextureRole::Data | TextureRole::Normal => derive(image, TEXTURE_KIND, role.tag(), &[]),
+    }
+}
+
+/// The kind byte of the IDs of textures cooked from an image, apart from those of sub-assets.
+const TEXTURE_KIND: u8 = 5;
 
 #[cfg(test)]
 mod tests {
@@ -163,6 +185,19 @@ mod tests {
                 assert_ne!(a, b);
             }
         }
+    }
+
+    #[test]
+    fn textures_and_the_default_material_have_ids_of_their_own() {
+        let image = AssetId::from_u128(9);
+        assert_eq!(texture_id(image, TextureRole::Color), image);
+        let data = texture_id(image, TextureRole::Data);
+        let normal = texture_id(image, TextureRole::Normal);
+        assert!(data != normal && data != image && normal != image);
+        assert_eq!(texture_id(image, TextureRole::Data), data);
+        let default = default_material_id(FILE);
+        let named = sub_asset_ids(FILE, SubAssetKind::Material, &[Some("default"), None]);
+        assert!(named.iter().all(|material| material.id != default));
     }
 
     #[test]

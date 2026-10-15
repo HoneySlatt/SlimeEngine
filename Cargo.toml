@@ -15,6 +15,9 @@ publish = false
 # Third-party dependencies, one version for the whole workspace. Each one is listed with its
 # reason in docs/dependencies.md (ADR-0006).
 [workspace.dependencies]
+# The asset pipeline's cooker only: computes the tangents of a mesh that has none with MikkTSpace,
+# as glTF asks and as normal textures are baked against (ADR-0069).
+bevy_mikktspace = "1.0.0"
 # The asset pipeline's cooker only: hashes what made a cooked file and derives the IDs of the assets
 # inside a source file (ADR-0069). Built without its SIMD code in C and assembly (`pure`), so that
 # no C compiler is needed.
@@ -30,12 +33,12 @@ ctrlc = { version = "3.5.2", features = ["termination"] }
 glam = "0.34.1"
 # Reads and writes the KTX2 files that hold cooked textures (ADR-0069).
 ktx2 = "0.5.0"
-# Examples only: reads glTF files for the temporary loader of Stage 3a (ADR-0029, ADR-0035).
-# Without the `import` feature, which would bring the `image` and `base64` crates: the loader reads
-# GLB files that hold their buffer and PNG images in their binary chunk, and decodes the images
-# with `png`. With `KHR_lights_punctual` and `KHR_materials_emissive_strength`, which add no crate
-# (ADR-0037).
-gltf = { version = "1.4.1", default-features = false, features = ["names", "utils", "KHR_lights_punctual", "KHR_materials_emissive_strength"] }
+# Reads glTF files: the asset pipeline's importer (ADR-0069), and the examples' temporary loader
+# until Stage 4a deletes it (ADR-0029). Without the `import` feature, which would bring the `image`
+# and `base64` crates: the importer reads buffers and images itself, and decodes images with `png` and
+# `zune-jpeg`. With `KHR_lights_punctual` and `KHR_materials_emissive_strength`, which add no crate
+# (ADR-0037), and `extras`, the custom values of nodes, which a game reads.
+gltf = { version = "1.4.1", default-features = false, features = ["names", "utils", "extras", "KHR_lights_punctual", "KHR_materials_emissive_strength"] }
 # The dev overlay of Stage 3a, tooling only (ADR-0031): egui-wgpu without its default features,
 # which would enable every wgpu backend, and no egui-winit, since the engine translates its own
 # events. Upgrading wgpu waits for an egui release built against it.

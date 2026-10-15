@@ -8,7 +8,7 @@
 use std::time::{Duration, Instant};
 
 use glam::{DMat4, Mat3, Mat4, Vec3};
-use slime_assets::{TextureData, TextureEncoding};
+use slime_assets::{CookedTexture, TextureEncoding};
 use slime_gfx::{
     AddressMode, BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource,
     BindingType, ComparisonSampler, CullMode, DepthBias, DepthCompare, DepthState, DepthTarget,
@@ -890,7 +890,7 @@ impl Renderer {
         &self,
         gpu: &Gpu,
         label: &str,
-        data: &TextureData,
+        data: &CookedTexture,
     ) -> Result<Texture, RenderError> {
         let format = match data.encoding {
             TextureEncoding::Bc7Srgb => TextureFormat::Bc7RgbaUnormSrgb,

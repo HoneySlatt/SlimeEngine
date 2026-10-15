@@ -11,8 +11,11 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+bevy_mikktspace.workspace = true
 blake3.workspace = true
 block_compression.workspace = true
+gltf.workspace = true
+glam.workspace = true
 png.workspace = true
 slime-assets.workspace = true
 thiserror.workspace = true

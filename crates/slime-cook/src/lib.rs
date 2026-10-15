@@ -13,6 +13,7 @@
 //! A game never links this crate: a shipped program holds no importer.
 
 pub mod cook;
+pub mod gltf_import;
 pub mod ids;
 pub mod image;
 pub mod metadata;

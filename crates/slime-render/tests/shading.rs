@@ -22,7 +22,7 @@ mod tone_curve;
 
 use std::f32::consts::PI;
 
-use slime_assets::{TextureData, TextureEncoding};
+use slime_assets::{CookedTexture, TextureEncoding};
 use slime_gfx::{
     AddressMode, Filter, FloatImage, Gpu, LinearColor, RenderTarget, Sampler, SamplerDescriptor,
     Texture, TextureFormat,
@@ -437,7 +437,7 @@ fn a_normal_texture_of_two_channels_in_bc5_blocks_shades_as_one_of_three() {
         .create_texture(
             &setup.gpu,
             "bc5",
-            &TextureData {
+            &CookedTexture {
                 width: 4,
                 height: 4,
                 encoding: TextureEncoding::Bc5,

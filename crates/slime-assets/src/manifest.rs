@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use crate::AssetId;
+use crate::bytes::{Reader, Writer};
 use crate::error::CookedError;
 
 /// The name of the manifest's file, in a directory of cooked data.
@@ -18,8 +19,14 @@ const VERSION: u32 = 1;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum AssetKind {
-    /// A texture, in a KTX2 file ([`TextureData`](crate::TextureData)).
+    /// A texture, in a KTX2 file ([`CookedTexture`](crate::CookedTexture)).
     Texture,
+    /// A mesh ([`CookedMesh`](crate::CookedMesh)).
+    Mesh,
+    /// A material ([`CookedMaterial`](crate::CookedMaterial)).
+    Material,
+    /// A scene ([`CookedScene`](crate::CookedScene)).
+    Scene,
 }
 
 impl AssetKind {
@@ -27,12 +34,18 @@ impl AssetKind {
     fn tag(self) -> u8 {
         match self {
             Self::Texture => 1,
+            Self::Mesh => 2,
+            Self::Material => 3,
+            Self::Scene => 4,
         }
     }
 
     fn from_tag(tag: u8) -> Option<Self> {
         match tag {
             1 => Some(Self::Texture),
+            2 => Some(Self::Mesh),
+            3 => Some(Self::Material),
+            4 => Some(Self::Scene),
             _ => None,
         }
     }
@@ -41,6 +54,9 @@ impl AssetKind {
     pub fn name(self) -> &'static str {
         match self {
             Self::Texture => "texture",
+            Self::Mesh => "mesh",
+            Self::Material => "material",
+            Self::Scene => "scene",
         }
     }
 }
@@ -112,25 +128,20 @@ impl Manifest {
     /// The manifest's file, which [`Manifest::from_bytes`] reads back: the same manifest always
     /// gives the same bytes.
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = MAGIC.to_vec();
-        bytes.extend_from_slice(&VERSION.to_le_bytes());
-        bytes.extend_from_slice(&(self.entries.len() as u32).to_le_bytes());
-        let text = |bytes: &mut Vec<u8>, text: &str| {
-            bytes.extend_from_slice(&(text.len() as u32).to_le_bytes());
-            bytes.extend_from_slice(text.as_bytes());
-        };
-        for (id, entry) in &self.entries {
-            bytes.extend_from_slice(&id.as_u128().to_le_bytes());
-            bytes.push(entry.kind.tag());
-            bytes.extend_from_slice(&entry.size.to_le_bytes());
-            text(&mut bytes, &entry.file);
-            text(&mut bytes, &entry.source);
-            bytes.extend_from_slice(&(entry.needs.len() as u32).to_le_bytes());
-            for need in &entry.needs {
-                bytes.extend_from_slice(&need.as_u128().to_le_bytes());
+        let mut writer = Writer::new(MAGIC, VERSION);
+        writer.count(self.entries.len());
+        for (&id, entry) in &self.entries {
+            writer.id(id);
+            writer.u8(entry.kind.tag());
+            writer.u64(entry.size);
+            writer.text(&entry.file);
+            writer.text(&entry.source);
+            writer.count(entry.needs.len());
+            for &need in &entry.needs {
+                writer.id(need);
             }
         }
-        bytes
+        writer.finish()
     }
 
     /// The manifest that `bytes`, a file of [`Manifest::to_bytes`], holds.
@@ -140,33 +151,20 @@ impl Manifest {
     /// [`CookedError::Version`] if another version of the format wrote it, and
     /// [`CookedError::Malformed`] if it is not a manifest, or is cut short.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, CookedError> {
-        let malformed = |reason: &str| CookedError::Malformed {
-            what: "manifest",
-            reason: reason.to_owned(),
-        };
-        let mut reader = Reader { bytes };
-        if reader.take(4).ok() != Some(MAGIC.as_slice()) {
-            return Err(malformed("it does not start with `SLMF`"));
-        }
-        let version = reader.u32()?;
-        if version != VERSION {
-            return Err(CookedError::Version {
-                what: "manifest",
-                found: version,
-                expected: VERSION,
-            });
-        }
+        let mut reader = Reader::open(bytes, MAGIC, VERSION, "manifest")?;
         let mut manifest = Self::new();
-        for _ in 0..reader.u32()? {
-            let id = AssetId::from_u128(reader.u128()?);
-            let tag = reader.take(1)?[0];
-            let kind = AssetKind::from_tag(tag)
-                .ok_or_else(|| malformed(&format!("asset {id} is of an unknown kind, {tag}")))?;
+        // An entry takes at least 45 bytes.
+        for _ in 0..reader.count(45)? {
+            let id = reader.id()?;
+            let tag = reader.u8()?;
+            let kind = AssetKind::from_tag(tag).ok_or_else(|| {
+                reader.malformed(&format!("asset {id} is of an unknown kind, {tag}"))
+            })?;
             let size = reader.u64()?;
             let file = reader.text()?;
             let source = reader.text()?;
-            let needs = (0..reader.u32()?)
-                .map(|_| reader.u128().map(AssetId::from_u128))
+            let needs = (0..reader.count(16)?)
+                .map(|_| reader.id())
                 .collect::<Result<_, _>>()?;
             manifest.insert(
                 id,
@@ -179,55 +177,8 @@ impl Manifest {
                 },
             );
         }
-        if !reader.bytes.is_empty() {
-            return Err(malformed("bytes follow its last entry"));
-        }
+        reader.finish()?;
         Ok(manifest)
-    }
-}
-
-/// Reads a manifest's numbers and texts in order.
-struct Reader<'a> {
-    bytes: &'a [u8],
-}
-
-impl<'a> Reader<'a> {
-    fn take(&mut self, count: usize) -> Result<&'a [u8], CookedError> {
-        if self.bytes.len() < count {
-            return Err(CookedError::Malformed {
-                what: "manifest",
-                reason: "it is cut short".to_owned(),
-            });
-        }
-        let (taken, rest) = self.bytes.split_at(count);
-        self.bytes = rest;
-        Ok(taken)
-    }
-
-    fn u32(&mut self) -> Result<u32, CookedError> {
-        Ok(u32::from_le_bytes(
-            self.take(4)?.try_into().expect("4 bytes"),
-        ))
-    }
-
-    fn u64(&mut self) -> Result<u64, CookedError> {
-        Ok(u64::from_le_bytes(
-            self.take(8)?.try_into().expect("8 bytes"),
-        ))
-    }
-
-    fn u128(&mut self) -> Result<u128, CookedError> {
-        Ok(u128::from_le_bytes(
-            self.take(16)?.try_into().expect("16 bytes"),
-        ))
-    }
-
-    fn text(&mut self) -> Result<String, CookedError> {
-        let length = self.u32()? as usize;
-        String::from_utf8(self.take(length)?.to_vec()).map_err(|_| CookedError::Malformed {
-            what: "manifest",
-            reason: "a text is not UTF-8".to_owned(),
-        })
     }
 }
 

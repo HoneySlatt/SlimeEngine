@@ -32,6 +32,13 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   `slime_assets::CookedAssets`, reads a texture by its image's ID, and uploads it with
   `Renderer::create_texture`. A texture of 2048 × 2048 texels takes about a second to cook in a
   release build.
+- The cooker imports glTF files, `.gltf` with their buffers and images beside them, and GLB: each
+  primitive becomes a mesh of only the vertices it names, with flat normals and MikkTSpace tangents
+  where the file has none, the same tangents as Blender's; each material a material whose textures
+  are cooked in the role its slots read them in; each scene its nodes, with their transforms, meshes,
+  lights and `extras`, which a game reads its own data from. `slime_assets::CookedAssets` reads
+  them by ID, a file's default scene by the file's own ID. The importer refuses what it cannot read
+  right with a message that says what and where, and warns about what it leaves out.
 - *Nightwatch*, the first game made with the engine, through its public API only, in
   `games/nightwatch` ([ADR-0055](docs/adr/0055-games-in-the-workspace.md)): so far, a courtyard at
   night under the moon, which the player, a small glowing slime, crosses with the keyboard, stopped

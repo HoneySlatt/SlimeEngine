@@ -73,7 +73,7 @@ impl TextureEncoding {
 /// one before, rounded down and at least one texel, as the GPU sizes them, from the full size down
 /// to one texel.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TextureData {
+pub struct CookedTexture {
     /// The width of the full-size level, in texels.
     pub width: u32,
     /// Its height, in texels.
@@ -84,7 +84,7 @@ pub struct TextureData {
     pub levels: Vec<Vec<u8>>,
 }
 
-impl TextureData {
+impl CookedTexture {
     /// The size of level `index`, in texels.
     pub fn level_dimensions(&self, index: usize) -> (u32, u32) {
         ((self.width >> index).max(1), (self.height >> index).max(1))
@@ -96,7 +96,7 @@ impl TextureData {
     ///
     /// # Panics
     ///
-    /// If the levels are not those of [`TextureData`], each of [`TextureEncoding::level_size`].
+    /// If the levels are not those of [`CookedTexture`], each of [`TextureEncoding::level_size`].
     pub fn to_ktx2(&self) -> Vec<u8> {
         self.check().unwrap_or_else(|reason| panic!("{reason}"));
         let format = self.encoding.format();
@@ -157,7 +157,7 @@ impl TextureData {
         file
     }
 
-    /// The texture that a KTX2 file of [`TextureData::to_ktx2`] holds.
+    /// The texture that a KTX2 file of [`CookedTexture::to_ktx2`] holds.
     ///
     /// # Errors
     ///
@@ -235,9 +235,9 @@ mod tests {
 
     /// A texture of `encoding`, `width` × `height`, every level down to one texel filled with its
     /// index.
-    fn texture(encoding: TextureEncoding, width: u32, height: u32) -> TextureData {
+    fn texture(encoding: TextureEncoding, width: u32, height: u32) -> CookedTexture {
         let count = (u32::BITS - width.max(height).leading_zeros()) as usize;
-        let mut texture = TextureData {
+        let mut texture = CookedTexture {
             width,
             height,
             encoding,
@@ -263,7 +263,11 @@ mod tests {
         ] {
             let original = texture(encoding, width, height);
             let file = original.to_ktx2();
-            assert_eq!(TextureData::from_ktx2(&file), Ok(original), "{encoding:?}");
+            assert_eq!(
+                CookedTexture::from_ktx2(&file),
+                Ok(original),
+                "{encoding:?}"
+            );
         }
     }
 
@@ -295,17 +299,17 @@ mod tests {
     #[test]
     fn a_file_that_is_not_a_cooked_texture_is_refused() {
         assert!(matches!(
-            TextureData::from_ktx2(b"not a texture"),
+            CookedTexture::from_ktx2(b"not a texture"),
             Err(CookedError::Malformed { .. })
         ));
         // A level of the wrong size.
         let mut wrong = texture(TextureEncoding::Rgba8, 4, 4);
         wrong.levels[1].pop();
         let mut file = texture(TextureEncoding::Rgba8, 4, 4).to_ktx2();
-        assert!(TextureData::from_ktx2(&file).is_ok());
+        assert!(CookedTexture::from_ktx2(&file).is_ok());
         // Cut short: the last level's bytes are gone.
         file.truncate(file.len() - 8);
-        assert!(TextureData::from_ktx2(&file).is_err());
+        assert!(CookedTexture::from_ktx2(&file).is_err());
         assert!(wrong.check().is_err());
     }
 }

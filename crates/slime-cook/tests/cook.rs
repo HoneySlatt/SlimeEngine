@@ -56,12 +56,11 @@ fn files(directory: &Path) -> BTreeMap<String, Vec<u8>> {
 }
 
 /// A directory of sources: two images, one in a subdirectory and of sides that are not multiples
-/// of 4, and a glTF file, which is not cooked yet.
+/// of 4.
 fn sources(name: &str) -> PathBuf {
     let root = directory(name).join("sources");
     png(&root.join("rock.png"), 16, 8, 3);
     png(&root.join("moss/leaf.png"), 6, 5, 7);
-    fs::write(root.join("ruin.glb"), "a scene").expect("written");
     root
 }
 
@@ -72,7 +71,6 @@ fn the_same_sources_cook_into_the_same_bytes() {
     let second = root.with_file_name("second");
     let cooked = cook(&root, &first).expect("the first cook succeeds");
     assert_eq!(cooked.cooked.len(), 2);
-    assert_eq!(cooked.skipped, [root.join("ruin.glb")]);
     cook(&root, &second).expect("the second cook succeeds");
     let (first, second) = (files(&first), files(&second));
     assert_eq!(
@@ -145,13 +143,6 @@ fn a_game_loads_each_image_s_texture_by_the_image_s_id() {
         .expect("scanned")
         .sources
     {
-        if source.path.extension().is_some_and(|e| e == "glb") {
-            assert!(
-                assets.texture(source.id).is_err(),
-                "the glTF file is not cooked"
-            );
-            continue;
-        }
         let texture = assets.texture(source.id).expect("the texture is read");
         let expected = if texture.width == 16 {
             TextureEncoding::Bc7Srgb

@@ -6,7 +6,7 @@ use std::thread;
 
 use block_compression::encode::compress_rgba8;
 use block_compression::{BC7Settings, CompressionVariant};
-use slime_assets::{TextureData, TextureEncoding};
+use slime_assets::{CookedTexture, TextureEncoding};
 
 use crate::image::Image;
 
@@ -34,6 +34,13 @@ impl TextureRole {
             Self::Normal => 3,
         }
     }
+
+    /// The role of a tag of [`TextureRole::tag`], if it is one.
+    pub(crate) fn from_tag(tag: u8) -> Option<Self> {
+        [Self::Color, Self::Data, Self::Normal]
+            .into_iter()
+            .find(|role| role.tag() == tag)
+    }
 }
 
 /// Cooks `image` into a texture for `role`: every level of detail down to one texel, each texel
@@ -48,7 +55,7 @@ impl TextureRole {
 /// the development machine (ADR-0071). The blocks of each level are encoded on every thread the
 /// machine offers, each a band of rows; the result does not depend on their number. A level
 /// smaller than a block repeats its last row and column to fill it.
-pub fn cook_texture(image: &Image, role: TextureRole) -> TextureData {
+pub fn cook_texture(image: &Image, role: TextureRole) -> CookedTexture {
     let levels = levels(image, role);
     let compressed = image.width.is_multiple_of(4) && image.height.is_multiple_of(4);
     let (encoding, variant) = match (role, compressed) {
@@ -79,7 +86,7 @@ pub fn cook_texture(image: &Image, role: TextureRole) -> TextureData {
             None => level.rgba,
         })
         .collect();
-    TextureData {
+    CookedTexture {
         width: image.width,
         height: image.height,
         encoding,
@@ -285,7 +292,7 @@ mod tests {
             let texture = cook_texture(&picture, role);
             assert_eq!(texture.encoding, encoding);
             assert_eq!(texture.levels.len(), 5);
-            assert_eq!(TextureData::from_ktx2(&texture.to_ktx2()), Ok(texture));
+            assert_eq!(CookedTexture::from_ktx2(&texture.to_ktx2()), Ok(texture));
         }
         // Sides that are not multiples of 4 keep their texels.
         let odd = image(6, 3, |_, _| [1, 2, 3, 4]);

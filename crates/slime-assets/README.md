@@ -5,10 +5,10 @@ manifest that lists it ([ADR-0069](../../docs/adr/0069-the-asset-pipeline.md)).
 
 ## Status
 
-Started in M4a.2. It holds the asset ID, cooked textures in KTX2 files
-([ADR-0071](../../docs/adr/0071-cooked-textures.md)), the manifest of a directory of cooked data,
-and the reading of that directory by ID. Cooked meshes, materials and scenes come with the importer
-of glTF (M4a.4); loading in the background, with Stage 4b.
+Started in M4a.2. It holds the asset ID; the cooked formats, textures in KTX2 files
+([ADR-0071](../../docs/adr/0071-cooked-textures.md)), meshes, materials and scenes in formats of
+the engine's own; the manifest of a directory of cooked data; and the reading of that directory by
+ID. Loading in the background comes with Stage 4b.
 
 ## Role
 
@@ -25,9 +25,13 @@ of glTF (M4a.4); loading in the background, with Stage 4b.
 - `CookedAssets::open(directory)` reads the manifest of a directory of cooked data;
   `CookedAssets::texture(id)` reads a texture, which `slime_render::Renderer::create_texture`
   uploads.
-- `TextureData`, a cooked texture, and its KTX2 file (`to_ktx2`, `from_ktx2`); `Manifest`, the list
-  of what was cooked, and its binary file (`to_bytes`, `from_bytes`). Their rustdoc gives the
-  formats.
+- `CookedAssets::mesh`, `material` and `scene` read the other kinds; a glTF file's default scene
+  is read by the file's own ID. A `CookedScene`'s nodes carry the glTF `extras` they were given, as
+  `Extra` values, which a game reads its colliders and markers from, and `world_transforms` places
+  them.
+- `CookedTexture` and its KTX2 file (`to_ktx2`, `from_ktx2`); `CookedMesh`, `CookedMaterial`,
+  `CookedScene` and `Manifest`, and their binary files (`to_bytes`, `from_bytes`). Their rustdoc
+  gives the formats.
 
 ## Dependencies
 

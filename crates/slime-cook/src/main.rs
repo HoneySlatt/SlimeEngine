@@ -83,8 +83,8 @@ fn run_cook(sources: &Path, output: &Path) -> bool {
             for problem in &cooked.problems {
                 eprintln!("warning: {problem}");
             }
-            for skipped in &cooked.skipped {
-                eprintln!("warning: {} is not cooked yet", skipped.display());
+            for warning in &cooked.warnings {
+                eprintln!("warning: {warning}");
             }
             println!(
                 "{}: {} assets cooked, {} unchanged, in {:.2} s",
