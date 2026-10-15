@@ -36,6 +36,7 @@ cargo run -p hunnawood                     # play
 cargo run -p hunnawood -- --frames 120     # closes itself after 120 frames that draw the zone
 cargo run -p hunnawood -- --assets <dir>   # reads the cooked data of another directory
 cargo run -p hunnawood -- --night          # starts at night, and starts again at night
+cargo run -p hunnawood -- --lose-device-at 300   # loses its GPU device after 300 frames of the zone
 ```
 
 Without `--assets`, it reads `hunnawood-assets` beside the program if that directory holds a
@@ -47,13 +48,21 @@ turns around it, and the hero does not move. The log says when the zone is first
 many frames, and the longest interval between two of them, the measure that
 [ADR-0074](../../docs/adr/0074-uploading-textures-without-holding-up-frames.md) gives.
 
+When the GPU device is lost (the driver crashed or was reset, as Windows resets a GPU that takes
+too long to answer), the game goes on with a new one
+([ADR-0075](../../docs/adr/0075-recovering-from-a-lost-gpu-device.md)): it makes its GPU objects
+again, loads its zone again behind the same view as at the start, and the run goes on where it
+was, the hero where it stood, the key, the door and the time of day as they were. The log says
+where the run was. To try it without a driver reset, `--lose-device-at` loses the device on purpose
+after a number of frames, and so does the button of the dev overlay (F1).
+
 | Key | Does |
 |---|---|
 | W, A, S, D (Z, Q, S, D on a French keyboard) | Move, relative to the camera |
 | Left and right arrows | Turn the camera around the hero |
 | E | Rest, by the campfire: the day turns to night, the night to day |
 | R | Start again: the hero at the start, the key in its place, the door closed, at the time the game started at |
-| F1 | Show or hide what each frame costs, in the engine's dev overlay |
+| F1 | Show or hide what each frame costs, in the engine's dev overlay, whose button loses the GPU device on purpose |
 | Escape | Quit |
 
 Keys are read by their position on the keyboard, so that the four movement keys sit in the same
@@ -64,14 +73,14 @@ place on every layout. CI builds the game for Windows with the examples: `hunnaw
 
 | Module | What it holds |
 |---|---|
-| `main.rs` | The application: the window, the game's loop through `slime_app::App`, the command line |
+| `main.rs` | The application: the window, the game's loop through `slime_app::App`, going on with a new GPU device after a loss, the command line |
 | `assets.rs` | Where the cooked data is, and the IDs of the zone and the hero, from their metadata files |
 | `rules.rs` | The rules, without the GPU: the hero's movement, its heading, and its collisions, as a circle on the ground against the zone's colliders and edge; the key, the door and the campfire |
 | `zone.rs` | The zone, read from the cooked scene: its ground, its colliders, boxes turned about the vertical and cylinders, where the hero starts, and the places of the key, the door and the campfire; the tests of the cooked zone |
 | `controls.rs` | Which of the game's keys are held |
 | `camera.rs` | The camera that follows the hero, coming nearer when a collider would stand between them |
 | `view.rs` | What the player sees: the renderer, the cooked hero, and the cooked zone, which loads in the background (`Renderer::load_scene_in_background`); by day, the overcast sky and the zone's sun behind its clouds; by night, a dark sky with the moon's disc and the zone's lights of the night, all read from the cooked zone before it loads (`scene_lights`) |
-| `statistics.rs` | The dev overlay that shows what each frame costs |
+| `statistics.rs` | The dev overlay that shows what each frame costs, with a button that loses the GPU device on purpose |
 
 The rules run at the engine's fixed step, 1/60 s, so that a game plays the same on every machine;
 the hero is drawn between its last two steps, by the share of a step that the frame comes after the

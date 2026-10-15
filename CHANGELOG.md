@@ -22,6 +22,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   application creates them again; it gives up after three new devices in a row without a frame
   shown. Without `slime-app`, `Gpu::restore` and
   `Surface::restore` open the new device; `Gpu::lose` loses one on purpose, for tests and tools.
+- *Hunna Wood* goes on after a lost GPU device: it loads its zone again with a new device, and the
+  run goes on where it was. `--lose-device-at <frame>`, and a button of its dev overlay, lose the
+  device on purpose, to try it.
 - `slime_render::scene_lights` gives the lights that a cooked scene's nodes place without loading
   the scene, so that a game knows its sun and its moon before its scene is loaded.
 - *Hunna Wood* draws while its zone loads: its window shows the hero under the sky two to three

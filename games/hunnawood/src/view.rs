@@ -46,6 +46,7 @@ const BLOOM: f32 = 0.04;
 
 /// The zone's lights, by the time of day they shine at, read from its cooked scene before it is
 /// loaded.
+#[derive(Clone)]
 pub struct ZoneLights {
     /// The sun.
     day: Vec<Light>,

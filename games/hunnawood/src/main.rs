@@ -12,6 +12,7 @@
 //! cargo run -p hunnawood -- --frames 120     # closes itself after 120 frames that draw the zone
 //! cargo run -p hunnawood -- --assets <dir>   # reads the cooked data of another directory
 //! cargo run -p hunnawood -- --night          # starts at night
+//! cargo run -p hunnawood -- --lose-device-at 300   # loses its GPU device after 300 frames of the zone
 //! ```
 //!
 //! W, A, S and D move (Z, Q, S and D on a French keyboard), the left and right arrows turn the
@@ -45,14 +46,16 @@ use statistics::Statistics;
 use view::{View, ZoneLights};
 use zone::Zone;
 
-const USAGE: &str = "usage: hunnawood [--assets <directory>] [--frames <count>] [--night]";
+const USAGE: &str = "usage: hunnawood [--assets <directory>] [--frames <count>] [--night] \
+                     [--lose-device-at <frame>]";
 
 /// The game: its rules, the keys held, the camera, and what draws them once the window is open.
 struct HunnaWood {
-    /// The cooked data, which the view loads its GPU objects from once the window is open.
+    /// The cooked data, which the view loads its GPU objects from once the window is open, and
+    /// again with a new device.
     assets: CookedAssets,
-    /// The zone's lights, which the view takes when the window opens.
-    lights: Option<ZoneLights>,
+    /// The zone's lights, which each view starts from.
+    lights: ZoneLights,
     game: Game,
     controls: Controls,
     camera: FollowCamera,
@@ -67,6 +70,9 @@ struct HunnaWood {
     /// gives one. A run that sets one fails if no frame drew the zone: the automated checks run the
     /// game for a number of frames in a compositor without a screen, to prove that it draws.
     frame_limit: Option<u64>,
+    /// The frame that draws the zone after which the game loses its GPU device on purpose, if
+    /// `--lose-device-at` gives one, to check that it goes on with a new one.
+    lose_device_at: Option<u64>,
     /// The frames drawn while the zone loads; `None` once they are logged.
     loading: Option<Loading>,
 }
@@ -81,22 +87,36 @@ struct Loading {
     /// When the last frame started.
     last: Option<Instant>,
     longest: Duration,
+    /// Whether a frame drew the zone.
+    shown: bool,
+}
+
+impl Loading {
+    /// Logs the frames drawn while the zone loaded, and the longest interval between two of them.
+    fn log(&self) {
+        tracing::info!(
+            frames = self.frames,
+            longest_interval = ?self.longest,
+            "the zone is drawn"
+        );
+    }
 }
 
 impl HunnaWood {
-    /// The game in `zone`, starting at night if `night`, which draws what `assets` holds and closes
-    /// itself after `frame_limit` frames that draw the zone, if it is given.
+    /// The game in `zone`, lit by `lights`, starting at night if `night`, which draws what `assets`
+    /// holds, closes itself after `frame_limit` frames that draw the zone, and loses its GPU device
+    /// after `lose_device_at` of them, if they are given.
     fn new(
         assets: CookedAssets,
         zone: Zone,
         lights: ZoneLights,
         night: bool,
-        frame_limit: Option<u64>,
+        (frame_limit, lose_device_at): (Option<u64>, Option<u64>),
     ) -> Self {
         let game = Game::new(zone);
         Self {
             assets,
-            lights: Some(lights),
+            lights,
             camera: FollowCamera::looking_along(game.zone().facing),
             game: if night {
                 game.starting_at_night()
@@ -109,6 +129,7 @@ impl HunnaWood {
             stats: RenderStats::default(),
             drawn: 0,
             frame_limit,
+            lose_device_at,
             loading: Some(Loading::default()),
         }
     }
@@ -136,12 +157,48 @@ impl App for HunnaWood {
         else {
             return Err("Hunna Wood needs a window".into());
         };
-        let lights = self.lights.take().expect("the window opens once");
-        self.view = Some(View::new(gpu, format, &self.assets, lights)?);
+        self.view = Some(View::new(gpu, format, &self.assets, self.lights.clone())?);
         self.statistics = Some(Statistics::new(gpu, format, window.scale_factor()));
         if self.frame_limit == Some(0) {
             ctx.request_exit();
         }
+        Ok(())
+    }
+
+    fn gpu_lost(&mut self, _ctx: &mut Context) {
+        // Every object of the lost device goes, the view's loads in progress with it, so that the
+        // new device opens on the same adapter (ADR-0075). The run itself is kept.
+        self.view = None;
+        if let Some(statistics) = &mut self.statistics {
+            statistics.release();
+        }
+        if let Some(loading) = self.loading.take()
+            && loading.shown
+        {
+            loading.log();
+        }
+    }
+
+    fn gpu_restored(&mut self, ctx: &mut Context) -> Result<(), AppError> {
+        let (Some(gpu), Some(format), Some(window)) =
+            (ctx.gpu(), ctx.surface_format(), ctx.window())
+        else {
+            return Err("Hunna Wood needs a window".into());
+        };
+        self.view = Some(View::new(gpu, format, &self.assets, self.lights.clone())?);
+        if let Some(statistics) = &mut self.statistics {
+            statistics.restore(gpu, format, window.scale_factor());
+        }
+        self.loading = Some(Loading::default());
+        let hero = self.game.hero_between(1.0);
+        tracing::info!(
+            x = hero.position.x,
+            z = hero.position.y,
+            key = self.game.has_item(),
+            door = self.game.door_open(),
+            night = self.game.night(),
+            "a new GPU device replaces the lost one: the zone loads again, and the run goes on"
+        );
         Ok(())
     }
 
@@ -212,12 +269,8 @@ impl App for HunnaWood {
             }
             loading.last = Some(now);
             // The interval that ends here holds the first frame that drew the zone.
-            if self.drawn > 0 {
-                tracing::info!(
-                    frames = loading.frames,
-                    longest_interval = ?loading.longest,
-                    "the zone is drawn"
-                );
+            if loading.shown {
+                loading.log();
                 self.loading = None;
             }
         }
@@ -233,16 +286,28 @@ impl App for HunnaWood {
         match view.draw(gpu, target, &self.game, alpha, camera) {
             Ok(stats) => {
                 self.stats = stats;
-                if let Some(statistics) = &mut self.statistics {
-                    statistics.draw(gpu, target, &self.stats);
-                }
+                let lose_asked = match &mut self.statistics {
+                    Some(statistics) => statistics.draw(gpu, target, &self.stats),
+                    None => false,
+                };
+                let mut lose_now = lose_asked;
                 if view.zone_shown() {
                     self.drawn += 1;
-                    if self.frame_limit.is_some_and(|limit| self.drawn >= limit) {
-                        ctx.request_exit();
+                    if let Some(loading) = &mut self.loading {
+                        loading.shown = true;
                     }
+                    lose_now |= self.lose_device_at == Some(self.drawn);
                 } else if let Some(loading) = &mut self.loading {
                     loading.frames += 1;
+                }
+                if lose_now {
+                    // Once the frame is drawn, as a driver reset would come: the engine opens a
+                    // new device before the next frame, and calls `gpu_restored`.
+                    tracing::warn!("the GPU device is lost on purpose");
+                    gpu.lose();
+                }
+                if view.zone_shown() && self.frame_limit.is_some_and(|limit| self.drawn >= limit) {
+                    ctx.request_exit();
                 }
             }
             // The GPU's memory cannot hold the targets of the window's new size, or the device was
@@ -255,13 +320,9 @@ impl App for HunnaWood {
         // A run that stops right after the zone's first frame, as the automated checks' do, logs
         // the load here, without the interval that holds that frame.
         if let Some(loading) = self.loading.take()
-            && self.drawn > 0
+            && loading.shown
         {
-            tracing::info!(
-                frames = loading.frames,
-                longest_interval = ?loading.longest,
-                "the zone is drawn"
-            );
+            loading.log();
         }
         tracing::info!(
             drawn = self.drawn,
@@ -321,9 +382,17 @@ fn main() -> ExitCode {
             ..WindowConfig::default()
         }),
         // The game counts its frames itself: those that draw the zone.
+        // It goes on after a lost GPU device, with a new one (ADR-0075).
+        restore_lost_device: true,
         ..AppConfig::default()
     };
-    let mut game = HunnaWood::new(cooked, zone, lights, options.night, options.frame_limit);
+    let mut game = HunnaWood::new(
+        cooked,
+        zone,
+        lights,
+        options.night,
+        (options.frame_limit, options.lose_device_at),
+    );
     match slime_app::run(&mut game, &config) {
         Ok(()) => ExitCode::SUCCESS,
         // `run` has logged the error with its causes.
@@ -340,6 +409,9 @@ struct Options {
     frame_limit: Option<u64>,
     /// Whether the game starts at night, as `--night` asks.
     night: bool,
+    /// The frame that draws the zone after which the game loses its GPU device, if
+    /// `--lose-device-at` gives one.
+    lose_device_at: Option<u64>,
 }
 
 /// The options that `arguments`, the command line without the program's name, give.
@@ -353,13 +425,19 @@ fn parse_options(arguments: impl IntoIterator<Item = OsString>) -> Result<Option
                 let value = arguments.next().ok_or("--assets needs a directory")?;
                 options.assets = Some(PathBuf::from(value));
             }
-            Some("--frames") => {
-                let value = arguments.next().ok_or("--frames needs a value")?;
+            Some(name @ ("--frames" | "--lose-device-at")) => {
+                let value = arguments
+                    .next()
+                    .ok_or_else(|| format!("{name} needs a frame count"))?;
                 let count = value
                     .to_str()
                     .and_then(|value| value.parse().ok())
                     .ok_or_else(|| format!("invalid frame count `{}`", value.display()))?;
-                options.frame_limit = Some(count);
+                if name == "--frames" {
+                    options.frame_limit = Some(count);
+                } else {
+                    options.lose_device_at = Some(count);
+                }
             }
             _ => return Err(format!("unknown argument `{}`", argument.display())),
         }
@@ -385,6 +463,15 @@ mod tests {
         assert!(options.night);
         assert_eq!(options.frame_limit, Some(2));
         assert!(parse(&["--day"]).is_err());
+    }
+
+    #[test]
+    fn lose_device_at_takes_a_frame() {
+        assert_eq!(parse(&[]).expect("no option").lose_device_at, None);
+        let options = parse(&["--lose-device-at", "300"]).expect("a frame");
+        assert_eq!(options.lose_device_at, Some(300));
+        assert!(parse(&["--lose-device-at"]).is_err());
+        assert!(parse(&["--lose-device-at", "soon"]).is_err());
     }
 
     #[test]

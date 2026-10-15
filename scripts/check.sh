@@ -104,6 +104,11 @@ for time in "" --night; do
         timeout -k 10 300 cargo run --locked -p hunnawood -- --frames 1 ${time:+"$time"} ||
         { cat "$runtime/slime-check.log"; exit 1; }
 done
+# And once more, losing its GPU device after its first frame of the zone: it must open a new one,
+# load its zone again and draw it once more, or it fails (ADR-0075).
+env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+    timeout -k 10 300 cargo run --locked -p hunnawood -- --frames 2 --lose-device-at 1 ||
+    { cat "$runtime/slime-check.log"; exit 1; }
 # The windowed lifecycle test needs the compositor too, so it is outside the default test run
 # (ADR-0024).
 env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \

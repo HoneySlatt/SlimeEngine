@@ -8,7 +8,8 @@ use slime_render::RenderStats;
 
 /// The overlay and what it shows.
 pub struct Statistics {
-    overlay: Overlay,
+    /// The overlay; `None` from the loss of the GPU device until a new one replaces it.
+    overlay: Option<Overlay>,
     shown: bool,
     /// The frame's duration, in milliseconds, averaged over the last frames.
     frame_ms: f32,
@@ -18,15 +19,29 @@ impl Statistics {
     /// The overlay, hidden, for targets of `format` in a window of `scale_factor`.
     pub fn new(gpu: &Gpu, format: TextureFormat, scale_factor: f64) -> Self {
         Self {
-            overlay: Overlay::new(gpu, format, scale_factor),
+            overlay: Some(Overlay::new(gpu, format, scale_factor)),
             shown: false,
             frame_ms: 0.0,
         }
     }
 
+    /// Drops the overlay's GPU objects, once the GPU device is lost; it draws nothing until
+    /// [`Statistics::restore`].
+    pub fn release(&mut self) {
+        self.overlay = None;
+    }
+
+    /// Makes the overlay again with `gpu`, a device that replaced a lost one, for targets of
+    /// `format` in a window of `scale_factor`: shown or hidden as it was.
+    pub fn restore(&mut self, gpu: &Gpu, format: TextureFormat, scale_factor: f64) {
+        self.overlay = Some(Overlay::new(gpu, format, scale_factor));
+    }
+
     /// Hands `event` to the overlay, shown or not, so that it takes events as they come.
     pub fn handle(&mut self, event: &Event) {
-        self.overlay.handle(event);
+        if let Some(overlay) = &mut self.overlay {
+            overlay.handle(event);
+        }
     }
 
     pub fn toggle(&mut self) {
@@ -38,12 +53,18 @@ impl Statistics {
         self.frame_ms = self.frame_ms * 0.9 + seconds * 1000.0 * 0.1;
     }
 
-    /// Draws the overlay over `target`, with `stats`, the last frame's.
-    pub fn draw(&mut self, gpu: &Gpu, target: &RenderTarget, stats: &RenderStats) {
+    /// Draws the overlay over `target`, with `stats`, the last frame's, and returns whether its
+    /// button asks to lose the GPU device, which the game then does once the frame is drawn, to
+    /// check by hand that it goes on with a new one.
+    pub fn draw(&mut self, gpu: &Gpu, target: &RenderTarget, stats: &RenderStats) -> bool {
         let (shown, frame_ms, adapter) = (self.shown, self.frame_ms, gpu.adapter_name());
+        let mut lose = false;
+        let Some(overlay) = &mut self.overlay else {
+            return lose;
+        };
         let size = (target.width(), target.height());
         // Drawn with no panel while hidden, so that egui still takes the events handed to it.
-        self.overlay.render(gpu, target, |ctx| {
+        overlay.render(gpu, target, |ctx| {
             if !shown {
                 return;
             }
@@ -80,8 +101,10 @@ impl Statistics {
                         stats.triangles,
                         stats.shadow_draw_calls + stats.spot_shadow_draw_calls
                     ));
+                    lose = ui.button("Lose the GPU device").clicked();
                     ui.label("F1 hides this");
                 });
         });
+        lose
     }
 }
