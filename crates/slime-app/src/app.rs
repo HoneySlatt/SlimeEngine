@@ -252,7 +252,8 @@ impl Context {
 
     /// The game's world: its entities, their components and their hierarchy
     /// (`docs/adr/0084-what-the-world-draws.md`), empty when the run starts, headless runs
-    /// included. The engine tells it before and after each [`App::fixed_update`]
+    /// included; a game that built its world before the run gives it in [`App::init`], through
+    /// [`Context::world_mut`]. The engine tells it before and after each [`App::fixed_update`]
     /// ([`World::begin_fixed_step`], [`World::end_fixed_step`]), so that what moves during a step
     /// is drawn between its two transforms; a change made outside a step is drawn at once. It
     /// computes the world's transforms after [`App::update`] ([`World::update_transforms`]), so that

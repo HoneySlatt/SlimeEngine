@@ -148,8 +148,7 @@ them; *Hunna Wood* runs on it.
   of the other time of day too; the world draws the hero between fixed steps, and the game draws
   the world through `slime-world-render` and an `AssetCache`, which loads the hero first. After a
   lost GPU device, the world keeps the run and only what it draws loads again. With `--watch`, the
-  zone or the hero is spawned again when its scene changed. The game looks and plays as before;
-  a frame costs it about 0.1 ms more on the CPU.
+  zone or the hero is spawned again when its scene changed. The game looks and plays as before.
 
 ### Removed
 

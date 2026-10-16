@@ -34,6 +34,7 @@ pub enum Shape {
 /// ground.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Footprint {
+    /// Its shape around its center.
     pub shape: Shape,
     /// The center of its footprint.
     pub center: Vec2,
@@ -122,7 +123,9 @@ impl Footprint {
 /// half its size, a cylinder's along its x axis its radius.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Collider {
+    /// A box or a cylinder.
     pub kind: ColliderKind,
+    /// How high it stands, in metres.
     pub height: f32,
 }
 
@@ -169,6 +172,7 @@ impl Component for TimeOfDay {}
 /// makes vary around `intensity`, the one the zone gives it, at each frame.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Flickers {
+    /// The intensity it flickers around, in candelas.
     pub intensity: f32,
 }
 
@@ -178,12 +182,19 @@ impl Component for Flickers {}
 /// markers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Zone {
+    /// The entity its scene was spawned under, whose persistent identity is `zone`.
     pub root: Entity,
+    /// The entity of its [`Marker::Start`].
     pub start: Entity,
+    /// The entity of its [`Marker::Item`], whose descendants are the key.
     pub item: Entity,
+    /// The entity of its [`Marker::Door`], whose descendants are the door.
     pub door: Entity,
+    /// The entity of its [`Marker::Campfire`].
     pub campfire: Entity,
+    /// The entity of its [`Marker::Terrace`].
     pub terrace: Entity,
+    /// The entity of its [`Marker::Bounds`].
     pub bounds: Entity,
 }
 
@@ -218,25 +229,19 @@ fn ground(position: Vec3) -> Vec2 {
 }
 
 /// The text of the custom value `name` among `extras`, if it has one that is a text.
-pub fn text<'a>(extras: &'a [(String, Extra)], name: &str) -> Option<&'a str> {
-    extras
-        .iter()
-        .find(|(n, _)| n == name)
-        .and_then(|(_, extra)| match extra {
-            Extra::Text(text) => Some(text.as_str()),
-            _ => None,
-        })
+fn text<'a>(extras: &'a Extras, name: &str) -> Option<&'a str> {
+    match extras.get(name)? {
+        Extra::Text(text) => Some(text),
+        _ => None,
+    }
 }
 
 /// The number of the custom value `name` among `extras`, if it has one that is a number.
-fn number(extras: &[(String, Extra)], name: &str) -> Option<f32> {
-    extras
-        .iter()
-        .find(|(n, _)| n == name)
-        .and_then(|(_, extra)| match extra {
-            Extra::Number(number) => Some(*number as f32),
-            _ => None,
-        })
+fn number(extras: &Extras, name: &str) -> Option<f32> {
+    match extras.get(name)? {
+        Extra::Number(number) => Some(*number as f32),
+        _ => None,
+    }
 }
 
 /// Whether `ancestor` is `entity` or one of its ancestors.
@@ -315,17 +320,17 @@ impl Zone {
                 continue;
             }
             let name = || world.get::<Name>(entity).map_or("", |name| name.0.as_str());
-            if let Some(kind) = text(&extras.0, "collider") {
+            if let Some(kind) = text(extras, "collider") {
                 let kind = match kind {
                     "box" => ColliderKind::Box,
                     "cylinder" => ColliderKind::Cylinder,
                     other => return Err(format!("collider `{}` is a `{other}`", name())),
                 };
-                let height = number(&extras.0, "height")
+                let height = number(extras, "height")
                     .ok_or_else(|| format!("collider `{}` has no height", name()))?;
                 colliders.push((entity, Collider { kind, height }));
             }
-            let marker = match text(&extras.0, "marker") {
+            let marker = match text(extras, "marker") {
                 Some("start") => Some(Marker::Start),
                 Some("item") => Some(Marker::Item),
                 Some("door") => Some(Marker::Door),
@@ -337,37 +342,13 @@ impl Zone {
             if let Some(marker) = marker {
                 markers.push((entity, marker));
             }
-            match text(&extras.0, "time") {
+            match text(extras, "time") {
                 Some("day") => times.push((entity, TimeOfDay::Day)),
                 Some("night") => times.push((entity, TimeOfDay::Night)),
                 Some(other) => return Err(format!("light `{}` shines at `{other}`", name())),
                 None => {}
             }
         }
-        let find = |marker: Marker| {
-            let found: Vec<Entity> = markers
-                .iter()
-                .filter(|&&(_, m)| m == marker)
-                .map(|&(entity, _)| entity)
-                .collect();
-            match found[..] {
-                [entity] => Ok(entity),
-                _ => Err(format!(
-                    "scene `{scene}`: {} markers `{}`, where one is needed",
-                    found.len(),
-                    format!("{marker:?}").to_lowercase()
-                )),
-            }
-        };
-        let zone = Self {
-            root,
-            start: find(Marker::Start)?,
-            item: find(Marker::Item)?,
-            door: find(Marker::Door)?,
-            campfire: find(Marker::Campfire)?,
-            terrace: find(Marker::Terrace)?,
-            bounds: find(Marker::Bounds)?,
-        };
         for (entity, collider) in colliders {
             world.insert(entity, collider);
         }
@@ -377,13 +358,15 @@ impl Zone {
         for (entity, time) in times {
             world.insert(entity, time);
         }
+        let zone = Self::find(world, root, scene)?;
         let campfire = zone.place(world, zone.campfire);
         world.query_mut::<(&TimeOfDay, &mut Light)>(|_, (time, light)| {
             if let (TimeOfDay::Night, Light::Directional { in_sky, .. }) = (time, light) {
                 *in_sky = true;
             }
         });
-        // The first point light of the night near the campfire, in the world's order.
+        // The zone's script places the fire's light above the fire pit, among the lanterns' lights
+        // of the night, which stand farther: the first near the campfire is the fire's.
         let fire = world
             .query::<(&TimeOfDay, &Light)>()
             .filter(|&(entity, (time, light))| {
@@ -402,6 +385,44 @@ impl Zone {
             world.insert(entity, Flickers { intensity });
         }
         Ok(zone)
+    }
+
+    /// The zone spawned under `root`, whose places are the entities that hold its [`Marker`]s;
+    /// `scene` names the zone in messages.
+    ///
+    /// # Errors
+    ///
+    /// When a marker is held by no entity under `root`, or by several.
+    fn find(world: &World, root: Entity, scene: &str) -> Result<Self, String> {
+        let markers: Vec<(Entity, Marker)> = world
+            .query::<&Marker>()
+            .filter(|&(entity, _)| descends(world, entity, root))
+            .map(|(entity, marker)| (entity, *marker))
+            .collect();
+        let find = |marker: Marker| {
+            let found: Vec<Entity> = markers
+                .iter()
+                .filter(|&&(_, m)| m == marker)
+                .map(|&(entity, _)| entity)
+                .collect();
+            match found[..] {
+                [entity] => Ok(entity),
+                _ => Err(format!(
+                    "scene `{scene}`: {} markers `{}`, where one is needed",
+                    found.len(),
+                    format!("{marker:?}").to_lowercase()
+                )),
+            }
+        };
+        Ok(Self {
+            root,
+            start: find(Marker::Start)?,
+            item: find(Marker::Item)?,
+            door: find(Marker::Door)?,
+            campfire: find(Marker::Campfire)?,
+            terrace: find(Marker::Terrace)?,
+            bounds: find(Marker::Bounds)?,
+        })
     }
 
     /// Where its marker `entity` stands on the ground.
@@ -474,12 +495,13 @@ mod tests {
 pub mod cooked {
     use std::collections::{HashSet, VecDeque};
 
-    use slime_assets::{AssetKind, CookedAssets, CookedScene, LightKind};
+    use slime_assets::{AssetKind, CookedAssets, CookedScene};
     use slime_render::glam::Vec2;
-    use slime_world::{Hidden, Meshes, World};
+    use slime_world::{Hidden, Light, Meshes, World};
 
-    use super::{Footprint, Zone, descends, text};
+    use super::{Footprint, TimeOfDay, Zone, descends};
     use crate::assets;
+    use crate::rules::tests::no_hero;
     use crate::rules::{Game, HERO_RADIUS};
 
     /// The cooked data, and the zone's scene, from `target/cooked/hunnawood`.
@@ -494,11 +516,7 @@ pub mod cooked {
     pub fn game() -> (World, Game) {
         let (_, scene) = zone();
         let mut world = World::new();
-        let hero = CookedScene {
-            name: "hero".to_owned(),
-            nodes: Vec::new(),
-        };
-        let game = Game::spawn(&mut world, &scene, &hero, false).expect("the zone is whole");
+        let game = Game::spawn(&mut world, &scene, &no_hero(), false).expect("the zone is whole");
         (world, game)
     }
 
@@ -637,11 +655,12 @@ pub mod cooked {
                 instances += 1;
             }
         }
-        let night_spots = scene
-            .nodes
-            .iter()
-            .filter(|n| matches!(n.light.map(|l| l.kind), Some(LightKind::Spot { .. })))
-            .filter(|n| text(&n.extras, "time") == Some("night"))
+        let (world, _) = game();
+        let night_spots = world
+            .query::<(&Light, &TimeOfDay)>()
+            .filter(|(_, (light, time))| {
+                matches!(light, Light::Spot { .. }) && **time == TimeOfDay::Night
+            })
             .count();
         // Every asset the scene needs, through its meshes and materials, each once.
         let manifest = assets.manifest();

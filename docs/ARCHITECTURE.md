@@ -556,7 +556,8 @@ slime-cook cook <sources> <output>                     the cooker's program, bef
     └── Manifest::to_bytes ──▶ output/manifest         each asset's kind, file, size, source;
                                                        written only if it changed
 
-the game
+a game that draws a cooked scene itself, as the `scene` example does (a world loads through an
+AssetCache: see "The world", below)
 ├── slime_assets::CookedAssets::open(output)           reads the manifest
 ├── renderer.load_scene_in_background(gpu, &assets, id)
 │   │                                                  slime-render: a SceneLoad, at once, for a

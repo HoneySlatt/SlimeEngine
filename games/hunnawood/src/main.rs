@@ -182,10 +182,9 @@ impl HunnaWood {
                 }
             }
         }
-        if let Some(hero) = hero
-            && let Err(error) = self.game.reload_hero(ctx.world_mut(), &hero)
-        {
-            tracing::warn!("the hero cannot be spawned again: {error}");
+        if let Some(hero) = hero {
+            self.game.reload_hero(ctx.world_mut(), &hero);
+            tracing::info!("the hero changed, and is spawned again where it stood");
         }
         if let (Some(gpu), Some(view)) = (ctx.gpu(), &mut self.view) {
             view.reload(gpu, assets.clone());
@@ -412,11 +411,7 @@ impl App for HunnaWood {
             });
         let camera = self.camera.camera(hero, &zone::colliders(world));
         let night = self.game.night(world);
-        let drawn = view
-            .glow(gpu, night, seconds)
-            .map_err(AppError::from)
-            .and_then(|()| view.draw(gpu, target, world, night, alpha, camera));
-        match drawn {
+        match view.draw(gpu, target, world, night, alpha, seconds, camera) {
             Ok(stats) => {
                 self.stats = stats;
                 let lose_asked = match &mut self.statistics {
@@ -481,6 +476,8 @@ impl App for HunnaWood {
 }
 
 fn main() -> ExitCode {
+    // Before the zone is spawned, so that what the world warns of then is logged.
+    slime_app::init_diagnostics();
     let options = match parse_options(std::env::args_os().skip(1)) {
         Ok(options) => options,
         Err(message) => {

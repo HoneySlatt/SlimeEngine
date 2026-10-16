@@ -266,19 +266,25 @@ Risks:
   (`World::is_hidden`, moved into the world from `slime-world-render`); the night is a component of
   the zone's root, the lights of the other time of day hidden. The rules are functions over the
   world, without the GPU; their tests build cooked scenes and play them in worlds of their own. The
-  view draws through an `AssetCache` and a `FrameBuilder` for each time of day, loads the hero's
-  meshes before the first frame, as ADR-0074 decided, and finds the materials that glow by name in
-  the cooked data. After a lost device, the view is made again and the world kept. With `--watch`,
+  view draws through an `AssetCache` and a `FrameBuilder` for each time of day. As ADR-0074 decided,
+  the hero's meshes load before the first frame, while the zone starts loading and both skies are
+  computed, the other time's from a world of its lights alone: the game asks the cache for the
+  hero's meshes itself, the first frame's, which ADR-0084's frame builder would ask for only then.
+  The materials that glow are found by name in the cooked data. After a lost device, the view is made again and the world kept. With `--watch`,
   the cache loads again what changed, and the zone or the hero is spawned again when its scene
   changed: a new layout starts the run again, new looks do not, and a zone that cannot be played
-  changes nothing. The previous position, the instances rebuilt by hand and the nodes left out by
+  changes nothing. The review found that a mesh removed from the zone made every later reload
+  fail, since the cache kept loading it again: `AssetCache::reload` drops the meshes that the new
+  data no longer lists. The previous position, the instances rebuilt by hand and the nodes left out by
   index are gone, `LoadedScene::instance_nodes` with them; the keys held and the game's own
   collisions stay (ADR-0057). In the headless Weston, the game draws as many instances, shadows and
   triangles as before, by day and at night; `--watch` was tried on the RX 6900 XT with a change of
   looks, a change of layout, a changed hero and a zone without a start. On that GPU, in a release
-  build, by day at the start, the game's work takes 1.66 ms per frame at the median of four runs,
-  against 1.55 ms for 0.2 on the same zone: about 0.1 ms more, most of it the frame built from the
-  world (M5a.3). The owner plays it next.
+  build, the zone is drawn 3 or 4 frames after the first, the longest interval between two frames
+  17 to 27 ms in nine runs, below ADR-0072's 33 ms (ADR-0074 measured 8 to 22 ms); by day at the
+  start, the game's work takes 1.66 ms per frame at the median of four runs, against 1.55 ms for
+  0.2 on the same zone: about 0.1 ms more, most of it the frame built from the world (M5a.3). The
+  owner plays it next.
 
 ### M5a.5 — Reflection
 
@@ -767,10 +773,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   or a sun pays: the workspace's tests took 23.9 s instead of 9.7 s on lavapipe on the owner's
   machine, most in `slime-render`'s `tests/environment.rs` (6.2 s) and the examples'
   `tests/gltf.rs` (5.7 s), whose every load of a file computes the sample's sky. A sky that changes
-  needs a new environment: no time of day. *Hunna Wood* computes the sky of the time it starts at
-  before its first frame, and the other in the frame where the hero first rests by the campfire.
-  To measure: `cargo test --release -p slime-render --lib -- --ignored --nocapture`, against the
-  budget of M3b.6. To move to the asset pipeline of Stage 4,
+  needs a new environment: no time of day. To measure: `cargo test --release -p slime-render --lib
+  -- --ignored --nocapture`, against the budget of M3b.6. To move to the asset pipeline of Stage 4,
   or to compute passes if skies change at run time; if the tests' time matters first, building
   `slime-render` optimized in debug builds would shorten it, at the cost of stepping through it in
   a debugger.
@@ -779,6 +783,18 @@ GitHub issues, linked from their entry; this list stays the reference.
   `Scene::lights`, for its light and its shadows; two different lights show a disc where no light
   comes from. The `scene` example takes both from the file's first directional light. A world gives
   it once ([ADR-0084](adr/0084-what-the-world-draws.md)), as *Hunna Wood*'s does.
+- **A save of *Hunna Wood*'s world would hold more than its run** (ADR-0079). Besides the hero's
+  transform, what is hidden and the night, the world holds what the game derives from the zone when
+  it spawns it: its own components, the moon showing in the sky, the lights of the other time of day
+  hidden; and the campfire's intensity, which the game writes at each frame. The camera's yaw is
+  outside the world. M5a.8 and M5a.9 compare a world with the one the game prepared, or mark these
+  values transient.
+- **After a lost device, what is hidden loads only once shown** (ADR-0084): the cache loads what is
+  drawn. In *Hunna Wood*, a key taken or a door opened before the loss shows a few frames after R
+  shows them again.
+- **A zone loaded again with `--watch` changes in parts.** Its entities change at once, the meshes,
+  materials and textures that the cache holds when its reload ends, and new meshes once their batch
+  is loaded; *Hunna Wood* swapped whole scenes before it ran on the world.
 - **Rough metals reflect the sky with multiple scattering compensated, the lights without**
   (ADR-0039, as the Khronos glTF Sample Viewer): a white metal of roughness 1 reflects all of a
   uniform sky, but its lights keep glTF's single-scattering BRDF, under which it would reflect

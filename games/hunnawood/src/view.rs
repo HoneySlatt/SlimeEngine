@@ -15,14 +15,15 @@ use slime_app::AppError;
 use slime_assets::{AssetId, AssetKind, CookedAssets};
 use slime_color::LinearColor;
 use slime_gfx::{Gpu, RenderTarget, TextureFormat};
+use slime_render::glam::Vec3;
 use slime_render::{
     AssetCache, Camera, MaterialValues, RenderError, RenderStats, Renderer, ShaderSources, Sky,
 };
-use slime_world::{Entity, Light, Meshes, World};
+use slime_world::{Entity, Light, Meshes, Transform, World};
 use slime_world_render::FrameBuilder;
 
 use crate::assets;
-use crate::zone::{Flickers, descends};
+use crate::zone::{Flickers, TimeOfDay, descends};
 
 /// An overcast sky, in nits: grey, brighter overhead than at the horizon, which lights the ground
 /// with about 5 000 lux; the sun shows no disc through the clouds. The ground below the horizon is
@@ -172,6 +173,41 @@ fn meshes_below(world: &World, root: Entity) -> Vec<AssetId> {
         .collect()
 }
 
+/// A world that holds only the lights of `world` that shine at night, or by day, as `night` says,
+/// where they stand: a frame of it computes the sky of that time of day, around the moon at night,
+/// as a frame of `world` at that time would.
+fn lights_at(world: &World, night: bool) -> World {
+    let time = if night {
+        TimeOfDay::Night
+    } else {
+        TimeOfDay::Day
+    };
+    let mut lights = World::new();
+    for (entity, light) in world.query::<&Light>() {
+        if world
+            .get::<TimeOfDay>(entity)
+            .is_some_and(|shines| *shines != time)
+        {
+            continue;
+        }
+        let Some(at) = world.global_transform(entity) else {
+            continue;
+        };
+        let copy = lights.spawn();
+        lights.insert(
+            copy,
+            Transform {
+                translation: at.translation,
+                rotation: at.rotation,
+                scale: at.scale,
+                stretch: Vec3::ONE,
+            },
+        );
+        lights.insert(copy, *light);
+    }
+    lights
+}
+
 /// The error of a load of `what` that failed, with how to cook the data it reads.
 fn cannot_load(what: &str, error: impl Display) -> AppError {
     format!(
@@ -196,18 +232,23 @@ pub struct View {
 }
 
 impl View {
-    /// Creates the renderer for targets of `format` and the asset cache of `assets`, then loads
-    /// the meshes of the hero, the entity `hero` of `world` and its descendants, before the first
-    /// frame: its first shadows change the frame's shape, which they would do in the middle of the
-    /// zone's load otherwise ([ADR-0074](../../../docs/adr/0074-uploading-textures-without-holding-up-frames.md)).
-    /// It then computes the sky of the time of day, at night as `night` says, and starts loading
-    /// the rest of what `world` draws in the background. The zone is shown once a frame draws it
-    /// whole ([`View::zone_shown`]).
+    /// Creates the renderer for targets of `format` and the asset cache of `assets`, and returns
+    /// once the meshes of the hero, the entity `hero` of `world` and its descendants, are loaded,
+    /// so that the first frame draws the hero: its first shadows change the frame's shape, which
+    /// they would do in the middle of the zone's load otherwise
+    /// (`docs/adr/0074-uploading-textures-without-holding-up-frames.md`). While the hero loads, the
+    /// rest of what `world` draws starts loading in the background, and the skies of both times of
+    /// day are computed, the time the game is at saying which is drawn first (`night`), so that
+    /// resting by the campfire computes none. The zone is shown once a frame draws it whole
+    /// ([`View::zone_shown`]).
+    ///
+    /// The game asks for the hero's meshes itself, as ADR-0074 decided: they are what the first
+    /// frame draws, which the frame builder would ask for only then.
     ///
     /// # Errors
     ///
-    /// When the renderer or the sky cannot be created, or the hero cannot be loaded, with a
-    /// message that says how to cook it.
+    /// When the renderer or the skies cannot be created, or the hero or the zone cannot be loaded
+    /// before the hero is, with a message that says how to cook them.
     pub fn new(
         gpu: &Gpu,
         format: TextureFormat,
@@ -216,30 +257,51 @@ impl View {
         hero: Entity,
         night: bool,
     ) -> Result<Self, AppError> {
-        let renderer = Renderer::new(gpu, format)?;
-        let mut cache = AssetCache::new(assets.clone());
-        cache.request(&renderer, gpu, meshes_below(world, hero));
-        while cache.loading() > 0 {
-            std::thread::sleep(Duration::from_millis(1));
-            if let Some(error) = cache.poll().into_iter().next() {
-                return Err(cannot_load("hero", error));
-            }
-        }
         let mut view = Self {
-            renderer,
-            cache,
+            renderer: Renderer::new(gpu, format)?,
+            cache: AssetCache::new(assets.clone()),
             day: FrameBuilder::new(Some(OVERCAST)),
             night: FrameBuilder::new(Some(NIGHT_SKY)),
             glow: Glow::find(assets),
             zone_shown: false,
         };
-        let builder = if night {
-            &mut view.night
-        } else {
-            &mut view.day
-        };
-        builder.build(world, &mut view.cache, &view.renderer, gpu, 1.0)?;
-        Ok(view)
+        let hero = meshes_below(world, hero);
+        view.cache
+            .request(&view.renderer, gpu, hero.iter().copied());
+        // A frame of the world asks for what else it draws, in a batch of its own, and computes the
+        // sky of the time the game is at; one of the other time's lights alone, that time's sky.
+        let mut errors = Vec::new();
+        for at_night in [night, !night] {
+            let other;
+            let lit = if at_night == night {
+                world
+            } else {
+                other = lights_at(world, at_night);
+                &other
+            };
+            let builder = if at_night {
+                &mut view.night
+            } else {
+                &mut view.day
+            };
+            errors.extend(
+                builder
+                    .build(lit, &mut view.cache, &view.renderer, gpu, 1.0)?
+                    .errors,
+            );
+        }
+        // Errors first: a batch that failed is held by none, and the first frames would not see
+        // its error again.
+        loop {
+            if let Some(error) = errors.first() {
+                return Err(cannot_load("zone or hero", error));
+            }
+            if hero.iter().all(|&id| view.cache.mesh(id).is_some()) {
+                return Ok(view);
+            }
+            std::thread::sleep(Duration::from_millis(1));
+            errors = view.cache.poll();
+        }
     }
 
     /// Starts loading again what changed in `assets`, the cooked data read again, in the
@@ -270,14 +332,38 @@ impl View {
         self.zone_shown
     }
 
-    /// Makes the materials that glow, once the cache holds them, glow as they do `seconds` after
-    /// the start, by day or at night as `night` says: the campfire's flames and embers flicker with
-    /// its light ([`light_the_fire`]), and the key pulses at night.
+    /// Draws `world` into `target` as `camera` sees it, by day or at night as `night` says, what
+    /// moves `alpha` of the way between its last two fixed steps (`Context::fixed_step_alpha`), the
+    /// materials that glow as they do `seconds` after the start: the sky, and what the world places
+    /// once the cache holds it. The campfire's flames and embers flicker with its light
+    /// ([`light_the_fire`]), and the key pulses at night.
     ///
     /// # Errors
     ///
-    /// As [`Material::set_values`](slime_render::Material::set_values).
-    pub fn glow(&self, gpu: &Gpu, night: bool, seconds: f64) -> Result<(), RenderError> {
+    /// As [`Renderer::render`], [`Material::set_values`](slime_render::Material::set_values) and
+    /// [`FrameBuilder::build`]; and when the meshes of the world cannot be loaded before the zone
+    /// is first shown, with a message that says how to cook them. Once it is shown, meshes that
+    /// fail to load are logged, and not drawn.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "what a frame of the game needs, from the engine, the world and the game"
+    )]
+    pub fn draw(
+        &mut self,
+        gpu: &Gpu,
+        target: &RenderTarget,
+        world: &World,
+        night: bool,
+        alpha: f64,
+        seconds: f64,
+        camera: Camera,
+    ) -> Result<RenderStats, AppError> {
+        // The loads that finished first, so that the materials they bring glow from their first
+        // frame: the frame builder, which takes them otherwise, holds the cache while its frame is.
+        let taken = self.cache.poll();
+        for error in &taken {
+            tracing::error!("meshes of the world cannot be drawn: {error}");
+        }
         let flicker = flicker(seconds);
         // The embers glow steadier than the flames, with the same flicker.
         let embers = 1.0 + (flicker - 1.0) / 2.0;
@@ -291,27 +377,6 @@ impl View {
                 glowing.glow(&self.cache, gpu, times)?;
             }
         }
-        Ok(())
-    }
-
-    /// Draws `world` into `target` as `camera` sees it, by day or at night as `night` says, what
-    /// moves `alpha` of the way between its last two fixed steps (`Context::fixed_step_alpha`): the
-    /// sky, and what the world places once the cache holds it.
-    ///
-    /// # Errors
-    ///
-    /// As [`Renderer::render`] and [`FrameBuilder::build`]; and when the meshes of the world cannot
-    /// be loaded before the zone is first shown, with a message that says how to cook them. Once it
-    /// is shown, meshes that fail to load are logged, and not drawn.
-    pub fn draw(
-        &mut self,
-        gpu: &Gpu,
-        target: &RenderTarget,
-        world: &World,
-        night: bool,
-        alpha: f64,
-        camera: Camera,
-    ) -> Result<RenderStats, AppError> {
         let (builder, exposure) = if night {
             (&mut self.night, NIGHT_EXPOSURE)
         } else {
@@ -319,7 +384,7 @@ impl View {
         };
         let frame = builder.build(world, &mut self.cache, &self.renderer, gpu, alpha)?;
         if !self.zone_shown {
-            if let Some(error) = frame.errors.first() {
+            if let Some(error) = taken.first().or(frame.errors.first()) {
                 return Err(cannot_load("zone", error));
             }
             self.zone_shown = frame.loading == 0;

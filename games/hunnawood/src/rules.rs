@@ -187,20 +187,17 @@ impl Game {
 
     /// Takes `scene`, the hero's cooked scene read again after it changed on disk, and spawns it in
     /// `world` in place of the hero, where the hero stood.
-    ///
-    /// # Errors
-    ///
-    /// As [`World::spawn_scene`], which cannot fail once the hero before is gone.
-    pub fn reload_hero(&mut self, world: &mut World, scene: &CookedScene) -> Result<(), String> {
+    pub fn reload_hero(&mut self, world: &mut World, scene: &CookedScene) {
         let placed = world.get::<Transform>(self.hero).copied();
         world.despawn(self.hero);
+        // A scene's identities are its key and its nodes' names, under it: once the hero before is
+        // gone, none is in use.
         self.hero = world
             .spawn_scene(HERO, scene)
-            .map_err(|error| error.to_string())?;
+            .expect("the identities of the hero before went with it");
         if let Some(placed) = placed {
             world.insert(self.hero, placed);
         }
-        Ok(())
     }
 
     /// The zone's entities.
@@ -596,10 +593,8 @@ pub mod tests {
         );
         assert_eq!(game.hero(&world), first);
         assert!(!game.has_item(&world));
-        assert_eq!(
-            game.zone().layout(&world).colliders,
-            moved.play().1.zone().layout(&moved.play().0).colliders
-        );
+        let (alone, moved_game) = moved.play();
+        assert_eq!(game.zone().layout(&world), moved_game.zone().layout(&alone));
         // A zone that cannot be played, without a start, changes nothing.
         let zone = *game.zone();
         let mut broken = moved.scene();
@@ -608,6 +603,95 @@ pub mod tests {
         assert!(error.contains("0 markers `start`"), "{error}");
         assert_eq!(*game.zone(), zone);
         assert!(world.contains(zone.root));
+    }
+
+    #[test]
+    fn a_change_of_looks_keeps_the_key_the_door_and_the_night() {
+        let plan = walled([5.0, 0.0]);
+        let mut world = World::new();
+        let mut game = Game::spawn(&mut world, &plan.scene(), &no_hero(), true).expect("playable");
+        hold(&game, &mut world, Vec2::X, 6.0);
+        assert!(game.door_open(&world) && game.night(&world));
+        let hero = game.hero(&world);
+        assert!(
+            !game
+                .reload_zone(&mut world, &plan.scene())
+                .expect("playable")
+        );
+        assert_eq!(game.hero(&world), hero);
+        assert!(game.has_item(&world) && game.door_open(&world) && game.night(&world));
+        assert_eq!(
+            colliders(&world).len(),
+            2,
+            "the door's collider stops no one"
+        );
+    }
+
+    #[test]
+    fn a_hero_changed_on_disk_is_spawned_again_where_it_stood() {
+        let (mut world, mut game) = zone([0.0, 0.0], Vec::new()).play();
+        hold(&game, &mut world, Vec2::new(1.0, 1.0), 1.0);
+        let hero = game.hero(&world);
+        let before = game.hero_entity();
+        let mut scene = no_hero();
+        scene.nodes.push(node("cloak", None, Mat4::IDENTITY, &[]));
+        game.reload_hero(&mut world, &scene);
+        assert!(!world.contains(before));
+        assert_eq!(game.hero(&world), hero);
+        let cloak = world
+            .find(&slime_world::PersistentId::new(["hero", "cloak"]))
+            .expect("the new hero's node");
+        assert_eq!(world.parent(cloak), Some(game.hero_entity()));
+        // It moves on as before.
+        hold(&game, &mut world, Vec2::X, 1.0);
+        assert!(game.hero(&world).position.x > hero.position.x + 2.0);
+    }
+
+    #[test]
+    fn a_zone_that_cannot_be_played_says_why_and_spawns_nothing() {
+        let plan = walled([5.0, 0.0]);
+        let collider = plan.scene().nodes.len() - 1;
+        let with = |change: &dyn Fn(&mut CookedScene)| {
+            let mut scene = plan.scene();
+            change(&mut scene);
+            scene
+        };
+        let cases: [(CookedScene, &str); 5] = [
+            (
+                with(&|scene| scene.nodes[collider].extras[0].1 = Extra::Text("cone".to_owned())),
+                "is a `cone`",
+            ),
+            (
+                with(&|scene| scene.nodes[collider].extras.truncate(1)),
+                "has no height",
+            ),
+            (
+                with(&|scene| {
+                    scene.nodes[collider]
+                        .extras
+                        .push(("time".to_owned(), Extra::Text("dusk".to_owned())));
+                }),
+                "shines at `dusk`",
+            ),
+            (
+                with(&|scene| {
+                    let mut second = scene.nodes[0].clone();
+                    second.name = "second start".to_owned();
+                    scene.nodes.push(second);
+                }),
+                "2 markers `start`",
+            ),
+            (
+                with(&|scene| scene.nodes[1].extras.clear()),
+                "0 markers `item`",
+            ),
+        ];
+        for (scene, why) in cases {
+            let mut world = World::new();
+            let error = Zone::spawn(&mut world, &scene).expect_err(why);
+            assert!(error.contains(why), "{error}");
+            assert!(world.is_empty(), "{why}: something was left");
+        }
     }
 
     #[test]
@@ -641,9 +725,13 @@ pub mod tests {
     }
 
     #[test]
-    fn the_lights_of_the_other_time_of_day_are_hidden() {
+    fn the_lights_of_the_other_time_of_day_are_hidden_and_the_moon_shows_in_the_sky() {
         let mut scene = walled([0.0, 30.0]).scene();
-        for (name, time) in [("sun", "day"), ("lantern", "night")] {
+        for (name, time, kind) in [
+            ("sun", "day", slime_assets::LightKind::Directional),
+            ("moon", "night", slime_assets::LightKind::Directional),
+            ("lantern", "night", slime_assets::LightKind::Point),
+        ] {
             let mut light = node(
                 name,
                 None,
@@ -651,7 +739,7 @@ pub mod tests {
                 &[("time", Extra::Text(time.to_owned()))],
             );
             light.light = Some(SceneLight {
-                kind: slime_assets::LightKind::Point,
+                kind,
                 color: [1.0; 3],
                 intensity: 1.0,
                 range: None,
@@ -665,11 +753,21 @@ pub mod tests {
                 .find(&slime_world::PersistentId::new(["zone", name]))
                 .expect("spawned")
         };
-        let (sun, lantern) = (find(&world, "sun"), find(&world, "lantern"));
-        assert!(!world.is_hidden(sun) && world.is_hidden(lantern));
+        let [sun, moon, lantern] = ["sun", "moon", "lantern"].map(|name| find(&world, name));
+        let in_sky = |entity| {
+            matches!(
+                world.get::<slime_world::Light>(entity),
+                Some(slime_world::Light::Directional { in_sky: true, .. })
+            )
+        };
+        assert!(
+            in_sky(moon) && !in_sky(sun),
+            "the sun stays behind the clouds"
+        );
+        assert!(!world.is_hidden(sun) && world.is_hidden(moon) && world.is_hidden(lantern));
         hold(&game, &mut world, -Vec2::Y, 2.8);
         assert!(game.rest(&mut world));
-        assert!(world.is_hidden(sun) && !world.is_hidden(lantern));
+        assert!(world.is_hidden(sun) && !world.is_hidden(moon) && !world.is_hidden(lantern));
     }
 
     pub fn turned_box(center: [f32; 2], size: [f32; 2], yaw: f32) -> Footprint {
@@ -719,6 +817,7 @@ pub mod tests {
         plan.colliders.extend([turned, pillar]);
         let (world, game) = plan.play();
         let layout = game.zone().layout(&world);
+        assert_eq!(layout.colliders.len(), plan.colliders.len());
         assert_eq!(layout.door_colliders.len(), 1);
         for (read, made) in layout
             .colliders
@@ -1009,7 +1108,11 @@ pub mod tests {
             &mut world,
             &[[-5.0, -4.5], [-9.0, -4.0], [-11.0, -4.0]],
         );
-        assert!(game.can_rest(&world), "{}", game.hero(&world).position);
+        assert!(
+            game.rest(&mut world) && game.night(&world),
+            "{}",
+            game.hero(&world).position
+        );
         walk(&game, &mut world, &[[-5.0, -4.5], [-0.4, -3.5]]);
         walk(&game, &mut world, &TO_THE_CHAPEL[7..]);
         assert!(!game.has_item(&world));
@@ -1029,7 +1132,7 @@ pub mod tests {
         let colliders_at_first = game.zone().layout(&world);
         game.restart(&mut world);
         assert_eq!(game.hero(&world), first);
-        assert!(!game.has_item(&world) && !game.door_open(&world));
+        assert!(!game.has_item(&world) && !game.door_open(&world) && !game.night(&world));
         assert_eq!(
             colliders(&world).len(),
             colliders_at_first.colliders.len() + colliders_at_first.door_colliders.len()

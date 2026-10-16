@@ -44,7 +44,7 @@ cargo run -p hunnawood -- --watch          # loads its zone, hero and shaders ag
 Without `--assets`, it reads `hunnawood-assets` beside the program if that directory holds a
 manifest, as where CI ships it, and `target/cooked/hunnawood` otherwise.
 
-The window shows its first frame once the hero is loaded and the sky computed, while the zone
+The window shows its first frame once the hero is loaded and the skies computed, while the zone
 loads in the background: until it is drawn, the hero stands at the start under the sky, the camera
 turns around it, and the hero does not move. The log says when the zone is first drawn, after how
 many frames, and the longest interval between two of them, the measure that
@@ -63,9 +63,10 @@ With `--watch`, the game reads the manifest of its cooked data now and then, onc
 and nothing loads (`slime_assets::ManifestWatch`), beside `slime-cook watch` running on the zone's
 sources ([`CONTRIBUTING.md`](../../CONTRIBUTING.md#changing-assets-while-a-game-runs),
 [ADR-0076](../../docs/adr/0076-hot-reload-of-cooked-data.md)): the meshes, materials and
-textures that changed load again, the others are kept, and what is drawn stays as it was until all
+textures that changed load again, the others are kept, and those drawn stay as they were until all
 of them are loaded. When the zone's scene or the hero's changed, the game spawns it again in its
-world. When the zone's layout changed, a collider, the start, the key, the door, the campfire, the
+world: what moved or went changes at once, and what is new shows once its meshes are loaded, so
+that the zone changes in parts rather than whole. When the zone's layout changed, a collider, the start, the key, the door, the campfire, the
 terrace or the bounds, the run starts again, as R does; when only its looks changed, the run goes on
 in it, the key and the door as they were. A zone that cannot be played, or a scene that cannot be
 read, changes nothing, and a reload that fails keeps what is drawn; the log says why.
@@ -120,9 +121,10 @@ the hero through a thin collider or past a corner.
 
 The hero's meshes load before the first frame, so that its first shadows, which change the shape of
 the frame, do not come in the middle of the zone's load
-([ADR-0074](../../docs/adr/0074-uploading-textures-without-holding-up-frames.md)). Each time of day
-has its frame builder, which keeps the environment of its sky: resting by the campfire computes the
-other sky's once, the first time, in one frame.
+([ADR-0074](../../docs/adr/0074-uploading-textures-without-holding-up-frames.md)); meanwhile the zone
+starts loading and both skies are computed. Each time of day has its frame builder, which keeps the
+environment of its sky; the other time's is computed from a world that holds only that time's
+lights, so that resting by the campfire computes none.
 
 Of the workarounds that the first game, *Nightwatch*, found for what the engine did not give, the
 game keeps two: the keys held, and its own collisions
