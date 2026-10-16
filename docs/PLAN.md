@@ -27,8 +27,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0083](adr/0083-transforms-and-the-hierarchy.md)). M5a.3 done on 2026-10-16: the world drawn
   from an asset cache through `slime-world-render`, what moves drawn between fixed steps
   ([ADR-0084](adr/0084-what-the-world-draws.md)). M5a.4 done on 2026-10-16: *Hunna Wood* runs on the
-  world, which holds its run. M5a.5 built: reflection, through which the world reaches every
-  component by name ([ADR-0085](adr/0085-reflection.md)); CI checks it.
+  world, which holds its run. M5a.5 done on 2026-10-16: reflection, through which the world
+  reaches every component by name ([ADR-0085](adr/0085-reflection.md)).
 
 ## Status
 
@@ -38,7 +38,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M5a.2](#m5a2--the-hierarchy-and-the-transforms) | Entities are placed by a hierarchy of transforms in double precision; a cooked scene becomes entities | Done |
 | [M5a.3](#m5a3--what-the-world-draws) | The renderer draws a world, and what moves between its last two fixed steps | Done |
 | [M5a.4](#m5a4--hunna-wood-on-the-world) | *Hunna Wood* runs on the world, and changes only what moves | Done |
-| [M5a.5](#m5a5--reflection) | The engine and the game describe, read and change their types' values through one registry | Built; CI checks it |
+| [M5a.5](#m5a5--reflection) | The engine and the game describe, read and change their types' values through one registry | Done |
 | [M5a.6](#m5a6--any-component-listed-and-edited) | Any component's properties are listed and edited in the running game | Planned |
 | [M5a.7](#m5a7--serialization-with-format-versioning) | Any reflected value is written to a file and read back, even from an older version of its type | Planned |
 | [M5a.8](#m5a8--the-world-round-trips) | A world saves what differs from the scenes it was made from, and loads it back | Planned |
@@ -312,7 +312,7 @@ Risks:
   round-trip through the value type; applying a value's differences from another gives it back;
   aliases read former names; misuses fail to compile; CI is green.
 - **How to test.** `cargo test -p slime-reflect -p slime-world -p hunnawood`.
-- **Outcome.** Built on 2026-10-16 ([ADR-0085](adr/0085-reflection.md)). `slime-reflect` and its
+- **Outcome.** Done on 2026-10-16 ([ADR-0085](adr/0085-reflection.md)). `slime-reflect` and its
   derive describe a type's values under a stable name, turn them into plain values and back, check
   them, set their parts by property path within their fields' ranges, list their leaves, compare
   them and apply their differences; a registry holds types with no Rust type behind them too. The
@@ -333,7 +333,9 @@ Risks:
   in a cold build of the workspace, beside the rest; a cold build took 60 to 88 s from one run to
   the next on the owner's machine, before and after alike. The game's rebuild after a one-line
   change takes 2.12 s instead of 2.04 at the median of ten debug builds, and after a one-line
-  change in `slime-world` 2.58 s instead of 2.45.
+  change in `slime-world` 2.58 s instead of 2.45. CI took 9 minutes 6 seconds on Linux and
+  18 minutes 27 seconds on Windows, under the 19 minutes past which ADR-0081 caches the cooked
+  zone.
 
 ### M5a.6 — Any component listed and edited
 
@@ -900,4 +902,5 @@ GitHub issues, linked from their entry; this list stays the reference.
   the repository being public and its minutes free, and to reconsider past 20 minutes. With
   `slime-world` (M5a.1, 2026-10-16): Linux 10 minutes 25 seconds, Windows 17 minutes 20 seconds.
   With `slime-color` and `slime-world-render` (M5a.3, 2026-10-16): Linux 12 minutes 33 seconds,
-  Windows 17 minutes 26 seconds.
+  Windows 17 minutes 26 seconds. With `slime-reflect` and `slime-reflect-derive` (M5a.5,
+  2026-10-16): Linux 9 minutes 6 seconds, Windows 18 minutes 27 seconds.
