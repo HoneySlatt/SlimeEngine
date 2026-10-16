@@ -7,6 +7,11 @@
 //! panel, which lists the entities by name and edits their components (`slime-devui`). Escape,
 //! closing the window or Ctrl+C quits.
 //!
+//! When it quits, it saves its world (`docs/adr/0087-the-worlds-documents.md`): what differs from
+//! the world as it spawns it at the start, the ring's place and what the panel changed. It loads
+//! the save into a world spawned anew, and the run fails if that world is not the one saved.
+//! `SLIME_LOG=debug` shows the save.
+//!
 //! It reads cooked data, which `slime-cook` makes first:
 //!
 //! ```sh
@@ -100,21 +105,9 @@ impl WorldExample {
         Ok(())
     }
 
-    /// Spawns the scene of `assets` in `world`, its first directional light showing in the sky, and
-    /// finds its ring.
+    /// Spawns the scene of `assets` in `world`, as [`start`] does, and finds its ring.
     fn spawn(&mut self, world: &mut World) -> Result<(), AppError> {
-        let scene = self.assets.scene(SCENE)?;
-        if let Some(root) = world.find(&PersistentId::new([KEY])) {
-            world.despawn(root);
-        }
-        world.spawn_scene(KEY, &scene)?;
-        let mut sun = false;
-        world.query_mut::<&mut Light>(|_, light| {
-            if let Light::Directional { in_sky, .. } = light {
-                *in_sky = !sun;
-                sun = true;
-            }
-        });
+        start(world, &self.assets)?;
         self.ring = world
             .find(&PersistentId::new([KEY, "ring"]))
             .and_then(|ring| Some((ring, world.get::<Transform>(ring)?.translation.y)));
@@ -159,6 +152,48 @@ impl WorldExample {
             tracing::error!("the scene cannot be spawned again: {error}");
         }
     }
+}
+
+/// Spawns the scene of `assets` in `world` under [`KEY`], in place of the one spawned before, its
+/// first directional light showing in the sky: the world as the example makes it at the start of a
+/// run, from which its save differs.
+fn start(world: &mut World, assets: &CookedAssets) -> Result<(), AppError> {
+    let scene = assets.scene(SCENE)?;
+    if let Some(root) = world.find(&PersistentId::new([KEY])) {
+        world.despawn(root);
+    }
+    world.spawn_scene(KEY, &scene)?;
+    let mut sun = false;
+    world.query_mut::<&mut Light>(|_, light| {
+        if let Light::Directional { in_sky, .. } = light {
+            *in_sky = !sun;
+            sun = true;
+        }
+    });
+    Ok(())
+}
+
+/// Saves `world`, which ran from the scene of `assets`, as what differs from the world as the
+/// example makes it at the start ([`start`]), loads the save into another world made so, and checks
+/// that it is the world saved, entity by entity, floats by their bits. Returns the save's size in
+/// bytes; logs its text at the `debug` level.
+fn round_trip(world: &World, assets: &CookedAssets) -> Result<usize, AppError> {
+    let made = || -> Result<World, AppError> {
+        let mut world = World::new();
+        start(&mut world, assets)?;
+        Ok(world)
+    };
+    let save = world.save(&made()?)?;
+    tracing::debug!("the save:\n{save}");
+    let mut loaded = made()?;
+    let report = loaded.load(&save)?;
+    if !report.set_aside.is_empty() {
+        return Err(format!("the save set aside {:?}", report.set_aside).into());
+    }
+    if let Some(difference) = world.first_difference(&loaded) {
+        return Err(format!("the world loaded is not the world saved: {difference}").into());
+    }
+    Ok(save.len())
 }
 
 /// The point the camera looks at, and how far the scene reaches from it: the box around where the
@@ -316,6 +351,10 @@ impl App for WorldExample {
         }
         if self.ring.is_some() && self.time > FLOAT_PERIOD && self.floated.0 >= self.floated.1 {
             ctx.exit_with_error("the ring did not float");
+        }
+        match round_trip(ctx.world(), &self.assets) {
+            Ok(bytes) => tracing::info!(bytes, "the world, saved and loaded, is the world saved"),
+            Err(error) => ctx.exit_with_error(error),
         }
     }
 }

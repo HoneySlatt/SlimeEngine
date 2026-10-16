@@ -1423,4 +1423,62 @@ pub mod tests {
             }
         }
     }
+
+    #[test]
+    #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
+    fn a_run_saved_and_loaded_into_a_new_game_goes_on_the_same() {
+        let (assets, zone) = crate::zone::cooked::zone();
+        let hero = assets
+            .scene(crate::assets::hero_id())
+            .expect("the hero is cooked");
+        let start = || {
+            let mut world = World::new();
+            let game = Game::spawn(&mut world, &zone, &hero, false).expect("the zone is whole");
+            (world, game)
+        };
+        let (mut played, game) = start();
+        walk(&game, &mut played, &TO_THE_CHAPEL[..7]);
+        // An entity removed, a value changed, a component added.
+        let find = |world: &World, id: &str| world.find(&id.parse().expect("an identity"));
+        let tree = played.entities().find(|&entity| {
+            played
+                .get::<slime_world::Name>(entity)
+                .is_some_and(|name| name.0.starts_with("oak"))
+        });
+        let tree = tree.expect("an oak");
+        let tree_id = played.persistent_id(tree).expect("an identity");
+        played.despawn(tree);
+        let lantern = find(&played, "zone/lantern 1").expect("the first lantern's light");
+        played
+            .set_property(
+                lantern,
+                "Light",
+                &"intensity".parse().expect("a path"),
+                Value::F32(10.0),
+            )
+            .expect("dimmed");
+        played.insert(game.zone().item, Hidden);
+        let save = played.save(&start().0).expect("saved");
+        let (mut loaded, loaded_game) = start();
+        let report = loaded.load(&save).expect("loaded");
+        assert!(report.set_aside.is_empty(), "{:?}", report.set_aside);
+        assert!(report.scenes_changed.is_empty() && report.warnings.is_empty());
+        assert!(
+            find(&loaded, &tree_id.to_string()).is_none(),
+            "the oak is gone"
+        );
+        assert_eq!(played.first_difference(&loaded), None, "{save}");
+        assert_eq!(
+            loaded.save(&start().0).expect("saved again"),
+            save,
+            "the same bytes"
+        );
+        // The same input, step by step, gives both runs the same state.
+        for index in 0..300u32 {
+            let direction = Vec2::from_angle(index as f32 * 0.05);
+            game.step(&mut played, direction, STEP);
+            loaded_game.step(&mut loaded, direction, STEP);
+        }
+        assert_eq!(played.first_difference(&loaded), None, "after 300 steps");
+    }
 }
