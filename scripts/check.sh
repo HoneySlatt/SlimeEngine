@@ -56,7 +56,7 @@ cargo run --locked -p slime-cook -- cook examples/assets "$cooked/first" | grep 
 # A release build: a debug build of the cooker takes minutes to compress the zone's textures.
 step "The sample game's zone, cooked, and the tests that read it"
 cargo run --locked --release -p slime-cook -- cook games/hunnawood/assets/zone target/cooked/hunnawood
-cargo test --locked -p hunnawood -- --ignored
+VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo test --locked -p hunnawood -- --ignored
 
 step "Headless samples (no display server)"
 env -u WAYLAND_DISPLAY -u DISPLAY cargo run --locked --example headless -- --frames 600
