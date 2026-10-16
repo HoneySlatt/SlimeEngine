@@ -356,24 +356,24 @@ Risks:
   panel; CI is green.
 - **How to test.** `cargo run -p hunnawood`, then F2; `cargo run --example world`.
 - **Outcome.** Built on 2026-10-16. `slime_devui::WorldPanel` lists a world's entities by name,
-  with a filter, and shows the components of the one selected through the world's registry:
-  booleans, numbers with their units, text, enum variants and options are edited, vectors,
-  rotations and colors whole, a rotation as three angles in degrees; references to assets are
-  shown, and a reference to an entity selects it. The panel changes nothing: each change comes back
-  as an `Edit`, an entity, a component's name, a property path and a value, which *Hunna Wood* and
-  the `world` example apply once their frame is drawn; the world refuses a value out of its range,
-  or one that breaks its type's check, and the panel shows why. Keys typed into a text field of
-  the overlay no longer also play (`Overlay::wants_keyboard`). The plan asked that the door be
-  opened from the panel, which edits values but neither adds nor removes components, while the
-  game held its run as the presence of `Hidden`: the owner decided that the game holds its run as
-  data, its components `Key`, `Door` and `Clock`, from which it hides the key, the door and the
-  lights of the other time of day at each step, as the better model for the long term. Tests build
-  the panel in an egui context without a window for every component of the engine and of the game,
-  and for a test component that only derives, and check the values that a new variant or an option
-  starts at and the angles of a rotation; the game's tests change its run between steps as the
-  panel does. The panel was looked at in images drawn offscreen on lavapipe. A new variant starts
-  the fields it does not share at simple values, which a type's check may refuse: a light does not
-  become a spot light from the panel.
+  with a filter, and edits the components of the one selected through the world's registry,
+  whatever their types; its rustdoc says what it edits, and its limits. The panel changes nothing:
+  each change comes back as an `Edit`, an entity, a component's name, a property path and a value,
+  which *Hunna Wood* and the `world` example apply once their frame is drawn; the world refuses a
+  value out of its range, or one that breaks its type's check, and the panel shows why. Keys typed
+  into a field of the overlay, and Escape while one of its menus is open, no longer also play
+  (`Overlay::wants_keyboard`). The plan asked that the door be opened from the panel, which edits
+  values but neither adds nor removes components, while the game held its run as the presence of
+  `Hidden`: the owner decided that the game holds its run as data, its components `Key`, `Door`
+  and `Clock`, from which it hides the key, the door and the lights of the other time of day at
+  each step, as the better model for the long term. Tests build the panel in an egui context
+  without a window for every component of the engine and of the game, and for a test component
+  that only derives; they click, drag and type into its widgets, a rotation's angles and an option
+  among them, and check the values that a new variant or an option starts at; the game's tests
+  change its run between steps as the panel does. The panel was looked at in images drawn
+  offscreen on lavapipe. The review found that a rotation's angles, computed again at each frame,
+  turned back and forth when dragged past 90° about X, and lost what was being typed: the panel
+  keeps the angles last edited, and holds the angle about X within ±90°.
 
 ### M5a.7 — Serialization with format versioning
 

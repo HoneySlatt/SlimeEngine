@@ -16,11 +16,8 @@ a linear one for its blending: the panels look slightly lighter than egui's own 
 Its world panel, `WorldPanel`, lists a world's entities and edits their components through
 reflection, for whoever works on a game, as `docs/adr/0081-stage-5a-the-world.md` decided. It does
 not undo, add, remove or save components: the editor of Stage 6 will, and the panel goes with the
-rest of the overlay once that editor does at least as well. A number out of its field's range, or a
-value that breaks a rule of its type, is refused by the world, and the panel says why. An enum that
-takes another variant starts the fields it does not share at simple values, which a type's rules may
-refuse: a spot light's two cones start at the same angle, so a light does not become a spot light
-from the panel. Text is set at each key typed.
+rest of the overlay once that editor does at least as well. What it edits, and its limits, are in
+the rustdoc of `WorldPanel`.
 
 ## Role
 
@@ -33,12 +30,10 @@ from the panel. Text is set at each key typed.
   the scale factor.
   egui's own window integration (`egui-winit`) is not used: winit's types stay inside
   `slime-platform`.
-- Lists a world's entities by name, with a filter, and shows the components of the one selected
-  through the world's type registry, without knowing their types (`slime-world`, `slime-reflect`):
-  booleans, numbers with their units, text, enum variants and options are edited, vectors, rotations
-  and colors whole, a rotation as three angles in degrees; references to assets are shown, and a
-  reference to an entity selects it. Each change is returned as an `Edit`, an entity, a component,
-  a property path and a value, which the application applies.
+- Lists a world's entities by name and edits the components of the one selected through the
+  world's type registry, without knowing their types (`slime-world`, `slime-reflect`). Each change
+  is returned as an `Edit`, an entity, a component, a property path and a value, which the
+  application applies.
 
 ## Entry points
 
@@ -91,8 +86,8 @@ impl App for Game {
 - `Overlay::handle(&event)`: every event of the window, before the application reads it;
   `Overlay::wants_pointer()` then says whether the cursor is over a panel, as of the last frame
   drawn, so that the application leaves clicks and the wheel to the overlay, and
-  `Overlay::wants_keyboard()` whether a text field of the overlay has the keyboard, so that keys
-  typed into it do not also play.
+  `Overlay::wants_keyboard()` whether a text field of the overlay has the keyboard or a menu of it
+  is open, so that keys typed into it, or Escape closing the menu, do not also play.
 - `Overlay::render(gpu, target, |ctx| ...)`: builds the panels with egui's `Context` and draws
   them over the target; `slime_devui::egui` is the egui the overlay uses. egui sizes a window
   on the first frame that shows it and draws it from the next one. egui may call the closure

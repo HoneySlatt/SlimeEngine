@@ -39,12 +39,14 @@ pub struct Edit {
 /// component, the engine's or a game's, without knowing its type.
 ///
 /// Booleans, numbers, text, enum variants and options are edited; vectors, rotations and colors
-/// whole, a rotation as three angles in degrees, turned about Y, then X, then Z. A number's unit
-/// follows it, and its field's documentation and range show when the cursor is over its name.
-/// References to assets are shown, and a reference to an entity selects it when clicked. An enum
-/// that takes another variant keeps the fields of the same name and type, and starts the others
-/// as an option that starts holding a value does: at false, empty, or the first of 0, 1 and the
-/// field's bounds that its range holds; a variant with a reference among its new fields cannot be
+/// whole, a rotation as three angles in degrees, turned about Y, then X, from −90° to 90°, then
+/// Z. A number's unit follows it, and its field's documentation and range show when the cursor is
+/// over its name. Text is set at each key typed. References to assets are shown, and a reference
+/// to an entity selects it when clicked. An enum that takes another variant keeps the fields of the
+/// same name and type, and starts the others as an option that starts holding a value does: at
+/// false, empty, or the first of 0, 1 and the field's bounds that its range holds. A type's check
+/// may refuse what they start at, as a spot light's refuses its two cones at one angle: a light
+/// does not become a spot light here. A variant with a reference among its new fields cannot be
 /// taken.
 ///
 /// The panel changes nothing: it returns each change as an [`Edit`], which the caller applies
@@ -190,7 +192,8 @@ impl Editor<'_> {
         field: Option<&FieldInfo>,
     ) {
         let unit = field.and_then(|field| field.unit.as_deref());
-        if let Some(changed) = whole(ui, ty, value, unit) {
+        let id = ui.make_persistent_id(path.to_string());
+        if let Some(changed) = whole(ui, id, ty, value, unit) {
             self.edits.extend(changed.map(|new| (path.clone(), new)));
             return;
         }
@@ -347,8 +350,11 @@ impl Editor<'_> {
                         variant_value(self.registry, variant, values)
                     };
                     let item = egui::Button::selectable(selected, variant.name.as_str());
-                    let response = ui.add_enabled(selected || value.is_some(), item);
-                    if response.on_hover_text(&variant.doc).clicked() {
+                    let mut response = ui.add_enabled(selected || value.is_some(), item);
+                    if !variant.doc.is_empty() {
+                        response = response.on_hover_text(&variant.doc);
+                    }
+                    if response.clicked() {
                         chosen = value;
                     }
                 }
@@ -413,9 +419,15 @@ impl Editor<'_> {
     }
 }
 
-/// The widgets of a value of one of the types edited whole ([`WHOLE`]), with `unit`; `None` for a
-/// value of another type, and otherwise its new value if the widgets changed it.
-fn whole(ui: &mut egui::Ui, ty: &str, value: &Value, unit: Option<&str>) -> Option<Option<Value>> {
+/// The widgets of a value of one of the types edited whole ([`WHOLE`]), with `unit`, under `id`;
+/// `None` for a value of another type, and otherwise its new value if the widgets changed it.
+fn whole(
+    ui: &mut egui::Ui,
+    id: egui::Id,
+    ty: &str,
+    value: &Value,
+    unit: Option<&str>,
+) -> Option<Option<Value>> {
     let changed = match ty {
         "Vec3" => {
             let mut vector = Vec3::from_value(value).ok()?;
@@ -427,11 +439,7 @@ fn whole(ui: &mut egui::Ui, ty: &str, value: &Value, unit: Option<&str>) -> Opti
             let DVec3 { x, y, z } = &mut vector;
             numbers(ui, [x, y, z], unit).then(|| vector.to_value())
         }
-        "Quat" => {
-            let mut angles = angles(Quat::from_value(value).ok()?);
-            let [y, x, z] = &mut angles;
-            numbers(ui, [y, x, z], Some("°")).then(|| rotation(angles).to_value())
-        }
+        "Quat" => turned(ui, id, Quat::from_value(value).ok()?).map(|turned| turned.to_value()),
         "LinearColor" => {
             let color = LinearColor::from_value(value).ok()?;
             let mut rgba = egui::Rgba::from_rgba_unmultiplied(color.r, color.g, color.b, color.a);
@@ -448,6 +456,38 @@ fn whole(ui: &mut egui::Ui, ty: &str, value: &Value, unit: Option<&str>) -> Opti
     Some(changed)
 }
 
+/// The widgets of `rotation`: its angles in degrees, about Y, then X, from −90° to 90°, then Z;
+/// returns the rotation they make if they changed.
+///
+/// The angles last edited are kept under `id` while the rotation is the one they made: computed
+/// from it again, they would come back inexact, and the widget would drop the text being typed,
+/// and past 90° about X as other angles, which a drag would then turn back at each frame.
+fn turned(ui: &mut egui::Ui, id: egui::Id, rotation: Quat) -> Option<Quat> {
+    let kept = ui.data(|data| data.get_temp::<(Quat, [f32; 3])>(id));
+    let mut degrees = match kept {
+        Some((made, degrees)) if made == rotation => degrees,
+        _ => angles(rotation),
+    };
+    let [y, x, z] = &mut degrees;
+    let mut changed = false;
+    for (axis, angle) in [("Y", y), ("X", x), ("Z", z)] {
+        let mut widget = egui::DragValue::new(angle)
+            .speed(0.5)
+            .prefix(format!("{axis} "))
+            .suffix("°");
+        if axis == "X" {
+            widget = widget.range(-90.0..=90.0);
+        }
+        changed |= ui.add(widget).changed();
+    }
+    if !changed {
+        return None;
+    }
+    let made = self::rotation(degrees);
+    ui.data_mut(|data| data.insert_temp(id, (made, degrees)));
+    Some(made)
+}
+
 /// A number's widget, which the cursor drags or the keyboard types into, with `unit` after it;
 /// returns the new number if it changed. The widget does not hold the number within its field's
 /// range: the world refuses one out of it, and says why.
@@ -456,7 +496,7 @@ fn edited<N: egui::emath::Numeric>(
     mut number: N,
     unit: Option<&str>,
 ) -> Option<N> {
-    drag(ui, &mut number, unit).changed().then_some(number)
+    drag(ui, &mut number, unit).then_some(number)
 }
 
 /// Three numbers' widgets, side by side; returns whether one changed.
@@ -467,27 +507,33 @@ fn numbers<N: egui::emath::Numeric>(
 ) -> bool {
     let mut changed = false;
     for number in numbers {
-        changed |= drag(ui, number, unit).changed();
+        changed |= drag(ui, number, unit);
     }
     changed
 }
 
-fn drag<N: egui::emath::Numeric>(
-    ui: &mut egui::Ui,
-    number: &mut N,
-    unit: Option<&str>,
-) -> egui::Response {
-    // A drag of a hundred points changes a float by about its own size.
+/// A number's widget, with `unit` after it; returns whether it changed the number.
+fn drag<N: egui::emath::Numeric>(ui: &mut egui::Ui, number: &mut N, unit: Option<&str>) -> bool {
+    let before = *number;
+    // A drag of a hundred points changes a float by about its own size, and by 1 at least.
     let speed = if N::INTEGRAL {
         0.1
     } else {
-        (number.to_f64().abs() * 0.01).max(0.001)
+        (before.to_f64().abs() * 0.01).max(0.01)
     };
-    let mut widget = egui::DragValue::new(number).speed(speed);
+    // The number shown as it is, NaN included, rather than brought within the widget's range, which
+    // would change it without a hand on it.
+    let mut widget = egui::DragValue::new(number)
+        .speed(speed)
+        .clamp_existing_to_range(false);
     if let Some(unit) = unit {
         widget = widget.suffix(format!(" {unit}"));
     }
-    ui.add(widget)
+    let changed = ui.add(widget).changed();
+    // egui finds a number that is not one (NaN) changed at each frame, since it is not equal to
+    // itself.
+    let after = *number;
+    changed && after != before && !(after.to_f64().is_nan() && before.to_f64().is_nan())
 }
 
 /// `rotation`'s angles in degrees, turned about Y, then X, then Z.
@@ -872,5 +918,163 @@ mod tests {
             turned.angle_between(expected) < 1e-4,
             "about Y, then X, then Z"
         );
+    }
+
+    /// A value of the type named `ty` edited alone, in a context without a window, frame after
+    /// frame, the edits its widgets ask for set in it as a world sets them in a component.
+    struct Bench {
+        ctx: egui::Context,
+        world: World,
+        ty: String,
+        value: Value,
+    }
+
+    impl Bench {
+        fn new(ty: &str, value: Value) -> Self {
+            let mut world = World::new();
+            world.register::<Everything>();
+            Self {
+                ctx: egui::Context::default(),
+                world,
+                ty: ty.to_owned(),
+                value,
+            }
+        }
+
+        /// Draws a frame given `events`, and sets in the value the edits its widgets ask for.
+        fn frame(&mut self, events: Vec<egui::Event>) {
+            let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0));
+            let input = egui::RawInput {
+                events,
+                screen_rect: Some(screen),
+                ..egui::RawInput::default()
+            };
+            let mut edits = Vec::new();
+            self.ctx
+                .run_ui(input, |ui| {
+                    let mut editor = Editor {
+                        registry: self.world.registry(),
+                        world: &self.world,
+                        edits: Vec::new(),
+                        select: None,
+                    };
+                    editor.value(ui, &self.ty, &self.value, &Path::default(), None);
+                    edits.extend(editor.edits);
+                })
+                .drop_without_applying_deltas();
+            for (path, new) in edits {
+                let registry = self.world.registry();
+                registry
+                    .set(&self.ty, &mut self.value, &path, new)
+                    .expect("a value of its type");
+            }
+        }
+
+        /// The rectangles of the widgets of the last frame that the cursor clicks or drags, in
+        /// their order.
+        fn widgets(&self) -> Vec<egui::Rect> {
+            self.ctx.viewport(|viewport| {
+                viewport
+                    .prev_pass
+                    .widgets
+                    .get_layer(egui::LayerId::background())
+                    .filter(|widget| widget.sense.senses_click() || widget.sense.senses_drag())
+                    .map(|widget| widget.rect)
+                    .collect()
+            })
+        }
+
+        /// Presses the primary button at `at`, moves the cursor by each of `moves`, a frame each,
+        /// and releases it: a click when there are none.
+        fn drag(&mut self, at: egui::Pos2, moves: &[egui::Vec2]) {
+            let button = |pos, pressed| egui::Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            };
+            self.frame(vec![egui::Event::PointerMoved(at), button(at, true)]);
+            let mut pos = at;
+            for &step in moves {
+                pos += step;
+                self.frame(vec![egui::Event::PointerMoved(pos)]);
+            }
+            self.frame(vec![button(pos, false)]);
+        }
+
+        /// Types `text`, a character a frame, then Enter.
+        fn type_text(&mut self, text: &str) {
+            for character in text.chars() {
+                self.frame(vec![egui::Event::Text(character.to_string())]);
+            }
+            self.frame(vec![egui::Event::Key {
+                key: egui::Key::Enter,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            }]);
+        }
+    }
+
+    #[test]
+    fn an_angle_is_set_as_typed() {
+        let mut bench = Bench::new("Quat", rotation([30.0, 0.0, 0.0]).to_value());
+        bench.frame(Vec::new());
+        let widgets = bench.widgets();
+        assert_eq!(widgets.len(), 3, "an angle about each axis");
+        // A click on the angle about Y selects its text, which what is typed replaces.
+        bench.drag(widgets[0].center(), &[]);
+        bench.type_text("45.5");
+        let typed = Quat::from_value(&bench.value).expect("a rotation");
+        let expected = rotation([45.5, 0.0, 0.0]);
+        assert!(typed.angle_between(expected) < 1e-5, "{:?}", angles(typed));
+    }
+
+    #[test]
+    fn an_angle_dragged_about_x_stops_at_90_degrees() {
+        let mut bench = Bench::new("Quat", rotation([10.0, 85.0, 0.0]).to_value());
+        bench.frame(Vec::new());
+        let about_x = bench.widgets()[1];
+        // Half a degree a point: 48 points would turn it by 24°.
+        bench.drag(about_x.center(), &[egui::vec2(4.0, 0.0); 12]);
+        let dragged = Quat::from_value(&bench.value).expect("a rotation");
+        let expected = rotation([10.0, 90.0, 0.0]);
+        assert!(
+            dragged.angle_between(expected) < 1e-5,
+            "{:?}",
+            angles(dragged)
+        );
+    }
+
+    #[test]
+    fn a_number_typed_into_an_option_sets_the_option() {
+        let held = |number| Value::Option(Some(Box::new(Value::F32(number))));
+        let mut bench = Bench::new("Option<f32>", held(4.0));
+        bench.frame(Vec::new());
+        let widgets = bench.widgets();
+        assert_eq!(
+            widgets.len(),
+            2,
+            "whether it holds a number, and the number"
+        );
+        bench.drag(widgets[1].center(), &[]);
+        bench.type_text("6");
+        assert_eq!(bench.value, held(6.0));
+        bench.drag(widgets[0].center(), &[]);
+        assert_eq!(
+            bench.value,
+            Value::Option(None),
+            "it holds none once unticked"
+        );
+    }
+
+    #[test]
+    fn a_number_that_is_not_one_is_left_as_it_is() {
+        let mut bench = Bench::new("f32", Value::F32(f32::NAN));
+        for _ in 0..3 {
+            bench.frame(Vec::new());
+        }
+        assert!(matches!(bench.value, Value::F32(number) if number.is_nan()));
     }
 }

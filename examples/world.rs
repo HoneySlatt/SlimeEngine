@@ -192,7 +192,7 @@ impl App for WorldExample {
     }
 
     fn on_event(&mut self, ctx: &mut Context, event: &Event) {
-        // Escape leaves a text field of the overlay that has the keyboard, rather than quit.
+        // Escape leaves a text field of the overlay, or closes a menu of it, rather than quit.
         let typing = self.overlay.as_ref().is_some_and(Overlay::wants_keyboard);
         if let Some(overlay) = &mut self.overlay {
             overlay.handle(event);

@@ -78,11 +78,12 @@ impl Overlay {
         self.context.is_pointer_over_egui()
     }
 
-    /// Whether a text field of the overlay has the keyboard, as of the last frame drawn, a number
-    /// typed into included: the application then leaves the keys that type, Escape among them, to
-    /// the overlay, so that typing a name does not also play.
+    /// Whether the overlay takes the keyboard, as of the last frame drawn: a text field has it, a
+    /// number typed into included, or a menu or a color picker is open, which Escape closes. The
+    /// application then leaves the keys to the overlay, Escape among them, so that typing a name or
+    /// closing a menu does not also play.
     pub fn wants_keyboard(&self) -> bool {
-        self.context.text_edit_focused()
+        self.context.text_edit_focused() || egui::Popup::is_any_open(&self.context)
     }
 
     /// Builds this frame's panels with `ui` and draws them over what `target` holds, in a pass
@@ -196,6 +197,8 @@ impl Overlay {
 #[cfg(test)]
 mod tests {
     use std::cell::Cell;
+
+    use slime_platform::{ButtonState, MouseButton};
 
     use super::*;
 
@@ -423,5 +426,55 @@ mod tests {
             .expect("the GPU has memory for it");
         let mut overlay = Overlay::new(&gpu, TextureFormat::Bgra8UnormSrgb, 1.0);
         overlay.render(&gpu, &target, |_| {});
+    }
+
+    #[test]
+    fn a_text_field_or_an_open_menu_takes_the_keyboard() {
+        let gpu = gpu();
+        let target = gpu
+            .create_render_target("overlay target", 400, 300, FORMAT)
+            .expect("the GPU has memory for it");
+        let mut overlay = Overlay::new(&gpu, FORMAT, 1.0);
+        let mut text = String::new();
+        let mut rects = (egui::Rect::NOTHING, egui::Rect::NOTHING);
+        let mut frame = |overlay: &mut Overlay| {
+            overlay.render(&gpu, &target, |ctx| {
+                egui::Window::new("panel")
+                    .default_pos(egui::pos2(20.0, 20.0))
+                    .show(ctx, |ui| {
+                        let field = ui.text_edit_singleline(&mut text).rect;
+                        let menu = egui::ComboBox::from_id_salt("menu")
+                            .selected_text("one")
+                            .show_ui(ui, |ui| ui.label("two"))
+                            .response
+                            .rect;
+                        rects = (field, menu);
+                    });
+            });
+            rects
+        };
+        // egui sizes the window on the first frame and draws it from the second.
+        frame(&mut overlay);
+        let (field, menu) = frame(&mut overlay);
+        let mut click = |overlay: &mut Overlay, at: egui::Pos2| {
+            overlay.handle(&Event::CursorMoved {
+                x: f64::from(at.x),
+                y: f64::from(at.y),
+            });
+            for state in [ButtonState::Pressed, ButtonState::Released] {
+                overlay.handle(&Event::MouseButton {
+                    button: MouseButton::Left,
+                    state,
+                });
+                frame(overlay);
+            }
+        };
+        assert!(!overlay.wants_keyboard());
+        click(&mut overlay, field.center());
+        assert!(overlay.wants_keyboard(), "the text field has the keyboard");
+        click(&mut overlay, egui::pos2(390.0, 290.0));
+        assert!(!overlay.wants_keyboard(), "a click elsewhere takes it away");
+        click(&mut overlay, menu.center());
+        assert!(overlay.wants_keyboard(), "the open menu takes Escape");
     }
 }

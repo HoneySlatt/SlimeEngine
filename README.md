@@ -38,7 +38,9 @@ changed on disk changes in the running game. Stage 5a is under way: a world that
 objects, reflection, and saves; the world keeps a game's entities, their components and their
 hierarchy already, places them, spawns cooked scenes in it (`slime-world`), is drawn from an asset
 cache that loads what it names (`slime-world-render`, the `world` example), and *Hunna Wood* runs
-on it; every component is reflected, and reached by name (`slime-reflect`).
+on it; every component is reflected, and reached by name (`slime-reflect`); a panel of the dev
+overlay lists the world's entities and edits their components, in the game and the `world` example,
+on F2.
 [`docs/PLAN.md`](docs/PLAN.md) says what is left of it, and lists the known debt.
 
 ## Getting started

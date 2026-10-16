@@ -118,7 +118,8 @@ panel of the dev overlay; *Hunna Wood* runs on it.
   colors whole. It returns each change as an `Edit`, which the application applies with
   `World::set_property`; the world refuses a value out of its range, and the panel shows why.
   *Hunna Wood* and the `world` example show it on F2. `Overlay::wants_keyboard` says when a text
-  field of the overlay has the keyboard, so that keys typed into it do not also play. Tooling: it
+  field of the overlay has the keyboard or a menu of it is open, so that keys typed into it, or
+  Escape closing the menu, do not also play. Tooling: it
   does not undo, add, remove or save components.
 
 ### Changed

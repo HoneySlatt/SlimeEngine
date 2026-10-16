@@ -291,43 +291,47 @@ impl App for HunnaWood {
         let Event::Key(key) = event else {
             return;
         };
-        // The keys typed into a field of the overlay do not also play. A key released reaches the
-        // controls all the same, so that none stays held.
+        // The keys typed into a field of the overlay, or Escape closing a menu of it, do not also
+        // play. A key released reaches the controls all the same, so that none stays held.
         if !typing || key.state == ButtonState::Released {
             self.controls.handle(key);
         }
-        let KeyEvent {
+        if let KeyEvent {
             physical,
             state: ButtonState::Pressed,
             repeat: false,
             ..
         } = key
-        else {
-            return;
-        };
-        if let Some(overlay) = &mut self.overlay {
-            match physical {
-                KeyCode::F1 => overlay.toggle_statistics(),
-                KeyCode::F2 => overlay.toggle_panel(),
-                _ => {}
+        {
+            if let Some(overlay) = &mut self.overlay {
+                match physical {
+                    KeyCode::F1 => overlay.toggle_statistics(),
+                    KeyCode::F2 => overlay.toggle_panel(),
+                    _ => {}
+                }
             }
-        }
-        if typing {
-            return;
-        }
-        match physical {
-            KeyCode::Escape => ctx.request_exit(),
-            KeyCode::KeyR => {
-                self.game.restart(ctx.world_mut());
-                let (_, facing) = self.game.zone().start(ctx.world());
-                self.camera = FollowCamera::looking_along(facing);
+            if !typing {
+                #[expect(
+                    clippy::collapsible_match,
+                    reason = "resting changes the world, which a match guard should not do"
+                )]
+                match physical {
+                    KeyCode::Escape => ctx.request_exit(),
+                    KeyCode::KeyR => {
+                        self.game.restart(ctx.world_mut());
+                        let (_, facing) = self.game.zone().start(ctx.world());
+                        self.camera = FollowCamera::looking_along(facing);
+                    }
+                    KeyCode::KeyE => {
+                        if self.game.rest(ctx.world_mut()) {
+                            let night = self.game.night(ctx.world());
+                            let time = if night { "night" } else { "day" };
+                            tracing::info!("the hero rests by the campfire until the {time}");
+                        }
+                    }
+                    _ => {}
+                }
             }
-            KeyCode::KeyE if self.game.rest(ctx.world_mut()) => {
-                let night = self.game.night(ctx.world());
-                let time = if night { "night" } else { "day" };
-                tracing::info!("the hero rests by the campfire until the {time}");
-            }
-            _ => {}
         }
     }
 

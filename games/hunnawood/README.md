@@ -85,9 +85,9 @@ and the log says where it fails ([ADR-0077](../../docs/adr/0077-hot-reload-of-sh
 | Escape | Quit |
 
 Keys are read by their position on the keyboard, so that the four movement keys sit in the same
-place on every layout. While a text field of the dev overlay has the keyboard, the keys type into it and
-the game ignores them, Escape included, which leaves the field; F1 and F2 still show and hide the
-panels. CI builds the game for Windows with the examples: `hunnawood.exe` is in the
+place on every layout. While a text field of the dev overlay has the keyboard, or a menu of it is open,
+the game ignores the keys, Escape included, which leaves the field or closes the menu; F1 and F2
+still show and hide the panels. CI builds the game for Windows with the examples: `hunnawood.exe` is in the
 `slime-examples-windows` artifact of each run, with its cooked zone beside it.
 
 ## How it is made

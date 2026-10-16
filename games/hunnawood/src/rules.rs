@@ -677,6 +677,7 @@ pub mod tests {
         game.restart(&mut world);
         assert_eq!(game.hero(&world), first);
         assert!(!game.has_item(&world) && !game.door_open(&world));
+        assert!(!world.is_hidden(game.zone().item) && !world.is_hidden(game.zone().door));
         assert_eq!(colliders(&world).len(), 3);
     }
 
