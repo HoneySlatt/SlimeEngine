@@ -2000,6 +2000,7 @@ dependencies = [
  "slime-color",
  "slime-gfx",
  "slime-platform",
+ "slime-world",
  "thiserror 2.0.21",
  "tracing",
  "tracing-subscriber",

@@ -49,11 +49,11 @@ created only when code needs it.
 | Crate | Role | Depends on | Status |
 |---|---|---|---|
 | [`slime-platform`](../crates/slime-platform/README.md) | The window, its events and keyboard and mouse input; the only crate that uses the windowing library (winit) | `winit`, `raw-window-handle`, `thiserror`, `tracing` | One window; window, keyboard and mouse events |
-| [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `slime-platform`, `slime-gfx`, `ctrlc`, `thiserror`, `tracing`, `tracing-subscriber` | Headless runs, and windowed runs drawn by the GPU, which go on with a new device after a lost one when the application asks |
+| [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `slime-platform`, `slime-gfx`, `slime-world`, `ctrlc`, `thiserror`, `tracing`, `tracing-subscriber` | Headless runs, and windowed runs drawn by the GPU, which go on with a new device after a lost one when the application asks |
 | [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu, apart from the dev overlay through its `wgpu` feature | `wgpu`, `pollster`, `raw-window-handle`, `slime-color`, `thiserror`, `tracing` | Opens a GPU device, and another in place of a lost one; draws into offscreen images, 8-bit or 16-bit float, and reads them back; draws into a window; later passes sample what earlier ones drew; depth-only passes; images of four samples per pixel, resolved for anti-aliasing; textures and cube textures whose levels the caller gives, half-precision floats and BC7 and BC5 blocks among their formats |
 | [`slime-color`](../crates/slime-color/README.md) | The color type of every API of the engine, `LinearColor`, and the sRGB transfer function, below every crate that holds a color ([ADR-0045](adr/0045-one-linear-color-type.md), [ADR-0079](adr/0079-the-engines-own-world.md)); headless | None | Linear colors and their constructors, sRGB bytes decoded and encoded |
 | [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, lit by directional, point and spot lights, seen from a camera, into render targets, and reports what a frame cost; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `slime-assets`, `slime-color`, `glam`, `thiserror`, `tracing` | Textures and scenes cooked by the asset pipeline, loaded onto the GPU, BC7 and BC5 among them, normal textures read by x and y; meshes with tangents, simple shapes made in code (a cube, a sphere, a square), glTF's metallic-roughness materials (five textures, masks, double-sided, values that change while a game runs, found by name in a loaded scene), a perspective camera, the depth test, up to 16 directional, point and spot lights in physical units (`KHR_lights_punctual`), a procedural sky computed on the CPU that surfaces reflect (image-based lighting) and that is drawn behind them with its sun's disc, the shadows of the first directional light that casts them (four cascades in one atlas, filtered over 5 × 5 texels) and of every spot light that casts them (a tile each of one atlas), mirrored instances drawn with their front faces, the scene drawn in HDR with its light exposed, at four samples per pixel (multisample anti-aliasing), an energy-conserving bloom, then tone mapped, the passes ordered by a render graph and recorded four to a submission, statistics with the GPU time of each pass; scenes loaded in the background, and again when their cooked data changed, keeping what did not change; the meshes a game draws kept by asset ID in a cache, loaded in batches as they are asked for, loaded again when their cooked data changes, dropped after a lost device ([ADR-0084](adr/0084-what-the-world-draws.md)); its shaders replaced while it runs |
-| [`slime-world`](../crates/slime-world/README.md) | The world: a game's entities, their components and their hierarchy, kept by the engine ([ADR-0079](adr/0079-the-engines-own-world.md)); headless | `slime-assets`, `glam`, `thiserror`, `tracing` | Entities as handles of an index and a generation, the components attached to them stored by type, queries that read through an iterator or change through a closure ([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)); parents and children, transforms with `f64` translations, a uniform scale and a stretch, and where each entity is in the world, always current ([ADR-0083](adr/0083-transforms-and-the-hierarchy.md)); cooked scenes spawned as entities with persistent identities; no drawing or saves yet |
+| [`slime-world`](../crates/slime-world/README.md) | The world: a game's entities, their components and their hierarchy, kept by the engine ([ADR-0079](adr/0079-the-engines-own-world.md)); headless | `slime-assets`, `slime-color`, `glam`, `thiserror`, `tracing` | Entities as handles of an index and a generation, the components attached to them stored by type, queries that read through an iterator or change through a closure ([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)); parents and children, transforms with `f64` translations, a uniform scale and a stretch, and where each entity is in the world, always current ([ADR-0083](adr/0083-transforms-and-the-hierarchy.md)); cooked scenes spawned as entities with persistent identities; no drawing or saves yet |
 | [`slime-assets`](../crates/slime-assets/README.md) | The assets as games load them: asset IDs, cooked data and its manifest, read by ID from a directory of cooked data ([ADR-0069](adr/0069-the-asset-pipeline.md)); headless | `ktx2`, `thiserror` | The asset ID and its text form, a UUID; cooked textures in KTX2 files ([ADR-0071](adr/0071-cooked-textures.md)), meshes, materials and scenes, their nodes' extras among them; the manifest; reading them by ID; a watch of the manifest, for hot reload |
 | [`slime-cook`](../crates/slime-cook/README.md) | The cooker: turns source assets into cooked data before games run; a library and its program, which no game links ([ADR-0069](adr/0069-the-asset-pipeline.md)) | `slime-assets`, `slime-color`, `bevy_mikktspace`, `blake3`, `block_compression`, `glam`, `gltf`, `png`, `uuid`, `zune-jpeg`, `thiserror` | IDs for source files in metadata files beside them, their check, and the IDs of the assets inside a file; PNG and JPEG images cooked into textures compressed in BC7 or BC5, every level computed; glTF files imported into meshes (MikkTSpace tangents), materials and scenes; a directory cooked again only where it changed, with its manifest, once or at each change |
 | [`slime-devui`](../crates/slime-devui/README.md) | The dev overlay: egui drawn over the engine's frames, fed with the engine's events; tooling, removed once something does at least as well ([ADR-0052](adr/0052-amend-roadmap-before-0-1.md)) | `egui`, `egui-wgpu`, `slime-gfx` (with its `wgpu` feature), `slime-platform` | Panels over a frame; no clipboard or input methods |
@@ -64,7 +64,8 @@ created only when code needs it.
 
 ```text
 slime-examples ──▶ slime-app ──┬──▶ slime-platform ──▶ winit
-       │                       └──▶ slime-gfx ──────▶ wgpu
+       │                       ├──▶ slime-gfx ──────▶ wgpu
+       │                       └──▶ slime-world (the game's world)
        ├──▶ slime-render ──────────▶ slime-gfx
        ├──▶ slime-assets (cooked data); the tests: slime-cook (they cook first), slime-world
        ├──▶ slime-devui ───┬───────▶ slime-gfx (feature wgpu) ──▶ wgpu
@@ -78,12 +79,14 @@ hunnawood  ──▶ slime-app, slime-assets, slime-render, slime-platform, slim
 slime-cook ──▶ slime-assets
 slime-render ──▶ slime-assets (cooked data)
 slime-world ──▶ slime-assets (cooked scenes)
-slime-gfx, slime-render, slime-cook ──▶ slime-color (the color type)
+slime-gfx, slime-render, slime-cook, slime-world ──▶ slime-color (the color type)
 ```
 
 - Dependencies between crates point one way: `slime-app` depends on `slime-platform` and
   `slime-gfx`, never the reverse, and `slime-platform` and `slime-gfx` do not depend on each
-  other: the window reaches the GPU layer only as `raw-window-handle` traits.
+  other: the window reaches the GPU layer only as `raw-window-handle` traits. `slime-app` also
+  depends on `slime-world`, since it owns the game's world
+  ([ADR-0079](adr/0079-the-engines-own-world.md)).
 - `slime-render` depends on `slime-gfx` only and does not use wgpu
   ([ADR-0027](adr/0027-the-render-crate.md)). `slime-app` does not depend on it: an application
   creates its `Renderer` in `init`, from the GPU of its `Context`, and calls it in `render`.
@@ -94,9 +97,9 @@ slime-gfx, slime-render, slime-cook ──▶ slime-color (the color type)
 - A game, such as `hunnawood`, is a client of the engine like the examples: it uses the public API
   of the engine's crates only, and no engine crate depends on it
   ([ADR-0055](adr/0055-games-in-the-workspace.md)).
-- `slime-world` depends on `slime-assets` only, for the cooked scenes it spawns, and on no GPU or
-  window, so that a world runs headless, in tests, servers and tools
-  ([ADR-0079](adr/0079-the-engines-own-world.md)).
+- `slime-world` depends on `slime-assets`, for the cooked scenes it spawns, and `slime-color`, for
+  the colors of its lights, and on no GPU or window, so that a world runs headless, in tests,
+  servers and tools ([ADR-0079](adr/0079-the-engines-own-world.md)).
 - `slime-color` depends on no crate, so that a crate that holds a color does not need the GPU layer
   for it ([ADR-0079](adr/0079-the-engines-own-world.md)).
 - `slime-assets` depends on no engine crate and on no GPU, so that it runs headless; the cooker,
@@ -138,8 +141,11 @@ they represent; every driver runs a frame the same way (`Frames::run_one` in
 frame                                span "frame", trace level
 ├── FrameClock::advance(delta)       the time the frame represents, limited
 ├── FixedStep::advance(delta)        how many fixed steps are due: n
-├── app.fixed_update(ctx, step)      n times, span "fixed_update"
-├── app.update(ctx, &frame)          once, span "update"
+├── app.fixed_update(ctx, step)      n times, span "fixed_update", between
+│                                    world.begin_fixed_step() and world.end_fixed_step(): what
+│                                    moves is drawn between its two transforms (ADR-0084)
+├── app.update(ctx, &frame)          once, span "update", then world.update_transforms():
+│                                    what it changed is drawn at once
 └── with a window:
     ├── surface.acquire(label)       the window's image, its passes named "window, frame
     │                                <index>", or none: skip drawing, after an empty submission

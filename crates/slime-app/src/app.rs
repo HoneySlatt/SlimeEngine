@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use slime_gfx::{Gpu, PresentMode, RenderTarget, Surface, TextureFormat};
 use slime_platform::{Event, Window, WindowConfig};
+use slime_world::World;
 
 use crate::diagnostics::{error_chain, init_diagnostics};
 use crate::error::{AppError, RunError};
@@ -52,12 +53,14 @@ pub trait App {
     }
 
     /// Called once per fixed step. `step` is the duration of a step; it is the same for the
-    /// whole run ([`AppConfig::fixed_step`]).
+    /// whole run ([`AppConfig::fixed_step`]). What it moves in the world is drawn between where
+    /// it was before the step and where the step leaves it ([`Context::world`]).
     fn fixed_update(&mut self, ctx: &mut Context, step: Duration) {
         let _ = (ctx, step);
     }
 
-    /// Called once per frame, after the frame's fixed steps.
+    /// Called once per frame, after the frame's fixed steps. What it changes in the world is drawn
+    /// at once ([`Context::world`]).
     fn update(&mut self, ctx: &mut Context, frame: &FrameTime) {
         let _ = (ctx, frame);
     }
@@ -193,6 +196,7 @@ pub struct Context {
     /// The error passed to `exit_with_error`, which `run` returns.
     error: Option<AppError>,
     fixed_step_alpha: f64,
+    world: World,
 }
 
 impl Context {
@@ -234,15 +238,31 @@ impl Context {
     /// The fraction of a fixed step that the frames so far accumulated but did not run, at least
     /// 0.0 and below 1.0: the interpolation factor, [`FixedStep::alpha`] of the run's fixed step.
     ///
-    /// An application that moves things in [`App::fixed_update`] keeps their state of the last two
-    /// steps and draws them this fraction of the way from the older state to the newer, so that
-    /// motion looks smooth when the frame rate and the step rate differ. The value is set once per
+    /// What moves during [`App::fixed_update`] is drawn this fraction of the way from its state
+    /// before the last step to its state after it, so that motion looks smooth when the frame rate
+    /// and the step rate differ: the world does so for the transforms of its entities
+    /// ([`World::interpolated_transform`]). The value is set once per
     /// frame, after the frame's time is added and before its fixed steps run: it is the same in
     /// that frame's `fixed_update`, [`App::update`] and [`App::render`], and 0.0 before the first
     /// frame. Headless frames each represent one fixed step and read 0.0, unless the step is
     /// longer than [`AppConfig::max_frame_delta`].
     pub fn fixed_step_alpha(&self) -> f64 {
         self.fixed_step_alpha
+    }
+
+    /// The game's world: its entities, their components and their hierarchy
+    /// (`docs/adr/0084-what-the-world-draws.md`), empty when the run starts, headless runs
+    /// included. The engine tells it before and after each [`App::fixed_update`]
+    /// ([`World::begin_fixed_step`], [`World::end_fixed_step`]), so that what moves during a step is
+    /// drawn between its two transforms, and computes its transforms after [`App::update`], so that
+    /// a change made outside a step is drawn at once.
+    pub fn world(&self) -> &World {
+        &self.world
+    }
+
+    /// The game's world, to change: as [`Context::world`].
+    pub fn world_mut(&mut self) -> &mut World {
+        &mut self.world
     }
 
     /// The window of the application, or `None` when it runs headless.
@@ -480,11 +500,15 @@ impl Frames {
         ctx.fixed_step_alpha = self.fixed.alpha();
         for _ in 0..steps {
             let _span = tracing::trace_span!("fixed_update").entered();
+            ctx.world.begin_fixed_step();
             app.fixed_update(ctx, self.fixed.step());
+            ctx.world.end_fixed_step();
         }
         {
             let _span = tracing::trace_span!("update").entered();
             app.update(ctx, &frame);
+            // What changed outside a fixed step is drawn at once.
+            ctx.world.update_transforms();
         }
         let image = surface.and_then(|surface| {
             let _span = tracing::trace_span!("acquire").entered();

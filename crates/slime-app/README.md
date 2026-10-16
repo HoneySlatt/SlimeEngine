@@ -19,6 +19,9 @@ run that asks for it goes on with a new GPU device after a lost one. What is mis
 - With a window, opens the GPU that draws into it, and gives each frame an image of the window to
   draw into, which it then shows.
 - Sets up the engine's diagnostics and owns frame timing.
+- Owns the game's world (`slime-world`), and tells it before and after each fixed step, so that
+  what moves during a step is drawn between its two transforms
+  (`docs/adr/0084-what-the-world-draws.md`).
 
 ## Entry points
 
@@ -155,9 +158,10 @@ if slime_app::run(&mut Game, &config).is_err() {
   `..AppConfig::default()`.
 - `Context`: what an application can ask from the engine: the window (`Context::window`), the GPU
   that draws into it (`Context::gpu`) and the format of its images (`Context::surface_format`),
-  all `None` when headless; the interpolation factor (`Context::fixed_step_alpha`), the fraction of
-  a fixed step accumulated but not run, to draw what `fixed_update` moves between its last two
-  states; stopping the run (`Context::request_exit`), or failing it (`Context::exit_with_error`);
+  all `None` when headless; the game's world (`Context::world`, `Context::world_mut`), headless
+  runs included; the interpolation factor (`Context::fixed_step_alpha`), the fraction of a fixed
+  step accumulated but not run, at which the world draws what `fixed_update` moved between its
+  last two transforms (`World::interpolated_transform`); stopping the run (`Context::request_exit`), or failing it (`Context::exit_with_error`);
   and whether it is going to stop (`Context::exit_requested`), which reports a termination signal
   as soon as it arrives, even during `init` or in the middle of a frame.
 - `time`: `FrameClock` turns the time between frames into a `FrameTime` (index, delta, elapsed
@@ -199,6 +203,7 @@ the name the graphics API gives it.
 - `ctrlc`: handles termination signals.
 - `slime-gfx`: the GPU and the window's surface, for windowed runs.
 - `slime-platform`: the window and its events, for windowed runs.
+- `slime-world`: the game's world, which it owns.
 - `thiserror`: derives `RunError`'s `Display` and `Error` implementations.
 - `tracing`: the logging macros and profiling spans.
 - `tracing-subscriber`: the subscriber that formats, filters and writes log events, including the

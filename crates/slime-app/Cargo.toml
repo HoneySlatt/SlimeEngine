@@ -14,6 +14,7 @@ workspace = true
 ctrlc.workspace = true
 slime-gfx.workspace = true
 slime-platform.workspace = true
+slime-world.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 # `tracing-log`, a default feature, is named because `init_diagnostics` relies on it: it makes the

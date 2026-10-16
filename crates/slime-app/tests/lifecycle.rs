@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use slime_app::time::FrameTime;
 use slime_app::{App, AppConfig, AppError, Context, RunError, run};
+use slime_world::Transform;
 
 const STEP: Duration = Duration::from_millis(10);
 
@@ -242,4 +243,76 @@ fn an_error_in_shutdown_fails_a_run_that_ended_well() {
     };
     let result = run(&mut app, &config(Some(1)));
     assert_eq!(app_error(result), "cannot write the save file");
+}
+
+/// Moves a hero 1 m along x at each fixed step and a marker in each `update`, and records where the
+/// world draws them in `update`, at the frame's fraction of a step.
+#[derive(Default)]
+struct Mover {
+    hero: Option<slime_world::Entity>,
+    marker: Option<slime_world::Entity>,
+    /// Where the world draws the hero in each `update`.
+    drawn: Vec<f64>,
+}
+
+impl Mover {
+    fn x(ctx: &Context, entity: Option<slime_world::Entity>) -> f64 {
+        ctx.world()
+            .interpolated_transform(entity.expect("spawned"), ctx.fixed_step_alpha())
+            .expect("placed")
+            .translation
+            .x
+    }
+}
+
+impl App for Mover {
+    fn init(&mut self, ctx: &mut Context) -> Result<(), AppError> {
+        let world = ctx.world_mut();
+        for entity in [&mut self.hero, &mut self.marker] {
+            let spawned = world.spawn();
+            world.insert(spawned, Transform::IDENTITY);
+            *entity = Some(spawned);
+        }
+        Ok(())
+    }
+
+    fn fixed_update(&mut self, ctx: &mut Context, _step: Duration) {
+        let hero = self.hero.expect("spawned");
+        ctx.world_mut()
+            .get_mut::<Transform>(hero)
+            .expect("placed")
+            .translation
+            .x += 1.0;
+    }
+
+    fn update(&mut self, ctx: &mut Context, frame: &FrameTime) {
+        self.drawn.push(Self::x(ctx, self.hero));
+        // Moved outside a fixed step: drawn at once where it goes.
+        let marker = self.marker.expect("spawned");
+        let x = frame.index() as f64 * 10.0;
+        ctx.world_mut()
+            .get_mut::<Transform>(marker)
+            .expect("placed")
+            .translation
+            .x = x;
+        assert_eq!(Self::x(ctx, self.marker), x);
+    }
+}
+
+#[test]
+fn the_world_draws_what_moved_during_a_fixed_step_between_its_two_transforms() {
+    let mut app = Mover::default();
+    // Frames limited to 4 ms of a 10 ms step: the fractions 0.4, 0.8, 0.2, 0.6 and 0.0, a step in
+    // the third frame and in the fifth.
+    let limited = AppConfig {
+        max_frame_delta: Duration::from_millis(4),
+        ..config(Some(5))
+    };
+    run(&mut app, &limited).expect("this application starts");
+    // Not moved, not moved, 0.2 of the first step, 0.6 of it, then the second step's start.
+    let expected = [0.0, 0.0, 0.2, 0.6, 1.0];
+    for (drawn, expected) in app.drawn.iter().zip(expected) {
+        assert!((drawn - expected).abs() < 1e-9, "{:?}", app.drawn);
+    }
+    assert_eq!(app.drawn.len(), 5);
 }
