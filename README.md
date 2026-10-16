@@ -8,15 +8,15 @@ games first, then open-world games, then large online worlds.
 
 Pre-alpha. Stages 0 (*Foundations*), 1 (*Core and platform*), 2 (*GPU layer*), 3a (*First
 renderer*), 3b (*Physically based renderer*), 3c (*A first game*), 3d (*Anti-aliasing and the
-shadows of spot lights*) and 4a (*Cooked assets*) are done; the latest release is 0.2 (git
-tag `v0.2.0`). Applications run headless or with a window (Wayland or X11 on Linux, Win32 on
-Windows) that receives keyboard and mouse input, with a fixed-step main loop, logging, panic
-reporting and a clean shutdown on Ctrl+C. The engine opens the GPU (Vulkan on Linux, Direct3D
-12 on Windows), paces frames with its own schedule and the Mailbox present mode by default,
-names its GPU work for capture tools, reports a GPU whose memory runs out as an error a game
-can handle, and, when the GPU device is lost, stops cleanly or, for a game that asks, goes on with a
-new one. Its renderer, `slime-render`, draws
-instances of meshes with glTF's metallic-roughness materials, lit by directional, point and spot
+shadows of spot lights*), 4a (*Cooked assets*) and 4b (*Live assets*) are done; the latest release
+is 0.2 (git tag `v0.2.0`), and 0.3 will release Stage 4b with Stage 5a. Applications run headless
+or with a window (Wayland or X11 on Linux, Win32 on Windows) that receives keyboard and mouse
+input, with a fixed-step main loop, logging, panic reporting and a clean shutdown on Ctrl+C. The
+engine opens the GPU (Vulkan on Linux, Direct3D 12 on Windows), paces frames with its own schedule
+and the Mailbox present mode by default, names its GPU work for capture tools, reports a GPU whose
+memory runs out as an error a game can handle, and, when the GPU device is lost, stops cleanly or,
+for a game that asks, goes on with a new one. Its renderer, `slime-render`, draws instances of
+meshes with glTF's metallic-roughness materials, lit by directional, point and spot
 lights in physical units (lux and candelas), with the shadows of a sun, in cascades around the
 camera, and of spot lights, and the light of a procedural sky that surfaces reflect and that
 shows behind them; it draws in high dynamic range, at four samples per pixel so that edges are
@@ -31,13 +31,12 @@ BC7 and BC5, which a game reads by ID ([ADR-0069](docs/adr/0069-the-asset-pipeli
 sample game, *Hunna Wood* (`games/hunnawood`), a role-playing game seen in the
 third person and made with the public API only, loads its first zone from cooked assets
 ([ADR-0067](docs/adr/0067-hunna-wood-replaces-nightwatch.md)): a forest path to a ruined chapel,
-where the hero finds a key that opens a door, by day and by night. Stage 4b, which makes loaded
-assets live, is under way: scenes load on threads of the renderer's own while the game draws, a
-game can go on after a lost GPU device, a material's values change while it runs, and a texture or
-a shader changed on disk changes in the running game. Stage 5a is under way: a world that keeps a
-game's objects, reflection, and saves; the world keeps a game's entities and their components
-already (`slime-world`). [`docs/PLAN.md`](docs/PLAN.md) says what is left of each, and lists the
-known debt.
+where the hero finds a key that opens a door, by day and by night. Stage 4b made loaded
+assets live: scenes load on threads of the renderer's own while the game draws, a game can go on
+after a lost GPU device, a material's values change while it runs, and a texture or a shader
+changed on disk changes in the running game. Stage 5a is under way: a world that keeps a game's
+objects, reflection, and saves; the world keeps a game's entities and their components already
+(`slime-world`). [`docs/PLAN.md`](docs/PLAN.md) says what is left of it, and lists the known debt.
 
 ## Getting started
 

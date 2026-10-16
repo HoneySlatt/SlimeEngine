@@ -14,35 +14,21 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 
 - Stage 4a — Cooked assets: done and released as 0.2 on 2026-10-15. *Hunna Wood* loads its zone
   from cooked assets and is played by day and by night, on Linux and on Windows.
-- Stage 4b — Live assets: planned on 2026-10-15 and validated by the owner
-  ([ADR-0072](adr/0072-stage-4b-live-assets.md)). M4b.1 done on 2026-10-15: the renderer loads
-  scenes on threads of its own, which create their GPU objects through clones of the `Gpu`
-  ([ADR-0073](adr/0073-loading-scenes-in-the-background.md)). M4b.2 done on 2026-10-15: the game
-  draws while its zone loads ([ADR-0074](adr/0074-uploading-textures-without-holding-up-frames.md)).
-  M4b.3 done on 2026-10-15: an application that asks for it goes on after a lost GPU device, with a
-  new one ([ADR-0075](adr/0075-recovering-from-a-lost-gpu-device.md)). M4b.4 done on 2026-10-15:
-  *Hunna Wood* goes on after a lost device, its run kept; its checks by hand with a real driver
-  reset, on Linux and on Windows, are M4b.9's. M4b.5 done on 2026-10-15: a game changes a
-  material's values while it runs, and *Hunna Wood*'s campfire flickers. M4b.6 done on 2026-10-15: a
-  texture changed on disk changes in the running game
-  ([ADR-0076](adr/0076-hot-reload-of-cooked-data.md)). M4b.7 done on 2026-10-15: a shader
-  changed on disk changes in the running game ([ADR-0077](adr/0077-hot-reload-of-shaders.md)).
-  M4b.8 done on 2026-10-15: *Hunna Wood* refined on the three points that the owner chose. M4b.9:
-  the documents reread and the changelog written on 2026-10-15, and Stage 5 planned on
-  2026-10-16; it waits only for the owner's checks by hand, which the owner runs when they choose,
-  and the stage closes after them ([ADR-0081](adr/0081-stage-5a-the-world.md)).
+- Stage 4b — Live assets: done on 2026-10-16, and released with 0.3 at the end of Stage 5a
+  ([ADR-0078](adr/0078-stage-5-in-two-halves.md)). Scenes load in the background while a game
+  draws, a game goes on after a lost GPU device, a material's values change while it runs, and a
+  texture or a shader changed on disk changes in the running game. The owner checked the recovery
+  by hand, in the Windows virtual machine and after a real GPU reset in KDE Plasma.
 - Stage 5a — The world: planned on 2026-10-16 and validated by the owner
   ([ADR-0078](adr/0078-stage-5-in-two-halves.md) to [ADR-0081](adr/0081-stage-5a-the-world.md));
-  the stage being worked on, while Stage 4b waits for the owner's checks. M5a.1 built: a world of
-  entities and components, in `slime-world`
-  ([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)); CI checks it.
+  the stage being worked on. M5a.1 done on 2026-10-16: a world of entities and components, in
+  `slime-world` ([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)). Next: M5a.2.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
-| [M4b.9](#m4b9--windows-check-documentation-close) | Stage 4b is done; Stage 5 is planned | Waits for the owner's checks by hand |
-| [M5a.1](#m5a1--the-world-entities-and-components) | Entities and their components live in a world, without a GPU or a window | Built; CI checks it |
+| [M5a.1](#m5a1--the-world-entities-and-components) | Entities and their components live in a world, without a GPU or a window | Done |
 | [M5a.2](#m5a2--the-hierarchy-and-the-transforms) | Entities are placed by a hierarchy of transforms in double precision; a cooked scene becomes entities | Planned |
 | [M5a.3](#m5a3--what-the-world-draws) | The renderer draws a world, and what moves between its last two fixed steps | Planned |
 | [M5a.4](#m5a4--hunna-wood-on-the-world) | *Hunna Wood* runs on the world, and changes only what moves | Planned |
@@ -53,7 +39,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M5a.9](#m5a9--saving-and-resuming-a-run) | A player saves a run of *Hunna Wood* and resumes it | Planned |
 | [M5a.10](#m5a10--windows-check-documentation-release-03) | Stage 5a is done and released as 0.3, with Stage 4b | Planned |
 
-Stages 0, 1, 2, 3a, 3b, 3c, 3d and 4a are done; see [Completed stages](#completed-stages).
+Stages 0, 1, 2, 3a, 3b, 3c, 3d, 4a and 4b are done; see [Completed stages](#completed-stages).
 
 ## Stage 5a — The world
 
@@ -105,7 +91,8 @@ rejected, are in [ADR-0079](adr/0079-the-engines-own-world.md) (the world),
   the engine's own canonical writer; versions per type, and upgrades on plain values; a binary
   encoding at Stage 5b.
 - **The rest**: the risk first; a panel of the dev overlay on F2; F5 and F9, a save on quit and a
-  resume on start; a `world` example; Stage 4b open until the owner's checks; no dependency but
+  resume on start; a `world` example; Stage 4b open until the owner's checks, which closed it on 2026-10-16; no
+  dependency but
   the two the owner approved, with their helper crates.
 
 Risks:
@@ -144,6 +131,16 @@ Risks:
   it asks for, and changing through it changes the world; a world sent to another thread; the
   measurement recorded; CI is green.
 - **How to test.** `cargo test -p slime-world`.
+- **Outcome.** Done on 2026-10-16 ([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)). Components
+  are stored by type in sparse sets, in safe code: `World::query` reads through an iterator, and
+  `World::query_mut` changes through a closure, each storage borrowed apart. With 100 000 entities
+  in a release build, spawning them takes 5.3 ms, reading every position 68 µs, moving the 50 000
+  that hold a velocity 190 µs, and destroying them 0.85 ms; the ADR holds the figures. The review
+  made two changes beyond the plan: a type becomes a component by saying so, `impl Component for
+  Position {}`, so that a tuple given to `insert` by mistake does not compile; and destroying an
+  entity drops its components before it frees its slot, so that a component that panics as it is
+  dropped leaves nothing to the next entity of the slot. CI took 10 minutes 25 seconds on Linux and
+  17 minutes 20 seconds on Windows ([Notes](#notes)).
 
 ### M5a.2 — The hierarchy and the transforms
 
@@ -336,315 +333,11 @@ Risks:
 - **Crates.** All, for their documents.
 - **Delivers.** The documents reread as a newcomer would; `CHANGELOG.md`'s 0.3 section; the owner
   plays the game and the `world` example from CI's Windows programs, and saves and resumes there;
-  Stage 4b's checks by hand, if the owner has not run them before (M4b.9), and Stage 4b closed
-  after them, or the release notes saying they were not run, as the owner decides (ADR-0081); Stage
-  5a marked done; Stage 5b planned with the owner; the release, as [Releasing](#releasing) says,
+  Stage 5a marked done; Stage 5b planned with the owner; the release, as [Releasing](#releasing) says,
   `world.exe` among the programs.
 - **Done when.** The exit criterion holds, on Linux and on Windows; the tag `v0.3.0` is on a commit
   whose CI is green, and its GitHub release carries the Windows programs.
 - **How to test.** Reading; CI; playing it.
-
-## Stage 4b — Live assets
-
-Exit criterion (see [`ROADMAP.md`](ROADMAP.md#stage-4b--live-assets)): a texture and a shader
-hot-reload in the running game; the game's zone loads while frames go on; the game goes on after a
-lost GPU device.
-
-This is the second half of Stage 4, the asset pipeline
-([ADR-0068](adr/0068-stage-4-in-two-halves.md)). The first half turned source files into cooked
-data that a game loads by ID ([ADR-0069](adr/0069-the-asset-pipeline.md)); this one makes what is
-loaded live. Three things, where the engine stands at the start:
-
-- **Loading in the background.** `Renderer::load_scene` loads a scene on the thread that calls it,
-  and *Hunna Wood* loads its zone before its window opens. The stage loads scenes on threads of the
-  renderer's own, which create the GPU objects themselves, while the game goes on drawing.
-- **Hot reload**: replacing, in a running game, the cooked data or the shaders that changed on disk,
-  without restarting it. A material cannot change once it is made
-  ([ADR-0057](adr/0057-what-the-first-game-asks-of-the-next-stages.md)), and the shaders are
-  embedded in the program. The stage makes a material's values change in place, which a game uses
-  too (a fire that flickers), then reloads cooked data, then shaders.
-- **Recovering from a lost GPU device.** A lost device stops the run
-  ([ADR-0022](adr/0022-losing-the-gpu-device.md)). The stage opens a new device, for the
-  applications that choose it, which create their GPU objects again.
-
-Out of scope: handles to assets and their load states, progressive loading, assets shared between
-scenes (Stage 5's world model, ADR-0072); a public task pool or job system (Stage 7); a loading bar
-and any text of games (Stages 6 and 7); watching files through the operating system's
-notifications; reloading a game's code; recovering for applications that do not choose it;
-reloading shaders in a shipped game; audio (Stage 7).
-
-Decisions taken when the stage was planned, by the owner on 2026-10-15, with the alternatives they
-rejected, are in [ADR-0072](adr/0072-stage-4b-live-assets.md):
-
-- **The order**: the risk first, recovery before hot reload.
-- **Loading**: a load that the game polls, which gives the scene whole; a task pool private to
-  `slime-render`; the bar of 33 ms between frames; the sky and the hero while the zone loads.
-- **Recovery**: chosen by each application; the same wgpu instance and a new surface; no CPU adapter
-  after a hardware one; giving up after three recoveries without a frame.
-- **Materials**: their values change in place, their textures do not; found by name.
-- **Hot reload**: `slime-cook watch`, which checks the sources every half second; shaders read from
-  their source files; off unless `--watch`; the game starts again from the start when its layout
-  changed, and goes on when only its looks did.
-- **The rest**: a refining of the game, on at most five points that the owner chooses; no release;
-  no new dependency.
-
-Risks:
-
-- **Frames held up by loading.** In wgpu 30, writing a texture through the queue holds a lock that a
-  submission takes too, so the loading threads can delay frames; M4b.2 measures it against the bar,
-  with the fallback that ADR-0072 names. M4b.2 removed it otherwise (ADR-0074).
-- **Recovery on real drivers.** A device destroyed by a test is not a driver reset. Real resets are
-  checked by hand: on the owner's AMD GPU through the driver's recovery, which needs root and which
-  the owner runs, and on Windows by a forced timeout detection and recovery (TDR) in the virtual
-  machine. Direct3D 12's second swap chain on one window, the dev overlay's egui renderer, which can
-  panic on a lost device (see [Known debt](#known-debt)), and threads still loading with the lost
-  device are the likely failures.
-- **Shader reload on Direct3D 12**: making every pipeline again pauses the game: 62 ms with WARP
-  in a debug build, measured at M4b.7; on a GPU, not measured yet.
-- **The cost of the checks.** The zone costs up to 8 s per frame on lavapipe, and every scenario that
-  draws it adds that; the Windows CI job takes 17 of the 20 minutes that the owner allows.
-
-### M4b.1 — A shared GPU and a task pool
-
-- **Goal.** The renderer loads a scene on threads of its own, which create its GPU objects.
-- **Crates.** `slime-gfx`, `slime-render`.
-- **Delivers.** A `Gpu` that threads share; the renderer's task pool, private; starting the load of
-  a scene, polling it, taking the scene once loaded, with `load_scene` as starting and waiting; the
-  first error of a load returned and the rest of its work cancelled; a panic of a loading thread
-  raised again on the thread that takes the load; a load dropped cancelled and its threads joined;
-  the interval between frames measured while the zone loads today, as the baseline; the ADR on
-  loading in the background; the documents (`slime-render`'s README, `ARCHITECTURE.md`'s threads,
-  the glossary).
-- **Done when.** Tests: a texture created on another thread draws; a scene loaded in the background
-  draws the same pixels as one loaded on the calling thread; an asset that fails fails the load;
-  two loads at once; a load dropped half-way; a panic raised again; CI is green.
-- **How to test.** `cargo test -p slime-gfx -p slime-render`.
-- **Outcome.** Done on 2026-10-15 ([ADR-0073](adr/0073-loading-scenes-in-the-background.md)). The
-  baseline, before the change: *Hunna Wood*'s window showed nothing while its zone and its hero
-  loaded, one after the other, on the main thread, so no interval between frames could be measured
-  then. On the pool's threads, both load in under half the time; the ADR holds the figures. The game
-  still loads before its first frame, by waiting: M4b.2 makes it draw meanwhile. Two checks were
-  changed from what this milestone planned. No loader on the calling thread remains to compare
-  pixels with, so the test of a scene loaded in the background checks where each mesh is placed,
-  which meshes and materials are shared, and the color each square shows. A load cannot be dropped
-  half-way on purpose, so the test of a dropped load drops it while every thread of the pool is
-  busy and its tasks wait in the queue, and checks that the drop returns at once.
-
-### M4b.2 — The zone loads while frames go on
-
-- **Goal.** *Hunna Wood* draws while its zone loads.
-- **Crates.** `games/hunnawood`; `slime-render` if the measurement asks for the fallback.
-- **Delivers.** The window opened at once; the loading view, the sky and the hero at the start, the
-  camera turning, the hero still; the zone appearing whole; `--frames` counting the frames that draw
-  the zone; the intervals between frames measured while the zone loads, in a release build at
-  1280 × 720 on the RX 6900 XT, with 1, 2 and 4 loading threads; the fallback if the bar is missed;
-  the game's README.
-- **Done when.** While the zone loads, no interval between frames above 33 ms on the RX 6900 XT; a
-  test shows the rules still until the zone is there; the game runs in the headless Weston; the
-  owner plays it; CI is green.
-- **How to test.** `cargo run --release -p hunnawood`.
-- **Outcome.** Done on 2026-10-15. The owner ran it on Linux, in a window of 1901 × 2082 pixels:
-  the zone came after three frames, none more than 20 ms apart. The bar holds, by day and at night,
-  with a margin ([ADR-0074](adr/0074-uploading-textures-without-holding-up-frames.md) holds
-  the figures). Measuring it found what held frames up, and changed three things that the
-  milestone did not plan: textures reach the GPU through buffers of their own, in `slime-gfx`,
-  rather than through wgpu's queue writes, whose lock held up the renderer's submissions;
-  `slime-render` gives the lights of a cooked scene before it is loaded (`scene_lights`), so that
-  the game computes its night sky, around the zone's moon, before its first frame; and the hero
-  loads before the first frame, so that the first shadows do not come in the middle of the zone's
-  load. The loading view is the sky and the hero, lit by the zone's lights. On the RX 6900 XT, with
-  the files in the system's cache, the zone is drawn after a few frames, or from the first; it takes
-  longer on slower machines. The fallback of ADR-0072, uploads from the main thread, was not
-  needed; the owner chose the buffers of `slime-gfx` over it, once the two were laid out. The
-  `scene` example loads its scene in the background too, as the rule of one example per notable
-  feature asks.
-
-### M4b.3 — Recovering from a lost GPU device
-
-- **Goal.** An application that chooses it goes on after a lost GPU device.
-- **Crates.** `slime-gfx`, `slime-app`; `slime-devui` and `slime-render` for what they create.
-- **Delivers.** The kind of a loss: the driver's, the application's own, memory that ran out; a new
-  device opened through the lost one's instance, with or without a window, and the window's surface
-  created again; the run's setting that chooses recovery and the method of `App` that it calls once
-  the new device is open; the lost device kept until the new one opens; the limits: no CPU adapter
-  after a hardware one, three recoveries in a row without a presented frame, a device that ran out
-  of memory; a way to lose the device on purpose; scenarios of the windowed lifecycle test where the
-  device is restored, and lost again; the ADR that amends ADR-0022; the documents.
-- **Done when.** Tests: a new device draws the same pixels as the lost one did; an object of the
-  lost device is refused by the new one; a device that ran out of memory is not replaced; an
-  application that does not choose recovery stops as before; the two scenarios pass in the headless
-  Weston; CI is green.
-- **How to test.** `cargo test -p slime-gfx -p slime-app`; `scripts/check.sh`.
-- **Outcome.** Done on 2026-10-15
-  ([ADR-0075](adr/0075-recovering-from-a-lost-gpu-device.md)). `Gpu::lose` records the loss at
-  once, without the poll that destroying a device through wgpu needed: the `device-lost` scenario
-  now goes through the release of the window's image by `SurfaceFrame::present` after a loss,
-  which was checked by hand only, and the tests of `slime-app` and `slime-render` no longer need
-  wgpu. A device lost because memory ran out is refused by the test that makes it run out; the
-  refusal of a CPU adapter is tested where the tests run on one, lavapipe and WARP. A real driver
-  reset is M4b.4's, by hand. A review found that Direct3D 12 opens no device on an adapter while a
-  removed one exists in the process: the owner chose two steps, `App::gpu_lost` to release every
-  object of the lost device, then `App::gpu_restored`, as Microsoft's templates do, over keeping
-  one step and recovering on Vulkan only. The `lost-now-and-then` scenario checks that the count of
-  new devices in a row starts again after a frame shown.
-
-### M4b.4 — Hunna Wood goes on after a lost device
-
-- **Goal.** *Hunna Wood* goes on after a lost GPU device.
-- **Crates.** `games/hunnawood`.
-- **Delivers.** The game choosing recovery: its view, statistics and dev overlay made again, its
-  zone loaded again in the background behind the loading view, its run kept (where the hero
-  stands, the key, the door, the time of day); `--lose-device-at <frame>`; a button of the dev
-  overlay that loses the device; `scripts/check.sh` running the game with `--lose-device-at`; the
-  game's README.
-- **Done when.** The game, losing its device in the headless Weston, draws frames after the loss with
-  its run kept; the owner's reports from Linux, with a driver reset, and from the Windows virtual
-  machine, with a forced TDR.
-- **How to test.** `cargo run -p hunnawood -- --lose-device-at 300`; the button of the dev overlay
-  (F1).
-- **Outcome.** Done on 2026-10-15, without the owner's reports, which M4b.9 takes. The game
-  loses its device on purpose, from `--lose-device-at` or the dev overlay, and goes on with a new
-  one: on the RX 6900 XT, in a window, and on lavapipe, in the headless Weston, where
-  `scripts/check.sh` now runs it. Its run is kept, and the log says where it was. On Windows, CI's
-  tests replace a lost device without a window on WARP, through Direct3D 12; nothing has yet
-  replaced one with a window there. A real driver reset was not checked: on Linux, the two that
-  happened on the owner's machine that day, caused by other programs, ended the compositor and the
-  session with it (see [Known debt](#known-debt)), and the Windows virtual machine was out of
-  reach. The owner chose to leave both checks to M4b.9: on Linux in a KDE Plasma session, on
-  Windows with the button and a forced TDR.
-
-### M4b.5 — Materials that change in place
-
-- **Goal.** A game changes a material's values while it runs.
-- **Crates.** `slime-render`, `games/hunnawood`.
-- **Delivers.** A material's values read and changed in place, its textures fixed; a loaded scene's
-  materials found by name; *Hunna Wood*'s campfire flickering, its flames, its embers and its light
-  together, and the key glowing in pulses at night; the documents.
-- **Done when.** Tests: a material changed draws as one made with the new values; values refused
-  at creation are refused in place too; a name that no material has finds none; the owner sees the
-  fire.
-- **How to test.** `cargo test -p slime-render`; `cargo run -p hunnawood -- --night`.
-- **Outcome.** Done on 2026-10-15. The owner looked at the fire and the key at night, on Linux. A
-  material keeps its values in its uniform buffer, which `Material::set_values` writes for the
-  frames submitted after it, and its clones share them. Creation refused no value before: the
-  test that the plan asked for needed it to, so creation and changes now refuse the same values,
-  out of glTF's ranges or not finite, which the cooked zone and the samples keep within; the
-  cooker refuses them in glTF files, as it refuses lights that glTF forbids. The
-  game finds the campfire's light as the night's point light at the campfire, since the light's
-  node has no name of its own (Blender named it `campfire.001`). The `scene` example changes how
-  strongly its ring glows, as the rule of one example per notable feature asks. The rustdoc of
-  `MaterialValues` and `Material::set_values` holds the contracts; ADR-0072 holds the decision.
-
-### M4b.6 — Hot reload of cooked data
-
-- **Goal.** A texture changed on disk changes in the running game.
-- **Crates.** `slime-cook`, `slime-assets`, `slime-render`, `games/hunnawood`, `slime-examples`.
-- **Delivers.** `slime-cook watch`; temporary files named with the process ID; the manifest written
-  only when its content changes; cooked data that reads a new manifest; a scene loaded again in the
-  background, reusing the GPU objects that did not change; `--watch` in *Hunna Wood* and the `scene`
-  example; the zone's rules read again, the run starting again when the game's layout changed; a
-  reload that fails keeping the old scene; how the cooker names a glTF file's outputs measured,
-  since a name made from the whole file changes every output when one part changes, and changed if
-  it defeats the reuse; the ADR on hot reload; the documents (`CONTRIBUTING.md`, the game's
-  README, `examples/README.md`).
-- **Done when.** Tests: `watch` cooks a changed image, and only what it makes; two cooks at once
-  leave the cooked data whole; the manifest unchanged by a cook that changed nothing; a reloaded
-  scene draws the new texture and keeps the objects that did not change; a change of layout starts
-  the run again, a change of looks does not; by hand, a texture of the zone changed while the game
-  runs, and the owner tries it; CI is green.
-- **How to test.** `cargo run --release -p slime-cook -- watch games/hunnawood/assets/zone
-  target/cooked/hunnawood` beside `cargo run -p hunnawood -- --watch`.
-- **Outcome.** Done on 2026-10-15
-  ([ADR-0076](adr/0076-hot-reload-of-cooked-data.md)). The owner tried it on a copy of the zone: a
-  texture changed while the game ran showed at once, the zone's 74 meshes and 55 of its 56
-  textures kept, and a parapet of the bridge moved started the run again; the same changes were
-  tried before, on copies, by the agent. The measure that the plan asked for kept the cooker's
-  names: a change of the zone's glTF file renames its meshes, materials and scene, and keeps its
-  textures, nearly all its bytes. Beyond the plan, `slime_assets::ManifestWatch`, which the game
-  and the `scene` example share, and a watch that cooks once the sources have settled, so that an
-  export of several files is cooked whole. Playing under Hyprland found a bug of M4b.2, fixed in a
-  commit of its own: wgpu fails to configure a window's surface while another thread submits work,
-  as loading threads do, and the window that Hyprland resized during the zone's first load lost its
-  surface, and three times in a row stopped the run; the `Gpu`'s submissions now wait while a
-  surface is configured, which a scenario of the windowed lifecycle test checks.
-
-### M4b.7 — Hot reload of shaders
-
-- **Goal.** A shader changed on disk changes in the running game.
-- **Crates.** `slime-gfx`, `slime-render`, `games/hunnawood`, `slime-examples`.
-- **Delivers.** Uniform layouts that declare their minimum sizes; the renderer's shaders as sources
-  that it can be given while it runs, embedded by default; its pipelines made again from new
-  sources, all or none, the old ones kept on an error that names its line and column; with
-  `--watch`, *Hunna Wood* and the `scene` example reading the shaders from `crates/slime-render/src`
-  and giving them to the renderer when they change; the pause measured on Direct3D 12; the
-  documents.
-- **Done when.** Tests: a shader that does not fit its data refused when its pipeline is made; new
-  sources equal to the embedded ones draw the same pixels; a broken shader keeps the old pipelines
-  and reports its line and column; by hand, a change in a shader seen in the running game; CI is
-  green on both platforms.
-- **How to test.** `cargo run -p hunnawood -- --watch`, then edit a shader.
-- **Outcome.** Done on 2026-10-15 ([ADR-0077](adr/0077-hot-reload-of-shaders.md)). The owner
-  changed `tone_mapping.wgsl` while the game ran: the change showed within a second, a shader broken
-  on purpose left the frames as they were while the log named its line and column, and the file
-  put back showed again. Making the ten pipelines again takes 7 ms on the RX 6900 XT in a release
-  build when the driver's cache holds the shaders, 76 ms when it does not, 45 ms on lavapipe, and
-  62 ms on Direct3D 12 with WARP, in CI's debug build; on a GPU under Direct3D 12, it is not
-  measured, the virtual machine being out of reach. Uniform bindings declare their sizes, which
-  the plan asked for. Beyond the plan, the review found a test that matched the end of a line,
-  which a checkout on Windows turns into CRLF, before CI ran it.
-
-### M4b.8 — Refining Hunna Wood
-
-- **Goal.** *Hunna Wood* refined with hot reload, on the owner's list.
-- **Crates.** `games/hunnawood`: its zone's script and assets.
-- **Delivers.** At most five points, which the owner chooses at the start of the milestone, among
-  what was left to refine while playing at Stage 4a or what they noticed since: the leaf cards,
-  which read as cards up close; the stone and the ground, warmer than the zone's grey palette; the
-  fire, three glowing tongues until particles; the hero's smooth face; the capital's picture,
-  larger than the sizes decided at Stage 4a. No new engine feature; new source
-  assets and new releases of the mirror only with the owner's agreement
-  ([ADR-0070](adr/0070-the-sample-games-source-assets.md)).
-- **Done when.** The owner's report on each point; the tests of the cooked zone, budgets included,
-  pass; CI is green.
-- **How to test.** Playing it.
-- **Outcome.** Done on 2026-10-15. The owner chose three points: the leaf cards; the stone and the
-  ground, made colder and greyer, the rocks with them, as the note taken while playing at Stage 4a
-  asked; and the capital's picture, within the sizes of Stage 4a and farther away, as the same note
-  asked. The oaks' cards
-  are 55 to 80 cm instead of 1.2 to 1.7 m, four times as many, facing out of the crown, with normals
-  that point out of it, so that a crown is lit as a mass of leaves; the conifers' cards carry such
-  normals too. The photographed textures of the ground, the rocks and the stone lose most of their
-  saturation and take a cold gain, written under their own names so that their asset IDs stay. The
-  capital's picture is 2048 × 768, the city farther and hazier. The owner looked at the zone in the
-  game and approved it, and the mirror's release `hunnawood-6`, which holds the twelve exported
-  files that changed. The zone keeps within its budgets: 705 859 triangles and 144 MiB of
-  textures; on lavapipe, the day's shadow pass took 6.0 s instead of 6.2 s (see
-  [Known debt](#known-debt)). Two things were found on the way: Blender's glTF importer packs the
-  images it reads, so the export wrote the original of a graded image until the script unpacked
-  them; and Blender exported the hero again with other bytes though nothing of it changed, so the
-  file already on the mirror was kept.
-
-### M4b.9 — Windows check, documentation, close
-
-- **Goal.** Stage 4b is done; Stage 5 is planned.
-- **Crates.** All, for their documents.
-- **Delivers.** The documents reread as a newcomer would; `CHANGELOG.md`'s `[Unreleased]` section;
-  the owner plays the game from CI's Windows programs, and loses its device there, from the dev
-  overlay and with a forced TDR (`dxcap -forcetdr`); the driver reset on Linux, in a KDE Plasma
-  session, since niri and Hyprland do not survive one (see [Known debt](#known-debt)): the checks
-  by hand that M4b.4 left; Stage 4b marked done; Stage 5 planned with the owner. No release: what
-  the stage delivers is released with 0.3, at the end of Stage 5a
-  ([ADR-0078](adr/0078-stage-5-in-two-halves.md)).
-- **Done when.** The exit criterion holds, on Linux and on Windows: hot reload by hand on Linux and
-  through CI's tests on Windows, since CI's Windows programs hold no cooker and no shader sources
-  (ADR-0072); CI is green.
-- **How to test.** Reading; CI; playing it.
-- **Where it stands.** The documents were reread, and `CHANGELOG.md`'s `[Unreleased]` section
-  written, on 2026-10-15; Stage 5 was planned with the owner on 2026-10-16 (ADR-0078 to
-  [ADR-0081](adr/0081-stage-5a-the-world.md)). The owner's checks by hand remain, which they run
-  when they choose; Stage 4b is marked done after them. Meanwhile, Stage 5a is the stage being
-  worked on (ADR-0081). The owner plays the game from CI's Windows programs at M5a.10, if not
-  before.
 
 ## Releasing
 
@@ -684,7 +377,8 @@ cooked and the notice that credits its assets among them.
 | 3b — Physically based renderer → 0.1 | M3b.1 GPU layer for multi-pass rendering; M3b.2 HDR rendering and tone mapping; M3b.3 physically based materials; M3b.4 light types; M3b.5 shadows; M3b.6 image-based lighting; M3b.7 bloom; M3b.8 render graph; a pass over the known debt; M3b.9 Windows check, documentation, release | Done; released as 0.1 (tag `v0.1.0`), with the Windows examples on its GitHub release. Content listed in [`CHANGELOG.md`](../CHANGELOG.md). |
 | 3c — A first game | M3c.1 skeleton; M3c.2 guards, detection and the objective; M3c.3 night, feel and the Windows check; M3c.4 findings for the next stages | Done; no release of its own: its game, *Nightwatch*, is never released, as *Hunna Wood* replaces it in Stage 4a ([ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)). The stage each of its findings goes to is in [ADR-0057](adr/0057-what-the-first-game-asks-of-the-next-stages.md), and the two that became Stage 3d in [ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md). |
 | 3d — Anti-aliasing and the shadows of spot lights | M3d.1 multisampling in the GPU layer; M3d.2 anti-aliasing in the renderer; M3d.3 spot lights' shadows: what each tile sees; M3d.4 spot lights' shadows: drawn and read; M3d.5 *Nightwatch* and the Windows check; M3d.6 a smoother shadow filter; M3d.7 what each cascade sees; M3d.8 the cascades read; M3d.9 *Nightwatch* at 3840 × 2160 | Done; no release of its own: what it delivers is released with 0.2. Its decisions are in [ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md) and ADR-0058 to [ADR-0065](adr/0065-reading-the-cascades.md); the cost of its scene pass on Direct3D 12, with each shader compiler, is in the [Known debt](#known-debt). |
-| 4a — Cooked assets → 0.2 | M4a.1 *Hunna Wood*'s skeleton; M4a.2 asset identity; M4a.3 images; M4a.4 glTF; M4a.5 the sample scene through the pipeline; M4a.6 the zone's sources; M4a.7 *Hunna Wood* by day; M4a.8 night; M4a.9 Windows check, documentation, release 0.2 | Done, released as 0.2 on 2026-10-15. Its decisions are in [ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md) to [ADR-0071](adr/0071-cooked-textures.md); the zone's budgets are set by the test that checks them, in `games/hunnawood/src/zone.rs`, and what was left to refine goes to [M4b.8](#m4b8--refining-hunna-wood). |
+| 4a — Cooked assets → 0.2 | M4a.1 *Hunna Wood*'s skeleton; M4a.2 asset identity; M4a.3 images; M4a.4 glTF; M4a.5 the sample scene through the pipeline; M4a.6 the zone's sources; M4a.7 *Hunna Wood* by day; M4a.8 night; M4a.9 Windows check, documentation, release 0.2 | Done, released as 0.2 on 2026-10-15. Its decisions are in [ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md) to [ADR-0071](adr/0071-cooked-textures.md); the zone's budgets are set by the test that checks them, in `games/hunnawood/src/zone.rs`, and what was left to refine went to Stage 4b's M4b.8. |
+| 4b — Live assets | M4b.1 a shared GPU and a task pool; M4b.2 the zone loads while frames go on; M4b.3 recovering from a lost GPU device; M4b.4 *Hunna Wood* goes on after a lost device; M4b.5 materials that change in place; M4b.6 hot reload of cooked data; M4b.7 hot reload of shaders; M4b.8 refining *Hunna Wood*; M4b.9 Windows check, documentation, close | Done on 2026-10-16; no release of its own: what it delivers is released with 0.3, at the end of Stage 5a. Its decisions are in [ADR-0072](adr/0072-stage-4b-live-assets.md) to [ADR-0077](adr/0077-hot-reload-of-shaders.md). The owner checked the recovery from a lost device by hand at its close: in the Windows virtual machine, from the dev overlay and by a forced TDR, and in a KDE Plasma session after a real reset of the GPU (see [Known debt](#known-debt)). |
 
 The details of each completed milestone (what it delivered, how it was checked, what was measured)
 are in the history of this file and in the commits that implemented it; the measurements that
@@ -746,15 +440,17 @@ GitHub issues, linked from their entry; this list stays the reference.
   (ADR-0075). A reset reaches every program that uses the GPU. Mesa ends the ones that did not ask
   to be told of it, as niri, Hyprland and COSMIC do not: on 2026-10-15, programs that hung the
   owner's RX 6900 XT made the amdgpu driver reset it twice, and niri ended each time, taking the
-  session with it. KDE Plasma's KWin recovers from resets, and a game built on SlimeEngine can go
-  on there; checking it by hand is part of M4b.9. On Windows, the desktop's compositor survives
-  resets.
+  session with it. KDE Plasma's KWin recovers from resets: on 2026-10-16, after a reset forced on
+  the owner's machine in a Plasma session, *Hunna Wood* opened a new device 70 ms after it found the
+  loss and drew its zone again 2 s later, its run kept, while the terminal it was started from and
+  Plasma's panel ended. On Windows, the desktop's compositor survives resets, and the game went on
+  after a forced timeout detection and recovery (TDR) in the owner's virtual machine.
 - **A lost GPU device is replaced only for the applications that ask for it** (ADR-0075; issue
   [#2](https://github.com/HoneySlatt/SlimeEngine/issues/2)): the others stop with an error, and
   since winit allows one event loop per process, carrying on means starting the process again. An
   application that asks drops and creates its GPU objects again itself, as *Hunna Wood* does. A
-  real driver reset can only be checked by hand, which M4b.9 does. A restore that fails in a windowed run is
-  not tested: nothing makes one fail on purpose there.
+  real driver reset can only be checked by hand, as it was at Stage 4b's end (above). A restore
+  that fails in a windowed run is not tested: nothing makes one fail on purpose there.
 - **In capture tools, the sky pass shows as a second `scene`.** A pass is named after the target it
   draws into, and the sky pass draws into the scene's high-dynamic-range target, after the scene
   pass (`declare_frame` in `crates/slime-render/src/renderer.rs`); only its pipeline is named `sky`.
@@ -1090,4 +786,5 @@ GitHub issues, linked from their entry; this list stays the reference.
   the next more than the code changes between them. At 0.1 (M3b.9, 2026-10-14): Linux 5 minutes 40
   seconds, Windows 11 minutes 32 seconds, of which the tests take 4 minutes 31 seconds and the
   release build of the examples 3 minutes 24 seconds. The owner decided then to keep CI as it is,
-  the repository being public and its minutes free, and to reconsider past 20 minutes.
+  the repository being public and its minutes free, and to reconsider past 20 minutes. With
+  `slime-world` (M5a.1, 2026-10-16): Linux 10 minutes 25 seconds, Windows 17 minutes 20 seconds.
