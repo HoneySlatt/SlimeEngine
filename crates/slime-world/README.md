@@ -9,8 +9,8 @@ Started in M5a.1 (`docs/PLAN.md`). A world gives out entity handles, keeps the c
 to them, and finds the entities that hold the components a query asks for. It keeps each entity's
 parent and children and where each one is in the world, and spawns a cooked scene as entities with
 persistent identities. Its components say what is drawn, by asset ID, and it keeps where what moved
-during the last fixed step was, to draw it between its two transforms. It cannot be saved yet
-(M5a.8).
+during the last fixed step was, to draw it between its two transforms; `slime-world-render` draws
+it. It cannot be saved yet (M5a.8).
 
 ## Role
 

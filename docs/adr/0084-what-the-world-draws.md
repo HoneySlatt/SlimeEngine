@@ -68,9 +68,12 @@ reach the GPU as `f32`s, as [ADR-0048](0048-rendering-relative-to-the-camera.md)
 function, and depends on nothing; `slime-gfx`, `slime-render`, `slime-cook` and `slime-world` use
 it. `slime-gfx` keeps the conversion to wgpu's clear color to itself.
 
-**The bridge is `slime-world-render`.** At each frame it builds, from the world and the cache, the
-instances to draw, the lights, and the sky's environment; it skips the entities whose meshes are not
-yet loaded, and asks the cache for them. The camera, the exposure and the bloom stay the game's.
+**The bridge is `slime-world-render`.** At each frame, `FrameBuilder::build` takes the batches the
+cache finished, then builds, from the world and the cache, the instances to draw, the lights, and
+the sky's environment, which it keeps; it skips the entities whose meshes are not yet loaded, and
+asks the cache for them. Its `Frame` says how many meshes are still on their way (`loading`) and why
+the batches that failed did; `Frame::scene(camera)` is the renderer's `Scene`. The camera, the
+exposure and the bloom stay the game's.
 
 **The sun is given once.** A directional light of the world has a field that says it shows in the
 sky, with its disc and its glow. The bridge gives that light to the sky as its sun and to the lights;
@@ -99,8 +102,13 @@ descendants be drawn at once where they are now. A stretch is not interpolated: 
 the world before and after each `fixed_update`, and computes its transforms again after `update`, so
 that a change made outside a step is drawn at once.
 
-**An example, `world`**, draws the examples' cooked scene from a world, with something that moves
-at the fixed step, headless too.
+**An example, `world`**, draws the examples' cooked scene from a world, its glowing ring floating at
+the fixed step with its light, headless too, and goes on after a lost device.
+
+**Measured** in a release build on the owner's machine (Ryzen 7 5800X, RX 6900 XT): *Hunna Wood*'s
+zone spawned in a world, its 430 meshes loaded by the cache in one batch in 170 ms, a frame of its
+429 instances and 9 lights is built in 74 µs on the CPU (`hunnawood`'s ignored test
+`what_building_a_frame_of_the_zone_s_world_costs`).
 
 ## Alternatives considered
 

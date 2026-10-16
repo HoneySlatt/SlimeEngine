@@ -22,6 +22,8 @@
 //! tested with it, in `crates/slime-cook/tests/gltf.rs`. The unit tests of `common/orbit.rs` run here
 //! too.
 
+#[path = "../common/cooked.rs"]
+mod cooked;
 #[path = "../common/orbit.rs"]
 mod orbit;
 #[path = "../common/reference_image.rs"]
@@ -36,9 +38,9 @@ mod sample_scene;
 
 use std::borrow::Cow;
 use std::fs;
-use std::path::{Path, PathBuf};
-use std::sync::OnceLock;
+use std::path::Path;
 
+use cooked::{directory, sample};
 use gltf::json::Value;
 use slime_assets::{AssetId, CookedAssets, CookedScene};
 use slime_gfx::{Gpu, Image, TextureFormat};
@@ -54,19 +56,6 @@ fn gpu() -> Gpu {
     Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers")
 }
 
-/// A directory of its own for `name`, emptied, under Cargo's directory for the temporary files of
-/// integration tests.
-fn directory(name: &str) -> PathBuf {
-    let path = Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .join("slime-examples-gltf")
-        .join(name);
-    if path.exists() {
-        fs::remove_dir_all(&path).expect("the test's old directory can be removed");
-    }
-    fs::create_dir_all(&path).expect("the test's directory can be created");
-    path
-}
-
 /// The scene `scene` of `assets`, loaded and drawn by a renderer for targets of `format`.
 fn load(gpu: &Gpu, format: TextureFormat, assets: &CookedAssets, scene: AssetId) -> SampleScene {
     let renderer = Renderer::new(gpu, format).expect("the renderer");
@@ -74,20 +63,6 @@ fn load(gpu: &Gpu, format: TextureFormat, assets: &CookedAssets, scene: AssetId)
         .load_scene(gpu, assets, scene)
         .expect("the scene loads");
     SampleScene::new(gpu, renderer, loaded).expect("the scene places a mesh, under a sky")
-}
-
-/// The sample's sources cooked, once for the tests of this program.
-fn sample() -> &'static CookedAssets {
-    static SAMPLE: OnceLock<CookedAssets> = OnceLock::new();
-    SAMPLE.get_or_init(|| {
-        let cooked = directory("sample");
-        slime_cook::cook(
-            Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")),
-            &cooked,
-        )
-        .expect("the sample cooks");
-        CookedAssets::open(&cooked).expect("the sample's manifest is read")
-    })
 }
 
 #[test]

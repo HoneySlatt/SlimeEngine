@@ -850,6 +850,7 @@ dependencies = [
  "slime-platform",
  "slime-render",
  "slime-world",
+ "slime-world-render",
  "tracing",
 ]
 
@@ -2062,6 +2063,7 @@ dependencies = [
  "slime-platform",
  "slime-render",
  "slime-world",
+ "slime-world-render",
  "tracing",
 ]
 
@@ -2108,6 +2110,17 @@ dependencies = [
  "slime-assets",
  "slime-color",
  "thiserror 2.0.21",
+ "tracing",
+]
+
+[[package]]
+name = "slime-world-render"
+version = "0.2.0"
+dependencies = [
+ "slime-color",
+ "slime-gfx",
+ "slime-render",
+ "slime-world",
  "tracing",
 ]
 

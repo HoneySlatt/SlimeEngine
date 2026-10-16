@@ -500,4 +500,67 @@ pub mod cooked {
             }
         }
     }
+
+    /// Prints what building a frame of the zone's world costs on the CPU, once the asset cache
+    /// holds its meshes: the instances, the lights and the sky's environment that
+    /// `slime-world-render` gives the renderer, which the game builds by hand today. Run it in a
+    /// release build: `cargo test --release -p hunnawood -- --ignored --nocapture frame_of_the_zone`.
+    #[test]
+    #[ignore = "a measurement, which needs the cooked zone and a GPU"]
+    fn what_building_a_frame_of_the_zone_s_world_costs() {
+        use std::time::{Duration, Instant};
+
+        use slime_gfx::{Gpu, TextureFormat};
+        use slime_render::{AssetCache, Renderer};
+        use slime_world::World;
+        use slime_world_render::FrameBuilder;
+
+        let (assets, _) = zone();
+        let scene = assets.scene(assets::zone_id()).expect("the zone is cooked");
+        let mut world = World::new();
+        world.spawn_scene("zone", &scene).expect("spawned");
+        world.update_transforms();
+        let gpu = Gpu::new().expect("a GPU adapter must be available");
+        let renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
+        let mut cache = AssetCache::new(assets);
+        // Without a sky: its environment is made once, and is not what a frame costs.
+        let mut builder = FrameBuilder::new(None);
+        let started = Instant::now();
+        loop {
+            let frame = builder
+                .build(&world, &mut cache, &renderer, &gpu, 0.0)
+                .expect("the frame is built");
+            assert!(frame.errors.is_empty(), "{:?}", frame.errors);
+            if frame.loading == 0 {
+                break;
+            }
+            assert!(
+                started.elapsed() < Duration::from_secs(60),
+                "the zone still loads"
+            );
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        eprintln!("the zone's meshes loaded in {:?}", started.elapsed());
+        let mut times: Vec<Duration> = (0..200)
+            .map(|_| {
+                let started = Instant::now();
+                let frame = builder
+                    .build(&world, &mut cache, &renderer, &gpu, 0.5)
+                    .expect("the frame is built");
+                std::hint::black_box((frame.instances.len(), frame.lights.len()));
+                started.elapsed()
+            })
+            .collect();
+        times.sort_unstable();
+        let frame = builder
+            .build(&world, &mut cache, &renderer, &gpu, 0.5)
+            .expect("the frame is built");
+        eprintln!(
+            "a frame of the zone's world, {} instances and {} lights: {:?} at best, {:?} at the median",
+            frame.instances.len(),
+            frame.lights.len(),
+            times[0],
+            times[times.len() / 2]
+        );
+    }
 }

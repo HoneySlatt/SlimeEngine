@@ -24,5 +24,7 @@ slime-render.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
-# The world, which a test of the cooked zone spawns it in, until the game runs on it (M5a.4).
+# The world, which a test of the cooked zone spawns it in, until the game runs on it (M5a.4), and
+# what draws it, whose cost a measurement prints.
 slime-world.workspace = true
+slime-world-render.workspace = true

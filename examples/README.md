@@ -15,27 +15,30 @@ cargo run --example <name> [-- <arguments>]
 | [`window`](window.rs) | A window in which the GPU draws the samples' triangle, which follows resizes; its events logged (window, keys, mouse; cursor motion with `SLIME_LOG=debug`); Escape, closing it or Ctrl+C quits cleanly. The sample of Stage 2 | `--frames <count>` closes it after that many frames and, with a window, fails if none of them drew the triangle; `--headless` runs the same program without a window; `--present-mode mailbox|fifo` chooses how images are shown (default `mailbox`) |
 | [`offscreen`](offscreen.rs) | Rendering without a window: the GPU draws a triangle into an image, which is read back and written to a PNG file; works on software drivers (lavapipe, WARP) | `--output <file>` (default `triangle.png`) |
 | [`scene`](scene.rs) | A scene cooked by the asset pipeline ([ADR-0069](../docs/adr/0069-the-asset-pipeline.md)) and drawn by the renderer (`slime-render`): the asset of [`assets/scene.glb`](assets/README.md), cooked first (below), or any scene that `slime-cook` cooked, with its physically based materials, lit in physical units by the lights its nodes place (the asset's sun, the light of its glowing ring and a spot light) or, for a scene without lights, by the sample's sun, and by a clear blue sky around the first directional light, drawn behind the scene with the sun's disc (above what the camera can see in the asset, whose sun is high) and a bloom that makes bright light glow, seen from a camera that orbits it until the mouse takes over (drag with the left button to turn, from level with the scene to nearly straight down, roll the wheel to come nearer or farther), with a dev overlay showing the frame time, the CPU time of the render, the GPU time of each pass (shadow, scene, sky, bloom, tone mapping), the draw calls and triangles, the draw calls for shadows, the CPU time taken by the sky once the scene was loaded, an exposure slider in a photographer's exposure values, EV100, and a bloom strength slider, from none to five times the sample's, and, for the sample's asset, a slider of how strongly its ring glows, from none to four times, which changes the ring's material while the example runs, found by its name (`LoadedScene::material`, `Material::set_values`) (F1 hides it); Escape, closing the window or Ctrl+C quits cleanly. It loads the scene in the background (`Renderer::load_scene_in_background`), its frames showing the sky's horizon until the scene is loaded. The sample of Stages 3a, 3b, 4a and 4b | `--assets <directory>` reads the cooked data of another directory (by default, `assets` beside the program when it holds a manifest, as in the Windows artifact below, and `target/cooked/examples` otherwise); `--scene <id>` draws another of its scenes, by its ID (a glTF file's default scene has the file's ID); `--frames <count>` closes it after that many frames that drew the scene, and fails if none did; `--watch` loads the scene again, keeping what did not change, when its cooked data changes, beside `slime-cook watch` running on its sources ([ADR-0076](../docs/adr/0076-hot-reload-of-cooked-data.md)), and the renderer's shaders when their files change ([ADR-0077](../docs/adr/0077-hot-reload-of-shaders.md)) |
+| [`world`](world.rs) | The examples' cooked scene drawn from a world ([ADR-0084](../docs/adr/0084-what-the-world-draws.md)): spawned in the world that `slime-app` keeps (`Context::world_mut`, `World::spawn_scene`), its meshes loaded by an asset cache in the background (`slime_render::AssetCache`), and drawn through `slime-world-render` (`FrameBuilder`), the file's first directional light showing in the sky as its sun; the glowing ring floats up and down at the fixed step, its light with it, and each frame draws it between its last two places (`World::interpolated_transform`); the camera turns around the scene; after a lost GPU device the cache loads the world's meshes again, and the world is untouched; Escape, closing the window or Ctrl+C quits | `--assets <directory>` as for `scene`; `--frames <count>` closes it after that many frames that drew the whole world, and fails if none did; `--headless` runs the world without a window: the ring floats, nothing is drawn, and the run fails if the ring did not float; `--watch` draws again what changes in the cooked data (`AssetCache::reload`), spawning the scene again if it changed |
 
 On Windows, the same commands work with the toolchain described in
 [`CONTRIBUTING.md`](../CONTRIBUTING.md#on-windows). Each CI run on GitHub also publishes
-`hello.exe`, `headless.exe`, `window.exe`, `offscreen.exe` and `scene.exe` built for Windows, as the
-artifact `slime-examples-windows`, with the game, `hunnawood.exe`
+`hello.exe`, `headless.exe`, `window.exe`, `offscreen.exe`, `scene.exe` and `world.exe` built for
+Windows, as the artifact `slime-examples-windows`, with the game, `hunnawood.exe`
 ([`games/hunnawood`](../games/hunnawood/README.md)) and its cooked zone, to run on a Windows machine
 without a Rust toolchain. They link the C runtime of the MSVC toolchain statically, so they start on a
 fresh Windows install too, without the Visual C++ Redistributable. Run them from a terminal (Windows
 Terminal, PowerShell or cmd): started by a double click, their console closes with them, and an
 error at startup disappears with it.
 
-The `scene` example reads cooked data, which the cooker (`slime-cook`,
+The `scene` and `world` examples read cooked data, which the cooker (`slime-cook`,
 [`crates/slime-cook`](../crates/slime-cook/README.md)) makes from the sources in
 [`assets/`](assets/README.md). Cook them once, and again after a source changes:
 
 ```sh
 cargo run -p slime-cook -- cook examples/assets target/cooked/examples
 cargo run --example scene
+cargo run --example world
 ```
 
-The Windows artifact holds the sample cooked for `scene.exe`, in `assets` beside it.
+The Windows artifact holds the sample cooked for `scene.exe` and `world.exe`, in `assets` beside
+them.
 
 The log level of every example is set by the `SLIME_LOG` environment variable, for example
 `SLIME_LOG=debug cargo run --example hello`.
@@ -46,9 +49,11 @@ The log level of every example is set by the `SLIME_LOG` environment variable, f
   needed with `#[path = "common/<file>.rs"] mod <file>;`: the triangle that `window`, `offscreen`
   and its image test draw, and its shader; the sample scene, a cooked scene loaded with its sun, sky
   and exposure in physical units (`sample_scene.rs`) and the camera placed around a point
-  (`orbit.rs`), which `scene` and its image test share; the shapes (a cube, a sphere, a checker
-  texture, six small spheres of increasing roughness, dielectric and metal, their materials, light
-  and sky) of another image test; PNG writing; and the comparison with a reference image.
+  (`orbit.rs`), which `scene` and its image test share; the sample cooked once for the tests of
+  one program, and a directory of its own for each test (`cooked.rs`); the shapes (a cube, a
+  sphere, a checker texture, six small spheres of increasing roughness, dielectric and metal, their
+  materials, light and sky) of another image test; PNG writing; and the comparison with a reference
+  image.
 - [`assets/`](assets/README.md) holds the sample scene, the Blender script that made it, and its
   license.
 - The image tests compare a render with a reference, within a tolerance
@@ -73,6 +78,12 @@ The log level of every example is set by the `SLIME_LOG` environment variable, f
   (`slime-world`), which places each node where its file does. What the importer refuses is tested
   with it, in [`crates/slime-cook/tests/gltf.rs`](../crates/slime-cook/tests/gltf.rs). The unit
   tests of `common/orbit.rs` run in `tests/gltf.rs` too.
+- [`tests/world.rs`](tests/world.rs) spawns the sample in a world and draws it through
+  `slime-world-render`, from the meshes of an asset cache: the instances that the scene loaded by
+  the renderer gives, and the reference images of `tests/gltf.rs`, within the same tolerance; the
+  ring moved at fixed steps, drawn where the fraction of a step puts it, and not sliding when
+  teleported; a hidden subtree and its light left out; and, after a lost device, the same image
+  drawn from the cache made again, the world untouched.
 
 To add an example, put its source in this directory, declare it as an `[[example]]` in
 [`Cargo.toml`](Cargo.toml), give it a module comment saying what it shows and how to run it, and

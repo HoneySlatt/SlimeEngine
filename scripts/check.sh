@@ -61,6 +61,9 @@ cargo test --locked -p hunnawood -- --ignored
 step "Headless samples (no display server)"
 env -u WAYLAND_DISPLAY -u DISPLAY cargo run --locked --example headless -- --frames 600
 env -u WAYLAND_DISPLAY -u DISPLAY cargo run --locked --example window -- --headless --frames 600
+# The world example's world runs without a window; it fails if its ring did not float.
+env -u WAYLAND_DISPLAY -u DISPLAY \
+    cargo run --locked --example world -- --assets "$cooked/first" --headless --frames 600
 env -u WAYLAND_DISPLAY -u DISPLAY VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
     cargo run --locked --example offscreen -- --output target/triangle.png
 
@@ -95,6 +98,10 @@ env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_
 # The scene example draws the sample cooked above.
 env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
     timeout -k 10 120 cargo run --locked --example scene -- --assets "$cooked/first" --frames 120 ||
+    { cat "$runtime/slime-check.log"; exit 1; }
+# The world example draws it from a world, and fails if no frame drew all of it.
+env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+    timeout -k 10 120 cargo run --locked --example world -- --assets "$cooked/first" --frames 120 ||
     { cat "$runtime/slime-check.log"; exit 1; }
 # The game too (ADR-0055), by day and at night. It draws the zone cooked above; a frame of it takes
 # seconds on lavapipe, most of them in the shadows of the sun or the moon through the leaves

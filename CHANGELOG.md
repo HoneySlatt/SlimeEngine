@@ -61,7 +61,7 @@ engine starts a world of its own, which keeps a game's entities and their compon
   handles, keeps their components, one of each type, and finds the entities that hold the
   components a query names, `World::query` reading them through an iterator and
   `World::query_mut` changing them through a closure. A type becomes a component with
-  `impl Component for Position {}`. Nothing draws the world yet, and it cannot be saved.
+  `impl Component for Position {}`. A world cannot be saved yet.
 - The world keeps a hierarchy and where its entities are
   ([ADR-0083](docs/adr/0083-transforms-and-the-hierarchy.md)): `World::set_parent`, `parent` and
   `children`; `Transform`, an `f64` translation, a rotation, a uniform scale that children inherit
@@ -85,6 +85,13 @@ engine starts a world of its own, which keeps a game's entities and their compon
   shows in the sky. `World::begin_fixed_step` and `World::end_fixed_step` keep the transforms before
   a fixed step of what moves during it, `World::interpolated_transform` gives where it is drawn
   between the two, and `World::teleport` makes an entity be drawn at once where it goes.
+- `slime-world-render`, the bridge from a world to the renderer
+  ([ADR-0084](docs/adr/0084-what-the-world-draws.md)): `FrameBuilder::build` gives, at each frame,
+  the instances of the meshes that the world's entities place, where the world draws them between
+  fixed steps, from the meshes that an `AssetCache` holds, asking it for the others; the lights
+  they place; and the sky's environment around the world's sun, the directional light that shows
+  in the sky, given once to the sky and to the lights. A new example, `world`, draws the examples'
+  cooked scene from a world, its ring floating at the fixed step, and runs headless too.
 
 ### Changed
 

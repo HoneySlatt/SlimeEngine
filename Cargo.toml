@@ -81,6 +81,7 @@ slime-gfx = { path = "crates/slime-gfx" }
 slime-platform = { path = "crates/slime-platform" }
 slime-render = { path = "crates/slime-render" }
 slime-world = { path = "crates/slime-world" }
+slime-world-render = { path = "crates/slime-world-render" }
 
 [workspace.lints.rust]
 missing_docs = "warn"

@@ -24,6 +24,7 @@ slime-gfx.workspace = true
 slime-platform.workspace = true
 slime-render.workspace = true
 slime-world.workspace = true
+slime-world-render.workspace = true
 tracing.workspace = true
 
 [[example]]
@@ -45,3 +46,7 @@ path = "offscreen.rs"
 [[example]]
 name = "scene"
 path = "scene.rs"
+
+[[example]]
+name = "world"
+path = "world.rs"
