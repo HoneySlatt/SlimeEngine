@@ -60,7 +60,8 @@ pub trait Component: Send + Sync + 'static {}
 /// A type that no entity has held costs nothing; one that entities have held keeps its storage,
 /// whose index from slots to values grows with the highest slot that held one. Changing a
 /// transform marks the entity's subtree, which [`World::update_transforms`] computes again, and
-/// which reading a transform in the world computes meanwhile.
+/// which reading a transform in the world computes meanwhile; during a fixed step, it also keeps
+/// the subtree's transforms from before the step, once per entity and step.
 /// `docs/adr/0082-the-worlds-storage-and-handles.md` gives what 100 000 entities cost, and
 /// `docs/adr/0083-transforms-and-the-hierarchy.md` what the hierarchy changed of it and what their
 /// transforms cost.
@@ -74,9 +75,8 @@ pub struct World {
     pub(crate) component_ids: HashMap<TypeId, usize>,
     /// Each slot's place in the hierarchy, identity and transform in the world.
     pub(crate) nodes: Vec<Node>,
-    /// Slots whose transform in the world went stale since [`World::update_transforms`] last ran,
-    /// each the top of a stale subtree when it was marked, or a stale entity given a new parent.
-    pub(crate) stale: Vec<u32>,
+    /// What changed of the transforms in the world.
+    pub(crate) changes: Changes,
     /// The entity of each persistent identity.
     pub(crate) identities: HashMap<PersistentId, Entity>,
     /// How many transforms in the world were computed again, for the tests.
@@ -96,22 +96,56 @@ pub(crate) struct Node {
     pub(crate) global: GlobalTransform,
     /// Whether `global` must be computed again. A stale node's descendants are stale too.
     pub(crate) stale: bool,
+    /// Its index in [`Changes::moved`] plus one, if its transform in the world changed during the
+    /// last fixed step; 0 if it did not, or changed outside a step since.
+    pub(crate) moved: u32,
+}
+
+/// What changed of the transforms in the world: what [`World::update_transforms`] computes again,
+/// and what moved during the last fixed step, to draw between its two transforms.
+#[derive(Default)]
+pub(crate) struct Changes {
+    /// Slots whose transform in the world went stale since [`World::update_transforms`] last ran,
+    /// each the top of a stale subtree when it was marked, or a stale entity given a new parent.
+    pub(crate) stale: Vec<u32>,
+    /// Whether a fixed step goes on ([`World::begin_fixed_step`]).
+    pub(crate) in_step: bool,
+    /// The transform in the world, before the last fixed step, of each slot whose transform went
+    /// stale during it.
+    pub(crate) moved: Vec<(u32, GlobalTransform)>,
+    /// The entities teleported during the fixed step going on.
+    pub(crate) teleported: Vec<Entity>,
+}
+
+impl Changes {
+    /// Marks a current node stale. During a fixed step, its transform in the world before the step
+    /// is kept, the first time it goes stale in the step; outside one, the transform kept is
+    /// forgotten, so that the node is drawn at once where it goes.
+    fn went_stale(&mut self, node: &mut Node, slot: u32) {
+        node.stale = true;
+        if !self.in_step {
+            node.moved = 0;
+        } else if node.moved == 0 {
+            self.moved.push((slot, node.global));
+            node.moved = u32::try_from(self.moved.len()).expect("fewer moves than slots");
+        }
+    }
 }
 
 /// Marks a slot's transform in the world stale, with its subtree's, unless it is already.
-pub(crate) fn mark_stale(nodes: &mut [Node], stale: &mut Vec<u32>, slot: u32) {
+pub(crate) fn mark_stale(nodes: &mut [Node], changes: &mut Changes, slot: u32) {
     let node = &mut nodes[slot as usize];
     if node.stale {
         return;
     }
-    node.stale = true;
-    stale.push(slot);
+    changes.went_stale(node, slot);
+    changes.stale.push(slot);
     // Empty for an entity without children, as most are: nothing to allocate then.
     let mut subtree: Vec<u32> = node.children.iter().map(|child| child.index()).collect();
     while let Some(slot) = subtree.pop() {
         let node = &mut nodes[slot as usize];
         if !node.stale {
-            node.stale = true;
+            changes.went_stale(node, slot);
             subtree.extend(node.children.iter().map(|child| child.index()));
         }
     }
@@ -150,6 +184,12 @@ impl World {
             self.nodes.resize_with(slot + 1, Node::default);
         } else {
             self.nodes[slot] = Node::default();
+        }
+        if self.changes.in_step {
+            // Stale from the start, it keeps no transform from before the step: it is drawn at once
+            // where the step leaves it.
+            self.nodes[slot].stale = true;
+            self.changes.stale.push(entity.index());
         }
         entity
     }
@@ -328,7 +368,7 @@ impl World {
             storages,
             component_ids,
             nodes,
-            stale,
+            changes,
             ..
         } = self;
         // Each storage borrowed apart, so that the query's parts borrow theirs together.
@@ -345,7 +385,7 @@ impl World {
             if let Some(item) = Q::get(&mut borrow, slot) {
                 // Before `visit`, so that one that panics leaves no change unmarked.
                 if changes_transforms {
-                    mark_stale(nodes, stale, slot);
+                    mark_stale(nodes, changes, slot);
                 }
                 visit(entities.at(slot), item);
             }
@@ -355,7 +395,7 @@ impl World {
     /// Marks the slot's transform in the world stale if `T` is [`Transform`].
     fn transform_changes<T: Component>(&mut self, slot: u32) {
         if TypeId::of::<T>() == TypeId::of::<Transform>() {
-            mark_stale(&mut self.nodes, &mut self.stale, slot);
+            mark_stale(&mut self.nodes, &mut self.changes, slot);
         }
     }
 

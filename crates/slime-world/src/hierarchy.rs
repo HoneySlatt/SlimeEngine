@@ -40,9 +40,9 @@ impl World {
         }
         if self.nodes[child.index() as usize].stale {
             // Stale already, perhaps through its old parent, whose subtree no longer holds it.
-            self.stale.push(child.index());
+            self.changes.stale.push(child.index());
         } else {
-            mark_stale(&mut self.nodes, &mut self.stale, child.index());
+            mark_stale(&mut self.nodes, &mut self.changes, child.index());
         }
         Ok(())
     }
@@ -109,13 +109,13 @@ impl World {
             storages,
             component_ids,
             nodes,
-            stale,
+            changes,
             ..
         } = self;
         let transforms = storage_in::<Transform>(component_ids, storages);
         let mut computed = 0;
         let mut next = Vec::new();
-        for slot in stale.drain(..) {
+        for slot in changes.stale.drain(..) {
             if !nodes[slot as usize].stale {
                 continue;
             }

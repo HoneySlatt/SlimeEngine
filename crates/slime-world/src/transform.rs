@@ -94,6 +94,16 @@ impl GlobalTransform {
         }
     }
 
+    /// The transform `fraction` of the way from this one to `to`, from 0 to 1: translations in
+    /// between in `f64`, rotations along the shortest arc between them, scales in between.
+    pub fn lerp(&self, to: &Self, fraction: f64) -> Self {
+        Self {
+            translation: self.translation.lerp(to.translation, fraction),
+            rotation: self.rotation.slerp(to.rotation, fraction as f32),
+            scale: self.scale + (to.scale - self.scale) * fraction as f32,
+        }
+    }
+
     /// The matrix that places the entity's meshes in the world: this transform, after the entity's
     /// own `stretch`.
     pub fn to_affine(&self, stretch: Vec3) -> DAffine3 {

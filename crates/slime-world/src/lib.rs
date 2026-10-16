@@ -7,11 +7,12 @@ mod hierarchy;
 mod identity;
 mod query;
 mod scene;
+mod steps;
 mod storage;
 mod transform;
 mod world;
 
-pub use components::{Extras, Light, Meshes, Name};
+pub use components::{Extras, Hidden, Light, Meshes, Name};
 pub use entity::Entity;
 pub use error::WorldError;
 pub use identity::PersistentId;

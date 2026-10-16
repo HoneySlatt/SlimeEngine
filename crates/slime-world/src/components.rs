@@ -1,6 +1,8 @@
-//! The engine's components for what a cooked scene's nodes hold.
+//! The engine's components: what a cooked scene's nodes hold, and what the world draws
+//! (`docs/adr/0084-what-the-world-draws.md`).
 
-use slime_assets::{AssetId, Extra, SceneLight};
+use slime_assets::{AssetId, Extra, LightKind, SceneLight};
+use slime_color::LinearColor;
 
 use crate::Component;
 
@@ -11,16 +13,108 @@ pub struct Name(pub String);
 
 impl Component for Name {}
 
-/// The cooked meshes an entity places, each with its material, by their asset IDs: one per
-/// primitive of a glTF node's mesh.
+/// The cooked meshes an entity places, by their asset IDs, one per primitive of a glTF node's mesh:
+/// each is drawn with the material that its cooked mesh names, where the entity's [`Transform`]
+/// places it in the world, its stretch included.
+///
+/// [`Transform`]: crate::Transform
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Meshes(pub Vec<AssetId>);
+pub struct Meshes {
+    /// The meshes, by their asset IDs.
+    pub ids: Vec<AssetId>,
+    /// Whether they cast shadows; they receive them either way.
+    pub casts_shadows: bool,
+}
 
 impl Component for Meshes {}
 
-/// The light an entity places, in its own space: a cooked scene's node light.
+/// An entity that holds it is not drawn, nor are its descendants, nor the lights they place:
+/// a door that opened, a key taken.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Hidden;
+
+impl Component for Hidden {}
+
+/// The light an entity places: at its origin, along its −Z axis, whatever its scale; in the
+/// physical units of glTF's `KHR_lights_punctual`, as the renderer's lights are, with the same
+/// ranges: a color and a strength finite and not negative, a range positive, a spot's cones
+/// within 0 ≤ inner < outer ≤ π / 2.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Light(pub SceneLight);
+pub enum Light {
+    /// A light from one direction everywhere, like the sun.
+    Directional {
+        /// What `illuminance` is multiplied by in each of red, green and blue; alpha is ignored.
+        color: LinearColor,
+        /// The illuminance it gives a surface facing it, in lux.
+        illuminance: f32,
+        /// Whether it casts shadows; the renderer draws those of one directional light.
+        casts_shadows: bool,
+        /// How far from the camera it casts shadows, in metres; `None` for the renderer's default.
+        shadow_distance: Option<f32>,
+        /// Whether it shows in the sky, with its disc and its glow, as the sky's sun: the first
+        /// directional light drawn that does is the sun (`docs/adr/0084-what-the-world-draws.md`).
+        /// A sun hidden by clouds lights the scene without showing in the sky.
+        in_sky: bool,
+    },
+    /// A light from a point, in every direction.
+    Point {
+        /// What `intensity` is multiplied by in each of red, green and blue; alpha is ignored.
+        color: LinearColor,
+        /// Its luminous intensity, in candelas.
+        intensity: f32,
+        /// The distance at and beyond which it reaches nothing, in metres; `None` for none.
+        range: Option<f32>,
+    },
+    /// A light from a point, in a cone along the entity's −Z axis.
+    Spot {
+        /// What `intensity` is multiplied by in each of red, green and blue; alpha is ignored.
+        color: LinearColor,
+        /// Its luminous intensity inside the inner cone, in candelas.
+        intensity: f32,
+        /// The distance at and beyond which it reaches nothing, in metres; `None` for none.
+        range: Option<f32>,
+        /// The angle from the axis within which the light is full, in radians.
+        inner_cone_angle: f32,
+        /// The angle from the axis beyond which there is no light, in radians.
+        outer_cone_angle: f32,
+        /// Whether it casts shadows.
+        casts_shadows: bool,
+    },
+}
+
+impl Light {
+    /// The light of a cooked scene's node: casting shadows if it can, a directional one not in the
+    /// sky.
+    pub fn from_cooked(light: &SceneLight) -> Self {
+        let [r, g, b] = light.color;
+        let color = LinearColor::rgb(r, g, b);
+        match light.kind {
+            LightKind::Directional => Self::Directional {
+                color,
+                illuminance: light.intensity,
+                casts_shadows: true,
+                shadow_distance: None,
+                in_sky: false,
+            },
+            LightKind::Point => Self::Point {
+                color,
+                intensity: light.intensity,
+                range: light.range,
+            },
+            LightKind::Spot {
+                inner_cone_angle,
+                outer_cone_angle,
+            } => Self::Spot {
+                color,
+                intensity: light.intensity,
+                range: light.range,
+                inner_cone_angle,
+                outer_cone_angle,
+                casts_shadows: true,
+            },
+        }
+    }
+}
 
 impl Component for Light {}
 

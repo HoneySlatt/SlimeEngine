@@ -13,5 +13,6 @@ workspace = true
 [dependencies]
 glam.workspace = true
 slime-assets.workspace = true
+slime-color.workspace = true
 thiserror.workspace = true
 tracing.workspace = true

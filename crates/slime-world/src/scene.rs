@@ -101,10 +101,16 @@ impl World {
                 self.insert(entity, Name(node.name.clone()));
             }
             if !node.meshes.is_empty() {
-                self.insert(entity, Meshes(node.meshes.clone()));
+                self.insert(
+                    entity,
+                    Meshes {
+                        ids: node.meshes.clone(),
+                        casts_shadows: true,
+                    },
+                );
             }
             if let Some(light) = node.light {
-                self.insert(entity, Light(light));
+                self.insert(entity, Light::from_cooked(&light));
             }
             if !node.extras.is_empty() {
                 self.insert(entity, Extras(node.extras.clone()));
@@ -249,7 +255,10 @@ mod tests {
         assert_eq!(world.parent(chapel), Some(root));
         assert_eq!(
             world.get::<Meshes>(door),
-            Some(&Meshes(vec![AssetId::from_u128(7)]))
+            Some(&Meshes {
+                ids: vec![AssetId::from_u128(7)],
+                casts_shadows: true
+            })
         );
         assert_eq!(
             world

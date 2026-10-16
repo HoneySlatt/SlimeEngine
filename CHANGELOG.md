@@ -75,6 +75,13 @@ engine starts a world of its own, which keeps a game's entities and their compon
   batches that finished, each whole, and `mesh` gives a mesh and its material once held. `reload`
   loads again what changed in new cooked data, keeping the rest, and `clear` drops everything
   after a lost device. Scene loads and the cache share one loader.
+- The world says what is drawn, without GPU objects
+  ([ADR-0084](docs/adr/0084-what-the-world-draws.md)): `Meshes` holds the meshes an entity places,
+  by asset ID, and whether they cast shadows; `Hidden` leaves an entity and its descendants out;
+  `Light` is the world's own light, with a `LinearColor`, and a directional one says whether it
+  shows in the sky. `World::begin_fixed_step` and `World::end_fixed_step` keep the transforms before
+  a fixed step of what moves during it, `World::interpolated_transform` gives where it is drawn
+  between the two, and `World::teleport` makes an entity be drawn at once where it goes.
 
 ### Changed
 

@@ -8,7 +8,9 @@ The world: the entities of a game, their components and their hierarchy, kept by
 Started in M5a.1 (`docs/PLAN.md`). A world gives out entity handles, keeps the components attached
 to them, and finds the entities that hold the components a query asks for. It keeps each entity's
 parent and children and where each one is in the world, and spawns a cooked scene as entities with
-persistent identities. It draws nothing yet (M5a.3), and cannot be saved (M5a.8).
+persistent identities. Its components say what is drawn, by asset ID, and it keeps where what moved
+during the last fixed step was, to draw it between its two transforms. It cannot be saved yet
+(M5a.8).
 
 ## Role
 
@@ -18,6 +20,9 @@ persistent identities. It draws nothing yet (M5a.3), and cannot be saved (M5a.8)
 - Keeps the *hierarchy*, each entity's parent and children, and where each entity with a
   `Transform` is in the world, positions in double precision
   (`docs/adr/0083-transforms-and-the-hierarchy.md`).
+- Says what is drawn without holding GPU objects: meshes by asset ID, lights, what is hidden; and
+  keeps the transforms before the last fixed step of what moved during it, so that it is drawn
+  between its two transforms (`docs/adr/0084-what-the-world-draws.md`).
 - Runs headless: it holds no GPU object and needs no window, so that tests, servers and tools hold
   worlds too. Worlds are values, which threads can share.
 
@@ -62,6 +67,13 @@ assert_eq!(lantern_at, DVec3::new(3.0, 2.0, 0.0));
 - `World::spawn_scene` spawns a cooked scene of `slime-assets` under a key, an entity per node with
   its `Transform`, `Name`, `Meshes`, `Light` and `Extras`; `World::find` gives the entity of a
   `PersistentId`, such as `zone/door`.
+- `Meshes`, `Light` and `Hidden` say what is drawn: meshes by asset ID, each drawn with the material
+  of its cooked mesh, lights at their entity's origin along its −Z axis, a directional one showing
+  in the sky or not, and the subtrees left out.
+- `World::begin_fixed_step` and `World::end_fixed_step`, which `slime-app` calls around each fixed
+  step, keep the transforms before the step of what moves during it;
+  `World::interpolated_transform(entity, fraction)` gives where it is drawn between the two, and
+  `World::teleport` makes an entity be drawn at once where it goes.
 - `slime_world::glam` re-exports the math crate the API uses, so that callers use the same version.
 
 The rustdoc holds the contracts: what panics, what each query visits, what each operation costs.
@@ -70,6 +82,7 @@ The rustdoc holds the contracts: what panics, what each query visits, what each 
 
 - `slime-assets`: the cooked scenes it spawns.
 - `glam`: vectors, rotations and matrices; `DVec3` for positions.
+- `slime-color`: the colors of its lights.
 - `thiserror`: derives `WorldError`'s `Display` and `Error` implementations.
 - `tracing`: the warnings of a scene spawned with nodes known by their index, or scaled unevenly or
   mirrored.
