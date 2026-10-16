@@ -34,8 +34,9 @@ third person and made with the public API only, loads its first zone from cooked
 where the hero finds a key that opens a door, by day and by night. Stage 4b, which makes loaded
 assets live, is under way: scenes load on threads of the renderer's own while the game draws, a
 game can go on after a lost GPU device, a material's values change while it runs, and a texture or
-a shader changed on disk changes in the running game; [`docs/PLAN.md`](docs/PLAN.md) says what is
-left of it, and lists the known debt.
+a shader changed on disk changes in the running game. Stage 5a comes next: a world that keeps a
+game's objects, reflection, and saves. [`docs/PLAN.md`](docs/PLAN.md) says what is left of each,
+and lists the known debt.
 
 ## Getting started
 

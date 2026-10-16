@@ -90,6 +90,10 @@ where it does not, and linear filtering blends the four nearest results
 (`slime_gfx::ComparisonSampler`, [ADR-0033](adr/0033-gpu-layer-for-multi-pass-rendering.md)).
 Shadow maps are read this way. See *percentage-closer filtering*.
 
+**Component.** A piece of data that an *entity* holds, such as its transform, a light or a collider:
+an entity holds at most one component of each type, and the *world* stores components by type
+([ADR-0079](adr/0079-the-engines-own-world.md)).
+
 **Cooked data.** Files in the engine's own formats that a game loads without parsing or converting
 anything, made from *source assets* by *cooking*. They are never committed: the cooker keeps them
 in a cache under `target/` ([ADR-0069](adr/0069-the-asset-pipeline.md)).
@@ -162,6 +166,11 @@ exposes only what the engine needs, so that the library's types never appear in 
 GPU objects of `slime_gfx` hold wgpu's, `slime_platform::Window` holds winit's
 ([ADR-0011](adr/0011-windowing-with-winit.md), [ADR-0016](adr/0016-gpu-layer-with-wgpu.md),
 [ADR-0017](adr/0017-gpu-resource-types.md)).
+
+**Entity.** One thing in a *world*: a handle, made of an index and a generation, to which
+*components* are attached, with a place in the world's hierarchy. Handles are never written to
+files: files and saves name an entity by its *persistent identity*
+([ADR-0079](adr/0079-the-engines-own-world.md)).
 
 **Environment.** The surroundings of a scene as the renderer draws and reflects them: a *sky* drawn
 on the CPU into a *cube texture* and its *prefiltered levels* (`slime_render::Environment`,
@@ -397,6 +406,10 @@ GPU; the renderer makes nine such comparisons over 5 × 5 texels, placed and wei
 proposed, so that a shadow's edge fades smoothly over about six texels
 ([ADR-0063](adr/0063-a-smoother-shadow-filter.md)).
 
+**Persistent identity.** How files and saves name an *entity*: the path of the IDs local to each
+file through the scenes that placed it, such as `zone/door`, where an imported glTF node's ID is its
+name ([ADR-0079](adr/0079-the-engines-own-world.md)).
+
 **Peter-panning.** A shadow that starts a little away from the object that casts it, because the
 *depth bias* pushes the stored depths back, or the *normal offset* moves the point looked up: in
 the renderer, by up to 4.5 of the shadow map's texels.
@@ -413,6 +426,10 @@ letter key of the top row is `KeyQ` on every layout, whether it is labelled Q (Q
 ([ADR-0037](adr/0037-lights-in-physical-units-and-pre-exposure.md)); the target holds that light
 divided by 64, so that up to 64 × 65 504 keeps its energy for the *bloom*
 ([ADR-0040](adr/0040-bloom.md)).
+
+**Prefab.** A scene placed many times, each placement keeping values of its own that override the
+prefab's, such as a lantern placed along a path. Stage 5b brings them
+([ADR-0078](adr/0078-stage-5-in-two-halves.md)).
 
 **Prefiltered levels.** The levels of an *environment*'s *cube texture* past the first: the sky
 averaged under the reflection lobe of a growing roughness, so that one lookup gives what a rough
@@ -447,6 +464,11 @@ with. The references are rendered with lavapipe and rendered again only on purpo
 deliberate change of what the test draws, or after an update of lavapipe that changes them
 ([ADR-0030](adr/0030-image-tests-strict-on-the-reference-driver.md)).
 
+**Reflection.** What lets the engine describe the values of a type that it did not know when it was
+compiled: list their properties, read and change them by name, write them to files. A type gets it
+from `#[derive(Reflect)]`, and is registered in a type registry
+([ADR-0080](adr/0080-reflection-and-serialization.md)).
+
 **Render graph.** The renderer's description of a frame as passes, each declaring the targets it
 draws into and the ones it samples (`crates/slime-render/src/graph.rs`, private): it orders the
 passes by those targets, creates the *transient targets*, records the passes, four to a
@@ -477,6 +499,10 @@ tests coverage and depth; not the *sample* of a stage.
 
 **Sampler.** How shaders read a texture: nearest or linear filtering, and what lies beyond its
 edges (repeat, mirror or clamp) (`slime_gfx::Sampler`).
+
+**Save (game).** What differs between a *world* and the scenes it was made from, written to a file.
+Loading spawns the scenes again and applies the differences, so that a game update that changes a
+scene reaches the saves made before ([ADR-0079](adr/0079-the-engines-own-world.md)).
 
 **Scene (render).** What the renderer draws in one frame: a camera, *punctual lights*, an
 *environment*, an *exposure* and *instances* (`slime_render::Scene`). Not a scene graph: the
@@ -601,3 +627,7 @@ declared `var<uniform>` in WGSL and read through a *bind group* (`slime_gfx::Uni
 
 **WARP.** Microsoft's software driver for Direct3D 12, part of Windows. wgpu uses it on Windows
 machines without a GPU, such as the CI runners.
+
+**World.** The *entities* of a game, their *components* and their hierarchy, kept by the engine,
+which draws what it holds and saves what changed. A game, a test or an editor holds as many worlds
+as it needs ([ADR-0079](adr/0079-the-engines-own-world.md)).

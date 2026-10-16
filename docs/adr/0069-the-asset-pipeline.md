@@ -1,6 +1,7 @@
 # 0069. The asset pipeline: identity, cooking and what a game loads
 
-- Status: Accepted
+- Status: Accepted; amended by [0080](0080-reflection-and-serialization.md) (`slime-assets` depends
+  on `slime-reflect`; metadata files read through the engine's serialization)
 - Date: 2026-10-15
 
 ## Context

@@ -57,6 +57,8 @@ The editor sits beside games, not inside the engine: it is a client of the engin
 | First platforms | Linux (Wayland and X11) and Windows: games run on both from Stage 2 on. macOS comes later. |
 | Game-facing API | Rust first. The C ABI and C++ SDK are derived later from a proven API. |
 | Windowing and input | winit, used only inside `platform`; its types never leave that crate (ADR-0011) |
+| Entity model | The engine's own: entities, components stored by type, and a transform hierarchy, with `f64` translations (ADR-0079) |
+| Serialization format | Driven by the engine's own reflection, without serde: TOML for text, sources and saves; binary formats of the engine's own for cooked data (ADR-0069, ADR-0080) |
 
 ### Open
 
@@ -64,8 +66,6 @@ Each is decided by ADR at the stage where it becomes necessary, not earlier.
 
 | Topic | Candidates | Decide at |
 |---|---|---|
-| Entity model | hecs, bevy_ecs, custom ECS, or non-ECS | Stage 5 |
-| Serialization format | Text for sources, binary for cooked data; Stage 4a fixes the formats of cooked data and of the metadata files beside sources (ADR-0069) | Stage 5 |
 | Editor UI | egui to start, as the dev overlay uses; an engine-owned, GPU-rendered framework (retained, immediate or hybrid) only for a measured need: performance, a limit of egui that the editor meets, or reuse for the UI of games. No Qt or GTK. (ADR-0052) | Stage 6 |
 | UI of games | The editor's framework, or one of their own | Stage 6, with the editor's |
 | Physics backend | rapier3d or other, behind an abstraction | Stage 7 |
@@ -222,19 +222,35 @@ The stage comes right after Stage 4a and has no release of its own; what it deli
 
 **Exit.** A texture and a shader hot-reload in the running game. The game's zone loads while frames go on. The game goes on after a lost GPU device.
 
-### Stage 5 — Reflection, serialization, world → 0.3
+Stage 5 is split in two halves (ADR-0078): a reference to Stage 5 means both.
 
-**Goal.** The engine understands its own types and has a world model. Reflection is a backbone: serialization, inspector, scripting, replication, undo/redo and visual scripting all depend on it.
+### Stage 5a — The world → 0.3
 
-- Type registry and reflection (derive macro)
-- Serialization with format versioning
-- Entity model (decided here), components, transform hierarchy
+**Goal.** The engine understands its own types and keeps the game's world: what it holds, what it draws, and what a save restores. Reflection is a backbone: serialization, inspector, scripting, replication, undo/redo and visual scripting all depend on it.
+
+- Type registry and reflection, with a derive macro, both the engine's own (ADR-0080)
+- Serialization with format versioning, driven by reflection: TOML for text (ADR-0080)
+- The engine's own entity model: entities, components, a transform hierarchy (ADR-0079)
 - The world keeps what is drawn, and the transforms of what moves at its last two fixed steps, drawn between them: a game changes only what moves (ADR-0057)
-- The precision of world positions (decided here): the API's positions are `f32`, which the renderer draws relative to the camera (ADR-0048)
-- Worlds, scenes, prefabs
+- The precision of world positions: `f64` translations, `f32` for the rest, the renderer drawing relative to the camera (ADR-0048, ADR-0079)
 - Entity lifetime and stable references
+- Saves: what differs between a world and the scenes it was made from (ADR-0079)
 
-**Exit.** The game's scenes round-trip through save and load. Prefabs instantiate with overrides. Any component's properties can be listed and edited generically.
+The stage comes right after Stage 4b, whose work is released with it.
+
+**Exit.** *Hunna Wood* runs on the world, which keeps what is drawn and where what moves was. Any component's properties can be listed and edited generically. A run of the game round-trips through save and load.
+
+### Stage 5b — Scenes and prefabs
+
+**Goal.** Worlds are written in files: scenes, and prefabs placed many times, each placement with values of its own.
+
+- Scene files: text sources with asset IDs, cooked into a binary encoding of the engine's own (ADR-0080)
+- Prefabs with overrides, which follow the changes of their prefab
+- The sample game's zone made of prefabs
+
+The stage comes right after Stage 5a and has no release of its own; what it delivers is released with 0.4 (ADR-0078).
+
+**Exit.** The game's scenes round-trip through save and load as files. Prefabs instantiate with overrides.
 
 ### Stage 6 — Editor foundation → 0.4
 
@@ -365,8 +381,9 @@ Direction only. None of this is planned work until Stage 11 is reached.
 |---|---|
 | platform | no engine crate (ADR-0004) |
 | gfx | no engine crate; window handles through the `raw-window-handle` traits, not `platform` |
-| render | gfx, assets: it loads its own kinds of asset (ADR-0069), on a task pool of its own from Stage 4b (ADR-0072) |
-| assets | no engine crate (ADR-0069) |
+| render | gfx, assets: it loads its own kinds of asset (ADR-0069), on a task pool of its own from Stage 4b (ADR-0072). Not world: a bridge between them builds each frame from the world (ADR-0079) |
+| assets | reflect only (ADR-0069, ADR-0080) |
+| reflect | no engine crate (ADR-0080) |
 | serialization | reflect |
 | world | reflect, serialization, assets |
 | editor | world, render, assets, UI framework |
@@ -391,7 +408,8 @@ Direction only. None of this is planned work until Stage 11 is reached.
 | — | 3d | Anti-aliasing and the shadows of spot lights, released with 0.2 |
 | 0.2 | 4a | Cooked assets |
 | — | 4b | Live assets, released with 0.3 |
-| 0.3 | 5 | Reflection, serialization, world |
+| 0.3 | 5a | Reflection, serialization, world |
+| — | 5b | Scenes and prefabs, released with 0.4 |
 | 0.4 | 6 | Editor |
 | 0.5 | 7 | Runtime systems |
 | 0.6 | 8 | Plugins, SDK, scripting |

@@ -112,10 +112,10 @@ the ADR linking to it.
 | [0042](0042-lights-beyond-the-most-drawn-and-checked-scene-values.md) | Lights beyond the most drawn, and checked scene values | Accepted |
 | [0043](0043-application-errors-during-a-run.md) | Application errors during a run | Accepted |
 | [0044](0044-running-out-of-gpu-memory.md) | Running out of GPU memory | Accepted |
-| [0045](0045-one-linear-color-type.md) | One linear color type | Accepted |
+| [0045](0045-one-linear-color-type.md) | One linear color type | Accepted; amended by 0079 |
 | [0046](0046-constructors-for-the-structs-a-game-fills-in.md) | Constructors for the structs a game fills in | Accepted |
 | [0047](0047-reversed-depth-with-an-infinite-far-plane.md) | Reversed depth with an infinite far plane | Accepted |
-| [0048](0048-rendering-relative-to-the-camera.md) | Rendering relative to the camera | Accepted |
+| [0048](0048-rendering-relative-to-the-camera.md) | Rendering relative to the camera | Accepted; amended by 0079 |
 | [0049](0049-instances-that-cast-no-shadow.md) | Instances that cast no shadow | Accepted; amended by 0050 |
 | [0050](0050-a-shadow-region-that-follows-the-camera.md) | A shadow region that follows the camera | Accepted; amended by 0063, 0064 and 0065 |
 | [0051](0051-dithering-8-bit-outputs.md) | Dithering 8-bit outputs | Accepted |
@@ -135,13 +135,17 @@ the ADR linking to it.
 | [0065](0065-reading-the-cascades.md) | Reading the cascades | Accepted |
 | [0066](0066-shipping-dxc-beside-the-programs.md) | Shipping DXC beside the programs | Accepted |
 | [0067](0067-hunna-wood-replaces-nightwatch.md) | Hunna Wood replaces Nightwatch as the sample game | Accepted |
-| [0068](0068-stage-4-in-two-halves.md) | Stage 4 in two halves, and audio import at Stage 7 | Accepted |
-| [0069](0069-the-asset-pipeline.md) | The asset pipeline: identity, cooking and what a game loads | Accepted |
+| [0068](0068-stage-4-in-two-halves.md) | Stage 4 in two halves, and audio import at Stage 7 | Accepted; amended by 0078 |
+| [0069](0069-the-asset-pipeline.md) | The asset pipeline: identity, cooking and what a game loads | Accepted; amended by 0080 |
 | [0070](0070-the-sample-games-source-assets.md) | The sample game's source assets: free, listed, mirrored | Accepted |
 | [0071](0071-cooked-textures.md) | Cooked textures | Accepted |
-| [0072](0072-stage-4b-live-assets.md) | Stage 4b: live assets | Accepted |
+| [0072](0072-stage-4b-live-assets.md) | Stage 4b: live assets | Accepted; amended by 0078 |
 | [0073](0073-loading-scenes-in-the-background.md) | Loading scenes in the background | Accepted; amended by 0074 |
 | [0074](0074-uploading-textures-without-holding-up-frames.md) | Uploading textures without holding up frames | Accepted |
 | [0075](0075-recovering-from-a-lost-gpu-device.md) | Recovering from a lost GPU device | Accepted |
 | [0076](0076-hot-reload-of-cooked-data.md) | Hot reload of cooked data | Accepted |
 | [0077](0077-hot-reload-of-shaders.md) | Hot reload of shaders | Accepted |
+| [0078](0078-stage-5-in-two-halves.md) | Stage 5 in two halves | Accepted |
+| [0079](0079-the-engines-own-world.md) | The engine's own world | Accepted |
+| [0080](0080-reflection-and-serialization.md) | Reflection and serialization | Accepted |
+| [0081](0081-stage-5a-the-world.md) | Stage 5a: the world | Accepted |

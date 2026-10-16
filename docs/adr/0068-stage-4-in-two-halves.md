@@ -1,6 +1,6 @@
 # 0068. Stage 4 in two halves, and audio import at Stage 7
 
-- Status: Accepted
+- Status: Accepted; amended by [0078](0078-stage-5-in-two-halves.md) (0.3 at the end of Stage 5a)
 - Date: 2026-10-15
 
 ## Context
