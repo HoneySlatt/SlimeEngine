@@ -22,17 +22,18 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 - Stage 5a — The world: planned on 2026-10-16 and validated by the owner
   ([ADR-0078](adr/0078-stage-5-in-two-halves.md) to [ADR-0081](adr/0081-stage-5a-the-world.md));
   the stage being worked on. M5a.1 done on 2026-10-16: a world of entities and components, in
-  `slime-world` ([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)). M5a.2 built: the hierarchy,
-  transforms in double precision, and cooked scenes spawned as entities
-  ([ADR-0083](adr/0083-transforms-and-the-hierarchy.md)); CI checks it.
+  `slime-world` ([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)). M5a.2 done on
+  2026-10-16: the hierarchy, transforms in double precision, and cooked scenes spawned as entities
+  ([ADR-0083](adr/0083-transforms-and-the-hierarchy.md)). M5a.3, what the world draws, is being
+  designed with the owner.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
 | [M5a.1](#m5a1--the-world-entities-and-components) | Entities and their components live in a world, without a GPU or a window | Done |
-| [M5a.2](#m5a2--the-hierarchy-and-the-transforms) | Entities are placed by a hierarchy of transforms in double precision; a cooked scene becomes entities | Built; CI checks it |
-| [M5a.3](#m5a3--what-the-world-draws) | The renderer draws a world, and what moves between its last two fixed steps | Planned |
+| [M5a.2](#m5a2--the-hierarchy-and-the-transforms) | Entities are placed by a hierarchy of transforms in double precision; a cooked scene becomes entities | Done |
+| [M5a.3](#m5a3--what-the-world-draws) | The renderer draws a world, and what moves between its last two fixed steps | Being designed |
 | [M5a.4](#m5a4--hunna-wood-on-the-world) | *Hunna Wood* runs on the world, and changes only what moves | Planned |
 | [M5a.5](#m5a5--reflection) | The engine and the game describe, read and change their types' values through one registry | Planned |
 | [M5a.6](#m5a6--any-component-listed-and-edited) | Any component's properties are listed and edited in the running game | Planned |
@@ -164,6 +165,20 @@ Risks:
   again; scales split as the rule says; the persistent identities of a cooked scene's entities kept
   when its nodes are reordered; CI is green.
 - **How to test.** `cargo test -p slime-world`; `cargo test -p hunnawood -- --ignored`.
+- **Outcome.** Done on 2026-10-16 ([ADR-0083](adr/0083-transforms-and-the-hierarchy.md)). Every
+  way of changing a `Transform` marks the entity's subtree stale; `World::update_transforms`
+  computes each stale subtree once, and `World::global_transform` is current between updates,
+  computed from the nearest current ancestor. With 1 000 roots of 99 children each in a release
+  build, computing the 100 000 transforms takes 3.4 ms, and computing again the 1 000 whose root
+  moved 32 µs. `World::spawn_scene` places the zone's 543 nodes where its file puts them, each known
+  by its name. The world splits a node's matrix itself, so that one that flattens an axis or shears
+  keeps a unit rotation: `scripts/check.sh` runs the world's tests with glam's assertions on, as the
+  renderer's. Each slot's place in the hierarchy makes spawning 100 000 entities take 10.5 ms rather
+  than 5.3 ms; the ADR holds the figures. The review found three faults, fixed and tested before the
+  milestone was pushed: an entity already stale that changed parents was never computed again; a
+  node named like an index, `#2`, could share another node's identity; and a component that panicked
+  as it was dropped could leave a destroyed child in its parent's list. CI took 12 minutes on Linux
+  and 17 minutes 27 seconds on Windows.
 
 ### M5a.3 — What the world draws
 
