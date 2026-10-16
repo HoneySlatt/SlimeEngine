@@ -1,7 +1,7 @@
 # 0045. One linear color type
 
 - Status: Accepted; amended by [0079](0079-the-engines-own-world.md) (the color type moves below
-  `slime-gfx`)
+  `slime-gfx`) and [0084](0084-what-the-world-draws.md) (into `slime-color`)
 - Date: 2026-10-14
 
 ## Context

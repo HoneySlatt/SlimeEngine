@@ -24,8 +24,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   the stage being worked on. M5a.1 done on 2026-10-16: a world of entities and components, in
   `slime-world` ([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)). M5a.2 done on
   2026-10-16: the hierarchy, transforms in double precision, and cooked scenes spawned as entities
-  ([ADR-0083](adr/0083-transforms-and-the-hierarchy.md)). M5a.3, what the world draws, is being
-  designed with the owner.
+  ([ADR-0083](adr/0083-transforms-and-the-hierarchy.md)). M5a.3, what the world draws, in progress
+  ([ADR-0084](adr/0084-what-the-world-draws.md)).
 
 ## Status
 
@@ -33,7 +33,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 |---|---|---|
 | [M5a.1](#m5a1--the-world-entities-and-components) | Entities and their components live in a world, without a GPU or a window | Done |
 | [M5a.2](#m5a2--the-hierarchy-and-the-transforms) | Entities are placed by a hierarchy of transforms in double precision; a cooked scene becomes entities | Done |
-| [M5a.3](#m5a3--what-the-world-draws) | The renderer draws a world, and what moves between its last two fixed steps | Being designed |
+| [M5a.3](#m5a3--what-the-world-draws) | The renderer draws a world, and what moves between its last two fixed steps | In progress |
 | [M5a.4](#m5a4--hunna-wood-on-the-world) | *Hunna Wood* runs on the world, and changes only what moves | Planned |
 | [M5a.5](#m5a5--reflection) | The engine and the game describe, read and change their types' values through one registry | Planned |
 | [M5a.6](#m5a6--any-component-listed-and-edited) | Any component's properties are listed and edited in the running game | Planned |

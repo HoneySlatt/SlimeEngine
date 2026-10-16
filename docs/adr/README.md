@@ -112,7 +112,7 @@ the ADR linking to it.
 | [0042](0042-lights-beyond-the-most-drawn-and-checked-scene-values.md) | Lights beyond the most drawn, and checked scene values | Accepted |
 | [0043](0043-application-errors-during-a-run.md) | Application errors during a run | Accepted |
 | [0044](0044-running-out-of-gpu-memory.md) | Running out of GPU memory | Accepted |
-| [0045](0045-one-linear-color-type.md) | One linear color type | Accepted; amended by 0079 |
+| [0045](0045-one-linear-color-type.md) | One linear color type | Accepted; amended by 0079, 0084 |
 | [0046](0046-constructors-for-the-structs-a-game-fills-in.md) | Constructors for the structs a game fills in | Accepted |
 | [0047](0047-reversed-depth-with-an-infinite-far-plane.md) | Reversed depth with an infinite far plane | Accepted |
 | [0048](0048-rendering-relative-to-the-camera.md) | Rendering relative to the camera | Accepted; amended by 0079 |
@@ -143,7 +143,7 @@ the ADR linking to it.
 | [0073](0073-loading-scenes-in-the-background.md) | Loading scenes in the background | Accepted; amended by 0074 |
 | [0074](0074-uploading-textures-without-holding-up-frames.md) | Uploading textures without holding up frames | Accepted |
 | [0075](0075-recovering-from-a-lost-gpu-device.md) | Recovering from a lost GPU device | Accepted |
-| [0076](0076-hot-reload-of-cooked-data.md) | Hot reload of cooked data | Accepted |
+| [0076](0076-hot-reload-of-cooked-data.md) | Hot reload of cooked data | Accepted; amended by 0084 |
 | [0077](0077-hot-reload-of-shaders.md) | Hot reload of shaders | Accepted |
 | [0078](0078-stage-5-in-two-halves.md) | Stage 5 in two halves | Accepted |
 | [0079](0079-the-engines-own-world.md) | The engine's own world | Accepted |
@@ -151,3 +151,4 @@ the ADR linking to it.
 | [0081](0081-stage-5a-the-world.md) | Stage 5a: the world | Accepted |
 | [0082](0082-the-worlds-storage-and-handles.md) | The world's storage and handles | Accepted |
 | [0083](0083-transforms-and-the-hierarchy.md) | Transforms and the hierarchy | Accepted |
+| [0084](0084-what-the-world-draws.md) | What the world draws | Accepted |
