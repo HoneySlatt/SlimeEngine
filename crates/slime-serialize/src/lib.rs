@@ -1,16 +1,17 @@
 #![doc = include_str!("../README.md")]
 
+mod compose;
 mod document;
 mod error;
 pub mod format;
 mod text;
 
-use std::collections::{BTreeMap, HashMap};
 use std::io::Read as _;
 
-use slime_reflect::{Path, Problem, Reflect, ReflectError, Registry, Value};
+use slime_reflect::{Path, Reflect, ReflectError, Registry, Value};
 
-use crate::document::{Failure, Reader, Writer};
+use crate::compose::position;
+pub use crate::compose::{Composer, Document};
 pub use crate::error::{ReadError, ReadProblem};
 
 /// The size of the largest document read, in bytes: 16 MiB. The parser takes about a hundred bytes of
@@ -22,6 +23,18 @@ pub const MAX_SIZE: usize = 16 << 20;
 /// The deepest that a document's values nest, tables and arrays within others, as read: 64 levels.
 /// The parser refuses deeper ones before they are counted, past 80.
 pub const MAX_DEPTH: usize = 64;
+
+/// How a document names the entities that values refer to: by the persistent identities of a
+/// world, which its documents give (`slime-world`). An entity's handle holds within one run only:
+/// where a document names no entity, a reference to an entity is neither written nor read.
+pub trait References {
+    /// The name that the document gives the entity whose handle has the bits `entity`, if it has
+    /// one.
+    fn name(&self, entity: u64) -> Option<String>;
+
+    /// The bits of the handle of the entity that the document names `name`, if one is.
+    fn entity(&self, name: &str) -> Option<u64>;
+}
 
 /// How strictly a document is read.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -97,26 +110,13 @@ fn write_document(
     value: &Value,
     partial: bool,
 ) -> Result<String, ReflectError> {
-    let mut writer = Writer {
-        registry,
-        versions: BTreeMap::new(),
-        partial,
-    };
-    let document = writer.value(ty, value, &Path::default(), None)?;
-    let mut root = Vec::new();
-    if !writer.versions.is_empty() {
-        let versions = writer
-            .versions
-            .into_iter()
-            .map(|(name, version)| (name, Value::Int(i64::from(version))))
-            .collect();
-        root.push((VERSIONS.to_owned(), Value::Struct(versions)));
+    let mut composer = Composer::new(registry);
+    if partial {
+        composer.put_part(&[], ty, value)?;
+    } else {
+        composer.put(&[], ty, value)?;
     }
-    match document {
-        Value::Struct(fields) => root.extend(fields),
-        other => root.push((VALUE.to_owned(), other)),
-    }
-    Ok(text::print(&root))
+    Ok(composer.finish())
 }
 
 /// Reads the value of the type named `ty` in `registry` that `text`, a document, holds
@@ -236,13 +236,6 @@ pub fn read_as<T: Reflect>(text: &str, mode: Mode) -> Result<(T, Vec<ReadError>)
     Ok((value, read.warnings))
 }
 
-/// The root's key of the version of the format.
-const FORMAT: &str = "$format";
-/// The root's key of the versions of the types past version 1.
-const VERSIONS: &str = "$versions";
-/// The root's key of a value that is not written as a table.
-const VALUE: &str = "$value";
-
 fn read_document(
     registry: &Registry,
     ty: &str,
@@ -250,156 +243,10 @@ fn read_document(
     mode: Mode,
     partial: bool,
 ) -> Result<Read, ReadError> {
-    if text.len() > MAX_SIZE {
-        return Err(ReadError::new(
-            None,
-            Path::default(),
-            ReadProblem::TooLarge {
-                size: text.len() as u64,
-                limit: MAX_SIZE,
-            },
-        ));
-    }
-    let parsed = text::parse(text).map_err(|(span, problem)| {
-        ReadError::new(
-            span.map(|span| position(text, span.start)),
-            Path::default(),
-            problem,
-        )
-    })?;
-    let text::Parsed { document, mut root } = parsed;
-    let locate = |failure: Failure| {
-        // A field unknown or given twice is at its key; any other problem at the value.
-        let at_key = matches!(
-            failure.problem,
-            ReadProblem::Value(Problem::UnknownField { .. } | Problem::DuplicateField(_))
-        );
-        let span = text::locate(&document, &failure.at, at_key);
-        ReadError::new(
-            span.map(|span| position(text, span.start)),
-            failure.path,
-            failure.problem,
-        )
-    };
-    let mut warnings = Vec::new();
-    if let Some(found) = take(&mut root, FORMAT) {
-        let at = Path::default().field(FORMAT);
-        let problem = match found {
-            Value::Int(version) if (1..=i64::from(format::VERSION)).contains(&version) => None,
-            Value::Int(version) if version > i64::from(format::VERSION) => {
-                Some(ReadProblem::NewerFormat {
-                    found: version,
-                    known: format::VERSION,
-                })
-            }
-            _ => Some(ReadProblem::Value(Problem::Invalid(
-                "the format's version is an integer from 1".to_owned(),
-            ))),
-        };
-        if let Some(problem) = problem {
-            return Err(locate(Failure {
-                path: Path::default(),
-                at,
-                problem,
-            }));
-        }
-    }
-    let mut versions = HashMap::new();
-    if let Some(table) = take(&mut root, VERSIONS) {
-        let at = Path::default().field(VERSIONS);
-        let Value::Struct(entries) = table else {
-            return Err(locate(Failure {
-                path: Path::default(),
-                at,
-                problem: ReadProblem::Value(Problem::Invalid(
-                    "the types' versions are a table".to_owned(),
-                )),
-            }));
-        };
-        for (name, version) in entries {
-            let at = at.clone().field(name.clone());
-            let fail = |problem| Failure {
-                path: Path::default(),
-                at: at.clone(),
-                problem: ReadProblem::Value(problem),
-            };
-            let Value::Int(version) = version else {
-                return Err(locate(fail(Problem::Invalid(format!(
-                    "the version of `{name}` is not an integer"
-                )))));
-            };
-            let Some(registration) = registry.get(&name) else {
-                let unknown = fail(Problem::NotRegistered(name));
-                match mode {
-                    Mode::Strict => return Err(locate(unknown)),
-                    Mode::Lenient => {
-                        warnings.push(locate(unknown));
-                        continue;
-                    }
-                }
-            };
-            let known = registration.info().version;
-            let version = match u32::try_from(version) {
-                Ok(version) if version >= 1 => version,
-                Err(_) if version > 0 => {
-                    return Err(locate(fail(Problem::Invalid(format!(
-                        "the version of `{name}` is {version}, past any version a type has"
-                    )))));
-                }
-                _ => {
-                    return Err(locate(fail(Problem::Invalid(format!(
-                        "the version of `{name}` is {version}: versions start at 1"
-                    )))));
-                }
-            };
-            if version > known {
-                return Err(locate(fail(Problem::NewerVersion {
-                    found: version,
-                    known,
-                })));
-            }
-            versions.insert(name, version);
-        }
-    }
-    let (document, at) = match take(&mut root, VALUE) {
-        Some(value) => {
-            if let Some((key, _)) = root.first() {
-                return Err(locate(Failure {
-                    path: Path::default(),
-                    at: Path::default().field(key.clone()),
-                    problem: ReadProblem::Value(Problem::Invalid(format!(
-                        "`{key}` beside `{VALUE}`, which is the whole value"
-                    ))),
-                }));
-            }
-            (value, Path::default().field(VALUE))
-        }
-        None => (Value::Struct(root), Path::default()),
-    };
-    let mut reader = Reader {
-        registry,
-        versions,
-        mode,
-        partial,
-        warnings: Vec::new(),
-    };
-    let value = reader
-        .value(ty, document, &Path::default(), &at, None)
-        .map_err(locate)?;
-    warnings.extend(reader.warnings.into_iter().map(locate));
-    Ok(Read { value, warnings })
-}
-
-/// Takes the root's entry under `key` out of it.
-fn take(root: &mut Vec<(String, Value)>, key: &str) -> Option<Value> {
-    let index = root.iter().position(|(name, _)| name == key)?;
-    Some(root.remove(index).1)
-}
-
-/// The line and the column, from 1, of the byte `offset` in `text`, the column in characters.
-fn position(text: &str, offset: usize) -> (usize, usize) {
-    let before = text.get(..offset).unwrap_or(text);
-    let line = before.matches('\n').count() + 1;
-    let start = before.rfind('\n').map_or(0, |newline| newline + 1);
-    (line, before[start..].chars().count() + 1)
+    let mut document = Document::parse(registry, text, mode)?;
+    let value = document.root(ty, partial)?;
+    Ok(Read {
+        value,
+        warnings: document.warnings(),
+    })
 }

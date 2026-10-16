@@ -4,16 +4,20 @@
 use std::collections::{BTreeMap, HashMap};
 
 use slime_reflect::{
-    FieldInfo, Kind, Path, Problem, Range, ReflectError, Registry, TypeInfo, Value,
+    FieldInfo, Kind, Path, Problem, Range, ReflectError, Registry, TypeInfo, Value, is_tuple,
 };
 
-use crate::Mode;
 use crate::error::ReadProblem;
+use crate::{Mode, References};
 
 /// Turns values into values as documents hold them, and notes the versions of the types past
 /// version 1 that they hold.
 pub(crate) struct Writer<'a> {
     pub registry: &'a Registry,
+    /// The names of the entities that values refer to, if the document names them.
+    pub references: Option<&'a dyn References>,
+    /// Whether fields marked transient are written: a save leaves them out.
+    pub transient: bool,
     /// The versions of the types past version 1 met, by name, in the order of their names.
     pub versions: BTreeMap<String, u32>,
     /// Whether the value may leave fields out, a part of a value: the document leaves them out too.
@@ -76,8 +80,15 @@ impl Writer<'_> {
             }
             (Kind::Text, Value::Text(text)) => Value::Text(text.clone()),
             (Kind::Asset, Value::Asset(id)) => Value::Text(uuid(*id)),
-            (Kind::Entity, Value::Entity(_)) => {
-                return Err(error(Problem::Invalid(ENTITY.to_owned())));
+            (Kind::Entity, &Value::Entity(entity)) => {
+                let references = self
+                    .references
+                    .ok_or_else(|| error(Problem::Invalid(ENTITY.to_owned())))?;
+                Value::Text(references.name(entity).ok_or_else(|| {
+                    error(Problem::Invalid(
+                        "a reference to an entity that has no name in the document".to_owned(),
+                    ))
+                })?)
             }
             // An option that is not a field's: none or one element.
             (Kind::Option(inner), Value::Option(held)) => Value::List(match held {
@@ -162,7 +173,7 @@ impl Writer<'_> {
                 .find(|(name, _)| name == &field.name)
                 .map(|(_, value)| value)
         };
-        if tuple(fields) {
+        if is_tuple(fields) {
             let mut elements = Vec::new();
             for field in fields {
                 let at = path.clone().field(field.name.clone());
@@ -178,6 +189,9 @@ impl Writer<'_> {
         }
         let mut table = Vec::new();
         for field in fields {
+            if field.transient && !self.transient {
+                continue;
+            }
             let Some(value) = given(field) else {
                 if self.partial {
                     continue;
@@ -210,9 +224,9 @@ impl Writer<'_> {
     }
 }
 
-/// Why a reference to an entity is neither written nor read.
-const ENTITY: &str = "a reference to an entity, whose handle holds within one run only, is neither \
-                      written nor read";
+/// Why a reference to an entity is neither written nor read where the document names no entity.
+const ENTITY: &str = "a reference to an entity, whose handle holds within one run only, is written \
+                      and read only where a document names entities";
 
 /// A problem found while reading, at `path` in the value and at `at` in the document.
 pub(crate) struct Failure {
@@ -225,8 +239,10 @@ pub(crate) struct Failure {
 /// versions of their types to the types' versions now.
 pub(crate) struct Reader<'a> {
     pub registry: &'a Registry,
+    /// The entities that the document names, if it names them.
+    pub references: Option<&'a dyn References>,
     /// The versions of the types that the document says, by the names it gives them.
-    pub versions: HashMap<String, u32>,
+    pub versions: &'a HashMap<String, u32>,
     pub mode: Mode,
     /// Whether the value may leave fields out: a part of a value, as a save's differences are.
     pub partial: bool,
@@ -330,7 +346,17 @@ impl Reader<'_> {
                     fail(Problem::Invalid(format!("`{text}` is not an asset ID")))
                 })?)
             }
-            (Kind::Entity, _) => return Err(fail(Problem::Invalid(ENTITY.to_owned()))),
+            (Kind::Entity, document) => {
+                let Some(references) = self.references else {
+                    return Err(fail(Problem::Invalid(ENTITY.to_owned())));
+                };
+                let Value::Text(name) = &document else {
+                    return Err(wrong(&document));
+                };
+                Value::Entity(references.entity(name).ok_or_else(|| {
+                    fail(Problem::Invalid(format!("no entity is named `{name}`")))
+                })?)
+            }
             (Kind::Option(inner), Value::List(mut elements)) if elements.len() <= 1 => {
                 Value::Option(match elements.pop() {
                     Some(held) => Some(Box::new(self.value(
@@ -438,7 +464,7 @@ impl Reader<'_> {
                 },
             )
         };
-        if tuple(fields) {
+        if is_tuple(fields) {
             let documents = match document {
                 document if fields.len() == 1 => vec![document],
                 Value::List(elements) if elements.len() == fields.len() => elements,
@@ -581,15 +607,6 @@ fn kind_of<'a>(registry: &'a Registry, ty: &str) -> Option<&'a Kind> {
     registry
         .get(ty)
         .map(|registration| &registration.info().kind)
-}
-
-/// Whether `fields` are a tuple's: named `0`, `1`, ... in order.
-fn tuple(fields: &[FieldInfo]) -> bool {
-    !fields.is_empty()
-        && fields
-            .iter()
-            .enumerate()
-            .all(|(index, field)| field.name == index.to_string())
 }
 
 /// What a value as a document holds it is, in TOML's words.

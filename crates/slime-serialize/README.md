@@ -6,10 +6,9 @@ from earlier versions of their types too (`docs/adr/0080-reflection-and-serializ
 
 ## Status
 
-Text documents only: the cooker's metadata files read through it. Scene files, the world's
-documents and saves come with the milestones that need them, and a binary encoding of the same
-values with Stage 5b's cooked scenes. References to entities are neither written nor read until
-a world's documents write them as persistent identities.
+Text documents only: the cooker's metadata files and the world's saves
+(`docs/adr/0087-the-worlds-documents.md`) are read and written through it. Scene files come with
+Stage 5b, and a binary encoding of the same values with its cooked scenes.
 
 ## Role
 
@@ -23,6 +22,9 @@ a world's documents write them as persistent identities.
   version through the type's upgrade (`slime_reflect::Upgrade`). A source is read strictly, a save
   leniently (`Mode`). Errors name the file, the line, the column and the path of the part at
   fault; documents larger or deeper than a limit are refused; reading never panics.
+- `Composer` and `Document`: a document of several values, each at its place, written and read one
+  at a time, as the world's saves hold one per component. Given `References`, they write and read
+  references to entities as the names it gives them; without, such a reference is refused.
 
 ## Entry points
 
@@ -57,6 +59,7 @@ The rustdoc holds the contracts: the format, what each function refuses, and the
 
 - Write TOML through another writer: the bytes of a document must not depend on a library's
   version.
-- Write or read an entity's handle, which holds within one run only.
+- Write or read an entity's handle, which holds within one run only: a document names entities as
+  its `References` do.
 - Depend on `serde`: reflection describes every type that it writes
   (`docs/adr/0080-reflection-and-serialization.md`).

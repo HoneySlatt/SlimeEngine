@@ -32,8 +32,10 @@
 //!   then round them to another `f32`, those of 64 bits then; and `inf`, `-inf`, `nan` and `-nan`.
 //!   A NaN's payload is not kept. A reader takes an integer where a float goes.
 //! - **References** to assets are their IDs as text, `"850ad551-5098-42f9-ae42-26ed6174951a"`.
-//!   References to entities are neither written nor read: an entity's handle holds within one run
-//!   only.
+//!   References to entities are the names that the document gives them, as text: a world's
+//!   persistent identities, `"zone/door"`, in its saves ([`References`](crate::References)). An
+//!   entity's handle holds within one run only: a document that names no entity neither writes nor
+//!   reads a reference to one.
 //! - **Layout.** A table whose values are all numbers, booleans and text is written on its key's
 //!   line, `{ x = 1.0, y = 0.0 }`, and so is an array, unless it holds tables of which one at least
 //!   is larger. A larger table is written under a header of its own, `[a.b]`, and an array of
