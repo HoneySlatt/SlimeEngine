@@ -85,7 +85,8 @@ engine starts a world of its own, which keeps a game's entities and their compon
   shows in the sky. `World::begin_fixed_step` and `World::end_fixed_step` keep the transforms before
   a fixed step of what moves during it, `World::interpolated_transform` gives where it is drawn
   between the two, and `World::teleport` makes an entity be drawn at once where it goes; what a
-  moving entity holds stays on it.
+  moving entity holds stays on it. `World::is_hidden` says whether an entity is hidden, by itself
+  or through an ancestor.
 - `slime-world-render`, the bridge from a world to the renderer
   ([ADR-0084](docs/adr/0084-what-the-world-draws.md)): `FrameBuilder::build` gives, at each frame,
   the instances of the meshes that the world's entities place, where the world draws them between

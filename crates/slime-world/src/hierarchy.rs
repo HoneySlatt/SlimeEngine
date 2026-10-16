@@ -1,5 +1,6 @@
 //! The hierarchy: each entity's parent and children, and where each entity is in the world.
 
+use crate::components::Hidden;
 use crate::entity::Entity;
 use crate::error::WorldError;
 use crate::transform::{GlobalTransform, Transform};
@@ -61,6 +62,20 @@ impl World {
             return &[];
         }
         &self.nodes[entity.index() as usize].children
+    }
+
+    /// Whether the entity, or one of its ancestors, holds [`Hidden`]: then it is not drawn, nor
+    /// is the light it places (`docs/adr/0084-what-the-world-draws.md`). `false` if it is not
+    /// alive.
+    pub fn is_hidden(&self, entity: Entity) -> bool {
+        let mut next = self.contains(entity).then_some(entity);
+        while let Some(entity) = next {
+            if self.get::<Hidden>(entity).is_some() {
+                return true;
+            }
+            next = self.nodes[entity.index() as usize].parent;
+        }
+        false
     }
 
     /// Where the entity is in the world: its [`Transform`] composed with its ancestors', an
@@ -198,6 +213,21 @@ mod tests {
         world.set_parent(grandchild, None).expect("alive");
         assert_eq!(world.parent(grandchild), None);
         assert_eq!(x_of(&world, grandchild), 1.0);
+    }
+
+    #[test]
+    fn a_hidden_ancestor_hides_its_descendants() {
+        let mut world = World::new();
+        let [root, first, _, grandchild] = family(&mut world);
+        assert!(!world.is_hidden(grandchild));
+        world.insert(first, Hidden);
+        assert!(world.is_hidden(first) && world.is_hidden(grandchild));
+        assert!(!world.is_hidden(root));
+        world.remove::<Hidden>(first);
+        assert!(!world.is_hidden(grandchild));
+        world.insert(first, Hidden);
+        world.despawn(root);
+        assert!(!world.is_hidden(grandchild), "a dead entity is not hidden");
     }
 
     #[test]

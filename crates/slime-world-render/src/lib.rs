@@ -6,7 +6,7 @@ use slime_render::{
     AssetCache, Camera, DirectionalLight, Environment, Instance, Light, PointLight, RenderError,
     Renderer, Scene, SceneError, Sky, SpotLight,
 };
-use slime_world::{Entity, Hidden, Meshes, Transform, World};
+use slime_world::{Entity, Meshes, Transform, World};
 
 /// Builds, at each frame, what the renderer draws of a world: the instances of the meshes its
 /// entities place, the lights they place, and the sky's environment around the sun among them
@@ -20,8 +20,8 @@ use slime_world::{Entity, Hidden, Meshes, Transform, World};
 ///   included; a mesh that the [`AssetCache`] does not hold yet is left out, and asked for.
 /// - Each entity that holds a [`slime_world::Light`] and a `Transform` places its light at its
 ///   origin, along its −Z axis.
-/// - An entity that holds [`Hidden`], or one of whose ancestors does, is not drawn, nor is its
-///   light.
+/// - An entity that holds [`Hidden`](slime_world::Hidden), or one of whose ancestors does
+///   ([`World::is_hidden`]), is not drawn, nor is its light.
 /// - The sky the game gives ([`FrameBuilder::set_sky`]) is drawn around the first directional light
 ///   drawn that shows in the sky (`in_sky`), as its sun: that light is given once, to the sky and
 ///   first to the lights, so that its shadows are the ones drawn when it casts any. When several
@@ -130,7 +130,7 @@ impl FrameBuilder {
         let mut placed = Vec::new();
         let mut missing = Vec::new();
         for (entity, (meshes, transform)) in world.query::<(&Meshes, &Transform)>() {
-            if hidden(world, entity) {
+            if world.is_hidden(entity) {
                 continue;
             }
             let Some(at) = world.interpolated_transform(entity, fraction) else {
@@ -205,7 +205,7 @@ fn world_lights(
     let mut sun = None;
     let mut suns = 0;
     for (entity, light) in world.query::<&slime_world::Light>() {
-        if hidden(world, entity) {
+        if world.is_hidden(entity) {
             continue;
         }
         let Some(at) = world.interpolated_transform(entity, fraction) else {
@@ -223,18 +223,6 @@ fn world_lights(
         lights.push(light);
     }
     (sun, suns)
-}
-
-/// Whether `entity` or one of its ancestors holds [`Hidden`].
-fn hidden(world: &World, entity: Entity) -> bool {
-    let mut next = Some(entity);
-    while let Some(entity) = next {
-        if world.get::<Hidden>(entity).is_some() {
-            return true;
-        }
-        next = world.parent(entity);
-    }
-    false
 }
 
 /// Whether the light of `entity` is a directional light that shows in the sky.
@@ -347,17 +335,6 @@ mod tests {
         assert_eq!(sun.map(|sun| sun.illuminance), Some(3.0));
         assert_eq!(lights.len(), 3);
         assert!(matches!(lights[0], Light::Directional(light) if light.illuminance == 3.0));
-    }
-
-    #[test]
-    fn a_hidden_ancestor_hides_its_descendants() {
-        let mut world = World::new();
-        let door = world.spawn();
-        let leaf = world.spawn();
-        world.set_parent(leaf, Some(door)).expect("alive");
-        assert!(!hidden(&world, leaf));
-        world.insert(door, Hidden);
-        assert!(hidden(&world, leaf) && hidden(&world, door));
     }
 
     #[test]

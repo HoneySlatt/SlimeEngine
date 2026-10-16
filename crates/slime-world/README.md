@@ -69,7 +69,8 @@ assert_eq!(lantern_at, DVec3::new(3.0, 2.0, 0.0));
   `PersistentId`, such as `zone/door`.
 - `Meshes`, `Light` and `Hidden` say what is drawn: meshes by asset ID, each drawn with the material
   of its cooked mesh, lights at their entity's origin along its −Z axis, a directional one showing
-  in the sky or not, and the subtrees left out.
+  in the sky or not, and the subtrees left out; `World::is_hidden` says whether an entity is, by
+  itself or through an ancestor.
 - `World::begin_fixed_step` and `World::end_fixed_step`, which `slime-app` calls around each fixed
   step, keep the transforms before the step of what moves during it;
   `World::interpolated_transform(entity, fraction)` gives where it is drawn between the two, and
