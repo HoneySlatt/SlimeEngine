@@ -16,5 +16,7 @@ slime-assets.workspace = true
 slime-color.workspace = true
 # Every component is reflected, and each world keeps the registry of their types (ADR-0080).
 slime-reflect.workspace = true
+# A world's saves are documents of the engine's serialization (ADR-0087).
+slime-serialize.workspace = true
 thiserror.workspace = true
 tracing.workspace = true

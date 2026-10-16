@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 
 mod components;
+mod document;
 mod entity;
 mod error;
 mod hierarchy;
@@ -13,10 +14,11 @@ mod storage;
 mod transform;
 mod world;
 
-pub use components::{Extras, Hidden, Light, Meshes, Name};
+pub use components::{Extras, Hidden, Light, Meshes, Name, Unsaved};
+pub use document::{DocumentError, Loaded, SetAside};
 pub use entity::Entity;
 pub use error::WorldError;
-pub use identity::PersistentId;
+pub use identity::{ParsePersistentIdError, PersistentId};
 pub use query::{Query, QueryIter, QueryMut};
 pub use transform::{GlobalTransform, Transform};
 pub use world::{Component, World};

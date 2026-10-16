@@ -3,12 +3,12 @@
 
 use std::any::TypeId;
 
-use slime_reflect::{Path, Reflect, Registry, Value};
+use slime_reflect::{Path, Registry, Value};
 
 use crate::entity::Entity;
 use crate::error::WorldError;
 use crate::transform::Transform;
-use crate::world::{World, mark_stale};
+use crate::world::{Component, World, mark_stale};
 
 impl World {
     /// The types of the world's components, and the types their values hold: the engine's, every
@@ -18,15 +18,16 @@ impl World {
         &self.registry
     }
 
-    /// Registers `T` and the types its values hold, ahead of any component of `T` that the world
-    /// stores ([`World::insert`] registers its type then): what a game does for the types it must
-    /// find by name before an entity holds one, such as the components of a save it reads.
+    /// Registers the component type `T` and the types its values hold, and makes its storage, ahead
+    /// of any component of `T` that the world stores ([`World::insert`] does so then): what a game
+    /// does for the types it must find by name before an entity holds one, such as the components
+    /// that a save adds ([`World::insert_component_value`]).
     ///
     /// # Panics
     ///
     /// As [`Registry::register`]: if another type has `T`'s name.
-    pub fn register<T: Reflect>(&mut self) {
-        self.registry.register::<T>();
+    pub fn register<T: Component>(&mut self) {
+        self.storage_id::<T>();
     }
 
     /// Every entity alive, in the order of their slots.
@@ -148,6 +149,70 @@ impl World {
         Ok(())
     }
 
+    /// Attaches to `entity` the component whose type is named `component`, by its name or an
+    /// alias, that `value` describes, in place of the one of that type it holds, if it holds one:
+    /// what a save that adds a component does. The type must have a storage in the world: one that
+    /// it has stored, or registered ([`World::register`]). The value is checked as
+    /// [`World::set_component_value`] checks it. A [`Transform`] attached so counts as changed, and
+    /// one that the entity did not hold is drawn at once where it is, as [`World::insert`] does.
+    ///
+    /// # Errors
+    ///
+    /// [`WorldError::NotAlive`] if the entity is not alive; [`WorldError::UnknownComponent`] if no
+    /// component type of that name has a storage in the world; [`WorldError::Refused`] if `value` is
+    /// not a value of the type, holds a number out of its field's range, or breaks a rule of the
+    /// type's check. Nothing changes then.
+    pub fn insert_component_value(
+        &mut self,
+        entity: Entity,
+        component: &str,
+        value: Value,
+    ) -> Result<(), WorldError> {
+        if !self.contains(entity) {
+            return Err(WorldError::NotAlive(entity));
+        }
+        let unknown = || WorldError::UnknownComponent(component.to_owned());
+        let registration = self.registry.get(component).ok_or_else(unknown)?;
+        let name = registration.info().name.clone();
+        let type_id = registration.type_id().ok_or_else(unknown)?;
+        let &id = self.component_ids.get(&type_id).ok_or_else(unknown)?;
+        let refused = |error| WorldError::Refused {
+            component: name.clone(),
+            error,
+        };
+        // Checked as an edit of the whole component is, its numbers within their fields' ranges.
+        let mut checked = Value::Bool(false);
+        self.registry
+            .set(&name, &mut checked, &Path::default(), value)
+            .map_err(refused)?;
+        let slot = entity.index();
+        let held = self.storages[id].holds(slot);
+        self.storages[id]
+            .insert_value(slot, &checked)
+            .map_err(refused)?;
+        if type_id == TypeId::of::<Transform>() {
+            mark_stale(&mut self.nodes, &mut self.changes, slot);
+            if !held {
+                self.teleport(entity);
+            }
+        }
+        Ok(())
+    }
+
+    /// Detaches from `entity` its component whose type is named `component`, by its name or an
+    /// alias, and returns its value, if the entity is alive and held one: what a save that removes a
+    /// component does.
+    pub fn remove_component_value(&mut self, entity: Entity, component: &str) -> Option<Value> {
+        let (id, _) = self.held(entity, component).ok()?;
+        let slot = entity.index();
+        let value = self.storages[id].value(slot);
+        self.storages[id].remove_slot(slot);
+        if self.component_types[id] == TypeId::of::<Transform>() {
+            mark_stale(&mut self.nodes, &mut self.changes, slot);
+        }
+        value
+    }
+
     /// The component ID of `entity`'s component whose type is named `component`, and the type's
     /// name.
     fn held(&self, entity: Entity, component: &str) -> Result<(usize, String), WorldError> {
@@ -176,7 +241,7 @@ mod tests {
     use glam::{DVec3, Quat, Vec3};
     use slime_assets::{AssetId, Extra};
     use slime_color::LinearColor;
-    use slime_reflect::{Kind, Leaf, Problem, Range};
+    use slime_reflect::{Kind, Leaf, Problem, Range, Reflect};
 
     use super::*;
     use crate::{Component, Extras, Hidden, Light, Meshes, Name};
@@ -470,6 +535,7 @@ mod tests {
         #[derive(Reflect)]
         #[reflect(name = "test::Saved")]
         struct Saved(u32);
+        impl Component for Saved {}
         world.register::<Saved>();
         assert!(world.registry().get("test::Saved").is_some());
     }
@@ -677,6 +743,7 @@ mod tests {
         #[derive(Reflect)]
         #[reflect(name = "test::Saved")]
         struct Saved(u32);
+        impl Component for Saved {}
         world.register::<Saved>();
         for (target, component, why) in refusals {
             let error = world

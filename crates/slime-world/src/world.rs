@@ -1,12 +1,12 @@
 //! The world: its entities, the storages of their components, and their hierarchy.
 
 use std::any::{Any, TypeId};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::mem;
 
 use slime_reflect::{Reflect, Registry};
 
-use crate::components::{Extras, Hidden, Light, Meshes, Name};
+use crate::components::{Extras, Hidden, Light, Meshes, Name, Unsaved};
 use crate::entity::{Entities, Entity};
 use crate::identity::PersistentId;
 use crate::query::{Query, QueryIter, QueryMut};
@@ -93,8 +93,16 @@ pub struct World {
     pub(crate) nodes: Vec<Node>,
     /// What changed of the transforms in the world.
     pub(crate) changes: Changes,
-    /// The entity of each persistent identity.
+    /// The entity of each persistent identity of a scene's entity.
     pub(crate) identities: HashMap<PersistentId, Entity>,
+    /// The entities created outside scenes, by their numbers.
+    pub(crate) created: Created,
+    /// The number that the next entity created outside a scene takes, from 1: saves keep it, so that
+    /// no number is given twice.
+    pub(crate) next_created: u64,
+    /// The scenes spawned in the world, by the keys they were spawned under, while their roots live:
+    /// what a save names, so that loading it says which changed since.
+    pub(crate) scenes: BTreeMap<String, SpawnedScene>,
     /// How many transforms in the world were computed again, for the tests.
     #[cfg(test)]
     pub(crate) computed: usize,
@@ -106,7 +114,8 @@ pub(crate) struct Node {
     pub(crate) parent: Option<Entity>,
     /// In the order they became its children.
     pub(crate) children: Vec<Entity>,
-    pub(crate) identity: Option<PersistentId>,
+    /// How files and saves name it.
+    pub(crate) identity: Identity,
     /// Where the entity is in the world: its ancestors' transforms and its own composed, an absent
     /// transform counting as none. Current unless `stale`.
     pub(crate) global: GlobalTransform,
@@ -115,6 +124,81 @@ pub(crate) struct Node {
     /// Its index in [`Changes::moved`] plus one, if its transform in the world changed during the
     /// last fixed step; 0 if it did not, or changed outside a step since.
     pub(crate) moved: u32,
+}
+
+/// How files and saves name an entity.
+#[derive(Debug, Default)]
+pub(crate) enum Identity {
+    /// No name: an entity that a scene spawns before it names it.
+    #[default]
+    None,
+    /// The path through the scenes that placed it.
+    Scene(PersistentId),
+    /// Its number, as an entity created outside a scene: its persistent identity is
+    /// `created/<number>`.
+    Created(u64),
+}
+
+/// A scene spawned in a world: its name, and a fingerprint of what it held then.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct SpawnedScene {
+    pub(crate) name: String,
+    /// The FNV-1a hash of the scene's cooked bytes: another content gives another hash, but for a
+    /// chance of one in 2⁶⁴.
+    pub(crate) content: u64,
+}
+
+/// The entities created outside scenes, by their numbers, kept so that spawning and destroying one
+/// cost next to nothing, which a hash map's insertions and removals did not (ADR-0087): in the
+/// order of their numbers, which spawning keeps, since the world's count is larger than every number
+/// given; the destroyed ones left in until they are more than half; one found by a binary search.
+#[derive(Default)]
+pub(crate) struct Created {
+    /// Each number given, and its entity, alive or not, in the order of the numbers.
+    entries: Vec<(u64, Entity)>,
+    /// How many of the entries' entities were destroyed.
+    destroyed: usize,
+}
+
+impl Created {
+    /// Adds the entity of `number`, larger than every number held.
+    pub(crate) fn push(&mut self, number: u64, entity: Entity) {
+        debug_assert!(self.entries.last().is_none_or(|&(last, _)| last < number));
+        self.entries.push((number, entity));
+    }
+
+    /// Adds entities under numbers in any order, as a save gives them.
+    pub(crate) fn extend(&mut self, created: impl IntoIterator<Item = (u64, Entity)>) {
+        self.entries.extend(created);
+        self.entries.sort_unstable_by_key(|&(number, _)| number);
+    }
+
+    /// The entity of `number`, if it is alive in `entities`.
+    pub(crate) fn find(&self, number: u64, entities: &Entities) -> Option<Entity> {
+        let first = self.entries.partition_point(|&(held, _)| held < number);
+        self.entries[first..]
+            .iter()
+            .take_while(|&&(held, _)| held == number)
+            .map(|&(_, entity)| entity)
+            .find(|&entity| entities.contains(entity))
+    }
+
+    /// Counts one of the entities destroyed, which `entities` no longer holds, and leaves out the
+    /// destroyed ones once they are more than half: as many destroyed as the entries left out since
+    /// the last time pay for it.
+    pub(crate) fn destroyed(&mut self, entities: &Entities) {
+        self.destroyed += 1;
+        if self.destroyed * 2 > self.entries.len() {
+            self.forget_destroyed(entities);
+        }
+    }
+
+    /// Leaves out the entries whose entities `entities` no longer holds.
+    pub(crate) fn forget_destroyed(&mut self, entities: &Entities) {
+        self.entries
+            .retain(|&(_, entity)| entities.contains(entity));
+        self.destroyed = 0;
+    }
 }
 
 /// What changed of the transforms in the world: what [`World::update_transforms`] computes again,
@@ -199,7 +283,7 @@ impl Default for World {
 
 impl World {
     /// An empty world, whose registry holds the engine's components: [`Transform`], [`Name`],
-    /// [`Meshes`], [`Hidden`], [`Light`] and [`Extras`].
+    /// [`Meshes`], [`Hidden`], [`Light`], [`Extras`] and [`Unsaved`].
     pub fn new() -> Self {
         let mut world = Self {
             entities: Entities::default(),
@@ -210,6 +294,9 @@ impl World {
             nodes: Vec::new(),
             changes: Changes::default(),
             identities: HashMap::new(),
+            created: Created::default(),
+            next_created: 1,
+            scenes: BTreeMap::new(),
             #[cfg(test)]
             computed: 0,
         };
@@ -219,15 +306,32 @@ impl World {
         world.register::<Hidden>();
         world.register::<Light>();
         world.register::<Extras>();
+        world.register::<Unsaved>();
+        // What saves hold besides components: names, lists of them, counts.
+        world.registry.register::<Option<String>>();
+        world.registry.register::<Vec<String>>();
+        world.registry.register::<u64>();
         world
     }
 
-    /// A new entity, which holds no component and has no parent yet.
+    /// A new entity, which holds no component and has no parent yet. Its persistent identity is
+    /// `created/<number>`, the next number of the world's count of the entities it created outside
+    /// scenes, which saves keep: a save holds it, whole, unless it or an ancestor holds [`Unsaved`].
     ///
     /// # Panics
     ///
     /// If the world already holds `u32::MAX` slots, live or retired.
     pub fn spawn(&mut self) -> Entity {
+        let entity = self.spawn_bare();
+        let number = self.next_created;
+        self.next_created += 1;
+        self.nodes[entity.index() as usize].identity = Identity::Created(number);
+        self.created.push(number, entity);
+        entity
+    }
+
+    /// A new entity without a persistent identity, which a scene then gives it.
+    pub(crate) fn spawn_bare(&mut self) -> Entity {
         let entity = self.entities.spawn();
         let slot = entity.index() as usize;
         if self.nodes.len() <= slot {
@@ -286,10 +390,17 @@ impl World {
                 siblings.retain(|&child| child != entity);
             }
         }
-        if let Some(identity) = node.identity {
-            self.identities.remove(&identity);
-        }
         self.entities.despawn(entity);
+        match node.identity {
+            Identity::None => {}
+            Identity::Scene(identity) => {
+                if let [key] = identity.parts() {
+                    self.scenes.remove(key);
+                }
+                self.identities.remove(&identity);
+            }
+            Identity::Created(_) => self.created.destroyed(&self.entities),
+        }
     }
 
     /// Whether an entity with this handle is alive in this world.
@@ -321,17 +432,7 @@ impl World {
             "a component attached to {entity:?}, which is not alive"
         );
         self.transform_changes::<T>(entity.index());
-        let id = match self.component_ids.get(&TypeId::of::<T>()) {
-            Some(&id) => id,
-            None => {
-                self.registry.register::<T>();
-                self.storages.push(Box::new(Storage::<T>::new()));
-                self.component_types.push(TypeId::of::<T>());
-                let id = self.storages.len() - 1;
-                self.component_ids.insert(TypeId::of::<T>(), id);
-                id
-            }
-        };
+        let id = self.storage_id::<T>();
         let storage: &mut dyn Any = &mut *self.storages[id];
         let replaced = storage
             .downcast_mut::<Storage<T>>()
@@ -459,7 +560,20 @@ impl World {
         }
     }
 
-    /// The storage of `T`, if an entity has ever held a `T`.
+    /// The component ID of `T`, its storage made and its type registered the first time.
+    pub(crate) fn storage_id<T: Component>(&mut self) -> usize {
+        if let Some(&id) = self.component_ids.get(&TypeId::of::<T>()) {
+            return id;
+        }
+        self.registry.register::<T>();
+        self.storages.push(Box::new(Storage::<T>::new()));
+        self.component_types.push(TypeId::of::<T>());
+        let id = self.storages.len() - 1;
+        self.component_ids.insert(TypeId::of::<T>(), id);
+        id
+    }
+
+    /// The storage of `T`, if an entity has ever held a `T`, or the type was registered.
     pub(crate) fn storage<T: Component>(&self) -> Option<&Storage<T>> {
         storage_in(&self.component_ids, &self.storages)
     }
@@ -607,6 +721,29 @@ mod tests {
         let next = world.spawn();
         assert_ne!(next.index(), last.index());
         assert_eq!(world.len(), 1);
+    }
+
+    #[test]
+    fn entities_created_outside_scenes_are_found_by_their_numbers_never_given_twice() {
+        let mut world = World::new();
+        let id = |number: u64| PersistentId::created(number);
+        let entities: Vec<Entity> = (0..10).map(|_| world.spawn()).collect();
+        for (number, &entity) in (1..).zip(&entities) {
+            assert_eq!(world.persistent_id(entity), Some(id(number)));
+            assert_eq!(world.find(&id(number)), Some(entity));
+        }
+        // Enough destroyed for the world to leave them out of its index, slots given again.
+        for &entity in entities.iter().step_by(2).chain(&entities[1..4]) {
+            world.despawn(entity);
+        }
+        let again = world.spawn();
+        assert_eq!(world.persistent_id(again), Some(id(11)));
+        for (number, &entity) in (1..).zip(&entities) {
+            let alive = world.contains(entity);
+            assert_eq!(world.find(&id(number)), alive.then_some(entity), "{number}");
+        }
+        assert_eq!(world.find(&id(11)), Some(again));
+        assert_eq!(world.find(&id(12)), None);
     }
 
     #[test]

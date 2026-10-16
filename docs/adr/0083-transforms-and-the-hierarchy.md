@@ -1,6 +1,6 @@
 # 0083. Transforms and the hierarchy
 
-- Status: Accepted
+- Status: Accepted; amended by [0087](0087-the-worlds-documents.md) (keys and names that hold `/`)
 - Date: 2026-10-16
 
 ## Context

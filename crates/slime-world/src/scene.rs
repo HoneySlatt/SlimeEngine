@@ -8,9 +8,9 @@ use slime_assets::CookedScene;
 use crate::components::{Extras, Light, Meshes, Name};
 use crate::entity::Entity;
 use crate::error::WorldError;
-use crate::identity::PersistentId;
+use crate::identity::{CREATED, PersistentId};
 use crate::transform::{GlobalTransform, Transform, split};
-use crate::world::World;
+use crate::world::{Identity, SpawnedScene, World};
 
 impl World {
     /// Spawns a cooked scene as entities, under a root entity whose persistent identity is `key`,
@@ -33,8 +33,10 @@ impl World {
     ///
     /// # Errors
     ///
-    /// [`WorldError::IdentityInUse`] if an entity has the identity `key`, or one of the scene's,
-    /// already, as a scene spawned twice under one key gives. Nothing is spawned then.
+    /// [`WorldError::InvalidKey`] if `key` is empty, holds `/`, or is `created`, which names the
+    /// entities created outside scenes; [`WorldError::IdentityInUse`] if an entity has the identity
+    /// `key`, or one of the scene's, already, as a scene spawned twice under one key gives. Nothing
+    /// is spawned then.
     ///
     /// # Panics
     ///
@@ -53,6 +55,9 @@ impl World {
                 has_children[parent as usize] = true;
             }
         }
+        if key.is_empty() || key.contains('/') || key == CREATED {
+            return Err(WorldError::InvalidKey(key.to_owned()));
+        }
         let root_id = PersistentId::new([key]);
         let locals = local_ids(scene);
         for id in std::iter::once(root_id.clone()).chain(locals.iter().map(|l| root_id.child(l))) {
@@ -60,7 +65,7 @@ impl World {
                 return Err(WorldError::IdentityInUse(id));
             }
         }
-        let root = self.spawn();
+        let root = self.spawn_bare();
         self.insert(root, Name(key.to_owned()));
         self.insert(root, Transform::IDENTITY);
         self.identify(root, root_id.clone());
@@ -95,7 +100,7 @@ impl World {
             placed.push(parent_placed.mul_transform(&transform));
             flattened.push(flattens || below_flattened);
 
-            let entity = self.spawn();
+            let entity = self.spawn_bare();
             self.insert(entity, transform);
             if !node.name.is_empty() {
                 self.insert(entity, Name(node.name.clone()));
@@ -121,31 +126,54 @@ impl World {
             self.identify(entity, root_id.child(&locals[index]));
             entities.push(entity);
         }
+        self.scenes.insert(
+            key.to_owned(),
+            SpawnedScene {
+                name: scene.name.clone(),
+                content: fingerprint(&scene.to_bytes()),
+            },
+        );
         Ok(root)
     }
 
     /// The entity whose persistent identity is `id`, if one is alive.
     pub fn find(&self, id: &PersistentId) -> Option<Entity> {
-        self.identities.get(id).copied()
+        match id.created_number() {
+            Some(number) => self.created.find(number, &self.entities),
+            None => self.identities.get(id).copied(),
+        }
     }
 
-    /// The entity's persistent identity, if it is alive and has one.
-    pub fn persistent_id(&self, entity: Entity) -> Option<&PersistentId> {
+    /// The entity's persistent identity, if it is alive and has one: a scene's entity, or one created
+    /// outside a scene ([`World::spawn`]).
+    pub fn persistent_id(&self, entity: Entity) -> Option<PersistentId> {
         if !self.contains(entity) {
             return None;
         }
-        self.nodes[entity.index() as usize].identity.as_ref()
+        match &self.nodes[entity.index() as usize].identity {
+            Identity::None => None,
+            Identity::Scene(id) => Some(id.clone()),
+            Identity::Created(number) => Some(PersistentId::created(*number)),
+        }
     }
 
     fn identify(&mut self, entity: Entity, id: PersistentId) {
         self.identities.insert(id.clone(), entity);
-        self.nodes[entity.index() as usize].identity = Some(id);
+        self.nodes[entity.index() as usize].identity = Identity::Scene(id);
     }
 }
 
+/// The FNV-1a hash of `bytes`: a fingerprint of a scene's content that a save keeps, the same on
+/// every platform and with every version of Rust.
+fn fingerprint(bytes: &[u8]) -> u64 {
+    bytes.iter().fold(0xcbf2_9ce4_8422_2325, |hash, &byte| {
+        (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3)
+    })
+}
+
 /// Each node's ID within its scene: its name, or `#<index>` with a warning when the name is
-/// missing, starts with `#`, which would let it be taken for another node's index, or is
-/// repeated. No two nodes get the same ID.
+/// missing, starts with `#`, which would let it be taken for another node's index, holds `/`,
+/// which separates the parts of an identity, or is repeated. No two nodes get the same ID.
 fn local_ids(scene: &CookedScene) -> Vec<String> {
     let mut uses: HashMap<&str, usize> = HashMap::new();
     for node in &scene.nodes {
@@ -156,7 +184,10 @@ fn local_ids(scene: &CookedScene) -> Vec<String> {
         .iter()
         .enumerate()
         .map(|(index, node)| {
-            if !node.name.is_empty() && !node.name.starts_with('#') && uses[node.name.as_str()] == 1
+            if !node.name.is_empty()
+                && !node.name.starts_with('#')
+                && !node.name.contains('/')
+                && uses[node.name.as_str()] == 1
             {
                 node.name.clone()
             } else {
@@ -244,10 +275,7 @@ mod tests {
         let scene = chapel();
         let root = world.spawn_scene("zone", &scene).expect("spawned");
         assert_eq!(world.len(), 4);
-        assert_eq!(
-            world.persistent_id(root),
-            Some(&PersistentId::new(["zone"]))
-        );
+        assert_eq!(world.persistent_id(root), Some(PersistentId::new(["zone"])));
         let door = world
             .find(&PersistentId::new(["zone", "door"]))
             .expect("spawned");

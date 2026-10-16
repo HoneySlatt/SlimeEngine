@@ -93,6 +93,13 @@ pub trait AnyStorage: Any + Send + Sync {
     /// The value of the slot's component, through reflection, if it holds one.
     fn value(&self, slot: u32) -> Option<Value>;
 
+    /// Gives the slot the component that `value` describes, in place of the one it holds, if any.
+    ///
+    /// # Errors
+    ///
+    /// As the component type's [`Reflect::from_value`]: the slot stays as it was then.
+    fn insert_value(&mut self, slot: u32, value: &Value) -> Result<(), ReflectError>;
+
     /// Replaces the slot's component with the one that `value` describes, if the slot holds one.
     ///
     /// # Errors
@@ -112,6 +119,12 @@ impl<T: Component> AnyStorage for Storage<T> {
 
     fn value(&self, slot: u32) -> Option<Value> {
         self.get(slot).map(Reflect::to_value)
+    }
+
+    fn insert_value(&mut self, slot: u32, value: &Value) -> Result<(), ReflectError> {
+        let component = T::from_value(value)?;
+        self.insert(slot, component);
+        Ok(())
     }
 
     fn set_value(&mut self, slot: u32, value: &Value) -> Result<(), ReflectError> {

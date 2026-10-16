@@ -40,6 +40,15 @@ pub struct Hidden;
 
 impl Component for Hidden {}
 
+/// An entity that holds it is left out of the world's saves, and so are its descendants: what a
+/// game creates for a moment, such as an effect or a projectile, which a run resumed from a save
+/// does without (`docs/adr/0087-the-worlds-documents.md`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+#[reflect(name = "Unsaved")]
+pub struct Unsaved;
+
+impl Component for Unsaved {}
+
 /// The light an entity places: at its origin, along its −Z axis, whatever its scale; in the
 /// physical units of glTF's `KHR_lights_punctual`, as the renderer's lights are, with the same
 /// ranges: a color and a strength finite and not negative, a range positive, a spot's cones

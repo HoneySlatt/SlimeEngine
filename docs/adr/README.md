@@ -146,11 +146,12 @@ the ADR linking to it.
 | [0076](0076-hot-reload-of-cooked-data.md) | Hot reload of cooked data | Accepted; amended by 0084 |
 | [0077](0077-hot-reload-of-shaders.md) | Hot reload of shaders | Accepted |
 | [0078](0078-stage-5-in-two-halves.md) | Stage 5 in two halves | Accepted |
-| [0079](0079-the-engines-own-world.md) | The engine's own world | Accepted |
+| [0079](0079-the-engines-own-world.md) | The engine's own world | Accepted; amended by 0087 |
 | [0080](0080-reflection-and-serialization.md) | Reflection and serialization | Accepted; amended by 0085 and 0086 |
 | [0081](0081-stage-5a-the-world.md) | Stage 5a: the world | Accepted |
 | [0082](0082-the-worlds-storage-and-handles.md) | The world's storage and handles | Accepted |
-| [0083](0083-transforms-and-the-hierarchy.md) | Transforms and the hierarchy | Accepted |
+| [0083](0083-transforms-and-the-hierarchy.md) | Transforms and the hierarchy | Accepted; amended by 0087 |
 | [0084](0084-what-the-world-draws.md) | What the world draws | Accepted |
-| [0085](0085-reflection.md) | Reflection | Accepted; amended by 0086 |
-| [0086](0086-serialization.md) | Serialization | Accepted |
+| [0085](0085-reflection.md) | Reflection | Accepted; amended by 0086 and 0087 |
+| [0086](0086-serialization.md) | Serialization | Accepted; amended by 0087 |
+| [0087](0087-the-worlds-documents.md) | The world's documents | Accepted |

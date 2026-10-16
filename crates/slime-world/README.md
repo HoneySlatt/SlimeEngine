@@ -10,7 +10,8 @@ to them, and finds the entities that hold the components a query asks for. It ke
 parent and children and where each one is in the world, and spawns a cooked scene as entities with
 persistent identities. Its components say what is drawn, by asset ID, and it keeps where what moved
 during the last fixed step was, to draw it between its two transforms; `slime-world-render` draws
-it. Every component is reflected, and reached by name. It cannot be saved yet (M5a.8).
+it. Every component is reflected, and reached by name. It saves what differs from the world as a
+game makes it at the start of a run, as text, and loads it back.
 
 ## Role
 
@@ -25,6 +26,9 @@ it. Every component is reflected, and reached by name. It cannot be saved yet (M
   between its two transforms (`docs/adr/0084-what-the-world-draws.md`).
 - Keeps the registry of its components' types, through which every component is listed, read and
   set by name, without its type (`docs/adr/0085-reflection.md`).
+- Saves a world as what differs from the world that the game makes at the start of a run, entities
+  named by their persistent identities, and loads it back, setting aside what no longer applies
+  (`docs/adr/0087-the-worlds-documents.md`).
 - Runs headless: it holds no GPU object and needs no window, so that tests, servers and tools hold
   worlds too. Worlds are values, which threads can share.
 
@@ -61,8 +65,9 @@ world.set_property(cart, "demo::Velocity", &speed, Value::F64(5.0)).expect("an f
 assert_eq!(world.get::<Velocity>(cart).expect("held").0, 5.0);
 ```
 
-- `World::spawn` gives a new `Entity`, `World::despawn` destroys one with its descendants and drops
-  their components; the handle of a destroyed entity finds nothing afterwards.
+- `World::spawn` gives a new `Entity`, whose persistent identity is `created/<number>`, from a count
+  that saves keep; `World::despawn` destroys one with its descendants and drops their components;
+  the handle of a destroyed entity finds nothing afterwards.
 - `World::insert`, `get`, `get_mut` and `remove` attach, read, change and detach one component of
   an entity. A component is a value of a type that threads can share, that reflection describes
   (`#[derive(Reflect)]`, `slime-reflect`), and that says it is one: `impl Component for Velocity {}`.
@@ -89,6 +94,12 @@ assert_eq!(world.get::<Velocity>(cart).expect("held").0, 5.0);
   component of, or `World::register` registered ahead. `World::entities`, `component_names`,
   `component_value`, `set_component_value` and `set_property` list the entities and reach their
   components by name and property path, without their types, within the ranges of their fields.
+- `World::save(start)` writes what differs between the world and `start`, the world that the game
+  makes at the start of a run from the same scenes: entities removed and created, components added,
+  removed and changed, parents changed, references to entities as persistent identities. Entities
+  that hold `Unsaved`, with their descendants, and fields marked transient are left out.
+  `World::load` applies a save to such a world, and says what it set aside and which scenes changed
+  since; `World::first_difference` compares two worlds as saves see them.
 - `slime_world::glam` re-exports the math crate the API uses, so that callers use the same version.
 
 The rustdoc holds the contracts: what panics, what each query visits, what each operation costs.
@@ -99,6 +110,7 @@ The rustdoc holds the contracts: what panics, what each query visits, what each 
 - `glam`: vectors, rotations and matrices; `DVec3` for positions.
 - `slime-color`: the colors of its lights.
 - `slime-reflect`: every component is reflected, and each world keeps the registry of their types.
+- `slime-serialize`: the text of saves.
 - `thiserror`: derives `WorldError`'s `Display` and `Error` implementations.
 - `tracing`: the warnings of a scene spawned with nodes known by their index, or scaled unevenly or
   mirrored.
