@@ -19,6 +19,9 @@ glam.workspace = true
 png.workspace = true
 slime-assets.workspace = true
 slime-color.workspace = true
+# Metadata files are read and written through the engine's serialization (ADR-0086).
+slime-reflect.workspace = true
+slime-serialize.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
 zune-jpeg.workspace = true

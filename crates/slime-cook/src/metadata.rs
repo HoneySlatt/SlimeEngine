@@ -6,6 +6,16 @@
 //! CR LF, as a checkout on Windows may give them.
 
 use slime_assets::AssetId;
+use slime_reflect::Reflect;
+
+/// What a metadata file holds: the asset ID of the source file beside it, which every asset cooked
+/// from it keeps. Import settings will join it.
+#[derive(Clone, Debug, PartialEq, Reflect)]
+#[reflect(name = "Metadata")]
+pub struct Metadata {
+    /// The source file's asset ID.
+    pub id: AssetId,
+}
 
 /// Why a metadata file cannot be read. Lines are counted from 1.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
@@ -153,6 +163,45 @@ mod tests {
             ),
         ] {
             assert_eq!(read(&text), Err(error), "{text:?}");
+        }
+    }
+
+    /// The metadata files under `directory`, but for build directories.
+    fn metadata_files(directory: &std::path::Path, files: &mut Vec<std::path::PathBuf>) {
+        let entries = std::fs::read_dir(directory).expect("a directory of the repository");
+        for entry in entries {
+            let path = entry.expect("an entry").path();
+            if path.is_dir() && !path.ends_with("target") {
+                metadata_files(&path, files);
+            } else if path
+                .extension()
+                .is_some_and(|extension| extension == "meta")
+            {
+                files.push(path);
+            }
+        }
+    }
+
+    /// Each metadata file of the examples and the game gives the same asset ID through this
+    /// module's reader and through the engine's serialization, which writes it back to the same
+    /// bytes.
+    #[test]
+    fn every_metadata_file_reads_the_same_through_the_engine_s_serialization() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let mut files = Vec::new();
+        for top in ["examples", "games"] {
+            metadata_files(&root.join(top), &mut files);
+        }
+        assert!(files.len() >= 68, "{} metadata files", files.len());
+        for file in files {
+            let text = std::fs::read_to_string(&file).expect("a metadata file");
+            let (metadata, warnings) =
+                slime_serialize::read_as::<Metadata>(&text, slime_serialize::Mode::Strict)
+                    .unwrap_or_else(|error| panic!("{}: {error}", file.display()));
+            assert!(warnings.is_empty());
+            assert_eq!(read(&text), Ok(metadata.id), "{}", file.display());
+            let written = slime_serialize::write_as(&metadata).expect("a metadata file");
+            assert_eq!(written, text, "{}: written back", file.display());
         }
     }
 }
