@@ -64,6 +64,21 @@ pub enum Problem {
     /// A value that its type refuses for a reason of its own, such as an entity handle without a
     /// generation.
     Invalid(String),
+    /// A value of a version of its type newer than the one the program knows.
+    NewerVersion {
+        /// The version the value is of.
+        found: u32,
+        /// The type's version in the program.
+        known: u32,
+    },
+    /// A value of an earlier version of its type that cannot be brought to the next one: the type
+    /// has no upgrade from it, or its upgrade refuses the value, for `reason`.
+    Upgrade {
+        /// The version the value is of.
+        from: u32,
+        /// Why it cannot be brought to the next.
+        reason: String,
+    },
 }
 
 impl ReflectError {
@@ -105,11 +120,17 @@ impl ReflectError {
 impl fmt::Display for ReflectError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.path.is_empty() {
-            write!(f, "the value: ")?;
+            write!(f, "the value: {}", self.problem)
         } else {
-            write!(f, "`{}`: ", self.path)?;
+            write!(f, "`{}`: {}", self.path, self.problem)
         }
-        match &self.problem {
+    }
+}
+
+/// What is wrong, without where: `ReflectError` says where.
+impl fmt::Display for Problem {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
             Problem::WrongKind { expected, found } => {
                 write!(f, "a value of `{expected}` is expected, not {found}")
             }
@@ -131,6 +152,17 @@ impl fmt::Display for ReflectError {
             Problem::NoSuchPath => write!(f, "names nothing"),
             Problem::NotRegistered(name) => write!(f, "no type `{name}` is registered"),
             Problem::Invalid(reason) => write!(f, "{reason}"),
+            Problem::NewerVersion { found, known } => write!(
+                f,
+                "a value of version {found} of its type, newer than version {known}, which this \
+                 program knows"
+            ),
+            Problem::Upgrade { from, reason } => {
+                write!(
+                    f,
+                    "cannot be brought from version {from} of its type: {reason}"
+                )
+            }
         }
     }
 }

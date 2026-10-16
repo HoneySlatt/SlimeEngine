@@ -2,6 +2,8 @@
 
 use std::fmt;
 
+use crate::value::Value;
+
 /// The description of a reflected type: its name, the names it had before, its version, its
 /// documentation, and its kind, with its fields or its variants.
 #[derive(Clone, Debug, PartialEq)]
@@ -17,11 +19,11 @@ pub struct TypeInfo {
     pub version: u32,
     /// Its documentation, from its doc comments.
     pub doc: String,
-    /// Whether a value that data leaves out takes a default: the type's
-    /// [`Reflect::default_value`](crate::Reflect::default_value). A struct that declares one gives
-    /// its fields, too, the values of its default when data leaves them out, whatever their own
-    /// [`FieldInfo::default`] says.
-    pub default: bool,
+    /// The value that data which leaves a value of the type out gives it, if the type declares
+    /// one: its [`Reflect::default_value`](crate::Reflect::default_value). A struct that declares
+    /// one gives its fields, too, the values of its default when data leaves them out, whatever
+    /// their own [`FieldInfo::default`] says.
+    pub default: Option<Value>,
     /// What its values are.
     pub kind: Kind,
 }
@@ -78,8 +80,9 @@ pub struct FieldInfo {
     pub aliases: Vec<String>,
     /// Its documentation, from its doc comments.
     pub doc: String,
-    /// Whether data that leaves it out gives it its type's `Default` value.
-    pub default: bool,
+    /// The value that data which leaves the field out gives it, if the field declares one: its
+    /// type's `Default` value, for a field that derives with `#[reflect(default)]`.
+    pub default: Option<Value>,
     /// Whether it is left out of saves: what a game computes again, such as a value that changes
     /// at every frame. It is described, read and set as any other.
     pub transient: bool,
@@ -98,7 +101,7 @@ impl FieldInfo {
             ty: ty.into(),
             aliases: Vec::new(),
             doc: String::new(),
-            default: false,
+            default: None,
             transient: false,
             range: None,
             unit: None,

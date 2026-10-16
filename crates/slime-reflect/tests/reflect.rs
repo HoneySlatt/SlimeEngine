@@ -17,7 +17,12 @@ struct Tint {
 
 /// A light, of one of three kinds.
 #[derive(Clone, Debug, PartialEq, Reflect)]
-#[reflect(name = "test::Lamp", alias = "test::Lantern", version = 2)]
+#[reflect(
+    name = "test::Lamp",
+    alias = "test::Lantern",
+    version = 2,
+    upgrade = upgrade_lamp
+)]
 enum Lamp {
     /// A light from everywhere.
     Ambient,
@@ -35,6 +40,22 @@ enum Lamp {
     /// A light in a cone.
     #[reflect(alias = "Cone")]
     Spot(#[reflect(range(min = 0.0, max = std::f32::consts::FRAC_PI_2))] f32),
+}
+
+/// Brings a lamp from version 1, at which a spot light's angle was in degrees, to version 2.
+fn upgrade_lamp(version: u32, value: Value) -> Result<Value, String> {
+    match (version, value) {
+        (1, Value::Struct(mut variants)) => {
+            for (variant, angle) in &mut variants {
+                if let ("Spot" | "Cone", Value::F64(degrees)) = (variant.as_str(), &*angle) {
+                    *angle = Value::F64(degrees.to_radians());
+                }
+            }
+            Ok(Value::Struct(variants))
+        }
+        (1, value) => Ok(value),
+        (version, _) => Err(format!("no lamp had version {version}")),
+    }
 }
 
 /// A post that holds lamps.
@@ -161,7 +182,7 @@ fn a_registered_type_lists_its_properties_with_their_kinds_and_attributes() {
         ["height", "lamps", "name", "lit_at"],
         "`cache` is skipped"
     );
-    assert!(fields[2].default && fields[3].transient);
+    assert!(fields[2].default.is_some() && fields[3].transient);
     // Every type a field names is registered.
     for registration in registry.iter() {
         if let Kind::Struct(fields) = &registration.info().kind {
@@ -420,7 +441,7 @@ fn a_type_without_a_rust_type_is_registered_checked_and_edited_by_its_descriptio
         aliases: Vec::new(),
         version: 1,
         doc: "A beacon a script describes.".to_owned(),
-        default: false,
+        default: None,
         kind: Kind::Struct(vec![FieldInfo {
             range: Some(Range {
                 min: 0.0,
@@ -672,7 +693,7 @@ fn a_description_that_is_not_one_is_refused() {
         aliases: Vec::new(),
         version: 1,
         doc: String::new(),
-        default: false,
+        default: None,
         kind,
     };
     for (info, reason) in [
@@ -691,11 +712,29 @@ fn a_description_that_is_not_one_is_refused() {
             ),
             "two fields are named `a`",
         ),
+        (
+            described(
+                "script::Heavy",
+                Kind::Struct(vec![FieldInfo {
+                    default: Some(Value::Bool(true)),
+                    ..FieldInfo::new("mass", "f32")
+                }]),
+            ),
+            "the default of the field `mass`",
+        ),
+        (
+            TypeInfo {
+                default: Some(Value::Text("yes".to_owned())),
+                ..described("script::Flag", Kind::Bool)
+            },
+            "its default",
+        ),
     ] {
         let error = registry.register_dynamic(info).expect_err(reason);
         assert!(error.to_string().contains(reason), "{error}");
     }
     assert!(registry.get("script::Odd").is_none());
+    assert!(registry.get("script::Flag").is_none(), "taken out again");
 }
 
 #[test]
@@ -732,4 +771,53 @@ fn unit_structs_and_empty_lists_have_no_parts_to_go_through() {
         .map(|leaf| leaf.path.to_string())
         .collect();
     assert_eq!(paths, ["height", "lamps", "name", "lit_at"]);
+}
+
+#[test]
+fn a_value_of_an_earlier_version_is_brought_to_the_type_s_through_its_upgrade() {
+    let mut registry = Registry::new();
+    registry.register::<Lamp>();
+    let spot = |angle| Value::Struct(vec![("Spot".to_owned(), Value::F64(angle))]);
+    let upgraded = registry
+        .upgrade("test::Lantern", 1, spot(90.0))
+        .expect("an upgrade from version 1, the type found by its alias");
+    assert_eq!(upgraded, spot(std::f64::consts::FRAC_PI_2));
+    let ambient = Value::Text("Ambient".to_owned());
+    assert_eq!(
+        registry.upgrade("test::Lamp", 1, ambient.clone()),
+        Ok(ambient.clone())
+    );
+    assert_eq!(
+        registry.upgrade("test::Lamp", 2, spot(1.0)),
+        Ok(spot(1.0)),
+        "already at 2"
+    );
+    let problem = |version| {
+        registry
+            .upgrade("test::Lamp", version, ambient.clone())
+            .map_err(|error| error.problem().clone())
+    };
+    assert_eq!(
+        problem(3),
+        Err(Problem::NewerVersion { found: 3, known: 2 })
+    );
+    assert!(matches!(problem(0), Err(Problem::Upgrade { from: 0, .. })));
+    // A type with no Rust type behind it has no upgrade.
+    registry
+        .register_dynamic(TypeInfo {
+            name: "test::Bell".to_owned(),
+            aliases: Vec::new(),
+            version: 2,
+            doc: String::new(),
+            default: None,
+            kind: Kind::Bool,
+        })
+        .expect("a description");
+    let refused = registry
+        .upgrade("test::Bell", 1, Value::Bool(true))
+        .unwrap_err();
+    assert_eq!(
+        refused.to_string(),
+        "the value: cannot be brought from version 1 of its type: the type has no upgrade"
+    );
 }

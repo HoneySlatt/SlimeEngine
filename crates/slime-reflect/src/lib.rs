@@ -17,7 +17,7 @@ pub use diff::{apply, diff};
 pub use error::{Problem, ReflectError, RegistryError};
 pub use info::{FieldInfo, Kind, Range, TypeInfo, VariantInfo};
 pub use path::{ParsePathError, Path, Step};
-pub use reflect::Reflect;
+pub use reflect::{Reflect, Upgrade};
 pub use registry::{Leaf, Registration, Registry};
 /// Derives [`Reflect`](trait@Reflect): its documentation says which attributes the derive takes,
 /// and what it refuses.

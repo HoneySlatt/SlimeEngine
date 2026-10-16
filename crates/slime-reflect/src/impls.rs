@@ -18,7 +18,7 @@ fn described(name: String, doc: &str, kind: Kind) -> TypeInfo {
         aliases: Vec::new(),
         version: 1,
         doc: doc.to_owned(),
-        default: false,
+        default: None,
         kind,
     }
 }
@@ -175,7 +175,7 @@ impl<T: Reflect> Reflect for Option<T> {
     /// Data that leaves it out gives `None`.
     fn type_info() -> TypeInfo {
         TypeInfo {
-            default: true,
+            default: Some(Value::Option(None)),
             ..described(
                 Self::type_name(),
                 "A value that may be absent.",

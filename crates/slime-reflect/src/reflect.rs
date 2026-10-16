@@ -5,6 +5,15 @@ use crate::info::TypeInfo;
 use crate::registry::Registry;
 use crate::value::Value;
 
+/// A function that brings a value of a type from the version it is given, of the type's versions
+/// before its last, to the next: `upgrade(version, value)`, or a reason why it cannot.
+///
+/// It works on the value as a document holds it, tables, arrays, text, numbers and booleans, before
+/// any Rust type reads it, so that the type's shape may have changed since: `slime-serialize` says
+/// how a document holds each kind of value. The value may be partial, its fields left out but those
+/// that changed: an upgrade changes what is there, and adds nothing that is not.
+pub type Upgrade = fn(u32, Value) -> Result<Value, String>;
+
 /// A type whose values reflection describes, reads and changes: one that turns into a [`Value`]
 /// and back, under a stable name, with a description of its shape ([`TypeInfo`]).
 ///
@@ -51,6 +60,8 @@ use crate::value::Value;
 ///   `check = path::to::check`, a function `fn(&Self) -> Result<(), String>` that accepts a value
 ///   once it is read, or refuses it with a reason ([`Problem::Invalid`](crate::Problem)): the
 ///   rules between fields, or on numbers without a range, such as a cone narrower than another;
+///   `upgrade = path::to::upgrade`, an [`Upgrade`] from each of its earlier versions to the next,
+///   which a type past version 1 declares, and only such a type;
 /// - on a field: `alias = "..."`; `default`, which makes data that leaves the field out give its
 ///   type's `Default` value; `skip`, which leaves the field out of the description and the value,
 ///   and gives it its `Default` value when read, as an edit through reflection reads the whole
@@ -135,6 +146,29 @@ use crate::value::Value;
 ///     intensity: f32,
 /// }
 /// ```
+///
+/// a type past version 1 without an upgrade, which could not read its earlier values, or an upgrade
+/// on a type at version 1, which has no earlier values:
+///
+/// ```compile_fail
+/// #[derive(slime_reflect::Reflect)]
+/// #[reflect(name = "Lamp", version = 2)]
+/// struct Lamp {
+///     lit: bool,
+/// }
+/// ```
+///
+/// ```compile_fail
+/// fn upgrade(_: u32, value: slime_reflect::Value) -> Result<slime_reflect::Value, String> {
+///     Ok(value)
+/// }
+///
+/// #[derive(slime_reflect::Reflect)]
+/// #[reflect(name = "Lamp", upgrade = upgrade)]
+/// struct Lamp {
+///     lit: bool,
+/// }
+/// ```
 #[diagnostic::on_unimplemented(
     message = "`{Self}` is not reflected",
     note = "derive `Reflect` for it, with `#[reflect(name = \"...\")]`, or implement it by hand"
@@ -160,6 +194,16 @@ pub trait Reflect: Send + Sync + 'static {
     /// one: `None` for an [`Option`], the `Default` value of a type that derives `Reflect` with
     /// `#[reflect(default)]`. `None` by default: data must give the value.
     fn default_value() -> Option<Self>
+    where
+        Self: Sized,
+    {
+        None
+    }
+
+    /// How a value of this type is brought from one version of the type to the next: the function
+    /// that `#[reflect(upgrade = ...)]` names, which the type declares once past version 1.
+    /// `None` by default.
+    fn upgrade() -> Option<Upgrade>
     where
         Self: Sized,
     {

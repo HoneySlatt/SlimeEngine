@@ -39,7 +39,7 @@ impl slime_reflect::Reflect for Entity {
             aliases: Vec::new(),
             version: 1,
             doc: "One thing in a world: a handle to which components are attached.".to_owned(),
-            default: false,
+            default: None,
             kind: slime_reflect::Kind::Entity,
         }
     }

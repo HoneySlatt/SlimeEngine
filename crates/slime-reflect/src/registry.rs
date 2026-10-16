@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use crate::error::{Problem, ReflectError, RegistryError};
 use crate::info::{FieldInfo, Kind, Range, TypeInfo};
 use crate::path::{Path, Step};
-use crate::reflect::Reflect;
+use crate::reflect::{Reflect, Upgrade};
 use crate::value::Value;
 
 /// The types a program describes, by name: their descriptions, and the Rust type behind each, if
@@ -34,6 +34,7 @@ pub struct Registry {
 pub struct Registration {
     info: TypeInfo,
     type_id: Option<TypeId>,
+    upgrade: Option<Upgrade>,
 }
 
 impl Registration {
@@ -45,6 +46,12 @@ impl Registration {
     /// The Rust type behind it, if there is one.
     pub fn type_id(&self) -> Option<TypeId> {
         self.type_id
+    }
+
+    /// How its values are brought from one of its versions to the next, if it says
+    /// ([`Reflect::upgrade`]).
+    pub fn upgrade(&self) -> Option<Upgrade> {
+        self.upgrade
     }
 }
 
@@ -79,7 +86,7 @@ impl Registry {
             return;
         }
         let index = self
-            .add(T::type_info(), Some(TypeId::of::<T>()))
+            .add(T::type_info(), Some(TypeId::of::<T>()), T::upgrade())
             .unwrap_or_else(|error| panic!("`{}` cannot be registered: {error}", T::type_name()));
         self.rust.insert(TypeId::of::<T>(), index);
         T::register_dependencies(self);
@@ -93,7 +100,8 @@ impl Registry {
     ///
     /// When another type has its name or one of its aliases, when it holds values of a type that
     /// the registry does not hold, or when its description is not one: integers of another width
-    /// than 8, 16, 32 or 64 bits, two fields or variants of one name. Nothing is registered then.
+    /// than 8, 16, 32 or 64 bits, two fields or variants of one name, a default that is not a value
+    /// of its type. Nothing is registered then.
     pub fn register_dynamic(&mut self, info: TypeInfo) -> Result<(), RegistryError> {
         let invalid = |reason: String| RegistryError::Invalid {
             ty: info.name.clone(),
@@ -137,11 +145,54 @@ impl Registry {
                 names: (*missing).to_owned(),
             });
         }
-        self.add(info, None).map(|_| ())
+        let fields: Vec<&FieldInfo> = match &info.kind {
+            Kind::Struct(fields) => fields.iter().collect(),
+            Kind::Enum(variants) => variants
+                .iter()
+                .flat_map(|variant| &variant.fields)
+                .collect(),
+            _ => Vec::new(),
+        };
+        for field in fields {
+            if let Some(default) = &field.default {
+                self.check(&field.ty, default).map_err(|error| {
+                    invalid(format!(
+                        "the default of the field `{}`: {error}",
+                        field.name
+                    ))
+                })?;
+            }
+        }
+        let name = info.name.clone();
+        let names: Vec<String> = std::iter::once(&info.name)
+            .chain(&info.aliases)
+            .cloned()
+            .collect();
+        let index = self.add(info, None, None)?;
+        // The type's default is a value of the type itself, which the registry checks once it
+        // holds the type.
+        if let Some(default) = &self.registrations[index].info.default
+            && let Err(error) = self.check(&name, default)
+        {
+            self.registrations.truncate(index);
+            for name in &names {
+                self.names.remove(name);
+            }
+            return Err(RegistryError::Invalid {
+                ty: name,
+                reason: format!("its default: {error}"),
+            });
+        }
+        Ok(())
     }
 
     /// Adds a registration under its name and aliases.
-    fn add(&mut self, info: TypeInfo, type_id: Option<TypeId>) -> Result<usize, RegistryError> {
+    fn add(
+        &mut self,
+        info: TypeInfo,
+        type_id: Option<TypeId>,
+        upgrade: Option<Upgrade>,
+    ) -> Result<usize, RegistryError> {
         for name in std::iter::once(&info.name).chain(&info.aliases) {
             if let Some(&taken) = self.names.get(name) {
                 return Err(RegistryError::NameTaken {
@@ -154,7 +205,11 @@ impl Registry {
         for name in std::iter::once(&info.name).chain(&info.aliases) {
             self.names.insert(name.clone(), index);
         }
-        self.registrations.push(Registration { info, type_id });
+        self.registrations.push(Registration {
+            info,
+            type_id,
+            upgrade,
+        });
         Ok(index)
     }
 
@@ -173,6 +228,77 @@ impl Registry {
     /// Every registered type, in the order they were registered.
     pub fn iter(&self) -> impl ExactSizeIterator<Item = &Registration> {
         self.registrations.iter()
+    }
+
+    /// Brings `value`, a value of the type named `ty` at its `version` as a document holds it, to
+    /// the type's version now, through the type's upgrade ([`Reflect::upgrade`]), one version at a
+    /// time; a value of the type's version comes back as it is.
+    ///
+    /// ```
+    /// use slime_reflect::{Reflect, Registry, Value};
+    ///
+    /// /// A lantern, whose `power` was called `watts` at version 1.
+    /// #[derive(Reflect)]
+    /// #[reflect(name = "Lantern", version = 2, upgrade = upgrade)]
+    /// struct Lantern {
+    ///     power: f32,
+    /// }
+    ///
+    /// fn upgrade(version: u32, value: Value) -> Result<Value, String> {
+    ///     match (version, value) {
+    ///         (1, Value::Struct(fields)) => Ok(Value::Struct(
+    ///             fields
+    ///                 .into_iter()
+    ///                 .map(|(name, value)| match name.as_str() {
+    ///                     "watts" => ("power".to_owned(), value),
+    ///                     _ => (name, value),
+    ///                 })
+    ///                 .collect(),
+    ///         )),
+    ///         (version, _) => Err(format!("no lantern of version {version} was a table")),
+    ///     }
+    /// }
+    ///
+    /// let mut registry = Registry::new();
+    /// registry.register::<Lantern>();
+    /// let old = Value::Struct(vec![("watts".to_owned(), Value::F64(60.0))]);
+    /// let new = registry.upgrade("Lantern", 1, old).expect("an upgrade from version 1");
+    /// assert_eq!(new, Value::Struct(vec![("power".to_owned(), Value::F64(60.0))]));
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// [`Problem::NotRegistered`] for a type that the registry does not hold;
+    /// [`Problem::NewerVersion`] for a version past the type's; [`Problem::Upgrade`] for version
+    /// 0, which no type has, when the type has no upgrade, or when its upgrade refuses the value.
+    pub fn upgrade(&self, ty: &str, version: u32, value: Value) -> Result<Value, ReflectError> {
+        let registration = self
+            .get(ty)
+            .ok_or_else(|| ReflectError::new(Problem::NotRegistered(ty.to_owned())))?;
+        let known = registration.info.version;
+        if version > known {
+            return Err(ReflectError::new(Problem::NewerVersion {
+                found: version,
+                known,
+            }));
+        }
+        let refused = |from, reason: &str| {
+            ReflectError::new(Problem::Upgrade {
+                from,
+                reason: reason.to_owned(),
+            })
+        };
+        if version == 0 {
+            return Err(refused(0, "versions start at 1"));
+        }
+        let mut value = value;
+        for from in version..known {
+            let upgrade = registration
+                .upgrade
+                .ok_or_else(|| refused(from, "the type has no upgrade"))?;
+            value = upgrade(from, value).map_err(|reason| refused(from, &reason))?;
+        }
+        Ok(value)
     }
 
     /// The description of the type named `name`.

@@ -125,7 +125,7 @@ impl slime_reflect::Reflect for AssetId {
             aliases: Vec::new(),
             version: 1,
             doc: "The identity of an asset: a 128-bit number, written as a UUID.".to_owned(),
-            default: false,
+            default: None,
             kind: slime_reflect::Kind::Asset,
         }
     }

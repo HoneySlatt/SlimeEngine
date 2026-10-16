@@ -31,6 +31,8 @@ struct TypeAttributes {
     default: bool,
     /// The function that accepts or refuses a value once it is read.
     check: Option<syn::Path>,
+    /// The function that brings a value from one version of the type to the next.
+    upgrade: Option<syn::Path>,
 }
 
 /// What a field's `#[reflect(...)]` says.
@@ -127,14 +129,40 @@ fn type_attributes(attributes: &[Attribute]) -> syn::Result<TypeAttributes> {
                 parsed.default = true;
             } else if meta.path.is_ident("check") {
                 parsed.check = Some(meta.value()?.parse()?);
+            } else if meta.path.is_ident("upgrade") {
+                parsed.upgrade = Some(meta.value()?.parse()?);
             } else {
                 return Err(meta.error(
-                    "a type takes `name`, `alias`, `version`, `default` and `check` in \
+                    "a type takes `name`, `alias`, `version`, `default`, `check` and `upgrade` in \
                      `#[reflect(...)]`",
                 ));
             }
             Ok(())
         })?;
+    }
+    let version = match &parsed.version {
+        Some(version) => version.base10_parse::<u32>()?,
+        None => 1,
+    };
+    match (&parsed.version, &parsed.upgrade) {
+        (Some(literal), _) if version == 0 => {
+            return Err(syn::Error::new_spanned(literal, "versions start at 1"));
+        }
+        (Some(literal), None) if version > 1 => {
+            return Err(syn::Error::new_spanned(
+                literal,
+                "a type past version 1 brings its earlier values to its version: name the \
+                 function, `upgrade = path::to::upgrade`",
+            ));
+        }
+        (_, Some(upgrade)) if version == 1 => {
+            return Err(syn::Error::new_spanned(
+                upgrade,
+                "an upgrade brings values from earlier versions, which a type at version 1 has \
+                 none of",
+            ));
+        }
+        _ => {}
     }
     Ok(parsed)
 }
@@ -273,6 +301,14 @@ fn field_infos(fields: &[Field<'_>]) -> Vec<Tokens> {
                 }
                 None => quote!(::std::option::Option::None),
             };
+            let default = if *default {
+                let ty = field.ty;
+                quote!(::std::option::Option::Some(::slime_reflect::Reflect::to_value(
+                    &<#ty as ::std::default::Default>::default()
+                )))
+            } else {
+                quote!(::std::option::Option::None)
+            };
             quote! {
                 ::slime_reflect::FieldInfo {
                     aliases: ::std::vec![#(::std::string::String::from(#aliases)),*],
@@ -380,7 +416,6 @@ fn construct(path: Tokens, shape: &Fields, fields: &[Field<'_>], reads: &[Tokens
     }
 }
 
-/// What the type's attributes give its `TypeInfo`, and its `default_value`.
 /// What returns the value read, `read`: once the type's check accepts it, if it declares one.
 fn finish(attributes: &TypeAttributes) -> Tokens {
     match &attributes.check {
@@ -389,6 +424,7 @@ fn finish(attributes: &TypeAttributes) -> Tokens {
     }
 }
 
+/// What the type's attributes give its `TypeInfo`, and its `default_value` and `upgrade`.
 fn type_parts(input: &DeriveInput, attributes: &TypeAttributes) -> (Tokens, Tokens) {
     let aliases = &attributes.aliases;
     let version = attributes
@@ -396,14 +432,20 @@ fn type_parts(input: &DeriveInput, attributes: &TypeAttributes) -> (Tokens, Toke
         .as_ref()
         .map_or(quote!(1), ToTokens::to_token_stream);
     let doc = doc(&input.attrs);
-    let default = attributes.default;
+    let default = if attributes.default {
+        quote!(::std::option::Option::Some(
+            ::slime_reflect::Reflect::to_value(&<Self as ::std::default::Default>::default())
+        ))
+    } else {
+        quote!(::std::option::Option::None)
+    };
     let head = quote! {
         aliases: ::std::vec![#(::std::string::String::from(#aliases)),*],
         version: #version,
         doc: ::std::string::String::from(#doc),
         default: #default,
     };
-    let default_value = if default {
+    let default_value = if attributes.default {
         quote! {
             fn default_value() -> ::std::option::Option<Self> {
                 ::std::option::Option::Some(::std::default::Default::default())
@@ -412,7 +454,14 @@ fn type_parts(input: &DeriveInput, attributes: &TypeAttributes) -> (Tokens, Toke
     } else {
         Tokens::new()
     };
-    (head, default_value)
+    let upgrade = attributes.upgrade.as_ref().map(|upgrade| {
+        quote! {
+            fn upgrade() -> ::std::option::Option<::slime_reflect::Upgrade> {
+                ::std::option::Option::Some(#upgrade)
+            }
+        }
+    });
+    (head, quote!(#default_value #upgrade))
 }
 
 fn expand_struct(
@@ -423,7 +472,7 @@ fn expand_struct(
     fields: &[Field<'_>],
 ) -> syn::Result<Tokens> {
     let ident = &input.ident;
-    let (head, default_value) = type_parts(input, attributes);
+    let (head, methods) = type_parts(input, attributes);
     let finish = finish(attributes);
     let infos = field_infos(fields);
     let dependencies = dependencies(fields);
@@ -457,7 +506,7 @@ fn expand_struct(
                 #(#dependencies)*
             }
 
-            #default_value
+            #methods
 
             fn to_value(&self) -> ::slime_reflect::Value {
                 ::slime_reflect::Value::Struct(::std::vec![#(#values),*])
@@ -484,7 +533,7 @@ fn expand_enum(
     data: &DataEnum,
 ) -> syn::Result<Tokens> {
     let ident = &input.ident;
-    let (head, default_value) = type_parts(input, attributes);
+    let (head, methods) = type_parts(input, attributes);
     let finish = finish(attributes);
     let mut infos = Vec::new();
     let mut dependencies = Vec::new();
@@ -588,7 +637,7 @@ fn expand_enum(
                 #(#dependencies)*
             }
 
-            #default_value
+            #methods
 
             fn to_value(&self) -> ::slime_reflect::Value {
                 match self {
