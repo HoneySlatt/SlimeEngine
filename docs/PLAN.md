@@ -32,9 +32,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   panel of the dev overlay lists the world's entities and edits their components, in *Hunna Wood*
   and the `world` example. M5a.7 done on 2026-10-16: values of reflected types written to TOML
   documents and read back, from earlier versions of their types too, in `slime-serialize`
-  ([ADR-0086](adr/0086-serialization.md)). M5a.8 built: a world saves what differs from the world
-  that the game makes at the start of a run, and loads it back
-  ([ADR-0087](adr/0087-the-worlds-documents.md)); CI checks it.
+  ([ADR-0086](adr/0086-serialization.md)). M5a.8 done on 2026-10-16: a world saves what differs
+  from the world that the game makes at the start of a run, and loads it back
+  ([ADR-0087](adr/0087-the-worlds-documents.md)).
 
 ## Status
 
@@ -47,7 +47,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M5a.5](#m5a5--reflection) | The engine and the game describe, read and change their types' values through one registry | Done |
 | [M5a.6](#m5a6--any-component-listed-and-edited) | Any component's properties are listed and edited in the running game | Done |
 | [M5a.7](#m5a7--serialization-with-format-versioning) | Any reflected value is written to a file and read back, even from an older version of its type | Done |
-| [M5a.8](#m5a8--the-world-round-trips) | A world saves what differs from the scenes it was made from, and loads it back | Built; CI checks it |
+| [M5a.8](#m5a8--the-world-round-trips) | A world saves what differs from the scenes it was made from, and loads it back | Done |
 | [M5a.9](#m5a9--saving-and-resuming-a-run) | A player saves a run of *Hunna Wood* and resumes it | Planned |
 | [M5a.10](#m5a10--windows-check-documentation-release-03) | Stage 5a is done and released as 0.3, with Stage 4b | Planned |
 
@@ -457,7 +457,7 @@ Risks:
   runs in `scripts/check.sh`; CI is green.
 - **How to test.** `cargo test -p slime-world`; `cargo test -p hunnawood -- --ignored`;
   `cargo run --example world -- --headless`.
-- **Outcome.** Built on 2026-10-16 ([ADR-0087](adr/0087-the-worlds-documents.md)); it also changed
+- **Outcome.** Done on 2026-10-16 ([ADR-0087](adr/0087-the-worlds-documents.md)); it also changed
   `slime-serialize` and `slime-reflect`. The owner decided that a save differs from a world that the
   game makes as at the start of a run, rather than from the scenes alone; that it is laid out by
   entity and component, a changed component written as the fields that changed; that every entity
@@ -480,7 +480,10 @@ Risks:
   entity left out at the start was saved as created and could not be loaded, and that saving and
   loading cost grew with the square of the entities: each is fixed and tested, and the costs are in
   the rustdoc of `World::save` and `World::load`. A save cut at the boundary of a section loads what
-  it holds, and a save is limited in size (see [Known debt](#known-debt)).
+  it holds, and a save is limited in size (see [Known debt](#known-debt)). A second review found
+  that an entity left out under one removed, or whose new parent was gone, died unseen, and that a
+  panic while a save was read took the world's registry: fixed and tested. CI took 13 minutes 31
+  seconds on Linux and 18 minutes 37 seconds on Windows.
 
 ### M5a.9 — Saving and resuming a run
 
