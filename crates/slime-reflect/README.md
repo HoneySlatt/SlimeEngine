@@ -5,27 +5,30 @@ changed by path through a registry (`docs/adr/0080-reflection-and-serialization.
 
 ## Status
 
-Reflection describes, reads and changes values; files and saves come with serialization, which
-works through the same values. Maps, generic types and functions come when something needs them.
+Reflection describes, reads and changes values; `slime-serialize` writes them to files and reads
+them back, through the same values. Maps, generic types and functions come when something needs
+them.
 
 ## Role
 
 - `Reflect`, the trait of a type whose values reflection handles, and its derive,
   `#[derive(Reflect)]`, which requires a stable name: bare for the engine's types (`Transform`),
-  `<crate>::<Type>` for a game's (`hunnawood::Collider`). Attributes give aliases, a version,
-  defaults, skipped and transient fields, ranges of finite numbers, units, and a check of the
-  rules between fields, which refuses the values that break them. The standard types the engine
+  `<crate>::<Type>` for a game's (`hunnawood::Collider`). Attributes give aliases, a version and
+  the upgrade that brings earlier values to it, defaults, skipped and transient fields, ranges of
+  finite numbers, units, and a check of the rules between fields, which refuses the values that
+  break them. The standard types the engine
   uses (booleans, integers, floats, `String`, `Option`, `Vec`, arrays, pairs) and glam's `Vec3`,
   `DVec3` and `Quat` are described here, by hand, with the helpers of `support`: the orphan rule
   allows it nowhere else.
 - `Value`, plain data, which passes between reflection, files, saves and the editors: references to
   assets and to entities are kinds of their own, and floats keep their width.
 - `TypeInfo`, the description of a type: its kind, its fields or variants, with their names, types
-  and attributes.
+  and attributes, and the values that data which leaves them out gives.
 - `Registry`, the types a program describes, by name and alias, registered explicitly, each
   registration registering the types its values hold; it can hold a type with no Rust type behind
   it. It checks values against their types, sets their parts by `Path` within the fields' ranges,
-  and lists their leaves.
+  lists their leaves, and brings values of earlier versions of a type to its version through the
+  type's upgrade.
 - `diff` and `apply`: what differs between two values, path by path, and those differences set.
 
 A crate that owns a value type implements reflection where the type is defined: `slime-assets`

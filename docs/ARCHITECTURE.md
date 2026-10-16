@@ -22,6 +22,7 @@ it is built this way.
 │   ├── slime-platform/  window, its events and input
 │   ├── slime-reflect/   reflection: types described at run time, their values read and set by path
 │   ├── slime-reflect-derive/  the derive macro of reflection, which slime-reflect re-exports
+│   ├── slime-serialize/ serialization: reflected values written to TOML documents and read back
 │   ├── slime-render/    renderer: meshes, PBR materials, camera, lights, shadows, HDR, tone mapping
 │   ├── slime-world/     the world: a game's entities, their components and their hierarchy
 │   └── slime-world-render/  the bridge from a world to the renderer: what a world draws, each frame
@@ -56,12 +57,13 @@ created only when code needs it.
 | [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu, apart from the dev overlay through its `wgpu` feature | `wgpu`, `pollster`, `raw-window-handle`, `slime-color`, `thiserror`, `tracing` | Opens a GPU device, and another in place of a lost one; draws into offscreen images, 8-bit or 16-bit float, and reads them back; draws into a window; later passes sample what earlier ones drew; depth-only passes; images of four samples per pixel, resolved for anti-aliasing; textures and cube textures whose levels the caller gives, half-precision floats and BC7 and BC5 blocks among their formats |
 | [`slime-color`](../crates/slime-color/README.md) | The color type of every API of the engine, `LinearColor`, and the sRGB transfer function, below every crate that holds a color ([ADR-0045](adr/0045-one-linear-color-type.md), [ADR-0079](adr/0079-the-engines-own-world.md)); headless | `slime-reflect` | Linear colors and their constructors, sRGB bytes decoded and encoded |
 | [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, lit by directional, point and spot lights, seen from a camera, into render targets, and reports what a frame cost; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `slime-assets`, `slime-color`, `glam`, `thiserror`, `tracing` | Textures and scenes cooked by the asset pipeline, loaded onto the GPU, BC7 and BC5 among them, normal textures read by x and y; meshes with tangents, simple shapes made in code (a cube, a sphere, a square), glTF's metallic-roughness materials (five textures, masks, double-sided, values that change while a game runs, found by name in a loaded scene), a perspective camera, the depth test, up to 16 directional, point and spot lights in physical units (`KHR_lights_punctual`), a procedural sky computed on the CPU that surfaces reflect (image-based lighting) and that is drawn behind them with its sun's disc, the shadows of the first directional light that casts them (four cascades in one atlas, filtered over 5 × 5 texels) and of every spot light that casts them (a tile each of one atlas), mirrored instances drawn with their front faces, the scene drawn in HDR with its light exposed, at four samples per pixel (multisample anti-aliasing), an energy-conserving bloom, then tone mapped, the passes ordered by a render graph and recorded four to a submission, statistics with the GPU time of each pass; scenes loaded in the background, and again when their cooked data changed, keeping what did not change; the meshes a game draws kept by asset ID in a cache, loaded in batches as they are asked for, loaded again when their cooked data changes, dropped after a lost device ([ADR-0084](adr/0084-what-the-world-draws.md)); its shaders replaced while it runs |
-| [`slime-reflect`](../crates/slime-reflect/README.md) | Reflection: types described at run time, their values as plain data, read and changed by property path through a registry, compared and their differences applied ([ADR-0080](adr/0080-reflection-and-serialization.md), [ADR-0085](adr/0085-reflection.md)); headless | `glam`, `slime-reflect-derive` | `Reflect` and its derive, with stable names, aliases, versions, defaults, skipped and transient fields, ranges and units; one value type, references to assets and entities kinds of their own; descriptions of types; a registry, explicit and recursive, that holds types with no Rust type behind them, checks values, sets their parts by path within their fields' ranges and lists their leaves; the standard types, glam's vectors and quaternions; no files yet |
+| [`slime-reflect`](../crates/slime-reflect/README.md) | Reflection: types described at run time, their values as plain data, read and changed by property path through a registry, compared and their differences applied ([ADR-0080](adr/0080-reflection-and-serialization.md), [ADR-0085](adr/0085-reflection.md)); headless | `glam`, `slime-reflect-derive` | `Reflect` and its derive, with stable names, aliases, versions and their upgrades, default values, skipped and transient fields, ranges and units; one value type, references to assets and entities kinds of their own; descriptions of types; a registry, explicit and recursive, that holds types with no Rust type behind them, checks values, sets their parts by path within their fields' ranges and lists their leaves; the standard types, glam's vectors and quaternions; no files: `slime-serialize` writes and reads them |
 | [`slime-reflect-derive`](../crates/slime-reflect-derive/README.md) | The derive macro of reflection, `#[derive(Reflect)]`, which `slime-reflect` re-exports | `proc-macro2`, `quote`, `syn` | Structs and enums, their doc comments and attributes; generic types, lifetimes, unions and types without a name refused |
+| [`slime-serialize`](../crates/slime-serialize/README.md) | Serialization: values of reflected types written to TOML documents by the engine's own writer and read back, from earlier versions of their types too ([ADR-0080](adr/0080-reflection-and-serialization.md), [ADR-0086](adr/0086-serialization.md)); headless | `slime-reflect`, `toml_edit`, `thiserror` | Documents of any registered type's value, whole or in part; the same bytes for the same value; versions written past 1 and earlier values brought forward by their types' upgrades; strict and lenient reading, errors by line, column and path, limits on size and depth; no references to entities yet, no binary encoding |
 | [`slime-world`](../crates/slime-world/README.md) | The world: a game's entities, their components and their hierarchy, kept by the engine ([ADR-0079](adr/0079-the-engines-own-world.md)); headless | `slime-assets`, `slime-color`, `slime-reflect`, `glam`, `thiserror`, `tracing` | Entities as handles of an index and a generation, the components attached to them stored by type, queries that read through an iterator or change through a closure ([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)); parents and children, transforms with `f64` translations, a uniform scale and a stretch, and where each entity is in the world, always current ([ADR-0083](adr/0083-transforms-and-the-hierarchy.md)); cooked scenes spawned as entities with persistent identities; what is drawn, meshes by asset ID, lights and hidden subtrees, and the transforms before the last fixed step of what moved during it ([ADR-0084](adr/0084-what-the-world-draws.md)); every component reflected, and listed, read and set by name and property path through the world's registry ([ADR-0085](adr/0085-reflection.md)); no saves yet |
 | [`slime-world-render`](../crates/slime-world-render/README.md) | The bridge from a world to the renderer: builds, at each frame, the instances, the lights and the sky's environment that a world draws, from the GPU objects of an asset cache ([ADR-0084](adr/0084-what-the-world-draws.md)); neither the world nor the renderer depends on it | `slime-world`, `slime-render`, `slime-gfx`, `tracing` | Meshes drawn where the world draws them between fixed steps, those the cache does not hold asked for; lights at their entities; hidden subtrees left out; the game's sky around the world's sun, given once |
 | [`slime-assets`](../crates/slime-assets/README.md) | The assets as games load them: asset IDs, cooked data and its manifest, read by ID from a directory of cooked data ([ADR-0069](adr/0069-the-asset-pipeline.md)); headless | `slime-reflect`, `ktx2`, `thiserror` | The asset ID and its text form, a UUID; cooked textures in KTX2 files ([ADR-0071](adr/0071-cooked-textures.md)), meshes, materials and scenes, their nodes' extras among them; the manifest; reading them by ID; a watch of the manifest, for hot reload |
-| [`slime-cook`](../crates/slime-cook/README.md) | The cooker: turns source assets into cooked data before games run; a library and its program, which no game links ([ADR-0069](adr/0069-the-asset-pipeline.md)) | `slime-assets`, `slime-color`, `bevy_mikktspace`, `blake3`, `block_compression`, `glam`, `gltf`, `png`, `uuid`, `zune-jpeg`, `thiserror` | IDs for source files in metadata files beside them, their check, and the IDs of the assets inside a file; PNG and JPEG images cooked into textures compressed in BC7 or BC5, every level computed; glTF files imported into meshes (MikkTSpace tangents), materials and scenes; a directory cooked again only where it changed, with its manifest, once or at each change |
+| [`slime-cook`](../crates/slime-cook/README.md) | The cooker: turns source assets into cooked data before games run; a library and its program, which no game links ([ADR-0069](adr/0069-the-asset-pipeline.md)) | `slime-assets`, `slime-color`, `slime-reflect`, `slime-serialize`, `bevy_mikktspace`, `blake3`, `block_compression`, `glam`, `gltf`, `png`, `uuid`, `zune-jpeg`, `thiserror` | IDs for source files in metadata files beside them, read and written through `slime-serialize`, their check, and the IDs of the assets inside a file; PNG and JPEG images cooked into textures compressed in BC7 or BC5, every level computed; glTF files imported into meshes (MikkTSpace tangents), materials and scenes; a directory cooked again only where it changed, with its manifest, once or at each change |
 | [`slime-devui`](../crates/slime-devui/README.md) | The dev overlay: egui drawn over the engine's frames, fed with the engine's events, and its world panel; tooling, removed once something does at least as well ([ADR-0052](adr/0052-amend-roadmap-before-0-1.md), [ADR-0081](adr/0081-stage-5a-the-world.md)) | `egui`, `egui-wgpu`, `slime-assets`, `slime-color`, `slime-gfx` (with its `wgpu` feature), `slime-platform`, `slime-reflect`, `slime-world` | Panels over a frame; a world's entities listed by name and their components edited through reflection, each edit returned for the caller to apply; no clipboard or input methods |
 | [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-assets`, `slime-color`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `slime-world`, `slime-world-render`, `png`, `tracing`; for the tests, `slime-cook` and `gltf` | `hello`, `headless`, `window`, `offscreen`, `scene`, which draws a cooked scene, `world`, which draws it from a world; the reference image tests, and tests that cook glTF files and draw them |
 | [`hunnawood`](../games/hunnawood/README.md) | Hunna Wood, the game that every stage grows from Stage 4a on; a client of the engine through its public API only, not part of the engine ([ADR-0055](adr/0055-games-in-the-workspace.md), [ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)) | `slime-app`, `slime-assets`, `slime-color`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-reflect`, `slime-render`, `slime-world`, `slime-world-render`, `tracing` | A forest zone and its hero read from cooked data and spawned in the game's world, its colliders and markers as the game's components, the camera behind the hero, the hero's movement and its collisions with boxes turned about the vertical and cylinders, a key that opens a door, a campfire that flickers, the zone drawn while it loads, the run kept after a lost GPU device, the zone loaded again when its cooked data changes, and the shaders when their files do (`--watch`) |
@@ -84,12 +86,13 @@ slime-examples ──▶ slime-app ──┬──▶ slime-platform ──▶ w
 hunnawood  ──▶ slime-app, slime-assets, slime-render, slime-platform, slime-gfx, slime-color, slime-devui,
                slime-world, slime-world-render, slime-reflect (public API only)
 
-slime-cook ──▶ slime-assets
+slime-cook ──▶ slime-assets, slime-serialize (metadata files)
 slime-render ──▶ slime-assets (cooked data)
 slime-world ──▶ slime-assets (cooked scenes)
 slime-world-render ──▶ slime-world, slime-render, slime-gfx
 slime-gfx, slime-render, slime-cook, slime-world ──▶ slime-color (the color type)
 slime-assets, slime-color, slime-world ──▶ slime-reflect ──▶ glam, slime-reflect-derive (reflection)
+slime-serialize ──▶ slime-reflect, toml_edit (documents)
 ```
 
 - Dependencies between crates point one way: `slime-app` depends on `slime-platform` and
@@ -117,6 +120,9 @@ slime-assets, slime-color, slime-world ──▶ slime-reflect ──▶ glam, s
   `slime-world` do ([ADR-0080](adr/0080-reflection-and-serialization.md)). Every component is
   reflected, so that a crate that defines components depends on it
   ([ADR-0085](adr/0085-reflection.md)).
+- `slime-serialize` depends on `slime-reflect` and on a TOML parser only, and no crate that only
+  describes its types depends on it: the crates that read and write files do, the cooker for its
+  metadata files ([ADR-0086](adr/0086-serialization.md)).
 - `slime-world-render` depends on the world and on the renderer, and neither depends on it: the
   world holds no GPU object, and the renderer draws any list of instances it is given
   ([ADR-0079](adr/0079-the-engines-own-world.md), [ADR-0084](adr/0084-what-the-world-draws.md)).
@@ -688,7 +694,7 @@ World::new()                                        registers the engine's compo
 ```
 
 Errors name the component and the path of the part at fault; the component stays as it was.
-Serialization, M5a.7, writes and reads the same values.
+Serialization writes and reads the same values (below).
 
 The dev overlay's world panel ([`slime_devui::WorldPanel`](../crates/slime-devui/README.md),
 [ADR-0081](adr/0081-stage-5a-the-world.md)) is the first editor built on it. It reads a world and
@@ -706,6 +712,36 @@ render
 └── for each Edit: world.set_property(...)           a refusal handed back to the panel
                                                      (WorldPanel::refused), which shows it
 ```
+
+### Serialization
+
+`slime-serialize` writes the values of reflected types as TOML documents and reads them back
+([ADR-0086](adr/0086-serialization.md)); its module `format` says how a document holds each kind
+of value. The type's description in a registry leads both ways, through the values as a document
+holds them: tables, arrays, text, numbers and booleans.
+
+```text
+write(registry, ty, value)
+├── Writer::value(ty, value)              the value as a document holds it, by its type's
+│                                         description; the types past version 1 noted
+└── text::print(root)                     "$versions" first, then each table's values on their
+                                          keys' lines, then its larger tables under headers:
+                                          the engine's own writer, LF endings
+
+read(registry, ty, text, mode)
+├── text::parse(text)                     toml_edit's parser: the document's values, and where
+│                                         each value and key lies; size and depth limited
+├── "$format", "$versions"                a later version refused
+└── Reader::value(ty, document)           at each value of a type of an earlier version, the
+    │                                     type's upgrades first (Registry::upgrade), on the
+    │                                     document's value; then its description reads it:
+    │                                     kinds, fields by name or alias, defaults, ranges
+    └── errors placed by line and column  at the key of a field unknown or given twice, at the
+                                          value otherwise
+```
+
+`read_as` and `write_as` do the same for a Rust type, which `from_value` then checks. The cooker
+reads and writes its metadata files so, as values of `Metadata`.
 
 ### Losing the GPU
 

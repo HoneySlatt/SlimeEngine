@@ -156,6 +156,11 @@ so that the rounding keeps their average and a slow gradient shows an even grain
 one step apart. The renderer dithers 8-bit outputs by up to one step
 ([ADR-0051](adr/0051-dithering-8-bit-outputs.md)).
 
+**Document (serialization).** A file that holds one *value* of a registered type, written by the
+engine's writer and read through the type's description: a TOML table of its fields, the versions of
+its types past 1 under `$versions`, and the conventions of `slime_serialize::format` for what TOML
+lacks ([ADR-0086](adr/0086-serialization.md)).
+
 **Double-sided material.** A material whose back faces are drawn too, shaded with their normals
 reversed (glTF).
 
@@ -347,7 +352,8 @@ but not its textures, its sidedness or the kind of its alpha mode (`Material::se
 each) and indices, uploaded to the GPU (`slime_render::Mesh`, from `MeshData`).
 
 **Metadata file.** The file `<file>.meta` committed beside a *source asset*, which holds its *asset
-ID* ([ADR-0069](adr/0069-the-asset-pipeline.md)).
+ID*, a *document* of a `Metadata` value ([ADR-0069](adr/0069-the-asset-pipeline.md),
+[ADR-0086](adr/0086-serialization.md)).
 
 **Metallic-roughness model.** glTF's physically based material: a dielectric's diffuse color
 under a specular layer, or a metal's reflection tinted by its color, blended by *metallic*, with
@@ -416,6 +422,10 @@ tooling over a running application (`slime_devui::Overlay`,
 well ([ADR-0052](adr/0052-amend-roadmap-before-0-1.md)).
 
 **Owner.** The person who validates the project's direction and its architecture decisions.
+
+**Partial value.** A *value* that leaves some of its fields out, at any depth: what changed of a
+value, as a save holds it. An *upgrade* brings it forward as it does a whole value
+([ADR-0086](adr/0086-serialization.md)).
 
 **Percentage-closer filtering (PCF).** Reading a *shadow map* by comparing a point's depth with
 several stored depths around it and averaging the results, so that the edges of shadows are soft
@@ -602,6 +612,11 @@ children do not inherit: a wall longer than it is tall. Children inherit a unifo
 that none is ever sheared (`slime_world::Transform`,
 [ADR-0083](adr/0083-transforms-and-the-hierarchy.md)).
 
+**Strict and lenient reading.** How a *document* is read: strictly for a source, which people write,
+where a field that its type does not have is an error; leniently for a save, which an earlier
+version of a program may have written, where such a field is left out with a warning
+([ADR-0080](adr/0080-reflection-and-serialization.md)).
+
 **Sub-asset.** An *asset* inside a source file, such as a mesh, a material or a scene of a glTF
 file, whose ID is derived from the file's ID, its kind and its name
 ([ADR-0069](adr/0069-the-asset-pipeline.md)).
@@ -667,6 +682,11 @@ next *shape* that declares it at the same size ([ADR-0041](adr/0041-render-graph
 **Type registry.** The reflected types that a program describes, by *stable name* and alias, with
 what reads and sets their *values* (`slime_reflect::Registry`). Each *world* keeps one, which holds
 the types of its components ([ADR-0085](adr/0085-reflection.md)).
+
+**Upgrade.** The function that brings a value of a reflected type from one version of the type to
+the next, on the value as a *document* holds it, before the type reads it; a type past version 1
+names one, `#[reflect(upgrade = ...)]`, and a reader applies them in turn
+([ADR-0086](adr/0086-serialization.md)).
 
 **Uniform buffer.** A buffer of values that a whole draw reads, such as a camera's matrices,
 declared `var<uniform>` in WGSL and read through a *bind group* (`slime_gfx::UniformBuffer`).

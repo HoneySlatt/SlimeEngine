@@ -11,7 +11,7 @@ the background while a game draws, a game can go on after a lost GPU device, a m
 change while it runs, and a texture or a shader changed on disk changes in the running game. The
 engine starts a world of its own, which keeps a game's entities and their components and draws
 them, and its own reflection, through which every component is reached by name and edited in a
-panel of the dev overlay; *Hunna Wood* runs on it.
+panel of the dev overlay, and written to TOML documents and read back; *Hunna Wood* runs on it.
 
 ### Added
 
@@ -121,6 +121,15 @@ panel of the dev overlay; *Hunna Wood* runs on it.
   field of the overlay has the keyboard or a menu of it is open, so that keys typed into it, or
   Escape closing the menu, do not also play. Tooling: it
   does not undo, add, remove or save components.
+- `slime-serialize`, the engine's serialization ([ADR-0086](docs/adr/0086-serialization.md)):
+  `write` writes a value of a registered type as a TOML document, the same value giving the same
+  bytes on every platform; `read`, `read_partial` and `read_file` read it back, whole or in part,
+  strictly for sources and leniently for saves, with errors by file, line, column and property
+  path, and never panic; `read_as` and `write_as` do so for a Rust type. The module `format` says
+  how a document holds enum variants, absent values, large integers and floats, which come back to
+  their bits. A type past version 1 names an upgrade, `#[reflect(version = 2, upgrade = path)]`,
+  which brings values of earlier versions to its version as they are read; a later version is
+  refused.
 
 ### Changed
 
@@ -179,6 +188,13 @@ panel of the dev overlay; *Hunna Wood* runs on it.
   `slime-reflect` (ADR-0085). Each world keeps the registry of its components' types, the first
   component of a type it stores registering the type. `WorldError` gains `NoComponent` and
   `Refused`, and is no longer `Eq`. `slime-assets` and `slime-color` depend on `slime-reflect`.
+- `TypeInfo::default` and `FieldInfo::default` hold the default value, `Option<Value>`, rather than
+  whether there is one: a document that leaves out a field with a default reads into a whole
+  value (ADR-0086). `Registry::register_dynamic` checks a type's defaults.
+- The cooker reads and writes metadata files through `slime-serialize`, as documents of a
+  `Metadata` value: every committed one is unchanged, and an error says its line and column.
+  `metadata::read` returns a `slime_serialize::ReadError`, which `ScanError::Metadata` holds;
+  `MetadataError` is removed. `.gitattributes` keeps `*.toml` files with LF endings.
 
 ### Removed
 

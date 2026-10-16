@@ -30,7 +30,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   world, which holds its run. M5a.5 done on 2026-10-16: reflection, through which the world
   reaches every component by name ([ADR-0085](adr/0085-reflection.md)). M5a.6 done on 2026-10-16: a
   panel of the dev overlay lists the world's entities and edits their components, in *Hunna Wood*
-  and the `world` example.
+  and the `world` example. M5a.7 built: values of reflected types written to TOML documents and
+  read back, from earlier versions of their types too, in `slime-serialize`
+  ([ADR-0086](adr/0086-serialization.md)); CI checks it.
 
 ## Status
 
@@ -42,7 +44,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M5a.4](#m5a4--hunna-wood-on-the-world) | *Hunna Wood* runs on the world, and changes only what moves | Done |
 | [M5a.5](#m5a5--reflection) | The engine and the game describe, read and change their types' values through one registry | Done |
 | [M5a.6](#m5a6--any-component-listed-and-edited) | Any component's properties are listed and edited in the running game | Done |
-| [M5a.7](#m5a7--serialization-with-format-versioning) | Any reflected value is written to a file and read back, even from an older version of its type | Planned |
+| [M5a.7](#m5a7--serialization-with-format-versioning) | Any reflected value is written to a file and read back, even from an older version of its type | Built; CI checks it |
 | [M5a.8](#m5a8--the-world-round-trips) | A world saves what differs from the scenes it was made from, and loads it back | Planned |
 | [M5a.9](#m5a9--saving-and-resuming-a-run) | A player saves a run of *Hunna Wood* and resumes it | Planned |
 | [M5a.10](#m5a10--windows-check-documentation-release-03) | Stage 5a is done and released as 0.3, with Stage 4b | Planned |
@@ -399,7 +401,24 @@ Risks:
   partial one; aliases read; a newer version refused; truncated, altered, too deep or too large
   documents give errors, never panics; every committed metadata file gives the same ID through both
   readers before the old one goes; CI is green on both platforms.
-- **How to test.** `cargo test -p slime-reflect -p slime-cook`.
+- **How to test.** `cargo test -p slime-reflect -p slime-serialize -p slime-cook`.
+- **Outcome.** Built on 2026-10-16 ([ADR-0086](adr/0086-serialization.md)). The owner decided that
+  serialization is a crate of its own, `slime-serialize`, above `slime-reflect`, and how a TOML
+  document holds what TOML lacks, which the rustdoc of its module `format` gives. A value of any
+  registered type is written by the engine's own writer, read back to an equal value, floats to
+  their bits, and written again to the same bytes. A type past version 1 names an upgrade, which
+  the derive requires, and values of earlier versions are brought forward on the document's
+  values, whole or in part; aliases read; a later version of a type or of the format is refused;
+  sources are read strictly and saves leniently; errors give the file, the line, the column and the
+  path. Descriptions now hold their defaults' values, so that a document which leaves a field out
+  reads into a whole value. References to entities are refused until the world's documents write
+  persistent identities in their place. Tests write and read every registered type, special floats
+  included, read a test type of version 1 at version 2 from a whole and from a partial value, and
+  read documents truncated and altered at every character, too deep and too large, which give
+  errors without a panic. Metadata files are documents of a `Metadata` value: each of the 68
+  committed gave the same ID through the cooker's reader and through `slime-serialize`, which
+  writes each back to the same bytes, before the cooker's reader was removed. `toml_edit`'s parser,
+  with `toml_parser`, `winnow` and `toml_datetime`, already in the lock file, is now built.
 
 ### M5a.8 — The world round-trips
 

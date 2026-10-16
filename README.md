@@ -40,7 +40,8 @@ hierarchy already, places them, spawns cooked scenes in it (`slime-world`), is d
 cache that loads what it names (`slime-world-render`, the `world` example), and *Hunna Wood* runs
 on it; every component is reflected, and reached by name (`slime-reflect`); a panel of the dev
 overlay lists the world's entities and edits their components, in the game and the `world` example,
-on F2.
+on F2; values are written to TOML documents and read back, from earlier versions of their types
+too (`slime-serialize`), as the cooker's metadata files are.
 [`docs/PLAN.md`](docs/PLAN.md) says what is left of it, and lists the known debt.
 
 ## Getting started
