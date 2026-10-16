@@ -30,9 +30,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   world, which holds its run. M5a.5 done on 2026-10-16: reflection, through which the world
   reaches every component by name ([ADR-0085](adr/0085-reflection.md)). M5a.6 done on 2026-10-16: a
   panel of the dev overlay lists the world's entities and edits their components, in *Hunna Wood*
-  and the `world` example. M5a.7 built: values of reflected types written to TOML documents and
-  read back, from earlier versions of their types too, in `slime-serialize`
-  ([ADR-0086](adr/0086-serialization.md)); CI checks it.
+  and the `world` example. M5a.7 done on 2026-10-16: values of reflected types written to TOML
+  documents and read back, from earlier versions of their types too, in `slime-serialize`
+  ([ADR-0086](adr/0086-serialization.md)).
 
 ## Status
 
@@ -44,7 +44,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M5a.4](#m5a4--hunna-wood-on-the-world) | *Hunna Wood* runs on the world, and changes only what moves | Done |
 | [M5a.5](#m5a5--reflection) | The engine and the game describe, read and change their types' values through one registry | Done |
 | [M5a.6](#m5a6--any-component-listed-and-edited) | Any component's properties are listed and edited in the running game | Done |
-| [M5a.7](#m5a7--serialization-with-format-versioning) | Any reflected value is written to a file and read back, even from an older version of its type | Built; CI checks it |
+| [M5a.7](#m5a7--serialization-with-format-versioning) | Any reflected value is written to a file and read back, even from an older version of its type | Done |
 | [M5a.8](#m5a8--the-world-round-trips) | A world saves what differs from the scenes it was made from, and loads it back | Planned |
 | [M5a.9](#m5a9--saving-and-resuming-a-run) | A player saves a run of *Hunna Wood* and resumes it | Planned |
 | [M5a.10](#m5a10--windows-check-documentation-release-03) | Stage 5a is done and released as 0.3, with Stage 4b | Planned |
@@ -402,7 +402,7 @@ Risks:
   documents give errors, never panics; every committed metadata file gives the same ID through both
   readers before the old one goes; CI is green on both platforms.
 - **How to test.** `cargo test -p slime-reflect -p slime-serialize -p slime-cook`.
-- **Outcome.** Built on 2026-10-16 ([ADR-0086](adr/0086-serialization.md)). The owner decided that
+- **Outcome.** Done on 2026-10-16 ([ADR-0086](adr/0086-serialization.md)). The owner decided that
   serialization is a crate of its own, `slime-serialize`, above `slime-reflect`, and how a TOML
   document holds what TOML lacks, which the rustdoc of its module `format` gives. A value of any
   registered type is written by the engine's own writer, read back to an equal value, floats to
@@ -429,7 +429,7 @@ Risks:
   their fields' ranges, and names that start with `$` are refused. A part of a value could not say
   that an option was emptied: the owner decided that a part writes its option fields as arrays,
   `[]` for one emptied. Serialization's example is M5a.8's: the `world` example saves and loads
-  its world.
+  its world. CI took 13 minutes 26 seconds on Linux and 15 minutes 31 seconds on Windows.
 
 ### M5a.8 — The world round-trips
 
@@ -957,4 +957,5 @@ GitHub issues, linked from their entry; this list stays the reference.
   `slime-world` (M5a.1, 2026-10-16): Linux 10 minutes 25 seconds, Windows 17 minutes 20 seconds.
   With `slime-color` and `slime-world-render` (M5a.3, 2026-10-16): Linux 12 minutes 33 seconds,
   Windows 17 minutes 26 seconds. With `slime-reflect` and `slime-reflect-derive` (M5a.5,
-  2026-10-16): Linux 9 minutes 6 seconds, Windows 18 minutes 27 seconds.
+  2026-10-16): Linux 9 minutes 6 seconds, Windows 18 minutes 27 seconds. With `slime-serialize`
+  (M5a.7, 2026-10-16): Linux 13 minutes 26 seconds, Windows 15 minutes 31 seconds.
