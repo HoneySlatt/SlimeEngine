@@ -103,19 +103,31 @@ env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_
 env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
     timeout -k 10 120 cargo run --locked --example world -- --assets "$cooked/first" --frames 120 ||
     { cat "$runtime/slime-check.log"; exit 1; }
-# The game too (ADR-0055), by day and at night. It draws the zone cooked above; a frame of it takes
-# seconds on lavapipe, most of them in the shadows of the sun or the moon through the leaves
-# (docs/PLAN.md, known debt), so each run draws one frame only.
+# The game too (ADR-0055), by day and at night, each run a new one. It draws the zone cooked above;
+# a frame of it takes seconds on lavapipe, most of them in the shadows of the sun or the moon
+# through the leaves (docs/PLAN.md, known debt), so each run draws one frame only. Its saves go to
+# the private runtime directory, never to the user's (ADR-0088).
 for time in "" --night; do
-    env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
-        timeout -k 10 300 cargo run --locked -p hunnawood -- --frames 1 ${time:+"$time"} ||
+    env -u DISPLAY XDG_RUNTIME_DIR="$runtime" XDG_DATA_HOME="$runtime/data" WAYLAND_DISPLAY=slime-check \
+        VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+        timeout -k 10 300 cargo run --locked -p hunnawood -- --new --frames 1 ${time:+"$time"} ||
         { cat "$runtime/slime-check.log"; exit 1; }
 done
 # And once more, losing its GPU device after its first frame of the zone: it must open a new one,
 # load its zone again and draw it once more, or it fails (ADR-0075).
-env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
-    timeout -k 10 300 cargo run --locked -p hunnawood -- --frames 2 --lose-device-at 1 ||
+env -u DISPLAY XDG_RUNTIME_DIR="$runtime" XDG_DATA_HOME="$runtime/data" WAYLAND_DISPLAY=slime-check \
+    VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+    timeout -k 10 300 cargo run --locked -p hunnawood -- --new --frames 2 --lose-device-at 1 ||
     { cat "$runtime/slime-check.log"; exit 1; }
+# And resumed from a copy of the save committed as a fixture, which it must resume (ADR-0088).
+cp games/hunnawood/fixtures/save.toml "$runtime/save.toml"
+env -u DISPLAY XDG_RUNTIME_DIR="$runtime" XDG_DATA_HOME="$runtime/data" WAYLAND_DISPLAY=slime-check \
+    VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+    timeout -k 10 300 cargo run --locked -p hunnawood -- --save "$runtime/save.toml" --frames 1 2>&1 |
+    tee "$runtime/resumed.log" ||
+    { cat "$runtime/slime-check.log"; exit 1; }
+grep -q "the run resumes from" "$runtime/resumed.log" ||
+    { echo "the game did not resume the run of its save"; exit 1; }
 # The windowed lifecycle test needs the compositor too, so it is outside the default test run
 # (ADR-0024).
 env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \

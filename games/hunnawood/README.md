@@ -39,6 +39,8 @@ cargo run -p hunnawood -- --assets <dir>   # reads the cooked data of another di
 cargo run -p hunnawood -- --night          # starts at night, and starts again at night
 cargo run -p hunnawood -- --lose-device-at 300   # loses its GPU device after 300 frames of the zone
 cargo run -p hunnawood -- --watch          # loads its zone, hero and shaders again as they change
+cargo run -p hunnawood -- --new            # starts a new run rather than resume the save
+cargo run -p hunnawood -- --save <file>    # saves to, and resumes from, another file
 ```
 
 Without `--assets`, it reads `hunnawood-assets` beside the program if that directory holds a
@@ -74,12 +76,35 @@ The same option reads the renderer's shaders, in `crates/slime-render/src`, when
 draws with them from the next frame; a shader that does not compile leaves the frames as they were,
 and the log says where it fails ([ADR-0077](../../docs/adr/0077-hot-reload-of-shaders.md)).
 
+The game resumes its save when it starts, unless `--new` asks for a new run, and saves the run when
+it quits, however it quits; F5 saves the run, and F9 loads the save in place of the run, the hero at
+once where the save puts it ([ADR-0088](../../docs/adr/0088-saving-and-resuming-a-run.md)). The
+save is one file, `hunnawood/save.toml` in the user's data directory: `$XDG_DATA_HOME`, else
+`~/.local/share`, on Linux; `%APPDATA%` on Windows; `--save <file>` names another. It is text, which
+says what differs between the run and a new game by day (`slime_world::World::save`), and begins
+with the fingerprint of the zone's layout it was made on: a save made on another layout is not
+resumed, and a new run starts, as hot reload starts the run again when the layout changes. A save
+that cannot be read is set aside, as `save.toml.unreadable`, so that the next save does not write
+over it, and a new run starts. A save is written beside the file and renamed over it, so that the
+file is the save before or the new one, never part of one. The log says what was saved or loaded,
+and where the run stands. When Windows ends the session, the game is stopped without quitting, and
+the run since the last F5 is lost (see the known debt in [`docs/PLAN.md`](../../docs/PLAN.md#known-debt)).
+
+[`fixtures/save.toml`](fixtures/save.toml) is a save made with F5 at the chapel's portal, at night,
+which every later version must resume: a test resumes it and walks on to the terrace, and
+`scripts/check.sh` starts the game from a copy of it. A change of the zone's layout makes it a save
+of another layout, which the test then refuses: make it again at the same place, with
+`cargo run -p hunnawood -- --new --save games/hunnawood/fixtures/save.toml`, resting by the campfire
+and walking to the portal before F5, and say so in the commit.
+
 | Key | Does |
 |---|---|
 | W, A, S, D (Z, Q, S, D on a French keyboard) | Move, relative to the camera |
 | Left and right arrows | Turn the camera around the hero |
 | E | Rest, by the campfire: the day turns to night, the night to day |
 | R | Start again: the hero at the start, the key in its place, the door closed, at the time the game started at |
+| F5 | Save the run |
+| F9 | Load the save, in place of the run |
 | F1 | Show or hide what each frame costs, in the engine's dev overlay, whose button loses the GPU device on purpose |
 | F2 | Show or hide the world panel of the dev overlay: the world's entities by name, with a filter, and the components of the one selected, whose values it changes ([`slime-devui`](../../crates/slime-devui/README.md)) |
 | Escape | Quit |
@@ -108,10 +133,19 @@ is reflected, under a name such as `hunnawood::Collider`, as every component is
 ([ADR-0085](../../docs/adr/0085-reflection.md)), and `Game::spawn` registers them all in the world
 before it spawns the zone.
 
+Since the run is in the world, a save is the world's: what differs between the world and a new game
+by day, made again from the cooked scenes when the game saves, and a run resumed is a new game by
+day to which the save is applied ([ADR-0087](../../docs/adr/0087-the-worlds-documents.md)). A new
+game by day, whatever `--night` says, so that a save made at night is resumed at night. What the
+game makes again at each frame is put back before it saves: the campfire's light, which the view
+makes flicker around the intensity that the zone gives it. F9 makes a new world, in place of the
+engine's, and a new `Game` with it; the view, which holds no entity, draws it from the next frame.
+
 | Module | What it holds |
 |---|---|
-| `main.rs` | The application: the world built before the window opens and given to the engine, the game's loop through `slime_app::App`, going on with a new GPU device after a loss, reading the manifest again with `--watch` and spawning the zone or the hero again when their scenes changed, the command line |
+| `main.rs` | The application: the world built before the window opens, a new run or the save resumed, and given to the engine, the game's loop through `slime_app::App`, saving with F5 and on quit and loading with F9, going on with a new GPU device after a loss, reading the manifest again with `--watch` and spawning the zone or the hero again when their scenes changed, the command line |
 | `assets.rs` | Where the cooked data is, and the IDs of the zone and the hero, from their metadata files |
+| `saves.rs` | The save: where its file is, what it holds and how it is written, and a run resumed from it |
 | `rules.rs` | The rules, as functions over the world and without the GPU: the hero's movement, its heading, and its collisions, as a circle on the ground against the colliders that are not hidden and the zone's edge; the key, the door, the campfire and the time of day; a zone spawned again, which starts the run again when its layout changed |
 | `zone.rs` | The zone spawned in the world and the game's components read from its extras; where its colliders stand on the ground, boxes turned about the vertical and cylinders, the size of its ground, where the hero starts and the places of the key, the door and the campfire, read from the world; the tests of the cooked zone |
 | `controls.rs` | Which of the game's keys are held |

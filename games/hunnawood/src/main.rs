@@ -14,22 +14,31 @@
 //! cargo run -p hunnawood -- --night          # starts at night
 //! cargo run -p hunnawood -- --lose-device-at 300   # loses its GPU device after 300 zone frames
 //! cargo run -p hunnawood -- --watch          # loads its zone and the shaders again as they change
+//! cargo run -p hunnawood -- --new            # starts a new run rather than resume the save
+//! cargo run -p hunnawood -- --save <file>    # saves to, and resumes from, another file
 //! ```
 //!
+//! It resumes the run of its save when it starts, and saves the run when it quits
+//! (`docs/adr/0088-saving-and-resuming-a-run.md`): the save is `hunnawood/save.toml` in the user's
+//! data directory, `$XDG_DATA_HOME`, else `~/.local/share`, or `%APPDATA%` on Windows.
+//!
 //! W, A, S and D move (Z, Q, S and D on a French keyboard), the left and right arrows turn the
-//! camera, E rests by the campfire, which turns the day to night and back, R starts again, F1 shows
-//! what each frame costs, F2 lists the world's entities and edits their components, Escape quits.
+//! camera, E rests by the campfire, which turns the day to night and back, R starts again, F5 saves
+//! the run, F9 loads the save, F1 shows what each frame costs, F2 lists the world's entities and
+//! edits their components, Escape quits.
 
 mod assets;
 mod camera;
 mod controls;
 mod overlay;
 mod rules;
+mod saves;
 mod view;
 mod zone;
 
 use std::ffi::OsString;
-use std::path::PathBuf;
+use std::io;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
@@ -46,10 +55,11 @@ use camera::FollowCamera;
 use controls::Controls;
 use overlay::DevOverlay;
 use rules::Game;
+use saves::NotResumed;
 use view::View;
 
 const USAGE: &str = "usage: hunnawood [--assets <directory>] [--frames <count>] [--night] \
-                     [--lose-device-at <frame>] [--watch]";
+                     [--lose-device-at <frame>] [--watch] [--new] [--save <file>]";
 /// The game: its rules, the keys held, the camera, and what draws them once the window is open.
 struct HunnaWood {
     /// The cooked data, which the view loads its GPU objects from once the window is open, and
@@ -59,6 +69,13 @@ struct HunnaWood {
     /// to the engine, which keeps it (`Context::world_mut`).
     world: Option<World>,
     game: Game,
+    /// The cooked scenes of the zone and the hero, of which a new game by day is made, which saves
+    /// differ from.
+    scenes: Scenes,
+    /// The save's file, if the environment gives a data directory or `--save` names one.
+    save_file: Option<PathBuf>,
+    /// Whether a new game starts at night, as `--night` asks.
+    starts_at_night: bool,
     controls: Controls,
     camera: FollowCamera,
     view: Option<View>,
@@ -111,15 +128,23 @@ impl Loading {
 }
 
 impl HunnaWood {
-    /// The game in `world`, which `game` plays in, drawn from what `assets` holds, as `options`
-    /// ask: for a number of frames, losing its GPU device after some, or loading its data again
-    /// when it changes.
-    fn new(assets: CookedAssets, world: World, game: Game, options: &Options) -> Self {
-        let (_, facing) = game.zone().start(&world);
+    /// The game in `world`, which `game` plays in, a game of `scenes`, drawn from what `assets`
+    /// holds, as `options` ask: for a number of frames, losing its GPU device after some, or loading
+    /// its data again when it changes; saving to `save_file`.
+    fn new(
+        assets: CookedAssets,
+        scenes: Scenes,
+        (world, game): (World, Game),
+        save_file: Option<PathBuf>,
+        options: &Options,
+    ) -> Self {
         Self {
-            camera: FollowCamera::looking_along(facing),
+            camera: FollowCamera::looking_along(Vec2::from_angle(game.hero(&world).heading)),
             world: Some(world),
             game,
+            scenes,
+            save_file,
+            starts_at_night: options.night,
             controls: Controls::default(),
             view: None,
             overlay: None,
@@ -136,6 +161,46 @@ impl HunnaWood {
                 .watch
                 .then(|| ShaderWatch::new(ShaderSources::DIRECTORY, Instant::now())),
             assets,
+        }
+    }
+
+    /// Saves the run to the save's file, as F5 asks and as quitting does.
+    fn save(&self, world: &mut World) {
+        let Some(file) = &self.save_file else {
+            tracing::warn!(
+                "the run cannot be saved: the environment gives no data directory, and --save \
+                 names no file"
+            );
+            return;
+        };
+        let saved = saves::save(world, &self.game, &self.scenes.zone, &self.scenes.hero)
+            .and_then(|text| saves::write(file, &text).map_err(|error| error.to_string()));
+        match saved {
+            Ok(()) => log_run(
+                &self.game,
+                world,
+                &format!("the run is saved to {}", file.display()),
+            ),
+            Err(error) => tracing::warn!("the run cannot be saved to {}: {error}", file.display()),
+        }
+    }
+
+    /// Loads the run of the save's file in place of the run, as F9 asks: the hero is drawn at once
+    /// where the save puts it, the camera behind it. A save that cannot be resumed leaves the run as
+    /// it is.
+    fn load(&mut self, ctx: &mut Context) {
+        let Some(file) = &self.save_file else {
+            tracing::warn!(
+                "no save can be loaded: the environment gives no data directory, and --save names \
+                 no file"
+            );
+            return;
+        };
+        if let Some((world, mut game)) = resume_from(file, &self.scenes) {
+            game.set_starts_at_night(self.starts_at_night);
+            self.camera = FollowCamera::looking_along(Vec2::from_angle(game.hero(&world).heading));
+            *ctx.world_mut() = world;
+            self.game = game;
         }
     }
 
@@ -181,10 +246,12 @@ impl HunnaWood {
                     return;
                 }
             }
+            self.scenes.zone = zone;
         }
         if let Some(hero) = hero {
             self.game.reload_hero(ctx.world_mut(), &hero);
             tracing::info!("the hero changed, and is spawned again where it stood");
+            self.scenes.hero = hero;
         }
         if let (Some(gpu), Some(view)) = (ctx.gpu(), &mut self.view) {
             view.reload(gpu, assets.clone());
@@ -268,14 +335,10 @@ impl App for HunnaWood {
         if let Some(shader_watch) = &mut self.shader_watch {
             shader_watch.start_again();
         }
-        let hero = self.game.hero(world);
-        tracing::info!(
-            x = hero.position.x,
-            z = hero.position.y,
-            key = self.game.has_item(world),
-            door = self.game.door_open(world),
-            night,
-            "a new GPU device replaces the lost one: the zone loads again, and the run goes on"
+        log_run(
+            &self.game,
+            world,
+            "a new GPU device replaces the lost one: the zone loads again, and the run goes on",
         );
         Ok(())
     }
@@ -311,10 +374,6 @@ impl App for HunnaWood {
                 }
             }
             if !typing {
-                #[expect(
-                    clippy::collapsible_match,
-                    reason = "resting changes the world, which a match guard should not do"
-                )]
                 match physical {
                     KeyCode::Escape => ctx.request_exit(),
                     KeyCode::KeyR => {
@@ -329,6 +388,8 @@ impl App for HunnaWood {
                             tracing::info!("the hero rests by the campfire until the {time}");
                         }
                     }
+                    KeyCode::F5 => self.save(ctx.world_mut()),
+                    KeyCode::F9 => self.load(ctx),
                     _ => {}
                 }
             }
@@ -473,6 +534,8 @@ impl App for HunnaWood {
     }
 
     fn shutdown(&mut self, ctx: &mut Context) {
+        // However the run stops: Escape, the window closed, a signal, an error.
+        self.save(ctx.world_mut());
         // A run that stops right after the zone's first frame, as the automated checks' do, logs
         // the load here, without the interval that holds that frame.
         if let Some(loading) = self.loading.take()
@@ -512,8 +575,8 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    // The zone and the hero are spawned in the game's world before the window opens, which a zone
-    // that cannot be played keeps closed.
+    // The zone and the hero are spawned in a game before the window opens, which a zone that cannot
+    // be played keeps closed.
     let directory = options
         .assets
         .clone()
@@ -522,12 +585,14 @@ fn main() -> ExitCode {
         .map_err(|error| error.to_string())
         .and_then(|cooked| {
             let scene = |id| cooked.scene(id).map_err(|error| error.to_string());
-            let (zone, hero) = (scene(assets::zone_id())?, scene(assets::hero_id())?);
-            let mut world = World::new();
-            let game = Game::spawn(&mut world, &zone, &hero, options.night)?;
-            Ok((cooked, world, game))
+            let scenes = Scenes {
+                zone: scene(assets::zone_id())?,
+                hero: scene(assets::hero_id())?,
+            };
+            let start = saves::start(&scenes.zone, &scenes.hero)?;
+            Ok((cooked, scenes, start))
         });
-    let (cooked, world, game) = match loaded {
+    let (cooked, scenes, (mut world, mut game)) = match loaded {
         Ok(loaded) => loaded,
         Err(error) => {
             eprintln!(
@@ -538,6 +603,20 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+    let save_file = options.save.clone().or_else(saves::default_file);
+    let resumed = save_file
+        .as_deref()
+        .filter(|_| !options.new)
+        .and_then(|file| resume_from(file, &scenes));
+    let new_run = resumed.is_none();
+    if let Some(run) = resumed {
+        (world, game) = run;
+    }
+    game.set_starts_at_night(options.night);
+    if new_run {
+        game.restart(&mut world);
+        log_run(&game, &world, "a new run starts");
+    }
     let config = AppConfig {
         window: Some(WindowConfig {
             title: "Hunna Wood".to_owned(),
@@ -548,12 +627,108 @@ fn main() -> ExitCode {
         restore_lost_device: true,
         ..AppConfig::default()
     };
-    let mut game = HunnaWood::new(cooked, world, game, &options);
+    let mut game = HunnaWood::new(cooked, scenes, (world, game), save_file, &options);
     match slime_app::run(&mut game, &config) {
         Ok(()) => ExitCode::SUCCESS,
         // `run` has logged the error with its causes.
         Err(_) => ExitCode::FAILURE,
     }
+}
+
+/// The cooked scenes of the game: the zone's and the hero's.
+struct Scenes {
+    zone: CookedScene,
+    hero: CookedScene,
+}
+
+/// The run of the save in `file`, resumed in a new game of `scenes`, if the file holds one that
+/// can be resumed; logged either way. A save made on another layout of the zone is left as it is,
+/// and one that cannot be read is set aside ([`saves::set_aside`]), so that the next save does not
+/// write over it.
+fn resume_from(file: &Path, scenes: &Scenes) -> Option<(World, Game)> {
+    let shown = file.display();
+    let text = match std::fs::read_to_string(file) {
+        Ok(text) => text,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            tracing::info!("there is no save in {shown}");
+            return None;
+        }
+        Err(error) if error.kind() == io::ErrorKind::InvalidData => {
+            unreadable(file, &error.to_string());
+            return None;
+        }
+        Err(error) => {
+            tracing::warn!("the save in {shown} cannot be read: {error}");
+            return None;
+        }
+    };
+    let start = match saves::start(&scenes.zone, &scenes.hero) {
+        Ok(start) => start,
+        Err(error) => {
+            tracing::warn!(
+                "the save in {shown} cannot be resumed: the zone cannot be played: {error}"
+            );
+            return None;
+        }
+    };
+    match saves::resume(&text, start) {
+        Ok((world, game, loaded)) => {
+            for scene in &loaded.scenes_changed {
+                tracing::info!("the scene `{scene}` changed since the save");
+            }
+            for aside in &loaded.set_aside {
+                tracing::warn!(
+                    entity = aside.entity,
+                    component = aside.component,
+                    "set aside from the save: {}",
+                    aside.reason
+                );
+            }
+            for warning in &loaded.warnings {
+                tracing::warn!("left out of the save, which this version does not know: {warning}");
+            }
+            log_run(&game, &world, &format!("the run resumes from {shown}"));
+            Some((world, game))
+        }
+        Err(NotResumed::OtherLayout) => {
+            tracing::info!(
+                "the save in {shown} was made on another layout of the zone: it is not resumed"
+            );
+            None
+        }
+        Err(NotResumed::Unreadable(error)) => {
+            unreadable(file, &slime_app::error_chain(&error));
+            None
+        }
+    }
+}
+
+/// Sets aside the save in `file`, which cannot be read for `why`, and logs it.
+fn unreadable(file: &Path, why: &str) {
+    match saves::set_aside(file) {
+        Ok(aside) => tracing::warn!(
+            "the save in {} is not resumed: {why}; it is set aside as {}",
+            file.display(),
+            aside.display()
+        ),
+        Err(error) => tracing::warn!(
+            "the save in {} is not resumed: {why}; nor can it be set aside: {error}",
+            file.display()
+        ),
+    }
+}
+
+/// Logs `what`, with where the run that `game` plays in `world` stands.
+fn log_run(game: &Game, world: &World, what: &str) {
+    let hero = game.hero(world);
+    tracing::info!(
+        x = hero.position.x,
+        z = hero.position.y,
+        key = game.has_item(world),
+        door = game.door_open(world),
+        night = game.night(world),
+        "{what}"
+    );
 }
 
 /// The command line's options.
@@ -571,6 +746,10 @@ struct Options {
     /// Whether the game loads its zone and its hero again when their cooked data changes, and the
     /// renderer's shaders when their files do, as `--watch` asks.
     watch: bool,
+    /// Whether the game starts a new run rather than resume the save, as `--new` asks.
+    new: bool,
+    /// The save's file, if `--save` names one.
+    save: Option<PathBuf>,
 }
 
 /// The options that `arguments`, the command line without the program's name, give.
@@ -581,6 +760,11 @@ fn parse_options(arguments: impl IntoIterator<Item = OsString>) -> Result<Option
         match argument.to_str() {
             Some("--night") => options.night = true,
             Some("--watch") => options.watch = true,
+            Some("--new") => options.new = true,
+            Some("--save") => {
+                let value = arguments.next().ok_or("--save needs a file")?;
+                options.save = Some(PathBuf::from(value));
+            }
             Some("--assets") => {
                 let value = arguments.next().ok_or("--assets needs a directory")?;
                 options.assets = Some(PathBuf::from(value));
@@ -629,6 +813,16 @@ mod tests {
     fn watch_loads_the_cooked_data_again() {
         assert!(!parse(&[]).expect("no option").watch);
         assert!(parse(&["--watch", "--night"]).expect("valid options").watch);
+    }
+
+    #[test]
+    fn new_and_save_choose_the_run_and_its_file() {
+        let options = parse(&[]).expect("no option");
+        assert!(!options.new && options.save.is_none());
+        let options = parse(&["--new", "--save", "run.toml"]).expect("valid options");
+        assert!(options.new);
+        assert_eq!(options.save, Some(PathBuf::from("run.toml")));
+        assert!(parse(&["--save"]).is_err());
     }
 
     #[test]

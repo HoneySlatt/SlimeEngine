@@ -1,0 +1,26 @@
+about = { layout = "eaadbcd91032364b" }
+next_created = 1
+
+[scenes]
+hero = { name = "Scene", content = "d7b965582ed4a378" }
+zone = { name = "Scene", content = "8fe31823c2a1615f" }
+
+[removed.components]
+"zone/campfire.001" = ["Hidden"]
+"zone/lantern 1" = ["Hidden"]
+"zone/lantern 2" = ["Hidden"]
+"zone/lantern 3" = ["Hidden"]
+"zone/lantern 4" = ["Hidden"]
+"zone/lantern 5" = ["Hidden"]
+"zone/lantern 6" = ["Hidden"]
+"zone/moon" = ["Hidden"]
+
+[changed.hero.Transform]
+translation = { x = -0.041620731353759766, z = -22.223468780517578 }
+rotation = { y = -0.074625194, w = 0.99721164 }
+
+[changed.zone]
+"hunnawood::Clock" = { time = "Night" }
+
+[added."zone/sun"]
+Hidden = {}

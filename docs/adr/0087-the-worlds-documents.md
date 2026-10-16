@@ -3,7 +3,8 @@
 - Status: Accepted; amends [0079](0079-the-engines-own-world.md) (what a save differs from, and the
   identities of entities created outside scenes), [0083](0083-transforms-and-the-hierarchy.md)
   (keys and names that hold `/`), [0085](0085-reflection.md) (a transient field has a default) and
-  [0086](0086-serialization.md) (documents of several values, and references to entities)
+  [0086](0086-serialization.md) (documents of several values, and references to entities);
+  amended by [0088](0088-saving-and-resuming-a-run.md) (a save begins with what the game says of it)
 - Date: 2026-10-16
 
 ## Context

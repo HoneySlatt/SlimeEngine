@@ -229,6 +229,12 @@ impl Game {
         }
     }
 
+    /// Makes a new game start at night, or by day, as `night` says: what [`Game::restart`] does,
+    /// once a run resumed from a save, whose game was spawned by day.
+    pub fn set_starts_at_night(&mut self, night: bool) {
+        self.starts_at_night = night;
+    }
+
     /// The zone's entities.
     pub fn zone(&self) -> &Zone {
         &self.zone
@@ -411,6 +417,7 @@ pub mod tests {
     use slime_world::Component;
 
     use super::*;
+    use crate::saves;
     use crate::zone::Shape;
 
     /// The fixed step the game runs at: 1/60 s.
@@ -1342,49 +1349,6 @@ pub mod tests {
 
     #[test]
     #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
-    fn a_walk_rests_at_the_campfire_takes_the_key_and_opens_the_door() {
-        let (mut world, game) = crate::zone::cooked::game();
-        let first = game.hero(&world);
-        walk(&game, &mut world, &TO_THE_CHAPEL[..7]);
-        // The branch to the campfire, and back.
-        walk(
-            &game,
-            &mut world,
-            &[[-5.0, -4.5], [-9.0, -4.0], [-11.0, -4.0]],
-        );
-        assert!(
-            game.rest(&mut world) && game.night(&world),
-            "{}",
-            game.hero(&world).position
-        );
-        walk(&game, &mut world, &[[-5.0, -4.5], [-0.4, -3.5]]);
-        walk(&game, &mut world, &TO_THE_CHAPEL[7..]);
-        assert!(!game.has_item(&world));
-        // Up the nave to the key, then to the door, which it opens, and onto the terrace.
-        walk(
-            &game,
-            &mut world,
-            &[[0.0, -27.0], [0.0, -38.0], [0.8, -41.6]],
-        );
-        assert!(game.has_item(&world) && !game.door_open(&world));
-        walk(&game, &mut world, &[[0.0, -43.4]]);
-        assert!(game.door_open(&world));
-        walk(&game, &mut world, &[[0.0, -46.0], [0.0, -49.0]]);
-        let terrace = game.zone().place(&world, game.zone().terrace);
-        assert!(game.hero(&world).position.distance(terrace) < 1.0);
-        // A new game starts from the same state as the first.
-        let colliders_at_first = game.zone().layout(&world);
-        game.restart(&mut world);
-        assert_eq!(game.hero(&world), first);
-        assert!(!game.has_item(&world) && !game.door_open(&world) && !game.night(&world));
-        assert_eq!(
-            colliders(&world).len(),
-            colliders_at_first.colliders.len() + colliders_at_first.door_colliders.len()
-        );
-    }
-
-    #[test]
-    #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
     fn the_door_stops_the_hero_before_the_key_is_found() {
         let (mut world, game) = crate::zone::cooked::game();
         let door = game.zone().place(&world, game.zone().door);
@@ -1424,19 +1388,96 @@ pub mod tests {
         }
     }
 
-    #[test]
-    #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
-    fn a_run_saved_and_loaded_into_a_new_game_goes_on_the_same() {
+    /// The save committed as a fixture, which every later version of the game must resume: made with
+    /// F5 at the chapel's portal, at night, after the walk of
+    /// [`walk_to_the_portal_at_night`].
+    const FIXTURE: &str = include_str!("../fixtures/save.toml");
+
+    /// The cooked scenes of the zone and the hero.
+    fn cooked_scenes() -> (CookedScene, CookedScene) {
         let (assets, zone) = crate::zone::cooked::zone();
         let hero = assets
             .scene(crate::assets::hero_id())
             .expect("the hero is cooked");
-        let start = || {
-            let mut world = World::new();
-            let game = Game::spawn(&mut world, &zone, &hero, false).expect("the zone is whole");
-            (world, game)
-        };
-        let (mut played, game) = start();
+        (zone, hero)
+    }
+
+    /// Walks the hero from the start along the path to the campfire, rests there until the night,
+    /// and goes on to the chapel's portal.
+    fn walk_to_the_portal_at_night(game: &Game, world: &mut World) {
+        walk(game, world, &TO_THE_CHAPEL[..7]);
+        // The branch to the campfire, and back.
+        walk(game, world, &[[-5.0, -4.5], [-9.0, -4.0], [-11.0, -4.0]]);
+        assert!(
+            game.rest(world) && game.night(world),
+            "{}",
+            game.hero(world).position
+        );
+        walk(game, world, &[[-5.0, -4.5], [-0.4, -3.5]]);
+        walk(game, world, &TO_THE_CHAPEL[7..]);
+        assert!(!game.has_item(world));
+    }
+
+    /// Walks the hero from the chapel's portal up the nave to the key, then to the door, which it
+    /// opens, and onto the terrace.
+    fn walk_up_the_nave_to_the_terrace(game: &Game, world: &mut World) {
+        walk(game, world, &[[0.0, -27.0], [0.0, -38.0], [0.8, -41.6]]);
+        assert!(game.has_item(world) && !game.door_open(world));
+        walk(game, world, &[[0.0, -43.4]]);
+        assert!(game.door_open(world));
+        walk(game, world, &[[0.0, -46.0], [0.0, -49.0]]);
+        let terrace = game.zone().place(world, game.zone().terrace);
+        assert!(game.hero(world).position.distance(terrace) < 1.0);
+    }
+
+    #[test]
+    #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
+    fn a_walk_at_night_saved_and_resumed_takes_the_key_and_opens_the_door() {
+        let (zone, hero) = cooked_scenes();
+        let (mut played, game) = saves::start(&zone, &hero).expect("the zone is whole");
+        let first = game.hero(&played);
+        walk_to_the_portal_at_night(&game, &mut played);
+        // Saved there, and resumed in a new game: the same run, which goes on.
+        let text = saves::save(&mut played, &game, &zone, &hero).expect("saved");
+        let start = saves::start(&zone, &hero).expect("the zone is whole");
+        let (mut world, game, loaded) = saves::resume(&text, start).expect("resumed");
+        assert!(
+            loaded.set_aside.is_empty() && loaded.scenes_changed.is_empty(),
+            "{loaded:?}"
+        );
+        assert_eq!(played.first_difference(&world), None, "{text}");
+        walk_up_the_nave_to_the_terrace(&game, &mut world);
+        // A new game starts from the same state as the first.
+        let colliders_at_first = game.zone().layout(&world);
+        game.restart(&mut world);
+        assert_eq!(game.hero(&world), first);
+        assert!(!game.has_item(&world) && !game.door_open(&world) && !game.night(&world));
+        assert_eq!(
+            colliders(&world).len(),
+            colliders_at_first.colliders.len() + colliders_at_first.door_colliders.len()
+        );
+    }
+
+    #[test]
+    #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
+    fn the_save_committed_as_a_fixture_is_resumed_and_its_walk_goes_on() {
+        let (zone, hero) = cooked_scenes();
+        let start = saves::start(&zone, &hero).expect("the zone is whole");
+        let (mut world, game, loaded) = saves::resume(FIXTURE, start)
+            .expect("the fixture is resumed; if the zone's layout changed, make it again (README)");
+        assert!(
+            loaded.set_aside.is_empty() && loaded.warnings.is_empty(),
+            "{loaded:?}"
+        );
+        assert!(game.night(&world) && !game.has_item(&world));
+        walk_up_the_nave_to_the_terrace(&game, &mut world);
+    }
+
+    #[test]
+    #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
+    fn a_run_saved_and_resumed_in_a_new_game_goes_on_the_same() {
+        let (zone, hero) = cooked_scenes();
+        let (mut played, game) = saves::start(&zone, &hero).expect("the zone is whole");
         walk(&game, &mut played, &TO_THE_CHAPEL[..7]);
         // An entity removed, a value changed, a component added.
         let find = |world: &World, id: &str| world.find(&id.parse().expect("an identity"));
@@ -1458,29 +1499,24 @@ pub mod tests {
             )
             .expect("dimmed");
         played.insert(game.zone().item, Hidden);
-        let save = played.save(&start().0, &Default::default()).expect("saved");
-        let (mut loaded, loaded_game) = start();
-        let report = loaded.load(&save).expect("loaded");
-        assert!(report.set_aside.is_empty(), "{:?}", report.set_aside);
-        assert!(report.scenes_changed.is_empty() && report.warnings.is_empty());
+        let text = saves::save(&mut played, &game, &zone, &hero).expect("saved");
+        let start = saves::start(&zone, &hero).expect("the zone is whole");
+        let (mut resumed, resumed_game, loaded) = saves::resume(&text, start).expect("resumed");
+        assert!(loaded.set_aside.is_empty(), "{:?}", loaded.set_aside);
+        assert!(loaded.scenes_changed.is_empty() && loaded.warnings.is_empty());
         assert!(
-            find(&loaded, &tree_id.to_string()).is_none(),
+            find(&resumed, &tree_id.to_string()).is_none(),
             "the oak is gone"
         );
-        assert_eq!(played.first_difference(&loaded), None, "{save}");
-        assert_eq!(
-            loaded
-                .save(&start().0, &Default::default())
-                .expect("saved again"),
-            save,
-            "the same bytes"
-        );
+        assert_eq!(played.first_difference(&resumed), None, "{text}");
+        let again = saves::save(&mut resumed, &resumed_game, &zone, &hero).expect("saved again");
+        assert_eq!(again, text, "the same bytes");
         // The same input, step by step, gives both runs the same state.
         for index in 0..300u32 {
             let direction = Vec2::from_angle(index as f32 * 0.05);
             game.step(&mut played, direction, STEP);
-            loaded_game.step(&mut loaded, direction, STEP);
+            resumed_game.step(&mut resumed, direction, STEP);
         }
-        assert_eq!(played.first_difference(&loaded), None, "after 300 steps");
+        assert_eq!(played.first_difference(&resumed), None, "after 300 steps");
     }
 }

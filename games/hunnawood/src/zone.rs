@@ -235,6 +235,51 @@ pub struct Layout {
     pub terrace: Vec2,
 }
 
+impl Layout {
+    /// A fingerprint of the layout, the same on every platform and with every version of Rust, as
+    /// 16 hexadecimal digits: the FNV-1a hash of its numbers' bits, in order, each list of colliders
+    /// led by its length and each footprint by its shape. A save says the layout it was made on so
+    /// (`crate::saves`).
+    pub fn fingerprint(&self) -> String {
+        let mut words = vec![self.half_size.x.to_bits(), self.half_size.y.to_bits()];
+        for colliders in [&self.colliders, &self.door_colliders] {
+            words.push(colliders.len() as u32);
+            for footprint in colliders {
+                let shape = match footprint.shape {
+                    Shape::Box { half_size, yaw } => [
+                        0,
+                        half_size.x.to_bits(),
+                        half_size.y.to_bits(),
+                        yaw.to_bits(),
+                    ],
+                    Shape::Cylinder { radius } => [1, radius.to_bits(), 0, 0],
+                };
+                words.extend(shape);
+                words.extend(
+                    [footprint.center.x, footprint.center.y, footprint.height].map(f32::to_bits),
+                );
+            }
+        }
+        for place in [
+            self.start,
+            self.facing,
+            self.item,
+            self.door,
+            self.campfire,
+            self.terrace,
+        ] {
+            words.extend([place.x.to_bits(), place.y.to_bits()]);
+        }
+        let hash = words
+            .iter()
+            .flat_map(|word| word.to_le_bytes())
+            .fold(0xcbf2_9ce4_8422_2325_u64, |hash, byte| {
+                (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3)
+            });
+        format!("{hash:016x}")
+    }
+}
+
 /// The point on the ground under `position`.
 fn ground(position: Vec3) -> Vec2 {
     Vec2::new(position.x, position.z)
