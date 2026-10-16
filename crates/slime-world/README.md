@@ -94,14 +94,15 @@ assert_eq!(world.get::<Velocity>(cart).expect("held").0, 5.0);
   component of, or `World::register` registered ahead. `World::entities`, `component_names`,
   `component_value`, `set_component_value` and `set_property` list the entities and reach their
   components by name and property path, without their types, within the ranges of their fields.
-- `World::save(start)` writes what differs between the world and `start`, the world that the game
-  makes at the start of a run from the same scenes: entities removed and created, components added,
-  removed and changed, parents changed, references to entities as persistent identities, or `""`
-  for no entity. Entities that hold `Unsaved`, with their descendants, and fields marked transient
-  are left out. `World::load` applies a save to such a world, and says what it set aside and which
-  scenes changed since; `World::first_difference` compares two worlds as saves see them.
-  `World::insert_component_value` and `remove_component_value` attach and detach a component by
-  its type's name, as loading a save does.
+- `World::save(start, about)` writes what differs between the world and `start`, the world that the
+  game makes at the start of a run from the same scenes: entities removed and created, components
+  added, removed and changed, parents changed, references to entities as persistent identities, or
+  `""` for no entity. Entities that hold `Unsaved`, with their descendants, and fields marked
+  transient are left out. The save begins with `about`, what the game says of it, keys and texts
+  that `World::about` reads without loading the save. `World::load` applies a save to such a world,
+  and says what it set aside and which scenes changed since; `World::first_difference` compares two
+  worlds as saves see them. `World::insert_component_value` and `remove_component_value` attach and
+  detach a component by its type's name, as loading a save does.
 - `slime_world::glam` re-exports the math crate the API uses, so that callers use the same version.
 
 The rustdoc holds the contracts: what panics, what each query visits, what each operation costs.

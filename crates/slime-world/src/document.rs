@@ -14,6 +14,8 @@ use crate::entity::Entity;
 use crate::identity::PersistentId;
 use crate::world::{Identity, World};
 
+/// What the game says of the save: its keys and texts.
+const ABOUT: &str = "about";
 /// The count of the entities created outside scenes.
 const NEXT_CREATED: &str = "next_created";
 /// The scenes spawned, by their keys: their names and contents.
@@ -138,7 +140,10 @@ impl World {
     /// keeps it as `start` has it, out of its parent if the save removes that. A reference to an
     /// entity is its persistent identity, and a reference to an entity destroyed or left out is
     /// `""`, no entity. The save also holds the scenes that the world spawned, so that loading it
-    /// says which changed since, and the count of the entities created outside scenes.
+    /// says which changed since, and the count of the entities created outside scenes. It begins
+    /// with `about`, what the game says of it, keys and texts that the engine does not read, such as
+    /// what the run was made on, which [`World::about`] reads without loading the save; none for an
+    /// empty `about`.
     ///
     /// The same worlds give the same bytes: entities in the order of their identities, components
     /// in the order of their names. Its cost grows in proportion with the entities of the two worlds
@@ -152,7 +157,11 @@ impl World {
     /// [`DocumentError::Write`] if a value cannot be written, a number out of its field's range, or
     /// the save would be larger or deeper than a reader reads ([`slime_serialize::MAX_SIZE`],
     /// [`slime_serialize::MAX_DEPTH`]).
-    pub fn save(&self, start: &World) -> Result<String, DocumentError> {
+    pub fn save(
+        &self,
+        start: &World,
+        about: &BTreeMap<String, String>,
+    ) -> Result<String, DocumentError> {
         let names = Names::new(self);
         let mut save = Composer::new(&self.registry)
             .naming(&names)
@@ -160,6 +169,9 @@ impl World {
         let mut put = |place: &[&str], ty: &str, value: Value| {
             save.put(place, ty, &value).map_err(DocumentError::Write)
         };
+        for (key, text) in about {
+            put(&[ABOUT, key], "String", Value::Text(text.clone()))?;
+        }
         put(&[NEXT_CREATED], "u64", Value::UInt(self.next_created))?;
         for (key, scene) in &self.scenes {
             put(
@@ -291,6 +303,42 @@ impl World {
         let (save, mut loaded) = read?;
         self.apply(save, &mut loaded);
         Ok(loaded)
+    }
+
+    /// What the save `text` says of itself, as the game gave it to [`World::save`]: its keys and
+    /// texts, read without a world and without loading the save, so that a game tells whether a
+    /// save is one it can load, or lists its saves. The text is parsed whole, as loading parses it.
+    ///
+    /// ```
+    /// use std::collections::BTreeMap;
+    ///
+    /// use slime_world::World;
+    ///
+    /// let world = World::new();
+    /// let about = BTreeMap::from([("made on".to_owned(), "the first zone".to_owned())]);
+    /// let save = world.save(&World::new(), &about).expect("saved");
+    /// assert_eq!(World::about(&save).expect("a save"), about);
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// [`DocumentError::Read`] if the save is not one, as [`World::load`] says, or what it says of
+    /// itself is not text.
+    pub fn about(text: &str) -> Result<BTreeMap<String, String>, DocumentError> {
+        let mut registry = Registry::new();
+        registry.register::<String>();
+        let mut document =
+            Document::parse(&registry, text, Mode::Lenient).map_err(DocumentError::Read)?;
+        let mut about = BTreeMap::new();
+        for key in document.keys(&[ABOUT]) {
+            let read = document
+                .read(&[ABOUT, &key], "String", None)
+                .map_err(DocumentError::Read)?;
+            if let Some(Value::Text(text)) = read {
+                about.insert(key, text);
+            }
+        }
+        Ok(about)
     }
 
     /// The first difference between what this world and `other` would save, said in a sentence, or
@@ -851,14 +899,16 @@ mod tests {
     #[test]
     fn a_world_saved_and_loaded_into_its_start_is_the_world_saved() {
         let played = played();
-        let save = played.save(&start()).expect("saved");
+        let save = played.save(&start(), &BTreeMap::new()).expect("saved");
         let mut loaded = start();
         let report = loaded.load(&save).expect("loaded");
         assert!(report.set_aside.is_empty(), "{:?}", report.set_aside);
         assert!(report.scenes_changed.is_empty() && report.warnings.is_empty());
         assert_eq!(played.first_difference(&loaded), None, "{save}");
         assert_eq!(
-            loaded.save(&start()).expect("saved again"),
+            loaded
+                .save(&start(), &BTreeMap::new())
+                .expect("saved again"),
             save,
             "the same bytes"
         );
@@ -923,7 +973,7 @@ translation = { x = 6.5 }
 
     #[test]
     fn a_save_loaded_on_a_scene_changed_since_applies_what_it_can_and_says_what_it_cannot() {
-        let save = played().save(&start()).expect("saved");
+        let save = played().save(&start(), &BTreeMap::new()).expect("saved");
         let mut world = World::new();
         world
             .spawn_scene("yard", &scene_changed())
@@ -961,7 +1011,7 @@ translation = { x = 6.5 }
 
     #[test]
     fn a_save_that_is_not_one_is_refused_and_the_world_left_as_it_was() {
-        let save = played().save(&start()).expect("saved");
+        let save = played().save(&start(), &BTreeMap::new()).expect("saved");
         for (text, problem) in [
             ("next_created = [", "not TOML"),
             ("\"$format\" = 2\n", "newer"),
@@ -1039,7 +1089,7 @@ translation = { x = 6.5 }
                 swing: 0.5,
             },
         );
-        let save = played.save(&start()).expect("saved");
+        let save = played.save(&start(), &BTreeMap::new()).expect("saved");
         assert!(
             save.contains("[added.\"yard/gate\"]\n\"test::Rope\" = { to = \"yard/well\" }\n"),
             "{save}"
@@ -1081,7 +1131,7 @@ translation = { x = 6.5 }
                 swing: 0.0,
             },
         );
-        let save = played.save(&start()).expect("saved");
+        let save = played.save(&start(), &BTreeMap::new()).expect("saved");
         assert!(save.contains("\"test::Rope\" = { to = \"\" }"), "{save}");
         let mut loaded = start();
         let report = loaded.load(&save).expect("loaded");
@@ -1137,7 +1187,7 @@ translation = { x = 6.5 }
         played.set_parent(seed, Some(sapling)).expect("a parent");
         played.set_parent(seed, None).expect("no parent");
         played.despawn(tree);
-        let save = played.save(&start()).expect("saved");
+        let save = played.save(&start(), &BTreeMap::new()).expect("saved");
         let mut loaded = start();
         let report = loaded.load(&save).expect("loaded");
         assert!(
@@ -1149,7 +1199,7 @@ translation = { x = 6.5 }
         // An entity removed with its parent is not reported as gone.
         let mut played = start();
         played.despawn(entity(&played, "yard/gate"));
-        let save = played.save(&start()).expect("saved");
+        let save = played.save(&start(), &BTreeMap::new()).expect("saved");
         let mut loaded = start();
         let report = loaded.load(&save).expect("loaded");
         assert!(
@@ -1163,7 +1213,7 @@ translation = { x = 6.5 }
         let well = entity(&played, "yard/well");
         played.set_parent(well, None).expect("no parent");
         played.despawn(entity(&played, "yard"));
-        let save = played.save(&start()).expect("saved");
+        let save = played.save(&start(), &BTreeMap::new()).expect("saved");
         assert!(save.contains("[scenes]\nyard = "), "{save}");
         let mut loaded = start();
         let report = loaded.load(&save).expect("loaded");
@@ -1233,7 +1283,7 @@ translation = { x = 6.5 }
                 last: Some(knot),
             },
         );
-        let save = played.save(&start()).expect("saved");
+        let save = played.save(&start(), &BTreeMap::new()).expect("saved");
         assert!(!save.contains("shake") && !save.contains("seen"), "{save}");
         let mut loaded = start();
         let report = loaded.load(&save).expect("loaded");
@@ -1317,7 +1367,7 @@ translation = { x = 6.5 }
         played.insert(spark, Unsaved);
         let flame = played.spawn();
         played.set_parent(flame, Some(spark)).expect("a parent");
-        let save = played.save(&start()).expect("saved");
+        let save = played.save(&start(), &BTreeMap::new()).expect("saved");
         assert!(!save.contains("[created"), "{save}");
         assert!(!save.contains("yard/well"), "{save}");
         let mut loaded = start();
@@ -1345,7 +1395,7 @@ translation = { x = 6.5 }
         let post = entity(&played, "yard/post");
         played.set_parent(post, Some(spark)).expect("a parent");
         played.despawn(entity(&played, "yard/gate"));
-        let save = played.save(&start()).expect("saved");
+        let save = played.save(&start(), &BTreeMap::new()).expect("saved");
         let mut loaded = start();
         let report = loaded.load(&save).expect("loaded");
         assert!(
@@ -1391,6 +1441,37 @@ translation = { x = 6.5 }
     }
 
     #[test]
+    fn what_a_save_says_of_itself_comes_first_and_is_read_without_loading_it() {
+        let about = BTreeMap::from([
+            ("layout".to_owned(), "8fe31823c2a1615f".to_owned()),
+            ("made with".to_owned(), "version 0.3".to_owned()),
+        ]);
+        let save = played().save(&start(), &about).expect("saved");
+        assert!(
+            save.starts_with(
+                "about = { layout = \"8fe31823c2a1615f\", \"made with\" = \"version 0.3\" }\n"
+            ),
+            "{save}"
+        );
+        assert_eq!(World::about(&save).expect("a save"), about);
+        let mut loaded = start();
+        let report = loaded.load(&save).expect("loaded");
+        assert!(report.set_aside.is_empty() && report.warnings.is_empty());
+        assert_eq!(played().first_difference(&loaded), None);
+        // A save without it says nothing; one that is not a save, or says something else than
+        // text, is refused.
+        let quiet = played().save(&start(), &BTreeMap::new()).expect("saved");
+        assert!(!quiet.contains("about"), "{quiet}");
+        assert!(World::about(&quiet).expect("a save").is_empty());
+        for text in ["about = [", "about = { layout = 3 }\n", "\"$format\" = 2\n"] {
+            assert!(
+                matches!(World::about(text), Err(DocumentError::Read(_))),
+                "{text}"
+            );
+        }
+    }
+
+    #[test]
     #[ignore = "a measurement, to run in a release build"]
     fn what_saving_and_loading_10_000_entities_created_costs() {
         let mut played = start();
@@ -1403,7 +1484,7 @@ translation = { x = 6.5 }
             );
         }
         let started = std::time::Instant::now();
-        let save = played.save(&start()).expect("saved");
+        let save = played.save(&start(), &BTreeMap::new()).expect("saved");
         eprintln!("save {} bytes: {:?}", save.len(), started.elapsed());
         let mut loaded = start();
         let started = std::time::Instant::now();

@@ -1458,7 +1458,7 @@ pub mod tests {
             )
             .expect("dimmed");
         played.insert(game.zone().item, Hidden);
-        let save = played.save(&start().0).expect("saved");
+        let save = played.save(&start().0, &Default::default()).expect("saved");
         let (mut loaded, loaded_game) = start();
         let report = loaded.load(&save).expect("loaded");
         assert!(report.set_aside.is_empty(), "{:?}", report.set_aside);
@@ -1469,7 +1469,9 @@ pub mod tests {
         );
         assert_eq!(played.first_difference(&loaded), None, "{save}");
         assert_eq!(
-            loaded.save(&start().0).expect("saved again"),
+            loaded
+                .save(&start().0, &Default::default())
+                .expect("saved again"),
             save,
             "the same bytes"
         );

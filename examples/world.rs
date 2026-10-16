@@ -33,6 +33,7 @@
 )]
 mod sample_scene;
 
+use std::collections::BTreeMap;
 use std::f64::consts::TAU;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -183,7 +184,7 @@ fn round_trip(world: &World, assets: &CookedAssets) -> Result<usize, AppError> {
         start(&mut world, assets)?;
         Ok(world)
     };
-    let save = world.save(&made()?)?;
+    let save = world.save(&made()?, &BTreeMap::new())?;
     tracing::debug!("the save:\n{save}");
     let mut loaded = made()?;
     let report = loaded.load(&save)?;
