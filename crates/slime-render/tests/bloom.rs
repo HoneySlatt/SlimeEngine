@@ -13,7 +13,7 @@ mod tone_curve;
 
 use slime_color::LinearColor;
 use slime_gfx::{FloatImage, Gpu, TextureFormat};
-use slime_render::glam::{Mat4, Vec3};
+use slime_render::glam::{DAffine3, DVec3, Vec3};
 use slime_render::{
     Camera, Instance, Material, MaterialData, Mesh, MeshData, RenderStats, Renderer, Scene, Sky,
 };
@@ -28,8 +28,8 @@ const FOV_Y: f32 = std::f32::consts::FRAC_PI_3;
 
 fn camera() -> Camera {
     Camera {
-        eye: Vec3::new(0.0, 0.0, DISTANCE),
-        target: Vec3::ZERO,
+        eye: Vec3::new(0.0, 0.0, DISTANCE).as_dvec3(),
+        target: DVec3::ZERO,
         fov_y: FOV_Y,
         near: 1.0,
         ..Camera::default()
@@ -106,7 +106,7 @@ impl Pixel {
             .renderer
             .create_mesh(&self.gpu, "pixel", &pixel_square(width, height, at))
             .expect("the square is valid");
-        let instances = [Instance::new(&mesh, &self.emitter, Mat4::IDENTITY)];
+        let instances = [Instance::new(&mesh, &self.emitter, DAffine3::IDENTITY)];
         let mut scene = Scene::new(camera(), &instances);
         scene.bloom = bloom;
         let stats = self

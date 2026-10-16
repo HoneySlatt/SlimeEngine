@@ -9,7 +9,7 @@ use std::time::Instant;
 
 use slime_color::LinearColor;
 use slime_gfx::{GfxError, Gpu, RenderTarget, TextureFormat};
-use slime_render::glam::{Mat4, Vec3};
+use slime_render::glam::{DAffine3, DVec3, Vec3};
 use slime_render::{
     Camera, DirectionalLight, Environment, Instance, Light, Material, MaterialData, Mesh, MeshData,
     RenderError, Renderer, Scene, ShaderSources, Sky,
@@ -74,14 +74,18 @@ impl Setup {
 
     /// The pixels of the scene, drawn by the renderer as its pipelines are.
     fn drawn(&mut self) -> Vec<u8> {
-        let instances = [Instance::new(&self.sphere, &self.material, Mat4::IDENTITY)];
+        let instances = [Instance::new(
+            &self.sphere,
+            &self.material,
+            DAffine3::IDENTITY,
+        )];
         let lights = [Light::Directional(DirectionalLight {
             direction: Vec3::new(-0.3, -1.0, -0.4),
             illuminance: 3.0,
             ..DirectionalLight::default()
         })];
         let camera = Camera {
-            eye: Vec3::new(0.0, 0.5, 2.5),
+            eye: DVec3::new(0.0, 0.5, 2.5),
             ..Camera::default()
         };
         let mut scene = Scene::new(camera, &instances);

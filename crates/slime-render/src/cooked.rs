@@ -9,7 +9,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 
-use glam::{Mat4, Vec3};
+use glam::{DAffine3, DVec3, Mat4};
 use slime_assets::{
     AssetId, CookedAssets, CookedMaterial, CookedScene, CookedTexture, LightKind, LoadError,
     SceneLight, TextureEncoding, TextureFilter, TextureSampler, TextureWrap,
@@ -53,7 +53,7 @@ pub enum SceneError {
 struct Placement {
     mesh: usize,
     material: usize,
-    transform: Mat4,
+    transform: DAffine3,
     node: usize,
 }
 
@@ -72,8 +72,8 @@ pub struct LoadedScene {
     /// The lights its nodes place, in world space, in the order of the nodes.
     pub lights: Vec<Light>,
     /// The smallest box around every mesh placed, its lowest corner then its highest, in world
-    /// space; `None` for a scene that places no mesh.
-    pub bounds: Option<(Vec3, Vec3)>,
+    /// space, in metres; `None` for a scene that places no mesh.
+    pub bounds: Option<(DVec3, DVec3)>,
 }
 
 impl LoadedScene {
@@ -695,7 +695,7 @@ impl Loader {
             reason,
         };
         for (index, (node, transform)) in scene.nodes.iter().zip(&world).enumerate() {
-            let transform = Mat4::from_cols_array(transform);
+            let transform = placed(transform);
             for mesh in &node.meshes {
                 let mesh = mesh_index[mesh];
                 let (material, bounds) = drawn[mesh];
@@ -791,22 +791,26 @@ pub fn scene_lights(scene: &CookedScene) -> Result<Vec<Light>, SceneError> {
         .enumerate()
         .filter_map(|(index, (node, transform))| Some((index, node.light?, transform)))
         .map(|(index, light, transform)| {
-            place_light(light, Mat4::from_cols_array(&transform)).map_err(|reason| {
-                SceneError::Placement {
-                    scene: scene.name.clone(),
-                    node: index,
-                    reason,
-                }
+            place_light(light, placed(&transform)).map_err(|reason| SceneError::Placement {
+                scene: scene.name.clone(),
+                node: index,
+                reason,
             })
         })
         .collect()
 }
 
+/// A node's transform in the scene's world space, as `CookedScene::world_transforms` gives it in
+/// `f32`, with `f64` components, as positions in the world are.
+fn placed(transform: &[f32; 16]) -> DAffine3 {
+    DAffine3::from_mat4(Mat4::from_cols_array(transform).as_dmat4())
+}
+
 /// The light that a node placed by `transform` holds, in world space: at the node's origin, along
 /// its −Z axis whatever its scale; refused, with the reason, at a point that is not finite or
 /// without a direction.
-fn place_light(light: SceneLight, transform: Mat4) -> Result<Light, String> {
-    let position = transform.transform_point3(Vec3::ZERO);
+fn place_light(light: SceneLight, transform: DAffine3) -> Result<Light, String> {
+    let position = transform.translation;
     if !position.is_finite() {
         return Err(format!(
             "its light is placed at {position}, which is not finite"
@@ -814,13 +818,14 @@ fn place_light(light: SceneLight, transform: Mat4) -> Result<Light, String> {
     }
     // Scale changes the length of the axis, not the direction it gives.
     let direction = transform
-        .transform_vector3(Vec3::NEG_Z)
+        .transform_vector3(DVec3::NEG_Z)
         .try_normalize()
         .ok_or_else(|| {
             "its light has no direction: the node's transform flattens its −Z axis or is not \
              finite"
                 .to_owned()
-        })?;
+        })?
+        .as_vec3();
     let [r, g, b] = light.color;
     let color = LinearColor::rgb(r, g, b);
     Ok(match light.kind {
@@ -891,15 +896,15 @@ fn sampler_descriptor(sampler: TextureSampler) -> SamplerDescriptor {
 /// `bounds` grown by the box `mesh`, its lowest and highest corners, placed by `transform`; refused
 /// if a corner lands at a point that is not finite, which would spoil the box.
 fn grow(
-    bounds: Option<(Vec3, Vec3)>,
-    transform: Mat4,
+    bounds: Option<(DVec3, DVec3)>,
+    transform: DAffine3,
     mesh: [[f32; 3]; 2],
-) -> Result<Option<(Vec3, Vec3)>, String> {
-    let [low, high] = mesh.map(Vec3::from);
+) -> Result<Option<(DVec3, DVec3)>, String> {
+    let [low, high] = mesh.map(|corner| DVec3::from(corner.map(f64::from)));
     let mut bounds = bounds;
     for corner in 0..8 {
-        let pick = |bit: usize, low: f32, high: f32| if corner & bit == 0 { low } else { high };
-        let point = transform.transform_point3(Vec3::new(
+        let pick = |bit: usize, low: f64, high: f64| if corner & bit == 0 { low } else { high };
+        let point = transform.transform_point3(DVec3::new(
             pick(1, low.x, high.x),
             pick(2, low.y, high.y),
             pick(4, low.z, high.z),

@@ -9,7 +9,7 @@ mod tone_curve;
 
 use slime_color::LinearColor;
 use slime_gfx::{FloatImage, Gpu, RenderTarget, TextureFormat};
-use slime_render::glam::Vec3;
+use slime_render::glam::{DVec3, Vec3};
 use slime_render::{Camera, DirectionalLight, Light, RenderStats, Renderer, Scene, Sky};
 
 /// Light, and what Khronos PBR Neutral makes of it, each derived by hand from the specification's
@@ -188,8 +188,8 @@ fn the_sky_is_exposed_before_the_high_dynamic_range_target_and_kept_within_its_r
             )
             .expect("the GPU has memory for it");
         let narrow = Camera {
-            eye: Vec3::ZERO,
-            target: -direction,
+            eye: DVec3::ZERO,
+            target: -direction.as_dvec3(),
             fov_y: 0.001,
             ..Camera::default()
         };

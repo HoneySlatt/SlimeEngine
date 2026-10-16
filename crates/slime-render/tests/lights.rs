@@ -27,7 +27,7 @@ use std::f32::consts::PI;
 
 use slime_color::LinearColor;
 use slime_gfx::{FloatImage, Gpu, RenderTarget, TextureFormat};
-use slime_render::glam::{DVec3, Mat4, Vec3};
+use slime_render::glam::{DAffine3, DVec3, Vec3};
 use slime_render::{
     Camera, DirectionalLight, Instance, Light, MAX_LIGHTS, Material, MaterialData, Mesh, MeshData,
     PointLight, Renderer, Scene, SpotLight,
@@ -107,7 +107,7 @@ impl Setup {
         let instances = [Instance::new(
             &self.square,
             material.unwrap_or(&self.white),
-            Mat4::IDENTITY,
+            DAffine3::IDENTITY,
         )];
         let mut scene = Scene::new(camera(), &instances);
         scene.lights = lights;
@@ -128,7 +128,7 @@ impl Setup {
 
 fn camera() -> Camera {
     Camera {
-        eye: Vec3::new(0.0, 0.0, 3.0),
+        eye: DVec3::new(0.0, 0.0, 3.0),
         ..Camera::default()
     }
 }
@@ -147,14 +147,14 @@ fn arriving(light: &Light, at: DVec3) -> ([f64; 3], DVec3) {
             -light.direction.as_dvec3().normalize(),
         ),
         Light::Point(light) => {
-            let to_light = light.position.as_dvec3() - at;
+            let to_light = light.position - at;
             let distance = to_light.length();
             let amount =
                 f64::from(light.intensity) * window(distance, light.range) / (distance * distance);
             (per_channel(light.color, amount), to_light / distance)
         }
         Light::Spot(light) => {
-            let to_light = light.position.as_dvec3() - at;
+            let to_light = light.position - at;
             let distance = to_light.length();
             let cosine = light
                 .direction
@@ -206,7 +206,7 @@ fn pixel(image: &FloatImage, (x, y): (u32, u32)) -> [f32; 3] {
 /// the square.
 fn point(distance: f32, intensity: f32, range: Option<f32>) -> Light {
     Light::Point(PointLight {
-        position: Vec3::new(0.0, 0.0, distance),
+        position: Vec3::new(0.0, 0.0, distance).as_dvec3(),
         intensity,
         range,
         ..PointLight::default()
@@ -268,7 +268,7 @@ fn a_spot_light_is_full_inside_its_inner_cone_dark_outside_its_outer_cone_and_sm
     let spot = |degrees: f32| {
         let angle = degrees.to_radians();
         Light::Spot(SpotLight {
-            position: Vec3::new(0.0, 0.0, 2.0),
+            position: DVec3::new(0.0, 0.0, 2.0),
             direction: Vec3::new(angle.sin(), 0.0, -angle.cos()) * 3.0,
             intensity: 2.0 * PI,
             inner_cone_angle: 20f32.to_radians(),
@@ -306,7 +306,7 @@ fn many_lights() -> Vec<Light> {
         |position: Vec3, degrees: f32, color: LinearColor, intensity: f32, range: Option<f32>| {
             let angle = degrees.to_radians();
             Light::Spot(SpotLight {
-                position,
+                position: position.as_dvec3(),
                 direction: Vec3::new(angle.sin(), 0.0, -angle.cos()),
                 color,
                 intensity,
@@ -337,31 +337,31 @@ fn many_lights() -> Vec<Light> {
             ..DirectionalLight::default()
         }),
         Light::Point(PointLight {
-            position: Vec3::new(0.0, 0.0, 1.0),
+            position: DVec3::new(0.0, 0.0, 1.0),
             color: LinearColor::WHITE,
             intensity: 0.05,
             range: None,
         }),
         Light::Point(PointLight {
-            position: Vec3::new(0.0, 0.0, 2.0),
+            position: DVec3::new(0.0, 0.0, 2.0),
             color: red,
             intensity: 0.2,
             range: Some(4.0),
         }),
         Light::Point(PointLight {
-            position: Vec3::new(0.5, 0.0, 1.0),
+            position: DVec3::new(0.5, 0.0, 1.0),
             color: green,
             intensity: 0.15,
             range: None,
         }),
         Light::Point(PointLight {
-            position: Vec3::new(0.0, -1.0, 2.0),
+            position: DVec3::new(0.0, -1.0, 2.0),
             color: blue,
             intensity: 0.5,
             range: Some(10.0),
         }),
         Light::Point(PointLight {
-            position: Vec3::new(0.0, 0.0, 0.5),
+            position: DVec3::new(0.0, 0.0, 0.5),
             color: LinearColor::rgb(1.0, 0.5, 0.0),
             intensity: 0.01,
             range: None,
@@ -384,7 +384,7 @@ fn many_lights() -> Vec<Light> {
             ..DirectionalLight::default()
         }),
         Light::Point(PointLight {
-            position: Vec3::new(-0.3, 0.4, 1.2),
+            position: DVec3::new(-0.3, 0.4, 1.2),
             color: red,
             intensity: 0.1,
             range: Some(5.0),

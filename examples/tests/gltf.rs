@@ -390,7 +390,7 @@ fn image_of(gpu: &Gpu, assets: &CookedAssets, scene: AssetId, centre: Vec3, yaw:
         .render(
             gpu,
             &target,
-            orbit::camera_at(centre, 1.0, 3.0, yaw, 0.0),
+            orbit::camera_at(centre.as_dvec3(), 1.0, 3.0, yaw, 0.0),
             EXPOSURE,
             // Without bloom, which would spread the disc of a sun behind the triangle onto it.
             0.0,

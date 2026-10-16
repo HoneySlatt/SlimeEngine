@@ -16,7 +16,7 @@ use slime_assets::{
 };
 use slime_color::LinearColor;
 use slime_gfx::{Gpu, TextureFormat};
-use slime_render::glam::{Mat4, Vec3};
+use slime_render::glam::{DVec3, Mat4, Vec3};
 use slime_render::{
     Camera, DirectionalLight, Instance, Light, LoadedScene, MaterialValues, MeshData, Renderer,
     Scene, SceneError, scene_lights,
@@ -264,10 +264,10 @@ fn center_of(gpu: &Gpu, renderer: &mut Renderer, instance: Instance<'_>) -> [u8;
     let target = gpu
         .create_render_target("palette", 16, 16, TextureFormat::Rgba8UnormSrgb)
         .expect("the GPU has memory for it");
-    let x = instance.transform.w_axis.x;
+    let x = instance.transform.translation.x;
     let camera = Camera {
-        eye: Vec3::new(x, 0.0, 2.0),
-        target: Vec3::new(x, 0.0, 0.0),
+        eye: DVec3::new(x, 0.0, 2.0),
+        target: DVec3::new(x, 0.0, 0.0),
         ..Camera::default()
     };
     let lights = [Light::Directional(DirectionalLight {
@@ -294,7 +294,7 @@ fn check_palette(gpu: &Gpu, renderer: &mut Renderer, loaded: &LoadedScene) {
     assert_eq!(instances.len(), 6);
     assert_eq!(loaded.instance_nodes(), [0, 1, 2, 3, 4, 5]);
     for (index, instance) in instances.iter().enumerate() {
-        assert_eq!(instance.transform.w_axis.x, 2.0 * index as f32);
+        assert_eq!(instance.transform.translation.x, 2.0 * index as f64);
         for (other, other_instance) in instances.iter().enumerate() {
             assert_eq!(
                 std::ptr::eq(instance.mesh, other_instance.mesh),
@@ -332,11 +332,11 @@ fn a_cooked_scene_is_placed_lit_and_drawn() {
     // The square, loaded once, placed twice; the second by its parent's transform times its own.
     assert_eq!(instances.len(), 2);
     assert!(std::ptr::eq(instances[0].mesh, instances[1].mesh));
-    assert_eq!(instances[1].transform.w_axis.x, 2.0);
+    assert_eq!(instances[1].transform.translation.x, 2.0);
     assert_eq!(loaded.instance_nodes(), [0, 1]);
     assert_eq!(
         loaded.bounds,
-        Some((Vec3::new(-0.5, -0.5, 0.0), Vec3::new(2.5, 0.5, 0.0)))
+        Some((DVec3::new(-0.5, -0.5, 0.0), DVec3::new(2.5, 0.5, 0.0)))
     );
     let [Light::Directional(sun)] = loaded.lights[..] else {
         panic!("one directional light: {:?}", loaded.lights);
@@ -354,8 +354,8 @@ fn a_cooked_scene_is_placed_lit_and_drawn() {
         .create_render_target("cooked", 16, 16, TextureFormat::Rgba8UnormSrgb)
         .expect("the GPU has memory for it");
     let camera = Camera {
-        eye: Vec3::new(0.0, 0.0, 2.0),
-        target: Vec3::ZERO,
+        eye: DVec3::new(0.0, 0.0, 2.0),
+        target: DVec3::ZERO,
         ..Camera::default()
     };
     let mut scene = Scene::new(camera, &instances);

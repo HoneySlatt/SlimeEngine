@@ -55,7 +55,7 @@ pub fn reflected(surface: Surface, normal: DVec3, to_light: DVec3, to_camera: DV
 /// The unit vector from the point of the plane z = `plane_z` seen at the center of pixel `(x, y)`
 /// of a `width` × `height` target, towards `camera`'s eye.
 pub fn to_camera(camera: &Camera, size: (u32, u32), pixel: (u32, u32), plane_z: f64) -> DVec3 {
-    (camera.eye.as_dvec3() - seen_point(camera, size, pixel, plane_z)).normalize()
+    (camera.eye - seen_point(camera, size, pixel, plane_z)).normalize()
 }
 
 /// The point of the plane z = `plane_z` seen at the center of pixel `(x, y)` of a `width` ×
@@ -79,7 +79,6 @@ pub fn seen_point_at(
 ) -> DVec3 {
     let inverse = camera
         .view_projection(width as f32 / height as f32)
-        .as_dmat4()
         .inverse();
     let ndc_x = x / f64::from(width) * 2.0 - 1.0;
     let ndc_y = 1.0 - y / f64::from(height) * 2.0;

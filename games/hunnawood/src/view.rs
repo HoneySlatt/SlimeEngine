@@ -12,7 +12,7 @@ use slime_app::AppError;
 use slime_assets::{CookedAssets, CookedScene};
 use slime_color::LinearColor;
 use slime_gfx::{Gpu, RenderTarget, TextureFormat};
-use slime_render::glam::{Mat4, Quat, Vec2, Vec3};
+use slime_render::glam::{DAffine3, DQuat, DVec3, Vec2, Vec3};
 use slime_render::{
     Camera, Environment, Light, LoadedScene, Material, MaterialValues, PointLight, RenderError,
     RenderStats, Renderer, Scene, SceneError, SceneLoad, ShaderSources, Sky, scene_lights,
@@ -130,7 +130,8 @@ impl ZoneLights {
             .enumerate()
             .find_map(|(index, light)| match light {
                 Light::Point(light)
-                    if Vec2::new(light.position.x, light.position.z).distance(campfire)
+                    if Vec2::new(light.position.x as f32, light.position.z as f32)
+                        .distance(campfire)
                         <= CAMPFIRE_LIGHT_REACH =>
                 {
                     Some((index, *light))
@@ -504,9 +505,9 @@ impl View {
         // stands.
         let hero = game.hero_between(alpha);
         let facing = hero.facing();
-        let place = Mat4::from_rotation_translation(
-            Quat::from_rotation_arc(Vec3::NEG_Z, Vec3::new(facing.x, 0.0, facing.y)),
-            Vec3::new(hero.position.x, 0.0, hero.position.y),
+        let place = DAffine3::from_rotation_translation(
+            DQuat::from_rotation_arc(DVec3::NEG_Z, Vec3::new(facing.x, 0.0, facing.y).as_dvec3()),
+            Vec3::new(hero.position.x, 0.0, hero.position.y).as_dvec3(),
         );
         for mut instance in self.hero.instances() {
             instance.transform = place * instance.transform;

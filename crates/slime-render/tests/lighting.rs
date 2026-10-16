@@ -16,7 +16,7 @@ use std::time::Duration;
 
 use slime_color::LinearColor;
 use slime_gfx::{Gpu, Image, TextureFormat};
-use slime_render::glam::{Mat4, Vec3, Vec4};
+use slime_render::glam::{DAffine3, DVec3, Mat4, Vec3, Vec4};
 use slime_render::{
     Camera, DirectionalLight, Instance, Light, Material, MaterialData, Mesh, MeshData, RenderStats,
     Renderer, Scene, Sky,
@@ -90,7 +90,7 @@ impl Setup {
             .create_render_target("lighting", width, height, TextureFormat::Rgba8UnormSrgb)
             .expect("the GPU has memory for it");
         let camera = Camera {
-            eye: Vec3::new(0.0, 0.0, 3.0),
+            eye: DVec3::new(0.0, 0.0, 3.0),
             ..Camera::default()
         };
         let instances: Vec<Instance<'_>> = transforms
@@ -100,7 +100,8 @@ impl Setup {
                 Instance::new(
                     &self.square,
                     &self.white,
-                    transform * Mat4::from_scale(Vec3::splat(2.0)),
+                    DAffine3::from_mat4(transform.as_dmat4())
+                        * DAffine3::from_scale(DVec3::splat(2.0)),
                 )
             })
             .collect();

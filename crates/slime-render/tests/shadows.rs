@@ -31,7 +31,7 @@ use std::f32::consts::PI;
 
 use slime_color::LinearColor;
 use slime_gfx::{FloatImage, Gpu, RenderTarget, TextureFormat};
-use slime_render::glam::{DVec3, EulerRot, Mat4, Vec3};
+use slime_render::glam::{DAffine3, DVec3, EulerRot, Mat4, Vec3};
 use slime_render::{
     AlphaMode, Camera, DirectionalLight, Environment, Instance, Light, Material, MaterialData,
     Mesh, MeshData, PointLight, RenderStats, Renderer, Scene, Sky,
@@ -130,7 +130,8 @@ impl Setup {
                 let mut instance = Instance::new(
                     &self.square,
                     material,
-                    transform * Mat4::from_scale(Vec3::splat(2.0)),
+                    DAffine3::from_mat4(transform.as_dmat4())
+                        * DAffine3::from_scale(DVec3::splat(2.0)),
                 );
                 instance.casts_shadows = casts_shadows;
                 instance
@@ -169,8 +170,8 @@ fn blocker(center: Vec3, facing_down: bool) -> Mat4 {
 /// A camera 3 m above the point (x, y) of the floor, looking straight down at it.
 fn camera_above(x: f32, y: f32) -> Camera {
     Camera {
-        eye: Vec3::new(x, y, 3.0),
-        target: Vec3::new(x, y, 0.0),
+        eye: Vec3::new(x, y, 3.0).as_dvec3(),
+        target: Vec3::new(x, y, 0.0).as_dvec3(),
         ..Camera::default()
     }
 }
@@ -260,8 +261,8 @@ fn cascades(camera: &Camera, distance: f32, axes: [DVec3; 2]) -> [Cascade; 4] {
     let near_plane = f64::from(camera.near);
     let tan = (f64::from(camera.fov_y) / 2.0).tan();
     let corner = 2.0 * tan * tan;
-    let eye = camera.eye.as_dvec3();
-    let forward = (camera.target.as_dvec3() - eye).normalize();
+    let eye = camera.eye;
+    let forward = (camera.target - eye).normalize();
     std::array::from_fn(|index| {
         let near = if index == 0 {
             near_plane
@@ -482,8 +483,8 @@ fn a_lit_floor_does_not_shadow_itself() {
     // and moved 10 km away, where the shadow map's grid meets it elsewhere across a texel: the floor
     // facing the light, without any slope, compares its own depths computed two ways.
     let canonical = Camera {
-        eye: Vec3::new(0.3, 0.2, 2.0),
-        target: Vec3::new(0.1, -0.1, 0.0),
+        eye: DVec3::new(0.3, 0.2, 2.0),
+        target: DVec3::new(0.1, -0.1, 0.0),
         ..Camera::default()
     };
     let placements = [
@@ -516,8 +517,8 @@ fn a_lit_floor_does_not_shadow_itself() {
                 ..light
             };
             let camera = Camera {
-                eye: placement.transform_point3(canonical.eye),
-                target: placement.transform_point3(canonical.target),
+                eye: placement.as_dmat4().transform_point3(canonical.eye),
+                target: placement.as_dmat4().transform_point3(canonical.target),
                 up: placement.transform_vector3(Vec3::Y),
                 ..canonical
             };
@@ -568,7 +569,7 @@ fn only_the_first_directional_light_that_casts_shadows_casts_them() {
     let above = sun(0.0, 0.1);
     let lamp_at = DVec3::new(-3.0, 0.0, 4.5);
     let lamp = Light::Point(PointLight {
-        position: lamp_at.as_vec3(),
+        position: lamp_at,
         intensity: 4.0,
         ..PointLight::default()
     });
@@ -721,13 +722,11 @@ fn a_masked_material_casts_no_shadow_where_it_discards() {
 /// origin along x and y: near the horizon, the samples of one pixel see points hundreds of metres
 /// apart.
 fn within_at_every_sample(camera: &Camera, pixel: (u32, u32), metres: f64) -> bool {
-    let forward = (camera.target - camera.eye).as_dvec3();
+    let forward = camera.target - camera.eye;
     SAMPLES.into_iter().all(|(dx, dy)| {
         let at = (f64::from(pixel.0) + dx, f64::from(pixel.1) + dy);
         let point = brdf::seen_point_at(camera, (SIZE, SIZE), at, 0.0);
-        (point - camera.eye.as_dvec3()).dot(forward) > 0.0
-            && point.x.abs() < metres
-            && point.y.abs() < metres
+        (point - camera.eye).dot(forward) > 0.0 && point.x.abs() < metres && point.y.abs() < metres
     })
 }
 
@@ -749,8 +748,8 @@ fn an_instance_that_casts_no_shadow_is_left_out_and_what_lies_beyond_the_map_is_
         to_light,
     );
     let camera = Camera {
-        eye: Vec3::new(0.0, -2.0, 0.9),
-        target: Vec3::new(10.0, 0.0, 0.0),
+        eye: DVec3::new(0.0, -2.0, 0.9),
+        target: DVec3::new(10.0, 0.0, 0.0),
         ..Camera::default()
     };
     let strip = Mat4::from_translation(Vec3::new(50.0, 0.0, 1.0))
@@ -823,12 +822,16 @@ fn a_lit_sphere_does_not_shadow_itself() {
         ..DirectionalLight::default()
     };
     let camera = Camera {
-        eye: Vec3::new(0.3, 0.6, 0.9),
-        target: Vec3::ZERO,
+        eye: DVec3::new(0.3, 0.6, 0.9),
+        target: DVec3::ZERO,
         ..Camera::default()
     };
     let mut draw = |light: DirectionalLight| {
-        let instances = [Instance::new(&mesh, &setup.white, transform)];
+        let instances = [Instance::new(
+            &mesh,
+            &setup.white,
+            DAffine3::from_mat4(transform.as_dmat4()),
+        )];
         let lights = [Light::Directional(light)];
         let mut scene = Scene::new(camera, &instances);
         scene.lights = &lights;
@@ -846,8 +849,8 @@ fn a_lit_sphere_does_not_shadow_itself() {
         casts_shadows: false,
         ..light
     });
-    let inverse = camera.view_projection(1.0).as_dmat4().inverse();
-    let eye = camera.eye.as_dvec3();
+    let inverse = camera.view_projection(1.0).inverse();
+    let eye = camera.eye;
     let mut facing = Vec::new();
     for y in 0..SIZE {
         for x in 0..SIZE {
@@ -859,7 +862,7 @@ fn a_lit_sphere_does_not_shadow_itself() {
             );
             let ray = (inverse.project_point3(ndc) - eye).normalize();
             let along = -eye.dot(ray);
-            let squared = radius * radius - (eye + ray * along).length_squared();
+            let squared: f64 = radius * radius - (eye + ray * along).length_squared();
             if squared <= 0.0 {
                 continue;
             }
@@ -905,14 +908,14 @@ fn each_cascade_shadows_what_it_holds_and_hands_over_across_its_band() {
     // either side along y: there, the shadow fades out. The sheet faces away from each camera,
     // which culls it. The floor, lit beside the shadow, does not shadow itself in any cascade.
     let low = Camera {
-        eye: Vec3::new(0.0, 0.0, 1.5),
-        target: Vec3::new(0.0, 10.0, 0.0),
+        eye: DVec3::new(0.0, 0.0, 1.5),
+        target: DVec3::new(0.0, 10.0, 0.0),
         up: Vec3::Z,
         ..Camera::default()
     };
     let high = Camera {
-        eye: Vec3::new(0.0, 0.0, 30.0),
-        target: Vec3::ZERO,
+        eye: DVec3::new(0.0, 0.0, 30.0),
+        target: DVec3::ZERO,
         ..Camera::default()
     };
     let (mut first_holding, mut beyond) = ([0; 4], 0);

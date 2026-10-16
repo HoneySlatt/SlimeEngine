@@ -15,7 +15,7 @@ mod tone_curve;
 
 use slime_color::LinearColor;
 use slime_gfx::{FloatImage, Gpu, TextureFormat};
-use slime_render::glam::{Mat4, Vec3};
+use slime_render::glam::{DAffine3, DVec3, Mat4, Vec3};
 use slime_render::{Camera, Instance, MaterialData, MeshData, Renderer, Scene};
 
 /// The output's side, in pixels; the square's left edge crosses its column `EDGE_COLUMN`.
@@ -28,8 +28,8 @@ const FOV_Y: f32 = std::f32::consts::FRAC_PI_3;
 
 fn camera() -> Camera {
     Camera {
-        eye: Vec3::new(0.0, 0.0, DISTANCE),
-        target: Vec3::ZERO,
+        eye: Vec3::new(0.0, 0.0, DISTANCE).as_dvec3(),
+        target: DVec3::ZERO,
         fov_y: FOV_Y,
         near: 1.0,
         ..Camera::default()
@@ -68,7 +68,11 @@ fn draw(emission: f32) -> FloatImage {
     let (left, right) = (x(EDGE_COLUMN as f32 + 0.25), x(SIZE as f32 + 1.0));
     let transform = Mat4::from_translation(Vec3::new((left + right) / 2.0, 0.0, 0.0))
         * Mat4::from_scale(Vec3::new(right - left, 3.0 * half, 1.0));
-    let instances = [Instance::new(&square, &emitter, transform)];
+    let instances = [Instance::new(
+        &square,
+        &emitter,
+        DAffine3::from_mat4(transform.as_dmat4()),
+    )];
     let scene = Scene::new(camera(), &instances);
     renderer
         .render(&gpu, &output, &scene)

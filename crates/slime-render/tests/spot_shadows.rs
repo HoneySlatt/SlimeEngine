@@ -15,7 +15,7 @@ mod tone_curve;
 
 use slime_color::LinearColor;
 use slime_gfx::{FloatImage, Gpu, RenderTarget, TextureFormat};
-use slime_render::glam::{DVec3, Mat4, Vec3};
+use slime_render::glam::{DAffine3, DVec3, Mat4, Vec3};
 use slime_render::{
     Camera, Environment, Instance, Light, Material, MaterialData, Mesh, MeshData, RenderStats,
     Renderer, Scene, Sky, SpotLight,
@@ -85,7 +85,11 @@ impl Setup {
         let instances: Vec<Instance<'_>> = squares
             .iter()
             .map(|&(transform, casts_shadows)| {
-                let mut instance = Instance::new(&self.square, &self.white, transform);
+                let mut instance = Instance::new(
+                    &self.square,
+                    &self.white,
+                    DAffine3::from_mat4(transform.as_dmat4()),
+                );
                 instance.casts_shadows = casts_shadows;
                 instance
             })
@@ -113,15 +117,15 @@ fn square(center: Vec3, side: f32) -> Mat4 {
 /// A camera 1.5 m above the point (x, y) of the floor, looking straight down at it.
 fn camera_above(x: f32, y: f32) -> Camera {
     Camera {
-        eye: Vec3::new(x, y, 1.5),
-        target: Vec3::new(x, y, 0.0),
+        eye: Vec3::new(x, y, 1.5).as_dvec3(),
+        target: Vec3::new(x, y, 0.0).as_dvec3(),
         ..Camera::default()
     }
 }
 
 /// The point of the floor seen at the center of `pixel`.
 fn seen_point(camera: &Camera, (x, y): (u32, u32)) -> DVec3 {
-    let inverse = camera.view_projection(1.0).as_dmat4().inverse();
+    let inverse = camera.view_projection(1.0).inverse();
     let ndc_x = (f64::from(x) + 0.5) / f64::from(SIZE) * 2.0 - 1.0;
     let ndc_y = 1.0 - (f64::from(y) + 0.5) / f64::from(SIZE) * 2.0;
     let near = inverse.project_point3(DVec3::new(ndc_x, ndc_y, 1.0));
@@ -142,7 +146,7 @@ fn a_square_under_a_spot_light_shadows_the_floor_where_its_rays_land() {
     // through the square land on the floor twice as far from the light's foot, on a square 2 m
     // wide around (1.5, 0.5), seen from 1.5 m above (1.5, 0.5), 2.7 cm per pixel.
     let light = Light::Spot(SpotLight {
-        position: Vec3::new(0.0, 0.0, 4.0),
+        position: DVec3::new(0.0, 0.0, 4.0),
         direction: Vec3::new(0.3, 0.1, -1.0),
         intensity: 4.0,
         inner_cone_angle: 0.7,
@@ -213,8 +217,8 @@ fn a_lit_floor_and_a_lit_sphere_do_not_shadow_themselves() {
     // by 0° to 60°, aimed at points the camera sees, so that the floor faces the axis at up to 60°
     // and the rays at up to 75°: it must show what it shows when it casts none.
     let camera = Camera {
-        eye: Vec3::new(0.2, -0.3, 2.0),
-        target: Vec3::new(0.0, 0.1, 0.0),
+        eye: DVec3::new(0.2, -0.3, 2.0),
+        target: DVec3::new(0.0, 0.1, 0.0),
         ..Camera::default()
     };
     let floor = square(Vec3::ZERO, 20.0);
@@ -228,7 +232,7 @@ fn a_lit_floor_and_a_lit_sphere_do_not_shadow_themselves() {
         let lean = lean.to_radians();
         let direction = Vec3::new(lean.sin(), 0.0, -lean.cos());
         let light = Light::Spot(SpotLight {
-            position: Vec3::new(aim, 0.0, 0.0) - direction * 3.0,
+            position: (Vec3::new(aim, 0.0, 0.0) - direction * 3.0).as_dvec3(),
             direction,
             intensity: 6.0,
             inner_cone_angle: 0.9,
@@ -247,18 +251,22 @@ fn a_lit_floor_and_a_lit_sphere_do_not_shadow_themselves() {
         .create_mesh(&setup.gpu, "sphere", &MeshData::sphere(16, 24))
         .expect("the sphere is valid");
     let camera = Camera {
-        eye: Vec3::new(0.3, -0.6, 0.6),
-        target: Vec3::ZERO,
+        eye: DVec3::new(0.3, -0.6, 0.6),
+        target: DVec3::ZERO,
         ..Camera::default()
     };
     let light = Light::Spot(SpotLight {
-        position: Vec3::new(-1.0, -0.5, 2.0),
+        position: DVec3::new(-1.0, -0.5, 2.0),
         direction: Vec3::new(1.0, 0.5, -2.0),
         intensity: 6.0,
         ..SpotLight::default()
     });
     let mut draw = |casts_shadows| {
-        let mut instance = Instance::new(&sphere, &setup.white, Mat4::from_scale(Vec3::splat(0.4)));
+        let mut instance = Instance::new(
+            &sphere,
+            &setup.white,
+            DAffine3::from_scale(DVec3::splat(0.4)),
+        );
         instance.casts_shadows = casts_shadows;
         let instances = [instance];
         let lights = [light];
@@ -301,10 +309,10 @@ fn a_lit_floor_and_a_lit_sphere_do_not_shadow_themselves() {
 /// The unit normal of the sphere of `radius` at the origin where the ray of `pixel` meets it, if
 /// it does, kept away from the silhouette, where the sphere's facets stray from the sphere.
 fn sphere_normal(camera: &Camera, (x, y): (u32, u32), radius: f64) -> Option<DVec3> {
-    let inverse = camera.view_projection(1.0).as_dmat4().inverse();
+    let inverse = camera.view_projection(1.0).inverse();
     let ndc_x = (f64::from(x) + 0.5) / f64::from(SIZE) * 2.0 - 1.0;
     let ndc_y = 1.0 - (f64::from(y) + 0.5) / f64::from(SIZE) * 2.0;
-    let eye = camera.eye.as_dvec3();
+    let eye = camera.eye;
     let far = inverse.project_point3(DVec3::new(ndc_x, ndc_y, 0.5));
     let d = (far - eye).normalize();
     let b = eye.dot(d);
@@ -321,7 +329,7 @@ fn sphere_normal(camera: &Camera, (x, y): (u32, u32), radius: f64) -> Option<DVe
 fn a_spot_light_that_casts_no_shadows_lights_through_and_draws_no_tile() {
     let mut setup = Setup::new();
     let light = SpotLight {
-        position: Vec3::new(0.0, 0.0, 4.0),
+        position: DVec3::new(0.0, 0.0, 4.0),
         direction: Vec3::new(0.3, 0.1, -1.0),
         intensity: 4.0,
         inner_cone_angle: 0.7,
@@ -356,7 +364,7 @@ fn every_spot_light_reads_its_own_tile_however_many_cast_shadows() {
         let lights: Vec<Light> = (0..count)
             .map(|index| {
                 Light::Spot(SpotLight {
-                    position: Vec3::new(0.0, 0.03 * index as f32, 4.0),
+                    position: Vec3::new(0.0, 0.03 * index as f32, 4.0).as_dvec3(),
                     direction: Vec3::new(0.3, 0.1, -1.0),
                     intensity: if index == lighting { 4.0 } else { 0.0 },
                     inner_cone_angle: 0.7,
@@ -422,7 +430,7 @@ fn a_masked_material_casts_no_shadow_where_it_discards() {
         )
         .expect("the GPU has memory for it");
     let light = Light::Spot(SpotLight {
-        position: Vec3::new(0.0, 0.0, 4.0),
+        position: DVec3::new(0.0, 0.0, 4.0),
         direction: Vec3::new(0.3, 0.1, -1.0),
         intensity: 4.0,
         inner_cone_angle: 0.7,
@@ -433,9 +441,17 @@ fn a_masked_material_casts_no_shadow_where_it_discards() {
     let floor = square(Vec3::ZERO, 20.0);
     let blocker = square(Vec3::new(0.75, 0.25, 2.0), 1.0);
     let draw = |setup: &mut Setup, casts_shadows: bool| {
-        let mut instances = vec![Instance::new(&setup.square, &setup.white, floor)];
+        let mut instances = vec![Instance::new(
+            &setup.square,
+            &setup.white,
+            DAffine3::from_mat4(floor.as_dmat4()),
+        )];
         instances[0].casts_shadows = false;
-        let mut cut = Instance::new(&setup.square, &cut_out, blocker);
+        let mut cut = Instance::new(
+            &setup.square,
+            &cut_out,
+            DAffine3::from_mat4(blocker.as_dmat4()),
+        );
         cut.casts_shadows = casts_shadows;
         instances.push(cut);
         let lights = [light];

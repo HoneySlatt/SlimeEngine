@@ -106,6 +106,14 @@ engine starts a world of its own, which keeps a game's entities and their compon
   slime_gfx::LinearColor` becomes `use slime_color::LinearColor`. The crate also gives the sRGB
   transfer function, `srgb8_to_linear` and `linear_to_srgb8`, which the GPU layer and the cooker
   each had a copy of.
+- The renderer's positions are `f64`s, as the world's are (ADR-0079): `Camera::eye` and
+  `Camera::target`, `PointLight::position` and `SpotLight::position` are `DVec3`s,
+  `Instance::transform` is a `DAffine3`, and `LoadedScene::bounds` holds `DVec3`s;
+  `Camera::view` and `Camera::view_projection` give `DMat4`s. What the camera sees is drawn as
+  precisely 10 000 km from the origin as at it: the renderer still subtracts the eye on the CPU
+  before positions reach the GPU as `f32`s (ADR-0048). `Mat4::IDENTITY` given to `Instance::new`
+  becomes `DAffine3::IDENTITY`, and `Vec3::new(…)` given to a camera or a light becomes
+  `DVec3::new(…)`.
 
 ### Fixed
 

@@ -28,7 +28,7 @@ use slime_gfx::{
     AddressMode, Filter, FloatImage, Gpu, RenderTarget, Sampler, SamplerDescriptor, Texture,
     TextureFormat,
 };
-use slime_render::glam::{DVec3, Mat4, Quat, Vec3, Vec4};
+use slime_render::glam::{DAffine3, DVec3, Mat4, Quat, Vec3, Vec4};
 use slime_render::{
     AlphaMode, Camera, DirectionalLight, Instance, Light, Material, MaterialData, Mesh, MeshData,
     Renderer, SampledTexture, Scene, Sky,
@@ -135,7 +135,8 @@ impl Setup {
                 Instance::new(
                     &self.square,
                     material,
-                    transform * Mat4::from_scale(Vec3::splat(2.0)),
+                    DAffine3::from_mat4(transform.as_dmat4())
+                        * DAffine3::from_scale(DVec3::splat(2.0)),
                 )
             })
             .collect();
@@ -169,7 +170,7 @@ impl Setup {
 /// A camera on the Z axis at `z`, looking at the origin.
 fn camera(z: f32) -> Camera {
     Camera {
-        eye: Vec3::new(0.0, 0.0, z),
+        eye: Vec3::new(0.0, 0.0, z).as_dvec3(),
         ..Camera::default()
     }
 }

@@ -7,7 +7,7 @@
 
 use std::time::{Duration, Instant};
 
-use glam::{DMat4, Mat3, Mat4, Vec3};
+use glam::{DAffine3, DMat4, DVec3, Mat3, Mat4, Vec3};
 use slime_assets::CookedTexture;
 use slime_gfx::{
     AddressMode, BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource,
@@ -88,11 +88,12 @@ pub struct Instance<'a> {
     pub mesh: &'a Mesh,
     /// How it looks.
     pub material: &'a Material,
-    /// From the mesh's space to world space. A transform that mirrors the mesh (a negative
+    /// From the mesh's space to world space, in metres, its translation in `f64` as positions in
+    /// the world are (ADR-0079). A transform that mirrors the mesh (a negative
     /// determinant, beyond rounding) keeps the mesh's front faces, as glTF does: the renderer
     /// culls its other faces. Normals follow its rotation and stay perpendicular to the surfaces it
     /// scales unevenly, even when it flattens them along one axis.
-    pub transform: Mat4,
+    pub transform: DAffine3,
     /// Whether it casts shadows (ADR-0038, ADR-0049); it receives them either way. An instance that
     /// casts none is left out of the shadow passes, which it would otherwise cost draw calls, and
     /// of the depths each cascade spans along the light (ADR-0050, ADR-0064): a vast floor or a sky
@@ -104,7 +105,7 @@ pub struct Instance<'a> {
 impl<'a> Instance<'a> {
     /// `mesh` drawn with `material`, placed by `transform`, casting shadows.
     #[must_use]
-    pub fn new(mesh: &'a Mesh, material: &'a Material, transform: Mat4) -> Self {
+    pub fn new(mesh: &'a Mesh, material: &'a Material, transform: DAffine3) -> Self {
         Self {
             mesh,
             material,
@@ -123,10 +124,9 @@ impl<'a> Instance<'a> {
 /// floats, which reach 65 504, hold exposed light up to 64 × 65 504 (ADR-0040): exposed light above
 /// it is clipped to it.
 ///
-/// Positions are in world space, as `f32`s. The renderer moves them by −`camera.eye` in `f64`
-/// before they reach the GPU (ADR-0048), so that what is near the camera is drawn as precisely
-/// 10 km from the origin as at the origin; but an `f32` holds world positions in steps of 1 mm at
-/// 10 km, and of 6 cm at 1 000 km, which the scene keeps.
+/// Positions are in world space, in metres, as `f64`s (ADR-0079). The renderer moves them by
+/// −`camera.eye` in `f64` before they reach the GPU as `f32`s (ADR-0048), so that what is near the
+/// camera is drawn as precisely 10 000 km from the origin as at it.
 ///
 /// Made by [`Scene::new`], so that a field added later does not break the code that makes one
 /// (ADR-0046), then filled in by changing the fields:
@@ -1177,8 +1177,11 @@ impl Renderer {
         let mut instance_bytes = Vec::with_capacity(capacity * stride);
         for instance in scene.instances {
             push_mat4(&mut instance_bytes, relative_to(origin, instance.transform));
-            push_mat3(&mut instance_bytes, normal_matrix(instance.transform));
-            let handedness = if is_mirrored(instance.transform) {
+            push_mat3(
+                &mut instance_bytes,
+                normal_matrix(linear(instance.transform)),
+            );
+            let handedness = if is_mirrored(linear(instance.transform)) {
                 -1.0
             } else {
                 1.0
@@ -1325,7 +1328,7 @@ impl Renderer {
                 for (slot, instance) in scene.instances.iter().enumerate() {
                     let cull = cull_mode(
                         instance.material.double_sided,
-                        is_mirrored(instance.transform),
+                        is_mirrored(linear(instance.transform)),
                     );
                     if bound != Some(cull) {
                         render_pass.set_pipeline(self.pipelines.scene.get(cull));
@@ -1671,17 +1674,23 @@ fn frame_group(
 }
 
 /// `transform` followed by a move by −`origin`: from the mesh's space to world space moved so that
-/// `origin` is at its origin, the space the renderer draws in (ADR-0048). Computed in `f64`, so
-/// that the difference between a far position and a far origin is as exact as an `f32` holds it:
-/// a mesh 1 m from a camera 10 km from the world's origin keeps the precision it has at the origin.
-fn relative_to(origin: Vec3, transform: Mat4) -> Mat4 {
-    (DMat4::from_translation(-origin.as_dvec3()) * transform.as_dmat4()).as_mat4()
+/// `origin` is at its origin, the space the renderer draws in (ADR-0048). Computed in `f64`, then
+/// rounded to `f32`: a mesh 1 m from a camera 10 000 km from the world's origin keeps the precision
+/// it has at the origin.
+fn relative_to(origin: DVec3, transform: DAffine3) -> Mat4 {
+    DMat4::from(DAffine3::from_translation(-origin) * transform).as_mat4()
 }
 
-/// The matrix that transforms the normals of an instance placed by `transform`. It gives
-/// directions only: the shader normalizes the normals.
+/// The 3 × 3 part of an instance's transform, which turns, scales and mirrors it, in `f32`: what
+/// its normals and its culling depend on, which no translation changes.
+fn linear(transform: DAffine3) -> Mat3 {
+    transform.matrix3.as_mat3()
+}
+
+/// The matrix that transforms the normals of an instance whose transform's 3 × 3 part is `linear`.
+/// It gives directions only: the shader normalizes the normals.
 ///
-/// It is the cofactor matrix of the transform's 3 × 3 part: the inverse transpose, which keeps
+/// It is the cofactor matrix of that part: the inverse transpose, which keeps
 /// normals perpendicular to surfaces scaled unevenly, times the determinant. It turns normals the
 /// same way where the inverse exists, and stays finite where it does not: a mesh flattened along
 /// one axis stays visible, and keeps the normal of its plane. It is negated when the determinant
@@ -1692,8 +1701,7 @@ fn relative_to(origin: Vec3, transform: Mat4) -> Mat4 {
 /// cofactors are products of two scales in f32, which bounds the uniform scales it handles to
 /// about 1e-19 to 1e19, far beyond those of the inverse (about 1e-13 to 7e12). A mesh flattened
 /// along two axes or three gets zero, but has no triangle left to draw.
-fn normal_matrix(transform: Mat4) -> Mat3 {
-    let linear = Mat3::from_mat4(transform);
+fn normal_matrix(linear: Mat3) -> Mat3 {
     let cofactor = Mat3::from_cols(
         linear.y_axis.cross(linear.z_axis),
         linear.z_axis.cross(linear.x_axis),
@@ -1708,7 +1716,7 @@ fn normal_matrix(transform: Mat4) -> Mat3 {
         return cofactor;
     }
     cofactor
-        / if is_mirrored(transform) {
+        / if is_mirrored(linear) {
             -largest
         } else {
             largest
@@ -1947,14 +1955,14 @@ fn cull_mode(double_sided: bool, mirrored: bool) -> CullMode {
     }
 }
 
-/// Whether `transform` mirrors what it places, turning its front faces clockwise on screen: the
-/// determinant of its 3 × 3 part is negative beyond rounding. The determinant of the columns
+/// Whether a transform whose 3 × 3 part is `linear` mirrors what it places, turning its front faces
+/// clockwise on screen: the determinant of that part is negative beyond rounding. The determinant
+/// of the columns
 /// normalized is compared with −10⁻⁵. A mesh flattened between two rotations has columns in one
 /// plane up to rounding, a determinant of noise of either sign, about 10⁻⁷ at most, which does
 /// not count as mirrored, nor does a column of zero length. Uniform scales between about 10⁻¹⁹ and
 /// 10¹⁹ are told apart, as by `normal_matrix`.
-fn is_mirrored(transform: Mat4) -> bool {
-    let linear = Mat3::from_mat4(transform);
+fn is_mirrored(linear: Mat3) -> bool {
     let [x, y, z] = [linear.x_axis, linear.y_axis, linear.z_axis].map(Vec3::normalize_or_zero);
     x.dot(y.cross(z)) < -MIRROR_THRESHOLD
 }
@@ -2075,7 +2083,7 @@ mod tests {
                 "scaled down a lot",
             ),
         ] {
-            let matrix = normal_matrix(transform);
+            let matrix = normal_matrix(Mat3::from_mat4(transform));
             let largest = matrix.abs().to_cols_array().into_iter().fold(0.0, f32::max);
             assert!(
                 (largest - 1.0).abs() < 1e-6,
@@ -2100,7 +2108,7 @@ mod tests {
     #[test]
     fn a_mirrored_instance_keeps_its_normals_pointing_out() {
         // Mirrored along X, a surface facing +Z still faces +Z, and one facing +X faces −X.
-        let matrix = normal_matrix(Mat4::from_scale(Vec3::new(-1.0, 1.0, 1.0)));
+        let matrix = normal_matrix(Mat3::from_diagonal(Vec3::new(-1.0, 1.0, 1.0)));
         assert_close(direction(matrix, Vec3::Z), Vec3::Z, "facing +Z");
         assert_close(direction(matrix, Vec3::X), -Vec3::X, "facing +X");
     }
@@ -2108,13 +2116,13 @@ mod tests {
     #[test]
     fn a_mesh_flattened_along_one_axis_keeps_the_normal_of_its_plane() {
         // A surface in the plane z = 0, flattened along Z, is unchanged: it still faces +Z.
-        let matrix = normal_matrix(Mat4::from_scale(Vec3::new(1.0, 1.0, 0.0)));
+        let matrix = normal_matrix(Mat3::from_diagonal(Vec3::new(1.0, 1.0, 0.0)));
         assert!(matrix.is_finite(), "{matrix}");
         assert_close(direction(matrix, Vec3::Z), Vec3::Z, "flattened along Z");
         // Turned, then flattened along the world's Y axis: the surface now lies in the plane
         // y = 0, so its normal is along Y.
         let turned = Mat4::from_scale(Vec3::new(1.0, 0.0, 1.0)) * Mat4::from_rotation_x(0.5);
-        let matrix = normal_matrix(turned);
+        let matrix = normal_matrix(Mat3::from_mat4(turned));
         assert!(matrix.is_finite(), "{matrix}");
         let normal = direction(matrix, Vec3::Z);
         assert!(normal.x.abs() < 1e-6 && normal.z.abs() < 1e-6, "{normal}");
@@ -2324,7 +2332,7 @@ mod tests {
                 "a point",
             ),
         ] {
-            assert_eq!(is_mirrored(transform), mirrored, "{case}");
+            assert_eq!(is_mirrored(Mat3::from_mat4(transform)), mirrored, "{case}");
         }
     }
 
@@ -2339,8 +2347,11 @@ mod tests {
                 let parent =
                     Mat4::from_euler(EulerRot::XYZ, 0.11 * j + 0.3, 0.29 * j, 0.17 * j + 0.5);
                 let transform = parent * Mat4::from_scale(Vec3::new(1.0, 0.0, 1.0)) * child;
-                assert!(!is_mirrored(transform), "{transform}");
-                assert!(normal_matrix(transform).is_finite(), "{transform}");
+                assert!(!is_mirrored(Mat3::from_mat4(transform)), "{transform}");
+                assert!(
+                    normal_matrix(Mat3::from_mat4(transform)).is_finite(),
+                    "{transform}"
+                );
             }
         }
     }

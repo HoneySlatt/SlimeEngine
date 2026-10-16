@@ -1,6 +1,6 @@
 //! The camera: where the scene is seen from, and how it is projected.
 
-use glam::{Mat4, Vec3};
+use glam::{DMat4, DVec3, Mat4, Vec3};
 
 /// A perspective camera, looking from [`eye`](Self::eye) at [`target`](Self::target).
 ///
@@ -12,10 +12,11 @@ use glam::{Mat4, Vec3};
 /// the engine, the version [`crate::glam`] re-exports, enables it in the engine too.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Camera {
-    /// Where the camera is, in world space.
-    pub eye: Vec3,
+    /// Where the camera is, in world space, in metres: `f64`, as positions in the world are
+    /// (ADR-0079).
+    pub eye: DVec3,
     /// The point it looks at, which must differ from `eye`.
-    pub target: Vec3,
+    pub target: DVec3,
     /// Which way is up, usually [`Vec3::Y`]. Its length does not matter, short of one so small or
     /// so large that its square rounds to zero or overflows in `f32`, but it must not be zero or
     /// parallel to the viewing direction.
@@ -33,8 +34,8 @@ impl Default for Camera {
     /// 0.1 away.
     fn default() -> Self {
         Self {
-            eye: Vec3::new(0.0, 0.0, 5.0),
-            target: Vec3::ZERO,
+            eye: DVec3::new(0.0, 0.0, 5.0),
+            target: DVec3::ZERO,
             up: Vec3::Y,
             fov_y: 60f32.to_radians(),
             near: 0.1,
@@ -43,27 +44,24 @@ impl Default for Camera {
 }
 
 impl Camera {
-    /// The view matrix: from world space to the camera's space. A `target` at `eye`, or so near it
-    /// that the square of their distance rounds to zero in `f32`, or an `up` that is zero,
-    /// parallel to the viewing direction or of an extreme length (see [`up`](Self::up)), gives a
-    /// matrix that is not finite and draws nothing.
-    ///
-    /// It maps world positions in `f32`: far from the origin, it loses the precision that the
-    /// renderer keeps by drawing relative to the camera (ADR-0048).
+    /// The view matrix: from world space to the camera's space, in `f64`, as world positions are.
+    /// A `target` at `eye`, or so near it that the square of their distance rounds to zero, or an
+    /// `up` that is zero, parallel to the viewing direction or of an extreme length (see
+    /// [`up`](Self::up)), gives a matrix that is not finite and draws nothing.
     ///
     /// # Panics
     ///
     /// Inside glam, for those cameras, when glam's assertions are on (see [`Camera`]).
-    pub fn view(&self) -> Mat4 {
+    pub fn view(&self) -> DMat4 {
         // glam asks for an `up` of length one, and asserts it when its assertions are on.
-        glam::camera::rh::view::look_at_mat4(self.eye, self.target, self.up.normalize())
+        glam::dcamera::rh::view::look_at_mat4(self.eye, self.target, self.up.as_dvec3().normalize())
     }
 
     /// The view matrix from world space moved by −[`eye`](Self::eye), the space in which the
     /// renderer draws (ADR-0048): the rotation of [`view`](Self::view) alone. The direction from
     /// the eye to the target is computed in `f64`, so that a camera far from the origin keeps it.
     pub(crate) fn view_from_eye(&self) -> Mat4 {
-        let direction = (self.target.as_dvec3() - self.eye.as_dvec3()).as_vec3();
+        let direction = (self.target - self.eye).as_vec3();
         glam::camera::rh::view::look_at_mat4(Vec3::ZERO, direction, self.up.normalize())
     }
 
@@ -83,14 +81,14 @@ impl Camera {
         glam::camera::rh::proj::directx::perspective_infinite_reverse(self.fov_y, aspect, self.near)
     }
 
-    /// The projection times the view: from world space to clip space, as precise as
+    /// The projection times the view: from world space to clip space, in `f64` as
     /// [`view`](Self::view) is.
     ///
     /// # Panics
     ///
     /// As [`view`](Self::view) and [`projection`](Self::projection) do.
-    pub fn view_projection(&self, aspect: f32) -> Mat4 {
-        self.projection(aspect) * self.view()
+    pub fn view_projection(&self, aspect: f32) -> DMat4 {
+        self.projection(aspect).as_dmat4() * self.view()
     }
 }
 
@@ -99,7 +97,7 @@ mod tests {
     use super::*;
 
     /// Projects `point` and divides by w: normalized device coordinates.
-    fn project(camera: &Camera, point: Vec3) -> Vec3 {
+    fn project(camera: &Camera, point: DVec3) -> DVec3 {
         let clip = camera.view_projection(1.0) * point.extend(1.0);
         clip.truncate() / clip.w
     }
@@ -107,13 +105,13 @@ mod tests {
     #[test]
     fn the_target_is_at_the_center_and_depth_falls_from_1_at_near_towards_0_at_infinity() {
         let camera = Camera {
-            eye: Vec3::new(0.0, 0.0, 5.0),
+            eye: DVec3::new(0.0, 0.0, 5.0),
             near: 1.0,
             ..Camera::default()
         };
         let center = project(&camera, camera.target);
         assert!(center.x.abs() < 1e-6 && center.y.abs() < 1e-6, "{center}");
-        let depth = |distance: f32| project(&camera, Vec3::new(0.0, 0.0, 5.0 - distance)).z;
+        let depth = |distance: f64| project(&camera, DVec3::new(0.0, 0.0, 5.0 - distance)).z;
         assert!((depth(1.0) - 1.0).abs() < 1e-6, "near plane at depth 1");
         assert!((depth(4.0) - 0.25).abs() < 1e-6, "near / distance");
         // Far beyond any far plane the camera had, depth still orders distances: a float keeps
@@ -124,15 +122,15 @@ mod tests {
             "{far}, {farther}"
         );
         // A direction, a point at infinity, is at depth 0.
-        let clip = camera.view_projection(1.0) * Vec3::NEG_Z.extend(0.0);
+        let clip = camera.view_projection(1.0) * DVec3::NEG_Z.extend(0.0);
         assert!(clip.z == 0.0 && clip.w > 0.0, "{clip}");
     }
 
     #[test]
     fn the_right_of_the_camera_is_on_the_right_of_the_image() {
         let camera = Camera::default();
-        let right = project(&camera, Vec3::new(1.0, 0.0, 0.0));
-        let up = project(&camera, Vec3::new(0.0, 1.0, 0.0));
+        let right = project(&camera, DVec3::new(1.0, 0.0, 0.0));
+        let up = project(&camera, DVec3::new(0.0, 1.0, 0.0));
         assert!(right.x > 0.0 && right.y.abs() < 1e-6, "{right}");
         assert!(up.y > 0.0 && up.x.abs() < 1e-6, "{up}");
     }

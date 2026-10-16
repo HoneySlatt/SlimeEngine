@@ -8,7 +8,7 @@ use std::f32::consts::PI;
 
 use slime_color::LinearColor;
 use slime_gfx::{Gpu, RenderTarget, SamplerDescriptor, TextureFormat};
-use slime_render::glam::{Mat4, Quat, Vec3};
+use slime_render::glam::{DAffine3, DQuat, DVec3, Vec3};
 use slime_render::{
     Camera, DirectionalLight, Environment, Instance, Light, Material, MaterialData, Mesh, MeshData,
     RenderError, RenderStats, Renderer, SampledTexture, Scene, Sky,
@@ -158,34 +158,35 @@ impl Shapes {
                 ORBIT_RADIUS * angle.sin(),
                 ORBIT_HEIGHT,
                 ORBIT_RADIUS * angle.cos(),
-            ),
-            target: Vec3::ZERO,
+            )
+            .as_dvec3(),
+            target: DVec3::ZERO,
             ..Camera::default()
         };
         let mut instances = vec![
-            Instance::new(&self.cube, &self.checkered, Mat4::IDENTITY),
+            Instance::new(&self.cube, &self.checkered, DAffine3::IDENTITY),
             Instance::new(
                 &self.cube,
                 &self.blue,
-                Mat4::from_rotation_translation(
-                    Quat::from_rotation_y(35f32.to_radians()),
-                    Vec3::new(1.2, 0.3, -0.6),
+                DAffine3::from_rotation_translation(
+                    DQuat::from_rotation_y(35f64.to_radians()),
+                    DVec3::new(1.2, 0.3, -0.6),
                 ),
             ),
             Instance::new(
                 &self.cube,
                 &self.orange,
-                Mat4::from_scale_rotation_translation(
-                    Vec3::splat(0.6),
-                    Quat::from_rotation_x(20f32.to_radians()),
-                    Vec3::new(-1.3, -0.2, 0.4),
+                DAffine3::from_scale_rotation_translation(
+                    DVec3::splat(0.6),
+                    DQuat::from_rotation_x(20f64.to_radians()),
+                    DVec3::new(-1.3, -0.2, 0.4),
                 ),
             ),
             // The sphere sits on the first cube.
             Instance::new(
                 &self.sphere,
                 &self.checkered_green,
-                Mat4::from_translation(Vec3::new(0.0, 1.0, 0.0)),
+                DAffine3::from_translation(DVec3::new(0.0, 1.0, 0.0)),
             ),
         ];
         // In front of the cubes, two rows of three, the metals nearer.
@@ -194,10 +195,10 @@ impl Shapes {
                 instances.push(Instance::new(
                     &self.sphere,
                     material,
-                    Mat4::from_scale_rotation_translation(
-                        Vec3::splat(0.4),
-                        Quat::IDENTITY,
-                        Vec3::new(0.6 * column as f32 - 0.6, -0.6, 1.2 + 0.6 * row as f32),
+                    DAffine3::from_scale_rotation_translation(
+                        DVec3::splat(0.4),
+                        DQuat::IDENTITY,
+                        DVec3::new(0.6 * column as f64 - 0.6, -0.6, 1.2 + 0.6 * row as f64),
                     ),
                 ));
             }

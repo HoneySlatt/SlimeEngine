@@ -63,9 +63,10 @@ per process, 32 × 32 ([ADR-0039](adr/0039-image-based-lighting-computed-on-the-
 spot light (`intensity`). A surface facing such a light d metres away receives intensity / d² *lux*.
 
 **Camera-relative rendering.** Drawing in world space moved so that the camera's eye is at the
-origin: the renderer subtracts the eye from every position in `f64` on the CPU, so that the GPU's
-32-bit floats hold small numbers near the camera, as precise 10 km from the world's origin as at
-it ([ADR-0048](adr/0048-rendering-relative-to-the-camera.md)).
+origin: the renderer subtracts the eye from every position, all `f64`s, on the CPU, so that the
+GPU's 32-bit floats hold small numbers near the camera, as precise 10 000 km from the world's
+origin as at it ([ADR-0048](adr/0048-rendering-relative-to-the-camera.md),
+[ADR-0079](adr/0079-the-engines-own-world.md)).
 
 **Cascade (cascaded shadow maps).** One of the *shadow maps* that together hold the shadows of a
 directional light: what the camera sees up to the light's shadow distance is split along its axis

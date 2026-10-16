@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use slime_assets::{AssetId, CookedAssets};
 use slime_color::LinearColor;
 use slime_gfx::{Gpu, RenderTarget};
-use slime_render::glam::Vec3;
+use slime_render::glam::{DVec3, Vec3};
 use slime_render::{
     Camera, DirectionalLight, Environment, Light, LoadedScene, RenderError, RenderStats, Renderer,
     Scene, SceneLoad, ShaderSources, Sky,
@@ -23,19 +23,19 @@ pub const SCENE: AssetId = AssetId::from_u128(0x850ad551_5098_42f9_ae42_26ed6174
 /// The smallest box around a loaded scene, in world space.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Bounds {
-    pub min: Vec3,
-    pub max: Vec3,
+    pub min: DVec3,
+    pub max: DVec3,
 }
 
 impl Bounds {
     /// The center of the box.
-    pub fn center(&self) -> Vec3 {
+    pub fn center(&self) -> DVec3 {
         (self.min + self.max) / 2.0
     }
 
     /// Half the diagonal of the box: the radius of the sphere around it.
     pub fn radius(&self) -> f32 {
-        (self.max - self.min).length() / 2.0
+        ((self.max - self.min).length() / 2.0) as f32
     }
 }
 
@@ -184,7 +184,7 @@ impl SampleScene {
             &self.loaded.lights[..]
         };
         let bounds = &self.bounds;
-        let reach = camera.eye.distance(bounds.center()) + bounds.radius();
+        let reach = camera.eye.distance(bounds.center()) as f32 + bounds.radius();
         let lights: Vec<Light> = lights
             .iter()
             .map(|&light| match light {

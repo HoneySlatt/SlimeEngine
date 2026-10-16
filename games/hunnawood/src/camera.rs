@@ -62,8 +62,8 @@ impl FollowCamera {
         let distance = blocked(target, toward, DISTANCE, colliders)
             .map_or(DISTANCE, |clear| clear.max(SAMPLE));
         Camera {
-            eye: target + toward * distance,
-            target,
+            eye: (target + toward * distance).as_dvec3(),
+            target: target.as_dvec3(),
             ..Camera::default()
         }
     }
@@ -99,7 +99,7 @@ mod tests {
                 "{forward} for {direction}"
             );
             let view = camera.camera(Vec2::ZERO, &[]);
-            let looking = (view.target - view.eye).normalize();
+            let looking = (view.target - view.eye).as_vec3().normalize();
             // The camera looks down along forward, and its right on the ground is forward turned a
             // quarter turn clockwise seen from above.
             assert!(
@@ -129,9 +129,9 @@ mod tests {
     /// Whether any collider stands within the margin of the line from the camera to what it
     /// looks at.
     fn hidden(view: &Camera, colliders: &[Collider]) -> bool {
-        let direction = (view.eye - view.target).normalize();
-        let length = view.eye.distance(view.target);
-        blocked(view.target, direction, length, colliders).is_some()
+        let direction = (view.eye - view.target).as_vec3().normalize();
+        let length = view.eye.distance(view.target) as f32;
+        blocked(view.target.as_vec3(), direction, length, colliders).is_some()
     }
 
     #[test]
@@ -161,7 +161,7 @@ mod tests {
             Vec2::new(4.0, -0.1),
         ] {
             let view = camera.camera(hero, &colliders);
-            let length = view.eye.distance(view.target);
+            let length = view.eye.distance(view.target) as f32;
             assert!(length < DISTANCE, "{hero}: the camera came nearer");
             assert!(!hidden(&view, &colliders), "{hero}: {view:?}");
         }
@@ -181,7 +181,7 @@ mod tests {
         };
         for colliders in [&[][..], &[block][..]] {
             let view = camera.camera(Vec2::ZERO, colliders);
-            assert!((view.eye.distance(view.target) - DISTANCE).abs() < 1e-4);
+            assert!((view.eye.distance(view.target) as f32 - DISTANCE).abs() < 1e-4);
         }
     }
 }

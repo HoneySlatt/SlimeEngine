@@ -12,7 +12,7 @@ use std::f32::consts::PI;
 
 use slime_color::LinearColor;
 use slime_gfx::{AddressMode, Filter, Gpu, Image, SamplerDescriptor, TextureFormat};
-use slime_render::glam::{Mat4, Vec3};
+use slime_render::glam::{DAffine3, DVec3, Vec3};
 use slime_render::{
     AlphaMode, Camera, DirectionalLight, Instance, Light, Material, MaterialData, MaterialValues,
     MeshData, RenderError, Renderer, SampledTexture, Scene,
@@ -97,7 +97,7 @@ fn the_base_color_texture_is_read_at_the_texture_coordinates_and_tints_the_base_
         ..DirectionalLight::default()
     });
     let camera = Camera {
-        eye: Vec3::new(0.0, 0.0, 3.0),
+        eye: DVec3::new(0.0, 0.0, 3.0),
         ..Camera::default()
     };
 
@@ -139,7 +139,7 @@ fn the_base_color_texture_is_read_at_the_texture_coordinates_and_tints_the_base_
         let instances = [Instance::new(
             &square,
             material,
-            Mat4::from_scale(Vec3::splat(2.0)),
+            DAffine3::from_scale(DVec3::splat(2.0)),
         )];
         let lights = [light];
         let mut scene = Scene::new(camera, &instances);
@@ -211,10 +211,10 @@ fn meshes_materials_and_environments_are_drawn_by_any_renderer_of_their_gpu() {
         )
         .expect("the GPU has memory for it");
     let camera = Camera {
-        eye: Vec3::new(0.0, 0.0, 3.0),
+        eye: DVec3::new(0.0, 0.0, 3.0),
         ..Camera::default()
     };
-    let instances = [Instance::new(&triangle, &red, Mat4::IDENTITY)];
+    let instances = [Instance::new(&triangle, &red, DAffine3::IDENTITY)];
     let mut scene = Scene::new(camera, &instances);
     scene.environment = Some(&sky);
 
@@ -334,14 +334,14 @@ fn a_material_changed_in_place_draws_as_one_made_with_the_new_values() {
         ..DirectionalLight::default()
     })];
     let camera = Camera {
-        eye: Vec3::new(0.0, 0.0, 3.0),
+        eye: DVec3::new(0.0, 0.0, 3.0),
         ..Camera::default()
     };
     let mut drawn = |material: &Material| {
         let instances = [Instance::new(
             &square,
             material,
-            Mat4::from_scale(Vec3::splat(2.0)),
+            DAffine3::from_scale(DVec3::splat(2.0)),
         )];
         let mut scene = Scene::new(camera, &instances);
         scene.lights = &light;

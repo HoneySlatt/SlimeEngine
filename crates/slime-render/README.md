@@ -43,7 +43,7 @@ Drawing a red triangle into an offscreen image:
 ```rust
 use slime_color::LinearColor;
 use slime_gfx::{Gpu, TextureFormat};
-use slime_render::glam::{Mat4, Vec3};
+use slime_render::glam::{DAffine3, DVec3, Vec3};
 use slime_render::{
     Camera, DirectionalLight, Instance, Light, MaterialData, MeshData, RenderError, Renderer, Scene,
 };
@@ -69,7 +69,7 @@ fn main() -> Result<(), RenderError> {
         &MaterialData { base_color: LinearColor::rgb(1.0, 0.0, 0.0), ..MaterialData::default() },
     )?;
 
-    let camera = Camera { eye: Vec3::new(0.0, 0.0, 3.0), ..Camera::default() };
+    let camera = Camera { eye: DVec3::new(0.0, 0.0, 3.0), ..Camera::default() };
     // The sun of a clear day, 100 000 lux, shining straight at the triangle, which faces +Z, and no
     // environment (a black sky): the matte red surface reflects 0.97 / π of it in red and
     // 0.01 / π in green and blue, about 30 900 and 320 nits, which an exposure of π / 100 000
@@ -80,7 +80,7 @@ fn main() -> Result<(), RenderError> {
         illuminance: 100_000.0,
         ..DirectionalLight::default()
     });
-    let instances = [Instance::new(&triangle, &red, Mat4::IDENTITY)];
+    let instances = [Instance::new(&triangle, &red, DAffine3::IDENTITY)];
     let lights = [sun];
     // A scene starts without lights, environment or bloom (which would spread a little of the
     // triangle's light around its edges); its fields are then set.
@@ -150,8 +150,8 @@ fn main() -> Result<(), RenderError> {
   atlas; a scene has at most `MAX_LIGHTS` of them drawn.
 - `RenderError`: an invalid mesh or material, or a failure of the GPU layer (`GfxError`): a shader
   or pipeline the driver rejects, memory that runs out, or a lost device.
-- `slime_render::glam` re-exports the math crate the API uses (`Mat4`, `Vec3`, `Quat`), so that
-  callers use the same version.
+- `slime_render::glam` re-exports the math crate the API uses (`DVec3`, `DAffine3`, `Vec3`), so
+  that callers use the same version.
 
 The documentation of each item holds its contracts: what it draws, its limits, its costs and its
 errors.
@@ -166,8 +166,9 @@ errors.
   exceed 1 until it is tone mapped.
 - Depth is reversed, from 1 at the near plane to 0 at infinity (ADR-0047).
 - Tangents and normal textures follow glTF.
-- Positions are world positions, as `f32`s; the renderer draws them relative to the camera, in
-  `f64` until they reach the GPU (ADR-0048).
+- Positions are world positions, as `f64`s (ADR-0079): the camera's, the lights' and the
+  instances'; the renderer draws them relative to the camera, in `f64` until they reach the GPU
+  as `f32`s (ADR-0048).
 
 ## Dependencies
 

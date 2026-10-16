@@ -23,7 +23,7 @@ use std::f64::consts::PI;
 
 use slime_color::LinearColor;
 use slime_gfx::{FloatImage, Gpu, RenderTarget, TextureFormat};
-use slime_render::glam::{DVec3, Mat4, Vec3};
+use slime_render::glam::{DAffine3, DVec3, Vec3};
 use slime_render::{
     Camera, DirectionalLight, Environment, Instance, Material, MaterialData, Mesh, MeshData,
     Renderer, Scene, Sky,
@@ -147,7 +147,11 @@ impl Setup {
         let instances: Vec<Instance<'_>> = material
             // `MeshData::sphere` is one metre across: drawn twice that, the unit sphere.
             .map(|material| {
-                Instance::new(&self.sphere, material, Mat4::from_scale(Vec3::splat(2.0)))
+                Instance::new(
+                    &self.sphere,
+                    material,
+                    DAffine3::from_scale(DVec3::splat(2.0)),
+                )
             })
             .into_iter()
             .collect();
@@ -183,8 +187,8 @@ impl Setup {
 /// the unit sphere fills but for the image's corners.
 fn camera(direction: Vec3) -> Camera {
     Camera {
-        eye: direction.normalize() * 3.0,
-        target: Vec3::ZERO,
+        eye: direction.normalize().as_dvec3() * 3.0,
+        target: DVec3::ZERO,
         fov_y: 45f32.to_radians(),
         ..Camera::default()
     }
@@ -192,7 +196,7 @@ fn camera(direction: Vec3) -> Camera {
 
 /// The unit vector from `camera`'s eye through the centre of pixel `(x, y)`.
 fn view_ray(camera: &Camera, (x, y): (u32, u32)) -> DVec3 {
-    let inverse = camera.view_projection(1.0).as_dmat4().inverse();
+    let inverse = camera.view_projection(1.0).inverse();
     let ndc_x = (f64::from(x) + 0.5) / f64::from(SIZE) * 2.0 - 1.0;
     let ndc_y = 1.0 - (f64::from(y) + 0.5) / f64::from(SIZE) * 2.0;
     // Two points along the ray: the near plane, at depth 1, and twice as far, at depth 0.5 (depth
@@ -206,7 +210,7 @@ fn view_ray(camera: &Camera, (x, y): (u32, u32)) -> DVec3 {
 /// vector from there towards the camera, or `None` for a pixel that misses it or grazes it (n·v
 /// below `min_n_dot_v`).
 fn sphere_hit(camera: &Camera, pixel: (u32, u32), min_n_dot_v: f64) -> Option<(DVec3, DVec3)> {
-    let eye = camera.eye.as_dvec3();
+    let eye = camera.eye;
     let d = view_ray(camera, pixel);
     let b = eye.dot(d);
     let c = eye.length_squared() - 1.0;
@@ -471,8 +475,8 @@ fn the_sky_shows_where_no_surface_is() {
         ] {
             // The camera at the origin's opposite, looking through the origin along −direction.
             let camera = Camera {
-                eye: direction * 3.0,
-                target: Vec3::ZERO,
+                eye: direction.as_dvec3() * 3.0,
+                target: DVec3::ZERO,
                 fov_y: 70f32.to_radians(),
                 ..Camera::default()
             };
@@ -517,7 +521,7 @@ fn an_environment_draws_with_any_renderer_and_a_scene_without_one_is_black() {
     let instances = [Instance::new(
         &setup.sphere,
         &material,
-        Mat4::from_scale(Vec3::splat(2.0)),
+        DAffine3::from_scale(DVec3::splat(2.0)),
     )];
     let mut scene = Scene::new(camera, &instances);
     scene.environment = Some(&environment);

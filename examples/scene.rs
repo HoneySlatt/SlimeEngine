@@ -42,7 +42,7 @@ use slime_gfx::{RenderPassDescriptor, RenderTarget};
 use slime_platform::{
     ButtonState, Event, KeyCode, KeyEvent, MouseButton, ScrollDelta, WindowConfig,
 };
-use slime_render::glam::Vec3;
+use slime_render::glam::DVec3;
 use slime_render::{
     Camera, Material, MaterialValues, RenderStats, Renderer, SceneLoad, ShaderSources, ShaderWatch,
 };
@@ -95,7 +95,7 @@ fn exposure(ev100: f32) -> f32 {
 /// A camera that orbits the scene on its own until the mouse takes over: dragging with the left
 /// button turns it, the wheel brings it nearer or farther.
 struct OrbitCamera {
-    target: Vec3,
+    target: DVec3,
     /// How far from `target` the scene reaches.
     radius: f32,
     distance: f32,
@@ -112,7 +112,7 @@ struct OrbitCamera {
 }
 
 impl OrbitCamera {
-    fn new(target: Vec3, radius: f32, distance: f32, yaw: f32, pitch: f32) -> Self {
+    fn new(target: DVec3, radius: f32, distance: f32, yaw: f32, pitch: f32) -> Self {
         Self {
             target,
             radius,
@@ -567,7 +567,7 @@ fn main() -> ExitCode {
         scene_id: options.scene.unwrap_or(sample_scene::SCENE),
         loading: None,
         scene: None,
-        camera: OrbitCamera::new(Vec3::ZERO, 1.0, 1.0, 0.0, 0.0),
+        camera: OrbitCamera::new(DVec3::ZERO, 1.0, 1.0, 0.0, 0.0),
         overlay: None,
         show_overlay: true,
         ev100: ev100(EXPOSURE),

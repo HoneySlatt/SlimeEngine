@@ -3,7 +3,7 @@
 
 use std::f32::consts::FRAC_PI_4;
 
-use glam::Vec3;
+use glam::{DVec3, Vec3};
 use slime_color::LinearColor;
 
 use crate::bytes::{push_f32s, push_u32s};
@@ -102,8 +102,8 @@ impl Default for DirectionalLight {
 /// receives nothing.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PointLight {
-    /// Where the light is, in world space. Finite.
-    pub position: Vec3,
+    /// Where the light is, in world space, in metres. Finite.
+    pub position: DVec3,
     /// What `intensity` is multiplied by in each of red, green and blue: finite and not negative.
     /// glTF keeps each within 0 and 1, so that `intensity` alone sets the strength. Alpha is
     /// ignored.
@@ -121,7 +121,7 @@ impl Default for PointLight {
     /// A white light of 1 candela, glTF's default, at the origin, without range.
     fn default() -> Self {
         Self {
-            position: Vec3::ZERO,
+            position: DVec3::ZERO,
             color: LinearColor::WHITE,
             intensity: 1.0,
             range: None,
@@ -138,8 +138,8 @@ impl Default for PointLight {
 /// (`KHR_lights_punctual`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SpotLight {
-    /// Where the light is, in world space. Finite.
-    pub position: Vec3,
+    /// Where the light is, in world space, in metres. Finite.
+    pub position: DVec3,
     /// The direction the light travels in along the cone's axis, in world space. Its length does
     /// not matter, but it is finite and not zero, as for [`DirectionalLight::direction`].
     pub direction: Vec3,
@@ -167,7 +167,7 @@ impl Default for SpotLight {
     /// cone: full on its axis only, nothing beyond π / 4; it casts shadows.
     fn default() -> Self {
         Self {
-            position: Vec3::ZERO,
+            position: DVec3::ZERO,
             direction: Vec3::NEG_Z,
             color: LinearColor::WHITE,
             intensity: 1.0,
@@ -194,7 +194,7 @@ impl Light {
             (!value.is_finite() || value < 0.0)
                 .then(|| format!("its {name} {value} is negative or not finite"))
         };
-        let position = |position: Vec3| {
+        let position = |position: DVec3| {
             (!position.is_finite()).then(|| format!("its position {position} is not finite"))
         };
         let direction = |direction: Vec3| {
@@ -242,14 +242,14 @@ impl Light {
     /// for the cone, a scale of 0 and an offset of 1, which leave a point light's light whole, and
     /// for `tile`, the index of the light's tile of the spot lights' shadow atlas, [`NO_TILE`] for
     /// none. The position is relative to `origin`, the camera's eye (ADR-0048), computed in `f64`.
-    pub(crate) fn push_values(&self, bytes: &mut Vec<u8>, origin: Vec3, tile: u32) {
+    pub(crate) fn push_values(&self, bytes: &mut Vec<u8>, origin: DVec3, tile: u32) {
         let start = bytes.len();
         let (kind, color, intensity, position, range, direction, cone) = match *self {
             Self::Directional(light) => (
                 DIRECTIONAL,
                 light.color,
                 light.illuminance,
-                Vec3::ZERO,
+                origin,
                 None,
                 unit(light.direction),
                 (0.0, 1.0),
@@ -278,7 +278,7 @@ impl Light {
         push_u32s(bytes, &[kind]);
         // 1 / range², so that the shader's (d / range)⁴ is (d² / range²)², and 0 for no range.
         let inverse_range_squared = range.map_or(0.0, |range| 1.0 / (range * range));
-        let position = (position.as_dvec3() - origin.as_dvec3()).as_vec3();
+        let position = (position - origin).as_vec3();
         push_f32s(bytes, &position.to_array());
         push_f32s(bytes, &[inverse_range_squared]);
         push_f32s(bytes, &direction.to_array());
@@ -365,7 +365,7 @@ mod tests {
             ),
             (
                 Light::Point(PointLight {
-                    position: Vec3::new(f32::INFINITY, 0.0, 0.0),
+                    position: DVec3::new(f64::INFINITY, 0.0, 0.0),
                     ..point
                 }),
                 "its position [inf, 0, 0] is not finite",
@@ -423,7 +423,7 @@ mod tests {
         // A light 10 km from the world's origin, near the camera: packed relative to the camera.
         let mut bytes = Vec::new();
         Light::Spot(SpotLight {
-            position: Vec3::new(10_001.0, 2.0, 3.0),
+            position: DVec3::new(10_001.0, 2.0, 3.0),
             direction: Vec3::new(0.0, -2.0, 0.0),
             color: LinearColor::rgb(1.0, 0.5, 0.25),
             intensity: 8.0,
@@ -432,7 +432,7 @@ mod tests {
             outer_cone_angle: std::f32::consts::FRAC_PI_2,
             casts_shadows: true,
         })
-        .push_values(&mut bytes, Vec3::new(10_000.0, 0.0, 0.0), 3);
+        .push_values(&mut bytes, DVec3::new(10_000.0, 0.0, 0.0), 3);
         assert_eq!(bytes.len(), LIGHT_VALUES_SIZE);
         let packed = words(&bytes);
         let floats: Vec<f32> = packed.iter().map(|&word| float(word)).collect();
@@ -454,7 +454,7 @@ mod tests {
         assert_eq!(&floats[14..], &[0.0; 2]);
 
         let mut bytes = Vec::new();
-        Light::Point(PointLight::default()).push_values(&mut bytes, Vec3::ZERO, NO_TILE);
+        Light::Point(PointLight::default()).push_values(&mut bytes, DVec3::ZERO, NO_TILE);
         let packed = words(&bytes);
         assert_eq!(u32::from_le_bytes(packed[3]), POINT);
         assert_eq!(u32::from_le_bytes(packed[13]), NO_TILE, "no tile");
@@ -470,7 +470,7 @@ mod tests {
             direction: Vec3::new(0.0, 0.0, -5.0),
             ..DirectionalLight::default()
         })
-        .push_values(&mut bytes, Vec3::ZERO, NO_TILE);
+        .push_values(&mut bytes, DVec3::ZERO, NO_TILE);
         let packed = words(&bytes);
         assert_eq!(u32::from_le_bytes(packed[3]), DIRECTIONAL);
         assert_eq!(
@@ -518,7 +518,7 @@ mod tests {
                 }),
             ] {
                 let mut bytes = Vec::new();
-                light.push_values(&mut bytes, Vec3::ZERO, NO_TILE);
+                light.push_values(&mut bytes, DVec3::ZERO, NO_TILE);
                 let floats: Vec<f32> = words(&bytes).into_iter().map(float).collect();
                 assert_eq!(&floats[8..11], &[0.0, -1.0, 0.0], "{light:?}");
             }

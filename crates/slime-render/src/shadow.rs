@@ -113,7 +113,7 @@ impl CascadeView {
         let y = x.cross(forward);
         // Across the light, the center moves to the nearest multiple of a texel from the world's
         // origin, computed in f64 so that the grid stays exact far from it.
-        let eye = camera.eye.as_dvec3();
+        let eye = camera.eye;
         let snapped =
             |axis: DVec3| ((eye + center).dot(axis) / texel).round() * texel - eye.dot(axis);
         let center = x * snapped(x) + y * snapped(y) + forward * center.dot(forward);
@@ -220,7 +220,7 @@ pub(crate) fn view_sphere(camera: &Camera, aspect: f32, near: f32, far: f32) -> 
     // alone set the sphere.
     let along = ((far + near) * (corner + 1.0) / 2.0).min(far);
     let radius = (far * far * corner + (far - along) * (far - along)).sqrt();
-    let forward = (camera.target.as_dvec3() - camera.eye.as_dvec3()).normalize();
+    let forward = (camera.target - camera.eye).normalize();
     (forward * along, radius)
 }
 
@@ -281,8 +281,8 @@ impl SpotView {
     /// hold its cone, up to [`SPOT_WIDEST`] from the axis, and [`TILE_MARGIN_TEXELS`] more on each
     /// side, from [`SPOT_NEAR`] to infinity. The light's position is taken relative to `origin` in
     /// `f64` (ADR-0048).
-    pub(crate) fn new(light: &SpotLight, origin: Vec3, size: u32) -> Self {
-        let position = (light.position.as_dvec3() - origin.as_dvec3()).as_vec3();
+    pub(crate) fn new(light: &SpotLight, origin: DVec3, size: u32) -> Self {
+        let position = (light.position - origin).as_vec3();
         let axis = unit(light.direction);
         let cone = light.outer_cone_angle.min(SPOT_WIDEST).tan();
         let tan_half = cone * size as f32 / (size - 2 * TILE_MARGIN_TEXELS) as f32;
@@ -372,8 +372,8 @@ mod tests {
     /// A camera at `eye` looking along `forward`.
     fn camera(eye: Vec3, forward: Vec3) -> Camera {
         Camera {
-            eye,
-            target: eye + forward,
+            eye: eye.as_dvec3(),
+            target: (eye + forward).as_dvec3(),
             ..Camera::default()
         }
     }
@@ -697,7 +697,7 @@ mod tests {
 
     fn spot(position: Vec3, direction: Vec3, outer: f32, range: Option<f32>) -> SpotLight {
         SpotLight {
-            position,
+            position: position.as_dvec3(),
             direction,
             outer_cone_angle: outer,
             range,
@@ -712,7 +712,7 @@ mod tests {
         let direction = Vec3::new(1.0, -2.0, 0.5);
         for (outer, size) in [(0.42, 1024), (0.35, 2048), (1.2, 1024)] {
             let light = spot(origin + Vec3::new(1.0, 3.0, 2.0), direction, outer, None);
-            let view = SpotView::new(&light, origin, size);
+            let view = SpotView::new(&light, origin.as_dvec3(), size);
             let axis = direction.normalize();
             assert!(view.position.abs_diff_eq(Vec3::new(1.0, 3.0, 2.0), 1e-6));
             // Points of the cone's surface, in eight directions around the axis, near and far.
@@ -733,7 +733,11 @@ mod tests {
             }
         }
         // A cone of π / 2 is seen up to 80° from its axis.
-        let wide = SpotView::new(&spot(origin, direction, FRAC_PI_2, None), origin, 1024);
+        let wide = SpotView::new(
+            &spot(origin, direction, FRAC_PI_2, None),
+            origin.as_dvec3(),
+            1024,
+        );
         let cone = SPOT_WIDEST.tan();
         assert!((wide.tan_half / cone - 1024.0 / 1008.0).abs() < 1e-5);
     }
@@ -742,7 +746,7 @@ mod tests {
     fn a_spot_tile_keeps_the_boxes_inside_its_cone_and_range() {
         let origin = Vec3::ZERO;
         let light = spot(Vec3::new(0.0, 5.0, 0.0), Vec3::NEG_Y, 0.4, Some(6.0));
-        let view = SpotView::new(&light, origin, 1024);
+        let view = SpotView::new(&light, origin.as_dvec3(), 1024);
         let cube = |at: Vec3, side: f32| {
             (
                 Mat4::from_scale_rotation_translation(Vec3::splat(side), Quat::IDENTITY, at),
@@ -767,7 +771,7 @@ mod tests {
         assert!(
             SpotView::new(
                 &spot(Vec3::new(0.0, 5.0, 0.0), Vec3::NEG_Y, 0.4, None),
-                origin,
+                origin.as_dvec3(),
                 1024
             )
             .reaches(None, cube(Vec3::new(0.0, -200.0, 0.0), 1.0))
