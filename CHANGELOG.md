@@ -124,13 +124,13 @@ panel of the dev overlay, and written to TOML documents and read back; *Hunna Wo
 - `slime-serialize`, the engine's serialization ([ADR-0086](docs/adr/0086-serialization.md)):
   `write` and `write_partial` write a value of a registered type, or a part of one, as a TOML
   document, the same value giving the same bytes on every platform, and refuse what could not be
-  read back; `read`, `read_partial` and `read_file` read it back, whole or in part,
-  strictly for sources and leniently for saves, with errors by file, line, column and property
-  path, and never panic; `read_as` and `write_as` do so for a Rust type. The module `format` says
-  how a document holds enum variants, absent values, large integers and floats, which come back to
-  their bits. A type past version 1 names an upgrade, `#[reflect(version = 2, upgrade = path)]`,
-  which brings values of earlier versions, whole or partial, to its version as they are read; a
-  later version is refused.
+  read back, a part's option fields as arrays, `[]` for one emptied; `read`, `read_partial` and
+  `read_file` read it back, whole or in part, strictly for sources and leniently for saves, with
+  errors by file, line, column and property path, and never panic; `read_as` and `write_as` do so
+  for a Rust type. The module `format` says how a document holds enum variants, absent values,
+  large integers and floats, which come back to their bits. A type past version 1 names an
+  upgrade, `#[reflect(version = 2, upgrade = path)]`, which brings values of earlier versions,
+  whole or partial, to its version as they are read; a later version is refused.
 
 ### Changed
 

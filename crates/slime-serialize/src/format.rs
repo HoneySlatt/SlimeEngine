@@ -16,8 +16,8 @@
 //!   version is refused. `$format` gives the version of the format itself, [`VERSION`] if left out:
 //!   a later one is refused.
 //! - **Structs** are tables of their fields, in the order of their declarations, by their names; a
-//!   reader takes their aliases too. A tuple struct is an array of its fields, and a tuple struct of
-//!   one field that field's value: `Name("door")` is `"door"`. A unit struct is an empty table,
+//!   reader takes their aliases too. A tuple struct is an array of its fields, and a tuple struct
+//!   of one field that field's value: `Name("door")` is `"door"`. A unit struct is an empty table,
 //!   `{}`.
 //! - **Absent values.** A field whose option holds none is left out, and an option field that a
 //!   document leaves out holds none, whatever its default says; one that holds a value is that
@@ -50,7 +50,9 @@
 //!
 //! A part of a value, such as a save's differences, leaves out the fields of its structs and
 //! variants that did not change, at any depth ([`write_partial`](crate::write_partial),
-//! [`read_partial`](crate::read_partial)); its tuples, lists and options are whole.
+//! [`read_partial`](crate::read_partial)); its tuples, lists and options are whole. Its option
+//! fields are written as options elsewhere are, so that it can say that one was emptied:
+//! `range = []` for an option that now holds none, `range = [5.0]` for one that holds 5.
 
 /// The version of the format that this program writes, and the latest it reads.
 pub const VERSION: u32 = 1;

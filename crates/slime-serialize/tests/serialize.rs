@@ -871,3 +871,30 @@ fn a_file_that_is_not_text_is_refused_where_it_stops_being_text() {
     assert_eq!(error.line_and_column(), Some((2, 5)));
     std::fs::remove_dir_all(&directory).expect("the tests' files removed");
 }
+
+#[test]
+fn a_part_says_that_an_option_was_emptied() {
+    let registry = registry();
+    let part = Value::Struct(vec![
+        ("reach".to_owned(), Value::Option(None)),
+        (
+            "nested".to_owned(),
+            Value::Option(Some(Box::new(Value::Option(Some(Box::new(Value::UInt(
+                3,
+            ))))))),
+        ),
+    ]);
+    let text = write_partial(&registry, "test::Everything", &part).expect("a part");
+    assert_eq!(text, "reach = []\nnested = [[3]]\n");
+    let read = read_partial(&registry, "test::Everything", &text, Mode::Strict).expect("read");
+    assert!(diff(&part, &read.value).is_empty(), "{:?}", read.value);
+    let set = read_partial(&registry, "test::Everything", "reach = [2.5]", Mode::Strict)
+        .expect("an option given a value");
+    assert_eq!(
+        set.value,
+        Value::Struct(vec![(
+            "reach".to_owned(),
+            Value::Option(Some(Box::new(Value::F32(2.5))))
+        )])
+    );
+}

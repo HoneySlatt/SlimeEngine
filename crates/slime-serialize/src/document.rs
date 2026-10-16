@@ -192,9 +192,11 @@ impl Writer<'_> {
                 .map_err(|problem| ReflectError::at(at.clone(), problem))?
                 .kind
                 .clone();
+            // A whole value's option field is left out when it holds none, and is its value otherwise; a
+            // part's is written as options elsewhere are, so that it can say that one was emptied.
             match (kind, value) {
-                (Kind::Option(_), Value::Option(None)) => {}
-                (Kind::Option(inner), Value::Option(Some(held))) => {
+                (Kind::Option(_), Value::Option(None)) if !self.partial => {}
+                (Kind::Option(inner), Value::Option(Some(held))) if !self.partial => {
                     let held = self.value(&inner, held, &at, field.range)?;
                     table.push((field.name.clone(), held));
                 }
@@ -508,15 +510,12 @@ impl Reader<'_> {
                         .map_err(|problem| fail(&key_at, problem))?
                         .kind
                         .clone();
-                    // A field's option holds the value the document gives, if it gives one.
+                    // A whole value's option field holds the value the document gives; a part's is
+                    // written as options elsewhere are.
                     let value = match kind {
-                        Kind::Option(inner) => Value::Option(Some(Box::new(self.value(
-                            &inner,
-                            document,
-                            &field_path,
-                            &key_at,
-                            field.range,
-                        )?))),
+                        Kind::Option(inner) if !self.partial => Value::Option(Some(Box::new(
+                            self.value(&inner, document, &field_path, &key_at, field.range)?,
+                        ))),
                         _ => self.value(&field.ty, document, &field_path, &key_at, field.range)?,
                     };
                     read.push((field.name.clone(), value));

@@ -44,7 +44,9 @@ parser; the binary encoding of Stage 5b has its place beside the text one.
   that field's value, a unit struct an empty table.
 - An option in a field that holds none is left out, and an option field left out holds none,
   whatever its default; one that holds a value is that value. An option elsewhere is an empty array
-  or an array of its value.
+  or an array of its value. In a part of a value, as a save's differences, an option field is
+  written as an option elsewhere is, so that a part can say that it was emptied: the owner decided
+  so when the review found that a part could not.
 - A variant without fields is its name, as text; one with fields is a table of one key, its name,
   holding its fields as a struct's: `[light.Spot]`.
 - Unsigned integers past `i64::MAX` are text. Floats come back to their bits: their shortest digits,

@@ -426,8 +426,10 @@ Risks:
   `f32`'s own would not come back, and every `f32` was checked to come back, the writer refuses
   what the reader would, the place of a part is looked up only for an error, and documents are
   refused past 16 MiB. Upgrades are told whether the value is partial, defaults are checked within
-  their fields' ranges, and names that start with `$` are refused. Serialization's example is
-  M5a.8's: the `world` example saves and loads its world.
+  their fields' ranges, and names that start with `$` are refused. A part of a value could not say
+  that an option was emptied: the owner decided that a part writes its option fields as arrays,
+  `[]` for one emptied. Serialization's example is M5a.8's: the `world` example saves and loads
+  its world.
 
 ### M5a.8 — The world round-trips
 
