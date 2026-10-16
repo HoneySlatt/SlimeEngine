@@ -1,0 +1,569 @@
+//! Values of reflected types turned into values as documents hold them, and back, as
+//! [`crate::format`] says: the type's description, from the registry, leads both ways.
+
+use std::collections::{BTreeMap, HashMap};
+
+use slime_reflect::{
+    FieldInfo, Kind, Path, Problem, Range, ReflectError, Registry, TypeInfo, Value,
+};
+
+use crate::Mode;
+use crate::error::ReadProblem;
+
+/// Turns values into values as documents hold them, and notes the versions of the types past
+/// version 1 that they hold.
+pub(crate) struct Writer<'a> {
+    pub registry: &'a Registry,
+    /// The versions of the types past version 1 met, by name, in the order of their names.
+    pub versions: BTreeMap<String, u32>,
+}
+
+impl Writer<'_> {
+    /// `value`, a value of the type named `ty` at `path` in the value written, as a document holds
+    /// it.
+    pub(crate) fn value(
+        &mut self,
+        ty: &str,
+        value: &Value,
+        path: &Path,
+    ) -> Result<Value, ReflectError> {
+        let info =
+            info(self.registry, ty).map_err(|problem| ReflectError::at(path.clone(), problem))?;
+        if info.version > 1 {
+            self.versions.insert(info.name.clone(), info.version);
+        }
+        let error = |problem| ReflectError::at(path.clone(), problem);
+        Ok(match (&info.kind, value) {
+            (Kind::Bool, Value::Bool(boolean)) => Value::Bool(*boolean),
+            (Kind::Int { .. }, Value::Int(number)) => Value::Int(*number),
+            // Integers past TOML's, which holds 64 signed bits, are written as text.
+            (Kind::UInt { .. }, Value::UInt(number)) => match i64::try_from(*number) {
+                Ok(number) => Value::Int(number),
+                Err(_) => Value::Text(number.to_string()),
+            },
+            (Kind::F32, Value::F32(number)) => Value::F32(*number),
+            (Kind::F64, Value::F64(number)) => Value::F64(*number),
+            (Kind::Text, Value::Text(text)) => Value::Text(text.clone()),
+            (Kind::Asset, Value::Asset(id)) => Value::Text(uuid(*id)),
+            (Kind::Entity, Value::Entity(_)) => {
+                return Err(error(Problem::Invalid(ENTITY.to_owned())));
+            }
+            // An option that is not a field's: none or one element.
+            (Kind::Option(inner), Value::Option(held)) => Value::List(match held {
+                Some(held) => vec![self.value(inner, held, path)?],
+                None => Vec::new(),
+            }),
+            (Kind::List { element, .. }, Value::List(elements)) => Value::List(
+                elements
+                    .iter()
+                    .enumerate()
+                    .map(|(index, element_value)| {
+                        self.value(element, element_value, &path.clone().index(index))
+                    })
+                    .collect::<Result<_, _>>()?,
+            ),
+            (Kind::Struct(fields), Value::Struct(values)) => self.fields(fields, values, path)?,
+            (Kind::Enum(variants), Value::Enum(name, values)) => {
+                let variant = variants
+                    .iter()
+                    .find(|variant| &variant.name == name)
+                    .ok_or_else(|| {
+                        error(Problem::UnknownVariant {
+                            variant: name.clone(),
+                            known: variants
+                                .iter()
+                                .map(|variant| variant.name.clone())
+                                .collect(),
+                        })
+                    })?;
+                if variant.fields.is_empty() && values.is_empty() {
+                    Value::Text(name.clone())
+                } else {
+                    let fields = self.fields(&variant.fields, values, path)?;
+                    Value::Struct(vec![(name.clone(), fields)])
+                }
+            }
+            _ => {
+                return Err(error(Problem::WrongKind {
+                    expected: info.name.clone(),
+                    found: value.kind(),
+                }));
+            }
+        })
+    }
+
+    /// The fields `values` of a struct or a variant whose fields `fields` describes: an array of
+    /// them for a tuple, the value of the one there is for a tuple of one, and otherwise a table of
+    /// those that the value holds, an option that holds none left out.
+    fn fields(
+        &mut self,
+        fields: &[FieldInfo],
+        values: &[(String, Value)],
+        path: &Path,
+    ) -> Result<Value, ReflectError> {
+        if let Some((unknown, _)) = values
+            .iter()
+            .find(|(name, _)| !fields.iter().any(|field| &field.name == name))
+        {
+            return Err(ReflectError::at(
+                path.clone(),
+                Problem::UnknownField {
+                    field: unknown.clone(),
+                    known: fields.iter().map(|field| field.name.clone()).collect(),
+                },
+            ));
+        }
+        let given = |field: &FieldInfo| {
+            values
+                .iter()
+                .find(|(name, _)| name == &field.name)
+                .map(|(_, value)| value)
+        };
+        if tuple(fields) {
+            let mut elements = Vec::new();
+            for field in fields {
+                let at = path.clone().field(field.name.clone());
+                let value = given(field).ok_or_else(|| {
+                    ReflectError::at(path.clone(), Problem::MissingField(field.name.clone()))
+                })?;
+                elements.push(self.value(&field.ty, value, &at)?);
+            }
+            return Ok(match <[Value; 1]>::try_from(elements) {
+                Ok([only]) => only,
+                Err(elements) => Value::List(elements),
+            });
+        }
+        let mut table = Vec::new();
+        for field in fields {
+            let Some(value) = given(field) else {
+                continue;
+            };
+            let at = path.clone().field(field.name.clone());
+            let kind = info(self.registry, &field.ty)
+                .map_err(|problem| ReflectError::at(at.clone(), problem))?
+                .kind
+                .clone();
+            match (kind, value) {
+                (Kind::Option(_), Value::Option(None)) => {}
+                (Kind::Option(inner), Value::Option(Some(held))) => {
+                    table.push((field.name.clone(), self.value(&inner, held, &at)?));
+                }
+                _ => table.push((field.name.clone(), self.value(&field.ty, value, &at)?)),
+            }
+        }
+        Ok(Value::Struct(table))
+    }
+}
+
+/// Why a reference to an entity is neither written nor read.
+const ENTITY: &str = "a reference to an entity, whose handle holds within one run only, is neither \
+                      written nor read";
+
+/// A problem found while reading, at `path` in the value and at `at` in the document.
+pub(crate) struct Failure {
+    pub path: Path,
+    pub at: Path,
+    pub problem: ReadProblem,
+}
+
+/// Turns values as documents hold them into values of reflected types, bringing those of earlier
+/// versions of their types to the types' versions now.
+pub(crate) struct Reader<'a> {
+    pub registry: &'a Registry,
+    /// The versions of the types that the document says, by the names it gives them.
+    pub versions: HashMap<String, u32>,
+    pub mode: Mode,
+    /// Whether the value may leave fields out: a part of a value, as a save's differences are.
+    pub partial: bool,
+    /// What a lenient reading left out.
+    pub warnings: Vec<Failure>,
+}
+
+impl Reader<'_> {
+    /// The value of the type named `ty` that `document`, at `at` in the document, holds: at `path`
+    /// in the value read, a number within `range`.
+    pub(crate) fn value(
+        &mut self,
+        ty: &str,
+        document: Value,
+        path: &Path,
+        at: &Path,
+        range: Option<Range>,
+    ) -> Result<Value, Failure> {
+        let fail = |problem| Failure {
+            path: path.clone(),
+            at: at.clone(),
+            problem: ReadProblem::Value(problem),
+        };
+        let info = info(self.registry, ty).map_err(fail)?;
+        let version = self.version(info);
+        let document = if version == info.version {
+            document
+        } else {
+            self.registry
+                .upgrade(&info.name, version, document)
+                .map_err(|error| fail(error.problem().clone()))?
+        };
+        let wrong = |document: &Value| {
+            fail(Problem::WrongKind {
+                expected: info.name.clone(),
+                found: kind(document),
+            })
+        };
+        let within = |number: f64| match range {
+            Some(range) if !range.contains(number) => Err(fail(Problem::OutOfRange {
+                value: number,
+                range,
+            })),
+            _ => Ok(()),
+        };
+        Ok(match (&info.kind, document) {
+            (Kind::Bool, Value::Bool(boolean)) => Value::Bool(boolean),
+            (Kind::Int { .. }, Value::Int(number)) => {
+                self.fits(info, Value::Int(number)).map_err(fail)?;
+                within(number as f64)?;
+                Value::Int(number)
+            }
+            (Kind::UInt { .. }, document @ (Value::Int(_) | Value::Text(_))) => {
+                let number = match &document {
+                    Value::Int(number) => u64::try_from(*number).ok(),
+                    Value::Text(digits) if digits.bytes().all(|byte| byte.is_ascii_digit()) => {
+                        digits.parse().ok()
+                    }
+                    _ => None,
+                }
+                .ok_or_else(|| wrong(&document))?;
+                self.fits(info, Value::UInt(number)).map_err(fail)?;
+                within(number as f64)?;
+                Value::UInt(number)
+            }
+            (Kind::F32, Value::F64(number)) => {
+                // A NaN keeps its sign, which a cast does not promise.
+                let narrow = match number {
+                    number if number.is_nan() && number.is_sign_negative() => -f32::NAN,
+                    number if number.is_nan() => f32::NAN,
+                    number => number as f32,
+                };
+                if number.is_finite() && narrow.is_infinite() {
+                    return Err(fail(Problem::OutOfRange {
+                        value: number,
+                        range: Range {
+                            min: f64::from(f32::MIN),
+                            min_excluded: false,
+                            max: f64::from(f32::MAX),
+                        },
+                    }));
+                }
+                within(f64::from(narrow))?;
+                Value::F32(narrow)
+            }
+            (Kind::F32, Value::Int(number)) => {
+                within(number as f64)?;
+                Value::F32(number as f32)
+            }
+            (Kind::F64, Value::F64(number)) => {
+                within(number)?;
+                Value::F64(number)
+            }
+            (Kind::F64, Value::Int(number)) => {
+                within(number as f64)?;
+                Value::F64(number as f64)
+            }
+            (Kind::Text, Value::Text(text)) => Value::Text(text),
+            (Kind::Asset, Value::Text(text)) => {
+                Value::Asset(parse_uuid(&text).ok_or_else(|| {
+                    fail(Problem::Invalid(format!("`{text}` is not an asset ID")))
+                })?)
+            }
+            (Kind::Entity, _) => return Err(fail(Problem::Invalid(ENTITY.to_owned()))),
+            (Kind::Option(inner), Value::List(mut elements)) if elements.len() <= 1 => {
+                Value::Option(match elements.pop() {
+                    Some(held) => Some(Box::new(self.value(
+                        inner,
+                        held,
+                        path,
+                        &at.clone().index(0),
+                        range,
+                    )?)),
+                    None => None,
+                })
+            }
+            (Kind::List { element, len }, Value::List(elements)) => {
+                if let Some(len) = *len
+                    && elements.len() != len
+                {
+                    return Err(fail(Problem::WrongLength {
+                        expected: len,
+                        found: elements.len(),
+                    }));
+                }
+                let mut read = Vec::with_capacity(elements.len());
+                for (index, element_document) in elements.into_iter().enumerate() {
+                    read.push(self.value(
+                        element,
+                        element_document,
+                        &path.clone().index(index),
+                        &at.clone().index(index),
+                        range,
+                    )?);
+                }
+                Value::List(read)
+            }
+            (Kind::Struct(fields), document) => {
+                Value::Struct(self.fields(info, fields, document, path, at)?)
+            }
+            (Kind::Enum(variants), Value::Text(name)) => {
+                let variant = variants
+                    .iter()
+                    .find(|variant| variant.name == name || variant.aliases.contains(&name))
+                    .ok_or_else(|| {
+                        fail(Problem::UnknownVariant {
+                            variant: name.clone(),
+                            known: variants
+                                .iter()
+                                .map(|variant| variant.name.clone())
+                                .collect(),
+                        })
+                    })?;
+                if !variant.fields.is_empty() {
+                    return Err(fail(Problem::Invalid(format!(
+                        "the variant `{name}` holds fields, which the document leaves out"
+                    ))));
+                }
+                Value::Enum(variant.name.clone(), Vec::new())
+            }
+            (Kind::Enum(variants), Value::Struct(mut entries)) if entries.len() == 1 => {
+                let (name, fields_document) = entries.pop().expect("one entry");
+                let variant = variants
+                    .iter()
+                    .find(|variant| variant.name == name || variant.aliases.contains(&name))
+                    .ok_or_else(|| {
+                        fail(Problem::UnknownVariant {
+                            variant: name.clone(),
+                            known: variants
+                                .iter()
+                                .map(|variant| variant.name.clone())
+                                .collect(),
+                        })
+                    })?;
+                let fields = self.fields(
+                    info,
+                    &variant.fields,
+                    fields_document,
+                    path,
+                    &at.clone().field(name),
+                )?;
+                Value::Enum(variant.name.clone(), fields)
+            }
+            (_, document) => return Err(wrong(&document)),
+        })
+    }
+
+    /// The fields that `document` holds of a struct or a variant whose fields `fields` describes,
+    /// of the type `owner`, in the order of `fields`.
+    fn fields(
+        &mut self,
+        owner: &TypeInfo,
+        fields: &[FieldInfo],
+        document: Value,
+        path: &Path,
+        at: &Path,
+    ) -> Result<Vec<(String, Value)>, Failure> {
+        let fail = |at: &Path, problem| Failure {
+            path: path.clone(),
+            at: at.clone(),
+            problem: ReadProblem::Value(problem),
+        };
+        let wrong = |document: &Value| {
+            fail(
+                at,
+                Problem::WrongKind {
+                    expected: owner.name.clone(),
+                    found: kind(document),
+                },
+            )
+        };
+        if tuple(fields) {
+            let documents = match document {
+                document if fields.len() == 1 => vec![document],
+                Value::List(elements) if elements.len() == fields.len() => elements,
+                Value::List(elements) => {
+                    return Err(fail(
+                        at,
+                        Problem::WrongLength {
+                            expected: fields.len(),
+                            found: elements.len(),
+                        },
+                    ));
+                }
+                document => return Err(wrong(&document)),
+            };
+            let mut read = Vec::with_capacity(fields.len());
+            for (index, (field, element)) in fields.iter().zip(documents).enumerate() {
+                // A tuple of one is its element; a longer one, an array of them.
+                let element_at = if fields.len() == 1 {
+                    at.clone()
+                } else {
+                    at.clone().index(index)
+                };
+                let field_path = path.clone().field(field.name.clone());
+                let value =
+                    self.value(&field.ty, element, &field_path, &element_at, field.range)?;
+                read.push((field.name.clone(), value));
+            }
+            return Ok(read);
+        }
+        let Value::Struct(entries) = document else {
+            return Err(wrong(&document));
+        };
+        let mut given: Vec<Option<(String, Value)>> = vec![None; fields.len()];
+        for (key, value) in entries {
+            let key_at = at.clone().field(key.clone());
+            match fields
+                .iter()
+                .position(|field| field.name == key || field.aliases.contains(&key))
+            {
+                Some(index) if given[index].is_some() => {
+                    return Err(fail(
+                        &key_at,
+                        Problem::DuplicateField(fields[index].name.clone()),
+                    ));
+                }
+                Some(index) => given[index] = Some((key, value)),
+                None => {
+                    let unknown = fail(
+                        &key_at,
+                        Problem::UnknownField {
+                            field: key,
+                            known: fields.iter().map(|field| field.name.clone()).collect(),
+                        },
+                    );
+                    match self.mode {
+                        Mode::Strict => return Err(unknown),
+                        Mode::Lenient => self.warnings.push(unknown),
+                    }
+                }
+            }
+        }
+        let mut read = Vec::with_capacity(fields.len());
+        for (field, given) in fields.iter().zip(given) {
+            let field_path = path.clone().field(field.name.clone());
+            match given {
+                Some((key, document)) => {
+                    let key_at = at.clone().field(key);
+                    let kind = info(self.registry, &field.ty)
+                        .map_err(|problem| fail(&key_at, problem))?
+                        .kind
+                        .clone();
+                    // A field's option holds the value the document gives, if it gives one.
+                    let value = match kind {
+                        Kind::Option(inner) => Value::Option(Some(Box::new(self.value(
+                            &inner,
+                            document,
+                            &field_path,
+                            &key_at,
+                            field.range,
+                        )?))),
+                        _ => self.value(&field.ty, document, &field_path, &key_at, field.range)?,
+                    };
+                    read.push((field.name.clone(), value));
+                }
+                None if self.partial => {}
+                None => {
+                    let default = self
+                        .default(owner, field)
+                        .ok_or_else(|| fail(at, Problem::MissingField(field.name.clone())))?;
+                    read.push((field.name.clone(), default));
+                }
+            }
+        }
+        Ok(read)
+    }
+
+    /// The value of `field`, of a struct or a variant of `owner`, that a document which leaves it
+    /// out gives: the field's in the struct's default, the field's own default, or its type's.
+    fn default(&self, owner: &TypeInfo, field: &FieldInfo) -> Option<Value> {
+        let of_owner = match &owner.default {
+            Some(Value::Struct(defaults)) => defaults
+                .iter()
+                .find(|(name, _)| name == &field.name)
+                .map(|(_, value)| value.clone()),
+            _ => None,
+        };
+        of_owner
+            .or_else(|| field.default.clone())
+            .or_else(|| self.registry.get(&field.ty)?.info().default.clone())
+    }
+
+    /// Refuses `number`, an integer of the type `info`, if it does not fit the type's width.
+    fn fits(&self, info: &TypeInfo, number: Value) -> Result<(), Problem> {
+        self.registry
+            .check(&info.name, &number)
+            .map_err(|error| error.problem().clone())
+    }
+
+    /// The version of the type `info` that the document holds: the one it says, under the type's
+    /// name or one of its aliases, or 1.
+    fn version(&self, info: &TypeInfo) -> u32 {
+        std::iter::once(&info.name)
+            .chain(&info.aliases)
+            .find_map(|name| self.versions.get(name).copied())
+            .unwrap_or(1)
+    }
+}
+
+/// The description of the type named `ty`.
+fn info<'a>(registry: &'a Registry, ty: &str) -> Result<&'a TypeInfo, Problem> {
+    registry
+        .get(ty)
+        .map(|registration| registration.info())
+        .ok_or_else(|| Problem::NotRegistered(ty.to_owned()))
+}
+
+/// Whether `fields` are a tuple's: named `0`, `1`, ... in order.
+fn tuple(fields: &[FieldInfo]) -> bool {
+    !fields.is_empty()
+        && fields
+            .iter()
+            .enumerate()
+            .all(|(index, field)| field.name == index.to_string())
+}
+
+/// What a value as a document holds it is, in TOML's words.
+fn kind(document: &Value) -> &'static str {
+    match document {
+        Value::Struct(_) => "a table",
+        Value::List(_) => "an array",
+        Value::Text(_) => "text",
+        Value::Int(_) => "an integer",
+        Value::F32(_) | Value::F64(_) => "a float",
+        Value::Bool(_) => "a boolean",
+        other => other.kind(),
+    }
+}
+
+/// An asset ID as text: `850ad551-5098-42f9-ae42-26ed6174951a`.
+fn uuid(id: u128) -> String {
+    format!(
+        "{:08x}-{:04x}-{:04x}-{:04x}-{:012x}",
+        id >> 96,
+        (id >> 80) & 0xffff,
+        (id >> 64) & 0xffff,
+        (id >> 48) & 0xffff,
+        id & 0xffff_ffff_ffff
+    )
+}
+
+/// The asset ID that `text` writes as [`uuid`] does, in either case.
+fn parse_uuid(text: &str) -> Option<u128> {
+    let groups: Vec<&str> = text.split('-').collect();
+    let lengths: Vec<usize> = groups.iter().map(|group| group.len()).collect();
+    if lengths != [8, 4, 4, 4, 12]
+        || !groups
+            .iter()
+            .all(|group| group.bytes().all(|byte| byte.is_ascii_hexdigit()))
+    {
+        return None;
+    }
+    u128::from_str_radix(&groups.concat(), 16).ok()
+}

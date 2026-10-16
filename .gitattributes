@@ -11,3 +11,6 @@
 # The list of the sample game's source assets, which scripts/fetch-assets.sh reads line by line
 # and field by field: a carriage return would end up in its last field.
 *.tsv text eol=lf
+# The engine's documents, which its writer gives the same bytes on every platform, LF endings
+# included (docs/adr/0086-serialization.md): a checkout keeps them as written.
+*.toml text eol=lf

@@ -2,7 +2,8 @@
 
 - Status: Accepted; amends [0080](0080-reflection-and-serialization.md) (when a component's type is
   registered, and the `check` attribute) and [0008](0008-errors-logging-and-assertions.md)
-  (`slime-reflect`'s errors, written without `thiserror`)
+  (`slime-reflect`'s errors, written without `thiserror`); amended by
+  [0086](0086-serialization.md) (defaults described by their values, and upgrades)
 - Date: 2026-10-16
 
 ## Context

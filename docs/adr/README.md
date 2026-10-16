@@ -75,7 +75,7 @@ the ADR linking to it.
 | [0005](0005-lints-and-unsafe-policy.md) | Lints and `unsafe` policy | Accepted |
 | [0006](0006-dependency-policy.md) | Dependency policy | Accepted; amended by 0023, 0031 |
 | [0007](0007-documentation-tooling-and-ci.md) | Documentation tooling and continuous integration | Accepted; amended by 0015 |
-| [0008](0008-errors-logging-and-assertions.md) | Errors, logging and assertions | Accepted; amended by 0019 |
+| [0008](0008-errors-logging-and-assertions.md) | Errors, logging and assertions | Accepted; amended by 0019 and 0085 |
 | [0009](0009-frame-timing.md) | Frame timing | Accepted |
 | [0010](0010-main-loop-ownership.md) | Main loop ownership and the application API | Accepted; amended by 0020 |
 | [0011](0011-windowing-with-winit.md) | Windowing and input with winit, behind `slime-platform` | Accepted; amended by 0020 |
@@ -147,9 +147,10 @@ the ADR linking to it.
 | [0077](0077-hot-reload-of-shaders.md) | Hot reload of shaders | Accepted |
 | [0078](0078-stage-5-in-two-halves.md) | Stage 5 in two halves | Accepted |
 | [0079](0079-the-engines-own-world.md) | The engine's own world | Accepted |
-| [0080](0080-reflection-and-serialization.md) | Reflection and serialization | Accepted |
+| [0080](0080-reflection-and-serialization.md) | Reflection and serialization | Accepted; amended by 0085 and 0086 |
 | [0081](0081-stage-5a-the-world.md) | Stage 5a: the world | Accepted |
 | [0082](0082-the-worlds-storage-and-handles.md) | The world's storage and handles | Accepted |
 | [0083](0083-transforms-and-the-hierarchy.md) | Transforms and the hierarchy | Accepted |
 | [0084](0084-what-the-world-draws.md) | What the world draws | Accepted |
-| [0085](0085-reflection.md) | Reflection | Accepted |
+| [0085](0085-reflection.md) | Reflection | Accepted; amended by 0086 |
+| [0086](0086-serialization.md) | Serialization | Accepted |

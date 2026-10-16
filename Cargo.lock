@@ -2128,6 +2128,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "slime-serialize"
+version = "0.2.0"
+dependencies = [
+ "glam",
+ "slime-reflect",
+ "thiserror 2.0.21",
+ "toml_edit",
+]
+
+[[package]]
 name = "slime-world"
 version = "0.2.0"
 dependencies = [
