@@ -83,6 +83,12 @@ impl DevOverlay {
         self.panel.refused(error);
     }
 
+    /// Makes the world panel forget the entity it shows, and its filter: the handle of an entity
+    /// of a world that another replaces, which in the new one could name another entity.
+    pub fn forget_world(&mut self) {
+        self.panel = WorldPanel::default();
+    }
+
     /// Draws the overlay over `target`, with `stats`, the last frame's, and the entities of
     /// `world`, and returns what it asks of the game.
     pub fn draw(

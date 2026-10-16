@@ -140,10 +140,10 @@ impl World {
     /// keeps it as `start` has it, out of its parent if the save removes that. A reference to an
     /// entity is its persistent identity, and a reference to an entity destroyed or left out is
     /// `""`, no entity. The save also holds the scenes that the world spawned, so that loading it
-    /// says which changed since, and the count of the entities created outside scenes. It begins
-    /// with `about`, what the game says of it, keys and texts that the engine does not read, such as
-    /// what the run was made on, which [`World::about`] reads without loading the save; none for an
-    /// empty `about`.
+    /// says which changed since, and the count of the entities created outside scenes. Its first
+    /// section, after the versions of the types past version 1 if it holds some, is `about`, what
+    /// the game says of it, keys and texts that the engine does not read, such as what the run was
+    /// made on, which [`World::about`] reads without loading the save; none for an empty `about`.
     ///
     /// The same worlds give the same bytes: entities in the order of their identities, components
     /// in the order of their names. Its cost grows in proportion with the entities of the two worlds
@@ -322,8 +322,9 @@ impl World {
     ///
     /// # Errors
     ///
-    /// [`DocumentError::Read`] if the save is not one, as [`World::load`] says, or what it says of
-    /// itself is not text.
+    /// [`DocumentError::Read`] if the text is not a document: larger than a reader reads, not TOML,
+    /// of a later version of the format; or if what it says of itself is not text. It reads nothing
+    /// else, and so accepts a save that [`World::load`] would refuse, of a later version of a type.
     pub fn about(text: &str) -> Result<BTreeMap<String, String>, DocumentError> {
         let mut registry = Registry::new();
         registry.register::<String>();

@@ -186,7 +186,8 @@ impl Game {
     }
 
     /// Takes `scene`, the zone's cooked scene read again after it changed on disk, and spawns it in
-    /// `world` in place of the zone. When its layout changed ([`Zone::layout`]), the game starts
+    /// `world` in place of the zone. When its layout changed, by its fingerprint
+    /// ([`Layout::fingerprint`](crate::zone::Layout::fingerprint)), the game starts
     /// again in it, as [`Game::restart`] does, since the hero could stand in a new wall, or the key
     /// have moved after it was taken; otherwise the run goes on in it, the key and the door as they
     /// were, at the same time of day. Returns whether it started again.
@@ -198,13 +199,13 @@ impl Game {
     pub fn reload_zone(&mut self, world: &mut World, scene: &CookedScene) -> Result<bool, String> {
         let mut alone = World::new();
         let layout = Zone::spawn(&mut alone, scene)?.layout(&alone);
-        let changed = layout != self.zone.layout(world);
+        let changed = layout.fingerprint() != self.zone.layout(world).fingerprint();
         let (has_item, door_open, night) = (
             self.has_item(world),
             self.door_open(world),
             self.night(world),
         );
-        world.despawn(self.zone.root);
+        despawn_scene(world, crate::zone::KEY);
         self.zone = Zone::spawn(world, scene).expect("the zone was spawned in a world of its own");
         if changed {
             self.restart(world);
@@ -218,9 +219,7 @@ impl Game {
     /// `world` in place of the hero, where the hero stood.
     pub fn reload_hero(&mut self, world: &mut World, scene: &CookedScene) {
         let placed = world.get::<Transform>(self.hero).copied();
-        world.despawn(self.hero);
-        // A scene's identities are its key and its nodes' names, under it: once the hero before is
-        // gone, none is in use.
+        despawn_scene(world, HERO);
         self.hero = world
             .spawn_scene(HERO, scene)
             .expect("the identities of the hero before went with it");
@@ -387,6 +386,22 @@ impl Game {
             tracing::info!("the key opens the door");
         }
         self.show_run(world);
+    }
+}
+
+/// Destroys the scene spawned under `key` in `world`: every entity of its identities, its root with
+/// its descendants and those that a save moved out of it, so that the scene can be spawned again.
+fn despawn_scene(world: &mut World, key: &str) {
+    let scene: Vec<Entity> = world
+        .entities()
+        .filter(|&entity| {
+            world
+                .persistent_id(entity)
+                .is_some_and(|id| id.parts()[0] == key)
+        })
+        .collect();
+    for entity in scene {
+        world.despawn(entity);
     }
 }
 
@@ -1438,7 +1453,7 @@ pub mod tests {
         let first = game.hero(&played);
         walk_to_the_portal_at_night(&game, &mut played);
         // Saved there, and resumed in a new game: the same run, which goes on.
-        let text = saves::save(&mut played, &game, &zone, &hero).expect("saved");
+        let text = saves::save(&mut played, &zone, &hero).expect("saved");
         let start = saves::start(&zone, &hero).expect("the zone is whole");
         let (mut world, game, loaded) = saves::resume(&text, start).expect("resumed");
         assert!(
@@ -1499,7 +1514,7 @@ pub mod tests {
             )
             .expect("dimmed");
         played.insert(game.zone().item, Hidden);
-        let text = saves::save(&mut played, &game, &zone, &hero).expect("saved");
+        let text = saves::save(&mut played, &zone, &hero).expect("saved");
         let start = saves::start(&zone, &hero).expect("the zone is whole");
         let (mut resumed, resumed_game, loaded) = saves::resume(&text, start).expect("resumed");
         assert!(loaded.set_aside.is_empty(), "{:?}", loaded.set_aside);
@@ -1509,7 +1524,7 @@ pub mod tests {
             "the oak is gone"
         );
         assert_eq!(played.first_difference(&resumed), None, "{text}");
-        let again = saves::save(&mut resumed, &resumed_game, &zone, &hero).expect("saved again");
+        let again = saves::save(&mut resumed, &zone, &hero).expect("saved again");
         assert_eq!(again, text, "the same bytes");
         // The same input, step by step, gives both runs the same state.
         for index in 0..300u32 {

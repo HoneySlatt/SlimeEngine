@@ -31,12 +31,15 @@ That leaves, for the milestone that builds it, M5a.9:
 The owner took the first decision on 2026-10-17.
 
 **A save begins with what the game says of it.** `World::save` takes `about`, keys and texts that
-the engine writes first, under `about`, and does not read; `World::about` reads them from a save's
-text without a world and without loading the save, so that a game tells whether it can load a save,
-and later lists its saves by what they say: the time played, where the run stands, the version that
-made it. *Hunna Wood* writes `layout`, the fingerprint of its zone's layout, the FNV-1a hash of the
-layout's numbers, the same on every platform and with every version of Rust; a save whose layout is
-not the zone's, or that says none, is not resumed, and a new run starts.
+the engine writes first, after the versions of the types past version 1, under `about`, and does not
+read; `World::about` reads them from a save's text without a world and without loading the save, so
+that a game tells whether it can load a save, and later lists its saves by what they say: the time
+played, where the run stands, the version that made it. *Hunna Wood* writes `layout`, the
+fingerprint of the layout of a new game's zone, as the zone's scene places it, whatever the run
+changed of it through the world panel: the FNV-1a hash of the layout's numbers rounded to a
+ten-thousandth, of a metre or of a radian, so that the numbers that the platforms' maths gives are
+the same on every platform. A save whose layout is not the zone's, or that says none, is not
+resumed, and a new run starts. Hot reload decides that the layout changed by the same fingerprint.
 
 **The start world is a new game by day.** Saves differ from a new game by day, whatever `--night`
 says, and a run resumed is a new game by day to which the save is applied, so that a save made at
@@ -47,16 +50,20 @@ and R.
 back to the intensity it flickers around, which the zone gives it, so that a save of a run that has
 not changed is the same save, whatever the frame.
 
-**A save is written whole or not at all.** The game writes it to a file beside the save's, then
-renames that file over it: the save's file holds the save before or the new one, never part of one.
-A save that cannot be read is set aside, as `save.toml.unreadable`, in place of the one set aside
-before, so that the next save does not write over it, and a new run starts. A save of another
-layout is left where it is, and the next save writes over it.
+**A save is never lost silently.** The game writes it to a file beside the save's, written to the
+disk, then renames that file over it: the save's file holds the save before or the new one, never
+part of one, a power cut included. A save that is not resumed is set aside, in place of the one set
+aside so before, so that the next save does not write over it, and a new run starts: one that cannot
+be read as `save.toml.unreadable`, one of another layout as `save.toml.other-layout`. A save that can
+be neither read nor set aside, a file locked by another program, is kept: the run is not saved over
+it, and the log says to name another file with `--save`. `--new` starts a new run, and its first save
+writes over the save, as R's does.
 
 **F9 replaces the world.** A run loaded is a new world, given to the engine in place of its own,
 with a new `Game` that refers to its entities; the view holds no entity and draws it from the next
 frame, the hero at once where the save puts it, since a new world keeps no transform from before a
-step, and the camera behind the hero.
+step, and the camera behind the hero. The world panel forgets the entity it showed, whose handle
+could name another in the new world.
 
 **The checks never touch the user's save.** `scripts/check.sh` runs the game with `XDG_DATA_HOME` in
 its private directory, starts its runs with `--new`, and starts one from a copy of the fixture with
@@ -79,13 +86,18 @@ it is made again then, as the game's README says.
   save of an unchanged run would differ, and a save would hold what nothing reads.
 - **A save written in place**: a crash or a full disk in the middle would leave part of a save,
   which ADR-0087 loads in part.
+- **A save of another layout left where it is**, which the next save writes over: a game update
+  that changes the zone's layout would end the players' runs without a trace.
+- **A layout fingerprint of the run's world**: a collider changed through the world panel would make
+  every later save one of another layout, and the order in which the world lists the colliders
+  would count.
 
 ## Consequences
 
 - Every game can say in its saves what they were made on, and read it without loading them; reading
   it parses the save whole, as loading does.
-- A save that the game cannot resume is never lost silently: it is set aside, or kept until the next
-  save, and the log says why.
+- A save that the game cannot resume is never written over: it is set aside, or kept, and the log
+  says why.
 - The fixture is made again when the zone's layout changes, deliberately, in the commit that changes
   it.
 - When Windows ends the session, the game is stopped without quitting, and the run since the last F5

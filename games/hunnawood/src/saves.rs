@@ -6,7 +6,8 @@
 
 use std::collections::BTreeMap;
 use std::ffi::OsString;
-use std::io;
+use std::fs::File;
+use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
 
 use slime_assets::CookedScene;
@@ -58,28 +59,24 @@ pub fn start(zone: &CookedScene, hero: &CookedScene) -> Result<(World, Game), St
     Ok((world, game))
 }
 
-/// The save of the run that `game` plays in `world`, a game of `zone` and `hero`: what differs from
-/// a new game by day ([`start`]), and the layout of the zone. The lights of the campfire are put
-/// back to the intensity they flicker around first, as the zone gives it, since the view makes them
-/// flicker at each frame and a save would hold each frame's.
+/// The save of the run in `world`, a game of `zone` and `hero`: what differs from a new game by day
+/// ([`start`]), and the fingerprint of that new game's layout, the zone's as its scene places it,
+/// whatever the run changed of it. The lights of the campfire are put back to the intensity they
+/// flicker around first, as the zone gives it, since the view makes them flicker at each frame and
+/// a save would hold each frame's.
 ///
 /// # Errors
 ///
-/// When the zone cannot be played, or the world cannot be saved
-/// ([`World::save`]).
-pub fn save(
-    world: &mut World,
-    game: &Game,
-    zone: &CookedScene,
-    hero: &CookedScene,
-) -> Result<String, String> {
+/// When the zone cannot be played, or the world cannot be saved ([`World::save`]).
+pub fn save(world: &mut World, zone: &CookedScene, hero: &CookedScene) -> Result<String, String> {
     world.query_mut::<(&Flickers, &mut Light)>(|_, (flickers, light)| {
         if let Light::Point { intensity, .. } = light {
             *intensity = flickers.intensity;
         }
     });
-    let (start, _) = start(zone, hero)?;
-    let about = BTreeMap::from([(LAYOUT.to_owned(), game.zone().layout(world).fingerprint())]);
+    let (start, start_game) = start(zone, hero)?;
+    let layout = start_game.zone().layout(&start).fingerprint();
+    let about = BTreeMap::from([(LAYOUT.to_owned(), layout)]);
     world
         .save(&start, &about)
         .map_err(|error| slime_app::error_chain(&error))
@@ -90,7 +87,7 @@ pub fn save(
 pub enum NotResumed {
     /// It was made on another layout of the zone.
     OtherLayout,
-    /// It is not a save that this program reads: not text, not TOML, of a later version.
+    /// It is not a save that this program reads: not TOML, of a later version, not a save.
     Unreadable(DocumentError),
 }
 
@@ -99,8 +96,8 @@ pub enum NotResumed {
 ///
 /// # Errors
 ///
-/// [`NotResumed::OtherLayout`] when the save says another layout of the zone, or none;
-/// [`NotResumed::Unreadable`] when it cannot be read.
+/// [`NotResumed::OtherLayout`] when the save says another layout of the zone than `start`'s, or
+/// none; [`NotResumed::Unreadable`] when it cannot be read.
 pub fn resume(text: &str, start: (World, Game)) -> Result<(World, Game, Loaded), NotResumed> {
     let about = World::about(text).map_err(NotResumed::Unreadable)?;
     let (mut world, game) = start;
@@ -111,8 +108,9 @@ pub fn resume(text: &str, start: (World, Game)) -> Result<(World, Game, Loaded),
     Ok((world, game, loaded))
 }
 
-/// Writes `text` to `file`, its directory made if it has none, through a file beside it that is
-/// then renamed over it, so that `file` holds the save before or the new one, never part of one.
+/// Writes `text` to `file`, its directory made if it has none, through a file beside it, written
+/// to the disk, then renamed over it: `file` holds the save before or the new one, never part of
+/// one, a power cut included. The file beside it does not outlive an error.
 ///
 /// # Errors
 ///
@@ -122,18 +120,27 @@ pub fn write(file: &Path, text: &str) -> io::Result<()> {
         std::fs::create_dir_all(directory)?;
     }
     let written = beside(file, "new");
-    std::fs::write(&written, text)?;
-    std::fs::rename(&written, file)
+    let renamed = File::create(&written)
+        .and_then(|mut new| {
+            new.write_all(text.as_bytes())?;
+            // On the disk before the rename, which a file system may otherwise put there first.
+            new.sync_all()
+        })
+        .and_then(|()| std::fs::rename(&written, file));
+    if renamed.is_err() {
+        let _ = std::fs::remove_file(&written);
+    }
+    renamed
 }
 
-/// Moves `file` aside, to `<file>.unreadable`, in place of the one set aside before, so that the
-/// next save does not write over it; returns where.
+/// Moves `file` aside, to `<file>.<why>`, in place of the one set aside so before, so that the next
+/// save does not write over it; returns where.
 ///
 /// # Errors
 ///
 /// As the file system's operations.
-pub fn set_aside(file: &Path) -> io::Result<PathBuf> {
-    let aside = beside(file, "unreadable");
+pub fn set_aside(file: &Path, why: &str) -> io::Result<PathBuf> {
+    let aside = beside(file, why);
     std::fs::rename(file, &aside)?;
     Ok(aside)
 }
@@ -206,10 +213,18 @@ mod tests {
             !beside(&file, "new").exists(),
             "the file written beside it is renamed"
         );
-        let aside = set_aside(&file).expect("set aside");
+        let aside = set_aside(&file, "unreadable").expect("set aside");
         assert_eq!(aside, beside(&file, "unreadable"));
         assert!(!file.exists());
         assert_eq!(std::fs::read_to_string(&aside).expect("read"), "second");
+        // Set aside again, in place of the one set aside before.
+        write(&file, "third").expect("written");
+        set_aside(&file, "unreadable").expect("set aside again");
+        assert_eq!(std::fs::read_to_string(&aside).expect("read"), "third");
+        // A file that cannot be written leaves nothing beside it: here, a directory in its place.
+        std::fs::create_dir(&file).expect("a directory");
+        assert!(write(&file, "fourth").is_err());
+        assert!(!beside(&file, "new").exists());
         std::fs::remove_dir_all(&directory).expect("removed");
     }
 }
@@ -219,18 +234,21 @@ mod runs {
     use slime_render::glam::Vec2;
 
     use super::*;
-    use crate::rules::tests::{no_hero, zone};
+    use crate::rules::tests::{no_hero, turned_box, zone};
+    use crate::zone::Collider;
 
     #[test]
     fn a_run_is_resumed_only_from_a_save_of_its_layout_and_never_panics() {
-        let plan = zone([0.0, 0.0], Vec::new());
+        let plan = zone([0.0, 0.0], vec![turned_box([5.0, 5.0], [1.0, 2.0], 0.3)]);
         let scene = plan.scene();
         let new_game = || start(&scene, &no_hero()).expect("the zone can be played");
         let (mut world, game) = new_game();
         for _ in 0..30 {
             game.step(&mut world, Vec2::X, 1.0 / 60.0);
         }
-        let text = save(&mut world, &game, &scene, &no_hero()).expect("saved");
+        // What the run changed of the layout, as the world panel changes it, does not make it another.
+        world.query_mut::<&mut Collider>(|_, collider| collider.height = 3.5);
+        let text = save(&mut world, &scene, &no_hero()).expect("saved");
         let (resumed, resumed_game, loaded) = resume(&text, new_game()).expect("resumed");
         assert!(loaded.set_aside.is_empty() && loaded.scenes_changed.is_empty());
         assert_eq!(world.first_difference(&resumed), None, "{text}");

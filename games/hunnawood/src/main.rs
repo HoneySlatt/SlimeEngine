@@ -18,9 +18,8 @@
 //! cargo run -p hunnawood -- --save <file>    # saves to, and resumes from, another file
 //! ```
 //!
-//! It resumes the run of its save when it starts, and saves the run when it quits
-//! (`docs/adr/0088-saving-and-resuming-a-run.md`): the save is `hunnawood/save.toml` in the user's
-//! data directory, `$XDG_DATA_HOME`, else `~/.local/share`, or `%APPDATA%` on Windows.
+//! It resumes the run of its save when it starts, and saves the run when it quits; `README.md` says
+//! where the save is (`docs/adr/0088-saving-and-resuming-a-run.md`).
 //!
 //! W, A, S and D move (Z, Q, S and D on a French keyboard), the left and right arrows turn the
 //! camera, E rests by the campfire, which turns the day to night and back, R starts again, F5 saves
@@ -72,8 +71,9 @@ struct HunnaWood {
     /// The cooked scenes of the zone and the hero, of which a new game by day is made, which saves
     /// differ from.
     scenes: Scenes,
-    /// The save's file, if the environment gives a data directory or `--save` names one.
-    save_file: Option<PathBuf>,
+    /// The save's file, or why the run is not saved: the environment gives no data directory and
+    /// `--save` names no file, or the save there can be neither read nor set aside.
+    save_file: Result<PathBuf, String>,
     /// Whether a new game starts at night, as `--night` asks.
     starts_at_night: bool,
     controls: Controls,
@@ -135,7 +135,7 @@ impl HunnaWood {
         assets: CookedAssets,
         scenes: Scenes,
         (world, game): (World, Game),
-        save_file: Option<PathBuf>,
+        save_file: Result<PathBuf, String>,
         options: &Options,
     ) -> Self {
         Self {
@@ -166,14 +166,14 @@ impl HunnaWood {
 
     /// Saves the run to the save's file, as F5 asks and as quitting does.
     fn save(&self, world: &mut World) {
-        let Some(file) = &self.save_file else {
-            tracing::warn!(
-                "the run cannot be saved: the environment gives no data directory, and --save \
-                 names no file"
-            );
-            return;
+        let file = match &self.save_file {
+            Ok(file) => file,
+            Err(why) => {
+                tracing::warn!("the run is not saved: {why}");
+                return;
+            }
         };
-        let saved = saves::save(world, &self.game, &self.scenes.zone, &self.scenes.hero)
+        let saved = saves::save(world, &self.scenes.zone, &self.scenes.hero)
             .and_then(|text| saves::write(file, &text).map_err(|error| error.to_string()));
         match saved {
             Ok(()) => log_run(
@@ -189,18 +189,28 @@ impl HunnaWood {
     /// where the save puts it, the camera behind it. A save that cannot be resumed leaves the run as
     /// it is.
     fn load(&mut self, ctx: &mut Context) {
-        let Some(file) = &self.save_file else {
-            tracing::warn!(
-                "no save can be loaded: the environment gives no data directory, and --save names \
-                 no file"
-            );
-            return;
+        let file = match &self.save_file {
+            Ok(file) => file.clone(),
+            Err(why) => {
+                tracing::warn!("no save is loaded: {why}");
+                return;
+            }
         };
-        if let Some((world, mut game)) = resume_from(file, &self.scenes) {
-            game.set_starts_at_night(self.starts_at_night);
-            self.camera = FollowCamera::looking_along(Vec2::from_angle(game.hero(&world).heading));
-            *ctx.world_mut() = world;
-            self.game = game;
+        match resume_from(&file, &self.scenes) {
+            Resume::Run(run) => {
+                let (world, mut game) = *run;
+                game.set_starts_at_night(self.starts_at_night);
+                self.camera =
+                    FollowCamera::looking_along(Vec2::from_angle(game.hero(&world).heading));
+                // The panel's entity is a handle of the world replaced.
+                if let Some(overlay) = &mut self.overlay {
+                    overlay.forget_world();
+                }
+                *ctx.world_mut() = world;
+                self.game = game;
+            }
+            Resume::Nothing => {}
+            Resume::Keep => self.save_file = Err(kept(&file)),
         }
     }
 
@@ -603,14 +613,22 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    let save_file = options.save.clone().or_else(saves::default_file);
-    let resumed = save_file
-        .as_deref()
-        .filter(|_| !options.new)
-        .and_then(|file| resume_from(file, &scenes));
-    let new_run = resumed.is_none();
-    if let Some(run) = resumed {
-        (world, game) = run;
+    let mut save_file = options
+        .save
+        .clone()
+        .or_else(saves::default_file)
+        .ok_or_else(|| {
+            "the environment gives no data directory, and --save names no file".to_owned()
+        });
+    let resumed = match &save_file {
+        Ok(file) if !options.new => resume_from(file, &scenes),
+        _ => Resume::Nothing,
+    };
+    let new_run = !matches!(resumed, Resume::Run(..));
+    match resumed {
+        Resume::Run(run) => (world, game) = *run,
+        Resume::Nothing => {}
+        Resume::Keep => save_file = save_file.and_then(|file| Err(kept(&file))),
     }
     game.set_starts_at_night(options.night);
     if new_run {
@@ -641,34 +659,38 @@ struct Scenes {
     hero: CookedScene,
 }
 
+/// What the save's file gives a run.
+enum Resume {
+    /// The run of the save, resumed in a new game.
+    Run(Box<(World, Game)>),
+    /// No run: the file holds no save, or held one that is set aside, which the next save does not
+    /// write over.
+    Nothing,
+    /// No run, and a save that can be neither read nor set aside: the next save would write over
+    /// it, which the game must not do.
+    Keep,
+}
+
 /// The run of the save in `file`, resumed in a new game of `scenes`, if the file holds one that
-/// can be resumed; logged either way. A save made on another layout of the zone is left as it is,
-/// and one that cannot be read is set aside ([`saves::set_aside`]), so that the next save does not
-/// write over it.
-fn resume_from(file: &Path, scenes: &Scenes) -> Option<(World, Game)> {
+/// can be resumed; logged either way. A save that cannot be read, or made on another layout of the
+/// zone, is set aside ([`saves::set_aside`]), so that the next save does not write over it.
+fn resume_from(file: &Path, scenes: &Scenes) -> Resume {
     let shown = file.display();
     let text = match std::fs::read_to_string(file) {
         Ok(text) => text,
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
             tracing::info!("there is no save in {shown}");
-            return None;
+            return Resume::Nothing;
         }
-        Err(error) if error.kind() == io::ErrorKind::InvalidData => {
-            unreadable(file, &error.to_string());
-            return None;
-        }
-        Err(error) => {
-            tracing::warn!("the save in {shown} cannot be read: {error}");
-            return None;
-        }
+        Err(error) => return set_aside(file, "unreadable", &error.to_string()),
     };
     let start = match saves::start(&scenes.zone, &scenes.hero) {
         Ok(start) => start,
         Err(error) => {
             tracing::warn!(
-                "the save in {shown} cannot be resumed: the zone cannot be played: {error}"
+                "the save in {shown} is not resumed: the zone cannot be played: {error}"
             );
-            return None;
+            return Resume::Keep;
         }
     };
     match saves::resume(&text, start) {
@@ -688,34 +710,48 @@ fn resume_from(file: &Path, scenes: &Scenes) -> Option<(World, Game)> {
                 tracing::warn!("left out of the save, which this version does not know: {warning}");
             }
             log_run(&game, &world, &format!("the run resumes from {shown}"));
-            Some((world, game))
+            Resume::Run(Box::new((world, game)))
         }
-        Err(NotResumed::OtherLayout) => {
-            tracing::info!(
-                "the save in {shown} was made on another layout of the zone: it is not resumed"
-            );
-            None
-        }
+        Err(NotResumed::OtherLayout) => set_aside(
+            file,
+            "other-layout",
+            "it was made on another layout of the zone",
+        ),
         Err(NotResumed::Unreadable(error)) => {
-            unreadable(file, &slime_app::error_chain(&error));
-            None
+            set_aside(file, "unreadable", &slime_app::error_chain(&error))
         }
     }
 }
 
-/// Sets aside the save in `file`, which cannot be read for `why`, and logs it.
-fn unreadable(file: &Path, why: &str) {
-    match saves::set_aside(file) {
-        Ok(aside) => tracing::warn!(
-            "the save in {} is not resumed: {why}; it is set aside as {}",
-            file.display(),
-            aside.display()
-        ),
-        Err(error) => tracing::warn!(
-            "the save in {} is not resumed: {why}; nor can it be set aside: {error}",
-            file.display()
-        ),
+/// Sets aside the save in `file`, which is not resumed for `why`, as `<file>.<what>`, and logs it:
+/// [`Resume::Nothing`] once it is, [`Resume::Keep`] if it cannot be.
+fn set_aside(file: &Path, what: &str, why: &str) -> Resume {
+    match saves::set_aside(file, what) {
+        Ok(aside) => {
+            tracing::warn!(
+                "the save in {} is not resumed: {why}; it is set aside as {}",
+                file.display(),
+                aside.display()
+            );
+            Resume::Nothing
+        }
+        Err(error) => {
+            tracing::warn!(
+                "the save in {} is not resumed: {why}; nor can it be set aside: {error}",
+                file.display()
+            );
+            Resume::Keep
+        }
     }
+}
+
+/// Why the run is not saved to `file`, whose save it keeps.
+fn kept(file: &Path) -> String {
+    format!(
+        "the save in {} can be neither resumed nor set aside, and is kept as it is; --save names \
+         another file",
+        file.display()
+    )
 }
 
 /// Logs `what`, with where the run that `game` plays in `world` stands.

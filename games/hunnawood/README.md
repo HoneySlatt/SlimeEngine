@@ -76,26 +76,31 @@ The same option reads the renderer's shaders, in `crates/slime-render/src`, when
 draws with them from the next frame; a shader that does not compile leaves the frames as they were,
 and the log says where it fails ([ADR-0077](../../docs/adr/0077-hot-reload-of-shaders.md)).
 
-The game resumes its save when it starts, unless `--new` asks for a new run, and saves the run when
-it quits, however it quits; F5 saves the run, and F9 loads the save in place of the run, the hero at
-once where the save puts it ([ADR-0088](../../docs/adr/0088-saving-and-resuming-a-run.md)). The
-save is one file, `hunnawood/save.toml` in the user's data directory: `$XDG_DATA_HOME`, else
-`~/.local/share`, on Linux; `%APPDATA%` on Windows; `--save <file>` names another. It is text, which
-says what differs between the run and a new game by day (`slime_world::World::save`), and begins
-with the fingerprint of the zone's layout it was made on: a save made on another layout is not
-resumed, and a new run starts, as hot reload starts the run again when the layout changes. A save
-that cannot be read is set aside, as `save.toml.unreadable`, so that the next save does not write
-over it, and a new run starts. A save is written beside the file and renamed over it, so that the
-file is the save before or the new one, never part of one. The log says what was saved or loaded,
-and where the run stands. When Windows ends the session, the game is stopped without quitting, and
-the run since the last F5 is lost (see the known debt in [`docs/PLAN.md`](../../docs/PLAN.md#known-debt)).
+The game resumes its save when it starts, and saves the run when it quits, however it quits; F5
+saves the run, and F9 loads the save in place of the run, the hero at once where the save puts it
+([ADR-0088](../../docs/adr/0088-saving-and-resuming-a-run.md)). `--new` starts a new run, whose
+first save, on F5 or on quitting, writes over the save, as after R. The save is one file,
+`hunnawood/save.toml` in the user's data directory: `$XDG_DATA_HOME`, else `~/.local/share`, on
+Linux; `%APPDATA%` on Windows; `--save <file>` names another. It is text, which says what differs
+between the run and a new game by day (`slime_world::World::save`), and begins with the fingerprint
+of the zone's layout it was made on.
+
+A save that is not resumed is set aside, so that the next save does not write over it, and a new
+run starts: one made on another layout of the zone, as hot reload starts the run again when the
+layout changes, as `save.toml.other-layout`; one that cannot be read as `save.toml.unreadable`. One
+that can be neither read nor set aside, locked by another program, is kept, and the run is not
+saved: the log says so, and `--save` names another file. A save is written beside the file, to the
+disk, and renamed over it, so that the file is the save before or the new one, never part of one.
+The log says what was saved or loaded, and where the run stands. When Windows ends the session, the
+game is stopped without quitting, and the run since the last F5 is lost (see the known debt in
+[`docs/PLAN.md`](../../docs/PLAN.md#known-debt)).
 
 [`fixtures/save.toml`](fixtures/save.toml) is a save made with F5 at the chapel's portal, at night,
 which every later version must resume: a test resumes it and walks on to the terrace, and
 `scripts/check.sh` starts the game from a copy of it. A change of the zone's layout makes it a save
 of another layout, which the test then refuses: make it again at the same place, with
 `cargo run -p hunnawood -- --new --save games/hunnawood/fixtures/save.toml`, resting by the campfire
-and walking to the portal before F5, and say so in the commit.
+and walking to the portal, then quitting without moving, which saves it, and say so in the commit.
 
 | Key | Does |
 |---|---|
@@ -139,7 +144,8 @@ day to which the save is applied ([ADR-0087](../../docs/adr/0087-the-worlds-docu
 game by day, whatever `--night` says, so that a save made at night is resumed at night. What the
 game makes again at each frame is put back before it saves: the campfire's light, which the view
 makes flicker around the intensity that the zone gives it. F9 makes a new world, in place of the
-engine's, and a new `Game` with it; the view, which holds no entity, draws it from the next frame.
+engine's, and a new `Game` with it; the view, which holds no entity, draws it from the next frame,
+and the world panel forgets the entity it showed.
 
 | Module | What it holds |
 |---|---|

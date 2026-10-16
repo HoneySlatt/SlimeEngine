@@ -509,17 +509,22 @@ Risks:
   and texts that `World::about` reads without loading the save: *Hunna Wood* says there the
   fingerprint of its zone's layout, and does not resume a save of another layout. Saves differ from
   a new game by day, whatever `--night` says; the campfire's light goes back to its own intensity
-  before the game saves; a save is written beside its file and renamed over it; a save that cannot
-  be read is set aside as `save.toml.unreadable`. After the scripted walk at night, a save resumed
-  in a new game gives the same run, which walks on to the terrace; a save resumed and saved again
-  gives the same bytes, 300 steps later the same run; the fixture, `games/hunnawood/fixtures/save.toml`,
-  is resumed and walks on; saves malformed, of a later format, of another layout or cut at every
-  character are refused or resumed, without a panic; the data directory is computed from the
-  environments that a test gives, Windows' included. `scripts/check.sh` runs the game's new runs
+  before the game saves; a save is written beside its file, to the disk, and renamed over it; a save
+  that is not resumed is set aside, and one that can be neither read nor set aside is never written
+  over. After the scripted walk at night, a save resumed in a new game gives the same run, which
+  walks on to the terrace; a save resumed and saved again gives the same bytes, 300 steps later the
+  same run; the fixture, `games/hunnawood/fixtures/save.toml`, is resumed and walks on; saves
+  malformed, of a later format, of another layout or cut at every character are refused or
+  resumed, without a panic; a collider changed by the run leaves its save of the same layout; the
+  data directory is computed from the environments that a test gives, Windows' included. `scripts/check.sh` runs the game's new runs
   with `--new` and its data directory in a private one, and resumes a copy of the fixture. In a
   window, a copy of the fixture was resumed and saved again to the same bytes, an unreadable save
   set aside and a new run started, and a run saved to the data directory that the environment gave.
-  F5 and F9 were not pressed: the owner checks them by hand.
+  F5 and F9 were not pressed: the owner checks them by hand. The review found that a save that could
+  not be read for a passing reason was written over on quitting, that a collider changed through the
+  world panel made every later save one of another layout, that hot reload and saves decided "the
+  same layout" two ways, and that a save written without reaching the disk could be lost to a power
+  cut: each is fixed, the layout's fingerprint taken from a new game and rounded, and used by both.
 
 ### M5a.10 — Windows check, documentation, release 0.3
 

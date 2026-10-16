@@ -144,9 +144,9 @@ since the start of a run, and loads it back. *Hunna Wood* runs on it.
   fields marked transient are left out. A save begins with what the game says of it, keys and texts
   given to `World::save`, which `World::about` reads without loading the save
   ([ADR-0088](docs/adr/0088-saving-and-resuming-a-run.md)). `World::first_difference` compares two
-  worlds as saves see them; `World::insert_component_value` and `remove_component_value` attach and detach a component
-  by its type's name. The `world` example saves its world when it quits, loads the save into a world
-  spawned anew, and fails if the two differ.
+  worlds as saves see them; `World::insert_component_value` and `remove_component_value` attach and
+  detach a component by its type's name. The `world` example saves its world when it quits, loads
+  the save into a world spawned anew, and fails if the two differ.
 - `slime-serialize` writes and reads documents of several values, each at its place, `Composer` and
   `Document`, references to entities named by its `References`. `slime-reflect` gives what changed
   of a value as a part of it, `Registry::difference`, and sets a part back, `Registry::overlay`;
@@ -155,9 +155,9 @@ since the start of a run, and loads it back. *Hunna Wood* runs on it.
 - *Hunna Wood* saves its run ([ADR-0088](docs/adr/0088-saving-and-resuming-a-run.md)): F5 saves it,
   F9 loads the save in place of the run, the game saves when it quits and resumes the save when it
   starts. The save is `hunnawood/save.toml` in the user's data directory, or the file that
-  `--save` names; `--new` starts a new run. A save made on another layout of the zone is not
-  resumed, and one that cannot be read is set aside as `save.toml.unreadable`; a save is written
-  whole or not at all. The log says what was saved or loaded.
+  `--save` names; `--new` starts a new run. A save that is not resumed, made on another layout of
+  the zone or that cannot be read, is set aside, and one that can be neither read nor set aside is
+  never written over; a save is written whole or not at all. The log says what was saved or loaded.
 
 ### Changed
 

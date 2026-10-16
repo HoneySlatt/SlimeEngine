@@ -45,7 +45,11 @@ scripts/fetch-assets.sh                                   # fetch the game's sou
 blender --background --factory-startup --python games/hunnawood/zone/build_zone.py  # rebuild the game's zone (same README)
 cargo run -p hunnawood                                    # play the game (games/hunnawood/README.md)
 cargo run -p hunnawood -- --watch                         # load its zone and the shaders again as they change
+cargo run -p hunnawood -- --new --save <file>             # play a new run, saved to <file>, not to the user's save
 ```
+
+The game resumes and writes the user's save, `hunnawood/save.toml` in their data directory, when it runs
+without `--save`: an agent runs it with `--new --save <a file of its own>`.
 
 `scripts/check.sh` is what CI runs. Besides the commands above, it runs the renderer's and the world's tests once more with glam's assertions on (`--features glam/debug-glam-assert`), checks dependency licenses, security advisories and sources with `cargo deny --locked check` (needs network access), checks the list of the sample game's source assets with `scripts/fetch-assets.sh`, checks that every source asset has a metadata file of its own with `slime-cook check`, cooks the sample twice from empty directories and compares the bytes, fetches and cooks the sample game's zone and runs the tests that read it (`cargo test -p hunnawood -- --ignored`), runs the samples without a display server, the windowed samples, the game (its new runs, and one resumed from a copy of its save fixture, its saves kept in a private directory) and the windowed lifecycle test inside a headless Weston compositor (and that test's resize scenario in a second one, at scale 2), and checks links between Markdown files with `lychee`. Run it before reporting a milestone done. It runs the tests on lavapipe, a Vulkan driver that renders on the CPU; to run one test the same way, prefix it with `VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD"`.
 

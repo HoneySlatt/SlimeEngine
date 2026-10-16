@@ -16,7 +16,7 @@ use slime_world::{Component, Entity, Extras, Light, Name, Transform, World};
 
 /// The key that the zone's scene is spawned under: the first part of its entities' persistent
 /// identities, `zone/door`.
-const KEY: &str = "zone";
+pub const KEY: &str = "zone";
 /// How far from the campfire, on the ground, its light stands, at most, in metres: the zone places
 /// it above the fire pit.
 const CAMPFIRE_LIGHT_REACH: f32 = 1.0;
@@ -236,28 +236,24 @@ pub struct Layout {
 }
 
 impl Layout {
-    /// A fingerprint of the layout, the same on every platform and with every version of Rust, as
-    /// 16 hexadecimal digits: the FNV-1a hash of its numbers' bits, in order, each list of colliders
-    /// led by its length and each footprint by its shape. A save says the layout it was made on so
-    /// (`crate::saves`).
+    /// A fingerprint of the layout, as 16 hexadecimal digits: the FNV-1a hash of its numbers, each
+    /// rounded to a ten-thousandth, of a metre or of a radian, in order, each list of colliders led
+    /// by its length and each footprint by its shape. Rounded, the numbers that the platforms'
+    /// maths gives, a box's yaw from its axes among them, are the same on every platform, and so is
+    /// the hash; two layouts that differ by less are the same layout. A save says the layout it was
+    /// made on so (`crate::saves`), and a zone loaded again keeps the run when its layout keeps its
+    /// fingerprint ([`crate::rules::Game::reload_zone`]).
     pub fn fingerprint(&self) -> String {
-        let mut words = vec![self.half_size.x.to_bits(), self.half_size.y.to_bits()];
+        let mut numbers = vec![self.half_size.x, self.half_size.y];
+        let mut counts = Vec::new();
         for colliders in [&self.colliders, &self.door_colliders] {
-            words.push(colliders.len() as u32);
+            counts.push(colliders.len());
             for footprint in colliders {
-                let shape = match footprint.shape {
-                    Shape::Box { half_size, yaw } => [
-                        0,
-                        half_size.x.to_bits(),
-                        half_size.y.to_bits(),
-                        yaw.to_bits(),
-                    ],
-                    Shape::Cylinder { radius } => [1, radius.to_bits(), 0, 0],
-                };
-                words.extend(shape);
-                words.extend(
-                    [footprint.center.x, footprint.center.y, footprint.height].map(f32::to_bits),
-                );
+                numbers.extend(match footprint.shape {
+                    Shape::Box { half_size, yaw } => [0.0, half_size.x, half_size.y, yaw],
+                    Shape::Cylinder { radius } => [1.0, radius, 0.0, 0.0],
+                });
+                numbers.extend([footprint.center.x, footprint.center.y, footprint.height]);
             }
         }
         for place in [
@@ -268,11 +264,16 @@ impl Layout {
             self.campfire,
             self.terrace,
         ] {
-            words.extend([place.x.to_bits(), place.y.to_bits()]);
+            numbers.extend([place.x, place.y]);
         }
+        // A saturating cast: −0.0 and 0.0 are one number, and NaN, which no layout holds, is 0.
+        let words = counts.iter().map(|&count| count as i64).chain(
+            numbers
+                .iter()
+                .map(|&number| (number * 10_000.0).round() as i64),
+        );
         let hash = words
-            .iter()
-            .flat_map(|word| word.to_le_bytes())
+            .flat_map(i64::to_le_bytes)
             .fold(0xcbf2_9ce4_8422_2325_u64, |hash, byte| {
                 (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3)
             });
