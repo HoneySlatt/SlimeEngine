@@ -76,10 +76,11 @@ the batches that failed did; `Frame::scene(camera)` is the renderer's `Scene`. T
 exposure and the bloom stay the game's.
 
 **The sun is given once.** A directional light of the world has a field that says it shows in the
-sky, with its disc and its glow. The bridge gives that light to the sky as its sun and to the lights;
-if several have it, the first one does, and the log says so. The sky's environment is made again
-when the sun or the sky changes, which costs about 23 ms in a release build. The rest of the sky,
-its colors, is given by the game to the bridge.
+sky, with its disc and its glow. The bridge gives that light to the sky as its sun and to the
+lights, first among them, so that its shadows are the ones the renderer draws when it casts any; if
+several have it, the first one does, and the log says so. The sky's environment is made again when
+the sun or the sky changes, which costs about 23 ms in a release build; a sun whose shadows alone
+change keeps it. The rest of the sky, its colors, is given by the game to the bridge.
 
 **What the world draws.** Components of `slime-world`, without GPU objects:
 
@@ -95,12 +96,22 @@ its colors, is given by the game to the bridge.
 the world changed during the last fixed step, its transform before that step, and gives the
 transform between the two at a fraction of the step (`World::interpolated_transform`): positions in
 `f64`, rotations along the shortest arc, scales in between. A frame without a step keeps the last
-step's two; a frame with several takes the last one's. `World::teleport` makes an entity and its
-descendants be drawn at once where they are now. A stretch is not interpolated: it jumps.
+step's two; a frame with several takes the last one's. A change made outside a step, an entity
+placed during one, and `World::teleport`, make an entity, with its descendants for a teleport, be
+drawn where it is now; but one whose ancestor moved during the step is carried by the nearest such
+ancestor, where it is now relative to it, so that what a moving entity holds stays on it. An entity
+given another parent during a step is drawn from where it was to where it goes. A stretch is not
+interpolated: it jumps.
+
+The owner decided, on 2026-10-16 after the milestone's review, that the sun comes first among the
+lights and that what a moving entity holds stays on it: the shadows could come from another
+directional light than the sun, and a child changed outside a step, or placed during one, came
+loose from a parent that moved.
 
 **`slime-app` owns the world.** `Context::world` and `Context::world_mut` give it. `slime-app` tells
-the world before and after each `fixed_update`, and computes its transforms again after `update`, so
-that a change made outside a step is drawn at once.
+the world before and after each `fixed_update`; a change made outside a step is drawn at once. It
+computes the world's transforms again after `update`, so that `render` reads them at the cost of a
+lookup.
 
 **An example, `world`**, draws the examples' cooked scene from a world, its glowing ring floating at
 the fixed step with its light, headless too, and goes on after a lost device.

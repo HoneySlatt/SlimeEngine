@@ -19,7 +19,9 @@ use crate::renderer::Renderer;
 /// neither holds nor is loading start loading in the background, as a batch, on the renderer's
 /// threads, as [`Renderer::load_scene_in_background`] loads a scene. [`AssetCache::poll`] takes the
 /// batches that finished, each whole: a mesh is drawn once its batch is, never a part of a batch.
-/// An asset that several meshes share, a material or a texture, is loaded once and kept once.
+/// An asset that several meshes share, a material or a texture, is loaded once and kept once; but
+/// two batches loading at once that both read a texture the cache does not hold yet upload it each,
+/// and the cache keeps both until a reload.
 ///
 /// - **Errors.** A batch that fails gives its error to `poll`, and none of its meshes is held; the
 ///   cache does not ask for them again until its cooked data changes ([`AssetCache::reload`]).
@@ -27,8 +29,9 @@ use crate::renderer::Renderer;
 ///   cooked data, keeping each mesh and texture whose cooked file the new manifest still names
 ///   (`docs/adr/0076-hot-reload-of-cooked-data.md`), and makes every material again; the cache
 ///   goes on giving what it holds until the reload finishes, then takes its result at once.
-/// - **A lost device.** [`AssetCache::clear`] drops every GPU object it holds and cancels its loads;
-///   what a game draws afterwards loads again, from the GPU that replaced the lost one.
+/// - **A lost device.** [`AssetCache::clear`] drops every GPU object it holds and cancels its
+///   loads; what a game draws afterwards loads again, from the GPU that replaced the lost one,
+///   those whose batch failed included.
 /// - **Memory.** It keeps what it loaded until it is cleared: nothing is dropped when no one draws
 ///   it any more.
 ///
@@ -80,9 +83,9 @@ impl AssetCache {
         Some((&made.mesh, self.materials.get(&made.material)?))
     }
 
-    /// The material `id`, if a mesh that the cache holds is drawn with it. A game changes how every
-    /// mesh drawn with it looks through it ([`Material::set_values`]): a reload makes it again, with
-    /// the values of the cooked data.
+    /// The material `id`, if a mesh that the cache holds is drawn with it. A game changes how
+    /// every mesh drawn with it looks through it ([`Material::set_values`]): a reload makes it
+    /// again, with the values of the cooked data.
     pub fn material(&self, id: AssetId) -> Option<&Material> {
         self.materials.get(&id)
     }
@@ -190,12 +193,15 @@ impl AssetCache {
     /// Loads again, in the background, every mesh the cache holds, from `assets`, new cooked data:
     /// each mesh and texture whose cooked file the manifest of `assets` still names is kept, the
     /// others are read and uploaded again, and every material is made again, with the values of
-    /// the cooked data. Until the reload finishes, the cache gives what it held; [`AssetCache::poll`]
-    /// then takes its result at once, or its error, which leaves what the cache held whole.
+    /// the cooked data. Until the reload finishes, the cache gives what it held;
+    /// [`AssetCache::poll`] then takes its result at once, or its error, which leaves what the
+    /// cache held whole.
     ///
     /// The batches being loaded are dropped, since they read the cooked data before: the meshes
     /// they loaded are asked for again. A reload going on is dropped too, and the meshes whose
-    /// batch failed may be asked for again.
+    /// batch failed may be asked for again. Dropping a load waits, on the calling thread, for its
+    /// tasks that are running, a mesh or a texture each: a game that reloads once nothing loads
+    /// ([`AssetCache::loading`]) waits for none.
     ///
     /// # Panics
     ///
@@ -225,8 +231,9 @@ impl AssetCache {
 
     /// Drops every GPU object the cache holds, and cancels its loads and its reload, as dropping a
     /// [`SceneLoad`](crate::SceneLoad) cancels its own: once it returns, no thread of the cache
-    /// holds the `Gpu`. What a game draws afterwards loads again. A game clears its cache when its
-    /// device is lost (`App::gpu_lost` in `slime-app`).
+    /// holds the `Gpu`; it waits, on the calling thread, for the loads' tasks that are running.
+    /// What a game draws afterwards loads again, the meshes whose batch failed included. A game
+    /// clears its cache when its device is lost (`App::gpu_lost` in `slime-app`).
     pub fn clear(&mut self) {
         self.loads.clear();
         self.loading.clear();

@@ -253,9 +253,10 @@ impl Context {
     /// The game's world: its entities, their components and their hierarchy
     /// (`docs/adr/0084-what-the-world-draws.md`), empty when the run starts, headless runs
     /// included. The engine tells it before and after each [`App::fixed_update`]
-    /// ([`World::begin_fixed_step`], [`World::end_fixed_step`]), so that what moves during a step is
-    /// drawn between its two transforms, and computes its transforms after [`App::update`], so that
-    /// a change made outside a step is drawn at once.
+    /// ([`World::begin_fixed_step`], [`World::end_fixed_step`]), so that what moves during a step
+    /// is drawn between its two transforms; a change made outside a step is drawn at once. It
+    /// computes the world's transforms after [`App::update`] ([`World::update_transforms`]), so that
+    /// [`App::render`] reads them at the cost of a lookup.
     pub fn world(&self) -> &World {
         &self.world
     }
@@ -507,7 +508,7 @@ impl Frames {
         {
             let _span = tracing::trace_span!("update").entered();
             app.update(ctx, &frame);
-            // What changed outside a fixed step is drawn at once.
+            // So that `render` reads the transforms that `update` changed at the cost of a lookup.
             ctx.world.update_transforms();
         }
         let image = surface.and_then(|surface| {

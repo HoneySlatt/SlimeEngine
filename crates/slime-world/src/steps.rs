@@ -35,8 +35,9 @@ impl World {
 
     /// Makes `entity` and its descendants be drawn where they are at the end of the fixed step going
     /// on, rather than between where they were and where they went: a hero that starts again
-    /// elsewhere does not slide there. Outside a fixed step, at once. Nothing for an entity that is
-    /// not alive.
+    /// elsewhere does not slide there. Carried, if one of their ancestors moved during the step, by
+    /// that ancestor ([`World::interpolated_transform`]). Outside a fixed step, at once. Nothing for
+    /// an entity that is not alive.
     pub fn teleport(&mut self, entity: Entity) {
         if self.changes.in_step {
             self.changes.teleported.push(entity);
@@ -59,19 +60,42 @@ impl World {
     }
 
     /// Where `entity` is drawn at `fraction` of the time from the last fixed step to the next, from
-    /// 0 to 1, as `slime-app`'s `Context::fixed_step_alpha` gives it: between its transform in the
-    /// world before the last step and its transform now, if that changed during the step
-    /// ([`GlobalTransform::lerp`]); its transform now otherwise, and for a world that runs no step.
+    /// 0 to 1, as `slime-app`'s `Context::fixed_step_alpha` gives it
+    /// (`docs/adr/0084-what-the-world-draws.md`):
+    ///
+    /// - If its transform in the world changed during the last step, between where it was before
+    ///   the step and where it is now ([`GlobalTransform::lerp`]).
+    /// - If it is drawn where it is now, as an entity changed outside a step, placed during one or
+    ///   teleported is, but an ancestor's transform changed during the step: carried by the nearest
+    ///   such ancestor, where it is now relative to it, so that it stays on it.
+    /// - Otherwise, and for a world that runs no step, where it is now.
+    ///
     /// A frame without a step keeps the last step's two transforms; a frame with several, the last
-    /// one's. `None` if the entity is not alive or has no [`Transform`](crate::Transform).
+    /// one's. Reaching a [`Transform`](crate::Transform) mutably outside a step counts as a change:
+    /// a game that only reads one reads it immutably. An entity given another parent during a step
+    /// is drawn from where it was to where it goes. A stretch, which `GlobalTransform` does not
+    /// hold, is drawn as it is now. `None` if the entity is not alive or has no `Transform`.
     pub fn interpolated_transform(&self, entity: Entity, fraction: f64) -> Option<GlobalTransform> {
         let now = self.global_transform(entity)?;
-        let moved = self.nodes[entity.index() as usize].moved;
-        if moved == 0 {
-            return Some(now);
+        let node = &self.nodes[entity.index() as usize];
+        if node.moved != 0 {
+            let (_, before) = self.changes.moved[node.moved as usize - 1];
+            return Some(before.lerp(&now, fraction));
         }
-        let (_, before) = self.changes.moved[moved as usize - 1];
-        Some(before.lerp(&now, fraction))
+        let mut ancestor = node.parent;
+        while let Some(parent) = ancestor {
+            let node = &self.nodes[parent.index() as usize];
+            if node.moved != 0 {
+                let (_, before) = self.changes.moved[node.moved as usize - 1];
+                let parent_now = self.placement(parent);
+                let Some(relative) = now.relative_to(&parent_now) else {
+                    return Some(now);
+                };
+                return Some(before.lerp(&parent_now, fraction).compose(&relative));
+            }
+            ancestor = node.parent;
+        }
+        Some(now)
     }
 }
 
@@ -201,6 +225,83 @@ mod tests {
         world.insert(arrow, at(7.0));
         world.end_fixed_step();
         assert_eq!(drawn(&world, arrow, 0.0), 7.0);
+    }
+
+    #[test]
+    fn an_entity_placed_for_the_first_time_during_a_step_is_drawn_at_once_where_it_is() {
+        let mut world = World::new();
+        let cart = world.spawn();
+        world.insert(cart, at(50.0));
+        let arrow = world.spawn();
+        world.set_parent(arrow, Some(cart)).expect("alive");
+        let loose = world.spawn();
+        world.update_transforms();
+        world.begin_fixed_step();
+        world.insert(arrow, at(100.0));
+        world.insert(loose, at(7.0));
+        world.end_fixed_step();
+        assert_eq!(drawn(&world, arrow, 0.0), 150.0);
+        assert_eq!(drawn(&world, loose, 0.0), 7.0);
+        // Placed again during a step, after it lost its place: at once too.
+        world.begin_fixed_step();
+        world.remove::<Transform>(loose);
+        world.insert(loose, at(9.0));
+        world.end_fixed_step();
+        assert_eq!(drawn(&world, loose, 0.0), 9.0);
+    }
+
+    #[test]
+    fn what_is_drawn_at_once_stays_on_an_ancestor_that_moved() {
+        let mut world = World::new();
+        let cart = world.spawn();
+        world.insert(cart, at(0.0));
+        let lantern = world.spawn();
+        world.insert(lantern, at(1.0));
+        world.set_parent(lantern, Some(cart)).expect("alive");
+        world.update_transforms();
+        world.begin_fixed_step();
+        world
+            .get_mut::<Transform>(cart)
+            .expect("placed")
+            .translation
+            .x = 10.0;
+        // A sword drawn from the step on, in the cart.
+        let sword = world.spawn();
+        world.insert(sword, at(2.0));
+        world.set_parent(sword, Some(cart)).expect("alive");
+        world.end_fixed_step();
+        // The lantern swings outside the step, as an animation at each frame does.
+        world
+            .get_mut::<Transform>(lantern)
+            .expect("placed")
+            .translation
+            .y = 0.5;
+        let cart_x = drawn(&world, cart, 0.5);
+        assert!((cart_x - 5.0).abs() < 1e-12);
+        assert!((drawn(&world, lantern, 0.5) - 6.0).abs() < 1e-12);
+        let lantern_y = world
+            .interpolated_transform(lantern, 0.5)
+            .expect("placed")
+            .translation
+            .y;
+        assert!((lantern_y - 0.5).abs() < 1e-12);
+        assert!((drawn(&world, sword, 0.5) - 7.0).abs() < 1e-12);
+        // Turned with it too.
+        world.begin_fixed_step();
+        world.get_mut::<Transform>(cart).expect("placed").rotation =
+            Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
+        world.end_fixed_step();
+        world
+            .get_mut::<Transform>(lantern)
+            .expect("placed")
+            .translation
+            .y = 0.0;
+        let half = world
+            .interpolated_transform(lantern, 0.5)
+            .expect("placed")
+            .translation;
+        let expected = DVec3::new(10.0 + 0.5f64.sqrt(), 0.0, -(0.5f64.sqrt()));
+        assert!((half - expected).length() < 1e-6, "{half}");
     }
 
     #[test]

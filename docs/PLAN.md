@@ -228,6 +228,12 @@ Risks:
   each step. `slime-world-render` builds each frame from the world and the cache, the sun given
   once. The materials are those that each cooked mesh names: no component names another yet. Built
   from *Hunna Wood*'s zone in a release build, a frame of 429 instances takes 74 µs on the CPU.
+  The review found that an entity placed for the first time during a step slid in from its
+  parent, that a sun whose shadow distance changed made the sky again, and two behaviours that the
+  owner decided on: what a moving entity holds stays on it, though changed outside a step or placed
+  during one, and the sun comes first among the lights, so that it casts the shadows. The
+  lifecycle test sees the world's calls around `fixed_update`; the one after `update`, which only
+  makes reading the transforms a lookup, shows in no behaviour that a test can see.
 
 ### M5a.4 — Hunna Wood on the world
 

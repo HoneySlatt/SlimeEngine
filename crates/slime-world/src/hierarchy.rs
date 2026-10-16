@@ -75,7 +75,7 @@ impl World {
     }
 
     /// Where the entity's slot is in the world, an absent transform counting as none.
-    fn placement(&self, entity: Entity) -> GlobalTransform {
+    pub(crate) fn placement(&self, entity: Entity) -> GlobalTransform {
         let mut stale = Vec::new();
         let mut current = Some(entity);
         let mut base = GlobalTransform::IDENTITY;

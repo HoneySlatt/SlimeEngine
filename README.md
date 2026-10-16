@@ -55,8 +55,8 @@ cargo run -p hunnawood       # the game, once its zone is cooked: games/hunnawoo
 scripts/check.sh             # every check, exactly as CI runs them (Linux only)
 ```
 
-Each CI run on GitHub also publishes the `hello`, `headless`, `window`, `offscreen` and `scene`
-examples and the `hunnawood` game built for Windows, to try without a toolchain;
+Each CI run on GitHub also publishes the `hello`, `headless`, `window`, `offscreen`, `scene` and
+`world` examples and the `hunnawood` game built for Windows, to try without a toolchain;
 the GitHub release of each version since 0.1 carries what that version had.
 
 The tests run on your own GPU; CI runs them on drivers that render on the CPU, lavapipe on Linux and

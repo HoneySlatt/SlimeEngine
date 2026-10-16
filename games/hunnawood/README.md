@@ -219,7 +219,8 @@ The engine's crates only: `slime-app`, `slime-gfx`, `slime-platform`, `slime-ren
 `slime-devui` for the dev overlay, engine tooling that turns `slime-gfx`'s `wgpu` feature on for
 itself (the game uses no wgpu type); `slime-assets`, which reads the cooked zone; `slime-color`, for
 the colors of its lights and skies; and `tracing` for the log. Its tests use `slime-world` too, to
-spawn the cooked zone in a world.
+spawn the cooked zone in a world, and `slime-world-render`, to measure what building a frame of
+that world costs.
 
 ## Must not
 

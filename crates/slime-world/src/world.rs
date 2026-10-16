@@ -289,10 +289,16 @@ impl World {
             }
         };
         let storage: &mut dyn Any = &mut *self.storages[id];
-        storage
+        let replaced = storage
             .downcast_mut::<Storage<T>>()
             .expect("a storage holds the type it is registered under")
-            .insert(entity.index(), component)
+            .insert(entity.index(), component);
+        // An entity placed for the first time during a fixed step had no place before it: it is
+        // drawn at once where it is, rather than from where its parent was.
+        if replaced.is_none() && TypeId::of::<T>() == TypeId::of::<Transform>() {
+            self.teleport(entity);
+        }
+        replaced
     }
 
     /// Detaches the entity's component of type `T`, if it holds one.

@@ -60,7 +60,7 @@ created only when code needs it.
 | [`slime-cook`](../crates/slime-cook/README.md) | The cooker: turns source assets into cooked data before games run; a library and its program, which no game links ([ADR-0069](adr/0069-the-asset-pipeline.md)) | `slime-assets`, `slime-color`, `bevy_mikktspace`, `blake3`, `block_compression`, `glam`, `gltf`, `png`, `uuid`, `zune-jpeg`, `thiserror` | IDs for source files in metadata files beside them, their check, and the IDs of the assets inside a file; PNG and JPEG images cooked into textures compressed in BC7 or BC5, every level computed; glTF files imported into meshes (MikkTSpace tangents), materials and scenes; a directory cooked again only where it changed, with its manifest, once or at each change |
 | [`slime-devui`](../crates/slime-devui/README.md) | The dev overlay: egui drawn over the engine's frames, fed with the engine's events; tooling, removed once something does at least as well ([ADR-0052](adr/0052-amend-roadmap-before-0-1.md)) | `egui`, `egui-wgpu`, `slime-gfx` (with its `wgpu` feature), `slime-platform` | Panels over a frame; no clipboard or input methods |
 | [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-assets`, `slime-color`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `slime-world`, `slime-world-render`, `png`, `tracing`; for the tests, `slime-cook` and `gltf` | `hello`, `headless`, `window`, `offscreen`, `scene`, which draws a cooked scene, `world`, which draws it from a world; the reference image tests, and tests that cook glTF files and draw them |
-| [`hunnawood`](../games/hunnawood/README.md) | Hunna Wood, the game that every stage grows from Stage 4a on; a client of the engine through its public API only, not part of the engine ([ADR-0055](adr/0055-games-in-the-workspace.md), [ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)) | `slime-app`, `slime-assets`, `slime-color`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `tracing`; for the tests, `slime-world` | A forest zone and its hero read from cooked data, the camera behind the hero, the hero's movement and its collisions with boxes turned about the vertical and cylinders, a key that opens a door, a campfire that flickers, the zone drawn while it loads, the run kept after a lost GPU device, the zone loaded again when its cooked data changes, and the shaders when their files do (`--watch`) |
+| [`hunnawood`](../games/hunnawood/README.md) | Hunna Wood, the game that every stage grows from Stage 4a on; a client of the engine through its public API only, not part of the engine ([ADR-0055](adr/0055-games-in-the-workspace.md), [ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)) | `slime-app`, `slime-assets`, `slime-color`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `tracing`; for the tests, `slime-world` and `slime-world-render` | A forest zone and its hero read from cooked data, the camera behind the hero, the hero's movement and its collisions with boxes turned about the vertical and cylinders, a key that opens a door, a campfire that flickers, the zone drawn while it loads, the run kept after a lost GPU device, the zone loaded again when its cooked data changes, and the shaders when their files do (`--watch`) |
 
 ## Dependency rules
 
@@ -77,7 +77,7 @@ slime-examples ──▶ slime-app ──┬──▶ slime-platform ──▶ w
        └──▶ slime-platform, slime-gfx, slime-color (their types: events, GPU objects, colors)
 
 hunnawood  ──▶ slime-app, slime-assets, slime-render, slime-platform, slime-gfx, slime-color, slime-devui (public API only)
-    └──▶ the tests: slime-world
+    └──▶ the tests: slime-world, slime-world-render
 
 slime-cook ──▶ slime-assets
 slime-render ──▶ slime-assets (cooked data)
@@ -151,8 +151,9 @@ frame                                span "frame", trace level
 ├── app.fixed_update(ctx, step)      n times, span "fixed_update", between
 │                                    world.begin_fixed_step() and world.end_fixed_step(): what
 │                                    moves is drawn between its two transforms (ADR-0084)
-├── app.update(ctx, &frame)          once, span "update", then world.update_transforms():
-│                                    what it changed is drawn at once
+├── app.update(ctx, &frame)          once, span "update": what it changes is drawn at once;
+│                                    then world.update_transforms(), so that render reads the
+│                                    transforms at the cost of a lookup
 └── with a window:
     ├── surface.acquire(label)       the window's image, its passes named "window, frame
     │                                <index>", or none: skip drawing, after an empty submission
@@ -629,7 +630,8 @@ frame
 ├── app.fixed_update                                moves entities
 ├── world.end_fixed_step()                          slime-app: the transforms computed again;
 │                                                    what was teleported forgets where it was
-├── app.update, then world.update_transforms()      what update changed is drawn at once
+├── app.update                                      what it changes is drawn at once
+├── world.update_transforms()                       slime-app: render reads lookups
 └── app.render
     └── FrameBuilder::build(world, cache, renderer,  slime-world-render
         │                   gpu, fixed_step_alpha)
@@ -639,7 +641,8 @@ frame
         │   instance of each mesh that the cache holds
         ├── cache.request(missing)                   one batch, loaded in the background on the
         │                                            renderer's threads (ADR-0073)
-        ├── each entity with a Light: the renderer's light at its origin, along its −Z axis
+        ├── each entity with a Light: the renderer's light at its origin, along its −Z axis, the
+        │   sun first, so that it casts the shadows
         ├── the sky's environment, made again when the game's sky or the sun changed: the first
         │   directional light that shows in the sky
         └── Frame { instances, lights, environment } → frame.scene(camera) → renderer.render
@@ -728,7 +731,8 @@ compile (a `threads` module in its `lib.rs`, or in `slime-devui`'s tests):
   their layouts, shader modules, pipelines), images read back, meshes, materials, environments,
   cameras, lights, scenes and instances, loaded scenes and loads in progress, the asset cache,
   statistics, windows, events, the application's `Context` and `AppConfig`, the dev overlay, worlds
-  and entity handles, and every error type. wgpu keeps its error scopes per thread, so GPU objects
+  and entity handles, the frame builder of `slime-world-render` and its frames, and every error
+  type. wgpu keeps its error scopes per thread, so GPU objects
   can be created from several threads.
   wgpu fails to configure a window's surface when another thread submits work while it waits for
   the GPU, as the threads of a load do: the `Gpu`'s submissions, from any thread, wait while the

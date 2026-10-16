@@ -23,8 +23,10 @@ use slime_world::{Entity, Hidden, Meshes, Transform, World};
 /// - An entity that holds [`Hidden`], or one of whose ancestors does, is not drawn, nor is its
 ///   light.
 /// - The sky the game gives ([`FrameBuilder::set_sky`]) is drawn around the first directional light
-///   drawn that shows in the sky (`in_sky`), as its sun: that light is given once, to the sky and to
-///   the lights. When several show in the sky, the first one does, and a warning is logged.
+///   drawn that shows in the sky (`in_sky`), as its sun: that light is given once, to the sky and
+///   first to the lights, so that its shadows are the ones drawn when it casts any. When several
+///   show in the sky, the first in the world's order, which destroying entities can change, is the
+///   sun, and a warning is logged.
 ///
 /// The camera, the exposure and the bloom are the game's, which it sets on the scene that
 /// [`Frame::scene`] gives.
@@ -151,23 +153,7 @@ impl FrameBuilder {
             }
         }
 
-        self.lights.clear();
-        let mut sun = None;
-        let mut suns = 0;
-        for (entity, light) in world.query::<&slime_world::Light>() {
-            if hidden(world, entity) {
-                continue;
-            }
-            let Some(at) = world.interpolated_transform(entity, fraction) else {
-                continue;
-            };
-            let light = placed_light(light, at.translation, at.rotation * Vec3::NEG_Z);
-            if let (Light::Directional(directional), true) = (light, shows_in_sky(entity, world)) {
-                suns += 1;
-                sun.get_or_insert(directional);
-            }
-            self.lights.push(light);
-        }
+        let (sun, suns) = world_lights(world, fraction, &mut self.lights);
         if suns > 1 && !self.warned {
             tracing::warn!(
                 suns,
@@ -179,6 +165,13 @@ impl FrameBuilder {
         match self.sky {
             None => self.environment = None,
             Some(sky) => {
+                // The sky reads its sun's direction, color and illuminance only: a sun whose shadows
+                // change, as a game that fits them to its camera at each frame does, keeps the sky.
+                let sun = sun.map(|sun| DirectionalLight {
+                    casts_shadows: false,
+                    shadow_distance: DirectionalLight::default().shadow_distance,
+                    ..sun
+                });
                 let wanted = Sky { sun, ..sky };
                 if self.environment.as_ref().map(|(made, _)| *made) != Some(wanted) {
                     let environment = renderer.create_environment(gpu, &wanted)?;
@@ -197,6 +190,39 @@ impl FrameBuilder {
             errors,
         })
     }
+}
+
+/// Puts into `lights` the lights that `world` draws at `fraction` of a step, the sky's sun first, so
+/// that its shadows are the ones drawn when it casts any: the first directional light, in the
+/// world's order, that shows in the sky. Returns the sun, if there is one, and how many lights show
+/// in the sky.
+fn world_lights(
+    world: &World,
+    fraction: f64,
+    lights: &mut Vec<Light>,
+) -> (Option<DirectionalLight>, usize) {
+    lights.clear();
+    let mut sun = None;
+    let mut suns = 0;
+    for (entity, light) in world.query::<&slime_world::Light>() {
+        if hidden(world, entity) {
+            continue;
+        }
+        let Some(at) = world.interpolated_transform(entity, fraction) else {
+            continue;
+        };
+        let light = placed_light(light, at.translation, at.rotation * Vec3::NEG_Z);
+        if let (Light::Directional(directional), true) = (light, shows_in_sky(entity, world)) {
+            suns += 1;
+            if sun.is_none() {
+                sun = Some(directional);
+                lights.insert(0, light);
+                continue;
+            }
+        }
+        lights.push(light);
+    }
+    (sun, suns)
 }
 
 /// Whether `entity` or one of its ancestors holds [`Hidden`].
@@ -270,12 +296,58 @@ fn placed_light(
     }
 }
 
+/// Which types may cross threads (`docs/ARCHITECTURE.md`, "Threads"): checked when the tests are
+/// compiled.
+#[cfg(test)]
+mod threads {
+    use super::*;
+
+    fn send_and_sync<T: Send + Sync>() {}
+
+    #[test]
+    fn a_frame_builder_and_its_frames_can_be_shared_between_threads() {
+        send_and_sync::<FrameBuilder>();
+        send_and_sync::<Frame<'static>>();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use slime_color::LinearColor;
     use slime_render::glam::{DVec3, Quat};
 
     use super::*;
+
+    #[test]
+    fn the_sun_comes_first_among_the_lights_so_that_it_casts_the_shadows() {
+        let mut world = World::new();
+        let directional = |illuminance: f32, in_sky: bool| slime_world::Light::Directional {
+            color: LinearColor::WHITE,
+            illuminance,
+            casts_shadows: true,
+            shadow_distance: None,
+            in_sky,
+        };
+        for light in [
+            directional(1.0, false),
+            slime_world::Light::Point {
+                color: LinearColor::WHITE,
+                intensity: 2.0,
+                range: None,
+            },
+            directional(3.0, true),
+        ] {
+            let entity = world.spawn();
+            world.insert(entity, Transform::IDENTITY);
+            world.insert(entity, light);
+        }
+        let mut lights = Vec::new();
+        let (sun, suns) = world_lights(&world, 0.0, &mut lights);
+        assert_eq!(suns, 1);
+        assert_eq!(sun.map(|sun| sun.illuminance), Some(3.0));
+        assert_eq!(lights.len(), 3);
+        assert!(matches!(lights[0], Light::Directional(light) if light.illuminance == 3.0));
+    }
 
     #[test]
     fn a_hidden_ancestor_hides_its_descendants() {

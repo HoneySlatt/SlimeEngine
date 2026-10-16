@@ -190,8 +190,8 @@ nix develop -c scripts/check.sh
 tests of every target, the renderer's and the world's tests again with glam's assertions on (which
 a game that turns them on also turns on in the engine), rustdoc with warnings as errors,
 `cargo deny` (dependency licenses, security advisories and sources; it downloads the advisory
-database, so it needs network access), the list of the sample game's source assets (`scripts/fetch-assets.sh`), `slime-cook check`
-(every source asset has a metadata file of its own,
+database, so it needs network access), the list of the sample game's source assets
+(`scripts/fetch-assets.sh`), `slime-cook check` (every source asset has a metadata file of its own,
 [ADR-0069](docs/adr/0069-the-asset-pipeline.md)), the sample's assets cooked twice and compared, the
 sample game's zone fetched and cooked, and the tests that read it, the
 samples with no display server available, the windowed samples, the game and the windowed
@@ -208,10 +208,10 @@ image tests, the GPU timing test, the multi-pass test and the test that makes th
 shaders again with `--nocapture` so that its log shows what they measured on WARP, then the
 headless samples on Windows, fetches and cooks the sample game's zone and runs the tests that read
 it, runs the release build of the headless samples, and publishes the `hello`, `headless`,
-`window`, `offscreen` and `scene` examples and the `hunnawood` game built for Windows, with the
-sample cooked for `scene` and the zone cooked for the game, as an artifact named
-`slime-examples-windows`, to run by hand on a Windows machine. The Windows job runs the tests one
-at a time (`--test-threads=1`): WARP's shader compiler crashes the process, now and then, when
+`window`, `offscreen`, `scene` and `world` examples and the `hunnawood` game built for Windows,
+with the sample cooked for `scene` and `world` and the zone cooked for the game, as an artifact
+named `slime-examples-windows`, to run by hand on a Windows machine. The Windows job runs the tests
+one at a time (`--test-threads=1`): WARP's shader compiler crashes the process, now and then, when
 several threads compile shaders at once. It does not stop at the first test program that fails,
 and when a step fails, it publishes instead the images that the failing image tests rendered on
 WARP, as an artifact named `image-test-failures-windows`.

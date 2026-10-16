@@ -323,7 +323,13 @@ fn after_a_lost_device_the_cache_made_again_draws_the_same_world() {
     gpu.lose();
     drawing.cache.clear();
     drawing.builder.release();
-    let Drawing { cache, builder, .. } = drawing;
+    let Drawing {
+        renderer,
+        cache,
+        builder,
+    } = drawing;
+    // Nothing may hold the lost device when the new one opens (`Gpu::restore`).
+    drop(renderer);
     let gpu = gpu.restore().expect("a new device opens");
     let mut drawing = Drawing {
         renderer: Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer"),

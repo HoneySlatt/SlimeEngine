@@ -86,12 +86,36 @@ impl GlobalTransform {
     /// Where a child whose transform is `local` is, when this is where its parent is. The
     /// translations compose in `f64`, the rotations and scales in `f32`.
     pub fn mul_transform(&self, local: &Transform) -> Self {
+        self.compose(&Self {
+            translation: local.translation,
+            rotation: local.rotation,
+            scale: local.scale,
+        })
+    }
+
+    /// Where something is in the world that is at `relative` from where this is.
+    pub(crate) fn compose(&self, relative: &Self) -> Self {
         Self {
             translation: self.translation
-                + self.rotation.as_dquat() * (local.translation * f64::from(self.scale)),
-            rotation: (self.rotation * local.rotation).normalize(),
-            scale: self.scale * local.scale,
+                + self.rotation.as_dquat() * (relative.translation * f64::from(self.scale)),
+            rotation: (self.rotation * relative.rotation).normalize(),
+            scale: self.scale * relative.scale,
         }
+    }
+
+    /// Where this is from `origin`: what `origin.compose` places here. `None` when `origin`'s scale
+    /// is zero, which collapses everything relative to it onto one point.
+    pub(crate) fn relative_to(&self, origin: &Self) -> Option<Self> {
+        if origin.scale == 0.0 {
+            return None;
+        }
+        let back = origin.rotation.inverse();
+        Some(Self {
+            translation: back.as_dquat() * (self.translation - origin.translation)
+                / f64::from(origin.scale),
+            rotation: (back * self.rotation).normalize(),
+            scale: self.scale / origin.scale,
+        })
     }
 
     /// The transform `fraction` of the way from this one to `to`, from 0 to 1: translations in
