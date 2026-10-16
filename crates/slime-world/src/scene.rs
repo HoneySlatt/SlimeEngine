@@ -20,9 +20,9 @@ impl World {
     /// root, in the scene's order. Each holds a [`Transform`] from its node's matrix, its [`Name`]
     /// if it has one, the [`Meshes`] and the [`Light`] it places, and its [`Extras`]. Its
     /// persistent identity is `key` and the node's name, or its index, `#12`, with a warning, when
-    /// the name is missing, starts with `#` as indices do, or another node has it too: an export
-    /// that reorders the nodes keeps them, a node renamed loses its own. No two entities of a scene
-    /// get the same identity.
+    /// the name is missing, starts with `#` as indices do, holds `/`, which joins the parts of an
+    /// identity, or another node has it too: an export that reorders the nodes keeps them, a node
+    /// renamed loses its own. No two entities of a scene get the same identity.
     ///
     /// A node's matrix gives its transform as `docs/adr/0079-the-engines-own-world.md` says: three
     /// scales within 10⁻⁵ of the largest become its uniform scale; otherwise its stretch, which its

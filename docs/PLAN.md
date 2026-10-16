@@ -460,22 +460,27 @@ Risks:
 - **Outcome.** Built on 2026-10-16 ([ADR-0087](adr/0087-the-worlds-documents.md)); it also changed
   `slime-serialize` and `slime-reflect`. The owner decided that a save differs from a world that the
   game makes as at the start of a run, rather than from the scenes alone; that it is laid out by
-  entity and component, a changed component written as the fields that changed; and that every
-  entity created outside a scene is saved, as `created/<number>`, unless it or an ancestor holds
-  `Unsaved`. References between entities are written as persistent identities, through documents
-  of several values that `slime-serialize` now writes and reads; transient fields are left out, and
-  the registry refuses one without a default. The cooked zone and hero, walked, an oak removed, a
-  lantern dimmed and the key hidden, saved and loaded into a new game, equal the game saved through
-  `World::first_difference`, floats by their bits; saving again gives the same bytes; 300 steps of
-  the same input leave both the same. A save loaded on a scene changed since moves and spawns what
-  the scene now says and reports what it removed and renamed; two entities with one identity, and
-  saves malformed, newer, or cut at every character, are refused or load what they hold, without a
-  panic. The `world` example saves its world when it quits and fails if the world loaded differs;
-  `scripts/check.sh` runs it headless and windowed. A hash map from number to entity made spawning
-  100 000 entities about twice as slow and destroying them five times: a sorted vector replaced it,
-  and spawning costs about a tenth more than before M5a.8, destroying 1.7 ms more (the ADR has the
-  figures). A save cut at the boundary of a section loads what it holds (see
-  [Known debt](#known-debt)).
+  entity and component, a changed component written as the fields that changed; that every entity
+  created outside a scene is saved, as `created/<number>`, unless it or an ancestor holds
+  `Unsaved`; and that a reference to an entity destroyed or left out is written as no entity rather
+  than failing the save. References between entities are written as persistent identities, through
+  documents of several values that `slime-serialize` now writes and reads; transient fields are
+  left out, and the registry refuses one without a default. The cooked zone and hero, walked, an
+  oak removed, a lantern dimmed and the key hidden, saved and loaded into a new game, equal the game
+  saved through `World::first_difference`, floats by their bits; saving again gives the same bytes;
+  300 steps of the same input leave both the same. A save loaded on a scene changed since moves and
+  spawns what the scene now says and reports what it removed and renamed; two entities with one
+  identity, and saves malformed, newer, or cut at every character, are refused or load what they
+  hold, without a panic. The `world` example saves its world when it quits and fails if the world
+  loaded differs; `scripts/check.sh` runs it headless and windowed. A hash map from number to
+  entity made spawning and destroying entities several times slower: a sorted vector replaced it
+  (the ADR has the figures). The review found that a child could not take its parent's place on
+  loading, that an entity moved out of one removed was lost, that what a change holds whole lost its
+  transient fields' defaults, that a save could make loading or the next spawn panic, that an
+  entity left out at the start was saved as created and could not be loaded, and that saving and
+  loading cost grew with the square of the entities: each is fixed and tested, and the costs are in
+  the rustdoc of `World::save` and `World::load`. A save cut at the boundary of a section loads what
+  it holds, and a save is limited in size (see [Known debt](#known-debt)).
 
 ### M5a.9 — Saving and resuming a run
 
@@ -892,6 +897,14 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **A save cut short may load in part** (ADR-0087). A save is a document of sections: one cut at the
   boundary of a section is still a document, and loads what it holds without an error. M5a.9, which
   writes save files, makes a file either the old save or the new one.
+- **A save is text, of limited size** (ADR-0087). Saving refuses a save larger than what
+  `slime-serialize` reads, about 57 000 entities created with a name and a transform, and loading
+  takes about two and a half times as long as saving, half of it parsing the text (the rustdoc of
+  `World::save` and `World::load` has the figures). *Hunna Wood*'s saves are far below; a larger
+  world needs the binary encoding of Stage 5b, or saves read in parts.
+- **Children and queries in another order after loading** (ADR-0087). A world loaded from a save
+  holds its entities in other slots, and an entity's children in the order the save set them: what
+  must go the same way after loading cannot depend on either order.
 - **After a lost device, what is hidden loads only once shown** (ADR-0084): the cache loads what is
   drawn. In *Hunna Wood*, a key taken or a door opened before the loss shows a few frames after R
   shows them again.

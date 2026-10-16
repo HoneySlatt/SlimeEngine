@@ -4,7 +4,8 @@
 use glam::{DVec3, Quat, Vec3};
 use slime_reflect::{Kind, Problem, Range, Reflect, Registry, TypeInfo, Value, diff};
 use slime_serialize::{
-    MAX_DEPTH, MAX_SIZE, Mode, ReadProblem, read, read_file, read_partial, write, write_partial,
+    Composer, Document, MAX_DEPTH, MAX_SIZE, Mode, ReadProblem, References, read, read_file,
+    read_partial, write, write_partial,
 };
 
 /// A colour.
@@ -897,4 +898,212 @@ fn a_part_says_that_an_option_was_emptied() {
             Value::Option(Some(Box::new(Value::F32(2.5))))
         )])
     );
+}
+
+/// A lamp that hangs from an entity, and flickers in a way that saves leave out.
+#[derive(Clone, Debug, PartialEq, Reflect)]
+#[reflect(name = "test::Hanging")]
+struct Hanging {
+    from: Option<slime_reflect_entity::Handle>,
+    #[reflect(transient, default)]
+    flicker: f32,
+}
+
+/// Entity handles for the tests: a reference to an entity is a kind of value of its own, which
+/// only a world's handles describe; this one does too.
+mod slime_reflect_entity {
+    use slime_reflect::{Kind, Reflect, ReflectError, Registry, TypeInfo, Value};
+
+    /// The bits of an entity's handle.
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    pub struct Handle(pub u64);
+
+    impl Reflect for Handle {
+        fn type_name() -> String {
+            "Entity".to_owned()
+        }
+
+        fn type_info() -> TypeInfo {
+            TypeInfo {
+                name: Self::type_name(),
+                aliases: Vec::new(),
+                version: 1,
+                doc: String::new(),
+                default: None,
+                kind: Kind::Entity,
+            }
+        }
+
+        fn register_dependencies(_: &mut Registry) {}
+
+        fn to_value(&self) -> Value {
+            Value::Entity(self.0)
+        }
+
+        fn from_value(value: &Value) -> Result<Self, ReflectError> {
+            match value {
+                Value::Entity(bits) => Ok(Self(*bits)),
+                other => Err(slime_reflect::support::wrong("Entity", other)),
+            }
+        }
+    }
+}
+
+/// Names two entities, `porch` and `gate`, whose handles have the bits 1 and 2.
+struct Porch;
+
+impl References for Porch {
+    fn name(&self, entity: u64) -> Option<String> {
+        match entity {
+            1 => Some("porch".to_owned()),
+            2 => Some("gate".to_owned()),
+            _ => None,
+        }
+    }
+
+    fn entity(&self, name: &str) -> Option<u64> {
+        match name {
+            "porch" => Some(1),
+            "gate" => Some(2),
+            _ => None,
+        }
+    }
+}
+
+#[test]
+fn a_document_of_several_values_names_entities_as_its_references_do() {
+    use slime_reflect_entity::Handle;
+
+    let mut registry = Registry::new();
+    registry.register::<Hanging>();
+    registry.register::<Tint>();
+    let hanging = |from, flicker| Hanging {
+        from: Some(Handle(from)),
+        flicker,
+    };
+    // Without references, a reference to an entity is refused.
+    let mut refused = Composer::new(&registry);
+    let error = refused
+        .put(
+            &["lamps", "porch"],
+            "test::Hanging",
+            &hanging(1, 0.0).to_value(),
+        )
+        .unwrap_err();
+    assert!(error.to_string().contains("`lamps.porch.from"), "{error}");
+    let mut composer = Composer::new(&registry).naming(&Porch).without_transient();
+    let red = Tint {
+        r: 1.0,
+        g: 0.0,
+        b: 0.0,
+    };
+    composer
+        .put(
+            &["lamps", "porch"],
+            "test::Hanging",
+            &hanging(1, 0.7).to_value(),
+        )
+        .expect("a lamp");
+    composer
+        .put(
+            &["lamps", "gate"],
+            "test::Hanging",
+            &hanging(2, 0.2).to_value(),
+        )
+        .expect("a lamp");
+    composer
+        .put_part(
+            &["tints", "porch"],
+            "test::Tint",
+            &Value::Struct(vec![("r".to_owned(), Value::F32(1.0))]),
+        )
+        .expect("a part of a tint");
+    composer
+        .put(&["tints", "gate"], "test::Tint", &red.to_value())
+        .expect("a tint");
+    // A place taken, or under a value put.
+    for place in [&["lamps", "gate"][..], &["tints", "gate", "r"][..]] {
+        let error = composer
+            .put(place, "test::Tint", &red.to_value())
+            .unwrap_err();
+        assert!(
+            error.to_string().contains("holds a value already"),
+            "{error}"
+        );
+    }
+    let text = composer.finish().expect("small");
+    assert_eq!(
+        text,
+        "[lamps]\nporch = { from = \"porch\" }\ngate = { from = \"gate\" }\n\n[tints]\nporch = { r = 1.0 }\ngate = { r = 1.0, g = 0.0, b = 0.0 }\n"
+    );
+    let mut document =
+        Document::parse(&registry, &text, slime_serialize::Mode::Strict).expect("a document");
+    assert_eq!(document.keys(&["lamps"]), ["porch", "gate"]);
+    assert!(document.keys(&["nothing"]).is_empty());
+    let gate = document
+        .read(&["lamps", "gate"], "test::Hanging", Some(&Porch))
+        .expect("a lamp")
+        .expect("there");
+    assert_eq!(
+        Hanging::from_value(&gate),
+        Ok(hanging(2, 0.0)),
+        "its flicker's default"
+    );
+    let porch = document
+        .read_part(&["tints", "porch"], "test::Tint", None)
+        .expect("a part of a tint");
+    assert_eq!(
+        porch,
+        Some(Value::Struct(vec![("r".to_owned(), Value::F32(1.0))]))
+    );
+    assert_eq!(
+        document
+            .read(&["tints", "door"], "test::Tint", None)
+            .expect("nothing"),
+        None
+    );
+    // A reference read without references, or to a name that they do not know, is refused.
+    let error = document
+        .read(&["lamps", "porch"], "test::Hanging", None)
+        .unwrap_err();
+    assert!(
+        error.to_string().starts_with("line 2, column 18: "),
+        "placed: {error}"
+    );
+    let unknown = "lamps = { porch = { from = \"shed\" } }\n";
+    let mut document =
+        Document::parse(&registry, unknown, slime_serialize::Mode::Strict).expect("a document");
+    let error = document
+        .read(&["lamps", "porch"], "test::Hanging", Some(&Porch))
+        .unwrap_err();
+    assert!(
+        error.to_string().contains("no entity is named `shed`"),
+        "{error}"
+    );
+}
+
+#[test]
+fn a_document_larger_or_deeper_than_a_reader_reads_is_not_written() {
+    let mut registry = Registry::new();
+    registry.register::<String>();
+    let mut composer = Composer::new(&registry);
+    composer
+        .put(&["text"], "String", &Value::Text("x".repeat(MAX_SIZE)))
+        .expect("a text");
+    let error = composer.finish().unwrap_err();
+    assert!(error.to_string().contains("bytes"), "{error}");
+    let keys: Vec<String> = (0..MAX_DEPTH).map(|depth| format!("k{depth}")).collect();
+    let place: Vec<&str> = keys.iter().map(String::as_str).collect();
+    let mut composer = Composer::new(&registry);
+    composer
+        .put(&place, "String", &Value::Text("deep".to_owned()))
+        .expect("a text");
+    let error = composer.finish().unwrap_err();
+    assert!(error.to_string().contains("levels deep"), "{error}");
+    let mut composer = Composer::new(&registry);
+    composer
+        .put(&place[1..], "String", &Value::Text("deep".to_owned()))
+        .expect("a text");
+    let text = composer.finish().expect("as deep as a reader reads");
+    assert!(Document::parse(&registry, &text, slime_serialize::Mode::Lenient).is_ok());
 }

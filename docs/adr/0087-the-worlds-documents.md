@@ -30,7 +30,7 @@ Where the engine stood:
 
 ## Decision
 
-The owner took the first three decisions on 2026-10-16.
+The owner took the first three decisions on 2026-10-16, and the one on references to no entity.
 
 **A save differs from a start world.** `World::save(start)` writes what differs between the world
 and `start`, a world that the game made as at the start of a run: from the same scenes, prepared the
@@ -89,10 +89,17 @@ the same worlds give the same bytes.
 **Entities created outside scenes are named by a count.** `World::spawn` gives an entity the identity
 `created/<number>`, the next number of a count that starts at 1 and that saves keep. A number is never
 given twice: loading keeps the larger of the world's count and the save's, and stays above every
-number that the save creates. Every such entity is saved, with its descendants, unless it or an
-ancestor holds the engine's `Unsaved` component, which a game puts on what it makes again at each
-run, such as an effect or a projectile: forgetting the marker costs a larger save, never a lost
-entity. A reference to an unsaved entity cannot be saved, and the save is refused.
+number that the save creates. A save that creates a number past `i64::MAX`, or written otherwise
+than a world writes it (`created/01`), is refused, and a count past it is read as `i64::MAX`: the
+count never runs out, and one number has one identity. Every such entity is saved, with its
+descendants, unless it or an ancestor holds the engine's `Unsaved` component, which a game puts on
+what it makes again at each run, such as an effect or a projectile: forgetting the marker costs a
+larger save, never a lost entity.
+
+**What the start holds is never created again.** A save matches the world's entities with all of
+the start's that have an identity, saved or not. An entity that the start leaves out and the world
+saves is saved as a change of it, `Unsaved` removed; one that the start saves and the world leaves
+out since is neither changed nor removed, and loading keeps it as the start has it.
 
 **Keys and names.** `created` names no scene, and a key may be neither empty nor hold `/`:
 `spawn_scene` refuses them. A node whose name holds `/` takes its index, `#12`, as a node without a
@@ -105,23 +112,38 @@ time. Given `References`, which a world implements with its identities, they wri
 entity as its identity, as text, and read it back as the entity alive under that identity; without,
 a reference is refused, as [ADR-0086](0086-serialization.md) decided.
 
-**Transient fields are left out, and have a default.** A save leaves out the fields marked
-`transient`. A created entity's components and an added component are read back whole, so the
-registry refuses a transient field without a default: the field's own, its struct's, or its type's,
-as an option's `None`.
+**A reference to no entity is `""`.** The owner decided, when the review found that a reference to
+an entity destroyed, or left out of the save, made the whole save fail, that such a reference is
+written `""` and read back as a handle that no world gives out: it refers to no entity, as the
+handle it stands for did. A target that died, a common state in a game, never fails a save. A
+reference to an entity that the world loading the save does not have, one that a scene no longer
+holds, reads as no entity too, and is reported with its component.
 
-**Loading reads twice, then applies.** The first reading spawns the entities that the save creates,
-under their numbers, so that the references read next can name them; the second reads every value,
-lenient as a save is read, references resolved. An error in either, a save that is not one, of a
-later version, or creating an entity under an identity that the world has, leaves the world as it
-was: the entities created are destroyed again and the count restored. Then the save is applied:
-entities removed, parents set, components added, removed and changed. A difference whose entity or
-component the world no longer has, or that the component's type refuses, is set aside with its
-reason in `Loaded`, and the rest is applied.
+**Transient fields are left out, and have a default.** A save leaves out the fields marked
+`transient`, at any depth. A created entity's components and an added component are read back whole,
+and so is what a change holds whole: a variant that replaced another, a list, an option. The
+registry refuses a transient field without a default, the field's own, its struct's or its type's,
+as an option's `None`, which what is read whole takes; and a transient field of a tuple, which is
+written whole, by places.
+
+**Loading parses once, reads in two steps, then applies.** It first spawns the entities that the save
+creates, under their numbers, so that the references read next can name them; then it reads every
+value, lenient as a save is read, references resolved. An error in either, a save that is not one,
+of a later version, or creating an entity under an identity that a world does not give or that the
+world has, leaves the world as it was: the entities created are destroyed again and the count
+restored. Then the save is applied. Every entity given another parent is taken out of its own first,
+then put where the save says, so that a child can take its parent's place. The entities removed,
+found before any is, are despawned after, so that one moved out of an entity removed stays, and one
+removed with its parent is not reported as gone. Then the components are removed, added and
+changed. A difference whose entity or component the world no longer has, or that the component's
+type refuses, is set aside with its reason in `Loaded`, and the rest is applied. A scene stays
+recorded when its root is destroyed, since its entities moved elsewhere live on.
 
 **Worlds are compared once.** `World::first_difference` says the first difference between two worlds
-as saves see them, entity by entity, component by component, floats by their bits, or none. The
-tests, the `world` example and *Hunna Wood*'s test of a saved run use it.
+as saves see them, or none: an entity that one saves and the other does not have, by identity;
+and of those that both save, their parents, their components and their values without their
+transient fields, floats by their bits, references by the identities they name. The tests, the
+`world` example and *Hunna Wood*'s test of a saved run use it.
 
 **The count's index costs next to nothing.** A world finds an entity created outside a scene by its
 number through a vector of numbers and entities in the order of the numbers, which spawning keeps,
@@ -152,6 +174,8 @@ the end of M5a.3 took 15.6 ms there, against the 10.5 ms of
   that it did.
 - **Transient fields written for whole values**: no default needed, but the same field would be
   saved for some entities and not for others.
+- **A reference to no entity refused**, the save failing: a game would clear every reference to an
+  entity destroyed before it saves, or F5 would fail at any moment of a run.
 - **A hash map from number to entity**, with the standard hasher or a faster one: the measurement
   above; the faster hasher still added about half to the time of spawning.
 
@@ -167,3 +191,10 @@ the end of M5a.3 took 15.6 ms there, against the 10.5 ms of
   names.
 - A save cut short at the boundary of a section is still a document, and loads what it holds: M5a.9
   writes saves so that a file is either the old save or the new one.
+- The order of an entity's children, and the order in which queries visit entities, may differ in a
+  world loaded from a save, its entities in other slots: what must go the same way after loading
+  cannot depend on them.
+- A save is text of at most `slime_serialize::MAX_SIZE`, which saving refuses past: about 57 000
+  entities created with a name and a transform. Its cost grows in proportion with what it holds,
+  loading about two and a half times as long as saving; `World::save` and `World::load` give the
+  figures. A larger world needs the binary encoding of Stage 5b, or saves read in parts.

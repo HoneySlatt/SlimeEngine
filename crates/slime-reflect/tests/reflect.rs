@@ -1018,3 +1018,69 @@ fn what_changed_is_a_part_which_sets_the_changes_again() {
     )]);
     assert!(registry.overlay("test::Lit", &mut value, &half).is_err());
 }
+
+/// A knot of a rope, which saves see without its flutter.
+#[derive(Clone, Debug, PartialEq, Reflect)]
+#[reflect(name = "test::Knot")]
+struct Knot {
+    at: f32,
+    #[reflect(transient, default)]
+    flutter: f32,
+}
+
+/// What a part holds whole: a list and an option of knots.
+#[derive(Clone, Debug, PartialEq, Reflect)]
+#[reflect(name = "test::Rope")]
+struct Rope {
+    knots: Vec<Knot>,
+    last: Option<Knot>,
+}
+
+#[test]
+fn what_a_part_holds_whole_is_compared_and_set_without_its_transient_fields() {
+    let mut registry = Registry::new();
+    registry.register::<Rope>();
+    let knot = |at, flutter| Knot { at, flutter };
+    let rope = |flutter| Rope {
+        knots: vec![knot(1.0, flutter)],
+        last: Some(knot(2.0, flutter)),
+    };
+    let before = rope(0.0).to_value();
+    assert_eq!(
+        registry
+            .difference("test::Rope", &before, &rope(0.5).to_value(), false)
+            .expect("ropes"),
+        None,
+        "only what saves leave out"
+    );
+    // A part as a save reads it: the knots whole, without their flutter, which takes its default.
+    let saved_knot = |at| Value::Struct(vec![("at".to_owned(), Value::F32(at))]);
+    let part = Value::Struct(vec![
+        ("knots".to_owned(), Value::List(vec![saved_knot(3.0)])),
+        (
+            "last".to_owned(),
+            Value::Option(Some(Box::new(saved_knot(4.0)))),
+        ),
+    ]);
+    let mut value = rope(0.5).to_value();
+    registry
+        .overlay("test::Rope", &mut value, &part)
+        .expect("a part of a rope");
+    assert_eq!(
+        Rope::from_value(&value),
+        Ok(Rope {
+            knots: vec![knot(3.0, 0.0)],
+            last: Some(knot(4.0, 0.0)),
+        })
+    );
+}
+
+#[test]
+#[should_panic(expected = "the field `1` of a tuple is transient, but a tuple is saved whole")]
+fn a_transient_field_of_a_tuple_is_a_bug_in_the_type() {
+    /// A pair whose second half a save would have to leave out of an array.
+    #[derive(Reflect)]
+    #[reflect(name = "test::Pair")]
+    struct Pair(f32, #[reflect(transient, default)] f32);
+    Registry::new().register::<Pair>();
+}

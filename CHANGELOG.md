@@ -136,15 +136,20 @@ since the start of a run, and loads it back. *Hunna Wood* runs on it.
   writes, as a TOML document, what differs between the world and `start`, the world that the game
   makes at the start of a run: entities removed and created, components added, removed and
   changed, the changed ones by the fields that changed, parents changed, references to entities as
-  persistent identities, the same worlds giving the same bytes. `World::load` applies a save to such
-  a world, made from the scenes as they are now, sets aside with their reasons the differences it
-  can no longer apply, and names the scenes that changed since; a save that is not one leaves the
-  world as it was. Entities that hold `Unsaved`, with their descendants, and fields marked
-  transient are left out. `World::first_difference` compares two worlds as saves see them;
-  `World::insert_component_value` and `remove_component_value` attach and detach a component by
-  its type's name. The `world` example saves its world when it quits, loads the save into a world
-  spawned anew, and fails if the two differ. `slime-serialize` writes and reads documents of several
-  values, `Composer` and `Document`, references to entities named by its `References`.
+  persistent identities, and a reference to an entity destroyed or left out as `""`, no entity; the
+  same worlds give the same bytes. `World::load` applies a save to such a world, made from the
+  scenes as they are now, reports in a `Loaded` the differences that it could not apply, as
+  `SetAside`s with their reasons, and the scenes that changed since; a save that is not one leaves
+  the world as it was (`DocumentError`). Entities that hold `Unsaved`, with their descendants, and
+  fields marked transient are left out. `World::first_difference` compares two worlds as saves see
+  them; `World::insert_component_value` and `remove_component_value` attach and detach a component
+  by its type's name. The `world` example saves its world when it quits, loads the save into a world
+  spawned anew, and fails if the two differ.
+- `slime-serialize` writes and reads documents of several values, each at its place, `Composer` and
+  `Document`, references to entities named by its `References`. `slime-reflect` gives what changed
+  of a value as a part of it, `Registry::difference`, and sets a part back, `Registry::overlay`;
+  `Registry::field_default` gives the value that data which leaves a field out gives it, and
+  `is_tuple` says whether fields are a tuple's.
 
 ### Changed
 
@@ -218,7 +223,10 @@ since the start of a run, and loads it back. *Hunna Wood* runs on it.
   takes its index as its identity, `#12`. `World::register` takes a component type; `WorldError`
   gains `UnknownComponent`. `slime-world` depends on `slime-serialize`.
 - The registry refuses a transient field without a default, its own, its struct's or its type's,
-  which a save that leaves the field out gives it (ADR-0087): `#[reflect(transient, default)]`.
+  which a save that leaves the field out gives it, and a transient field of a tuple, which a save
+  writes whole (ADR-0087): `#[reflect(transient, default)]`.
+- `write` and `write_partial` refuse a document larger than `MAX_SIZE` or deeper than `MAX_DEPTH`,
+  which a reader refuses, as `Composer::finish` does.
 
 ### Removed
 

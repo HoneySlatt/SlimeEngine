@@ -88,7 +88,8 @@ pub struct Read {
 /// When `value` is not a whole value of `ty`, with the path of the part at fault: a field missing, a
 /// value of another kind, an integer wider than its type, an array of another length, a number
 /// out of its field's range, NaN or an infinity in a field that has one; and when it holds a
-/// reference to an entity, which is not written.
+/// reference to an entity, which is not written; and when the document would be larger than
+/// [`MAX_SIZE`] or nest deeper than [`MAX_DEPTH`], which [`read`] refuses.
 pub fn write(registry: &Registry, ty: &str, value: &Value) -> Result<String, ReflectError> {
     write_document(registry, ty, value, false)
 }
@@ -116,7 +117,7 @@ fn write_document(
     } else {
         composer.put(&[], ty, value)?;
     }
-    Ok(composer.finish())
+    composer.finish()
 }
 
 /// Reads the value of the type named `ty` in `registry` that `text`, a document, holds

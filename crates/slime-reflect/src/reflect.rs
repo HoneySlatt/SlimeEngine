@@ -68,7 +68,8 @@ pub type Upgrade = fn(u32, Value, bool) -> Result<Value, String>;
 ///   type's `Default` value; `skip`, which leaves the field out of the description and the value,
 ///   and gives it its `Default` value when read, as an edit through reflection reads the whole
 ///   value again; `transient`, which leaves it out of saves only, and needs a default, which a
-///   save that leaves it out gives it: the field's, its struct's or its type's;
+///   save that leaves it out gives it: the field's, its struct's or its type's; not on a tuple's
+///   field, which a save writes whole;
 ///   `range(min = 0.0, max = 1.0)`, or `above = 0.0` for a lower bound left out, each bound a
 ///   number or a constant, which edits through reflection respect, and which holds finite numbers
 ///   only; `unit = "m"`, the symbol of

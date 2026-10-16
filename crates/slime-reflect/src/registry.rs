@@ -5,6 +5,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::error::{Problem, ReflectError, RegistryError};
 use crate::info::{FieldInfo, Kind, Range, TypeInfo};
+use crate::part::is_tuple;
 use crate::path::{Path, Step};
 use crate::reflect::{Reflect, Upgrade};
 use crate::value::Value;
@@ -75,7 +76,7 @@ impl Registry {
     ///
     /// If another type has `T`'s name, or one of its names has: two types under one name would
     /// read each other's values. If a default that `T` declares is not a value of its type within
-    /// its field's range, or a transient field has no default: a bug in the type.
+    /// its field's range, or a transient field has no default or is a tuple's: a bug in the type.
     pub fn register<T: Reflect>(&mut self) {
         if self.rust.contains_key(&TypeId::of::<T>()) {
             return;
@@ -100,8 +101,8 @@ impl Registry {
     /// the registry does not hold, or when its description is not one: integers of another width
     /// than 8, 16, 32 or 64 bits, two fields or variants of one name, a field or a variant whose name
     /// or alias starts with `$`, which documents keep (`slime-serialize`), a default that is not a
-    /// value of its type within its field's range, a transient field without a default. Nothing is
-    /// registered then.
+    /// value of its type within its field's range, a transient field without a default or of a
+    /// tuple. Nothing is registered then.
     pub fn register_dynamic(&mut self, info: TypeInfo) -> Result<(), RegistryError> {
         let invalid = |reason: String| RegistryError::Invalid {
             ty: info.name.clone(),
@@ -188,7 +189,7 @@ impl Registry {
 
     /// Checks the defaults that the type named `name` declares, its own and its fields', as values
     /// of their types whose numbers lie within their fields' ranges, and that each transient field
-    /// has one: the struct's, its own or its type's.
+    /// has one ([`Registry::field_default`]), and that no field of a tuple is transient.
     fn verify_defaults(&self, name: &str) -> Result<(), String> {
         let Some(registration) = self.get(name) else {
             return Ok(());
@@ -212,12 +213,7 @@ impl Registry {
                     })?;
             }
             // A save leaves the field out, and a reader gives it its default.
-            let of_owner = matches!(&info.default, Some(Value::Struct(defaults))
-                if defaults.iter().any(|(name, _)| name == &field.name));
-            let of_type = self
-                .get(&field.ty)
-                .is_some_and(|field_type| field_type.info.default.is_some());
-            if field.transient && !of_owner && field.default.is_none() && !of_type {
+            if field.transient && self.field_default(info, field).is_none() {
                 return Err(format!(
                     "the field `{}` is transient but has no default, which a save that leaves it \
                      out would give it",
@@ -225,7 +221,50 @@ impl Registry {
                 ));
             }
         }
+        // A tuple is written whole, its fields by their places, none of which a save can leave out.
+        let tuples = match &info.kind {
+            Kind::Struct(fields) => vec![fields],
+            Kind::Enum(variants) => variants.iter().map(|variant| &variant.fields).collect(),
+            _ => Vec::new(),
+        };
+        let transient = tuples
+            .into_iter()
+            .filter(|fields| is_tuple(fields))
+            .flatten()
+            .find(|field| field.transient);
+        if let Some(field) = transient {
+            return Err(format!(
+                "the field `{}` of a tuple is transient, but a tuple is saved whole",
+                field.name
+            ));
+        }
         Ok(())
+    }
+
+    /// The value that data which leaves out `field`, a field of a struct or of a variant of the type
+    /// that `owner` describes, gives it, if it gives one: none for an option, whatever its defaults
+    /// say; otherwise the field's value in its struct's default, the field's own default, or its
+    /// type's. What a document read whole gives a field that it leaves out, and what a save gives a
+    /// transient field.
+    pub fn field_default(&self, owner: &TypeInfo, field: &FieldInfo) -> Option<Value> {
+        let field_type = self.get(&field.ty).map(Registration::info);
+        if let Some(TypeInfo {
+            kind: Kind::Option(_),
+            ..
+        }) = field_type
+        {
+            return Some(Value::Option(None));
+        }
+        let of_owner = match &owner.default {
+            Some(Value::Struct(defaults)) => defaults
+                .iter()
+                .find(|(name, _)| name == &field.name)
+                .map(|(_, value)| value.clone()),
+            _ => None,
+        };
+        of_owner
+            .or_else(|| field.default.clone())
+            .or_else(|| field_type?.default.clone())
     }
 
     /// Adds a registration under its name and aliases.

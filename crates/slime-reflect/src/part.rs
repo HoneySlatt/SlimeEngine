@@ -1,9 +1,9 @@
 //! Parts of values: what changed of a value, as a save holds it, and those changes set.
 
 use crate::error::{Problem, ReflectError};
-use crate::info::{FieldInfo, Kind};
+use crate::info::{FieldInfo, Kind, TypeInfo};
 use crate::path::{Path, Step};
-use crate::registry::Registry;
+use crate::registry::{Registration, Registry};
 use crate::value::Value;
 
 /// Whether `fields` are a tuple's: named `0`, `1`, ... in order. A part holds a tuple whole.
@@ -20,7 +20,8 @@ impl Registry {
     /// the fields of its structs, and of its enums when both hold the same variant, that differ,
     /// at any depth; whole, whatever else differs: numbers, text, tuples, lists, options, a variant
     /// that another replaced. `None` when nothing differs, floats compared by their bits. Fields
-    /// marked transient are left out unless `transient`: what a save leaves out.
+    /// marked transient are left out unless `transient`, at any depth, what it holds whole
+    /// compared without them: what a save leaves out.
     ///
     /// ```
     /// use slime_reflect::{Reflect, Registry, Value};
@@ -76,12 +77,73 @@ impl Registry {
                     Some(variant) if !is_tuple(&variant.fields) => self
                         .changed_fields(&variant.fields, from_fields, to_fields, transient)?
                         .map(|fields| Value::Enum(to_name.clone(), fields)),
-                    _ => (!from.same(to)).then(|| to.clone()),
+                    _ => self.differs(ty, from, to, transient).then(|| to.clone()),
                 }
             }
-            _ => (!from.same(to)).then(|| to.clone()),
+            _ => self.differs(ty, from, to, transient).then(|| to.clone()),
         };
         Ok(changed)
+    }
+
+    /// Whether `from` and `to`, values of the type named `ty`, differ, floats by their bits; their
+    /// transient fields, at any depth, compared only if `transient`.
+    fn differs(&self, ty: &str, from: &Value, to: &Value, transient: bool) -> bool {
+        if transient {
+            return !from.same(to);
+        }
+        !self
+            .without_transient(ty, from)
+            .same(&self.without_transient(ty, to))
+    }
+
+    /// `value`, a value of the type named `ty`, without its transient fields, at any depth: what a
+    /// save holds of it.
+    fn without_transient(&self, ty: &str, value: &Value) -> Value {
+        let Some(info) = self.get(ty).map(Registration::info) else {
+            return value.clone();
+        };
+        match (&info.kind, value) {
+            (Kind::Struct(fields), Value::Struct(values)) => {
+                Value::Struct(self.saved_fields(fields, values))
+            }
+            (Kind::Enum(variants), Value::Enum(name, values)) => {
+                match variants.iter().find(|variant| &variant.name == name) {
+                    Some(variant) => {
+                        Value::Enum(name.clone(), self.saved_fields(&variant.fields, values))
+                    }
+                    None => value.clone(),
+                }
+            }
+            (Kind::Option(inner), Value::Option(Some(held))) => {
+                Value::Option(Some(Box::new(self.without_transient(inner, held))))
+            }
+            (Kind::List { element, .. }, Value::List(elements)) => Value::List(
+                elements
+                    .iter()
+                    .map(|element_value| self.without_transient(element, element_value))
+                    .collect(),
+            ),
+            _ => value.clone(),
+        }
+    }
+
+    /// `values`, the fields of a struct or a variant that `fields` describes, without the transient
+    /// ones, at any depth.
+    fn saved_fields(
+        &self,
+        fields: &[FieldInfo],
+        values: &[(String, Value)],
+    ) -> Vec<(String, Value)> {
+        values
+            .iter()
+            .filter_map(
+                |(name, value)| match fields.iter().find(|field| &field.name == name) {
+                    Some(field) if field.transient => None,
+                    Some(field) => Some((name.clone(), self.without_transient(&field.ty, value))),
+                    None => Some((name.clone(), value.clone())),
+                },
+            )
+            .collect()
     }
 
     /// The fields of `to` that differ from those of `from`, which `fields` describes, each as a part.
@@ -116,7 +178,10 @@ impl Registry {
     /// Sets in `value`, a value of the type named `ty`, what `part` holds, a part of a value as
     /// [`Registry::difference`] makes it: each of its fields in place of `value`'s, at any depth, and
     /// whole what it holds whole, as [`Registry::set`] sets it, within the fields' ranges. A variant
-    /// other than the one that `value` holds is set whole: the part must hold all of its fields.
+    /// other than the one that `value` holds is set whole: the part must hold all of its fields. What
+    /// it holds whole takes the defaults of the fields that it leaves out
+    /// ([`Registry::field_default`]), as a value read whole does: the transient fields that a save
+    /// leaves out.
     ///
     /// # Errors
     ///
@@ -126,21 +191,68 @@ impl Registry {
     pub fn overlay(&self, ty: &str, value: &mut Value, part: &Value) -> Result<(), ReflectError> {
         let mut leaves = Vec::new();
         self.part_leaves(ty, value, part, Path::default(), &mut leaves)?;
-        for (path, leaf) in leaves {
+        for (path, leaf_type, mut leaf) in leaves {
+            self.complete(&leaf_type, &mut leaf);
             self.set(ty, value, &path, leaf)?;
         }
         Ok(())
     }
 
-    /// The values that `part`, a part of `value`, sets whole, with their paths: the fields of its
-    /// structs, and of its enums that hold the variant that `value` holds, gone through.
+    /// Gives `value`, a value of the type named `ty`, the fields that it leaves out and that have a
+    /// default, at any depth.
+    fn complete(&self, ty: &str, value: &mut Value) {
+        let Some(info) = self.get(ty).map(Registration::info) else {
+            return;
+        };
+        match (&info.kind, value) {
+            (Kind::Struct(fields), Value::Struct(values)) => {
+                self.complete_fields(info, fields, values);
+            }
+            (Kind::Enum(variants), Value::Enum(name, values)) => {
+                if let Some(variant) = variants.iter().find(|variant| &variant.name == name) {
+                    self.complete_fields(info, &variant.fields, values);
+                }
+            }
+            (Kind::Option(inner), Value::Option(Some(held))) => self.complete(inner, held),
+            (Kind::List { element, .. }, Value::List(elements)) => {
+                for element_value in elements {
+                    self.complete(element, element_value);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Gives `values`, the fields of a struct or a variant of the type `owner`, which `fields`
+    /// describes, those that they leave out and that have a default, at any depth.
+    fn complete_fields(
+        &self,
+        owner: &TypeInfo,
+        fields: &[FieldInfo],
+        values: &mut Vec<(String, Value)>,
+    ) {
+        for field in fields {
+            match values.iter_mut().find(|(name, _)| name == &field.name) {
+                Some((_, held)) => self.complete(&field.ty, held),
+                None => {
+                    if let Some(default) = self.field_default(owner, field) {
+                        values.push((field.name.clone(), default));
+                    }
+                }
+            }
+        }
+    }
+
+    /// The values that `part`, a part of `value`, sets whole, with their paths and their types: the
+    /// fields of its structs, and of its enums that hold the variant that `value` holds, gone
+    /// through.
     fn part_leaves(
         &self,
         ty: &str,
         value: &Value,
         part: &Value,
         path: Path,
-        leaves: &mut Vec<(Path, Value)>,
+        leaves: &mut Vec<(Path, String, Value)>,
     ) -> Result<(), ReflectError> {
         let kind = &self
             .get(ty)
@@ -165,7 +277,7 @@ impl Registry {
             _ => None,
         };
         let Some((fields, values, parts)) = fields else {
-            leaves.push((path, part.clone()));
+            leaves.push((path, ty.to_owned(), part.clone()));
             return Ok(());
         };
         for (name, part_value) in parts {
@@ -184,7 +296,7 @@ impl Registry {
                 })?;
             match values.iter().find(|(field_name, _)| field_name == name) {
                 Some((_, held)) => self.part_leaves(&field.ty, held, part_value, at, leaves)?,
-                None => leaves.push((at, part_value.clone())),
+                None => leaves.push((at, field.ty.clone(), part_value.clone())),
             }
         }
         Ok(())

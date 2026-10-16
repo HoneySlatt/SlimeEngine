@@ -547,34 +547,16 @@ impl Reader<'_> {
                     read.push((field.name.clone(), value));
                 }
                 None if self.partial => {}
-                // An option left out holds none, whatever its default says: so it is written.
-                None if matches!(kind_of(self.registry, &field.ty), Some(Kind::Option(_))) => {
-                    read.push((field.name.clone(), Value::Option(None)));
-                }
                 None => {
                     let default = self
-                        .default(owner, field)
+                        .registry
+                        .field_default(owner, field)
                         .ok_or_else(|| fail(at, Problem::MissingField(field.name.clone())))?;
                     read.push((field.name.clone(), default));
                 }
             }
         }
         Ok(read)
-    }
-
-    /// The value of `field`, of a struct or a variant of `owner`, that a document which leaves it
-    /// out gives: the field's in the struct's default, the field's own default, or its type's.
-    fn default(&self, owner: &TypeInfo, field: &FieldInfo) -> Option<Value> {
-        let of_owner = match &owner.default {
-            Some(Value::Struct(defaults)) => defaults
-                .iter()
-                .find(|(name, _)| name == &field.name)
-                .map(|(_, value)| value.clone()),
-            _ => None,
-        };
-        of_owner
-            .or_else(|| field.default.clone())
-            .or_else(|| self.registry.get(&field.ty)?.info().default.clone())
     }
 
     /// Refuses `number`, an integer of the type `info`, if it does not fit the type's width.
@@ -600,13 +582,6 @@ fn info<'a>(registry: &'a Registry, ty: &str) -> Result<&'a TypeInfo, Problem> {
         .get(ty)
         .map(|registration| registration.info())
         .ok_or_else(|| Problem::NotRegistered(ty.to_owned()))
-}
-
-/// The kind of the type named `ty`, if it is registered.
-fn kind_of<'a>(registry: &'a Registry, ty: &str) -> Option<&'a Kind> {
-    registry
-        .get(ty)
-        .map(|registration| &registration.info().kind)
 }
 
 /// What a value as a document holds it is, in TOML's words.

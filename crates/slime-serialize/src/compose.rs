@@ -2,13 +2,14 @@
 //! what a world's documents and saves are. [`write`](crate::write) and [`read`](crate::read) write
 //! and read a document of one value through them.
 
+use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
 
 use slime_reflect::{Path, Problem, ReflectError, Registry, Step, Value};
 
 use crate::document::{Failure, Reader, Writer};
 use crate::error::{ReadError, ReadProblem};
-use crate::{MAX_SIZE, Mode, References, format, text};
+use crate::{MAX_DEPTH, MAX_SIZE, Mode, References, format, text};
 
 /// The root's key of the version of the format.
 const FORMAT: &str = "$format";
@@ -19,7 +20,8 @@ const VALUE: &str = "$value";
 
 /// Writes a document of several values, each a value of a registered type at its place: the keys
 /// of the tables that lead to it from the root, made where missing. One `$versions` holds the
-/// versions of the types of all of them.
+/// versions of the types of all of them. Putting a value costs a lookup per key of its place,
+/// whatever how many the document holds.
 ///
 /// ```
 /// use slime_reflect::{Registry, Value};
@@ -30,11 +32,14 @@ const VALUE: &str = "$value";
 /// let mut composer = Composer::new(&registry);
 /// composer.put(&["lamps", "porch"], "f32", &Value::F32(30.0)).expect("a number");
 /// composer.put(&["lamps", "gate"], "f32", &Value::F32(12.0)).expect("a number");
-/// assert_eq!(composer.finish(), "lamps = { porch = 30.0, gate = 12.0 }\n");
+/// assert_eq!(composer.finish().expect("small"), "lamps = { porch = 30.0, gate = 12.0 }\n");
 /// ```
 pub struct Composer<'a> {
     writer: Writer<'a>,
     root: Vec<(String, Value)>,
+    /// Each place that holds something, by its keys from the root: where it is in its table, and
+    /// whether it is a table that the composer made to lead to a value, which a value can go into.
+    places: HashMap<Vec<String>, (usize, bool)>,
 }
 
 impl<'a> Composer<'a> {
@@ -49,6 +54,7 @@ impl<'a> Composer<'a> {
                 partial: false,
             },
             root: Vec::new(),
+            places: HashMap::new(),
         }
     }
 
@@ -72,7 +78,7 @@ impl<'a> Composer<'a> {
     /// # Errors
     ///
     /// As [`write`](crate::write), the path of the part at fault from the root; and when `place`
-    /// goes through a value that is not a table, or holds a value already.
+    /// goes through a value put, or holds one already.
     pub fn put(&mut self, place: &[&str], ty: &str, value: &Value) -> Result<(), ReflectError> {
         self.put_value(place, ty, value, false)
     }
@@ -115,19 +121,29 @@ impl<'a> Composer<'a> {
             )))
         };
         let Some((last, parents)) = place.split_last() else {
+            if !self.root.is_empty() {
+                return Err(occupied());
+            }
             match document {
-                Value::Struct(fields) if self.root.is_empty() => self.root = fields,
-                other if self.root.is_empty() => self.root.push((VALUE.to_owned(), other)),
-                _ => return Err(occupied()),
+                Value::Struct(fields) => self.root = fields,
+                other => self.root.push((VALUE.to_owned(), other)),
+            }
+            for (index, (key, _)) in self.root.iter().enumerate() {
+                self.places.insert(vec![key.clone()], (index, false));
             }
             return Ok(());
         };
+        let places = &mut self.places;
         let mut table = &mut self.root;
+        let mut keys = Vec::with_capacity(place.len());
         for key in parents {
-            let index = match table.iter().position(|(name, _)| name == key) {
-                Some(index) => index,
+            keys.push((*key).to_owned());
+            let index = match places.get(&keys) {
+                Some(&(index, true)) => index,
+                Some(&(_, false)) => return Err(occupied()),
                 None => {
                     table.push(((*key).to_owned(), Value::Struct(Vec::new())));
+                    places.insert(keys.clone(), (table.len() - 1, true));
                     table.len() - 1
                 }
             };
@@ -136,16 +152,23 @@ impl<'a> Composer<'a> {
                 _ => return Err(occupied()),
             };
         }
-        if table.iter().any(|(name, _)| name == last) {
+        keys.push((*last).to_owned());
+        if places.contains_key(&keys) {
             return Err(occupied());
         }
         table.push(((*last).to_owned(), document));
+        places.insert(keys, (table.len() - 1, false));
         Ok(())
     }
 
     /// The document's text: `$versions` first, if a type past version 1 is in it, then the values in
     /// the order they were put.
-    pub fn finish(self) -> String {
+    ///
+    /// # Errors
+    ///
+    /// When the text would be larger than [`MAX_SIZE`], or nest deeper than [`MAX_DEPTH`], which a
+    /// reader refuses: what is written can be read.
+    pub fn finish(self) -> Result<String, ReflectError> {
         let mut root = Vec::new();
         if !self.writer.versions.is_empty() {
             let versions = self
@@ -157,7 +180,40 @@ impl<'a> Composer<'a> {
             root.push((VERSIONS.to_owned(), Value::Struct(versions)));
         }
         root.extend(self.root);
-        text::print(&root)
+        let depth = 1 + root
+            .iter()
+            .map(|(_, value)| depth(value))
+            .max()
+            .unwrap_or(0);
+        if depth > MAX_DEPTH {
+            return Err(ReflectError::new(Problem::Invalid(format!(
+                "the document would nest {depth} levels deep, past the {MAX_DEPTH} that a reader reads"
+            ))));
+        }
+        let text = text::print(&root);
+        if text.len() > MAX_SIZE {
+            return Err(ReflectError::new(Problem::Invalid(format!(
+                "the document would be {} bytes, past the {MAX_SIZE} that a reader reads",
+                text.len()
+            ))));
+        }
+        Ok(text)
+    }
+}
+
+/// How deep `value` nests, as a reader counts it: 1 for a value that holds no other, one more for
+/// each table or array that holds it.
+fn depth(value: &Value) -> usize {
+    match value {
+        Value::Struct(fields) => {
+            1 + fields
+                .iter()
+                .map(|(_, field)| depth(field))
+                .max()
+                .unwrap_or(0)
+        }
+        Value::List(elements) => 1 + elements.iter().map(depth).max().unwrap_or(0),
+        _ => 1,
     }
 }
 
@@ -172,6 +228,8 @@ pub struct Document<'a> {
     versions: HashMap<String, u32>,
     mode: Mode,
     warnings: Vec<ReadError>,
+    /// The place of each key of each table that a lookup went through, by the keys of the table.
+    index: RefCell<HashMap<Vec<String>, HashMap<String, usize>>>,
 }
 
 impl<'a> Document<'a> {
@@ -209,6 +267,7 @@ impl<'a> Document<'a> {
             versions: HashMap::new(),
             mode,
             warnings: Vec::new(),
+            index: RefCell::default(),
         };
         read.format()?;
         read.versions()?;
@@ -361,6 +420,7 @@ impl<'a> Document<'a> {
     /// does: its root table, or its `$value`.
     pub(crate) fn root(&mut self, ty: &str, partial: bool) -> Result<Value, ReadError> {
         let mut root = std::mem::take(&mut self.root);
+        self.index.get_mut().clear();
         let (document, at) = match take(&mut root, VALUE) {
             Some(value) => {
                 if let Some((key, _)) = root.first() {
@@ -411,20 +471,31 @@ impl<'a> Document<'a> {
         std::mem::take(&mut self.warnings)
     }
 
-    /// The document's value at `place`, if it holds one.
+    /// The document's value at `place`, if it holds one: a lookup per key, each table's keys found
+    /// once, the first time a place goes through it.
     fn at(&self, place: &[&str]) -> Option<&Value> {
+        let mut index = self.index.borrow_mut();
         let mut fields = &self.root;
+        let mut table = Vec::with_capacity(place.len());
         let (last, parents) = place.split_last()?;
+        let mut find = |table: &[String], fields: &[(String, Value)], key: &str| {
+            let keys = index.entry(table.to_vec()).or_insert_with(|| {
+                fields
+                    .iter()
+                    .enumerate()
+                    .map(|(position, (name, _))| (name.clone(), position))
+                    .collect()
+            });
+            keys.get(key).copied()
+        };
         for key in parents {
-            match fields.iter().find(|(name, _)| name == key) {
-                Some((_, Value::Struct(inner))) => fields = inner,
+            match find(&table, fields, key).map(|position| &fields[position].1) {
+                Some(Value::Struct(inner)) => fields = inner,
                 _ => return None,
             }
+            table.push((*key).to_owned());
         }
-        fields
-            .iter()
-            .find(|(name, _)| name == last)
-            .map(|(_, value)| value)
+        find(&table, fields, last).map(|position| &fields[position].1)
     }
 
     /// The error that `failure` makes, placed in the text: at the key of a field unknown or given

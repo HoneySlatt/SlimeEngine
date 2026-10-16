@@ -20,6 +20,13 @@ pub struct Entity {
 }
 
 impl Entity {
+    /// A handle that no world gives out, since no world holds a slot of its index: what a save's
+    /// reference to no entity reads as.
+    pub(crate) const NONE: Self = Self {
+        index: u32::MAX,
+        generation: NonZeroU32::MIN,
+    };
+
     /// The index of the entity's slot in its world.
     pub(crate) fn index(self) -> u32 {
         self.index

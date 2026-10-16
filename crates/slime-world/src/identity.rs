@@ -52,10 +52,15 @@ impl PersistentId {
         Self(vec![CREATED.to_owned(), number.to_string()])
     }
 
-    /// The number of the entity created outside a scene that this identity names, if it names one.
+    /// The number of the entity created outside a scene that this identity names, if it names one:
+    /// written as a world writes it, without a sign or a leading zero, so that one number has one
+    /// identity.
     pub(crate) fn created_number(&self) -> Option<u64> {
         match self.0.as_slice() {
-            [key, number] if key == CREATED => number.parse().ok(),
+            [key, number] if key == CREATED => number
+                .parse::<u64>()
+                .ok()
+                .filter(|parsed| parsed.to_string() == *number),
             _ => None,
         }
     }
@@ -75,7 +80,7 @@ pub(crate) const CREATED: &str = "created";
 
 /// Text that is not a persistent identity: an empty part, as `zone//door` or `` give.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
-#[error("`{0}` is not a persistent identity: its parts, between `/`, are not empty")]
+#[error("`{0}` is not a persistent identity: a part between `/` is empty")]
 pub struct ParsePersistentIdError(String);
 
 /// The identity whose parts `text` joins with `/`.

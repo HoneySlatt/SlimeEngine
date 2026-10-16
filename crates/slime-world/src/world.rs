@@ -100,8 +100,9 @@ pub struct World {
     /// The number that the next entity created outside a scene takes, from 1: saves keep it, so that
     /// no number is given twice.
     pub(crate) next_created: u64,
-    /// The scenes spawned in the world, by the keys they were spawned under, while their roots live:
-    /// what a save names, so that loading it says which changed since.
+    /// The scenes spawned in the world, by the keys they were spawned under, the last under each:
+    /// what a save names, so that loading it says which changed since. A scene stays when its root
+    /// is destroyed, since its entities moved elsewhere live on.
     pub(crate) scenes: BTreeMap<String, SpawnedScene>,
     /// How many transforms in the world were computed again, for the tests.
     #[cfg(test)]
@@ -394,9 +395,6 @@ impl World {
         match node.identity {
             Identity::None => {}
             Identity::Scene(identity) => {
-                if let [key] = identity.parts() {
-                    self.scenes.remove(key);
-                }
                 self.identities.remove(&identity);
             }
             Identity::Created(_) => self.created.destroyed(&self.entities),
