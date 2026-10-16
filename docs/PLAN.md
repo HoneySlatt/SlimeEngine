@@ -26,8 +26,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   2026-10-16: the hierarchy, transforms in double precision, and cooked scenes spawned as entities
   ([ADR-0083](adr/0083-transforms-and-the-hierarchy.md)). M5a.3 done on 2026-10-16: the world drawn
   from an asset cache through `slime-world-render`, what moves drawn between fixed steps
-  ([ADR-0084](adr/0084-what-the-world-draws.md)). M5a.4 built: *Hunna Wood* runs on the world; the
-  owner plays it, and CI checks it.
+  ([ADR-0084](adr/0084-what-the-world-draws.md)). M5a.4 done on 2026-10-16: *Hunna Wood* runs on the
+  world, which holds its run.
 
 ## Status
 
@@ -36,7 +36,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M5a.1](#m5a1--the-world-entities-and-components) | Entities and their components live in a world, without a GPU or a window | Done |
 | [M5a.2](#m5a2--the-hierarchy-and-the-transforms) | Entities are placed by a hierarchy of transforms in double precision; a cooked scene becomes entities | Done |
 | [M5a.3](#m5a3--what-the-world-draws) | The renderer draws a world, and what moves between its last two fixed steps | Done |
-| [M5a.4](#m5a4--hunna-wood-on-the-world) | *Hunna Wood* runs on the world, and changes only what moves | Built; the owner plays it, CI checks it |
+| [M5a.4](#m5a4--hunna-wood-on-the-world) | *Hunna Wood* runs on the world, and changes only what moves | Done |
 | [M5a.5](#m5a5--reflection) | The engine and the game describe, read and change their types' values through one registry | Planned |
 | [M5a.6](#m5a6--any-component-listed-and-edited) | Any component's properties are listed and edited in the running game | Planned |
 | [M5a.7](#m5a7--serialization-with-format-versioning) | Any reflected value is written to a file and read back, even from an older version of its type | Planned |
@@ -258,7 +258,7 @@ Risks:
   Linux and finds it unchanged; CI is green.
 - **How to test.** `cargo test -p hunnawood`, and with `-- --ignored`; `cargo run -p hunnawood`,
   with `--night`, `--lose-device-at 300` and `--watch`.
-- **Outcome.** Built on 2026-10-16. The zone and the hero are spawned in the game's world before
+- **Outcome.** Done on 2026-10-16. The zone and the hero are spawned in the game's world before
   the window opens, and the game gives the zone's entities components of its own, read from their
   extras: `Collider`, `Marker`, `TimeOfDay`, and `Flickers` for the campfire's light. The run is in
   the world: the hero is where the root of its scene stands, which the world draws between fixed
@@ -284,7 +284,8 @@ Risks:
   17 to 27 ms in nine runs, below ADR-0072's 33 ms (ADR-0074 measured 8 to 22 ms); by day at the
   start, the game's work takes 1.66 ms per frame at the median of four runs, against 1.55 ms for
   0.2 on the same zone: about 0.1 ms more, most of it the frame built from the world (M5a.3). The
-  owner plays it next.
+  owner played it on Linux and found it unchanged. CI took 12 minutes 42 seconds on Linux and 18
+  minutes 1 second on Windows.
 
 ### M5a.5 — Reflection
 
