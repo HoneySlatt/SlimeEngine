@@ -2,6 +2,8 @@
 
 use std::sync::LazyLock;
 
+use slime_reflect::Reflect;
+
 /// A color with linear components: values proportional to the light they stand for, which light
 /// adds and multiplies as they are, not sRGB-encoded as the values of a color picker or of a web
 /// color are ([`LinearColor::from_srgb8`] converts those). Every color of the engine's API is one
@@ -17,7 +19,8 @@ use std::sync::LazyLock;
 /// 0 and 1; `Rgba16Float` targets keep a half-precision value next to each component, beyond 0 to
 /// 1 included: the driver rounds to the nearest value or toward zero, and a magnitude beyond
 /// 65 504 becomes ±65 504 or an infinity.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
+#[reflect(name = "LinearColor")]
 pub struct LinearColor {
     /// Red.
     pub r: f32,

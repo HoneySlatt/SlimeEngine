@@ -4,8 +4,8 @@
 //!
 //! An *asset* is data that a game loads rather than builds in code: a texture, a mesh, a material,
 //! a scene. Each has an [`AssetId`], which stays the same when its source file is moved or renamed.
-//! This crate depends on no other engine crate and on no GPU, so that it runs headless; the
-//! cooker, `slime-cook`, makes what it reads.
+//! This crate depends on no GPU, and on no other engine crate than `slime-reflect`, so that it runs
+//! headless; the cooker, `slime-cook`, makes what it reads.
 
 mod bytes;
 mod cooked;
@@ -112,9 +112,58 @@ impl FromStr for AssetId {
     }
 }
 
+/// A reference to an asset, a kind of value of its own: [`Value::Asset`](slime_reflect::Value),
+/// its 128 bits.
+impl slime_reflect::Reflect for AssetId {
+    fn type_name() -> String {
+        "AssetId".to_owned()
+    }
+
+    fn type_info() -> slime_reflect::TypeInfo {
+        slime_reflect::TypeInfo {
+            name: Self::type_name(),
+            aliases: Vec::new(),
+            version: 1,
+            doc: "The identity of an asset: a 128-bit number, written as a UUID.".to_owned(),
+            default: false,
+            kind: slime_reflect::Kind::Asset,
+        }
+    }
+
+    fn register_dependencies(_: &mut slime_reflect::Registry) {}
+
+    fn to_value(&self) -> slime_reflect::Value {
+        slime_reflect::Value::Asset(self.0)
+    }
+
+    fn from_value(value: &slime_reflect::Value) -> Result<Self, slime_reflect::ReflectError> {
+        match *value {
+            slime_reflect::Value::Asset(id) => Ok(Self(id)),
+            _ => Err(slime_reflect::support::wrong("AssetId", value)),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use slime_reflect::{Reflect, Value};
+
     use super::*;
+
+    #[test]
+    fn an_id_is_a_reference_to_an_asset_and_a_custom_value_round_trips() {
+        let id = AssetId::from_u128(0x0123_4567_89ab_cdef_fedc_ba98_7654_3210);
+        assert_eq!(id.to_value(), Value::Asset(id.as_u128()));
+        assert_eq!(AssetId::from_value(&id.to_value()), Ok(id));
+        assert!(AssetId::from_value(&Value::UInt(1)).is_err());
+        for extra in [
+            Extra::Bool(true),
+            Extra::Number(2.5),
+            Extra::Text("door".to_owned()),
+        ] {
+            assert_eq!(Extra::from_value(&extra.to_value()), Ok(extra));
+        }
+    }
 
     #[test]
     fn an_id_is_written_and_read_back_as_a_uuid() {

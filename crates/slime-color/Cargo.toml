@@ -9,3 +9,7 @@ publish.workspace = true
 
 [lints]
 workspace = true
+
+[dependencies]
+# Describes the color type to reflection, where the type is defined (ADR-0080).
+slime-reflect.workspace = true

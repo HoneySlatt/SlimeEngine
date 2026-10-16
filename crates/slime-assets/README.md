@@ -37,11 +37,12 @@ ID, which `slime-render` does in the background, from threads of its own.
 
 ## Dependencies
 
-No engine crate. `ktx2` to read and write KTX2 files, `thiserror` for its error types.
+`slime-reflect`, which it describes its asset IDs and the custom values of nodes to, and no other
+engine crate. `ktx2` to read and write KTX2 files, `thiserror` for its error types.
 
 ## Must not
 
-- Depend on the GPU, a window or another engine crate: it runs headless, and the renderer
-  depends on it to load its own kinds of asset.
+- Depend on the GPU, a window or another engine crate than `slime-reflect`: it runs headless, and
+  the renderer depends on it to load its own kinds of asset.
 - Link an importer or an encoder: those belong to `slime-cook`, which a shipped game does not
   link.

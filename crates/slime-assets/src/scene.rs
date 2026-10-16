@@ -10,7 +10,8 @@ const MAGIC: &[u8; 4] = b"SLSC";
 const VERSION: u32 = 1;
 
 /// A custom value of a node: one of glTF's `extras`, as Blender writes a custom property.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, slime_reflect::Reflect)]
+#[reflect(name = "Extra")]
 pub enum Extra {
     /// A boolean.
     Bool(bool),

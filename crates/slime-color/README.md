@@ -30,11 +30,12 @@ The rustdoc holds the contracts: which values each component takes, and how byte
 
 ## Dependencies
 
-None: the standard library only.
+`slime-reflect`, which it describes `LinearColor` to
+(`docs/adr/0080-reflection-and-serialization.md`).
 
 ## Must not
 
-- Depend on another crate of the engine, or on the GPU: every crate that holds a color depends on
-  it.
+- Depend on another crate of the engine than `slime-reflect`, or on the GPU: every crate that holds
+  a color depends on it.
 - Check the values of a color: what a valid color is depends on the field that holds it (a clear
   color may be negative on a floating-point target, a sky must stay within half precision).
