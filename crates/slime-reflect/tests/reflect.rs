@@ -862,3 +862,106 @@ fn a_default_out_of_its_field_s_range_is_a_bug_in_the_type() {
     }
     Registry::new().register::<Size>();
 }
+
+/// A lamp on a post, with a part that saves leave out.
+#[derive(Clone, Debug, PartialEq, Reflect)]
+#[reflect(name = "test::Lit")]
+struct Lit {
+    lamp: Lamp,
+    tint: Tint,
+    hours: Vec<u8>,
+    #[reflect(transient, default)]
+    flicker: f32,
+}
+
+#[test]
+fn what_changed_is_a_part_which_sets_the_changes_again() {
+    let mut registry = Registry::new();
+    registry.register::<Lit>();
+    let point = |intensity, range| Lamp::Point {
+        tint: Tint {
+            r: 1.0,
+            g: 0.5,
+            b: 0.25,
+        },
+        intensity,
+        range,
+    };
+    let lit = |lamp, g, hours: Vec<u8>, flicker| Lit {
+        lamp,
+        tint: Tint { r: 1.0, g, b: 0.0 },
+        hours,
+        flicker,
+    };
+    let before = lit(point(30.0, Some(5.0)), 0.5, vec![1, 2], 0.0).to_value();
+    let difference = |after: &Lit, transient| {
+        registry
+            .difference("test::Lit", &before, &after.to_value(), transient)
+            .expect("lamps")
+    };
+    // A field of a struct, and of the variant held: each alone; an option and a list whole.
+    let after = lit(point(12.0, None), 0.75, vec![1, 2, 3], 0.0);
+    let part = difference(&after, false).expect("a change");
+    assert_eq!(
+        part,
+        Value::Struct(vec![
+            (
+                "lamp".to_owned(),
+                Value::Enum(
+                    "Point".to_owned(),
+                    vec![
+                        ("intensity".to_owned(), Value::F32(12.0)),
+                        ("range".to_owned(), Value::Option(None)),
+                    ]
+                )
+            ),
+            (
+                "tint".to_owned(),
+                Value::Struct(vec![("g".to_owned(), Value::F32(0.75))])
+            ),
+            (
+                "hours".to_owned(),
+                Value::List(vec![Value::UInt(1), Value::UInt(2), Value::UInt(3)])
+            ),
+        ])
+    );
+    let mut value = before.clone();
+    registry
+        .overlay("test::Lit", &mut value, &part)
+        .expect("a part of a lit lamp");
+    assert_eq!(Lit::from_value(&value), Ok(after));
+    // Another variant, whole; a transient field, left out unless asked for.
+    let ambient = lit(Lamp::Ambient, 0.5, vec![1, 2], 0.9);
+    assert_eq!(
+        difference(&ambient, false),
+        Some(Value::Struct(vec![(
+            "lamp".to_owned(),
+            Value::Enum("Ambient".to_owned(), Vec::new())
+        )]))
+    );
+    let flickering = lit(point(30.0, Some(5.0)), 0.5, vec![1, 2], 0.9);
+    assert_eq!(
+        difference(&flickering, false),
+        None,
+        "only what saves leave out"
+    );
+    assert!(difference(&flickering, true).is_some());
+    // A part that the type refuses: a number out of its range, a variant missing fields.
+    let mut value = before.clone();
+    let out_of_range = Value::Struct(vec![(
+        "lamp".to_owned(),
+        Value::Enum(
+            "Point".to_owned(),
+            vec![("intensity".to_owned(), Value::F32(-1.0))],
+        ),
+    )]);
+    let refused = registry
+        .overlay("test::Lit", &mut value, &out_of_range)
+        .unwrap_err();
+    assert_eq!(refused.to_string(), "`lamp.intensity`: -1 is not ≥ 0");
+    let half = Value::Struct(vec![(
+        "lamp".to_owned(),
+        Value::Enum("Spot".to_owned(), Vec::new()),
+    )]);
+    assert!(registry.overlay("test::Lit", &mut value, &half).is_err());
+}
