@@ -28,7 +28,8 @@ use crate::renderer::Renderer;
 /// - **Hot reload.** [`AssetCache::reload`] loads again, in the background, what changed in new
 ///   cooked data, keeping each mesh and texture whose cooked file the new manifest still names
 ///   (`docs/adr/0076-hot-reload-of-cooked-data.md`), and makes every material again; the cache
-///   goes on giving what it holds until the reload finishes, then takes its result at once.
+///   goes on giving what it holds until the reload finishes, then takes its result at once. A
+///   mesh that the new data no longer lists is dropped.
 /// - **A lost device.** [`AssetCache::clear`] drops every GPU object it holds and cancels its
 ///   loads; what a game draws afterwards loads again, from the GPU that replaced the lost one,
 ///   those whose batch failed included.
@@ -197,6 +198,10 @@ impl AssetCache {
     /// [`AssetCache::poll`] then takes its result at once, or its error, which leaves what the
     /// cache held whole.
     ///
+    /// A mesh that the manifest of `assets` no longer lists, which nothing can read again, is
+    /// dropped at once, so that the reload of the others goes on without it; a world that still
+    /// names it asks for it again, and that batch fails, as for any mesh that cannot be read.
+    ///
     /// The batches being loaded are dropped, since they read the cooked data before: the meshes
     /// they loaded are asked for again. A reload going on is dropped too, and the meshes whose
     /// batch failed may be asked for again. Dropping a load waits, on the calling thread, for its
@@ -212,6 +217,8 @@ impl AssetCache {
         self.loads.clear();
         self.loading.clear();
         self.reload = None;
+        let manifest = self.assets.manifest();
+        self.meshes.retain(|&id, _| manifest.get(id).is_some());
         if self.meshes.is_empty() {
             return;
         }

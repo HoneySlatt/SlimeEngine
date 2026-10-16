@@ -74,8 +74,9 @@ them; *Hunna Wood* runs on it.
   materials and textures ([ADR-0084](docs/adr/0084-what-the-world-draws.md)): `request` starts
   loading, as one batch in the background, those it neither holds nor loads, `poll` takes the
   batches that finished, each whole, and `mesh` gives a mesh and its material once held. `reload`
-  loads again what changed in new cooked data, keeping the rest, and `clear` drops everything
-  after a lost device. Scene loads and the cache share one loader.
+  loads again what changed in new cooked data, keeping the rest and dropping what it no longer
+  lists, and `clear` drops everything after a lost device. Scene loads and the cache share one
+  loader.
 - `slime_app::Context::world` and `Context::world_mut` give the game's world, which the engine owns
   and tells before and after each fixed step: what `fixed_update` moves is drawn between its two
   transforms, at the frame's `fixed_step_alpha`, and what `update` changes is drawn at once.

@@ -763,3 +763,33 @@ fn a_reload_keeps_what_did_not_change_and_takes_the_rest_at_once() {
     assert!(settle(&mut cache).is_empty());
     check_cached(&gpu, &mut renderer, &cache, 0..6, |index| index % 3 == 1);
 }
+
+#[test]
+fn a_reload_drops_the_meshes_that_the_new_data_no_longer_lists() {
+    let gpu = gpu();
+    let mut renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
+    let (directory, _) = palette("cache-removed", 4);
+    let mut cache = AssetCache::new(CookedAssets::open(&directory).expect("the manifest is read"));
+    let meshes = palette_meshes();
+    cache.request(&renderer, &gpu, meshes);
+    assert!(settle(&mut cache).is_empty());
+    // The last square is cooked no more: the new manifest does not list it.
+    let path = directory.join(MANIFEST_FILE);
+    let manifest = Manifest::from_bytes(&fs::read(&path).expect("read")).expect("a manifest");
+    let mut listed = Manifest::new();
+    for (id, entry) in manifest.iter().filter(|&(id, _)| id != meshes[5]) {
+        listed.insert(id, entry.clone());
+    }
+    fs::write(&path, listed.to_bytes()).expect("written");
+    let assets = CookedAssets::open(&directory).expect("the manifest is read");
+    cache.reload(&renderer, &gpu, assets);
+    assert!(cache.mesh(meshes[5]).is_none(), "dropped at once");
+    assert!(settle(&mut cache).is_empty(), "the others are loaded again");
+    check_cached(&gpu, &mut renderer, &cache, 0..5, |_| false);
+    // The reloads after it go through.
+    whiten_the_second_texture(&directory);
+    let assets = CookedAssets::open(&directory).expect("the manifest is read");
+    cache.reload(&renderer, &gpu, assets);
+    assert!(settle(&mut cache).is_empty());
+    check_cached(&gpu, &mut renderer, &cache, 0..5, |index| index % 3 == 1);
+}
