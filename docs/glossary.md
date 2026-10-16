@@ -682,3 +682,8 @@ machines without a GPU, such as the CI runners.
 (`slime_world::World`); Stage 5a draws what it holds and saves what changed.
 A game, a test or an editor holds as many worlds as it needs
 ([ADR-0079](adr/0079-the-engines-own-world.md)).
+
+**World panel.** The panel of the dev *overlay* that lists a *world*'s *entities* by name and
+edits the *components* of the one selected through *reflection*, returning each change for the
+application to apply (`slime_devui::WorldPanel`,
+[ADR-0081](adr/0081-stage-5a-the-world.md)); tooling, as the rest of the overlay.

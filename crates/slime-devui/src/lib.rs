@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 
 mod input;
+mod world_panel;
 
 use std::time::Instant;
 
@@ -11,6 +12,7 @@ use slime_platform::Event;
 /// The UI library the overlay draws, re-exported so that callers build their panels with the
 /// same version.
 pub use egui;
+pub use world_panel::{Edit, WorldPanel};
 
 /// egui drawn over the engine's frames.
 ///
@@ -74,6 +76,13 @@ impl Overlay {
     /// application then leaves clicks and the wheel to the overlay.
     pub fn wants_pointer(&self) -> bool {
         self.context.is_pointer_over_egui()
+    }
+
+    /// Whether a text field of the overlay has the keyboard, as of the last frame drawn, a number
+    /// typed into included: the application then leaves the keys that type, Escape among them, to
+    /// the overlay, so that typing a name does not also play.
+    pub fn wants_keyboard(&self) -> bool {
+        self.context.text_edit_focused()
     }
 
     /// Builds this frame's panels with `ui` and draws them over what `target` holds, in a pass

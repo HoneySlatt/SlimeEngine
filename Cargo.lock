@@ -2048,9 +2048,12 @@ dependencies = [
  "egui",
  "egui-wgpu",
  "slime-app",
+ "slime-assets",
  "slime-color",
  "slime-gfx",
  "slime-platform",
+ "slime-reflect",
+ "slime-world",
 ]
 
 [[package]]

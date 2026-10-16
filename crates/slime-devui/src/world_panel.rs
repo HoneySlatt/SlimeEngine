@@ -1,0 +1,876 @@
+//! The world panel: the entities of a world listed by name, and the components of the one selected
+//! edited through reflection (`docs/adr/0081-stage-5a-the-world.md`).
+
+use std::fmt;
+
+use slime_assets::AssetId;
+use slime_color::LinearColor;
+use slime_reflect::{FieldInfo, Kind, Path, Range, Reflect, Registry, Value, VariantInfo};
+use slime_world::glam::{DVec3, EulerRot, Quat, Vec3};
+use slime_world::{Entity, Name, World};
+
+/// The width the panel opens with, in points.
+const WIDTH: f32 = 380.0;
+/// The height of the list of entities, in points, past which it scrolls.
+const LIST_HEIGHT: f32 = 160.0;
+/// The height the panel opens with at most, in points; it opens as high as the screen otherwise.
+const HEIGHT: f32 = 640.0;
+/// The types whose values are edited whole, on one line: their parts are numbers that mean little
+/// alone, and a rotation's would not stay one if set one at a time.
+const WHOLE: [&str; 4] = ["Vec3", "DVec3", "Quat", "LinearColor"];
+
+/// A change that the world panel asks for, which the caller applies
+/// ([`World::set_property`]): the part of `entity`'s component that `path` leads to, set to
+/// `value`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Edit {
+    /// The entity whose component changes.
+    pub entity: Entity,
+    /// The type of the component, by its stable name.
+    pub component: String,
+    /// The part of the component that changes; empty for the whole component.
+    pub path: Path,
+    /// The part's new value.
+    pub value: Value,
+}
+
+/// A panel of the overlay that lists the entities of a world by name, with a filter, and shows the
+/// components of the one selected, through the world's registry ([`World::registry`]): any
+/// component, the engine's or a game's, without knowing its type.
+///
+/// Booleans, numbers, text, enum variants and options are edited; vectors, rotations and colors
+/// whole, a rotation as three angles in degrees, turned about Y, then X, then Z. A number's unit
+/// follows it, and its field's documentation and range show when the cursor is over its name.
+/// References to assets are shown, and a reference to an entity selects it when clicked. An enum
+/// that takes another variant keeps the fields of the same name and type, and starts the others
+/// as an option that starts holding a value does: at false, empty, or the first of 0, 1 and the
+/// field's bounds that its range holds; a variant with a reference among its new fields cannot be
+/// taken.
+///
+/// The panel changes nothing: it returns each change as an [`Edit`], which the caller applies
+/// to the world, which refuses a value out of its field's range or that breaks a rule of its type,
+/// and hands the refusal back ([`WorldPanel::refused`]) to show it. It does not undo, nor add,
+/// remove or save components.
+#[derive(Debug, Default)]
+pub struct WorldPanel {
+    filter: String,
+    selected: Option<Entity>,
+    /// Why the world refused the last edit, until the next one.
+    refusal: Option<String>,
+}
+
+impl WorldPanel {
+    /// The entity whose components the panel shows, if one is selected, alive or not.
+    pub fn selected(&self) -> Option<Entity> {
+        self.selected
+    }
+
+    /// Shows the components of `entity`.
+    pub fn select(&mut self, entity: Entity) {
+        self.selected = Some(entity);
+        self.refusal = None;
+    }
+
+    /// Shows `error`, why the world refused an edit, until the panel asks for another one.
+    pub fn refused(&mut self, error: &dyn fmt::Display) {
+        self.refusal = Some(error.to_string());
+    }
+
+    /// Builds the panel, a window of `ctx`, from `world`, and returns the edits that its widgets
+    /// ask for in this pass, in their order, for the caller to apply.
+    ///
+    /// egui may lay a frame out twice ([`Overlay::render`](crate::Overlay::render)): the caller
+    /// adds the edits of each call to those of the frame, rather than keep the last call's.
+    pub fn show(&mut self, ctx: &egui::Context, world: &World) -> Vec<Edit> {
+        let mut edits = Vec::new();
+        let right = ctx.content_rect().right();
+        egui::Window::new("World")
+            .default_pos(egui::pos2((right - WIDTH - 12.0).max(12.0), 12.0))
+            .default_width(WIDTH)
+            .default_height((ctx.content_rect().height() - 24.0).clamp(LIST_HEIGHT, HEIGHT))
+            .vscroll(true)
+            .show(ctx, |ui| self.contents(ui, world, &mut edits));
+        if !edits.is_empty() {
+            self.refusal = None;
+        }
+        edits
+    }
+
+    fn contents(&mut self, ui: &mut egui::Ui, world: &World, edits: &mut Vec<Edit>) {
+        ui.add(egui::TextEdit::singleline(&mut self.filter).hint_text("filter by name"));
+        let filter = self.filter.to_lowercase();
+        egui::ScrollArea::vertical()
+            .id_salt("entities")
+            .max_height(LIST_HEIGHT)
+            .auto_shrink([false, true])
+            .show(ui, |ui| {
+                for entity in world.entities() {
+                    let name = name(world, entity);
+                    if name.to_lowercase().contains(&filter)
+                        && ui
+                            .selectable_label(self.selected == Some(entity), name)
+                            .clicked()
+                    {
+                        self.select(entity);
+                    }
+                }
+            });
+        ui.separator();
+        let Some(entity) = self.selected.filter(|&entity| world.contains(entity)) else {
+            ui.label("Select an entity to see its components.");
+            return;
+        };
+        ui.heading(name(world, entity));
+        if let Some(refusal) = &self.refusal {
+            ui.colored_label(ui.visuals().error_fg_color, refusal);
+        }
+        let mut editor = Editor {
+            registry: world.registry(),
+            world,
+            edits: Vec::new(),
+            select: None,
+        };
+        for component in world.component_names(entity) {
+            let Some(value) = world.component_value(entity, component) else {
+                continue;
+            };
+            let header = egui::CollapsingHeader::new(component)
+                .id_salt(component)
+                .default_open(true)
+                .show(ui, |ui| {
+                    editor.value(ui, component, &value, &Path::default(), None);
+                });
+            if let Some(registration) = world.registry().get(component)
+                && !registration.info().doc.is_empty()
+            {
+                header
+                    .header_response
+                    .on_hover_text(&registration.info().doc);
+            }
+            edits.extend(editor.edits.drain(..).map(|(path, value)| Edit {
+                entity,
+                component: component.to_owned(),
+                path,
+                value,
+            }));
+        }
+        if let Some(entity) = editor.select {
+            self.select(entity);
+        }
+    }
+}
+
+/// What the panel calls `entity`: its name, or its handle if it has none.
+fn name(world: &World, entity: Entity) -> String {
+    match world.get::<Name>(entity) {
+        Some(Name(name)) if !name.is_empty() => name.clone(),
+        _ => format!("{entity:?}"),
+    }
+}
+
+/// Builds the widgets of a component's value, and collects the edits they ask for.
+struct Editor<'a> {
+    registry: &'a Registry,
+    world: &'a World,
+    /// The parts to set, by their paths from the component, and their new values.
+    edits: Vec<(Path, Value)>,
+    /// The entity of a reference clicked, which the panel selects.
+    select: Option<Entity>,
+}
+
+impl Editor<'_> {
+    /// The widgets of `value`, a value of the type named `ty` at `path` in the component, which is
+    /// `field`, or an element of it, or the component itself if `None`.
+    fn value(
+        &mut self,
+        ui: &mut egui::Ui,
+        ty: &str,
+        value: &Value,
+        path: &Path,
+        field: Option<&FieldInfo>,
+    ) {
+        let unit = field.and_then(|field| field.unit.as_deref());
+        if let Some(changed) = whole(ui, ty, value, unit) {
+            self.edits.extend(changed.map(|new| (path.clone(), new)));
+            return;
+        }
+        let Some(registration) = self.registry.get(ty) else {
+            return;
+        };
+        let new = match (&registration.info().kind, value) {
+            (_, Value::Bool(on)) => {
+                let mut on = *on;
+                ui.add(egui::Checkbox::without_text(&mut on))
+                    .changed()
+                    .then_some(Value::Bool(on))
+            }
+            (_, Value::Int(number)) => edited(ui, *number, unit).map(Value::Int),
+            (_, Value::UInt(number)) => edited(ui, *number, unit).map(Value::UInt),
+            (_, Value::F32(number)) => edited(ui, *number, unit).map(Value::F32),
+            (_, Value::F64(number)) => edited(ui, *number, unit).map(Value::F64),
+            (_, Value::Text(text)) => {
+                let mut text = text.clone();
+                ui.text_edit_singleline(&mut text)
+                    .changed()
+                    .then_some(Value::Text(text))
+            }
+            (_, Value::Asset(_)) => {
+                match AssetId::from_value(value) {
+                    Ok(asset) => ui.monospace(asset.to_string()),
+                    Err(error) => ui.weak(error.to_string()),
+                };
+                None
+            }
+            (_, Value::Entity(_)) => {
+                self.reference(ui, value);
+                None
+            }
+            (Kind::Struct(fields), Value::Struct(values)) => {
+                if fields.is_empty() {
+                    ui.weak("holds no value");
+                }
+                self.fields(ui, fields, values, path);
+                None
+            }
+            (Kind::Enum(variants), Value::Enum(current, values)) => {
+                let chosen = self.variant(ui, variants, current, values, path);
+                if let Some(variant) = variants.iter().find(|variant| variant.name == *current) {
+                    self.fields(ui, &variant.fields, values, path);
+                }
+                chosen
+            }
+            (Kind::Option(inner), Value::Option(held)) => {
+                self.option(ui, inner, held.as_deref(), path, field);
+                None
+            }
+            (Kind::List { element, .. }, Value::List(elements)) => {
+                if elements.is_empty() {
+                    ui.weak("empty");
+                }
+                for (index, element_value) in elements.iter().enumerate() {
+                    let at = path.clone().index(index);
+                    self.field(
+                        ui,
+                        &format!("[{index}]"),
+                        element,
+                        element_value,
+                        &at,
+                        field,
+                    );
+                }
+                None
+            }
+            _ => {
+                ui.weak(value.kind());
+                None
+            }
+        };
+        self.edits.extend(new.map(|new| (path.clone(), new)));
+    }
+
+    /// The fields of a struct or a variant, `fields` as its type describes them and `values` as
+    /// its value holds them, at `path`.
+    fn fields(
+        &mut self,
+        ui: &mut egui::Ui,
+        fields: &[FieldInfo],
+        values: &[(String, Value)],
+        path: &Path,
+    ) {
+        for field in fields {
+            if let Some((_, value)) = values.iter().find(|(name, _)| *name == field.name) {
+                let at = path.clone().field(field.name.clone());
+                self.field(ui, &field.name, &field.ty, value, &at, Some(field));
+            }
+        }
+    }
+
+    /// A part of a value under its `label`: on the label's line if it fits there, below it
+    /// otherwise, in a header that folds.
+    fn field(
+        &mut self,
+        ui: &mut egui::Ui,
+        label: &str,
+        ty: &str,
+        value: &Value,
+        path: &Path,
+        field: Option<&FieldInfo>,
+    ) {
+        if self.inline(ty, value) {
+            ui.horizontal(|ui| {
+                described(ui.label(label), field);
+                self.value(ui, ty, value, path, field);
+            });
+        } else {
+            let header = egui::CollapsingHeader::new(label)
+                .id_salt(path.to_string())
+                .default_open(true)
+                .show(ui, |ui| self.value(ui, ty, value, path, field));
+            described(header.header_response, field);
+        }
+    }
+
+    /// Whether `value`, of the type named `ty`, fits on its label's line: a value edited whole,
+    /// or one with no parts.
+    fn inline(&self, ty: &str, value: &Value) -> bool {
+        match value {
+            _ if WHOLE.contains(&ty) => true,
+            Value::Struct(fields) | Value::Enum(_, fields) => fields.is_empty(),
+            Value::List(elements) => elements.is_empty(),
+            Value::Option(Some(held)) => match self.registry.get(ty).map(|r| &r.info().kind) {
+                Some(Kind::Option(inner)) => self.inline(inner, held),
+                _ => true,
+            },
+            _ => true,
+        }
+    }
+
+    /// The variant `current` of an enum whose variants are `variants`, and the variants it can
+    /// take instead, in a menu; returns the value of the one chosen, if one is.
+    fn variant(
+        &self,
+        ui: &mut egui::Ui,
+        variants: &[VariantInfo],
+        current: &str,
+        values: &[(String, Value)],
+        path: &Path,
+    ) -> Option<Value> {
+        let mut chosen = None;
+        egui::ComboBox::from_id_salt(format!("variant {path}"))
+            .selected_text(current)
+            .show_ui(ui, |ui| {
+                for variant in variants {
+                    let selected = variant.name == current;
+                    let value = if selected {
+                        None
+                    } else {
+                        variant_value(self.registry, variant, values)
+                    };
+                    let item = egui::Button::selectable(selected, variant.name.as_str());
+                    let response = ui.add_enabled(selected || value.is_some(), item);
+                    if response.on_hover_text(&variant.doc).clicked() {
+                        chosen = value;
+                    }
+                }
+            });
+        chosen
+    }
+
+    /// An option of values of the type named `inner`, with a box that says whether it holds one,
+    /// and the value it holds.
+    fn option(
+        &mut self,
+        ui: &mut egui::Ui,
+        inner: &str,
+        held: Option<&Value>,
+        path: &Path,
+        field: Option<&FieldInfo>,
+    ) {
+        let registry = self.registry;
+        let start = || initial(registry, inner, field.and_then(|field| field.range));
+        let mut holds = held.is_some();
+        let toggle = egui::Checkbox::without_text(&mut holds);
+        if ui
+            .add_enabled(held.is_some() || start().is_some(), toggle)
+            .changed()
+        {
+            let new = if holds {
+                start().map(|value| Value::Option(Some(Box::new(value))))
+            } else {
+                Some(Value::Option(None))
+            };
+            self.edits.extend(new.map(|new| (path.clone(), new)));
+        }
+        if let Some(held) = held {
+            let first = self.edits.len();
+            self.value(ui, inner, held, path, field);
+            // An edit of the held value as a whole sets the option, which holds it; the paths of
+            // its parts go through the option.
+            for (at, new) in &mut self.edits[first..] {
+                if at == path {
+                    let value = std::mem::replace(new, Value::Option(None));
+                    *new = Value::Option(Some(Box::new(value)));
+                }
+            }
+        }
+    }
+
+    /// A reference to an entity: its name, which selects it when clicked, if it is alive.
+    fn reference(&mut self, ui: &mut egui::Ui, value: &Value) {
+        match Entity::from_value(value) {
+            Ok(entity) if self.world.contains(entity) => {
+                if ui.link(name(self.world, entity)).clicked() {
+                    self.select = Some(entity);
+                }
+            }
+            Ok(entity) => {
+                ui.weak(format!("{entity:?}, despawned"));
+            }
+            Err(error) => {
+                ui.weak(error.to_string());
+            }
+        }
+    }
+}
+
+/// The widgets of a value of one of the types edited whole ([`WHOLE`]), with `unit`; `None` for a
+/// value of another type, and otherwise its new value if the widgets changed it.
+fn whole(ui: &mut egui::Ui, ty: &str, value: &Value, unit: Option<&str>) -> Option<Option<Value>> {
+    let changed = match ty {
+        "Vec3" => {
+            let mut vector = Vec3::from_value(value).ok()?;
+            let Vec3 { x, y, z } = &mut vector;
+            numbers(ui, [x, y, z], unit).then(|| vector.to_value())
+        }
+        "DVec3" => {
+            let mut vector = DVec3::from_value(value).ok()?;
+            let DVec3 { x, y, z } = &mut vector;
+            numbers(ui, [x, y, z], unit).then(|| vector.to_value())
+        }
+        "Quat" => {
+            let mut angles = angles(Quat::from_value(value).ok()?);
+            let [y, x, z] = &mut angles;
+            numbers(ui, [y, x, z], Some("°")).then(|| rotation(angles).to_value())
+        }
+        "LinearColor" => {
+            let color = LinearColor::from_value(value).ok()?;
+            let mut rgba = egui::Rgba::from_rgba_unmultiplied(color.r, color.g, color.b, color.a);
+            let alpha = egui::color_picker::Alpha::OnlyBlend;
+            egui::color_picker::color_edit_button_rgba(ui, &mut rgba, alpha)
+                .changed()
+                .then(|| {
+                    let [r, g, b, a] = rgba.to_rgba_unmultiplied();
+                    LinearColor { r, g, b, a }.to_value()
+                })
+        }
+        _ => return None,
+    };
+    Some(changed)
+}
+
+/// A number's widget, which the cursor drags or the keyboard types into, with `unit` after it;
+/// returns the new number if it changed. The widget does not hold the number within its field's
+/// range: the world refuses one out of it, and says why.
+fn edited<N: egui::emath::Numeric>(
+    ui: &mut egui::Ui,
+    mut number: N,
+    unit: Option<&str>,
+) -> Option<N> {
+    drag(ui, &mut number, unit).changed().then_some(number)
+}
+
+/// Three numbers' widgets, side by side; returns whether one changed.
+fn numbers<N: egui::emath::Numeric>(
+    ui: &mut egui::Ui,
+    numbers: [&mut N; 3],
+    unit: Option<&str>,
+) -> bool {
+    let mut changed = false;
+    for number in numbers {
+        changed |= drag(ui, number, unit).changed();
+    }
+    changed
+}
+
+fn drag<N: egui::emath::Numeric>(
+    ui: &mut egui::Ui,
+    number: &mut N,
+    unit: Option<&str>,
+) -> egui::Response {
+    // A drag of a hundred points changes a float by about its own size.
+    let speed = if N::INTEGRAL {
+        0.1
+    } else {
+        (number.to_f64().abs() * 0.01).max(0.001)
+    };
+    let mut widget = egui::DragValue::new(number).speed(speed);
+    if let Some(unit) = unit {
+        widget = widget.suffix(format!(" {unit}"));
+    }
+    ui.add(widget)
+}
+
+/// `rotation`'s angles in degrees, turned about Y, then X, then Z.
+fn angles(rotation: Quat) -> [f32; 3] {
+    let (y, x, z) = rotation.to_euler(EulerRot::YXZ);
+    [y, x, z].map(f32::to_degrees)
+}
+
+/// The rotation turned by `angles` in degrees about Y, then X, then Z.
+fn rotation(angles: [f32; 3]) -> Quat {
+    let [y, x, z] = angles.map(f32::to_radians);
+    Quat::from_euler(EulerRot::YXZ, y, x, z).normalize()
+}
+
+/// Shows the documentation of `field`, its range, and whether saves leave it out, when the cursor
+/// is over `response`, its name.
+fn described(response: egui::Response, field: Option<&FieldInfo>) {
+    let Some(field) = field else {
+        return;
+    };
+    let mut text = field.doc.clone();
+    if let Some(range) = field.range {
+        text.push_str(&format!("\nRange: {range}."));
+    }
+    if field.transient {
+        text.push_str("\nNot saved.");
+    }
+    let text = text.trim();
+    if !text.is_empty() {
+        response.on_hover_text(text);
+    }
+}
+
+/// A value of `variant`, whose fields are those of `values`, the variant that a value holds, of
+/// the same name and type, and start as [`initial`] says otherwise; `None` if one cannot.
+fn variant_value(
+    registry: &Registry,
+    variant: &VariantInfo,
+    values: &[(String, Value)],
+) -> Option<Value> {
+    let fields = variant
+        .fields
+        .iter()
+        .map(|field| {
+            let kept = values
+                .iter()
+                .find(|(name, value)| {
+                    *name == field.name && registry.check(&field.ty, value).is_ok()
+                })
+                .map(|(_, value)| value.clone());
+            let value = kept.or_else(|| initial(registry, &field.ty, field.range))?;
+            Some((field.name.clone(), value))
+        })
+        .collect::<Option<_>>()?;
+    Some(Value::Enum(variant.name.clone(), fields))
+}
+
+/// A value of the type named `ty` to start a part at, when an option starts holding one or an enum
+/// takes a variant with new fields: false, empty text, an empty list, an option that holds none,
+/// the first variant that can start, and for a number the first of 0, 1 and the bounds of `range`
+/// that `range` holds. `None` for a reference to an asset or an entity, which has no value to
+/// start at, and for a value that holds one.
+fn initial(registry: &Registry, ty: &str, range: Option<Range>) -> Option<Value> {
+    let number = || {
+        let range = range.unwrap_or(Range::ALL);
+        [0.0, 1.0, range.min, range.max]
+            .into_iter()
+            .find(|&number| range.contains(number))
+            .unwrap_or(0.0)
+    };
+    Some(match &registry.get(ty)?.info().kind {
+        Kind::Bool => Value::Bool(false),
+        Kind::Int { .. } => Value::Int(number() as i64),
+        Kind::UInt { .. } => Value::UInt(number() as u64),
+        Kind::F32 => Value::F32(number() as f32),
+        Kind::F64 => Value::F64(number()),
+        Kind::Text => Value::Text(String::new()),
+        Kind::Option(_) => Value::Option(None),
+        Kind::List { len: None, .. } => Value::List(Vec::new()),
+        Kind::List {
+            element,
+            len: Some(len),
+        } => Value::List(vec![initial(registry, element, range)?; *len]),
+        Kind::Struct(fields) => Value::Struct(
+            fields
+                .iter()
+                .map(|field| {
+                    Some((
+                        field.name.clone(),
+                        initial(registry, &field.ty, field.range)?,
+                    ))
+                })
+                .collect::<Option<_>>()?,
+        ),
+        Kind::Enum(variants) => variants
+            .iter()
+            .find_map(|variant| variant_value(registry, variant, &[]))?,
+        _ => return None,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use slime_assets::Extra;
+    use slime_world::{Component, Extras, Hidden, Light, Meshes, Transform};
+
+    use super::*;
+
+    /// A component that only derives, with a value of each kind the panel shows.
+    #[derive(Clone, Debug, PartialEq, Reflect)]
+    #[reflect(name = "test::Everything")]
+    struct Everything {
+        on: bool,
+        count: i32,
+        small: u8,
+        ratio: f64,
+        /// How far it reaches.
+        #[reflect(range(above = 0.0), unit = "m")]
+        reach: Option<f32>,
+        label: String,
+        mesh: AssetId,
+        target: Entity,
+        offset: DVec3,
+        axis: Vec3,
+        turn: Quat,
+        tint: Option<LinearColor>,
+        mode: Mode,
+        weights: Vec<f32>,
+        corners: [u16; 2],
+        pair: (String, Extra),
+        #[reflect(transient)]
+        seen: bool,
+    }
+    impl Component for Everything {}
+
+    #[derive(Clone, Debug, PartialEq, Reflect)]
+    #[reflect(name = "test::Mode")]
+    enum Mode {
+        Off,
+        Fixed(f32),
+        Aimed { at: Entity, speed: f32 },
+    }
+
+    /// A world with an entity for each of the engine's components, each variant of a light, and
+    /// one for a component that only derives, which refers to the first.
+    fn world() -> (World, Vec<Entity>) {
+        let mut world = World::new();
+        let named = world.spawn();
+        world.insert(named, Name("door".to_owned()));
+        world.insert(
+            named,
+            Transform::from_translation(DVec3::new(1.0, 2.0, 3.0)),
+        );
+        world.insert(named, Hidden);
+        world.insert(
+            named,
+            Meshes {
+                ids: vec![AssetId::from_u128(7)],
+                casts_shadows: true,
+            },
+        );
+        world.insert(
+            named,
+            Extras(vec![
+                ("open".to_owned(), Extra::Bool(true)),
+                ("height".to_owned(), Extra::Number(2.5)),
+                ("kind".to_owned(), Extra::Text("oak".to_owned())),
+            ]),
+        );
+        let mut entities = vec![named];
+        for light in [
+            Light::Directional {
+                color: LinearColor::WHITE,
+                illuminance: 1.0,
+                casts_shadows: true,
+                shadow_distance: Some(20.0),
+                in_sky: true,
+            },
+            Light::Point {
+                color: LinearColor::WHITE,
+                intensity: 30.0,
+                range: None,
+            },
+            Light::Spot {
+                color: LinearColor::WHITE,
+                intensity: 30.0,
+                range: Some(10.0),
+                inner_cone_angle: 0.2,
+                outer_cone_angle: 0.4,
+                casts_shadows: false,
+            },
+        ] {
+            let lit = world.spawn();
+            world.insert(lit, light);
+            entities.push(lit);
+        }
+        let everything = world.spawn();
+        world.insert(
+            everything,
+            Everything {
+                on: true,
+                count: -3,
+                small: 7,
+                ratio: 0.5,
+                reach: Some(4.0),
+                label: "every kind".to_owned(),
+                mesh: AssetId::from_u128(9),
+                target: named,
+                offset: DVec3::X,
+                axis: Vec3::Y,
+                turn: Quat::from_rotation_y(0.5),
+                tint: Some(LinearColor::WHITE),
+                mode: Mode::Aimed {
+                    at: named,
+                    speed: 2.0,
+                },
+                weights: vec![0.25, 0.75],
+                corners: [1, 2],
+                pair: ("name".to_owned(), Extra::Number(1.0)),
+                seen: false,
+            },
+        );
+        entities.push(everything);
+        (world, entities)
+    }
+
+    /// Builds `panel` over `world` for a frame of a context without a window, and returns the
+    /// edits it asks for.
+    fn frame(ctx: &egui::Context, panel: &mut WorldPanel, world: &World) -> Vec<Edit> {
+        let mut edits = Vec::new();
+        ctx.run_ui(egui::RawInput::default(), |ui| {
+            edits.extend(panel.show(ui.ctx(), world));
+        })
+        .drop_without_applying_deltas();
+        edits
+    }
+
+    #[test]
+    fn the_panel_is_built_for_every_component() {
+        let (world, entities) = world();
+        let mut shown: Vec<&str> = entities
+            .iter()
+            .flat_map(|&entity| world.component_names(entity))
+            .collect();
+        shown.sort_unstable();
+        shown.dedup();
+        assert_eq!(
+            shown,
+            [
+                "Extras",
+                "Hidden",
+                "Light",
+                "Meshes",
+                "Name",
+                "Transform",
+                "test::Everything"
+            ],
+            "every component type is shown"
+        );
+        let ctx = egui::Context::default();
+        let mut panel = WorldPanel::default();
+        assert!(
+            frame(&ctx, &mut panel, &world).is_empty(),
+            "nothing selected"
+        );
+        for &entity in &entities {
+            panel.select(entity);
+            // egui sizes the window and its grids on the first frames.
+            for _ in 0..3 {
+                assert_eq!(frame(&ctx, &mut panel, &world), [], "nothing is touched");
+            }
+        }
+    }
+
+    #[test]
+    fn a_despawned_entity_shows_nothing() {
+        let (mut world, entities) = world();
+        let mut panel = WorldPanel::default();
+        panel.select(entities[0]);
+        world.despawn(entities[0]);
+        let ctx = egui::Context::default();
+        assert_eq!(frame(&ctx, &mut panel, &world), []);
+        assert_eq!(panel.selected(), Some(entities[0]), "kept, as a handle");
+    }
+
+    #[test]
+    fn values_start_as_values_of_their_types() {
+        let (world, _) = world();
+        let registry = world.registry();
+        for registration in registry.iter() {
+            let name = &registration.info().name;
+            if let Some(value) = initial(registry, name, None) {
+                registry
+                    .check(name, &value)
+                    .unwrap_or_else(|error| panic!("`{name}` starts at a value of it: {error}"));
+            }
+        }
+        let starts = |name: &str| initial(registry, name, None);
+        assert_eq!(starts("AssetId"), None, "no asset to refer to");
+        assert_eq!(starts("test::Everything"), None, "it holds a reference");
+        assert_eq!(
+            starts("test::Mode"),
+            Some(Value::Enum("Off".to_owned(), Vec::new()))
+        );
+        assert_eq!(
+            starts("[u16; 2]"),
+            Some(Value::List(vec![Value::UInt(0); 2]))
+        );
+        let above = Range {
+            min: 0.0,
+            min_excluded: true,
+            ..Range::ALL
+        };
+        assert_eq!(initial(registry, "f32", Some(above)), Some(Value::F32(1.0)));
+    }
+
+    #[test]
+    fn a_new_variant_keeps_the_fields_it_shares() {
+        let (mut world, entities) = world();
+        let point = entities[2];
+        let light = world.component_value(point, "Light").expect("held");
+        let Value::Enum(_, values) = &light else {
+            panic!("a light is an enum");
+        };
+        let Some(Kind::Enum(variants)) = world.registry().get("Light").map(|r| &r.info().kind)
+        else {
+            panic!("a light is an enum");
+        };
+        let variant = |name: &str| {
+            let variant = variants.iter().find(|v| v.name == name).expect("a variant");
+            variant_value(world.registry(), variant, values).expect("its fields start")
+        };
+        let (spot, directional) = (variant("Spot"), variant("Directional"));
+        // Its two cones start at the same angle, which a spot light cannot have.
+        let refused = world
+            .set_property(point, "Light", &Path::default(), spot)
+            .expect_err("a spot light's inner cone is narrower than its outer one");
+        assert!(refused.to_string().contains("its cones"), "{refused}");
+        world
+            .set_property(point, "Light", &Path::default(), directional)
+            .expect("a light");
+        assert_eq!(
+            world.get::<Light>(point),
+            Some(&Light::Directional {
+                color: LinearColor::WHITE,
+                illuminance: 0.0,
+                casts_shadows: false,
+                shadow_distance: None,
+                in_sky: false,
+            }),
+            "the color is kept"
+        );
+        let Some(Kind::Enum(modes)) = world.registry().get("test::Mode").map(|r| &r.info().kind)
+        else {
+            panic!("an enum");
+        };
+        assert_eq!(
+            variant_value(world.registry(), &modes[1], &[]),
+            Some(Value::Enum(
+                "Fixed".to_owned(),
+                vec![("0".to_owned(), Value::F32(0.0))]
+            ))
+        );
+        assert_eq!(
+            variant_value(world.registry(), &modes[2], &[]),
+            None,
+            "no entity to aim at"
+        );
+    }
+
+    #[test]
+    fn a_rotation_is_edited_as_three_angles() {
+        let turned = rotation([30.0, 20.0, 10.0]);
+        assert!(turned.is_normalized());
+        for (angle, expected) in angles(turned).into_iter().zip([30.0, 20.0, 10.0]) {
+            assert!((angle - expected).abs() < 1e-3, "{angle} for {expected}");
+        }
+        let expected = Quat::from_rotation_y(30f32.to_radians())
+            * Quat::from_rotation_x(20f32.to_radians())
+            * Quat::from_rotation_z(10f32.to_radians());
+        assert!(
+            turned.angle_between(expected) < 1e-4,
+            "about Y, then X, then Z"
+        );
+    }
+}

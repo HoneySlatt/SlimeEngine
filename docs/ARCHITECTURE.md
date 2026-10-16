@@ -62,7 +62,7 @@ created only when code needs it.
 | [`slime-world-render`](../crates/slime-world-render/README.md) | The bridge from a world to the renderer: builds, at each frame, the instances, the lights and the sky's environment that a world draws, from the GPU objects of an asset cache ([ADR-0084](adr/0084-what-the-world-draws.md)); neither the world nor the renderer depends on it | `slime-world`, `slime-render`, `slime-gfx`, `tracing` | Meshes drawn where the world draws them between fixed steps, those the cache does not hold asked for; lights at their entities; hidden subtrees left out; the game's sky around the world's sun, given once |
 | [`slime-assets`](../crates/slime-assets/README.md) | The assets as games load them: asset IDs, cooked data and its manifest, read by ID from a directory of cooked data ([ADR-0069](adr/0069-the-asset-pipeline.md)); headless | `slime-reflect`, `ktx2`, `thiserror` | The asset ID and its text form, a UUID; cooked textures in KTX2 files ([ADR-0071](adr/0071-cooked-textures.md)), meshes, materials and scenes, their nodes' extras among them; the manifest; reading them by ID; a watch of the manifest, for hot reload |
 | [`slime-cook`](../crates/slime-cook/README.md) | The cooker: turns source assets into cooked data before games run; a library and its program, which no game links ([ADR-0069](adr/0069-the-asset-pipeline.md)) | `slime-assets`, `slime-color`, `bevy_mikktspace`, `blake3`, `block_compression`, `glam`, `gltf`, `png`, `uuid`, `zune-jpeg`, `thiserror` | IDs for source files in metadata files beside them, their check, and the IDs of the assets inside a file; PNG and JPEG images cooked into textures compressed in BC7 or BC5, every level computed; glTF files imported into meshes (MikkTSpace tangents), materials and scenes; a directory cooked again only where it changed, with its manifest, once or at each change |
-| [`slime-devui`](../crates/slime-devui/README.md) | The dev overlay: egui drawn over the engine's frames, fed with the engine's events; tooling, removed once something does at least as well ([ADR-0052](adr/0052-amend-roadmap-before-0-1.md)) | `egui`, `egui-wgpu`, `slime-gfx` (with its `wgpu` feature), `slime-platform` | Panels over a frame; no clipboard or input methods |
+| [`slime-devui`](../crates/slime-devui/README.md) | The dev overlay: egui drawn over the engine's frames, fed with the engine's events, and its world panel; tooling, removed once something does at least as well ([ADR-0052](adr/0052-amend-roadmap-before-0-1.md), [ADR-0081](adr/0081-stage-5a-the-world.md)) | `egui`, `egui-wgpu`, `slime-assets`, `slime-color`, `slime-gfx` (with its `wgpu` feature), `slime-platform`, `slime-reflect`, `slime-world` | Panels over a frame; a world's entities listed by name and their components edited through reflection, each edit returned for the caller to apply; no clipboard or input methods |
 | [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-assets`, `slime-color`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `slime-world`, `slime-world-render`, `png`, `tracing`; for the tests, `slime-cook` and `gltf` | `hello`, `headless`, `window`, `offscreen`, `scene`, which draws a cooked scene, `world`, which draws it from a world; the reference image tests, and tests that cook glTF files and draw them |
 | [`hunnawood`](../games/hunnawood/README.md) | Hunna Wood, the game that every stage grows from Stage 4a on; a client of the engine through its public API only, not part of the engine ([ADR-0055](adr/0055-games-in-the-workspace.md), [ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)) | `slime-app`, `slime-assets`, `slime-color`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-reflect`, `slime-render`, `slime-world`, `slime-world-render`, `tracing` | A forest zone and its hero read from cooked data and spawned in the game's world, its colliders and markers as the game's components, the camera behind the hero, the hero's movement and its collisions with boxes turned about the vertical and cylinders, a key that opens a door, a campfire that flickers, the zone drawn while it loads, the run kept after a lost GPU device, the zone loaded again when its cooked data changes, and the shaders when their files do (`--watch`) |
 
@@ -77,7 +77,8 @@ slime-examples ──▶ slime-app ──┬──▶ slime-platform ──▶ w
        ├──▶ slime-world-render ──▶ slime-world, slime-render (a world drawn)
        ├──▶ slime-devui ───┬───────▶ slime-gfx (feature wgpu) ──▶ wgpu
        │                   ├───────▶ egui, egui-wgpu ──────────▶ wgpu
-       │                   └───────▶ slime-platform (events)
+       │                   ├───────▶ slime-platform (events)
+       │                   └───────▶ slime-world, slime-reflect, slime-assets, slime-color (the world panel)
        └──▶ slime-platform, slime-gfx, slime-color (their types: events, GPU objects, colors)
 
 hunnawood  ──▶ slime-app, slime-assets, slime-render, slime-platform, slime-gfx, slime-color, slime-devui,
@@ -688,6 +689,23 @@ World::new()                                        registers the engine's compo
 
 Errors name the component and the path of the part at fault; the component stays as it was.
 Serialization, M5a.7, writes and reads the same values.
+
+The dev overlay's world panel ([`slime_devui::WorldPanel`](../crates/slime-devui/README.md),
+[ADR-0081](adr/0081-stage-5a-the-world.md)) is the first editor built on it. It reads a world and
+changes nothing: the application applies what it asks for, once its frame is drawn.
+
+```text
+render
+├── overlay.render(gpu, target, |egui| panel.show(egui, world))
+│   ├── world.entities(), their Name                 the list, filtered by name
+│   └── world.component_names(selected)
+│       └── world.component_value(selected, name)    each component as a Value, shown through
+│                                                    its type's description in world.registry();
+│                                                    a widget changed gives an Edit: the entity,
+│                                                    the component's name, a path and a value
+└── for each Edit: world.set_property(...)           a refusal handed back to the panel
+                                                     (WorldPanel::refused), which shows it
+```
 
 ### Losing the GPU
 
