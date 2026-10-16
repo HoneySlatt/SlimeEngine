@@ -27,7 +27,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0083](adr/0083-transforms-and-the-hierarchy.md)). M5a.3 done on 2026-10-16: the world drawn
   from an asset cache through `slime-world-render`, what moves drawn between fixed steps
   ([ADR-0084](adr/0084-what-the-world-draws.md)). M5a.4 done on 2026-10-16: *Hunna Wood* runs on the
-  world, which holds its run.
+  world, which holds its run. M5a.5 built: reflection, through which the world reaches every
+  component by name ([ADR-0085](adr/0085-reflection.md)); CI checks it.
 
 ## Status
 
@@ -37,7 +38,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M5a.2](#m5a2--the-hierarchy-and-the-transforms) | Entities are placed by a hierarchy of transforms in double precision; a cooked scene becomes entities | Done |
 | [M5a.3](#m5a3--what-the-world-draws) | The renderer draws a world, and what moves between its last two fixed steps | Done |
 | [M5a.4](#m5a4--hunna-wood-on-the-world) | *Hunna Wood* runs on the world, and changes only what moves | Done |
-| [M5a.5](#m5a5--reflection) | The engine and the game describe, read and change their types' values through one registry | In progress |
+| [M5a.5](#m5a5--reflection) | The engine and the game describe, read and change their types' values through one registry | Built; CI checks it |
 | [M5a.6](#m5a6--any-component-listed-and-edited) | Any component's properties are listed and edited in the running game | Planned |
 | [M5a.7](#m5a7--serialization-with-format-versioning) | Any reflected value is written to a file and read back, even from an older version of its type | Planned |
 | [M5a.8](#m5a8--the-world-round-trips) | A world saves what differs from the scenes it was made from, and loads it back | Planned |
@@ -311,6 +312,28 @@ Risks:
   round-trip through the value type; applying a value's differences from another gives it back;
   aliases read former names; misuses fail to compile; CI is green.
 - **How to test.** `cargo test -p slime-reflect -p slime-world -p hunnawood`.
+- **Outcome.** Built on 2026-10-16 ([ADR-0085](adr/0085-reflection.md)). `slime-reflect` and its
+  derive describe a type's values under a stable name, turn them into plain values and back, check
+  them, set their parts by property path within their fields' ranges, list their leaves, compare
+  them and apply their differences; a registry holds types with no Rust type behind them too. The
+  owner decided that every component is reflected, `Component` requiring `Reflect`, and that each
+  world keeps its registry, a component's type registered when the world first stores one. A world
+  lists its entities and the components each holds, and reads and sets any of them by name and
+  path; an edit takes the component's value, sets the part, and reads the component back. The
+  engine's six components, *Hunna Wood*'s five, the color type, asset IDs, the custom values of
+  nodes and entity handles are reflected, the lights' ranges and units those their rustdoc gave.
+  Tests set every leaf of every component through its path and read it back, through reflection
+  and typed, a component that only derives among them; the derive's misuses are doc tests that
+  fail to compile, each for the reason it names. The review found that edits valid field by field
+  could give the renderer a light it refuses, which panics: the owner decided that a type declares
+  a check of the rules between its fields, `#[reflect(check)]`, which `Light` and `Transform` do,
+  and that ranges hold finite numbers only. It also made paths go through options, refused fields
+  given twice and descriptions that are not ones, and removed what nothing called. The two new
+  crates take about 7 s of compile time
+  in a cold build of the workspace, beside the rest; a cold build took 60 to 88 s from one run to
+  the next on the owner's machine, before and after alike. The game's rebuild after a one-line
+  change takes 2.12 s instead of 2.04 at the median of ten debug builds, and after a one-line
+  change in `slime-world` 2.58 s instead of 2.45.
 
 ### M5a.6 — Any component listed and edited
 
@@ -796,6 +819,13 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **A zone loaded again with `--watch` changes in parts.** Its entities change at once, the meshes,
   materials and textures that the cache holds when its reload ends, and new meshes once their batch
   is loaded; *Hunna Wood* swapped whole scenes before it ran on the world.
+- **The tests that edit every leaf of every component are written twice** (ADR-0085): once in
+  `slime-world` for its components, once in *Hunna Wood* for the game's, about fifty lines that
+  choose another value for a leaf. One copy would need a test-support crate, or a feature of
+  `slime-world` that only tests enable; neither is worth it yet.
+- **An edit through reflection reads the whole component again** (ADR-0085): a field that its type
+  skips takes its `Default` value, and a rotation is edited whole, as `Transform`'s check refuses a
+  coordinate edited alone. The panel of M5a.6 edits a rotation whole.
 - **Rough metals reflect the sky with multiple scattering compensated, the lights without**
   (ADR-0039, as the Khronos glTF Sample Viewer): a white metal of roughness 1 reflects all of a
   uniform sky, but its lights keep glTF's single-scattering BRDF, under which it would reflect

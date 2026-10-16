@@ -10,7 +10,8 @@ Stages 4b and 5a of the roadmap, live assets and the world, which 0.3 will relea
 the background while a game draws, a game can go on after a lost GPU device, a material's values
 change while it runs, and a texture or a shader changed on disk changes in the running game. The
 engine starts a world of its own, which keeps a game's entities and their components and draws
-them; *Hunna Wood* runs on it.
+them, and its own reflection, through which every component is reached by name; *Hunna Wood* runs
+on it.
 
 ### Added
 
@@ -97,6 +98,19 @@ them; *Hunna Wood* runs on it.
   in the sky, given once to the sky and to the lights, first among them so that it casts the
   shadows. A new example, `world`, draws the examples' cooked scene from a world, its ring
   floating at the fixed step, and runs headless too.
+- `slime-reflect`, the engine's reflection
+  ([ADR-0080](docs/adr/0080-reflection-and-serialization.md),
+  [ADR-0085](docs/adr/0085-reflection.md)): `#[derive(Reflect)]` describes a struct or an enum
+  under a stable name, `#[reflect(name = "...")]`, with aliases, a version, defaults, skipped and
+  transient fields, ranges of finite numbers, units, and a check that refuses the values breaking
+  the rules between fields, as `Light` and `Transform` declare; `Value` holds its values as plain data; `Registry` registers
+  types and the types their values hold, types with no Rust type behind them too, checks values,
+  sets their parts by `Path` within their fields' ranges, and lists their leaves; `diff` and
+  `apply` compare values and give one back from the other. The standard types, glam's `Vec3`,
+  `DVec3` and `Quat`, `LinearColor`, `AssetId`, `Extra` and `Entity` are reflected.
+- A world reaches its components by name, without their types: `World::registry`,
+  `World::register`, `World::entities`, `World::component_names`, `World::component_value`,
+  `World::set_component_value` and `World::set_property`, which respects the ranges of the fields.
 
 ### Changed
 
@@ -149,6 +163,11 @@ them; *Hunna Wood* runs on it.
   the world through `slime-world-render` and an `AssetCache`, which loads the hero first. After a
   lost GPU device, the world keeps the run and only what it draws loads again. With `--watch`, the
   zone or the hero is spawned again when its scene changed. The game looks and plays as before.
+- `Component` requires `Reflect`: a component derives it, with its stable name,
+  `#[derive(Reflect)] #[reflect(name = "my_game::Lantern")]`, and its crate depends on
+  `slime-reflect` (ADR-0085). Each world keeps the registry of its components' types, the first
+  component of a type it stores registering the type. `WorldError` gains `NoComponent` and
+  `Refused`, and is no longer `Eq`. `slime-assets` and `slime-color` depend on `slime-reflect`.
 
 ### Removed
 

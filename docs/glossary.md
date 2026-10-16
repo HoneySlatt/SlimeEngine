@@ -99,7 +99,8 @@ Shadow maps are read this way. See *percentage-closer filtering*.
 
 **Component.** A piece of data that an *entity* holds, such as its transform, a light or a collider:
 an entity holds at most one component of each type, and the *world* stores components by type
-([ADR-0079](adr/0079-the-engines-own-world.md)).
+([ADR-0079](adr/0079-the-engines-own-world.md)). Every component type has *reflection*
+([ADR-0085](adr/0085-reflection.md)).
 
 **Component ID.** The number by which a *world* knows a *component* type, given in the order types
 are first attached. It stays in the process: files name types through *reflection*
@@ -312,6 +313,10 @@ the *reference driver* of the image tests.
 many of them make the foliage of a tree for a fraction of the triangles that modelled leaves
 would take.
 
+**Leaf (reflection).** A part of a *value* that holds no other parts, which an edit sets whole: a
+number, a boolean, a text, an option, a reference to an asset or an entity, an empty list, or an
+enum whose variant holds no data (`slime_reflect::Registry::leaves`).
+
 **Linear color.** A color whose values are proportional to the light they stand for, so that
 light adds and multiplies them as they are: twice the value is twice the light. Displays and
 image files store colors *sRGB-encoded* instead. Every color of the engine's API is linear, a
@@ -457,6 +462,10 @@ next refreshes, as the *present mode* says.
 never waits; with *FIFO*, every image is shown in order, one per refresh, and presenting waits
 while earlier images are still to be shown ([ADR-0021](adr/0021-frame-pacing.md)).
 
+**Property path.** Where a part of a reflected *value* is, as fields joined by `.` and indices in
+brackets: `color.r`, `ids[2]` (`slime_reflect::Path`). A field of an enum is one of the variant
+the value holds; an option that holds a value is gone through, to the value.
+
 **Punctual light.** A light without size, from one direction or one point, as glTF's
 `KHR_lights_punctual` defines it (`slime_render::Light`): a directional light, whose strength is an
 *illuminance*; a point light, whose strength is an intensity in *candelas*, shining in every
@@ -485,8 +494,8 @@ deliberate change of what the test draws, or after an update of lavapipe that ch
 
 **Reflection.** What lets the engine describe the values of a type that it did not know when it was
 compiled: list their properties, read and change them by name, write them to files. A type gets it
-from `#[derive(Reflect)]`, and is registered in a type registry
-([ADR-0080](adr/0080-reflection-and-serialization.md)).
+from `#[derive(Reflect)]`, under a *stable name*, and is registered in a *type registry*
+([ADR-0080](adr/0080-reflection-and-serialization.md), [ADR-0085](adr/0085-reflection.md)).
 
 **Render graph.** The renderer's description of a frame as passes, each declaring the targets it
 draws into and the ones it samples (`crates/slime-render/src/graph.rs`, private): it orders the
@@ -579,6 +588,11 @@ values of displays, image files, color pickers and web colors. A *linear color* 
 encoded as 128 out of 255. The GPU decodes the texels of sRGB textures and encodes what it writes
 into sRGB targets; `LinearColor::from_srgb8` decodes bytes on the CPU.
 
+**Stable name.** The name a reflected type is known by in a *type registry*, in files and in saves:
+bare for the engine's types (`Transform`), `<crate>::<Type>` for a game's (`hunnawood::Collider`),
+never a module path, so that moving a type breaks nothing; a former name stays as an alias
+([ADR-0080](adr/0080-reflection-and-serialization.md)).
+
 **Stage.** A step of [`docs/ROADMAP.md`](ROADMAP.md), ordered by dependency, with a goal and an exit
 criterion. Stages are numbered from 0; a stage may be split (Stage 3a and 3b), and a stage added
 later takes a letter (Stage 3c), so that the numbers cited elsewhere stay right.
@@ -650,8 +664,16 @@ by a power of two, and whose content lives for one frame: the renderer's high-dy
 depth targets and the bloom's levels. It is kept from frame to frame, and reused by the graph of the
 next *shape* that declares it at the same size ([ADR-0041](adr/0041-render-graph.md)).
 
+**Type registry.** The reflected types that a program describes, by *stable name* and alias, with
+what reads and sets their *values* (`slime_reflect::Registry`). Each *world* keeps one, which holds
+the types of its components ([ADR-0085](adr/0085-reflection.md)).
+
 **Uniform buffer.** A buffer of values that a whole draw reads, such as a camera's matrices,
 declared `var<uniform>` in WGSL and read through a *bind group* (`slime_gfx::UniformBuffer`).
+
+**Value (reflection).** A reflected value as plain data, without its Rust type: booleans, integers,
+floats of either width, text, structs, enums, options, lists, references to assets and entities
+(`slime_reflect::Value`). What passes between reflection, files, saves and editors.
 
 **WARP.** Microsoft's software driver for Direct3D 12, part of Windows. wgpu uses it on Windows
 machines without a GPU, such as the CI runners.
