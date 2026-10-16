@@ -47,7 +47,7 @@ fn a_new_source_file_gets_an_id_in_a_metadata_file_beside_it() {
     );
     for source in &result.sources {
         let text = fs::read_to_string(metadata_path(&source.path)).expect("written");
-        assert_eq!(metadata::read(&text), Ok(source.id));
+        assert_eq!(metadata::read(&text).expect("a metadata file"), source.id);
     }
     assert_ne!(result.sources[0].id, result.sources[1].id);
     assert!(!root.join("README.md.meta").exists());

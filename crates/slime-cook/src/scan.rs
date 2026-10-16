@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use slime_assets::AssetId;
 
 use crate::ids::new_asset_id;
-use crate::metadata::{self, MetadataError};
+use crate::metadata;
 
 /// The extensions of the files that the pipeline imports, its *source files*, compared without
 /// regard to case: glTF scenes, as JSON with external files or as GLB, and PNG and JPEG images.
@@ -112,13 +112,13 @@ pub enum ScanError {
         /// The operating system's error.
         source: io::Error,
     },
-    /// A metadata file is not in the format of metadata files.
+    /// A metadata file is not one: not a document of a `Metadata` value.
     #[error("{}: {source}", path.display())]
     Metadata {
         /// The metadata file.
         path: PathBuf,
         /// What is wrong in it.
-        source: MetadataError,
+        source: slime_serialize::ReadError,
     },
 }
 
@@ -135,7 +135,7 @@ pub enum ScanError {
 /// # Errors
 ///
 /// [`ScanError::Io`] if a directory or a file cannot be read, or a metadata file cannot be written;
-/// [`ScanError::Metadata`] if a metadata file is not in the format of [`crate::metadata`].
+/// [`ScanError::Metadata`] if a metadata file is not one, as [`crate::metadata::read`] says.
 pub fn scan(root: &Path, mode: Mode) -> Result<Scan, ScanError> {
     let mut files = Vec::new();
     walk(root, &mut files)?;

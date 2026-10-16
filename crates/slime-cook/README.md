@@ -53,20 +53,22 @@ Cooking is slow in a debug build: `cargo run --release -p slime-cook` cooks a te
 2048 texels in about a second.
 
 The library: `scan` (the module and its function) finds the source files of a directory and their
-IDs, and what is wrong with their metadata; `metadata` reads and writes metadata files; `ids` makes
-new IDs and derives those of sub-assets and textures; `image` decodes images;
-`texture::cook_texture` makes a cooked texture of an image for a role; `gltf_import::GltfFile`
-opens and imports a glTF file; `cook` (the module and its function) cooks a directory, and
-`watch` cooks it again at each change.
+IDs, and what is wrong with their metadata; `metadata` reads and writes metadata files, documents
+of a `Metadata` value, through `slime-serialize`; `ids` makes new IDs and derives those of
+sub-assets and textures; `image` decodes images; `texture::cook_texture` makes a cooked texture of
+an image for a role; `gltf_import::GltfFile` opens and imports a glTF file; `cook` (the module and
+its function) cooks a directory, and `watch` cooks it again at each change.
 Their rustdoc gives the formats and the rules.
 
 ## Dependencies
 
 [`slime-assets`](../slime-assets/README.md), for the asset ID and the cooked formats;
-[`slime-color`](../slime-color/README.md), for the sRGB transfer function of the mipmaps. `uuid` for
-random IDs, `blake3` to derive the IDs of sub-assets and name cooked files, `png` and `zune-jpeg`
-to decode images, `block_compression` to compress textures, `gltf` to read glTF files,
-`bevy_mikktspace` to compute tangents, `glam` for their vectors, `thiserror` for its error types.
+[`slime-color`](../slime-color/README.md), for the sRGB transfer function of the mipmaps;
+[`slime-serialize`](../slime-serialize/README.md), which reads and writes metadata files, and
+[`slime-reflect`](../slime-reflect/README.md), which describes what they hold. `uuid` for random
+IDs, `blake3` to derive the IDs of sub-assets and name cooked files, `png` and `zune-jpeg` to decode
+images, `block_compression` to compress textures, `gltf` to read glTF files, `bevy_mikktspace` to
+compute tangents, `glam` for their vectors, `thiserror` for its error types.
 
 ## Must not
 
