@@ -1,9 +1,11 @@
 //! Errors of the world.
 
+use slime_reflect::ReflectError;
+
 use crate::{Entity, PersistentId};
 
 /// A change that the world refuses.
-#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[derive(Clone, Debug, PartialEq, thiserror::Error)]
 #[non_exhaustive]
 pub enum WorldError {
     /// The entity is not alive in this world.
@@ -21,4 +23,21 @@ pub enum WorldError {
     /// would give.
     #[error("an entity has the persistent identity `{0}` already")]
     IdentityInUse(PersistentId),
+    /// The entity is not alive, or holds no component of the type named.
+    #[error("{entity:?} holds no component `{component}`")]
+    NoComponent {
+        /// The entity.
+        entity: Entity,
+        /// The component's type, by the name it was given.
+        component: String,
+    },
+    /// A value that the component's type refuses, as reflection says
+    /// ([`Registry::set`](slime_reflect::Registry::set)): with the path of the part at fault.
+    #[error("component `{component}`: {error}")]
+    Refused {
+        /// The component's type, by its name.
+        component: String,
+        /// Why, and where in the component.
+        error: ReflectError,
+    },
 }

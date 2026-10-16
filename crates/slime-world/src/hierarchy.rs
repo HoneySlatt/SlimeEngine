@@ -370,6 +370,8 @@ mod tests {
 
     #[test]
     fn a_component_that_panics_as_it_is_dropped_leaves_the_hierarchy_whole() {
+        #[derive(slime_reflect::Reflect)]
+        #[reflect(name = "test::Fragile")]
         struct Fragile;
         impl crate::Component for Fragile {}
         impl Drop for Fragile {

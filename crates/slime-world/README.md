@@ -10,7 +10,7 @@ to them, and finds the entities that hold the components a query asks for. It ke
 parent and children and where each one is in the world, and spawns a cooked scene as entities with
 persistent identities. Its components say what is drawn, by asset ID, and it keeps where what moved
 during the last fixed step was, to draw it between its two transforms; `slime-world-render` draws
-it. It cannot be saved yet (M5a.8).
+it. Every component is reflected, and reached by name. It cannot be saved yet (M5a.8).
 
 ## Role
 
@@ -23,15 +23,20 @@ it. It cannot be saved yet (M5a.8).
 - Says what is drawn without holding GPU objects: meshes by asset ID, lights, what is hidden; and
   keeps the transforms before the last fixed step of what moved during it, so that it is drawn
   between its two transforms (`docs/adr/0084-what-the-world-draws.md`).
+- Keeps the registry of its components' types, through which every component is listed, read and
+  set by name, without its type (`docs/adr/0085-reflection.md`).
 - Runs headless: it holds no GPU object and needs no window, so that tests, servers and tools hold
   worlds too. Worlds are values, which threads can share.
 
 ## Entry points
 
 ```rust
+use slime_reflect::{Reflect, Value};
 use slime_world::{Component, Transform, World};
 use slime_world::glam::DVec3;
 
+#[derive(Reflect)]
+#[reflect(name = "demo::Velocity")]
 struct Velocity(f64);
 impl Component for Velocity {}
 
@@ -49,13 +54,18 @@ world.query_mut::<(&mut Transform, &Velocity)>(|_, (transform, velocity)| {
 // The lantern rides on the cart.
 let lantern_at = world.global_transform(lantern).expect("placed").translation;
 assert_eq!(lantern_at, DVec3::new(3.0, 2.0, 0.0));
+
+// Through reflection, by name, without the component's type.
+let speed = "0".parse().expect("a path");
+world.set_property(cart, "demo::Velocity", &speed, Value::F64(5.0)).expect("an f64");
+assert_eq!(world.get::<Velocity>(cart).expect("held").0, 5.0);
 ```
 
 - `World::spawn` gives a new `Entity`, `World::despawn` destroys one with its descendants and drops
   their components; the handle of a destroyed entity finds nothing afterwards.
 - `World::insert`, `get`, `get_mut` and `remove` attach, read, change and detach one component of
-  an entity. A component is a value of a type that threads can share and that says it is one:
-  `impl Component for Velocity {}`.
+  an entity. A component is a value of a type that threads can share, that reflection describes
+  (`#[derive(Reflect)]`, `slime-reflect`), and that says it is one: `impl Component for Velocity {}`.
 - `World::query` reads the entities that hold every component of a `Query`, `&T` or a tuple of up
   to four, through an iterator; `World::query_mut` changes them through a closure, with `&mut T`
   in its `QueryMut`.
@@ -75,6 +85,10 @@ assert_eq!(lantern_at, DVec3::new(3.0, 2.0, 0.0));
   step, keep the transforms before the step of what moves during it;
   `World::interpolated_transform(entity, fraction)` gives where it is drawn between the two, and
   `World::teleport` makes an entity be drawn at once where it goes.
+- `World::registry` holds the types of the components, the engine's and each type the world stored a
+  component of, or `World::register` registered ahead. `World::entities`, `component_names`,
+  `component_value`, `set_component_value` and `set_property` list the entities and reach their
+  components by name and property path, without their types, within the ranges of their fields.
 - `slime_world::glam` re-exports the math crate the API uses, so that callers use the same version.
 
 The rustdoc holds the contracts: what panics, what each query visits, what each operation costs.
@@ -84,6 +98,7 @@ The rustdoc holds the contracts: what panics, what each query visits, what each 
 - `slime-assets`: the cooked scenes it spawns.
 - `glam`: vectors, rotations and matrices; `DVec3` for positions.
 - `slime-color`: the colors of its lights.
+- `slime-reflect`: every component is reflected, and each world keeps the registry of their types.
 - `thiserror`: derives `WorldError`'s `Display` and `Error` implementations.
 - `tracing`: the warnings of a scene spawned with nodes known by their index, or scaled unevenly or
   mirrored.

@@ -4,6 +4,10 @@
 use std::any::Any;
 use std::mem;
 
+use slime_reflect::{Reflect, ReflectError, Value};
+
+use crate::world::Component;
+
 /// A sparse entry that holds no value.
 const EMPTY: u32 = u32::MAX;
 
@@ -82,11 +86,40 @@ impl<T> Storage<T> {
 pub trait AnyStorage: Any + Send + Sync {
     /// Drops the slot's value, if it has one: its entity was destroyed.
     fn remove_slot(&mut self, slot: u32);
+
+    /// Whether the slot holds a component.
+    fn holds(&self, slot: u32) -> bool;
+
+    /// The value of the slot's component, through reflection, if it holds one.
+    fn value(&self, slot: u32) -> Option<Value>;
+
+    /// Replaces the slot's component with the one that `value` describes, if the slot holds one.
+    ///
+    /// # Errors
+    ///
+    /// As the component type's [`Reflect::from_value`]: the slot's component stays then.
+    fn set_value(&mut self, slot: u32, value: &Value) -> Result<(), ReflectError>;
 }
 
-impl<T: Send + Sync + 'static> AnyStorage for Storage<T> {
+impl<T: Component> AnyStorage for Storage<T> {
     fn remove_slot(&mut self, slot: u32) {
         self.remove(slot);
+    }
+
+    fn holds(&self, slot: u32) -> bool {
+        self.get(slot).is_some()
+    }
+
+    fn value(&self, slot: u32) -> Option<Value> {
+        self.get(slot).map(Reflect::to_value)
+    }
+
+    fn set_value(&mut self, slot: u32, value: &Value) -> Result<(), ReflectError> {
+        let component = T::from_value(value)?;
+        if let Some(held) = self.get_mut(slot) {
+            *held = component;
+        }
+        Ok(())
     }
 }
 

@@ -4,18 +4,22 @@ use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::mem;
 
+use slime_reflect::{Reflect, Registry};
+
+use crate::components::{Extras, Hidden, Light, Meshes, Name};
 use crate::entity::{Entities, Entity};
 use crate::identity::PersistentId;
 use crate::query::{Query, QueryIter, QueryMut};
 use crate::storage::{AnyStorage, Storage};
 use crate::transform::{GlobalTransform, Transform};
 
-/// A value that an entity can hold, of a type that threads can share. An entity holds at most one
-/// component of each type.
+/// A value that an entity can hold, of a type that threads can share and that reflection
+/// describes ([`Reflect`]), so that every component can be listed, edited and saved by name
+/// (`docs/adr/0085-reflection.md`). An entity holds at most one component of each type.
 ///
 /// A type becomes a component by saying so, `impl Component for Position {}`, so that a tuple or a
 /// function given to [`World::insert`] by mistake does not compile.
-pub trait Component: Send + Sync + 'static {}
+pub trait Component: Reflect {}
 
 /// The entities of a game, their components and their hierarchy
 /// (`docs/adr/0079-the-engines-own-world.md`).
@@ -27,11 +31,15 @@ pub trait Component: Send + Sync + 'static {}
 /// it needs, and threads can share them.
 ///
 /// ```
+/// use slime_reflect::Reflect;
 /// use slime_world::{Component, World};
 ///
-/// #[derive(Debug, PartialEq)]
+/// #[derive(Debug, PartialEq, Reflect)]
+/// #[reflect(name = "demo::Position")]
 /// struct Position(f64);
 /// impl Component for Position {}
+/// #[derive(Reflect)]
+/// #[reflect(name = "demo::Velocity")]
 /// struct Velocity(f64);
 /// impl Component for Velocity {}
 ///
@@ -51,6 +59,10 @@ pub trait Component: Send + Sync + 'static {}
 /// assert_eq!(world.query::<&Position>().count(), 2);
 /// ```
 ///
+/// A world keeps the registry of the types its components are ([`World::registry`]), which
+/// reaches every component by its name, without its type: [`World::component_value`],
+/// [`World::set_property`].
+///
 /// # Costs
 ///
 /// Reading, changing, attaching or detaching an entity's component looks up its type, then its
@@ -65,7 +77,6 @@ pub trait Component: Send + Sync + 'static {}
 /// `docs/adr/0082-the-worlds-storage-and-handles.md` gives what 100 000 entities cost, and
 /// `docs/adr/0083-transforms-and-the-hierarchy.md` what the hierarchy changed of it and what their
 /// transforms cost.
-#[derive(Default)]
 pub struct World {
     pub(crate) entities: Entities,
     /// One storage per component type that an entity has held, at the index of its component ID.
@@ -73,6 +84,11 @@ pub struct World {
     /// The component ID of each type: the index of its storage. IDs are the world's own, given in
     /// the order types are first inserted.
     pub(crate) component_ids: HashMap<TypeId, usize>,
+    /// The type of each storage, by component ID.
+    pub(crate) component_types: Vec<TypeId>,
+    /// The types of the components, those the world has stored and those registered ahead, and
+    /// the types their values hold.
+    pub(crate) registry: Registry,
     /// Each slot's place in the hierarchy, identity and transform in the world.
     pub(crate) nodes: Vec<Node>,
     /// What changed of the transforms in the world.
@@ -175,10 +191,35 @@ impl std::fmt::Debug for World {
     }
 }
 
+impl Default for World {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl World {
-    /// An empty world.
+    /// An empty world, whose registry holds the engine's components: [`Transform`], [`Name`],
+    /// [`Meshes`], [`Hidden`], [`Light`] and [`Extras`].
     pub fn new() -> Self {
-        Self::default()
+        let mut world = Self {
+            entities: Entities::default(),
+            storages: Vec::new(),
+            component_ids: HashMap::new(),
+            component_types: Vec::new(),
+            registry: Registry::new(),
+            nodes: Vec::new(),
+            changes: Changes::default(),
+            identities: HashMap::new(),
+            #[cfg(test)]
+            computed: 0,
+        };
+        world.register::<Transform>();
+        world.register::<Name>();
+        world.register::<Meshes>();
+        world.register::<Hidden>();
+        world.register::<Light>();
+        world.register::<Extras>();
+        world
     }
 
     /// A new entity, which holds no component and has no parent yet.
@@ -267,12 +308,13 @@ impl World {
     }
 
     /// Attaches a component to an entity, and gives back the component of the same type that it
-    /// replaced, if the entity held one.
+    /// replaced, if the entity held one. The first component of a type that the world stores
+    /// registers the type ([`World::register`]).
     ///
     /// # Panics
     ///
     /// If the entity is not alive: a component attached to a destroyed entity would be lost, which
-    /// only a bug does.
+    /// only a bug does. As [`World::register`], the first time a component of `T` is stored.
     pub fn insert<T: Component>(&mut self, entity: Entity, component: T) -> Option<T> {
         assert!(
             self.entities.contains(entity),
@@ -282,7 +324,9 @@ impl World {
         let id = match self.component_ids.get(&TypeId::of::<T>()) {
             Some(&id) => id,
             None => {
+                self.registry.register::<T>();
                 self.storages.push(Box::new(Storage::<T>::new()));
+                self.component_types.push(TypeId::of::<T>());
                 let id = self.storages.len() - 1;
                 self.component_ids.insert(TypeId::of::<T>(), id);
                 id
@@ -336,22 +380,23 @@ impl World {
     /// particular order.
     ///
     /// ```
-    /// use slime_world::{Component, World};
+    /// use slime_reflect::Reflect;
+    /// use slime_world::{Component, Name, World};
     ///
-    /// struct Name(&'static str);
-    /// impl Component for Name {}
+    /// #[derive(Reflect)]
+    /// #[reflect(name = "demo::Lantern")]
     /// struct Lantern;
     /// impl Component for Lantern {}
     ///
     /// let mut world = World::new();
     /// for (name, lit) in [("north", true), ("south", false)] {
     ///     let entity = world.spawn();
-    ///     world.insert(entity, Name(name));
+    ///     world.insert(entity, Name(name.to_owned()));
     ///     if lit {
     ///         world.insert(entity, Lantern);
     ///     }
     /// }
-    /// let lit: Vec<_> = world.query::<(&Name, &Lantern)>().map(|(_, (name, _))| name.0).collect();
+    /// let lit: Vec<_> = world.query::<(&Name, &Lantern)>().map(|(_, (name, _))| &name.0).collect();
     /// assert_eq!(lit, ["north"]);
     /// ```
     pub fn query<Q: Query>(&self) -> QueryIter<'_, Q> {
@@ -443,19 +488,24 @@ mod tests {
 
     use super::*;
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Reflect)]
+    #[reflect(name = "test::Position")]
     struct Position(f64);
     impl Component for Position {}
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Reflect)]
+    #[reflect(name = "test::Velocity")]
     struct Velocity(f64);
     impl Component for Velocity {}
 
-    #[derive(Debug, PartialEq)]
-    struct Name(&'static str);
+    #[derive(Debug, PartialEq, Reflect)]
+    #[reflect(name = "test::Name")]
+    struct Name(String);
     impl Component for Name {}
 
     /// A component type that no entity of the tests holds.
+    #[derive(Reflect)]
+    #[reflect(name = "test::Unused")]
     struct Unused;
     impl Component for Unused {}
 
@@ -476,7 +526,9 @@ mod tests {
     #[test]
     fn a_destroyed_entity_drops_its_components_and_its_handle_finds_nothing() {
         /// Counts how many of its values were dropped.
-        struct Counted(Arc<AtomicUsize>);
+        #[derive(Reflect)]
+        #[reflect(name = "test::Counted")]
+        struct Counted(#[reflect(skip)] Arc<AtomicUsize>);
         impl Component for Counted {}
         impl Drop for Counted {
             fn drop(&mut self) {
@@ -487,7 +539,7 @@ mod tests {
         let mut world = World::new();
         let first = world.spawn();
         world.insert(first, Counted(Arc::clone(&dropped)));
-        world.insert(first, Name("first"));
+        world.insert(first, Name("first".to_owned()));
         assert!(world.despawn(first));
         assert_eq!(dropped.load(Ordering::Relaxed), 1);
         assert!(!world.despawn(first));
@@ -510,17 +562,17 @@ mod tests {
         let mut world = World::new();
         let entity = world.spawn();
         world.despawn(entity);
-        world.insert(entity, Name("lost"));
+        world.insert(entity, Name("lost".to_owned()));
     }
 
     #[test]
     fn queries_give_the_handles_of_the_entities_now_in_reused_slots() {
         let mut world = World::new();
         let old = world.spawn();
-        world.insert(old, Name("old"));
+        world.insert(old, Name("old".to_owned()));
         world.despawn(old);
         let new = world.spawn();
-        world.insert(new, Name("new"));
+        world.insert(new, Name("new".to_owned()));
         let visited: Vec<Entity> = world.query::<&Name>().map(|(entity, _)| entity).collect();
         assert_eq!(visited, [new]);
         world.query_mut::<&mut Name>(|entity, _| assert_eq!(entity, new));
@@ -531,9 +583,12 @@ mod tests {
     fn a_component_replaced_is_still_held_once() {
         let mut world = World::new();
         let entity = world.spawn();
-        world.insert(entity, Name("first"));
-        world.insert(entity, Name("second"));
-        let names: Vec<&str> = world.query::<&Name>().map(|(_, name)| name.0).collect();
+        world.insert(entity, Name("first".to_owned()));
+        world.insert(entity, Name("second".to_owned()));
+        let names: Vec<&str> = world
+            .query::<&Name>()
+            .map(|(_, name)| name.0.as_str())
+            .collect();
         assert_eq!(names, ["second"]);
     }
 
@@ -545,7 +600,7 @@ mod tests {
             .entities
             .set_generation(entity.index(), std::num::NonZeroU32::MAX);
         let last = world.entity_at(entity.index());
-        world.insert(last, Name("last"));
+        world.insert(last, Name("last".to_owned()));
         assert!(world.despawn(last));
         assert_eq!(world.query::<&Name>().count(), 0);
         assert!(world.is_empty());
@@ -556,6 +611,8 @@ mod tests {
 
     #[test]
     fn a_component_that_panics_as_it_is_dropped_leaves_its_entity_alive() {
+        #[derive(Reflect)]
+        #[reflect(name = "test::Fragile")]
         struct Fragile;
         impl Component for Fragile {}
         impl Drop for Fragile {
@@ -566,7 +623,7 @@ mod tests {
         let mut world = World::new();
         let entity = world.spawn();
         world.insert(entity, Fragile);
-        world.insert(entity, Name("kept"));
+        world.insert(entity, Name("kept".to_owned()));
         let despawned = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             world.despawn(entity);
         }));
@@ -585,7 +642,7 @@ mod tests {
         let mut first = World::new();
         let mut second = World::new();
         let entity = first.spawn();
-        first.insert(entity, Name("here"));
+        first.insert(entity, Name("here".to_owned()));
         assert!(!second.contains(entity));
         assert_eq!(second.get::<Name>(entity), None);
         let _ = second.spawn();
@@ -606,7 +663,7 @@ mod tests {
                     world.insert(entity, Velocity(1.0));
                 }
                 if index % 3 == 0 {
-                    world.insert(entity, Name("named"));
+                    world.insert(entity, Name("named".to_owned()));
                 }
                 entity
             })
@@ -656,7 +713,7 @@ mod tests {
                 Some(&Position(index as f64 + moved))
             );
         }
-        world.query_mut::<&mut Name>(|_, name| name.0 = "renamed");
+        world.query_mut::<&mut Name>(|_, name| name.0 = "renamed".to_owned());
         assert!(world.query::<&Name>().all(|(_, name)| name.0 == "renamed"));
         world.query_mut::<(&mut Unused, &Position)>(|_, _| unreachable!("no entity holds one"));
     }

@@ -7,10 +7,11 @@
 use std::f32::consts::{FRAC_PI_2, PI, TAU};
 
 use slime_assets::CookedScene;
+use slime_reflect::Reflect;
 use slime_render::glam::{DVec3, Quat, Vec2, Vec3};
 use slime_world::{Component, Entity, Hidden, Transform, World};
 
-use crate::zone::{Footprint, TimeOfDay, Zone, colliders};
+use crate::zone::{Collider, Flickers, Footprint, Marker, TimeOfDay, Zone, colliders};
 
 /// The hero's radius, in metres: it moves as a circle on the ground.
 pub const HERO_RADIUS: f32 = 0.35;
@@ -31,7 +32,8 @@ pub const REACH_CAMPFIRE: f32 = 2.6;
 const HERO: &str = "hero";
 
 /// It is night: a component of the game's, which the zone's root holds while it is.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+#[reflect(name = "hunnawood::Night")]
 pub struct Night;
 
 impl Component for Night {}
@@ -104,7 +106,7 @@ impl Game {
     /// Spawns the zone's cooked scene `zone` and the hero's `hero` in `world` ([`Zone::spawn`]),
     /// and starts a new game in them, by day or at night as `starts_at_night` says, and again so at
     /// each restart: the hero at the start, facing the way it says, the key in its place and the
-    /// door closed.
+    /// door closed. It registers the game's components in `world` first.
     ///
     /// # Errors
     ///
@@ -116,6 +118,12 @@ impl Game {
         hero: &CookedScene,
         starts_at_night: bool,
     ) -> Result<Self, String> {
+        // Each of the game's components, before any entity holds one: the night by day holds none.
+        world.register::<Collider>();
+        world.register::<Marker>();
+        world.register::<TimeOfDay>();
+        world.register::<Flickers>();
+        world.register::<Night>();
         let zone = Zone::spawn(world, zone)?;
         let hero = match world.spawn_scene(HERO, hero) {
             Ok(hero) => hero,
@@ -348,7 +356,9 @@ fn push_out(mut position: Vec2, radius: f32, colliders: &[Footprint]) -> Vec2 {
 #[cfg(test)]
 pub mod tests {
     use slime_assets::{Extra, SceneLight, SceneNode};
+    use slime_reflect::{Kind, Leaf, Range, Registry, Value};
     use slime_render::glam::Mat4;
+    use slime_world::Component;
 
     use super::*;
     use crate::zone::Shape;
@@ -722,6 +732,117 @@ pub mod tests {
         assert!(game.rest(&mut world) && !game.night(&world));
         game.restart(&mut world);
         assert!(game.night(&world));
+    }
+
+    /// A number of `range`, other than `not`.
+    fn pick(range: Range, not: f64) -> f64 {
+        [1.0, 0.5, 2.0, 0.25, range.min + 1.0, range.max - 0.125]
+            .into_iter()
+            .find(|&candidate| candidate != not && range.contains(candidate))
+            .expect("the range holds another number")
+    }
+
+    /// Another value for `leaf`, which holds `value`, of its type and within its field's range:
+    /// what an edit of it sets; `None` for a leaf that this test leaves alone.
+    fn another(registry: &Registry, leaf: &Leaf, value: &Value) -> Option<Value> {
+        let range = leaf
+            .field
+            .as_ref()
+            .and_then(|f| f.range)
+            .unwrap_or(Range::ALL);
+        Some(match value {
+            Value::Bool(value) => Value::Bool(!value),
+            Value::F32(value) => Value::F32(pick(range, f64::from(*value)) as f32),
+            Value::Enum(variant, _) => {
+                let Kind::Enum(variants) = &registry.get(&leaf.ty)?.info().kind else {
+                    return None;
+                };
+                let next = variants
+                    .iter()
+                    .find(|other| &other.name != variant && other.fields.is_empty())?;
+                Value::Enum(next.name.clone(), Vec::new())
+            }
+            _ => return None,
+        })
+    }
+
+    /// Sets each leaf of the component of `T` of an entity of `world` that holds one to another
+    /// value, through its path, and checks that it reads back, through reflection and typed.
+    fn every_leaf_is_set_and_read_back<T: Component + std::fmt::Debug>(world: &mut World) {
+        let name = T::type_name();
+        let (entity, _) = world.query::<&T>().next().expect("an entity holds one");
+        let value = world.component_value(entity, &name).expect("held");
+        for leaf in world
+            .registry()
+            .leaves(&name, &value)
+            .expect("a value of its type")
+        {
+            let before = world.component_value(entity, &name).expect("held");
+            let at = before.get(&leaf.path).expect("a leaf of the value").clone();
+            let Some(new) = another(world.registry(), &leaf, &at) else {
+                continue;
+            };
+            world
+                .set_property(entity, &name, &leaf.path, new.clone())
+                .unwrap_or_else(|error| panic!("{name}.{}: {error}", leaf.path));
+            let after = world.component_value(entity, &name).expect("held");
+            assert_eq!(after.get(&leaf.path), Some(&new), "{name}.{}", leaf.path);
+            let typed = world.get::<T>(entity).expect("held").to_value();
+            assert_eq!(typed, after, "{name}.{}: the typed component", leaf.path);
+        }
+    }
+
+    #[test]
+    fn every_leaf_of_every_game_component_is_set_through_its_path_and_read_back() {
+        let plan = walled([5.0, 0.0]);
+        let mut scene = plan.scene();
+        let mut fire = node(
+            "fire",
+            None,
+            at(plan.campfire),
+            &[("time", Extra::Text("night".to_owned()))],
+        );
+        fire.light = Some(SceneLight {
+            kind: slime_assets::LightKind::Point,
+            color: [1.0, 0.6, 0.3],
+            intensity: 120.0,
+            range: None,
+        });
+        scene.nodes.push(fire);
+        let mut world = World::new();
+        Game::spawn(&mut world, &scene, &no_hero(), true).expect("playable");
+        for name in [
+            "hunnawood::Collider",
+            "hunnawood::ColliderKind",
+            "hunnawood::Marker",
+            "hunnawood::TimeOfDay",
+            "hunnawood::Flickers",
+            "hunnawood::Night",
+        ] {
+            assert!(world.registry().get(name).is_some(), "{name} is registered");
+        }
+        every_leaf_is_set_and_read_back::<Collider>(&mut world);
+        every_leaf_is_set_and_read_back::<Marker>(&mut world);
+        every_leaf_is_set_and_read_back::<TimeOfDay>(&mut world);
+        every_leaf_is_set_and_read_back::<Flickers>(&mut world);
+        every_leaf_is_set_and_read_back::<Night>(&mut world);
+        // A height below the ground is refused, and says where.
+        let (entity, _) = world.query::<&Collider>().next().expect("a collider");
+        let error = world
+            .set_property(
+                entity,
+                "hunnawood::Collider",
+                &"height".parse().unwrap(),
+                Value::F32(-1.0),
+            )
+            .expect_err("out of range");
+        assert_eq!(
+            error.to_string(),
+            "component `hunnawood::Collider`: `height`: -1 is not ≥ 0"
+        );
+        // Each component round-trips through its value.
+        let collider = *world.get::<Collider>(entity).expect("held");
+        assert_eq!(Collider::from_value(&collider.to_value()), Ok(collider));
     }
 
     #[test]

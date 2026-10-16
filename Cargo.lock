@@ -848,6 +848,7 @@ dependencies = [
  "slime-devui",
  "slime-gfx",
  "slime-platform",
+ "slime-reflect",
  "slime-render",
  "slime-world",
  "slime-world-render",
@@ -2130,6 +2131,7 @@ dependencies = [
  "glam",
  "slime-assets",
  "slime-color",
+ "slime-reflect",
  "thiserror 2.0.21",
  "tracing",
 ]

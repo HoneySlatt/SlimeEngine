@@ -10,6 +10,7 @@
 //! [`Flickers`]. The rules and the camera read the zone from the world, where its entities stand.
 
 use slime_assets::{CookedScene, Extra};
+use slime_reflect::Reflect;
 use slime_render::glam::{DAffine3, Vec2, Vec3};
 use slime_world::{Component, Entity, Extras, Light, Name, Transform, World};
 
@@ -121,26 +122,32 @@ impl Footprint {
 /// node's `collider` and `height` say. Its entity's transform in the world places it, turned about
 /// the vertical, and gives its size ([`Footprint::of`]): a box's scale along its x and z axes is
 /// half its size, a cylinder's along its x axis its radius.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
+#[reflect(name = "hunnawood::Collider")]
 pub struct Collider {
     /// A box or a cylinder.
     pub kind: ColliderKind,
     /// How high it stands, in metres.
+    #[reflect(range(min = 0.0), unit = "m")]
     pub height: f32,
 }
 
 impl Component for Collider {}
 
 /// The shape of a [`Collider`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+#[reflect(name = "hunnawood::ColliderKind")]
 pub enum ColliderKind {
+    /// A box turned about the vertical.
     Box,
+    /// A cylinder standing on the ground.
     Cylinder,
 }
 
 /// A place of the game's loop, a component of the game's, as its node's `marker` says. Its
 /// entity's transform places it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+#[reflect(name = "hunnawood::Marker")]
 pub enum Marker {
     /// Where the hero starts, facing along the entity's −Z axis.
     Start,
@@ -160,9 +167,12 @@ impl Component for Marker {}
 
 /// The time of day a light shines at, a component of the game's, as its node's `time` says: the
 /// lights of the other time are hidden. A light without one shines at any time.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+#[reflect(name = "hunnawood::TimeOfDay")]
 pub enum TimeOfDay {
+    /// By day.
     Day,
+    /// At night.
     Night,
 }
 
@@ -170,9 +180,11 @@ impl Component for TimeOfDay {}
 
 /// A light that flickers, a component of the game's: the campfire's, whose intensity the view
 /// makes vary around `intensity`, the one the zone gives it, at each frame.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
+#[reflect(name = "hunnawood::Flickers")]
 pub struct Flickers {
     /// The intensity it flickers around, in candelas.
+    #[reflect(range(min = 0.0), unit = "cd")]
     pub intensity: f32,
 }
 

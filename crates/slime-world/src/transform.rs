@@ -2,6 +2,8 @@
 
 use glam::{DAffine3, DMat3, DQuat, DVec3, Quat, Vec3};
 
+use slime_reflect::Reflect;
+
 use crate::Component;
 
 /// How far apart the largest and the smallest of a matrix's three scales may be, relative to the
@@ -25,9 +27,11 @@ const UNIFORM: f64 = 1e-5;
 /// a stretched parent is never sheared, and where an entity is in the world always splits into a
 /// translation, a rotation and a scale ([`GlobalTransform`]). The world computes that again when a
 /// transform changes ([`World::global_transform`](crate::World::global_transform)).
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
+#[reflect(name = "Transform")]
 pub struct Transform {
     /// Where the entity's origin is, in its parent's space, in metres.
+    #[reflect(unit = "m")]
     pub translation: DVec3,
     /// How the entity is turned, in its parent's space.
     pub rotation: Quat,

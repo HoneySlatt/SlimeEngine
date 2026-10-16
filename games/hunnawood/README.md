@@ -96,8 +96,11 @@ the game gives the zone's entities components of its own, from the custom values
 ([below](#the-zone)): `Collider`, `Marker`, `TimeOfDay`, `Flickers`. The world holds the run itself:
 the hero is where the root of its scene stands, the key taken and the door open are hidden
 (`slime_world::Hidden`), which also takes the door's colliders away, and the night is a component of
-the zone's root, the lights of the other time of day hidden. The game's own state is only the
-entities it refers to and the time of day a new game starts at.
+the zone's root, `Night`, the lights of the other time of day hidden. The game's own state is only
+the entities it refers to and the time of day a new game starts at. Each of the game's components
+is reflected, under a name such as `hunnawood::Collider`, as every component is
+([ADR-0085](../../docs/adr/0085-reflection.md)), and `Game::spawn` registers them all in the world
+before it spawns the zone.
 
 | Module | What it holds |
 |---|---|
@@ -244,7 +247,8 @@ The engine's crates only: `slime-app`, `slime-gfx`, `slime-platform`, `slime-ren
 `slime-devui` for the dev overlay, engine tooling that turns `slime-gfx`'s `wgpu` feature on for
 itself (the game uses no wgpu type); `slime-assets`, which reads the cooked zone; `slime-color`, for
 the colors of its lights and skies; `slime-world`, its world, and `slime-world-render`, which
-draws it; and `tracing` for the log.
+draws it; `slime-reflect`, which describes its components, as every component is; and `tracing`
+for the log.
 
 ## Must not
 

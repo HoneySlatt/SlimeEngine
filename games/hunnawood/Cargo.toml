@@ -20,6 +20,8 @@ slime-color.workspace = true
 slime-devui.workspace = true
 slime-gfx.workspace = true
 slime-platform.workspace = true
+# Describes the game's components, as every component is (ADR-0080).
+slime-reflect.workspace = true
 slime-render.workspace = true
 # The world that holds the zone, the hero and the run, and what draws it.
 slime-world.workspace = true

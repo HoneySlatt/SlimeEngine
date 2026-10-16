@@ -6,6 +6,7 @@ mod error;
 mod hierarchy;
 mod identity;
 mod query;
+mod reflection;
 mod scene;
 mod steps;
 mod storage;

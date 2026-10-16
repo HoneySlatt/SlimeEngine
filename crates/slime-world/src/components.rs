@@ -4,11 +4,14 @@
 use slime_assets::{AssetId, Extra, LightKind, SceneLight};
 use slime_color::LinearColor;
 
+use slime_reflect::Reflect;
+
 use crate::Component;
 
 /// An entity's name, as a scene file gives it: for people and logs. An entity's identity in files
 /// and saves is its [`PersistentId`](crate::PersistentId), not its name.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Reflect)]
+#[reflect(name = "Name")]
 pub struct Name(pub String);
 
 impl Component for Name {}
@@ -18,7 +21,8 @@ impl Component for Name {}
 /// places it in the world, its stretch included.
 ///
 /// [`Transform`]: crate::Transform
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Reflect)]
+#[reflect(name = "Meshes")]
 pub struct Meshes {
     /// The meshes, by their asset IDs.
     pub ids: Vec<AssetId>,
@@ -30,7 +34,8 @@ impl Component for Meshes {}
 
 /// An entity that holds it is not drawn, nor are its descendants, nor the lights they place:
 /// a door that opened, a key taken.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+#[reflect(name = "Hidden")]
 pub struct Hidden;
 
 impl Component for Hidden {}
@@ -39,17 +44,20 @@ impl Component for Hidden {}
 /// physical units of glTF's `KHR_lights_punctual`, as the renderer's lights are, with the same
 /// ranges: a color and a strength finite and not negative, a range positive, a spot's cones
 /// within 0 ≤ inner < outer ≤ π / 2.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
+#[reflect(name = "Light")]
 pub enum Light {
     /// A light from one direction everywhere, like the sun.
     Directional {
         /// What `illuminance` is multiplied by in each of red, green and blue; alpha is ignored.
         color: LinearColor,
         /// The illuminance it gives a surface facing it, in lux.
+        #[reflect(range(min = 0.0), unit = "lx")]
         illuminance: f32,
         /// Whether it casts shadows; the renderer draws those of one directional light.
         casts_shadows: bool,
         /// How far from the camera it casts shadows, in metres; `None` for the renderer's default.
+        #[reflect(range(above = 0.0), unit = "m")]
         shadow_distance: Option<f32>,
         /// Whether it shows in the sky, with its disc and its glow, as the sky's sun: the first
         /// directional light drawn that does is the sun (`docs/adr/0084-what-the-world-draws.md`).
@@ -61,8 +69,10 @@ pub enum Light {
         /// What `intensity` is multiplied by in each of red, green and blue; alpha is ignored.
         color: LinearColor,
         /// Its luminous intensity, in candelas.
+        #[reflect(range(min = 0.0), unit = "cd")]
         intensity: f32,
         /// The distance at and beyond which it reaches nothing, in metres; `None` for none.
+        #[reflect(range(above = 0.0), unit = "m")]
         range: Option<f32>,
     },
     /// A light from a point, in a cone along the entity's −Z axis.
@@ -70,12 +80,16 @@ pub enum Light {
         /// What `intensity` is multiplied by in each of red, green and blue; alpha is ignored.
         color: LinearColor,
         /// Its luminous intensity inside the inner cone, in candelas.
+        #[reflect(range(min = 0.0), unit = "cd")]
         intensity: f32,
         /// The distance at and beyond which it reaches nothing, in metres; `None` for none.
+        #[reflect(range(above = 0.0), unit = "m")]
         range: Option<f32>,
         /// The angle from the axis within which the light is full, in radians.
+        #[reflect(range(min = 0.0, max = std::f32::consts::FRAC_PI_2), unit = "rad")]
         inner_cone_angle: f32,
         /// The angle from the axis beyond which there is no light, in radians.
+        #[reflect(range(min = 0.0, max = std::f32::consts::FRAC_PI_2), unit = "rad")]
         outer_cone_angle: f32,
         /// Whether it casts shadows.
         casts_shadows: bool,
@@ -120,7 +134,8 @@ impl Component for Light {}
 
 /// The custom values of an entity, by name, as a cooked scene's node carried them: what a game
 /// reads its own data from, such as colliders and markers.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Reflect)]
+#[reflect(name = "Extras")]
 pub struct Extras(pub Vec<(String, Extra)>);
 
 impl Extras {

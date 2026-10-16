@@ -26,6 +26,47 @@ impl Entity {
     }
 }
 
+/// A reference to an entity, a kind of value of its own: [`Value::Entity`](slime_reflect::Value),
+/// the bits of its handle, which mean something only in the world that gave it out, while it runs.
+impl slime_reflect::Reflect for Entity {
+    fn type_name() -> String {
+        "Entity".to_owned()
+    }
+
+    fn type_info() -> slime_reflect::TypeInfo {
+        slime_reflect::TypeInfo {
+            name: Self::type_name(),
+            aliases: Vec::new(),
+            version: 1,
+            doc: "One thing in a world: a handle to which components are attached.".to_owned(),
+            default: false,
+            kind: slime_reflect::Kind::Entity,
+        }
+    }
+
+    fn register_dependencies(_: &mut slime_reflect::Registry) {}
+
+    fn to_value(&self) -> slime_reflect::Value {
+        slime_reflect::Value::Entity(u64::from(self.generation.get()) << 32 | u64::from(self.index))
+    }
+
+    fn from_value(value: &slime_reflect::Value) -> Result<Self, slime_reflect::ReflectError> {
+        let slime_reflect::Value::Entity(bits) = *value else {
+            return Err(slime_reflect::support::wrong("Entity", value));
+        };
+        let generation = u32::try_from(bits >> 32).ok().and_then(NonZeroU32::new);
+        let Some(generation) = generation else {
+            return Err(slime_reflect::ReflectError::new(
+                slime_reflect::Problem::Invalid("an entity handle has a generation".to_owned()),
+            ));
+        };
+        Ok(Self {
+            index: bits as u32,
+            generation,
+        })
+    }
+}
+
 /// `3v1`: the slot's index, then the generation.
 impl fmt::Debug for Entity {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -118,6 +159,17 @@ impl Entities {
     /// How many entities are alive.
     pub(crate) fn len(&self) -> usize {
         self.alive
+    }
+
+    /// The entities alive, in the order of their slots.
+    pub(crate) fn iter(&self) -> impl Iterator<Item = Entity> + '_ {
+        (0..)
+            .zip(&self.slots)
+            .filter(|(_, slot)| slot.alive)
+            .map(|(index, slot)| Entity {
+                index,
+                generation: slot.generation,
+            })
     }
 
     /// Sets a slot's generation, for the tests of a generation that would wrap.
