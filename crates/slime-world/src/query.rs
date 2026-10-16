@@ -75,7 +75,7 @@ pub trait QueryMut: sealed::Sealed {
     type Borrow<'w>;
 
     #[doc(hidden)]
-    fn component_types(types: &mut Vec<(TypeId, &'static str)>);
+    fn component_types(types: &mut Vec<(TypeId, &'static str, bool)>);
 
     #[doc(hidden)]
     fn borrow<'w>(
@@ -111,8 +111,8 @@ impl<T: Component> QueryMut for &T {
     type Item<'a> = &'a T;
     type Borrow<'w> = &'w Storage<T>;
 
-    fn component_types(types: &mut Vec<(TypeId, &'static str)>) {
-        types.push((TypeId::of::<T>(), type_name::<T>()));
+    fn component_types(types: &mut Vec<(TypeId, &'static str, bool)>) {
+        types.push((TypeId::of::<T>(), type_name::<T>(), false));
     }
 
     fn borrow<'w>(
@@ -135,8 +135,8 @@ impl<T: Component> QueryMut for &mut T {
     type Item<'a> = &'a mut T;
     type Borrow<'w> = &'w mut Storage<T>;
 
-    fn component_types(types: &mut Vec<(TypeId, &'static str)>) {
-        types.push((TypeId::of::<T>(), type_name::<T>()));
+    fn component_types(types: &mut Vec<(TypeId, &'static str, bool)>) {
+        types.push((TypeId::of::<T>(), type_name::<T>(), true));
     }
 
     fn borrow<'w>(
@@ -188,7 +188,7 @@ macro_rules! tuples {
             type Item<'a> = ($($part::Item<'a>,)+);
             type Borrow<'w> = ($($part::Borrow<'w>,)+);
 
-            fn component_types(types: &mut Vec<(TypeId, &'static str)>) {
+            fn component_types(types: &mut Vec<(TypeId, &'static str, bool)>) {
                 $($part::component_types(types);)+
             }
 

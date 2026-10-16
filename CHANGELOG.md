@@ -61,7 +61,14 @@ engine starts a world of its own, which keeps a game's entities and their compon
   handles, keeps their components, one of each type, and finds the entities that hold the
   components a query names, `World::query` reading them through an iterator and
   `World::query_mut` changing them through a closure. A type becomes a component with
-  `impl Component for Position {}`. The world has no hierarchy, drawing or saves yet.
+  `impl Component for Position {}`. Nothing draws the world yet, and it cannot be saved.
+- The world keeps a hierarchy and where its entities are
+  ([ADR-0083](docs/adr/0083-transforms-and-the-hierarchy.md)): `World::set_parent`, `parent` and
+  `children`; `Transform`, an `f64` translation, a rotation, a uniform scale that children inherit
+  and a stretch that they do not; `World::global_transform`, always current, and
+  `World::update_transforms`. `World::spawn_scene` spawns a cooked scene as entities with their
+  `Name`, `Meshes`, `Light` and `Extras`, each with a persistent identity, `zone/door`, that
+  `World::find` looks up.
 
 ### Changed
 

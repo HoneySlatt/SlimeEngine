@@ -172,8 +172,9 @@ GPU objects of `slime_gfx` hold wgpu's, `slime_platform::Window` holds winit's
 [ADR-0017](adr/0017-gpu-resource-types.md)).
 
 **Entity.** One thing in a *world*: a handle, made of an index and a generation, to which
-*components* are attached. Handles are never written to files: files and saves name an entity by
-its *persistent identity* ([ADR-0079](adr/0079-the-engines-own-world.md)).
+*components* are attached, with a parent and children in the world's hierarchy. Handles are never
+written to files: files and saves name an entity by its *persistent identity*
+([ADR-0079](adr/0079-the-engines-own-world.md)).
 
 **Environment.** The surroundings of a scene as the renderer draws and reflects them: a *sky* drawn
 on the CPU into a *cube texture* and its *prefiltered levels* (`slime_render::Environment`,
@@ -411,7 +412,8 @@ proposed, so that a shadow's edge fades smoothly over about six texels
 
 **Persistent identity.** How files and saves name an *entity*: the path of the IDs local to each
 file through the scenes that placed it, such as `zone/door`, where an imported glTF node's ID is its
-name ([ADR-0079](adr/0079-the-engines-own-world.md)).
+name, or its index, `#12`, when it has no name of its own
+([ADR-0079](adr/0079-the-engines-own-world.md)).
 
 **Peter-panning.** A shadow that starts a little away from the object that casts it, because the
 *depth bias* pushes the stored depths back, or the *normal offset* moves the point looked up: in
@@ -572,6 +574,11 @@ into sRGB targets; `LinearColor::from_srgb8` decodes bytes on the CPU.
 criterion. Stages are numbered from 0; a stage may be split (Stage 3a and 3b), and a stage added
 later takes a letter (Stage 3c), so that the numbers cited elsewhere stay right.
 
+**Stretch.** How much an entity's own meshes and shapes are scaled along its own axes, which its
+children do not inherit: a wall longer than it is tall. Children inherit a uniform scale only, so
+that none is ever sheared (`slime_world::Transform`,
+[ADR-0083](adr/0083-transforms-and-the-hierarchy.md)).
+
 **Sub-asset.** An *asset* inside a source file, such as a mesh, a material or a scene of a glTF
 file, whose ID is derived from the file's ID, its kind and its name
 ([ADR-0069](adr/0069-the-asset-pipeline.md)).
@@ -625,6 +632,10 @@ meant to balance the reflection of their surroundings that surfaces get from ima
 today. It alone may reach wgpu, through the `wgpu` feature of `slime-gfx`
 ([ADR-0031](adr/0031-dev-overlay-with-egui.md)).
 
+**Transform in the world (global transform).** Where an entity is in the world: its `Transform`
+composed with its ancestors', a translation in `f64`, a rotation and a uniform scale, without its
+*stretch* (`slime_world::GlobalTransform`, [ADR-0083](adr/0083-transforms-and-the-hierarchy.md)).
+
 **Transient target.** A target of the *render graph* that it creates, at the output's size divided
 by a power of two, and whose content lives for one frame: the renderer's high-dynamic-range and
 depth targets and the bloom's levels. It is kept from frame to frame, and reused by the graph of the
@@ -636,7 +647,7 @@ declared `var<uniform>` in WGSL and read through a *bind group* (`slime_gfx::Uni
 **WARP.** Microsoft's software driver for Direct3D 12, part of Windows. wgpu uses it on Windows
 machines without a GPU, such as the CI runners.
 
-**World.** The *entities* of a game and their *components*, kept by the engine
-(`slime_world::World`); Stage 5a gives it a hierarchy, draws what it holds and saves what changed.
+**World.** The *entities* of a game, their *components* and their hierarchy, kept by the engine
+(`slime_world::World`); Stage 5a draws what it holds and saves what changed.
 A game, a test or an editor holds as many worlds as it needs
 ([ADR-0079](adr/0079-the-engines-own-world.md)).

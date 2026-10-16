@@ -150,3 +150,4 @@ the ADR linking to it.
 | [0080](0080-reflection-and-serialization.md) | Reflection and serialization | Accepted |
 | [0081](0081-stage-5a-the-world.md) | Stage 5a: the world | Accepted |
 | [0082](0082-the-worlds-storage-and-handles.md) | The world's storage and handles | Accepted |
+| [0083](0083-transforms-and-the-hierarchy.md) | Transforms and the hierarchy | Accepted |

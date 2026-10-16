@@ -22,14 +22,16 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 - Stage 5a — The world: planned on 2026-10-16 and validated by the owner
   ([ADR-0078](adr/0078-stage-5-in-two-halves.md) to [ADR-0081](adr/0081-stage-5a-the-world.md));
   the stage being worked on. M5a.1 done on 2026-10-16: a world of entities and components, in
-  `slime-world` ([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)). Next: M5a.2.
+  `slime-world` ([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)). M5a.2 built: the hierarchy,
+  transforms in double precision, and cooked scenes spawned as entities
+  ([ADR-0083](adr/0083-transforms-and-the-hierarchy.md)); CI checks it.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
 | [M5a.1](#m5a1--the-world-entities-and-components) | Entities and their components live in a world, without a GPU or a window | Done |
-| [M5a.2](#m5a2--the-hierarchy-and-the-transforms) | Entities are placed by a hierarchy of transforms in double precision; a cooked scene becomes entities | Planned |
+| [M5a.2](#m5a2--the-hierarchy-and-the-transforms) | Entities are placed by a hierarchy of transforms in double precision; a cooked scene becomes entities | Built; CI checks it |
 | [M5a.3](#m5a3--what-the-world-draws) | The renderer draws a world, and what moves between its last two fixed steps | Planned |
 | [M5a.4](#m5a4--hunna-wood-on-the-world) | *Hunna Wood* runs on the world, and changes only what moves | Planned |
 | [M5a.5](#m5a5--reflection) | The engine and the game describe, read and change their types' values through one registry | Planned |

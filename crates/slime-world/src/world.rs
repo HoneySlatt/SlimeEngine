@@ -1,11 +1,14 @@
-//! The world: its entities, and the storages of their components.
+//! The world: its entities, the storages of their components, and their hierarchy.
 
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
+use std::mem;
 
 use crate::entity::{Entities, Entity};
+use crate::identity::PersistentId;
 use crate::query::{Query, QueryIter, QueryMut};
 use crate::storage::{AnyStorage, Storage};
+use crate::transform::{GlobalTransform, Transform};
 
 /// A value that an entity can hold, of a type that threads can share. An entity holds at most one
 /// component of each type.
@@ -14,12 +17,14 @@ use crate::storage::{AnyStorage, Storage};
 /// function given to [`World::insert`] by mistake does not compile.
 pub trait Component: Send + Sync + 'static {}
 
-/// The entities of a game and their components (`docs/adr/0079-the-engines-own-world.md`).
+/// The entities of a game, their components and their hierarchy
+/// (`docs/adr/0079-the-engines-own-world.md`).
 ///
 /// A world gives out [`Entity`] handles, keeps the components attached to them, one of each type
 /// at most, and finds the entities that hold the components a [query](crate::Query) asks for. It
-/// holds no GPU object and needs no window. Worlds are values: a program holds as many as it needs,
-/// and threads can share them.
+/// keeps each entity's parent and children, and where each entity with a [`Transform`] is in the
+/// world. It holds no GPU object and needs no window. Worlds are values: a program holds as many as
+/// it needs, and threads can share them.
 ///
 /// ```
 /// use slime_world::{Component, World};
@@ -49,19 +54,82 @@ pub trait Component: Send + Sync + 'static {}
 /// # Costs
 ///
 /// Reading, changing, attaching or detaching an entity's component looks up its type, then its
-/// slot. Destroying an entity takes a step for each component type that the world has held. A query
-/// walks the components of the type that the fewest entities hold, and looks the others up for each
-/// of them. A type that no entity has held costs nothing; one that entities have held keeps its
-/// storage, whose index from slots to values grows with the highest slot that held one.
-/// `docs/adr/0082-the-worlds-storage-and-handles.md` gives what 100 000 entities cost.
+/// slot. Destroying an entity takes a step for each component type that the world has held, for it
+/// and each of its descendants, and up to a step per child of its parent. A query walks the
+/// components of the type that the fewest entities hold, and looks the others up for each of them.
+/// A type that no entity has held costs nothing; one that entities have held keeps its storage,
+/// whose index from slots to values grows with the highest slot that held one. Changing a
+/// transform marks the entity's subtree, which [`World::update_transforms`] computes again, and
+/// which reading a transform in the world computes meanwhile.
+/// `docs/adr/0082-the-worlds-storage-and-handles.md` gives what 100 000 entities cost, and
+/// `docs/adr/0083-transforms-and-the-hierarchy.md` what the hierarchy changed of it and what their
+/// transforms cost.
 #[derive(Default)]
 pub struct World {
-    entities: Entities,
+    pub(crate) entities: Entities,
     /// One storage per component type that an entity has held, at the index of its component ID.
-    storages: Vec<Box<dyn AnyStorage>>,
+    pub(crate) storages: Vec<Box<dyn AnyStorage>>,
     /// The component ID of each type: the index of its storage. IDs are the world's own, given in
     /// the order types are first inserted.
-    component_ids: HashMap<TypeId, usize>,
+    pub(crate) component_ids: HashMap<TypeId, usize>,
+    /// Each slot's place in the hierarchy, identity and transform in the world.
+    pub(crate) nodes: Vec<Node>,
+    /// Slots whose transform in the world went stale since [`World::update_transforms`] last ran,
+    /// each the top of a stale subtree when it was marked, or a stale entity given a new parent.
+    pub(crate) stale: Vec<u32>,
+    /// The entity of each persistent identity.
+    pub(crate) identities: HashMap<PersistentId, Entity>,
+    /// How many transforms in the world were computed again, for the tests.
+    #[cfg(test)]
+    pub(crate) computed: usize,
+}
+
+/// A slot's place in the hierarchy, its identity, and its transform in the world.
+#[derive(Debug, Default)]
+pub(crate) struct Node {
+    pub(crate) parent: Option<Entity>,
+    /// In the order they became its children.
+    pub(crate) children: Vec<Entity>,
+    pub(crate) identity: Option<PersistentId>,
+    /// Where the entity is in the world: its ancestors' transforms and its own composed, an absent
+    /// transform counting as none. Current unless `stale`.
+    pub(crate) global: GlobalTransform,
+    /// Whether `global` must be computed again. A stale node's descendants are stale too.
+    pub(crate) stale: bool,
+}
+
+/// Marks a slot's transform in the world stale, with its subtree's, unless it is already.
+pub(crate) fn mark_stale(nodes: &mut [Node], stale: &mut Vec<u32>, slot: u32) {
+    let node = &mut nodes[slot as usize];
+    if node.stale {
+        return;
+    }
+    node.stale = true;
+    stale.push(slot);
+    // Empty for an entity without children, as most are: nothing to allocate then.
+    let mut subtree: Vec<u32> = node.children.iter().map(|child| child.index()).collect();
+    while let Some(slot) = subtree.pop() {
+        let node = &mut nodes[slot as usize];
+        if !node.stale {
+            node.stale = true;
+            subtree.extend(node.children.iter().map(|child| child.index()));
+        }
+    }
+}
+
+/// The storage of `T` among a world's, if an entity has ever held a `T`: [`World::storage`], for
+/// code that borrows the world's other fields apart.
+pub(crate) fn storage_in<'s, T: Component>(
+    component_ids: &HashMap<TypeId, usize>,
+    storages: &'s [Box<dyn AnyStorage>],
+) -> Option<&'s Storage<T>> {
+    let id = *component_ids.get(&TypeId::of::<T>())?;
+    let storage: &dyn Any = &*storages[id];
+    Some(
+        storage
+            .downcast_ref::<Storage<T>>()
+            .expect("a storage holds the type it is registered under"),
+    )
 }
 
 impl World {
@@ -70,27 +138,68 @@ impl World {
         Self::default()
     }
 
-    /// A new entity, which holds no component yet.
+    /// A new entity, which holds no component and has no parent yet.
     ///
     /// # Panics
     ///
     /// If the world already holds `u32::MAX` slots, live or retired.
     pub fn spawn(&mut self) -> Entity {
-        self.entities.spawn()
+        let entity = self.entities.spawn();
+        let slot = entity.index() as usize;
+        if self.nodes.len() <= slot {
+            self.nodes.resize_with(slot + 1, Node::default);
+        } else {
+            self.nodes[slot] = Node::default();
+        }
+        entity
     }
 
-    /// Destroys an entity and drops its components. `false` if no entity with this handle is alive
-    /// in this world.
+    /// Destroys an entity, with its descendants, and drops their components. `false` if no entity
+    /// with this handle is alive in this world.
     pub fn despawn(&mut self, entity: Entity) -> bool {
         if !self.entities.contains(entity) {
             return false;
         }
-        // Components first: if one panics as it is dropped, the entity stays alive with the others,
-        // rather than leaving them to the next entity of its slot.
-        for storage in &mut self.storages {
-            storage.remove_slot(entity.index());
+        if self.nodes[entity.index() as usize].children.is_empty() {
+            self.destroy(entity);
+            return true;
         }
-        self.entities.despawn(entity)
+        // Each entity before its children, its first child first: destroyed in the opposite
+        // order, each entity goes after its descendants, and as the last child left to its parent.
+        let mut subtree = Vec::new();
+        let mut next = vec![entity];
+        while let Some(entity) = next.pop() {
+            subtree.push(entity);
+            next.extend(self.nodes[entity.index() as usize].children.iter().rev());
+        }
+        for &entity in subtree.iter().rev() {
+            self.destroy(entity);
+        }
+        true
+    }
+
+    /// Destroys a live entity whose children are destroyed already.
+    fn destroy(&mut self, entity: Entity) {
+        let slot = entity.index();
+        // Components first: if one panics as it is dropped, the entity stays alive with the
+        // others, still its parent's child, rather than leaving them to the next entity of its
+        // slot.
+        for storage in &mut self.storages {
+            storage.remove_slot(slot);
+        }
+        let node = mem::take(&mut self.nodes[slot as usize]);
+        if let Some(parent) = node.parent {
+            let siblings = &mut self.nodes[parent.index() as usize].children;
+            if siblings.last() == Some(&entity) {
+                siblings.pop();
+            } else {
+                siblings.retain(|&child| child != entity);
+            }
+        }
+        if let Some(identity) = node.identity {
+            self.identities.remove(&identity);
+        }
+        self.entities.despawn(entity);
     }
 
     /// Whether an entity with this handle is alive in this world.
@@ -120,6 +229,7 @@ impl World {
             self.entities.contains(entity),
             "a component attached to {entity:?}, which is not alive"
         );
+        self.transform_changes::<T>(entity.index());
         let id = match self.component_ids.get(&TypeId::of::<T>()) {
             Some(&id) => id,
             None => {
@@ -141,7 +251,11 @@ impl World {
         if !self.entities.contains(entity) {
             return None;
         }
-        self.storage_mut::<T>()?.remove(entity.index())
+        let removed = self.storage_mut::<T>()?.remove(entity.index());
+        if removed.is_some() {
+            self.transform_changes::<T>(entity.index());
+        }
+        removed
     }
 
     /// The entity's component of type `T`, if it is alive and holds one.
@@ -152,11 +266,14 @@ impl World {
         self.storage::<T>()?.get(entity.index())
     }
 
-    /// The entity's component of type `T`, to change, if it is alive and holds one.
+    /// The entity's component of type `T`, to change, if it is alive and holds one. A
+    /// [`Transform`] reached this way counts as changed.
     pub fn get_mut<T: Component>(&mut self, entity: Entity) -> Option<&mut T> {
         if !self.entities.contains(entity) {
             return None;
         }
+        self.storage::<T>()?.get(entity.index())?;
+        self.transform_changes::<T>(entity.index());
         self.storage_mut::<T>()?.get_mut(entity.index())
     }
 
@@ -187,7 +304,8 @@ impl World {
     }
 
     /// Calls `visit` for each entity that holds every component that the query names, with those
-    /// components, in no particular order: `&mut T` to change one, `&T` to read it.
+    /// components, in no particular order: `&mut T` to change one, `&T` to read it. A
+    /// [`Transform`] reached as `&mut Transform` counts as changed.
     ///
     /// # Panics
     ///
@@ -196,16 +314,22 @@ impl World {
     pub fn query_mut<Q: QueryMut>(&mut self, mut visit: impl FnMut(Entity, Q::Item<'_>)) {
         let mut types = Vec::new();
         Q::component_types(&mut types);
-        for (index, (type_id, name)) in types.iter().enumerate() {
+        for (index, (type_id, name, _)) in types.iter().enumerate() {
             assert!(
-                !types[..index].iter().any(|(other, _)| other == type_id),
+                !types[..index].iter().any(|(other, _, _)| other == type_id),
                 "a query names `{name}` twice"
             );
         }
+        let changes_transforms = types
+            .iter()
+            .any(|&(type_id, _, mutable)| mutable && type_id == TypeId::of::<Transform>());
         let Self {
             entities,
             storages,
             component_ids,
+            nodes,
+            stale,
+            ..
         } = self;
         // Each storage borrowed apart, so that the query's parts borrow theirs together.
         let mut borrowed: Vec<Option<&mut dyn AnyStorage>> = storages
@@ -219,20 +343,25 @@ impl World {
         for index in 0..Q::driver(&borrow).len() {
             let slot = Q::driver(&borrow)[index];
             if let Some(item) = Q::get(&mut borrow, slot) {
+                // Before `visit`, so that one that panics leaves no change unmarked.
+                if changes_transforms {
+                    mark_stale(nodes, stale, slot);
+                }
                 visit(entities.at(slot), item);
             }
         }
     }
 
+    /// Marks the slot's transform in the world stale if `T` is [`Transform`].
+    fn transform_changes<T: Component>(&mut self, slot: u32) {
+        if TypeId::of::<T>() == TypeId::of::<Transform>() {
+            mark_stale(&mut self.nodes, &mut self.stale, slot);
+        }
+    }
+
     /// The storage of `T`, if an entity has ever held a `T`.
     pub(crate) fn storage<T: Component>(&self) -> Option<&Storage<T>> {
-        let id = *self.component_ids.get(&TypeId::of::<T>())?;
-        let storage: &dyn Any = &*self.storages[id];
-        Some(
-            storage
-                .downcast_ref::<Storage<T>>()
-                .expect("a storage holds the type it is registered under"),
-        )
+        storage_in(&self.component_ids, &self.storages)
     }
 
     fn storage_mut<T: Component>(&mut self) -> Option<&mut Storage<T>> {
@@ -250,7 +379,6 @@ impl World {
         self.entities.at(slot)
     }
 }
-
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;

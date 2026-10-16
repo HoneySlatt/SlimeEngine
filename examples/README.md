@@ -69,8 +69,9 @@ The log level of every example is set by the `SLIME_LOG` environment variable, f
   GLB files in memory with the `gltf` crate, cooks them and draws them: a mirrored node, an
   emission strength, masked, blended and double-sided materials, a file's own tangents, a texture
   read both as colors and as data, and the lights a file places; and it moves and renames a cooked
-  `.gltf` file, which changes nothing it draws. What the importer refuses is tested with it, in
-  [`crates/slime-cook/tests/gltf.rs`](../crates/slime-cook/tests/gltf.rs). The unit
+  `.gltf` file, which changes nothing it draws. It spawns the sample and a mirrored node in a world
+  (`slime-world`), which places each node where its file does. What the importer refuses is tested
+  with it, in [`crates/slime-cook/tests/gltf.rs`](../crates/slime-cook/tests/gltf.rs). The unit
   tests of `common/orbit.rs` run in `tests/gltf.rs` too.
 
 To add an example, put its source in this directory, declare it as an `[[example]]` in

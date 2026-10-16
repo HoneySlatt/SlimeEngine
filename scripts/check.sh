@@ -29,9 +29,9 @@ cargo build --workspace --all-targets --locked
 step "Tests (GPU tests on lavapipe, the Vulkan driver that renders on the CPU, as in CI)"
 VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo test --workspace --locked
 # glam checks the preconditions of its functions only when its assertions are on, which a game
-# that turns them on also turns on in the engine (feature unification): the renderer must keep
-# them.
-VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo test --locked -p slime-render --features glam/debug-glam-assert
+# that turns them on also turns on in the engine (feature unification): the renderer and the
+# world must keep them.
+VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo test --locked -p slime-render -p slime-world --features glam/debug-glam-assert
 
 step "Rustdoc"
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked

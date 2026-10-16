@@ -187,10 +187,10 @@ One script runs every automated check, exactly as CI does:
 nix develop -c scripts/check.sh
 ```
 [`scripts/check.sh`](scripts/check.sh) runs rustfmt, clippy with warnings as errors, the build and
-tests of every target, the renderer's tests again with glam's assertions on (which a game that turns
-them on also turns on in the engine), rustdoc with warnings as errors, `cargo deny` (dependency
-licenses, security advisories and sources; it downloads the advisory database, so it needs network
-access), the list of the sample game's source assets (`scripts/fetch-assets.sh`), `slime-cook check`
+tests of every target, the renderer's and the world's tests again with glam's assertions on (which
+a game that turns them on also turns on in the engine), rustdoc with warnings as errors,
+`cargo deny` (dependency licenses, security advisories and sources; it downloads the advisory
+database, so it needs network access), the list of the sample game's source assets (`scripts/fetch-assets.sh`), `slime-cook check`
 (every source asset has a metadata file of its own,
 [ADR-0069](docs/adr/0069-the-asset-pipeline.md)), the sample's assets cooked twice and compared, the
 sample game's zone fetched and cooked, and the tests that read it, the

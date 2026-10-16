@@ -204,12 +204,13 @@ of the scene's nodes, which the cooker passes on as their `extras`:
   which flicker with its light, and `brass`, the key's, which pulses at night.
 
 Tests read the cooked zone. In `src/zone.rs`: one marker of each kind, a start clear of every
-collider, the key and the campfire within reach, the terrace not until the door opens, and the zone
-within the budgets that the test sets. In `src/rules.rs`: a walk along the path that rests by the
-campfire, takes the key, opens the door and reaches the terrace, then starts again from the same
-state; a walk to the door without the key, which it stops. In `src/view.rs`: the campfire's light
-and the materials that glow. They need the cooked zone, so `cargo test` leaves them out: `scripts/check.sh`
-fetches and cooks it, then runs them, and after the commands above,
+collider, the key and the campfire within reach, the terrace not until the door opens, the zone
+within the budgets that the test sets, and the zone spawned in a world (`slime-world`), each node
+placed where the file puts it and known by its name. In `src/rules.rs`: a walk along the path that
+rests by the campfire, takes the key, opens the door and reaches the terrace, then starts again from
+the same state; a walk to the door without the key, which it stops. In `src/view.rs`: the
+campfire's light and the materials that glow. They need the cooked zone, so `cargo test` leaves them
+out: `scripts/check.sh` fetches and cooks it, then runs them, and after the commands above,
 `cargo test -p hunnawood -- --ignored` does.
 
 ## Dependencies
@@ -217,7 +218,7 @@ fetches and cooks it, then runs them, and after the commands above,
 The engine's crates only: `slime-app`, `slime-gfx`, `slime-platform`, `slime-render`, and
 `slime-devui` for the dev overlay, engine tooling that turns `slime-gfx`'s `wgpu` feature on for
 itself (the game uses no wgpu type); `slime-assets`, which reads the cooked zone; and `tracing` for
-the log.
+the log. Its tests use `slime-world` too, to spawn the cooked zone in a world.
 
 ## Must not
 

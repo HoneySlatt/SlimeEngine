@@ -22,6 +22,7 @@ slime-devui.workspace = true
 slime-gfx.workspace = true
 slime-platform.workspace = true
 slime-render.workspace = true
+slime-world.workspace = true
 tracing.workspace = true
 
 [[example]]

@@ -17,8 +17,10 @@
 //! draw them: a mirrored node; an emission of `KHR_materials_emissive_strength`; masked, blended
 //! and double-sided materials; a file's own tangents; a texture read both as colors and as data;
 //! lights that light the file instead of the sample's sun. One moves a cooked `.gltf` file and
-//! renames it, which changes nothing it draws. What the importer refuses is tested with it, in
-//! `crates/slime-cook/tests/gltf.rs`. The unit tests of `common/orbit.rs` run here too.
+//! renames it, which changes nothing it draws. One spawns the cooked asset and a mirrored node in a
+//! world (`slime-world`), which places each node where its file does. What the importer refuses is
+//! tested with it, in `crates/slime-cook/tests/gltf.rs`. The unit tests of `common/orbit.rs` run here
+//! too.
 
 #[path = "../common/orbit.rs"]
 mod orbit;
@@ -38,12 +40,13 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use gltf::json::Value;
-use slime_assets::{AssetId, CookedAssets};
+use slime_assets::{AssetId, CookedAssets, CookedScene};
 use slime_gfx::{Gpu, Image, TextureFormat};
-use slime_render::glam::{Quat, Vec3};
+use slime_render::glam::{DMat4, Mat4, Quat, Vec3};
 
 use sample_scene::{BLOOM, EXPOSURE, SCENE, SampleScene};
 use slime_render::Renderer;
+use slime_world::{Transform, World};
 
 const SIZE: u32 = 256;
 
@@ -690,4 +693,50 @@ fn a_gltf_file_moved_and_renamed_with_its_metadata_draws_the_same_and_cooks_noth
     let assets = CookedAssets::open(&cooked).expect("the manifest is read");
     let after = image_of(&gpu, &assets, scene, TRIANGLE_CENTRE, 0.0);
     assert_eq!(after.pixels, before.pixels, "the same pixels");
+}
+
+/// The world places each node of `scene` where its file does: each entity's transform in the world,
+/// after its own stretch, against the node's matrix in the scene, within `f32`'s rounding.
+fn assert_world_places(scene: &CookedScene) {
+    let mut world = World::new();
+    let root = world.spawn_scene("scene", scene).expect("spawned");
+    world.update_transforms();
+    // The scene's nodes are in the order of a walk of the hierarchy, which the entities keep.
+    let mut walk = Vec::new();
+    let mut next: Vec<_> = world.children(root).iter().rev().copied().collect();
+    while let Some(entity) = next.pop() {
+        walk.push(entity);
+        next.extend(world.children(entity).iter().rev());
+    }
+    assert_eq!(walk.len(), scene.nodes.len());
+    for ((entity, node), expected) in walk
+        .into_iter()
+        .zip(&scene.nodes)
+        .zip(scene.world_transforms())
+    {
+        let stretch = world.get::<Transform>(entity).expect("placed").stretch;
+        let placed = world
+            .global_transform(entity)
+            .expect("placed")
+            .to_affine(stretch);
+        let expected = Mat4::from_cols_array(&expected);
+        let cells = DMat4::from(placed).to_cols_array();
+        for (a, b) in cells.iter().zip(expected.to_cols_array()) {
+            assert!(
+                (a - f64::from(b)).abs() <= 1e-5 * f64::from(b.abs()).max(1.0),
+                "node `{}`: {placed:?} against {expected:?}",
+                node.name
+            );
+        }
+    }
+}
+
+#[test]
+fn a_world_places_the_sample_s_nodes_and_a_mirrored_one_where_their_files_do() {
+    let scene = sample().scene(SCENE).expect("the sample's scene is cooked");
+    assert_world_places(&scene);
+    let mut file = Glb::triangle();
+    file.json["nodes"][0]["scale"] = json("[-1, 1, 1]");
+    let (assets, id) = file.cooked("mirrored in a world");
+    assert_world_places(&assets.scene(id).expect("the scene is cooked"));
 }

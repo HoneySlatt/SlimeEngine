@@ -848,6 +848,7 @@ dependencies = [
  "slime-gfx",
  "slime-platform",
  "slime-render",
+ "slime-world",
  "tracing",
 ]
 
@@ -2050,6 +2051,7 @@ dependencies = [
  "slime-gfx",
  "slime-platform",
  "slime-render",
+ "slime-world",
  "tracing",
 ]
 
@@ -2089,6 +2091,12 @@ dependencies = [
 [[package]]
 name = "slime-world"
 version = "0.2.0"
+dependencies = [
+ "glam",
+ "slime-assets",
+ "thiserror 2.0.21",
+ "tracing",
+]
 
 [[package]]
 name = "smallvec"

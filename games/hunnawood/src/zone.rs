@@ -460,4 +460,44 @@ pub mod cooked {
         );
         assert!(mib(size) <= 320.0, "{:.0} MiB of cooked data", mib(size));
     }
+
+    /// The zone spawned in a world, each node an entity placed where the file puts it, under its
+    /// name: the world of Stage 5a holds what the game reads from the scene today.
+    #[test]
+    #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
+    fn the_cooked_zone_spawns_in_a_world_as_its_file_places_it() {
+        use slime_render::glam::{DMat4, Mat4};
+        use slime_world::{PersistentId, Transform, World};
+
+        let (assets, _) = zone();
+        let scene = assets.scene(assets::zone_id()).expect("the zone is cooked");
+        let mut world = World::new();
+        world.spawn_scene("zone", &scene).expect("spawned");
+        world.update_transforms();
+        assert_eq!(
+            world.len(),
+            scene.nodes.len() + 1,
+            "a root and an entity per node"
+        );
+        for (node, expected) in scene.nodes.iter().zip(scene.world_transforms()) {
+            // Every node of the zone has a name of its own, so none is known by its index.
+            let entity = world
+                .find(&PersistentId::new(["zone", node.name.as_str()]))
+                .unwrap_or_else(|| panic!("node `{}` is known by its name", node.name));
+            let stretch = world.get::<Transform>(entity).expect("placed").stretch;
+            let placed = world
+                .global_transform(entity)
+                .expect("placed")
+                .to_affine(stretch);
+            let cells = DMat4::from(placed).to_cols_array();
+            let expected = Mat4::from_cols_array(&expected).to_cols_array();
+            for (a, b) in cells.iter().zip(expected) {
+                assert!(
+                    (a - f64::from(b)).abs() <= 1e-5 * f64::from(b.abs()).max(1.0),
+                    "node `{}`: {placed:?}",
+                    node.name
+                );
+            }
+        }
+    }
 }
