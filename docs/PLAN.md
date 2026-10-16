@@ -28,9 +28,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   from an asset cache through `slime-world-render`, what moves drawn between fixed steps
   ([ADR-0084](adr/0084-what-the-world-draws.md)). M5a.4 done on 2026-10-16: *Hunna Wood* runs on the
   world, which holds its run. M5a.5 done on 2026-10-16: reflection, through which the world
-  reaches every component by name ([ADR-0085](adr/0085-reflection.md)). M5a.6 built: a panel of
-  the dev overlay lists the world's entities and edits their components, in *Hunna Wood* and the
-  `world` example; the owner checks it by hand.
+  reaches every component by name ([ADR-0085](adr/0085-reflection.md)). M5a.6 done on 2026-10-16: a
+  panel of the dev overlay lists the world's entities and edits their components, in *Hunna Wood*
+  and the `world` example.
 
 ## Status
 
@@ -41,7 +41,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M5a.3](#m5a3--what-the-world-draws) | The renderer draws a world, and what moves between its last two fixed steps | Done |
 | [M5a.4](#m5a4--hunna-wood-on-the-world) | *Hunna Wood* runs on the world, and changes only what moves | Done |
 | [M5a.5](#m5a5--reflection) | The engine and the game describe, read and change their types' values through one registry | Done |
-| [M5a.6](#m5a6--any-component-listed-and-edited) | Any component's properties are listed and edited in the running game | Built; the owner checks it by hand |
+| [M5a.6](#m5a6--any-component-listed-and-edited) | Any component's properties are listed and edited in the running game | Done |
 | [M5a.7](#m5a7--serialization-with-format-versioning) | Any reflected value is written to a file and read back, even from an older version of its type | Planned |
 | [M5a.8](#m5a8--the-world-round-trips) | A world saves what differs from the scenes it was made from, and loads it back | Planned |
 | [M5a.9](#m5a9--saving-and-resuming-a-run) | A player saves a run of *Hunna Wood* and resumes it | Planned |
@@ -355,7 +355,7 @@ Risks:
   component type; by hand, the owner moves the key, dims a lantern and opens the door from the
   panel; CI is green.
 - **How to test.** `cargo run -p hunnawood`, then F2; `cargo run --example world`.
-- **Outcome.** Built on 2026-10-16. `slime_devui::WorldPanel` lists a world's entities by name,
+- **Outcome.** Done on 2026-10-16. `slime_devui::WorldPanel` lists a world's entities by name,
   with a filter, and edits the components of the one selected through the world's registry,
   whatever their types; its rustdoc says what it edits, and its limits. The panel changes nothing:
   each change comes back as an `Edit`, an entity, a component's name, a property path and a value,
@@ -373,7 +373,9 @@ Risks:
   change its run between steps as the panel does. The panel was looked at in images drawn
   offscreen on lavapipe. The review found that a rotation's angles, computed again at each frame,
   turned back and forth when dragged past 90° about X, and lost what was being typed: the panel
-  keeps the angles last edited, and holds the angle about X within ±90°.
+  keeps the angles last edited, and holds the angle about X within ±90°. The owner moved the key,
+  opened the door, turned the day to night and dimmed a lantern from the panel, and saw a negative
+  intensity refused. CI took 13 minutes 21 seconds on Linux and 12 minutes 11 seconds on Windows.
 
 ### M5a.7 — Serialization with format versioning
 
