@@ -27,6 +27,12 @@ falls behind wall-clock time when a frame delta is limited, for example after a 
 scene. Each comes from a *source asset* and reaches the game as *cooked data*
 ([ADR-0069](adr/0069-the-asset-pipeline.md)).
 
+**Asset cache.** The GPU objects of the meshes that a game draws, with their materials and
+textures, kept by *asset ID* outside the *world* (`slime_render::AssetCache`): the world names
+assets by ID and holds no GPU object. It loads what is asked for in batches, in the background,
+each whole, loads again what changed in new *cooked data*, and drops everything when its *device*
+is lost ([ADR-0084](adr/0084-what-the-world-draws.md)).
+
 **Asset ID.** The identity of an *asset*: a random 128-bit UUID kept in the *metadata file* beside
 its source, so that it stays the same when the file is moved or renamed. A *sub-asset*'s ID is
 derived from its file's ([ADR-0069](adr/0069-the-asset-pipeline.md)).

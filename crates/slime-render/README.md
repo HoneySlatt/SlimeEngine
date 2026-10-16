@@ -13,8 +13,9 @@ four cascades, and of every spot light that casts them. It draws in high dynamic
 exposes the light, spreads a bloom around it, tone maps it and dithers it into the output, and
 reports what each frame cost on the CPU and the GPU. It smooths the edges of what it draws with four
 samples per pixel. It loads cooked scenes in the background, and again when their cooked data
-changes; a material's values change while a game runs, and so do the renderer's shaders. It does
-not yet blend transparent surfaces or leave out what the camera does not see.
+changes, and keeps the meshes that a game draws by their asset IDs in a cache; a material's values
+change while a game runs, and so do the renderer's shaders. It does not yet blend transparent
+surfaces or leave out what the camera does not see.
 
 ## Role
 
@@ -135,6 +136,13 @@ fn main() -> Result<(), RenderError> {
   `Renderer::reload_scene_in_background(gpu, &CookedAssets, id, &previous)` loads a scene again
   once its cooked data changed, keeping the meshes and textures of the scene loaded before whose
   cooked file did not change (ADR-0076).
+- `AssetCache::new(CookedAssets)` keeps the meshes that a game draws by their asset IDs, with the
+  materials they are drawn with and the textures those read, so that a world names them by ID and
+  holds no GPU object (ADR-0084): `request(renderer, gpu, ids)` starts loading, as one batch in the
+  background, the meshes it neither holds nor loads; `poll` takes the batches that finished, each
+  whole, and gives the errors of those that failed; `mesh(id)` gives a mesh and its material once
+  held, `loading` how many are on their way. `reload(renderer, gpu, assets)` loads again what
+  changed in new cooked data, keeping the rest, and `clear` drops everything after a lost device.
 - `scene_lights(&CookedScene)` gives the lights that a cooked scene's nodes place, as a
   `LoadedScene` holds them, without loading the scene: a game knows its sun before its scene is
   loaded.

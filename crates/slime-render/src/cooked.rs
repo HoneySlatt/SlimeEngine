@@ -2,8 +2,8 @@
 //! textures uploaded on the renderer's threads, its nodes flattened into instances and its lights
 //! placed in world space.
 
-use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use std::collections::{HashMap, HashSet};
 use std::panic::{self, AssertUnwindSafe};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
@@ -123,10 +123,7 @@ impl LoadedScene {
 /// their turn comes, and never use the GPU. Once the drop returns, no thread of the load holds the
 /// `Gpu`.
 pub struct SceneLoad {
-    /// The thread that runs the load; `None` once its result is taken.
-    thread: Option<JoinHandle<Option<Result<LoadedScene, SceneError>>>>,
-    /// Tells the load's thread, which waits for the reports of its tasks, that the load is dropped.
-    reports: Sender<Report>,
+    load: Load<LoadedScene>,
 }
 
 impl SceneLoad {
@@ -143,10 +140,7 @@ impl SceneLoad {
     /// as when a texture is larger than the device allows ([`Renderer::create_texture`]). Also if
     /// the operating system could not start the renderer's threads.
     pub fn take(&mut self) -> Option<Result<LoadedScene, SceneError>> {
-        if !self.thread.as_ref()?.is_finished() {
-            return None;
-        }
-        self.thread.take().map(finish)
+        self.load.take()
     }
 
     /// Waits for the load to finish, and returns its scene, or why it could not be loaded.
@@ -158,12 +152,38 @@ impl SceneLoad {
     /// # Panics
     ///
     /// As [`SceneLoad::take`]; and if `take` already returned the load's result.
-    pub fn wait(mut self) -> Result<LoadedScene, SceneError> {
+    pub fn wait(self) -> Result<LoadedScene, SceneError> {
+        self.load.wait()
+    }
+}
+
+/// A load that runs on a thread of its own, which waits for its tasks on the renderer's pool: a
+/// scene's ([`SceneLoad`]), or a batch of meshes for the asset cache. Dropping it cancels the load,
+/// as [`SceneLoad`] says.
+pub(crate) struct Load<T> {
+    /// The thread that runs the load; `None` once its result is taken.
+    thread: Option<JoinHandle<Option<Result<T, SceneError>>>>,
+    /// Tells the load's thread, which waits for the reports of its tasks, that the load is dropped.
+    reports: Sender<Report>,
+}
+
+impl<T> Load<T> {
+    /// What the load gave, once it finished: `None` while it goes on, and once its result was
+    /// taken. A panic of its thread or of one of its tasks is raised again here.
+    pub(crate) fn take(&mut self) -> Option<Result<T, SceneError>> {
+        if !self.thread.as_ref()?.is_finished() {
+            return None;
+        }
+        self.thread.take().map(finish)
+    }
+
+    /// Waits for the load to finish, and returns what it gave.
+    fn wait(mut self) -> Result<T, SceneError> {
         finish(self.thread.take().expect("the load's result is taken once"))
     }
 }
 
-impl Drop for SceneLoad {
+impl<T> Drop for Load<T> {
     fn drop(&mut self) {
         if let Some(thread) = self.thread.take() {
             // The load's thread is gone if it has finished: it has nothing to cancel then.
@@ -175,9 +195,7 @@ impl Drop for SceneLoad {
 }
 
 /// The result of the load that `thread` ran, or its panic, raised again.
-fn finish(
-    thread: JoinHandle<Option<Result<LoadedScene, SceneError>>>,
-) -> Result<LoadedScene, SceneError> {
+fn finish<T>(thread: JoinHandle<Option<Result<T, SceneError>>>) -> Result<T, SceneError> {
     match thread.join() {
         Ok(result) => result.expect("only a dropped load gives no result"),
         Err(panic) => panic::resume_unwind(panic),
@@ -270,6 +288,31 @@ impl Renderer {
         id: AssetId,
         reuse: Reusable,
     ) -> SceneLoad {
+        SceneLoad {
+            load: self.start(
+                "slime-render scene load",
+                gpu,
+                assets,
+                reuse,
+                move |loader, reports| loader.load_scene(id, reports),
+            ),
+        }
+    }
+
+    /// Starts a load on a thread of its own, named `name`, which runs `load` with a [`Loader`] of
+    /// `assets` that keeps what `reuse` holds whose cooked file the manifest still names.
+    ///
+    /// # Panics
+    ///
+    /// If the operating system cannot start the load's thread.
+    pub(crate) fn start<T: Send + 'static>(
+        &self,
+        name: &str,
+        gpu: &Gpu,
+        assets: &CookedAssets,
+        reuse: Reusable,
+        load: impl FnOnce(&Loader, &Receiver<Report>) -> Option<Result<T, SceneError>> + Send + 'static,
+    ) -> Load<T> {
         let (sender, reports) = mpsc::channel();
         let loader = Loader {
             gpu: gpu.clone(),
@@ -279,10 +322,10 @@ impl Renderer {
             sender: sender.clone(),
         };
         let thread = thread::Builder::new()
-            .name("slime-render scene load".to_owned())
-            .spawn(move || loader.load(id, &reports))
+            .name(name.to_owned())
+            .spawn(move || load(&loader, &reports))
             .expect("the operating system starts a thread");
-        SceneLoad {
+        Load {
             thread: Some(thread),
             reports: sender,
         }
@@ -290,7 +333,7 @@ impl Renderer {
 }
 
 /// What the thread of a load works with.
-struct Loader {
+pub(crate) struct Loader {
     gpu: Gpu,
     assets: Arc<CookedAssets>,
     parts: MaterialParts,
@@ -302,52 +345,64 @@ struct Loader {
 
 /// A mesh that a task of a load made.
 #[derive(Clone)]
-struct MadeMesh {
-    mesh: Mesh,
+pub(crate) struct MadeMesh {
+    pub(crate) mesh: Mesh,
     /// The material it is drawn with.
-    material: AssetId,
+    pub(crate) material: AssetId,
     /// Its lowest corner, then its highest.
-    bounds: [[f32; 3]; 2],
+    pub(crate) bounds: [[f32; 3]; 2],
 }
 
-/// What a loaded scene was made of: its meshes and its textures, by ID, each with the name of the
-/// cooked file it was read from. A reload keeps those whose file the manifest still names: a cooked
-/// file's name says what made it, so the same name holds the same data.
+/// What a loaded scene, or the asset cache, was made of: its meshes and its textures, by ID, each
+/// with the name of the cooked file it was read from. A load keeps those whose file the manifest
+/// still names: a cooked file's name says what made it, so the same name holds the same data.
 #[derive(Clone, Default)]
-struct Reusable {
-    meshes: HashMap<AssetId, (String, MadeMesh)>,
-    textures: HashMap<AssetId, (String, Texture)>,
+pub(crate) struct Reusable {
+    pub(crate) meshes: HashMap<AssetId, (String, MadeMesh)>,
+    pub(crate) textures: HashMap<AssetId, (String, Texture)>,
+}
+
+/// The meshes that a load made or kept, in the order they were asked for, the materials they are
+/// drawn with and the textures those read, by ID.
+pub(crate) struct Batch {
+    pub(crate) meshes: Vec<(AssetId, MadeMesh)>,
+    pub(crate) materials: HashMap<AssetId, Material>,
+    pub(crate) textures: HashMap<AssetId, Texture>,
+    /// How many meshes were kept rather than read.
+    pub(crate) kept_meshes: usize,
+    /// How many textures were kept rather than read.
+    pub(crate) kept_textures: usize,
 }
 
 /// What a load has made, or kept, so far.
 struct Assembly {
-    /// The scene's meshes, in the order of their IDs in `mesh_ids`.
+    /// The meshes asked for, in their order.
     meshes: Vec<Option<MadeMesh>>,
     /// The materials that the meshes made so far are drawn with.
     materials: HashMap<AssetId, CookedMaterial>,
     /// The textures those materials read, `None` until uploaded.
     textures: HashMap<AssetId, Option<Texture>>,
-    /// How many meshes were kept from the scene reloaded.
+    /// How many meshes were kept.
     kept_meshes: usize,
-    /// How many textures were kept from the scene reloaded.
+    /// How many textures were kept.
     kept_textures: usize,
 }
 
 /// What a task of a load made.
-enum Made {
-    /// The mesh at this index of the scene's meshes.
+pub(crate) enum Made {
+    /// The mesh at this index of the meshes asked for.
     Mesh(usize, MadeMesh),
     /// The texture of this ID.
     Texture(AssetId, Texture),
 }
 
-/// What the thread of a load hears from its tasks and from its [`SceneLoad`].
-enum Report {
+/// What the thread of a load hears from its tasks and from its [`Load`].
+pub(crate) enum Report {
     /// A task ran: what it made, or the error that stopped it, or its panic.
     Ran(thread::Result<Result<Made, SceneError>>),
     /// A task's turn came after the load stopped: it did nothing.
     Skipped,
-    /// The `SceneLoad` was dropped.
+    /// The `Load` was dropped.
     Dropped,
 }
 
@@ -425,9 +480,9 @@ impl Drop for Tasks {
 }
 
 impl Loader {
-    /// Loads the scene `id`, hearing from its tasks and its [`SceneLoad`] through `reports`:
-    /// `None` if the `SceneLoad` was dropped.
-    fn load(
+    /// Loads the scene `id`, hearing from its tasks and its [`Load`] through `reports`: `None` if
+    /// the `Load` was dropped.
+    fn load_scene(
         &self,
         id: AssetId,
         reports: &Receiver<Report>,
@@ -436,18 +491,32 @@ impl Loader {
             Ok(scene) => scene,
             Err(error) => return Some(Err(error.into())),
         };
-        // No task has started: the only report there can be is the drop of the `SceneLoad`.
-        if reports.try_recv().is_ok() {
-            return None;
-        }
         // The meshes, each once, in the order in which the nodes first place them.
-        let mut mesh_index: HashMap<AssetId, usize> = HashMap::new();
         let mut mesh_ids = Vec::new();
+        let mut seen = HashSet::new();
         for &mesh in scene.nodes.iter().flat_map(|node| &node.meshes) {
-            if let Entry::Vacant(entry) = mesh_index.entry(mesh) {
-                entry.insert(mesh_ids.len());
+            if seen.insert(mesh) {
                 mesh_ids.push(mesh);
             }
+        }
+        Some(match self.load_meshes(&mesh_ids, reports)? {
+            Ok(batch) => self.assemble(scene, batch),
+            Err(error) => Err(error),
+        })
+    }
+
+    /// Loads the meshes `mesh_ids`, each once, the materials they are drawn with and the textures
+    /// those read, keeping what the loader's `reuse` holds whose cooked file the manifest still
+    /// names; hearing from its tasks and its [`Load`] through `reports`: `None` if the `Load` was
+    /// dropped.
+    pub(crate) fn load_meshes(
+        &self,
+        mesh_ids: &[AssetId],
+        reports: &Receiver<Report>,
+    ) -> Option<Result<Batch, SceneError>> {
+        // No task has started: the only report there can be is the drop of the `Load`.
+        if reports.try_recv().is_ok() {
+            return None;
         }
         let mut tasks = Tasks {
             work: Arc::new(Mutex::new(Work {
@@ -562,7 +631,7 @@ impl Loader {
         if let Some(error) = failure {
             return Some(Err(error));
         }
-        Some(self.assemble(scene, &mesh_index, &mesh_ids, made))
+        Some(self.finish(mesh_ids, made))
     }
 
     /// Takes the mesh made or kept at `index` into `made`: reads its material, unless a mesh read
@@ -613,21 +682,14 @@ impl Loader {
         (self.assets.manifest().get(id)?.file == *file).then(|| made.clone())
     }
 
-    /// Puts the loaded scene together from what the load `made`, once it made everything: its
-    /// materials, with the samplers they need, where its nodes place its meshes and lights, and
-    /// what a reload of it keeps. `mesh_ids` gives the ID of each of `made.meshes`, and
-    /// `mesh_index` the index of each ID.
-    fn assemble(
-        &self,
-        scene: CookedScene,
-        mesh_index: &HashMap<AssetId, usize>,
-        mesh_ids: &[AssetId],
-        made: Assembly,
-    ) -> Result<LoadedScene, SceneError> {
-        let meshes: Vec<MadeMesh> = made
-            .meshes
-            .into_iter()
-            .map(|mesh| mesh.expect("every mesh is made when nothing failed"))
+    /// Completes the batch of `mesh_ids` from what the load `made`, once it made everything: the
+    /// materials its meshes are drawn with, created with the samplers they need.
+    fn finish(&self, mesh_ids: &[AssetId], made: Assembly) -> Result<Batch, SceneError> {
+        let meshes: Vec<(AssetId, MadeMesh)> = mesh_ids
+            .iter()
+            .copied()
+            .zip(made.meshes)
+            .map(|(id, mesh)| (id, mesh.expect("every mesh is made when nothing failed")))
             .collect();
         let textures: HashMap<AssetId, Texture> = made
             .textures
@@ -637,30 +699,46 @@ impl Loader {
                 (id, texture)
             })
             .collect();
-        let materials = made.materials;
-        // Each with the cooked file it was read from, which the manifest names.
-        let file = |id: AssetId| -> String {
-            self.assets
-                .manifest()
-                .get(id)
-                .map(|entry| entry.file.clone())
-                .unwrap_or_default()
-        };
+        let mut samplers: HashMap<TextureSampler, Sampler> = HashMap::new();
+        let mut materials = HashMap::with_capacity(made.materials.len());
+        // In the order of the meshes that are drawn with them.
+        for (_, mesh) in &meshes {
+            if let Entry::Vacant(entry) = materials.entry(mesh.material) {
+                let cooked = &made.materials[&mesh.material];
+                entry.insert(self.create_material(cooked, &textures, &mut samplers)?);
+            }
+        }
+        Ok(Batch {
+            meshes,
+            materials,
+            textures,
+            kept_meshes: made.kept_meshes,
+            kept_textures: made.kept_textures,
+        })
+    }
+
+    /// Puts the loaded scene together from the `batch` of its meshes: where its nodes place its
+    /// meshes and lights, and what a reload of it keeps.
+    fn assemble(&self, scene: CookedScene, batch: Batch) -> Result<LoadedScene, SceneError> {
+        let file = |id: AssetId| cooked_file(&self.assets, id);
         let reusable = Reusable {
-            meshes: mesh_ids
+            meshes: batch
+                .meshes
                 .iter()
-                .zip(&meshes)
-                .map(|(&id, mesh)| (id, (file(id), mesh.clone())))
+                .map(|(id, mesh)| (*id, (file(*id), mesh.clone())))
                 .collect(),
-            textures: textures
+            textures: batch
+                .textures
                 .iter()
                 .map(|(&id, texture)| (id, (file(id), texture.clone())))
                 .collect(),
         };
-        let mut samplers: HashMap<TextureSampler, Sampler> = HashMap::new();
+        let textures = batch.textures.len();
+        let mut materials = batch.materials;
         let mut material_of: HashMap<AssetId, usize> = HashMap::new();
+        let mut mesh_index: HashMap<AssetId, usize> = HashMap::new();
         let mut loaded = LoadedScene {
-            meshes: Vec::with_capacity(meshes.len()),
+            meshes: Vec::with_capacity(batch.meshes.len()),
             materials: Vec::new(),
             placements: Vec::new(),
             reusable,
@@ -669,24 +747,21 @@ impl Loader {
             bounds: None,
         };
         // The material and bounds of each mesh, in the order of `loaded.meshes`.
-        let mut drawn = Vec::with_capacity(meshes.len());
-        for MadeMesh {
-            mesh,
-            material,
-            bounds,
-        } in meshes
-        {
-            let index = match material_of.entry(material) {
+        let mut drawn = Vec::with_capacity(batch.meshes.len());
+        for (id, mesh) in batch.meshes {
+            let index = match material_of.entry(mesh.material) {
                 Entry::Occupied(entry) => *entry.get(),
                 Entry::Vacant(entry) => {
-                    let made =
-                        self.create_material(&materials[&material], &textures, &mut samplers)?;
-                    loaded.materials.push(made);
+                    let material = materials
+                        .remove(&mesh.material)
+                        .expect("a batch holds the material of each of its meshes");
+                    loaded.materials.push(material);
                     *entry.insert(loaded.materials.len() - 1)
                 }
             };
-            loaded.meshes.push(mesh);
-            drawn.push((index, bounds));
+            mesh_index.insert(id, loaded.meshes.len());
+            loaded.meshes.push(mesh.mesh);
+            drawn.push((index, mesh.bounds));
         }
         let world = scene.world_transforms();
         let placement = |node: usize, reason: String| SceneError::Placement {
@@ -714,11 +789,11 @@ impl Loader {
             scene = %scene.name,
             meshes = loaded.meshes.len(),
             materials = loaded.materials.len(),
-            textures = textures.len(),
+            textures,
             instances = loaded.placements.len(),
             lights = loaded.lights.len(),
-            kept_meshes = made.kept_meshes,
-            kept_textures = made.kept_textures,
+            kept_meshes = batch.kept_meshes,
+            kept_textures = batch.kept_textures,
             "cooked scene loaded"
         );
         loaded.scene = scene;
@@ -798,6 +873,16 @@ pub fn scene_lights(scene: &CookedScene) -> Result<Vec<Light>, SceneError> {
             })
         })
         .collect()
+}
+
+/// The name of the cooked file that `assets` reads the asset `id` from, which a later load compares
+/// to keep the asset: empty for an asset that the manifest does not name.
+pub(crate) fn cooked_file(assets: &CookedAssets, id: AssetId) -> String {
+    assets
+        .manifest()
+        .get(id)
+        .map(|entry| entry.file.clone())
+        .unwrap_or_default()
 }
 
 /// A node's transform in the scene's world space, as `CookedScene::world_transforms` gives it in

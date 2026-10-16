@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 
 mod bytes;
+mod cache;
 mod camera;
 mod cooked;
 mod environment;
@@ -19,6 +20,7 @@ mod shapes;
 /// callers use the same version (ADR-0027).
 pub use glam;
 
+pub use cache::AssetCache;
 pub use camera::Camera;
 pub use cooked::{LoadedScene, SceneError, SceneLoad, scene_lights};
 pub use environment::{Environment, Sky};
@@ -44,6 +46,7 @@ mod threads {
         send_and_sync::<MeshData>();
         send_and_sync::<Material>();
         send_and_sync::<LoadedScene>();
+        send_and_sync::<AssetCache>();
         send_and_sync::<SceneLoad>();
         send_and_sync::<Environment>();
         send_and_sync::<Camera>();

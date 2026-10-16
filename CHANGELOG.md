@@ -69,6 +69,12 @@ engine starts a world of its own, which keeps a game's entities and their compon
   `World::update_transforms`. `World::spawn_scene` spawns a cooked scene as entities with their
   `Name`, `Meshes`, `Light` and `Extras`, each with a persistent identity, `zone/door`, that
   `World::find` looks up.
+- `slime_render::AssetCache` keeps the meshes that a game draws by their asset IDs, with their
+  materials and textures ([ADR-0084](docs/adr/0084-what-the-world-draws.md)): `request` starts
+  loading, as one batch in the background, those it neither holds nor loads, `poll` takes the
+  batches that finished, each whole, and `mesh` gives a mesh and its material once held. `reload`
+  loads again what changed in new cooked data, keeping the rest, and `clear` drops everything
+  after a lost device. Scene loads and the cache share one loader.
 
 ### Changed
 
