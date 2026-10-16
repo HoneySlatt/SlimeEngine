@@ -24,9 +24,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   the stage being worked on. M5a.1 done on 2026-10-16: a world of entities and components, in
   `slime-world` ([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)). M5a.2 done on
   2026-10-16: the hierarchy, transforms in double precision, and cooked scenes spawned as entities
-  ([ADR-0083](adr/0083-transforms-and-the-hierarchy.md)). M5a.3 built: the world drawn from an asset
-  cache through `slime-world-render`, what moves drawn between fixed steps
-  ([ADR-0084](adr/0084-what-the-world-draws.md)); CI checks it.
+  ([ADR-0083](adr/0083-transforms-and-the-hierarchy.md)). M5a.3 done on 2026-10-16: the world drawn
+  from an asset cache through `slime-world-render`, what moves drawn between fixed steps
+  ([ADR-0084](adr/0084-what-the-world-draws.md)).
 
 ## Status
 
@@ -34,7 +34,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 |---|---|---|
 | [M5a.1](#m5a1--the-world-entities-and-components) | Entities and their components live in a world, without a GPU or a window | Done |
 | [M5a.2](#m5a2--the-hierarchy-and-the-transforms) | Entities are placed by a hierarchy of transforms in double precision; a cooked scene becomes entities | Done |
-| [M5a.3](#m5a3--what-the-world-draws) | The renderer draws a world, and what moves between its last two fixed steps | Built; CI checks it |
+| [M5a.3](#m5a3--what-the-world-draws) | The renderer draws a world, and what moves between its last two fixed steps | Done |
 | [M5a.4](#m5a4--hunna-wood-on-the-world) | *Hunna Wood* runs on the world, and changes only what moves | Planned |
 | [M5a.5](#m5a5--reflection) | The engine and the game describe, read and change their types' values through one registry | Planned |
 | [M5a.6](#m5a6--any-component-listed-and-edited) | Any component's properties are listed and edited in the running game | Planned |
@@ -216,7 +216,7 @@ Risks:
   `update`; the example runs headless and in the headless Weston; CI is green.
 - **How to test.** `cargo test -p slime-world -p slime-render -p slime-app`;
   `cargo run --example world`.
-- **Outcome.** Built on 2026-10-16 ([ADR-0084](adr/0084-what-the-world-draws.md)). The color type
+- **Outcome.** Done on 2026-10-16 ([ADR-0084](adr/0084-what-the-world-draws.md)). The color type
   moved into `slime-color`, with the sRGB transfer function that the GPU layer and the cooker each
   copied. The renderer's positions are `f64`s: its precision test draws a scene 10 000 km from the
   origin bit for bit as at it. `slime_render::AssetCache` holds the meshes a game draws by asset ID,
@@ -233,7 +233,10 @@ Risks:
   owner decided on: what a moving entity holds stays on it, though changed outside a step or placed
   during one, and the sun comes first among the lights, so that it casts the shadows. The
   lifecycle test sees the world's calls around `fixed_update`; the one after `update`, which only
-  makes reading the transforms a lookup, shows in no behaviour that a test can see.
+  makes reading the transforms a lookup, shows in no behaviour that a test can see. CI's Linux job,
+  which has no GPU, failed on that measurement until `scripts/check.sh` ran the game's ignored
+  tests on lavapipe, as the others. CI then took 12 minutes 33 seconds on Linux and 17 minutes 26
+  seconds on Windows ([Notes](#notes)).
 
 ### M5a.4 — Hunna Wood on the world
 
@@ -826,3 +829,5 @@ GitHub issues, linked from their entry; this list stays the reference.
   release build of the examples 3 minutes 24 seconds. The owner decided then to keep CI as it is,
   the repository being public and its minutes free, and to reconsider past 20 minutes. With
   `slime-world` (M5a.1, 2026-10-16): Linux 10 minutes 25 seconds, Windows 17 minutes 20 seconds.
+  With `slime-color` and `slime-world-render` (M5a.3, 2026-10-16): Linux 12 minutes 33 seconds,
+  Windows 17 minutes 26 seconds.
