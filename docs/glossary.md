@@ -156,10 +156,11 @@ so that the rounding keeps their average and a slow gradient shows an even grain
 one step apart. The renderer dithers 8-bit outputs by up to one step
 ([ADR-0051](adr/0051-dithering-8-bit-outputs.md)).
 
-**Document (serialization).** A file that holds one *value* of a registered type, written by the
-engine's writer and read through the type's description: a TOML table of its fields, the versions of
-its types past 1 under `$versions`, and the conventions of `slime_serialize::format` for what TOML
-lacks ([ADR-0086](adr/0086-serialization.md)).
+**Document (serialization).** A file that holds one *value* of a registered type, or several at
+their places as a *save* does, written by the engine's writer and read through the types'
+descriptions: a TOML table of its fields, the versions of its types past 1 under `$versions`, and
+the conventions of `slime_serialize::format` for what TOML lacks
+([ADR-0086](adr/0086-serialization.md)).
 
 **Double-sided material.** A material whose back faces are drawn too, shaded with their normals
 reversed (glTF).
@@ -436,8 +437,9 @@ proposed, so that a shadow's edge fades smoothly over about six texels
 
 **Persistent identity.** How files and saves name an *entity*: the path of the IDs local to each
 file through the scenes that placed it, such as `zone/door`, where an imported glTF node's ID is its
-name, or its index, `#12`, when it has no name of its own
-([ADR-0079](adr/0079-the-engines-own-world.md)).
+name, or its index, `#12`, when it has no name of its own; for an entity created outside a
+scene, `created/<number>`, from a count that saves keep
+([ADR-0079](adr/0079-the-engines-own-world.md), [ADR-0087](adr/0087-the-worlds-documents.md)).
 
 **Peter-panning.** A shadow that starts a little away from the object that casts it, because the
 *depth bias* pushes the stored depths back, or the *normal offset* moves the point looked up: in
@@ -538,9 +540,11 @@ tests coverage and depth; not the *sample* of a stage.
 **Sampler.** How shaders read a texture: nearest or linear filtering, and what lies beyond its
 edges (repeat, mirror or clamp) (`slime_gfx::Sampler`).
 
-**Save (game).** What differs between a *world* and the scenes it was made from, written to a file.
-Loading spawns the scenes again and applies the differences, so that a game update that changes a
-scene reaches the saves made before ([ADR-0079](adr/0079-the-engines-own-world.md)).
+**Save (game).** What differs between a *world* and its *start world*, written to a file: entities
+removed and created, components added, removed and changed, parents changed, entities named by
+their *persistent identities*. Loading applies the differences to a start world spawned from the
+scenes as they are now, so that a game update that changes a scene reaches the saves made before
+([ADR-0079](adr/0079-the-engines-own-world.md), [ADR-0087](adr/0087-the-worlds-documents.md)).
 
 **Scene (render).** What the renderer draws in one frame: a camera, *punctual lights*, an
 *environment*, an *exposure* and *instances* (`slime_render::Scene`). Not a scene graph: the
@@ -606,6 +610,10 @@ never a module path, so that moving a type breaks nothing; a former name stays a
 **Stage.** A step of [`docs/ROADMAP.md`](ROADMAP.md), ordered by dependency, with a goal and an exit
 criterion. Stages are numbered from 0; a stage may be split (Stage 3a and 3b), and a stage added
 later takes a letter (Stage 3c), so that the numbers cited elsewhere stay right.
+
+**Start world.** The *world* as a game makes it at the start of a run, from the scenes it spawns
+and as it prepares them, which a *save* holds the differences from and is loaded into
+(`slime_world::World::save`, [ADR-0087](adr/0087-the-worlds-documents.md)).
 
 **Stretch.** How much an entity's own meshes and shapes are scaled along its own axes, which its
 children do not inherit: a wall longer than it is tall. Children inherit a uniform scale only, so
@@ -674,6 +682,11 @@ today. It alone may reach wgpu, through the `wgpu` feature of `slime-gfx`
 composed with its ancestors', a translation in `f64`, a rotation and a uniform scale, without its
 *stretch* (`slime_world::GlobalTransform`, [ADR-0083](adr/0083-transforms-and-the-hierarchy.md)).
 
+**Transient field.** A field of a reflected type that saves leave out, `#[reflect(transient)]`:
+what a game computes again, such as a value that changes at every frame. It has a default, its
+own, its struct's or its type's, which a save that leaves it out gives it
+([ADR-0087](adr/0087-the-worlds-documents.md)).
+
 **Transient target.** A target of the *render graph* that it creates, at the output's size divided
 by a power of two, and whose content lives for one frame: the renderer's high-dynamic-range and
 depth targets and the bloom's levels. It is kept from frame to frame, and reused by the graph of the
@@ -690,6 +703,10 @@ names one, `#[reflect(upgrade = ...)]`, and a reader applies them in turn
 
 **Uniform buffer.** A buffer of values that a whole draw reads, such as a camera's matrices,
 declared `var<uniform>` in WGSL and read through a *bind group* (`slime_gfx::UniformBuffer`).
+
+**Unsaved (entity).** An entity that holds the `Unsaved` component, or whose ancestor does: saves
+leave it out, with its descendants, as they do what a game makes again at each run, such as an
+effect ([ADR-0087](adr/0087-the-worlds-documents.md)).
 
 **Value (reflection).** A reflected value as plain data, without its Rust type: booleans, integers,
 floats of either width, text, structs, enums, options, lists, references to assets and entities

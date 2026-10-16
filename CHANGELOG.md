@@ -11,7 +11,8 @@ the background while a game draws, a game can go on after a lost GPU device, a m
 change while it runs, and a texture or a shader changed on disk changes in the running game. The
 engine starts a world of its own, which keeps a game's entities and their components and draws
 them, and its own reflection, through which every component is reached by name and edited in a
-panel of the dev overlay, and written to TOML documents and read back; *Hunna Wood* runs on it.
+panel of the dev overlay, and written to TOML documents and read back; a world saves what changed
+since the start of a run, and loads it back. *Hunna Wood* runs on it.
 
 ### Added
 
@@ -63,7 +64,7 @@ panel of the dev overlay, and written to TOML documents and read back; *Hunna Wo
   handles, keeps their components, one of each type, and finds the entities that hold the
   components a query names, `World::query` reading them through an iterator and
   `World::query_mut` changing them through a closure. A type becomes a component with
-  `impl Component for Position {}`. A world cannot be saved yet.
+  `impl Component for Position {}`.
 - The world keeps a hierarchy and where its entities are
   ([ADR-0083](docs/adr/0083-transforms-and-the-hierarchy.md)): `World::set_parent`, `parent` and
   `children`; `Transform`, an `f64` translation, a rotation, a uniform scale that children inherit
@@ -131,6 +132,19 @@ panel of the dev overlay, and written to TOML documents and read back; *Hunna Wo
   large integers and floats, which come back to their bits. A type past version 1 names an
   upgrade, `#[reflect(version = 2, upgrade = path)]`, which brings values of earlier versions,
   whole or partial, to its version as they are read; a later version is refused.
+- A world saves and loads ([ADR-0087](docs/adr/0087-the-worlds-documents.md)): `World::save(start)`
+  writes, as a TOML document, what differs between the world and `start`, the world that the game
+  makes at the start of a run: entities removed and created, components added, removed and
+  changed, the changed ones by the fields that changed, parents changed, references to entities as
+  persistent identities, the same worlds giving the same bytes. `World::load` applies a save to such
+  a world, made from the scenes as they are now, sets aside with their reasons the differences it
+  can no longer apply, and names the scenes that changed since; a save that is not one leaves the
+  world as it was. Entities that hold `Unsaved`, with their descendants, and fields marked
+  transient are left out. `World::first_difference` compares two worlds as saves see them;
+  `World::insert_component_value` and `remove_component_value` attach and detach a component by
+  its type's name. The `world` example saves its world when it quits, loads the save into a world
+  spawned anew, and fails if the two differ. `slime-serialize` writes and reads documents of several
+  values, `Composer` and `Document`, references to entities named by its `References`.
 
 ### Changed
 
@@ -197,6 +211,14 @@ panel of the dev overlay, and written to TOML documents and read back; *Hunna Wo
   `Metadata` value: every committed one is unchanged, and an error says its line and column.
   `metadata::read` returns a `slime_serialize::ReadError`, which `ScanError::Metadata` holds;
   `MetadataError` is removed. `.gitattributes` keeps `*.toml` files with LF endings.
+- An entity that `World::spawn` creates has a persistent identity, `created/<number>`, from a count
+  that saves keep (ADR-0087). `World::persistent_id` returns a `PersistentId` rather than a
+  reference to one, and `PersistentId` parses from its text. `World::spawn_scene` refuses a key that
+  is empty, holds `/`, or is `created` (`WorldError::InvalidKey`), and a node whose name holds `/`
+  takes its index as its identity, `#12`. `World::register` takes a component type; `WorldError`
+  gains `UnknownComponent`. `slime-world` depends on `slime-serialize`.
+- The registry refuses a transient field without a default, its own, its struct's or its type's,
+  which a save that leaves the field out gives it (ADR-0087): `#[reflect(transient, default)]`.
 
 ### Removed
 

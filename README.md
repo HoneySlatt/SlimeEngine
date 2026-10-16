@@ -41,7 +41,8 @@ cache that loads what it names (`slime-world-render`, the `world` example), and 
 on it; every component is reflected, and reached by name (`slime-reflect`); a panel of the dev
 overlay lists the world's entities and edits their components, in the game and the `world` example,
 on F2; values are written to TOML documents and read back, from earlier versions of their types
-too (`slime-serialize`), as the cooker's metadata files are.
+too (`slime-serialize`), as the cooker's metadata files are; a world saves what changed since the
+start of a run, and loads it back, which the `world` example checks when it quits.
 [`docs/PLAN.md`](docs/PLAN.md) says what is left of it, and lists the known debt.
 
 ## Getting started
@@ -115,8 +116,8 @@ today has:
   (`Renderer::load_scene_in_background`), and again when it changes (`slime-cook watch`), as the
   renderer's shaders are.
 - A world (`slime-world`) of entities, components and their hierarchy, drawn through
-  `slime-world-render`, whose components are reflected and edited by name (`slime-reflect`), but
-  not saved yet.
+  `slime-world-render`, whose components are reflected and edited by name (`slime-reflect`), and
+  saved as what changed since the start of a run; no game saves its runs yet.
 - A renderer without blended transparency or culling of what the camera does not see; with a
   capped number of lights, and shadows from one directional light and from spot lights, none from
   point lights.

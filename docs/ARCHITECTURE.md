@@ -59,8 +59,8 @@ created only when code needs it.
 | [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, lit by directional, point and spot lights, seen from a camera, into render targets, and reports what a frame cost; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `slime-assets`, `slime-color`, `glam`, `thiserror`, `tracing` | Textures and scenes cooked by the asset pipeline, loaded onto the GPU, BC7 and BC5 among them, normal textures read by x and y; meshes with tangents, simple shapes made in code (a cube, a sphere, a square), glTF's metallic-roughness materials (five textures, masks, double-sided, values that change while a game runs, found by name in a loaded scene), a perspective camera, the depth test, up to 16 directional, point and spot lights in physical units (`KHR_lights_punctual`), a procedural sky computed on the CPU that surfaces reflect (image-based lighting) and that is drawn behind them with its sun's disc, the shadows of the first directional light that casts them (four cascades in one atlas, filtered over 5 × 5 texels) and of every spot light that casts them (a tile each of one atlas), mirrored instances drawn with their front faces, the scene drawn in HDR with its light exposed, at four samples per pixel (multisample anti-aliasing), an energy-conserving bloom, then tone mapped, the passes ordered by a render graph and recorded four to a submission, statistics with the GPU time of each pass; scenes loaded in the background, and again when their cooked data changed, keeping what did not change; the meshes a game draws kept by asset ID in a cache, loaded in batches as they are asked for, loaded again when their cooked data changes, dropped after a lost device ([ADR-0084](adr/0084-what-the-world-draws.md)); its shaders replaced while it runs |
 | [`slime-reflect`](../crates/slime-reflect/README.md) | Reflection: types described at run time, their values as plain data, read and changed by property path through a registry, compared and their differences applied ([ADR-0080](adr/0080-reflection-and-serialization.md), [ADR-0085](adr/0085-reflection.md)); headless | `glam`, `slime-reflect-derive` | `Reflect` and its derive, with stable names, aliases, versions and their upgrades, default values, skipped and transient fields, ranges and units; one value type, references to assets and entities kinds of their own; descriptions of types; a registry, explicit and recursive, that holds types with no Rust type behind them, checks values, sets their parts by path within their fields' ranges and lists their leaves; the standard types, glam's vectors and quaternions; no files: `slime-serialize` writes and reads them |
 | [`slime-reflect-derive`](../crates/slime-reflect-derive/README.md) | The derive macro of reflection, `#[derive(Reflect)]`, which `slime-reflect` re-exports | `proc-macro2`, `quote`, `syn` | Structs and enums, their doc comments and attributes; generic types, lifetimes, unions and types without a name refused |
-| [`slime-serialize`](../crates/slime-serialize/README.md) | Serialization: values of reflected types written to TOML documents by the engine's own writer and read back, from earlier versions of their types too ([ADR-0080](adr/0080-reflection-and-serialization.md), [ADR-0086](adr/0086-serialization.md)); headless | `slime-reflect`, `toml_edit`, `thiserror` | Documents of any registered type's value, whole or in part; the same bytes for the same value; versions written past 1 and earlier values brought forward by their types' upgrades; strict and lenient reading, errors by line, column and path, limits on size and depth; no references to entities yet, no binary encoding |
-| [`slime-world`](../crates/slime-world/README.md) | The world: a game's entities, their components and their hierarchy, kept by the engine ([ADR-0079](adr/0079-the-engines-own-world.md)); headless | `slime-assets`, `slime-color`, `slime-reflect`, `glam`, `thiserror`, `tracing` | Entities as handles of an index and a generation, the components attached to them stored by type, queries that read through an iterator or change through a closure ([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)); parents and children, transforms with `f64` translations, a uniform scale and a stretch, and where each entity is in the world, always current ([ADR-0083](adr/0083-transforms-and-the-hierarchy.md)); cooked scenes spawned as entities with persistent identities; what is drawn, meshes by asset ID, lights and hidden subtrees, and the transforms before the last fixed step of what moved during it ([ADR-0084](adr/0084-what-the-world-draws.md)); every component reflected, and listed, read and set by name and property path through the world's registry ([ADR-0085](adr/0085-reflection.md)); no saves yet |
+| [`slime-serialize`](../crates/slime-serialize/README.md) | Serialization: values of reflected types written to TOML documents by the engine's own writer and read back, from earlier versions of their types too ([ADR-0080](adr/0080-reflection-and-serialization.md), [ADR-0086](adr/0086-serialization.md)); headless | `slime-reflect`, `toml_edit`, `thiserror` | Documents of any registered type's value, whole or in part; the same bytes for the same value; versions written past 1 and earlier values brought forward by their types' upgrades; strict and lenient reading, errors by line, column and path, limits on size and depth; documents of several values, references to entities written as the names that a world gives them; no binary encoding |
+| [`slime-world`](../crates/slime-world/README.md) | The world: a game's entities, their components and their hierarchy, kept by the engine ([ADR-0079](adr/0079-the-engines-own-world.md)); headless | `slime-assets`, `slime-color`, `slime-reflect`, `slime-serialize`, `glam`, `thiserror`, `tracing` | Entities as handles of an index and a generation, the components attached to them stored by type, queries that read through an iterator or change through a closure ([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)); parents and children, transforms with `f64` translations, a uniform scale and a stretch, and where each entity is in the world, always current ([ADR-0083](adr/0083-transforms-and-the-hierarchy.md)); cooked scenes spawned as entities with persistent identities; what is drawn, meshes by asset ID, lights and hidden subtrees, and the transforms before the last fixed step of what moved during it ([ADR-0084](adr/0084-what-the-world-draws.md)); every component reflected, and listed, read and set by name and property path through the world's registry ([ADR-0085](adr/0085-reflection.md)); saves of what differs from the world as a game makes it at the start of a run, loaded back ([ADR-0087](adr/0087-the-worlds-documents.md)) |
 | [`slime-world-render`](../crates/slime-world-render/README.md) | The bridge from a world to the renderer: builds, at each frame, the instances, the lights and the sky's environment that a world draws, from the GPU objects of an asset cache ([ADR-0084](adr/0084-what-the-world-draws.md)); neither the world nor the renderer depends on it | `slime-world`, `slime-render`, `slime-gfx`, `tracing` | Meshes drawn where the world draws them between fixed steps, those the cache does not hold asked for; lights at their entities; hidden subtrees left out; the game's sky around the world's sun, given once |
 | [`slime-assets`](../crates/slime-assets/README.md) | The assets as games load them: asset IDs, cooked data and its manifest, read by ID from a directory of cooked data ([ADR-0069](adr/0069-the-asset-pipeline.md)); headless | `slime-reflect`, `ktx2`, `thiserror` | The asset ID and its text form, a UUID; cooked textures in KTX2 files ([ADR-0071](adr/0071-cooked-textures.md)), meshes, materials and scenes, their nodes' extras among them; the manifest; reading them by ID; a watch of the manifest, for hot reload |
 | [`slime-cook`](../crates/slime-cook/README.md) | The cooker: turns source assets into cooked data before games run; a library and its program, which no game links ([ADR-0069](adr/0069-the-asset-pipeline.md)) | `slime-assets`, `slime-color`, `slime-reflect`, `slime-serialize`, `bevy_mikktspace`, `blake3`, `block_compression`, `glam`, `gltf`, `png`, `uuid`, `zune-jpeg`, `thiserror` | IDs for source files in metadata files beside them, read and written through `slime-serialize`, their check, and the IDs of the assets inside a file; PNG and JPEG images cooked into textures compressed in BC7 or BC5, every level computed; glTF files imported into meshes (MikkTSpace tangents), materials and scenes; a directory cooked again only where it changed, with its manifest, once or at each change |
@@ -88,7 +88,7 @@ hunnawood  ──▶ slime-app, slime-assets, slime-render, slime-platform, slim
 
 slime-cook ──▶ slime-assets, slime-serialize (metadata files)
 slime-render ──▶ slime-assets (cooked data)
-slime-world ──▶ slime-assets (cooked scenes)
+slime-world ──▶ slime-assets (cooked scenes), slime-serialize (saves)
 slime-world-render ──▶ slime-world, slime-render, slime-gfx
 slime-gfx, slime-render, slime-cook, slime-world ──▶ slime-color (the color type)
 slime-assets, slime-color, slime-world ──▶ slime-reflect ──▶ glam, slime-reflect-derive (reflection)
@@ -111,8 +111,9 @@ slime-serialize ──▶ slime-reflect, toml_edit (documents)
   of the engine's crates only, and no engine crate depends on it
   ([ADR-0055](adr/0055-games-in-the-workspace.md)).
 - `slime-world` depends on `slime-assets`, for the cooked scenes it spawns, `slime-color`, for the
-  colors of its lights, and `slime-reflect`, and on no GPU or window, so that a world runs headless, in tests,
-  servers and tools ([ADR-0079](adr/0079-the-engines-own-world.md)).
+  colors of its lights, `slime-reflect`, and `slime-serialize`, for its saves, and on no GPU or
+  window, so that a world runs headless, in tests, servers and tools
+  ([ADR-0079](adr/0079-the-engines-own-world.md), [ADR-0087](adr/0087-the-worlds-documents.md)).
 - `slime-color` depends on `slime-reflect` only, so that a crate that holds a color does not need
   the GPU layer for it ([ADR-0079](adr/0079-the-engines-own-world.md)).
 - `slime-reflect` depends on glam and its derive only, so that every crate that owns a value type
@@ -122,7 +123,7 @@ slime-serialize ──▶ slime-reflect, toml_edit (documents)
   ([ADR-0085](adr/0085-reflection.md)).
 - `slime-serialize` depends on `slime-reflect` and on a TOML parser only, and no crate that only
   describes its types depends on it: the crates that read and write files do, the cooker for its
-  metadata files ([ADR-0086](adr/0086-serialization.md)).
+  metadata files and the world for its saves ([ADR-0086](adr/0086-serialization.md)).
 - `slime-world-render` depends on the world and on the renderer, and neither depends on it: the
   world holds no GPU object, and the renderer draws any list of instances it is given
   ([ADR-0079](adr/0079-the-engines-own-world.md), [ADR-0084](adr/0084-what-the-world-draws.md)).
@@ -742,6 +743,42 @@ read(registry, ty, text, mode)
 
 `read_as` and `write_as` do the same for a Rust type, which `from_value` then checks. The cooker
 reads and writes its metadata files so, as values of `Metadata`.
+
+### Saving and loading a world
+
+A save holds what differs between a world and `start`, the world that the game makes at the start
+of a run, from the same scenes and as it prepares them ([ADR-0087](adr/0087-the-worlds-documents.md)).
+Entities are matched by their persistent identities: a scene's entity by its key and the names of
+its nodes, `zone/door`; one created outside a scene by its number, `created/3`. A save is one
+document of several values, written through `slime-serialize`'s `Composer` and read through its
+`Document`, references to entities written as persistent identities.
+
+```text
+world.save(&start)                                   slime-world
+├── next_created, [scenes]                           the world's count of created entities; each
+│                                                    scene's key, name and a fingerprint of its
+│                                                    content
+├── [removed], [parents]                             the entities of start gone, the components
+│                                                    gone, the parents changed
+├── [created."created/N"]                            each entity created since, whole: its parent
+│                                                    and components
+├── [added], [changed]                               the components added, whole; what changed of
+│                                                    the others, as parts (Registry::difference)
+└── Composer::finish                                 slime-serialize: the same worlds, the same
+                                                     bytes; Unsaved entities and transient fields
+                                                     left out
+
+start.load(text)                                     a world the game made as at the start of a run
+├── create                                           first reading: the created entities spawned
+│                                                    under their numbers, so that references can
+│                                                    name them
+├── read_save                                        second reading: every value, references
+│                                                    resolved; on an error, the created entities
+│                                                    destroyed again and the world unchanged
+└── apply                                            removed, parents, added, changed
+                                                     (Registry::overlay): what the world no longer
+                                                     has set aside; the scenes changed since named
+```
 
 ### Losing the GPU
 

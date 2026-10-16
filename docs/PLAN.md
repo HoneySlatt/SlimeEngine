@@ -32,7 +32,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   panel of the dev overlay lists the world's entities and edits their components, in *Hunna Wood*
   and the `world` example. M5a.7 done on 2026-10-16: values of reflected types written to TOML
   documents and read back, from earlier versions of their types too, in `slime-serialize`
-  ([ADR-0086](adr/0086-serialization.md)).
+  ([ADR-0086](adr/0086-serialization.md)). M5a.8 built: a world saves what differs from the world
+  that the game makes at the start of a run, and loads it back
+  ([ADR-0087](adr/0087-the-worlds-documents.md)); CI checks it.
 
 ## Status
 
@@ -45,7 +47,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M5a.5](#m5a5--reflection) | The engine and the game describe, read and change their types' values through one registry | Done |
 | [M5a.6](#m5a6--any-component-listed-and-edited) | Any component's properties are listed and edited in the running game | Done |
 | [M5a.7](#m5a7--serialization-with-format-versioning) | Any reflected value is written to a file and read back, even from an older version of its type | Done |
-| [M5a.8](#m5a8--the-world-round-trips) | A world saves what differs from the scenes it was made from, and loads it back | Planned |
+| [M5a.8](#m5a8--the-world-round-trips) | A world saves what differs from the scenes it was made from, and loads it back | Built; CI checks it |
 | [M5a.9](#m5a9--saving-and-resuming-a-run) | A player saves a run of *Hunna Wood* and resumes it | Planned |
 | [M5a.10](#m5a10--windows-check-documentation-release-03) | Stage 5a is done and released as 0.3, with Stage 4b | Planned |
 
@@ -455,6 +457,25 @@ Risks:
   runs in `scripts/check.sh`; CI is green.
 - **How to test.** `cargo test -p slime-world`; `cargo test -p hunnawood -- --ignored`;
   `cargo run --example world -- --headless`.
+- **Outcome.** Built on 2026-10-16 ([ADR-0087](adr/0087-the-worlds-documents.md)); it also changed
+  `slime-serialize` and `slime-reflect`. The owner decided that a save differs from a world that the
+  game makes as at the start of a run, rather than from the scenes alone; that it is laid out by
+  entity and component, a changed component written as the fields that changed; and that every
+  entity created outside a scene is saved, as `created/<number>`, unless it or an ancestor holds
+  `Unsaved`. References between entities are written as persistent identities, through documents
+  of several values that `slime-serialize` now writes and reads; transient fields are left out, and
+  the registry refuses one without a default. The cooked zone and hero, walked, an oak removed, a
+  lantern dimmed and the key hidden, saved and loaded into a new game, equal the game saved through
+  `World::first_difference`, floats by their bits; saving again gives the same bytes; 300 steps of
+  the same input leave both the same. A save loaded on a scene changed since moves and spawns what
+  the scene now says and reports what it removed and renamed; two entities with one identity, and
+  saves malformed, newer, or cut at every character, are refused or load what they hold, without a
+  panic. The `world` example saves its world when it quits and fails if the world loaded differs;
+  `scripts/check.sh` runs it headless and windowed. A hash map from number to entity made spawning
+  100 000 entities about twice as slow and destroying them five times: a sorted vector replaced it,
+  and spawning costs about a tenth more than before M5a.8, destroying 1.7 ms more (the ADR has the
+  figures). A save cut at the boundary of a section loads what it holds (see
+  [Known debt](#known-debt)).
 
 ### M5a.9 — Saving and resuming a run
 
@@ -863,12 +884,14 @@ GitHub issues, linked from their entry; this list stays the reference.
   `Scene::lights`, for its light and its shadows; two different lights show a disc where no light
   comes from. The `scene` example takes both from the file's first directional light. A world gives
   it once ([ADR-0084](adr/0084-what-the-world-draws.md)), as *Hunna Wood*'s does.
-- **A save of *Hunna Wood*'s world would hold more than its run** (ADR-0079). Besides the hero's
-  transform, what is hidden and the night, the world holds what the game derives from the zone when
-  it spawns it: its own components, the moon showing in the sky, the lights of the other time of day
-  hidden; and the campfire's intensity, which the game writes at each frame. The camera's yaw is
-  outside the world. M5a.8 and M5a.9 compare a world with the one the game prepared, or mark these
-  values transient.
+- **A save of *Hunna Wood*'s world would hold the campfire's intensity** (ADR-0087). A save holds
+  what differs from the world that the game prepares at the start of a run, so that what the game
+  derives from the zone is not saved; but the game writes the campfire's intensity at each frame,
+  which a save would then hold, and the camera's yaw is outside the world. M5a.9, which saves the
+  game's runs, decides what to do with them.
+- **A save cut short may load in part** (ADR-0087). A save is a document of sections: one cut at the
+  boundary of a section is still a document, and loads what it holds without an error. M5a.9, which
+  writes save files, makes a file either the old save or the new one.
 - **After a lost device, what is hidden loads only once shown** (ADR-0084): the cache loads what is
   drawn. In *Hunna Wood*, a key taken or a door opened before the loss shows a few frames after R
   shows them again.
