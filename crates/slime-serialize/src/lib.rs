@@ -6,15 +6,18 @@ pub mod format;
 mod text;
 
 use std::collections::{BTreeMap, HashMap};
-use std::ops::Range as Span;
+use std::io::Read as _;
 
-use slime_reflect::{Path, Problem, Reflect, ReflectError, Registry, Step, Value};
+use slime_reflect::{Path, Problem, Reflect, ReflectError, Registry, Value};
 
 use crate::document::{Failure, Reader, Writer};
 pub use crate::error::{ReadError, ReadProblem};
 
-/// The size of the largest document read, in bytes: 64 MiB.
-pub const MAX_SIZE: usize = 64 << 20;
+/// The size of the largest document read, in bytes: 16 MiB. The parser takes about a hundred bytes of
+/// memory for each value it reads: the densest document of that size, one array of small integers,
+/// took 3.7 s and 1.8 GB to read in a release build on the owner's machine (M5a.7), one of 1 MiB
+/// 0.24 s and 110 MB.
+pub const MAX_SIZE: usize = 16 << 20;
 
 /// The deepest that a document's values nest, tables and arrays within others, as read: 64 levels.
 /// The parser refuses deeper ones before they are counted, past 80.
@@ -41,9 +44,9 @@ pub struct Read {
     pub warnings: Vec<ReadError>,
 }
 
-/// Writes `value`, a value of the type named `ty` in `registry`, as a document
-/// ([`format`](mod@format)): the same value gives the same bytes on every platform. It writes the fields that
-/// the value holds, all of a whole value and some of a partial one.
+/// Writes `value`, a whole value of the type named `ty` in `registry`, as a document
+/// ([`format`](mod@format)): the same value gives the same bytes on every platform. It checks the
+/// value as [`read`] does, so that what it writes can be read back.
 ///
 /// ```
 /// use slime_reflect::{Reflect, Registry};
@@ -69,14 +72,37 @@ pub struct Read {
 ///
 /// # Errors
 ///
-/// When `value` is not a value of `ty`, with the path of the part at fault, as
-/// [`Registry::check`] says, and when it holds a reference to an entity, which is not written.
+/// When `value` is not a whole value of `ty`, with the path of the part at fault: a field missing, a
+/// value of another kind, an integer wider than its type, an array of another length, a number
+/// out of its field's range, NaN or an infinity in a field that has one; and when it holds a
+/// reference to an entity, which is not written.
 pub fn write(registry: &Registry, ty: &str, value: &Value) -> Result<String, ReflectError> {
+    write_document(registry, ty, value, false)
+}
+
+/// Writes `value`, a part of a value of the type named `ty`, as [`write`](fn@write) does, but for
+/// the fields that it leaves out, which the document leaves out too: a save's differences, which
+/// [`read_partial`] reads back. Tuples, lists and options are written whole.
+///
+/// # Errors
+///
+/// As [`write`](fn@write), but for missing fields of structs and variants.
+pub fn write_partial(registry: &Registry, ty: &str, value: &Value) -> Result<String, ReflectError> {
+    write_document(registry, ty, value, true)
+}
+
+fn write_document(
+    registry: &Registry,
+    ty: &str,
+    value: &Value,
+    partial: bool,
+) -> Result<String, ReflectError> {
     let mut writer = Writer {
         registry,
         versions: BTreeMap::new(),
+        partial,
     };
-    let document = writer.value(ty, value, &Path::default())?;
+    let document = writer.value(ty, value, &Path::default(), None)?;
     let mut root = Vec::new();
     if !writer.versions.is_empty() {
         let versions = writer
@@ -110,8 +136,9 @@ pub fn read(registry: &Registry, ty: &str, text: &str, mode: Mode) -> Result<Rea
 }
 
 /// Reads a part of a value of the type named `ty`, which `text` holds, as [`read`] does, but for
-/// the fields that the document leaves out, which the value leaves out too, at every depth: a save's
-/// differences, which an upgrade brings from an earlier version as it brings a whole value.
+/// the fields of structs and variants that the document leaves out, at every depth, which the value
+/// leaves out too, tuples, lists and options read whole: a save's differences, which upgrades bring
+/// from earlier versions, told that the value is partial ([`slime_reflect::Upgrade`]).
 ///
 /// # Errors
 ///
@@ -130,16 +157,21 @@ pub fn read_partial(
 ///
 /// # Errors
 ///
-/// As [`read`], and when the file cannot be read, or is not UTF-8 ([`ReadProblem::Io`]).
+/// As [`read`], and when the file cannot be read ([`ReadProblem::Io`]) or is not UTF-8 text
+/// ([`ReadProblem::NotText`]), at the first byte that is not.
 pub fn read_file(
     registry: &Registry,
     ty: &str,
     file: &std::path::Path,
     mode: Mode,
 ) -> Result<Read, ReadError> {
-    let size = std::fs::metadata(file)
-        .map_err(|error| ReadError::io(file, error))?
-        .len();
+    // At most one byte past the limit, whatever the file says its size is: a pipe or a device
+    // says none.
+    let mut bytes = Vec::new();
+    std::fs::File::open(file)
+        .and_then(|opened| opened.take(MAX_SIZE as u64 + 1).read_to_end(&mut bytes))
+        .map_err(|error| ReadError::io(file, error))?;
+    let size = bytes.len() as u64;
     if size > MAX_SIZE as u64 {
         return Err(ReadError::new(
             None,
@@ -151,7 +183,16 @@ pub fn read_file(
         )
         .in_file(file));
     }
-    let text = std::fs::read_to_string(file).map_err(|error| ReadError::io(file, error))?;
+    let text = String::from_utf8(bytes).map_err(|error| {
+        let valid = &error.as_bytes()[..error.utf8_error().valid_up_to()];
+        let before = String::from_utf8_lossy(valid);
+        ReadError::new(
+            Some(position(&before, before.len())),
+            Path::default(),
+            ReadProblem::NotText,
+        )
+        .in_file(file)
+    })?;
     let read = read(registry, ty, &text, mode).map_err(|error| error.in_file(file))?;
     Ok(Read {
         value: read.value,
@@ -226,21 +267,14 @@ fn read_document(
             problem,
         )
     })?;
-    let text::Parsed {
-        mut root,
-        spans,
-        keys,
-    } = parsed;
+    let text::Parsed { document, mut root } = parsed;
     let locate = |failure: Failure| {
         // A field unknown or given twice is at its key; any other problem at the value.
         let at_key = matches!(
             failure.problem,
             ReadProblem::Value(Problem::UnknownField { .. } | Problem::DuplicateField(_))
         );
-        let span = match keys.get(&failure.at) {
-            Some(key) if at_key => Some(key.clone()),
-            _ => span_of(&spans, &failure.at),
-        };
+        let span = text::locate(&document, &failure.at, at_key);
         ReadError::new(
             span.map(|span| position(text, span.start)),
             failure.path,
@@ -307,6 +341,11 @@ fn read_document(
             let known = registration.info().version;
             let version = match u32::try_from(version) {
                 Ok(version) if version >= 1 => version,
+                Err(_) if version > 0 => {
+                    return Err(locate(fail(Problem::Invalid(format!(
+                        "the version of `{name}` is {version}, past any version a type has"
+                    )))));
+                }
                 _ => {
                     return Err(locate(fail(Problem::Invalid(format!(
                         "the version of `{name}` is {version}: versions start at 1"
@@ -355,19 +394,6 @@ fn read_document(
 fn take(root: &mut Vec<(String, Value)>, key: &str) -> Option<Value> {
     let index = root.iter().position(|(name, _)| name == key)?;
     Some(root.remove(index).1)
-}
-
-/// Where the part at `at` in the document lies in its text, or the nearest part that holds it, if
-/// the parser said: a part that an upgrade made has no place of its own.
-fn span_of(spans: &HashMap<Path, Span<usize>>, at: &Path) -> Option<Span<usize>> {
-    let steps: &[Step] = at.steps();
-    (0..=steps.len()).rev().find_map(|len| {
-        let prefix = steps[..len]
-            .iter()
-            .cloned()
-            .fold(Path::default(), Path::then);
-        spans.get(&prefix).cloned()
-    })
 }
 
 /// The line and the column, from 1, of the byte `offset` in `text`, the column in characters.

@@ -1,167 +1,158 @@
-//! Documents as TOML text: parsed into values as documents hold them, with the place of each in the
-//! text, and written by the engine's own writer, which gives the same bytes for the same document
-//! on every platform and with every version of the parser.
+//! Documents as TOML text: parsed into values as documents hold them, and written by the engine's
+//! own writer, which gives the same bytes for the same document on every platform and with every
+//! version of the parser.
 
-use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::ops::Range as Span;
 
-use slime_reflect::{Path, Problem, Value};
-use toml_edit::{Item, Key, Table};
+use slime_reflect::{Path, Problem, Step, Value};
+use toml_edit::{Document, Item, Key, Table};
 
 use crate::MAX_DEPTH;
 use crate::error::ReadProblem;
 
-/// A document's text parsed: its root table, as a document holds values, and the place in the text
-/// of each of its parts and of their keys, by their paths in it. The root's is the text's start.
-pub(crate) struct Parsed {
+/// A document's text parsed: the parser's document, which knows where each part lies in the text
+/// ([`locate`]), and the root table as a document holds values.
+pub(crate) struct Parsed<'a> {
+    pub document: Document<&'a str>,
     pub root: Vec<(String, Value)>,
-    pub spans: HashMap<Path, Span<usize>>,
-    pub keys: HashMap<Path, Span<usize>>,
 }
 
 /// Why a text cannot be parsed, and where in it, if the parser says.
 pub(crate) type ParseError = (Option<Span<usize>>, ReadProblem);
 
 /// Parses `text`: tables as [`Value::Struct`], arrays as [`Value::List`], strings, integers, floats
-/// and booleans as [`Value::Text`], [`Value::Int`], [`Value::F64`] and [`Value::Bool`].
-pub(crate) fn parse(text: &str) -> Result<Parsed, ParseError> {
-    let document = toml_edit::Document::parse(text).map_err(|error| {
+/// and booleans as [`Value::Text`], [`Value::Int`], [`Value::F64`] and [`Value::Bool`]. Where each
+/// part lies is not noted: [`locate`] finds it when an error needs it.
+pub(crate) fn parse(text: &str) -> Result<Parsed<'_>, ParseError> {
+    let document = Document::parse(text).map_err(|error| {
         (
             error.span(),
             ReadProblem::Syntax(error.message().to_owned()),
         )
     })?;
-    let mut parser = Parser {
-        spans: HashMap::from([(Path::default(), 0..0)]),
-        keys: HashMap::new(),
-    };
-    let root = parser.table(document.as_table(), &Path::default(), 1)?;
-    Ok(Parsed {
-        root,
-        spans: parser.spans,
-        keys: parser.keys,
+    let root = table(document.as_table(), 1)?;
+    Ok(Parsed { document, root })
+}
+
+/// Refuses a part nested deeper than [`MAX_DEPTH`], at `span`.
+fn deep(span: Option<Span<usize>>, depth: usize) -> Result<(), ParseError> {
+    if depth > MAX_DEPTH {
+        return Err((span, ReadProblem::TooDeep { limit: MAX_DEPTH }));
+    }
+    Ok(())
+}
+
+fn table(table: &Table, depth: usize) -> Result<Vec<(String, Value)>, ParseError> {
+    deep(table.span(), depth)?;
+    table
+        .iter()
+        .map(|(key, item)| Ok((key.to_owned(), self::item(item, depth + 1)?)))
+        .collect()
+}
+
+fn item(item: &Item, depth: usize) -> Result<Value, ParseError> {
+    match item {
+        Item::Value(value) => self::value(value, depth),
+        Item::Table(inner) => Ok(Value::Struct(table(inner, depth)?)),
+        Item::ArrayOfTables(tables) => {
+            deep(tables.span(), depth)?;
+            let elements = tables
+                .iter()
+                .map(|inner| Ok(Value::Struct(table(inner, depth + 1)?)))
+                .collect::<Result<_, ParseError>>()?;
+            Ok(Value::List(elements))
+        }
+        // A table lists no item that holds nothing.
+        Item::None => Ok(Value::Struct(Vec::new())),
+    }
+}
+
+fn value(value: &toml_edit::Value, depth: usize) -> Result<Value, ParseError> {
+    use toml_edit::Value as Toml;
+
+    deep(value.span(), depth)?;
+    Ok(match value {
+        Toml::String(text) => Value::Text(text.value().clone()),
+        Toml::Integer(number) => Value::Int(*number.value()),
+        Toml::Float(number) => Value::F64(*number.value()),
+        Toml::Boolean(boolean) => Value::Bool(*boolean.value()),
+        Toml::Datetime(_) => {
+            return Err((
+                value.span(),
+                ReadProblem::Value(Problem::Invalid(
+                    "a date or a time, which the engine's values do not hold".to_owned(),
+                )),
+            ));
+        }
+        Toml::Array(array) => Value::List(
+            array
+                .iter()
+                .map(|element| self::value(element, depth + 1))
+                .collect::<Result<_, _>>()?,
+        ),
+        Toml::InlineTable(inner) => Value::Struct(
+            inner
+                .iter()
+                .map(|(key, element)| Ok((key.to_owned(), self::value(element, depth + 1)?)))
+                .collect::<Result<_, ParseError>>()?,
+        ),
     })
 }
 
-struct Parser {
-    spans: HashMap<Path, Span<usize>>,
-    keys: HashMap<Path, Span<usize>>,
-}
+/// Where the part at `at`, a path through the values of `document`, lies in its text: its key's
+/// place if `key` and it has one, its value's otherwise; the place of the nearest part that holds
+/// it when the document has no such part, as for a part that an upgrade made; the text's start for
+/// the root.
+pub(crate) fn locate(document: &Document<&str>, at: &Path, key: bool) -> Option<Span<usize>> {
+    use toml_edit::Value as Toml;
 
-impl Parser {
-    /// Notes where the part at `path` lies, if the parser says.
-    fn place(&mut self, path: &Path, span: Option<Span<usize>>) {
-        if let Some(span) = span {
-            self.spans.insert(path.clone(), span);
-        }
+    #[derive(Clone, Copy)]
+    enum Node<'a> {
+        Table(&'a Table),
+        Item(&'a Item),
+        Value(&'a Toml),
     }
-
-    /// Notes where the key of the part at `path` lies, if the parser says.
-    fn key(&mut self, path: &Path, key: Option<&Key>) {
-        if let Some(span) = key.and_then(Key::span) {
-            self.keys.insert(path.clone(), span);
-        }
-    }
-
-    /// Refuses a part nested deeper than [`MAX_DEPTH`].
-    fn depth(&self, path: &Path, depth: usize) -> Result<(), ParseError> {
-        if depth > MAX_DEPTH {
-            return Err((
-                self.spans.get(path).cloned(),
-                ReadProblem::TooDeep { limit: MAX_DEPTH },
-            ));
-        }
-        Ok(())
-    }
-
-    fn table(
-        &mut self,
-        table: &Table,
-        path: &Path,
-        depth: usize,
-    ) -> Result<Vec<(String, Value)>, ParseError> {
-        self.depth(path, depth)?;
-        let mut fields = Vec::new();
-        for (key, item) in table.iter() {
-            let at = path.clone().field(key);
-            self.key(&at, table.key(key));
-            self.place(
-                &at,
-                item.span().or_else(|| table.key(key).and_then(Key::span)),
-            );
-            fields.push((key.to_owned(), self.item(item, &at, depth + 1)?));
-        }
-        Ok(fields)
-    }
-
-    fn item(&mut self, item: &Item, path: &Path, depth: usize) -> Result<Value, ParseError> {
-        match item {
-            Item::Value(value) => self.value(value, path, depth),
-            Item::Table(table) => Ok(Value::Struct(self.table(table, path, depth)?)),
-            Item::ArrayOfTables(tables) => {
-                self.depth(path, depth)?;
-                let mut elements = Vec::new();
-                for (index, table) in tables.iter().enumerate() {
-                    let at = path.clone().index(index);
-                    self.place(&at, table.span());
-                    elements.push(Value::Struct(self.table(table, &at, depth + 1)?));
-                }
-                Ok(Value::List(elements))
+    let mut node = Node::Table(document.as_table());
+    let mut found = Some(0..0);
+    for step in at.steps() {
+        let next = match (node, step) {
+            (Node::Table(table) | Node::Item(Item::Table(table)), Step::Field(name)) => table
+                .get_key_value(name)
+                .map(|(key, item)| (Some(key), Node::Item(item))),
+            (
+                Node::Item(Item::Value(Toml::InlineTable(table)))
+                | Node::Value(Toml::InlineTable(table)),
+                Step::Field(name),
+            ) => table
+                .get_key_value(name)
+                .map(|(key, item)| (Some(key), Node::Item(item))),
+            (Node::Item(Item::ArrayOfTables(tables)), &Step::Index(index)) => {
+                tables.get(index).map(|table| (None, Node::Table(table)))
             }
-            // A table lists no item that holds nothing.
-            Item::None => Ok(Value::Struct(Vec::new())),
-        }
+            (
+                Node::Item(Item::Value(Toml::Array(array))) | Node::Value(Toml::Array(array)),
+                &Step::Index(index),
+            ) => array.get(index).map(|element| (None, Node::Value(element))),
+            _ => None,
+        };
+        let Some((named, next)) = next else {
+            break;
+        };
+        let key_span = named.and_then(Key::span);
+        let span = match next {
+            Node::Table(table) => table.span(),
+            Node::Item(item) => item.span(),
+            Node::Value(value) => value.span(),
+        };
+        found = if key {
+            key_span.or(span).or(found)
+        } else {
+            span.or(key_span).or(found)
+        };
+        node = next;
     }
-
-    fn value(
-        &mut self,
-        value: &toml_edit::Value,
-        path: &Path,
-        depth: usize,
-    ) -> Result<Value, ParseError> {
-        use toml_edit::Value as Toml;
-
-        self.depth(path, depth)?;
-        Ok(match value {
-            Toml::String(text) => Value::Text(text.value().clone()),
-            Toml::Integer(number) => Value::Int(*number.value()),
-            Toml::Float(number) => Value::F64(*number.value()),
-            Toml::Boolean(boolean) => Value::Bool(*boolean.value()),
-            Toml::Datetime(_) => {
-                return Err((
-                    value.span(),
-                    ReadProblem::Value(Problem::Invalid(
-                        "a date or a time, which the engine's values do not hold".to_owned(),
-                    )),
-                ));
-            }
-            Toml::Array(array) => {
-                let mut elements = Vec::new();
-                for (index, element) in array.iter().enumerate() {
-                    let at = path.clone().index(index);
-                    self.place(&at, element.span());
-                    elements.push(self.value(element, &at, depth + 1)?);
-                }
-                Value::List(elements)
-            }
-            Toml::InlineTable(table) => {
-                let mut fields = Vec::new();
-                for (key, element) in table.iter() {
-                    let at = path.clone().field(key);
-                    self.key(&at, table.key(key));
-                    self.place(
-                        &at,
-                        element
-                            .span()
-                            .or_else(|| table.key(key).and_then(Key::span)),
-                    );
-                    fields.push((key.to_owned(), self.value(element, &at, depth + 1)?));
-                }
-                Value::Struct(fields)
-            }
-        })
-    }
+    found
 }
 
 /// Where a value is written: on its key's line, or under a header of its own.
@@ -264,7 +255,7 @@ fn inline(out: &mut String, value: &Value) {
             number.is_nan(),
             number.is_sign_negative(),
             number.is_infinite(),
-            || format!("{number:e}"),
+            || f32_digits(*number),
         )),
         Value::F64(number) => out.push_str(&float(
             number.is_nan(),
@@ -329,6 +320,18 @@ fn float(nan: bool, negative: bool, infinite: bool, exponential: impl Fn() -> St
     } else {
         let (whole, fraction) = digits.split_at(before as usize);
         format!("{sign}{whole}.{fraction}")
+    }
+}
+
+/// The digits that a reader brings back to `number`: its own shortest ones, unless reading them as
+/// a 64-bit float, as TOML's parser does, then rounding to 32 bits would give another `f32`; then
+/// those of the same number as an `f64`, which it is exactly. The shortest digits of an `f32`
+/// round to it directly, but rounding twice can miss it: 7.038531e-26 is one.
+fn f32_digits(number: f32) -> String {
+    let shortest = format!("{number:e}");
+    match shortest.parse::<f64>() {
+        Ok(read) if (read as f32).to_bits() == number.to_bits() => shortest,
+        _ => format!("{:e}", f64::from(number)),
     }
 }
 

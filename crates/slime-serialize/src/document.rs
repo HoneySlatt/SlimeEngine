@@ -16,16 +16,20 @@ pub(crate) struct Writer<'a> {
     pub registry: &'a Registry,
     /// The versions of the types past version 1 met, by name, in the order of their names.
     pub versions: BTreeMap<String, u32>,
+    /// Whether the value may leave fields out, a part of a value: the document leaves them out too.
+    pub partial: bool,
 }
 
 impl Writer<'_> {
-    /// `value`, a value of the type named `ty` at `path` in the value written, as a document holds
-    /// it.
+    /// `value`, a value of the type named `ty` at `path` in the value written, a number within
+    /// `range`, as a document holds it: checked as a reader checks it, so that what is written can
+    /// be read.
     pub(crate) fn value(
         &mut self,
         ty: &str,
         value: &Value,
         path: &Path,
+        range: Option<Range>,
     ) -> Result<Value, ReflectError> {
         let info =
             info(self.registry, ty).map_err(|problem| ReflectError::at(path.clone(), problem))?;
@@ -33,16 +37,43 @@ impl Writer<'_> {
             self.versions.insert(info.name.clone(), info.version);
         }
         let error = |problem| ReflectError::at(path.clone(), problem);
+        let within = |number: f64| match range {
+            Some(range) if !range.contains(number) => Err(error(Problem::OutOfRange {
+                value: number,
+                range,
+            })),
+            _ => Ok(()),
+        };
+        // An integer of the type's width, as the registry checks it.
+        let fits = || {
+            self.registry
+                .check(&info.name, value)
+                .map_err(|refused| error(refused.problem().clone()))
+        };
         Ok(match (&info.kind, value) {
             (Kind::Bool, Value::Bool(boolean)) => Value::Bool(*boolean),
-            (Kind::Int { .. }, Value::Int(number)) => Value::Int(*number),
+            (Kind::Int { .. }, &Value::Int(number)) => {
+                fits()?;
+                within(number as f64)?;
+                Value::Int(number)
+            }
             // Integers past TOML's, which holds 64 signed bits, are written as text.
-            (Kind::UInt { .. }, Value::UInt(number)) => match i64::try_from(*number) {
-                Ok(number) => Value::Int(number),
-                Err(_) => Value::Text(number.to_string()),
-            },
-            (Kind::F32, Value::F32(number)) => Value::F32(*number),
-            (Kind::F64, Value::F64(number)) => Value::F64(*number),
+            (Kind::UInt { .. }, &Value::UInt(number)) => {
+                fits()?;
+                within(number as f64)?;
+                match i64::try_from(number) {
+                    Ok(number) => Value::Int(number),
+                    Err(_) => Value::Text(number.to_string()),
+                }
+            }
+            (Kind::F32, &Value::F32(number)) => {
+                within(f64::from(number))?;
+                Value::F32(number)
+            }
+            (Kind::F64, &Value::F64(number)) => {
+                within(number)?;
+                Value::F64(number)
+            }
             (Kind::Text, Value::Text(text)) => Value::Text(text.clone()),
             (Kind::Asset, Value::Asset(id)) => Value::Text(uuid(*id)),
             (Kind::Entity, Value::Entity(_)) => {
@@ -50,18 +81,29 @@ impl Writer<'_> {
             }
             // An option that is not a field's: none or one element.
             (Kind::Option(inner), Value::Option(held)) => Value::List(match held {
-                Some(held) => vec![self.value(inner, held, path)?],
+                Some(held) => vec![self.value(inner, held, path, range)?],
                 None => Vec::new(),
             }),
-            (Kind::List { element, .. }, Value::List(elements)) => Value::List(
-                elements
-                    .iter()
-                    .enumerate()
-                    .map(|(index, element_value)| {
-                        self.value(element, element_value, &path.clone().index(index))
-                    })
-                    .collect::<Result<_, _>>()?,
-            ),
+            (Kind::List { element, len }, Value::List(elements)) => {
+                if let Some(len) = *len
+                    && elements.len() != len
+                {
+                    return Err(error(Problem::WrongLength {
+                        expected: len,
+                        found: elements.len(),
+                    }));
+                }
+                Value::List(
+                    elements
+                        .iter()
+                        .enumerate()
+                        .map(|(index, element_value)| {
+                            let at = path.clone().index(index);
+                            self.value(element, element_value, &at, range)
+                        })
+                        .collect::<Result<_, _>>()?,
+                )
+            }
             (Kind::Struct(fields), Value::Struct(values)) => self.fields(fields, values, path)?,
             (Kind::Enum(variants), Value::Enum(name, values)) => {
                 let variant = variants
@@ -93,8 +135,9 @@ impl Writer<'_> {
     }
 
     /// The fields `values` of a struct or a variant whose fields `fields` describes: an array of
-    /// them for a tuple, the value of the one there is for a tuple of one, and otherwise a table of
-    /// those that the value holds, an option that holds none left out.
+    /// them for a tuple, which a value holds whole, the value of the one there is for a tuple of one,
+    /// and otherwise a table of them, an option that holds none left out. A whole value holds every
+    /// field; a partial one those it gives.
     fn fields(
         &mut self,
         fields: &[FieldInfo],
@@ -126,7 +169,7 @@ impl Writer<'_> {
                 let value = given(field).ok_or_else(|| {
                     ReflectError::at(path.clone(), Problem::MissingField(field.name.clone()))
                 })?;
-                elements.push(self.value(&field.ty, value, &at)?);
+                elements.push(self.value(&field.ty, value, &at, field.range)?);
             }
             return Ok(match <[Value; 1]>::try_from(elements) {
                 Ok([only]) => only,
@@ -136,7 +179,13 @@ impl Writer<'_> {
         let mut table = Vec::new();
         for field in fields {
             let Some(value) = given(field) else {
-                continue;
+                if self.partial {
+                    continue;
+                }
+                return Err(ReflectError::at(
+                    path.clone(),
+                    Problem::MissingField(field.name.clone()),
+                ));
             };
             let at = path.clone().field(field.name.clone());
             let kind = info(self.registry, &field.ty)
@@ -146,9 +195,13 @@ impl Writer<'_> {
             match (kind, value) {
                 (Kind::Option(_), Value::Option(None)) => {}
                 (Kind::Option(inner), Value::Option(Some(held))) => {
-                    table.push((field.name.clone(), self.value(&inner, held, &at)?));
+                    let held = self.value(&inner, held, &at, field.range)?;
+                    table.push((field.name.clone(), held));
                 }
-                _ => table.push((field.name.clone(), self.value(&field.ty, value, &at)?)),
+                _ => {
+                    let written = self.value(&field.ty, value, &at, field.range)?;
+                    table.push((field.name.clone(), written));
+                }
             }
         }
         Ok(Value::Struct(table))
@@ -201,7 +254,7 @@ impl Reader<'_> {
             document
         } else {
             self.registry
-                .upgrade(&info.name, version, document)
+                .upgrade(&info.name, version, document, self.partial)
                 .map_err(|error| fail(error.problem().clone()))?
         };
         let wrong = |document: &Value| {
@@ -469,6 +522,10 @@ impl Reader<'_> {
                     read.push((field.name.clone(), value));
                 }
                 None if self.partial => {}
+                // An option left out holds none, whatever its default says: so it is written.
+                None if matches!(kind_of(self.registry, &field.ty), Some(Kind::Option(_))) => {
+                    read.push((field.name.clone(), Value::Option(None)));
+                }
                 None => {
                     let default = self
                         .default(owner, field)
@@ -518,6 +575,13 @@ fn info<'a>(registry: &'a Registry, ty: &str) -> Result<&'a TypeInfo, Problem> {
         .get(ty)
         .map(|registration| registration.info())
         .ok_or_else(|| Problem::NotRegistered(ty.to_owned()))
+}
+
+/// The kind of the type named `ty`, if it is registered.
+fn kind_of<'a>(registry: &'a Registry, ty: &str) -> Option<&'a Kind> {
+    registry
+        .get(ty)
+        .map(|registration| &registration.info().kind)
 }
 
 /// Whether `fields` are a tuple's: named `0`, `1`, ... in order.

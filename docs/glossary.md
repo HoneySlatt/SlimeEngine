@@ -423,9 +423,9 @@ well ([ADR-0052](adr/0052-amend-roadmap-before-0-1.md)).
 
 **Owner.** The person who validates the project's direction and its architecture decisions.
 
-**Partial value.** A *value* that leaves some of its fields out, at any depth: what changed of a
-value, as a save holds it. An *upgrade* brings it forward as it does a whole value
-([ADR-0086](adr/0086-serialization.md)).
+**Partial value.** A *value* that leaves some of its fields out, those of its structs and variants
+at any depth, its tuples, lists and options whole: what changed of a value, as a save holds it. An
+*upgrade* brings it forward, told that it is partial ([ADR-0086](adr/0086-serialization.md)).
 
 **Percentage-closer filtering (PCF).** Reading a *shadow map* by comparing a point's depth with
 several stored depths around it and averaging the results, so that the edges of shadows are soft

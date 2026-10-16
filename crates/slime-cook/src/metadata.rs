@@ -9,7 +9,7 @@ use slime_reflect::Reflect;
 use slime_serialize::{Mode, ReadError};
 
 /// What a metadata file holds: the asset ID of the source file beside it, which every asset cooked
-/// from it keeps. Import settings will join it.
+/// from it keeps.
 #[derive(Clone, Debug, PartialEq, Reflect)]
 #[reflect(name = "Metadata")]
 pub struct Metadata {

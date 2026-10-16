@@ -43,6 +43,9 @@ pub enum ReadProblem {
         /// The deepest nesting read.
         limit: usize,
     },
+    /// A file that is not text in UTF-8.
+    #[error("not UTF-8 text")]
+    NotText,
     /// Text that is not TOML: the parser's message.
     #[error("not TOML: {0}")]
     Syntax(String),

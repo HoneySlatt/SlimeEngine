@@ -6,13 +6,15 @@ use crate::registry::Registry;
 use crate::value::Value;
 
 /// A function that brings a value of a type from the version it is given, of the type's versions
-/// before its last, to the next: `upgrade(version, value)`, or a reason why it cannot.
+/// before its last, to the next: `upgrade(version, value, partial)`, or a reason why it cannot.
 ///
-/// It works on the value as a document holds it, tables, arrays, text, numbers and booleans, before
-/// any Rust type reads it, so that the type's shape may have changed since: `slime-serialize` says
-/// how a document holds each kind of value. The value may be partial, its fields left out but those
-/// that changed: an upgrade changes what is there, and adds nothing that is not.
-pub type Upgrade = fn(u32, Value) -> Result<Value, String>;
+/// It works on the value as a document holds it, before any Rust type reads it, so that the type's
+/// shape may have changed since: tables, arrays, text, booleans, and numbers, a float as `Value::F64`
+/// or, written without a fraction, `Value::Int`; `slime-serialize` says how a document holds each
+/// kind of value. When `partial` is true, the value leaves out the fields that did not change, as a
+/// save's differences do: the upgrade changes what is there, and adds nothing. A whole value holds
+/// every field of its version, and its upgrade adds the fields that the next version adds.
+pub type Upgrade = fn(u32, Value, bool) -> Result<Value, String>;
 
 /// A type whose values reflection describes, reads and changes: one that turns into a [`Value`]
 /// and back, under a stable name, with a description of its shape ([`TypeInfo`]).
@@ -147,6 +149,26 @@ pub type Upgrade = fn(u32, Value) -> Result<Value, String>;
 /// }
 /// ```
 ///
+/// a version 0, which no type has, or an alias that starts with `$`, which documents keep for
+/// themselves:
+///
+/// ```compile_fail
+/// #[derive(slime_reflect::Reflect)]
+/// #[reflect(name = "Lamp", version = 0)]
+/// struct Lamp {
+///     lit: bool,
+/// }
+/// ```
+///
+/// ```compile_fail
+/// #[derive(slime_reflect::Reflect)]
+/// #[reflect(name = "Lamp")]
+/// struct Lamp {
+///     #[reflect(alias = "$value")]
+///     lit: bool,
+/// }
+/// ```
+///
 /// a type past version 1 without an upgrade, which could not read its earlier values, or an upgrade
 /// on a type at version 1, which has no earlier values:
 ///
@@ -159,7 +181,7 @@ pub type Upgrade = fn(u32, Value) -> Result<Value, String>;
 /// ```
 ///
 /// ```compile_fail
-/// fn upgrade(_: u32, value: slime_reflect::Value) -> Result<slime_reflect::Value, String> {
+/// fn upgrade(_: u32, value: slime_reflect::Value, _: bool) -> Result<slime_reflect::Value, String> {
 ///     Ok(value)
 /// }
 ///

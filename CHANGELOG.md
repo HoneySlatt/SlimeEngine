@@ -122,14 +122,15 @@ panel of the dev overlay, and written to TOML documents and read back; *Hunna Wo
   Escape closing the menu, do not also play. Tooling: it
   does not undo, add, remove or save components.
 - `slime-serialize`, the engine's serialization ([ADR-0086](docs/adr/0086-serialization.md)):
-  `write` writes a value of a registered type as a TOML document, the same value giving the same
-  bytes on every platform; `read`, `read_partial` and `read_file` read it back, whole or in part,
+  `write` and `write_partial` write a value of a registered type, or a part of one, as a TOML
+  document, the same value giving the same bytes on every platform, and refuse what could not be
+  read back; `read`, `read_partial` and `read_file` read it back, whole or in part,
   strictly for sources and leniently for saves, with errors by file, line, column and property
   path, and never panic; `read_as` and `write_as` do so for a Rust type. The module `format` says
   how a document holds enum variants, absent values, large integers and floats, which come back to
   their bits. A type past version 1 names an upgrade, `#[reflect(version = 2, upgrade = path)]`,
-  which brings values of earlier versions to its version as they are read; a later version is
-  refused.
+  which brings values of earlier versions, whole or partial, to its version as they are read; a
+  later version is refused.
 
 ### Changed
 
@@ -190,7 +191,8 @@ panel of the dev overlay, and written to TOML documents and read back; *Hunna Wo
   `Refused`, and is no longer `Eq`. `slime-assets` and `slime-color` depend on `slime-reflect`.
 - `TypeInfo::default` and `FieldInfo::default` hold the default value, `Option<Value>`, rather than
   whether there is one: a document that leaves out a field with a default reads into a whole
-  value (ADR-0086). `Registry::register_dynamic` checks a type's defaults.
+  value (ADR-0086). The registry checks a type's defaults, within their fields' ranges, when it
+  registers it, and refuses names that start with `$`, which documents keep for themselves.
 - The cooker reads and writes metadata files through `slime-serialize`, as documents of a
   `Metadata` value: every committed one is unchanged, and an error says its line and column.
   `metadata::read` returns a `slime_serialize::ReadError`, which `ScanError::Metadata` holds;

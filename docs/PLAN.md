@@ -418,7 +418,16 @@ Risks:
   errors without a panic. Metadata files are documents of a `Metadata` value: each of the 68
   committed gave the same ID through the cooker's reader and through `slime-serialize`, which
   writes each back to the same bytes, before the cooker's reader was removed. `toml_edit`'s parser,
-  with `toml_parser`, `winnow` and `toml_datetime`, already in the lock file, is now built.
+  with `toml_parser`, `winnow` and `toml_datetime`, already in the lock file, is now built. The
+  review found that an option left out came back from its struct's default, that one `f32` in
+  about two billion came back a step off through the parser's 64-bit reading, that the writer wrote
+  values that the reader refuses, and that the densest document of the size then allowed, 64 MiB,
+  took 14 GB to read: an option left out now holds none, the writer gives 64-bit digits where an
+  `f32`'s own would not come back, and every `f32` was checked to come back, the writer refuses
+  what the reader would, the place of a part is looked up only for an error, and documents are
+  refused past 16 MiB. Upgrades are told whether the value is partial, defaults are checked within
+  their fields' ranges, and names that start with `$` are refused. Serialization's example is
+  M5a.8's: the `world` example saves and loads its world.
 
 ### M5a.8 — The world round-trips
 

@@ -47,12 +47,6 @@ impl Registration {
     pub fn type_id(&self) -> Option<TypeId> {
         self.type_id
     }
-
-    /// How its values are brought from one of its versions to the next, if it says
-    /// ([`Reflect::upgrade`]).
-    pub fn upgrade(&self) -> Option<Upgrade> {
-        self.upgrade
-    }
 }
 
 /// A leaf of a value: a part that holds no other parts, which an edit sets whole. Numbers,
@@ -80,7 +74,8 @@ impl Registry {
     /// # Panics
     ///
     /// If another type has `T`'s name, or one of its names has: two types under one name would
-    /// read each other's values.
+    /// read each other's values. If a default that `T` declares is not a value of its type within
+    /// its field's range: a bug in the type.
     pub fn register<T: Reflect>(&mut self) {
         if self.rust.contains_key(&TypeId::of::<T>()) {
             return;
@@ -90,6 +85,9 @@ impl Registry {
             .unwrap_or_else(|error| panic!("`{}` cannot be registered: {error}", T::type_name()));
         self.rust.insert(TypeId::of::<T>(), index);
         T::register_dependencies(self);
+        if let Err(reason) = self.verify_defaults(&T::type_name()) {
+            panic!("`{}` cannot be registered: {reason}", T::type_name());
+        }
     }
 
     /// Registers a type with no Rust type behind it, which `info` describes: its values are
@@ -100,8 +98,9 @@ impl Registry {
     ///
     /// When another type has its name or one of its aliases, when it holds values of a type that
     /// the registry does not hold, or when its description is not one: integers of another width
-    /// than 8, 16, 32 or 64 bits, two fields or variants of one name, a default that is not a value
-    /// of its type. Nothing is registered then.
+    /// than 8, 16, 32 or 64 bits, two fields or variants of one name, a field or a variant whose name
+    /// or alias starts with `$`, which documents keep (`slime-serialize`), a default that is not a
+    /// value of its type within its field's range. Nothing is registered then.
     pub fn register_dynamic(&mut self, info: TypeInfo) -> Result<(), RegistryError> {
         let invalid = |reason: String| RegistryError::Invalid {
             ty: info.name.clone(),
@@ -145,23 +144,28 @@ impl Registry {
                 names: (*missing).to_owned(),
             });
         }
-        let fields: Vec<&FieldInfo> = match &info.kind {
-            Kind::Struct(fields) => fields.iter().collect(),
+        let parts: Vec<(&String, &Vec<String>)> = match &info.kind {
+            Kind::Struct(fields) => fields.iter().map(|f| (&f.name, &f.aliases)).collect(),
             Kind::Enum(variants) => variants
                 .iter()
-                .flat_map(|variant| &variant.fields)
+                .map(|v| (&v.name, &v.aliases))
+                .chain(
+                    variants
+                        .iter()
+                        .flat_map(|v| &v.fields)
+                        .map(|f| (&f.name, &f.aliases)),
+                )
                 .collect(),
             _ => Vec::new(),
         };
-        for field in fields {
-            if let Some(default) = &field.default {
-                self.check(&field.ty, default).map_err(|error| {
-                    invalid(format!(
-                        "the default of the field `{}`: {error}",
-                        field.name
-                    ))
-                })?;
-            }
+        if let Some(reserved) = parts
+            .into_iter()
+            .flat_map(|(name, aliases)| std::iter::once(name).chain(aliases))
+            .find(|name| name.starts_with('$'))
+        {
+            return Err(invalid(format!(
+                "`{reserved}` starts with `$`, which documents keep for themselves"
+            )));
         }
         let name = info.name.clone();
         let names: Vec<String> = std::iter::once(&info.name)
@@ -169,19 +173,42 @@ impl Registry {
             .cloned()
             .collect();
         let index = self.add(info, None, None)?;
-        // The type's default is a value of the type itself, which the registry checks once it
-        // holds the type.
-        if let Some(default) = &self.registrations[index].info.default
-            && let Err(error) = self.check(&name, default)
-        {
+        // The defaults are values of the type, and of its fields' types, which the registry checks
+        // once it holds the type.
+        if let Err(reason) = self.verify_defaults(&name) {
             self.registrations.truncate(index);
             for name in &names {
                 self.names.remove(name);
             }
-            return Err(RegistryError::Invalid {
-                ty: name,
-                reason: format!("its default: {error}"),
-            });
+            return Err(RegistryError::Invalid { ty: name, reason });
+        }
+        Ok(())
+    }
+
+    /// Checks the defaults that the type named `name` declares, its own and its fields', as values
+    /// of their types whose numbers lie within their fields' ranges.
+    fn verify_defaults(&self, name: &str) -> Result<(), String> {
+        let Some(registration) = self.get(name) else {
+            return Ok(());
+        };
+        let info = &registration.info;
+        if let Some(default) = &info.default {
+            self.verify(name, default, None, true)
+                .map_err(|error| format!("its default: {}", within_default(&error)))?;
+        }
+        let fields: Vec<&FieldInfo> = match &info.kind {
+            Kind::Struct(fields) => fields.iter().collect(),
+            Kind::Enum(variants) => variants.iter().flat_map(|v| &v.fields).collect(),
+            _ => Vec::new(),
+        };
+        for field in fields {
+            if let Some(default) = &field.default {
+                self.verify(&field.ty, default, field.range, true)
+                    .map_err(|error| {
+                        let reason = within_default(&error);
+                        format!("the default of the field `{}`: {reason}", field.name)
+                    })?;
+            }
         }
         Ok(())
     }
@@ -232,7 +259,8 @@ impl Registry {
 
     /// Brings `value`, a value of the type named `ty` at its `version` as a document holds it, to
     /// the type's version now, through the type's upgrade ([`Reflect::upgrade`]), one version at a
-    /// time; a value of the type's version comes back as it is.
+    /// time; a value of the type's version comes back as it is. `partial` says whether the value
+    /// leaves out the fields that did not change ([`Upgrade`](crate::Upgrade)).
     ///
     /// ```
     /// use slime_reflect::{Reflect, Registry, Value};
@@ -244,7 +272,7 @@ impl Registry {
     ///     power: f32,
     /// }
     ///
-    /// fn upgrade(version: u32, value: Value) -> Result<Value, String> {
+    /// fn upgrade(version: u32, value: Value, _partial: bool) -> Result<Value, String> {
     ///     match (version, value) {
     ///         (1, Value::Struct(fields)) => Ok(Value::Struct(
     ///             fields
@@ -262,7 +290,7 @@ impl Registry {
     /// let mut registry = Registry::new();
     /// registry.register::<Lantern>();
     /// let old = Value::Struct(vec![("watts".to_owned(), Value::F64(60.0))]);
-    /// let new = registry.upgrade("Lantern", 1, old).expect("an upgrade from version 1");
+    /// let new = registry.upgrade("Lantern", 1, old, false).expect("an upgrade from version 1");
     /// assert_eq!(new, Value::Struct(vec![("power".to_owned(), Value::F64(60.0))]));
     /// ```
     ///
@@ -271,7 +299,13 @@ impl Registry {
     /// [`Problem::NotRegistered`] for a type that the registry does not hold;
     /// [`Problem::NewerVersion`] for a version past the type's; [`Problem::Upgrade`] for version
     /// 0, which no type has, when the type has no upgrade, or when its upgrade refuses the value.
-    pub fn upgrade(&self, ty: &str, version: u32, value: Value) -> Result<Value, ReflectError> {
+    pub fn upgrade(
+        &self,
+        ty: &str,
+        version: u32,
+        value: Value,
+        partial: bool,
+    ) -> Result<Value, ReflectError> {
         let registration = self
             .get(ty)
             .ok_or_else(|| ReflectError::new(Problem::NotRegistered(ty.to_owned())))?;
@@ -296,7 +330,7 @@ impl Registry {
             let upgrade = registration
                 .upgrade
                 .ok_or_else(|| refused(from, "the type has no upgrade"))?;
-            value = upgrade(from, value).map_err(|reason| refused(from, &reason))?;
+            value = upgrade(from, value, partial).map_err(|reason| refused(from, &reason))?;
         }
         Ok(value)
     }
@@ -621,6 +655,15 @@ impl Registry {
                 .map_err(|error| error.within(Step::Field(field.name.clone())))?;
         }
         Ok(())
+    }
+}
+
+/// What `error`, found in a default, says: its path within the default, if it is in a part of it.
+fn within_default(error: &ReflectError) -> String {
+    if error.path().is_empty() {
+        error.problem().to_string()
+    } else {
+        error.to_string()
     }
 }
 

@@ -5,7 +5,8 @@
 //! text is a value of one type or another as the type read says.
 //!
 //! - **The root.** A value written as a table is the document's root table; any other is the root's
-//!   `$value`.
+//!   `$value`. Keys that start with `$` are the format's: no field or variant may be named so, nor
+//!   have such an alias.
 //! - **Versions.** A type past version 1 has its version under `$versions`, a table at the top of
 //!   the document, by the type's name, written once whatever how many of its values the document
 //!   holds: `"$versions" = { "hunnawood::Door" = 2 }`. A type that the table leaves out is at
@@ -18,30 +19,38 @@
 //!   reader takes their aliases too. A tuple struct is an array of its fields, and a tuple struct of
 //!   one field that field's value: `Name("door")` is `"door"`. A unit struct is an empty table,
 //!   `{}`.
-//! - **Absent values.** A field whose option holds none is left out; one that holds a value is
-//!   that value. An option elsewhere, in an array or in another option, is an empty array, `[]`,
-//!   or an array of its value, `[1.5]`.
+//! - **Absent values.** A field whose option holds none is left out, and an option field that a
+//!   document leaves out holds none, whatever its default says; one that holds a value is that
+//!   value. An option elsewhere, in an array or in another option, is an empty array, `[]`, or an
+//!   array of its value, `[1.5]`.
 //! - **Enums.** A variant without fields is its name, `"Box"`. A variant with fields is a table of
 //!   one key, its name, whose value its fields make as a struct's would: `{ Spot = { ... } }`, or
 //!   under a header, `[light.Spot]`.
 //! - **Numbers.** Integers are TOML's, but for unsigned ones past `i64::MAX`, which are text:
 //!   `"18446744073709551615"`. Floats come back to the same bits: the shortest digits that read
-//!   back as the number, of 32 bits for an `f32`, then `inf`, `-inf`, `nan` and `-nan`; a NaN's
-//!   payload is not kept. A reader takes an integer where a float goes.
+//!   back as the number, of 32 bits for an `f32` unless TOML's parser, which reads 64 bits, would
+//!   then round them to another `f32`, those of 64 bits then; and `inf`, `-inf`, `nan` and `-nan`.
+//!   A NaN's payload is not kept. A reader takes an integer where a float goes.
 //! - **References** to assets are their IDs as text, `"850ad551-5098-42f9-ae42-26ed6174951a"`.
 //!   References to entities are neither written nor read: an entity's handle holds within one run
-//!   only, and a world's documents will write the entity's persistent identity in its place.
-//! - **Layout.** A table that holds nothing but numbers, booleans and text, and an array that holds
-//!   no such tables as the next ones, are written on their key's line: `{ x = 1.0, y = 0.0 }`. A
-//!   larger table is under a header of its own, `[a.b]`, and an array of tables, one of them larger,
-//!   under `[[a.b]]`, after the values on their keys' lines. Keys are bare where TOML lets them be,
-//!   quoted otherwise; text is a basic string, `"..."`, with TOML's escapes. Lines end with LF.
+//!   only.
+//! - **Layout.** A table whose values are all numbers, booleans and text is written on its key's
+//!   line, `{ x = 1.0, y = 0.0 }`, and so is an array, unless it holds tables of which one at least
+//!   is larger. A larger table is written under a header of its own, `[a.b]`, and an array of
+//!   tables of which one is larger under `[[a.b]]`, once each table's values on their keys' lines
+//!   are written; a table that holds nothing but tables under headers has no header of its own.
+//!   Keys are bare where TOML lets them be, quoted otherwise; text is a basic string, `"..."`, with
+//!   TOML's escapes. Lines end with LF.
 //!
-//! A source, which people write, is read strictly: a field that its type does not have is an
-//! error. A save is read leniently: such a field is left out, with a warning
-//! ([`Mode`](crate::Mode)). A field that a document leaves out takes its default, if its struct,
-//! itself or its type declares one ([`slime_reflect::TypeInfo::default`]); a partial value, such as
-//! a save's differences, leaves it out ([`read_partial`](crate::read_partial)).
+//! A writer refuses what a reader would refuse, so that what it writes can be read back. A source,
+//! which people write, is read strictly: a field that its type does not have is an error. A save
+//! is read leniently: such a field is left out, with a warning ([`Mode`](crate::Mode)). A field
+//! that a document leaves out takes its default, if its struct, itself or its type declares one
+//! ([`slime_reflect::TypeInfo::default`]).
+//!
+//! A part of a value, such as a save's differences, leaves out the fields of its structs and
+//! variants that did not change, at any depth ([`write_partial`](crate::write_partial),
+//! [`read_partial`](crate::read_partial)); its tuples, lists and options are whole.
 
 /// The version of the format that this program writes, and the latest it reads.
 pub const VERSION: u32 = 1;

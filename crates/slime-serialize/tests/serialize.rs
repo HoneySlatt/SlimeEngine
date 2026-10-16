@@ -4,7 +4,7 @@
 use glam::{DVec3, Quat, Vec3};
 use slime_reflect::{Kind, Problem, Range, Reflect, Registry, TypeInfo, Value, diff};
 use slime_serialize::{
-    MAX_DEPTH, MAX_SIZE, Mode, ReadProblem, read, read_file, read_partial, write,
+    MAX_DEPTH, MAX_SIZE, Mode, ReadProblem, read, read_file, read_partial, write, write_partial,
 };
 
 /// A colour.
@@ -330,7 +330,17 @@ fn floats_come_back_to_the_same_bits() {
         round_trip(&registry, "f64", &Value::F64(number));
         round_trip(&registry, "f32", &Value::F32(number as f32));
     }
-    for number in [f32::MIN_POSITIVE, 1e-45, f32::MAX, 16_777_217.0, 0.3] {
+    // 7.038531e-26 read as an f64 then rounded to 32 bits would be its neighbour.
+    let twice_rounded = f32::from_bits(0x15AE_43FD);
+    for number in [
+        f32::MIN_POSITIVE,
+        1e-45,
+        f32::MAX,
+        16_777_217.0,
+        0.3,
+        twice_rounded,
+        -twice_rounded,
+    ] {
         round_trip(&registry, "f32", &Value::F32(number));
     }
 }
@@ -345,7 +355,7 @@ struct Lamp {
 }
 
 /// Brings a lamp from version 1: `watts` becomes `power`, and an array `tint` a table.
-fn upgrade_lamp(version: u32, value: Value) -> Result<Value, String> {
+fn upgrade_lamp(version: u32, value: Value, _partial: bool) -> Result<Value, String> {
     let (1, Value::Struct(fields)) = (version, value) else {
         return Err(format!("no lamp of version {version} was a table"));
     };
@@ -656,4 +666,208 @@ fn a_field_left_out_takes_its_default() {
     registry
         .check("test::Settings", &read.value)
         .expect("a whole value");
+}
+
+#[test]
+fn an_option_left_out_holds_none_whatever_its_default() {
+    /// Settings whose shadows are on by default.
+    #[derive(Debug, PartialEq, Reflect)]
+    #[reflect(name = "test::Shadowed", default)]
+    struct Shadowed {
+        shadow: Option<f32>,
+    }
+    impl Default for Shadowed {
+        fn default() -> Self {
+            Self { shadow: Some(2.0) }
+        }
+    }
+    let mut registry = Registry::new();
+    registry.register::<Shadowed>();
+    let none = Shadowed { shadow: None };
+    let text = round_trip(&registry, "test::Shadowed", &none.to_value());
+    assert_eq!(text, "");
+}
+
+#[test]
+fn what_cannot_be_read_back_is_not_written() {
+    let registry = registry();
+    let mut wrong = everything();
+    wrong.bounded = 5.0;
+    let error = write(&registry, "test::Everything", &wrong.to_value()).expect_err("range");
+    assert_eq!(error.to_string(), "`bounded`: 5 is not from 0 to 1");
+    wrong.bounded = f32::NAN;
+    let error = write(&registry, "test::Everything", &wrong.to_value()).expect_err("NaN");
+    assert!(error.to_string().contains("not a finite number"), "{error}");
+    let error = write(&registry, "u8", &Value::UInt(1000)).expect_err("width");
+    assert!(
+        error.to_string().contains("1000 is not from 0 to 255"),
+        "{error}"
+    );
+    let short = Value::List(vec![Value::UInt(1)]);
+    let error = write(&registry, "[u16; 2]", &short).expect_err("length");
+    assert!(
+        error.to_string().contains("1 elements, where there are 2"),
+        "{error}"
+    );
+    let missing = Value::Struct(vec![("r".to_owned(), Value::F32(1.0))]);
+    let error = write(&registry, "test::Tint", &missing).expect_err("a part only");
+    assert!(
+        error.to_string().contains("the field `g` is missing"),
+        "{error}"
+    );
+}
+
+#[test]
+fn a_part_of_a_value_is_written_and_read_back() {
+    let registry = registry();
+    let part = Value::Struct(vec![
+        ("count".to_owned(), Value::Int(7)),
+        (
+            "tint".to_owned(),
+            Value::Struct(vec![("g".to_owned(), Value::F32(0.25))]),
+        ),
+    ]);
+    let text = write_partial(&registry, "test::Everything", &part).expect("a part");
+    assert_eq!(text, "count = 7\ntint = { g = 0.25 }\n");
+    let read = read_partial(&registry, "test::Everything", &text, Mode::Strict).expect("read");
+    assert!(diff(&part, &read.value).is_empty());
+    // A tuple is written whole.
+    let half = Value::Struct(vec![(
+        "pair".to_owned(),
+        Value::Struct(vec![("0".to_owned(), Value::Text("a".to_owned()))]),
+    )]);
+    let error = write_partial(&registry, "test::Everything", &half).expect_err("half a tuple");
+    assert!(
+        error.to_string().contains("the field `1` is missing"),
+        "{error}"
+    );
+}
+
+/// A light at version 3: version 1 had no `scale`, which is 1 for its lights, and version 2 called
+/// `power` `watts`.
+#[derive(Debug, PartialEq, Reflect)]
+#[reflect(name = "test::Glow", version = 3, upgrade = upgrade_glow)]
+struct Glow {
+    power: f32,
+    scale: f32,
+}
+
+/// Brings a glow forward; a whole one of version 1 gains its `scale`, a part does not.
+fn upgrade_glow(version: u32, value: Value, partial: bool) -> Result<Value, String> {
+    let Value::Struct(mut fields) = value else {
+        return Err("a glow is a table".to_owned());
+    };
+    match version {
+        1 if !partial => fields.push(("scale".to_owned(), Value::F64(1.0))),
+        1 => {}
+        2 => {
+            for (name, _) in &mut fields {
+                if name == "watts" {
+                    *name = "power".to_owned();
+                }
+            }
+        }
+        _ => return Err(format!("no glow had version {version}")),
+    }
+    Ok(Value::Struct(fields))
+}
+
+/// A post that holds glows, at version 2: version 1 called them `lights`.
+#[derive(Debug, PartialEq, Reflect)]
+#[reflect(name = "test::Post", version = 2, upgrade = upgrade_post)]
+struct Post {
+    #[reflect(alias = "lamps")]
+    glows: Vec<Glow>,
+}
+
+fn upgrade_post(version: u32, value: Value, _partial: bool) -> Result<Value, String> {
+    let (1, Value::Struct(fields)) = (version, value) else {
+        return Err(format!("no post of version {version} was a table"));
+    };
+    Ok(Value::Struct(
+        fields
+            .into_iter()
+            .map(|(name, value)| match name.as_str() {
+                "lights" => ("glows".to_owned(), value),
+                _ => (name, value),
+            })
+            .collect(),
+    ))
+}
+
+#[test]
+fn upgrades_bring_nested_values_forward_whole_or_in_part() {
+    let mut registry = Registry::new();
+    registry.register::<Post>();
+    let earlier = "[[lights]]\nwatts = 5\n\n[[lights]]\nwatts = 7.5\n";
+    let text = format!("\"$versions\" = {{ \"test::Glow\" = 2 }}\n{earlier}");
+    let error = read(&registry, "test::Post", &text, Mode::Strict).expect_err("no scale at 2");
+    assert!(
+        error.to_string().contains("the field `scale` is missing"),
+        "{error}"
+    );
+    // Version 1 of both, the glows by their earlier name.
+    let post = read(&registry, "test::Post", earlier, Mode::Strict).expect("upgraded");
+    assert_eq!(
+        Post::from_value(&post.value),
+        Ok(Post {
+            glows: vec![
+                Glow {
+                    power: 5.0,
+                    scale: 1.0
+                },
+                Glow {
+                    power: 7.5,
+                    scale: 1.0
+                }
+            ]
+        })
+    );
+    let part = read_partial(&registry, "test::Glow", "watts = 2.0\n", Mode::Strict)
+        .expect("a part, upgraded without the field it lacks");
+    assert_eq!(
+        part.value,
+        Value::Struct(vec![("power".to_owned(), Value::F32(2.0))])
+    );
+    // A version under an alias of the post, and a field by its alias.
+    let aliased = "\"$versions\" = { \"test::Post\" = 2, \"test::Glow\" = 3 }\n[[lamps]]\npower = 1.0\nscale = 2.0\n";
+    let by_alias = read(&registry, "test::Post", aliased, Mode::Strict).expect("by its alias");
+    assert_eq!(
+        Post::from_value(&by_alias.value),
+        Ok(Post {
+            glows: vec![Glow {
+                power: 1.0,
+                scale: 2.0
+            }]
+        })
+    );
+}
+
+#[test]
+fn a_type_that_a_save_names_and_the_program_does_not_know_is_a_warning() {
+    let registry = registry();
+    let text = "\"$versions\" = { \"test::Gone\" = 2 }\nr = 1.0\ng = 0.5\nb = 0.25\n";
+    assert!(read(&registry, "test::Tint", text, Mode::Strict).is_err());
+    let read = read(&registry, "test::Tint", text, Mode::Lenient).expect("lenient");
+    assert_eq!(read.warnings.len(), 1);
+    assert!(
+        read.warnings[0]
+            .to_string()
+            .contains("no type `test::Gone`"),
+        "{}",
+        read.warnings[0]
+    );
+}
+
+#[test]
+fn a_file_that_is_not_text_is_refused_where_it_stops_being_text() {
+    let directory =
+        std::env::temp_dir().join(format!("slime-serialize-text-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).expect("a directory of the tests");
+    let file = directory.join("binary.toml");
+    std::fs::write(&file, b"r = 1.0\ng = \xff\n").expect("written");
+    let error = read_file(&registry(), "test::Tint", &file, Mode::Strict).expect_err("binary");
+    assert!(matches!(error.problem(), ReadProblem::NotText));
+    assert_eq!(error.line_and_column(), Some((2, 5)));
+    std::fs::remove_dir_all(&directory).expect("the tests' files removed");
 }

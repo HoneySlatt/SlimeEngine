@@ -167,12 +167,25 @@ fn type_attributes(attributes: &[Attribute]) -> syn::Result<TypeAttributes> {
     Ok(parsed)
 }
 
+/// The alias of a field or a variant, which may not start with `$`: documents keep such keys for
+/// themselves (`slime-serialize`).
+fn part_alias(meta: &syn::meta::ParseNestedMeta<'_>) -> syn::Result<LitStr> {
+    let alias: LitStr = meta.value()?.parse()?;
+    if alias.value().starts_with('$') {
+        return Err(syn::Error::new_spanned(
+            &alias,
+            "an alias starting with `$` is a key that documents keep for themselves",
+        ));
+    }
+    Ok(alias)
+}
+
 fn field_attributes(attributes: &[Attribute]) -> syn::Result<FieldAttributes> {
     let mut parsed = FieldAttributes::default();
     for attribute in attributes.iter().filter(|a| a.path().is_ident("reflect")) {
         attribute.parse_nested_meta(|meta| {
             if meta.path.is_ident("alias") {
-                parsed.aliases.push(meta.value()?.parse()?);
+                parsed.aliases.push(part_alias(&meta)?);
             } else if meta.path.is_ident("default") {
                 parsed.default = true;
             } else if meta.path.is_ident("skip") {
@@ -552,7 +565,7 @@ fn expand_enum(
         {
             attribute.parse_nested_meta(|meta| {
                 if meta.path.is_ident("alias") {
-                    aliases.push(meta.value()?.parse::<LitStr>()?);
+                    aliases.push(part_alias(&meta)?);
                     Ok(())
                 } else {
                     Err(meta.error("a variant takes `alias` in `#[reflect(...)]`"))

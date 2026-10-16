@@ -43,11 +43,17 @@ enum Lamp {
 }
 
 /// Brings a lamp from version 1, at which a spot light's angle was in degrees, to version 2.
-fn upgrade_lamp(version: u32, value: Value) -> Result<Value, String> {
+fn upgrade_lamp(version: u32, value: Value, _partial: bool) -> Result<Value, String> {
     match (version, value) {
         (1, Value::Struct(mut variants)) => {
             for (variant, angle) in &mut variants {
-                if let ("Spot" | "Cone", Value::F64(degrees)) = (variant.as_str(), &*angle) {
+                // A float written without a fraction comes as an integer.
+                let degrees = match &*angle {
+                    Value::F64(degrees) => *degrees,
+                    &Value::Int(degrees) => degrees as f64,
+                    _ => continue,
+                };
+                if matches!(variant.as_str(), "Spot" | "Cone") {
                     *angle = Value::F64(degrees.to_radians());
                 }
             }
@@ -729,6 +735,28 @@ fn a_description_that_is_not_one_is_refused() {
             },
             "its default",
         ),
+        (
+            described(
+                "script::Dim",
+                Kind::Struct(vec![FieldInfo {
+                    default: Some(Value::F32(5.0)),
+                    range: Some(Range {
+                        min: 0.0,
+                        min_excluded: false,
+                        max: 1.0,
+                    }),
+                    ..FieldInfo::new("level", "f32")
+                }]),
+            ),
+            "5 is not from 0 to 1",
+        ),
+        (
+            described(
+                "script::Reserved",
+                Kind::Struct(vec![FieldInfo::new("$value", "f32")]),
+            ),
+            "`$value` starts with `$`",
+        ),
     ] {
         let error = registry.register_dynamic(info).expect_err(reason);
         assert!(error.to_string().contains(reason), "{error}");
@@ -779,22 +807,22 @@ fn a_value_of_an_earlier_version_is_brought_to_the_type_s_through_its_upgrade() 
     registry.register::<Lamp>();
     let spot = |angle| Value::Struct(vec![("Spot".to_owned(), Value::F64(angle))]);
     let upgraded = registry
-        .upgrade("test::Lantern", 1, spot(90.0))
+        .upgrade("test::Lantern", 1, spot(90.0), false)
         .expect("an upgrade from version 1, the type found by its alias");
     assert_eq!(upgraded, spot(std::f64::consts::FRAC_PI_2));
     let ambient = Value::Text("Ambient".to_owned());
     assert_eq!(
-        registry.upgrade("test::Lamp", 1, ambient.clone()),
+        registry.upgrade("test::Lamp", 1, ambient.clone(), false),
         Ok(ambient.clone())
     );
     assert_eq!(
-        registry.upgrade("test::Lamp", 2, spot(1.0)),
+        registry.upgrade("test::Lamp", 2, spot(1.0), false),
         Ok(spot(1.0)),
         "already at 2"
     );
     let problem = |version| {
         registry
-            .upgrade("test::Lamp", version, ambient.clone())
+            .upgrade("test::Lamp", version, ambient.clone(), false)
             .map_err(|error| error.problem().clone())
     };
     assert_eq!(
@@ -814,10 +842,23 @@ fn a_value_of_an_earlier_version_is_brought_to_the_type_s_through_its_upgrade() 
         })
         .expect("a description");
     let refused = registry
-        .upgrade("test::Bell", 1, Value::Bool(true))
+        .upgrade("test::Bell", 1, Value::Bool(true), false)
         .unwrap_err();
     assert_eq!(
         refused.to_string(),
         "the value: cannot be brought from version 1 of its type: the type has no upgrade"
     );
+}
+
+#[test]
+#[should_panic(expected = "the default of the field `scale`: 0 is not from 1 to 2")]
+fn a_default_out_of_its_field_s_range_is_a_bug_in_the_type() {
+    /// A size whose default breaks its own range.
+    #[derive(Default, Reflect)]
+    #[reflect(name = "test::Size")]
+    struct Size {
+        #[reflect(default, range(min = 1.0, max = 2.0))]
+        scale: f32,
+    }
+    Registry::new().register::<Size>();
 }

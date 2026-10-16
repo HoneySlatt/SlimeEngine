@@ -13,10 +13,11 @@ a world's documents write them as persistent identities.
 
 ## Role
 
-- `write`: a value of a registered type as a document, by the engine's own writer: the same value
-  gives the same bytes, with LF line endings, on every platform and with every version of the
-  parser. TOML lacks enum variants, absent values and the largest integers: the module `format`
-  says how a document holds every kind of value, and is the home of those conventions.
+- `write` and `write_partial`: a value of a registered type, or a part of one, as a document, by
+  the engine's own writer: the same value gives the same bytes, with LF line endings, on every
+  platform and with every version of the parser, and what could not be read back is refused.
+  TOML lacks enum variants, absent values and the largest integers: the module `format` says how
+  a document holds every kind of value, and is the home of those conventions.
 - `read`, `read_partial` and `read_file`: the value of a registered type that a document holds,
   whole or in part, brought from the version of its type that the document says to the type's
   version through the type's upgrade (`slime_reflect::Upgrade`). A source is read strictly, a save
