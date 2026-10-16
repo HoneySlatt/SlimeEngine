@@ -1,5 +1,6 @@
-//! What the code that `#[derive(Reflect)]` writes calls, and the implementations by hand: not an
-//! API of its own.
+//! What the code that `#[derive(Reflect)]` writes calls, and what an implementation of
+//! [`Reflect`] by hand calls: reading a struct's or an enum's fields from a value, and the errors of
+//! a value that is not one. The engine's `AssetId` and `Entity` are described with them.
 
 use crate::error::{Problem, ReflectError};
 use crate::path::Step;
@@ -41,27 +42,46 @@ pub fn variant<'a>(value: &'a Value, ty: &str) -> Result<(&'a str, Fields<'a>), 
     }
 }
 
-/// Refuses a field of `fields` that is none of `known`, the names and aliases of a type's fields;
-/// the message lists `names`, their names.
+/// Refuses a field of `fields` that is none of a type's fields, each of which `known` gives as its
+/// name, then its aliases; and a field given twice, under its name or one of its aliases.
 ///
 /// # Errors
 ///
-/// [`Problem::UnknownField`] for the first field that is unknown.
-pub fn known(
-    fields: &[(String, Value)],
-    known: &[&str],
-    names: &[&str],
-) -> Result<(), ReflectError> {
-    match fields
-        .iter()
-        .find(|(name, _)| !known.contains(&name.as_str()))
-    {
-        Some((field, _)) => Err(ReflectError::new(Problem::UnknownField {
-            field: field.clone(),
-            known: names.iter().map(|&name| name.to_owned()).collect(),
-        })),
-        None => Ok(()),
+/// [`Problem::UnknownField`] for the first field that is unknown, which lists the fields' names;
+/// [`Problem::DuplicateField`] for the first given twice.
+pub fn known(fields: &[(String, Value)], known: &[&[&str]]) -> Result<(), ReflectError> {
+    let mut given = vec![false; known.len()];
+    for (name, _) in fields {
+        let Some(index) = known
+            .iter()
+            .position(|names| names.contains(&name.as_str()))
+        else {
+            return Err(ReflectError::new(Problem::UnknownField {
+                field: name.clone(),
+                known: known
+                    .iter()
+                    .filter_map(|names| names.first())
+                    .map(|&name| name.to_owned())
+                    .collect(),
+            }));
+        };
+        if std::mem::replace(&mut given[index], true) {
+            let name = known[index].first().copied().unwrap_or(name);
+            return Err(ReflectError::new(Problem::DuplicateField(name.to_owned())));
+        }
     }
+    Ok(())
+}
+
+/// `value`, once `check` accepts it: what a type declares with `#[reflect(check = ...)]`, the
+/// rules between its fields that their ranges cannot say.
+///
+/// # Errors
+///
+/// [`Problem::Invalid`], with the reason that `check` gives, if it refuses `value`.
+pub fn checked<T>(value: T, check: fn(&T) -> Result<(), String>) -> Result<T, ReflectError> {
+    check(&value).map_err(|reason| ReflectError::new(Problem::Invalid(reason)))?;
+    Ok(value)
 }
 
 /// The field of `fields` named `name`, or one of `aliases`, read as a `T`, if there is one.

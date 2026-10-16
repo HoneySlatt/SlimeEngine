@@ -18,7 +18,9 @@ pub struct TypeInfo {
     /// Its documentation, from its doc comments.
     pub doc: String,
     /// Whether a value that data leaves out takes a default: the type's
-    /// [`Reflect::default_value`](crate::Reflect::default_value).
+    /// [`Reflect::default_value`](crate::Reflect::default_value). A struct that declares one gives
+    /// its fields, too, the values of its default when data leaves them out, whatever their own
+    /// [`FieldInfo::default`] says.
     pub default: bool,
     /// What its values are.
     pub kind: Kind,
@@ -117,8 +119,9 @@ pub struct VariantInfo {
     pub fields: Vec<FieldInfo>,
 }
 
-/// The numbers a field may hold: from `min` to `max`, `min` itself included unless `min_excluded`,
-/// `max` included. A range without a lower or upper bound has an infinite one.
+/// The finite numbers a field may hold: from `min` to `max`, `min` itself included unless
+/// `min_excluded`, `max` included. A range without a lower or upper bound has an infinite one; it
+/// holds no infinity and no `NaN` either way.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Range {
     /// Its lower bound, `-∞` for none.
@@ -137,8 +140,12 @@ impl Range {
         max: f64::INFINITY,
     };
 
-    /// Whether `number` lies within it: never for `NaN`.
+    /// Whether `number` lies within it. A range holds finite numbers only: an infinity or a `NaN`
+    /// lies within none, whatever its bounds.
     pub fn contains(&self, number: f64) -> bool {
+        if !number.is_finite() {
+            return false;
+        }
         let above = if self.min_excluded {
             number > self.min
         } else {
@@ -148,7 +155,7 @@ impl Range {
     }
 }
 
-/// `≥ 0`, `> 0`, `from 0 to 1.5707963`, `≤ 1`.
+/// `≥ 0`, `> 0`, `from 0 to 1.5`, `≤ 1`: each bound as the `f64` it is.
 impl fmt::Display for Range {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let low = self.min > f64::NEG_INFINITY;
@@ -159,7 +166,7 @@ impl fmt::Display for Range {
             (true, false, false) => write!(f, "≥ {}", self.min),
             (true, false, true) => write!(f, "> {}", self.min),
             (false, true, _) => write!(f, "≤ {}", self.max),
-            (false, false, _) => write!(f, "a number"),
+            (false, false, _) => write!(f, "a finite number"),
         }
     }
 }
@@ -183,6 +190,7 @@ mod tests {
         };
         assert!(cone.contains(0.0) && cone.contains(1.5) && !cone.contains(1.6));
         assert!(!Range::ALL.contains(f64::NAN));
+        assert!(!positive.contains(f64::INFINITY) && !Range::ALL.contains(f64::NEG_INFINITY));
         assert_eq!(positive.to_string(), "> 0");
         assert_eq!(cone.to_string(), "from 0 to 1.5");
     }

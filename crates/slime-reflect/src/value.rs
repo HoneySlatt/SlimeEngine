@@ -60,7 +60,8 @@ impl Value {
         }
     }
 
-    /// The part of the value that `path` leads to, if it leads to one.
+    /// The part of the value that `path` leads to, if it leads to one. An option that holds a value
+    /// is gone through, to the value: `color.r` in an optional color that holds one.
     ///
     /// ```
     /// use slime_reflect::Value;
@@ -86,9 +87,10 @@ impl Value {
             .try_fold(self, |value, step| value.child_mut(step))
     }
 
-    /// The part that `step` leads to.
+    /// The part that `step` leads to: through an option that holds a value, the value's.
     pub(crate) fn child(&self, step: &Step) -> Option<&Value> {
         match (self, step) {
+            (Self::Option(Some(value)), _) => value.child(step),
             (Self::Struct(fields) | Self::Enum(_, fields), Step::Field(name)) => fields
                 .iter()
                 .find(|(field, _)| field == name)
@@ -100,6 +102,7 @@ impl Value {
 
     fn child_mut(&mut self, step: &Step) -> Option<&mut Value> {
         match (self, step) {
+            (Self::Option(Some(value)), _) => value.child_mut(step),
             (Self::Struct(fields) | Self::Enum(_, fields), Step::Field(name)) => fields
                 .iter_mut()
                 .find(|(field, _)| field == name)

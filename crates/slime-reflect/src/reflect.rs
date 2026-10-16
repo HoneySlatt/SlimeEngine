@@ -10,8 +10,9 @@ use crate::value::Value;
 ///
 /// The engine's types and a game's derive it, `#[derive(Reflect)]`, which requires a stable name
 /// (`docs/adr/0080-reflection-and-serialization.md`); the standard types the engine uses and
-/// glam's vectors and quaternions are described here, by hand. A type with invariants beyond
-/// the ranges of its fields implements it by hand, to refuse the values that break them.
+/// glam's vectors and quaternions are described here, by hand, with the helpers of
+/// [`support`](crate::support). A type whose values follow rules beyond the ranges of their fields
+/// declares a check, which refuses the values that break them (`docs/adr/0085-reflection.md`).
 ///
 /// ```
 /// use slime_reflect::{Reflect, Registry, Value};
@@ -47,11 +48,16 @@ use crate::value::Value;
 ///   had before, as many as it had; `version = 2`, the version of its values' shape, 1 if
 ///   unsaid; `default`, which makes data that leaves a value of the type out give its `Default`
 ///   value, and, on a struct, data that leaves a field out give that field's default value;
+///   `check = path::to::check`, a function `fn(&Self) -> Result<(), String>` that accepts a value
+///   once it is read, or refuses it with a reason ([`Problem::Invalid`](crate::Problem)): the
+///   rules between fields, or on numbers without a range, such as a cone narrower than another;
 /// - on a field: `alias = "..."`; `default`, which makes data that leaves the field out give its
 ///   type's `Default` value; `skip`, which leaves the field out of the description and the value,
-///   and gives it its `Default` value when read; `transient`, which leaves it out of saves only;
+///   and gives it its `Default` value when read, as an edit through reflection reads the whole
+///   value again; `transient`, which leaves it out of saves only;
 ///   `range(min = 0.0, max = 1.0)`, or `above = 0.0` for a lower bound left out, each bound a
-///   number or a constant, which edits through reflection respect; `unit = "m"`, the symbol of
+///   number or a constant, which edits through reflection respect, and which holds finite numbers
+///   only; `unit = "m"`, the symbol of
 ///   its numbers' unit;
 /// - on a variant: `alias = "..."`.
 ///

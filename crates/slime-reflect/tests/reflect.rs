@@ -434,7 +434,6 @@ fn a_type_without_a_rust_type_is_registered_checked_and_edited_by_its_descriptio
         .expect("registered");
     let registration = registry.get("script::Beacon").expect("found");
     assert!(registration.type_id().is_none());
-    assert!(registration.from_value(&Value::Struct(Vec::new())).is_err());
     let mut value = Value::Struct(vec![("brightness".to_owned(), Value::F32(1.0))]);
     registry
         .set(
@@ -488,4 +487,249 @@ fn two_types_under_one_name_are_refused() {
     let mut registry = Registry::new();
     registry.register::<Tint>();
     registry.register::<Impostor>();
+}
+
+/// A cone whose inner angle must stay below its outer one, which its check says.
+#[derive(Debug, PartialEq, Reflect)]
+#[reflect(name = "test::Cone", check = Cone::check)]
+struct Cone {
+    #[reflect(range(min = 0.0, max = 1.5))]
+    inner: f32,
+    #[reflect(range(min = 0.0, max = 1.5))]
+    outer: f32,
+    /// How many wicks it holds, at most ten.
+    #[reflect(range(max = 10))]
+    wicks: u8,
+    /// Its colour, if it is not white.
+    tint: Option<Tint>,
+    /// Its sizes.
+    #[reflect(range(above = 0.0))]
+    sizes: Vec<f32>,
+    /// A variant whose name is a keyword.
+    kind: Kind2,
+}
+
+impl Cone {
+    fn check(&self) -> Result<(), String> {
+        (self.inner < self.outer)
+            .then_some(())
+            .ok_or_else(|| format!("{} is not below {}", self.inner, self.outer))
+    }
+}
+
+#[derive(Debug, PartialEq, Reflect)]
+#[reflect(name = "test::Kind2")]
+enum Kind2 {
+    r#Static,
+    Moving,
+}
+
+fn cone() -> Cone {
+    Cone {
+        inner: 0.2,
+        outer: 0.6,
+        wicks: 2,
+        tint: Some(Tint {
+            r: 1.0,
+            g: 0.5,
+            b: 0.25,
+        }),
+        sizes: vec![1.0, 2.0],
+        kind: Kind2::r#Static,
+    }
+}
+
+#[test]
+fn a_type_s_check_refuses_what_breaks_its_rules_when_it_is_read() {
+    let mut value = cone().to_value();
+    assert_eq!(Cone::from_value(&value), Ok(cone()));
+    *value.get_mut(&path("inner")).expect("there") = Value::F32(0.9);
+    let error = Cone::from_value(&value).expect_err("wider inside");
+    assert_eq!(
+        *error.problem(),
+        Problem::Invalid("0.9 is not below 0.6".to_owned())
+    );
+    // A variant whose name is a keyword keeps its name, without `r#`.
+    assert_eq!(
+        cone().to_value().get(&path("kind")),
+        Some(&Value::Enum("Static".to_owned(), Vec::new()))
+    );
+}
+
+#[test]
+fn a_path_goes_through_an_option_that_holds_a_value() {
+    let mut registry = Registry::new();
+    registry.register::<Cone>();
+    let mut value = cone().to_value();
+    assert_eq!(value.get(&path("tint.g")), Some(&Value::F32(0.5)));
+    registry
+        .set("test::Cone", &mut value, &path("tint.g"), Value::F32(0.75))
+        .expect("set through the option");
+    assert_eq!(
+        Cone::from_value(&value)
+            .expect("read")
+            .tint
+            .map(|tint| tint.g),
+        Some(0.75)
+    );
+    let leaves = registry.leaves("test::Cone", &value).expect("a cone");
+    let paths: Vec<String> = leaves.iter().map(|leaf| leaf.path.to_string()).collect();
+    assert_eq!(
+        paths,
+        [
+            "inner", "outer", "wicks", "tint.r", "tint.g", "tint.b", "sizes[0]", "sizes[1]", "kind"
+        ]
+    );
+    // An option that holds none is a leaf, and a path through it names nothing.
+    registry
+        .set("test::Cone", &mut value, &path("tint"), Value::Option(None))
+        .expect("cleared");
+    assert!(
+        registry
+            .set("test::Cone", &mut value, &path("tint.g"), Value::F32(0.1))
+            .is_err()
+    );
+    let paths: Vec<String> = registry
+        .leaves("test::Cone", &value)
+        .expect("a cone")
+        .iter()
+        .map(|leaf| leaf.path.to_string())
+        .collect();
+    assert!(paths.contains(&"tint".to_owned()));
+    // An error within an option names the path through it.
+    *value.get_mut(&path("tint")).expect("there") = Value::Option(Some(Box::new(Value::Struct(
+        vec![("r".to_owned(), Value::F32(1.0))],
+    ))));
+    let error = Cone::from_value(&value).expect_err("no green");
+    assert_eq!(error.path().to_string(), "tint");
+    assert_eq!(*error.problem(), Problem::MissingField("g".to_owned()));
+}
+
+#[test]
+fn ranges_hold_finite_numbers_of_the_field_s_kind_and_bind_list_elements() {
+    let mut registry = Registry::new();
+    registry.register::<Cone>();
+    let mut value = cone().to_value();
+    let refused = [
+        ("wicks", Value::F32(20.0), "a value of `u8`"),
+        ("wicks", Value::UInt(11), "11 is not ≤ 10"),
+        ("wicks", Value::UInt(300), "300 is not from 0 to 255"),
+        ("sizes[1]", Value::F32(0.0), "0 is not > 0"),
+        (
+            "inner",
+            Value::F32(f32::INFINITY),
+            "inf is not a finite number",
+        ),
+        (
+            "sizes[0]",
+            Value::F32(f32::NAN),
+            "NaN is not a finite number",
+        ),
+    ];
+    for (at, new, message) in refused {
+        let error = registry
+            .set("test::Cone", &mut value, &path(at), new)
+            .expect_err(message);
+        assert!(error.to_string().contains(message), "{at}: {error}");
+    }
+    registry
+        .set("test::Cone", &mut value, &path("sizes[1]"), Value::F32(3.0))
+        .expect("positive");
+}
+
+#[test]
+fn a_field_given_twice_is_refused() {
+    let tint = Value::Struct(vec![
+        ("r".to_owned(), Value::F32(1.0)),
+        ("g".to_owned(), Value::F32(1.0)),
+        ("b".to_owned(), Value::F32(1.0)),
+        ("r".to_owned(), Value::F32(0.0)),
+    ]);
+    let error = Tint::from_value(&tint).expect_err("red twice");
+    assert_eq!(*error.problem(), Problem::DuplicateField("r".to_owned()));
+    let registry = registry();
+    let error = registry.check("Tint", &tint).expect_err("red twice");
+    assert_eq!(*error.problem(), Problem::DuplicateField("r".to_owned()));
+    // A field under its name and its alias at once.
+    let both = Value::Struct(vec![
+        ("volume".to_owned(), Value::F32(0.5)),
+        ("fullscreen".to_owned(), Value::Bool(true)),
+        ("full_screen".to_owned(), Value::Bool(false)),
+    ]);
+    let error = Settings::from_value(&both).expect_err("given twice");
+    assert_eq!(
+        *error.problem(),
+        Problem::DuplicateField("fullscreen".to_owned())
+    );
+}
+
+#[test]
+fn a_description_that_is_not_one_is_refused() {
+    let mut registry = Registry::new();
+    registry.register::<f32>();
+    let described = |name: &str, kind: Kind| TypeInfo {
+        name: name.to_owned(),
+        aliases: Vec::new(),
+        version: 1,
+        doc: String::new(),
+        default: false,
+        kind,
+    };
+    for (info, reason) in [
+        (
+            described("script::Odd", Kind::Int { bits: 0 }),
+            "integers of 0 bits",
+        ),
+        (
+            described("script::Wide", Kind::UInt { bits: 128 }),
+            "integers of 128 bits",
+        ),
+        (
+            described(
+                "script::Twice",
+                Kind::Struct(vec![FieldInfo::new("a", "f32"), FieldInfo::new("a", "f32")]),
+            ),
+            "two fields are named `a`",
+        ),
+    ] {
+        let error = registry.register_dynamic(info).expect_err(reason);
+        assert!(error.to_string().contains(reason), "{error}");
+    }
+    assert!(registry.get("script::Odd").is_none());
+}
+
+#[test]
+#[should_panic(expected = "has the name `test::Lamp`")]
+fn an_alias_that_another_type_has_is_refused() {
+    /// A type whose alias is the lamp's name.
+    #[derive(Reflect)]
+    #[reflect(name = "test::Torch", alias = "test::Lamp")]
+    struct Torch;
+
+    let mut registry = registry();
+    registry.register::<Torch>();
+}
+
+#[test]
+fn unit_structs_and_empty_lists_have_no_parts_to_go_through() {
+    let mut registry = Registry::new();
+    registry.register::<Mark>();
+    assert!(
+        registry
+            .leaves("test::Mark", &Mark.to_value())
+            .expect("a mark")
+            .is_empty()
+    );
+    registry.register::<Post>();
+    let empty = Post {
+        lamps: Vec::new(),
+        ..post()
+    };
+    let paths: Vec<String> = registry
+        .leaves("test::Post", &empty.to_value())
+        .expect("a post")
+        .iter()
+        .map(|leaf| leaf.path.to_string())
+        .collect();
+    assert_eq!(paths, ["height", "lamps", "name", "lit_at"]);
 }

@@ -1,6 +1,7 @@
 # 0008. Errors, logging and assertions
 
-- Status: Accepted; amended by [0019](0019-default-log-filter.md) (default log filter)
+- Status: Accepted; amended by [0019](0019-default-log-filter.md) (default log filter) and
+  [0085](0085-reflection.md) (`slime-reflect`'s errors, written without `thiserror`)
 - Date: 2026-10-12
 
 ## Context

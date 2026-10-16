@@ -45,7 +45,7 @@ impl Component for Hidden {}
 /// ranges: a color and a strength finite and not negative, a range positive, a spot's cones
 /// within 0 ≤ inner < outer ≤ π / 2.
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[reflect(name = "Light")]
+#[reflect(name = "Light", check = Light::check)]
 pub enum Light {
     /// A light from one direction everywhere, like the sun.
     Directional {
@@ -97,6 +97,72 @@ pub enum Light {
 }
 
 impl Light {
+    /// Accepts the light if its values lie within the ranges its documentation gives, which the
+    /// renderer refuses a light outside of; refuses it with the reason otherwise: what reflection
+    /// checks when it reads a light (`#[reflect(check)]`), the rules between fields and on the
+    /// color included, which ranges cannot say.
+    fn check(&self) -> Result<(), String> {
+        let color = |color: &LinearColor| {
+            let ok = [color.r, color.g, color.b]
+                .into_iter()
+                .all(|channel| channel.is_finite() && channel >= 0.0);
+            ok.then_some(())
+                .ok_or_else(|| format!("its color {color:?} is negative or not finite"))
+        };
+        let strength = |name: &str, value: f32| {
+            (value.is_finite() && value >= 0.0)
+                .then_some(())
+                .ok_or_else(|| format!("its {name} {value} is negative or not finite"))
+        };
+        let distance = |name: &str, value: Option<f32>| match value {
+            Some(value) if !(value.is_finite() && value > 0.0) => {
+                Err(format!("its {name} {value} is not positive and finite"))
+            }
+            _ => Ok(()),
+        };
+        match self {
+            Self::Directional {
+                color: tint,
+                illuminance,
+                shadow_distance,
+                ..
+            } => {
+                color(tint)?;
+                strength("illuminance", *illuminance)?;
+                distance("shadow distance", *shadow_distance)
+            }
+            Self::Point {
+                color: tint,
+                intensity,
+                range,
+            } => {
+                color(tint)?;
+                strength("intensity", *intensity)?;
+                distance("range", *range)
+            }
+            Self::Spot {
+                color: tint,
+                intensity,
+                range,
+                inner_cone_angle: inner,
+                outer_cone_angle: outer,
+                ..
+            } => {
+                color(tint)?;
+                strength("intensity", *intensity)?;
+                distance("range", *range)?;
+                (0.0 <= *inner && inner < outer && *outer <= std::f32::consts::FRAC_PI_2)
+                    .then_some(())
+                    .ok_or_else(|| {
+                        format!(
+                            "its cones of {inner} and {outer} radians are not \
+                             0 ≤ inner < outer ≤ π / 2"
+                        )
+                    })
+            }
+        }
+    }
+
     /// The light of a cooked scene's node: casting shadows if it can, a directional one not in the
     /// sky.
     pub fn from_cooked(light: &SceneLight) -> Self {

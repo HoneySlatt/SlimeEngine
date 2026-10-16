@@ -10,7 +10,6 @@ mod info;
 mod path;
 mod reflect;
 mod registry;
-#[doc(hidden)]
 pub mod support;
 mod value;
 

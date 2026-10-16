@@ -28,7 +28,7 @@ const UNIFORM: f64 = 1e-5;
 /// translation, a rotation and a scale ([`GlobalTransform`]). The world computes that again when a
 /// transform changes ([`World::global_transform`](crate::World::global_transform)).
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[reflect(name = "Transform")]
+#[reflect(name = "Transform", check = Transform::check)]
 pub struct Transform {
     /// Where the entity's origin is, in its parent's space, in metres.
     #[reflect(unit = "m")]
@@ -56,6 +56,32 @@ impl Transform {
             translation,
             ..Self::IDENTITY
         }
+    }
+
+    /// Accepts the transform if its numbers are finite and its rotation is one, of length 1;
+    /// refuses it with the reason otherwise: what reflection checks when it reads a transform
+    /// (`#[reflect(check)]`), so that an edit places nothing nowhere. A rotation edited one
+    /// coordinate at a time is refused: an edit gives it whole.
+    fn check(&self) -> Result<(), String> {
+        if !self.translation.is_finite() {
+            return Err(format!(
+                "its translation {} is not finite",
+                self.translation
+            ));
+        }
+        if !(self.rotation.is_finite() && self.rotation.is_normalized()) {
+            return Err(format!(
+                "its rotation {} is not one: a quaternion of length 1",
+                self.rotation
+            ));
+        }
+        if !(self.scale.is_finite() && self.stretch.is_finite()) {
+            return Err(format!(
+                "its scale {} or its stretch {} is not finite",
+                self.scale, self.stretch
+            ));
+        }
+        Ok(())
     }
 }
 

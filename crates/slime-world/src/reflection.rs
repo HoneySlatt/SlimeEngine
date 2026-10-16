@@ -70,14 +70,15 @@ impl World {
 
     /// Replaces `entity`'s component whose type is named `component` with the one that `value`
     /// describes, once reflection has checked it, its numbers within its fields' ranges
-    /// ([`Registry::set`]). A [`Transform`] set this way counts as changed.
+    /// ([`Registry::set`]), and the component's type has accepted it, as it accepts every value it
+    /// reads (`#[reflect(check)]`). A [`Transform`] set this way counts as changed.
     ///
     /// # Errors
     ///
     /// [`WorldError::NoComponent`] if the entity is not alive or holds no such component;
-    /// [`WorldError::Refused`] if `value` is not a value of the component's type, or holds a
-    /// number out of its field's range, with the path of the part at fault. The component stays as
-    /// it was then.
+    /// [`WorldError::Refused`] if `value` is not a value of the component's type, holds a number out
+    /// of its field's range, or breaks a rule of the type's check, with the path of the part at
+    /// fault. The component stays as it was then.
     pub fn set_component_value(
         &mut self,
         entity: Entity,
@@ -89,8 +90,10 @@ impl World {
 
     /// Sets the part of `entity`'s component whose type is named `component` that `path` leads to,
     /// to `value`, once reflection has checked it, as [`Registry::set`] does: a field of the
-    /// component, an element of a list, a field of the variant an enum holds. A [`Transform`]
-    /// changed this way counts as changed.
+    /// component, an element of a list, a field of the variant an enum holds, through an option
+    /// that holds a value. The component is read again whole from its value, which its type's
+    /// check accepts or refuses: a field that the type skips takes its `Default` value. A
+    /// [`Transform`] changed this way counts as changed.
     ///
     /// ```
     /// use slime_color::LinearColor;
@@ -192,19 +195,20 @@ mod tests {
     }
     impl Component for Lantern {}
 
-    /// A number of `range`, other than `not`.
-    fn pick(range: Range, not: f64) -> f64 {
+    /// The numbers of `range` other than `not`, in the order an edit tries them.
+    fn picks(range: Range, not: f64) -> Vec<f64> {
         [1.0, 0.5, 2.0, 0.25, range.min + 1.0, range.max - 0.125]
             .into_iter()
-            .find(|&candidate| candidate != not && range.contains(candidate))
-            .expect("the range holds another number")
+            .filter(|&candidate| candidate != not && range.contains(candidate))
+            .collect()
     }
 
     /// A value of the type named `ty`, within `range`, for an option that holds none.
     fn sample(registry: &Registry, ty: &str, range: Range) -> Option<Value> {
+        let first = || picks(range, f64::NAN).first().copied();
         match &registry.get(ty)?.info().kind {
-            Kind::F32 => Some(Value::F32(pick(range, f64::NAN) as f32)),
-            Kind::F64 => Some(Value::F64(pick(range, f64::NAN))),
+            Kind::F32 => Some(Value::F32(first()? as f32)),
+            Kind::F64 => Some(Value::F64(first()?)),
             Kind::Struct(fields) => fields
                 .iter()
                 .map(|field| Some((field.name.clone(), sample(registry, &field.ty, Range::ALL)?)))
@@ -214,44 +218,60 @@ mod tests {
         }
     }
 
-    /// Another value for `leaf`, which holds `value`, of its type and within its field's range:
-    /// what an edit of it sets. `None` for a leaf that holds an entity, or an empty list.
-    fn another(registry: &Registry, leaf: &Leaf, value: &Value) -> Option<Value> {
+    /// Other values for `leaf`, which holds `value`, of its type and within its field's range, in
+    /// the order an edit tries them, until its type accepts one. None for a leaf that holds an
+    /// entity, or an empty list.
+    fn others(registry: &Registry, leaf: &Leaf, value: &Value) -> Vec<Value> {
         let range = leaf
             .field
             .as_ref()
             .and_then(|f| f.range)
             .unwrap_or(Range::ALL);
-        Some(match value {
+        let one = match value {
             Value::Bool(value) => Value::Bool(!value),
             Value::Int(value) => Value::Int(value + 1),
             Value::UInt(value) => Value::UInt(value + 1),
-            Value::F32(value) => Value::F32(pick(range, f64::from(*value)) as f32),
-            Value::F64(value) => Value::F64(pick(range, *value)),
+            Value::F32(value) => {
+                return picks(range, f64::from(*value))
+                    .into_iter()
+                    .map(|number| Value::F32(number as f32))
+                    .collect();
+            }
+            Value::F64(value) => return picks(range, *value).into_iter().map(Value::F64).collect(),
             Value::Text(text) => Value::Text(format!("{text}!")),
             Value::Asset(id) => Value::Asset(id + 1),
             Value::Option(Some(_)) => Value::Option(None),
             Value::Option(None) => {
-                let Kind::Option(inner) = &registry.get(&leaf.ty)?.info().kind else {
-                    return None;
+                let Some(Kind::Option(inner)) = registry.get(&leaf.ty).map(|r| &r.info().kind)
+                else {
+                    return Vec::new();
                 };
-                Value::Option(Some(Box::new(sample(registry, inner, range)?)))
+                match sample(registry, inner, range) {
+                    Some(inner) => Value::Option(Some(Box::new(inner))),
+                    None => return Vec::new(),
+                }
             }
             Value::Enum(variant, _) => {
-                let Kind::Enum(variants) = &registry.get(&leaf.ty)?.info().kind else {
-                    return None;
+                let Some(Kind::Enum(variants)) = registry.get(&leaf.ty).map(|r| &r.info().kind)
+                else {
+                    return Vec::new();
                 };
-                let next = variants
+                match variants
                     .iter()
-                    .find(|other| &other.name != variant && other.fields.is_empty())?;
-                Value::Enum(next.name.clone(), Vec::new())
+                    .find(|other| &other.name != variant && other.fields.is_empty())
+                {
+                    Some(next) => Value::Enum(next.name.clone(), Vec::new()),
+                    None => return Vec::new(),
+                }
             }
-            _ => return None,
-        })
+            _ => return Vec::new(),
+        };
+        vec![one]
     }
 
     /// Sets each leaf of `entity`'s component of `T` to another value, through its path, and
-    /// checks that it reads back, through reflection and typed.
+    /// checks that it reads back, through reflection and typed. A value that the type's check
+    /// refuses is followed by the next; a rotation, which is one only whole, is set whole.
     fn every_leaf_is_set_and_read_back<T: Component + Debug>(world: &mut World, entity: Entity) {
         let name = T::type_name();
         let value = world.component_value(entity, &name).expect("held");
@@ -259,19 +279,52 @@ mod tests {
             .registry()
             .leaves(&name, &value)
             .expect("a value of its type");
+        let rotation: Path = "rotation".parse().expect("a path");
         for leaf in leaves {
             let before = world.component_value(entity, &name).expect("held");
             let at = before.get(&leaf.path).expect("a leaf of the value").clone();
-            let Some(new) = another(world.registry(), &leaf, &at) else {
+            let mut candidates = others(world.registry(), &leaf, &at);
+            // Only what no component holds yet is left alone.
+            assert!(
+                !candidates.is_empty() || leaf.ty == "Entity" || at == Value::List(Vec::new()),
+                "{name}.{}: no other value for {at:?}",
+                leaf.path
+            );
+            let mut path = leaf.path.clone();
+            if name == "Transform" && leaf.path.to_string().starts_with("rotation.") {
+                let refused = world.set_property(entity, &name, &leaf.path, candidates[0].clone());
+                assert!(
+                    matches!(&refused, Err(WorldError::Refused { error, .. })
+                        if matches!(error.problem(), Problem::Invalid(_))),
+                    "{name}.{}: {refused:?}",
+                    leaf.path
+                );
+                let held = Quat::from_value(before.get(&rotation).expect("a rotation"));
+                candidates = vec![(Quat::from_rotation_y(0.25) * held.expect("one")).to_value()];
+                path = rotation.clone();
+            }
+            let accepted = candidates.into_iter().find(|new| {
+                match world.set_property(entity, &name, &path, new.clone()) {
+                    Ok(()) => true,
+                    Err(WorldError::Refused { error, .. })
+                        if matches!(error.problem(), Problem::Invalid(_)) =>
+                    {
+                        false
+                    }
+                    Err(error) => panic!("{name}.{path}: {error}"),
+                }
+            });
+            let Some(new) = accepted else {
+                assert!(
+                    leaf.ty == "Entity" || at == Value::List(Vec::new()),
+                    "{name}.{path}"
+                );
                 continue;
             };
-            world
-                .set_property(entity, &name, &leaf.path, new.clone())
-                .unwrap_or_else(|error| panic!("{name}.{}: {error}", leaf.path));
             let after = world.component_value(entity, &name).expect("held");
-            assert_eq!(after.get(&leaf.path), Some(&new), "{name}.{}", leaf.path);
+            assert_eq!(after.get(&path), Some(&new), "{name}.{path}");
             let typed = world.get::<T>(entity).expect("held").to_value();
-            assert_eq!(typed, after, "{name}.{}: the typed component", leaf.path);
+            assert_eq!(typed, after, "{name}.{path}: the typed component");
         }
     }
 
@@ -548,5 +601,92 @@ mod tests {
         let mut applied = before.clone();
         slime_reflect::apply(&mut applied, &changes).expect("applied");
         assert_eq!(applied, after);
+    }
+    #[test]
+    fn a_light_or_a_transform_that_breaks_its_rules_is_refused_whole() {
+        let mut world = World::new();
+        let entity = furnished(&mut world);
+        let path = |text: &str| text.parse::<Path>().expect("a path");
+        let refusals = [
+            (
+                "Light",
+                "inner_cone_angle",
+                Value::F32(0.9),
+                "cones of 0.9 and 0.6",
+            ),
+            (
+                "Light",
+                "intensity",
+                Value::F32(f32::INFINITY),
+                "inf is not a finite number",
+            ),
+            (
+                "Light",
+                "color.r",
+                Value::F32(-1.0),
+                "is negative or not finite",
+            ),
+            (
+                "Light",
+                "color.g",
+                Value::F32(f32::NAN),
+                "is negative or not finite",
+            ),
+            ("Transform", "rotation.w", Value::F32(0.0), "is not one"),
+            (
+                "Transform",
+                "translation.y",
+                Value::F64(f64::INFINITY),
+                "is not finite",
+            ),
+            ("Transform", "scale", Value::F32(f32::NAN), "is not finite"),
+        ];
+        for (component, at, value, message) in refusals {
+            let before = world.component_value(entity, component);
+            let error = world
+                .set_property(entity, component, &path(at), value)
+                .expect_err(message);
+            assert!(
+                error.to_string().contains(message),
+                "{component}.{at}: {error}"
+            );
+            assert_eq!(world.component_value(entity, component), before);
+        }
+        // Read back whole, from a value that breaks the rules, a light is refused too.
+        let mut light = world.component_value(entity, "Light").expect("held");
+        *light.get_mut(&path("outer_cone_angle")).expect("a spot") = Value::F32(0.1);
+        assert!(Light::from_value(&light).is_err());
+        world
+            .set_property(entity, "Light", &path("inner_cone_angle"), Value::F32(0.5))
+            .expect("still below the outer cone");
+    }
+
+    #[test]
+    fn a_component_that_no_living_entity_holds_is_found_by_no_edit() {
+        let mut world = World::new();
+        let entity = furnished(&mut world);
+        let path: Path = "0".parse().expect("a path");
+        let other = world.spawn();
+        world.insert(other, Name("other".to_owned()));
+        world.despawn(other);
+        let refusals = [
+            (other, "Name", "a dead entity"),
+            (entity, "test::Saved", "a type registered but never stored"),
+            (entity, "f32", "a type that is no component"),
+        ];
+        #[derive(Reflect)]
+        #[reflect(name = "test::Saved")]
+        struct Saved(u32);
+        world.register::<Saved>();
+        for (target, component, why) in refusals {
+            let error = world
+                .set_property(target, component, &path, Value::UInt(1))
+                .expect_err(why);
+            assert!(
+                matches!(error, WorldError::NoComponent { .. }),
+                "{why}: {error}"
+            );
+            assert!(world.component_value(target, component).is_none(), "{why}");
+        }
     }
 }

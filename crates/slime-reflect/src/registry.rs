@@ -1,7 +1,7 @@
 //! The registry: the types a program describes, by name, and what reads and sets their values.
 
-use std::any::{Any, TypeId};
-use std::collections::HashMap;
+use std::any::TypeId;
+use std::collections::{HashMap, HashSet};
 
 use crate::error::{Problem, ReflectError, RegistryError};
 use crate::info::{FieldInfo, Kind, Range, TypeInfo};
@@ -9,8 +9,8 @@ use crate::path::{Path, Step};
 use crate::reflect::Reflect;
 use crate::value::Value;
 
-/// The types a program describes, by name: their descriptions, and for those that a Rust type is
-/// behind, what turns their values into [`Value`]s and back.
+/// The types a program describes, by name: their descriptions, and the Rust type behind each, if
+/// one is.
 ///
 /// Types are registered explicitly ([`Registry::register`]), and a registration registers the
 /// types that the type's values hold; a type never registered is found by no name. A type with no
@@ -30,29 +30,10 @@ pub struct Registry {
     rust: HashMap<TypeId, usize>,
 }
 
-/// A registered type: its description, and, if a Rust type is behind it, what turns its values
-/// into [`Value`]s and back.
+/// A registered type: its description, and the Rust type behind it, if one is.
 pub struct Registration {
     info: TypeInfo,
-    rust: Option<RustType>,
-}
-
-/// What a registration knows of the Rust type behind it.
-#[derive(Clone, Copy)]
-struct RustType {
-    id: TypeId,
-    to_value: fn(&dyn Any) -> Option<Value>,
-    from_value: fn(&Value) -> Result<Box<dyn Any + Send + Sync>, ReflectError>,
-}
-
-impl RustType {
-    fn of<T: Reflect>() -> Self {
-        Self {
-            id: TypeId::of::<T>(),
-            to_value: |value| value.downcast_ref::<T>().map(Reflect::to_value),
-            from_value: |value| Ok(Box::new(T::from_value(value)?)),
-        }
-    }
+    type_id: Option<TypeId>,
 }
 
 impl Registration {
@@ -63,34 +44,14 @@ impl Registration {
 
     /// The Rust type behind it, if there is one.
     pub fn type_id(&self) -> Option<TypeId> {
-        self.rust.map(|rust| rust.id)
-    }
-
-    /// The value of `value`, if a Rust type is behind the registration and `value` is of it.
-    pub fn to_value(&self, value: &dyn Any) -> Option<Value> {
-        (self.rust?.to_value)(value)
-    }
-
-    /// The Rust value that `value` describes, boxed, to downcast to the Rust type behind the
-    /// registration.
-    ///
-    /// # Errors
-    ///
-    /// As the type's [`Reflect::from_value`]; [`Problem::Invalid`] when no Rust type is behind the
-    /// registration.
-    pub fn from_value(&self, value: &Value) -> Result<Box<dyn Any + Send + Sync>, ReflectError> {
-        let Some(rust) = self.rust else {
-            return Err(ReflectError::new(Problem::Invalid(format!(
-                "no Rust type is behind `{}`",
-                self.info.name
-            ))));
-        };
-        (rust.from_value)(value)
+        self.type_id
     }
 }
 
 /// A leaf of a value: a part that holds no other parts, which an edit sets whole. Numbers,
-/// booleans, text, options, assets, entities, empty lists, and enums whose variant holds no data.
+/// booleans, text, assets, entities, options that hold none or hold a leaf, empty lists, and
+/// enums whose variant holds no data. An option that holds a value with parts is gone through:
+/// its leaves are that value's.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Leaf {
     /// Where it is in the value.
@@ -118,27 +79,55 @@ impl Registry {
             return;
         }
         let index = self
-            .add(T::type_info(), Some(RustType::of::<T>()))
+            .add(T::type_info(), Some(TypeId::of::<T>()))
             .unwrap_or_else(|error| panic!("`{}` cannot be registered: {error}", T::type_name()));
         self.rust.insert(TypeId::of::<T>(), index);
         T::register_dependencies(self);
     }
 
     /// Registers a type with no Rust type behind it, which `info` describes: its values are
-    /// [`Value`]s only, which the registry checks, sets and lists as any other.
+    /// [`Value`]s only, which the registry checks, sets and lists as any other. The types it holds
+    /// values of must be registered first, so that such a type cannot hold values of itself.
     ///
     /// # Errors
     ///
-    /// When another type has its name or one of its aliases, or when it holds values of a type
-    /// that the registry does not hold. Nothing is registered then.
+    /// When another type has its name or one of its aliases, when it holds values of a type that
+    /// the registry does not hold, or when its description is not one: integers of another width
+    /// than 8, 16, 32 or 64 bits, two fields or variants of one name. Nothing is registered then.
     pub fn register_dynamic(&mut self, info: TypeInfo) -> Result<(), RegistryError> {
+        let invalid = |reason: String| RegistryError::Invalid {
+            ty: info.name.clone(),
+            reason,
+        };
+        let unique = |names: Vec<&String>, what: &str| match first_repeated(names) {
+            Some(twice) => Err(invalid(format!("two {what} are named `{twice}`"))),
+            None => Ok(()),
+        };
         let named: Vec<&str> = match &info.kind {
-            Kind::Struct(fields) => fields.iter().map(|field| field.ty.as_str()).collect(),
-            Kind::Enum(variants) => variants
-                .iter()
-                .flat_map(|variant| &variant.fields)
-                .map(|field| field.ty.as_str())
-                .collect(),
+            &Kind::Int { bits } | &Kind::UInt { bits } if ![8, 16, 32, 64].contains(&bits) => {
+                return Err(invalid(format!("integers of {bits} bits")));
+            }
+            Kind::Struct(fields) => {
+                unique(fields.iter().map(|field| &field.name).collect(), "fields")?;
+                fields.iter().map(|field| field.ty.as_str()).collect()
+            }
+            Kind::Enum(variants) => {
+                unique(
+                    variants.iter().map(|variant| &variant.name).collect(),
+                    "variants",
+                )?;
+                for variant in variants {
+                    unique(
+                        variant.fields.iter().map(|field| &field.name).collect(),
+                        "fields",
+                    )?;
+                }
+                variants
+                    .iter()
+                    .flat_map(|variant| &variant.fields)
+                    .map(|field| field.ty.as_str())
+                    .collect()
+            }
             Kind::Option(ty) | Kind::List { element: ty, .. } => vec![ty.as_str()],
             _ => Vec::new(),
         };
@@ -152,7 +141,7 @@ impl Registry {
     }
 
     /// Adds a registration under its name and aliases.
-    fn add(&mut self, info: TypeInfo, rust: Option<RustType>) -> Result<usize, RegistryError> {
+    fn add(&mut self, info: TypeInfo, type_id: Option<TypeId>) -> Result<usize, RegistryError> {
         for name in std::iter::once(&info.name).chain(&info.aliases) {
             if let Some(&taken) = self.names.get(name) {
                 return Err(RegistryError::NameTaken {
@@ -165,7 +154,7 @@ impl Registry {
         for name in std::iter::once(&info.name).chain(&info.aliases) {
             self.names.insert(name.clone(), index);
         }
-        self.registrations.push(Registration { info, rust });
+        self.registrations.push(Registration { info, type_id });
         Ok(index)
     }
 
@@ -176,11 +165,6 @@ impl Registry {
             .map(|&index| &self.registrations[index])
     }
 
-    /// The registration of the Rust type `T`, if it is registered.
-    pub fn of<T: 'static>(&self) -> Option<&Registration> {
-        self.of_type(TypeId::of::<T>())
-    }
-
     /// The registration of the Rust type whose ID is `id`, if it is registered.
     pub fn of_type(&self, id: TypeId) -> Option<&Registration> {
         self.rust.get(&id).map(|&index| &self.registrations[index])
@@ -189,16 +173,6 @@ impl Registry {
     /// Every registered type, in the order they were registered.
     pub fn iter(&self) -> impl ExactSizeIterator<Item = &Registration> {
         self.registrations.iter()
-    }
-
-    /// How many types are registered.
-    pub fn len(&self) -> usize {
-        self.registrations.len()
-    }
-
-    /// Whether no type is registered.
-    pub fn is_empty(&self) -> bool {
-        self.registrations.is_empty()
     }
 
     /// The description of the type named `name`.
@@ -300,6 +274,7 @@ impl Registry {
         leaves: &mut Vec<Leaf>,
     ) -> Result<(), ReflectError> {
         let fields = match (&self.info(ty)?.kind, value) {
+            // A unit struct's fields are none: it has no leaf, nothing in it to set.
             (Kind::Struct(fields), Value::Struct(_)) => Some(fields),
             (Kind::Enum(variants), Value::Enum(name, _)) => variants
                 .iter()
@@ -318,14 +293,19 @@ impl Registry {
                 }
                 return Ok(());
             }
+            (Kind::Option(inner), Value::Option(Some(inner_value)))
+                if self.has_parts(inner, inner_value)? =>
+            {
+                return self.collect(inner, inner_value, path, field, leaves);
+            }
             _ => None,
         };
         match fields {
             Some(fields) => {
                 for inner in fields {
-                    let inner_value = value
-                        .child(&Step::Field(inner.name.clone()))
-                        .expect("a checked value holds its fields");
+                    let Some(inner_value) = value.child(&Step::Field(inner.name.clone())) else {
+                        continue;
+                    };
                     self.collect(
                         &inner.ty,
                         inner_value,
@@ -335,8 +315,6 @@ impl Registry {
                     )?;
                 }
             }
-            // A unit struct has no leaf: there is nothing in it to set.
-            None if matches!(value, Value::Struct(_)) => {}
             None => leaves.push(Leaf {
                 path,
                 ty: ty.to_owned(),
@@ -344,6 +322,22 @@ impl Registry {
             }),
         }
         Ok(())
+    }
+
+    /// Whether `value`, of the type named `ty`, holds parts that a path reaches: fields, a
+    /// variant's fields, elements, or an option's value that does.
+    fn has_parts(&self, ty: &str, value: &Value) -> Result<bool, ReflectError> {
+        Ok(match (&self.info(ty)?.kind, value) {
+            (Kind::Struct(fields), _) => !fields.is_empty(),
+            (Kind::Enum(variants), Value::Enum(name, _)) => variants
+                .iter()
+                .any(|variant| &variant.name == name && !variant.fields.is_empty()),
+            (Kind::List { .. }, Value::List(elements)) => !elements.is_empty(),
+            (Kind::Option(inner), Value::Option(Some(inner_value))) => {
+                self.has_parts(inner, inner_value)?
+            }
+            _ => false,
+        })
     }
 
     /// The type of the part of `value` that `path` leads to, and the field it is in.
@@ -358,6 +352,14 @@ impl Registry {
         let mut field: Option<FieldInfo> = None;
         let mut part = value;
         for step in path.steps() {
+            // An option that holds a value is gone through, to the value: the option's field, and
+            // its range, stay.
+            while let (Kind::Option(inner), Value::Option(Some(inner_value))) =
+                (&self.info(&ty)?.kind, part)
+            {
+                ty = inner.clone();
+                part = inner_value;
+            }
             let next = part.child(step).ok_or_else(nothing)?;
             let fields = match (&self.info(&ty)?.kind, part, step) {
                 (Kind::Struct(fields), _, Step::Field(_)) => fields,
@@ -406,23 +408,28 @@ impl Registry {
                 found: value.kind(),
             })
         };
-        if let (true, Some(range), Some(number)) = (ranges, range, value.number())
-            && !range.contains(number)
-        {
-            return Err(ReflectError::new(Problem::OutOfRange {
-                value: number,
-                range,
-            }));
-        }
+        // Its kind first, then its range: a number of another kind is of the wrong kind.
+        let in_range = || match (ranges, range, value.number()) {
+            (true, Some(range), Some(number)) if !range.contains(number) => {
+                Err(ReflectError::new(Problem::OutOfRange {
+                    value: number,
+                    range,
+                }))
+            }
+            _ => Ok(()),
+        };
         match (&info.kind, value) {
             (Kind::Bool, Value::Bool(_))
-            | (Kind::F32, Value::F32(_))
-            | (Kind::F64, Value::F64(_))
             | (Kind::Text, Value::Text(_))
             | (Kind::Asset, Value::Asset(_))
             | (Kind::Entity, Value::Entity(_)) => Ok(()),
-            (&Kind::Int { bits }, &Value::Int(number)) => within_width(number, bits, true),
-            (&Kind::UInt { bits }, &Value::UInt(number)) => within_width(number, bits, false),
+            (Kind::F32, Value::F32(_)) | (Kind::F64, Value::F64(_)) => in_range(),
+            (&Kind::Int { bits }, &Value::Int(number)) => {
+                within_width(number, bits, true).and_then(|()| in_range())
+            }
+            (&Kind::UInt { bits }, &Value::UInt(number)) => {
+                within_width(number, bits, false).and_then(|()| in_range())
+            }
             (Kind::Struct(fields), Value::Struct(values)) => {
                 self.verify_fields(fields, values, ranges)
             }
@@ -461,13 +468,16 @@ impl Registry {
         }
     }
 
-    /// Checks that `values` are exactly `fields`, each a value of its type.
+    /// Checks that `values` are exactly `fields`, each once and a value of its type.
     fn verify_fields(
         &self,
         fields: &[FieldInfo],
         values: &[(String, Value)],
         ranges: bool,
     ) -> Result<(), ReflectError> {
+        if let Some(twice) = first_repeated(values.iter().map(|(name, _)| name)) {
+            return Err(ReflectError::new(Problem::DuplicateField(twice.clone())));
+        }
         if let Some((unknown, _)) = values
             .iter()
             .find(|(name, _)| !fields.iter().any(|field| &field.name == name))
@@ -512,4 +522,10 @@ fn within_width<N: Into<i128> + Copy>(
             },
         }))
     }
+}
+
+/// The first of `names` that comes twice, if one does.
+fn first_repeated<'a>(names: impl IntoIterator<Item = &'a String>) -> Option<&'a String> {
+    let mut seen = HashSet::new();
+    names.into_iter().find(|&name| !seen.insert(name))
 }

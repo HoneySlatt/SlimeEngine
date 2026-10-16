@@ -29,6 +29,8 @@ struct TypeAttributes {
     aliases: Vec<LitStr>,
     version: Option<LitInt>,
     default: bool,
+    /// The function that accepts or refuses a value once it is read.
+    check: Option<syn::Path>,
 }
 
 /// What a field's `#[reflect(...)]` says.
@@ -123,9 +125,12 @@ fn type_attributes(attributes: &[Attribute]) -> syn::Result<TypeAttributes> {
                 parsed.version = Some(meta.value()?.parse()?);
             } else if meta.path.is_ident("default") {
                 parsed.default = true;
+            } else if meta.path.is_ident("check") {
+                parsed.check = Some(meta.value()?.parse()?);
             } else {
                 return Err(meta.error(
-                    "a type takes `name`, `alias`, `version` and `default` in `#[reflect(...)]`",
+                    "a type takes `name`, `alias`, `version`, `default` and `check` in \
+                     `#[reflect(...)]`",
                 ));
             }
             Ok(())
@@ -325,16 +330,12 @@ fn field_values(fields: &[Field<'_>], access: impl Fn(&Field<'_>) -> Tokens) -> 
 
 /// The checks that a value's fields are known: by their names and aliases.
 fn known(fields: &[Field<'_>]) -> Tokens {
-    let described: Vec<&Field<'_>> = fields.iter().filter(|f| !f.attributes.skip).collect();
-    let names: Vec<&String> = described.iter().map(|field| &field.name).collect();
-    let all: Vec<String> = described
-        .iter()
-        .flat_map(|field| {
-            std::iter::once(field.name.clone())
-                .chain(field.attributes.aliases.iter().map(LitStr::value))
-        })
-        .collect();
-    quote!(::slime_reflect::support::known(fields, &[#(#all),*], &[#(#names),*])?;)
+    let groups = fields.iter().filter(|f| !f.attributes.skip).map(|field| {
+        let name = &field.name;
+        let aliases = &field.attributes.aliases;
+        quote!(&[#name #(, #aliases)*])
+    });
+    quote!(::slime_reflect::support::known(fields, &[#(#groups),*])?;)
 }
 
 /// What reads each field from `fields`, in order: `base` holds the type's default, when the type
@@ -380,6 +381,14 @@ fn construct(path: Tokens, shape: &Fields, fields: &[Field<'_>], reads: &[Tokens
 }
 
 /// What the type's attributes give its `TypeInfo`, and its `default_value`.
+/// What returns the value read, `read`: once the type's check accepts it, if it declares one.
+fn finish(attributes: &TypeAttributes) -> Tokens {
+    match &attributes.check {
+        Some(check) => quote!(::slime_reflect::support::checked(read, #check)),
+        None => quote!(::std::result::Result::Ok(read)),
+    }
+}
+
 fn type_parts(input: &DeriveInput, attributes: &TypeAttributes) -> (Tokens, Tokens) {
     let aliases = &attributes.aliases;
     let version = attributes
@@ -415,6 +424,7 @@ fn expand_struct(
 ) -> syn::Result<Tokens> {
     let ident = &input.ident;
     let (head, default_value) = type_parts(input, attributes);
+    let finish = finish(attributes);
     let infos = field_infos(fields);
     let dependencies = dependencies(fields);
     let values = field_values(fields, |field| {
@@ -459,7 +469,8 @@ fn expand_struct(
                 let fields = ::slime_reflect::support::fields(value, #name)?;
                 #known
                 #base
-                ::std::result::Result::Ok(#construct)
+                let read = #construct;
+                #finish
             }
         }
         #(#checks)*
@@ -474,6 +485,7 @@ fn expand_enum(
 ) -> syn::Result<Tokens> {
     let ident = &input.ident;
     let (head, default_value) = type_parts(input, attributes);
+    let finish = finish(attributes);
     let mut infos = Vec::new();
     let mut dependencies = Vec::new();
     let mut to_values = Vec::new();
@@ -482,7 +494,7 @@ fn expand_enum(
     let mut checks = Vec::new();
     for variant in &data.variants {
         let variant_ident = &variant.ident;
-        let variant_name = variant_ident.to_string();
+        let variant_name = variant_ident.unraw().to_string();
         let mut aliases = Vec::new();
         for attribute in variant
             .attrs
@@ -552,7 +564,7 @@ fn expand_enum(
         from_values.push(quote! {
             #(#names)|* => {
                 #known
-                ::std::result::Result::Ok(#construct)
+                #construct
             }
         });
         variant_names.push(variant_name);
@@ -588,12 +600,15 @@ fn expand_enum(
                 value: &::slime_reflect::Value,
             ) -> ::std::result::Result<Self, ::slime_reflect::ReflectError> {
                 let (variant, fields) = ::slime_reflect::support::variant(value, #name)?;
-                match variant {
+                let read = match variant {
                     #(#from_values)*
-                    other => ::std::result::Result::Err(
-                        ::slime_reflect::support::unknown_variant(other, &[#(#variant_names),*]),
-                    ),
-                }
+                    other => {
+                        return ::std::result::Result::Err(
+                            ::slime_reflect::support::unknown_variant(other, &[#(#variant_names),*]),
+                        );
+                    }
+                };
+                #finish
             }
         }
         #(#checks)*

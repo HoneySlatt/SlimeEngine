@@ -19,6 +19,7 @@ pub enum Step {
 /// field). The empty path is the value itself.
 ///
 /// A field of an enum names a field of the variant the value holds: `intensity` in a point light.
+/// An option that holds a value is gone through, to the value: `color.r` in an optional color.
 ///
 /// ```
 /// use slime_reflect::{Path, Step};

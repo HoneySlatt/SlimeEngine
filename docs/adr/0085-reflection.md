@@ -1,6 +1,8 @@
 # 0085. Reflection
 
-- Status: Accepted; refines [0080](0080-reflection-and-serialization.md) (when a type is registered)
+- Status: Accepted; amends [0080](0080-reflection-and-serialization.md) (when a component's type is
+  registered, and the `check` attribute) and [0008](0008-errors-logging-and-assertions.md)
+  (`slime-reflect`'s errors, written without `thiserror`)
 - Date: 2026-10-16
 
 ## Context
@@ -21,7 +23,7 @@ not list the components an entity holds. Six components were the engine's (`Tran
 
 ## Decision
 
-The owner took the first two decisions on 2026-10-16.
+The owner took the first three decisions on 2026-10-16.
 
 **Every component is reflected.** `Component` requires `Reflect`: a type that is not described
 does not compile as a component. The F2 panel (M5a.6) lists every component, and saves (M5a.9)
@@ -35,6 +37,17 @@ spawns its zone. No code runs before `main`: this refines ADR-0080's "types are 
 explicitly" for components only. Types with no Rust type behind them are registered by their
 description, `Registry::register_dynamic`.
 
+**A type checks the values it reads.** A type whose values follow rules that the ranges of its
+fields cannot say declares a check, `#[reflect(check = path)]`, a function that accepts a value
+once it is read or refuses it with a reason. `Light` refuses a color that is negative or not
+finite, a strength that is negative, a range or shadow distance that is not positive, and a spot
+light's inner cone wider than its outer one; `Transform` refuses numbers that are not finite and a
+rotation of another length than 1. Ranges hold finite numbers only. An edit that a check refuses
+leaves the component as it was, so that no edit through reflection gives the renderer a value it
+refuses, which panics: the review found that edits field by field could give it such a light. A
+game that changes a component typed keeps it valid itself, as before. This adds `check` to
+ADR-0080's attributes.
+
 The rest follows from ADR-0080:
 
 - **The value type** holds booleans, signed and unsigned integers of up to 64 bits, `f32` and
@@ -46,19 +59,22 @@ The rest follows from ADR-0080:
 - **Descriptions** (`TypeInfo`) give a type's name, aliases, version, documentation, whether data
   that leaves it out takes a default, and its kind, with its fields or variants; a field gives its
   name, type, aliases, documentation and attributes. The derive writes them from the type, its
-  doc comments and `#[reflect(...)]`: `name`, `alias`, `version` and `default` on a type; `alias`,
-  `default`, `skip`, `transient`, `range` and `unit` on a field; `alias` on a variant. A range is
-  inclusive, its lower bound left out with `above` for a positive number; a unit is a symbol. The
-  derive refuses a generic type, a type with lifetimes, a union, a type without a name, an unknown
-  attribute, a skipped field given another attribute, and a range on a field that holds no
-  number; the compiler refuses a field whose type is not reflected.
+  doc comments and `#[reflect(...)]`: `name`, `alias`, `version`, `default` and `check` on a type;
+  `alias`, `default`, `skip`, `transient`, `range` and `unit` on a field; `alias` on a variant. A
+  range is inclusive, its lower bound left out with `above` for a positive number, and holds
+  finite numbers only; a unit is a symbol. The derive refuses a generic type, a type with
+  lifetimes, a union, a type without a name, an unknown attribute, a skipped field given another
+  attribute, and a range on a field that holds no number; the compiler refuses a field whose type
+  is not reflected.
 - **Edits work on values.** `Registry::set` follows a path through a value and its type's
   description, checks the new part's kind, fields, variant, widths and lengths, and its numbers
   against the ranges of the fields they are in, then sets it; a field of an enum is one of the
-  variant the value holds, and another variant is set whole. The world edits a component by
-  taking its value, setting the part, and reading the component back from the value: the derive
-  writes only the conversions, and nothing reaches into a Rust value field by field. Errors name
-  the path of the part at fault, and the component in the world's.
+  variant the value holds, and another variant is set whole; a path goes through an option that
+  holds a value, to the value, as the errors' paths do. A value gives each field once. The world
+  edits a component by taking its value, setting the part, and reading the component back from the
+  value, which runs its check: the derive writes only the conversions, and nothing reaches into a
+  Rust value field by field. Errors name the path of the part at fault, and the component in the
+  world's.
 - **Values are compared** path by path, floats by their bits; two lists of different lengths, or
   two variants, differ whole.
 - **The standard types** described by hand are the booleans, integers, floats, `String`, `Option`,
@@ -84,6 +100,9 @@ The rest follows from ADR-0080:
   positive, which an inclusive bound cannot say.
 - **Units as an enum**: typed, but closed; a symbol says the same, and the editor shows it as it
   is.
+- **For lights that break their rules**: each implementing `Reflect` by hand, about 150 lines that
+  the derive writes otherwise; or the bridge to the renderer leaving such a light out with a
+  warning, which leaves the world, and its saves, holding a light that is not one.
 
 ## Consequences
 
@@ -96,7 +115,9 @@ The rest follows from ADR-0080:
 - An edit costs the conversion of the whole component to a value and back: nothing for an editor,
   which edits one field at a time; a system that changes components at every frame changes them
   typed.
-- Ranges are per field. A rule between two fields, a spot light's inner cone narrower than its
-  outer cone, is not checked; nor is a rotation's length.
+- An edit reads the whole component again: a field that the type skips takes its `Default` value,
+  and a rotation is edited whole, since a coordinate alone gives no rotation.
+- A type with no Rust type behind it is described with the types it holds registered first: it
+  cannot hold values of itself.
 - Serialization (M5a.7) writes and reads these values; it maps references to entities to persistent
   identities, and decides how a save reads a value out of range.

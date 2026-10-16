@@ -27,6 +27,8 @@ pub enum Problem {
     /// A field that the value leaves out, which neither the field nor its type gives a default
     /// to.
     MissingField(String),
+    /// A field that the value gives twice, or under its name and one of its aliases.
+    DuplicateField(String),
     /// A field that the type does not have.
     UnknownField {
         /// The field found.
@@ -112,6 +114,7 @@ impl fmt::Display for ReflectError {
                 write!(f, "a value of `{expected}` is expected, not {found}")
             }
             Problem::MissingField(field) => write!(f, "the field `{field}` is missing"),
+            Problem::DuplicateField(field) => write!(f, "the field `{field}` is given twice"),
             Problem::UnknownField { field, known } => {
                 write!(f, "no field `{field}`, where there are {}", list(known))
             }
@@ -120,6 +123,9 @@ impl fmt::Display for ReflectError {
             }
             Problem::WrongLength { expected, found } => {
                 write!(f, "{found} elements, where there are {expected}")
+            }
+            Problem::OutOfRange { value, .. } if !value.is_finite() => {
+                write!(f, "{value} is not a finite number")
             }
             Problem::OutOfRange { value, range } => write!(f, "{value} is not {range}"),
             Problem::NoSuchPath => write!(f, "names nothing"),
@@ -154,6 +160,14 @@ pub enum RegistryError {
         /// The type that has it.
         by: String,
     },
+    /// The description is not one: integers of another width than 8, 16, 32 or 64 bits, two
+    /// fields or variants of one name.
+    Invalid {
+        /// The type described.
+        ty: String,
+        /// What is wrong with its description.
+        reason: String,
+    },
     /// The type names a type that the registry does not hold.
     UnknownType {
         /// The type described.
@@ -167,6 +181,7 @@ impl fmt::Display for RegistryError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NameTaken { name, by } => write!(f, "the type `{by}` has the name `{name}`"),
+            Self::Invalid { ty, reason } => write!(f, "`{ty}` is not described: {reason}"),
             Self::UnknownType { ty, names } => {
                 write!(
                     f,

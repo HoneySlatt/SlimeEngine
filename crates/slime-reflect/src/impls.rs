@@ -311,7 +311,7 @@ impl<A: Reflect, B: Reflect> Reflect for (A, B) {
 
     fn from_value(value: &Value) -> Result<Self, ReflectError> {
         let fields = fields(value, &Self::type_name())?;
-        known(fields, &["0", "1"], &["0", "1"])?;
+        known(fields, &[&["0"], &["1"]])?;
         Ok((
             field(fields, "0", &[])?.map_or_else(|| missing("0"), Ok)?,
             field(fields, "1", &[])?.map_or_else(|| missing("1"), Ok)?,
@@ -349,8 +349,7 @@ macro_rules! coordinates {
 
             fn from_value(value: &Value) -> Result<Self, ReflectError> {
                 let fields = fields(value, $name)?;
-                let axes = [$(stringify!($axis)),+];
-                known(fields, &axes, &axes)?;
+                known(fields, &[$(&[stringify!($axis)]),+])?;
                 Ok(Self::from_array([$(
                     field::<$number>(fields, stringify!($axis), &[])?
                         .map_or_else(|| missing(stringify!($axis)), Ok)?

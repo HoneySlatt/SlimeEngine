@@ -13,9 +13,11 @@ works through the same values. Maps, generic types and functions come when somet
 - `Reflect`, the trait of a type whose values reflection handles, and its derive,
   `#[derive(Reflect)]`, which requires a stable name: bare for the engine's types (`Transform`),
   `<crate>::<Type>` for a game's (`hunnawood::Collider`). Attributes give aliases, a version,
-  defaults, skipped and transient fields, ranges and units. The standard types the engine uses
-  (booleans, integers, floats, `String`, `Option`, `Vec`, arrays, pairs) and glam's `Vec3`,
-  `DVec3` and `Quat` are described here, by hand: the orphan rule allows it nowhere else.
+  defaults, skipped and transient fields, ranges of finite numbers, units, and a check of the
+  rules between fields, which refuses the values that break them. The standard types the engine
+  uses (booleans, integers, floats, `String`, `Option`, `Vec`, arrays, pairs) and glam's `Vec3`,
+  `DVec3` and `Quat` are described here, by hand, with the helpers of `support`: the orphan rule
+  allows it nowhere else.
 - `Value`, plain data, which passes between reflection, files, saves and the editors: references to
   assets and to entities are kinds of their own, and floats keep their width.
 - `TypeInfo`, the description of a type: its kind, its fields or variants, with their names, types

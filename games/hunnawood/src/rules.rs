@@ -743,7 +743,8 @@ pub mod tests {
     }
 
     /// Another value for `leaf`, which holds `value`, of its type and within its field's range:
-    /// what an edit of it sets; `None` for a leaf that this test leaves alone.
+    /// what an edit of it sets; `None` for a kind that no game component holds. The same as
+    /// `slime-world`'s test of its own components, for the kinds the game's hold.
     fn another(registry: &Registry, leaf: &Leaf, value: &Value) -> Option<Value> {
         let range = leaf
             .field
@@ -779,9 +780,9 @@ pub mod tests {
         {
             let before = world.component_value(entity, &name).expect("held");
             let at = before.get(&leaf.path).expect("a leaf of the value").clone();
-            let Some(new) = another(world.registry(), &leaf, &at) else {
-                continue;
-            };
+            // The game's components hold booleans, floats and enums without data, all edited here.
+            let new = another(world.registry(), &leaf, &at)
+                .unwrap_or_else(|| panic!("{name}.{}: no other value for {at:?}", leaf.path));
             world
                 .set_property(entity, &name, &leaf.path, new.clone())
                 .unwrap_or_else(|error| panic!("{name}.{}: {error}", leaf.path));

@@ -20,7 +20,7 @@ in `slime-reflect`, where its misuses are tested as doc tests that fail to compi
 ## Dependencies
 
 `proc-macro2`, `quote` and `syn` (its default features), with which derive macros are written,
-and which every engine crate builds already through `thiserror`'s derive.
+and which the workspace builds already, for `thiserror`'s derive.
 
 ## Must not
 
