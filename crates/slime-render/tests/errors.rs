@@ -3,7 +3,8 @@
 //! cause, is checked in `slime-gfx`, whose tests can make the memory scarce. Runs on whatever
 //! adapter the machine offers.
 
-use slime_gfx::{GfxError, Gpu, LinearColor, RenderTarget, TextureFormat};
+use slime_color::LinearColor;
+use slime_gfx::{GfxError, Gpu, RenderTarget, TextureFormat};
 use slime_render::{Camera, MaterialData, RenderError, Renderer, Scene, Sky};
 
 const FORMAT: TextureFormat = TextureFormat::Rgba8UnormSrgb;

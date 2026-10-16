@@ -576,7 +576,8 @@ fn instance_flags() -> wgpu::InstanceFlags {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{LinearColor, RenderPassDescriptor, RenderTarget, TextureFormat};
+    use crate::{RenderPassDescriptor, RenderTarget, TextureFormat};
+    use slime_color::LinearColor;
 
     #[test]
     fn direct3d_12_compiles_shaders_with_the_dxc_beside_the_program_unless_asked_otherwise() {

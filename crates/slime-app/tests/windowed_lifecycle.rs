@@ -36,7 +36,8 @@ mod linux {
 
     use slime_app::time::FrameTime;
     use slime_app::{App, AppConfig, AppError, Context, RunError};
-    use slime_gfx::{LinearColor, RenderPassDescriptor, RenderTarget, TextureFormat};
+    use slime_color::LinearColor;
+    use slime_gfx::{RenderPassDescriptor, RenderTarget, TextureFormat};
     use slime_platform::{Event, PlatformError, WindowConfig};
 
     const SCENARIO_ENV: &str = "SLIME_APP_TEST_SCENARIO";

@@ -23,9 +23,10 @@ mod tone_curve;
 use std::f32::consts::PI;
 
 use slime_assets::{CookedTexture, TextureEncoding};
+use slime_color::LinearColor;
 use slime_gfx::{
-    AddressMode, Filter, FloatImage, Gpu, LinearColor, RenderTarget, Sampler, SamplerDescriptor,
-    Texture, TextureFormat,
+    AddressMode, Filter, FloatImage, Gpu, RenderTarget, Sampler, SamplerDescriptor, Texture,
+    TextureFormat,
 };
 use slime_render::glam::{DVec3, Mat4, Quat, Vec3, Vec4};
 use slime_render::{

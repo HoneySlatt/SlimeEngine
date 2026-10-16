@@ -332,7 +332,7 @@ mod tests {
         let mut overlay = Overlay::new(&gpu, FORMAT, 1.0);
         // Opaque, not black, and exact in sRGB: an overlay pass that cleared the target, to black or
         // to transparent black, would not leave this color around the panel.
-        let blue = slime_gfx::LinearColor::rgb(0.0, 0.0, 1.0);
+        let blue = slime_color::LinearColor::rgb(0.0, 0.0, 1.0);
         let scene = RenderPassDescriptor {
             target: &target,
             clear: Some(blue),

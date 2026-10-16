@@ -3,8 +3,9 @@
 //! object of the lost device is refused by the new one, and only a lost device is replaced. Runs on
 //! whatever adapter the machine offers, like `device.rs`.
 
+use slime_color::LinearColor;
 use slime_gfx::{
-    CullMode, FragmentState, GfxError, Gpu, Image, LinearColor, LossKind, RenderPassDescriptor,
+    CullMode, FragmentState, GfxError, Gpu, Image, LossKind, RenderPassDescriptor,
     RenderPipelineDescriptor, RenderTarget, TextureFormat,
 };
 

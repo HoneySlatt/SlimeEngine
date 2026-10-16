@@ -6,7 +6,6 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::bind_group::BindGroup;
-use crate::color::LinearColor;
 use crate::depth_target::DepthTarget;
 use crate::gpu::{Gpu, submit};
 use crate::index_buffer::IndexBuffer;
@@ -14,6 +13,7 @@ use crate::pipeline::RenderPipeline;
 use crate::render_target::RenderTarget;
 use crate::timer::{GpuTimer, TimedSubmission};
 use crate::vertex_buffer::VertexBuffer;
+use slime_color::LinearColor;
 
 /// What a render pass draws into ([`Gpu::render`], [`Commands::render`]). A pass without a render
 /// target is described by a [`DepthPassDescriptor`].
@@ -292,7 +292,7 @@ impl Commands {
             resolve_target: descriptor.resolve.map(|resolve| &resolve.view),
             ops: wgpu::Operations {
                 load: match descriptor.clear {
-                    Some(color) => wgpu::LoadOp::Clear(color.to_wgpu()),
+                    Some(color) => wgpu::LoadOp::Clear(to_wgpu(color)),
                     None => wgpu::LoadOp::Load,
                 },
                 store: wgpu::StoreOp::Store,
@@ -408,6 +408,16 @@ impl Commands {
                 closure: PhantomData,
             });
         }
+    }
+}
+
+/// The color that wgpu clears a target to.
+fn to_wgpu(color: LinearColor) -> wgpu::Color {
+    wgpu::Color {
+        r: f64::from(color.r),
+        g: f64::from(color.g),
+        b: f64::from(color.b),
+        a: f64::from(color.a),
     }
 }
 

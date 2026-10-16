@@ -1,12 +1,13 @@
-//! The color type of the engine's API (ADR-0045).
+#![doc = include_str!("../README.md")]
 
-use crate::texture::SRGB_TO_LINEAR;
+use std::sync::LazyLock;
 
 /// A color with linear components: values proportional to the light they stand for, which light
 /// adds and multiplies as they are, not sRGB-encoded as the values of a color picker or of a web
 /// color are ([`LinearColor::from_srgb8`] converts those). Every color of the engine's API is one
-/// (ADR-0045): the color a render pass clears its target to, and in `slime-render` the colors of
-/// materials and lights and the radiances of the sky.
+/// (`docs/adr/0045-one-linear-color-type.md`): the color a render pass of `slime-gfx` clears its
+/// target to, the colors of materials and lights and the radiances of the sky in `slime-render`,
+/// and the colors of the lights of a world in `slime-world`.
 ///
 /// Red, green and blue have no upper bound: a light's color times its strength, or the sky's
 /// radiance in nits, can be far above 1. Alpha is straight, not premultiplied: the color's own
@@ -48,11 +49,11 @@ impl LinearColor {
 
     /// The opaque color whose red, green and blue are sRGB-encoded bytes, as color pickers, image
     /// editors and web colors give them: `#E8A33D` is `LinearColor::from_srgb8(0xE8, 0xA3, 0x3D)`.
-    /// Each component is decoded with the sRGB transfer function (IEC 61966-2-1), as the GPU
-    /// decodes the texels of an sRGB texture: 0 stays 0, 255 becomes 1, 128 becomes about 0.216.
+    /// Each component is decoded with [`srgb8_to_linear`], as the GPU decodes the texels of an sRGB
+    /// texture: 0 stays 0, 255 becomes 1, 128 becomes about 0.216.
     ///
     /// ```
-    /// use slime_gfx::LinearColor;
+    /// use slime_color::LinearColor;
     ///
     /// let amber = LinearColor::from_srgb8(0xE8, 0xA3, 0x3D);
     /// // 0xA3, 163, is about 0.366 in linear light, not 163 / 255 = 0.639.
@@ -60,18 +61,40 @@ impl LinearColor {
     /// ```
     #[must_use]
     pub fn from_srgb8(r: u8, g: u8, b: u8) -> Self {
-        let linear = |encoded: u8| SRGB_TO_LINEAR[usize::from(encoded)];
-        Self::rgb(linear(r), linear(g), linear(b))
+        Self::rgb(srgb8_to_linear(r), srgb8_to_linear(g), srgb8_to_linear(b))
     }
+}
 
-    pub(crate) fn to_wgpu(self) -> wgpu::Color {
-        wgpu::Color {
-            r: f64::from(self.r),
-            g: f64::from(self.g),
-            b: f64::from(self.b),
-            a: f64::from(self.a),
+/// The linear value of each sRGB-encoded byte.
+static SRGB_TO_LINEAR: LazyLock<[f32; 256]> = LazyLock::new(|| {
+    std::array::from_fn(|byte| {
+        let encoded = byte as f32 / 255.0;
+        if encoded <= 0.04045 {
+            encoded / 12.92
+        } else {
+            ((encoded + 0.055) / 1.055).powf(2.4)
         }
-    }
+    })
+});
+
+/// The linear value, from 0 to 1, of an sRGB-encoded byte, decoded with the sRGB transfer function
+/// (IEC 61966-2-1): a straight segment up to 0.04045, then `((c + 0.055) / 1.055)^2.4`. A table
+/// computed once holds the 256 values.
+#[must_use]
+pub fn srgb8_to_linear(encoded: u8) -> f32 {
+    SRGB_TO_LINEAR[usize::from(encoded)]
+}
+
+/// The sRGB encoding of a linear value, as a byte: the inverse of [`srgb8_to_linear`], rounded to
+/// the nearest byte, a value below 0 or above 1 clamped to it.
+#[must_use]
+pub fn linear_to_srgb8(linear: f32) -> u8 {
+    let encoded = if linear <= 0.003_130_8 {
+        linear * 12.92
+    } else {
+        1.055 * linear.powf(1.0 / 2.4) - 0.055
+    };
+    (encoded.clamp(0.0, 1.0) * 255.0).round() as u8
 }
 
 #[cfg(test)]
@@ -91,5 +114,14 @@ mod tests {
             assert!((component - expected).abs() < 1e-6, "{decoded:?}");
         }
         assert_eq!(decoded.a, 1.0);
+    }
+
+    #[test]
+    fn encoding_a_decoded_byte_gives_it_back() {
+        for byte in 0..=255 {
+            assert_eq!(linear_to_srgb8(srgb8_to_linear(byte)), byte);
+        }
+        assert_eq!(linear_to_srgb8(-1.0), 0);
+        assert_eq!(linear_to_srgb8(2.0), 255);
     }
 }

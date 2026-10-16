@@ -4,7 +4,7 @@
 use std::f32::consts::FRAC_PI_4;
 
 use glam::Vec3;
-use slime_gfx::LinearColor;
+use slime_color::LinearColor;
 
 use crate::bytes::{push_f32s, push_u32s};
 

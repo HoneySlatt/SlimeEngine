@@ -57,7 +57,8 @@ example (`examples/window.rs`) also creates GPU objects in `init` and draws a tr
 
 ```rust,no_run
 use slime_app::{App, AppConfig, Context};
-use slime_gfx::{LinearColor, RenderPassDescriptor, RenderTarget};
+use slime_color::LinearColor;
+use slime_gfx::{RenderPassDescriptor, RenderTarget};
 use slime_platform::WindowConfig;
 
 struct Game;

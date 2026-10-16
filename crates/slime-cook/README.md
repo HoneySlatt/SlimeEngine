@@ -62,7 +62,8 @@ Their rustdoc gives the formats and the rules.
 
 ## Dependencies
 
-[`slime-assets`](../slime-assets/README.md), for the asset ID and the cooked formats. `uuid` for
+[`slime-assets`](../slime-assets/README.md), for the asset ID and the cooked formats;
+[`slime-color`](../slime-color/README.md), for the sRGB transfer function of the mipmaps. `uuid` for
 random IDs, `blake3` to derive the IDs of sub-assets and name cooked files, `png` and `zune-jpeg`
 to decode images, `block_compression` to compress textures, `gltf` to read glTF files,
 `bevy_mikktspace` to compute tangents, `glam` for their vectors, `thiserror` for its error types.

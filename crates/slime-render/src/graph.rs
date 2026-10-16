@@ -10,9 +10,10 @@
 use std::fmt;
 use std::time::Duration;
 
+use slime_color::LinearColor;
 use slime_gfx::{
-    DepthPassDescriptor, DepthTarget, GfxError, Gpu, GpuTimer, LinearColor, RenderPass,
-    RenderPassDescriptor, RenderTarget, TextureFormat,
+    DepthPassDescriptor, DepthTarget, GfxError, Gpu, GpuTimer, RenderPass, RenderPassDescriptor,
+    RenderTarget, TextureFormat,
 };
 
 use crate::renderer::Pass;

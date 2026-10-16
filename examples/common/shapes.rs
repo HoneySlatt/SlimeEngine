@@ -6,7 +6,8 @@
 
 use std::f32::consts::PI;
 
-use slime_gfx::{Gpu, LinearColor, RenderTarget, SamplerDescriptor, TextureFormat};
+use slime_color::LinearColor;
+use slime_gfx::{Gpu, RenderTarget, SamplerDescriptor, TextureFormat};
 use slime_render::glam::{Mat4, Quat, Vec3};
 use slime_render::{
     Camera, DirectionalLight, Environment, Instance, Light, Material, MaterialData, Mesh, MeshData,

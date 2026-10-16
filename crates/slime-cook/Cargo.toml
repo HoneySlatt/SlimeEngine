@@ -18,6 +18,7 @@ gltf.workspace = true
 glam.workspace = true
 png.workspace = true
 slime-assets.workspace = true
+slime-color.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
 zune-jpeg.workspace = true

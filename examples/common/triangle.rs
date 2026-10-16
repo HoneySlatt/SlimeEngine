@@ -1,10 +1,10 @@
 //! The triangle that the samples draw, shared by the examples and the reference image test: its
 //! shader, its vertices and the commands that draw it.
 
+use slime_color::LinearColor;
 use slime_gfx::{
-    CullMode, FragmentState, GfxError, Gpu, LinearColor, RenderPass, RenderPipeline,
-    RenderPipelineDescriptor, TextureFormat, VertexAttribute, VertexBuffer, VertexFormat,
-    VertexLayout,
+    CullMode, FragmentState, GfxError, Gpu, RenderPass, RenderPipeline, RenderPipelineDescriptor,
+    TextureFormat, VertexAttribute, VertexBuffer, VertexFormat, VertexLayout,
 };
 
 /// The color behind the triangle.

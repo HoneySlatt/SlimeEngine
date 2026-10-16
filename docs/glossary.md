@@ -306,7 +306,7 @@ would take.
 **Linear color.** A color whose values are proportional to the light they stand for, so that
 light adds and multiplies them as they are: twice the value is twice the light. Displays and
 image files store colors *sRGB-encoded* instead. Every color of the engine's API is linear, a
-`slime_gfx::LinearColor` ([ADR-0045](adr/0045-one-linear-color-type.md)).
+`slime_color::LinearColor` ([ADR-0045](adr/0045-one-linear-color-type.md)).
 
 **Logical key.** What a key means with the current keyboard layout and modifiers
 (`slime_platform::Key`): on a French AZERTY keyboard, the first letter key of the top row gives

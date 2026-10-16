@@ -289,7 +289,8 @@ impl std::fmt::Debug for GpuTimer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{LinearColor, RenderPassDescriptor, TextureFormat};
+    use crate::{RenderPassDescriptor, TextureFormat};
+    use slime_color::LinearColor;
 
     #[test]
     fn passes_beyond_the_slots_go_untimed_until_reading_frees_them() {

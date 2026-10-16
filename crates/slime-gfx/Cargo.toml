@@ -19,6 +19,7 @@ wgpu = []
 pollster.workspace = true
 # `alloc`: the traits are implemented for `Arc`, which keeps the window to create its surface again.
 raw-window-handle = { workspace = true, features = ["alloc"] }
+slime-color.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 wgpu.workspace = true

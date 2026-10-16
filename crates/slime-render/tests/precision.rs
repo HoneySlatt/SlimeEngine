@@ -7,7 +7,8 @@
 //! holds exactly up to 16 km from the origin: moved 10 km away, the scene is exactly the same
 //! scene, and only how the renderer computes can tell them apart.
 
-use slime_gfx::{FloatImage, Gpu, LinearColor, TextureFormat};
+use slime_color::LinearColor;
+use slime_gfx::{FloatImage, Gpu, TextureFormat};
 use slime_render::glam::{Mat4, Quat, Vec3};
 use slime_render::{
     Camera, DirectionalLight, Instance, Light, MaterialData, MeshData, PointLight, Renderer, Scene,

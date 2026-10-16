@@ -36,8 +36,9 @@ use std::time::Instant;
 use slime_app::time::FrameTime;
 use slime_app::{App, AppConfig, AppError, Context};
 use slime_assets::{AssetId, CookedAssets, ManifestWatch};
+use slime_color::LinearColor;
 use slime_devui::{Overlay, egui};
-use slime_gfx::{LinearColor, RenderPassDescriptor, RenderTarget};
+use slime_gfx::{RenderPassDescriptor, RenderTarget};
 use slime_platform::{
     ButtonState, Event, KeyCode, KeyEvent, MouseButton, ScrollDelta, WindowConfig,
 };

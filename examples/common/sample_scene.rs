@@ -8,7 +8,8 @@ use std::f32::consts::PI;
 use std::time::{Duration, Instant};
 
 use slime_assets::{AssetId, CookedAssets};
-use slime_gfx::{Gpu, LinearColor, RenderTarget};
+use slime_color::LinearColor;
+use slime_gfx::{Gpu, RenderTarget};
 use slime_render::glam::Vec3;
 use slime_render::{
     Camera, DirectionalLight, Environment, Light, LoadedScene, RenderError, RenderStats, Renderer,

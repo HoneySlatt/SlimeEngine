@@ -217,8 +217,9 @@ out: `scripts/check.sh` fetches and cooks it, then runs them, and after the comm
 
 The engine's crates only: `slime-app`, `slime-gfx`, `slime-platform`, `slime-render`, and
 `slime-devui` for the dev overlay, engine tooling that turns `slime-gfx`'s `wgpu` feature on for
-itself (the game uses no wgpu type); `slime-assets`, which reads the cooked zone; and `tracing` for
-the log. Its tests use `slime-world` too, to spawn the cooked zone in a world.
+itself (the game uses no wgpu type); `slime-assets`, which reads the cooked zone; `slime-color`, for
+the colors of its lights and skies; and `tracing` for the log. Its tests use `slime-world` too, to
+spawn the cooked zone in a world.
 
 ## Must not
 

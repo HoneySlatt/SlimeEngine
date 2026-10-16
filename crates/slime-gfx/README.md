@@ -41,8 +41,9 @@ Not there yet: blending and array textures.
 Drawing a triangle into an offscreen image and reading it back:
 
 ```rust
+use slime_color::LinearColor;
 use slime_gfx::{
-    CullMode, FragmentState, GfxError, Gpu, LinearColor, RenderPassDescriptor,
+    CullMode, FragmentState, GfxError, Gpu, RenderPassDescriptor,
     RenderPipelineDescriptor, TextureFormat, VertexAttribute, VertexFormat, VertexLayout,
 };
 
@@ -139,7 +140,6 @@ fn main() -> Result<(), GfxError> {
 - `Surface::acquire` gives the `SurfaceFrame` to draw a window's next image into, and
   `SurfaceFrame::present` shows it, as its `PresentMode` says (ADR-0021). Applications built on
   `slime-app` do not call these: the engine does.
-- `LinearColor`: the color type of every API of the engine (ADR-0045).
 - `GfxError`: why the GPU could not be opened or used.
 
 The documentation of each item holds its contracts: its formats, limits, errors and panics, and
@@ -149,6 +149,8 @@ how it behaves on each graphics API.
 
 - `wgpu`: access to the GPU through Vulkan and Direct3D 12, and the WGSL shader compiler.
 - `pollster`: waits for wgpu's requests, which are futures.
+- `slime-color`: `LinearColor`, the color a render pass clears its target to, and the sRGB transfer
+  function of the mipmaps it computes.
 - `raw-window-handle`: the standard traits through which a window, created by another crate, is
   drawn into; with its `alloc` feature, for the implementations on `Arc`, in which the surface
   keeps the window to create itself again.

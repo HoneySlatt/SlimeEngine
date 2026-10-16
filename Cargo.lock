@@ -844,6 +844,7 @@ version = "0.2.0"
 dependencies = [
  "slime-app",
  "slime-assets",
+ "slime-color",
  "slime-devui",
  "slime-gfx",
  "slime-platform",
@@ -1996,6 +1997,7 @@ version = "0.2.0"
 dependencies = [
  "ctrlc",
  "nu-ansi-term",
+ "slime-color",
  "slime-gfx",
  "slime-platform",
  "thiserror 2.0.21",
@@ -2012,6 +2014,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "slime-color"
+version = "0.2.0"
+
+[[package]]
 name = "slime-cook"
 version = "0.2.0"
 dependencies = [
@@ -2022,6 +2028,7 @@ dependencies = [
  "gltf",
  "png",
  "slime-assets",
+ "slime-color",
  "thiserror 2.0.21",
  "uuid",
  "zune-jpeg",
@@ -2034,6 +2041,7 @@ dependencies = [
  "egui",
  "egui-wgpu",
  "slime-app",
+ "slime-color",
  "slime-gfx",
  "slime-platform",
 ]
@@ -2046,6 +2054,7 @@ dependencies = [
  "png",
  "slime-app",
  "slime-assets",
+ "slime-color",
  "slime-cook",
  "slime-devui",
  "slime-gfx",
@@ -2062,6 +2071,7 @@ dependencies = [
  "block_compression",
  "pollster",
  "raw-window-handle",
+ "slime-color",
  "thiserror 2.0.21",
  "tracing",
  "wgpu",
@@ -2083,6 +2093,7 @@ version = "0.2.0"
 dependencies = [
  "glam",
  "slime-assets",
+ "slime-color",
  "slime-gfx",
  "thiserror 2.0.21",
  "tracing",

@@ -14,7 +14,8 @@ use slime_assets::{
     LightKind, MANIFEST_FILE, Manifest, ManifestEntry, MaterialTexture, SceneLight, SceneNode,
     TextureEncoding, TextureFilter, TextureSampler, TextureWrap,
 };
-use slime_gfx::{Gpu, LinearColor, TextureFormat};
+use slime_color::LinearColor;
+use slime_gfx::{Gpu, TextureFormat};
 use slime_render::glam::{Mat4, Vec3};
 use slime_render::{
     Camera, DirectionalLight, Instance, Light, LoadedScene, MaterialValues, MeshData, Renderer,

@@ -101,6 +101,11 @@ engine starts a world of its own, which keeps a game's entities and their compon
   decided for the zone, the city farther and hazier. Its list of sources names the new files, on
   the mirror's release `hunnawood-6`: `scripts/fetch-assets.sh zone/` fetches them, then cook the
   zone again.
+- `LinearColor` moved from `slime-gfx` to a crate of its own, `slime-color`, below every crate that
+  holds a color, so that the world holds colors without the GPU layer (ADR-0079): `use
+  slime_gfx::LinearColor` becomes `use slime_color::LinearColor`. The crate also gives the sRGB
+  transfer function, `srgb8_to_linear` and `linear_to_srgb8`, which the GPU layer and the cooker
+  each had a copy of.
 
 ### Fixed
 

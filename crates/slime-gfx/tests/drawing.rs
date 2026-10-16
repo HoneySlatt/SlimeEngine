@@ -4,10 +4,11 @@
 //! colors are pure, whose sRGB encoding every driver gets exactly. Runs on whatever adapter the
 //! machine offers, like `device.rs`.
 
+use slime_color::LinearColor;
 use slime_gfx::{
     BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource, BindingType,
     CullMode, DepthBias, DepthCompare, DepthState, DepthTarget, FragmentState, GfxError, Gpu,
-    Image, LinearColor, RenderPass, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor,
+    Image, RenderPass, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor,
     RenderTarget, ShaderStages, TextureFormat, UniformBuffer, VertexAttribute, VertexBuffer,
     VertexFormat, VertexLayout,
 };

@@ -4,7 +4,8 @@
 //! unpadding, which the 256-pixel-wide reference image does not. Runs on whatever adapter the
 //! machine offers, like `device.rs`.
 
-use slime_gfx::{Gpu, LinearColor, RenderPassDescriptor, TextureFormat};
+use slime_color::LinearColor;
+use slime_gfx::{Gpu, RenderPassDescriptor, TextureFormat};
 
 /// A color whose sRGB encoding is known: 0.5 linear is 187.5 of 255, so 187 or 188.
 const CLEAR: LinearColor = LinearColor::rgb(1.0, 0.5, 0.0);

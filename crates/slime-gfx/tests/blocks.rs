@@ -6,9 +6,10 @@
 use block_compression::decode::decompress_blocks_as_rgba8;
 use block_compression::encode::compress_rgba8;
 use block_compression::{BC7Settings, CompressionVariant};
+use slime_color::LinearColor;
 use slime_gfx::{
     BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, CullMode, FragmentState,
-    Gpu, Image, LinearColor, RenderPassDescriptor, RenderPipelineDescriptor, ShaderStages, Texture,
+    Gpu, Image, RenderPassDescriptor, RenderPipelineDescriptor, ShaderStages, Texture,
     TextureFormat,
 };
 

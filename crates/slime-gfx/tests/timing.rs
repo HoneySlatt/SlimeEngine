@@ -6,7 +6,8 @@
 
 use std::time::Duration;
 
-use slime_gfx::{DepthPassDescriptor, Gpu, LinearColor, RenderPassDescriptor, TextureFormat};
+use slime_color::LinearColor;
+use slime_gfx::{DepthPassDescriptor, Gpu, RenderPassDescriptor, TextureFormat};
 
 /// Checks that `time` is one that a pass of these tests can take: more than nothing and less than
 /// a second. A timer whose timestamps are written in the wrong order, or not read at all, gives 0;

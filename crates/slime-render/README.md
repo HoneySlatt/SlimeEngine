@@ -41,7 +41,8 @@ not yet blend transparent surfaces or leave out what the camera does not see.
 Drawing a red triangle into an offscreen image:
 
 ```rust
-use slime_gfx::{Gpu, LinearColor, TextureFormat};
+use slime_color::LinearColor;
+use slime_gfx::{Gpu, TextureFormat};
 use slime_render::glam::{Mat4, Vec3};
 use slime_render::{
     Camera, DirectionalLight, Instance, Light, MaterialData, MeshData, RenderError, Renderer, Scene,
@@ -161,7 +162,7 @@ errors.
   faces wind counter-clockwise, and an instance that mirrors its mesh keeps its front faces.
 - Distances are in metres, and light in physical units, as in glTF: lux, candelas, and nits for the
   light that surfaces reflect and emit and for the sky.
-- Colors are `slime-gfx`'s `LinearColor`s, linear (ADR-0045). Light is not negative and may
+- Colors are `slime-color`'s `LinearColor`s, linear (ADR-0045). Light is not negative and may
   exceed 1 until it is tone mapped.
 - Depth is reversed, from 1 at the near plane to 0 at infinity (ADR-0047).
 - Tangents and normal textures follow glTF.
@@ -171,6 +172,7 @@ errors.
 ## Dependencies
 
 - `slime-gfx`: the GPU objects and the render passes.
+- `slime-color`: `LinearColor`, the colors of materials, lights and skies.
 - `slime-assets`: the cooked data of the asset pipeline, which the renderer turns into its own GPU
   objects (ADR-0069).
 - `glam`: vectors, matrices and quaternions.

@@ -4,9 +4,10 @@
 //! nearest filter, at the direction the documentation gives for its center. Runs on whatever
 //! adapter the machine offers, like `device.rs`.
 
+use slime_color::LinearColor;
 use slime_gfx::{
     BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, CullMode, Filter,
-    FloatImage, FragmentState, Gpu, LinearColor, RenderPassDescriptor, RenderPipelineDescriptor,
+    FloatImage, FragmentState, Gpu, RenderPassDescriptor, RenderPipelineDescriptor,
     SamplerDescriptor, ShaderStages, Texture, TextureFormat, f32_to_f16,
 };
 

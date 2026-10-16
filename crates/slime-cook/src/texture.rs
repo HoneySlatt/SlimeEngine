@@ -1,7 +1,7 @@
 //! Cooking textures: an image's levels of detail, filtered for what the texture is used for, and
 //! compressed for the GPU.
 
-use std::sync::LazyLock;
+use slime_color::{linear_to_srgb8, srgb8_to_linear};
 use std::thread;
 
 use block_compression::encode::compress_rgba8;
@@ -125,7 +125,7 @@ fn halved(level: &Image, role: TextureRole) -> Image {
                         let value = texel[channel];
                         sum[channel] += weight
                             * match role {
-                                TextureRole::Color if channel < 3 => SRGB_TO_LINEAR[value as usize],
+                                TextureRole::Color if channel < 3 => srgb8_to_linear(value),
                                 TextureRole::Normal if channel < 3 => {
                                     f32::from(value) / 255.0 * 2.0 - 1.0
                                 }
@@ -136,7 +136,7 @@ fn halved(level: &Image, role: TextureRole) -> Image {
             }
             match role {
                 TextureRole::Color => {
-                    rgba.extend(sum[..3].iter().map(|&value| linear_to_srgb(value)));
+                    rgba.extend(sum[..3].iter().map(|&value| linear_to_srgb8(value)));
                 }
                 TextureRole::Data => rgba.extend(sum[..3].iter().map(|&value| unit_to_byte(value))),
                 TextureRole::Normal => {
@@ -187,28 +187,6 @@ fn footprints(size: u32) -> Vec<Vec<(u32, f32)>> {
             })
             .collect()
     }
-}
-
-/// The linear value of each sRGB-encoded byte.
-static SRGB_TO_LINEAR: LazyLock<[f32; 256]> = LazyLock::new(|| {
-    std::array::from_fn(|byte| {
-        let encoded = byte as f32 / 255.0;
-        if encoded <= 0.04045 {
-            encoded / 12.92
-        } else {
-            ((encoded + 0.055) / 1.055).powf(2.4)
-        }
-    })
-});
-
-/// The sRGB encoding of a linear value between 0 and 1, as a byte.
-fn linear_to_srgb(linear: f32) -> u8 {
-    let encoded = if linear <= 0.003_130_8 {
-        linear * 12.92
-    } else {
-        1.055 * linear.powf(1.0 / 2.4) - 0.055
-    };
-    unit_to_byte(encoded)
 }
 
 /// A value between 0 and 1 as a byte, rounded.

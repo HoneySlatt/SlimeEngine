@@ -2,9 +2,10 @@
 
 use std::sync::{Arc, Mutex, PoisonError};
 
+use slime_color::LinearColor;
 use slime_gfx::{
-    BindGroup, BindGroupEntry, BindGroupLayout, BindingResource, Gpu, LinearColor, Sampler,
-    Texture, UniformBuffer,
+    BindGroup, BindGroupEntry, BindGroupLayout, BindingResource, Gpu, Sampler, Texture,
+    UniformBuffer,
 };
 
 use crate::bytes::push_f32s;

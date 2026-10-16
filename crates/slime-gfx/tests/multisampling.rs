@@ -5,9 +5,10 @@
 //! half of it two. The values are exact in half precision, and the average of four of them too.
 //! Runs on whatever adapter the machine offers, like `device.rs`.
 
+use slime_color::LinearColor;
 use slime_gfx::{
     BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, CullMode, DepthBias,
-    DepthCompare, DepthState, FloatImage, FragmentState, Gpu, LinearColor, MULTISAMPLE_COUNT,
+    DepthCompare, DepthState, FloatImage, FragmentState, Gpu, MULTISAMPLE_COUNT,
     RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, RenderTarget, ShaderStages,
     TextureFormat,
 };

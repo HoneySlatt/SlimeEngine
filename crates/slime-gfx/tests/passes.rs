@@ -6,10 +6,11 @@
 //! exactly halfway between two, and no pixel center lies on a triangle's edge. Runs on whatever
 //! adapter the machine offers, like `device.rs`.
 
+use slime_color::LinearColor;
 use slime_gfx::{
     BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, CullMode, DepthBias,
     DepthCompare, DepthPassDescriptor, DepthState, Filter, FloatImage, FragmentState, Gpu,
-    LinearColor, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, SamplerDescriptor,
+    RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, SamplerDescriptor,
     ShaderStages, TextureFormat,
 };
 

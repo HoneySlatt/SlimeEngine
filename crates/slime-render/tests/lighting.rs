@@ -14,7 +14,8 @@ mod tone_curve;
 use std::f32::consts::PI;
 use std::time::Duration;
 
-use slime_gfx::{Gpu, Image, LinearColor, TextureFormat};
+use slime_color::LinearColor;
+use slime_gfx::{Gpu, Image, TextureFormat};
 use slime_render::glam::{Mat4, Vec3, Vec4};
 use slime_render::{
     Camera, DirectionalLight, Instance, Light, Material, MaterialData, Mesh, MeshData, RenderStats,

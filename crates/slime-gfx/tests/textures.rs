@@ -4,11 +4,12 @@
 //! clone of the `Gpu`, and a texture larger than the largest buffer, checked by reading pixels back.
 //! Runs on whatever adapter the machine offers, like `device.rs`.
 
+use slime_color::LinearColor;
 use slime_gfx::{
     AddressMode, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource,
-    BindingType, CullMode, Filter, FragmentState, Gpu, Image, LinearColor, RenderPassDescriptor,
-    RenderPipeline, RenderPipelineDescriptor, RenderTarget, Sampler, SamplerDescriptor,
-    ShaderStages, Texture, TextureFormat, VertexAttribute, VertexFormat, VertexLayout,
+    BindingType, CullMode, Filter, FragmentState, Gpu, Image, RenderPassDescriptor, RenderPipeline,
+    RenderPipelineDescriptor, RenderTarget, Sampler, SamplerDescriptor, ShaderStages, Texture,
+    TextureFormat, VertexAttribute, VertexFormat, VertexLayout,
 };
 
 /// Draws the texture at group 0 with the texture coordinates of the vertices.

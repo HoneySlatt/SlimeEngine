@@ -74,6 +74,7 @@ zune-jpeg = "0.5.15"
 # Workspace crates.
 slime-app = { path = "crates/slime-app" }
 slime-assets = { path = "crates/slime-assets" }
+slime-color = { path = "crates/slime-color" }
 slime-cook = { path = "crates/slime-cook" }
 slime-devui = { path = "crates/slime-devui" }
 slime-gfx = { path = "crates/slime-gfx" }

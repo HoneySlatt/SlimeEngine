@@ -15,6 +15,7 @@ workspace = true
 slime-app.workspace = true
 # The cooked zone and hero, which the game reads by ID.
 slime-assets.workspace = true
+slime-color.workspace = true
 # The engine's dev overlay, for the frame's statistics on F1: tooling.
 slime-devui.workspace = true
 slime-gfx.workspace = true

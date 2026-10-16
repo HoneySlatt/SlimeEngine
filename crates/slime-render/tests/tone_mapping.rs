@@ -7,7 +7,8 @@
 #[path = "common/tone_curve.rs"]
 mod tone_curve;
 
-use slime_gfx::{FloatImage, Gpu, LinearColor, RenderTarget, TextureFormat};
+use slime_color::LinearColor;
+use slime_gfx::{FloatImage, Gpu, RenderTarget, TextureFormat};
 use slime_render::glam::Vec3;
 use slime_render::{Camera, DirectionalLight, Light, RenderStats, Renderer, Scene, Sky};
 

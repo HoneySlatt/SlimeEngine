@@ -12,7 +12,8 @@ use std::f32::consts::{PI, TAU};
 use std::sync::{Arc, LazyLock};
 
 use glam::Vec3;
-use slime_gfx::{GfxError, Gpu, LinearColor, Texture, TextureFormat, f32_to_f16};
+use slime_color::LinearColor;
+use slime_gfx::{GfxError, Gpu, Texture, TextureFormat, f32_to_f16};
 
 use crate::light::{DirectionalLight, rgb, unit};
 

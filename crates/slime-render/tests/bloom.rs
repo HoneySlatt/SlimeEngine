@@ -11,7 +11,8 @@
 )]
 mod tone_curve;
 
-use slime_gfx::{FloatImage, Gpu, LinearColor, TextureFormat};
+use slime_color::LinearColor;
+use slime_gfx::{FloatImage, Gpu, TextureFormat};
 use slime_render::glam::{Mat4, Vec3};
 use slime_render::{
     Camera, Instance, Material, MaterialData, Mesh, MeshData, RenderStats, Renderer, Scene, Sky,

@@ -20,3 +20,4 @@ slime-platform.workspace = true
 # The README's example implements an application.
 [dev-dependencies]
 slime-app.workspace = true
+slime-color.workspace = true

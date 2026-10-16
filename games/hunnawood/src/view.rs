@@ -10,7 +10,8 @@ use std::f64::consts::TAU;
 
 use slime_app::AppError;
 use slime_assets::{CookedAssets, CookedScene};
-use slime_gfx::{Gpu, LinearColor, RenderTarget, TextureFormat};
+use slime_color::LinearColor;
+use slime_gfx::{Gpu, RenderTarget, TextureFormat};
 use slime_render::glam::{Mat4, Quat, Vec2, Vec3};
 use slime_render::{
     Camera, Environment, Light, LoadedScene, Material, MaterialValues, PointLight, RenderError,

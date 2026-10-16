@@ -1,7 +1,7 @@
 //! Textures that shaders sample.
 
+use slime_color::{linear_to_srgb8, srgb8_to_linear};
 use std::borrow::Cow;
-use std::sync::LazyLock;
 
 use crate::error::GfxError;
 use crate::gpu::{Gpu, submit};
@@ -391,7 +391,7 @@ impl Level<'_> {
                         for (total, &value) in sum.iter_mut().zip(pixel).take(3) {
                             *total += weight
                                 * if srgb {
-                                    SRGB_TO_LINEAR[value as usize]
+                                    srgb8_to_linear(value)
                                 } else {
                                     f32::from(value) / 255.0
                                 };
@@ -401,7 +401,7 @@ impl Level<'_> {
                 }
                 for &average in &sum[..3] {
                     pixels.push(if srgb {
-                        linear_to_srgb(average)
+                        linear_to_srgb8(average)
                     } else {
                         unit_to_byte(average)
                     });
@@ -447,28 +447,6 @@ fn footprints(size: u32) -> Vec<Vec<(u32, f32)>> {
             })
             .collect()
     }
-}
-
-/// The linear value of each sRGB-encoded byte.
-pub(crate) static SRGB_TO_LINEAR: LazyLock<[f32; 256]> = LazyLock::new(|| {
-    std::array::from_fn(|byte| {
-        let encoded = byte as f32 / 255.0;
-        if encoded <= 0.04045 {
-            encoded / 12.92
-        } else {
-            ((encoded + 0.055) / 1.055).powf(2.4)
-        }
-    })
-});
-
-/// The sRGB encoding of a linear value between 0 and 1, as a byte.
-fn linear_to_srgb(linear: f32) -> u8 {
-    let encoded = if linear <= 0.003_130_8 {
-        linear * 12.92
-    } else {
-        1.055 * linear.powf(1.0 / 2.4) - 0.055
-    };
-    unit_to_byte(encoded)
 }
 
 /// A value between 0 and 1 as a byte, rounded.

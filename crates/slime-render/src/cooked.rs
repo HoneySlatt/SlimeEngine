@@ -14,9 +14,8 @@ use slime_assets::{
     AssetId, CookedAssets, CookedMaterial, CookedScene, CookedTexture, LightKind, LoadError,
     SceneLight, TextureEncoding, TextureFilter, TextureSampler, TextureWrap,
 };
-use slime_gfx::{
-    AddressMode, Filter, Gpu, LinearColor, Sampler, SamplerDescriptor, Texture, TextureFormat,
-};
+use slime_color::LinearColor;
+use slime_gfx::{AddressMode, Filter, Gpu, Sampler, SamplerDescriptor, Texture, TextureFormat};
 
 use crate::error::RenderError;
 use crate::light::{DirectionalLight, Light, PointLight, SpotLight};

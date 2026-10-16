@@ -23,6 +23,10 @@ tracing-subscriber = { workspace = true, features = ["tracing-log"] }
 [target.'cfg(windows)'.dependencies]
 nu-ansi-term.workspace = true
 
+# The README's example and the windowed lifecycle test clear their targets to a color.
+[dev-dependencies]
+slime-color.workspace = true
+
 # Runs on the main thread, which the windowing library requires: see the test's module comment.
 [[test]]
 name = "windowed_errors"

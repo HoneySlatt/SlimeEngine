@@ -29,7 +29,8 @@ mod tone_curve;
 
 use std::f32::consts::PI;
 
-use slime_gfx::{FloatImage, Gpu, LinearColor, RenderTarget, TextureFormat};
+use slime_color::LinearColor;
+use slime_gfx::{FloatImage, Gpu, RenderTarget, TextureFormat};
 use slime_render::glam::{DVec3, EulerRot, Mat4, Vec3};
 use slime_render::{
     AlphaMode, Camera, DirectionalLight, Environment, Instance, Light, Material, MaterialData,
