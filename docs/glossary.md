@@ -542,9 +542,11 @@ edges (repeat, mirror or clamp) (`slime_gfx::Sampler`).
 
 **Save (game).** What differs between a *world* and its *start world*, written to a file: entities
 removed and created, components added, removed and changed, parents changed, entities named by
-their *persistent identities*. Loading applies the differences to a start world spawned from the
+their *persistent identities*; it begins with what the game says of it, such as the layout it was
+made on, which can be read alone. Loading applies the differences to a start world spawned from the
 scenes as they are now, so that a game update that changes a scene reaches the saves made before
-([ADR-0079](adr/0079-the-engines-own-world.md), [ADR-0087](adr/0087-the-worlds-documents.md)).
+([ADR-0079](adr/0079-the-engines-own-world.md), [ADR-0087](adr/0087-the-worlds-documents.md),
+[ADR-0088](adr/0088-saving-and-resuming-a-run.md)).
 
 **Scene (render).** What the renderer draws in one frame: a camera, *punctual lights*, an
 *environment*, an *exposure* and *instances* (`slime_render::Scene`). Not a scene graph: the

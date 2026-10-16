@@ -34,7 +34,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   documents and read back, from earlier versions of their types too, in `slime-serialize`
   ([ADR-0086](adr/0086-serialization.md)). M5a.8 done on 2026-10-16: a world saves what differs
   from the world that the game makes at the start of a run, and loads it back
-  ([ADR-0087](adr/0087-the-worlds-documents.md)).
+  ([ADR-0087](adr/0087-the-worlds-documents.md)). M5a.9 built: *Hunna Wood* saves its run on F5
+  and when it quits, and resumes it when it starts ([ADR-0088](adr/0088-saving-and-resuming-a-run.md));
+  it waits for CI and for the owner's check by hand.
 
 ## Status
 
@@ -48,7 +50,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M5a.6](#m5a6--any-component-listed-and-edited) | Any component's properties are listed and edited in the running game | Done |
 | [M5a.7](#m5a7--serialization-with-format-versioning) | Any reflected value is written to a file and read back, even from an older version of its type | Done |
 | [M5a.8](#m5a8--the-world-round-trips) | A world saves what differs from the scenes it was made from, and loads it back | Done |
-| [M5a.9](#m5a9--saving-and-resuming-a-run) | A player saves a run of *Hunna Wood* and resumes it | Planned |
+| [M5a.9](#m5a9--saving-and-resuming-a-run) | A player saves a run of *Hunna Wood* and resumes it | Built; CI checks it |
 | [M5a.10](#m5a10--windows-check-documentation-release-03) | Stage 5a is done and released as 0.3, with Stage 4b | Planned |
 
 Stages 0, 1, 2, 3a, 3b, 3c, 3d, 4a and 4b are done; see [Completed stages](#completed-stages).
@@ -502,6 +504,22 @@ Risks:
   loads on Linux; CI is green.
 - **How to test.** `cargo run -p hunnawood`: F5, F9, Escape, then start it again;
   `cargo test -p hunnawood -- --ignored`.
+- **Outcome.** Built on 2026-10-17 ([ADR-0088](adr/0088-saving-and-resuming-a-run.md)); it also
+  changed `slime-world`. The owner decided that a save begins with what the game says of it, keys
+  and texts that `World::about` reads without loading the save: *Hunna Wood* says there the
+  fingerprint of its zone's layout, and does not resume a save of another layout. Saves differ from
+  a new game by day, whatever `--night` says; the campfire's light goes back to its own intensity
+  before the game saves; a save is written beside its file and renamed over it; a save that cannot
+  be read is set aside as `save.toml.unreadable`. After the scripted walk at night, a save resumed
+  in a new game gives the same run, which walks on to the terrace; a save resumed and saved again
+  gives the same bytes, 300 steps later the same run; the fixture, `games/hunnawood/fixtures/save.toml`,
+  is resumed and walks on; saves malformed, of a later format, of another layout or cut at every
+  character are refused or resumed, without a panic; the data directory is computed from the
+  environments that a test gives, Windows' included. `scripts/check.sh` runs the game's new runs
+  with `--new` and its data directory in a private one, and resumes a copy of the fixture. In a
+  window, a copy of the fixture was resumed and saved again to the same bytes, an unreadable save
+  set aside and a new run started, and a run saved to the data directory that the environment gave.
+  F5 and F9 were not pressed: the owner checks them by hand.
 
 ### M5a.10 — Windows check, documentation, release 0.3
 
@@ -651,7 +669,9 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **Logging off or shutting down Windows ends a game without `App::shutdown`.** Windows tells a
   window of it with end-session messages, which winit does not report, and sends no console event
   to a process that has loaded `user32.dll`, as every engine process has
-  (`crates/slime-app/src/signal.rs`): what a game saves in `shutdown` is lost then.
+  (`crates/slime-app/src/signal.rs`): what a game saves in `shutdown` is lost then. *Hunna Wood*
+  saves its run there since M5a.9: the run since the last F5 is lost when Windows ends the session
+  (ADR-0088). A fix needs a new dependency, which ADR-0081 leaves to a later decision.
 - **WARP's shader compiler crashes the process, now and then, when several threads compile
   shaders at once**, even on separate devices: an access violation (`STATUS_ACCESS_VIOLATION`)
   that other projects trace to `d3d10warp.dll`, and that no test can catch. Seen once in the
@@ -892,14 +912,11 @@ GitHub issues, linked from their entry; this list stays the reference.
   `Scene::lights`, for its light and its shadows; two different lights show a disc where no light
   comes from. The `scene` example takes both from the file's first directional light. A world gives
   it once ([ADR-0084](adr/0084-what-the-world-draws.md)), as *Hunna Wood*'s does.
-- **A save of *Hunna Wood*'s world would hold the campfire's intensity** (ADR-0087). A save holds
-  what differs from the world that the game prepares at the start of a run, so that what the game
-  derives from the zone is not saved; but the game writes the campfire's intensity at each frame,
-  which a save would then hold, and the camera's yaw is outside the world. M5a.9, which saves the
-  game's runs, decides what to do with them.
+- **The camera's yaw is not saved** (ADR-0088). It is the game's, outside the world: a run resumed
+  or loaded puts the camera behind the hero.
 - **A save cut short may load in part** (ADR-0087). A save is a document of sections: one cut at the
-  boundary of a section is still a document, and loads what it holds without an error. M5a.9, which
-  writes save files, makes a file either the old save or the new one.
+  boundary of a section is still a document, and loads what it holds without an error. *Hunna Wood*
+  writes its saves whole or not at all (ADR-0088), as every game that writes saves must.
 - **A save is text, of limited size** (ADR-0087). Saving refuses a save larger than what
   `slime-serialize` reads, and loading costs more than saving, much of it parsing the text: the
   rustdoc of `World::save` and `World::load` has the figures. *Hunna Wood*'s saves are far below
