@@ -34,9 +34,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   documents and read back, from earlier versions of their types too, in `slime-serialize`
   ([ADR-0086](adr/0086-serialization.md)). M5a.8 done on 2026-10-16: a world saves what differs
   from the world that the game makes at the start of a run, and loads it back
-  ([ADR-0087](adr/0087-the-worlds-documents.md)). M5a.9 built: *Hunna Wood* saves its run on F5
-  and when it quits, and resumes it when it starts ([ADR-0088](adr/0088-saving-and-resuming-a-run.md));
-  it waits for CI and for the owner's check by hand.
+  ([ADR-0087](adr/0087-the-worlds-documents.md)). M5a.9 done on 2026-10-17: *Hunna Wood* saves its
+  run on F5 and when it quits, and resumes it when it starts
+  ([ADR-0088](adr/0088-saving-and-resuming-a-run.md)).
 
 ## Status
 
@@ -50,7 +50,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M5a.6](#m5a6--any-component-listed-and-edited) | Any component's properties are listed and edited in the running game | Done |
 | [M5a.7](#m5a7--serialization-with-format-versioning) | Any reflected value is written to a file and read back, even from an older version of its type | Done |
 | [M5a.8](#m5a8--the-world-round-trips) | A world saves what differs from the scenes it was made from, and loads it back | Done |
-| [M5a.9](#m5a9--saving-and-resuming-a-run) | A player saves a run of *Hunna Wood* and resumes it | Built; CI checks it |
+| [M5a.9](#m5a9--saving-and-resuming-a-run) | A player saves a run of *Hunna Wood* and resumes it | Done |
 | [M5a.10](#m5a10--windows-check-documentation-release-03) | Stage 5a is done and released as 0.3, with Stage 4b | Planned |
 
 Stages 0, 1, 2, 3a, 3b, 3c, 3d, 4a and 4b are done; see [Completed stages](#completed-stages).
@@ -504,7 +504,7 @@ Risks:
   loads on Linux; CI is green.
 - **How to test.** `cargo run -p hunnawood`: F5, F9, Escape, then start it again;
   `cargo test -p hunnawood -- --ignored`.
-- **Outcome.** Built on 2026-10-17 ([ADR-0088](adr/0088-saving-and-resuming-a-run.md)); it also
+- **Outcome.** Done on 2026-10-17 ([ADR-0088](adr/0088-saving-and-resuming-a-run.md)); it also
   changed `slime-world`. The owner decided that a save begins with what the game says of it, keys
   and texts that `World::about` reads without loading the save: *Hunna Wood* says there the
   fingerprint of its zone's layout, and does not resume a save of another layout. Saves differ from
@@ -516,15 +516,17 @@ Risks:
   same run; the fixture, `games/hunnawood/fixtures/save.toml`, is resumed and walks on; saves
   malformed, of a later format, of another layout or cut at every character are refused or
   resumed, without a panic; a collider changed by the run leaves its save of the same layout; the
-  data directory is computed from the environments that a test gives, Windows' included. `scripts/check.sh` runs the game's new runs
-  with `--new` and its data directory in a private one, and resumes a copy of the fixture. In a
-  window, a copy of the fixture was resumed and saved again to the same bytes, an unreadable save
-  set aside and a new run started, and a run saved to the data directory that the environment gave.
-  F5 and F9 were not pressed: the owner checks them by hand. The review found that a save that could
+  data directory is computed from the environments that a test gives, Windows' included.
+  `scripts/check.sh` runs the game's new runs with `--new` and its data directory in a private one,
+  and resumes a copy of the fixture. In a window, a copy of the fixture was resumed and saved again
+  to the same bytes, an unreadable save set aside and a new run started, a locked save kept and the
+  run not saved over it, and a save of another layout set aside. The owner saved with F5, loaded
+  with F9, quit and resumed on Linux, and found it working. The review found that a save that could
   not be read for a passing reason was written over on quitting, that a collider changed through the
   world panel made every later save one of another layout, that hot reload and saves decided "the
   same layout" two ways, and that a save written without reaching the disk could be lost to a power
   cut: each is fixed, the layout's fingerprint taken from a new game and rounded, and used by both.
+  CI took 13 minutes 46 seconds on Linux and 12 minutes 10 seconds on Windows.
 
 ### M5a.10 — Windows check, documentation, release 0.3
 
