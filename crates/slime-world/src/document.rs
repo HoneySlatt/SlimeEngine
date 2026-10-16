@@ -3,10 +3,10 @@
 //! (`docs/adr/0087-the-worlds-documents.md`).
 
 use std::cell::RefCell;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::mem;
 
-use slime_reflect::{Reflect, ReflectError, Value};
+use slime_reflect::{Reflect, ReflectError, Registry, Value};
 use slime_serialize::{Composer, Document, Mode, ReadError, References};
 
 use crate::components::Unsaved;
@@ -135,10 +135,10 @@ impl World {
     /// identities: one is created since the start if `start` has no entity of its identity. Those
     /// that hold [`Unsaved`], or whose ancestor does, are left out, as are the fields marked
     /// transient: an entity of `start` that the world leaves out is not removed, and loading the save
-    /// keeps it as `start` has it. A reference to an entity is its persistent identity, and a
-    /// reference to an entity destroyed or left out is `""`, no entity. The save also holds the
-    /// scenes that the world spawned, so that loading it says which changed since, and the count of
-    /// the entities created outside scenes.
+    /// keeps it as `start` has it, out of its parent if the save removes that. A reference to an
+    /// entity is its persistent identity, and a reference to an entity destroyed or left out is
+    /// `""`, no entity. The save also holds the scenes that the world spawned, so that loading it
+    /// says which changed since, and the count of the entities created outside scenes.
     ///
     /// The same worlds give the same bytes: entities in the order of their identities, components
     /// in the order of their names. Its cost grows in proportion with the entities of the two worlds
@@ -258,12 +258,14 @@ impl World {
 
     /// Applies the save `text` to this world, which the game has made as at the start of a run,
     /// from the scenes as they are now ([`World::save`]): the entities that it creates are spawned
-    /// under their identities, the parents set, the entities removed despawned, the components
-    /// removed, added and changed, and the count of the entities created outside scenes kept. A save
-    /// is read leniently: what this program does not know is left out, with a warning. A difference
-    /// whose entity or component the world no longer has, or that the component's type refuses, is
-    /// set aside, and the rest applied; so is a reference to an entity that the world no longer has,
-    /// which refers to no entity then. The scenes that changed since the save are named. Loading
+    /// under their identities, the parents set, an entity whose parent the world does not have out
+    /// of its own, the entities removed despawned, the entities saved under them that the save does
+    /// not remove taken out of them first, the components removed, added and changed, and the count
+    /// of the entities created outside scenes kept. A save is read leniently: what this program does
+    /// not know is left out, with a warning. A difference whose entity or component the world no
+    /// longer has, or that the component's type refuses, is set aside, and the rest applied; so is a
+    /// reference to an entity that the world no longer has, which refers to no entity then, and a
+    /// parent that the world does not have. The scenes that changed since the save are named. Loading
     /// costs about two and a half times as much as saving, half of it parsing the text: 0.54 s for
     /// the 10 000 entities of [`World::save`]'s measure.
     ///
@@ -276,11 +278,16 @@ impl World {
     pub fn load(&mut self, text: &str) -> Result<Loaded, DocumentError> {
         // Set apart while the save is read, so that the entities that it creates are spawned while
         // the document, which reads through the registry, is open: the save is parsed once.
-        let registry = mem::take(&mut self.registry);
-        let read = Document::parse(&registry, text, Mode::Lenient)
-            .map_err(DocumentError::Read)
-            .and_then(|mut document| self.read(&mut document));
-        self.registry = registry;
+        let read = {
+            let registry = mem::take(&mut self.registry);
+            let apart = RegistryApart {
+                world: self,
+                registry,
+            };
+            Document::parse(&apart.registry, text, Mode::Lenient)
+                .map_err(DocumentError::Read)
+                .and_then(|mut document| apart.world.read(&mut document))
+        };
         let (save, mut loaded) = read?;
         self.apply(save, &mut loaded);
         Ok(loaded)
@@ -563,9 +570,14 @@ impl World {
             let parent = match parent {
                 Some(parent) => match self.entity_named(parent) {
                     Some(parent) => Some(parent),
+                    // Out of its parent all the same, so that it outlives it if the save removes it.
                     None => {
-                        aside(key, None, &format!("the world has no parent `{parent}`"));
-                        continue;
+                        aside(
+                            key,
+                            None,
+                            &format!("the world has no parent `{parent}`: it has none now"),
+                        );
+                        None
                     }
                 },
                 None => None,
@@ -583,7 +595,22 @@ impl World {
                 aside(key, None, &error.to_string());
             }
         }
-        // After the parents, so that an entity moved out of one removed stays.
+        // After the parents, so that an entity moved out of one removed stays. An entity that the
+        // save neither removes nor moves, but that the world left out since the start under
+        // another, stays too, out of the one removed: as the start has it, as far as it can be.
+        let removing: HashSet<Entity> = removed.iter().copied().collect();
+        for &entity in &removed {
+            let kept: Vec<Entity> = self
+                .children(entity)
+                .iter()
+                .copied()
+                .filter(|child| !removing.contains(child) && !self.unsaved(*child))
+                .collect();
+            for child in kept {
+                // Alive, so taking it out of its parent cannot fail.
+                let _ = self.set_parent(child, None);
+            }
+        }
         for entity in removed {
             self.despawn(entity);
         }
@@ -696,6 +723,19 @@ fn named(value: Value, names: &Names) -> Value {
                 .collect(),
         ),
         other => other,
+    }
+}
+
+/// A world's registry, set apart while a save is read, and given back to the world however reading
+/// ends, a panic of a type's upgrade or check included.
+struct RegistryApart<'w> {
+    world: &'w mut World,
+    registry: Registry,
+}
+
+impl Drop for RegistryApart<'_> {
+    fn drop(&mut self) {
+        self.world.registry = mem::take(&mut self.registry);
     }
 }
 
@@ -1294,6 +1334,60 @@ translation = { x = 6.5 }
             Some(DVec3::new(5.0, 0.0, 2.0)),
             "as the start has it"
         );
+    }
+
+    #[test]
+    fn what_the_save_does_not_remove_outlives_an_entity_removed() {
+        // The post, the gate's child at the start, is left out since, under an unsaved entity.
+        let mut played = start();
+        let spark = played.spawn();
+        played.insert(spark, Unsaved);
+        let post = entity(&played, "yard/post");
+        played.set_parent(post, Some(spark)).expect("a parent");
+        played.despawn(entity(&played, "yard/gate"));
+        let save = played.save(&start()).expect("saved");
+        let mut loaded = start();
+        let report = loaded.load(&save).expect("loaded");
+        assert!(
+            report.set_aside.is_empty(),
+            "{:?}\n{save}",
+            report.set_aside
+        );
+        let post = entity(&loaded, "yard/post");
+        assert_eq!(loaded.parent(post), None, "out of the gate removed");
+        // An entity whose parent the world does not have is out of its own all the same.
+        let mut loaded = start();
+        let report = loaded
+            .load("[removed]\nentities = [\"yard/gate\"]\n\n[parents]\n\"yard/post\" = [\"yard/shed\"]\n")
+            .expect("loaded");
+        let post = entity(&loaded, "yard/post");
+        assert_eq!(loaded.parent(post), None);
+        assert_eq!(report.set_aside.len(), 1, "{:?}", report.set_aside);
+        assert!(report.set_aside[0].reason.contains("`yard/shed`"));
+    }
+
+    /// A component of a version that no upgrade brings forward: reading one panics.
+    #[derive(Clone, Debug, PartialEq, Reflect)]
+    #[reflect(name = "test::Brittle", version = 2, upgrade = shatter)]
+    struct Brittle {
+        hardness: f32,
+    }
+    impl crate::Component for Brittle {}
+
+    fn shatter(_: u32, _: Value, _: bool) -> Result<Value, String> {
+        panic!("shattered");
+    }
+
+    #[test]
+    fn a_world_keeps_its_registry_when_reading_a_save_panics() {
+        let mut world = start();
+        world.register::<Brittle>();
+        let text = "\"$versions\" = { \"test::Brittle\" = 1 }\n\n\
+                    [added.\"yard/gate\".\"test::Brittle\"]\nhardness = 2.0\n";
+        let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| world.load(text)));
+        assert!(panicked.is_err());
+        assert!(world.registry().get("test::Brittle").is_some());
+        assert!(world.registry().get("Transform").is_some());
     }
 
     #[test]

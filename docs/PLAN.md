@@ -898,10 +898,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   boundary of a section is still a document, and loads what it holds without an error. M5a.9, which
   writes save files, makes a file either the old save or the new one.
 - **A save is text, of limited size** (ADR-0087). Saving refuses a save larger than what
-  `slime-serialize` reads, about 57 000 entities created with a name and a transform, and loading
-  takes about two and a half times as long as saving, half of it parsing the text (the rustdoc of
-  `World::save` and `World::load` has the figures). *Hunna Wood*'s saves are far below; a larger
-  world needs the binary encoding of Stage 5b, or saves read in parts.
+  `slime-serialize` reads, and loading costs more than saving, much of it parsing the text: the
+  rustdoc of `World::save` and `World::load` has the figures. *Hunna Wood*'s saves are far below
+  the limit; a larger world needs the binary encoding of Stage 5b, or saves read in parts.
 - **Children and queries in another order after loading** (ADR-0087). A world loaded from a save
   holds its entities in other slots, and an entity's children in the order the save set them: what
   must go the same way after loading cannot depend on either order.

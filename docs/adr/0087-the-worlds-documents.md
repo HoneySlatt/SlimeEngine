@@ -91,15 +91,17 @@ the same worlds give the same bytes.
 given twice: loading keeps the larger of the world's count and the save's, and stays above every
 number that the save creates. A save that creates a number past `i64::MAX`, or written otherwise
 than a world writes it (`created/01`), is refused, and a count past it is read as `i64::MAX`: the
-count never runs out, and one number has one identity. Every such entity is saved, with its
-descendants, unless it or an ancestor holds the engine's `Unsaved` component, which a game puts on
-what it makes again at each run, such as an effect or a projectile: forgetting the marker costs a
-larger save, never a lost entity.
+count never runs out, and one number has one identity. A save made up to bring the count near that
+end can lead, spawns later, to saves that loading refuses; no run counts that far. Every such
+entity is saved, with its descendants, unless it or an ancestor holds the engine's `Unsaved`
+component, which a game puts on what it makes again at each run, such as an effect or a projectile:
+forgetting the marker costs a larger save, never a lost entity.
 
 **What the start holds is never created again.** A save matches the world's entities with all of
 the start's that have an identity, saved or not. An entity that the start leaves out and the world
 saves is saved as a change of it, `Unsaved` removed; one that the start saves and the world leaves
-out since is neither changed nor removed, and loading keeps it as the start has it.
+out since is neither changed nor removed, and loading keeps it as the start has it, out of its parent
+if the save removes that.
 
 **Keys and names.** `created` names no scene, and a key may be neither empty nor hold `/`:
 `spawn_scene` refuses them. A node whose name holds `/` takes its index, `#12`, as a node without a
@@ -132,12 +134,14 @@ value, lenient as a save is read, references resolved. An error in either, a sav
 of a later version, or creating an entity under an identity that a world does not give or that the
 world has, leaves the world as it was: the entities created are destroyed again and the count
 restored. Then the save is applied. Every entity given another parent is taken out of its own first,
-then put where the save says, so that a child can take its parent's place. The entities removed,
-found before any is, are despawned after, so that one moved out of an entity removed stays, and one
-removed with its parent is not reported as gone. Then the components are removed, added and
-changed. A difference whose entity or component the world no longer has, or that the component's
-type refuses, is set aside with its reason in `Loaded`, and the rest is applied. A scene stays
-recorded when its root is destroyed, since its entities moved elsewhere live on.
+then put where the save says, so that a child can take its parent's place; one whose parent the
+world does not have is left out of its own. The entities removed, found before any is, are
+despawned after, so that one moved out of an entity removed stays, and one removed with its parent
+is not reported as gone; a saved entity under one removed, which the save does not remove, is taken
+out of it first. Then the components are removed, added and changed. A difference whose entity or
+component the world no longer has, or that the component's type refuses, is set aside with its
+reason in `Loaded`, and the rest is applied. A scene stays recorded when its root is destroyed,
+since its entities moved elsewhere live on.
 
 **Worlds are compared once.** `World::first_difference` says the first difference between two worlds
 as saves see them, or none: an entity that one saves and the other does not have, by identity;
@@ -194,7 +198,7 @@ the end of M5a.3 took 15.6 ms there, against the 10.5 ms of
 - The order of an entity's children, and the order in which queries visit entities, may differ in a
   world loaded from a save, its entities in other slots: what must go the same way after loading
   cannot depend on them.
-- A save is text of at most `slime_serialize::MAX_SIZE`, which saving refuses past: about 57 000
-  entities created with a name and a transform. Its cost grows in proportion with what it holds,
-  loading about two and a half times as long as saving; `World::save` and `World::load` give the
-  figures. A larger world needs the binary encoding of Stage 5b, or saves read in parts.
+- A save is text of at most `slime_serialize::MAX_SIZE`, which saving refuses past, and its cost
+  grows in proportion with what it holds, loading costing more than saving: `World::save` and
+  `World::load` give the figures. A larger world needs the binary encoding of Stage 5b, or saves
+  read in parts.
