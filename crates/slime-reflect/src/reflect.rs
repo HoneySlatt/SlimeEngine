@@ -1,0 +1,175 @@
+//! The trait of reflected types.
+
+use crate::error::ReflectError;
+use crate::info::TypeInfo;
+use crate::registry::Registry;
+use crate::value::Value;
+
+/// A type whose values reflection describes, reads and changes: one that turns into a [`Value`]
+/// and back, under a stable name, with a description of its shape ([`TypeInfo`]).
+///
+/// The engine's types and a game's derive it, `#[derive(Reflect)]`, which requires a stable name
+/// (`docs/adr/0080-reflection-and-serialization.md`); the standard types the engine uses and
+/// glam's vectors and quaternions are described here, by hand. A type with invariants beyond
+/// the ranges of its fields implements it by hand, to refuse the values that break them.
+///
+/// ```
+/// use slime_reflect::{Reflect, Registry, Value};
+///
+/// /// A lantern on a post.
+/// #[derive(Debug, PartialEq, Reflect)]
+/// #[reflect(name = "hunnawood::Lantern")]
+/// struct Lantern {
+///     /// How strong its light is.
+///     #[reflect(range(min = 0.0), unit = "cd")]
+///     intensity: f32,
+///     /// Whether it is lit.
+///     lit: bool,
+/// }
+///
+/// let lantern = Lantern { intensity: 30.0, lit: true };
+/// let value = lantern.to_value();
+/// assert_eq!(value.get(&"intensity".parse().unwrap()), Some(&Value::F32(30.0)));
+/// assert_eq!(Lantern::from_value(&value), Ok(lantern));
+///
+/// let mut registry = Registry::new();
+/// registry.register::<Lantern>();
+/// assert!(registry.get("bool").is_some(), "a registration registers its fields' types");
+/// ```
+///
+/// # The derive
+///
+/// `#[derive(Reflect)]` describes a struct, a tuple struct, a unit struct, or an enum whose
+/// variants hold fields or not. Doc comments become the documentation of the type, its fields and
+/// its variants. A tuple's fields are named `0`, `1`, ... It takes, in `#[reflect(...)]`:
+///
+/// - on the type: `name = "..."`, its stable name, which it requires; `alias = "..."`, a name it
+///   had before, as many as it had; `version = 2`, the version of its values' shape, 1 if
+///   unsaid; `default`, which makes data that leaves a value of the type out give its `Default`
+///   value, and, on a struct, data that leaves a field out give that field's default value;
+/// - on a field: `alias = "..."`; `default`, which makes data that leaves the field out give its
+///   type's `Default` value; `skip`, which leaves the field out of the description and the value,
+///   and gives it its `Default` value when read; `transient`, which leaves it out of saves only;
+///   `range(min = 0.0, max = 1.0)`, or `above = 0.0` for a lower bound left out, each bound a
+///   number or a constant, which edits through reflection respect; `unit = "m"`, the symbol of
+///   its numbers' unit;
+/// - on a variant: `alias = "..."`.
+///
+/// A field that data leaves out is refused, unless the field or its type gives a default: an
+/// [`Option`] gives `None`.
+///
+/// The derive refuses a type without a name:
+///
+/// ```compile_fail
+/// #[derive(slime_reflect::Reflect)]
+/// struct Lantern {
+///     lit: bool,
+/// }
+/// ```
+///
+/// a generic type, which is described by hand:
+///
+/// ```compile_fail
+/// #[derive(slime_reflect::Reflect)]
+/// #[reflect(name = "Pair")]
+/// struct Pair<T> {
+///     first: T,
+/// }
+/// ```
+///
+/// a union, which no description says which field holds:
+///
+/// ```compile_fail
+/// #[derive(slime_reflect::Reflect)]
+/// #[reflect(name = "Bits")]
+/// union Bits {
+///     float: f32,
+///     integer: u32,
+/// }
+/// ```
+///
+/// a field whose type is not reflected:
+///
+/// ```compile_fail,E0277
+/// struct Wick;
+///
+/// #[derive(slime_reflect::Reflect)]
+/// #[reflect(name = "Lamp")]
+/// struct Lamp {
+///     wick: Wick,
+/// }
+/// ```
+///
+/// a range on a field that holds no number:
+///
+/// ```compile_fail,E0277
+/// #[derive(slime_reflect::Reflect)]
+/// #[reflect(name = "Lamp")]
+/// struct Lamp {
+///     #[reflect(range(min = 0.0))]
+///     lit: bool,
+/// }
+/// ```
+///
+/// an attribute it does not know, or a skipped field given another:
+///
+/// ```compile_fail
+/// #[derive(slime_reflect::Reflect)]
+/// #[reflect(name = "Lamp", color = "red")]
+/// struct Lamp {
+///     lit: bool,
+/// }
+/// ```
+///
+/// ```compile_fail
+/// #[derive(slime_reflect::Reflect)]
+/// #[reflect(name = "Lamp")]
+/// struct Lamp {
+///     #[reflect(skip, unit = "cd")]
+///     intensity: f32,
+/// }
+/// ```
+#[diagnostic::on_unimplemented(
+    message = "`{Self}` is not reflected",
+    note = "derive `Reflect` for it, with `#[reflect(name = \"...\")]`, or implement it by hand"
+)]
+pub trait Reflect: Send + Sync + 'static {
+    /// The stable name of the type, which a registry finds it by: the name of its [`TypeInfo`].
+    fn type_name() -> String
+    where
+        Self: Sized;
+
+    /// The description of the type.
+    fn type_info() -> TypeInfo
+    where
+        Self: Sized;
+
+    /// Registers the types that its values hold, its fields' ([`Registry::register`]), but not
+    /// itself.
+    fn register_dependencies(registry: &mut Registry)
+    where
+        Self: Sized;
+
+    /// The value that data which leaves a value of this type out gives it, if the type declares
+    /// one: `None` for an [`Option`], the `Default` value of a type that derives `Reflect` with
+    /// `#[reflect(default)]`. `None` by default: data must give the value.
+    fn default_value() -> Option<Self>
+    where
+        Self: Sized,
+    {
+        None
+    }
+
+    /// Its value, as plain data.
+    fn to_value(&self) -> Value;
+
+    /// The value of this type that `value` describes.
+    ///
+    /// # Errors
+    ///
+    /// When `value` is not one, with the path of the part at fault: a [`ReflectError`] whose
+    /// problem says what is wrong.
+    fn from_value(value: &Value) -> Result<Self, ReflectError>
+    where
+        Self: Sized;
+}

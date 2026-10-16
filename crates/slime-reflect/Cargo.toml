@@ -1,0 +1,17 @@
+[package]
+name = "slime-reflect"
+description = "SlimeEngine's reflection: types described at run time, their values as plain data, read and changed by path through a registry."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# glam's vectors and quaternions are described here, where the trait is: the orphan rule allows
+# it nowhere else (ADR-0080).
+glam.workspace = true
+slime-reflect-derive.workspace = true

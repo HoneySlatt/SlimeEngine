@@ -152,3 +152,4 @@ the ADR linking to it.
 | [0082](0082-the-worlds-storage-and-handles.md) | The world's storage and handles | Accepted |
 | [0083](0083-transforms-and-the-hierarchy.md) | Transforms and the hierarchy | Accepted |
 | [0084](0084-what-the-world-draws.md) | What the world draws | Accepted |
+| [0085](0085-reflection.md) | Reflection | Accepted |

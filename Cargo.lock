@@ -2091,6 +2091,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "slime-reflect"
+version = "0.2.0"
+dependencies = [
+ "glam",
+ "slime-reflect-derive",
+]
+
+[[package]]
+name = "slime-reflect-derive"
+version = "0.2.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.8",
+]
+
+[[package]]
 name = "slime-render"
 version = "0.2.0"
 dependencies = [

@@ -53,7 +53,14 @@ png = "0.18.1"
 # Waits for wgpu's requests, which are futures: opening the GPU, and the errors caught while a
 # shader module or pipeline is created.
 pollster = "1.0.1"
+# The derive macro of reflection only (ADR-0080), with `quote` and `syn`: tokens, their quoting, and
+# the parsing of the type a derive is given. Already built for every engine crate through
+# thiserror's derive: they add no crate to the build. `syn`'s default features, without `full`,
+# which a derive does not need.
+proc-macro2 = "1.0.107"
+quote = "1.0.47"
 raw-window-handle = "0.6.2"
+syn = "3.0.8"
 thiserror = "2.0.21"
 # The `attributes` feature (`#[instrument]`) is left out: it pulls in a proc-macro stack.
 tracing = { version = "0.1.44", default-features = false, features = ["std"] }
@@ -79,6 +86,8 @@ slime-cook = { path = "crates/slime-cook" }
 slime-devui = { path = "crates/slime-devui" }
 slime-gfx = { path = "crates/slime-gfx" }
 slime-platform = { path = "crates/slime-platform" }
+slime-reflect = { path = "crates/slime-reflect" }
+slime-reflect-derive = { path = "crates/slime-reflect-derive" }
 slime-render = { path = "crates/slime-render" }
 slime-world = { path = "crates/slime-world" }
 slime-world-render = { path = "crates/slime-world-render" }
