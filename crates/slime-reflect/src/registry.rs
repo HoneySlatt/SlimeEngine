@@ -75,7 +75,7 @@ impl Registry {
     ///
     /// If another type has `T`'s name, or one of its names has: two types under one name would
     /// read each other's values. If a default that `T` declares is not a value of its type within
-    /// its field's range: a bug in the type.
+    /// its field's range, or a transient field has no default: a bug in the type.
     pub fn register<T: Reflect>(&mut self) {
         if self.rust.contains_key(&TypeId::of::<T>()) {
             return;
@@ -100,7 +100,8 @@ impl Registry {
     /// the registry does not hold, or when its description is not one: integers of another width
     /// than 8, 16, 32 or 64 bits, two fields or variants of one name, a field or a variant whose name
     /// or alias starts with `$`, which documents keep (`slime-serialize`), a default that is not a
-    /// value of its type within its field's range. Nothing is registered then.
+    /// value of its type within its field's range, a transient field without a default. Nothing is
+    /// registered then.
     pub fn register_dynamic(&mut self, info: TypeInfo) -> Result<(), RegistryError> {
         let invalid = |reason: String| RegistryError::Invalid {
             ty: info.name.clone(),
@@ -186,7 +187,8 @@ impl Registry {
     }
 
     /// Checks the defaults that the type named `name` declares, its own and its fields', as values
-    /// of their types whose numbers lie within their fields' ranges.
+    /// of their types whose numbers lie within their fields' ranges, and that each transient field
+    /// has one: the struct's, its own or its type's.
     fn verify_defaults(&self, name: &str) -> Result<(), String> {
         let Some(registration) = self.get(name) else {
             return Ok(());
@@ -208,6 +210,19 @@ impl Registry {
                         let reason = within_default(&error);
                         format!("the default of the field `{}`: {reason}", field.name)
                     })?;
+            }
+            // A save leaves the field out, and a reader gives it its default.
+            let of_owner = matches!(&info.default, Some(Value::Struct(defaults))
+                if defaults.iter().any(|(name, _)| name == &field.name));
+            let of_type = self
+                .get(&field.ty)
+                .is_some_and(|field_type| field_type.info.default.is_some());
+            if field.transient && !of_owner && field.default.is_none() && !of_type {
+                return Err(format!(
+                    "the field `{}` is transient but has no default, which a save that leaves it \
+                     out would give it",
+                    field.name
+                ));
             }
         }
         Ok(())

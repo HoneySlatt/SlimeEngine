@@ -77,7 +77,7 @@ struct Post {
     #[reflect(default)]
     name: String,
     /// The frame it was last lit at, which is not saved.
-    #[reflect(transient)]
+    #[reflect(transient, default)]
     lit_at: u32,
     /// What the game keeps beside it, never described.
     #[reflect(skip)]
@@ -861,6 +861,59 @@ fn a_default_out_of_its_field_s_range_is_a_bug_in_the_type() {
         scale: f32,
     }
     Registry::new().register::<Size>();
+}
+
+#[test]
+#[should_panic(expected = "the field `flicker` is transient but has no default")]
+fn a_transient_field_without_a_default_is_a_bug_in_the_type() {
+    /// A flame whose flicker a save would leave out, and nothing give back.
+    #[derive(Reflect)]
+    #[reflect(name = "test::Flame")]
+    struct Flame {
+        #[reflect(transient)]
+        flicker: f32,
+    }
+    Registry::new().register::<Flame>();
+}
+
+#[test]
+fn a_transient_option_or_a_field_of_a_struct_with_a_default_needs_no_default_of_its_own() {
+    /// A flame whose fields saves leave out, each with a default.
+    #[derive(Default, Reflect)]
+    #[reflect(name = "test::Embers", default)]
+    struct Embers {
+        #[reflect(transient)]
+        glow: f32,
+        #[reflect(transient)]
+        last: Option<u32>,
+    }
+    let mut registry = Registry::new();
+    registry.register::<Embers>();
+    let mut refused = TypeInfo {
+        name: "test::Ash".to_owned(),
+        aliases: Vec::new(),
+        version: 1,
+        doc: String::new(),
+        default: None,
+        kind: Kind::Struct(vec![FieldInfo {
+            transient: true,
+            ..FieldInfo::new("warmth", "f32")
+        }]),
+    };
+    let error = registry.register_dynamic(refused.clone()).unwrap_err();
+    assert!(
+        error.to_string().contains("`warmth` is transient"),
+        "{error}"
+    );
+    assert!(registry.get("test::Ash").is_none());
+    refused.kind = Kind::Struct(vec![FieldInfo {
+        transient: true,
+        ..FieldInfo::new("warmth", "Option<f32>")
+    }]);
+    registry.register::<Option<f32>>();
+    registry
+        .register_dynamic(refused)
+        .expect("an option gives none");
 }
 
 /// A lamp on a post, with a part that saves leave out.

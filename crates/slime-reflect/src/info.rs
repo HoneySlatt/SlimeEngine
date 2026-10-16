@@ -84,7 +84,9 @@ pub struct FieldInfo {
     /// type's `Default` value, for a field that derives with `#[reflect(default)]`.
     pub default: Option<Value>,
     /// Whether it is left out of saves: what a game computes again, such as a value that changes
-    /// at every frame. It is described, read and set as any other.
+    /// at every frame. It is described, read and set as any other. A transient field has a default,
+    /// its own, its struct's or its type's, which a save that leaves it out gives it: the registry
+    /// refuses one without.
     pub transient: bool,
     /// The numbers it may hold, which edits through reflection respect
     /// ([`Registry::set`](crate::Registry::set)): its own, or each of its elements' for a list.

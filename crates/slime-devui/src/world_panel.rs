@@ -664,7 +664,7 @@ mod tests {
         weights: Vec<f32>,
         corners: [u16; 2],
         pair: (String, Extra),
-        #[reflect(transient)]
+        #[reflect(transient, default)]
         seen: bool,
     }
     impl Component for Everything {}
