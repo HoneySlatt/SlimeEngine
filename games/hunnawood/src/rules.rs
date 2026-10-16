@@ -1,7 +1,8 @@
 //! The rules of the game, without the GPU: where the hero is, which way it faces, and how it moves
 //! through the zone, as functions over the game's world (`slime-world`). The world holds the run:
-//! the hero, where its entity stands; the key taken and the door open, hidden ([`Hidden`]); the
-//! night, [`Night`] on the zone's root. The window, the input and the drawing are elsewhere, so that
+//! the hero, where its entity stands; the key taken, the door open and the time of day, the game's
+//! components [`Key`], [`Door`] and [`Clock`], from which the game hides what is not there
+//! ([`Hidden`]). The window, the input and the drawing are elsewhere, so that
 //! the rules can be tested alone. They hold no GPU object: a new game creates none.
 
 use std::f32::consts::{FRAC_PI_2, PI, TAU};
@@ -31,12 +32,38 @@ pub const REACH_CAMPFIRE: f32 = 2.6;
 /// identities.
 const HERO: &str = "hero";
 
-/// It is night: a component of the game's, which the zone's root holds while it is.
+/// The key, a component of the game's on the entity of the zone's [`Marker::Item`]: whether the
+/// hero has taken it. The game hides the key once it has.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
-#[reflect(name = "hunnawood::Night")]
-pub struct Night;
+#[reflect(name = "hunnawood::Key")]
+pub struct Key {
+    /// Whether the hero has taken it.
+    pub taken: bool,
+}
 
-impl Component for Night {}
+impl Component for Key {}
+
+/// The door, a component of the game's on the entity of the zone's [`Marker::Door`]: whether it is
+/// open. The game hides the door once it is, its colliders with it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+#[reflect(name = "hunnawood::Door")]
+pub struct Door {
+    /// Whether it is open.
+    pub open: bool,
+}
+
+impl Component for Door {}
+
+/// The zone's clock, a component of the game's on the zone's root: the time of day, which resting
+/// by the campfire turns. The game hides the lights of the other time of day.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+#[reflect(name = "hunnawood::Clock")]
+pub struct Clock {
+    /// The time of day it is.
+    pub time: TimeOfDay,
+}
+
+impl Component for Clock {}
 
 /// The hero as the rules see it: where it stands, and which way it faces.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -118,12 +145,14 @@ impl Game {
         hero: &CookedScene,
         starts_at_night: bool,
     ) -> Result<Self, String> {
-        // Each of the game's components, before any entity holds one: the night by day holds none.
+        // Each of the game's components, before any entity holds one.
         world.register::<Collider>();
         world.register::<Marker>();
         world.register::<TimeOfDay>();
         world.register::<Flickers>();
-        world.register::<Night>();
+        world.register::<Key>();
+        world.register::<Door>();
+        world.register::<Clock>();
         let zone = Zone::spawn(world, zone)?;
         let hero = match world.spawn_scene(HERO, hero) {
             Ok(hero) => hero,
@@ -145,9 +174,7 @@ impl Game {
     /// closed, at the time of day the game started at. Out of a fixed step, the hero is drawn at
     /// the start at once.
     pub fn restart(&self, world: &mut World) {
-        world.remove::<Hidden>(self.zone.item);
-        world.remove::<Hidden>(self.zone.door);
-        self.set_night(world, self.starts_at_night);
+        self.set_run(world, false, false, self.starts_at_night);
         let (position, facing) = self.zone.start(world);
         self.place(
             world,
@@ -182,13 +209,7 @@ impl Game {
         if changed {
             self.restart(world);
         } else {
-            if has_item {
-                world.insert(self.zone.item, Hidden);
-            }
-            if door_open {
-                world.insert(self.zone.door, Hidden);
-            }
-            self.set_night(world, night);
+            self.set_run(world, has_item, door_open, night);
         }
         Ok(changed)
     }
@@ -218,33 +239,51 @@ impl Game {
         self.hero
     }
 
-    /// Whether it is night.
+    /// Whether it is night, as the zone's [`Clock`] says.
     pub fn night(&self, world: &World) -> bool {
-        world.get::<Night>(self.zone.root).is_some()
+        world
+            .get::<Clock>(self.zone.root)
+            .is_some_and(|clock| clock.time == TimeOfDay::Night)
     }
 
-    /// Makes it night, or day: the zone's root holds [`Night`] or not, and the zone's lights of the
-    /// other time of day are hidden.
-    fn set_night(&self, world: &mut World, night: bool) {
-        if night {
-            world.insert(self.zone.root, Night);
-        } else {
-            world.remove::<Night>(self.zone.root);
-        }
-        let now = if night {
+    /// Sets where the run stands, the key taken or not, the door open or not, by night or by day,
+    /// and shows it ([`Game::show_run`]).
+    fn set_run(&self, world: &mut World, taken: bool, open: bool, night: bool) {
+        let time = if night {
             TimeOfDay::Night
         } else {
             TimeOfDay::Day
         };
-        let lights: Vec<(Entity, TimeOfDay)> = world
+        world.insert(self.zone.item, Key { taken });
+        world.insert(self.zone.door, Door { open });
+        world.insert(self.zone.root, Clock { time });
+        self.show_run(world);
+    }
+
+    /// Hides what the run says is not there, and shows the rest: the key once taken, the door once
+    /// open, its colliders with it, and the lights of the other time of day. The game's
+    /// components are where the run stands, and the world's [`Hidden`] follows them, at each step:
+    /// they may change between steps, as the dev overlay's world panel changes them.
+    fn show_run(&self, world: &mut World) {
+        let now = if self.night(world) {
+            TimeOfDay::Night
+        } else {
+            TimeOfDay::Day
+        };
+        let mut hidden: Vec<(Entity, bool)> = world
             .query::<&TimeOfDay>()
-            .map(|(entity, time)| (entity, *time))
+            .map(|(entity, time)| (entity, *time != now))
             .collect();
-        for (entity, time) in lights {
-            if time == now {
-                world.remove::<Hidden>(entity);
-            } else {
+        hidden.push((self.zone.item, self.has_item(world)));
+        hidden.push((self.zone.door, self.door_open(world)));
+        for (entity, hide) in hidden {
+            if hide == world.get::<Hidden>(entity).is_some() {
+                continue;
+            }
+            if hide {
                 world.insert(entity, Hidden);
+            } else {
+                world.remove::<Hidden>(entity);
             }
         }
     }
@@ -254,21 +293,30 @@ impl Game {
     pub fn rest(&self, world: &mut World) -> bool {
         let rested = self.can_rest(world);
         if rested {
-            let night = self.night(world);
-            self.set_night(world, !night);
+            let time = if self.night(world) {
+                TimeOfDay::Day
+            } else {
+                TimeOfDay::Night
+            };
+            world.insert(self.zone.root, Clock { time });
+            self.show_run(world);
         }
         rested
     }
 
-    /// Whether the hero has taken the key: then the key is hidden.
+    /// Whether the hero has taken the key, as its [`Key`] says.
     pub fn has_item(&self, world: &World) -> bool {
-        world.get::<Hidden>(self.zone.item).is_some()
+        world
+            .get::<Key>(self.zone.item)
+            .is_some_and(|key| key.taken)
     }
 
-    /// Whether the key has opened the door: then the door is hidden, and its colliders stop the
-    /// hero no more.
+    /// Whether the key has opened the door, as its [`Door`] says: then its colliders stop the hero
+    /// no more.
     pub fn door_open(&self, world: &World) -> bool {
-        world.get::<Hidden>(self.zone.door).is_some()
+        world
+            .get::<Door>(self.zone.door)
+            .is_some_and(|door| door.open)
     }
 
     /// Whether the hero is near enough to the campfire to rest there.
@@ -300,7 +348,8 @@ impl Game {
     /// its speed that the direction's length gives, at most 1, stopped by the colliders that are
     /// not hidden and the zone's edge and sliding along them, and turns to face that direction.
     /// Then the hero takes the key once near it ([`REACH_ITEM`]), and with it opens the door once
-    /// near it ([`REACH_DOOR`]): each is hidden then.
+    /// near it ([`REACH_DOOR`]); last, what the run hides follows where it stands
+    /// ([`Game::show_run`]).
     pub fn step(&self, world: &mut World, direction: Vec2, step: f32) {
         let colliders = colliders(world);
         let inside = self.zone.half_size(world) - HERO_RADIUS;
@@ -323,14 +372,15 @@ impl Game {
         let position = hero.position;
         let item = self.zone.place(world, self.zone.item);
         if !self.has_item(world) && position.distance(item) <= REACH_ITEM {
-            world.insert(self.zone.item, Hidden);
+            world.insert(self.zone.item, Key { taken: true });
             tracing::info!("the hero takes the key");
         }
         let door = self.zone.place(world, self.zone.door);
         if self.has_item(world) && !self.door_open(world) && position.distance(door) <= REACH_DOOR {
-            world.insert(self.zone.door, Hidden);
+            world.insert(self.zone.door, Door { open: true });
             tracing::info!("the key opens the door");
         }
+        self.show_run(world);
     }
 }
 
@@ -556,6 +606,66 @@ pub mod tests {
         assert!(!game.has_item(&world) && !game.door_open(&world));
         let x = game.hero(&world).position.x;
         assert!((x - (9.7 - HERO_RADIUS)).abs() < 1e-4, "{x}");
+    }
+
+    #[test]
+    fn the_run_changed_between_steps_shows_at_the_next_step() {
+        // As the dev overlay's world panel changes it: through the world, by the components' names.
+        let set = |world: &mut World, entity, component: &str, path: &str, value| {
+            let path = path.parse().expect("a path");
+            world
+                .set_property(entity, component, &path, value)
+                .expect("a field of the component");
+        };
+        let (mut world, game) = walled([0.0, 30.0]).play();
+        let (door, key) = (game.zone().door, game.zone().item);
+        set(
+            &mut world,
+            door,
+            "hunnawood::Door",
+            "open",
+            Value::Bool(true),
+        );
+        set(
+            &mut world,
+            key,
+            "hunnawood::Key",
+            "taken",
+            Value::Bool(true),
+        );
+        assert!(!world.is_hidden(door), "shown until the next step");
+        hold(&game, &mut world, Vec2::X, 6.0);
+        assert!(game.door_open(&world) && world.is_hidden(door));
+        assert!(game.has_item(&world) && world.is_hidden(key));
+        let x = game.hero(&world).position.x;
+        assert!(x > 10.6, "the hero went through the door: {x}");
+        set(
+            &mut world,
+            door,
+            "hunnawood::Door",
+            "open",
+            Value::Bool(false),
+        );
+        hold(&game, &mut world, Vec2::ZERO, STEP);
+        assert!(!world.is_hidden(door), "closed again");
+
+        let (mut world, game) = every_component();
+        let (fire, _) = world
+            .query::<&TimeOfDay>()
+            .find(|(_, time)| **time == TimeOfDay::Night)
+            .expect("the night's fire");
+        assert!(game.night(&world) && !world.is_hidden(fire));
+        let day = Value::Enum("Day".to_owned(), Vec::new());
+        set(
+            &mut world,
+            game.zone().root,
+            "hunnawood::Clock",
+            "time",
+            day,
+        );
+        assert!(!game.night(&world));
+        hold(&game, &mut world, Vec2::ZERO, STEP);
+        assert!(world.is_hidden(fire), "the night's light is hidden by day");
     }
 
     #[test]
@@ -793,8 +903,9 @@ pub mod tests {
         }
     }
 
-    #[test]
-    fn every_leaf_of_every_game_component_is_set_through_its_path_and_read_back() {
+    /// A game played at night, by a campfire that flickers, in its world: entities hold each of
+    /// the game's components.
+    pub fn every_component() -> (World, Game) {
         let plan = walled([5.0, 0.0]);
         let mut scene = plan.scene();
         let mut fire = node(
@@ -811,14 +922,22 @@ pub mod tests {
         });
         scene.nodes.push(fire);
         let mut world = World::new();
-        Game::spawn(&mut world, &scene, &no_hero(), true).expect("playable");
+        let game = Game::spawn(&mut world, &scene, &no_hero(), true).expect("playable");
+        (world, game)
+    }
+
+    #[test]
+    fn every_leaf_of_every_game_component_is_set_through_its_path_and_read_back() {
+        let (mut world, _) = every_component();
         for name in [
             "hunnawood::Collider",
             "hunnawood::ColliderKind",
             "hunnawood::Marker",
             "hunnawood::TimeOfDay",
             "hunnawood::Flickers",
-            "hunnawood::Night",
+            "hunnawood::Key",
+            "hunnawood::Door",
+            "hunnawood::Clock",
         ] {
             assert!(world.registry().get(name).is_some(), "{name} is registered");
         }
@@ -826,7 +945,9 @@ pub mod tests {
         every_leaf_is_set_and_read_back::<Marker>(&mut world);
         every_leaf_is_set_and_read_back::<TimeOfDay>(&mut world);
         every_leaf_is_set_and_read_back::<Flickers>(&mut world);
-        every_leaf_is_set_and_read_back::<Night>(&mut world);
+        every_leaf_is_set_and_read_back::<Key>(&mut world);
+        every_leaf_is_set_and_read_back::<Door>(&mut world);
+        every_leaf_is_set_and_read_back::<Clock>(&mut world);
         // A height below the ground is refused, and says where.
         let (entity, _) = world.query::<&Collider>().next().expect("a collider");
         let error = world
