@@ -81,10 +81,13 @@ and the log says where it fails ([ADR-0077](../../docs/adr/0077-hot-reload-of-sh
 | E | Rest, by the campfire: the day turns to night, the night to day |
 | R | Start again: the hero at the start, the key in its place, the door closed, at the time the game started at |
 | F1 | Show or hide what each frame costs, in the engine's dev overlay, whose button loses the GPU device on purpose |
+| F2 | Show or hide the world panel of the dev overlay: the world's entities by name, with a filter, and the components of the one selected, whose values it changes ([`slime-devui`](../../crates/slime-devui/README.md)) |
 | Escape | Quit |
 
 Keys are read by their position on the keyboard, so that the four movement keys sit in the same
-place on every layout. CI builds the game for Windows with the examples: `hunnawood.exe` is in the
+place on every layout. While a text field of the dev overlay has the keyboard, the keys type into it and
+the game ignores them, Escape included, which leaves the field; F1 and F2 still show and hide the
+panels. CI builds the game for Windows with the examples: `hunnawood.exe` is in the
 `slime-examples-windows` artifact of each run, with its cooked zone beside it.
 
 ## How it is made
@@ -94,9 +97,12 @@ The game keeps its zone, its hero and its run in the engine's world (`slime-worl
 At the start, the zone's cooked scene and the hero's are spawned in it, each node an entity, and
 the game gives the zone's entities components of its own, from the custom values of their nodes
 ([below](#the-zone)): `Collider`, `Marker`, `TimeOfDay`, `Flickers`. The world holds the run itself:
-the hero is where the root of its scene stands, the key taken and the door open are hidden
-(`slime_world::Hidden`), which also takes the door's colliders away, and the night is a component of
-the zone's root, `Night`, the lights of the other time of day hidden. The game's own state is only
+the hero is where the root of its scene stands, and the key taken, the door open and the time of
+day are components of the game's, `Key` on the key, `Door` on the door and `Clock` on the zone's root.
+At each step, the game hides what they say is not there (`slime_world::Hidden`): the key once
+taken, the door once open, which also takes its colliders away, and the lights of the other time of
+day. The run is data, which the dev overlay's world panel (F2) changes as it changes any
+component, and which the game follows from the next step. The game's own state is only
 the entities it refers to and the time of day a new game starts at. Each of the game's components
 is reflected, under a name such as `hunnawood::Collider`, as every component is
 ([ADR-0085](../../docs/adr/0085-reflection.md)), and `Game::spawn` registers them all in the world
@@ -111,7 +117,7 @@ before it spawns the zone.
 | `controls.rs` | Which of the game's keys are held |
 | `camera.rs` | The camera that follows the hero, coming nearer when a collider would stand between them |
 | `view.rs` | What the player sees: the renderer, the asset cache (`slime_render::AssetCache`), which loads the hero's meshes before the first frame and the rest in the background, and a frame builder for each time of day (`slime_world_render::FrameBuilder`): by day, the overcast sky, the zone's sun behind its clouds; by night, a dark sky around the moon's disc, the zone's moon showing in the sky; the fire that flickers, its light and its materials, and the key that pulses at night, their materials found by name in the cooked data and changed at each frame (`Material::set_values`) |
-| `statistics.rs` | The dev overlay that shows what each frame costs, with a button that loses the GPU device on purpose |
+| `overlay.rs` | The dev overlay: what each frame costs, with a button that loses the GPU device on purpose, and the world panel, whose edits the game applies to its world once the frame is drawn |
 
 The rules run at the engine's fixed step, 1/60 s, so that a game plays the same on every machine;
 the world draws the hero between its last two steps, by the share of a step that the frame comes
@@ -244,7 +250,7 @@ CPU.
 ## Dependencies
 
 The engine's crates only: `slime-app`, `slime-gfx`, `slime-platform`, `slime-render`, and
-`slime-devui` for the dev overlay, engine tooling that turns `slime-gfx`'s `wgpu` feature on for
+`slime-devui` for the dev overlay and its world panel, engine tooling that turns `slime-gfx`'s `wgpu` feature on for
 itself (the game uses no wgpu type); `slime-assets`, which reads the cooked zone; `slime-color`, for
 the colors of its lights and skies; `slime-world`, its world, and `slime-world-render`, which
 draws it; `slime-reflect`, which describes its components, as every component is; and `tracing`

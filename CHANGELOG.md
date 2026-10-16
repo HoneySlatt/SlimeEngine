@@ -10,8 +10,8 @@ Stages 4b and 5a of the roadmap, live assets and the world, which 0.3 will relea
 the background while a game draws, a game can go on after a lost GPU device, a material's values
 change while it runs, and a texture or a shader changed on disk changes in the running game. The
 engine starts a world of its own, which keeps a game's entities and their components and draws
-them, and its own reflection, through which every component is reached by name; *Hunna Wood* runs
-on it.
+them, and its own reflection, through which every component is reached by name and edited in a
+panel of the dev overlay; *Hunna Wood* runs on it.
 
 ### Added
 
@@ -111,6 +111,15 @@ on it.
 - A world reaches its components by name, without their types: `World::registry`,
   `World::register`, `World::entities`, `World::component_names`, `World::component_value`,
   `World::set_component_value` and `World::set_property`, which respects the ranges of the fields.
+- The dev overlay's world panel, `slime_devui::WorldPanel`
+  ([ADR-0081](docs/adr/0081-stage-5a-the-world.md)): a world's entities listed by name, with a
+  filter, and the components of the one selected edited through reflection, whatever their types:
+  booleans, numbers with their units, text, enum variants and options, and vectors, rotations and
+  colors whole. It returns each change as an `Edit`, which the application applies with
+  `World::set_property`; the world refuses a value out of its range, and the panel shows why.
+  *Hunna Wood* and the `world` example show it on F2. `Overlay::wants_keyboard` says when a text
+  field of the overlay has the keyboard, so that keys typed into it do not also play. Tooling: it
+  does not undo, add, remove or save components.
 
 ### Changed
 
@@ -158,8 +167,9 @@ on it.
   `DVec3::new(…)`.
 - *Hunna Wood* runs on the world (ADR-0079): its zone and its hero are entities, and its colliders,
   markers and lights the game's own components, read from the zone's extras. The run is in the
-  world: the key taken and the door open are hidden, the door's colliders with it, and the lights
-  of the other time of day too; the world draws the hero between fixed steps, and the game draws
+  world: the key taken, the door open and the time of day are components of the game's, `Key`,
+  `Door` and `Clock`, from which it hides the key, the door and its colliders, and the lights of
+  the other time of day; the world draws the hero between fixed steps, and the game draws
   the world through `slime-world-render` and an `AssetCache`, which loads the hero first. After a
   lost GPU device, the world keeps the run and only what it draws loads again. With `--watch`, the
   zone or the hero is spawned again when its scene changed. The game looks and plays as before.

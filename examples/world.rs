@@ -3,8 +3,9 @@
 //! drawn through `slime-world-render`, its sun given once, to the sky and to the lights. The glowing
 //! ring floats up and down at the fixed step, its light with it, and each frame draws it between
 //! its last two places. The camera turns around the scene. After a lost GPU device, it goes on: the
-//! cache loads the world's meshes again, and the world is untouched. Escape, closing the window or
-//! Ctrl+C quits.
+//! cache loads the world's meshes again, and the world is untouched. F2 shows the dev overlay's world
+//! panel, which lists the entities by name and edits their components (`slime-devui`). Escape,
+//! closing the window or Ctrl+C quits.
 //!
 //! It reads cooked data, which `slime-cook` makes first:
 //!
@@ -35,6 +36,7 @@ use std::time::{Duration, Instant};
 use slime_app::time::FrameTime;
 use slime_app::{App, AppConfig, AppError, Context};
 use slime_assets::{CookedAssets, ManifestWatch};
+use slime_devui::{Overlay, WorldPanel};
 use slime_gfx::RenderTarget;
 use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, WindowConfig};
 use slime_render::glam::DVec3;
@@ -60,6 +62,10 @@ struct WorldExample {
     assets: CookedAssets,
     /// The renderer, while there is a GPU.
     renderer: Option<Renderer>,
+    /// The dev overlay, while there is a GPU, and its world panel, shown with F2.
+    overlay: Option<Overlay>,
+    panel: WorldPanel,
+    panel_shown: bool,
     cache: AssetCache,
     builder: FrameBuilder,
     /// The ring, where the file puts it, if the scene has one.
@@ -83,6 +89,17 @@ struct WorldExample {
 }
 
 impl WorldExample {
+    /// With a window, makes the renderer and the overlay with the GPU device of `ctx`.
+    fn open(&mut self, ctx: &Context) -> Result<(), AppError> {
+        if let (Some(gpu), Some(format), Some(window)) =
+            (ctx.gpu(), ctx.surface_format(), ctx.window())
+        {
+            self.renderer = Some(Renderer::new(gpu, format)?);
+            self.overlay = Some(Overlay::new(gpu, format, window.scale_factor()));
+        }
+        Ok(())
+    }
+
     /// Spawns the scene of `assets` in `world`, its first directional light showing in the sky, and
     /// finds its ring.
     fn spawn(&mut self, world: &mut World) -> Result<(), AppError> {
@@ -167,9 +184,7 @@ fn framing(world: &World) -> (DVec3, f32) {
 impl App for WorldExample {
     fn init(&mut self, ctx: &mut Context) -> Result<(), AppError> {
         self.spawn(ctx.world_mut())?;
-        if let (Some(gpu), Some(format)) = (ctx.gpu(), ctx.surface_format()) {
-            self.renderer = Some(Renderer::new(gpu, format)?);
-        }
+        self.open(ctx)?;
         if self.frame_limit == Some(0) {
             ctx.request_exit();
         }
@@ -177,13 +192,23 @@ impl App for WorldExample {
     }
 
     fn on_event(&mut self, ctx: &mut Context, event: &Event) {
+        // Escape leaves a text field of the overlay that has the keyboard, rather than quit.
+        let typing = self.overlay.as_ref().is_some_and(Overlay::wants_keyboard);
+        if let Some(overlay) = &mut self.overlay {
+            overlay.handle(event);
+        }
         if let Event::Key(KeyEvent {
-            physical: KeyCode::Escape,
+            physical,
             state: ButtonState::Pressed,
+            repeat: false,
             ..
         }) = event
         {
-            ctx.request_exit();
+            match physical {
+                KeyCode::F2 => self.panel_shown = !self.panel_shown,
+                KeyCode::Escape if !typing => ctx.request_exit(),
+                _ => {}
+            }
         }
     }
 
@@ -238,6 +263,25 @@ impl App for WorldExample {
             ctx.exit_with_error(error);
             return;
         }
+        let mut edits = Vec::new();
+        if let Some(overlay) = &mut self.overlay {
+            let (panel, shown, world) = (&mut self.panel, self.panel_shown, ctx.world());
+            // Drawn with no panel while hidden, so that egui still takes the events handed to it.
+            overlay.render(gpu, target, |egui| {
+                if shown {
+                    edits.extend(panel.show(egui, world));
+                }
+            });
+        }
+        // Applied once the frame is drawn: the next one shows them.
+        for edit in edits {
+            let world = ctx.world_mut();
+            if let Err(error) =
+                world.set_property(edit.entity, &edit.component, &edit.path, edit.value)
+            {
+                self.panel.refused(&error);
+            }
+        }
         if whole {
             self.drawn += 1;
         }
@@ -249,15 +293,13 @@ impl App for WorldExample {
     fn gpu_lost(&mut self, _ctx: &mut Context) {
         // Every GPU object goes; the world stays as it is.
         self.renderer = None;
+        self.overlay = None;
         self.cache.clear();
         self.builder.release();
     }
 
     fn gpu_restored(&mut self, ctx: &mut Context) -> Result<(), AppError> {
-        if let (Some(gpu), Some(format)) = (ctx.gpu(), ctx.surface_format()) {
-            self.renderer = Some(Renderer::new(gpu, format)?);
-        }
-        Ok(())
+        self.open(ctx)
     }
 
     fn shutdown(&mut self, ctx: &mut Context) {
@@ -320,6 +362,9 @@ fn main() -> ExitCode {
         cache: AssetCache::new(assets.clone()),
         assets,
         renderer: None,
+        overlay: None,
+        panel: WorldPanel::default(),
+        panel_shown: false,
         builder: FrameBuilder::new(Some(SKY)),
         ring: None,
         time: 0.0,

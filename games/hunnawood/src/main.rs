@@ -18,13 +18,13 @@
 //!
 //! W, A, S and D move (Z, Q, S and D on a French keyboard), the left and right arrows turn the
 //! camera, E rests by the campfire, which turns the day to night and back, R starts again, F1 shows
-//! what each frame costs, Escape quits.
+//! what each frame costs, F2 lists the world's entities and edits their components, Escape quits.
 
 mod assets;
 mod camera;
 mod controls;
+mod overlay;
 mod rules;
-mod statistics;
 mod view;
 mod zone;
 
@@ -44,8 +44,8 @@ use slime_world::World;
 
 use camera::FollowCamera;
 use controls::Controls;
+use overlay::DevOverlay;
 use rules::Game;
-use statistics::Statistics;
 use view::View;
 
 const USAGE: &str = "usage: hunnawood [--assets <directory>] [--frames <count>] [--night] \
@@ -62,8 +62,8 @@ struct HunnaWood {
     controls: Controls,
     camera: FollowCamera,
     view: Option<View>,
-    /// The dev overlay, shown with F1.
-    statistics: Option<Statistics>,
+    /// The dev overlay: the statistics on F1, the world panel on F2.
+    overlay: Option<DevOverlay>,
     /// What the last frame cost.
     stats: RenderStats,
     /// The time since the start, which the fire flickers and the key pulses by.
@@ -122,7 +122,7 @@ impl HunnaWood {
             game,
             controls: Controls::default(),
             view: None,
-            statistics: None,
+            overlay: None,
             stats: RenderStats::default(),
             time: Duration::ZERO,
             drawn: 0,
@@ -226,7 +226,7 @@ impl App for HunnaWood {
         let (world, hero) = (ctx.world(), self.game.hero_entity());
         let night = self.game.night(world);
         self.view = Some(View::new(gpu, format, &self.assets, world, hero, night)?);
-        self.statistics = Some(Statistics::new(gpu, format, window.scale_factor()));
+        self.overlay = Some(DevOverlay::new(gpu, format, window.scale_factor()));
         if self.frame_limit == Some(0) {
             ctx.request_exit();
         }
@@ -237,8 +237,8 @@ impl App for HunnaWood {
         // Every object of the lost device goes, the view's loads in progress with it, so that the
         // new device opens on the same adapter (ADR-0075). The world, and the run in it, are kept.
         self.view = None;
-        if let Some(statistics) = &mut self.statistics {
-            statistics.release();
+        if let Some(overlay) = &mut self.overlay {
+            overlay.release();
         }
         if let Some(loading) = self.loading.take()
             && loading.shown
@@ -256,8 +256,8 @@ impl App for HunnaWood {
         let (world, hero) = (ctx.world(), self.game.hero_entity());
         let night = self.game.night(world);
         self.view = Some(View::new(gpu, format, &self.assets, world, hero, night)?);
-        if let Some(statistics) = &mut self.statistics {
-            statistics.restore(gpu, format, window.scale_factor());
+        if let Some(overlay) = &mut self.overlay {
+            overlay.restore(gpu, format, window.scale_factor());
         }
         self.loading = Some(Loading::default());
         // A reload in progress went with the lost device: the data it loaded is given again.
@@ -281,41 +281,53 @@ impl App for HunnaWood {
     }
 
     fn on_event(&mut self, ctx: &mut Context, event: &Event) {
-        if let Some(statistics) = &mut self.statistics {
-            statistics.handle(event);
+        let typing = self
+            .overlay
+            .as_ref()
+            .is_some_and(DevOverlay::wants_keyboard);
+        if let Some(overlay) = &mut self.overlay {
+            overlay.handle(event);
         }
         let Event::Key(key) = event else {
             return;
         };
-        self.controls.handle(key);
-        if let KeyEvent {
+        // The keys typed into a field of the overlay do not also play. A key released reaches the
+        // controls all the same, so that none stays held.
+        if !typing || key.state == ButtonState::Released {
+            self.controls.handle(key);
+        }
+        let KeyEvent {
             physical,
             state: ButtonState::Pressed,
             repeat: false,
             ..
         } = key
-        {
+        else {
+            return;
+        };
+        if let Some(overlay) = &mut self.overlay {
             match physical {
-                KeyCode::Escape => ctx.request_exit(),
-                KeyCode::KeyR => {
-                    self.game.restart(ctx.world_mut());
-                    let (_, facing) = self.game.zone().start(ctx.world());
-                    self.camera = FollowCamera::looking_along(facing);
-                }
-                KeyCode::KeyE => {
-                    if self.game.rest(ctx.world_mut()) {
-                        let night = self.game.night(ctx.world());
-                        let time = if night { "night" } else { "day" };
-                        tracing::info!("the hero rests by the campfire until the {time}");
-                    }
-                }
-                KeyCode::F1 => {
-                    if let Some(statistics) = &mut self.statistics {
-                        statistics.toggle();
-                    }
-                }
+                KeyCode::F1 => overlay.toggle_statistics(),
+                KeyCode::F2 => overlay.toggle_panel(),
                 _ => {}
             }
+        }
+        if typing {
+            return;
+        }
+        match physical {
+            KeyCode::Escape => ctx.request_exit(),
+            KeyCode::KeyR => {
+                self.game.restart(ctx.world_mut());
+                let (_, facing) = self.game.zone().start(ctx.world());
+                self.camera = FollowCamera::looking_along(facing);
+            }
+            KeyCode::KeyE if self.game.rest(ctx.world_mut()) => {
+                let night = self.game.night(ctx.world());
+                let time = if night { "night" } else { "day" };
+                tracing::info!("the hero rests by the campfire until the {time}");
+            }
+            _ => {}
         }
     }
 
@@ -335,8 +347,8 @@ impl App for HunnaWood {
         self.time = frame.elapsed();
         let seconds = frame.delta().as_secs_f32();
         self.camera.turn(self.controls.turn(), seconds);
-        if let Some(statistics) = &mut self.statistics {
-            statistics.frame(seconds);
+        if let Some(overlay) = &mut self.overlay {
+            overlay.frame(seconds);
         }
     }
 
@@ -411,14 +423,16 @@ impl App for HunnaWood {
             });
         let camera = self.camera.camera(hero, &zone::colliders(world));
         let night = self.game.night(world);
+        let mut edits = Vec::new();
         match view.draw(gpu, target, world, night, alpha, seconds, camera) {
             Ok(stats) => {
                 self.stats = stats;
-                let lose_asked = match &mut self.statistics {
-                    Some(statistics) => statistics.draw(gpu, target, &self.stats),
-                    None => false,
+                let asked = match &mut self.overlay {
+                    Some(overlay) => overlay.draw(gpu, target, &self.stats, world),
+                    None => overlay::Asked::default(),
                 };
-                let mut lose_now = lose_asked;
+                edits = asked.edits;
+                let mut lose_now = asked.lose_device;
                 if view.zone_shown() {
                     self.drawn += 1;
                     if let Some(loading) = &mut self.loading {
@@ -442,6 +456,15 @@ impl App for HunnaWood {
             // lost, or the zone cannot be loaded: the game stops with the error, which `run` logs
             // with its causes.
             Err(error) => ctx.exit_with_error(error),
+        }
+        // Applied once the frame is drawn: the next one shows them.
+        for edit in edits {
+            let applied =
+                ctx.world_mut()
+                    .set_property(edit.entity, &edit.component, &edit.path, edit.value);
+            if let (Err(error), Some(overlay)) = (applied, &mut self.overlay) {
+                overlay.refused(&error);
+            }
         }
     }
 
