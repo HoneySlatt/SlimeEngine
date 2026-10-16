@@ -129,10 +129,10 @@ fn main() -> Result<(), RenderError> {
   the GPU, on the renderer's threads, and returns a `SceneLoad` at once, which a game polls at each
   frame with `take` until it gives the scene, whole; `Renderer::load_scene` starts a load and waits
   for it. A load reads every mesh its nodes place, the materials they are drawn with and the
-  textures those read, each once; its `LoadedScene` gives the `instances` to draw and the node that
-  places each (`instance_nodes`), the `lights` in world space, the box around them, its materials
-  by their names (`material`), and the cooked scene itself, whose nodes carry the `extras` a game
-  reads its own data from. What cannot be loaded is a `SceneError`.
+  textures those read, each once; its `LoadedScene` gives the `instances` to draw, the `lights` in
+  world space, the box around them, its materials by their names (`material`), and the cooked
+  scene itself, whose nodes carry the `extras` a game reads its own data from. What cannot be
+  loaded is a `SceneError`.
   `Renderer::reload_scene_in_background(gpu, &CookedAssets, id, &previous)` loads a scene again
   once its cooked data changed, keeping the meshes and textures of the scene loaded before whose
   cooked file did not change (ADR-0076).

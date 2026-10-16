@@ -44,7 +44,7 @@ cargo run -p hunnawood -- --watch          # loads its zone, hero and shaders ag
 Without `--assets`, it reads `hunnawood-assets` beside the program if that directory holds a
 manifest, as where CI ships it, and `target/cooked/hunnawood` otherwise.
 
-The window shows its first frame once the hero is loaded and the skies computed, while the zone
+The window shows its first frame once the hero is loaded and the sky computed, while the zone
 loads in the background: until it is drawn, the hero stands at the start under the sky, the camera
 turns around it, and the hero does not move. The log says when the zone is first drawn, after how
 many frames, and the longest interval between two of them, the measure that
@@ -53,20 +53,22 @@ many frames, and the longest interval between two of them, the measure that
 When the GPU device is lost (the driver crashed or was reset, as Windows resets a GPU that takes
 too long to answer), the game goes on with a new one
 ([ADR-0075](../../docs/adr/0075-recovering-from-a-lost-gpu-device.md)): it makes its GPU objects
-again, loads its zone again behind the same view as at the start, and the run goes on where it
-was, the hero where it stood, the key, the door and the time of day as they were. The log says
+again and loads what its world draws again, behind the same view as at the start, while the world,
+which holds no GPU object, keeps the run where it was, the hero where it stood, the key, the door
+and the time of day as they were. The log says
 where the run was. To try it without a driver reset, `--lose-device-at` loses the device on purpose
 after a number of frames, and so does the button of the dev overlay (F1).
 
-With `--watch`, the game reads the manifest of its cooked data now and then once the zone is shown
-(`slime_assets::ManifestWatch`), and loads its zone and its hero again when it changed, beside
-`slime-cook watch` running on the zone's sources
-([`CONTRIBUTING.md`](../../CONTRIBUTING.md#changing-assets-while-a-game-runs),
-[ADR-0076](../../docs/adr/0076-hot-reload-of-cooked-data.md)): what did not change is kept, and the
-zone drawn until then stays until the new one is loaded. It reads the zone's rules and lights again:
-when the layout changed, a collider, the start, the key, the door, the campfire, the terrace or the
-bounds, the run starts again, as R does; when only the looks changed, it goes on. A reload that
-fails, or a zone whose rules cannot be read, keeps what is drawn, and the log says why.
+With `--watch`, the game reads the manifest of its cooked data now and then, once the zone is shown
+and nothing loads (`slime_assets::ManifestWatch`), beside `slime-cook watch` running on the zone's
+sources ([`CONTRIBUTING.md`](../../CONTRIBUTING.md#changing-assets-while-a-game-runs),
+[ADR-0076](../../docs/adr/0076-hot-reload-of-cooked-data.md)): the meshes, materials and
+textures that changed load again, the others are kept, and what is drawn stays as it was until all
+of them are loaded. When the zone's scene or the hero's changed, the game spawns it again in its
+world. When the zone's layout changed, a collider, the start, the key, the door, the campfire, the
+terrace or the bounds, the run starts again, as R does; when only its looks changed, the run goes on
+in it, the key and the door as they were. A zone that cannot be played, or a scene that cannot be
+read, changes nothing, and a reload that fails keeps what is drawn; the log says why.
 The same option reads the renderer's shaders, in `crates/slime-render/src`, when they change, and
 draws with them from the next frame; a shader that does not compile leaves the frames as they were,
 and the log says where it fails ([ADR-0077](../../docs/adr/0077-hot-reload-of-shaders.md)).
@@ -86,29 +88,44 @@ place on every layout. CI builds the game for Windows with the examples: `hunnaw
 
 ## How it is made
 
+The game keeps its zone, its hero and its run in the engine's world (`slime-world`), which
+`slime-app` owns and calls around each fixed step ([ADR-0079](../../docs/adr/0079-the-engines-own-world.md)).
+At the start, the zone's cooked scene and the hero's are spawned in it, each node an entity, and
+the game gives the zone's entities components of its own, from the custom values of their nodes
+([below](#the-zone)): `Collider`, `Marker`, `TimeOfDay`, `Flickers`. The world holds the run itself:
+the hero is where the root of its scene stands, the key taken and the door open are hidden
+(`slime_world::Hidden`), which also takes the door's colliders away, and the night is a component of
+the zone's root, the lights of the other time of day hidden. The game's own state is only the
+entities it refers to and the time of day a new game starts at.
+
 | Module | What it holds |
 |---|---|
-| `main.rs` | The application: the window, the game's loop through `slime_app::App`, going on with a new GPU device after a loss, reading the manifest again with `--watch` and taking the zone loaded again, the command line |
+| `main.rs` | The application: the world built before the window opens and given to the engine, the game's loop through `slime_app::App`, going on with a new GPU device after a loss, reading the manifest again with `--watch` and spawning the zone or the hero again when their scenes changed, the command line |
 | `assets.rs` | Where the cooked data is, and the IDs of the zone and the hero, from their metadata files |
-| `rules.rs` | The rules, without the GPU: the hero's movement, its heading, and its collisions, as a circle on the ground against the zone's colliders and edge; the key, the door and the campfire; a zone read again, which starts the run again when its layout changed |
-| `zone.rs` | The zone, read from the cooked scene: its ground, its colliders, boxes turned about the vertical and cylinders, where the hero starts, and the places of the key, the door and the campfire; the tests of the cooked zone |
+| `rules.rs` | The rules, as functions over the world and without the GPU: the hero's movement, its heading, and its collisions, as a circle on the ground against the colliders that are not hidden and the zone's edge; the key, the door, the campfire and the time of day; a zone spawned again, which starts the run again when its layout changed |
+| `zone.rs` | The zone spawned in the world and the game's components read from its extras; where its colliders stand on the ground, boxes turned about the vertical and cylinders, the size of its ground, where the hero starts and the places of the key, the door and the campfire, read from the world; the tests of the cooked zone |
 | `controls.rs` | Which of the game's keys are held |
 | `camera.rs` | The camera that follows the hero, coming nearer when a collider would stand between them |
-| `view.rs` | What the player sees: the renderer, the cooked hero, and the cooked zone, which loads in the background (`Renderer::load_scene_in_background`); by day, the overcast sky and the zone's sun behind its clouds; by night, a dark sky with the moon's disc and the zone's lights of the night, all read from the cooked zone before it loads (`scene_lights`); the fire that flickers and the key that pulses at night, their materials found by name in the loaded zone and changed at each frame (`Material::set_values`); the zone and the hero loaded again when their cooked data changes (`Renderer::reload_scene_in_background`) |
+| `view.rs` | What the player sees: the renderer, the asset cache (`slime_render::AssetCache`), which loads the hero's meshes before the first frame and the rest in the background, and a frame builder for each time of day (`slime_world_render::FrameBuilder`): by day, the overcast sky, the zone's sun behind its clouds; by night, a dark sky around the moon's disc, the zone's moon showing in the sky; the fire that flickers, its light and its materials, and the key that pulses at night, their materials found by name in the cooked data and changed at each frame (`Material::set_values`) |
 | `statistics.rs` | The dev overlay that shows what each frame costs, with a button that loses the GPU device on purpose |
 
 The rules run at the engine's fixed step, 1/60 s, so that a game plays the same on every machine;
-the hero is drawn between its last two steps, by the share of a step that the frame comes after the
-last one (`Context::fixed_step_alpha`), so that it moves smoothly at any frame rate, and the camera
-turns at the frame's rate. The rules need no GPU, so that their tests run anywhere. They wait
-until the zone is drawn, so that the hero does not walk where the player cannot see. A move is made
-in parts of at most half the hero's radius, each pushed out of the colliders it overlaps, so that no
-step carries the hero through a thin collider or past a corner. The view leaves out what the zone's
-nodes under the key's and the door's markers place once the key is taken and the door open
-(`LoadedScene::instance_nodes`).
+the world draws the hero between its last two steps, by the share of a step that the frame comes
+after the last one (`Context::fixed_step_alpha`), so that it moves smoothly at any frame rate, and
+the camera turns at the frame's rate. A restart, made between two steps, is drawn at once. The rules
+need no GPU, so that their tests run anywhere, in worlds of their own. They wait until the zone is
+drawn, so that the hero does not walk where the player cannot see. A move is made in parts of at
+most half the hero's radius, each pushed out of the colliders it overlaps, so that no step carries
+the hero through a thin collider or past a corner.
 
-The game keeps the workarounds that the first game, *Nightwatch*, found for what the engine does not
-give yet: it keeps the keys held, its own collisions, and the hero's previous position
+The hero's meshes load before the first frame, so that its first shadows, which change the shape of
+the frame, do not come in the middle of the zone's load
+([ADR-0074](../../docs/adr/0074-uploading-textures-without-holding-up-frames.md)). Each time of day
+has its frame builder, which keeps the environment of its sky: resting by the campfire computes the
+other sky's once, the first time, in one frame.
+
+Of the workarounds that the first game, *Nightwatch*, found for what the engine did not give, the
+game keeps two: the keys held, and its own collisions
 ([ADR-0057](../../docs/adr/0057-what-the-first-game-asks-of-the-next-stages.md)).
 
 ## Its assets
@@ -188,18 +205,22 @@ metadata files, attach the files to a new release of the mirror and list them in
 `assets/sources.tsv`, so that everyone cooks the same files.
 
 Besides meshes, materials and lights, the export holds what the game reads, as custom properties
-of the scene's nodes, which the cooker passes on as their `extras`:
+of the scene's nodes, which the cooker passes on as their `extras`, and the world as their entities'
+`Extras`; the game turns them into components of its own when it spawns the zone:
 
-- **Colliders**: `collider` is `"box"` or `"cylinder"`, `height` is in metres. A box's node is
-  turned about the vertical only; its scale is half its size. A cylinder's scale is its radius.
-- **Markers**: `marker` names a place. `start`, where the hero starts, facing along the node's
-  −Z axis; `item`, the key, whose mesh is the marker's child; `door`, the sealed door, whose leaves
-  and collider are its children, which the game takes away once the door opens; `campfire`, where
-  the hero rests; `terrace`, behind the door; `bounds`, whose scale is half the size of the ground
-  the hero may walk.
-- **Lights**: `time` is `"day"` or `"night"`: the sun by day; by night, the moon, a spot light in
-  each lantern, which casts shadows, and the campfire's point light, which flickers: the game
-  takes the night's point light within a metre of the `campfire` marker.
+- **Colliders** (`Collider`): `collider` is `"box"` or `"cylinder"`, `height` is in metres. A box's
+  node is turned about the vertical only; its scale is half its size. A cylinder's scale is its
+  radius.
+- **Markers** (`Marker`): `marker` names a place. `start`, where the hero starts, facing along the
+  node's −Z axis; `item`, the key, whose mesh is the marker's child, hidden once taken; `door`, the
+  sealed door, whose leaves and collider are its children, hidden once the door opens; `campfire`,
+  where the hero rests; `terrace`, behind the door; `bounds`, whose scale is half the size of the
+  ground the hero may walk.
+- **Lights** (`TimeOfDay`): `time` is `"day"` or `"night"`: the sun by day; by night, the moon, which
+  shows in the sky, a spot light in each lantern, which casts shadows, and the campfire's point
+  light, which flickers (`Flickers`): the night's point light within a metre of the `campfire`
+  marker. The lights of the other time of day are hidden; a light without a `time` shines at any
+  time.
 - **Materials** that the game changes, by their names: `flames` and `embers`, the campfire's,
   which flicker with its light, and `brass`, the key's, which pulses at night.
 
@@ -208,19 +229,20 @@ collider, the key and the campfire within reach, the terrace not until the door 
 within the budgets that the test sets, and the zone spawned in a world (`slime-world`), each node
 placed where the file puts it and known by its name. In `src/rules.rs`: a walk along the path that
 rests by the campfire, takes the key, opens the door and reaches the terrace, then starts again from
-the same state; a walk to the door without the key, which it stops. In `src/view.rs`: the
-campfire's light and the materials that glow. They need the cooked zone, so `cargo test` leaves them
-out: `scripts/check.sh` fetches and cooks it, then runs them, and after the commands above,
-`cargo test -p hunnawood -- --ignored` does.
+the same state; a walk to the door without the key, which it stops; and the hero kept out of every
+collider. In `src/view.rs`: the campfire's light, which flickers, and the materials that glow.
+They need the cooked zone, so `cargo test` leaves them out: `scripts/check.sh` fetches and cooks
+it, then runs them, and after the commands above, `cargo test -p hunnawood -- --ignored` does. One
+more is a measurement, which needs a GPU: what building a frame of the zone's world costs on the
+CPU.
 
 ## Dependencies
 
 The engine's crates only: `slime-app`, `slime-gfx`, `slime-platform`, `slime-render`, and
 `slime-devui` for the dev overlay, engine tooling that turns `slime-gfx`'s `wgpu` feature on for
 itself (the game uses no wgpu type); `slime-assets`, which reads the cooked zone; `slime-color`, for
-the colors of its lights and skies; and `tracing` for the log. Its tests use `slime-world` too, to
-spawn the cooked zone in a world, and `slime-world-render`, to measure what building a frame of
-that world costs.
+the colors of its lights and skies; `slime-world`, its world, and `slime-world-render`, which
+draws it; and `tracing` for the log.
 
 ## Must not
 

@@ -1,26 +1,28 @@
-//! What the player sees: the zone and the hero, on an overcast day or at night, drawn by the
-//! engine's renderer from the cooked data and the game's state. The GPU objects are made once, when
-//! the window opens, and kept for every frame and every new game. The hero loads before the first
-//! frame, and the zone in the background: the sky and the hero show at once, lit by the zone's
-//! lights, and the zone, whole, once it is loaded. The campfire flickers, its flames, its embers
-//! and its light together, and the key glows in pulses at night: the view changes their materials'
-//! values and the fire's light at each frame.
+//! What the player sees: the game's world, the zone and the hero, on an overcast day or at night,
+//! drawn by the engine's renderer from the cooked data that the asset cache holds
+//! (`slime_render::AssetCache`), through `slime-world-render`. The GPU objects are made when the
+//! window opens, and made again with a new GPU device; the world keeps the run meanwhile. The hero
+//! loads before the first frame, and the rest of the world in the background: the sky and the hero
+//! show at once, lit by the zone's lights, and the zone, whole, once it is loaded. The campfire
+//! flickers, its flames, its embers and its light together, and the key glows in pulses at night:
+//! the view changes their materials' values and the fire's light at each frame.
 
 use std::f64::consts::TAU;
+use std::fmt::Display;
+use std::time::Duration;
 
 use slime_app::AppError;
-use slime_assets::{CookedAssets, CookedScene};
+use slime_assets::{AssetId, AssetKind, CookedAssets};
 use slime_color::LinearColor;
 use slime_gfx::{Gpu, RenderTarget, TextureFormat};
-use slime_render::glam::{DAffine3, DQuat, DVec3, Vec2, Vec3};
 use slime_render::{
-    Camera, Environment, Light, LoadedScene, Material, MaterialValues, PointLight, RenderError,
-    RenderStats, Renderer, Scene, SceneError, SceneLoad, ShaderSources, Sky, scene_lights,
+    AssetCache, Camera, MaterialValues, RenderError, RenderStats, Renderer, ShaderSources, Sky,
 };
+use slime_world::{Entity, Light, Meshes, World};
+use slime_world_render::FrameBuilder;
 
 use crate::assets;
-use crate::rules::Game;
-use crate::zone::text;
+use crate::zone::{Flickers, descends};
 
 /// An overcast sky, in nits: grey, brighter overhead than at the horizon, which lights the ground
 /// with about 5 000 lux; the sun shows no disc through the clouds. The ground below the horizon is
@@ -34,8 +36,8 @@ const OVERCAST: Sky = Sky {
 /// What the scene's light is multiplied by by day: a white matte surface facing the sun, which
 /// receives about 17 000 lux from it and the sky, shows at about 0.7, the light of a grey day.
 const DAY_EXPOSURE: f32 = std::f32::consts::PI / 25_000.0;
-/// The night sky, in nits: a dark blue, lighter towards the horizon, the moon's disc in it; the
-/// ground below the horizon nearly black.
+/// The night sky, in nits: a dark blue, lighter towards the horizon, around the moon's disc, which
+/// the zone's moon gives; the ground below the horizon nearly black.
 const NIGHT_SKY: Sky = Sky {
     zenith: LinearColor::rgb(0.03, 0.045, 0.1),
     horizon: LinearColor::rgb(0.06, 0.075, 0.12),
@@ -53,9 +55,6 @@ const BLOOM: f32 = 0.04;
 const FLAMES: &str = "flames";
 const EMBERS: &str = "embers";
 const KEY: &str = "brass";
-/// How far from the campfire, on the ground, its light stands, at most, in metres: the zone places
-/// it above the fire pit.
-const CAMPFIRE_LIGHT_REACH: f32 = 1.0;
 /// The waves whose sum makes the fire flicker: each a frequency in hertz, an amplitude and a phase
 /// in turns. In thousandths of a hertz, their frequencies have no common divisor but 1, so that
 /// the flicker repeats only every 1 000 seconds; their amplitudes add to at most a quarter of the
@@ -91,198 +90,90 @@ fn key_pulse(seconds: f64) -> f32 {
     (1.0 + (KEY_PULSE_PEAK - 1.0) * rise.powi(3)) as f32
 }
 
-/// The zone's lights, by the time of day they shine at, read from its cooked scene before it is
-/// loaded.
-#[derive(Clone, PartialEq)]
-pub struct ZoneLights {
-    /// The sun.
-    day: Vec<Light>,
-    /// The moon, the lanterns and the campfire.
-    night: Vec<Light>,
-    /// The campfire's light, which flickers, as the zone places it, and its index in `night`.
-    campfire: Option<(usize, PointLight)>,
+/// Makes the lights of `world` that flicker ([`Flickers`]) shine as they do `seconds` after the
+/// start: around the intensity the zone gave them, by the fire's flicker.
+pub fn light_the_fire(world: &mut World, seconds: f64) {
+    let times = flicker(seconds);
+    world.query_mut::<(&Flickers, &mut Light)>(|_, (flickers, light)| {
+        if let Light::Point { intensity, .. } = light {
+            *intensity = flickers.intensity * times;
+        }
+    });
 }
 
-impl ZoneLights {
-    /// The lights of the zone's cooked scene `zone`: those whose node's `time` is `"day"`, and
-    /// those whose node's `time` is `"night"`, each in the order of the nodes; the campfire's light
-    /// is the point light of the night within [`CAMPFIRE_LIGHT_REACH`] of `campfire`, on the
-    /// ground, if one is.
-    ///
-    /// # Errors
-    ///
-    /// When a node places a light where it cannot shine ([`scene_lights`]).
-    pub fn of(zone: &CookedScene, campfire: Vec2) -> Result<Self, SceneError> {
-        // The scene's lights come in the order of the nodes that place them.
-        let lights = scene_lights(zone)?;
-        let of = |time: &str| -> Vec<Light> {
-            zone.nodes
-                .iter()
-                .filter(|node| node.light.is_some())
-                .zip(&lights)
-                .filter(|(node, _)| text(node, "time") == Some(time))
-                .map(|(_, light)| *light)
-                .collect()
-        };
-        let night = of("night");
-        let campfire = night
-            .iter()
-            .enumerate()
-            .find_map(|(index, light)| match light {
-                Light::Point(light)
-                    if Vec2::new(light.position.x as f32, light.position.z as f32)
-                        .distance(campfire)
-                        <= CAMPFIRE_LIGHT_REACH =>
-                {
-                    Some((index, *light))
-                }
-                _ => None,
-            });
-        Ok(Self {
-            day: of("day"),
-            night,
-            campfire,
-        })
-    }
-}
-
-/// What lights the zone at one time of day.
-struct Lighting {
-    /// The zone's lights of that time.
-    lights: Vec<Light>,
-    environment: Environment,
-    exposure: f32,
-}
-
-/// A material of the zone that the view changes at each frame, and the values it was made with.
+/// A material that the view changes at each frame: its asset ID, and the strength of its emission
+/// as it was cooked.
 struct Glowing {
-    material: Material,
-    made: MaterialValues,
+    id: AssetId,
+    emissive_strength: f32,
 }
 
 impl Glowing {
-    /// The material of `scene` named `name`, if it has one; a warning otherwise, since the zone
-    /// then looks as it was made.
-    fn find(scene: &LoadedScene, name: &str) -> Option<Self> {
-        let Some(material) = scene.material(name) else {
-            tracing::warn!("the zone has no material `{name}`: it does not change");
-            return None;
-        };
-        Some(Self {
-            made: material.values(),
-            material: material.clone(),
-        })
+    /// The material of `assets` named `name`, the first by ID when several are; a warning when none
+    /// is, since the zone then looks as it was made.
+    fn find(assets: &CookedAssets, name: &str) -> Option<Self> {
+        let found = assets
+            .manifest()
+            .iter()
+            .filter(|(_, entry)| entry.kind == AssetKind::Material)
+            .find_map(|(id, _)| {
+                let material = assets.material(id).ok()?;
+                (material.name == name).then_some(Self {
+                    id,
+                    emissive_strength: material.emissive_strength,
+                })
+            });
+        if found.is_none() {
+            tracing::warn!("the cooked data has no material `{name}`: it does not change");
+        }
+        found
     }
 
-    /// Draws it from now on with its emission's strength `times` as strong as it was made.
-    fn glow(&self, gpu: &Gpu, times: f32) -> Result<(), RenderError> {
-        self.material.set_values(
+    /// Draws it from now on with its emission's strength `times` as strong as it was cooked, once
+    /// `cache` holds it.
+    fn glow(&self, cache: &AssetCache, gpu: &Gpu, times: f32) -> Result<(), RenderError> {
+        let Some(material) = cache.material(self.id) else {
+            return Ok(());
+        };
+        material.set_values(
             gpu,
             MaterialValues {
-                emissive_strength: self.made.emissive_strength * times,
-                ..self.made
+                emissive_strength: self.emissive_strength * times,
+                ..material.values()
             },
         )
     }
 }
 
-/// The zone, loaded, and what is drawn of it.
-struct ZoneView {
-    scene: LoadedScene,
-    /// The node that places each of the zone's instances, to leave out the key once taken and the
-    /// door's leaves once open.
-    nodes: Vec<usize>,
+/// The materials that glow: the campfire's flames and embers, and the key's brass.
+struct Glow {
     flames: Option<Glowing>,
     embers: Option<Glowing>,
     key: Option<Glowing>,
 }
 
-impl ZoneView {
-    /// What is drawn of the loaded zone `scene`.
-    fn new(scene: LoadedScene) -> Self {
+impl Glow {
+    /// The materials of `assets` that glow, by their names.
+    fn find(assets: &CookedAssets) -> Self {
         Self {
-            nodes: scene.instance_nodes(),
-            flames: Glowing::find(&scene, FLAMES),
-            embers: Glowing::find(&scene, EMBERS),
-            key: Glowing::find(&scene, KEY),
-            scene,
+            flames: Glowing::find(assets, FLAMES),
+            embers: Glowing::find(assets, EMBERS),
+            key: Glowing::find(assets, KEY),
         }
     }
 }
 
-/// The zone loaded again after its cooked data changed, with that data, which the game reads its
-/// rules from before the view shows it ([`View::show`]).
-pub struct ReloadedZone {
-    scene: LoadedScene,
-    assets: CookedAssets,
-}
-
-impl ReloadedZone {
-    /// The zone's scene as it was cooked.
-    pub fn scene(&self) -> &CookedScene {
-        &self.scene.scene
-    }
-
-    /// The cooked data it was loaded from.
-    pub fn assets(&self) -> &CookedAssets {
-        &self.assets
-    }
-}
-
-/// The night sky, whose moon is the directional light of the zone's `lights` at night.
-fn night_sky(lights: &ZoneLights) -> Sky {
-    let moon = lights.night.iter().find_map(|light| match light {
-        Light::Directional(moon) => Some(*moon),
-        _ => None,
-    });
-    Sky {
-        sun: moon,
-        ..NIGHT_SKY
-    }
-}
-
-/// The light of the overcast day, and of the night of the zone's `lights`, which `renderer`
-/// computes.
-fn lighting(
-    renderer: &Renderer,
-    gpu: &Gpu,
-    lights: &ZoneLights,
-) -> Result<(Lighting, Lighting), RenderError> {
-    let day = Lighting {
-        lights: lights.day.clone(),
-        environment: renderer.create_environment(gpu, &OVERCAST)?,
-        exposure: DAY_EXPOSURE,
-    };
-    let night = Lighting {
-        lights: lights.night.clone(),
-        environment: renderer.create_environment(gpu, &night_sky(lights))?,
-        exposure: NIGHT_EXPOSURE,
-    };
-    Ok((day, night))
-}
-
-/// The renderer, the light of each time of day, and the GPU objects of the zone and the hero, for
-/// targets of one format.
-pub struct View {
-    renderer: Renderer,
-    /// The zone's lights that `day` and `night` were made from.
-    lights: ZoneLights,
-    day: Lighting,
-    night: Lighting,
-    hero: LoadedScene,
-    /// The hero's load again, after the cooked data changed, until [`View::poll`] takes it.
-    hero_load: Option<SceneLoad>,
-    /// The zone's load, the first or again, until [`View::poll`] takes the zone from it.
-    zone_load: Option<SceneLoad>,
-    /// The cooked data that the zone's load again reads.
-    reloaded_from: Option<CookedAssets>,
-    /// Whether the hero could not be loaded again from that data.
-    hero_failed: bool,
-    zone: Option<ZoneView>,
+/// The meshes that the entities of `world` at or below `root` place.
+fn meshes_below(world: &World, root: Entity) -> Vec<AssetId> {
+    world
+        .query::<&Meshes>()
+        .filter(|&(entity, _)| descends(world, entity, root))
+        .flat_map(|(_, meshes)| meshes.ids.iter().copied())
+        .collect()
 }
 
 /// The error of a load of `what` that failed, with how to cook the data it reads.
-fn cannot_load(what: &str, error: SceneError) -> AppError {
+fn cannot_load(what: &str, error: impl Display) -> AppError {
     format!(
         "cannot load the cooked {what}: {error}; {}",
         assets::HOW_TO_COOK
@@ -290,64 +181,73 @@ fn cannot_load(what: &str, error: SceneError) -> AppError {
     .into()
 }
 
+/// The renderer, the GPU objects of what the world draws, and what builds its frames, for targets
+/// of one format.
+pub struct View {
+    renderer: Renderer,
+    cache: AssetCache,
+    /// What builds the frames by day, around the overcast sky, and at night, around the night sky
+    /// and its moon: each keeps the environment of its sky, so that each is computed once.
+    day: FrameBuilder,
+    night: FrameBuilder,
+    glow: Glow,
+    /// Whether a frame drew every mesh that the world names: the zone, whole.
+    zone_shown: bool,
+}
+
 impl View {
-    /// Creates the renderer, starts loading the zone from `assets` in the background, loads the
-    /// hero, and computes the light of the overcast sky and of the night sky, whose moon is the
-    /// zone's directional light of the night (`lights`), for targets of `format`. [`View::poll`]
-    /// takes the zone once it is loaded.
+    /// Creates the renderer for targets of `format` and the asset cache of `assets`, then loads
+    /// the meshes of the hero, the entity `hero` of `world` and its descendants, before the first
+    /// frame: its first shadows change the frame's shape, which they would do in the middle of the
+    /// zone's load otherwise ([ADR-0074](../../../docs/adr/0074-uploading-textures-without-holding-up-frames.md)).
+    /// It then computes the sky of the time of day, at night as `night` says, and starts loading
+    /// the rest of what `world` draws in the background. The zone is shown once a frame draws it
+    /// whole ([`View::zone_shown`]).
     ///
     /// # Errors
     ///
-    /// When the renderer or the skies cannot be created, or the hero cannot be loaded, with a
+    /// When the renderer or the sky cannot be created, or the hero cannot be loaded, with a
     /// message that says how to cook it.
     pub fn new(
         gpu: &Gpu,
         format: TextureFormat,
         assets: &CookedAssets,
-        lights: ZoneLights,
+        world: &World,
+        hero: Entity,
+        night: bool,
     ) -> Result<Self, AppError> {
         let renderer = Renderer::new(gpu, format)?;
-        // The hero is drawn from the first frame: the first shadows that the renderer draws make it
-        // create its shadow atlas and its frame again, which the frames that the zone's load takes
-        // would wait for (ADR-0074). Its load goes first, and the skies are computed while it runs.
-        let hero_load = renderer.load_scene_in_background(gpu, assets, assets::hero_id());
-        let zone_load = renderer.load_scene_in_background(gpu, assets, assets::zone_id());
-        let (day, night) = lighting(&renderer, gpu, &lights)?;
-        Ok(Self {
-            lights,
-            day,
-            night,
-            hero: hero_load
-                .wait()
-                .map_err(|error| cannot_load("hero", error))?,
-            hero_load: None,
-            zone_load: Some(zone_load),
-            reloaded_from: None,
-            hero_failed: false,
-            zone: None,
+        let mut cache = AssetCache::new(assets.clone());
+        cache.request(&renderer, gpu, meshes_below(world, hero));
+        while cache.loading() > 0 {
+            std::thread::sleep(Duration::from_millis(1));
+            if let Some(error) = cache.poll().into_iter().next() {
+                return Err(cannot_load("hero", error));
+            }
+        }
+        let mut view = Self {
             renderer,
-        })
+            cache,
+            day: FrameBuilder::new(Some(OVERCAST)),
+            night: FrameBuilder::new(Some(NIGHT_SKY)),
+            glow: Glow::find(assets),
+            zone_shown: false,
+        };
+        let builder = if night {
+            &mut view.night
+        } else {
+            &mut view.day
+        };
+        builder.build(world, &mut view.cache, &view.renderer, gpu, 1.0)?;
+        Ok(view)
     }
 
-    /// Starts loading the zone and the hero again from `assets`, whose cooked data changed: what
-    /// did not change is kept ([`Renderer::reload_scene_in_background`]), and the zone and the hero
-    /// drawn now stay until [`View::poll`] gives the new ones. A reload in progress is replaced,
-    /// which waits for its running tasks: a game calls it once [`View::reloading`] is false.
-    ///
-    /// # Panics
-    ///
-    /// If the zone is not shown yet ([`View::zone_shown`]): its rules come from the data drawn.
+    /// Starts loading again what changed in `assets`, the cooked data read again, in the
+    /// background ([`AssetCache::reload`]): what the world draws stays as it is drawn until all of
+    /// it is loaded. A game calls it once the view is settled ([`View::settled`]).
     pub fn reload(&mut self, gpu: &Gpu, assets: CookedAssets) {
-        let zone = self
-            .zone
-            .as_ref()
-            .expect("the zone is shown before it is loaded again");
-        let renderer = &self.renderer;
-        self.hero_load =
-            Some(renderer.reload_scene_in_background(gpu, &assets, assets::hero_id(), &self.hero));
-        self.zone_load =
-            Some(renderer.reload_scene_in_background(gpu, &assets, assets::zone_id(), &zone.scene));
-        self.reloaded_from = Some(assets);
+        self.glow = Glow::find(&assets);
+        self.cache.reload(&self.renderer, gpu, assets);
     }
 
     /// Makes the renderer's pipelines again from `sources` ([`Renderer::set_shaders`]): the frames
@@ -360,176 +260,82 @@ impl View {
         self.renderer.set_shaders(gpu, sources)
     }
 
-    /// Whether the zone or the hero is being loaded again.
-    pub fn reloading(&self) -> bool {
-        self.reloaded_from.is_some() || self.hero_load.is_some()
+    /// Whether nothing loads, nor loads again: a reload started then waits for no running task.
+    pub fn settled(&self) -> bool {
+        self.cache.loading() == 0 && !self.cache.reloading()
     }
 
-    /// Takes what its loads have loaded, once they have: the zone, the first time, which it draws
-    /// from then on, and the hero loaded again, which it draws in place of the one before; and
-    /// returns the zone loaded again, once the hero's load again has ended too, for the game to read
-    /// its rules from before the view draws it ([`View::show`]). Called at each frame, before
-    /// [`View::draw`]. A load again that fails keeps what is drawn, and logs why; a zone whose hero
-    /// could not be loaded again is not returned, so that the game keeps the data it came from.
+    /// Whether a frame drew the zone whole.
+    pub fn zone_shown(&self) -> bool {
+        self.zone_shown
+    }
+
+    /// Makes the materials that glow, once the cache holds them, glow as they do `seconds` after
+    /// the start, by day or at night as `night` says: the campfire's flames and embers flicker with
+    /// its light ([`light_the_fire`]), and the key pulses at night.
     ///
     /// # Errors
     ///
-    /// When the zone could not be loaded the first time, with a message that says how to cook it.
-    pub fn poll(&mut self) -> Result<Option<ReloadedZone>, AppError> {
-        if let Some(load) = &mut self.hero_load
-            && let Some(result) = load.take()
-        {
-            self.hero_load = None;
-            match result {
-                Ok(hero) => self.hero = hero,
-                Err(error) => {
-                    tracing::warn!("the hero cannot be loaded again: {error}; it stays as it was");
-                    self.hero_failed = true;
-                }
+    /// As [`Material::set_values`](slime_render::Material::set_values).
+    pub fn glow(&self, gpu: &Gpu, night: bool, seconds: f64) -> Result<(), RenderError> {
+        let flicker = flicker(seconds);
+        // The embers glow steadier than the flames, with the same flicker.
+        let embers = 1.0 + (flicker - 1.0) / 2.0;
+        let key = if night { key_pulse(seconds) } else { 1.0 };
+        for (glowing, times) in [
+            (&self.glow.flames, flicker),
+            (&self.glow.embers, embers),
+            (&self.glow.key, key),
+        ] {
+            if let Some(glowing) = glowing {
+                glowing.glow(&self.cache, gpu, times)?;
             }
         }
-        // A zone loaded again waits for the hero of the same data: the game takes the data with the
-        // zone, and loads the hero from it when it makes a new view.
-        if self.hero_load.is_some() {
-            return Ok(None);
-        }
-        let Some(result) = self.zone_load.as_mut().and_then(SceneLoad::take) else {
-            return Ok(None);
-        };
-        self.zone_load = None;
-        let Some(assets) = self.reloaded_from.take() else {
-            let scene = result.map_err(|error| cannot_load("zone", error))?;
-            self.zone = Some(ZoneView::new(scene));
-            return Ok(None);
-        };
-        match result {
-            Ok(_) if std::mem::take(&mut self.hero_failed) => {
-                tracing::warn!(
-                    "the zone stays as it was, since its hero could not be loaded again"
-                );
-                Ok(None)
-            }
-            Ok(scene) => Ok(Some(ReloadedZone { scene, assets })),
-            Err(error) => {
-                self.hero_failed = false;
-                tracing::warn!("the zone cannot be loaded again: {error}; it stays as it was");
-                Ok(None)
-            }
-        }
-    }
-
-    /// Draws `zone` from now on, in place of the zone drawn before, lit by its `lights`, which the
-    /// game read with its rules. The night sky is computed again if its moon moved, which holds up
-    /// the frame that shows the zone ([`Renderer::create_environment`]).
-    ///
-    /// # Errors
-    ///
-    /// When the night sky cannot be created.
-    pub fn show(
-        &mut self,
-        gpu: &Gpu,
-        zone: ReloadedZone,
-        lights: ZoneLights,
-    ) -> Result<(), RenderError> {
-        if night_sky(&lights) != night_sky(&self.lights) {
-            self.night.environment = self.renderer.create_environment(gpu, &night_sky(&lights))?;
-        }
-        self.day.lights = lights.day.clone();
-        self.night.lights = lights.night.clone();
-        self.lights = lights;
-        self.zone = Some(ZoneView::new(zone.scene));
         Ok(())
     }
 
-    /// Whether the zone is loaded, and drawn.
-    pub fn zone_shown(&self) -> bool {
-        self.zone.is_some()
-    }
-
-    /// Draws `game` into `target` as `camera` sees it, by day or at night as the game is, the hero
-    /// `alpha` of the way between its last two fixed steps ([`Game::hero_between`]), the fire and
-    /// the key as they glow `seconds` after the start: the sky, the zone's lights and the hero, and
-    /// the zone once it is loaded.
+    /// Draws `world` into `target` as `camera` sees it, by day or at night as `night` says, what
+    /// moves `alpha` of the way between its last two fixed steps (`Context::fixed_step_alpha`): the
+    /// sky, and what the world places once the cache holds it.
     ///
     /// # Errors
     ///
-    /// As [`Renderer::render`] and [`Material::set_values`].
+    /// As [`Renderer::render`] and [`FrameBuilder::build`]; and when the meshes of the world cannot
+    /// be loaded before the zone is first shown, with a message that says how to cook them. Once it
+    /// is shown, meshes that fail to load are logged, and not drawn.
     pub fn draw(
         &mut self,
         gpu: &Gpu,
         target: &RenderTarget,
-        game: &Game,
-        alpha: f32,
-        seconds: f64,
+        world: &World,
+        night: bool,
+        alpha: f64,
         camera: Camera,
-    ) -> Result<RenderStats, RenderError> {
-        let flicker = flicker(seconds);
-        if let Some((index, light)) = self.lights.campfire {
-            self.night.lights[index] = Light::Point(PointLight {
-                intensity: light.intensity * flicker,
-                ..light
-            });
-        }
-        let mut instances = Vec::new();
-        if let Some(zone) = &self.zone {
-            // The embers glow steadier than the flames, with the same flicker.
-            let embers = 1.0 + (flicker - 1.0) / 2.0;
-            let key = if game.night() {
-                key_pulse(seconds)
-            } else {
-                1.0
-            };
-            for (glowing, times) in [
-                (&zone.flames, flicker),
-                (&zone.embers, embers),
-                (&zone.key, key),
-            ] {
-                if let Some(glowing) = glowing {
-                    glowing.glow(gpu, times)?;
-                }
+    ) -> Result<RenderStats, AppError> {
+        let (builder, exposure) = if night {
+            (&mut self.night, NIGHT_EXPOSURE)
+        } else {
+            (&mut self.day, DAY_EXPOSURE)
+        };
+        let frame = builder.build(world, &mut self.cache, &self.renderer, gpu, alpha)?;
+        if !self.zone_shown {
+            if let Some(error) = frame.errors.first() {
+                return Err(cannot_load("zone", error));
             }
-            let places = game.zone();
-            instances.extend(
-                zone.scene
-                    .instances()
-                    .into_iter()
-                    .zip(&zone.nodes)
-                    .filter(|(_, node)| {
-                        !(game.has_item() && places.item_nodes.contains(node))
-                            && !(game.door_open() && places.door_nodes.contains(node))
-                    })
-                    .map(|(instance, _)| instance),
-            );
+            self.zone_shown = frame.loading == 0;
         }
-        // The hero's model faces −z: turned to face where the hero does, and placed where it
-        // stands.
-        let hero = game.hero_between(alpha);
-        let facing = hero.facing();
-        let place = DAffine3::from_rotation_translation(
-            DQuat::from_rotation_arc(DVec3::NEG_Z, Vec3::new(facing.x, 0.0, facing.y).as_dvec3()),
-            Vec3::new(hero.position.x, 0.0, hero.position.y).as_dvec3(),
-        );
-        for mut instance in self.hero.instances() {
-            instance.transform = place * instance.transform;
-            instances.push(instance);
-        }
-        let lighting = if game.night() { &self.night } else { &self.day };
-        let mut scene = Scene::new(camera, &instances);
-        scene.lights = &lighting.lights;
-        scene.environment = Some(&lighting.environment);
-        scene.exposure = lighting.exposure;
+        let mut scene = frame.scene(camera);
+        scene.exposure = exposure;
         scene.bloom = BLOOM;
-        self.renderer.render(gpu, target, &scene)
+        Ok(self.renderer.render(gpu, target, &scene)?)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-
     use super::*;
-    use crate::assets;
-    use crate::zone::cooked::zone;
+    use crate::zone::TimeOfDay;
+    use crate::zone::cooked::{game, zone};
 
     /// The values of `wave` over two minutes, at 600 frames a second.
     fn sampled(wave: fn(f64) -> f32) -> Vec<f32> {
@@ -576,30 +382,51 @@ mod tests {
     }
 
     #[test]
+    fn only_the_lights_that_flicker_change_with_the_fire() {
+        let mut world = World::new();
+        let steady = world.spawn();
+        let fire = world.spawn();
+        let point = Light::Point {
+            color: LinearColor::WHITE,
+            intensity: 10.0,
+            range: None,
+        };
+        world.insert(steady, point);
+        world.insert(fire, point);
+        world.insert(fire, Flickers { intensity: 20.0 });
+        let seconds = 0.4;
+        light_the_fire(&mut world, seconds);
+        assert_eq!(world.get::<Light>(steady), Some(&point));
+        let Some(&Light::Point { intensity, .. }) = world.get::<Light>(fire) else {
+            panic!("a point light");
+        };
+        assert_eq!(intensity, 20.0 * flicker(seconds));
+    }
+
+    #[test]
     #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
     fn the_cooked_zone_has_the_fires_light_and_the_materials_that_glow() {
-        let (assets, zone) = zone();
-        let scene = assets.scene(assets::zone_id()).expect("the zone is cooked");
-        let lights = ZoneLights::of(&scene, zone.campfire).expect("the lights are placed");
-        let (index, light) = lights.campfire.expect("the campfire has a light");
-        assert_eq!(lights.night[index], Light::Point(light));
-        // The names of the materials that the zone's meshes are drawn with.
-        let mut meshes = HashSet::new();
-        let names: HashSet<String> = scene
-            .nodes
-            .iter()
-            .flat_map(|node| &node.meshes)
-            .filter(|&&id| meshes.insert(id))
-            .map(|&id| {
-                let material = assets.mesh(id).expect("the mesh is cooked").material;
-                assets
-                    .material(material)
-                    .expect("the material is cooked")
-                    .name
-            })
-            .collect();
-        for name in [FLAMES, EMBERS, KEY] {
-            assert!(names.contains(name), "no material `{name}`");
+        let (assets, _) = zone();
+        let (world, _) = game();
+        let fires: Vec<_> = world.query::<(&Flickers, &Light, &TimeOfDay)>().collect();
+        let [(_, (flickers, light, time))] = fires[..] else {
+            panic!(
+                "{} lights flicker, where the campfire's should",
+                fires.len()
+            );
+        };
+        assert_eq!(*time, TimeOfDay::Night);
+        assert!(
+            matches!(light, Light::Point { intensity, .. } if *intensity == flickers.intensity),
+            "{light:?}"
+        );
+        let glow = Glow::find(&assets);
+        for (name, glowing) in [
+            (FLAMES, glow.flames),
+            (EMBERS, glow.embers),
+            (KEY, glow.key),
+        ] {
+            assert!(glowing.is_some(), "no material `{name}`");
         }
     }
 }

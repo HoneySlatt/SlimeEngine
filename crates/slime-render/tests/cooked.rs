@@ -294,7 +294,6 @@ fn center_of(gpu: &Gpu, renderer: &mut Renderer, instance: Instance<'_>) -> [u8;
 fn check_palette(gpu: &Gpu, renderer: &mut Renderer, loaded: &LoadedScene) {
     let instances = loaded.instances();
     assert_eq!(instances.len(), 6);
-    assert_eq!(loaded.instance_nodes(), [0, 1, 2, 3, 4, 5]);
     for (index, instance) in instances.iter().enumerate() {
         assert_eq!(instance.transform.translation.x, 2.0 * index as f64);
         for (other, other_instance) in instances.iter().enumerate() {
@@ -335,7 +334,6 @@ fn a_cooked_scene_is_placed_lit_and_drawn() {
     assert_eq!(instances.len(), 2);
     assert!(std::ptr::eq(instances[0].mesh, instances[1].mesh));
     assert_eq!(instances[1].transform.translation.x, 2.0);
-    assert_eq!(loaded.instance_nodes(), [0, 1]);
     assert_eq!(
         loaded.bounds,
         Some((DVec3::new(-0.5, -0.5, 0.0), DVec3::new(2.5, 0.5, 0.0)))

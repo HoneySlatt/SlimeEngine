@@ -9,7 +9,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 Stages 4b and 5a of the roadmap, live assets and the world, which 0.3 will release. Scenes load in
 the background while a game draws, a game can go on after a lost GPU device, a material's values
 change while it runs, and a texture or a shader changed on disk changes in the running game. The
-engine starts a world of its own, which keeps a game's entities and their components.
+engine starts a world of its own, which keeps a game's entities and their components and draws
+them; *Hunna Wood* runs on it.
 
 ### Added
 
@@ -140,6 +141,19 @@ engine starts a world of its own, which keeps a game's entities and their compon
   before positions reach the GPU as `f32`s (ADR-0048). `Mat4::IDENTITY` given to `Instance::new`
   becomes `DAffine3::IDENTITY`, and `Vec3::new(…)` given to a camera or a light becomes
   `DVec3::new(…)`.
+- *Hunna Wood* runs on the world (ADR-0079): its zone and its hero are entities, and its colliders,
+  markers and lights the game's own components, read from the zone's extras. The run is in the
+  world: the key taken and the door open are hidden, the door's colliders with it, and the lights
+  of the other time of day too; the world draws the hero between fixed steps, and the game draws
+  the world through `slime-world-render` and an `AssetCache`, which loads the hero first. After a
+  lost GPU device, the world keeps the run and only what it draws loads again. With `--watch`, the
+  zone or the hero is spawned again when its scene changed. The game looks and plays as before;
+  a frame costs it about 0.1 ms more on the CPU.
+
+### Removed
+
+- `LoadedScene::instance_nodes`, which a game read to leave out what some nodes place: a game
+  hides them in its world (`slime_world::Hidden`).
 
 ### Fixed
 

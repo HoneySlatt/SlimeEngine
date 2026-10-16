@@ -26,7 +26,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   2026-10-16: the hierarchy, transforms in double precision, and cooked scenes spawned as entities
   ([ADR-0083](adr/0083-transforms-and-the-hierarchy.md)). M5a.3 done on 2026-10-16: the world drawn
   from an asset cache through `slime-world-render`, what moves drawn between fixed steps
-  ([ADR-0084](adr/0084-what-the-world-draws.md)).
+  ([ADR-0084](adr/0084-what-the-world-draws.md)). M5a.4 built: *Hunna Wood* runs on the world; the
+  owner plays it, and CI checks it.
 
 ## Status
 
@@ -35,7 +36,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M5a.1](#m5a1--the-world-entities-and-components) | Entities and their components live in a world, without a GPU or a window | Done |
 | [M5a.2](#m5a2--the-hierarchy-and-the-transforms) | Entities are placed by a hierarchy of transforms in double precision; a cooked scene becomes entities | Done |
 | [M5a.3](#m5a3--what-the-world-draws) | The renderer draws a world, and what moves between its last two fixed steps | Done |
-| [M5a.4](#m5a4--hunna-wood-on-the-world) | *Hunna Wood* runs on the world, and changes only what moves | Planned |
+| [M5a.4](#m5a4--hunna-wood-on-the-world) | *Hunna Wood* runs on the world, and changes only what moves | Built; the owner plays it, CI checks it |
 | [M5a.5](#m5a5--reflection) | The engine and the game describe, read and change their types' values through one registry | Planned |
 | [M5a.6](#m5a6--any-component-listed-and-edited) | Any component's properties are listed and edited in the running game | Planned |
 | [M5a.7](#m5a7--serialization-with-format-versioning) | Any reflected value is written to a file and read back, even from an older version of its type | Planned |
@@ -257,6 +258,27 @@ Risks:
   Linux and finds it unchanged; CI is green.
 - **How to test.** `cargo test -p hunnawood`, and with `-- --ignored`; `cargo run -p hunnawood`,
   with `--night`, `--lose-device-at 300` and `--watch`.
+- **Outcome.** Built on 2026-10-16. The zone and the hero are spawned in the game's world before
+  the window opens, and the game gives the zone's entities components of its own, read from their
+  extras: `Collider`, `Marker`, `TimeOfDay`, and `Flickers` for the campfire's light. The run is in
+  the world: the hero is where the root of its scene stands, which the world draws between fixed
+  steps; the key taken and the door open are hidden, which takes the door's colliders away too
+  (`World::is_hidden`, moved into the world from `slime-world-render`); the night is a component of
+  the zone's root, the lights of the other time of day hidden. The rules are functions over the
+  world, without the GPU; their tests build cooked scenes and play them in worlds of their own. The
+  view draws through an `AssetCache` and a `FrameBuilder` for each time of day, loads the hero's
+  meshes before the first frame, as ADR-0074 decided, and finds the materials that glow by name in
+  the cooked data. After a lost device, the view is made again and the world kept. With `--watch`,
+  the cache loads again what changed, and the zone or the hero is spawned again when its scene
+  changed: a new layout starts the run again, new looks do not, and a zone that cannot be played
+  changes nothing. The previous position, the instances rebuilt by hand and the nodes left out by
+  index are gone, `LoadedScene::instance_nodes` with them; the keys held and the game's own
+  collisions stay (ADR-0057). In the headless Weston, the game draws as many instances, shadows and
+  triangles as before, by day and at night; `--watch` was tried on the RX 6900 XT with a change of
+  looks, a change of layout, a changed hero and a zone without a start. On that GPU, in a release
+  build, by day at the start, the game's work takes 1.66 ms per frame at the median of four runs,
+  against 1.55 ms for 0.2 on the same zone: about 0.1 ms more, most of it the frame built from the
+  world (M5a.3). The owner plays it next.
 
 ### M5a.5 — Reflection
 
@@ -745,17 +767,18 @@ GitHub issues, linked from their entry; this list stays the reference.
   or a sun pays: the workspace's tests took 23.9 s instead of 9.7 s on lavapipe on the owner's
   machine, most in `slime-render`'s `tests/environment.rs` (6.2 s) and the examples'
   `tests/gltf.rs` (5.7 s), whose every load of a file computes the sample's sky. A sky that changes
-  needs a new environment: no time of day. To measure: `cargo test --release -p slime-render --lib
-  -- --ignored --nocapture`, against the budget of M3b.6. To move to the asset pipeline of Stage 4,
+  needs a new environment: no time of day. *Hunna Wood* computes the sky of the time it starts at
+  before its first frame, and the other in the frame where the hero first rests by the campfire.
+  To measure: `cargo test --release -p slime-render --lib -- --ignored --nocapture`, against the
+  budget of M3b.6. To move to the asset pipeline of Stage 4,
   or to compute passes if skies change at run time; if the tests' time matters first, building
   `slime-render` optimized in debug builds would shorten it, at the cost of stepping through it in
   a debugger.
 - **The sky's sun is described twice in the renderer's own API** (ADR-0039). A game that draws
   with it gives the same `DirectionalLight` to `Sky::sun`, for the disc and the glow, and to
   `Scene::lights`, for its light and its shadows; two different lights show a disc where no light
-  comes from. The `scene` example takes both from the file's first directional light, and *Hunna
-  Wood* gives both until it runs on the world (M5a.4). A world gives it once
-  ([ADR-0084](adr/0084-what-the-world-draws.md)).
+  comes from. The `scene` example takes both from the file's first directional light. A world gives
+  it once ([ADR-0084](adr/0084-what-the-world-draws.md)), as *Hunna Wood*'s does.
 - **Rough metals reflect the sky with multiple scattering compensated, the lights without**
   (ADR-0039, as the Khronos glTF Sample Viewer): a white metal of roughness 1 reflects all of a
   uniform sky, but its lights keep glTF's single-scattering BRDF, under which it would reflect

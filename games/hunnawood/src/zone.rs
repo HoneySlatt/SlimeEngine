@@ -4,13 +4,21 @@
 //! the vertical is in radians from +x towards +z.
 //!
 //! The zone comes from the cooked data: `games/hunnawood/zone/build_zone.py` builds it in Blender,
-//! the cooker cooks it, and [`Zone::from_scene`] reads it from the custom values (`extras`) of the
-//! cooked scene's nodes, as `README.md` describes ("The zone").
+//! the cooker cooks it, and [`Zone::spawn`] spawns its cooked scene in the game's world, then gives
+//! its entities the game's own components, which the custom values (`extras`) of its nodes
+//! describe, as `README.md` says ("The zone"): [`Collider`], [`Marker`], [`TimeOfDay`] and
+//! [`Flickers`]. The rules and the camera read the zone from the world, where its entities stand.
 
-use std::collections::HashSet;
+use slime_assets::{CookedScene, Extra};
+use slime_render::glam::{DAffine3, Vec2, Vec3};
+use slime_world::{Component, Entity, Extras, Light, Name, Transform, World};
 
-use slime_assets::{CookedScene, Extra, SceneNode};
-use slime_render::glam::{Mat4, Vec2};
+/// The key that the zone's scene is spawned under: the first part of its entities' persistent
+/// identities, `zone/door`.
+const KEY: &str = "zone";
+/// How far from the campfire, on the ground, its light stands, at most, in metres: the zone places
+/// it above the fire pit.
+const CAMPFIRE_LIGHT_REACH: f32 = 1.0;
 
 /// The footprint of a collider on the ground, around its center.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -22,9 +30,10 @@ pub enum Shape {
     Cylinder { radius: f32 },
 }
 
-/// What stops the hero: a box turned about the vertical or a cylinder, standing on the ground.
+/// Where a collider stops the hero: a box turned about the vertical or a cylinder, standing on the
+/// ground.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Collider {
+pub struct Footprint {
     pub shape: Shape,
     /// The center of its footprint.
     pub center: Vec2,
@@ -32,7 +41,28 @@ pub struct Collider {
     pub height: f32,
 }
 
-impl Collider {
+impl Footprint {
+    /// The footprint of `collider`, whose entity the world places at `placed`, its stretch
+    /// included: a box's half size is the length of its x and z axes, and its yaw the direction of
+    /// its x axis; a cylinder's radius is the length of its x axis.
+    pub fn of(collider: Collider, placed: DAffine3) -> Self {
+        let axes = placed.matrix3.as_mat3();
+        let shape = match collider.kind {
+            ColliderKind::Box => Shape::Box {
+                half_size: Vec2::new(axes.x_axis.length(), axes.z_axis.length()),
+                yaw: axes.x_axis.z.atan2(axes.x_axis.x),
+            },
+            ColliderKind::Cylinder => Shape::Cylinder {
+                radius: axes.x_axis.length(),
+            },
+        };
+        Self {
+            shape,
+            center: ground(placed.translation.as_vec3()),
+            height: collider.height,
+        }
+    }
+
     /// Where a circle of `radius` around `position` must move to overlap the footprint no more,
     /// if it overlaps it: away from the footprint's nearest point, which keeps the part of a move
     /// along the footprint's side, so that what moves slides along it. A center inside a box leaves
@@ -86,12 +116,88 @@ impl Collider {
     }
 }
 
-/// A zone: its ground, its colliders, where the hero starts, and the places of the game's loop.
-#[derive(Clone, Debug, PartialEq)]
+/// A collider, a component of the game's: what stops the hero, `height` metres high, as its
+/// node's `collider` and `height` say. Its entity's transform in the world places it, turned about
+/// the vertical, and gives its size ([`Footprint::of`]): a box's scale along its x and z axes is
+/// half its size, a cylinder's along its x axis its radius.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Collider {
+    pub kind: ColliderKind,
+    pub height: f32,
+}
+
+impl Component for Collider {}
+
+/// The shape of a [`Collider`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ColliderKind {
+    Box,
+    Cylinder,
+}
+
+/// A place of the game's loop, a component of the game's, as its node's `marker` says. Its
+/// entity's transform places it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Marker {
+    /// Where the hero starts, facing along the entity's −Z axis.
+    Start,
+    /// The key, the entity's descendants, which the hero takes.
+    Item,
+    /// The sealed door, the entity's descendants: its leaves and its collider.
+    Door,
+    /// Where the hero rests.
+    Campfire,
+    /// The terrace behind the door.
+    Terrace,
+    /// The ground the hero may walk: the entity's scale along its x and z axes is half its size.
+    Bounds,
+}
+
+impl Component for Marker {}
+
+/// The time of day a light shines at, a component of the game's, as its node's `time` says: the
+/// lights of the other time are hidden. A light without one shines at any time.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TimeOfDay {
+    Day,
+    Night,
+}
+
+impl Component for TimeOfDay {}
+
+/// A light that flickers, a component of the game's: the campfire's, whose intensity the view
+/// makes vary around `intensity`, the one the zone gives it, at each frame.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Flickers {
+    pub intensity: f32,
+}
+
+impl Component for Flickers {}
+
+/// A zone spawned in a world: the entity it was spawned under, and the entity of each of its
+/// markers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Zone {
+    pub root: Entity,
+    pub start: Entity,
+    pub item: Entity,
+    pub door: Entity,
+    pub campfire: Entity,
+    pub terrace: Entity,
+    pub bounds: Entity,
+}
+
+/// The layout of a zone, which decides how the game plays in it: the size of its ground, its
+/// colliders, where the hero starts and the places of the game's loop. A zone loaded again with the
+/// same layout keeps the run (`crate::rules::Game::reload_zone`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Layout {
     /// Half the size of the ground along x and z, around the origin; the hero does not leave it.
     pub half_size: Vec2,
-    pub colliders: Vec<Collider>,
+    /// The colliders, but the door's, in the world's order.
+    pub colliders: Vec<Footprint>,
+    /// The colliders that close the door, which open with it.
+    pub door_colliders: Vec<Footprint>,
     /// Where the hero starts.
     pub start: Vec2,
     /// Which way the hero and the camera look at the start, of length 1.
@@ -104,30 +210,16 @@ pub struct Zone {
     pub campfire: Vec2,
     /// The terrace behind the door.
     pub terrace: Vec2,
-    /// The indices in `colliders` of those that close the door, which open with it.
-    pub door_colliders: Vec<usize>,
-    /// The scene's nodes that are the key, which the game stops drawing once the hero has it.
-    pub item_nodes: HashSet<usize>,
-    /// The scene's nodes that are the door's leaves, which the game stops drawing once it opens.
-    pub door_nodes: HashSet<usize>,
 }
 
-impl Zone {
-    /// Whether `other` lays the game out as this zone does: the same ground, colliders, start and
-    /// places. The nodes that are the key and the door's leaves may differ, as when a scene's nodes
-    /// are cooked in another order: they say what is drawn, not where the game is played.
-    pub fn same_layout(&self, other: &Zone) -> bool {
-        Zone {
-            item_nodes: other.item_nodes.clone(),
-            door_nodes: other.door_nodes.clone(),
-            ..self.clone()
-        } == *other
-    }
+/// The point on the ground under `position`.
+fn ground(position: Vec3) -> Vec2 {
+    Vec2::new(position.x, position.z)
 }
 
-/// The text of `node`'s custom value `name`, if it has one that is a text.
-pub fn text<'a>(node: &'a SceneNode, name: &str) -> Option<&'a str> {
-    node.extras
+/// The text of the custom value `name` among `extras`, if it has one that is a text.
+pub fn text<'a>(extras: &'a [(String, Extra)], name: &str) -> Option<&'a str> {
+    extras
         .iter()
         .find(|(n, _)| n == name)
         .and_then(|(_, extra)| match extra {
@@ -136,9 +228,9 @@ pub fn text<'a>(node: &'a SceneNode, name: &str) -> Option<&'a str> {
         })
 }
 
-/// The number of `node`'s custom value `name`, if it has one that is a number.
-fn number(node: &SceneNode, name: &str) -> Option<f32> {
-    node.extras
+/// The number of the custom value `name` among `extras`, if it has one that is a number.
+fn number(extras: &[(String, Extra)], name: &str) -> Option<f32> {
+    extras
         .iter()
         .find(|(n, _)| n == name)
         .and_then(|(_, extra)| match extra {
@@ -147,104 +239,210 @@ fn number(node: &SceneNode, name: &str) -> Option<f32> {
         })
 }
 
-/// The indices of `ancestor` and of every node below it.
-fn subtree(scene: &CookedScene, ancestor: usize) -> HashSet<usize> {
-    // A node comes after its parent, so one pass in order finds every descendant.
-    let mut nodes = HashSet::from([ancestor]);
-    for (index, node) in scene.nodes.iter().enumerate() {
-        if node
-            .parent
-            .is_some_and(|parent| nodes.contains(&(parent as usize)))
-        {
-            nodes.insert(index);
+/// Whether `ancestor` is `entity` or one of its ancestors.
+pub fn descends(world: &World, entity: Entity, ancestor: Entity) -> bool {
+    let mut next = Some(entity);
+    while let Some(entity) = next {
+        if entity == ancestor {
+            return true;
         }
+        next = world.parent(entity);
     }
-    nodes
+    false
+}
+
+/// Where the world places `entity`, its stretch included, if it has a transform.
+fn placed(world: &World, entity: Entity) -> Option<DAffine3> {
+    let stretch = world.get::<Transform>(entity)?.stretch;
+    Some(world.global_transform(entity)?.to_affine(stretch))
+}
+
+/// The footprints of the colliders in `world`, in its order, those that `keep` keeps.
+fn footprints(world: &World, mut keep: impl FnMut(Entity) -> bool) -> Vec<Footprint> {
+    world
+        .query::<&Collider>()
+        .filter(|&(entity, _)| keep(entity))
+        .filter_map(|(entity, collider)| Some(Footprint::of(*collider, placed(world, entity)?)))
+        .collect()
+}
+
+/// The footprints of the colliders that stop the hero now: those of `world` that are not hidden
+/// ([`World::is_hidden`]), in its order. The door's, hidden with it once it opens, stop no one.
+pub fn colliders(world: &World) -> Vec<Footprint> {
+    footprints(world, |entity| !world.is_hidden(entity))
 }
 
 impl Zone {
-    /// The zone that the cooked `scene` holds: a collider for each node whose `collider` is
-    /// `"box"` (its scale is half its size, turned about the vertical only) or `"cylinder"` (its
-    /// scale is its radius), `height` metres high; and one node for each `marker`: `start`, facing
-    /// along its −z axis; `item`, `door` and `campfire`; `terrace`; `bounds`, whose scale is half
-    /// the size of the ground.
+    /// Spawns the zone's cooked `scene` in `world`, under the key `zone`
+    /// ([`World::spawn_scene`]), and gives its entities the game's components that their extras
+    /// describe:
+    ///
+    /// - a [`Collider`] to each whose `collider` is `"box"` or `"cylinder"`, with its `height`;
+    /// - a [`Marker`] to each whose `marker` is `start`, `item`, `door`, `campfire`, `terrace` or
+    ///   `bounds`, each given to one entity; another marker is ignored;
+    /// - a [`TimeOfDay`] to each whose `time` is `"day"` or `"night"`; the night's directional
+    ///   light, the moon, shows in the sky (`in_sky`), while the day's sun stays behind the
+    ///   overcast's clouds;
+    /// - [`Flickers`] to the night's first point light within [`CAMPFIRE_LIGHT_REACH`] of the
+    ///   campfire on the ground, if one is.
+    ///
+    /// Every light shines, whatever its time of day: the game hides those of the other time.
     ///
     /// # Errors
     ///
-    /// A message that says what is wrong: a marker missing or given twice, a collider of another
-    /// kind or without a height.
-    pub fn from_scene(scene: &CookedScene) -> Result<Self, String> {
-        let world: Vec<Mat4> = scene
-            .world_transforms()
-            .iter()
-            .map(Mat4::from_cols_array)
-            .collect();
-        let ground = |m: &Mat4| Vec2::new(m.w_axis.x, m.w_axis.z);
-        let marker = |kind: &str| {
-            let found: Vec<usize> = (0..scene.nodes.len())
-                .filter(|&i| text(&scene.nodes[i], "marker") == Some(kind))
+    /// A message that says what is wrong: an entity alive with the key `zone` already, a marker
+    /// missing or given twice, a collider of another kind or without a height, a time of another
+    /// kind. Nothing is spawned then.
+    pub fn spawn(world: &mut World, scene: &CookedScene) -> Result<Self, String> {
+        let root = world
+            .spawn_scene(KEY, scene)
+            .map_err(|error| error.to_string())?;
+        let zone = Self::prepare(world, root, &scene.name);
+        if zone.is_err() {
+            world.despawn(root);
+        }
+        zone
+    }
+
+    /// Gives the entities of the zone spawned under `root` the game's components, as
+    /// [`Zone::spawn`] says; `scene` names the zone in messages.
+    fn prepare(world: &mut World, root: Entity, scene: &str) -> Result<Self, String> {
+        let mut colliders = Vec::new();
+        let mut markers = Vec::new();
+        let mut times = Vec::new();
+        for (entity, extras) in world.query::<&Extras>() {
+            if !descends(world, entity, root) {
+                continue;
+            }
+            let name = || world.get::<Name>(entity).map_or("", |name| name.0.as_str());
+            if let Some(kind) = text(&extras.0, "collider") {
+                let kind = match kind {
+                    "box" => ColliderKind::Box,
+                    "cylinder" => ColliderKind::Cylinder,
+                    other => return Err(format!("collider `{}` is a `{other}`", name())),
+                };
+                let height = number(&extras.0, "height")
+                    .ok_or_else(|| format!("collider `{}` has no height", name()))?;
+                colliders.push((entity, Collider { kind, height }));
+            }
+            let marker = match text(&extras.0, "marker") {
+                Some("start") => Some(Marker::Start),
+                Some("item") => Some(Marker::Item),
+                Some("door") => Some(Marker::Door),
+                Some("campfire") => Some(Marker::Campfire),
+                Some("terrace") => Some(Marker::Terrace),
+                Some("bounds") => Some(Marker::Bounds),
+                _ => None,
+            };
+            if let Some(marker) = marker {
+                markers.push((entity, marker));
+            }
+            match text(&extras.0, "time") {
+                Some("day") => times.push((entity, TimeOfDay::Day)),
+                Some("night") => times.push((entity, TimeOfDay::Night)),
+                Some(other) => return Err(format!("light `{}` shines at `{other}`", name())),
+                None => {}
+            }
+        }
+        let find = |marker: Marker| {
+            let found: Vec<Entity> = markers
+                .iter()
+                .filter(|&&(_, m)| m == marker)
+                .map(|&(entity, _)| entity)
                 .collect();
             match found[..] {
-                [index] => Ok(index),
+                [entity] => Ok(entity),
                 _ => Err(format!(
-                    "scene `{}`: {} markers `{kind}`, where one is needed",
-                    scene.name,
-                    found.len()
+                    "scene `{scene}`: {} markers `{}`, where one is needed",
+                    found.len(),
+                    format!("{marker:?}").to_lowercase()
                 )),
             }
         };
-        let item = marker("item")?;
-        let door = marker("door")?;
-        let door_nodes = subtree(scene, door);
-        let mut colliders = Vec::new();
-        let mut door_colliders = Vec::new();
-        for (index, node) in scene.nodes.iter().enumerate() {
-            let Some(kind) = text(node, "collider") else {
-                continue;
-            };
-            let m = world[index];
-            let height = number(node, "height")
-                .ok_or_else(|| format!("collider `{}` has no height", node.name))?;
-            let shape = match kind {
-                "box" => Shape::Box {
-                    half_size: Vec2::new(
-                        m.x_axis.truncate().length(),
-                        m.z_axis.truncate().length(),
-                    ),
-                    yaw: m.x_axis.z.atan2(m.x_axis.x),
-                },
-                "cylinder" => Shape::Cylinder {
-                    radius: m.x_axis.truncate().length(),
-                },
-                other => return Err(format!("collider `{}` is a `{other}`", node.name)),
-            };
-            if door_nodes.contains(&index) {
-                door_colliders.push(colliders.len());
-            }
-            colliders.push(Collider {
-                shape,
-                center: ground(&m),
-                height,
-            });
+        let zone = Self {
+            root,
+            start: find(Marker::Start)?,
+            item: find(Marker::Item)?,
+            door: find(Marker::Door)?,
+            campfire: find(Marker::Campfire)?,
+            terrace: find(Marker::Terrace)?,
+            bounds: find(Marker::Bounds)?,
+        };
+        for (entity, collider) in colliders {
+            world.insert(entity, collider);
         }
-        let start = world[marker("start")?];
-        let bounds = world[marker("bounds")?];
-        Ok(Self {
-            half_size: Vec2::new(
-                bounds.x_axis.truncate().length(),
-                bounds.z_axis.truncate().length(),
-            ),
-            colliders,
-            start: ground(&start),
-            facing: Vec2::new(-start.z_axis.x, -start.z_axis.z).normalize(),
-            item: ground(&world[item]),
-            door: ground(&world[door]),
-            campfire: ground(&world[marker("campfire")?]),
-            terrace: ground(&world[marker("terrace")?]),
-            door_colliders,
-            item_nodes: subtree(scene, item),
-            door_nodes,
+        for (entity, marker) in markers {
+            world.insert(entity, marker);
+        }
+        for (entity, time) in times {
+            world.insert(entity, time);
+        }
+        let campfire = zone.place(world, zone.campfire);
+        world.query_mut::<(&TimeOfDay, &mut Light)>(|_, (time, light)| {
+            if let (TimeOfDay::Night, Light::Directional { in_sky, .. }) = (time, light) {
+                *in_sky = true;
+            }
+        });
+        // The first point light of the night near the campfire, in the world's order.
+        let fire = world
+            .query::<(&TimeOfDay, &Light)>()
+            .filter(|&(entity, (time, light))| {
+                *time == TimeOfDay::Night
+                    && matches!(light, Light::Point { .. })
+                    && descends(world, entity, root)
+                    && placed(world, entity).is_some_and(|at| {
+                        ground(at.translation.as_vec3()).distance(campfire) <= CAMPFIRE_LIGHT_REACH
+                    })
+            })
+            .find_map(|(entity, (_, light))| match light {
+                Light::Point { intensity, .. } => Some((entity, *intensity)),
+                _ => None,
+            });
+        if let Some((entity, intensity)) = fire {
+            world.insert(entity, Flickers { intensity });
+        }
+        Ok(zone)
+    }
+
+    /// Where its marker `entity` stands on the ground.
+    pub fn place(&self, world: &World, entity: Entity) -> Vec2 {
+        world
+            .global_transform(entity)
+            .map_or(Vec2::ZERO, |at| ground(at.translation.as_vec3()))
+    }
+
+    /// Half the size of its ground along x and z: its bounds' scale along their x and z axes.
+    pub fn half_size(&self, world: &World) -> Vec2 {
+        placed(world, self.bounds).map_or(Vec2::ZERO, |at| {
+            let axes = at.matrix3.as_mat3();
+            Vec2::new(axes.x_axis.length(), axes.z_axis.length())
         })
+    }
+
+    /// Where the hero starts, and which way it faces there, of length 1: along its start's −Z
+    /// axis, on the ground.
+    pub fn start(&self, world: &World) -> (Vec2, Vec2) {
+        let at = world.global_transform(self.start).unwrap_or_default();
+        let facing = ground(at.rotation * Vec3::NEG_Z).normalize();
+        (ground(at.translation.as_vec3()), facing)
+    }
+
+    /// Its layout in `world` now, whether its door is open or not.
+    pub fn layout(&self, world: &World) -> Layout {
+        let (start, facing) = self.start(world);
+        Layout {
+            half_size: self.half_size(world),
+            colliders: footprints(world, |entity| {
+                descends(world, entity, self.root) && !descends(world, entity, self.door)
+            }),
+            door_colliders: footprints(world, |entity| descends(world, entity, self.door)),
+            start,
+            facing,
+            item: self.place(world, self.item),
+            door: self.place(world, self.door),
+            campfire: self.place(world, self.campfire),
+            terrace: self.place(world, self.terrace),
+        }
     }
 }
 
@@ -255,7 +453,7 @@ mod tests {
     #[test]
     fn a_turned_box_covers_its_turned_footprint() {
         // 4 m long along its first axis, turned a quarter turn: it lies along z.
-        let collider = Collider {
+        let collider = Footprint {
             shape: Shape::Box {
                 half_size: Vec2::new(2.0, 0.5),
                 yaw: std::f32::consts::FRAC_PI_2,
@@ -276,24 +474,36 @@ mod tests {
 pub mod cooked {
     use std::collections::{HashSet, VecDeque};
 
-    use slime_assets::{AssetKind, CookedAssets, LightKind};
+    use slime_assets::{AssetKind, CookedAssets, CookedScene, LightKind};
     use slime_render::glam::Vec2;
+    use slime_world::{Hidden, Meshes, World};
 
-    use super::{Collider, Zone, text};
+    use super::{Footprint, Zone, descends, text};
     use crate::assets;
-    use crate::rules::HERO_RADIUS;
+    use crate::rules::{Game, HERO_RADIUS};
 
-    /// The cooked zone, from `target/cooked/hunnawood`.
-    pub fn zone() -> (CookedAssets, Zone) {
+    /// The cooked data, and the zone's scene, from `target/cooked/hunnawood`.
+    pub fn zone() -> (CookedAssets, CookedScene) {
         let assets = CookedAssets::open(assets::cooked_in_target())
             .unwrap_or_else(|error| panic!("{error}; {}", assets::HOW_TO_COOK));
         let scene = assets.scene(assets::zone_id()).expect("the zone is cooked");
-        let zone = Zone::from_scene(&scene).expect("the zone is whole");
-        (assets, zone)
+        (assets, scene)
     }
 
-    /// The cells of a grid of `CELL` metres over the ground that the hero reaches from the start,
-    /// walking between `colliders`.
+    /// A game in the cooked zone, in a world of its own, with a hero that draws nothing.
+    pub fn game() -> (World, Game) {
+        let (_, scene) = zone();
+        let mut world = World::new();
+        let hero = CookedScene {
+            name: "hero".to_owned(),
+            nodes: Vec::new(),
+        };
+        let game = Game::spawn(&mut world, &scene, &hero, false).expect("the zone is whole");
+        (world, game)
+    }
+
+    /// The cells of a grid of `CELL` metres over the ground that the hero reaches from `start`,
+    /// walking between `colliders` within `half_size`.
     struct Reach {
         origin: Vec2,
         columns: usize,
@@ -303,18 +513,18 @@ pub mod cooked {
     const CELL: f32 = 0.25;
 
     impl Reach {
-        fn new(zone: &Zone, colliders: &[Collider]) -> Self {
-            let origin = -zone.half_size;
-            let columns = (2.0 * zone.half_size.x / CELL) as usize;
-            let rows = (2.0 * zone.half_size.y / CELL) as usize;
+        fn new(half_size: Vec2, start: Vec2, colliders: &[Footprint]) -> Self {
+            let origin = -half_size;
+            let columns = (2.0 * half_size.x / CELL) as usize;
+            let rows = (2.0 * half_size.y / CELL) as usize;
             let center =
                 |c: usize, r: usize| origin + Vec2::new(c as f32 + 0.5, r as f32 + 0.5) * CELL;
             let free = |p: Vec2| {
-                p.abs().cmplt(zone.half_size - HERO_RADIUS).all()
+                p.abs().cmplt(half_size - HERO_RADIUS).all()
                     && !colliders.iter().any(|c| c.covers(p, HERO_RADIUS))
             };
             let mut reached = vec![false; columns * rows];
-            let start = ((zone.start - origin) / CELL).as_uvec2();
+            let start = ((start - origin) / CELL).as_uvec2();
             let (sc, sr) = (start.x as usize, start.y as usize);
             assert!(free(center(sc, sr)), "the start is not free");
             let mut queue = VecDeque::from([(sc, sr)]);
@@ -356,45 +566,53 @@ pub mod cooked {
         }
     }
 
+    /// Whether an entity below `ancestor` places meshes.
+    fn draws_below(world: &World, ancestor: slime_world::Entity) -> bool {
+        world
+            .query::<&Meshes>()
+            .any(|(entity, _)| entity != ancestor && descends(world, entity, ancestor))
+    }
+
     #[test]
     #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
     fn the_cooked_zone_has_its_places_and_its_start_is_clear() {
-        let (_, zone) = zone();
-        assert!(zone.start.abs().cmplt(zone.half_size - 1.0).all());
-        for collider in &zone.colliders {
-            assert!(!collider.covers(zone.start, HERO_RADIUS), "{collider:?}");
+        let (world, game) = game();
+        let zone: &Zone = game.zone();
+        let layout = zone.layout(&world);
+        assert!(layout.start.abs().cmplt(layout.half_size - 1.0).all());
+        for collider in layout.colliders.iter().chain(&layout.door_colliders) {
+            assert!(!collider.covers(layout.start, HERO_RADIUS), "{collider:?}");
         }
-        assert!((zone.facing.length() - 1.0).abs() < 1e-4);
-        assert!(!zone.door_colliders.is_empty(), "the door has a collider");
-        assert!(zone.item_nodes.len() > 1, "the key has a mesh");
-        assert!(zone.door_nodes.len() > 1, "the door has leaves");
-        for place in [zone.item, zone.door, zone.campfire, zone.terrace] {
-            assert!(place.abs().cmplt(zone.half_size).all(), "{place}");
+        assert!((layout.facing.length() - 1.0).abs() < 1e-4);
+        assert!(!layout.door_colliders.is_empty(), "the door has a collider");
+        assert!(draws_below(&world, zone.item), "the key has a mesh");
+        assert!(draws_below(&world, zone.door), "the door has leaves");
+        for place in [layout.item, layout.door, layout.campfire, layout.terrace] {
+            assert!(place.abs().cmplt(layout.half_size).all(), "{place}");
         }
     }
 
     #[test]
     #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
     fn the_hero_reaches_the_item_and_the_campfire_and_the_door_keeps_the_terrace() {
-        let (_, zone) = zone();
-        let closed = Reach::new(&zone, &zone.colliders);
-        assert!(closed.near(zone.item, 1.2), "the item is out of reach");
+        let (mut world, game) = game();
+        let layout = game.zone().layout(&world);
+        let (half_size, start) = (layout.half_size, layout.start);
+        let closed = Reach::new(half_size, start, &super::colliders(&world));
+        assert!(closed.near(layout.item, 1.2), "the item is out of reach");
         assert!(
-            closed.near(zone.campfire, 2.0),
+            closed.near(layout.campfire, 2.0),
             "the campfire is out of reach"
         );
-        assert!(closed.near(zone.door, 1.5), "the door is out of reach");
+        assert!(closed.near(layout.door, 1.5), "the door is out of reach");
         assert!(
-            !closed.near(zone.terrace, 2.0),
+            !closed.near(layout.terrace, 2.0),
             "the terrace is reached without the door"
         );
-        // Once the door opens, the terrace is reached through it.
-        let open: Vec<Collider> = (0..zone.colliders.len())
-            .filter(|i| !zone.door_colliders.contains(i))
-            .map(|i| zone.colliders[i])
-            .collect();
+        // Once the door opens, hidden, the terrace is reached through it.
+        world.insert(game.zone().door, Hidden);
         assert!(
-            Reach::new(&zone, &open).near(zone.terrace, 1.0),
+            Reach::new(half_size, start, &super::colliders(&world)).near(layout.terrace, 1.0),
             "the open door leads nowhere"
         );
     }
@@ -406,8 +624,7 @@ pub mod cooked {
     #[test]
     #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
     fn the_cooked_zone_keeps_within_its_budgets() {
-        let (assets, _) = zone();
-        let scene = assets.scene(assets::zone_id()).expect("the zone is cooked");
+        let (assets, scene) = zone();
         let mut triangles = 0;
         let mut instances = 0;
         let mut meshes = std::collections::HashMap::new();
@@ -424,7 +641,7 @@ pub mod cooked {
             .nodes
             .iter()
             .filter(|n| matches!(n.light.map(|l| l.kind), Some(LightKind::Spot { .. })))
-            .filter(|n| text(n, "time") == Some("night"))
+            .filter(|n| text(&n.extras, "time") == Some("night"))
             .count();
         // Every asset the scene needs, through its meshes and materials, each once.
         let manifest = assets.manifest();
@@ -462,15 +679,14 @@ pub mod cooked {
     }
 
     /// The zone spawned in a world, each node an entity placed where the file puts it, under its
-    /// name: the world of Stage 5a holds what the game reads from the scene today.
+    /// name.
     #[test]
     #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
     fn the_cooked_zone_spawns_in_a_world_as_its_file_places_it() {
         use slime_render::glam::{DMat4, Mat4};
-        use slime_world::{PersistentId, Transform, World};
+        use slime_world::{PersistentId, Transform};
 
-        let (assets, _) = zone();
-        let scene = assets.scene(assets::zone_id()).expect("the zone is cooked");
+        let (_, scene) = zone();
         let mut world = World::new();
         world.spawn_scene("zone", &scene).expect("spawned");
         world.update_transforms();
@@ -503,8 +719,8 @@ pub mod cooked {
 
     /// Prints what building a frame of the zone's world costs on the CPU, once the asset cache
     /// holds its meshes: the instances, the lights and the sky's environment that
-    /// `slime-world-render` gives the renderer, which the game builds by hand today. Run it in a
-    /// release build: `cargo test --release -p hunnawood -- --ignored --nocapture frame_of_the_zone`.
+    /// `slime-world-render` gives the renderer. Run it in a release build, on a GPU:
+    /// `cargo test --release -p hunnawood -- --ignored --nocapture frame_of_the_zone`.
     #[test]
     #[ignore = "a measurement, which needs the cooked zone and a GPU"]
     fn what_building_a_frame_of_the_zone_s_world_costs() {
@@ -512,11 +728,9 @@ pub mod cooked {
 
         use slime_gfx::{Gpu, TextureFormat};
         use slime_render::{AssetCache, Renderer};
-        use slime_world::World;
         use slime_world_render::FrameBuilder;
 
-        let (assets, _) = zone();
-        let scene = assets.scene(assets::zone_id()).expect("the zone is cooked");
+        let (assets, scene) = zone();
         let mut world = World::new();
         world.spawn_scene("zone", &scene).expect("spawned");
         world.update_transforms();

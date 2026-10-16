@@ -3,7 +3,7 @@
 use slime_render::Camera;
 use slime_render::glam::{Vec2, Vec3};
 
-use crate::zone::Collider;
+use crate::zone::Footprint;
 
 /// How far the camera is from the point it looks at, in metres, when nothing stands in between.
 const DISTANCE: f32 = 5.0;
@@ -54,7 +54,7 @@ impl FollowCamera {
     /// The camera looking at `hero`, on the ground, from behind it: when a collider stands between
     /// them, it comes nearer, in front of the collider, as near as it must, down to the hero's
     /// shoulders, so that it never stands inside a collider.
-    pub fn camera(&self, hero: Vec2, colliders: &[Collider]) -> Camera {
+    pub fn camera(&self, hero: Vec2, colliders: &[Footprint]) -> Camera {
         let target = Vec3::new(hero.x, LOOK_HEIGHT, hero.y);
         let (forward, _) = self.ground_axes();
         let (sin, cos) = PITCH.sin_cos();
@@ -71,7 +71,7 @@ impl FollowCamera {
 
 /// How far from `from`, along `direction`, of length 1, a point can stand within `distance` with
 /// no collider nearer to it than the margin: `None` if the whole line keeps that clear.
-fn blocked(from: Vec3, direction: Vec3, distance: f32, colliders: &[Collider]) -> Option<f32> {
+fn blocked(from: Vec3, direction: Vec3, distance: f32, colliders: &[Footprint]) -> Option<f32> {
     (1..=(distance / SAMPLE) as u32)
         .map(|sample| sample as f32 * SAMPLE)
         .find(|&along| {
@@ -128,7 +128,7 @@ mod tests {
 
     /// Whether any collider stands within the margin of the line from the camera to what it
     /// looks at.
-    fn hidden(view: &Camera, colliders: &[Collider]) -> bool {
+    fn hidden(view: &Camera, colliders: &[Footprint]) -> bool {
         let direction = (view.eye - view.target).as_vec3().normalize();
         let length = view.eye.distance(view.target) as f32;
         blocked(view.target.as_vec3(), direction, length, colliders).is_some()
@@ -140,12 +140,12 @@ mod tests {
         // wall stand there.
         let camera = FollowCamera::looking_along(-Vec2::Y);
         let colliders = [
-            Collider {
+            Footprint {
                 shape: Shape::Cylinder { radius: 0.6 },
                 center: Vec2::new(0.0, 2.5),
                 height: 8.0,
             },
-            Collider {
+            Footprint {
                 shape: Shape::Box {
                     half_size: Vec2::new(3.0, 0.3),
                     yaw: 0.3,
@@ -171,7 +171,7 @@ mod tests {
     fn a_low_collider_below_the_line_of_sight_leaves_the_camera_where_it_is() {
         // A fallen block 0.9 m high, 2 m behind the hero: the line of sight passes above it.
         let camera = FollowCamera::looking_along(-Vec2::Y);
-        let block = Collider {
+        let block = Footprint {
             shape: Shape::Box {
                 half_size: Vec2::new(1.0, 0.5),
                 yaw: 0.8,
