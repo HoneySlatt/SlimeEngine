@@ -149,3 +149,4 @@ the ADR linking to it.
 | [0079](0079-the-engines-own-world.md) | The engine's own world | Accepted |
 | [0080](0080-reflection-and-serialization.md) | Reflection and serialization | Accepted |
 | [0081](0081-stage-5a-the-world.md) | Stage 5a: the world | Accepted |
+| [0082](0082-the-worlds-storage-and-handles.md) | The world's storage and handles | Accepted |

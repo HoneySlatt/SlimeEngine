@@ -6,9 +6,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ## [Unreleased]
 
-Stage 4b of the roadmap, live assets, which 0.3 will release: scenes load in the background
-while a game draws, a game can go on after a lost GPU device, a material's values change while it
-runs, and a texture or a shader changed on disk changes in the running game.
+Stages 4b and 5a of the roadmap, live assets and the world, which 0.3 will release. Scenes load in
+the background while a game draws, a game can go on after a lost GPU device, a material's values
+change while it runs, and a texture or a shader changed on disk changes in the running game. The
+engine starts a world of its own, which keeps a game's entities and their components.
 
 ### Added
 
@@ -55,6 +56,12 @@ runs, and a texture or a shader changed on disk changes in the running game.
   `--watch` in *Hunna Wood* and the `scene` example gives the renderer when they change.
 - `slime_app::error_chain`: an error's message followed by the message of each of its causes,
   the line that `run` logs for a failed run, for programs that do not use `run`.
+- `slime-world`, the engine's world ([ADR-0079](docs/adr/0079-the-engines-own-world.md),
+  [ADR-0082](docs/adr/0082-the-worlds-storage-and-handles.md)): a `World` gives out `Entity`
+  handles, keeps their components, one of each type, and finds the entities that hold the
+  components a query names, `World::query` reading them through an iterator and
+  `World::query_mut` changing them through a closure. A type becomes a component with
+  `impl Component for Position {}`. The world has no hierarchy, drawing or saves yet.
 
 ### Changed
 

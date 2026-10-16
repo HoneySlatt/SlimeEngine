@@ -1,0 +1,11 @@
+[package]
+name = "slime-world"
+description = "SlimeEngine's world: the entities of a game and their components."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true

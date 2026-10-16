@@ -34,9 +34,10 @@ third person and made with the public API only, loads its first zone from cooked
 where the hero finds a key that opens a door, by day and by night. Stage 4b, which makes loaded
 assets live, is under way: scenes load on threads of the renderer's own while the game draws, a
 game can go on after a lost GPU device, a material's values change while it runs, and a texture or
-a shader changed on disk changes in the running game. Stage 5a comes next: a world that keeps a
-game's objects, reflection, and saves. [`docs/PLAN.md`](docs/PLAN.md) says what is left of each,
-and lists the known debt.
+a shader changed on disk changes in the running game. Stage 5a is under way: a world that keeps a
+game's objects, reflection, and saves; the world keeps a game's entities and their components
+already (`slime-world`). [`docs/PLAN.md`](docs/PLAN.md) says what is left of each, and lists the
+known debt.
 
 ## Getting started
 
@@ -108,7 +109,8 @@ today has:
   into cooked data, which the renderer loads whole, on threads of its own while the game goes on
   (`Renderer::load_scene_in_background`), and again when it changes (`slime-cook watch`), as the
   renderer's shaders are.
-- No world or scene graph: the game gives the renderer the list of what to draw at every frame.
+- A world (`slime-world`) of entities and components, without a hierarchy yet, which nothing draws:
+  the game gives the renderer the list of what to draw at every frame.
 - A renderer without blended transparency or culling of what the camera does not see; with a
   capped number of lights, and shadows from one directional light and from spot lights, none from
   point lights.

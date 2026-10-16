@@ -94,6 +94,10 @@ Shadow maps are read this way. See *percentage-closer filtering*.
 an entity holds at most one component of each type, and the *world* stores components by type
 ([ADR-0079](adr/0079-the-engines-own-world.md)).
 
+**Component ID.** The number by which a *world* knows a *component* type, given in the order types
+are first attached. It stays in the process: files name types through *reflection*
+([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)).
+
 **Cooked data.** Files in the engine's own formats that a game loads without parsing or converting
 anything, made from *source assets* by *cooking*. They are never committed: the cooker keeps them
 in a cache under `target/` ([ADR-0069](adr/0069-the-asset-pipeline.md)).
@@ -168,9 +172,8 @@ GPU objects of `slime_gfx` hold wgpu's, `slime_platform::Window` holds winit's
 [ADR-0017](adr/0017-gpu-resource-types.md)).
 
 **Entity.** One thing in a *world*: a handle, made of an index and a generation, to which
-*components* are attached, with a place in the world's hierarchy. Handles are never written to
-files: files and saves name an entity by its *persistent identity*
-([ADR-0079](adr/0079-the-engines-own-world.md)).
+*components* are attached. Handles are never written to files: files and saves name an entity by
+its *persistent identity* ([ADR-0079](adr/0079-the-engines-own-world.md)).
 
 **Environment.** The surroundings of a scene as the renderer draws and reflects them: a *sky* drawn
 on the CPU into a *cube texture* and its *prefiltered levels* (`slime_render::Environment`,
@@ -450,6 +453,11 @@ direction; and a spot light, a point light in a cone, full within its inner angl
 its outer one. A point or spot light's optional range is the distance at which its light reaches
 zero, smoothly.
 
+**Query (world).** What a game asks a *world* for: the entities that hold every *component* of
+some types, with those components, `&T` to read one and `&mut T` to change it
+(`slime_world::Query`, `slime_world::QueryMut`,
+[ADR-0082](adr/0082-the-worlds-storage-and-handles.md)).
+
 **Redraw request.** A notice from the windowing system that the window should be drawn now:
 either the engine asked for it (`Window::request_redraw`), or the system did on its own, for
 example during a resize. The windowed driver runs a frame for each one
@@ -628,6 +636,7 @@ declared `var<uniform>` in WGSL and read through a *bind group* (`slime_gfx::Uni
 **WARP.** Microsoft's software driver for Direct3D 12, part of Windows. wgpu uses it on Windows
 machines without a GPU, such as the CI runners.
 
-**World.** The *entities* of a game, their *components* and their hierarchy, kept by the engine,
-which draws what it holds and saves what changed. A game, a test or an editor holds as many worlds
-as it needs ([ADR-0079](adr/0079-the-engines-own-world.md)).
+**World.** The *entities* of a game and their *components*, kept by the engine
+(`slime_world::World`); Stage 5a gives it a hierarchy, draws what it holds and saves what changed.
+A game, a test or an editor holds as many worlds as it needs
+([ADR-0079](adr/0079-the-engines-own-world.md)).
