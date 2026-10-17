@@ -6,14 +6,18 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ## [Unreleased]
 
-Stages 4b and 5a of the roadmap, live assets and the world, which 0.3 will release. Scenes load in
-the background while a game draws, a game can go on after a lost GPU device, a material's values
-change while it runs, and a texture or a shader changed on disk changes in the running game. The
-engine starts a world of its own, which keeps a game's entities and their components and draws
-them, and its own reflection, through which every component is reached by name and edited in a
-panel of the dev overlay, and written to TOML documents and read back; a world saves what changed
-since the start of a run, and loads it back. *Hunna Wood* runs on it, and saves and resumes its
-runs.
+## [0.3.0] - 2026-10-17
+
+The sixth release, which closes Stages 4b and 5a of the roadmap: live assets and the world. Scenes
+load in the background while a game draws, a game can go on after a lost GPU device, a material's
+values change while it runs, and a texture or a shader changed on disk changes in the running game.
+The engine has a world of its own, which keeps a game's entities, their components and their
+hierarchy, positions in double precision, and draws them; its own reflection, through which every
+component is reached by name and edited in a panel of the dev overlay; and its own serialization,
+through which values are written to TOML documents and read back, from earlier versions of their
+types too. A world saves what changed since the start of a run, and loads it back. *Hunna Wood*
+runs on the world, and saves and resumes its runs. The Windows programs that CI builds, the game
+and the new `world` example among them, are attached to the release on GitHub.
 
 ### Added
 
@@ -239,6 +243,22 @@ runs.
 
 - A light refused for a negative value says that it is negative or not finite, rather than "not
   finite and not negative".
+
+### Known limitations
+
+See the known debt in [`docs/PLAN.md`](docs/PLAN.md#known-debt) and what the engine does not do yet
+in the [`README.md`](README.md#what-it-does-not-do-yet). In short: the world has no systems or
+schedule, and no scene files or prefabs, which Stage 5b brings; a save is text of limited size,
+one cut short at the boundary of a section loads in part, the order of children and of queries
+may differ after loading, a node renamed in Blender loses what saves held of it, and *Hunna Wood*
+does not save its camera, nor, when Windows ends the session, the run since the last F5. A lost GPU
+device still ends the run of an application that does not ask for a new one. Limitations of 0.2
+remain: the renderer has no transparency, culling or instancing, edges that masked materials cut
+stay aliased, at most 16 lights are drawn, point lights cast no shadow, and the sky's light is
+neither shadowed nor occluded; *Hunna Wood*'s zone takes seconds per frame on CPU drivers such as
+lavapipe; frames are not synchronized with the display's refresh, frames pause on Windows while the
+window is moved, wgpu's errors other than running out of memory panic in release builds too,
+upgrading wgpu waits for egui, and input methods, touch, gestures and gamepads are not reported.
 
 ## [0.2.0] - 2026-10-15
 

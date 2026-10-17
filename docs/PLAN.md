@@ -14,18 +14,16 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 
 - Stage 4a — Cooked assets: done and released as 0.2 on 2026-10-15. *Hunna Wood* loads its zone
   from cooked assets and is played by day and by night, on Linux and on Windows.
-- Stage 4b — Live assets: done on 2026-10-16, to be released with 0.3 at the end of Stage 5a
+- Stage 4b — Live assets: done on 2026-10-16, and released with 0.3 at the end of Stage 5a
   ([ADR-0078](adr/0078-stage-5-in-two-halves.md)). Scenes load in the background while a game
   draws, a game goes on after a lost GPU device, a material's values change while it runs, and a
   texture or a shader changed on disk changes in the running game. The owner checked the recovery
   by hand, in the Windows virtual machine and after a real GPU reset in KDE Plasma.
-- Stage 5a — The world: planned on 2026-10-16 and validated by the owner
-  ([ADR-0078](adr/0078-stage-5-in-two-halves.md) to [ADR-0081](adr/0081-stage-5a-the-world.md));
-  the stage being worked on. M5a.1 to M5a.9 are done: the engine's world, reflection,
-  serialization and saves, and *Hunna Wood* on them, saving and resuming its runs
-  ([ADR-0082](adr/0082-the-worlds-storage-and-handles.md) to
-  [ADR-0088](adr/0088-saving-and-resuming-a-run.md)). M5a.10 is in progress: the documents
-  reread, the owner's check on Windows, and the release of 0.3.
+- Stage 5a — The world: done and released as 0.3 on 2026-10-17, with Stage 4b
+  ([ADR-0078](adr/0078-stage-5-in-two-halves.md) to [ADR-0088](adr/0088-saving-and-resuming-a-run.md)).
+  *Hunna Wood* runs on the engine's world, whose components are listed and edited by name, and
+  saves and resumes its runs, on Linux and on Windows. Next: plan Stage 5b, scenes and prefabs,
+  with the owner.
 
 ## Status
 
@@ -40,7 +38,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M5a.7](#m5a7--serialization-with-format-versioning) | Any reflected value is written to a file and read back, even from an older version of its type | Done |
 | [M5a.8](#m5a8--the-world-round-trips) | A world saves what differs from the scenes it was made from, and loads it back | Done |
 | [M5a.9](#m5a9--saving-and-resuming-a-run) | A player saves a run of *Hunna Wood* and resumes it | Done |
-| [M5a.10](#m5a10--windows-check-documentation-release-03) | Stage 5a is done and released as 0.3, with Stage 4b | In progress |
+| [M5a.10](#m5a10--windows-check-documentation-release-03) | Stage 5a is done and released as 0.3, with Stage 4b | Done |
 
 Stages 0, 1, 2, 3a, 3b, 3c, 3d, 4a and 4b are done; see [Completed stages](#completed-stages).
 
@@ -528,6 +526,14 @@ Risks:
 - **Done when.** The exit criterion holds, on Linux and on Windows; the tag `v0.3.0` is on a commit
   whose CI is green, and its GitHub release carries the Windows programs.
 - **How to test.** Reading; CI; playing it.
+- **Outcome.** Done on 2026-10-17. The documents, reread as a newcomer would and against the code,
+  held statements that were no longer so, a dependency graph that lacked two edges and a
+  Windows-only dependency, terms that the glossary did not define, and a changelog that
+  told how 0.3's new APIs changed on the way rather than what 0.3 holds: each is fixed. The owner
+  played the game and the `world` example from CI's Windows programs, and saved, loaded and resumed
+  a run there. 0.3 is released, as [Releasing](#releasing) says, with `world.exe` among the Windows
+  programs. Stage 5b, scenes and prefabs, is planned next with the owner
+  ([ADR-0078](adr/0078-stage-5-in-two-halves.md)).
 
 ## Releasing
 
@@ -554,7 +560,9 @@ commit "Release 0.0.2", and 0.0.3 on 2026-10-13: the tag `v0.0.3` is on the comm
 and its GitHub release carries the Windows examples that CI built from that commit.
 0.2 was released on 2026-10-15: the tag `v0.2.0` is on the commit "Release 0.2.0", and its GitHub
 release carries the Windows programs that CI built from that commit, *Hunna Wood* with its zone
-cooked and the notice that credits its assets among them.
+cooked and the notice that credits its assets among them. 0.3 was released on 2026-10-17, with
+Stages 4b and 5a: the tag `v0.3.0` is on the commit "Release 0.3.0", and its GitHub release carries
+the Windows programs that CI built from that commit, `world.exe` among them.
 
 ## Completed stages
 
@@ -568,7 +576,7 @@ cooked and the notice that credits its assets among them.
 | 3c — A first game | M3c.1 skeleton; M3c.2 guards, detection and the objective; M3c.3 night, feel and the Windows check; M3c.4 findings for the next stages | Done; no release of its own: its game, *Nightwatch*, is never released, as *Hunna Wood* replaces it in Stage 4a ([ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)). The stage each of its findings goes to is in [ADR-0057](adr/0057-what-the-first-game-asks-of-the-next-stages.md), and the two that became Stage 3d in [ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md). |
 | 3d — Anti-aliasing and the shadows of spot lights | M3d.1 multisampling in the GPU layer; M3d.2 anti-aliasing in the renderer; M3d.3 spot lights' shadows: what each tile sees; M3d.4 spot lights' shadows: drawn and read; M3d.5 *Nightwatch* and the Windows check; M3d.6 a smoother shadow filter; M3d.7 what each cascade sees; M3d.8 the cascades read; M3d.9 *Nightwatch* at 3840 × 2160 | Done; no release of its own: what it delivers is released with 0.2. Its decisions are in [ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md) and ADR-0058 to [ADR-0065](adr/0065-reading-the-cascades.md); the cost of its scene pass on Direct3D 12 with each shader compiler, which made DXC ship beside the Windows programs, is in [ADR-0066](adr/0066-shipping-dxc-beside-the-programs.md). |
 | 4a — Cooked assets → 0.2 | M4a.1 *Hunna Wood*'s skeleton; M4a.2 asset identity; M4a.3 images; M4a.4 glTF; M4a.5 the sample scene through the pipeline; M4a.6 the zone's sources; M4a.7 *Hunna Wood* by day; M4a.8 night; M4a.9 Windows check, documentation, release 0.2 | Done, released as 0.2 on 2026-10-15. Its decisions are in [ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md) to [ADR-0071](adr/0071-cooked-textures.md); the zone's budgets are set by the test that checks them, in `games/hunnawood/src/zone.rs`, and what was left to refine went to Stage 4b's M4b.8. |
-| 4b — Live assets | M4b.1 a shared GPU and a task pool; M4b.2 the zone loads while frames go on; M4b.3 recovering from a lost GPU device; M4b.4 *Hunna Wood* goes on after a lost device; M4b.5 materials that change in place; M4b.6 hot reload of cooked data; M4b.7 hot reload of shaders; M4b.8 refining *Hunna Wood*; M4b.9 Windows check, documentation, close | Done on 2026-10-16; no release of its own: what it delivers is to be released with 0.3, at the end of Stage 5a. Its decisions are in [ADR-0072](adr/0072-stage-4b-live-assets.md) to [ADR-0077](adr/0077-hot-reload-of-shaders.md). The owner checked the recovery from a lost device by hand at its close: in the Windows virtual machine, from the dev overlay and by a forced TDR, and in a KDE Plasma session after a real reset of the GPU (see [Known debt](#known-debt)). |
+| 4b — Live assets | M4b.1 a shared GPU and a task pool; M4b.2 the zone loads while frames go on; M4b.3 recovering from a lost GPU device; M4b.4 *Hunna Wood* goes on after a lost device; M4b.5 materials that change in place; M4b.6 hot reload of cooked data; M4b.7 hot reload of shaders; M4b.8 refining *Hunna Wood*; M4b.9 Windows check, documentation, close | Done on 2026-10-16; no release of its own: what it delivers is released with 0.3, at the end of Stage 5a. Its decisions are in [ADR-0072](adr/0072-stage-4b-live-assets.md) to [ADR-0077](adr/0077-hot-reload-of-shaders.md). The owner checked the recovery from a lost device by hand at its close: in the Windows virtual machine, from the dev overlay and by a forced TDR, and in a KDE Plasma session after a real reset of the GPU (see [Known debt](#known-debt)). |
 
 The details of each completed milestone (what it delivered, how it was checked, what was measured)
 are in the history of this file and in the commits that implemented it; the measurements that

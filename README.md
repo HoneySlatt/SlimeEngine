@@ -8,10 +8,10 @@ games first, then open-world games, then large online worlds.
 
 Pre-alpha. Stages 0 (*Foundations*), 1 (*Core and platform*), 2 (*GPU layer*), 3a (*First
 renderer*), 3b (*Physically based renderer*), 3c (*A first game*), 3d (*Anti-aliasing and the
-shadows of spot lights*), 4a (*Cooked assets*) and 4b (*Live assets*) are done; the latest release
-is 0.2 (git tag `v0.2.0`), and 0.3 will release Stage 4b with Stage 5a. Applications run headless
-or with a window (Wayland or X11 on Linux, Win32 on Windows) that receives keyboard and mouse
-input, with a fixed-step main loop, logging, panic reporting and a clean shutdown on Ctrl+C. The
+shadows of spot lights*), 4a (*Cooked assets*), 4b (*Live assets*) and 5a (*The world*) are done;
+the latest release is 0.3 (git tag `v0.3.0`), which released Stages 4b and 5a together.
+Applications run headless or with a window (Wayland or X11 on Linux, Win32 on Windows) that
+receives keyboard and mouse input, with a fixed-step main loop, logging, panic reporting and a clean shutdown on Ctrl+C. The
 engine opens the GPU (Vulkan on Linux, Direct3D 12 on Windows), paces frames with its own schedule
 and the Mailbox present mode by default, names its GPU work for capture tools, reports a GPU whose
 memory runs out as an error a game can handle, and, when the GPU device is lost, stops cleanly or,
@@ -34,17 +34,16 @@ third person and made with the public API only, loads its first zone from cooked
 where the hero finds a key that opens a door, by day and by night. Stage 4b made loaded
 assets live: scenes load on threads of the renderer's own while the game draws, a game can go on
 after a lost GPU device, a material's values change while it runs, and a texture or a shader
-changed on disk changes in the running game. Stage 5a is under way: a world that keeps a game's
-objects, reflection, and saves; the world keeps a game's entities, their components and their
-hierarchy already, places them, spawns cooked scenes in it (`slime-world`), is drawn from an asset
-cache that loads what it names (`slime-world-render`, the `world` example), and *Hunna Wood* runs
-on it; every component is reflected, and reached by name (`slime-reflect`); a panel of the dev
+changed on disk changes in the running game. Stage 5a gave the engine a world, reflection and
+saves: the world keeps a game's entities, their components and their hierarchy, places them,
+spawns cooked scenes in it (`slime-world`), is drawn from an asset cache that loads what it names
+(`slime-world-render`, the `world` example), and *Hunna Wood* runs on it; every component is reflected, and reached by name (`slime-reflect`); a panel of the dev
 overlay lists the world's entities and edits their components, in the game and the `world` example,
 on F2; values are written to TOML documents and read back, from earlier versions of their types
 too (`slime-serialize`), as the cooker's metadata files are; a world saves what changed since the
 start of a run, and loads it back, which the `world` example checks when it quits, and *Hunna Wood*
 saves its run on F5 and when it quits, loads it on F9, and resumes it when it starts.
-[`docs/PLAN.md`](docs/PLAN.md) says what is left of it, and lists the known debt.
+[`docs/PLAN.md`](docs/PLAN.md) says what comes next, and lists the known debt.
 
 ## Getting started
 
@@ -77,23 +76,30 @@ not move.
 
 ```toml
 [dependencies]
-slime-app = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.2.0" }
-slime-assets = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.2.0" }
-slime-gfx = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.2.0" }
-slime-platform = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.2.0" }
-slime-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.2.0" }
+slime-app = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.3.0" }
+slime-assets = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.3.0" }
+slime-color = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.3.0" }
+slime-gfx = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.3.0" }
+slime-platform = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.3.0" }
+slime-reflect = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.3.0" }
+slime-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.3.0" }
+slime-world = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.3.0" }
+slime-world-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.3.0" }
 
 # The renderer computes a sky's lighting on the CPU, several times slower without optimizations.
 [profile.dev.package.slime-render]
 opt-level = 3
 ```
 
-- `slime-app` runs the game (the `App` trait and `run`), `slime-platform` holds the window's
-  settings and the input events, `slime-gfx` the GPU's objects and colors, `slime-render` the
-  renderer, and `slime-assets` the cooked data that the renderer loads. The cooker, `slime-cook`, is
-  a program of this repository that cooks a game's source assets before it runs, as
-  [`games/hunnawood`](games/hunnawood/README.md) shows. Each crate's README shows its entry points,
-  and [`examples/`](examples/README.md) holds programs to start from; `scene` is the most complete.
+- `slime-app` runs the game (the `App` trait and `run`) and owns its world, `slime-platform` holds
+  the window's settings and the input events, `slime-gfx` the GPU's objects, `slime-color` the
+  colors, `slime-render` the renderer, and `slime-assets` the cooked data that the renderer loads.
+  `slime-world` keeps the game's entities and components and saves them, `slime-world-render` draws
+  them, and `slime-reflect` describes the components, which derive `Reflect`. The cooker,
+  `slime-cook`, is a program of this repository that cooks a game's source assets before it runs,
+  as [`games/hunnawood`](games/hunnawood/README.md) shows. Each crate's README shows its entry
+  points, and [`examples/`](examples/README.md) holds programs to start from: `world` draws a world,
+  `scene` drives the renderer by hand.
 - Building needs Rust 1.99 or later and, on Linux, the libraries that
   [`CONTRIBUTING.md`](CONTRIBUTING.md#on-linux-without-nix) lists and a [Vulkan
   driver](CONTRIBUTING.md#gpu).
