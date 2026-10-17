@@ -10,7 +10,7 @@ use crate::components::Name;
 use crate::entity::Entity;
 use crate::error::WorldError;
 use crate::identity::{CREATED, PersistentId};
-use crate::library::{NO_RECORD, Placement, ResolvedScene};
+use crate::library::{NO_RECORD, Overrides, Placement, ResolvedScene};
 use crate::scene_file::for_each_entity;
 use crate::transform::Transform;
 use crate::world::{Identity, SpawnedScene, World, mark_stale};
@@ -44,6 +44,7 @@ impl World {
             return Err(WorldError::InvalidKey(key.to_owned()));
         }
         let ids: Vec<PersistentId> = scene
+            .0
             .records
             .iter()
             .map(|record| {
@@ -52,21 +53,117 @@ impl World {
                 )
             })
             .collect();
-        if let Some(id) = ids.iter().find(|id| self.identities.contains_key(*id)) {
+        let entities = self.spawn_records(scene, &ids, None)?;
+        if !scene.0.records[0]
+            .components
+            .iter()
+            .any(|(name, _)| name == "Name")
+        {
+            self.insert(entities[0], Name(key.to_owned()));
+        }
+        self.scenes.insert(
+            key.to_owned(),
+            SpawnedScene {
+                name: scene.0.name.clone(),
+                content: scene.0.fingerprint,
+                scene: scene.clone(),
+            },
+        );
+        Ok(entities[0])
+    }
+
+    /// Spawns `prefab`, a resolved scene, as a placement made while the world runs, a child of
+    /// `parent`, or at the world's root, and returns its root (`docs/adr/0089-scenes-and-prefabs.md`).
+    ///
+    /// The placement's root is an entity created outside a scene: its persistent identity is
+    /// `created/<number>`, the next of the world's count ([`World::spawn`]), and its entities'
+    /// identities are its own followed by their paths in the prefab, `created/7/light`. The world
+    /// remembers its prefab ([`World::placement`]), and writes it as a placement in a scene file
+    /// ([`World::write_scene`]).
+    ///
+    /// # Errors
+    ///
+    /// [`WorldError::NotAlive`] if `parent` is not alive; [`WorldError::UnknownComponent`] and
+    /// [`WorldError::RefusedInScene`] as [`World::spawn_scene`] says. Nothing is spawned then, and
+    /// the count is unchanged.
+    ///
+    /// # Panics
+    ///
+    /// If the world runs out of slots ([`World::spawn`]).
+    pub fn spawn_placement(
+        &mut self,
+        prefab: &ResolvedScene,
+        parent: Option<Entity>,
+    ) -> Result<Entity, WorldError> {
+        if let Some(parent) = parent
+            && !self.contains(parent)
+        {
+            return Err(WorldError::NotAlive(parent));
+        }
+        let number = self.next_created;
+        let ids: Vec<PersistentId> = prefab
+            .0
+            .records
+            .iter()
+            .map(|record| {
+                let number = number.to_string();
+                PersistentId::new(
+                    [CREATED, number.as_str()]
+                        .into_iter()
+                        .chain(record.path.iter().map(String::as_str)),
+                )
+            })
+            .collect();
+        let entities = self.spawn_records(prefab, &ids, Some(number))?;
+        let root = entities[0];
+        self.next_created += 1;
+        self.created.push(number, root);
+        self.nodes[root.index() as usize].placement = Some(Arc::new(Placement {
+            prefab: prefab.clone(),
+            overrides: Overrides::default(),
+            set_aside: Vec::new(),
+        }));
+        if parent.is_some() {
+            self.set_parent(root, parent)
+                .expect("both are alive, and the root is new");
+        }
+        Ok(root)
+    }
+
+    /// Spawns the records of `scene`, each under its identity of `ids`, the root under the number
+    /// `created` if it is a placement made while the world runs, and returns their entities, in the
+    /// records' order: all or nothing.
+    fn spawn_records(
+        &mut self,
+        scene: &ResolvedScene,
+        ids: &[PersistentId],
+        created: Option<u64>,
+    ) -> Result<Vec<Entity>, WorldError> {
+        let named = |index: usize| index > 0 || created.is_none();
+        if let Some((_, id)) = ids
+            .iter()
+            .enumerate()
+            .find(|&(index, id)| named(index) && self.identities.contains_key(id))
+        {
             return Err(WorldError::IdentityInUse(id.clone()));
         }
         let mut storages: HashMap<&str, usize> = HashMap::new();
-        for (name, _) in scene.records.iter().flat_map(|record| &record.components) {
+        for (name, _) in scene.0.records.iter().flat_map(|record| &record.components) {
             if !storages.contains_key(name.as_str()) {
                 let (storage, _) = self.storage_named(name)?;
                 storages.insert(name, storage);
             }
         }
-        let entities: Vec<Entity> = scene.records.iter().map(|_| self.spawn_bare()).collect();
-        for (&entity, id) in entities.iter().zip(ids.iter()) {
-            self.identify(entity, id.clone());
+        let entities: Vec<Entity> = scene.0.records.iter().map(|_| self.spawn_bare()).collect();
+        for (index, (&entity, id)) in entities.iter().zip(ids).enumerate() {
+            match created {
+                Some(number) if index == 0 => {
+                    self.nodes[entity.index() as usize].identity = Identity::Created(number);
+                }
+                _ => self.identify(entity, id.clone()),
+            }
         }
-        for ((record, &entity), id) in scene.records.iter().zip(&entities).zip(&ids) {
+        for ((record, &entity), id) in scene.0.records.iter().zip(&entities).zip(ids) {
             for (name, value) in &record.components {
                 let storage = storages[name.as_str()];
                 let inserted = if holds_entity(value) {
@@ -76,12 +173,16 @@ impl World {
                     self.storages[storage].insert_value(entity.index(), value)
                 };
                 if let Err(error) = inserted {
-                    // Without parents yet: each is despawned alone.
+                    // Without parents yet: each is despawned alone. The root of a placement made
+                    // while the world runs is not in the count yet: it leaves nothing there.
+                    if created.is_some() {
+                        self.nodes[entities[0].index() as usize].identity = Identity::None;
+                    }
                     for &entity in &entities {
                         self.despawn(entity);
                     }
                     return Err(WorldError::RefusedInScene {
-                        scene: scene.name.clone(),
+                        scene: scene.0.name.clone(),
                         entity: id.clone(),
                         component: name.clone(),
                         error: Box::new(error),
@@ -93,14 +194,7 @@ impl World {
                 }
             }
         }
-        if !scene.records[0]
-            .components
-            .iter()
-            .any(|(name, _)| name == "Name")
-        {
-            self.insert(entities[0], Name(key.to_owned()));
-        }
-        for (record, &entity) in scene.records.iter().zip(&entities) {
+        for (record, &entity) in scene.0.records.iter().zip(&entities) {
             if let Some(parent) = record.parent {
                 self.set_parent(entity, Some(entities[parent as usize]))
                     .expect("both are alive, and a resolved scene is a tree");
@@ -109,14 +203,7 @@ impl World {
                 self.nodes[entity.index() as usize].placement = Some(Arc::clone(placement));
             }
         }
-        self.scenes.insert(
-            key.to_owned(),
-            SpawnedScene {
-                name: scene.name.clone(),
-                content: scene.fingerprint,
-            },
-        );
-        Ok(entities[0])
+        Ok(entities)
     }
 
     /// What the world remembers of the placement whose root is `entity`, if it is alive and one: the

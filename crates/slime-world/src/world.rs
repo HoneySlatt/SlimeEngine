@@ -10,7 +10,7 @@ use slime_reflect::{Reflect, Registry};
 use crate::components::{Extras, Hidden, Light, Meshes, Name, Unsaved};
 use crate::entity::{Entities, Entity};
 use crate::identity::PersistentId;
-use crate::library::Placement;
+use crate::library::{Placement, ResolvedScene};
 use crate::query::{Query, QueryIter, QueryMut};
 use crate::storage::{AnyStorage, Storage};
 use crate::transform::{GlobalTransform, Transform};
@@ -129,6 +129,9 @@ pub(crate) struct Node {
     pub(crate) moved: u32,
     /// What the scene that spawned it placed here, if it is a placement's root.
     pub(crate) placement: Option<Arc<Placement>>,
+    /// The ID that a scene file written from the world gave it, an entity created outside a scene,
+    /// which it keeps when the world is written again.
+    pub(crate) written_id: Option<Box<str>>,
 }
 
 /// How files and saves name an entity.
@@ -144,13 +147,15 @@ pub(crate) enum Identity {
     Created(u64),
 }
 
-/// A scene spawned in a world: its name, and a fingerprint of what it held then.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// A scene spawned in a world: its name, a fingerprint of what it held then, and the scene.
+#[derive(Clone, Debug)]
 pub(crate) struct SpawnedScene {
     pub(crate) name: String,
     /// The scene's fingerprint (`ResolvedScene`): another content gives another fingerprint, but
     /// for a chance of one in 2⁶⁴.
     pub(crate) content: u64,
+    /// The scene, as it was resolved: what writing the world back as a scene file reads.
+    pub(crate) scene: ResolvedScene,
 }
 
 /// The entities created outside scenes, by their numbers, kept so that spawning and destroying one

@@ -997,6 +997,52 @@ pub mod tests {
     }
 
     #[test]
+    fn every_leaf_of_every_game_component_overridden_through_a_scene_file_reads_back() {
+        use slime_assets::AssetId;
+        use slime_world::SceneLibrary;
+
+        // The zone, its game's components given, written as a prefab by its world.
+        let (mut made, game) = every_component();
+        let prefab = made.write_scene(game.zone.root).expect("written").text;
+        let (yard, zone) = (AssetId::from_u128(1), AssetId::from_u128(2));
+        let mut scenes = SceneLibrary::new();
+        scenes.insert_file(zone, "zone", prefab);
+        scenes.insert_file(
+            yard,
+            "yard",
+            format!(
+                "[assets]\nzone = {{ id = \"{zone}\" }}\n\n[entities.placed]\nprefab = \"zone\"\n"
+            ),
+        );
+        let spawned = |scenes: &mut SceneLibrary| {
+            let mut world = World::new();
+            world.register::<Collider>();
+            world.register::<Marker>();
+            world.register::<TimeOfDay>();
+            world.register::<Flickers>();
+            world.register::<Key>();
+            world.register::<Door>();
+            world.register::<Clock>();
+            let scene = scenes.resolve(world.registry(), yard).expect("resolved");
+            let root = world.spawn_scene("yard", &scene).expect("spawned");
+            (world, root)
+        };
+        let (mut world, root) = spawned(&mut scenes);
+        every_leaf_is_set_and_read_back::<Collider>(&mut world);
+        every_leaf_is_set_and_read_back::<Marker>(&mut world);
+        every_leaf_is_set_and_read_back::<TimeOfDay>(&mut world);
+        every_leaf_is_set_and_read_back::<Flickers>(&mut world);
+        every_leaf_is_set_and_read_back::<Key>(&mut world);
+        every_leaf_is_set_and_read_back::<Door>(&mut world);
+        every_leaf_is_set_and_read_back::<Clock>(&mut world);
+        let written = world.write_scene(root).expect("written");
+        assert!(written.left_out.is_empty(), "{:?}", written.left_out);
+        scenes.insert_file(yard, "yard", written.text);
+        let (reread, _) = spawned(&mut scenes);
+        assert_eq!(world.first_difference(&reread), None);
+    }
+
+    #[test]
     fn the_lights_of_the_other_time_of_day_are_hidden_and_the_moon_shows_in_the_sky() {
         let mut scene = walled([0.0, 30.0]).scene();
         for (name, time, kind) in [

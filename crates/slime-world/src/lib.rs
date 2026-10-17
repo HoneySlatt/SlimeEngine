@@ -15,6 +15,7 @@ mod steps;
 mod storage;
 mod transform;
 mod world;
+mod write_back;
 
 pub use components::{Extras, Hidden, Light, Meshes, Name, Unsaved};
 pub use document::{DocumentError, Loaded, SetAside};
@@ -25,6 +26,7 @@ pub use library::{MAX_ENTITIES, MAX_NESTING, Placement, ResolvedScene, SceneErro
 pub use query::{Query, QueryIter, QueryMut};
 pub use transform::{GlobalTransform, Transform};
 pub use world::{Component, World};
+pub use write_back::Written;
 
 /// The math crate the API uses, re-exported so that callers use the same version.
 pub use glam;

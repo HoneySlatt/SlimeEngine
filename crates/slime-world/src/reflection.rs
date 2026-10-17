@@ -493,6 +493,51 @@ mod tests {
     }
 
     #[test]
+    fn every_leaf_of_every_component_overridden_through_a_scene_file_reads_back() {
+        use crate::SceneLibrary;
+
+        // A prefab of the entity that holds every component, written by a world.
+        let mut made = World::new();
+        let root = made.spawn();
+        let entity = furnished(&mut made);
+        made.set_parent(entity, Some(root)).expect("alive");
+        let prefab = made.write_scene(root).expect("written").text;
+        let (yard, post) = (AssetId::from_u128(1), AssetId::from_u128(2));
+        let mut scenes = SceneLibrary::new();
+        scenes.insert_file(post, "post", prefab);
+        scenes.insert_file(
+            yard,
+            "yard",
+            format!(
+                "[assets]\npost = {{ id = \"{post}\" }}\n\n[entities.placed]\nprefab = \"post\"\n"
+            ),
+        );
+        let spawned = |scenes: &mut SceneLibrary| {
+            let mut world = World::new();
+            world.register::<Lantern>();
+            let scene = scenes.resolve(world.registry(), yard).expect("resolved");
+            let root = world.spawn_scene("yard", &scene).expect("spawned");
+            (world, root)
+        };
+        let (mut world, root) = spawned(&mut scenes);
+        let placed = world.children(world.children(root)[0])[0];
+        every_leaf_is_set_and_read_back::<Transform>(&mut world, placed);
+        every_leaf_is_set_and_read_back::<Name>(&mut world, placed);
+        every_leaf_is_set_and_read_back::<Meshes>(&mut world, placed);
+        every_leaf_is_set_and_read_back::<Hidden>(&mut world, placed);
+        every_leaf_is_set_and_read_back::<Light>(&mut world, placed);
+        every_leaf_is_set_and_read_back::<Extras>(&mut world, placed);
+        every_leaf_is_set_and_read_back::<Lantern>(&mut world, placed);
+        // Each leaf now holds another value than the prefab's: the file says so, and spawning it
+        // gives the same world.
+        let written = world.write_scene(root).expect("written");
+        assert!(written.left_out.is_empty(), "{:?}", written.left_out);
+        scenes.insert_file(yard, "yard", written.text);
+        let (reread, _) = spawned(&mut scenes);
+        assert_eq!(world.first_difference(&reread), None);
+    }
+
+    #[test]
     fn the_engine_s_components_are_registered_and_listed_by_name() {
         let mut world = World::new();
         for name in ["Transform", "Name", "Meshes", "Hidden", "Light", "Extras"] {

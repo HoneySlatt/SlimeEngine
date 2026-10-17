@@ -93,7 +93,13 @@ assert_eq!(world.get::<Velocity>(cart).expect("held").0, 5.0);
 - `World::spawn_scene` spawns a resolved scene under a key, its entities named by their paths
   through the placements, such as `zone/lamp 3/light`; `World::find` gives the entity of a
   `PersistentId`; `World::placement` says what the world remembers of a placement: its prefab, and
-  the overrides of the scene that placed it that were set aside.
+  the overrides of the scene that placed it that were set aside. `World::spawn_placement` places a
+  prefab while the world runs, under `created/<number>`.
+- `World::write_scene` writes a subtree back as a scene file (`Written`): placements as placements
+  with what differs from their prefab, the overrides that the scene wrote kept, entities created
+  since given IDs that they keep, the same world in the same bytes; `World::placement_root` and
+  `World::differs_from_prefab` say which placement an entity belongs to, and whether a component of
+  it differs from the prefab's (`docs/adr/0092-a-world-written-back-as-a-scene.md`).
 - `Meshes`, `Light` and `Hidden` say what is drawn: meshes by asset ID, each drawn with the material
   of its cooked mesh, lights at their entity's origin along its −Z axis, a directional one showing
   in the sky or not, and the subtrees left out; `World::is_hidden` says whether an entity is, by

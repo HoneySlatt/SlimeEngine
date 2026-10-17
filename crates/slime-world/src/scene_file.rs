@@ -13,44 +13,52 @@ use slime_serialize::{Document, Mode, ReadError, References};
 use crate::components::Name;
 use crate::document::{ADDED, CHANGED, REMOVED, SetAside};
 use crate::library::{
-    MAX_ENTITIES, NO_RECORD, Overrides, Placement, Record, ResolvedScene, SceneError, SceneLibrary,
-    fingerprint,
+    AssetName, MAX_ENTITIES, NO_RECORD, Overrides, Placement, Record, Resolved, ResolvedScene,
+    SceneError, SceneLibrary, fingerprint,
 };
 use crate::transform::Transform;
 
 /// The version of the scene files' layout, past 1 only.
-const LAYOUT: &str = "layout";
+pub(crate) const LAYOUT: &str = "layout";
 /// The assets that the file names, by their short names.
-const ASSETS: &str = "assets";
+pub(crate) const ASSETS: &str = "assets";
 /// The scene's root.
-const ROOT: &str = "root";
+pub(crate) const ROOT: &str = "root";
 /// The entities that the file makes, and its placements, by their IDs.
-const ENTITIES: &str = "entities";
+pub(crate) const ENTITIES: &str = "entities";
 /// An entity's parent.
-const PARENT: &str = "parent";
+pub(crate) const PARENT: &str = "parent";
 /// The prefab that a placement places, by the short name of its asset.
-const PREFAB: &str = "prefab";
+pub(crate) const PREFAB: &str = "prefab";
 /// An entity's components, by their types' names.
-const COMPONENTS: &str = "components";
+pub(crate) const COMPONENTS: &str = "components";
 /// An asset's ID.
-const ID: &str = "id";
+pub(crate) const ID: &str = "id";
 /// Where an asset's source was when the file was written.
-const PATH: &str = "path";
+pub(crate) const PATH: &str = "path";
 /// The entities removed, in [`REMOVED`].
-const ENTITIES_REMOVED: &str = "entities";
+pub(crate) const ENTITIES_REMOVED: &str = "entities";
 /// The components removed, in [`REMOVED`].
-const COMPONENTS_REMOVED: &str = "components";
+pub(crate) const COMPONENTS_REMOVED: &str = "components";
 
 /// The layout of scene files that this program reads.
 const LAYOUT_VERSION: u64 = 1;
 /// What a reference names the scene's root.
-const ROOT_NAME: &str = ".";
+pub(crate) const ROOT_NAME: &str = ".";
 
 /// An entity that a scene file makes, or a placement, as its record says.
 struct Entry {
     id: String,
     parent: Option<String>,
     prefab: Option<AssetId>,
+}
+
+/// The layout of a scene file: its assets, by their short names and in the order of its table, and
+/// its entities' records.
+struct Layout {
+    assets: HashMap<String, AssetId>,
+    table: Vec<AssetName>,
+    entries: Vec<Entry>,
 }
 
 /// Names entities by their paths from the scene's root, and assets by the short names of the file's
@@ -116,7 +124,11 @@ pub(crate) fn resolve(
         error,
     };
     let mut document = Document::parse(registry, text, Mode::Strict).map_err(file)?;
-    let (assets, entries) = layout(&mut document).map_err(file)?;
+    let Layout {
+        assets,
+        table,
+        entries,
+    } = layout(&mut document).map_err(file)?;
     // Resolved first: the entities of a prefab are the scene's too.
     let mut prefabs = Vec::with_capacity(entries.len());
     for entry in &entries {
@@ -153,16 +165,14 @@ pub(crate) fn resolve(
     scene.overrides(&mut document, &names).map_err(file)?;
     let mut hash = fingerprint(0xcbf2_9ce4_8422_2325, text.as_bytes());
     for prefab in prefabs.iter().flatten() {
-        hash = fingerprint(hash, &prefab.fingerprint.to_le_bytes());
+        hash = fingerprint(hash, &prefab.0.fingerprint.to_le_bytes());
     }
-    Ok(scene.finish(id, name, hash))
+    Ok(scene.finish(id, name, hash, table))
 }
 
 /// Reads the layout of a scene file: its version, its table of assets, and its entities' records,
 /// their components and its overrides left to read once the prefabs are resolved.
-fn layout(
-    document: &mut Document<'_>,
-) -> Result<(HashMap<String, AssetId>, Vec<Entry>), ReadError> {
+fn layout(document: &mut Document<'_>) -> Result<Layout, ReadError> {
     known(
         document,
         &[],
@@ -180,6 +190,7 @@ fn layout(
         ));
     }
     let mut assets = HashMap::new();
+    let mut written = Vec::new();
     let mut named: HashMap<AssetId, String> = HashMap::new();
     for name in table(document, &[ASSETS])? {
         let place = [ASSETS, name.as_str()];
@@ -199,13 +210,21 @@ fn layout(
                 ));
             }
         };
-        document.read(&[ASSETS, name.as_str(), PATH], "String", None)?;
+        let path = match document.read(&[ASSETS, name.as_str(), PATH], "String", None)? {
+            Some(Value::Text(path)) => Some(path),
+            _ => None,
+        };
         if let Some(other) = named.insert(id, name.clone()) {
             return Err(document.error_at(
                 &id_place,
                 Problem::Invalid(format!("the asset {id} is named `{other}` already")),
             ));
         }
+        written.push(AssetName {
+            name: name.clone(),
+            id,
+            path,
+        });
         assets.insert(name, id);
     }
     if holds(document, &[ROOT]) {
@@ -253,7 +272,11 @@ fn layout(
         }
         entries.push(Entry { id, parent, prefab });
     }
-    Ok((assets, entries))
+    Ok(Layout {
+        assets,
+        table: written,
+        entries,
+    })
 }
 
 /// Accepts an ID that an entity of a scene file may have, refuses it with the reason otherwise.
@@ -327,7 +350,7 @@ struct Resolution<'a> {
     registry: &'a Registry,
     entries: &'a [Entry],
     /// Each entry's prefab, resolved, if it is a placement.
-    prefabs: &'a [Option<Arc<ResolvedScene>>],
+    prefabs: &'a [Option<ResolvedScene>],
     records: Vec<Record>,
     /// The index of each record, by its path, `.` for the root, until its values are read.
     paths: HashMap<String, u32>,
@@ -354,7 +377,7 @@ impl Resolution<'_> {
         let entities: usize = 1 + self
             .prefabs
             .iter()
-            .map(|prefab| prefab.as_ref().map_or(1, |prefab| prefab.records.len()))
+            .map(|prefab| prefab.as_ref().map_or(1, |prefab| prefab.0.records.len()))
             .sum::<usize>();
         if entities > MAX_ENTITIES {
             return Err(too_large());
@@ -380,7 +403,7 @@ impl Resolution<'_> {
                 });
                 continue;
             };
-            for record in &prefab.records {
+            for record in &prefab.0.records {
                 let mut path = Vec::with_capacity(record.path.len() + 1);
                 path.push(entry.id.clone());
                 path.extend(record.path.iter().cloned());
@@ -801,20 +824,26 @@ impl Resolution<'_> {
     }
 
     /// The scene resolved, its placements remembered.
-    fn finish(mut self, id: AssetId, name: &str, fingerprint: u64) -> ResolvedScene {
+    fn finish(
+        mut self,
+        id: AssetId,
+        name: &str,
+        fingerprint: u64,
+        assets: Vec<AssetName>,
+    ) -> ResolvedScene {
         let mut set_aside = Vec::new();
         let depth = 1 + self
             .prefabs
             .iter()
             .flatten()
-            .map(|prefab| prefab.depth)
+            .map(|prefab| prefab.0.depth)
             .max()
             .unwrap_or(0);
         for (index, entry) in self.entries.iter().enumerate() {
             let Some(prefab) = &self.prefabs[index] else {
                 continue;
             };
-            set_aside.extend(prefab.set_aside.iter().map(|aside| SetAside {
+            set_aside.extend(prefab.0.set_aside.iter().map(|aside| SetAside {
                 entity: format!("{}/{}", entry.id, aside.entity),
                 ..aside.clone()
             }));
@@ -824,19 +853,20 @@ impl Resolution<'_> {
                 continue;
             };
             record.placement = Some(Arc::new(Placement {
-                prefab: Arc::clone(prefab),
+                prefab: prefab.clone(),
                 overrides: std::mem::take(&mut self.overrides[index]),
                 set_aside: std::mem::take(&mut self.set_aside[index]),
             }));
         }
-        ResolvedScene {
+        ResolvedScene(Arc::new(Resolved {
             id,
             name: name.to_owned(),
             fingerprint,
             depth,
             records: self.records,
             set_aside,
-        }
+            assets,
+        }))
     }
 }
 

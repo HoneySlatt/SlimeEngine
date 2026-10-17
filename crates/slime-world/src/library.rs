@@ -62,7 +62,7 @@ pub(crate) const NO_RECORD: u64 = u64::MAX;
 #[derive(Default)]
 pub struct SceneLibrary {
     sources: HashMap<AssetId, Source>,
-    resolved: HashMap<AssetId, Arc<ResolvedScene>>,
+    resolved: HashMap<AssetId, ResolvedScene>,
 }
 
 /// A scene as a game gives it to a library.
@@ -132,7 +132,7 @@ impl SceneLibrary {
         &mut self,
         registry: &Registry,
         id: AssetId,
-    ) -> Result<Arc<ResolvedScene>, SceneError> {
+    ) -> Result<ResolvedScene, SceneError> {
         self.resolve_within(registry, id, &mut Vec::new())
     }
 
@@ -142,7 +142,7 @@ impl SceneLibrary {
         registry: &Registry,
         id: AssetId,
         chain: &mut Vec<(AssetId, String)>,
-    ) -> Result<Arc<ResolvedScene>, SceneError> {
+    ) -> Result<ResolvedScene, SceneError> {
         let names = |chain: &[(AssetId, String)], last: &str| {
             chain
                 .iter()
@@ -152,10 +152,10 @@ impl SceneLibrary {
         };
         if let Some(resolved) = self.resolved.get(&id) {
             // A scene resolved alone first may nest too deep where another places it.
-            if chain.len() + resolved.depth > MAX_NESTING {
-                return Err(SceneError::TooDeep(names(chain, &resolved.name)));
+            if chain.len() + resolved.0.depth > MAX_NESTING {
+                return Err(SceneError::TooDeep(names(chain, &resolved.0.name)));
             }
-            return Ok(Arc::clone(resolved));
+            return Ok(resolved.clone());
         }
         let source = self.sources.get(&id).ok_or_else(|| SceneError::Missing {
             id,
@@ -173,8 +173,8 @@ impl SceneLibrary {
         }
         let text = match source {
             Source::Cooked(scene) => {
-                let resolved = Arc::new(ResolvedScene::from_cooked(id, scene));
-                self.resolved.insert(id, Arc::clone(&resolved));
+                let resolved = ResolvedScene::from_cooked(id, scene);
+                self.resolved.insert(id, resolved.clone());
                 return Ok(resolved);
             }
             Source::File { text, .. } => text.clone(),
@@ -182,8 +182,8 @@ impl SceneLibrary {
         chain.push((id, name.clone()));
         let resolved = scene_file::resolve(self, registry, id, &name, &text, chain);
         chain.pop();
-        let resolved = Arc::new(resolved?);
-        self.resolved.insert(id, Arc::clone(&resolved));
+        let resolved = resolved?;
+        self.resolved.insert(id, resolved.clone());
         Ok(resolved)
     }
 }
@@ -204,9 +204,14 @@ fn check_order(scene: &CookedScene) {
 /// A scene resolved into what it spawns: its entities, each with its parent, its components and
 /// the path of IDs that names it from the scene's root, its placements and their overrides applied
 /// ([`SceneLibrary::resolve`], [`ResolvedScene::from_cooked`]). A world spawns it under a key
-/// ([`World::spawn_scene`](crate::World::spawn_scene)), as many times as it needs.
+/// ([`World::spawn_scene`](crate::World::spawn_scene)), as many times as it needs. It is shared:
+/// a clone costs a count.
+#[derive(Clone, Debug)]
+pub struct ResolvedScene(pub(crate) Arc<Resolved>);
+
+/// What a resolved scene holds.
 #[derive(Debug)]
-pub struct ResolvedScene {
+pub(crate) struct Resolved {
     pub(crate) id: AssetId,
     pub(crate) name: String,
     /// The FNV-1a hash of what the scene was resolved from: its cooked bytes, or its text and the
@@ -217,6 +222,16 @@ pub struct ResolvedScene {
     /// The root first; each entity's parent may come after it, as a scene file's may.
     pub(crate) records: Vec<Record>,
     pub(crate) set_aside: Vec<SetAside>,
+    /// The scene file's table of assets, in its order; none for a glTF scene.
+    pub(crate) assets: Vec<AssetName>,
+}
+
+/// An asset of a scene file's table: its short name, its ID, and where its source was.
+#[derive(Clone, Debug)]
+pub(crate) struct AssetName {
+    pub(crate) name: String,
+    pub(crate) id: AssetId,
+    pub(crate) path: Option<String>,
 }
 
 /// An entity of a resolved scene.
@@ -239,7 +254,7 @@ pub(crate) struct Record {
 /// ([`World::placement`](crate::World::placement)).
 #[derive(Debug)]
 pub struct Placement {
-    pub(crate) prefab: Arc<ResolvedScene>,
+    pub(crate) prefab: ResolvedScene,
     pub(crate) overrides: Overrides,
     pub(crate) set_aside: Vec<SetAside>,
 }
@@ -376,34 +391,35 @@ impl ResolvedScene {
                 placement: None,
             });
         }
-        Self {
+        Self(Arc::new(Resolved {
             id,
             name: scene.name.clone(),
             fingerprint: fingerprint(0xcbf2_9ce4_8422_2325, &scene.to_bytes()),
             depth: 1,
             records,
             set_aside: Vec::new(),
-        }
+            assets: Vec::new(),
+        }))
     }
 
     /// The scene's asset ID.
     pub fn id(&self) -> AssetId {
-        self.id
+        self.0.id
     }
 
     /// The scene's name, for messages.
     pub fn name(&self) -> &str {
-        &self.name
+        &self.0.name
     }
 
     /// How many entities the scene spawns, its root included.
     pub fn len(&self) -> usize {
-        self.records.len()
+        self.0.records.len()
     }
 
     /// Whether the scene spawns no entity: never, as it spawns its root at least.
     pub fn is_empty(&self) -> bool {
-        self.records.is_empty()
+        self.0.records.is_empty()
     }
 
     /// The overrides of the scene and of the prefabs that it places, at any depth, that could not
@@ -411,7 +427,7 @@ impl ResolvedScene {
     /// no longer fit it. Their entities are named by their paths from the scene's root, such as
     /// `lamp 1/glass`.
     pub fn set_aside(&self) -> &[SetAside] {
-        &self.set_aside
+        &self.0.set_aside
     }
 }
 

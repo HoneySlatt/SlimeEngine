@@ -31,7 +31,7 @@ pub(crate) const ADDED: &str = "added";
 /// What changed of the components, in parts.
 pub(crate) const CHANGED: &str = "changed";
 
-/// Why a world cannot be saved, or a save loaded.
+/// Why a world cannot be saved, a save loaded, or a world written as a scene file.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum DocumentError {
@@ -53,6 +53,15 @@ pub enum DocumentError {
     /// more entities at the start of its run than when the save was made.
     #[error("the save creates `{0}`, an identity that an entity of the world has already")]
     IdentityInUse(PersistentId),
+    /// The entity cannot be the root of a scene file written from the world: it is not alive, or it
+    /// is a placement or an entity of one, which the scene that places it writes.
+    #[error("{entity} cannot be written as a scene's root: {reason}")]
+    NotARoot {
+        /// The entity, by its persistent identity, or its handle if it has none.
+        entity: String,
+        /// Why.
+        reason: String,
+    },
 }
 
 /// What loading a save left aside, and why: what the save holds of entities or components that
@@ -727,7 +736,7 @@ impl World {
     }
 
     /// Whether the entity, or one of its ancestors, holds [`Unsaved`].
-    fn unsaved(&self, entity: Entity) -> bool {
+    pub(crate) fn unsaved(&self, entity: Entity) -> bool {
         let mut next = Some(entity);
         while let Some(entity) = next {
             if self.get::<Unsaved>(entity).is_some() {
@@ -739,7 +748,7 @@ impl World {
     }
 
     /// The names of the types of the components that `entity` holds, in their order.
-    fn component_names_sorted(&self, entity: Entity) -> Vec<&str> {
+    pub(crate) fn component_names_sorted(&self, entity: Entity) -> Vec<&str> {
         let mut names = self.component_names(entity);
         names.sort_unstable();
         names
