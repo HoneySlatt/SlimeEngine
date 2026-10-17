@@ -3,12 +3,14 @@
 use std::any::{Any, TypeId};
 use std::collections::{BTreeMap, HashMap};
 use std::mem;
+use std::sync::Arc;
 
 use slime_reflect::{Reflect, Registry};
 
 use crate::components::{Extras, Hidden, Light, Meshes, Name, Unsaved};
 use crate::entity::{Entities, Entity};
 use crate::identity::PersistentId;
+use crate::library::Placement;
 use crate::query::{Query, QueryIter, QueryMut};
 use crate::storage::{AnyStorage, Storage};
 use crate::transform::{GlobalTransform, Transform};
@@ -125,6 +127,8 @@ pub(crate) struct Node {
     /// Its index in [`Changes::moved`] plus one, if its transform in the world changed during the
     /// last fixed step; 0 if it did not, or changed outside a step since.
     pub(crate) moved: u32,
+    /// What the scene that spawned it placed here, if it is a placement's root.
+    pub(crate) placement: Option<Arc<Placement>>,
 }
 
 /// How files and saves name an entity.

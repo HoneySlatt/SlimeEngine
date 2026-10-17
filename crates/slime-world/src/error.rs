@@ -48,4 +48,16 @@ pub enum WorldError {
         /// Why, and where in the component.
         error: ReflectError,
     },
+    /// A value of a scene that its component's type refuses as the scene spawns, by a rule of its
+    /// type's check, which reflection leaves to the type
+    /// ([`World::spawn_scene`](crate::World::spawn_scene)).
+    #[error("`{entity}`, component `{component}`: {error}")]
+    RefusedInScene {
+        /// The entity, by the persistent identity it would have.
+        entity: PersistentId,
+        /// The component's type, by its name.
+        component: String,
+        /// Why, and where in the component.
+        error: Box<ReflectError>,
+    },
 }

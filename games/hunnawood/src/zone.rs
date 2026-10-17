@@ -12,7 +12,7 @@
 use slime_assets::{CookedScene, Extra};
 use slime_reflect::Reflect;
 use slime_render::glam::{DAffine3, Vec2, Vec3};
-use slime_world::{Component, Entity, Extras, Light, Name, Transform, World};
+use slime_world::{Component, Entity, Extras, Light, Name, ResolvedScene, Transform, World};
 
 /// The key that the zone's scene is spawned under: the first part of its entities' persistent
 /// identities, `zone/door`.
@@ -358,7 +358,10 @@ impl Zone {
     /// kind. Nothing is spawned then.
     pub fn spawn(world: &mut World, scene: &CookedScene) -> Result<Self, String> {
         let root = world
-            .spawn_scene(KEY, scene)
+            .spawn_scene(
+                KEY,
+                &ResolvedScene::from_cooked(crate::assets::zone_id(), scene),
+            )
             .map_err(|error| error.to_string())?;
         let zone = Self::prepare(world, root, &scene.name);
         if zone.is_err() {
@@ -555,7 +558,7 @@ pub mod cooked {
 
     use slime_assets::{AssetKind, CookedAssets, CookedScene};
     use slime_render::glam::Vec2;
-    use slime_world::{Hidden, Light, Meshes, World};
+    use slime_world::{Hidden, Light, Meshes, ResolvedScene, World};
 
     use super::{Footprint, TimeOfDay, Zone, descends};
     use crate::assets;
@@ -765,7 +768,12 @@ pub mod cooked {
 
         let (_, scene) = zone();
         let mut world = World::new();
-        world.spawn_scene("zone", &scene).expect("spawned");
+        world
+            .spawn_scene(
+                "zone",
+                &ResolvedScene::from_cooked(crate::assets::zone_id(), &scene),
+            )
+            .expect("spawned");
         world.update_transforms();
         assert_eq!(
             world.len(),
@@ -794,6 +802,36 @@ pub mod cooked {
         }
     }
 
+    /// Prints what resolving the zone's cooked scene and spawning it in a world cost, the median of
+    /// 21 runs. Run it in a release build:
+    /// `cargo test --release -p hunnawood -- --ignored --nocapture spawning_the_zone`.
+    #[test]
+    #[ignore = "a measurement, which needs the cooked zone"]
+    fn what_spawning_the_zone_costs() {
+        use std::time::{Duration, Instant};
+
+        let (_, scene) = zone();
+        let mut resolving: Vec<Duration> = Vec::new();
+        let mut spawning: Vec<Duration> = Vec::new();
+        for _ in 0..21 {
+            let started = Instant::now();
+            let resolved = ResolvedScene::from_cooked(crate::assets::zone_id(), &scene);
+            resolving.push(started.elapsed());
+            let mut world = World::new();
+            let started = Instant::now();
+            world.spawn_scene("zone", &resolved).expect("spawned");
+            spawning.push(started.elapsed());
+        }
+        resolving.sort_unstable();
+        spawning.sort_unstable();
+        eprintln!(
+            "the zone's {} nodes: resolved in {:?}, spawned in {:?}",
+            scene.nodes.len(),
+            resolving[10],
+            spawning[10]
+        );
+    }
+
     /// Prints what building a frame of the zone's world costs on the CPU, once the asset cache
     /// holds its meshes: the instances, the lights and the sky's environment that
     /// `slime-world-render` gives the renderer. Run it in a release build, on a GPU:
@@ -809,7 +847,12 @@ pub mod cooked {
 
         let (assets, scene) = zone();
         let mut world = World::new();
-        world.spawn_scene("zone", &scene).expect("spawned");
+        world
+            .spawn_scene(
+                "zone",
+                &ResolvedScene::from_cooked(crate::assets::zone_id(), &scene),
+            )
+            .expect("spawned");
         world.update_transforms();
         let gpu = Gpu::new().expect("a GPU adapter must be available");
         let renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");

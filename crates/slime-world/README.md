@@ -7,8 +7,9 @@ The world: the entities of a game, their components and their hierarchy, kept by
 
 Started in M5a.1 (`docs/PLAN.md`). A world gives out entity handles, keeps the components attached
 to them, and finds the entities that hold the components a query asks for. It keeps each entity's
-parent and children and where each one is in the world, and spawns a cooked scene as entities with
-persistent identities. Its components say what is drawn, by asset ID, and it keeps where what moved
+parent and children and where each one is in the world, and spawns scenes as entities with persistent
+identities: glTF scenes as the cooker makes them, and scene files that place prefabs, each placement
+with values of its own. Its components say what is drawn, by asset ID, and it keeps where what moved
 during the last fixed step was, to draw it between its two transforms; `slime-world-render` draws
 it. Every component is reflected, and reached by name. It saves what differs from the world as a
 game makes it at the start of a run, as text, and loads it back.
@@ -26,6 +27,10 @@ game makes it at the start of a run, as text, and loads it back.
   between its two transforms (`docs/adr/0084-what-the-world-draws.md`).
 - Keeps the registry of its components' types, through which every component is listed, read and
   set by name, without its type (`docs/adr/0085-reflection.md`).
+- Spawns scenes: glTF scenes, and scene files that place prefabs, other scenes placed many times,
+  each placement with overrides of its own, resolved once by a library of scenes and then spawned
+  as often as a game needs (`docs/adr/0089-scenes-and-prefabs.md`,
+  `docs/adr/0091-scene-documents-and-placements.md`).
 - Saves a world as what differs from the world that the game makes at the start of a run, entities
   named by their persistent identities, and loads it back, setting aside what no longer applies
   (`docs/adr/0087-the-worlds-documents.md`).
@@ -79,9 +84,16 @@ assert_eq!(world.get::<Velocity>(cart).expect("held").0, 5.0);
   and a stretch that they do not. `World::global_transform` gives where it is in the world, a
   `GlobalTransform`, always current; `World::update_transforms` computes again what changed, so that
   reading costs a lookup.
-- `World::spawn_scene` spawns a cooked scene of `slime-assets` under a key, an entity per node with
-  its `Transform`, `Name`, `Meshes`, `Light` and `Extras`; `World::find` gives the entity of a
-  `PersistentId`, such as `zone/door`.
+- `SceneLibrary` holds a game's scenes by asset ID, glTF scenes as `slime-assets` cooks them
+  (`insert_cooked`) and the text of scene files (`insert_file`), and resolves one
+  (`SceneLibrary::resolve`) into a `ResolvedScene`: its entities, the prefabs that it places
+  resolved with it, and their overrides applied, those whose target the prefab no longer has set
+  aside (`ResolvedScene::set_aside`). `ResolvedScene::from_cooked` resolves a glTF scene alone, an
+  entity per node with its `Transform`, `Name`, `Meshes`, `Light` and `Extras`.
+- `World::spawn_scene` spawns a resolved scene under a key, its entities named by their paths
+  through the placements, such as `zone/lamp 3/light`; `World::find` gives the entity of a
+  `PersistentId`; `World::placement` says what the world remembers of a placement: its prefab and
+  its overrides.
 - `Meshes`, `Light` and `Hidden` say what is drawn: meshes by asset ID, each drawn with the material
   of its cooked mesh, lights at their entity's origin along its −Z axis, a directional one showing
   in the sky or not, and the subtrees left out; `World::is_hidden` says whether an entity is, by
@@ -109,11 +121,11 @@ The rustdoc holds the contracts: what panics, what each query visits, what each 
 
 ## Dependencies
 
-- `slime-assets`: the cooked scenes it spawns.
+- `slime-assets`: the cooked scenes it spawns, and the asset IDs that name scenes.
 - `glam`: vectors, rotations and matrices; `DVec3` for positions.
 - `slime-color`: the colors of its lights.
 - `slime-reflect`: every component is reflected, and each world keeps the registry of their types.
-- `slime-serialize`: the text of saves.
+- `slime-serialize`: the text of saves and of scene files.
 - `thiserror`: derives `WorldError`'s `Display` and `Error` implementations.
 - `tracing`: the warnings of a scene spawned with nodes known by their index, or scaled unevenly or
   mirrored.

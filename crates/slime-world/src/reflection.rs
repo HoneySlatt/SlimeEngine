@@ -171,11 +171,8 @@ impl World {
         if !self.contains(entity) {
             return Err(WorldError::NotAlive(entity));
         }
-        let unknown = || WorldError::UnknownComponent(component.to_owned());
-        let registration = self.registry.get(component).ok_or_else(unknown)?;
-        let name = registration.info().name.clone();
-        let type_id = registration.type_id().ok_or_else(unknown)?;
-        let &id = self.component_ids.get(&type_id).ok_or_else(unknown)?;
+        let (id, name) = self.storage_named(component)?;
+        let type_id = self.component_types[id];
         let refused = |error| WorldError::Refused {
             component: name.clone(),
             error,
@@ -211,6 +208,25 @@ impl World {
             mark_stale(&mut self.nodes, &mut self.changes, slot);
         }
         value
+    }
+
+    /// The component ID, the index of its storage, of the type named `component`, by its name or an
+    /// alias, and the type's name.
+    ///
+    /// # Errors
+    ///
+    /// [`WorldError::UnknownComponent`] if no component type of that name has a storage in the world:
+    /// one that it has stored, or registered ([`World::register`]).
+    pub(crate) fn storage_named(&self, component: &str) -> Result<(usize, String), WorldError> {
+        let unknown = || WorldError::UnknownComponent(component.to_owned());
+        let registration = self.registry.get(component).ok_or_else(unknown)?;
+        let type_id = registration.type_id().ok_or_else(unknown)?;
+        let id = self
+            .component_ids
+            .get(&type_id)
+            .copied()
+            .ok_or_else(unknown)?;
+        Ok((id, registration.info().name.clone()))
     }
 
     /// The component ID of `entity`'s component whose type is named `component`, and the type's

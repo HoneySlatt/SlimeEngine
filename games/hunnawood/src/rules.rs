@@ -10,7 +10,7 @@ use std::f32::consts::{FRAC_PI_2, PI, TAU};
 use slime_assets::CookedScene;
 use slime_reflect::Reflect;
 use slime_render::glam::{DVec3, Quat, Vec2, Vec3};
-use slime_world::{Component, Entity, Hidden, Transform, World};
+use slime_world::{Component, Entity, Hidden, ResolvedScene, Transform, World};
 
 use crate::zone::{Collider, Flickers, Footprint, Marker, TimeOfDay, Zone, colliders};
 
@@ -154,7 +154,10 @@ impl Game {
         world.register::<Door>();
         world.register::<Clock>();
         let zone = Zone::spawn(world, zone)?;
-        let hero = match world.spawn_scene(HERO, hero) {
+        let hero = match world.spawn_scene(
+            HERO,
+            &ResolvedScene::from_cooked(crate::assets::hero_id(), hero),
+        ) {
             Ok(hero) => hero,
             Err(error) => {
                 world.despawn(zone.root);
@@ -221,7 +224,10 @@ impl Game {
         let placed = world.get::<Transform>(self.hero).copied();
         despawn_scene(world, HERO);
         self.hero = world
-            .spawn_scene(HERO, scene)
+            .spawn_scene(
+                HERO,
+                &ResolvedScene::from_cooked(crate::assets::hero_id(), scene),
+            )
             .expect("the identities of the hero before went with it");
         if let Some(placed) = placed {
             world.insert(self.hero, placed);

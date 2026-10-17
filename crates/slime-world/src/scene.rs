@@ -1,139 +1,131 @@
-//! Cooked scenes spawned as entities, and the persistent identities of entities.
+//! Scenes spawned as entities, and the persistent identities of entities.
 
+use std::any::TypeId;
 use std::collections::HashMap;
+use std::sync::Arc;
 
-use glam::{DAffine3, Mat4};
-use slime_assets::CookedScene;
+use slime_reflect::{Reflect, Value};
 
-use crate::components::{Extras, Light, Meshes, Name};
+use crate::components::Name;
 use crate::entity::Entity;
 use crate::error::WorldError;
 use crate::identity::{CREATED, PersistentId};
-use crate::transform::{GlobalTransform, Transform, split};
-use crate::world::{Identity, SpawnedScene, World};
+use crate::library::{NO_RECORD, Placement, ResolvedScene};
+use crate::scene_file::for_each_entity;
+use crate::transform::Transform;
+use crate::world::{Identity, SpawnedScene, World, mark_stale};
 
 impl World {
-    /// Spawns a cooked scene as entities, under a root entity whose persistent identity is `key`,
-    /// and returns the root.
+    /// Spawns a resolved scene as entities, under a root entity whose persistent identity is `key`,
+    /// and returns the root (`docs/adr/0089-scenes-and-prefabs.md`).
     ///
-    /// Each node becomes an entity, child of its parent's, the scene's root nodes children of the
-    /// root, in the scene's order. Each holds a [`Transform`] from its node's matrix, its [`Name`]
-    /// if it has one, the [`Meshes`] and the [`Light`] it places, and its [`Extras`]. Its
-    /// persistent identity is `key` and the node's name, or its index, `#12`, with a warning, when
-    /// the name is missing, starts with `#` as indices do, holds `/`, which joins the parts of an
-    /// identity, or another node has it too: an export that reorders the nodes keeps them, a node
-    /// renamed loses its own. No two entities of a scene get the same identity.
-    ///
-    /// A node's matrix gives its transform as `docs/adr/0079-the-engines-own-world.md` says: three
-    /// scales within 10⁻⁵ of the largest become its uniform scale; otherwise its stretch, which its
-    /// children do not inherit. A node with children scaled unevenly or mirrored is logged with a
-    /// warning, and its children are placed from where the file puts them in the world. A shear,
-    /// which a node turned under a node scaled unevenly gets, is dropped: its rotation keeps the
-    /// direction of its first axis that is not flattened, and the others are made square to it.
+    /// Each entity of the scene ([`ResolvedScene`]) becomes an entity, child of its parent's, in the
+    /// scene's order, with its components. Its persistent identity is `key` followed by its path
+    /// from the scene's root, the IDs of the placements it is in then its own: `zone/lamp 3/light`.
+    /// The root holds a [`Name`] of `key` unless the scene gives it one. The world remembers each
+    /// placement's prefab and overrides ([`World::placement`]), and the scene's name and
+    /// fingerprint, which a save records.
     ///
     /// # Errors
     ///
     /// [`WorldError::InvalidKey`] if `key` is empty, holds `/`, or is `created`, which names the
     /// entities created outside scenes; [`WorldError::IdentityInUse`] if an entity has the identity
-    /// `key`, or one of the scene's, already, as a scene spawned twice under one key gives. Nothing
-    /// is spawned then.
+    /// `key`, or one of the scene's, already, as a scene spawned twice under one key gives;
+    /// [`WorldError::UnknownComponent`] if a component's type has no storage in the world, as a
+    /// type that the game did not register ([`World::register`]) has;
+    /// [`WorldError::RefusedInScene`] if a value breaks a rule of its type's check, which reflection
+    /// leaves to the type ([`World::set_component_value`]). Nothing is spawned then.
     ///
     /// # Panics
     ///
-    /// If a node's parent does not come before it, which a scene read from cooked data never has
-    /// (`CookedScene::from_bytes` refuses it), before anything is spawned; or if the world runs out
-    /// of slots ([`World::spawn`]).
-    pub fn spawn_scene(&mut self, key: &str, scene: &CookedScene) -> Result<Entity, WorldError> {
-        let mut has_children = vec![false; scene.nodes.len()];
-        for (index, node) in scene.nodes.iter().enumerate() {
-            if let Some(parent) = node.parent {
-                assert!(
-                    (parent as usize) < index,
-                    "scene `{}`: node {index}'s parent comes after it",
-                    scene.name
-                );
-                has_children[parent as usize] = true;
-            }
-        }
+    /// If the world runs out of slots ([`World::spawn`]).
+    pub fn spawn_scene(&mut self, key: &str, scene: &ResolvedScene) -> Result<Entity, WorldError> {
         if key.is_empty() || key.contains('/') || key == CREATED {
             return Err(WorldError::InvalidKey(key.to_owned()));
         }
-        let root_id = PersistentId::new([key]);
-        let locals = local_ids(scene);
-        for id in std::iter::once(root_id.clone()).chain(locals.iter().map(|l| root_id.child(l))) {
-            if self.identities.contains_key(&id) {
-                return Err(WorldError::IdentityInUse(id));
+        let ids: Vec<PersistentId> = scene
+            .records
+            .iter()
+            .map(|record| {
+                PersistentId::new(
+                    std::iter::once(key).chain(record.path.iter().map(String::as_str)),
+                )
+            })
+            .collect();
+        if let Some(id) = ids.iter().find(|id| self.identities.contains_key(*id)) {
+            return Err(WorldError::IdentityInUse(id.clone()));
+        }
+        let mut storages: HashMap<&str, usize> = HashMap::new();
+        for (name, _) in scene.records.iter().flat_map(|record| &record.components) {
+            if !storages.contains_key(name.as_str()) {
+                let (storage, _) = self.storage_named(name)?;
+                storages.insert(name, storage);
             }
         }
-        let root = self.spawn_bare();
-        self.insert(root, Name(key.to_owned()));
-        self.insert(root, Transform::IDENTITY);
-        self.identify(root, root_id.clone());
-
-        // Where the file puts each node in the scene, and where its entity is, which differ below
-        // a node with children scaled unevenly.
-        let mut exact: Vec<DAffine3> = Vec::with_capacity(scene.nodes.len());
-        let mut placed: Vec<GlobalTransform> = Vec::with_capacity(scene.nodes.len());
-        let mut flattened: Vec<bool> = Vec::with_capacity(scene.nodes.len());
-        let mut entities: Vec<Entity> = Vec::with_capacity(scene.nodes.len());
-        for (index, node) in scene.nodes.iter().enumerate() {
-            let parent = node.parent.map(|parent| parent as usize);
-            let local = DAffine3::from_mat4(Mat4::from_cols_array(&node.transform).as_dmat4());
-            let parent_exact = parent.map_or(DAffine3::IDENTITY, |parent| exact[parent]);
-            let parent_placed = parent.map_or(GlobalTransform::IDENTITY, |parent| placed[parent]);
-            let below_flattened = parent.is_some_and(|parent| flattened[parent]);
-            let world = parent_exact * local;
-            let matrix = if below_flattened {
-                parent_placed.to_affine(glam::Vec3::ONE).inverse() * world
-            } else {
-                local
-            };
-            let (transform, flattens) = split(matrix, has_children[index]);
-            if flattens {
-                tracing::warn!(
-                    scene = %scene.name,
-                    node = %node.name,
-                    "a node with children is scaled unevenly or mirrored: its children are placed apart from it"
-                );
+        let entities: Vec<Entity> = scene.records.iter().map(|_| self.spawn_bare()).collect();
+        for (&entity, id) in entities.iter().zip(ids.iter()) {
+            self.identify(entity, id.clone());
+        }
+        for ((record, &entity), id) in scene.records.iter().zip(&entities).zip(&ids) {
+            for (name, value) in &record.components {
+                let storage = storages[name.as_str()];
+                let inserted = if holds_entity(value) {
+                    self.storages[storage]
+                        .insert_value(entity.index(), &with_handles(value, &entities))
+                } else {
+                    self.storages[storage].insert_value(entity.index(), value)
+                };
+                if let Err(error) = inserted {
+                    // Without parents yet: each is despawned alone.
+                    for &entity in &entities {
+                        self.despawn(entity);
+                    }
+                    return Err(WorldError::RefusedInScene {
+                        entity: id.clone(),
+                        component: name.clone(),
+                        error: Box::new(error),
+                    });
+                }
+                if self.component_types[storage] == TypeId::of::<Transform>() {
+                    mark_stale(&mut self.nodes, &mut self.changes, entity.index());
+                    self.teleport(entity);
+                }
             }
-            exact.push(world);
-            placed.push(parent_placed.mul_transform(&transform));
-            flattened.push(flattens || below_flattened);
-
-            let entity = self.spawn_bare();
-            self.insert(entity, transform);
-            if !node.name.is_empty() {
-                self.insert(entity, Name(node.name.clone()));
+        }
+        if !scene.records[0]
+            .components
+            .iter()
+            .any(|(name, _)| name == "Name")
+        {
+            self.insert(entities[0], Name(key.to_owned()));
+        }
+        for (record, &entity) in scene.records.iter().zip(&entities) {
+            if let Some(parent) = record.parent {
+                self.set_parent(entity, Some(entities[parent as usize]))
+                    .expect("both are alive, and a resolved scene is a tree");
             }
-            if !node.meshes.is_empty() {
-                self.insert(
-                    entity,
-                    Meshes {
-                        ids: node.meshes.clone(),
-                        casts_shadows: true,
-                    },
-                );
+            if let Some(placement) = &record.placement {
+                self.nodes[entity.index() as usize].placement = Some(Arc::clone(placement));
             }
-            if let Some(light) = node.light {
-                self.insert(entity, Light::from_cooked(&light));
-            }
-            if !node.extras.is_empty() {
-                self.insert(entity, Extras(node.extras.clone()));
-            }
-            let parent_entity = parent.map_or(root, |parent| entities[parent]);
-            self.set_parent(entity, Some(parent_entity))
-                .expect("both are alive, and the parent came before");
-            self.identify(entity, root_id.child(&locals[index]));
-            entities.push(entity);
         }
         self.scenes.insert(
             key.to_owned(),
             SpawnedScene {
                 name: scene.name.clone(),
-                content: fingerprint(&scene.to_bytes()),
+                content: scene.fingerprint,
             },
         );
-        Ok(root)
+        Ok(entities[0])
+    }
+
+    /// What the world remembers of the placement whose root is `entity`, if it is alive and one: the
+    /// prefab placed, and the overrides that the scene that placed it writes for it
+    /// (`docs/adr/0089-scenes-and-prefabs.md`).
+    pub fn placement(&self, entity: Entity) -> Option<&Placement> {
+        if !self.contains(entity) {
+            return None;
+        }
+        self.nodes[entity.index() as usize].placement.as_deref()
     }
 
     /// The entity whose persistent identity is `id`, if one is alive.
@@ -163,52 +155,48 @@ impl World {
     }
 }
 
-/// The FNV-1a hash of `bytes`: a fingerprint of a scene's content that a save keeps, the same on
-/// every platform and with every version of Rust.
-fn fingerprint(bytes: &[u8]) -> u64 {
-    bytes.iter().fold(0xcbf2_9ce4_8422_2325, |hash, &byte| {
-        (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3)
-    })
+/// Whether `value` holds a reference to an entity.
+fn holds_entity(value: &Value) -> bool {
+    match value {
+        Value::Entity(_) => true,
+        Value::Struct(fields) | Value::Enum(_, fields) => {
+            fields.iter().any(|(_, field)| holds_entity(field))
+        }
+        Value::Option(Some(held)) => holds_entity(held),
+        Value::List(elements) => elements.iter().any(holds_entity),
+        _ => false,
+    }
 }
 
-/// Each node's ID within its scene: its name, or `#<index>` with a warning when the name is
-/// missing, starts with `#`, which would let it be taken for another node's index, holds `/`,
-/// which separates the parts of an identity, or is repeated. No two nodes get the same ID.
-fn local_ids(scene: &CookedScene) -> Vec<String> {
-    let mut uses: HashMap<&str, usize> = HashMap::new();
-    for node in &scene.nodes {
-        *uses.entry(node.name.as_str()).or_default() += 1;
-    }
-    scene
-        .nodes
-        .iter()
-        .enumerate()
-        .map(|(index, node)| {
-            if !node.name.is_empty()
-                && !node.name.starts_with('#')
-                && !node.name.contains('/')
-                && uses[node.name.as_str()] == 1
-            {
-                node.name.clone()
-            } else {
-                tracing::warn!(
-                    scene = %scene.name,
-                    index,
-                    name = %node.name,
-                    "a node without a name of its own is known by its index, which a new export can change"
-                );
-                format!("#{index}")
-            }
-        })
-        .collect()
+/// `value`, a resolved scene's, its references to the scene's records made references to the
+/// entities spawned for them, `entities`, in the records' order.
+fn with_handles(value: &Value, entities: &[Entity]) -> Value {
+    let mut value = value.clone();
+    for_each_entity(&mut value, &mut |bits| {
+        let entity = if *bits == NO_RECORD {
+            Entity::NONE
+        } else {
+            entities[*bits as usize]
+        };
+        if let Value::Entity(handle) = entity.to_value() {
+            *bits = handle;
+        }
+    });
+    value
 }
 
 #[cfg(test)]
 mod tests {
-    use glam::{DVec3, Quat, Vec3};
-    use slime_assets::{AssetId, Extra, SceneNode};
+    use glam::{DAffine3, DVec3, Mat4, Quat, Vec3};
+    use slime_assets::{AssetId, CookedScene, Extra, SceneNode};
 
     use super::*;
+    use crate::{Extras, Meshes};
+
+    /// `scene` resolved, as a game resolves a glTF scene that it spawns alone.
+    fn resolved(scene: &CookedScene) -> ResolvedScene {
+        ResolvedScene::from_cooked(AssetId::from_u128(1), scene)
+    }
 
     fn node(name: &str, parent: Option<u32>, matrix: Mat4) -> SceneNode {
         SceneNode {
@@ -273,7 +261,9 @@ mod tests {
     fn a_cooked_scene_becomes_entities_placed_where_its_file_puts_them() {
         let mut world = World::new();
         let scene = chapel();
-        let root = world.spawn_scene("zone", &scene).expect("spawned");
+        let root = world
+            .spawn_scene("zone", &resolved(&scene))
+            .expect("spawned");
         assert_eq!(world.len(), 4);
         assert_eq!(world.persistent_id(root), Some(PersistentId::new(["zone"])));
         let door = world
@@ -320,8 +310,12 @@ mod tests {
         ];
         let mut first = World::new();
         let mut second = World::new();
-        first.spawn_scene("zone", &scene).expect("spawned");
-        second.spawn_scene("zone", &reordered).expect("spawned");
+        first
+            .spawn_scene("zone", &resolved(&scene))
+            .expect("spawned");
+        second
+            .spawn_scene("zone", &resolved(&reordered))
+            .expect("spawned");
         for name in ["chapel", "door", "wall"] {
             let id = PersistentId::new(["zone", name]);
             let place = |world: &World| {
@@ -339,7 +333,9 @@ mod tests {
         let mut scene = chapel();
         scene.nodes[2].name = "door".to_owned();
         let mut world = World::new();
-        world.spawn_scene("zone", &scene).expect("spawned");
+        world
+            .spawn_scene("zone", &resolved(&scene))
+            .expect("spawned");
         assert!(world.find(&PersistentId::new(["zone", "door"])).is_none());
         assert!(world.find(&PersistentId::new(["zone", "#1"])).is_some());
         assert!(world.find(&PersistentId::new(["zone", "#2"])).is_some());
@@ -351,7 +347,9 @@ mod tests {
         scene.nodes[0].name = "#2".to_owned();
         scene.nodes[2].name = String::new();
         let mut world = World::new();
-        world.spawn_scene("zone", &scene).expect("spawned");
+        world
+            .spawn_scene("zone", &resolved(&scene))
+            .expect("spawned");
         let named = world
             .find(&PersistentId::new(["zone", "#0"]))
             .expect("spawned");
@@ -370,7 +368,7 @@ mod tests {
         scene.nodes[0].parent = Some(1);
         let mut world = World::new();
         let spawned = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            world.spawn_scene("zone", &scene)
+            world.spawn_scene("zone", &resolved(&scene))
         }));
         assert!(spawned.is_err());
         assert!(world.is_empty());
@@ -379,18 +377,22 @@ mod tests {
     #[test]
     fn a_scene_spawned_twice_under_one_key_is_refused_and_spawns_nothing() {
         let mut world = World::new();
-        world.spawn_scene("zone", &chapel()).expect("spawned");
+        world
+            .spawn_scene("zone", &resolved(&chapel()))
+            .expect("spawned");
         assert_eq!(
-            world.spawn_scene("zone", &chapel()),
+            world.spawn_scene("zone", &resolved(&chapel())),
             Err(WorldError::IdentityInUse(PersistentId::new(["zone"])))
         );
         assert_eq!(world.len(), 4);
-        world.spawn_scene("copy", &chapel()).expect("another key");
+        world
+            .spawn_scene("copy", &resolved(&chapel()))
+            .expect("another key");
         let root = world.find(&PersistentId::new(["zone"])).expect("spawned");
         assert!(world.despawn(root));
         assert!(world.find(&PersistentId::new(["zone", "door"])).is_none());
         world
-            .spawn_scene("zone", &chapel())
+            .spawn_scene("zone", &resolved(&chapel()))
             .expect("the key is free again");
     }
 
@@ -416,7 +418,9 @@ mod tests {
             nodes: vec![parent, child],
         };
         let mut world = World::new();
-        world.spawn_scene("zone", &scene).expect("spawned");
+        world
+            .spawn_scene("zone", &resolved(&scene))
+            .expect("spawned");
         assert_placed_as_in_the_file(&world, "zone", &scene);
         let child = world
             .find(&PersistentId::new(["zone", "child"]))

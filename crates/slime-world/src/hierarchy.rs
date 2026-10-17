@@ -86,11 +86,11 @@ impl World {
     /// computed from the nearest ancestor that is current, a step per stale ancestor.
     pub fn global_transform(&self, entity: Entity) -> Option<GlobalTransform> {
         self.get::<Transform>(entity)?;
-        Some(self.placement(entity))
+        Some(self.slot_global(entity))
     }
 
     /// Where the entity's slot is in the world, an absent transform counting as none.
-    pub(crate) fn placement(&self, entity: Entity) -> GlobalTransform {
+    pub(crate) fn slot_global(&self, entity: Entity) -> GlobalTransform {
         let mut stale = Vec::new();
         let mut current = Some(entity);
         let mut base = GlobalTransform::IDENTITY;

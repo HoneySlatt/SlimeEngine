@@ -87,7 +87,7 @@ impl World {
             let node = &self.nodes[parent.index() as usize];
             if node.moved != 0 {
                 let (_, before) = self.changes.moved[node.moved as usize - 1];
-                let parent_now = self.placement(parent);
+                let parent_now = self.slot_global(parent);
                 let Some(relative) = now.relative_to(&parent_now) else {
                     return Some(now);
                 };

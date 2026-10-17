@@ -6,9 +6,11 @@ mod entity;
 mod error;
 mod hierarchy;
 mod identity;
+mod library;
 mod query;
 mod reflection;
 mod scene;
+mod scene_file;
 mod steps;
 mod storage;
 mod transform;
@@ -19,6 +21,7 @@ pub use document::{DocumentError, Loaded, SetAside};
 pub use entity::Entity;
 pub use error::WorldError;
 pub use identity::{ParsePersistentIdError, PersistentId};
+pub use library::{MAX_NESTING, Placement, ResolvedScene, SceneError, SceneLibrary};
 pub use query::{Query, QueryIter, QueryMut};
 pub use transform::{GlobalTransform, Transform};
 pub use world::{Component, World};
@@ -38,5 +41,8 @@ mod threads {
         send_and_sync::<Entity>();
         send_and_sync::<PersistentId>();
         send_and_sync::<WorldError>();
+        send_and_sync::<SceneLibrary>();
+        send_and_sync::<ResolvedScene>();
+        send_and_sync::<SceneError>();
     }
 }

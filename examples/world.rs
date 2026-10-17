@@ -47,7 +47,7 @@ use slime_gfx::RenderTarget;
 use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, WindowConfig};
 use slime_render::glam::DVec3;
 use slime_render::{AssetCache, Camera, Renderer};
-use slime_world::{Entity, Light, PersistentId, Transform, World};
+use slime_world::{Entity, Light, PersistentId, ResolvedScene, Transform, World};
 use slime_world_render::FrameBuilder;
 
 use sample_scene::{BLOOM, EXPOSURE, SCENE, SKY};
@@ -163,7 +163,7 @@ fn start(world: &mut World, assets: &CookedAssets) -> Result<(), AppError> {
     if let Some(root) = world.find(&PersistentId::new([KEY])) {
         world.despawn(root);
     }
-    world.spawn_scene(KEY, &scene)?;
+    world.spawn_scene(KEY, &ResolvedScene::from_cooked(SCENE, &scene))?;
     let mut sun = false;
     world.query_mut::<&mut Light>(|_, light| {
         if let Light::Directional { in_sky, .. } = light {

@@ -21,15 +21,15 @@ const NEXT_CREATED: &str = "next_created";
 /// The scenes spawned, by their keys: their names and contents.
 const SCENES: &str = "scenes";
 /// The entities and the components removed.
-const REMOVED: &str = "removed";
+pub(crate) const REMOVED: &str = "removed";
 /// The entities given another parent, or none.
 const PARENTS: &str = "parents";
 /// The entities created outside scenes, whole.
 const CREATED: &str = "created";
 /// The components added, whole.
-const ADDED: &str = "added";
+pub(crate) const ADDED: &str = "added";
 /// What changed of the components, in parts.
-const CHANGED: &str = "changed";
+pub(crate) const CHANGED: &str = "changed";
 
 /// Why a world cannot be saved, or a save loaded.
 #[derive(Debug, thiserror::Error)]
@@ -836,7 +836,12 @@ mod tests {
     use slime_assets::{AssetId, CookedScene, SceneNode};
 
     use super::*;
-    use crate::{Hidden, Meshes, Name, Transform};
+    use crate::{Hidden, Meshes, Name, ResolvedScene, Transform};
+
+    /// `scene` resolved, as a game resolves a glTF scene that it spawns alone.
+    fn resolved(scene: &CookedScene) -> ResolvedScene {
+        ResolvedScene::from_cooked(AssetId::from_u128(1), scene)
+    }
 
     fn node(name: &str, parent: Option<u32>, at: [f32; 3]) -> SceneNode {
         SceneNode {
@@ -864,7 +869,9 @@ mod tests {
     /// A world as a game makes it at the start of a run.
     fn start() -> World {
         let mut world = World::new();
-        world.spawn_scene("yard", &scene()).expect("spawned");
+        world
+            .spawn_scene("yard", &resolved(&scene()))
+            .expect("spawned");
         world
     }
 
@@ -977,7 +984,7 @@ translation = { x = 6.5 }
         let save = played().save(&start(), &BTreeMap::new()).expect("saved");
         let mut world = World::new();
         world
-            .spawn_scene("yard", &scene_changed())
+            .spawn_scene("yard", &resolved(&scene_changed()))
             .expect("spawned");
         let report = world.load(&save).expect("loaded");
         assert_eq!(report.scenes_changed, ["yard"]);

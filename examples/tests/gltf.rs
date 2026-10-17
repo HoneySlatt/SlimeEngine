@@ -48,7 +48,7 @@ use slime_render::glam::{DMat4, Mat4, Quat, Vec3};
 
 use sample_scene::{BLOOM, EXPOSURE, SCENE, SampleScene};
 use slime_render::Renderer;
-use slime_world::{Transform, World};
+use slime_world::{ResolvedScene, Transform, World};
 
 const SIZE: u32 = 256;
 
@@ -674,7 +674,12 @@ fn a_gltf_file_moved_and_renamed_with_its_metadata_draws_the_same_and_cooks_noth
 /// after its own stretch, against the node's matrix in the scene, within `f32`'s rounding.
 fn assert_world_places(scene: &CookedScene) {
     let mut world = World::new();
-    let root = world.spawn_scene("scene", scene).expect("spawned");
+    let root = world
+        .spawn_scene(
+            "scene",
+            &ResolvedScene::from_cooked(AssetId::from_u128(1), scene),
+        )
+        .expect("spawned");
     world.update_transforms();
     // The scene's nodes are in the order of a walk of the hierarchy, which the entities keep.
     let mut walk = Vec::new();

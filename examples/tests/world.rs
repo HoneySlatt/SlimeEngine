@@ -31,7 +31,7 @@ use sample_scene::{BLOOM, Bounds, EXPOSURE, SCENE, SKY};
 use slime_gfx::{Gpu, Image, RenderTarget, TextureFormat};
 use slime_render::glam::DAffine3;
 use slime_render::{AssetCache, Camera, Light, Mesh, RenderStats, Renderer};
-use slime_world::{Entity, Hidden, Meshes, PersistentId, Transform, World};
+use slime_world::{Entity, Hidden, Meshes, PersistentId, ResolvedScene, Transform, World};
 use slime_world_render::FrameBuilder;
 
 const SIZE: u32 = 256;
@@ -45,7 +45,9 @@ fn gpu() -> Gpu {
 fn world() -> World {
     let scene = sample().scene(SCENE).expect("the sample's scene is read");
     let mut world = World::new();
-    world.spawn_scene("sample", &scene).expect("spawned");
+    world
+        .spawn_scene("sample", &ResolvedScene::from_cooked(SCENE, &scene))
+        .expect("spawned");
     let sun = entity(&world, "sun");
     if let Some(slime_world::Light::Directional { in_sky, .. }) =
         world.get_mut::<slime_world::Light>(sun)

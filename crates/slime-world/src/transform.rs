@@ -27,8 +27,11 @@ const UNIFORM: f64 = 1e-5;
 /// a stretched parent is never sheared, and where an entity is in the world always splits into a
 /// translation, a rotation and a scale ([`GlobalTransform`]). The world computes that again when a
 /// transform changes ([`World::global_transform`](crate::World::global_transform)).
+///
+/// Data that leaves a field out, such as a scene file that gives a translation alone, gives it
+/// [`Transform::IDENTITY`]'s value (`#[reflect(default)]`).
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[reflect(name = "Transform", check = Transform::check)]
+#[reflect(name = "Transform", check = Transform::check, default)]
 pub struct Transform {
     /// Where the entity's origin is, in its parent's space, in metres.
     #[reflect(unit = "m")]
