@@ -159,3 +159,4 @@ the ADR linking to it.
 | [0089](0089-scenes-and-prefabs.md) | Scenes and prefabs | Accepted |
 | [0090](0090-stage-5b-scenes-and-prefabs.md) | Stage 5b: scenes and prefabs | Accepted |
 | [0091](0091-scene-documents-and-placements.md) | Scene documents and placements | Accepted |
+| [0092](0092-a-world-written-back-as-a-scene.md) | A world written back as a scene | Accepted |

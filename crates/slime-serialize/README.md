@@ -7,9 +7,10 @@ from earlier versions of their types too (`docs/adr/0080-reflection-and-serializ
 ## Status
 
 Text documents only: the cooker's metadata files and the world's saves
-(`docs/adr/0087-the-worlds-documents.md`) are read and written through it, and the world reads scene
-files through it (`docs/adr/0091-scene-documents-and-placements.md`). It has no binary encoding
-yet (`docs/PLAN.md`, M5b.4).
+(`docs/adr/0087-the-worlds-documents.md`) are read and written through it, and the world reads and
+writes scene files through it (`docs/adr/0091-scene-documents-and-placements.md`,
+`docs/adr/0092-a-world-written-back-as-a-scene.md`). It has no binary encoding yet
+(`docs/PLAN.md`, M5b.4).
 
 ## Role
 
@@ -30,7 +31,9 @@ yet (`docs/PLAN.md`, M5b.4).
   write and read references to entities as the names it gives them, and to assets as it names
   them, their IDs unless it says otherwise; without, a reference to an entity is refused.
   `Document::keys`, `is_table` and `error_at` let a program read a document's layout itself, and
-  place what it finds wrong at its line and column, as a world reads a scene file.
+  place what it finds wrong at its line and column, as a world reads a scene file;
+  `Composer::table` makes a table that holds nothing yet, and `Composer::without_defaults` leaves
+  out the fields that hold their defaults, as a world writes a scene file.
 
 ## Entry points
 

@@ -18,14 +18,15 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   saves and resumes its runs, on Linux and on Windows.
 - Stage 5b — Scenes and prefabs: planned on 2026-10-17 and validated by the owner
   ([ADR-0089](adr/0089-scenes-and-prefabs.md), [ADR-0090](adr/0090-stage-5b-scenes-and-prefabs.md)),
-  to be released as 0.4 at its close. M5b.1 is done; next: M5b.2.
+  to be released as 0.4 at its close. M5b.1 is done; M5b.2 is built: the owner reads a file written
+  back, and CI checks it.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
 | [M5b.1](#m5b1--scenes-placed-in-a-world) | A scene written as text places entities and other scenes in a world, each placement with values of its own | Done |
-| [M5b.2](#m5b2--a-world-written-back-as-a-scene) | A world, or a subtree of it, is written as a scene file that keeps its placements, and reads back to the same world | Planned |
+| [M5b.2](#m5b2--a-world-written-back-as-a-scene) | A world, or a subtree of it, is written as a scene file that keeps its placements, and reads back to the same world | Built; the owner reads a file written back, CI checks it |
 | [M5b.3](#m5b3--saves-and-hot-reload-with-placements) | What a game spawns while it runs is saved as placements, and a run is carried through a save when its scenes change | Planned |
 | [M5b.4](#m5b4--the-binary-encoding-of-documents) | A document is written in a binary encoding of the engine's own, and read back without parsing text | Planned |
 | [M5b.5](#m5b5--scene-files-cooked-typed-components-prefabs-in-the-world-example) | Scene files are cooked and spawned, Blender's nodes carry typed components, and the `world` example places prefabs | Planned |
@@ -193,14 +194,26 @@ Risks:
   engine's and the game's, overridden through a file, reads back; CI is green.
 - **How to test.** `cargo test -p slime-world -p hunnawood`.
 - **By hand.** The owner reads a file written back.
+- **Outcome.** Built on 2026-10-17
+  ([ADR-0092](adr/0092-a-world-written-back-as-a-scene.md)). `World::write_scene` writes a subtree
+  from what the world remembers: the scenes that it spawned, now kept as shared handles, and each
+  placement's prefab and overrides; a placement's overrides are what differs from its prefab's
+  records, found by identity, and the overrides that its scene wrote, kept when they hold the
+  prefab's value or were set aside. Entities created since get IDs of their name and four random
+  characters, which the world keeps for the next write. `slime-serialize` gained
+  `Composer::without_defaults` and `Composer::table`. `World::spawn_placement`, which M5b.3 was to
+  bring, came here, so that an edit can add a placement; its saves stay M5b.3's. The tests that edit
+  every leaf through a file reuse each crate's copy, the engine's and the game's, so that no third
+  copy was written. The ADR holds what writing back costs.
 
 ### M5b.3 — Saves and hot reload with placements
 
 - **Goal.** What a game spawns while it runs is saved as placements of its prefabs, and a run is
   carried through a save when its scenes change.
 - **Crates.** `slime-world`.
-- **Delivers.** Prefabs spawned from code under `created/<n>`, their entities under
-  `created/<n>/<ID>`, and scenes spawned under a key during a run, saved as placements with their
+- **Delivers.** Prefabs spawned from code (`World::spawn_placement`, which M5b.2 brought) under
+  `created/<n>`, their entities under `created/<n>/<ID>`, and scenes spawned under a key during a
+  run, saved as placements with their
   differences and spawned again from their prefabs as they are when a save is loaded; a prefab that
   the game no longer has set aside, with what was under it; a fingerprint for each scene spawned and
   each placement spawned while running, over what it resolves to, prefabs included; the save's
@@ -714,8 +727,9 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **A scene spawned during a run makes the next save one that loading refuses** (ADR-0087).
   `World::save` writes the entities of a scene that the start world did not spawn as created
   entities, under their scene's identities, and `World::load` creates only `created/<n>` ones.
-  *Hunna Wood* spawns no scene during a run. M5b.3 saves such scenes, and the prefabs spawned while
-  a game runs, as placements ([ADR-0089](adr/0089-scenes-and-prefabs.md)).
+  So does a placement made while the world runs (`World::spawn_placement`). *Hunna Wood* spawns no
+  scene or placement during a run. M5b.3 saves them as placements
+  ([ADR-0089](adr/0089-scenes-and-prefabs.md)).
 - **Hot reload compares the reloaded zone with the running world** (ADR-0088). `Game::reload_zone`,
   in `games/hunnawood/src/rules.rs`, compares the layout of the zone reloaded with the layout of
   the zone in the running world, where ADR-0088 says that it uses the fingerprint of a new game's
@@ -728,6 +742,13 @@ GitHub issues, linked from their entry; this list stays the reference.
   *Hunna Wood*'s zone takes about 1 ms. ADR-0089 orders the remedies, inside the world: typed
   components copied rather than made from values, identities that share their parts, scenes
   prepared on another thread.
+- **A world written back writes what it holds of what spawning set aside** (ADR-0092). A
+  reference, or a parent, that a scene file wrote into a placement whose prefab no longer had its
+  entity is written as the world holds it, no entity or the root: what it named is lost, as a save
+  loses it. An entity of a placement moved out of the place that its prefab gives it is written in
+  that place, and reported: a scene file has no parents for a placement's entities.
+- **A scene file written back loses its comments** (ADR-0089): `World::write_scene` writes the
+  canonical form. Stage 6 decides whether its editor keeps the comments of files written by hand.
 - **After a lost device, what is hidden loads only once shown** (ADR-0084): the cache loads what is
   drawn. In *Hunna Wood*, a key taken or a door opened before the loss shows a few frames after R
   shows them again.

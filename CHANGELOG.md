@@ -15,14 +15,25 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   prefabs, nested. The file that places a prefab writes what each placement changes of it in the
   sections of saves: parts of components changed, components added and removed, entities removed.
   `slime_world::SceneLibrary` holds a game's scenes by asset ID and resolves one, with the prefabs
-  that it places, into a `ResolvedScene`; an override whose entity or component the prefab no longer
-  has is set aside and reported, and a file that says something wrong is refused, with the line and
-  the column; a reference or a parent into a placement whose prefab no longer has its entity is
-  reported too, and an entity of the file under one that it removes stays, the root's child.
-  Placements nest at most `MAX_NESTING` scenes deep, and a scene holds at most `MAX_ENTITIES`
-  entities. The entities of a placement are named through it: `zone/lamp 3/light`.
-  `World::placement` says what the world remembers of a placement: its prefab, and the overrides
-  set aside.
+  that it places, into a `ResolvedScene`, a handle that clones at the cost of a count; an override
+  whose entity or component the prefab no longer has is set aside and reported, and a file that says
+  something wrong is refused, with the line and the column; a reference or a parent into a placement
+  whose prefab no longer has its entity is reported too, and an entity of the file under one that it
+  removes stays, the root's child. Placements nest at most `MAX_NESTING` scenes deep, and a scene
+  holds at most `MAX_ENTITIES` entities. The entities of a placement are named through it:
+  `zone/lamp 3/light`. `World::placement` says what the world remembers of a placement: its prefab,
+  and the overrides set aside.
+- A world, or a subtree of it, written back as a scene file
+  ([ADR-0092](docs/adr/0092-a-world-written-back-as-a-scene.md)): `World::write_scene` keeps
+  placements as placements, with what differs from their prefab and the overrides that the scene
+  wrote, those that hold the prefab's value and those set aside included; entities created since
+  get IDs that they keep; the same world gives the same bytes, and what a file cannot hold is
+  reported (`Written::left_out`). `World::spawn_placement` places a prefab while a world runs;
+  `World::placement_root` and `World::differs_from_prefab` say which placement an entity belongs to,
+  and whether a component of it differs from the prefab's.
+- `slime_serialize::Composer::without_defaults` leaves out the fields that hold their defaults, and
+  `Composer::table` makes a table that holds nothing yet; `slime_reflect::Value::same` compares
+  values with their floats by their bits.
 - `slime_serialize::References` names assets too (`asset_name`, `asset`), by their IDs unless a
   document names them otherwise; `Document::is_table` and `Document::error_at` let a program read a
   document's layout itself, and place what it finds wrong at its line and column.

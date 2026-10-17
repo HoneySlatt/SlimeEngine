@@ -127,8 +127,8 @@ today has:
 - A world (`slime-world`) of entities, components and their hierarchy, drawn through
   `slime-world-render`, whose components are reflected and edited by name (`slime-reflect`), and
   saved as what changed since the start of a run; *Hunna Wood* saves one run, in one file. Scene
-  files are read from their text, and the cooker does not cook them yet; a world is not written
-  back as a scene file, and no editor writes them.
+  files are read from their text, and the cooker does not cook them yet; a world is written back as
+  a scene file through the API, and no editor writes them yet.
 - A renderer without blended transparency or culling of what the camera does not see; with a
   capped number of lights, and shadows from one directional light and from spot lights, none from
   point lights.

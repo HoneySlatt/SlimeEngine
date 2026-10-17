@@ -472,9 +472,9 @@ letter key of the top row is `KeyQ` on every layout, whether it is labelled Q (Q
 
 **Physical pixel.** A pixel of the display. See *logical pixel*.
 
-**Placement.** A *prefab* placed in a scene, under an ID of that scene, with its *overrides*; the
-entities of a placement are named through it, as `zone/lantern 3/light`. Not an *instance
-(render)* ([ADR-0089](adr/0089-scenes-and-prefabs.md)).
+**Placement.** A *prefab* placed in a scene, under an ID of that scene, with its *overrides*, or
+while a world runs, under `created/<number>`; the entities of a placement are named through it, as
+`zone/lantern 3/light`. Not an *instance (render)* ([ADR-0089](adr/0089-scenes-and-prefabs.md)).
 
 **Pre-exposure.** Multiplying the scene's light by the *exposure* in the scene pass, before the
 *HDR* target is written, so that light in physical units fits *half precision*
