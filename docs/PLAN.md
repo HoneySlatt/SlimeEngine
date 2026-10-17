@@ -18,14 +18,13 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   saves and resumes its runs, on Linux and on Windows.
 - Stage 5b — Scenes and prefabs: planned on 2026-10-17 and validated by the owner
   ([ADR-0089](adr/0089-scenes-and-prefabs.md), [ADR-0090](adr/0090-stage-5b-scenes-and-prefabs.md)),
-  to be released as 0.4 at its close. M5b.1 is built: the owner reads its scene files, and CI checks
-  it.
+  to be released as 0.4 at its close. M5b.1 is done; next: M5b.2.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
-| [M5b.1](#m5b1--scenes-placed-in-a-world) | A scene written as text places entities and other scenes in a world, each placement with values of its own | Built; the owner reads its scene files, CI checks it |
+| [M5b.1](#m5b1--scenes-placed-in-a-world) | A scene written as text places entities and other scenes in a world, each placement with values of its own | Done |
 | [M5b.2](#m5b2--a-world-written-back-as-a-scene) | A world, or a subtree of it, is written as a scene file that keeps its placements, and reads back to the same world | Planned |
 | [M5b.3](#m5b3--saves-and-hot-reload-with-placements) | What a game spawns while it runs is saved as placements, and a run is carried through a save when its scenes change | Planned |
 | [M5b.4](#m5b4--the-binary-encoding-of-documents) | A document is written in a binary encoding of the engine's own, and read back without parsing text | Planned |
@@ -150,7 +149,7 @@ Risks:
 - **How to test.** `cargo test -p slime-world -p slime-serialize -p slime-reflect`.
 - **By hand.** The owner reads the sample scene files of the ADR and the tests, and says whether a
   person can read and write them.
-- **Outcome.** Built on 2026-10-17 ([ADR-0091](adr/0091-scene-documents-and-placements.md)). A
+- **Outcome.** Done on 2026-10-17 ([ADR-0091](adr/0091-scene-documents-and-placements.md)). A
   scene file is read strictly through `slime-serialize`: `[assets]`, `[root]`, one `[entities]`
   table of records and placements whose keys give the order of siblings, and the sections of saves
   for overrides. `SceneLibrary` resolves a scene once into a `ResolvedScene`, a flat list of records
@@ -168,7 +167,8 @@ Risks:
   or give the root, and are reported; the file's entities under an entity that it removes stay,
   reported; a glTF scene counts in the depth of placements; a scene holds at most `MAX_ENTITIES`
   entities, counted before any is made; a component given twice for one entity is refused; and a
-  spawning error names its scene.
+  spawning error names its scene. The owner read the scene files of the ADR and of the tests, and
+  found them readable. CI took 13 minutes 42 seconds on Linux and 13 minutes 32 seconds on Windows.
 
 ### M5b.2 — A world written back as a scene
 
