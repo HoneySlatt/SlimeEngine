@@ -5,11 +5,11 @@ the GPU layer (`slime-gfx`).
 
 ## Status
 
-Partial: the physically based renderer of Stage 3b (`docs/PLAN.md`). It draws instances of meshes
-from a perspective camera, each with a material in glTF's metallic-roughness model, lit by
-directional, point and spot lights in physical units and by a procedural sky that surfaces reflect
-and that shows behind them, with the shadows of one directional light around the camera, drawn in
-four cascades, and of every spot light that casts them. It draws in high dynamic range, then
+Partial (`docs/PLAN.md`). It draws instances of meshes from a perspective camera, each with a
+material in glTF's metallic-roughness model, lit by directional, point and spot lights in physical
+units and by a procedural sky that surfaces reflect and that shows behind them, with the shadows of
+one directional light around the camera, drawn in four cascades, and of every spot light that casts
+them. It draws in high dynamic range, then
 exposes the light, spreads a bloom around it, tone maps it and dithers it into the output, and
 reports what each frame cost on the CPU and the GPU. It smooths the edges of what it draws with four
 samples per pixel. It loads cooked scenes in the background, and again when their cooked data
@@ -34,8 +34,8 @@ surfaces or leave out what the camera does not see.
   crate (`src/pool.rs`), whose threads read and upload one mesh or one texture per task through
   clones of the `Gpu` (`docs/adr/0073-loading-scenes-in-the-background.md`).
 - Draws what it is given: a flat list of instances that the application builds for each frame.
-  It keeps no scene between frames and has no scene graph; the world model of Stage 5 will produce
-  such lists.
+  It keeps no scene between frames and has no scene graph; `slime-world-render` builds such lists
+  from a world (`docs/adr/0084-what-the-world-draws.md`).
 
 ## Entry points
 
@@ -141,8 +141,9 @@ fn main() -> Result<(), RenderError> {
   holds no GPU object (ADR-0084): `request(renderer, gpu, ids)` starts loading, as one batch in the
   background, the meshes it neither holds nor loads; `poll` takes the batches that finished, each
   whole, and gives the errors of those that failed; `mesh(id)` gives a mesh and its material once
-  held, `loading` how many are on their way. `reload(renderer, gpu, assets)` loads again what
-  changed in new cooked data, keeping the rest, and `clear` drops everything after a lost device.
+  held, `material(id)` a material, `loading` how many meshes are on their way.
+  `reload(renderer, gpu, assets)` loads again what changed in new cooked data, keeping the rest,
+  `reloading` says whether it is under way, and `clear` drops everything after a lost device.
 - `scene_lights(&CookedScene)` gives the lights that a cooked scene's nodes place, as a
   `LoadedScene` holds them, without loading the scene: a game knows its sun before its scene is
   loaded.

@@ -7,8 +7,8 @@ from earlier versions of their types too (`docs/adr/0080-reflection-and-serializ
 ## Status
 
 Text documents only: the cooker's metadata files and the world's saves
-(`docs/adr/0087-the-worlds-documents.md`) are read and written through it. Scene files come with
-Stage 5b, and a binary encoding of the same values with its cooked scenes.
+(`docs/adr/0087-the-worlds-documents.md`) are read and written through it. No scene file is written
+with it yet, and it has no binary encoding (`docs/ROADMAP.md`, Stage 5b).
 
 ## Role
 
@@ -21,7 +21,9 @@ Stage 5b, and a binary encoding of the same values with its cooked scenes.
   whole or in part, brought from the version of its type that the document says to the type's
   version through the type's upgrade (`slime_reflect::Upgrade`). A source is read strictly, a save
   leniently (`Mode`). Errors name the file, the line, the column and the path of the part at
-  fault; documents larger or deeper than a limit are refused; reading never panics.
+  fault; documents larger or deeper than a limit (`MAX_SIZE`, `MAX_DEPTH`) are refused; reading
+  never panics. `read_as` and `write_as` do so for a Rust type's value, through a registry of its
+  own.
 - `Composer` and `Document`: a document of several values, each at its place, written and read one
   at a time, as the world's saves hold one per component. Given `References`, they write and read
   references to entities as the names it gives them; without, such a reference is refused.

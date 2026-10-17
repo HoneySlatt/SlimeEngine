@@ -24,10 +24,10 @@ smooth, relative to the camera and with reversed depth so that large scenes keep
 then exposes the light, spreads a bloom around it, tone maps it and dithers it, into a window
 or into offscreen images that image tests compare with references. The `scene` example draws a
 scene cooked from a glTF file, and its lights, under a camera driven by the mouse, with the CPU
-time and the GPU time of each pass in a dev overlay. The first half of the asset pipeline gives
-every source file an ID that survives a move, and its cooker, `slime-cook`, turns glTF scenes
-and PNG and JPEG images into cooked data, meshes, materials, scenes and textures compressed in
-BC7 and BC5, which a game reads by ID ([ADR-0069](docs/adr/0069-the-asset-pipeline.md)). The
+time and the GPU time of each pass in a dev overlay. The asset pipeline gives every source file an
+ID that survives a move, and its cooker, `slime-cook`, turns glTF scenes and PNG and JPEG images
+into cooked data, meshes, materials, scenes and textures compressed in BC7 and BC5, which a game
+reads by ID ([ADR-0069](docs/adr/0069-the-asset-pipeline.md)). The
 sample game, *Hunna Wood* (`games/hunnawood`), a role-playing game seen in the
 third person and made with the public API only, loads its first zone from cooked assets
 ([ADR-0067](docs/adr/0067-hunna-wood-replaces-nightwatch.md)): a forest path to a ruined chapel,
@@ -43,7 +43,7 @@ overlay lists the world's entities and edits their components, in the game and t
 on F2; values are written to TOML documents and read back, from earlier versions of their types
 too (`slime-serialize`), as the cooker's metadata files are; a world saves what changed since the
 start of a run, and loads it back, which the `world` example checks when it quits, and *Hunna Wood*
-saves its run on F5 and when it quits, and resumes it when it starts.
+saves its run on F5 and when it quits, loads it on F9, and resumes it when it starts.
 [`docs/PLAN.md`](docs/PLAN.md) says what is left of it, and lists the known debt.
 
 ## Getting started
@@ -112,10 +112,10 @@ known debt in [`docs/PLAN.md`](docs/PLAN.md#known-debt) lists the smaller gaps. 
 today has:
 
 - No text, game UI, audio, physics, animation or editor.
-- Half an asset pipeline: the cooker, `slime-cook`, imports glTF scenes and PNG and JPEG images
-  into cooked data, which the renderer loads whole, on threads of its own while the game goes on
-  (`Renderer::load_scene_in_background`), and again when it changes (`slime-cook watch`), as the
-  renderer's shaders are.
+- An asset pipeline that imports glTF scenes and PNG and JPEG images only: the cooker,
+  `slime-cook`, makes them cooked data, which the renderer loads whole, on threads of its own while
+  the game goes on (`Renderer::load_scene_in_background`), and again when it changes
+  (`slime-cook watch`), as the renderer's shaders are.
 - A world (`slime-world`) of entities, components and their hierarchy, drawn through
   `slime-world-render`, whose components are reflected and edited by name (`slime-reflect`), and
   saved as what changed since the start of a run; *Hunna Wood* saves one run, in one file.

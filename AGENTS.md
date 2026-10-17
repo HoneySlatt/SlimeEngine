@@ -38,7 +38,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all --check
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 scripts/check.sh                                          # everything above, plus the checks below
-cargo run -p slime-cook -- cook examples/assets target/cooked/examples  # cook what the scene example draws
+cargo run -p slime-cook -- cook examples/assets target/cooked/examples  # cook what the scene and world examples draw
 cargo run --release -p slime-cook -- watch <sources> <output>  # cook again each change (ADR-0076)
 cargo run --example <name>                                # run an example (list in examples/README.md)
 scripts/fetch-assets.sh                                   # fetch the game's source assets (games/hunnawood/README.md)
@@ -71,7 +71,7 @@ Never report that something works without having verified it. If you could not v
 ## Architecture rules
 
 - Dependencies between crates flow in one direction, as described in `docs/ARCHITECTURE.md`. No cycles, no shortcuts across layers.
-- wgpu types stay inside the `gfx` and `render` crates. Everything else uses engine-owned handles.
+- wgpu types stay inside the `gfx` and `render` crates, and the dev overlay's `slime-devui`, tooling, which reaches them through `slime-gfx`'s `wgpu` feature (ADR-0031). Everything else uses engine-owned handles.
 - The editor is a client of the engine. It uses public API only.
 - The engine must run headless (no window, renderer or audio). Do not make core systems depend on them.
 - Internal Rust APIs may change freely. Nothing is promised stable before 1.0.
@@ -131,10 +131,13 @@ A document that needs a fact held elsewhere states it in a sentence, without its
 | `docs/PLAN.md` | Current stage, milestones, status, known debt | Every milestone |
 | `docs/ARCHITECTURE.md` | Crate map, responsibilities, dependency graph, main data flows, where to start reading | Structure or a flow changes |
 | `docs/adr/NNNN-title.md` | Context, decision, alternatives rejected, consequences | Each architecture decision |
+| `docs/adr/README.md` | The index of the ADRs and their statuses | An ADR is added, or its status changes |
 | `docs/glossary.md` | Terms the project defines | A term is coined or changes meaning |
 | `docs/dependencies.md` | Every third-party dependency and tool: who uses it, why, the alternative considered, its license | A dependency is added, removed or repurposed |
 | `CHANGELOG.md` | Notable changes, per release | A change users would notice; a release is tagged |
 | `crates/*/README.md` | Role, what it depends on, entry points, what it must not do | Crate created or its role changes |
+| `examples/README.md` | Each example, its options, and the examples' tests | An example or one of their tests changes |
+| `games/*/README.md` | What the game is, how to play it, how it is made, its assets | The game changes |
 | rustdoc | Public API | Public API changes |
 
 ## Commits

@@ -36,7 +36,7 @@ cargo run --release -p slime-cook -- cook games/hunnawood/assets/zone target/coo
 cargo run -p hunnawood                     # play
 cargo run -p hunnawood -- --frames 120     # closes itself after 120 frames that draw the zone
 cargo run -p hunnawood -- --assets <dir>   # reads the cooked data of another directory
-cargo run -p hunnawood -- --night          # starts at night, and starts again at night
+cargo run -p hunnawood -- --night          # a new run starts at night, and R starts again at night
 cargo run -p hunnawood -- --lose-device-at 300   # loses its GPU device after 300 frames of the zone
 cargo run -p hunnawood -- --watch          # loads its zone, hero and shaders again as they change
 cargo run -p hunnawood -- --new            # starts a new run rather than resume the save
@@ -279,11 +279,14 @@ Tests read the cooked zone. In `src/zone.rs`: one marker of each kind, a start c
 collider, the key and the campfire within reach, the terrace not until the door opens, the zone
 within the budgets that the test sets, and the zone spawned in a world (`slime-world`), each node
 placed where the file puts it and known by its name. In `src/rules.rs`: a walk along the path that
-rests by the campfire, takes the key, opens the door and reaches the terrace, then starts again from
-the same state; a walk to the door without the key, which it stops; and the hero kept out of every
-collider. In `src/view.rs`: the campfire's light, which flickers, and the materials that glow.
-They need the cooked zone, so `cargo test` leaves them out: `scripts/check.sh` fetches and cooks
-it, then runs them, and after the commands above, `cargo test -p hunnawood -- --ignored` does. One
+rests by the campfire, is saved at the chapel's portal and resumed in a new game, then takes the
+key, opens the door and reaches the terrace, and starts again from the same state; the save
+committed as a fixture, resumed, from which the walk goes on to the terrace; a run changed (an oak
+removed, a lantern dimmed, the key hidden), saved and resumed, which saves again to the same bytes
+and goes on the same for 300 steps; a walk to the door without the key, which it stops; and the
+hero kept out of every collider. In `src/view.rs`: the campfire's light, which flickers, and the
+materials that glow. They need the cooked zone, so `cargo test` leaves them out: `scripts/check.sh`
+fetches and cooks it, then runs them, and after the commands above, `cargo test -p hunnawood -- --ignored` does. One
 more is a measurement, which needs a GPU: what building a frame of the zone's world costs on the
 CPU.
 

@@ -11,9 +11,9 @@
 //! cargo run -p hunnawood                     # play
 //! cargo run -p hunnawood -- --frames 120     # closes itself after 120 frames that draw the zone
 //! cargo run -p hunnawood -- --assets <dir>   # reads the cooked data of another directory
-//! cargo run -p hunnawood -- --night          # starts at night
+//! cargo run -p hunnawood -- --night          # a new run starts at night, and so does R
 //! cargo run -p hunnawood -- --lose-device-at 300   # loses its GPU device after 300 zone frames
-//! cargo run -p hunnawood -- --watch          # loads its zone and the shaders again as they change
+//! cargo run -p hunnawood -- --watch          # loads its zone, hero and shaders again as they change
 //! cargo run -p hunnawood -- --new            # starts a new run rather than resume the save
 //! cargo run -p hunnawood -- --save <file>    # saves to, and resumes from, another file
 //! ```
@@ -774,7 +774,7 @@ struct Options {
     assets: Option<PathBuf>,
     /// The number of frames after which the game closes itself, if `--frames` gives one.
     frame_limit: Option<u64>,
-    /// Whether the game starts at night, as `--night` asks.
+    /// Whether a new run starts at night, and R starts again at night, as `--night` asks.
     night: bool,
     /// The frame that draws the zone after which the game loses its GPU device, if
     /// `--lose-device-at` gives one.

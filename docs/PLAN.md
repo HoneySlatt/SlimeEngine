@@ -14,29 +14,18 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 
 - Stage 4a — Cooked assets: done and released as 0.2 on 2026-10-15. *Hunna Wood* loads its zone
   from cooked assets and is played by day and by night, on Linux and on Windows.
-- Stage 4b — Live assets: done on 2026-10-16, and released with 0.3 at the end of Stage 5a
+- Stage 4b — Live assets: done on 2026-10-16, to be released with 0.3 at the end of Stage 5a
   ([ADR-0078](adr/0078-stage-5-in-two-halves.md)). Scenes load in the background while a game
   draws, a game goes on after a lost GPU device, a material's values change while it runs, and a
   texture or a shader changed on disk changes in the running game. The owner checked the recovery
   by hand, in the Windows virtual machine and after a real GPU reset in KDE Plasma.
 - Stage 5a — The world: planned on 2026-10-16 and validated by the owner
   ([ADR-0078](adr/0078-stage-5-in-two-halves.md) to [ADR-0081](adr/0081-stage-5a-the-world.md));
-  the stage being worked on. M5a.1 done on 2026-10-16: a world of entities and components, in
-  `slime-world` ([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)). M5a.2 done on
-  2026-10-16: the hierarchy, transforms in double precision, and cooked scenes spawned as entities
-  ([ADR-0083](adr/0083-transforms-and-the-hierarchy.md)). M5a.3 done on 2026-10-16: the world drawn
-  from an asset cache through `slime-world-render`, what moves drawn between fixed steps
-  ([ADR-0084](adr/0084-what-the-world-draws.md)). M5a.4 done on 2026-10-16: *Hunna Wood* runs on the
-  world, which holds its run. M5a.5 done on 2026-10-16: reflection, through which the world
-  reaches every component by name ([ADR-0085](adr/0085-reflection.md)). M5a.6 done on 2026-10-16: a
-  panel of the dev overlay lists the world's entities and edits their components, in *Hunna Wood*
-  and the `world` example. M5a.7 done on 2026-10-16: values of reflected types written to TOML
-  documents and read back, from earlier versions of their types too, in `slime-serialize`
-  ([ADR-0086](adr/0086-serialization.md)). M5a.8 done on 2026-10-16: a world saves what differs
-  from the world that the game makes at the start of a run, and loads it back
-  ([ADR-0087](adr/0087-the-worlds-documents.md)). M5a.9 done on 2026-10-17: *Hunna Wood* saves its
-  run on F5 and when it quits, and resumes it when it starts
-  ([ADR-0088](adr/0088-saving-and-resuming-a-run.md)).
+  the stage being worked on. M5a.1 to M5a.9 are done: the engine's world, reflection,
+  serialization and saves, and *Hunna Wood* on them, saving and resuming its runs
+  ([ADR-0082](adr/0082-the-worlds-storage-and-handles.md) to
+  [ADR-0088](adr/0088-saving-and-resuming-a-run.md)). M5a.10 is in progress: the documents
+  reread, the owner's check on Windows, and the release of 0.3.
 
 ## Status
 
@@ -51,7 +40,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M5a.7](#m5a7--serialization-with-format-versioning) | Any reflected value is written to a file and read back, even from an older version of its type | Done |
 | [M5a.8](#m5a8--the-world-round-trips) | A world saves what differs from the scenes it was made from, and loads it back | Done |
 | [M5a.9](#m5a9--saving-and-resuming-a-run) | A player saves a run of *Hunna Wood* and resumes it | Done |
-| [M5a.10](#m5a10--windows-check-documentation-release-03) | Stage 5a is done and released as 0.3, with Stage 4b | Planned |
+| [M5a.10](#m5a10--windows-check-documentation-release-03) | Stage 5a is done and released as 0.3, with Stage 4b | In progress |
 
 Stages 0, 1, 2, 3a, 3b, 3c, 3d, 4a and 4b are done; see [Completed stages](#completed-stages).
 
@@ -555,8 +544,8 @@ A release is an annotated git tag on a commit whose CI run is green on Linux and
    with the `slime-examples-windows` artifact of that commit's CI run attached as
    `slime-examples-windows-<version>.zip`, holding beside the programs, and DXC's library and
    licence that CI puts with them, `LICENSE.txt`, a `NOTICE.txt` and the licenses of the egui fonts
-   that `scene.exe` embeds, which the Ubuntu Font Licence asks to travel with them: CI keeps its
-   artifacts 14 days, a release keeps them.
+   that `scene.exe`, `world.exe` and `hunnawood.exe` embed in their dev overlay, which the Ubuntu
+   Font Licence asks to travel with them: CI keeps its artifacts 14 days, a release keeps them.
 
 0.0.1 was released on 2026-10-12, before Windows joined CI: the tag `v0.0.1` is on the commit
 "Release 0.0.1". 0.0.2 was released the same way on 2026-10-12: the tag `v0.0.2` is on the
@@ -577,9 +566,9 @@ cooked and the notice that credits its assets among them.
 | 3a — First renderer → 0.0.3 | M3.1 GPU resources for a renderer; M3.2 the render crate; M3.3 directional light and material; M3.4 textures and samplers; M3.5 a glTF scene and camera control; M3.6 statistics, GPU timings and the dev overlay; M3.7 Windows check, documentation, release | Done; released as 0.0.3 (tag `v0.0.3`). Content listed in [`CHANGELOG.md`](../CHANGELOG.md). |
 | 3b — Physically based renderer → 0.1 | M3b.1 GPU layer for multi-pass rendering; M3b.2 HDR rendering and tone mapping; M3b.3 physically based materials; M3b.4 light types; M3b.5 shadows; M3b.6 image-based lighting; M3b.7 bloom; M3b.8 render graph; a pass over the known debt; M3b.9 Windows check, documentation, release | Done; released as 0.1 (tag `v0.1.0`), with the Windows examples on its GitHub release. Content listed in [`CHANGELOG.md`](../CHANGELOG.md). |
 | 3c — A first game | M3c.1 skeleton; M3c.2 guards, detection and the objective; M3c.3 night, feel and the Windows check; M3c.4 findings for the next stages | Done; no release of its own: its game, *Nightwatch*, is never released, as *Hunna Wood* replaces it in Stage 4a ([ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)). The stage each of its findings goes to is in [ADR-0057](adr/0057-what-the-first-game-asks-of-the-next-stages.md), and the two that became Stage 3d in [ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md). |
-| 3d — Anti-aliasing and the shadows of spot lights | M3d.1 multisampling in the GPU layer; M3d.2 anti-aliasing in the renderer; M3d.3 spot lights' shadows: what each tile sees; M3d.4 spot lights' shadows: drawn and read; M3d.5 *Nightwatch* and the Windows check; M3d.6 a smoother shadow filter; M3d.7 what each cascade sees; M3d.8 the cascades read; M3d.9 *Nightwatch* at 3840 × 2160 | Done; no release of its own: what it delivers is released with 0.2. Its decisions are in [ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md) and ADR-0058 to [ADR-0065](adr/0065-reading-the-cascades.md); the cost of its scene pass on Direct3D 12, with each shader compiler, is in the [Known debt](#known-debt). |
+| 3d — Anti-aliasing and the shadows of spot lights | M3d.1 multisampling in the GPU layer; M3d.2 anti-aliasing in the renderer; M3d.3 spot lights' shadows: what each tile sees; M3d.4 spot lights' shadows: drawn and read; M3d.5 *Nightwatch* and the Windows check; M3d.6 a smoother shadow filter; M3d.7 what each cascade sees; M3d.8 the cascades read; M3d.9 *Nightwatch* at 3840 × 2160 | Done; no release of its own: what it delivers is released with 0.2. Its decisions are in [ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md) and ADR-0058 to [ADR-0065](adr/0065-reading-the-cascades.md); the cost of its scene pass on Direct3D 12 with each shader compiler, which made DXC ship beside the Windows programs, is in [ADR-0066](adr/0066-shipping-dxc-beside-the-programs.md). |
 | 4a — Cooked assets → 0.2 | M4a.1 *Hunna Wood*'s skeleton; M4a.2 asset identity; M4a.3 images; M4a.4 glTF; M4a.5 the sample scene through the pipeline; M4a.6 the zone's sources; M4a.7 *Hunna Wood* by day; M4a.8 night; M4a.9 Windows check, documentation, release 0.2 | Done, released as 0.2 on 2026-10-15. Its decisions are in [ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md) to [ADR-0071](adr/0071-cooked-textures.md); the zone's budgets are set by the test that checks them, in `games/hunnawood/src/zone.rs`, and what was left to refine went to Stage 4b's M4b.8. |
-| 4b — Live assets | M4b.1 a shared GPU and a task pool; M4b.2 the zone loads while frames go on; M4b.3 recovering from a lost GPU device; M4b.4 *Hunna Wood* goes on after a lost device; M4b.5 materials that change in place; M4b.6 hot reload of cooked data; M4b.7 hot reload of shaders; M4b.8 refining *Hunna Wood*; M4b.9 Windows check, documentation, close | Done on 2026-10-16; no release of its own: what it delivers is released with 0.3, at the end of Stage 5a. Its decisions are in [ADR-0072](adr/0072-stage-4b-live-assets.md) to [ADR-0077](adr/0077-hot-reload-of-shaders.md). The owner checked the recovery from a lost device by hand at its close: in the Windows virtual machine, from the dev overlay and by a forced TDR, and in a KDE Plasma session after a real reset of the GPU (see [Known debt](#known-debt)). |
+| 4b — Live assets | M4b.1 a shared GPU and a task pool; M4b.2 the zone loads while frames go on; M4b.3 recovering from a lost GPU device; M4b.4 *Hunna Wood* goes on after a lost device; M4b.5 materials that change in place; M4b.6 hot reload of cooked data; M4b.7 hot reload of shaders; M4b.8 refining *Hunna Wood*; M4b.9 Windows check, documentation, close | Done on 2026-10-16; no release of its own: what it delivers is to be released with 0.3, at the end of Stage 5a. Its decisions are in [ADR-0072](adr/0072-stage-4b-live-assets.md) to [ADR-0077](adr/0077-hot-reload-of-shaders.md). The owner checked the recovery from a lost device by hand at its close: in the Windows virtual machine, from the dev overlay and by a forced TDR, and in a KDE Plasma session after a real reset of the GPU (see [Known debt](#known-debt)). |
 
 The details of each completed milestone (what it delivered, how it was checked, what was measured)
 are in the history of this file and in the commits that implemented it; the measurements that
@@ -599,8 +588,9 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **The zone costs up to 8 s per frame on lavapipe**, the CPU driver of the checks, where the RX
   6900 XT takes under 2 ms: most of it goes to the four shadow cascades of the sun, each 2048 ×
   2048 texels, through which thousands of overlapping leaf cards are drawn with a shader that
-  discards. The checks run the game for one frame by day and one at night. The oaks' cards made
-  smaller and four times as many at M4b.8 changed it little: the day's shadow pass took 6.0 s
+  discards. The checks run the game for one frame by day, one at night, two around a lost device
+  and one resumed from the save fixture. The oaks' cards made smaller and four times as many at
+  M4b.8 changed it little: the day's shadow pass took 6.0 s
   instead of 6.2 s, in a release build. Leaves that cast no shadow in the farther cascades would
   lower it, to measure with views of the zone.
 - **`cargo test` leaves out the tests of the cooked zone**: they need the zone fetched and cooked,
@@ -910,15 +900,18 @@ GitHub issues, linked from their entry; this list stays the reference.
   machine, most in `slime-render`'s `tests/environment.rs` (6.2 s) and the examples'
   `tests/gltf.rs` (5.7 s), whose every load of a file computes the sample's sky. A sky that changes
   needs a new environment: no time of day. To measure: `cargo test --release -p slime-render --lib
-  -- --ignored --nocapture`, against the budget of M3b.6. To move to the asset pipeline of Stage 4,
-  or to compute passes if skies change at run time; if the tests' time matters first, building
-  `slime-render` optimized in debug builds would shorten it, at the cost of stepping through it in
+  -- --ignored --nocapture`, against the budget of M3b.6. Not yet scheduled: to move to the
+  cooker, or to compute passes if skies change at run time; if the tests' time matters first,
+  building `slime-render` optimized in debug builds would shorten it, at the cost of stepping through it in
   a debugger.
 - **The sky's sun is described twice in the renderer's own API** (ADR-0039). A game that draws
   with it gives the same `DirectionalLight` to `Sky::sun`, for the disc and the glow, and to
   `Scene::lights`, for its light and its shadows; two different lights show a disc where no light
   comes from. The `scene` example takes both from the file's first directional light. A world gives
   it once ([ADR-0084](adr/0084-what-the-world-draws.md)), as *Hunna Wood*'s does.
+- **A node renamed in Blender loses what saves held of it** (ADR-0079, ADR-0087). A scene's entity
+  is known by its node's name: loading a save made before the rename sets aside what it held of
+  the node, and reports it.
 - **The camera's yaw is not saved** (ADR-0088). It is the game's, outside the world: a run resumed
   or loaded puts the camera behind the hero.
 - **A save cut short may load in part** (ADR-0087). A save is a document of sections: one cut at the

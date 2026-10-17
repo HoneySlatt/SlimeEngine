@@ -21,7 +21,8 @@ ID, which `slime-render` does in the background, from threads of its own.
 ## Entry points
 
 - `AssetId`: a 128-bit number, written as a UUID; `AssetId::from_u128` names an asset in a game's
-  code, and its `Display` and `FromStr` write and read its text form.
+  code, and its `Display` and `FromStr` write and read its text form. It is reflected, as `Extra`
+  is (`slime-reflect`), so that components hold them.
 - `CookedAssets::open(directory)` reads the manifest of a directory of cooked data;
   `CookedAssets::texture(id)` reads a texture, which `slime_render::Renderer::create_texture`
   uploads.

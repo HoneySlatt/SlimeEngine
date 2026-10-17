@@ -12,7 +12,8 @@ change while it runs, and a texture or a shader changed on disk changes in the r
 engine starts a world of its own, which keeps a game's entities and their components and draws
 them, and its own reflection, through which every component is reached by name and edited in a
 panel of the dev overlay, and written to TOML documents and read back; a world saves what changed
-since the start of a run, and loads it back. *Hunna Wood* runs on it.
+since the start of a run, and loads it back. *Hunna Wood* runs on it, and saves and resumes its
+runs.
 
 ### Added
 
@@ -22,7 +23,8 @@ since the start of a run, and loads it back. *Hunna Wood* runs on it.
   frame with `take` until it gives the whole scene. Meshes and textures are read and uploaded on a
   task pool of the renderer's own; dropping a `SceneLoad` cancels its load.
 - `Gpu` is `Clone`: its clones share the device, so that several threads create GPU objects
-  through it.
+  through it. Its submissions, from any thread, wait while a window's surface is configured, which
+  wgpu fails to do when another thread submits work meanwhile (ADR-0074).
 - `slime_render::scene_lights` gives the lights that a cooked scene's nodes place without loading
   the scene, so that a game knows its sun and its moon before its scene is loaded.
 - *Hunna Wood* draws while its zone loads: its window shows the hero under the sky two to three
@@ -36,9 +38,9 @@ since the start of a run, and loads it back. *Hunna Wood* runs on it.
   application creates them again; it gives up after three new devices in a row without a frame
   shown. Without `slime-app`, `Gpu::restore` and `Surface::restore` open the new device;
   `Gpu::lose` loses one on purpose, for tests and tools.
-- *Hunna Wood* goes on after a lost GPU device: it loads its zone again with a new device, and the
-  run goes on where it was. `--lose-device-at <frame>`, and a button of its dev overlay, lose the
-  device on purpose, to try it.
+- *Hunna Wood* goes on after a lost GPU device: its world keeps the run where it was, and what the
+  world draws loads again with the new device. `--lose-device-at <frame>`, and a button of its dev
+  overlay, lose the device on purpose, to try it.
 - A material's values change while a game runs: `Material::set_values` takes `MaterialValues`,
   all of a material's data but its textures and its sidedness, and the frames submitted after it
   draw with them; `Material::values` reads them. `LoadedScene::material` finds a loaded scene's
@@ -50,8 +52,9 @@ since the start of a run, and loads it back. *Hunna Wood* runs on it.
   `slime-cook watch <sources> <output>` cooks again each source that changes;
   `Renderer::reload_scene_in_background` loads a scene again, keeping the meshes and textures whose
   cooked file did not change; `slime_assets::ManifestWatch` tells a game when its manifest changes;
-  *Hunna Wood* and the `scene` example take `--watch`, which loads their scenes again then.
-  *Hunna Wood* reads its zone's rules again, and starts the run again when its layout changed.
+  *Hunna Wood* and the `scene` and `world` examples take `--watch`, which loads again what changed.
+  *Hunna Wood* spawns its zone or its hero again when its scene changed, and starts the run again
+  when the zone's layout changed.
 - The renderer's shaders change while a game runs
   ([ADR-0077](docs/adr/0077-hot-reload-of-shaders.md)): `Renderer::set_shaders` makes its pipelines
   again from new WGSL sources, all or none, keeping the old ones on an error that names the
@@ -63,15 +66,19 @@ since the start of a run, and loads it back. *Hunna Wood* runs on it.
   [ADR-0082](docs/adr/0082-the-worlds-storage-and-handles.md)): a `World` gives out `Entity`
   handles, keeps their components, one of each type, and finds the entities that hold the
   components a query names, `World::query` reading them through an iterator and
-  `World::query_mut` changing them through a closure. A type becomes a component with
-  `impl Component for Position {}`.
+  `World::query_mut` changing them through a closure. A component is reflected, under a stable
+  name, and says it is one: `#[derive(Reflect)] #[reflect(name = "my_game::Lantern")]` and
+  `impl Component for Lantern {}` ([ADR-0085](docs/adr/0085-reflection.md)); each world keeps the
+  registry of its components' types. `WorldError` says why the world refused something.
 - The world keeps a hierarchy and where its entities are
   ([ADR-0083](docs/adr/0083-transforms-and-the-hierarchy.md)): `World::set_parent`, `parent` and
   `children`; `Transform`, an `f64` translation, a rotation, a uniform scale that children inherit
   and a stretch that they do not; `World::global_transform`, always current, and
-  `World::update_transforms`. `World::spawn_scene` spawns a cooked scene as entities with their
-  `Name`, `Meshes`, `Light` and `Extras`, each with a persistent identity, `zone/door`, that
-  `World::find` looks up.
+  `World::update_transforms`. `World::spawn_scene` spawns a cooked scene under a key as entities
+  with their `Name`, `Meshes`, `Light` and `Extras`, each with a persistent identity, `zone/door`;
+  a node whose name holds `/` takes its index, `#12`. An entity that `World::spawn` creates is
+  `created/<number>`, from a count that saves keep. `World::find` and `World::persistent_id` go from
+  one to the other, and `PersistentId` parses from its text.
 - `slime_render::AssetCache` keeps the meshes that a game draws by their asset IDs, with their
   materials and textures ([ADR-0084](docs/adr/0084-what-the-world-draws.md)): `request` starts
   loading, as one batch in the background, those it neither holds nor loads, `poll` takes the
@@ -98,17 +105,23 @@ since the start of a run, and loads it back. *Hunna Wood* runs on it.
   they place; and the sky's environment around the world's sun, the directional light that shows
   in the sky, given once to the sky and to the lights, first among them so that it casts the
   shadows. A new example, `world`, draws the examples' cooked scene from a world, its ring
-  floating at the fixed step, and runs headless too.
+  floating at the fixed step, runs headless too, and takes `--watch`; CI's Windows programs hold
+  `world.exe`.
 - `slime-reflect`, the engine's reflection
   ([ADR-0080](docs/adr/0080-reflection-and-serialization.md),
   [ADR-0085](docs/adr/0085-reflection.md)): `#[derive(Reflect)]` describes a struct or an enum
   under a stable name, `#[reflect(name = "...")]`, with aliases, a version, defaults, skipped and
   transient fields, ranges of finite numbers, units, and a check that refuses the values breaking
-  the rules between fields, as `Light` and `Transform` declare; `Value` holds its values as plain data; `Registry` registers
-  types and the types their values hold, types with no Rust type behind them too, checks values,
-  sets their parts by `Path` within their fields' ranges, and lists their leaves; `diff` and
-  `apply` compare values and give one back from the other. The standard types, glam's `Vec3`,
-  `DVec3` and `Quat`, `LinearColor`, `AssetId`, `Extra` and `Entity` are reflected.
+  the rules between fields, as `Light` and `Transform` declare; `Value` holds its values as plain
+  data; `Registry` registers types and the types their values hold, types with no Rust type behind
+  them too, checks values, sets their parts by `Path` within their fields' ranges, and lists their
+  leaves; `diff` and `apply` compare values and give one back from the other. Descriptions hold
+  their defaults' values (`TypeInfo::default`, `FieldInfo::default`), which the registry checks
+  within their fields' ranges when it registers a type; it refuses names that start with `$`, a
+  transient field without a default, and a transient field of a tuple. `Registry::difference`
+  gives what changed of a value as a part of it, and `Registry::overlay` sets a part back;
+  `Registry::field_default` gives what data that leaves a field out gives it. The standard types,
+  glam's `Vec3`, `DVec3` and `Quat`, `LinearColor`, `AssetId`, `Extra` and `Entity` are reflected.
 - A world reaches its components by name, without their types: `World::registry`,
   `World::register`, `World::entities`, `World::component_names`, `World::component_value`,
   `World::set_component_value` and `World::set_property`, which respects the ranges of the fields.
@@ -120,38 +133,36 @@ since the start of a run, and loads it back. *Hunna Wood* runs on it.
   `World::set_property`; the world refuses a value out of its range, and the panel shows why.
   *Hunna Wood* and the `world` example show it on F2. `Overlay::wants_keyboard` says when a text
   field of the overlay has the keyboard or a menu of it is open, so that keys typed into it, or
-  Escape closing the menu, do not also play. Tooling: it
-  does not undo, add, remove or save components.
+  Escape closing the menu, do not also play. Tooling: it does not undo, add, remove or save
+  components.
 - `slime-serialize`, the engine's serialization ([ADR-0086](docs/adr/0086-serialization.md)):
   `write` and `write_partial` write a value of a registered type, or a part of one, as a TOML
   document, the same value giving the same bytes on every platform, and refuse what could not be
-  read back, a part's option fields as arrays, `[]` for one emptied; `read`, `read_partial` and
-  `read_file` read it back, whole or in part, strictly for sources and leniently for saves, with
-  errors by file, line, column and property path, and never panic; `read_as` and `write_as` do so
-  for a Rust type. The module `format` says how a document holds enum variants, absent values,
-  large integers and floats, which come back to their bits. A type past version 1 names an
-  upgrade, `#[reflect(version = 2, upgrade = path)]`, which brings values of earlier versions,
-  whole or partial, to its version as they are read; a later version is refused.
-- A world saves and loads ([ADR-0087](docs/adr/0087-the-worlds-documents.md)): `World::save(start)`
-  writes, as a TOML document, what differs between the world and `start`, the world that the game
-  makes at the start of a run: entities removed and created, components added, removed and
-  changed, the changed ones by the fields that changed, parents changed, references to entities as
-  persistent identities, and a reference to an entity destroyed or left out as `""`, no entity; the
-  same worlds give the same bytes. `World::load` applies a save to such a world, made from the
-  scenes as they are now, reports in a `Loaded` the differences that it could not apply, as
-  `SetAside`s with their reasons, and the scenes that changed since; a save that is not one leaves
-  the world as it was (`DocumentError`). Entities that hold `Unsaved`, with their descendants, and
-  fields marked transient are left out. A save begins with what the game says of it, keys and texts
-  given to `World::save`, which `World::about` reads without loading the save
-  ([ADR-0088](docs/adr/0088-saving-and-resuming-a-run.md)). `World::first_difference` compares two
+  read back, a document larger than `MAX_SIZE` or deeper than `MAX_DEPTH` included, a part's option
+  fields as arrays, `[]` for one emptied; `read`, `read_partial` and `read_file` read it back, whole
+  or in part, strictly for sources and leniently for saves, with errors by file, line, column and
+  property path, and never panic; `read_as` and `write_as` do so for a Rust type. The module
+  `format` says how a document holds enum variants, absent values, large integers and floats,
+  which come back to their bits. A type past version 1 names an upgrade,
+  `#[reflect(version = 2, upgrade = path)]`, which brings values of earlier versions, whole or
+  partial, to its version as they are read; a later version is refused. `Composer` and `Document`
+  write and read documents of several values, each at its place, references to entities named by
+  their `References`.
+- A world saves and loads ([ADR-0087](docs/adr/0087-the-worlds-documents.md)):
+  `World::save(start, about)` writes, as a TOML document, what differs between the world and
+  `start`, the world that the game makes at the start of a run: entities removed and created,
+  components added, removed and changed, the changed ones by the fields that changed, parents
+  changed, references to entities as persistent identities, and a reference to an entity destroyed
+  or left out as `""`, no entity; the same worlds give the same bytes. It begins with `about`, what
+  the game says of it, which `World::about` reads without loading the save
+  ([ADR-0088](docs/adr/0088-saving-and-resuming-a-run.md)). `World::load` applies a save to such a
+  world, made from the scenes as they are now, reports in a `Loaded` the differences that it could
+  not apply, as `SetAside`s with their reasons, and the scenes that changed since; a save that is
+  not one leaves the world as it was (`DocumentError`). Entities that hold `Unsaved`, with their
+  descendants, and fields marked transient are left out. `World::first_difference` compares two
   worlds as saves see them; `World::insert_component_value` and `remove_component_value` attach and
   detach a component by its type's name. The `world` example saves its world when it quits, loads
   the save into a world spawned anew, and fails if the two differ.
-- `slime-serialize` writes and reads documents of several values, each at its place, `Composer` and
-  `Document`, references to entities named by its `References`. `slime-reflect` gives what changed
-  of a value as a part of it, `Registry::difference`, and sets a part back, `Registry::overlay`;
-  `Registry::field_default` gives the value that data which leaves a field out gives it, and
-  `is_tuple` says whether fields are a tuple's.
 - *Hunna Wood* saves its run ([ADR-0088](docs/adr/0088-saving-and-resuming-a-run.md)): F5 saves it,
   F9 loads the save in place of the run, the game saves when it quits and resumes the save when it
   starts. The save is `hunnawood/save.toml` in the user's data directory, or the file that
@@ -203,50 +214,31 @@ since the start of a run, and loads it back. *Hunna Wood* runs on it.
   before positions reach the GPU as `f32`s (ADR-0048). `Mat4::IDENTITY` given to `Instance::new`
   becomes `DAffine3::IDENTITY`, and `Vec3::new(…)` given to a camera or a light becomes
   `DVec3::new(…)`.
+- `slime-app` owns the game's world, and so depends on `slime-world`, which brings
+  `slime-reflect`, `slime-serialize` and `toml_edit` into every game built on it. `slime-assets`
+  and `slime-color` depend on `slime-reflect`: `AssetId`, `Extra` and `LinearColor` are reflected.
 - *Hunna Wood* runs on the world (ADR-0079): its zone and its hero are entities, and its colliders,
   markers and lights the game's own components, read from the zone's extras. The run is in the
   world: the key taken, the door open and the time of day are components of the game's, `Key`,
   `Door` and `Clock`, from which it hides the key, the door and its colliders, and the lights of
-  the other time of day; the world draws the hero between fixed steps, and the game draws
-  the world through `slime-world-render` and an `AssetCache`, which loads the hero first. After a
-  lost GPU device, the world keeps the run and only what it draws loads again. With `--watch`, the
-  zone or the hero is spawned again when its scene changed. The game looks and plays as before.
-- `Component` requires `Reflect`: a component derives it, with its stable name,
-  `#[derive(Reflect)] #[reflect(name = "my_game::Lantern")]`, and its crate depends on
-  `slime-reflect` (ADR-0085). Each world keeps the registry of its components' types, the first
-  component of a type it stores registering the type. `WorldError` gains `NoComponent` and
-  `Refused`, and is no longer `Eq`. `slime-assets` and `slime-color` depend on `slime-reflect`.
-- `TypeInfo::default` and `FieldInfo::default` hold the default value, `Option<Value>`, rather than
-  whether there is one: a document that leaves out a field with a default reads into a whole
-  value (ADR-0086). The registry checks a type's defaults, within their fields' ranges, when it
-  registers it, and refuses names that start with `$`, which documents keep for themselves.
+  the other time of day; the world draws the hero between fixed steps, and the game draws the world
+  through `slime-world-render` and an `AssetCache`, which loads the hero first. The game looks and
+  plays as before.
 - The cooker reads and writes metadata files through `slime-serialize`, as documents of a
   `Metadata` value: every committed one is unchanged, and an error says its line and column.
-  `metadata::read` returns a `slime_serialize::ReadError`, which `ScanError::Metadata` holds;
-  `MetadataError` is removed. `.gitattributes` keeps `*.toml` files with LF endings.
-- An entity that `World::spawn` creates has a persistent identity, `created/<number>`, from a count
-  that saves keep (ADR-0087). `World::persistent_id` returns a `PersistentId` rather than a
-  reference to one, and `PersistentId` parses from its text. `World::spawn_scene` refuses a key that
-  is empty, holds `/`, or is `created` (`WorldError::InvalidKey`), and a node whose name holds `/`
-  takes its index as its identity, `#12`. `World::register` takes a component type; `WorldError`
-  gains `UnknownComponent`. `slime-world` depends on `slime-serialize`.
-- The registry refuses a transient field without a default, its own, its struct's or its type's,
-  which a save that leaves the field out gives it, and a transient field of a tuple, which a save
-  writes whole (ADR-0087): `#[reflect(transient, default)]`.
-- `write` and `write_partial` refuse a document larger than `MAX_SIZE` or deeper than `MAX_DEPTH`,
-  which a reader refuses, as `Composer::finish` does.
+  `metadata::read` returns a `slime_serialize::ReadError`, which `ScanError::Metadata` holds.
+  `.gitattributes` keeps `*.toml` files with LF endings.
 
 ### Removed
 
 - `LoadedScene::instance_nodes`, which a game read to leave out what some nodes place: a game
   hides them in its world (`slime_world::Hidden`).
+- `slime_cook::metadata::MetadataError`: metadata files are read through `slime-serialize`.
 
 ### Fixed
 
-- A window resized while a scene loads in the background, as Hyprland resizes a window it tiles
-  as it opens, no longer has its surface refused, nor the run stopped after three refusals: wgpu
-  fails to configure a surface when another thread submits work meanwhile, as loading threads do
-  (ADR-0074), and the `Gpu`'s submissions now wait while a surface is configured.
+- A light refused for a negative value says that it is negative or not finite, rather than "not
+  finite and not negative".
 
 ## [0.2.0] - 2026-10-15
 

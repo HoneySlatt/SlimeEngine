@@ -52,7 +52,7 @@ The editor sits beside games, not inside the engine: it is a client of the engin
 |---|---|
 | Engine language | Rust |
 | License | MPL-2.0 |
-| GPU abstraction | wgpu. Its types stay inside the `gfx` and `render` crates; the rest of the engine uses engine-owned handles. |
+| GPU abstraction | wgpu. Its types stay inside the `gfx` and `render` crates, and the dev overlay, tooling (ADR-0031); the rest of the engine uses engine-owned handles. |
 | Shaders | WGSL to start |
 | First platforms | Linux (Wayland and X11) and Windows: games run on both from Stage 2 on. macOS comes later. |
 | Game-facing API | Rust first. The C ABI and C++ SDK are derived later from a proven API. |
@@ -380,12 +380,13 @@ Direction only. None of this is planned work until Stage 11 is reached.
 | System | Requires |
 |---|---|
 | platform | no engine crate (ADR-0004) |
-| gfx | no engine crate; window handles through the `raw-window-handle` traits, not `platform` |
-| render | gfx, assets: it loads its own kinds of asset (ADR-0069), on a task pool of its own from Stage 4b (ADR-0072). Not world: a bridge between them builds each frame from the world (ADR-0079) |
+| gfx | color only (ADR-0079); window handles through the `raw-window-handle` traits, not `platform` |
+| render | gfx, assets, color: it loads its own kinds of asset (ADR-0069), on a task pool of its own from Stage 4b (ADR-0072). Not world: `slime-world-render`, a bridge between them, builds each frame from the world (ADR-0079) |
 | assets | reflect only (ADR-0069, ADR-0080) |
-| reflect | no engine crate (ADR-0080) |
+| color | reflect only (ADR-0079) |
+| reflect | its derive macro only (ADR-0080) |
 | serialization | reflect |
-| world | reflect, serialization, assets |
+| world | reflect, serialization, assets, color |
 | editor | world, render, assets, UI framework |
 | UI of games | render, input action mapping, UI framework |
 | undo/redo | reflect, editor commands |

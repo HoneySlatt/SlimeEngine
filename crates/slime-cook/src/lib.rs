@@ -1,7 +1,7 @@
 //! SlimeEngine's cooker: it turns *source assets*, the files that people make or download, into
 //! the *cooked data* that games load, before they run (`docs/adr/0069-the-asset-pipeline.md`). Its
-//! program, `slime-cook`, runs it from the command line; the library serves the program, the
-//! checks and, later, the editor.
+//! program, `slime-cook`, runs it from the command line; the library serves the program and the
+//! checks.
 //!
 //! It gives every source file an asset ID that survives a move ([`scan()`]), kept in a *metadata
 //! file* beside the file ([`metadata`]), and derives the IDs of the assets inside a file from the

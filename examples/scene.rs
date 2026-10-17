@@ -6,7 +6,7 @@
 //! that changes the exposure, as a photographer's exposure value, one that changes the bloom's
 //! strength and, for the sample's asset, one that changes how strongly its ring glows, through its
 //! material, found by its name; F1 hides and shows it. It loads the scene in the background, its
-//! frames showing the sky's horizon until the scene is loaded. The sample of Stages 3a, 3b and 4a.
+//! frames showing the sky's horizon until the scene is loaded. The sample of Stages 3a, 3b, 4a and 4b.
 //! Escape, closing the window or Ctrl+C quits.
 //!
 //! It reads cooked data, which `slime-cook` makes first:

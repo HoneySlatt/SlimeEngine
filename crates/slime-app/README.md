@@ -14,8 +14,8 @@ run that asks for it goes on with a new GPU device after a lost one. What is mis
 ## Role
 
 - Starts an application, runs its frames, and shuts it down, with or without a window. Running
-  without a window (headless) is a normal configuration, used by automated tests and later by
-  dedicated servers.
+  without a window (headless) is a normal configuration, which automated tests use, and dedicated
+  servers could.
 - With a window, opens the GPU that draws into it, and gives each frame an image of the window to
   draw into, which it then shows.
 - Sets up the engine's diagnostics and owns frame timing.
@@ -97,8 +97,8 @@ if slime_app::run(&mut Game, &config).is_err() {
   defaults that do nothing.
   - `init` can fail: it returns `Result<(), AppError>`, where `AppError` is any boxed error (`?`
     converts errors into it). After a failed `init`, no frame runs, `shutdown` is not called and
-    `run` returns the error. The other methods return nothing: one that hits an error it cannot
-    handle passes it to `Context::exit_with_error`, which stops the run as an exit request does,
+    `run` returns the error. `gpu_restored` can fail too, which stops the run with the error. The
+    other methods return nothing: one that hits an error it cannot handle passes it to `Context::exit_with_error`, which stops the run as an exit request does,
     `shutdown` included, and makes `run` return it
     (`docs/adr/0043-application-errors-during-a-run.md`).
   - `render(ctx, target)` draws the frame into `target`, the window's image, with `ctx.gpu()`;
@@ -132,8 +132,8 @@ if slime_app::run(&mut Game, &config).is_err() {
     included (`docs/adr/0021-frame-pacing.md`). With `PresentMode::Fifo`, every image is shown
     in step with the display, which can block a frame: up to one second when the compositor
     rarely shows a hidden window.
-  - It returns a `RunError`: `Init` when `init` fails, `App` when the application passed an error
-    to `Context::exit_with_error`, `Platform` when the window cannot be opened (for example without
+  - It returns a `RunError`: `Init` when `init` fails, `App` when `gpu_restored` failed or the
+    application passed an error to `Context::exit_with_error`, `Platform` when the window cannot be opened (for example without
     a display server) or its event loop fails, `Gfx` when no GPU can draw into the window or when
     the GPU device or the window's surface is lost for good during the run. After a loss, the run
     stops like after an exit request, `shutdown` included
@@ -201,6 +201,7 @@ the name the graphics API gives it.
 ## Dependencies
 
 - `ctrlc`: handles termination signals.
+- `nu-ansi-term`, on Windows only: turns on the colors of the log in the console.
 - `slime-gfx`: the GPU and the window's surface, for windowed runs.
 - `slime-platform`: the window and its events, for windowed runs.
 - `slime-world`: the game's world, which it owns.

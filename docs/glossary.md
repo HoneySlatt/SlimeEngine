@@ -30,8 +30,8 @@ scene. Each comes from a *source asset* and reaches the game as *cooked data*
 **Asset cache.** The GPU objects of the meshes that a game draws, with their materials and
 textures, kept by *asset ID* outside the *world* (`slime_render::AssetCache`): the world names
 assets by ID and holds no GPU object. It loads what is asked for in batches, in the background,
-each whole, loads again what changed in new *cooked data*, and drops everything when its *device*
-is lost ([ADR-0084](adr/0084-what-the-world-draws.md)).
+each whole, loads again what changed in new *cooked data*, and drops everything when the game
+clears it, as when its *device* is lost ([ADR-0084](adr/0084-what-the-world-draws.md)).
 
 **Asset ID.** The identity of an *asset*: a random 128-bit UUID kept in the *metadata file* beside
 its source, so that it stays the same when the file is moved or renamed. A *sub-asset*'s ID is
@@ -65,14 +65,14 @@ that a surface reflecting f0 at normal incidence reflects f0 A + B of a uniform 
 (single scattering): the second factor of the *split sum*. The renderer computes it on the CPU once
 per process, 32 × 32 ([ADR-0039](adr/0039-image-based-lighting-computed-on-the-cpu.md)).
 
-**Candela (cd).** The unit of luminous intensity, lumens per steradian: the strength of a point or
-spot light (`intensity`). A surface facing such a light d metres away receives intensity / d² *lux*.
-
 **Camera-relative rendering.** Drawing in world space moved so that the camera's eye is at the
 origin: the renderer subtracts the eye from every position, all `f64`s, on the CPU, so that the
 GPU's 32-bit floats hold small numbers near the camera, as precise 10 000 km from the world's
 origin as at it ([ADR-0048](adr/0048-rendering-relative-to-the-camera.md),
 [ADR-0079](adr/0079-the-engines-own-world.md)).
+
+**Candela (cd).** The unit of luminous intensity, lumens per steradian: the strength of a point or
+spot light (`intensity`). A surface facing such a light d metres away receives intensity / d² *lux*.
 
 **Cascade (cascaded shadow maps).** One of the *shadow maps* that together hold the shadows of a
 directional light: what the camera sees up to the light's shadow distance is split along its axis
@@ -89,7 +89,8 @@ display server and, with the sample game, in a headless Weston compositor, and t
 documents ([`CONTRIBUTING.md`](../CONTRIBUTING.md#checks)).
 
 **Client of the engine.** A crate or program built on the engine's public API only, which no engine
-crate depends on: the examples, the dev *overlay* (`slime-devui`) and, later, the editor.
+crate depends on: the examples, the games, such as *Hunna Wood*, and the dev *overlay*
+(`slime-devui`).
 
 **Comparison sampler.** A sampler that compares a reference depth with the depths stored in a
 *depth target* instead of reading them: each pixel read gives 1 where the comparison holds and 0
@@ -171,6 +172,10 @@ windowing library's event loop, which measures real time, asks for frames at a l
 runs them on *redraw requests*. All drivers run frames the same way
 ([ADR-0010](adr/0010-main-loop-ownership.md)). Not to be confused with a GPU driver.
 
+**DXC.** Microsoft's DirectX Shader Compiler, `dxcompiler.dll`, which wgpu uses on Direct3D 12 when
+it lies beside the program: the engine's Windows programs ship it, and its code draws about twice as
+fast as *FXC*'s ([ADR-0066](adr/0066-shipping-dxc-beside-the-programs.md)).
+
 **Dynamic offset.** The start of the range of a *uniform buffer* that a *bind group* binds, given
 each time the group is bound (`RenderPass::set_bind_group`) rather than when the group is created,
 as a multiple of `Gpu::uniform_offset_alignment`. One buffer and one group then serve many draws,
@@ -234,6 +239,10 @@ processes a whole image, such as tone mapping, draws.
 **Furnace test.** A white object inside a uniform *environment* must reflect exactly its radiance,
 and disappear into it: any loss or gain of light shows.
 
+**FXC.** The older shader compiler of Direct3D, part of Windows, which wgpu uses on Direct3D 12 when
+*DXC* is not beside the program, with a warning in the log: its code is slower
+([ADR-0066](adr/0066-shipping-dxc-beside-the-programs.md)).
+
 **glTF.** The Khronos Group's format for 3D scenes: meshes, materials, textures and a node
 hierarchy, as a JSON file with binary buffers, or as one GLB file with everything embedded. The
 cooker, `slime-cook`, imports both ([ADR-0069](adr/0069-the-asset-pipeline.md)).
@@ -281,8 +290,8 @@ pixel by pixel, within a tolerance that absorbs how drivers round colors and fil
 
 **Imported target.** A target of the *render graph* that outlives the frame and that the graph
 does not create: the output, which may be a window's image that changes every frame, and the
-*shadow map*. It holds what it held before the frame, so a pass may sample it without an earlier
-pass drawing into it ([ADR-0041](adr/0041-render-graph.md)).
+*shadow atlases*, the sun's cascades' and the spot lights'. It holds what it held before the frame,
+so a pass may sample it without an earlier pass drawing into it ([ADR-0041](adr/0041-render-graph.md)).
 
 **Importer.** The part of *cooking* that reads one kind of source file, glTF or an image, into the
 engine's types.
@@ -360,9 +369,19 @@ ID*, a *document* of a `Metadata` value ([ADR-0069](adr/0069-the-asset-pipeline.
 under a specular layer, or a metal's reflection tinted by its color, blended by *metallic*, with
 highlights as wide as the *roughness* (glTF 2.0, Appendix B; ADR-0035).
 
+**MikkTSpace.** The common way of computing a mesh's *tangents* from its normals and texture
+coordinates, which glTF's *normal textures* assume; the cooker computes them so
+(`bevy_mikktspace`, [ADR-0069](adr/0069-the-asset-pipeline.md)).
+
 **Milestone.** A small, verifiable step of a stage, listed with its goal, its done criteria and
 how to test it in [`docs/PLAN.md`](PLAN.md). Milestones are numbered `M<stage>.<n>`, for example
 M1.3.
+
+**Mipmaps.** Copies of a texture at half, a quarter, ... of its size, down to one pixel: the
+*levels of detail* among which a *sampler* chooses by the size the texture is drawn at, so that a
+minified texture does not alias. The engine computes them on the CPU when the texture is created
+(`Gpu::create_texture`), in linear light for the sRGB formats, or takes them from the caller
+(`Gpu::create_texture_with_levels`, `Gpu::create_cube_texture`); linear filtering blends two levels.
 
 **Mirror (source assets).** The copies of the sample game's downloaded *source assets*, attached to
 the releases of a GitHub repository of their own, from which `scripts/fetch-assets.sh` fetches
@@ -371,12 +390,6 @@ them ([ADR-0070](adr/0070-the-sample-games-source-assets.md)).
 **Mirrored instance.** An instance whose transform has a negative determinant, such as a scale of
 −1 along one axis: it turns front faces clockwise on screen, and the renderer culls its other
 faces so that it keeps its front ones, as glTF does (ADR-0035).
-
-**Mipmaps.** Copies of a texture at half, a quarter, ... of its size, down to one pixel: the
-*levels of detail* among which a *sampler* chooses by the size the texture is drawn at, so that a
-minified texture does not alias. The engine computes them on the CPU when the texture is created
-(`Gpu::create_texture`), in linear light for the sRGB formats, or takes them from the caller
-(`Gpu::create_texture_with_levels`, `Gpu::create_cube_texture`); linear filtering blends two levels.
 
 **Multiple scattering.** Light that bounces between the microfacets of a rough surface before it
 leaves, which a single-scattering *BRDF* loses: a white rough metal would look grey. The renderer
@@ -531,26 +544,40 @@ is 0, where floating-point depths are finest, so that 32-bit depths keep a preci
 the distance, at any distance. Passes clear *depth targets* to 0, a depth test keeps the greater
 depth, and a *depth bias* is negative.
 
-**Sample.** The example that demonstrates the exit criterion of a stage. Every stage ends with
-one.
+**Run.** Two things. The running of an application by `slime_app::run`, from `init` to `shutdown`;
+and, in a game, a play from a new game on, which R starts again, a *save* holds and a resume goes on
+with.
+
+**Sample.** What demonstrates the exit criterion of a stage: an example up to Stage 3b, the *sample
+game* from Stage 3c. Every stage ends with one.
 
 **Sample (multisampling).** One of the points of a pixel at which *multisample anti-aliasing*
 tests coverage and depth; not the *sample* of a stage.
+
+**Sample game.** The game in `games/` that every stage grows from Stage 3c on, as its *sample*:
+*Nightwatch*, then *Hunna Wood* from Stage 4a ([ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)).
 
 **Sampler.** How shaders read a texture: nearest or linear filtering, and what lies beyond its
 edges (repeat, mirror or clamp) (`slime_gfx::Sampler`).
 
 **Save (game).** What differs between a *world* and its *start world*, written to a file: entities
 removed and created, components added, removed and changed, parents changed, entities named by
-their *persistent identities*; it begins with what the game says of it, such as the layout it was
-made on, which can be read alone. Loading applies the differences to a start world spawned from the
+their *persistent identities*; it begins with what the game says of it, such as what it was made
+on, which can be read alone. Loading applies the differences to a start world spawned from the
 scenes as they are now, so that a game update that changes a scene reaches the saves made before
 ([ADR-0079](adr/0079-the-engines-own-world.md), [ADR-0087](adr/0087-the-worlds-documents.md),
 [ADR-0088](adr/0088-saving-and-resuming-a-run.md)).
 
+**Scene (cooked).** A glTF file's node hierarchy as the cooker makes it
+(`slime_assets::CookedScene`): each node's name, parent, transform, meshes, light and `extras`,
+which `World::spawn_scene` turns into *entities* with *persistent identities* under a key. A *save*
+names the scenes that its world spawned ([ADR-0069](adr/0069-the-asset-pipeline.md),
+[ADR-0083](adr/0083-transforms-and-the-hierarchy.md)).
+
 **Scene (render).** What the renderer draws in one frame: a camera, *punctual lights*, an
 *environment*, an *exposure* and *instances* (`slime_render::Scene`). Not a scene graph: the
-renderer keeps nothing between frames, and the world model of Stage 5 will produce such scenes.
+renderer keeps nothing between frames; `slime-world-render` builds one from the *world* at each
+frame ([ADR-0084](adr/0084-what-the-world-draws.md)).
 
 **Shadow acne.** Speckles of shadow that a surface casts on itself where its depth and the one
 stored in the *shadow map* differ only by rounding or by the map's texels; a *depth bias* and a
@@ -569,8 +596,8 @@ texels on a grid fixed in the world ([ADR-0038](adr/0038-shadow-mapping.md),
 that casts shadows, in perspective.
 
 **Shape (of a frame).** What decides the renderer's passes and targets: the output's size, whether
-the shadow pass runs and whether the bloom's passes do. The *render graph* is built again, and its
-GPU times start over, when it changes ([ADR-0041](adr/0041-render-graph.md)).
+the sun's shadow pass runs, whether the spot lights' shadow pass does, and whether the bloom's
+passes do. The *render graph* is built again, and its GPU times start over, when it changes ([ADR-0041](adr/0041-render-graph.md)).
 
 **Simulated time.** Frame deltas supplied as a constant duration instead of being measured, so
 that a run gives the same results on every machine. Headless runs use it.
@@ -698,17 +725,17 @@ next *shape* that declares it at the same size ([ADR-0041](adr/0041-render-graph
 what reads and sets their *values* (`slime_reflect::Registry`). Each *world* keeps one, which holds
 the types of its components ([ADR-0085](adr/0085-reflection.md)).
 
-**Upgrade.** The function that brings a value of a reflected type from one version of the type to
-the next, on the value as a *document* holds it, before the type reads it; a type past version 1
-names one, `#[reflect(upgrade = ...)]`, and a reader applies them in turn
-([ADR-0086](adr/0086-serialization.md)).
-
 **Uniform buffer.** A buffer of values that a whole draw reads, such as a camera's matrices,
 declared `var<uniform>` in WGSL and read through a *bind group* (`slime_gfx::UniformBuffer`).
 
 **Unsaved (entity).** An entity that holds the `Unsaved` component, or whose ancestor does: saves
 leave it out, with its descendants, as they do what a game makes again at each run, such as an
 effect ([ADR-0087](adr/0087-the-worlds-documents.md)).
+
+**Upgrade.** The function that brings a value of a reflected type from one version of the type to
+the next, on the value as a *document* holds it, before the type reads it; a type past version 1
+names one, `#[reflect(upgrade = ...)]`, and a reader applies them in turn
+([ADR-0086](adr/0086-serialization.md)).
 
 **Value (reflection).** A reflected value as plain data, without its Rust type: booleans, integers,
 floats of either width, text, structs, enums, options, lists, references to assets and entities

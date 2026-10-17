@@ -53,11 +53,11 @@ created only when code needs it.
 | Crate | Role | Depends on | Status |
 |---|---|---|---|
 | [`slime-platform`](../crates/slime-platform/README.md) | The window, its events and keyboard and mouse input; the only crate that uses the windowing library (winit) | `winit`, `raw-window-handle`, `thiserror`, `tracing` | One window; window, keyboard and mouse events |
-| [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `slime-platform`, `slime-gfx`, `slime-world`, `ctrlc`, `thiserror`, `tracing`, `tracing-subscriber` | Headless runs, and windowed runs drawn by the GPU, which go on with a new device after a lost one when the application asks |
+| [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `slime-platform`, `slime-gfx`, `slime-world`, `ctrlc`, `thiserror`, `tracing`, `tracing-subscriber`, `nu-ansi-term` (Windows only) | Headless runs, and windowed runs drawn by the GPU, which go on with a new device after a lost one when the application asks |
 | [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu, apart from the dev overlay through its `wgpu` feature | `wgpu`, `pollster`, `raw-window-handle`, `slime-color`, `thiserror`, `tracing` | Opens a GPU device, and another in place of a lost one; draws into offscreen images, 8-bit or 16-bit float, and reads them back; draws into a window; later passes sample what earlier ones drew; depth-only passes; images of four samples per pixel, resolved for anti-aliasing; textures and cube textures whose levels the caller gives, half-precision floats and BC7 and BC5 blocks among their formats |
 | [`slime-color`](../crates/slime-color/README.md) | The color type of every API of the engine, `LinearColor`, and the sRGB transfer function, below every crate that holds a color ([ADR-0045](adr/0045-one-linear-color-type.md), [ADR-0079](adr/0079-the-engines-own-world.md)); headless | `slime-reflect` | Linear colors and their constructors, sRGB bytes decoded and encoded |
 | [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, lit by directional, point and spot lights, seen from a camera, into render targets, and reports what a frame cost; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `slime-assets`, `slime-color`, `glam`, `thiserror`, `tracing` | Textures and scenes cooked by the asset pipeline, loaded onto the GPU, BC7 and BC5 among them, normal textures read by x and y; meshes with tangents, simple shapes made in code (a cube, a sphere, a square), glTF's metallic-roughness materials (five textures, masks, double-sided, values that change while a game runs, found by name in a loaded scene), a perspective camera, the depth test, up to 16 directional, point and spot lights in physical units (`KHR_lights_punctual`), a procedural sky computed on the CPU that surfaces reflect (image-based lighting) and that is drawn behind them with its sun's disc, the shadows of the first directional light that casts them (four cascades in one atlas, filtered over 5 × 5 texels) and of every spot light that casts them (a tile each of one atlas), mirrored instances drawn with their front faces, the scene drawn in HDR with its light exposed, at four samples per pixel (multisample anti-aliasing), an energy-conserving bloom, then tone mapped, the passes ordered by a render graph and recorded four to a submission, statistics with the GPU time of each pass; scenes loaded in the background, and again when their cooked data changed, keeping what did not change; the meshes a game draws kept by asset ID in a cache, loaded in batches as they are asked for, loaded again when their cooked data changes, dropped after a lost device ([ADR-0084](adr/0084-what-the-world-draws.md)); its shaders replaced while it runs |
-| [`slime-reflect`](../crates/slime-reflect/README.md) | Reflection: types described at run time, their values as plain data, read and changed by property path through a registry, compared and their differences applied ([ADR-0080](adr/0080-reflection-and-serialization.md), [ADR-0085](adr/0085-reflection.md)); headless | `glam`, `slime-reflect-derive` | `Reflect` and its derive, with stable names, aliases, versions and their upgrades, default values, skipped and transient fields, ranges and units; one value type, references to assets and entities kinds of their own; descriptions of types; a registry, explicit and recursive, that holds types with no Rust type behind them, checks values, sets their parts by path within their fields' ranges and lists their leaves; the standard types, glam's vectors and quaternions; no files: `slime-serialize` writes and reads them |
+| [`slime-reflect`](../crates/slime-reflect/README.md) | Reflection: types described at run time, their values as plain data, read and changed by property path through a registry, compared and their differences applied ([ADR-0080](adr/0080-reflection-and-serialization.md), [ADR-0085](adr/0085-reflection.md)); headless | `glam`, `slime-reflect-derive` | `Reflect` and its derive, with stable names, aliases, versions and their upgrades, default values, skipped and transient fields, ranges and units; one value type, references to assets and entities kinds of their own; descriptions of types; a registry, explicit and recursive, that holds types with no Rust type behind them, checks values, sets their parts by path within their fields' ranges and lists their leaves; the standard types, glam's `Vec3`, `DVec3` and `Quat`; no files: `slime-serialize` writes and reads them |
 | [`slime-reflect-derive`](../crates/slime-reflect-derive/README.md) | The derive macro of reflection, `#[derive(Reflect)]`, which `slime-reflect` re-exports | `proc-macro2`, `quote`, `syn` | Structs and enums, their doc comments and attributes; generic types, lifetimes, unions and types without a name refused |
 | [`slime-serialize`](../crates/slime-serialize/README.md) | Serialization: values of reflected types written to TOML documents by the engine's own writer and read back, from earlier versions of their types too ([ADR-0080](adr/0080-reflection-and-serialization.md), [ADR-0086](adr/0086-serialization.md)); headless | `slime-reflect`, `toml_edit`, `thiserror` | Documents of any registered type's value, whole or in part; the same bytes for the same value; versions written past 1 and earlier values brought forward by their types' upgrades; strict and lenient reading, errors by line, column and path, limits on size and depth; documents of several values, references to entities written as the names that a world gives them; no binary encoding |
 | [`slime-world`](../crates/slime-world/README.md) | The world: a game's entities, their components and their hierarchy, kept by the engine ([ADR-0079](adr/0079-the-engines-own-world.md)); headless | `slime-assets`, `slime-color`, `slime-reflect`, `slime-serialize`, `glam`, `thiserror`, `tracing` | Entities as handles of an index and a generation, the components attached to them stored by type, queries that read through an iterator or change through a closure ([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)); parents and children, transforms with `f64` translations, a uniform scale and a stretch, and where each entity is in the world, always current ([ADR-0083](adr/0083-transforms-and-the-hierarchy.md)); cooked scenes spawned as entities with persistent identities; what is drawn, meshes by asset ID, lights and hidden subtrees, and the transforms before the last fixed step of what moved during it ([ADR-0084](adr/0084-what-the-world-draws.md)); every component reflected, and listed, read and set by name and property path through the world's registry ([ADR-0085](adr/0085-reflection.md)); saves of what differs from the world as a game makes it at the start of a run, loaded back ([ADR-0087](adr/0087-the-worlds-documents.md)) |
@@ -81,12 +81,13 @@ slime-examples ──▶ slime-app ──┬──▶ slime-platform ──▶ w
        │                   ├───────▶ egui, egui-wgpu ──────────▶ wgpu
        │                   ├───────▶ slime-platform (events)
        │                   └───────▶ slime-world, slime-reflect, slime-assets, slime-color (the world panel)
-       └──▶ slime-platform, slime-gfx, slime-color (their types: events, GPU objects, colors)
+       └──▶ slime-platform, slime-gfx, slime-color, slime-world (their types: events, GPU objects,
+            colors, the world)
 
 hunnawood  ──▶ slime-app, slime-assets, slime-render, slime-platform, slime-gfx, slime-color, slime-devui,
                slime-world, slime-world-render, slime-reflect (public API only)
 
-slime-cook ──▶ slime-assets, slime-serialize (metadata files)
+slime-cook ──▶ slime-assets, slime-reflect, slime-serialize (metadata files)
 slime-render ──▶ slime-assets (cooked data)
 slime-world ──▶ slime-assets (cooked scenes), slime-serialize (saves)
 slime-world-render ──▶ slime-world, slime-render, slime-gfx
@@ -94,6 +95,9 @@ slime-gfx, slime-render, slime-cook, slime-world ──▶ slime-color (the colo
 slime-assets, slime-color, slime-world ──▶ slime-reflect ──▶ glam, slime-reflect-derive (reflection)
 slime-serialize ──▶ slime-reflect, toml_edit (documents)
 ```
+
+The graph shows the engine's crates and the third-party crates that shape them; the table above
+lists every dependency.
 
 - Dependencies between crates point one way: `slime-app` depends on `slime-platform` and
   `slime-gfx`, never the reverse, and `slime-platform` and `slime-gfx` do not depend on each
@@ -106,7 +110,8 @@ slime-serialize ──▶ slime-reflect, toml_edit (documents)
 - `slime-devui` is the one crate besides `slime-gfx` that reaches wgpu, through the `wgpu` feature
   of `slime-gfx`, to draw egui with egui's own renderer ([ADR-0031](adr/0031-dev-overlay-with-egui.md)).
   The engine's own tests may enable the feature too. `slime-devui` is tooling, a client of the
-  engine like the examples: no engine crate depends on it, and games do not enable the feature.
+  engine like the examples: no engine crate depends on it, and a game reaches the feature only
+  through `slime-devui`, as *Hunna Wood* does for its dev overlay.
 - A game, such as `hunnawood`, is a client of the engine like the examples: it uses the public API
   of the engine's crates only, and no engine crate depends on it
   ([ADR-0055](adr/0055-games-in-the-workspace.md)).
@@ -464,7 +469,7 @@ renderer = Renderer::new(&gpu, format)                 the output's format; four
     │       by 64, applies Khronos PBR Neutral, dithers an 8-bit target with a triangular noise
     │       of one step hashed from the pixel's position (ADR-0051), and writes it opaque; an sRGB
     │       target encodes it
-    └── RenderStats: the scene pass's draw calls and triangles, the shadow pass's draw calls, the
+    └── RenderStats: the scene pass's draw calls and triangles, the shadow passes' draw calls, the
         CPU time of this call, and the GPU time of each pass, the bloom's summed, a few frames old,
         the latest that came back
 ```
@@ -664,7 +669,8 @@ frame
         │   sun first, so that it casts the shadows
         ├── the sky's environment, made again when the game's sky or the sun changed: the first
         │   directional light that shows in the sky
-        └── Frame { instances, lights, environment } → frame.scene(camera) → renderer.render
+        └── Frame { instances, lights, environment, loading, errors } → frame.scene(camera)
+                                                     → renderer.render
 ```
 
 After a lost device, the game clears the cache and drops the builder's environment; what the world
@@ -722,18 +728,21 @@ of value. The type's description in a registry leads both ways, through the valu
 holds them: tables, arrays, text, numbers and booleans.
 
 ```text
-write(registry, ty, value)
-├── Writer::value(ty, value)              the value as a document holds it, by its type's
+write(registry, ty, value)                a document of one value, through a Composer
+├── Composer::put(place, ty, value)
+│   └── Writer::value(ty, value)          the value as a document holds it, by its type's
 │                                         description; the types past version 1 noted
-└── text::print(root)                     "$versions" first, then each table's values on their
+└── Composer::finish()                    refused if larger or deeper than a reader reads
+    └── text::print(root)                 "$versions" first, then each table's values on their
                                           keys' lines, then its larger tables under headers:
                                           the engine's own writer, LF endings
 
-read(registry, ty, text, mode)
-├── text::parse(text)                     toml_edit's parser: the document's values, and where
-│                                         each value and key lies; size and depth limited
-├── "$format", "$versions"                a later version refused
-└── Reader::value(ty, document)           at each value of a type of an earlier version, the
+read(registry, ty, text, mode)            through a Document
+├── Document::parse(text, mode)
+│   ├── text::parse(text)                 toml_edit's parser: the document's values, and where
+│   │                                     each value and key lies; size and depth limited
+│   └── "$format", "$versions"            a later version refused
+└── Document::root(ty) → Reader::value    at each value of a type of an earlier version, the
     │                                     type's upgrades first (Registry::upgrade), on the
     │                                     document's value; then its description reads it:
     │                                     kinds, fields by name or alias, defaults, ranges
@@ -819,7 +828,8 @@ what it names again from the new device ([ADR-0084](adr/0084-what-the-world-draw
 Nothing may hold the lost device when the new one opens: Direct3D 12 opens no device on an
 adapter while a removed one exists in the process. The run does not restore when it is stopping
 anyway or its window's surface was lost for good; after three new devices in a row without a frame
-shown, or when none opens, it gives up and stops as without the setting. A program without
+shown, or when none opens, it gives up and stops, `run` returning `GfxError::CannotRestore` or the
+error that opening a device gave. A program without
 `slime-app` replaces its device with `Gpu::restore`, or `Surface::restore` for a window.
 
 The window's surface can be lost for good as well, when it cannot be created again after a loss or
@@ -853,8 +863,9 @@ passes on the thread that calls it. The renderer loads cooked scenes, and the as
 batches of meshes, on threads of its own ([above](#cooking-and-loading-assets), ADR-0073): a
 thread per load, and a task pool private to `slime-render`, which lives as long as the process;
 they create GPU objects through clones of the `Gpu`. What may cross threads is stated, so that
-later stages (a render thread, the job system) can rely on it, and checked when each crate's tests
-compile (a `threads` module in its `lib.rs`, or in `slime-devui`'s tests):
+later stages (a render thread, the job system) can rely on it, and checked when the tests of the
+crates that own these types compile (a `threads` module in their `lib.rs`, or in `slime-devui`'s
+tests):
 
 - **Shared between threads** (`Send` and `Sync`): the `Gpu`, whose clones share its device, its
   `Surface` and every GPU object it creates (targets, textures, samplers, buffers, bind groups and
@@ -862,8 +873,8 @@ compile (a `threads` module in its `lib.rs`, or in `slime-devui`'s tests):
   cameras, lights, scenes and instances, loaded scenes and loads in progress, the asset cache,
   statistics, windows, events, the application's `Context` and `AppConfig`, the dev overlay, worlds
   and entity handles, the frame builder of `slime-world-render` and its frames, reflected values
-  and registries, and every error type. wgpu keeps its error scopes per thread, so GPU objects
-  can be created from several threads.
+  and registries, and the error types of those crates. wgpu keeps its error scopes per thread, so
+  GPU objects can be created from several threads.
   wgpu fails to configure a window's surface when another thread submits work while it waits for
   the GPU, as the threads of a load do: the `Gpu`'s submissions, from any thread, wait while the
   surface is configured.

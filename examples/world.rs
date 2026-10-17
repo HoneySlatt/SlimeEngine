@@ -18,7 +18,7 @@
 //! cargo run -p slime-cook -- cook examples/assets target/cooked/examples
 //! cargo run --example world
 //! cargo run --example world -- --frames 120      # closes after 120 frames that drew the whole world
-//! cargo run --example world -- --headless --frames 600   # the world without a window
+//! cargo run --example world -- --headless --frames 600   # the world without a window, 600 frames
 //! cargo run --example world -- --watch           # draws again what changes in the cooked data
 //! ```
 //!

@@ -25,9 +25,9 @@ use crate::windowed::run_windowed;
 ///
 /// With a window, [`on_event`](Self::on_event) is called between frames, as events arrive.
 ///
-/// Only `init` returns an error. An application that hits an error it cannot handle in another
-/// method passes it to [`Context::exit_with_error`]: the run stops as after an exit request, and
-/// [`run`] returns the error.
+/// Only `init` and `gpu_restored` return an error. An application that hits an error it cannot
+/// handle in another method passes it to [`Context::exit_with_error`]: the run stops as after an
+/// exit request, and [`run`] returns the error.
 pub trait App {
     /// Called once, before the first frame. With a window, the window and the GPU already exist
     /// ([`Context::window`], [`Context::gpu`]): this is where an application creates its GPU
@@ -166,8 +166,8 @@ pub struct AppConfig {
     /// With a window, whether the run opens a new GPU device when it loses its own, and lets the
     /// application create its GPU objects again ([`App::gpu_restored`]), rather than stopping
     /// (ADR-0075). Headless runs ignore it: they open no GPU. Default: `false`, so that an
-    /// application that does not create its objects again stops cleanly, as the engine did
-    /// before.
+    /// application that does not create its objects again stops cleanly, with
+    /// [`GfxError::DeviceLost`](slime_gfx::GfxError::DeviceLost).
     pub restore_lost_device: bool,
 }
 

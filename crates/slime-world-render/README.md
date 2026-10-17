@@ -48,8 +48,10 @@ fn draw(
 
 - `FrameBuilder::new(sky)` draws a world around the game's `Sky`, without its sun, which the world
   gives; `FrameBuilder::build(world, cache, renderer, gpu, alpha)` gives a `Frame`, the instances,
-  lights and environment of one frame, whose `scene(camera)` is the renderer's `Scene`.
-- `FrameBuilder::release` drops the environment when the device is lost.
+  lights and environment of one frame, whose `scene(camera)` is the renderer's `Scene`, with how many
+  meshes still load and why the batches that finished failed.
+- `FrameBuilder::set_sky` draws the world around another sky from the next frame on, and
+  `FrameBuilder::release` drops the environment when the device is lost.
 
 The rustdoc holds the contracts: what is drawn, and what building a frame costs.
 

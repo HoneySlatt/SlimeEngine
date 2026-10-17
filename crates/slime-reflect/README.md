@@ -1,7 +1,8 @@
 # slime-reflect
 
 The engine's reflection: types described at run time, their values as plain data, read and
-changed by path through a registry (`docs/adr/0080-reflection-and-serialization.md`).
+changed by path through a registry (`docs/adr/0080-reflection-and-serialization.md`,
+`docs/adr/0085-reflection.md`).
 
 ## Status
 

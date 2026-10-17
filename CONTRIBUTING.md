@@ -79,8 +79,8 @@ The GPU layer uses Vulkan on Linux and Direct3D 12 on Windows
   beside the program, and otherwise with FXC, part of Windows, whose code runs slower: a warning in
   the log says so ([ADR-0066](docs/adr/0066-shipping-dxc-beside-the-programs.md)). From Git Bash,
   `scripts/fetch-dxc.sh target/debug/deps target/debug/examples target/debug` downloads DXC and
-  puts it beside the tests, the samples and the game that cargo builds, as the Windows CI job
-  does.
+  puts it beside the tests, the samples and the game that cargo builds, as the Windows CI job does
+  for the tests and the samples.
   `WGPU_DX12_COMPILER=fxc` asks for FXC, and `WGPU_DX12_COMPILER=dxc` for DXC wherever Windows
   finds `dxcompiler.dll`.
 - `scripts/check.sh` runs the tests and the samples on lavapipe, Mesa's Vulkan driver that renders
@@ -173,7 +173,7 @@ cargo run --release -p slime-cook -- watch games/hunnawood/assets/zone target/co
 cargo run -p hunnawood -- --watch
 ```
 
-The `scene` example takes `--watch` too, with `examples/assets` cooked into
+The `scene` and `world` examples take `--watch` too, with `examples/assets` cooked into
 `target/cooked/examples`. A change of the zone's layout starts the game's run again; a change of how
 it looks does not ([`games/hunnawood/README.md`](games/hunnawood/README.md#playing)). Each change
 leaves the cooked files it replaced in the directory of cooked data, and a watch stopped with Ctrl+C
