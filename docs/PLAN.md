@@ -18,15 +18,14 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   saves and resumes its runs, on Linux and on Windows.
 - Stage 5b — Scenes and prefabs: planned on 2026-10-17 and validated by the owner
   ([ADR-0089](adr/0089-scenes-and-prefabs.md), [ADR-0090](adr/0090-stage-5b-scenes-and-prefabs.md)),
-  to be released as 0.4 at its close. M5b.1 is done; M5b.2 is built: the owner reads a file written
-  back, and CI checks it.
+  to be released as 0.4 at its close. M5b.1 and M5b.2 are done; M5b.3 is next.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
 | [M5b.1](#m5b1--scenes-placed-in-a-world) | A scene written as text places entities and other scenes in a world, each placement with values of its own | Done |
-| [M5b.2](#m5b2--a-world-written-back-as-a-scene) | A world, or a subtree of it, is written as a scene file that keeps its placements, and reads back to the same world | Built; the owner reads a file written back, CI checks it |
+| [M5b.2](#m5b2--a-world-written-back-as-a-scene) | A world, or a subtree of it, is written as a scene file that keeps its placements, and reads back to the same world | Done |
 | [M5b.3](#m5b3--saves-and-hot-reload-with-placements) | What a game spawns while it runs is saved as placements, and a run is carried through a save when its scenes change | Planned |
 | [M5b.4](#m5b4--the-binary-encoding-of-documents) | A document is written in a binary encoding of the engine's own, and read back without parsing text | Planned |
 | [M5b.5](#m5b5--scene-files-cooked-typed-components-prefabs-in-the-world-example) | Scene files are cooked and spawned, Blender's nodes carry typed components, and the `world` example places prefabs | Planned |
@@ -194,7 +193,7 @@ Risks:
   engine's and the game's, overridden through a file, reads back; CI is green.
 - **How to test.** `cargo test -p slime-world -p hunnawood`.
 - **By hand.** The owner reads a file written back.
-- **Outcome.** Built on 2026-10-17
+- **Outcome.** Done on 2026-10-17
   ([ADR-0092](adr/0092-a-world-written-back-as-a-scene.md)). `World::write_scene` writes a subtree
   from what the world remembers: the scenes that it spawned, now kept as shared handles, and each
   placement's prefab and overrides; a placement's overrides are what differs from its prefab's
@@ -216,7 +215,8 @@ Risks:
   root, of a placement's entity moved out, or of the order of its children, is reported; `Unsaved`
   is left out of placements too; writing is linear in the file's own entities. Tests cover each, and
   nested placements, references to entities created, placements made while the world runs,
-  transient fields, and a level made from nothing.
+  transient fields, and a level made from nothing. The owner read a file written back, and found it
+  readable. CI took 13 minutes 37 seconds on Linux and 19 minutes 21 seconds on Windows.
 
 ### M5b.3 — Saves and hot reload with placements
 
