@@ -18,13 +18,14 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   saves and resumes its runs, on Linux and on Windows.
 - Stage 5b — Scenes and prefabs: planned on 2026-10-17 and validated by the owner
   ([ADR-0089](adr/0089-scenes-and-prefabs.md), [ADR-0090](adr/0090-stage-5b-scenes-and-prefabs.md)),
-  to be released as 0.4 at its close. Next: M5b.1.
+  to be released as 0.4 at its close. M5b.1 is built: the owner reads its scene files, and CI checks
+  it.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
-| [M5b.1](#m5b1--scenes-placed-in-a-world) | A scene written as text places entities and other scenes in a world, each placement with values of its own | Planned |
+| [M5b.1](#m5b1--scenes-placed-in-a-world) | A scene written as text places entities and other scenes in a world, each placement with values of its own | Built; the owner reads its scene files, CI checks it |
 | [M5b.2](#m5b2--a-world-written-back-as-a-scene) | A world, or a subtree of it, is written as a scene file that keeps its placements, and reads back to the same world | Planned |
 | [M5b.3](#m5b3--saves-and-hot-reload-with-placements) | What a game spawns while it runs is saved as placements, and a run is carried through a save when its scenes change | Planned |
 | [M5b.4](#m5b4--the-binary-encoding-of-documents) | A document is written in a binary encoding of the engine's own, and read back without parsing text | Planned |
@@ -149,6 +150,20 @@ Risks:
 - **How to test.** `cargo test -p slime-world -p slime-serialize -p slime-reflect`.
 - **By hand.** The owner reads the sample scene files of the ADR and the tests, and says whether a
   person can read and write them.
+- **Outcome.** Built on 2026-10-17 ([ADR-0091](adr/0091-scene-documents-and-placements.md)). A
+  scene file is read strictly through `slime-serialize`: `[assets]`, `[root]`, one `[entities]`
+  table of records and placements whose keys give the order of siblings, and the sections of saves
+  for overrides. `SceneLibrary` resolves a scene once into a `ResolvedScene`, a flat list of records
+  whose overrides are applied to their values before anything is spawned; `World::spawn_scene`
+  spawns it, all or nothing, and replaces the spawning of a glTF scene, which a game now resolves
+  first (`ResolvedScene::from_cooked`). The root of each placement keeps its prefab and its overrides
+  (`World::placement`). `slime-serialize` gained the naming of assets through `References`, the keys
+  of a document's root, and the errors of a document's layout placed at their line; `Transform`
+  declares the identity as its default. Measured in a release build: the zone resolves in 0.46 ms
+  and spawns in 0.61 ms; a thousand placements of a prefab of 10 entities in 114 ms and 37 ms; of a
+  prefab of 100 entities, 101 001 entities, in 0.60 s and 0.40 s, which the known debt records. The
+  world panel's identities and prefabs, which ADR-0090 decides, come with M5b.5, which places
+  prefabs in the `world` example.
 
 ### M5b.2 — A world written back as a scene
 
@@ -228,7 +243,8 @@ Risks:
   components, read through the registry when the scene spawns; the other properties stay untyped.
   The scenes that place a prefab reloaded when it changes. The `world` example: a yard that places
   the sample scene and four lamps, one red and one without its light, written back when it quits and
-  failing if it reads back otherwise, following a change of the lamp with `--watch`. The ADR on
+  failing if it reads back otherwise, following a change of the lamp with `--watch`. The world panel
+  shows each entity's persistent identity and, for a placement, its prefab. The ADR on
   cooking scene files; `examples/README.md`, `CONTRIBUTING.md` (writing and cooking a scene file),
   the crates' READMEs, `CHANGELOG.md`; the known debt on the cooked glTF scene, a format apart from
   the binary encoding.
@@ -700,6 +716,13 @@ GitHub issues, linked from their entry; this list stays the reference.
   the zone in the running world, where ADR-0088 says that it uses the fingerprint of a new game's
   zone: a collider changed through the world panel makes the next reload start the run again. M5b.6
   compares the old and the new start worlds ([ADR-0090](adr/0090-stage-5b-scenes-and-prefabs.md)).
+- **Spawning a large scene makes each component from its value** (ADR-0091). A thousand
+  placements of a prefab of 100 entities, 101 001 entities, resolve in 0.60 s and spawn in 0.40 s
+  in a release build, where spawning 100 000 entities with `World::spawn` takes 10 to 18 ms
+  (ADR-0083, ADR-0087): each component is made from its value, and each entity's identity is a list of texts,
+  held twice. *Hunna Wood*'s zone takes about 1 ms. ADR-0089 orders the remedies, inside the world:
+  typed components copied rather than made from values, identities that share their parts, scenes
+  prepared on another thread.
 - **After a lost device, what is hidden loads only once shown** (ADR-0084): the cache loads what is
   drawn. In *Hunna Wood*, a key taken or a door opened before the loss shows a few frames after R
   shows them again.

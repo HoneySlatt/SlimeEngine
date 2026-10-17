@@ -153,8 +153,9 @@ the ADR linking to it.
 | [0083](0083-transforms-and-the-hierarchy.md) | Transforms and the hierarchy | Accepted; amended by 0087 |
 | [0084](0084-what-the-world-draws.md) | What the world draws | Accepted |
 | [0085](0085-reflection.md) | Reflection | Accepted; amended by 0086 and 0087 |
-| [0086](0086-serialization.md) | Serialization | Accepted; amended by 0087 |
+| [0086](0086-serialization.md) | Serialization | Accepted; amended by 0087 and 0091 |
 | [0087](0087-the-worlds-documents.md) | The world's documents | Accepted; amended by 0088 and 0089 |
 | [0088](0088-saving-and-resuming-a-run.md) | Saving and resuming a run | Accepted |
 | [0089](0089-scenes-and-prefabs.md) | Scenes and prefabs | Accepted |
 | [0090](0090-stage-5b-scenes-and-prefabs.md) | Stage 5b: scenes and prefabs | Accepted |
+| [0091](0091-scene-documents-and-placements.md) | Scene documents and placements | Accepted |

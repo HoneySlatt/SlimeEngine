@@ -6,6 +6,31 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ## [Unreleased]
 
+### Added
+
+- Scene files and prefabs ([ADR-0089](docs/adr/0089-scenes-and-prefabs.md),
+  [ADR-0091](docs/adr/0091-scene-documents-and-placements.md)). A scene file is TOML: its entities
+  under IDs of their own, each naming its parent and holding its components, a table of the assets
+  that it uses by short names, and *placements* of other scenes, glTF scenes or scene files, as
+  prefabs, nested. The file that places a prefab writes what each placement changes of it in the
+  sections of saves: parts of components changed, components added and removed, entities removed.
+  `slime_world::SceneLibrary` holds a game's scenes by asset ID and resolves one, with the prefabs
+  that it places, into a `ResolvedScene`; an override whose entity or component the prefab no longer
+  has is set aside and reported, and a file that says something wrong is refused, with the line and
+  the column. The entities of a placement are named through it: `zone/lamp 3/light`.
+  `World::placement` says what the world remembers of a placement: its prefab, and its overrides.
+- `slime_serialize::References` names assets too (`asset_name`, `asset`), by their IDs unless a
+  document names them otherwise; `Document::is_table` and `Document::error_at` let a program read a
+  document's layout itself, and place what it finds wrong at its line and column.
+
+### Changed
+
+- `World::spawn_scene` spawns a `ResolvedScene`: a game that spawns a glTF scene alone resolves it
+  first, `ResolvedScene::from_cooked(id, &scene)`. A value that its type's own check refuses makes
+  spawning fail with `WorldError::RefusedInScene`, and nothing is spawned.
+- `Document::keys(&[])` lists the keys of a document's root, where it listed none.
+- A `Transform` read from data that leaves a field out gives that field the identity's value.
+
 ## [0.3.0] - 2026-10-17
 
 The sixth release, which closes Stages 4b and 5a of the roadmap: live assets and the world. Scenes
