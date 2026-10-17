@@ -24,9 +24,11 @@ pub const MAX_SIZE: usize = 16 << 20;
 /// The parser refuses deeper ones before they are counted, past 80.
 pub const MAX_DEPTH: usize = 64;
 
-/// How a document names the entities that values refer to: by the persistent identities of a
-/// world, which its documents give (`slime-world`). An entity's handle holds within one run only:
-/// where a document names no entity, a reference to an entity is neither written nor read.
+/// How a document names the entities and the assets that values refer to: entities by the
+/// persistent identities of a world, which its documents give (`slime-world`); assets by their IDs,
+/// written as UUIDs, unless the document names them otherwise, as a scene file names them by the
+/// short names of its table of assets. An entity's handle holds within one run only: where a
+/// document names no entity, a reference to an entity is neither written nor read.
 pub trait References {
     /// The name that the document gives the entity whose handle has the bits `entity`, if it has
     /// one.
@@ -34,6 +36,18 @@ pub trait References {
 
     /// The bits of the handle of the entity that the document names `name`, if one is.
     fn entity(&self, name: &str) -> Option<u64>;
+
+    /// The name that the document gives the asset whose ID has the bits `id`, if it has one: by
+    /// default, its ID written as a UUID, as a document that names no entity writes it.
+    fn asset_name(&self, id: u128) -> Option<String> {
+        Some(document::uuid(id))
+    }
+
+    /// The bits of the ID of the asset that the document names `name`, if one is: by default, the
+    /// ID that `name` writes as a UUID, in either case.
+    fn asset(&self, name: &str) -> Option<u128> {
+        document::parse_uuid(name)
+    }
 }
 
 /// How strictly a document is read.

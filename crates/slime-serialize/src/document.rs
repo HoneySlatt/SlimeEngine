@@ -79,7 +79,14 @@ impl Writer<'_> {
                 Value::F64(number)
             }
             (Kind::Text, Value::Text(text)) => Value::Text(text.clone()),
-            (Kind::Asset, Value::Asset(id)) => Value::Text(uuid(*id)),
+            (Kind::Asset, &Value::Asset(id)) => Value::Text(match self.references {
+                Some(references) => references.asset_name(id).ok_or_else(|| {
+                    error(Problem::Invalid(
+                        "a reference to an asset that has no name in the document".to_owned(),
+                    ))
+                })?,
+                None => uuid(id),
+            }),
             (Kind::Entity, &Value::Entity(entity)) => {
                 let references = self
                     .references
@@ -341,11 +348,14 @@ impl Reader<'_> {
                 Value::F64(number as f64)
             }
             (Kind::Text, Value::Text(text)) => Value::Text(text),
-            (Kind::Asset, Value::Text(text)) => {
-                Value::Asset(parse_uuid(&text).ok_or_else(|| {
+            (Kind::Asset, Value::Text(text)) => Value::Asset(match self.references {
+                Some(references) => references
+                    .asset(&text)
+                    .ok_or_else(|| fail(Problem::Invalid(format!("no asset is named `{text}`"))))?,
+                None => parse_uuid(&text).ok_or_else(|| {
                     fail(Problem::Invalid(format!("`{text}` is not an asset ID")))
-                })?)
-            }
+                })?,
+            }),
             (Kind::Entity, document) => {
                 let Some(references) = self.references else {
                     return Err(fail(Problem::Invalid(ENTITY.to_owned())));
@@ -598,7 +608,7 @@ fn kind(document: &Value) -> &'static str {
 }
 
 /// An asset ID as text: `850ad551-5098-42f9-ae42-26ed6174951a`.
-fn uuid(id: u128) -> String {
+pub(crate) fn uuid(id: u128) -> String {
     format!(
         "{:08x}-{:04x}-{:04x}-{:04x}-{:012x}",
         id >> 96,
@@ -610,7 +620,7 @@ fn uuid(id: u128) -> String {
 }
 
 /// The asset ID that `text` writes as [`uuid`] does, in either case.
-fn parse_uuid(text: &str) -> Option<u128> {
+pub(crate) fn parse_uuid(text: &str) -> Option<u128> {
     let groups: Vec<&str> = text.split('-').collect();
     let lengths: Vec<usize> = groups.iter().map(|group| group.len()).collect();
     if lengths != [8, 4, 4, 4, 12]

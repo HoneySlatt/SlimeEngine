@@ -31,7 +31,9 @@
 //!   back as the number, of 32 bits for an `f32` unless TOML's parser, which reads 64 bits, would
 //!   then round them to another `f32`, those of 64 bits then; and `inf`, `-inf`, `nan` and `-nan`.
 //!   A NaN's payload is not kept. A reader takes an integer where a float goes.
-//! - **References** to assets are their IDs as text, `"850ad551-5098-42f9-ae42-26ed6174951a"`.
+//! - **References** to assets are their IDs as text, `"850ad551-5098-42f9-ae42-26ed6174951a"`,
+//!   unless the document names them otherwise through its [`References`](crate::References), as
+//!   a scene file names them by the short names of its table of assets, `"lamp"`.
 //!   References to entities are the names that the document gives them, as text: a world's
 //!   persistent identities, `"zone/door"`, in its saves ([`References`](crate::References)). An
 //!   entity's handle holds within one run only: a document that names no entity neither writes nor

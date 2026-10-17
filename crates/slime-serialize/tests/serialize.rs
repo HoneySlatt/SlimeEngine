@@ -1107,3 +1107,94 @@ fn a_document_larger_or_deeper_than_a_reader_reads_is_not_written() {
     let text = composer.finish().expect("as deep as a reader reads");
     assert!(Document::parse(&registry, &text, slime_serialize::Mode::Lenient).is_ok());
 }
+
+/// Names one asset, `lamp`, whose ID is 7, as a scene file names the assets of its table; no entity.
+struct Table;
+
+impl References for Table {
+    fn name(&self, _: u64) -> Option<String> {
+        None
+    }
+
+    fn entity(&self, _: &str) -> Option<u64> {
+        None
+    }
+
+    fn asset_name(&self, id: u128) -> Option<String> {
+        (id == 7).then(|| "lamp".to_owned())
+    }
+
+    fn asset(&self, name: &str) -> Option<u128> {
+        (name == "lamp").then_some(7)
+    }
+}
+
+#[test]
+fn a_document_names_assets_by_their_ids_unless_its_references_name_them_otherwise() {
+    let registry = registry();
+    let mut composer = Composer::new(&registry).naming(&Table);
+    composer
+        .put(&["porch"], "test::Mesh", &Value::Asset(7))
+        .expect("named");
+    let error = composer
+        .put(&["gate"], "test::Mesh", &Value::Asset(8))
+        .unwrap_err();
+    assert!(
+        error.to_string().contains("no name in the document"),
+        "{error}"
+    );
+    let text = composer.finish().expect("small");
+    assert_eq!(text, "porch = \"lamp\"\n");
+    let mut document = Document::parse(&registry, &text, Mode::Strict).expect("a document");
+    assert_eq!(
+        document
+            .read(&["porch"], "test::Mesh", Some(&Table))
+            .expect("named"),
+        Some(Value::Asset(7))
+    );
+    // Without a naming of their own, and through the default one, assets are their UUIDs.
+    let error = document.read(&["porch"], "test::Mesh", None).unwrap_err();
+    assert!(error.to_string().contains("is not an asset ID"), "{error}");
+    let error = document
+        .read(&["porch"], "test::Mesh", Some(&Porch))
+        .unwrap_err();
+    assert!(
+        error.to_string().contains("no asset is named `lamp`"),
+        "{error}"
+    );
+    let mut composer = Composer::new(&registry).naming(&Porch);
+    composer
+        .put(&["porch"], "test::Mesh", &Value::Asset(7))
+        .expect("a UUID");
+    assert_eq!(
+        composer.finish().expect("small"),
+        "porch = \"00000000-0000-0000-0000-000000000007\"\n"
+    );
+}
+
+#[test]
+fn a_document_says_where_its_tables_are_and_places_the_errors_of_its_layout() {
+    let registry = registry();
+    let text = "count = 3\n\n[porch]\nlamp = 1\n";
+    let document = Document::parse(&registry, text, Mode::Strict).expect("a document");
+    assert!(document.is_table(&[]));
+    assert!(document.is_table(&["porch"]));
+    assert!(!document.is_table(&["count"]));
+    assert!(!document.is_table(&["shed"]));
+    let error = document.error_at(
+        &["porch", "lamp"],
+        Problem::Invalid("not a lamp".to_owned()),
+    );
+    assert_eq!(
+        error.to_string(),
+        "line 4, column 8: `porch.lamp`: not a lamp"
+    );
+    let error = document.error_at(
+        &["count"],
+        Problem::UnknownField {
+            field: "count".to_owned(),
+            known: Vec::new(),
+        },
+    );
+    assert_eq!(error.line_and_column(), Some((1, 1)), "at its key: {error}");
+}

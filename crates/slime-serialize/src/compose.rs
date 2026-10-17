@@ -362,12 +362,35 @@ impl<'a> Document<'a> {
         Ok(())
     }
 
-    /// The keys of the table at `place`, in the document's order; none where it holds no table.
+    /// The keys of the table at `place`, in the document's order: the root's, but `$format` and
+    /// `$versions`, for an empty `place`; none where it holds no table.
     pub fn keys(&self, place: &[&str]) -> Vec<String> {
-        match self.at(place) {
-            Some(Value::Struct(fields)) => fields.iter().map(|(name, _)| name.clone()).collect(),
-            _ => Vec::new(),
-        }
+        let fields = if place.is_empty() {
+            &self.root
+        } else {
+            match self.at(place) {
+                Some(Value::Struct(fields)) => fields,
+                _ => return Vec::new(),
+            }
+        };
+        fields.iter().map(|(name, _)| name.clone()).collect()
+    }
+
+    /// Whether the document holds a table at `place`: the root, for an empty `place`.
+    pub fn is_table(&self, place: &[&str]) -> bool {
+        place.is_empty() || matches!(self.at(place), Some(Value::Struct(_)))
+    }
+
+    /// The error `problem` at `place`, placed in the text as a reading places its own: at the key
+    /// of a field unknown or given twice, at the value otherwise. It tells what a program that reads
+    /// a document's layout itself, such as a world reading a scene file, finds wrong with it.
+    pub fn error_at(&self, place: &[&str], problem: Problem) -> ReadError {
+        let at = place.iter().fold(Path::default(), |at, key| at.field(*key));
+        self.locate(Failure {
+            path: at.clone(),
+            at,
+            problem: ReadProblem::Value(problem),
+        })
     }
 
     /// Reads the whole value of the type named `ty` at `place`, as [`read`](crate::read) reads it,
