@@ -52,6 +52,7 @@ impl<'a> Composer<'a> {
                 transient: true,
                 versions: BTreeMap::new(),
                 partial: false,
+                defaults: true,
             },
             root: Vec::new(),
             places: HashMap::new(),
@@ -69,6 +70,14 @@ impl<'a> Composer<'a> {
     #[must_use]
     pub fn without_transient(mut self) -> Self {
         self.writer.transient = false;
+        self
+    }
+
+    /// Leaves out the fields of whole values that hold their defaults, as a scene file does: a reader
+    /// gives them their defaults again. The fields of parts are written, as they say what changed.
+    #[must_use]
+    pub fn without_defaults(mut self) -> Self {
+        self.writer.defaults = false;
         self
     }
 
@@ -96,6 +105,47 @@ impl<'a> Composer<'a> {
         value: &Value,
     ) -> Result<(), ReflectError> {
         self.put_value(place, ty, value, true)
+    }
+
+    /// Makes the tables that lead to `place`, and `place`, a table that holds nothing yet, where
+    /// missing, as a scene file's entity that holds nothing needs: the values put at places within
+    /// it go into it.
+    ///
+    /// # Errors
+    ///
+    /// When `place` is empty, holds a value put, or goes through one.
+    pub fn table(&mut self, place: &[&str]) -> Result<(), ReflectError> {
+        let occupied = || {
+            place.iter().rev().fold(
+                ReflectError::new(Problem::Invalid(
+                    "the place holds a value already, or goes through one".to_owned(),
+                )),
+                |error, key| error.within(Step::Field((*key).to_owned())),
+            )
+        };
+        if place.is_empty() {
+            return Err(occupied());
+        }
+        let places = &mut self.places;
+        let mut table = &mut self.root;
+        let mut keys = Vec::with_capacity(place.len());
+        for key in place {
+            keys.push((*key).to_owned());
+            let index = match places.get(&keys) {
+                Some(&(index, true)) => index,
+                Some(&(_, false)) => return Err(occupied()),
+                None => {
+                    table.push(((*key).to_owned(), Value::Struct(Vec::new())));
+                    places.insert(keys.clone(), (table.len() - 1, true));
+                    table.len() - 1
+                }
+            };
+            table = match &mut table[index].1 {
+                Value::Struct(inner) => inner,
+                _ => return Err(occupied()),
+            };
+        }
+        Ok(())
     }
 
     fn put_value(

@@ -1198,3 +1198,83 @@ fn a_document_says_where_its_tables_are_and_places_the_errors_of_its_layout() {
     );
     assert_eq!(error.line_and_column(), Some((1, 1)), "at its key: {error}");
 }
+
+#[test]
+fn a_composer_can_leave_out_the_fields_that_hold_their_defaults() {
+    /// A lamp whose defaults are its usual values.
+    #[derive(Debug, PartialEq, Reflect)]
+    #[reflect(name = "test::Usual", default)]
+    struct Usual {
+        intensity: f32,
+        lit: bool,
+    }
+    impl Default for Usual {
+        fn default() -> Self {
+            Self {
+                intensity: 40.0,
+                lit: true,
+            }
+        }
+    }
+    let mut registry = Registry::new();
+    registry.register::<Usual>();
+    let dim = Usual {
+        intensity: 10.0,
+        lit: true,
+    };
+    let mut composer = Composer::new(&registry).without_defaults();
+    composer
+        .put(&["porch"], "test::Usual", &dim.to_value())
+        .expect("a lamp");
+    composer
+        .put(&["gate"], "test::Usual", &Usual::default().to_value())
+        .expect("a lamp");
+    // A part says what changed, defaults or not.
+    composer
+        .put_part(
+            &["shed"],
+            "test::Usual",
+            &Value::Struct(vec![("intensity".to_owned(), Value::F32(40.0))]),
+        )
+        .expect("a part");
+    let text = composer.finish().expect("small");
+    assert_eq!(
+        text,
+        "porch = { intensity = 10.0 }\ngate = {}\nshed = { intensity = 40.0 }\n"
+    );
+    let mut document = Document::parse(&registry, &text, Mode::Strict).expect("a document");
+    let porch = document
+        .read(&["porch"], "test::Usual", None)
+        .expect("a lamp")
+        .expect("there");
+    assert_eq!(Usual::from_value(&porch), Ok(dim));
+    // Without the option, every field is written.
+    let mut composer = Composer::new(&registry);
+    composer
+        .put(&["gate"], "test::Usual", &Usual::default().to_value())
+        .expect("a lamp");
+    assert_eq!(
+        composer.finish().expect("small"),
+        "gate = { intensity = 40.0, lit = true }\n"
+    );
+}
+
+#[test]
+fn a_composer_makes_tables_that_hold_nothing_yet() {
+    let mut registry = Registry::new();
+    registry.register::<f32>();
+    let mut composer = Composer::new(&registry);
+    composer.table(&["entities", "post"]).expect("a table");
+    composer
+        .put(&["entities", "lamp", "glow"], "f32", &Value::F32(2.0))
+        .expect("a number");
+    composer
+        .table(&["entities", "lamp"])
+        .expect("the table holds a value already");
+    assert!(composer.table(&["entities", "lamp", "glow"]).is_err());
+    assert!(composer.table(&[]).is_err());
+    assert_eq!(
+        composer.finish().expect("small"),
+        "[entities]\npost = {}\nlamp = { glow = 2.0 }\n"
+    );
+}

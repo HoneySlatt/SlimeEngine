@@ -22,6 +22,9 @@ pub(crate) struct Writer<'a> {
     pub versions: BTreeMap<String, u32>,
     /// Whether the value may leave fields out, a part of a value: the document leaves them out too.
     pub partial: bool,
+    /// Whether a whole value's fields that hold their defaults are written: a scene file leaves
+    /// them out, and a reader gives them their defaults again.
+    pub defaults: bool,
 }
 
 impl Writer<'_> {
@@ -122,7 +125,9 @@ impl Writer<'_> {
                         .collect::<Result<_, _>>()?,
                 )
             }
-            (Kind::Struct(fields), Value::Struct(values)) => self.fields(fields, values, path)?,
+            (Kind::Struct(fields), Value::Struct(values)) => {
+                self.fields(info, fields, values, path)?
+            }
             (Kind::Enum(variants), Value::Enum(name, values)) => {
                 let variant = variants
                     .iter()
@@ -139,7 +144,7 @@ impl Writer<'_> {
                 if variant.fields.is_empty() && values.is_empty() {
                     Value::Text(name.clone())
                 } else {
-                    let fields = self.fields(&variant.fields, values, path)?;
+                    let fields = self.fields(info, &variant.fields, values, path)?;
                     Value::Struct(vec![(name.clone(), fields)])
                 }
             }
@@ -158,6 +163,7 @@ impl Writer<'_> {
     /// field; a partial one those it gives.
     fn fields(
         &mut self,
+        owner: &TypeInfo,
         fields: &[FieldInfo],
         values: &[(String, Value)],
         path: &Path,
@@ -208,6 +214,15 @@ impl Writer<'_> {
                     Problem::MissingField(field.name.clone()),
                 ));
             };
+            if !self.defaults
+                && !self.partial
+                && self
+                    .registry
+                    .field_default(owner, field)
+                    .is_some_and(|default| default.same(value))
+            {
+                continue;
+            }
             let at = path.clone().field(field.name.clone());
             let kind = info(self.registry, &field.ty)
                 .map_err(|problem| ReflectError::at(at.clone(), problem))?

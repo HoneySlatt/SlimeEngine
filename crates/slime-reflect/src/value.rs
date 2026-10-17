@@ -123,8 +123,9 @@ impl Value {
         }
     }
 
-    /// Whether it is `other`, floats compared by their bits.
-    pub(crate) fn same(&self, other: &Value) -> bool {
+    /// Whether it is `other`, floats compared by their bits, where `==` compares them as numbers:
+    /// `NaN` is the same as a `NaN` of the same bits, and `0.0` is not `-0.0`.
+    pub fn same(&self, other: &Value) -> bool {
         match (self, other) {
             (Self::F32(a), Self::F32(b)) => a.to_bits() == b.to_bits(),
             (Self::F64(a), Self::F64(b)) => a.to_bits() == b.to_bits(),
