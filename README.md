@@ -42,7 +42,9 @@ overlay lists the world's entities and edits their components, in the game and t
 on F2; values are written to TOML documents and read back, from earlier versions of their types
 too (`slime-serialize`), as the cooker's metadata files are; a world saves what changed since the
 start of a run, and loads it back, which the `world` example checks when it quits, and *Hunna Wood*
-saves its run on F5 and when it quits, loads it on F9, and resumes it when it starts.
+saves its run on F5 and when it quits, loads it on F9, and resumes it when it starts. Stage 5b,
+under way, writes worlds in files: a scene file places other scenes as prefabs, each placement with
+overrides of its own, which a world spawns (`slime-world`); no game uses scene files yet.
 [`docs/PLAN.md`](docs/PLAN.md) says what comes next, and lists the known debt.
 
 ## Getting started
@@ -124,7 +126,9 @@ today has:
   (`slime-cook watch`), as the renderer's shaders are.
 - A world (`slime-world`) of entities, components and their hierarchy, drawn through
   `slime-world-render`, whose components are reflected and edited by name (`slime-reflect`), and
-  saved as what changed since the start of a run; *Hunna Wood* saves one run, in one file.
+  saved as what changed since the start of a run; *Hunna Wood* saves one run, in one file. Scene
+  files are read from their text, and the cooker does not cook them yet; a world is not written
+  back as a scene file, and no editor writes them.
 - A renderer without blended transparency or culling of what the camera does not see; with a
   capped number of lights, and shadows from one directional light and from spot lights, none from
   point lights.

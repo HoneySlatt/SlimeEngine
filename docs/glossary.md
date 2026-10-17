@@ -398,8 +398,8 @@ lights'.
 
 **Multisample anti-aliasing (MSAA).** *Anti-aliasing* in which the GPU tests whether a triangle
 covers each pixel at several points, its *samples (multisampling)*, and shades the pixel once for
-the samples it covers; the *resolve (multisampling)* averages them into one pixel. It smooths the edges of
-triangles, not what a shader draws inside them.
+the samples it covers; the *resolve (multisampling)* averages them into one pixel. It smooths the
+edges of triangles, not what a shader draws inside them.
 
 **Nit (cd/m²).** The unit of luminance, candelas per square metre: the light that surfaces reflect
 and emit and the *sky*'s, as the renderer computes them before the *exposure*.
@@ -458,7 +458,8 @@ under, then the path of the IDs local to each file through the *placements* that
 `zone/door` or `zone/lamp 3/light`, where an imported glTF node's ID is its name, or its index,
 `#12`, when it has no name of its own; for an entity created outside a scene, `created/<number>`,
 from a count that saves keep ([ADR-0079](adr/0079-the-engines-own-world.md),
-[ADR-0087](adr/0087-the-worlds-documents.md), [ADR-0091](adr/0091-scene-documents-and-placements.md)).
+[ADR-0087](adr/0087-the-worlds-documents.md),
+[ADR-0091](adr/0091-scene-documents-and-placements.md)).
 
 **Peter-panning.** A shadow that starts a little away from the object that casts it, because the
 *depth bias* pushes the stored depths back, or the *normal offset* moves the point looked up: in
@@ -543,9 +544,9 @@ again when the frame's *shape* changes.
 which can be read back to the CPU and sampled by later passes, or the image of a window for one
 frame, which can be neither.
 
-**Resolve (multisampling).** Averaging the *samples (multisampling)* of each pixel of a multisampled *render
-target* into an ordinary one, which later passes can read. The renderer weighs each sample by its
-brightness, so that the edges of bright surfaces are smooth too
+**Resolve (multisampling).** Averaging the *samples (multisampling)* of each pixel of a multisampled
+*render target* into an ordinary one, which later passes can read. The renderer weighs each sample
+by its brightness, so that the edges of bright surfaces are smooth too
 ([ADR-0060](adr/0060-resolving-the-samples-weighed-by-their-brightness.md)).
 
 **Resolved scene.** A scene resolved into what it spawns (`slime_world::ResolvedScene`): its
@@ -588,8 +589,8 @@ scenes as they are now, so that a game update that changes a scene reaches the s
 **Scene (cooked).** A glTF file's node hierarchy as the cooker makes it
 (`slime_assets::CookedScene`): each node's name, parent, transform, meshes, light and `extras`,
 which a *resolved scene* turns into *entities* with *persistent identities*, spawned under a key or
-placed in a *scene file* as a *prefab*. A *save* names the scenes that its world spawned ([ADR-0069](adr/0069-the-asset-pipeline.md),
-[ADR-0083](adr/0083-transforms-and-the-hierarchy.md)).
+placed in a *scene file* as a *prefab*. A *save* names the scenes that its world spawned
+([ADR-0069](adr/0069-the-asset-pipeline.md), [ADR-0083](adr/0083-transforms-and-the-hierarchy.md)).
 
 **Scene (render).** What the renderer draws in one frame: a camera, *punctual lights*, an
 *environment*, an *exposure* and *instances* (`slime_render::Scene`). Not a scene graph: the
@@ -602,9 +603,10 @@ assets that it uses, by short names. A *scene library* reads its text and resolv
 does not cook scene files yet ([ADR-0089](adr/0089-scenes-and-prefabs.md),
 [ADR-0091](adr/0091-scene-documents-and-placements.md)).
 
-**Scene library.** The scenes that a game has, by their asset IDs (`slime_world::SceneLibrary`): glTF
-scenes as the cooker makes them and the text of *scene files*, each resolved once into a *resolved
-scene*, the prefabs that it places with it, then shared ([ADR-0091](adr/0091-scene-documents-and-placements.md)).
+**Scene library.** The scenes that a game has, by their asset IDs (`slime_world::SceneLibrary`):
+glTF scenes as the cooker makes them and the text of *scene files*, each resolved once into a
+*resolved scene*, the prefabs that it places with it, then shared
+([ADR-0091](adr/0091-scene-documents-and-placements.md)).
 
 **Shadow acne.** Speckles of shadow that a surface casts on itself where its depth and the one
 stored in the *shadow map* differ only by rounding or by the map's texels; a *depth bias* and a

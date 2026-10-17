@@ -19,6 +19,11 @@ use crate::transform::{GlobalTransform, Transform, split};
 /// resolved, itself included.
 pub const MAX_NESTING: usize = 16;
 
+/// The most entities that a resolved scene holds, its root and its placements' included: 2²⁰, a
+/// little over a million, so that a few small files whose placements nest cannot make a scene that
+/// fills the memory.
+pub const MAX_ENTITIES: usize = 1 << 20;
+
 /// What a template's reference to an entity holds for no entity: `""` in a scene file.
 pub(crate) const NO_RECORD: u64 = u64::MAX;
 
@@ -114,14 +119,15 @@ impl SceneLibrary {
     /// ([`World::registry`](crate::World::registry)): a glTF scene as
     /// [`ResolvedScene::from_cooked`] makes it; a scene file read strictly, the prefabs that it
     /// places resolved, at most [`MAX_NESTING`] deep, and its overrides applied. A scene is resolved
-    /// once, then shared, until a scene is inserted again.
+    /// once, then shared, until a scene is inserted again, with the types of the registry given the
+    /// first time it is asked for: a library serves the worlds of one game, whose types are the same.
     ///
     /// # Errors
     ///
     /// [`SceneError::Missing`] for a scene that the library does not hold; [`SceneError::File`]
     /// for a scene file that says something wrong, where; [`SceneError::Cycle`] for prefabs that
     /// place each other; [`SceneError::TooDeep`] for placements nested deeper than
-    /// [`MAX_NESTING`].
+    /// [`MAX_NESTING`]; [`SceneError::TooLarge`] for a scene of more than [`MAX_ENTITIES`] entities.
     pub fn resolve(
         &mut self,
         registry: &Registry,
@@ -137,29 +143,6 @@ impl SceneLibrary {
         id: AssetId,
         chain: &mut Vec<(AssetId, String)>,
     ) -> Result<Arc<ResolvedScene>, SceneError> {
-        if let Some(resolved) = self.resolved.get(&id) {
-            // A scene resolved alone first may nest too deep where another places it.
-            if chain.len() + resolved.depth > MAX_NESTING {
-                let mut names: Vec<String> = chain.iter().map(|(_, name)| name.clone()).collect();
-                names.push(resolved.name.clone());
-                return Err(SceneError::TooDeep(names));
-            }
-            return Ok(Arc::clone(resolved));
-        }
-        let (name, text) = match self.sources.get(&id) {
-            None => {
-                return Err(SceneError::Missing {
-                    id,
-                    placed_by: chain.last().map(|(_, name)| name.clone()),
-                });
-            }
-            Some(Source::Cooked(scene)) => {
-                let resolved = Arc::new(ResolvedScene::from_cooked(id, scene));
-                self.resolved.insert(id, Arc::clone(&resolved));
-                return Ok(resolved);
-            }
-            Some(Source::File { name, text }) => (name.clone(), text.clone()),
-        };
         let names = |chain: &[(AssetId, String)], last: &str| {
             chain
                 .iter()
@@ -167,12 +150,35 @@ impl SceneLibrary {
                 .chain(std::iter::once(last.to_owned()))
                 .collect()
         };
+        if let Some(resolved) = self.resolved.get(&id) {
+            // A scene resolved alone first may nest too deep where another places it.
+            if chain.len() + resolved.depth > MAX_NESTING {
+                return Err(SceneError::TooDeep(names(chain, &resolved.name)));
+            }
+            return Ok(Arc::clone(resolved));
+        }
+        let source = self.sources.get(&id).ok_or_else(|| SceneError::Missing {
+            id,
+            placed_by: chain.last().map(|(_, name)| name.clone()),
+        })?;
+        let name = match source {
+            Source::Cooked(scene) => scene.name.clone(),
+            Source::File { name, .. } => name.clone(),
+        };
         if let Some(start) = chain.iter().position(|&(held, _)| held == id) {
             return Err(SceneError::Cycle(names(&chain[start..], &name)));
         }
         if chain.len() == MAX_NESTING {
             return Err(SceneError::TooDeep(names(chain, &name)));
         }
+        let text = match source {
+            Source::Cooked(scene) => {
+                let resolved = Arc::new(ResolvedScene::from_cooked(id, scene));
+                self.resolved.insert(id, Arc::clone(&resolved));
+                return Ok(resolved);
+            }
+            Source::File { text, .. } => text.clone(),
+        };
         chain.push((id, name.clone()));
         let resolved = scene_file::resolve(self, registry, id, &name, &text, chain);
         chain.pop();
@@ -262,7 +268,7 @@ impl Placement {
     }
 
     /// How many overrides the scene that placed it writes for it, those set aside included.
-    pub fn overrides(&self) -> usize {
+    pub fn override_count(&self) -> usize {
         let Overrides {
             removed,
             removed_components,
@@ -479,7 +485,15 @@ pub enum SceneError {
     /// Scenes that place each other: their names, the first again at the end.
     #[error("scenes that place each other: {}", .0.join(" → "))]
     Cycle(Vec<String>),
-    /// Placements nested deeper than [`MAX_NESTING`]: the names of the scenes, from the outermost.
+    /// Placements nested deeper than [`MAX_NESTING`]: the names of the scenes, from the outermost, to
+    /// the one too deep, or to a scene resolved before whose placements nest too deep where it is
+    /// placed.
     #[error("placements nested deeper than {MAX_NESTING} scenes: {}", .0.join(" → "))]
     TooDeep(Vec<String>),
+    /// A scene of more than [`MAX_ENTITIES`] entities, its placements' counted.
+    #[error("scene `{scene}` holds more than {MAX_ENTITIES} entities, its placements' counted")]
+    TooLarge {
+        /// The scene, by its name.
+        scene: String,
+    },
 }

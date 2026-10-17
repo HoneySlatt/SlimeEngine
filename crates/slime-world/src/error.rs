@@ -51,8 +51,11 @@ pub enum WorldError {
     /// A value of a scene that its component's type refuses as the scene spawns, by a rule of its
     /// type's check, which reflection leaves to the type
     /// ([`World::spawn_scene`](crate::World::spawn_scene)).
-    #[error("`{entity}`, component `{component}`: {error}")]
+    #[error("scene `{scene}`, `{entity}`, component `{component}`: {error}")]
     RefusedInScene {
+        /// The scene spawned, by its name: the file that it was resolved from, or that placed the
+        /// prefab that the entity's path names.
+        scene: String,
         /// The entity, by the persistent identity it would have.
         entity: PersistentId,
         /// The component's type, by its name.

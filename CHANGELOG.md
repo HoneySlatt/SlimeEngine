@@ -17,8 +17,12 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   `slime_world::SceneLibrary` holds a game's scenes by asset ID and resolves one, with the prefabs
   that it places, into a `ResolvedScene`; an override whose entity or component the prefab no longer
   has is set aside and reported, and a file that says something wrong is refused, with the line and
-  the column. The entities of a placement are named through it: `zone/lamp 3/light`.
-  `World::placement` says what the world remembers of a placement: its prefab, and its overrides.
+  the column; a reference or a parent into a placement whose prefab no longer has its entity is
+  reported too, and an entity of the file under one that it removes stays, the root's child.
+  Placements nest at most `MAX_NESTING` scenes deep, and a scene holds at most `MAX_ENTITIES`
+  entities. The entities of a placement are named through it: `zone/lamp 3/light`.
+  `World::placement` says what the world remembers of a placement: its prefab, and the overrides
+  set aside.
 - `slime_serialize::References` names assets too (`asset_name`, `asset`), by their IDs unless a
   document names them otherwise; `Document::is_table` and `Document::error_at` let a program read a
   document's layout itself, and place what it finds wrong at its line and column.

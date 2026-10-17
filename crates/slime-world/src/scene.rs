@@ -81,6 +81,7 @@ impl World {
                         self.despawn(entity);
                     }
                     return Err(WorldError::RefusedInScene {
+                        scene: scene.name.clone(),
                         entity: id.clone(),
                         component: name.clone(),
                         error: Box::new(error),

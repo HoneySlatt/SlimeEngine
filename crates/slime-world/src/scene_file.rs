@@ -1,7 +1,8 @@
 //! Scene files read and resolved: their layout, the prefabs that they place, and the overrides that
 //! they write for them (`docs/adr/0089-scenes-and-prefabs.md`).
 
-use std::collections::HashMap;
+use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -12,7 +13,8 @@ use slime_serialize::{Document, Mode, ReadError, References};
 use crate::components::Name;
 use crate::document::{ADDED, CHANGED, REMOVED, SetAside};
 use crate::library::{
-    NO_RECORD, Overrides, Placement, Record, ResolvedScene, SceneError, SceneLibrary, fingerprint,
+    MAX_ENTITIES, NO_RECORD, Overrides, Placement, Record, ResolvedScene, SceneError, SceneLibrary,
+    fingerprint,
 };
 use crate::transform::Transform;
 
@@ -52,37 +54,46 @@ struct Entry {
 }
 
 /// Names entities by their paths from the scene's root, and assets by the short names of the file's
-/// table, as a scene file names them.
+/// table, as a scene file names them; reading only, as nothing writes a scene file through it.
 struct SceneNames<'a> {
     /// The index of each entity's record, by its path, `.` for the root.
     entities: &'a HashMap<String, u32>,
     assets: &'a HashMap<String, AssetId>,
+    /// The IDs of the file's placements.
+    placements: HashSet<&'a str>,
+    /// The paths read since they were last taken that lead into a placement whose prefab has no
+    /// entity there: references to no entity.
+    gone: RefCell<Vec<String>>,
+}
+
+impl SceneNames<'_> {
+    /// The paths read since this was last called that lead into a placement whose prefab has no
+    /// entity there.
+    fn take_gone(&self) -> Vec<String> {
+        self.gone.take()
+    }
 }
 
 impl References for SceneNames<'_> {
-    fn name(&self, entity: u64) -> Option<String> {
-        if entity == NO_RECORD {
-            return Some(String::new());
-        }
-        self.entities
-            .iter()
-            .find(|&(_, &index)| u64::from(index) == entity)
-            .map(|(path, _)| path.clone())
+    fn name(&self, _: u64) -> Option<String> {
+        None
     }
 
-    /// `""` is no entity.
+    /// `""` is no entity, and so is a path into a placement whose prefab has no entity there, as a
+    /// save reads a reference to an entity that a scene no longer holds.
     fn entity(&self, name: &str) -> Option<u64> {
         if name.is_empty() {
             return Some(NO_RECORD);
         }
-        self.entities.get(name).map(|&index| u64::from(index))
-    }
-
-    fn asset_name(&self, id: u128) -> Option<String> {
-        self.assets
-            .iter()
-            .find(|&(_, held)| held.as_u128() == id)
-            .map(|(name, _)| name.clone())
+        if let Some(&index) = self.entities.get(name) {
+            return Some(u64::from(index));
+        }
+        let (first, _) = name.split_once('/')?;
+        if self.placements.contains(first) {
+            self.gone.borrow_mut().push(name.to_owned());
+            return Some(NO_RECORD);
+        }
+        None
     }
 
     fn asset(&self, name: &str) -> Option<u128> {
@@ -124,12 +135,19 @@ pub(crate) fn resolve(
         overrides: (0..entries.len()).map(|_| Overrides::default()).collect(),
         set_aside: vec![Vec::new(); entries.len()],
     };
-    scene.place();
+    scene.place(name)?;
     scene.parents(&document).map_err(file)?;
     let paths = std::mem::take(&mut scene.paths);
     let names = SceneNames {
         entities: &paths,
         assets: &assets,
+        placements: entries
+            .iter()
+            .zip(&prefabs)
+            .filter(|(_, prefab)| prefab.is_some())
+            .map(|(entry, _)| entry.id.as_str())
+            .collect(),
+        gone: RefCell::new(Vec::new()),
     };
     scene.components(&mut document, &names).map_err(file)?;
     scene.overrides(&mut document, &names).map_err(file)?;
@@ -324,7 +342,24 @@ struct Resolution<'a> {
 impl Resolution<'_> {
     /// Makes the root's record, and those of the entries, each placement's its prefab's, under its
     /// ID.
-    fn place(&mut self) {
+    ///
+    /// # Errors
+    ///
+    /// [`SceneError::TooLarge`] for a scene of more than [`MAX_ENTITIES`] entities: the scene `name`.
+    fn place(&mut self, name: &str) -> Result<(), SceneError> {
+        let too_large = || SceneError::TooLarge {
+            scene: name.to_owned(),
+        };
+        // Counted before anything is made, so that a scene too large costs nothing.
+        let entities: usize = 1 + self
+            .prefabs
+            .iter()
+            .map(|prefab| prefab.as_ref().map_or(1, |prefab| prefab.records.len()))
+            .sum::<usize>();
+        if entities > MAX_ENTITIES {
+            return Err(too_large());
+        }
+        self.records.reserve(entities);
         self.records.push(Record {
             path: Vec::new(),
             parent: None,
@@ -333,7 +368,7 @@ impl Resolution<'_> {
         });
         self.paths.insert(ROOT_NAME.to_owned(), 0);
         for (entry, prefab) in self.entries.iter().zip(self.prefabs) {
-            let base = u32::try_from(self.records.len()).expect("fewer records than u32::MAX");
+            let base = u32::try_from(self.records.len()).map_err(|_| too_large())?;
             self.at.push(base);
             let Some(prefab) = prefab else {
                 self.paths.insert(entry.id.clone(), base);
@@ -349,7 +384,7 @@ impl Resolution<'_> {
                 let mut path = Vec::with_capacity(record.path.len() + 1);
                 path.push(entry.id.clone());
                 path.extend(record.path.iter().cloned());
-                let index = u32::try_from(self.records.len()).expect("fewer records than u32::MAX");
+                let index = u32::try_from(self.records.len()).map_err(|_| too_large())?;
                 self.paths.insert(path.join("/"), index);
                 self.records.push(Record {
                     path,
@@ -368,25 +403,40 @@ impl Resolution<'_> {
                     .push(("Name".to_owned(), Name(entry.id.clone()).to_value()));
             }
         }
+        Ok(())
     }
 
-    /// Gives each entry's record its parent, the root's if it names none.
+    /// Gives each entry's record its parent, the root's if it names none. One whose parent is in a
+    /// placement whose prefab no longer has it is the root's child, and set aside, as an entity of a
+    /// save whose parent the world does not have is left out of its own.
     ///
     /// # Errors
     ///
     /// A parent that the scene does not have, or an entity that would be its own ancestor.
     fn parents(&mut self, document: &Document<'_>) -> Result<(), ReadError> {
-        for (entry, &at) in self.entries.iter().zip(&self.at) {
+        let entries = self.entries;
+        for (index, entry) in entries.iter().enumerate() {
             let parent = match &entry.parent {
                 None => 0,
-                Some(parent) => *self.paths.get(parent).ok_or_else(|| {
-                    document.error_at(
-                        &[ENTITIES, entry.id.as_str(), PARENT],
-                        Problem::Invalid(format!("no entity `{parent}` in this scene")),
-                    )
-                })?,
+                Some(parent) => match (self.paths.get(parent), self.placement_of(parent)) {
+                    (Some(&found), _) => found,
+                    (None, Some(placement)) => {
+                        let reason = format!(
+                            "its parent `{parent}` is not in the prefab: the scene's root is its \
+                             parent"
+                        );
+                        self.aside(placement, &entry.id, None, reason);
+                        0
+                    }
+                    (None, None) => {
+                        return Err(document.error_at(
+                            &[ENTITIES, entry.id.as_str(), PARENT],
+                            Problem::Invalid(format!("no entity `{parent}` in this scene")),
+                        ));
+                    }
+                },
             };
-            self.records[at as usize].parent = Some(parent);
+            self.records[self.at[index] as usize].parent = Some(parent);
         }
         for (entry, &at) in self.entries.iter().zip(&self.at) {
             let mut next = self.records[at as usize].parent;
@@ -412,8 +462,10 @@ impl Resolution<'_> {
         document: &mut Document<'_>,
         names: &SceneNames<'_>,
     ) -> Result<(), ReadError> {
-        self.records[0].components =
+        let (components, gone) =
             read_components(self.registry, document, &[ROOT, COMPONENTS], names)?;
+        self.records[0].components = components;
+        self.report_gone(ROOT_NAME, gone);
         if !self.records[0]
             .components
             .iter()
@@ -423,30 +475,54 @@ impl Resolution<'_> {
                 .components
                 .push(("Transform".to_owned(), Transform::IDENTITY.to_value()));
         }
-        for (index, entry) in self.entries.iter().enumerate() {
+        let entries = self.entries;
+        for (index, entry) in entries.iter().enumerate() {
             if self.prefabs[index].is_none() {
                 let place = [ENTITIES, entry.id.as_str(), COMPONENTS];
-                let components = read_components(self.registry, document, &place, names)?;
+                let (components, gone) = read_components(self.registry, document, &place, names)?;
                 self.records[self.at[index] as usize].components = components;
+                self.report_gone(&entry.id, gone);
             }
         }
         Ok(())
     }
 
+    /// Reports the references of the components of the file's entity `id`, each with its component,
+    /// to entities that the prefab of the placement they lead into no longer has.
+    fn report_gone(&mut self, id: &str, gone: Vec<(String, String)>) {
+        for (component, path) in gone {
+            if let Some(placement) = self.placement_of(&path) {
+                self.aside(placement, id, Some(&component), gone_reason(&path));
+            }
+        }
+    }
+
+    /// The entry of the placement that `path` leads into, past its root, if it leads into one.
+    fn placement_of(&self, path: &str) -> Option<usize> {
+        let (first, _) = path.split_once('/')?;
+        self.entries
+            .iter()
+            .position(|entry| entry.id == first)
+            .filter(|&entry| self.prefabs[entry].is_some())
+    }
+
     /// Reads the file's overrides and applies them, in the order that saves apply theirs: the
     /// entities removed, the components removed, added, then changed. One whose entity or component
-    /// the prefab no longer has, or that no longer fits it, is set aside.
+    /// the prefab no longer has, or that no longer fits it, is set aside; so is a reference to an
+    /// entity that a prefab no longer has, which refers to no entity. The entities removed are all
+    /// found before any is removed; an entity of the file under one removed, or a placement, is the
+    /// root's child then, and set aside, as a save keeps an entity that it does not remove.
     ///
     /// # Errors
     ///
-    /// An override of something other than a placement's entity, or a value that its type refuses.
+    /// An override of something other than a placement's entity, a component given twice for one
+    /// entity, or a value that its type refuses.
     fn overrides(
         &mut self,
         document: &mut Document<'_>,
         names: &SceneNames<'_>,
     ) -> Result<(), ReadError> {
         let mut removed = vec![false; self.records.len()];
-        let children = self.children();
         if holds(document, &[REMOVED]) {
             known(
                 document,
@@ -454,6 +530,7 @@ impl Resolution<'_> {
                 &[ENTITIES_REMOVED, COMPONENTS_REMOVED],
             )?;
             let place = [REMOVED, ENTITIES_REMOVED];
+            let mut found = Vec::new();
             for path in texts(document.read(&place, "Vec<String>", None)?) {
                 let (entry, inner) = self.target(document, &place, &path)?;
                 if inner.is_empty() {
@@ -465,17 +542,21 @@ impl Resolution<'_> {
                     ));
                 }
                 match Self::find(names.entities, &path, &removed) {
-                    Ok(index) => Self::remove(index, &children, &mut removed),
+                    Ok(index) => found.push(index),
                     Err(reason) => self.aside(entry, &path, None, reason),
                 }
                 self.overrides[entry].removed.push(inner);
             }
+            self.remove(&found, &mut removed);
             for path in table(document, &[REMOVED, COMPONENTS_REMOVED])? {
                 let place = [REMOVED, COMPONENTS_REMOVED, path.as_str()];
                 let (entry, inner) = self.target(document, &place, &path)?;
-                let mut components = Vec::new();
+                let mut components: Vec<String> = Vec::new();
                 for component in texts(document.read(&place, "Vec<String>", None)?) {
                     let name = self.component_name(document, &place, &component)?;
+                    if components.contains(&name) {
+                        return Err(twice(document, &place, &name));
+                    }
                     let gone = Self::find(names.entities, &path, &removed).and_then(|index| {
                         let held = &mut self.records[index as usize].components;
                         let at = held
@@ -497,12 +578,19 @@ impl Resolution<'_> {
         }
         for path in table(document, &[ADDED])? {
             let (entry, inner) = self.target(document, &[ADDED, path.as_str()], &path)?;
+            let mut given: Vec<String> = Vec::new();
             for component in table(document, &[ADDED, path.as_str()])? {
                 let place = [ADDED, path.as_str(), component.as_str()];
                 let name = self.component_name(document, &place, &component)?;
+                if given.contains(&name) {
+                    return Err(twice(document, &place, &name));
+                }
                 let value = document
                     .read(&place, &component, Some(names))?
                     .expect("a key of the table");
+                for gone in names.take_gone() {
+                    self.aside(entry, &path, Some(&name), gone_reason(&gone));
+                }
                 match Self::find(names.entities, &path, &removed) {
                     Ok(index) => {
                         let held = &mut self.records[index as usize].components;
@@ -513,6 +601,7 @@ impl Resolution<'_> {
                     }
                     Err(reason) => self.aside(entry, &path, Some(&name), reason),
                 }
+                given.push(name.clone());
                 self.overrides[entry]
                     .added
                     .push((inner.clone(), name, value));
@@ -520,12 +609,19 @@ impl Resolution<'_> {
         }
         for path in table(document, &[CHANGED])? {
             let (entry, inner) = self.target(document, &[CHANGED, path.as_str()], &path)?;
+            let mut given: Vec<String> = Vec::new();
             for component in table(document, &[CHANGED, path.as_str()])? {
                 let place = [CHANGED, path.as_str(), component.as_str()];
                 let name = self.component_name(document, &place, &component)?;
+                if given.contains(&name) {
+                    return Err(twice(document, &place, &name));
+                }
                 let part = document
                     .read_part(&place, &component, Some(names))?
                     .expect("a key of the table");
+                for gone in names.take_gone() {
+                    self.aside(entry, &path, Some(&name), gone_reason(&gone));
+                }
                 let registry = self.registry;
                 let changed = Self::find(names.entities, &path, &removed).and_then(|index| {
                     let held = &mut self.records[index as usize].components;
@@ -543,6 +639,7 @@ impl Resolution<'_> {
                 if let Err(reason) = changed {
                     self.aside(entry, &path, Some(&name), reason);
                 }
+                given.push(name.clone());
                 self.overrides[entry]
                     .changed
                     .push((inner.clone(), name, part));
@@ -612,13 +709,37 @@ impl Resolution<'_> {
         }
     }
 
-    /// Marks the record `index` removed, with its descendants, whose indices `children` gives.
-    fn remove(index: u32, children: &[Vec<u32>], removed: &mut [bool]) {
-        let mut next = vec![index];
+    /// Marks the records `found` removed, with their descendants but the file's entries, its
+    /// entities and its placements, which become the root's children, set aside.
+    fn remove(&mut self, found: &[u32], removed: &mut [bool]) {
+        let children = self.children();
+        let mut entry_at = vec![None; self.records.len()];
+        for (entry, &at) in self.at.iter().enumerate() {
+            entry_at[at as usize] = Some(entry);
+        }
+        let mut kept = Vec::new();
+        let mut next = found.to_vec();
         while let Some(index) = next.pop() {
-            if !removed[index as usize] {
-                removed[index as usize] = true;
-                next.extend(&children[index as usize]);
+            if removed[index as usize] {
+                continue;
+            }
+            removed[index as usize] = true;
+            for &child in &children[index as usize] {
+                match entry_at[child as usize] {
+                    Some(entry) => kept.push((entry, child, index)),
+                    None => next.push(child),
+                }
+            }
+        }
+        for (entry, child, parent) in kept {
+            self.records[child as usize].parent = Some(0);
+            let parent = self.records[parent as usize].path.join("/");
+            if let Some(placement) = self.placement_of(&parent) {
+                let reason = format!(
+                    "its parent `{parent}` is removed by this scene: the scene's root is its parent"
+                );
+                let id = self.entries[entry].id.clone();
+                self.aside(placement, &id, None, reason);
             }
         }
     }
@@ -719,7 +840,9 @@ impl Resolution<'_> {
     }
 }
 
-/// Reads the components of the table at `place`, by their types' names, aliases given their names.
+/// Reads the components of the table at `place`, by their types' names, aliases given their names,
+/// and the references that they hold, each with its component, to entities that the prefab of the
+/// placement they lead into no longer has.
 ///
 /// # Errors
 ///
@@ -730,8 +853,9 @@ fn read_components(
     document: &mut Document<'_>,
     place: &[&str],
     names: &SceneNames<'_>,
-) -> Result<Vec<(String, Value)>, ReadError> {
+) -> Result<(Components, Vec<(String, String)>), ReadError> {
     let mut components: Vec<(String, Value)> = Vec::new();
+    let mut gone = Vec::new();
     for component in document.keys(place) {
         let mut at = place.to_vec();
         at.push(&component);
@@ -748,10 +872,34 @@ fn read_components(
                 Problem::Invalid(format!("the entity holds `{name}` already")),
             ));
         }
+        gone.extend(
+            names
+                .take_gone()
+                .into_iter()
+                .map(|path| (name.clone(), path)),
+        );
         components.push((name, value));
     }
-    Ok(components)
+    Ok((components, gone))
 }
+
+/// The error of a component that an override gives twice for one entity, at `place`, by its name and
+/// an alias.
+fn twice(document: &Document<'_>, place: &[&str], name: &str) -> ReadError {
+    document.error_at(
+        place,
+        Problem::Invalid(format!("the entity's `{name}` is given twice")),
+    )
+}
+
+/// Why a reference to `path`, which leads into a placement whose prefab has no entity there, refers
+/// to no entity.
+fn gone_reason(path: &str) -> String {
+    format!("it refers to `{path}`, which the prefab does not have: to no entity")
+}
+
+/// Components, by their types' names.
+type Components = Vec<(String, Value)>;
 
 /// The texts of a list of text, as `Vec<String>` reads it.
 fn texts(value: Option<Value>) -> Vec<String> {

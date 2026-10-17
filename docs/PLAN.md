@@ -159,11 +159,16 @@ Risks:
   first (`ResolvedScene::from_cooked`). The root of each placement keeps its prefab and its overrides
   (`World::placement`). `slime-serialize` gained the naming of assets through `References`, the keys
   of a document's root, and the errors of a document's layout placed at their line; `Transform`
-  declares the identity as its default. Measured in a release build: the zone resolves in 0.46 ms
-  and spawns in 0.61 ms; a thousand placements of a prefab of 10 entities in 114 ms and 37 ms; of a
-  prefab of 100 entities, 101 001 entities, in 0.60 s and 0.40 s, which the known debt records. The
-  world panel's identities and prefabs, which ADR-0090 decides, come with M5b.5, which places
-  prefabs in the `world` example.
+  declares the identity as its default. The ADR holds what spawning costs, measured on the zone and
+  on scenes of a thousand placements; a scene of 100 000 entities waits about a second, which the
+  known debt records. The world panel's identities and prefabs, which ADR-0090 decides, come with
+  M5b.5, which places prefabs in the `world` example. The review found that a prefab entity gone
+  made the scenes that referred to it, or added under it, refuse to spawn, where ADR-0089 sets
+  such overrides aside: references and parents into a placement that misses now refer to no entity
+  or give the root, and are reported; the file's entities under an entity that it removes stay,
+  reported; a glTF scene counts in the depth of placements; a scene holds at most `MAX_ENTITIES`
+  entities, counted before any is made; a component given twice for one entity is refused; and a
+  spawning error names its scene.
 
 ### M5b.2 — A world written back as a scene
 
@@ -716,12 +721,12 @@ GitHub issues, linked from their entry; this list stays the reference.
   the zone in the running world, where ADR-0088 says that it uses the fingerprint of a new game's
   zone: a collider changed through the world panel makes the next reload start the run again. M5b.6
   compares the old and the new start worlds ([ADR-0090](adr/0090-stage-5b-scenes-and-prefabs.md)).
-- **Spawning a large scene makes each component from its value** (ADR-0091). A thousand
-  placements of a prefab of 100 entities, 101 001 entities, resolve in 0.60 s and spawn in 0.40 s
-  in a release build, where spawning 100 000 entities with `World::spawn` takes 10 to 18 ms
-  (ADR-0083, ADR-0087): each component is made from its value, and each entity's identity is a list of texts,
-  held twice. *Hunna Wood*'s zone takes about 1 ms. ADR-0089 orders the remedies, inside the world:
-  typed components copied rather than made from values, identities that share their parts, scenes
+- **Spawning a large scene makes each component from its value** (ADR-0091, which holds the
+  figures). A scene of 100 000 entities resolves and spawns in about a second in a release build,
+  where spawning as many entities with `World::spawn` takes milliseconds (ADR-0083): each
+  component is made from its value, and each entity's identity is a list of texts, held twice.
+  *Hunna Wood*'s zone takes about 1 ms. ADR-0089 orders the remedies, inside the world: typed
+  components copied rather than made from values, identities that share their parts, scenes
   prepared on another thread.
 - **After a lost device, what is hidden loads only once shown** (ADR-0084): the cache loads what is
   drawn. In *Hunna Wood*, a key taken or a door opened before the loss shows a few frames after R

@@ -19,7 +19,7 @@ struct Tint {
 
 /// How a lamp glows.
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[reflect(name = "test::Glow")]
+#[reflect(name = "test::Glow", alias = "test::Shine")]
 struct Glow {
     #[reflect(range(min = 0.0))]
     intensity: f32,
@@ -188,7 +188,7 @@ fn a_prefab_placed_three_times_gives_three_subtrees_equal_to_it_but_where_overri
         .expect("a placement");
     assert_eq!(placement.prefab().name(), "lamp");
     assert_eq!(placement.prefab().id(), LAMP);
-    assert_eq!(placement.overrides(), 2);
+    assert_eq!(placement.override_count(), 2);
     assert!(placement.set_aside().is_empty());
     assert!(yard.placement(entity(&yard, "yard/gate/light")).is_none());
 }
@@ -258,7 +258,7 @@ fn placements_follow_their_prefab_where_no_override_changes_it() {
         .placement(entity(&after, "yard/gate"))
         .expect("a placement");
     assert_eq!(gate.set_aside().len(), 3);
-    assert_eq!(gate.overrides(), 4, "set aside, and kept");
+    assert_eq!(gate.override_count(), 4, "set aside, and kept");
     // The prefab changes again: the shed's light, written in a file that sets 50 again, keeps 50.
     let lantern = changed.replace("intensity = 50.0", "intensity = 70.0");
     let yard_lantern = yard.replace(
@@ -386,12 +386,20 @@ fn a_gltf_scene_placed_as_a_prefab_gives_what_spawning_it_alone_gives() {
         light: None,
         extras: Vec::new(),
     };
+    let mut door = node("door", Some(0), Vec3::new(0.0, 0.0, 10.5));
+    door.light = Some(slime_assets::SceneLight {
+        kind: slime_assets::LightKind::Point,
+        color: [1.0, 0.9, 0.7],
+        intensity: 12.0,
+        range: Some(6.0),
+    });
+    door.extras = vec![(
+        "marker".to_owned(),
+        slime_assets::Extra::Text("door".to_owned()),
+    )];
     let chapel = CookedScene {
         name: "chapel".to_owned(),
-        nodes: vec![
-            node("nave", None, Vec3::new(0.0, 0.0, -30.0)),
-            node("door", Some(0), Vec3::new(0.0, 0.0, 10.5)),
-        ],
+        nodes: vec![node("nave", None, Vec3::new(0.0, 0.0, -30.0)), door],
     };
     let yard = format!(
         "[assets]\nchapel = {{ id = \"{CHAPEL}\" }}\n\n[entities.chapel]\nprefab = \"chapel\"\n\n\
@@ -403,8 +411,19 @@ fn a_gltf_scene_placed_as_a_prefab_gives_what_spawning_it_alone_gives() {
     spawn(&mut alone, &mut scenes, CHAPEL, "zone");
     let mut placed = world();
     spawn(&mut placed, &mut scenes, YARD, "yard");
+    let under = |world: &World, key: &str| {
+        let mut ids: Vec<String> = world
+            .entities()
+            .filter_map(|entity| world.persistent_id(entity))
+            .map(|id| id.to_string())
+            .filter_map(|id| id.strip_prefix(key).map(str::to_owned))
+            .collect();
+        ids.sort();
+        ids
+    };
+    assert_eq!(under(&alone, "zone/"), under(&placed, "yard/chapel/"));
     for node in ["nave", "door"] {
-        for component in ["Transform", "Name", "Meshes"] {
+        for component in ["Transform", "Name", "Meshes", "Light", "Extras"] {
             assert_eq!(
                 value(&alone, &format!("zone/{node}"), component),
                 value(&placed, &format!("yard/chapel/{node}"), component),
@@ -577,12 +596,19 @@ fn a_file_that_says_something_wrong_refuses_its_scene_and_names_what() {
 fn scene_files_cut_or_changed_at_every_character_are_refused_or_spawned_without_a_panic() {
     let mut scenes = library(&[(LAMP, "lamp", LAMP_FILE)]);
     let registry = world();
-    let characters: Vec<(usize, char)> = YARD_FILE.char_indices().collect();
+    // Every section: the root's components, an entity of the file under a placement, references,
+    // and every kind of override.
+    let yard = format!(
+        "{YARD_FILE}\n[root.components]\nName = \"yard\"\n\n[entities.sign]\nparent = \"gate/post\"\n\n\
+         [entities.sign.components]\n\"test::Aim\" = {{ at = \"porch/light\" }}\n\n\
+         [removed.components]\n\"gate/glass\" = [\"Hidden\"]\n"
+    );
+    let characters: Vec<(usize, char)> = yard.char_indices().collect();
     for &(at, _) in &characters {
         for text in [
-            YARD_FILE[..at].to_owned(),
-            format!("{}\"{}", &YARD_FILE[..at], &YARD_FILE[at..]),
-            format!("{}]{}", &YARD_FILE[..at], &YARD_FILE[at..]),
+            yard[..at].to_owned(),
+            format!("{}\"{}", &yard[..at], &yard[at..]),
+            format!("{}]{}", &yard[..at], &yard[at..]),
         ] {
             scenes.insert_file(YARD, "yard", text);
             if let Ok(scene) = scenes.resolve(registry.registry(), YARD) {
@@ -591,6 +617,252 @@ fn scene_files_cut_or_changed_at_every_character_are_refused_or_spawned_without_
             }
         }
     }
+}
+
+/// The aims and the set-aside overrides of a resolved scene, as pairs of the entity and the
+/// component, for comparisons.
+fn aside_of(scene: &slime_world::ResolvedScene) -> Vec<(String, Option<String>)> {
+    scene
+        .set_aside()
+        .iter()
+        .map(|aside| (aside.entity.clone(), aside.component.clone()))
+        .collect()
+}
+
+#[test]
+fn what_the_file_adds_under_and_refers_to_in_a_prefab_entity_gone_is_kept_and_reported() {
+    let yard = format!(
+        "{YARD_FILE}\n[entities.sign]\nparent = \"gate/glass\"\n\n\
+         [entities.sign.components]\n\"test::Aim\" = {{ at = \"gate/glass\" }}\n\n\
+         [added.\"gate/light\".\"test::Aim\"]\nat = \"gate/glass\"\n"
+    );
+    let pane = LAMP_FILE
+        .replace("[entities.glass]", "[entities.pane]")
+        .replace("[entities.glass.components]", "[entities.pane.components]");
+    let mut scenes = library(&[(YARD, "yard", &yard), (LAMP, "lamp", &pane)]);
+    let mut world = world();
+    let root = spawn(&mut world, &mut scenes, YARD, "yard");
+    let scene = scenes.resolve(world.registry(), YARD).expect("resolved");
+    assert_eq!(
+        aside_of(&scene),
+        [
+            ("porch/glass".to_owned(), None),
+            ("sign".to_owned(), None),
+            ("sign".to_owned(), Some("test::Aim".to_owned())),
+            ("gate/light".to_owned(), Some("test::Aim".to_owned())),
+        ]
+    );
+    assert_eq!(world.parent(entity(&world, "yard/sign")), Some(root));
+    for id in ["yard/sign", "yard/gate/light"] {
+        let aim = Aim::from_value(&value(&world, id, "test::Aim").expect("held")).expect("an aim");
+        assert!(!world.contains(aim.at), "{id} aims at no entity");
+    }
+    // Without the prefab entity, a path into a placement still names a placement of the file.
+    let typo = yard.replace("parent = \"gate/glass\"", "parent = \"gates/glass\"");
+    let mut scenes = library(&[(YARD, "yard", &typo), (LAMP, "lamp", &pane)]);
+    let error = scenes.resolve(world.registry(), YARD).unwrap_err();
+    assert!(
+        error.to_string().contains("no entity `gates/glass`"),
+        "{error}"
+    );
+}
+
+#[test]
+fn what_the_file_makes_under_an_entity_that_it_removes_stays_and_is_reported() {
+    let yard = |removed: &str| {
+        format!(
+            "[assets]\nlamp = {{ id = \"{LAMP}\" }}\n\n[entities.gate]\nprefab = \"lamp\"\n\n\
+             [entities.sign]\nparent = \"gate/glass\"\n\n[entities.porch]\nprefab = \"lamp\"\n\
+             parent = \"gate/glass\"\n\n[entities.post.components]\n\"test::Aim\" = {{ at = \"gate/light\" }}\n\n\
+             [removed]\nentities = [{removed}]\n"
+        )
+    };
+    let mut reports = Vec::new();
+    for removed in [
+        "\"gate/glass\", \"gate/post\"",
+        "\"gate/post\", \"gate/glass\"",
+    ] {
+        let text = yard(removed);
+        let mut scenes = library(&[(YARD, "yard", &text), (LAMP, "lamp", LAMP_FILE)]);
+        let mut world = world();
+        let root = spawn(&mut world, &mut scenes, YARD, "yard");
+        for id in ["yard/sign", "yard/porch"] {
+            assert_eq!(world.parent(entity(&world, id)), Some(root), "{id} stays");
+        }
+        assert!(world.find(&"yard/porch/light".parse().unwrap()).is_some());
+        assert!(world.placement(entity(&world, "yard/porch")).is_some());
+        for gone in ["yard/gate/post", "yard/gate/light", "yard/gate/glass"] {
+            assert!(world.find(&gone.parse().unwrap()).is_none(), "{gone}");
+        }
+        let aim = Aim::from_value(&value(&world, "yard/post", "test::Aim").expect("held"));
+        assert!(
+            !world.contains(aim.expect("an aim").at),
+            "a reference to an entity removed"
+        );
+        let scene = scenes.resolve(world.registry(), YARD).expect("resolved");
+        reports.push(aside_of(&scene));
+    }
+    assert_eq!(
+        reports[0],
+        [("sign".to_owned(), None), ("porch".to_owned(), None)]
+    );
+    assert_eq!(reports[0], reports[1], "whatever the order of the list");
+}
+
+#[test]
+fn a_component_given_twice_for_one_entity_by_its_name_and_an_alias_is_refused() {
+    let world = world();
+    for more in [
+        "[changed.\"gate/light\".\"test::Glow\"]\nintensity = 1.0\n\n\
+         [changed.\"gate/light\".\"test::Shine\"]\nintensity = 2.0\n",
+        "[added.\"gate/post\".\"test::Glow\"]\nintensity = 1.0\ntint = { r = 1.0, g = 1.0, b = 1.0 }\n\n\
+         [added.\"gate/post\".\"test::Shine\"]\nintensity = 1.0\ntint = { r = 1.0, g = 1.0, b = 1.0 }\n",
+        "[removed.components]\n\"gate/glass\" = [\"Hidden\", \"Hidden\"]\n",
+    ] {
+        let text = YARD_FILE
+            .replace(
+                "[changed.\"gate/light\".\"test::Glow\"]\nintensity = 10.0\n",
+                "",
+            )
+            .replace("[removed]\nentities = [\"porch/glass\"]\n", "")
+            + more;
+        let mut scenes = library(&[(YARD, "yard", &text), (LAMP, "lamp", LAMP_FILE)]);
+        match scenes.resolve(world.registry(), YARD) {
+            Err(SceneError::File { error, .. }) => {
+                assert!(error.to_string().contains("is given twice"), "{error}");
+            }
+            other => panic!("{more}: {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn a_scene_of_more_entities_than_the_limit_is_refused_before_any_is_made() {
+    let mut scenes = library(&[
+        (YARD, "yard", &many_placements(1_000)),
+        (LAMP, "lamp", &chain_prefab(1_100)),
+    ]);
+    let world = world();
+    match scenes.resolve(world.registry(), YARD) {
+        Err(SceneError::TooLarge { scene }) => assert_eq!(scene, "yard"),
+        other => panic!("{other:?}"),
+    }
+}
+
+#[test]
+fn a_gltf_scene_counts_in_the_depth_of_the_placements_that_nest_it() {
+    let places = |id: u128| {
+        format!(
+            "[assets]\nnext = {{ id = \"{}\" }}\n\n[entities.inner]\nprefab = \"next\"\n",
+            AssetId::from_u128(id)
+        )
+    };
+    let mut scenes = SceneLibrary::new();
+    for id in 100..116 {
+        scenes.insert_file(AssetId::from_u128(id), format!("s{id}"), places(id + 1));
+    }
+    scenes.insert_cooked(
+        AssetId::from_u128(116),
+        CookedScene {
+            name: "s116".to_owned(),
+            nodes: Vec::new(),
+        },
+    );
+    let world = world();
+    for _ in 0..2 {
+        match scenes.resolve(world.registry(), AssetId::from_u128(100)) {
+            Err(SceneError::TooDeep(chain)) => assert_eq!(chain.len(), 17),
+            other => panic!("{other:?}"),
+        }
+    }
+    // Resolved alone first, a scene still nests too deep where another places it.
+    scenes
+        .resolve(world.registry(), AssetId::from_u128(101))
+        .expect("sixteen scenes nest");
+    assert!(matches!(
+        scenes.resolve(world.registry(), AssetId::from_u128(100)),
+        Err(SceneError::TooDeep(_))
+    ));
+}
+
+#[test]
+fn a_world_spawned_from_scene_files_saves_and_loads_back() {
+    let mut scenes = library(&[(YARD, "yard", YARD_FILE), (LAMP, "lamp", LAMP_FILE)]);
+    let start = |scenes: &mut SceneLibrary| {
+        let mut world = world();
+        spawn(&mut world, scenes, YARD, "yard");
+        world
+    };
+    let mut played = start(&mut scenes);
+    let light = entity(&played, "yard/porch/light");
+    played
+        .set_property(
+            light,
+            "test::Glow",
+            &"intensity".parse().unwrap(),
+            Value::F32(3.0),
+        )
+        .expect("in range");
+    played.despawn(entity(&played, "yard/shed"));
+    let save = played
+        .save(&start(&mut scenes), &Default::default())
+        .expect("saved");
+    let mut loaded = start(&mut scenes);
+    let report = loaded.load(&save).expect("loaded");
+    assert!(report.set_aside.is_empty(), "{:?}", report.set_aside);
+    assert!(report.scenes_changed.is_empty());
+    assert_eq!(played.first_difference(&loaded), None);
+}
+
+#[test]
+fn a_scene_that_cannot_spawn_leaves_a_world_that_holds_scenes_as_it_was() {
+    let mut scenes = library(&[(YARD, "yard", YARD_FILE), (LAMP, "lamp", LAMP_FILE)]);
+    let mut held = world();
+    spawn(&mut held, &mut scenes, YARD, "yard");
+    let mut same = world();
+    spawn(&mut same, &mut scenes, YARD, "yard");
+    let unturned = LAMP_FILE.replace(
+        "translation = { x = 0.0, y = 1.0, z = 0.0 }",
+        "translation = { x = 0.0, y = 1.0, z = 0.0 }, rotation = { x = 0.0, y = 0.0, z = 0.0, w = 2.0 }",
+    );
+    let mut bad = library(&[(LAMP, "lamp", &unturned)]);
+    let scene = bad.resolve(held.registry(), LAMP).expect("resolved");
+    assert!(held.spawn_scene("lamp", &scene).is_err());
+    assert!(
+        held.spawn_scene("yard", &scene).is_err(),
+        "the key is taken"
+    );
+    assert_eq!(held.len(), same.len());
+    assert_eq!(held.first_difference(&same), None);
+    assert!(held.find(&PersistentId::new(["lamp"])).is_none());
+    assert_eq!(
+        held.save(&same, &Default::default()).expect("saved"),
+        same.save(&same, &Default::default()).expect("saved"),
+        "nothing to save: the count of created entities untouched"
+    );
+}
+
+#[test]
+fn values_name_the_assets_of_the_table_by_their_short_names() {
+    let mesh = AssetId::from_u128(77);
+    let lamp = format!(
+        "[assets]\npillar = {{ id = \"{mesh}\" }}\n\n\
+         [entities.post.components]\nMeshes = {{ ids = [\"pillar\"], casts_shadows = true }}\n"
+    );
+    let mut scenes = library(&[(LAMP, "lamp", &lamp)]);
+    let mut world = world();
+    spawn(&mut world, &mut scenes, LAMP, "lamp");
+    assert_eq!(
+        world.get::<slime_world::Meshes>(entity(&world, "lamp/post")),
+        Some(&slime_world::Meshes {
+            ids: vec![mesh],
+            casts_shadows: true
+        })
+    );
+    let by_id = lamp.replace("[\"pillar\"]", &format!("[\"{mesh}\"]"));
+    let mut scenes = library(&[(LAMP, "lamp", &by_id)]);
+    let error = scenes.resolve(world.registry(), LAMP).unwrap_err();
+    assert!(error.to_string().contains("no asset is named"), "{error}");
 }
 
 /// A prefab of `entities` entities, each a child of the one before, with a name, a transform and

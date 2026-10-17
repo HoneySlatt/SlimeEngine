@@ -148,8 +148,8 @@ pub(crate) enum Identity {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SpawnedScene {
     pub(crate) name: String,
-    /// The FNV-1a hash of the scene's cooked bytes: another content gives another hash, but for a
-    /// chance of one in 2⁶⁴.
+    /// The scene's fingerprint (`ResolvedScene`): another content gives another fingerprint, but
+    /// for a chance of one in 2⁶⁴.
     pub(crate) content: u64,
 }
 

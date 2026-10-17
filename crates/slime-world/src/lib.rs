@@ -21,7 +21,7 @@ pub use document::{DocumentError, Loaded, SetAside};
 pub use entity::Entity;
 pub use error::WorldError;
 pub use identity::{ParsePersistentIdError, PersistentId};
-pub use library::{MAX_NESTING, Placement, ResolvedScene, SceneError, SceneLibrary};
+pub use library::{MAX_ENTITIES, MAX_NESTING, Placement, ResolvedScene, SceneError, SceneLibrary};
 pub use query::{Query, QueryIter, QueryMut};
 pub use transform::{GlobalTransform, Transform};
 pub use world::{Component, World};
