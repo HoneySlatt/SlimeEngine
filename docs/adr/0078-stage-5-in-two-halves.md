@@ -1,7 +1,8 @@
 # 0078. Stage 5 in two halves
 
 - Status: Accepted; amends [0068](0068-stage-4-in-two-halves.md) and
-  [0072](0072-stage-4b-live-assets.md) (where 0.3 is released)
+  [0072](0072-stage-4b-live-assets.md) (where 0.3 is released); amended by
+  [0090](0090-stage-5b-scenes-and-prefabs.md) (Stage 5b is released as 0.4)
 - Date: 2026-10-16
 
 ## Context

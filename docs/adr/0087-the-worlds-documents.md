@@ -5,6 +5,8 @@
   (keys and names that hold `/`), [0085](0085-reflection.md) (a transient field has a default) and
   [0086](0086-serialization.md) (documents of several values, and references to entities);
   amended by [0088](0088-saving-and-resuming-a-run.md) (a save begins with what the game says of it)
+  and [0089](0089-scenes-and-prefabs.md) (what a save holds of the scenes and prefabs spawned while a
+  game runs)
 - Date: 2026-10-16
 
 ## Context

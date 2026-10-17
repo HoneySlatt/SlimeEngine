@@ -12,528 +12,285 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 
 ## Current
 
-- Stage 4a — Cooked assets: done and released as 0.2 on 2026-10-15. *Hunna Wood* loads its zone
-  from cooked assets and is played by day and by night, on Linux and on Windows.
-- Stage 4b — Live assets: done on 2026-10-16, and released with 0.3 at the end of Stage 5a
-  ([ADR-0078](adr/0078-stage-5-in-two-halves.md)). Scenes load in the background while a game
-  draws, a game goes on after a lost GPU device, a material's values change while it runs, and a
-  texture or a shader changed on disk changes in the running game. The owner checked the recovery
-  by hand, in the Windows virtual machine and after a real GPU reset in KDE Plasma.
 - Stage 5a — The world: done and released as 0.3 on 2026-10-17, with Stage 4b
   ([ADR-0078](adr/0078-stage-5-in-two-halves.md) to [ADR-0088](adr/0088-saving-and-resuming-a-run.md)).
   *Hunna Wood* runs on the engine's world, whose components are listed and edited by name, and
-  saves and resumes its runs, on Linux and on Windows. Next: plan Stage 5b, scenes and prefabs,
-  with the owner.
+  saves and resumes its runs, on Linux and on Windows.
+- Stage 5b — Scenes and prefabs: planned on 2026-10-17 and validated by the owner
+  ([ADR-0089](adr/0089-scenes-and-prefabs.md), [ADR-0090](adr/0090-stage-5b-scenes-and-prefabs.md)),
+  to be released as 0.4 at its close. Next: M5b.1.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
-| [M5a.1](#m5a1--the-world-entities-and-components) | Entities and their components live in a world, without a GPU or a window | Done |
-| [M5a.2](#m5a2--the-hierarchy-and-the-transforms) | Entities are placed by a hierarchy of transforms in double precision; a cooked scene becomes entities | Done |
-| [M5a.3](#m5a3--what-the-world-draws) | The renderer draws a world, and what moves between its last two fixed steps | Done |
-| [M5a.4](#m5a4--hunna-wood-on-the-world) | *Hunna Wood* runs on the world, and changes only what moves | Done |
-| [M5a.5](#m5a5--reflection) | The engine and the game describe, read and change their types' values through one registry | Done |
-| [M5a.6](#m5a6--any-component-listed-and-edited) | Any component's properties are listed and edited in the running game | Done |
-| [M5a.7](#m5a7--serialization-with-format-versioning) | Any reflected value is written to a file and read back, even from an older version of its type | Done |
-| [M5a.8](#m5a8--the-world-round-trips) | A world saves what differs from the scenes it was made from, and loads it back | Done |
-| [M5a.9](#m5a9--saving-and-resuming-a-run) | A player saves a run of *Hunna Wood* and resumes it | Done |
-| [M5a.10](#m5a10--windows-check-documentation-release-03) | Stage 5a is done and released as 0.3, with Stage 4b | Done |
+| [M5b.1](#m5b1--scenes-placed-in-a-world) | A scene written as text places entities and other scenes in a world, each placement with values of its own | Planned |
+| [M5b.2](#m5b2--a-world-written-back-as-a-scene) | A world, or a subtree of it, is written as a scene file that keeps its placements, and reads back to the same world | Planned |
+| [M5b.3](#m5b3--saves-and-hot-reload-with-placements) | What a game spawns while it runs is saved as placements, and a run is carried through a save when its scenes change | Planned |
+| [M5b.4](#m5b4--the-binary-encoding-of-documents) | A document is written in a binary encoding of the engine's own, and read back without parsing text | Planned |
+| [M5b.5](#m5b5--scene-files-cooked-typed-components-prefabs-in-the-world-example) | Scene files are cooked and spawned, Blender's nodes carry typed components, and the `world` example places prefabs | Planned |
+| [M5b.6](#m5b6--hunna-woods-zone-made-of-prefabs) | *Hunna Wood*'s zone is a scene file that places its land and its lanterns | Planned |
+| [M5b.7](#m5b7--windows-check-documentation-release-04) | Stage 5b is done and released as 0.4 | Planned |
 
-Stages 0, 1, 2, 3a, 3b, 3c, 3d, 4a and 4b are done; see [Completed stages](#completed-stages).
+Stages 0, 1, 2, 3a, 3b, 3c, 3d, 4a, 4b and 5a are done; see [Completed stages](#completed-stages).
 
-## Stage 5a — The world
+## Stage 5b — Scenes and prefabs
 
-Exit criterion (see [`ROADMAP.md`](ROADMAP.md#stage-5a--the-world--03)): *Hunna Wood* runs on the
-world, which keeps what is drawn and where what moves was; any component's properties can be
-listed and edited generically; a run of the game round-trips through save and load.
+Exit criterion (see [`ROADMAP.md`](ROADMAP.md#stage-5b--scenes-and-prefabs--04)): the game's scenes
+round-trip through save and load as files; prefabs instantiate with overrides; the sample game's
+zone is made of prefabs. [ADR-0090](adr/0090-stage-5b-scenes-and-prefabs.md) makes it precise: the
+text of a scene file read and written again gives the same bytes, and its binary encoding reads to
+the same values; a world written back as a scene file, then spawned again, is the same world, its
+placements kept; the saves of a run load on a world made of prefabs; prefabs follow the changes of
+their prefab, nested, where an override or the run changed nothing; *Hunna Wood*'s zone is made of
+prefabs, and plays as before.
 
-This is the first half of Stage 5 ([ADR-0078](adr/0078-stage-5-in-two-halves.md)): the world at run
-time. Scenes written as files, and prefabs, are Stage 5b's, planned with the owner at the end of
-this one. Where the engine stands at the start:
+This is the second half of Stage 5 ([ADR-0078](adr/0078-stage-5-in-two-halves.md)): worlds written
+in files. Where the engine stands at the start:
 
-- **No world.** A game keeps its own objects and gives the renderer, at every frame, a list of
-  instances that borrow their GPU objects. *Hunna Wood* keeps its hero's previous position to draw
-  it between fixed steps ([ADR-0057](adr/0057-what-the-first-game-asks-of-the-next-stages.md)),
-  rebuilds about 430 instances at every frame, and leaves out the key's and the door's parts by the
-  indices of their cooked nodes.
-- **No reflection and no serialization.** No crate describes its types at run time. The cooker reads
-  and writes metadata files with code of its own
-  ([ADR-0069](adr/0069-the-asset-pipeline.md)), and the cooked formats are binary formats written
-  by hand.
-- **Positions are `f32`** in the renderer's API, which draws them relative to the camera
-  ([ADR-0048](adr/0048-rendering-relative-to-the-camera.md)).
+- **One kind of scene.** A world spawns cooked glTF scenes, each node known by its name under the
+  key it was spawned with ([ADR-0083](adr/0083-transforms-and-the-hierarchy.md)). Nothing places a
+  scene inside another, records what placed an entity, or writes a world back as a scene.
+- **The game's data read in code.** *Hunna Wood* turns the untyped extras of its zone's nodes into
+  its colliders, markers and times of day after it spawns the zone, and finds the campfire's light by
+  its distance to a marker.
+- **Saves of what the start world spawns.** A save holds what differs from a start world that the
+  game makes again ([ADR-0087](adr/0087-the-worlds-documents.md)); a scene spawned during a run
+  makes the next save one that loading refuses ([Known debt](#known-debt)).
+- **Hot reload spawns the zone again**, and *Hunna Wood* puts back the key, the door and the time
+  of day; the rest that the run changed in the zone is lost.
+- **No binary encoding.** `slime-serialize` writes TOML only
+  ([ADR-0086](adr/0086-serialization.md)).
 
-Out of scope: scene files and prefabs (Stage 5b); the editor (Stage 6); systems and a schedule, the
-job system, physics, audio, input action mapping and the UI of games (Stage 7); scripts, plugins
-and the C ABI (Stage 8); streaming and networking (Stage 10); migration tooling (Stage 11); handles
-that count references, and progressive loading; import settings in metadata files; moving the
-cooked formats onto the new serialization. [ADR-0081](adr/0081-stage-5a-the-world.md) lists the
-rest.
+Out of scope: variants and former identities; updating a world in place on hot reload, and the
+editor's panels, undo and saving (Stage 6); systems declared in scenes (Stage 7); scripts and the C
+ABI (Stage 8); material values per placement (Stage 9b); flattening placements when cooking, and
+streaming (Stage 10); migration tooling (Stage 11); binary saves; the cooked glTF scene moved onto
+the binary encoding. [ADR-0090](adr/0090-stage-5b-scenes-and-prefabs.md) lists the rest.
 
-Decisions taken when the stage was planned, by the owner on 2026-10-16, with the alternatives they
-rejected, are in [ADR-0079](adr/0079-the-engines-own-world.md) (the world),
-[ADR-0080](adr/0080-reflection-and-serialization.md) (reflection and serialization) and ADR-0081
-(the rest):
+Decisions taken when the stage was planned, by the owner on 2026-10-17, with the alternatives they
+rejected, are in [ADR-0089](adr/0089-scenes-and-prefabs.md) (scenes and prefabs) and ADR-0090 (the
+rest):
 
-- **The world**: an entity model of the engine's own, in `slime-world`, which depends on no GPU and
-  no window; components stored by type under component IDs of the world's own; the hierarchy in the
-  world; no systems or schedule; `slime-app` owning the game's world.
-- **Positions and transforms**: `f64` translations, `f32` for the rest; a uniform scale that
-  children inherit, and a stretch that they do not.
-- **Drawing**: what moved during a fixed step drawn between its last two transforms; components that
-  name assets by ID; GPU objects in a cache outside the world; a bridge that builds each frame from
-  the world; a renderer that does not depend on the world.
-- **Identities and saves**: an ID local to each file, and a persistent identity that is the path of
-  those IDs through the scenes that placed an entity; a save holds what differs from the scenes.
-- **Reflection**: the engine's own, with a derive written with `syn`, `quote` and `proc-macro2`;
-  stable names that the derive requires, and aliases; one value type; explicit registration.
-- **Serialization**: driven by reflection, without serde; TOML, read with `toml_edit` and written by
-  the engine's own canonical writer; versions per type, and upgrades on plain values; a binary
-  encoding at Stage 5b.
-- **The rest**: the risk first; a panel of the dev overlay on F2; F5 and F9, a save on quit and a
-  resume on start; a `world` example; Stage 4b open until the owner's checks, which closed it on 2026-10-16; no
-  dependency but
-  the two the owner approved, with their helper crates.
+- **One concept, the scene**, written in a scene file or exported from Blender as a glTF scene,
+  spawned under a key or placed in another scene as a *prefab*; a prefab placed is a *placement*.
+  Placements nest; a cycle is refused.
+- **Overrides** are explicit, written by the file that places a prefab in the grammar of saves, and
+  kept when the prefab later takes the same value; what no override changes follows the prefab; an
+  override whose target is gone is kept, set aside and reported. Lists are overridden whole.
+- **Assembled at load**, by the world with its registry: the cooker needs no type of a game.
+- **Identities**: an ID in a scene file apart from the entity's name; persistent identities that
+  are paths through the placements, `zone/lantern 3/light`; references relative to their file. glTF
+  nodes keep their names as IDs, and export scripts fail when Blender renames one.
+- **Written back**: the world remembers its placements, and writes a world or a subtree back as a
+  scene file that keeps them, the same world giving the same bytes.
+- **Typed data from Blender**: a node's `slime:<registered type name>` property holds a component in
+  the engine's notation, read through the registry when the scene spawns.
+- **Strict scene files**: a file that says something wrong refuses its scene, naming the file, the
+  entity, the component and the field.
+- **What a game spawns while it runs** is saved as a placement of its prefab, with what differs from
+  it, so that a fix of the prefab reaches older saves.
+- **Hot reload** carries a run through a save, from its old start world into a new one.
+- **Files and encoding**: TOML, `.scene`, a metadata file, records keyed by their IDs, assets named
+  through a table at the file's top; cooked into the engine's own binary encoding of documents, in
+  `slime-serialize`; saves stay text. The code lives in `slime-world`; the cooker depends on it; no
+  new dependency.
+- **The rest**: the risk first, seven milestones; the zone's lantern made a prefab, placed six times
+  by a scene file written by hand, the third lighting less and the fifth broken, the rest of the zone
+  one glTF scene placed as `land`, its vegetation as the script scatters it; the save fixture made
+  again, the fixture of 0.3 kept with a test that it is set aside; the `world` example places prefabs
+  written by hand; the world panel shows identities and the prefabs of placements; Stage 5b
+  released as 0.4, the editor as 0.5; one release of the asset mirror, which the owner agreed to.
 
 Risks:
 
-- **How the world fits.** How a world of the engine's own fits the renderer, the fixed step,
-  recovery from a lost device and hot reload is the largest unknown: M5a.1 to M5a.4 come first, and
-  the game's tests are the reference.
-- **The cost of the world's storage.** Simple storages join components by lookups: M5a.1 measures
-  100 000 entities, and M5a.3 the frame built from the zone's world, against the game's frame of
-  0.2.
-- **The renderer's API in `f64`.** Every game, example and test that places a camera, a light or an
-  instance changes; the precision test checks the result bit for bit far from the origin.
-- **The derive.** Generic types, enums and error messages can make it grow: its scope is bounded to
-  what Stage 5a's components use, and its misuses are tested to fail to compile.
-- **Saves across versions.** A test type upgraded from one version to the next (M5a.7), and a save
-  committed as a fixture (M5a.9), keep later changes honest.
-- **Identities from Blender's names.** A name changed in Blender changes an identity: the zone's
-  script names the objects the game refers to, and loading reports what it could not apply.
-- **The cost of the checks.** The Windows CI job takes 15 to 18 of the 20 minutes that the owner
-  allows; each milestone that adds a crate or a dependency measures it (ADR-0081).
+- **The model.** Overrides, nesting and writing back are where other engines took years: M5b.1 and
+  M5b.2 come first, and M5b.2 tests what an editor does.
+- **The cost of spawning.** Values pass through the registry: M5b.1 measures the zone, a thousand
+  placements and 100 000 entities, and ADR-0089 orders the remedies, all inside the world.
+- **Saves across the change.** The save's format takes a new version: M5b.3 reads the saves of 0.3,
+  and M5b.6 sets aside the fixture of 0.3 as a save of another layout.
+- **Errors found at load.** The cooker cannot check a game's values: a game's tests spawn each of its
+  scenes, and errors name the file, the entity, the component and the field.
+- **Corrupt cooked files.** M5b.4 changes and cuts its encoding at every byte.
+- **Identities from Blender's names.** M5b.6's export names every node and fails when Blender
+  renames one; the zone's identities change once, in one commit.
+- **Scope.** The editor's features are Stage 6's: each milestone delivers an API and its tests, and
+  its review checks the list above.
+- **The cost of the checks.** The Windows CI job took 12 to 19 minutes during Stage 5a, of the 20
+  that the owner allows; each milestone that adds a crate or a dependency measures it (ADR-0081).
 
-### M5a.1 — The world: entities and components
+### M5b.1 — Scenes placed in a world
 
-- **Goal.** Entities and their components live in a world, without a GPU or a window.
-- **Crates.** `slime-world` (new).
-- **Delivers.** The crate and its README; entities as handles of an index and a generation, the
-  handle of a destroyed entity refused and its slot reused with another generation, a slot whose
-  generation would wrap retired; components of any type that threads can share, added, read,
-  changed and removed, stored by type under component IDs of the world's own; queries over several
-  component types, that read or change them; several worlds at once, which threads can share; the
-  cost of spawning, querying and changing 100 000 entities, measured in a release build by an
-  ignored test; the ADR on the world's storage and handles; `docs/ARCHITECTURE.md` (crates table,
-  dependency graph), the glossary; the CI jobs' durations in the [Notes](#notes).
-- **Done when.** Tests without a GPU: a destroyed entity's handle refused and its slot reused;
-  components added, read, changed and removed; a query visits exactly the entities that hold what
-  it asks for, and changing through it changes the world; a world sent to another thread; the
-  measurement recorded; CI is green.
+- **Goal.** A scene written as text places entities and other scenes in a world, each placement with
+  values of its own.
+- **Crates.** `slime-world`; `slime-serialize` and `slime-reflect` for what they lack.
+- **Delivers.** Scene documents read from their text: entities under IDs of the file, apart from
+  their names, each naming its parent; components by their registered names; assets through the
+  table at the file's top; placements of scene documents and of cooked glTF scenes under an ID, with
+  their overrides: values as partial values, components added and removed, entities removed with
+  their subtrees, entities added; nesting, a cycle refused with its chain, a limit of depth;
+  references relative to the file; spawning under a key, strict, all or nothing, its errors naming
+  the file, the entity, the component and the field; overrides applied from the innermost scene
+  out, an override whose target is gone kept, set aside and reported; what the world remembers of
+  each placement; the cost of spawning the zone, a thousand placements and 100 000 entities,
+  measured in a release build by ignored tests; the ADR on scene documents and placements;
+  `docs/ARCHITECTURE.md`'s new flow, the glossary, `CHANGELOG.md`.
+- **Done when.** Tests without a GPU: a prefab placed three times with different overrides gives
+  three subtrees, equal to the prefab but where overridden; the prefab changed, a value, an entity
+  added, one removed, one renamed: what no override changes follows, overrides stay even when equal
+  to the new value, the new entity appears in every placement, an override of the entity removed is
+  kept and reported; two levels of nesting, the outermost winning; a cycle refused, its chain named;
+  a cooked glTF scene placed as a prefab gives the entities that spawning it under a key gives,
+  under the placement's path; references inside a prefab point to each placement's own entities; an
+  unknown component, an unknown field or a value out of its range refuses the scene, naming them,
+  and leaves the world as it was; documents cut or changed at every character refused without a
+  panic; the measurements recorded; CI is green.
+- **How to test.** `cargo test -p slime-world -p slime-serialize -p slime-reflect`.
+- **By hand.** The owner reads the sample scene files of the ADR and the tests, and says whether a
+  person can read and write them.
+
+### M5b.2 — A world written back as a scene
+
+- **Goal.** A world, or a subtree of it, is written as a scene file that keeps its placements, and
+  reads back to the same world.
+- **Crates.** `slime-world`, `slime-reflect`; `games/hunnawood` for its tests.
+- **Delivers.** A world or a subtree written as a scene file: placements as placements, with what
+  differs from their prefab and the overrides set aside; entities created since given an ID when
+  first written, which they keep; children in their order; entities marked `Unsaved` and transient
+  fields left out; references relative to the subtree; the same world giving the same bytes. For an
+  entity, the placement it belongs to and whether each of its components differs from its prefab,
+  for Stage 6's inspector. The tests that edit every leaf of every component written once, if the
+  milestone needs a third copy. Its ADR, or an amendment of M5b.1's; `docs/ARCHITECTURE.md`, the
+  glossary, `CHANGELOG.md`.
+- **Done when.** Tests: a world spawned from scene files and changed as an editor would, a placed
+  value changed, a placement added and one removed, an entity of a placement removed, a component
+  added, an entity created and given a parent, children reordered, is written, spawned again and
+  equals it (`World::first_difference`, floats by their bits), and written again gives the same
+  bytes; the file places the prefab rather than copying it; an override equal to its prefab's value
+  and an override set aside survive; a created entity keeps its ID through a second write; a prefab
+  spawned alone and written back gives itself; every leaf of every registered component, the
+  engine's and the game's, overridden through a file, reads back; CI is green.
+- **How to test.** `cargo test -p slime-world -p hunnawood`.
+- **By hand.** The owner reads a file written back.
+
+### M5b.3 — Saves and hot reload with placements
+
+- **Goal.** What a game spawns while it runs is saved as placements of its prefabs, and a run is
+  carried through a save when its scenes change.
+- **Crates.** `slime-world`.
+- **Delivers.** Prefabs spawned from code under `created/<n>`, their entities under
+  `created/<n>/<ID>`, and scenes spawned under a key during a run, saved as placements with their
+  differences and spawned again from their prefabs as they are when a save is loaded; a prefab that
+  the game no longer has set aside, with what was under it; a fingerprint for each scene spawned and
+  each placement spawned while running, over what it resolves to, prefabs included; the save's
+  format version raised, the saves of 0.3 still read; a run carried through a save, saved against an
+  old start world and loaded into a new one, in one call; the ADR amending the world's documents;
+  the rustdoc, `docs/ARCHITECTURE.md`'s flow of saves, `CHANGELOG.md`; the known debt on scenes
+  spawned during a run retired.
+- **Done when.** Tests: a run that spawns a prefab and a scene, changes them, saves and loads gives
+  the same world, and saves again the same bytes; a prefab fixed after a save: the placements loaded
+  take the fix where the run changed nothing; a prefab gone is set aside without a panic; the
+  fingerprint names a prefab changed inside a scene; a save of 0.3 loads; a run carried through a
+  save equals the run saved and loaded into the new start world, a prefab changed in every placement
+  but where an override or the run changed it; saves cut at every character refused or loaded,
+  without a panic; CI is green.
 - **How to test.** `cargo test -p slime-world`.
-- **Outcome.** Done on 2026-10-16 ([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)). Components
-  are stored by type in sparse sets, in safe code: `World::query` reads through an iterator, and
-  `World::query_mut` changes through a closure, each storage borrowed apart. With 100 000 entities
-  in a release build, spawning them takes 5.3 ms, reading every position 68 µs, moving the 50 000
-  that hold a velocity 190 µs, and destroying them 0.85 ms; the ADR holds the figures. The review
-  made two changes beyond the plan: a type becomes a component by saying so, `impl Component for
-  Position {}`, so that a tuple given to `insert` by mistake does not compile; and destroying an
-  entity drops its components before it frees its slot, so that a component that panics as it is
-  dropped leaves nothing to the next entity of the slot. CI took 10 minutes 25 seconds on Linux and
-  17 minutes 20 seconds on Windows ([Notes](#notes)).
 
-### M5a.2 — The hierarchy and the transforms
+### M5b.4 — The binary encoding of documents
 
-- **Goal.** Entities are placed by a hierarchy of transforms in double precision, and a cooked
-  scene becomes entities.
-- **Crates.** `slime-world`; `games/hunnawood` for its ignored tests.
-- **Delivers.** Parents and ordered children, reparenting that refuses a cycle, an entity destroyed
-  with its subtree; the local transform, an `f64` translation, a rotation, a uniform scale that
-  children inherit and a stretch that they do not, and the transform in the world, computed again
-  only for the subtrees that changed and current whenever it is read; a cooked scene spawned as
-  entities under a key, one per node, with its name, transform, parent, meshes, light and extras,
-  its scales split as ADR-0079 says; the persistent identity of these entities, from the key and
-  the node's name, or its index with a warning; the ADR on transforms, the hierarchy and precision;
-  `docs/ARCHITECTURE.md`'s new flow, the glossary.
-- **Done when.** Tests: reparenting, and a cycle refused; a subtree destroyed with its root; the
-  transforms in the world of the examples' cooked scene, and of the zone's 543 nodes in the ignored
-  tests, equal to `CookedScene::world_transforms` within `f32`'s rounding; a child 1 mm from a
-  parent 10 000 km from the origin stays 1 mm from it; only the subtrees that changed computed
-  again; scales split as the rule says; the persistent identities of a cooked scene's entities kept
-  when its nodes are reordered; CI is green.
-- **How to test.** `cargo test -p slime-world`; `cargo test -p hunnawood -- --ignored`.
-- **Outcome.** Done on 2026-10-16 ([ADR-0083](adr/0083-transforms-and-the-hierarchy.md)). Every
-  way of changing a `Transform` marks the entity's subtree stale; `World::update_transforms`
-  computes each stale subtree once, and `World::global_transform` is current between updates,
-  computed from the nearest current ancestor. With 1 000 roots of 99 children each in a release
-  build, computing the 100 000 transforms takes 3.4 ms, and computing again the 1 000 whose root
-  moved 32 µs. `World::spawn_scene` places the zone's 543 nodes where its file puts them, each known
-  by its name. The world splits a node's matrix itself, so that one that flattens an axis or shears
-  keeps a unit rotation: `scripts/check.sh` runs the world's tests with glam's assertions on, as the
-  renderer's. Each slot's place in the hierarchy makes spawning 100 000 entities take 10.5 ms rather
-  than 5.3 ms; the ADR holds the figures. The review found three faults, fixed and tested before the
-  milestone was pushed: an entity already stale that changed parents was never computed again; a
-  node named like an index, `#2`, could share another node's identity; and a component that panicked
-  as it was dropped could leave a destroyed child in its parent's list. CI took 12 minutes on Linux
-  and 17 minutes 27 seconds on Windows.
+- **Goal.** A document is written in a binary encoding of the engine's own, and read back without
+  parsing text.
+- **Crates.** `slime-serialize`.
+- **Delivers.** A self-describing encoding of the document that a text holds, without its types,
+  with a version of its own; written from a text without the types, as the cooker will, and by a
+  composer; read through the same reader as text, strict and lenient alike, upgrades and partial
+  values included; the same bytes on every platform; limits of size and depth; errors that name the
+  byte and the place, never a panic; the ADR; the crate's README, `docs/ARCHITECTURE.md`'s flow of
+  serialization, the glossary, `CHANGELOG.md`.
+- **Done when.** Tests: every registered type's value read from the binary equals the value read
+  from the text; a document's text and its binary read to equal values; the encoding of a fixed
+  document gives the bytes that the test holds, in both CI jobs; encodings cut and changed at every
+  byte refused without a panic, in a bounded number of tries; too deep and too large refused; reading
+  a document the size of the zone measured against its text; CI is green.
+- **How to test.** `cargo test -p slime-serialize`.
 
-### M5a.3 — What the world draws
+### M5b.5 — Scene files cooked, typed components, prefabs in the `world` example
 
-- **Goal.** The renderer draws a world, and draws what moves between its last two fixed steps.
-- **Crates.** `slime-world`, `slime-app`, `slime-render`, `slime-gfx` (the color type), a crate
-  between the world and the renderer, `slime-examples`.
-- **Delivers.**
-  - Components for what is drawn, without GPU objects: meshes and materials named by asset ID,
-    whether they cast shadows, hidden with their descendants; and for lights. The color type moved
-    below `slime-gfx`.
-  - The cache of the GPU objects of the assets that the world names, outside the world: loaded in
-    the background on the renderer's pool, shared by the scenes that use them, made again after a
-    lost device, loaded again on hot reload, where ADR-0076's rule moves.
-  - At each frame, the instances and lights built from the world, the renderer keeping no world;
-    `f64` positions in the renderer's API: the camera, the lights, the instances.
-  - `slime-app` owning the game's world in its `Context` and calling it around each fixed step:
-    what moved during a step is drawn between its last two transforms at `fixed_step_alpha`, a
-    change made outside a step at once, and a teleport inside a step as the game marks it.
-  - The sky's sun given once, to the sky and to the lights (see [Known debt](#known-debt)).
-  - The `world` example: the examples' cooked scene in a world, and something that moves at the
-    fixed step, with `--headless`, `--frames` and `--watch`, which `scripts/check.sh` runs and CI
-    publishes with the Windows programs.
-  - The CPU cost of a frame built from the zone's world, in a release build.
-  - The ADR on what the world draws; `docs/ARCHITECTURE.md`'s flows (a frame of the world, losing
-    the GPU), `examples/README.md`, the glossary.
-- **Done when.** A world made from the examples' cooked scene draws the instances that
-  `LoadedScene::instances` gave, and the glTF image test's pixels within its tolerance
-  ([ADR-0054](adr/0054-image-tests-allow-0-2-percent-on-other-drivers.md)); something moved at
-  fixed steps is drawn where `fixed_step_alpha` puts it, at 0, 0.25 and 1, frames without a step
-  and with two included; a teleport does not slide; a hidden subtree and its lights are not drawn;
-  after `Gpu::lose`, the cache made again draws the same world, which the loss left unchanged; the
-  precision test, with `f64` positions, draws a scene 10 000 km from the origin bit for bit as at
-  it; `slime-app`'s lifecycle test checks the order of the world's calls around `fixed_update` and
-  `update`; the example runs headless and in the headless Weston; CI is green.
-- **How to test.** `cargo test -p slime-world -p slime-render -p slime-app`;
-  `cargo run --example world`.
-- **Outcome.** Done on 2026-10-16 ([ADR-0084](adr/0084-what-the-world-draws.md)). The color type
-  moved into `slime-color`, with the sRGB transfer function that the GPU layer and the cooker each
-  copied. The renderer's positions are `f64`s: its precision test draws a scene 10 000 km from the
-  origin bit for bit as at it. `slime_render::AssetCache` holds the meshes a game draws by asset ID,
-  with their materials and textures, loading what it is asked for in batches that arrive whole,
-  reloading what changed and dropping everything after a lost device; scene loads and the cache
-  share one loader. The world's components say what is drawn, `Meshes`, `Hidden` and its own
-  `Light`, a directional one saying whether it shows in the sky; the world keeps the transforms
-  before the last fixed step of what moved during it, and `slime-app` owns it and calls it around
-  each step. `slime-world-render` builds each frame from the world and the cache, the sun given
-  once. The materials are those that each cooked mesh names: no component names another yet. Built
-  from *Hunna Wood*'s zone in a release build, a frame of 429 instances takes 74 µs on the CPU.
-  The review found that an entity placed for the first time during a step slid in from its
-  parent, that a sun whose shadow distance changed made the sky again, and two behaviours that the
-  owner decided on: what a moving entity holds stays on it, though changed outside a step or placed
-  during one, and the sun comes first among the lights, so that it casts the shadows. The
-  lifecycle test sees the world's calls around `fixed_update`; the one after `update`, which only
-  makes reading the transforms a lookup, shows in no behaviour that a test can see. CI's Linux job,
-  which has no GPU, failed on that measurement until `scripts/check.sh` ran the game's ignored
-  tests on lavapipe, as the others. CI then took 12 minutes 33 seconds on Linux and 17 minutes 26
-  seconds on Windows ([Notes](#notes)).
+- **Goal.** Scene files are sources that the cooker cooks and a game spawns; Blender's nodes carry
+  typed components; the `world` example places prefabs.
+- **Crates.** `slime-cook`, `slime-assets`, `slime-world`, `slime-examples`.
+- **Delivers.** `.scene` sources with their metadata files. The cooker reads their structure, checks
+  their asset table against the IDs it knows and the kind that each use allows, refuses a parent
+  missing, a cycle of parents and a cycle of prefabs across files, warns of a stale path, and writes
+  the binary encoding, under a manifest kind of its own whose dependencies are the asset table;
+  `slime-cook watch` cooks them. The `slime:<type name>` properties of glTF nodes cooked as typed
+  components, read through the registry when the scene spawns; the other properties stay untyped.
+  The scenes that place a prefab reloaded when it changes. The `world` example: a yard that places
+  the sample scene and four lamps, one red and one without its light, written back when it quits and
+  failing if it reads back otherwise, following a change of the lamp with `--watch`. The ADR on
+  cooking scene files; `examples/README.md`, `CONTRIBUTING.md` (writing and cooking a scene file),
+  the crates' READMEs, `CHANGELOG.md`; the known debt on the cooked glTF scene, a format apart from
+  the binary encoding.
+- **Done when.** Cooking the examples twice gives the same bytes, scene files included
+  (`scripts/check.sh`); the example's cooked yard spawns its placements with their overrides
+  (`examples/tests/world.rs`); the cooker refuses, naming the file and the line, an unknown asset, a
+  prefab missing, a cycle across files and a malformed file; a typed property on a node of a glTF
+  scene built in a test becomes its component, and a wrong one refuses the scene, naming the node,
+  the type and the field; a prefab cooked again: the scenes that place it are reloaded, and a test
+  without a GPU shows the world following it, on both platforms; the example runs without a window
+  and in Weston on Linux, and without a window on Windows; CI is green.
+- **How to test.** `cargo test -p slime-cook -p slime-world -p slime-examples`;
+  `cargo run --example world`, and with `--watch` beside
+  `cargo run --release -p slime-cook -- watch examples/assets target/cooked/examples`.
+- **By hand (Linux).** The owner changes a value in the lamp's file and sees every lamp change but
+  the one that overrides it, then changes an override and sees its lamp change.
 
-### M5a.4 — Hunna Wood on the world
+### M5b.6 — *Hunna Wood*'s zone made of prefabs
 
-- **Goal.** *Hunna Wood* runs on the world, and changes only what moves.
-- **Crates.** `games/hunnawood`; engine crates for what the game finds missing.
-- **Delivers.** The zone and the hero as entities: meshes, the lights of day and of night, the
-  colliders and markers as the game's components, read from the nodes' extras as before; the key's
-  and the door's parts hidden once taken or open; the rules as functions over the world at the
-  fixed step; the fire's flicker and the key's pulse on the world's light and materials; ADR-0057's
-  workarounds removed but the keys held: the hero's previous position, the instances rebuilt at
-  every frame, the nodes left out by index; after a lost device, the world kept and only the cache
-  made again; with `--watch`, a change of layout starting the run again and a change of looks not;
-  the frame's CPU time compared with 0.2's on the RX 6900 XT; the game's README; `CHANGELOG.md`.
-- **Done when.** The game's tests, moved onto the world, pass: the walk past the campfire, the key,
-  the door and onto the terrace; the door that stops the hero without the key; the hero kept out of
-  colliders; the restart; the hero waiting for the zone; a change of layout against one of looks.
-  `scripts/check.sh` runs the game by day, at night and losing its device; the owner plays it on
-  Linux and finds it unchanged; CI is green.
-- **How to test.** `cargo test -p hunnawood`, and with `-- --ignored`; `cargo run -p hunnawood`,
-  with `--night`, `--lose-device-at 300` and `--watch`.
-- **Outcome.** Done on 2026-10-16. The zone and the hero are spawned in the game's world before
-  the window opens, and the game gives the zone's entities components of its own, read from their
-  extras: `Collider`, `Marker`, `TimeOfDay`, and `Flickers` for the campfire's light. The run is in
-  the world: the hero is where the root of its scene stands, which the world draws between fixed
-  steps; the key taken and the door open are hidden, which takes the door's colliders away too
-  (`World::is_hidden`, moved into the world from `slime-world-render`); the night is a component of
-  the zone's root, the lights of the other time of day hidden. M5a.6 made the key, the door and the
-  time of day components with values, from which the game hides them. The rules are functions over
-  the world, without the GPU; their tests build cooked scenes and play them in worlds of their own.
-  The view draws through an `AssetCache` and a `FrameBuilder` for each time of day. As ADR-0074 decided,
-  the hero's meshes load before the first frame, while the zone starts loading and both skies are
-  computed, the other time's from a world of its lights alone: the game asks the cache for the
-  hero's meshes itself, the first frame's, which ADR-0084's frame builder would ask for only then.
-  The materials that glow are found by name in the cooked data. After a lost device, the view is made again and the world kept. With `--watch`,
-  the cache loads again what changed, and the zone or the hero is spawned again when its scene
-  changed: a new layout starts the run again, new looks do not, and a zone that cannot be played
-  changes nothing. The review found that a mesh removed from the zone made every later reload
-  fail, since the cache kept loading it again: `AssetCache::reload` drops the meshes that the new
-  data no longer lists. The previous position, the instances rebuilt by hand and the nodes left out by
-  index are gone, `LoadedScene::instance_nodes` with them; the keys held and the game's own
-  collisions stay (ADR-0057). In the headless Weston, the game draws as many instances, shadows and
-  triangles as before, by day and at night; `--watch` was tried on the RX 6900 XT with a change of
-  looks, a change of layout, a changed hero and a zone without a start. On that GPU, in a release
-  build, the zone is drawn 3 or 4 frames after the first, the longest interval between two frames
-  17 to 27 ms in nine runs, below ADR-0072's 33 ms (ADR-0074 measured 8 to 22 ms); by day at the
-  start, the game's work takes 1.66 ms per frame at the median of four runs, against 1.55 ms for
-  0.2 on the same zone: about 0.1 ms more, most of it the frame built from the world (M5a.3). The
-  owner played it on Linux and found it unchanged. CI took 12 minutes 42 seconds on Linux and 18
-  minutes 1 second on Windows.
+- **Goal.** *Hunna Wood*'s zone is a scene file that places its land and its lanterns, its data
+  typed in its files.
+- **Crates.** `games/hunnawood`: its code, its zone's scripts, its list of source assets, its
+  fixtures; the engine's crates for what the game finds missing.
+- **Delivers.** The zone's script exports the land and the lantern apart, as it does the hero, the
+  lantern's glass apart from its body; it names every node and fails when Blender renames one, and
+  writes colliders, markers and times of day as typed components. A scene file written by hand
+  places the land under `land` and the lantern six times, the third lighting less and the fifth
+  without its light and its glass; the lanterns' places move there from the script's placements.
+  The game's reading of untyped extras goes. The release of the asset mirror. Saves on the zone made
+  of prefabs; the fixture made again, and the fixture of 0.3 kept with its test. Hot reload carries
+  the run through a save, and decides that the layout changed from the old and the new start worlds.
+  The cost of spawning the zone and of building its frame, measured against 0.3. The game's README
+  (how it is made, the zone, changing a prefab, making the fixture again), `CHANGELOG.md`; the known
+  debt on the hot reload's comparison retired, and the one on renamed nodes updated.
+- **Done when.** The game's tests pass on the zone made of prefabs: the walk past the campfire, the
+  key, the door and onto the terrace; the door without the key; the hero kept out of the colliders;
+  the restart; a run saved, resumed and saved again to the same bytes, and the same 300 steps
+  later; the new fixture resumed with nothing set aside; the fixture of 0.3 set aside as a save of
+  another layout, a new run started, without a panic. The zone's tests: one marker of each kind; six
+  lanterns from one prefab, the third at its lower intensity and the fifth without light or glass;
+  the colliders where 0.3 had them, within 10⁻⁴, whatever their order; no node named with Blender's
+  numbers; the budgets counted over the whole zone. The lantern changed in a test: every lantern
+  follows but the parts overridden. A collider changed through the world panel does not make a
+  reload start the run again. `scripts/check.sh` runs the game by day, at night, around a lost
+  device and resumed from the new fixture. The owner plays it on Linux and finds it unchanged. CI is
+  green.
+- **How to test.** `cargo test -p hunnawood -- --ignored`; `cargo run -p hunnawood`, and with
+  `--watch` beside `slime-cook watch`.
+- **By hand (Linux).** Play by day and at night; F5, F9, quit and resume; change the lantern in
+  Blender and export it while the game runs; move a lantern in the zone's file, a change of layout
+  that starts the run again.
 
-### M5a.5 — Reflection
+### M5b.7 — Windows check, documentation, release 0.4
 
-- **Goal.** The engine and the game describe, read and change their types' values through one
-  registry.
-- **Crates.** `slime-reflect` and `slime-reflect-derive` (new); `slime-world`, `slime-assets`, the
-  color type's crate, `games/hunnawood`.
-- **Delivers.** The `Reflect` trait and its derive, for structs and enums; the stable name that the
-  derive requires, aliases, and ADR-0080's attributes (documentation, version, default, skip,
-  transient, range, unit); one value type, in which references to assets and to entities are kinds
-  of their own; property paths, read and set; values compared, and their differences applied, path
-  by path; the registry, explicit and recursive, which can hold a type with no Rust type behind it;
-  reflection for the standard types the components use, glam's types, the color type, `AssetId`
-  and references to entities; every component of the world and of the game registered, and
-  reached through the world without knowing its type; the derive's misuses as `compile_fail` doc
-  tests; the ADR on reflection; two READMEs, `docs/ARCHITECTURE.md`, the glossary,
-  `docs/dependencies.md` (`syn`, `quote`, `proc-macro2`); the build's cost, and the game's rebuild
-  after a one-line change, before and after.
-- **Done when.** Every registered type lists its properties, with their names, kinds and
-  attributes; every leaf of every component set through its path reads back the new value, through
-  reflection and typed; a path that names nothing, a value out of range or of the wrong kind
-  refused, the path in the message; a component with only the derive passes the same tests; values
-  round-trip through the value type; applying a value's differences from another gives it back;
-  aliases read former names; misuses fail to compile; CI is green.
-- **How to test.** `cargo test -p slime-reflect -p slime-world -p hunnawood`.
-- **Outcome.** Done on 2026-10-16 ([ADR-0085](adr/0085-reflection.md)). `slime-reflect` and its
-  derive describe a type's values under a stable name, turn them into plain values and back, check
-  them, set their parts by property path within their fields' ranges, list their leaves, compare
-  them and apply their differences; a registry holds types with no Rust type behind them too. The
-  owner decided that every component is reflected, `Component` requiring `Reflect`, and that each
-  world keeps its registry, a component's type registered when the world first stores one. A world
-  lists its entities and the components each holds, and reads and sets any of them by name and
-  path; an edit takes the component's value, sets the part, and reads the component back. The
-  engine's six components, *Hunna Wood*'s five, the color type, asset IDs, the custom values of
-  nodes and entity handles are reflected, the lights' ranges and units those their rustdoc gave.
-  Tests set every leaf of every component through its path and read it back, through reflection
-  and typed, a component that only derives among them; the derive's misuses are doc tests that
-  fail to compile, each for the reason it names. The review found that edits valid field by field
-  could give the renderer a light it refuses, which panics: the owner decided that a type declares
-  a check of the rules between its fields, `#[reflect(check)]`, which `Light` and `Transform` do,
-  and that ranges hold finite numbers only. It also made paths go through options, refused fields
-  given twice and descriptions that are not ones, and removed what nothing called. The two new
-  crates take about 7 s of compile time
-  in a cold build of the workspace, beside the rest; a cold build took 60 to 88 s from one run to
-  the next on the owner's machine, before and after alike. The game's rebuild after a one-line
-  change takes 2.12 s instead of 2.04 at the median of ten debug builds, and after a one-line
-  change in `slime-world` 2.58 s instead of 2.45. CI took 9 minutes 6 seconds on Linux and
-  18 minutes 27 seconds on Windows, under the 19 minutes past which ADR-0081 caches the cooked
-  zone.
-
-### M5a.6 — Any component listed and edited
-
-- **Goal.** Any component's properties are listed and edited generically, in the running game.
-- **Crates.** `slime-devui`, `games/hunnawood`, `slime-examples`.
-- **Delivers.** A panel of the dev overlay, on F2: the world's entities by name, with a filter; the
-  components of the one selected and their properties, through the registry; numbers, booleans,
-  vectors, colors, enum variants and text edited, values out of range refused; references to
-  entities and assets shown; each edit returned as an entity, a path and a value, which the caller
-  applies; in the game and in the `world` example; its limits in `slime-devui`'s README: it does
-  not undo, add, remove or save, and is removed once Stage 6's inspector does at least as well
-  (ADR-0081).
-- **Done when.** The panel is built, in an egui context without a window, for every registered
-  component type; by hand, the owner moves the key, dims a lantern and opens the door from the
-  panel; CI is green.
-- **How to test.** `cargo run -p hunnawood`, then F2; `cargo run --example world`.
-- **Outcome.** Done on 2026-10-16. `slime_devui::WorldPanel` lists a world's entities by name,
-  with a filter, and edits the components of the one selected through the world's registry,
-  whatever their types; its rustdoc says what it edits, and its limits. The panel changes nothing:
-  each change comes back as an `Edit`, an entity, a component's name, a property path and a value,
-  which *Hunna Wood* and the `world` example apply once their frame is drawn; the world refuses a
-  value out of its range, or one that breaks its type's check, and the panel shows why. Keys typed
-  into a field of the overlay, and Escape while one of its menus is open, no longer also play
-  (`Overlay::wants_keyboard`). The plan asked that the door be opened from the panel, which edits
-  values but neither adds nor removes components, while the game held its run as the presence of
-  `Hidden`: the owner decided that the game holds its run as data, its components `Key`, `Door`
-  and `Clock`, from which it hides the key, the door and the lights of the other time of day at
-  each step, as the better model for the long term. Tests build the panel in an egui context
-  without a window for every component of the engine and of the game, and for a test component
-  that only derives; they click, drag and type into its widgets, a rotation's angles and an option
-  among them, and check the values that a new variant or an option starts at; the game's tests
-  change its run between steps as the panel does. The panel was looked at in images drawn
-  offscreen on lavapipe. The review found that a rotation's angles, computed again at each frame,
-  turned back and forth when dragged past 90° about X, and lost what was being typed: the panel
-  keeps the angles last edited, and holds the angle about X within ±90°. The owner moved the key,
-  opened the door, turned the day to night and dimmed a lantern from the panel, and saw a negative
-  intensity refused. CI took 13 minutes 21 seconds on Linux and 12 minutes 11 seconds on Windows.
-
-### M5a.7 — Serialization with format versioning
-
-- **Goal.** Any reflected value is written to a file and read back, even from an older version of
-  its type.
-- **Crates.** `slime-reflect`, or a crate of its own if the milestone's ADR decides so;
-  `slime-cook`.
-- **Delivers.** TOML read with `toml_edit` and written by the engine's own canonical writer: the
-  same value, the same bytes, with LF line endings, on Linux and on Windows, `.gitattributes`
-  keeping `*.toml` files LF; the conventions for enum variants, absent values and large integers;
-  the version of each type written once per file, aliases, upgrades from one version to the next
-  on plain values that accept partial ones, sources read strictly and saves leniently, a newer
-  version refused; errors with the file, the line, the column and the path, never a panic; limits
-  on the size and depth of what is read; the metadata files read through the same reader, every
-  existing one unchanged, the cooker's own reader removed; the ADR on serialization and versioning;
-  READMEs, `docs/ARCHITECTURE.md`, the glossary, `docs/dependencies.md` (`toml_edit` and its
-  crates).
-- **Done when.** Every registered type round-trips: value to text to an equal value, and text to
-  value to the same bytes; floats come back to the same bits, special values included; a test type
-  written at version 1 is read at version 2 through its upgrade, from a whole value and from a
-  partial one; aliases read; a newer version refused; truncated, altered, too deep or too large
-  documents give errors, never panics; every committed metadata file gives the same ID through both
-  readers before the old one goes; CI is green on both platforms.
-- **How to test.** `cargo test -p slime-reflect -p slime-serialize -p slime-cook`.
-- **Outcome.** Done on 2026-10-16 ([ADR-0086](adr/0086-serialization.md)). The owner decided that
-  serialization is a crate of its own, `slime-serialize`, above `slime-reflect`, and how a TOML
-  document holds what TOML lacks, which the rustdoc of its module `format` gives. A value of any
-  registered type is written by the engine's own writer, read back to an equal value, floats to
-  their bits, and written again to the same bytes. A type past version 1 names an upgrade, which
-  the derive requires, and values of earlier versions are brought forward on the document's
-  values, whole or in part; aliases read; a later version of a type or of the format is refused;
-  sources are read strictly and saves leniently; errors give the file, the line, the column and the
-  path. Descriptions now hold their defaults' values, so that a document which leaves a field out
-  reads into a whole value. References to entities are refused until the world's documents write
-  persistent identities in their place. Tests write and read every registered type, special floats
-  included, read a test type of version 1 at version 2 from a whole and from a partial value, and
-  read documents truncated and altered at every character, too deep and too large, which give
-  errors without a panic. Metadata files are documents of a `Metadata` value: each of the 68
-  committed gave the same ID through the cooker's reader and through `slime-serialize`, which
-  writes each back to the same bytes, before the cooker's reader was removed. `toml_edit`'s parser,
-  with `toml_parser`, `winnow` and `toml_datetime`, already in the lock file, is now built. The
-  review found that an option left out came back from its struct's default, that one `f32` in
-  about two billion came back a step off through the parser's 64-bit reading, that the writer wrote
-  values that the reader refuses, and that the densest document of the size then allowed, 64 MiB,
-  took 14 GB to read: an option left out now holds none, the writer gives 64-bit digits where an
-  `f32`'s own would not come back, and every `f32` was checked to come back, the writer refuses
-  what the reader would, the place of a part is looked up only for an error, and documents are
-  refused past 16 MiB. Upgrades are told whether the value is partial, defaults are checked within
-  their fields' ranges, and names that start with `$` are refused. A part of a value could not say
-  that an option was emptied: the owner decided that a part writes its option fields as arrays,
-  `[]` for one emptied. Serialization's example is M5a.8's: the `world` example saves and loads
-  its world. CI took 13 minutes 26 seconds on Linux and 15 minutes 31 seconds on Windows.
-
-### M5a.8 — The world round-trips
-
-- **Goal.** A world saves what differs from the scenes it was made from, and loads it back.
-- **Crates.** `slime-world`, `slime-examples`.
-- **Delivers.** Persistent identities: entities spawned from a scene under a key, and those created
-  while the world runs, under keys from a counter that saves keep; a save as a document of the
-  differences from the spawned scenes: values changed, by entity, component and path; components
-  added and removed; entities removed; entities created while it ran, whole; transient data left
-  out; loading that spawns the scenes from their current content, then applies the differences,
-  keeps aside and reports those whose target is gone, and reports a scene changed since the save;
-  references between entities written as persistent identities; the format's version and each
-  scene's identity in the document; the `world` example saving and loading its world, `--headless`
-  comparing the two; the ADR on the world's documents and stable references;
-  `docs/ARCHITECTURE.md`'s flow, the glossary.
-- **Done when.** The cooked zone and hero, changed (an entity removed, values changed, a component
-  added), saved and loaded into a new world, equal the changed world through reflection, entity by
-  entity, component by component and property by property, floats by their bits; saving again
-  gives the same bytes; the same input over 300 fixed steps gives both worlds the same state; a save
-  loaded on a scene that changed since (an entity moved, one removed, one renamed, one added) moves
-  and adds what it should, and reports the removed and the renamed ones; two entities with one
-  identity refused; malformed and newer documents refused without a panic; the example's round trip
-  runs in `scripts/check.sh`; CI is green.
-- **How to test.** `cargo test -p slime-world`; `cargo test -p hunnawood -- --ignored`;
-  `cargo run --example world -- --headless`.
-- **Outcome.** Done on 2026-10-16 ([ADR-0087](adr/0087-the-worlds-documents.md)); it also changed
-  `slime-serialize` and `slime-reflect`. The owner decided that a save differs from a world that the
-  game makes as at the start of a run, rather than from the scenes alone; that it is laid out by
-  entity and component, a changed component written as the fields that changed; that every entity
-  created outside a scene is saved, as `created/<number>`, unless it or an ancestor holds
-  `Unsaved`; and that a reference to an entity destroyed or left out is written as no entity rather
-  than failing the save. References between entities are written as persistent identities, through
-  documents of several values that `slime-serialize` now writes and reads; transient fields are
-  left out, and the registry refuses one without a default. The cooked zone and hero, walked, an
-  oak removed, a lantern dimmed and the key hidden, saved and loaded into a new game, equal the game
-  saved through `World::first_difference`, floats by their bits; saving again gives the same bytes;
-  300 steps of the same input leave both the same. A save loaded on a scene changed since moves and
-  spawns what the scene now says and reports what it removed and renamed; two entities with one
-  identity, and saves malformed, newer, or cut at every character, are refused or load what they
-  hold, without a panic. The `world` example saves its world when it quits and fails if the world
-  loaded differs; `scripts/check.sh` runs it headless and windowed. A hash map from number to
-  entity made spawning and destroying entities several times slower: a sorted vector replaced it
-  (the ADR has the figures). The review found that a child could not take its parent's place on
-  loading, that an entity moved out of one removed was lost, that what a change holds whole lost its
-  transient fields' defaults, that a save could make loading or the next spawn panic, that an
-  entity left out at the start was saved as created and could not be loaded, and that saving and
-  loading cost grew with the square of the entities: each is fixed and tested, and the costs are in
-  the rustdoc of `World::save` and `World::load`. A save cut at the boundary of a section loads what
-  it holds, and a save is limited in size (see [Known debt](#known-debt)). A second review found
-  that an entity left out under one removed, or whose new parent was gone, died unseen, and that a
-  panic while a save was read took the world's registry: fixed and tested. CI took 13 minutes 31
-  seconds on Linux and 18 minutes 37 seconds on Windows.
-
-### M5a.9 — Saving and resuming a run
-
-- **Goal.** A player saves a run of *Hunna Wood* and resumes it.
-- **Crates.** `games/hunnawood`; `slime-world` for what M5a.8 lacks.
-- **Delivers.** F5 saves and F9 loads, the hero drawn at once where the save puts it; a save on quit
-  and a resume on start; `--new` and `--save <file>`; the save file in the user's data directory
-  (ADR-0081); an unreadable save logged and set aside, and a new run started; a save made on
-  another layout of the zone starting a new run; the checks never touching the user's save; a save
-  committed as a fixture, which every later version must load; what was saved or loaded in the log;
-  the game's README; the known debt on Windows ending a session updated.
-- **Done when.** After the scripted walk at night, a save loaded into a new game gives the same run,
-  and the walk goes on to the terrace; the fixture loads; corrupt and newer saves refused without a
-  panic; the save directory computed from the environments a test gives; `scripts/check.sh` resumes
-  the game in the headless Weston from a copy of the fixture; the owner saves, quits, resumes and
-  loads on Linux; CI is green.
-- **How to test.** `cargo run -p hunnawood`: F5, F9, Escape, then start it again;
-  `cargo test -p hunnawood -- --ignored`.
-- **Outcome.** Done on 2026-10-17 ([ADR-0088](adr/0088-saving-and-resuming-a-run.md)); it also
-  changed `slime-world`. The owner decided that a save begins with what the game says of it, keys
-  and texts that `World::about` reads without loading the save: *Hunna Wood* says there the
-  fingerprint of its zone's layout, and does not resume a save of another layout. Saves differ from
-  a new game by day, whatever `--night` says; the campfire's light goes back to its own intensity
-  before the game saves; a save is written beside its file, to the disk, and renamed over it; a save
-  that is not resumed is set aside, and one that can be neither read nor set aside is never written
-  over. After the scripted walk at night, a save resumed in a new game gives the same run, which
-  walks on to the terrace; a save resumed and saved again gives the same bytes, 300 steps later the
-  same run; the fixture, `games/hunnawood/fixtures/save.toml`, is resumed and walks on; saves
-  malformed, of a later format, of another layout or cut at every character are refused or
-  resumed, without a panic; a collider changed by the run leaves its save of the same layout; the
-  data directory is computed from the environments that a test gives, Windows' included.
-  `scripts/check.sh` runs the game's new runs with `--new` and its data directory in a private one,
-  and resumes a copy of the fixture. In a window, a copy of the fixture was resumed and saved again
-  to the same bytes, an unreadable save set aside and a new run started, a locked save kept and the
-  run not saved over it, and a save of another layout set aside. The owner saved with F5, loaded
-  with F9, quit and resumed on Linux, and found it working. The review found that a save that could
-  not be read for a passing reason was written over on quitting, that a collider changed through the
-  world panel made every later save one of another layout, that hot reload and saves decided "the
-  same layout" two ways, and that a save written without reaching the disk could be lost to a power
-  cut: each is fixed, the layout's fingerprint taken from a new game and rounded, and used by both.
-  CI took 13 minutes 46 seconds on Linux and 12 minutes 10 seconds on Windows.
-
-### M5a.10 — Windows check, documentation, release 0.3
-
-- **Goal.** Stage 5a is done and released as 0.3, with Stage 4b.
+- **Goal.** Stage 5b is done and released as 0.4.
 - **Crates.** All, for their documents.
-- **Delivers.** The documents reread as a newcomer would; `CHANGELOG.md`'s 0.3 section; the owner
-  plays the game and the `world` example from CI's Windows programs, and saves and resumes there;
-  Stage 5a marked done; Stage 5b planned with the owner; the release, as [Releasing](#releasing) says,
-  `world.exe` among the programs.
-- **Done when.** The exit criterion holds, on Linux and on Windows; the tag `v0.3.0` is on a commit
-  whose CI is green, and its GitHub release carries the Windows programs.
-- **How to test.** Reading; CI; playing it.
-- **Outcome.** Done on 2026-10-17. The documents, reread as a newcomer would and against the code,
-  held statements that were no longer so, a dependency graph that lacked two edges and a
-  Windows-only dependency, terms that the glossary did not define, and a changelog that
-  told how 0.3's new APIs changed on the way rather than what 0.3 holds: each is fixed. The owner
-  played the game and the `world` example from CI's Windows programs, and saved, loaded and resumed
-  a run there. 0.3 is released, as [Releasing](#releasing) says, with `world.exe` among the Windows
-  programs. Stage 5b, scenes and prefabs, is planned next with the owner
-  ([ADR-0078](adr/0078-stage-5-in-two-halves.md)).
+- **Delivers.** The documents reread as a newcomer would; the owner plays the game and the `world`
+  example from CI's Windows programs, and saves and resumes there; `CHANGELOG.md`'s 0.4 section, the
+  tag and the GitHub release, as [Releasing](#releasing) says; Stage 5b marked done; Stage 6 planned
+  with the owner.
+- **Done when.** The exit criteria hold on Linux and on Windows; `v0.4.0` is on a commit whose CI is
+  green, and its GitHub release carries the Windows programs.
 
 ## Releasing
 
@@ -577,6 +334,7 @@ the Windows programs that CI built from that commit, `world.exe` among them.
 | 3d — Anti-aliasing and the shadows of spot lights | M3d.1 multisampling in the GPU layer; M3d.2 anti-aliasing in the renderer; M3d.3 spot lights' shadows: what each tile sees; M3d.4 spot lights' shadows: drawn and read; M3d.5 *Nightwatch* and the Windows check; M3d.6 a smoother shadow filter; M3d.7 what each cascade sees; M3d.8 the cascades read; M3d.9 *Nightwatch* at 3840 × 2160 | Done; no release of its own: what it delivers is released with 0.2. Its decisions are in [ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md) and ADR-0058 to [ADR-0065](adr/0065-reading-the-cascades.md); the cost of its scene pass on Direct3D 12 with each shader compiler, which made DXC ship beside the Windows programs, is in [ADR-0066](adr/0066-shipping-dxc-beside-the-programs.md). |
 | 4a — Cooked assets → 0.2 | M4a.1 *Hunna Wood*'s skeleton; M4a.2 asset identity; M4a.3 images; M4a.4 glTF; M4a.5 the sample scene through the pipeline; M4a.6 the zone's sources; M4a.7 *Hunna Wood* by day; M4a.8 night; M4a.9 Windows check, documentation, release 0.2 | Done, released as 0.2 on 2026-10-15. Its decisions are in [ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md) to [ADR-0071](adr/0071-cooked-textures.md); the zone's budgets are set by the test that checks them, in `games/hunnawood/src/zone.rs`, and what was left to refine went to Stage 4b's M4b.8. |
 | 4b — Live assets | M4b.1 a shared GPU and a task pool; M4b.2 the zone loads while frames go on; M4b.3 recovering from a lost GPU device; M4b.4 *Hunna Wood* goes on after a lost device; M4b.5 materials that change in place; M4b.6 hot reload of cooked data; M4b.7 hot reload of shaders; M4b.8 refining *Hunna Wood*; M4b.9 Windows check, documentation, close | Done on 2026-10-16; no release of its own: what it delivers is released with 0.3, at the end of Stage 5a. Its decisions are in [ADR-0072](adr/0072-stage-4b-live-assets.md) to [ADR-0077](adr/0077-hot-reload-of-shaders.md). The owner checked the recovery from a lost device by hand at its close: in the Windows virtual machine, from the dev overlay and by a forced TDR, and in a KDE Plasma session after a real reset of the GPU (see [Known debt](#known-debt)). |
+| 5a — The world → 0.3 | M5a.1 the world: entities and components; M5a.2 the hierarchy and the transforms; M5a.3 what the world draws; M5a.4 *Hunna Wood* on the world; M5a.5 reflection; M5a.6 any component listed and edited; M5a.7 serialization with format versioning; M5a.8 the world round-trips; M5a.9 saving and resuming a run; M5a.10 Windows check, documentation, release 0.3 | Done, released as 0.3 on 2026-10-17 with Stage 4b. Its decisions are in [ADR-0078](adr/0078-stage-5-in-two-halves.md) to [ADR-0088](adr/0088-saving-and-resuming-a-run.md), with the measurements of the world's storage, transforms and frame in ADR-0082 to ADR-0084; the save that later versions of *Hunna Wood* must read is `games/hunnawood/fixtures/save.toml`, and how long CI took with each crate it added is in the [Notes](#notes). |
 
 The details of each completed milestone (what it delivered, how it was checked, what was measured)
 are in the history of this file and in the commits that implemented it; the measurements that
@@ -932,6 +690,16 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **Children and queries in another order after loading** (ADR-0087). A world loaded from a save
   holds its entities in other slots, and an entity's children in the order the save set them: what
   must go the same way after loading cannot depend on either order.
+- **A scene spawned during a run makes the next save one that loading refuses** (ADR-0087).
+  `World::save` writes the entities of a scene that the start world did not spawn as created
+  entities, under their scene's identities, and `World::load` creates only `created/<n>` ones.
+  *Hunna Wood* spawns no scene during a run. M5b.3 saves such scenes, and the prefabs spawned while
+  a game runs, as placements ([ADR-0089](adr/0089-scenes-and-prefabs.md)).
+- **Hot reload compares the reloaded zone with the running world** (ADR-0088). `Game::reload_zone`,
+  in `games/hunnawood/src/rules.rs`, compares the layout of the zone reloaded with the layout of
+  the zone in the running world, where ADR-0088 says that it uses the fingerprint of a new game's
+  zone: a collider changed through the world panel makes the next reload start the run again. M5b.6
+  compares the old and the new start worlds ([ADR-0090](adr/0090-stage-5b-scenes-and-prefabs.md)).
 - **After a lost device, what is hidden loads only once shown** (ADR-0084): the cache loads what is
   drawn. In *Hunna Wood*, a key taken or a door opened before the loss shows a few frames after R
   shows them again.

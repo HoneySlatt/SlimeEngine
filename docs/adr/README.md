@@ -145,7 +145,7 @@ the ADR linking to it.
 | [0075](0075-recovering-from-a-lost-gpu-device.md) | Recovering from a lost GPU device | Accepted |
 | [0076](0076-hot-reload-of-cooked-data.md) | Hot reload of cooked data | Accepted; amended by 0084 |
 | [0077](0077-hot-reload-of-shaders.md) | Hot reload of shaders | Accepted |
-| [0078](0078-stage-5-in-two-halves.md) | Stage 5 in two halves | Accepted |
+| [0078](0078-stage-5-in-two-halves.md) | Stage 5 in two halves | Accepted; amended by 0090 |
 | [0079](0079-the-engines-own-world.md) | The engine's own world | Accepted; amended by 0087 |
 | [0080](0080-reflection-and-serialization.md) | Reflection and serialization | Accepted; amended by 0085 and 0086 |
 | [0081](0081-stage-5a-the-world.md) | Stage 5a: the world | Accepted |
@@ -154,5 +154,7 @@ the ADR linking to it.
 | [0084](0084-what-the-world-draws.md) | What the world draws | Accepted |
 | [0085](0085-reflection.md) | Reflection | Accepted; amended by 0086 and 0087 |
 | [0086](0086-serialization.md) | Serialization | Accepted; amended by 0087 |
-| [0087](0087-the-worlds-documents.md) | The world's documents | Accepted; amended by 0088 |
+| [0087](0087-the-worlds-documents.md) | The world's documents | Accepted; amended by 0088 and 0089 |
 | [0088](0088-saving-and-resuming-a-run.md) | Saving and resuming a run | Accepted |
+| [0089](0089-scenes-and-prefabs.md) | Scenes and prefabs | Accepted |
+| [0090](0090-stage-5b-scenes-and-prefabs.md) | Stage 5b: scenes and prefabs | Accepted |

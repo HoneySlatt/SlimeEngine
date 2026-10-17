@@ -435,6 +435,11 @@ tooling over a running application (`slime_devui::Overlay`,
 [ADR-0031](adr/0031-dev-overlay-with-egui.md)). Removed once what replaces it does at least as
 well ([ADR-0052](adr/0052-amend-roadmap-before-0-1.md)).
 
+**Override.** A value that a *placement* sets on its *prefab*: a value changed, a component added
+or removed, an entity of the prefab removed or one added, written by the scene that places it. It
+stays when the prefab later takes the same value, and one whose target the prefab no longer has is
+kept and reported ([ADR-0089](adr/0089-scenes-and-prefabs.md)).
+
 **Owner.** The person who validates the project's direction and its architecture decisions.
 
 **Partial value.** A *value* that leaves some of its fields out, those of its structs and variants
@@ -465,15 +470,20 @@ letter key of the top row is `KeyQ` on every layout, whether it is labelled Q (Q
 
 **Physical pixel.** A pixel of the display. See *logical pixel*.
 
+**Placement.** A *prefab* placed in a scene, under an ID of that scene, with its *overrides*; the
+entities of a placement are named through it, as `zone/lantern 3/light`. Not an *instance
+(render)* ([ADR-0089](adr/0089-scenes-and-prefabs.md)).
+
 **Pre-exposure.** Multiplying the scene's light by the *exposure* in the scene pass, before the
 *HDR* target is written, so that light in physical units fits *half precision*
 ([ADR-0037](adr/0037-lights-in-physical-units-and-pre-exposure.md)); the target holds that light
 divided by 64, so that up to 64 × 65 504 keeps its energy for the *bloom*
 ([ADR-0040](adr/0040-bloom.md)).
 
-**Prefab.** A scene placed many times, each placement keeping values of its own that override the
-prefab's, such as a lantern placed along a path. Stage 5b brings them
-([ADR-0078](adr/0078-stage-5-in-two-halves.md)).
+**Prefab.** A scene placed many times, each *placement* keeping values of its own, its *overrides*,
+such as a lantern placed along a path: a role that any scene plays, not a kind of file. Stage 5b
+brings them ([ADR-0078](adr/0078-stage-5-in-two-halves.md),
+[ADR-0089](adr/0089-scenes-and-prefabs.md)).
 
 **Prefiltered levels.** The levels of an *environment*'s *cube texture* past the first: the sky
 averaged under the reflection lobe of a growing roughness, so that one lookup gives what a rough
@@ -578,6 +588,11 @@ names the scenes that its world spawned ([ADR-0069](adr/0069-the-asset-pipeline.
 *environment*, an *exposure* and *instances* (`slime_render::Scene`). Not a scene graph: the
 renderer keeps nothing between frames; `slime-world-render` builds one from the *world* at each
 frame ([ADR-0084](adr/0084-what-the-world-draws.md)).
+
+**Scene file.** A scene written as TOML, with the extension `.scene`: its entities under IDs of the
+file, their parents and components, the *prefabs* that it places with their *overrides*, and the
+assets that it uses; cooked into the engine's binary encoding of documents. Stage 5b brings them
+([ADR-0089](adr/0089-scenes-and-prefabs.md)).
 
 **Shadow acne.** Speckles of shadow that a surface casts on itself where its depth and the one
 stored in the *shadow map* differ only by rounding or by the map's texels; a *depth bias* and a

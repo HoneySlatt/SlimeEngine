@@ -240,19 +240,22 @@ The stage comes right after Stage 4b, whose work is released with it.
 
 **Exit.** *Hunna Wood* runs on the world, which keeps what is drawn and where what moves was. Any component's properties can be listed and edited generically. A run of the game round-trips through save and load.
 
-### Stage 5b — Scenes and prefabs
+### Stage 5b — Scenes and prefabs → 0.4
 
 **Goal.** Worlds are written in files: scenes, and prefabs placed many times, each placement with values of its own.
 
-- Scene files: text sources with asset IDs, cooked into a binary encoding of the engine's own (ADR-0080)
-- Prefabs with overrides, which follow the changes of their prefab
-- The sample game's zone made of prefabs
+- Scene files: text sources with asset IDs, cooked into a binary encoding of the engine's own (ADR-0080, ADR-0089)
+- Prefabs placed with overrides, which follow the changes of their prefab, and placements nested (ADR-0089)
+- A world, or a part of it, written back as a scene file that keeps its placements, as the editor will save a level (ADR-0089)
+- Typed components on the nodes of glTF scenes, read through reflection (ADR-0089)
+- What a game spawns while it runs saved as placements of its prefabs (ADR-0089)
+- The sample game's zone made of prefabs (ADR-0090)
 
-The stage comes right after Stage 5a and has no release of its own; what it delivers is released with 0.4 (ADR-0078).
+The stage comes right after Stage 5a, and is released as 0.4 (ADR-0090).
 
 **Exit.** The game's scenes round-trip through save and load as files. Prefabs instantiate with overrides.
 
-### Stage 6 — Editor foundation → 0.4
+### Stage 6 — Editor foundation → 0.5
 
 **Goal.** A real editor, built as a client of the engine.
 
@@ -264,7 +267,7 @@ The stage comes right after Stage 5a and has no release of its own; what it deli
 
 **Exit.** A level of the game is built, saved and reloaded entirely in the editor, with undo/redo on every operation. The editor uses no private engine API.
 
-### Stage 7 — Runtime systems → 0.5
+### Stage 7 — Runtime systems → 0.6
 
 **Goal.** What a game needs beyond rendering, built on a proper concurrency model.
 
@@ -278,7 +281,7 @@ The stage comes right after Stage 5a and has no release of its own; what it deli
 
 **Exit.** The game has a character in a physical level, with sound and a UI, and is profiled end to end.
 
-### Stage 8 — Extensibility → 0.6
+### Stage 8 — Extensibility → 0.7
 
 **Goal.** Others can extend the engine without modifying it.
 
@@ -292,7 +295,7 @@ The stage comes right after Stage 5a and has no release of its own; what it deli
 
 Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b needs a production renderer first.
 
-### Stage 9a — Production renderer → 0.7
+### Stage 9a — Production renderer → 0.8
 
 **Goal.** Render what a shipped game shows, beyond a simple scene.
 
@@ -307,7 +310,7 @@ Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b nee
 
 **Exit.** A level of the game, outdoors and indoors, with a day-night cycle, many lights, transparency and anti-aliasing, within the frame budgets tracked for the sample, covered by image tests.
 
-### Stage 9b — Content production → 0.8
+### Stage 9b — Content production → 0.9
 
 **Goal.** A team can produce a narrative game.
 
@@ -320,7 +323,7 @@ Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b nee
 
 **Exit.** The game grows into a short narrative vertical slice (animated character, cutscene, gameplay) that ships as a packaged build.
 
-### Stage 10 — Large worlds and networking → 0.9
+### Stage 10 — Large worlds and networking → 0.10
 
 **Goal.** Scale beyond a single level and a single machine.
 
@@ -333,7 +336,7 @@ Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b nee
 
 **Exit.** The game streams an open world, with several clients connected to a dedicated server.
 
-### Stage 11 — Production readiness → 0.10, then 1.0
+### Stage 11 — Production readiness → 0.11, then 1.0
 
 **Goal.** External projects can rely on the engine.
 
@@ -345,7 +348,7 @@ Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b nee
 - macOS as a supported platform
 - User, SDK and engine documentation
 
-**Exit for 0.10.** An external project is built without touching engine source.
+**Exit for 0.11.** An external project is built without touching engine source.
 **Exit for 1.0.** A compatibility promise can be made and kept. There is no deadline for this.
 
 ## 7. Continuous tracks
@@ -410,12 +413,12 @@ Direction only. None of this is planned work until Stage 11 is reached.
 | 0.2 | 4a | Cooked assets |
 | — | 4b | Live assets, released with 0.3 |
 | 0.3 | 5a | Reflection, serialization, world |
-| — | 5b | Scenes and prefabs, released with 0.4 |
-| 0.4 | 6 | Editor |
-| 0.5 | 7 | Runtime systems |
-| 0.6 | 8 | Plugins, SDK, scripting |
-| 0.7 | 9a | Production renderer |
-| 0.8 | 9b | Content production |
-| 0.9 | 10 | Large worlds, networking |
-| 0.10 | 11 | Usable by external projects |
+| 0.4 | 5b | Scenes and prefabs |
+| 0.5 | 6 | Editor |
+| 0.6 | 7 | Runtime systems |
+| 0.7 | 8 | Plugins, SDK, scripting |
+| 0.8 | 9a | Production renderer |
+| 0.9 | 9b | Content production |
+| 0.10 | 10 | Large worlds, networking |
+| 0.11 | 11 | Usable by external projects |
 | 1.0 | 11 | Stable API and SDK |
