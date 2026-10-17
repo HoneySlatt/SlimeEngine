@@ -457,9 +457,11 @@ proposed, so that a shadow's edge fades smoothly over about six texels
 under, then the path of the IDs local to each file through the *placements* that placed it, such as
 `zone/door` or `zone/lamp 3/light`, where an imported glTF node's ID is its name, or its index,
 `#12`, when it has no name of its own; for an entity created outside a scene, `created/<number>`,
-from a count that saves keep ([ADR-0079](adr/0079-the-engines-own-world.md),
-[ADR-0087](adr/0087-the-worlds-documents.md),
-[ADR-0091](adr/0091-scene-documents-and-placements.md)).
+from a count that saves keep, and for an entity of a *placement* made while a world runs, its
+root's followed by its path in the prefab, `created/7/light`
+([ADR-0079](adr/0079-the-engines-own-world.md), [ADR-0087](adr/0087-the-worlds-documents.md),
+[ADR-0091](adr/0091-scene-documents-and-placements.md),
+[ADR-0092](adr/0092-a-world-written-back-as-a-scene.md)).
 
 **Peter-panning.** A shadow that starts a little away from the object that casts it, because the
 *depth bias* pushes the stored depths back, or the *normal offset* moves the point looked up: in
@@ -599,9 +601,11 @@ frame ([ADR-0084](adr/0084-what-the-world-draws.md)).
 
 **Scene file.** A scene written as TOML, with the extension `.scene`: its entities under IDs of the
 file, their parents and components, the *prefabs* that it places with their *overrides*, and the
-assets that it uses, by short names. A *scene library* reads its text and resolves it; the cooker
-does not cook scene files yet ([ADR-0089](adr/0089-scenes-and-prefabs.md),
-[ADR-0091](adr/0091-scene-documents-and-placements.md)).
+assets that it uses, by short names. Written by hand, or from a world, its placements kept as
+placements (`slime_world::World::write_scene`). A *scene library* reads its text and resolves it;
+the cooker does not cook scene files yet ([ADR-0089](adr/0089-scenes-and-prefabs.md),
+[ADR-0091](adr/0091-scene-documents-and-placements.md),
+[ADR-0092](adr/0092-a-world-written-back-as-a-scene.md)).
 
 **Scene library.** The scenes that a game has, by their asset IDs (`slime_world::SceneLibrary`):
 glTF scenes as the cooker makes them and the text of *scene files*, each resolved once into a

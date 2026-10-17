@@ -4,16 +4,16 @@ use std::any::TypeId;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use slime_reflect::{Reflect, Value};
+use slime_reflect::Value;
 
 use crate::components::Name;
 use crate::entity::Entity;
 use crate::error::WorldError;
 use crate::identity::{CREATED, PersistentId};
-use crate::library::{NO_RECORD, Overrides, Placement, ResolvedScene};
-use crate::scene_file::for_each_entity;
+use crate::library::{Overrides, Placement, ResolvedScene};
 use crate::transform::Transform;
 use crate::world::{Identity, SpawnedScene, World, mark_stale};
+use crate::write_back::with_handles;
 
 impl World {
     /// Spawns a resolved scene as entities, under a root entity whose persistent identity is `key`,
@@ -23,8 +23,10 @@ impl World {
     /// scene's order, with its components. Its persistent identity is `key` followed by its path
     /// from the scene's root, the IDs of the placements it is in then its own: `zone/lamp 3/light`.
     /// The root holds a [`Name`] of `key` unless the scene gives it one. The world remembers each
-    /// placement's prefab and overrides ([`World::placement`]), and the scene's name and
-    /// fingerprint, which a save records.
+    /// placement's prefab and overrides ([`World::placement`]), and keeps the scene, which a save
+    /// names by its name and fingerprint and a file written back reads the table of assets of
+    /// ([`World::write_scene`]), even once its root is destroyed, since entities moved out of it live
+    /// on, until another is spawned under `key`: a scene that its library holds too costs a count.
     ///
     /// # Errors
     ///
@@ -79,7 +81,9 @@ impl World {
     /// `created/<number>`, the next of the world's count ([`World::spawn`]), and its entities'
     /// identities are its own followed by their paths in the prefab, `created/7/light`. The world
     /// remembers its prefab ([`World::placement`]), and writes it as a placement in a scene file
-    /// ([`World::write_scene`]).
+    /// ([`World::write_scene`]). The root holds no [`Name`], unlike a placement that a file
+    /// makes, which spawning names by its ID: the world gives it an ID when it first writes it, and
+    /// a file written while it has no name says that its `Name` is removed.
     ///
     /// # Errors
     ///
@@ -155,6 +159,7 @@ impl World {
             }
         }
         let entities: Vec<Entity> = scene.0.records.iter().map(|_| self.spawn_bare()).collect();
+        let spawned: Vec<Option<Entity>> = entities.iter().copied().map(Some).collect();
         for (index, (&entity, id)) in entities.iter().zip(ids).enumerate() {
             match created {
                 Some(number) if index == 0 => {
@@ -168,7 +173,7 @@ impl World {
                 let storage = storages[name.as_str()];
                 let inserted = if holds_entity(value) {
                     self.storages[storage]
-                        .insert_value(entity.index(), &with_handles(value, &entities))
+                        .insert_value(entity.index(), &with_handles(value, &spawned))
                 } else {
                     self.storages[storage].insert_value(entity.index(), value)
                 };
@@ -254,23 +259,6 @@ fn holds_entity(value: &Value) -> bool {
         Value::List(elements) => elements.iter().any(holds_entity),
         _ => false,
     }
-}
-
-/// `value`, a resolved scene's, its references to the scene's records made references to the
-/// entities spawned for them, `entities`, in the records' order.
-fn with_handles(value: &Value, entities: &[Entity]) -> Value {
-    let mut value = value.clone();
-    for_each_entity(&mut value, &mut |bits| {
-        let entity = if *bits == NO_RECORD {
-            Entity::NONE
-        } else {
-            entities[*bits as usize]
-        };
-        if let Value::Entity(handle) = entity.to_value() {
-            *bits = handle;
-        }
-    });
-    value
 }
 
 #[cfg(test)]

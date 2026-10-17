@@ -1075,6 +1075,32 @@ fn what_a_part_holds_whole_is_compared_and_set_without_its_transient_fields() {
     );
 }
 
+/// Something turned.
+#[derive(Clone, Debug, PartialEq, Reflect)]
+#[reflect(name = "test::Turned")]
+struct Turned {
+    turn: glam::Quat,
+}
+
+#[test]
+fn a_rotation_changed_is_held_whole_in_a_part() {
+    let mut registry = Registry::new();
+    registry.register::<Turned>();
+    let still = Turned {
+        turn: glam::Quat::IDENTITY,
+    };
+    let turned = Turned {
+        turn: glam::Quat::from_rotation_y(0.5),
+    };
+    // Its x and z are the identity's, but come with its y and w: a part never holds half a turn.
+    assert_eq!(
+        registry
+            .difference("test::Turned", &still.to_value(), &turned.to_value(), false)
+            .expect("turns"),
+        Some(turned.to_value())
+    );
+}
+
 #[test]
 #[should_panic(expected = "the field `1` of a tuple is transient, but a tuple is saved whole")]
 fn a_transient_field_of_a_tuple_is_a_bug_in_the_type() {

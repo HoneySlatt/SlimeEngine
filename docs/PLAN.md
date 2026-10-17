@@ -204,7 +204,19 @@ Risks:
   `Composer::without_defaults` and `Composer::table`. `World::spawn_placement`, which M5b.3 was to
   bring, came here, so that an edit can add a placement; its saves stay M5b.3's. The tests that edit
   every leaf through a file reuse each crate's copy, the engine's and the game's, so that no third
-  copy was written. The ADR holds what writing back costs.
+  copy was written. `World::write_scene`'s rustdoc holds what writing back costs.
+
+  The review found, and a later commit fixed: changes that a file wrote, whose component, entity or
+  ancestor the world removed since, were written again, then set aside at every spawn; an override
+  set aside that no longer fitted its prefab was replaced by a whole value; a glTF node without a
+  name of its own gave a file that could not be read; an ID kept from a first write could make two
+  entities one; a changed rotation was written as the coordinates that changed, which a prefab
+  turned later made a quaternion that `Transform` refuses: a difference now holds a rotation whole,
+  which amends ADR-0087, while the parts that 0.3 wrote still load. What a file cannot say of a
+  root, of a placement's entity moved out, or of the order of its children, is reported; `Unsaved`
+  is left out of placements too; writing is linear in the file's own entities. Tests cover each, and
+  nested placements, references to entities created, placements made while the world runs,
+  transient fields, and a level made from nothing.
 
 ### M5b.3 — Saves and hot reload with placements
 
@@ -746,7 +758,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   reference, or a parent, that a scene file wrote into a placement whose prefab no longer had its
   entity is written as the world holds it, no entity or the root: what it named is lost, as a save
   loses it. An entity of a placement moved out of the place that its prefab gives it is written in
-  that place, and reported: a scene file has no parents for a placement's entities.
+  that place, and the children of a placement's entity in its prefab's order, then the file's; both
+  are reported: a scene file has no parents for a placement's entities, nor an order among them.
+  Stage 6 decides whether a file says them.
 - **A scene file written back loses its comments** (ADR-0089): `World::write_scene` writes the
   canonical form. Stage 6 decides whether its editor keeps the comments of files written by hand.
 - **After a lost device, what is hidden loads only once shown** (ADR-0084): the cache loads what is

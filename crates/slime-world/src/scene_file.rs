@@ -19,7 +19,7 @@ use crate::library::{
 use crate::transform::Transform;
 
 /// The version of the scene files' layout, past 1 only.
-pub(crate) const LAYOUT: &str = "layout";
+const LAYOUT: &str = "layout";
 /// The assets that the file names, by their short names.
 pub(crate) const ASSETS: &str = "assets";
 /// The scene's root.
@@ -280,7 +280,7 @@ fn layout(document: &mut Document<'_>) -> Result<Layout, ReadError> {
 }
 
 /// Accepts an ID that an entity of a scene file may have, refuses it with the reason otherwise.
-fn valid_id(id: &str) -> Result<(), String> {
+pub(crate) fn valid_id(id: &str) -> Result<(), String> {
     if id.is_empty() {
         Err("an entity's ID is not empty".to_owned())
     } else if id.contains('/') {

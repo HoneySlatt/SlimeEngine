@@ -6,6 +6,18 @@ use crate::path::{Path, Step};
 use crate::registry::{Registration, Registry};
 use crate::value::Value;
 
+/// Whether a difference holds a changed value of the type that `info` describes whole, a struct
+/// though it is: a tuple, and a rotation, `Quat`, whose coordinates make one only together, so that
+/// what the engine writes never overlays half a rotation on a prefab turned since. A part that
+/// another wrote may hold some of a rotation's coordinates, as the saves of 0.3 do: it is read and
+/// overlaid coordinate by coordinate, and the rotation's type refuses what is not one.
+fn held_whole(info: &TypeInfo) -> bool {
+    match &info.kind {
+        Kind::Struct(fields) => is_tuple(fields) || info.name == "Quat",
+        _ => false,
+    }
+}
+
 /// Whether `fields` are a tuple's: named `0`, `1`, ... in order. A part holds a tuple whole.
 pub fn is_tuple(fields: &[FieldInfo]) -> bool {
     !fields.is_empty()
@@ -18,9 +30,9 @@ pub fn is_tuple(fields: &[FieldInfo]) -> bool {
 impl Registry {
     /// What changed from `from` to `to`, values of the type named `ty`, as a *part* of a value:
     /// the fields of its structs, and of its enums when both hold the same variant, that differ,
-    /// at any depth; whole, whatever else differs: numbers, text, tuples, lists, options, a variant
-    /// that another replaced. `None` when nothing differs, floats compared by their bits. Fields
-    /// marked transient are left out unless `transient`, at any depth, what it holds whole
+    /// at any depth; whole, whatever else differs: numbers, text, tuples, rotations, lists, options,
+    /// a variant that another replaced. `None` when nothing differs, floats compared by their bits.
+    /// Fields marked transient are left out unless `transient`, at any depth, what it holds whole
     /// compared without them: what a save leaves out.
     ///
     /// ```
@@ -56,14 +68,13 @@ impl Registry {
         to: &Value,
         transient: bool,
     ) -> Result<Option<Value>, ReflectError> {
-        let kind = &self
+        let info = self
             .get(ty)
             .ok_or_else(|| ReflectError::new(Problem::NotRegistered(ty.to_owned())))?
-            .info()
-            .kind;
-        let changed = match (kind, from, to) {
+            .info();
+        let changed = match (&info.kind, from, to) {
             (Kind::Struct(fields), Value::Struct(from_fields), Value::Struct(to_fields))
-                if !is_tuple(fields) =>
+                if !held_whole(info) =>
             {
                 self.changed_fields(fields, from_fields, to_fields, transient)?
                     .map(Value::Struct)

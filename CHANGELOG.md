@@ -45,6 +45,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   spawning fail with `WorldError::RefusedInScene`, and nothing is spawned.
 - `Document::keys(&[])` lists the keys of a document's root, where it listed none.
 - A `Transform` read from data that leaves a field out gives that field the identity's value.
+- A rotation that changed is a difference whole, its four coordinates, in a save as in a scene file
+  written back (`Registry::difference`), so that it stays a rotation when the scene's turns later.
+  Saves of 0.3, which hold the coordinates that changed, still load.
 
 ## [0.3.0] - 2026-10-17
 

@@ -9,14 +9,14 @@ use slime_assets::AssetId;
 use slime_reflect::{Reflect, Value};
 use slime_serialize::{Composer, References};
 
-use crate::components::Name;
+use crate::components::{Name, Unsaved};
 use crate::document::{ADDED, CHANGED, DocumentError, REMOVED, SetAside};
 use crate::entity::Entity;
 use crate::identity::PersistentId;
 use crate::library::{NO_RECORD, Placement, Record, ResolvedScene};
 use crate::scene_file::{
     ASSETS, COMPONENTS, COMPONENTS_REMOVED, ENTITIES, ENTITIES_REMOVED, ID, PARENT, PATH, PREFAB,
-    ROOT, ROOT_NAME, for_each_entity,
+    ROOT, ROOT_NAME, for_each_entity, valid_id,
 };
 use crate::transform::Transform;
 use crate::world::{Identity, World};
@@ -26,9 +26,12 @@ use crate::world::{Identity, World};
 pub struct Written {
     /// The scene file's text.
     pub text: String,
-    /// What the file leaves out, and why: an entity of the subtree that belongs to another scene, an
-    /// entity of a placement moved out of its place, which a scene file cannot say, and an entity
-    /// out of the subtree that a value refers to, which the file names `""`, no entity.
+    /// What the file could not hold as the world has it, each with its entity and why: an entity of
+    /// another scene, left out; the place, or the order among its siblings, of an entity of a
+    /// placement, which a scene file cannot say; an entity whose place in its prefab is removed; an
+    /// override that no longer fits its prefab and whose value changed since; an entity whose ID a
+    /// file cannot hold, written under another; a root without a `Name` or a `Transform`, which
+    /// spawning gives it; and an entity out of the subtree that a value refers to, written `""`.
     pub left_out: Vec<SetAside>,
 }
 
@@ -90,45 +93,81 @@ impl References for WriteNames {
     }
 }
 
+/// The entity of a [`SetAside`] report: its persistent identity, or its handle if it has none.
+fn reported(world: &World, entity: Entity) -> String {
+    world
+        .persistent_id(entity)
+        .map_or_else(|| format!("{entity:?}"), |id| id.to_string())
+}
+
 impl World {
     /// The subtree of `root` written as a scene file (`docs/adr/0089-scenes-and-prefabs.md`): a file
     /// that spawned under `root`'s key gives the same world, its placements kept as placements, and
     /// that the same world writes in the same bytes.
     ///
     /// - The root's components are the file's root's: its `Name` left out when it is the last ID of
-    ///   its identity, which spawning gives it, and its `Transform` when it is the identity.
+    ///   its identity, which spawning gives it back, and its `Transform` when it is the identity. A
+    ///   root created outside a scene writes its `Name`: the file spawned under that name gives it
+    ///   back, and the world spawned so writes the file without it.
     /// - Each entity of the subtree that the scene of `root` holds, `zone/door` under `zone`, is a
     ///   record of the file under its ID, with its parent and its components, whole; each one
-    ///   created outside a scene is a record under an ID that the world gives it now, its `Name` and
-    ///   a few random letters, `torch-k3f9`, and keeps for the next time it writes it. Records come
-    ///   in the order of a walk of the hierarchy, children in their order.
+    ///   created outside a scene, and each whose ID a file cannot hold, such as a glTF node without
+    ///   a name of its own, `#3`, is a record under an ID that the world gives it: its `Name`, or its
+    ///   prefab's name for a placement, or `entity`, and four random letters or digits,
+    ///   `torch-k3f9`, unique in the file and in the scene, which the world keeps and gives again
+    ///   while it is free. Records come in the order of a walk of the hierarchy, children in their
+    ///   order.
     /// - Each placement is a record that names its prefab, with what differs from it: values as
     ///   parts, components added and removed, entities removed. The overrides that the scene that
     ///   placed it wrote are kept: one that holds the prefab's value still, and one set aside, whose
-    ///   entity or component the prefab no longer has.
-    /// - Entities that hold [`Unsaved`](crate::Unsaved), with their descendants, fields marked
-    ///   transient, and fields that hold their defaults are left out.
+    ///   entity or component the prefab no longer has, or that no longer fits it, while the value
+    ///   is the prefab's; one whose entity or component the world removed since is not, and an
+    ///   entity of a placement that holds [`Unsaved`] keeps what the file wrote of it.
+    /// - Entities that hold [`Unsaved`], with their descendants, the `Unsaved` component, fields
+    ///   marked transient, and fields that hold their defaults are left out.
     /// - References to entities are paths from the root, `.` the root itself; one to an entity that
-    ///   the file does not hold is `""`, no entity, and reported. Assets are named by the short names
-    ///   of a table: those of the file that the scene was spawned from, else a prefab's name, else
-    ///   `asset 1`, `asset 2`...
+    ///   the file does not hold is `""`, no entity, and reported if it is alive. Assets are named by
+    ///   the short names of a table: those of the file that the scene was spawned from, else a
+    ///   prefab's name, `lamp`, or `lamp 2` when another asset has it, else `asset 1`, `asset 2`...
     ///
-    /// What the file cannot hold is left out and reported ([`Written::left_out`]): an entity of the
-    /// subtree that belongs to another scene, and the place of a placement's entity moved out of the
-    /// place that its prefab gives it. The comments of the file that the scene was read from are not
-    /// kept. Entities created outside scenes keep their identities, `created/<number>`: the file
-    /// gives them their IDs when it is spawned.
+    /// What the file cannot hold as the world has it is reported ([`Written::left_out`]). Entities
+    /// created outside scenes keep their identities, `created/<number>`: the file gives them their
+    /// IDs when it is spawned. The comments of the file that the scene was read from are not kept.
+    ///
+    /// The cost is linear in the entities of the subtree. Measured in a release build on the owner's
+    /// machine: a world of a thousand placements of a prefab of 10 entities, 11 001 entities, is
+    /// written in 0.12 s; of a prefab of 100 entities, 101 001 entities, in 1.06 s, both files
+    /// 136 kB, the prefab's entities placed, not copied; 10 000 entities created outside scenes, in
+    /// 0.08 s, 548 kB; 80 000, in 1.0 s, 4.5 MB.
+    ///
+    /// ```
+    /// use slime_assets::AssetId;
+    /// use slime_world::{Name, SceneLibrary, World};
+    ///
+    /// let mut scenes = SceneLibrary::new();
+    /// scenes.insert_file(AssetId::from_u128(1), "yard", "[entities.well.components]\nName = \"well\"\n");
+    /// let mut world = World::new();
+    /// let scene = scenes.resolve(world.registry(), AssetId::from_u128(1)).expect("a scene");
+    /// let yard = world.spawn_scene("yard", &scene).expect("spawned");
+    /// let bucket = world.spawn();
+    /// world.insert(bucket, Name("bucket".to_owned()));
+    /// world.set_parent(bucket, Some(yard)).expect("both are alive");
+    /// let written = world.write_scene(yard).expect("written");
+    /// assert!(written.text.contains("Name = \"well\""));
+    /// assert!(written.text.contains("Name = \"bucket\""));
+    /// assert_eq!(world.write_scene(yard).expect("written").text, written.text);
+    /// ```
     ///
     /// # Errors
     ///
-    /// [`DocumentError::NotARoot`] if `root` is not alive, is a placement, or is an entity of one,
-    /// which the scene that places it writes; [`DocumentError::Write`] if a value cannot be written,
-    /// or the file would be larger or deeper than a reader reads.
+    /// [`DocumentError::NotARoot`] if `root` is not alive, has no identity, is a placement, or is an
+    /// entity of one, which the scene that places it writes; [`DocumentError::Write`] if a value
+    /// cannot be written, or the file would be larger or deeper than a reader reads.
     pub fn write_scene(&mut self, root: Entity) -> Result<Written, DocumentError> {
         let namespace = self.namespace_of(root)?;
         let mut left_out = Vec::new();
         let walked = self.walk(root, namespace.as_deref(), &mut left_out);
-        self.give_ids(&walked, namespace.as_deref());
+        self.give_ids(&walked, namespace.as_deref(), &mut left_out);
         let entries: Vec<Entry> = walked
             .into_iter()
             .map(|entity| Entry {
@@ -171,12 +210,16 @@ impl World {
         let inner = &id.parts()[root_id.parts().len()..];
         let placed = self.placed(root, placement);
         let entities: Vec<Option<Entity>> = placed.iter().map(|(_, entity)| *entity).collect();
-        let (record, _) = placed.iter().find(|(record, _)| record.path == inner)?;
+        let index = placed.iter().position(|(record, _)| record.path == inner)?;
         let name = self.registry.get(component)?.info().name.clone();
-        let expected = match record.components.iter().find(|(held, _)| *held == name) {
-            Some((_, value)) => with_handles(value, &entities),
-            None if inner.is_empty() && name == "Name" => Name(self.file_id(root)).to_value(),
-            None => return Some(true),
+        let Some(expected) = expected(
+            placed[index].0,
+            index,
+            &self.file_id(root),
+            &entities,
+            &name,
+        ) else {
+            return Some(true);
         };
         Some(matches!(
             self.registry.difference(&name, &expected, &value, false),
@@ -214,19 +257,30 @@ impl World {
 
     /// The entities of the subtree of `root` that the file holds records of, in the order of a walk
     /// of the hierarchy, children in their order: those of the scene `namespace` that its file
-    /// makes or places, and those created outside a scene. The entities of a placement are its
-    /// prefab's; those of another scene are left out, with their descendants, and reported.
+    /// makes or places, and those created outside a scene. The entities of a placement of the
+    /// subtree are its prefab's, wherever they are; those of another scene are left out, with their
+    /// descendants, and reported; those that hold [`Unsaved`] are left out, with their descendants.
     fn walk(
         &self,
         root: Entity,
         namespace: Option<&str>,
         left_out: &mut Vec<SetAside>,
     ) -> Vec<Entity> {
-        let mut entries = Vec::new();
+        // The placements of the subtree first, so that an entity of one moved before it is known.
         let mut placements: HashSet<Vec<String>> = HashSet::new();
+        let mut next: Vec<Entity> = self.children(root).to_vec();
+        while let Some(entity) = next.pop() {
+            if self.nodes[entity.index() as usize].placement.is_some()
+                && let Some(id) = self.persistent_id(entity)
+            {
+                placements.insert(id.parts().to_vec());
+            }
+            next.extend(self.children(entity));
+        }
+        let mut entries = Vec::new();
         let mut next: Vec<Entity> = self.children(root).iter().rev().copied().collect();
         while let Some(entity) = next.pop() {
-            if self.get::<crate::Unsaved>(entity).is_some() {
+            if self.get::<Unsaved>(entity).is_some() {
                 continue;
             }
             let node = &self.nodes[entity.index() as usize];
@@ -246,20 +300,13 @@ impl World {
                 };
                 if !ours {
                     left_out.push(SetAside {
-                        entity: self
-                            .persistent_id(entity)
-                            .map_or_else(|| format!("{entity:?}"), |id| id.to_string()),
+                        entity: reported(self, entity),
                         component: None,
                         reason: "it belongs to another scene than the one written, or to a \
                                  placement out of it: left out, with its descendants"
                             .to_owned(),
                     });
                     continue;
-                }
-                if node.placement.is_some()
-                    && let Some(id) = self.persistent_id(entity)
-                {
-                    placements.insert(id.parts().to_vec());
                 }
                 entries.push(entity);
             }
@@ -268,38 +315,59 @@ impl World {
         entries
     }
 
-    /// Gives an ID of the file to each entity of `entries` created outside a scene that has none:
-    /// its name, or `entity`, and four random letters or digits, unique in the file and in the scene
-    /// `namespace`.
-    fn give_ids(&mut self, entries: &[Entity], namespace: Option<&str>) {
-        let mut taken: HashSet<String> = entries
-            .iter()
-            .filter(|&&entity| {
-                matches!(
-                    self.nodes[entity.index() as usize].identity,
-                    Identity::Scene(_)
-                ) || self.nodes[entity.index() as usize].written_id.is_some()
-            })
-            .map(|&entity| self.file_id(entity))
-            .collect();
-        let random = RandomState::new();
+    /// Gives an ID of the file to each entity of `entries` that has none it can keep: one created
+    /// outside a scene, and one of the scene whose ID a file cannot hold, which is reported. The ID
+    /// is its name, or its prefab's name for a placement, or `entity`, and four random letters or
+    /// digits, unique in the file and in the scene `namespace`; one that the world gave before is
+    /// kept while it is free.
+    fn give_ids(
+        &mut self,
+        entries: &[Entity],
+        namespace: Option<&str>,
+        left_out: &mut Vec<SetAside>,
+    ) {
+        // The IDs of the scene's entities come first: their identities hold them.
+        let mut taken: HashSet<String> = HashSet::new();
+        let mut needing = Vec::new();
         for &entity in entries {
             let node = &self.nodes[entity.index() as usize];
-            if !matches!(node.identity, Identity::Created(_)) || node.written_id.is_some() {
+            if let (None, Identity::Scene(id)) = (&node.written_id, &node.identity) {
+                let own = id.parts().last().cloned().unwrap_or_default();
+                if valid_id(&own).is_ok() && taken.insert(own) {
+                    continue;
+                }
+            }
+            needing.push(entity);
+        }
+        let random = RandomState::new();
+        for entity in needing {
+            let free = |world: &World, taken: &HashSet<String>, id: &str| {
+                !taken.contains(id)
+                    && namespace.is_none_or(|key| {
+                        world
+                            .identities
+                            .get(&PersistentId::new([key, id]))
+                            .is_none_or(|&other| other == entity)
+                    })
+            };
+            if let Some(id) = &self.nodes[entity.index() as usize].written_id
+                && free(self, &taken, id)
+            {
+                taken.insert(id.to_string());
                 continue;
             }
-            let base = match self.get::<Name>(entity) {
-                Some(Name(name)) => {
-                    let name = name.replace('/', "-");
-                    let name = name.trim();
-                    if name.is_empty() || name.starts_with('#') || name == ROOT_NAME {
-                        "entity".to_owned()
-                    } else {
-                        name.to_owned()
-                    }
-                }
-                None => "entity".to_owned(),
-            };
+            let node = &self.nodes[entity.index() as usize];
+            let base = self
+                .get::<Name>(entity)
+                .map(|Name(name)| name.clone())
+                .or_else(|| {
+                    node.placement
+                        .as_ref()
+                        .map(|placement| placement.prefab.name().to_owned())
+                })
+                .map(|name| name.replace('/', "-").trim().to_owned())
+                .filter(|name| valid_id(name).is_ok())
+                .unwrap_or_else(|| "entity".to_owned());
             let mut attempt = 0_u64;
             let id = loop {
                 let mut bits = random.hash_one((entity.index(), attempt));
@@ -311,22 +379,28 @@ impl World {
                     })
                     .collect();
                 let id = format!("{base}-{letters}");
-                let in_scene = namespace.is_some_and(|key| {
-                    self.identities
-                        .contains_key(&PersistentId::new([key, id.as_str()]))
-                });
-                if !taken.contains(&id) && !in_scene {
+                if free(self, &taken, &id) {
                     break id;
                 }
                 attempt += 1;
             };
+            if let Identity::Scene(own) = &node.identity {
+                left_out.push(SetAside {
+                    entity: own.to_string(),
+                    component: None,
+                    reason: format!(
+                        "a scene file cannot hold its ID: written as `{id}`, which names it when \
+                         the file is spawned"
+                    ),
+                });
+            }
             taken.insert(id.clone());
             self.nodes[entity.index() as usize].written_id = Some(id.into_boxed_str());
         }
     }
 
-    /// The ID of an entity that a scene file written from the world holds a record of: the last of
-    /// its identity, or the ID that the world gave it, created outside a scene.
+    /// The ID of an entity that a scene file written from the world holds a record of: the ID that
+    /// the world gave it, else the last of its identity.
     fn file_id(&self, entity: Entity) -> String {
         let node = &self.nodes[entity.index() as usize];
         match (&node.written_id, &node.identity) {
@@ -369,19 +443,19 @@ impl World {
                 self.overrides_of(entry, placement, scene, &mut sections, &mut left_out)?;
             }
         }
-        // The assets that the file names: its prefabs, and those that its values hold.
-        let mut used: Vec<AssetId> = Vec::new();
-        let mut use_asset = |id: AssetId| {
-            if !used.contains(&id) {
-                used.push(id);
+        for (component, missing) in [
+            ("Name", self.get::<Name>(root).is_none()),
+            ("Transform", self.get::<Transform>(root).is_none()),
+        ] {
+            if missing {
+                left_out.push(SetAside {
+                    entity: reported(self, root),
+                    component: Some(component.to_owned()),
+                    reason: "the root holds none, and spawning gives it one".to_owned(),
+                });
             }
-        };
-        let mut values: Vec<&Value> = sections
-            .changed
-            .values()
-            .chain(sections.added.values())
-            .collect();
-        let held: Vec<(Entity, Vec<(String, Value)>)> = std::iter::once(root)
+        }
+        let held: HashMap<Entity, Vec<(String, Value)>> = std::iter::once(root)
             .chain(
                 entries
                     .iter()
@@ -390,15 +464,32 @@ impl World {
             )
             .map(|entity| (entity, self.written_components(entity, entity == root)))
             .collect();
-        values.extend(
-            held.iter()
-                .flat_map(|(_, components)| components.iter().map(|(_, v)| v)),
-        );
+        // The assets that the file names: its prefabs, and those that its values hold.
+        let mut used: Vec<AssetId> = Vec::new();
+        let mut use_asset = |id: AssetId| {
+            if !used.contains(&id) {
+                used.push(id);
+            }
+        };
         for entry in entries {
             if let Some(placement) = &entry.placement {
                 use_asset(placement.prefab.id());
             }
         }
+        let values = sections
+            .changed
+            .values()
+            .chain(sections.added.values())
+            .chain(
+                std::iter::once(root)
+                    .chain(entries.iter().map(|entry| entry.entity))
+                    .flat_map(|entity| {
+                        held.get(&entity)
+                            .into_iter()
+                            .flatten()
+                            .map(|(_, value)| value)
+                    }),
+            );
         for value in values {
             for_each_asset(value, &mut |id| use_asset(AssetId::from_u128(id)));
         }
@@ -426,12 +517,7 @@ impl World {
                     .map_err(write)?;
             }
         }
-        let components_of = |entity: Entity| {
-            held.iter()
-                .find(|(held, _)| *held == entity)
-                .map(|(_, components)| components)
-        };
-        for (name, value) in components_of(root).into_iter().flatten() {
+        for (name, value) in held.get(&root).into_iter().flatten() {
             file.put(&[ROOT, COMPONENTS, name], name, value)
                 .map_err(write)?;
         }
@@ -454,7 +540,7 @@ impl World {
                         .map_err(write)?;
                 }
                 None => {
-                    for (name, value) in components_of(entry.entity).into_iter().flatten() {
+                    for (name, value) in held.get(&entry.entity).into_iter().flatten() {
                         file.put(&[ENTITIES, id, COMPONENTS, name], name, value)
                             .map_err(write)?;
                     }
@@ -488,24 +574,30 @@ impl World {
         }
         let text = file.finish().map_err(write)?;
         for bits in names.outside.take() {
-            let entity = match Entity::from_value(&Value::Entity(bits)) {
-                Ok(entity) => entity,
-                Err(_) => continue,
+            // A destroyed entity is no entity, as a save writes it: nothing to report.
+            let Ok(entity) = Entity::from_value(&Value::Entity(bits)) else {
+                continue;
+            };
+            if !self.contains(entity) {
+                continue;
+            }
+            let reason = if self.unsaved(entity) {
+                "a value refers to it, which holds Unsaved: `\"\"`, no entity, there"
+            } else {
+                "a value refers to it, out of the subtree written: `\"\"`, no entity, there"
             };
             left_out.push(SetAside {
-                entity: self
-                    .persistent_id(entity)
-                    .map_or_else(|| format!("{entity:?}"), |id| id.to_string()),
+                entity: reported(self, entity),
                 component: None,
-                reason: "a value refers to it, out of the scene written: `\"\"`, no entity, there"
-                    .to_owned(),
+                reason: reason.to_owned(),
             });
         }
         Ok(Written { text, left_out })
     }
 
-    /// The components that a scene file writes of `entity`, by their names, in their order: the
-    /// root's without the `Name` that spawning gives it and without the identity as its transform.
+    /// The components that a scene file writes of `entity`, by their names, in their order, without
+    /// [`Unsaved`]: the root's without the `Name` that spawning gives it and without the identity as
+    /// its transform.
     fn written_components(&self, entity: Entity, root: bool) -> Vec<(String, Value)> {
         let spawned_name = match &self.nodes[entity.index() as usize].identity {
             Identity::Scene(id) => id.parts().last().cloned(),
@@ -513,6 +605,7 @@ impl World {
         };
         self.component_names_sorted(entity)
             .into_iter()
+            .filter(|&name| name != "Unsaved")
             .filter_map(|name| {
                 let value = self.component_value(entity, name)?;
                 if root
@@ -555,7 +648,8 @@ impl World {
     }
 
     /// Adds to `sections` what differs between the placement of `entry` and its prefab, and the
-    /// overrides that the scene that placed it wrote, `scene`, that still say something.
+    /// overrides that the scene that placed it wrote, `scene`, that still say something; and to
+    /// `left_out` what the file cannot say of it.
     fn overrides_of(
         &self,
         entry: &Entry,
@@ -566,6 +660,11 @@ impl World {
     ) -> Result<(), DocumentError> {
         let placed = self.placed(entry.entity, placement);
         let entities: Vec<Option<Entity>> = placed.iter().map(|(_, entity)| *entity).collect();
+        let index_of: HashMap<Entity, usize> = entities
+            .iter()
+            .enumerate()
+            .filter_map(|(index, entity)| Some(((*entity)?, index)))
+            .collect();
         let path_of = |inner: &[String]| {
             if inner.is_empty() {
                 entry.id.clone()
@@ -573,42 +672,95 @@ impl World {
                 format!("{}/{}", entry.id, inner.join("/"))
             }
         };
+        let report = |left_out: &mut Vec<SetAside>, entity: Entity, reason: &str| {
+            left_out.push(SetAside {
+                entity: reported(self, entity),
+                component: None,
+                reason: reason.to_owned(),
+            });
+        };
         let write = DocumentError::Write;
-        // What differs from the prefab now.
+        // Each record whose entity is lost with its place in the prefab, or held out of the file.
+        let mut lost = vec![false; placed.len()];
+        let mut kept_as_written = vec![false; placed.len()];
         let mut differences: BTreeMap<(String, String), Value> = BTreeMap::new();
         for (index, (record, entity)) in placed.iter().enumerate() {
             let path = path_of(&record.path);
+            let parent = record.parent.map(|parent| parent as usize);
+            let place_gone =
+                parent.is_some_and(|parent| entities[parent].is_none() || lost[parent]);
             let Some(entity) = *entity else {
-                let parent_alive = record
-                    .parent
-                    .is_some_and(|parent| entities[parent as usize].is_some());
-                if parent_alive {
+                lost[index] = place_gone;
+                let under_unsaved = parent
+                    .and_then(|parent| entities[parent])
+                    .is_some_and(|parent| self.unsaved(parent));
+                if !place_gone && !under_unsaved {
                     sections.removed.insert(path);
                 }
                 continue;
             };
-            if let Some(parent) = record.parent
-                && self.parent(entity) != entities[parent as usize]
-            {
-                left_out.push(SetAside {
-                    entity: self
-                        .persistent_id(entity)
-                        .map_or_else(String::new, |id| id.to_string()),
-                    component: None,
-                    reason: "an entity of a placement moved out of its place in the prefab, which \
-                             a scene file cannot say: written in its place"
-                        .to_owned(),
-                });
+            if place_gone {
+                lost[index] = true;
+                report(
+                    left_out,
+                    entity,
+                    "its place in the prefab is removed: it is lost when the file is spawned",
+                );
+                continue;
             }
-            let mut expected: Vec<(String, Value)> = record
+            if self.unsaved(entity) {
+                kept_as_written[index] = true;
+                continue;
+            }
+            if let Some(parent) = parent
+                && self.parent(entity) != entities[parent]
+            {
+                report(
+                    left_out,
+                    entity,
+                    "it moved out of its place in the prefab, which a scene file cannot say: \
+                     written in its place",
+                );
+            }
+            // A placement's entities keep its prefab's order, before the file's.
+            let mut last = None;
+            let mut file_child_seen = false;
+            let ordered = self.children(entity).iter().all(|child| {
+                if self.unsaved(*child) {
+                    return true;
+                }
+                match index_of.get(child) {
+                    Some(&at) if placed[at].0.parent == Some(index as u32) => {
+                        let in_order = !file_child_seen && last.is_none_or(|last| last < at);
+                        last = Some(at);
+                        in_order
+                    }
+                    _ => {
+                        file_child_seen = true;
+                        true
+                    }
+                }
+            });
+            if !ordered {
+                report(
+                    left_out,
+                    entity,
+                    "the order of its children, which a scene file cannot say: written in the \
+                     order of its prefab, then of the file",
+                );
+            }
+            let names: Vec<String> = record
                 .components
                 .iter()
-                .map(|(name, value)| (name.clone(), with_handles(value, &entities)))
+                .map(|(name, _)| name.clone())
+                .chain(
+                    (index == 0 && !record.components.iter().any(|(name, _)| name == "Name"))
+                        .then(|| "Name".to_owned()),
+                )
                 .collect();
-            if index == 0 && !expected.iter().any(|(name, _)| name == "Name") {
-                expected.push(("Name".to_owned(), Name(entry.id.clone()).to_value()));
-            }
-            for (name, prefab_value) in &expected {
+            for name in &names {
+                let base = expected(record, index, &entry.id, &entities, name)
+                    .expect("a component of the record");
                 match self.component_value(entity, name) {
                     None => {
                         sections
@@ -620,7 +772,7 @@ impl World {
                     Some(value) => {
                         if let Some(part) = self
                             .registry
-                            .difference(name, prefab_value, &value, false)
+                            .difference(name, &base, &value, false)
                             .map_err(write)?
                         {
                             differences.insert((path.clone(), name.clone()), part);
@@ -629,7 +781,7 @@ impl World {
                 }
             }
             for name in self.component_names_sorted(entity) {
-                if !expected.iter().any(|(held, _)| held == name)
+                if !names.iter().any(|held| held == name)
                     && let Some(value) = self.component_value(entity, name)
                 {
                     sections
@@ -639,16 +791,18 @@ impl World {
             }
         }
         // The overrides that the scene wrote, kept where they still say something.
-        let at = |inner: &[String]| {
-            placed
-                .iter()
-                .find(|(record, _)| record.path == inner)
-                .map(|(record, entity)| (*record, *entity))
-        };
+        let at = |inner: &[String]| placed.iter().position(|(record, _)| record.path == inner);
         let authored = &placement.overrides;
         for inner in &authored.removed {
-            if at(inner).is_none() {
-                sections.removed.insert(path_of(inner));
+            match at(inner) {
+                // Set aside, or removed since, the topmost or not.
+                None => {
+                    sections.removed.insert(path_of(inner));
+                }
+                Some(index) if entities[index].is_none() && !lost[index] => {
+                    sections.removed.insert(path_of(inner));
+                }
+                Some(_) => {}
             }
         }
         for (inner, names) in &authored.removed_components {
@@ -656,11 +810,18 @@ impl World {
             for name in names {
                 let kept = match held {
                     None => true,
-                    Some((record, Some(entity))) => {
-                        self.component_value(entity, name).is_none()
-                            && !record.components.iter().any(|(held, _)| held == name)
-                    }
-                    Some((_, None)) => false,
+                    Some(index) if kept_as_written[index] => true,
+                    Some(index) => match entities[index] {
+                        Some(entity) => {
+                            self.component_value(entity, name).is_none()
+                                && !placed[index]
+                                    .0
+                                    .components
+                                    .iter()
+                                    .any(|(held, _)| held == name)
+                        }
+                        None => false,
+                    },
                 };
                 if kept {
                     sections
@@ -677,13 +838,18 @@ impl World {
                 None => {
                     sections.added.insert(key, self.authored(value, scene));
                 }
-                Some((_, Some(entity))) => {
-                    if let Some(now) = self.component_value(entity, name) {
+                Some(index) if kept_as_written[index] => {
+                    sections.added.insert(key, self.authored(value, scene));
+                }
+                Some(index) => {
+                    if let Some(entity) = entities[index]
+                        && !lost[index]
+                        && let Some(now) = self.component_value(entity, name)
+                    {
                         differences.remove(&key);
                         sections.added.insert(key, now);
                     }
                 }
-                Some((_, None)) => {}
             }
         }
         for (inner, name, part) in &authored.changed {
@@ -691,20 +857,54 @@ impl World {
             if sections.added.contains_key(&key) {
                 continue;
             }
-            let now = match at(inner) {
-                Some((_, Some(entity))) => self.component_value(entity, name),
-                _ => None,
+            let written = self.authored(part, scene);
+            let Some(index) = at(inner) else {
+                // The prefab no longer has its entity: set aside, as written.
+                differences.insert(key, written);
+                continue;
             };
-            match now {
-                Some(now) => {
-                    let shape = match differences.get(&key) {
-                        Some(difference) => shape_union(part, difference),
-                        None => part.clone(),
-                    };
-                    differences.insert(key, part_like(&now, &shape));
+            if kept_as_written[index] {
+                differences.insert(key, written);
+                continue;
+            }
+            let Some(entity) = entities[index].filter(|_| !lost[index]) else {
+                // Removed since: the removal says it.
+                continue;
+            };
+            let base = expected(placed[index].0, index, &entry.id, &entities, name);
+            match (base, self.component_value(entity, name)) {
+                // The prefab no longer has its component: set aside, as written.
+                (None, None) => {
+                    differences.insert(key, written);
                 }
-                None => {
-                    differences.insert(key, self.authored(part, scene));
+                // Removed since, or added since whole: the removal or the addition says it.
+                (Some(_), None) | (None, Some(_)) => {}
+                (Some(base), Some(now)) => {
+                    let mut overlaid = base.clone();
+                    if self.registry.overlay(name, &mut overlaid, &written).is_ok() {
+                        let shape = match differences.get(&key) {
+                            Some(difference) => shape_union(part, difference),
+                            None => part.clone(),
+                        };
+                        differences.insert(key, part_like(&now, &shape));
+                    } else if self
+                        .registry
+                        .difference(name, &base, &now, false)
+                        .map_err(write)?
+                        .is_none()
+                    {
+                        // It no longer fits the prefab, which the value still holds: set aside, as
+                        // written.
+                        differences.insert(key, written);
+                    } else {
+                        left_out.push(SetAside {
+                            entity: reported(self, entity),
+                            component: Some(name.clone()),
+                            reason: "the override that its scene wrote no longer fits the \
+                                     prefab, and the value changed since: written as it is now"
+                                .to_owned(),
+                        });
+                    }
                 }
             }
         }
@@ -731,8 +931,26 @@ impl World {
     }
 }
 
+/// The value of the component named `name` that `record`, a prefab's record at `index`, gives the
+/// entity placed from it, its references made references to `entities`; the placement's root, its
+/// ID `id`, is named after it unless the prefab names it. `None` if the record gives no such
+/// component.
+fn expected(
+    record: &Record,
+    index: usize,
+    id: &str,
+    entities: &[Option<Entity>],
+    name: &str,
+) -> Option<Value> {
+    match record.components.iter().find(|(held, _)| held == name) {
+        Some((_, value)) => Some(with_handles(value, entities)),
+        None if index == 0 && name == "Name" => Some(Name(id.to_owned()).to_value()),
+        None => None,
+    }
+}
+
 /// The bits of `entity`'s handle, as a value holds them.
-fn handle_bits(entity: Entity) -> u64 {
+pub(crate) fn handle_bits(entity: Entity) -> u64 {
     match entity.to_value() {
         Value::Entity(bits) => bits,
         _ => 0,
@@ -741,7 +959,7 @@ fn handle_bits(entity: Entity) -> u64 {
 
 /// `value`, a resolved scene's, its references to the scene's records made references to the
 /// entities that `entities` gives them, in the records' order, or to no entity.
-fn with_handles(value: &Value, entities: &[Option<Entity>]) -> Value {
+pub(crate) fn with_handles(value: &Value, entities: &[Option<Entity>]) -> Value {
     let mut value = value.clone();
     for_each_entity(&mut value, &mut |bits| {
         let entity = if *bits == NO_RECORD {
@@ -807,6 +1025,7 @@ fn asset_names(
                     let placement = entry.placement.as_ref()?;
                     (placement.prefab.id() == id).then(|| placement.prefab.name().to_owned())
                 });
+                let prefab = prefab.filter(|name| !name.is_empty());
                 let base = prefab.unwrap_or_else(|| {
                     count += 1;
                     format!("asset {count}")

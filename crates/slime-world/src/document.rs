@@ -78,10 +78,14 @@ pub struct Loaded {
     pub warnings: Vec<ReadError>,
 }
 
-/// A difference of a save that could not be applied, and why.
+/// What could not be applied or held, and why: a difference of a save that a world could not apply
+/// ([`Loaded::set_aside`]), what a scene file says that its prefabs no longer fit
+/// ([`ResolvedScene::set_aside`](crate::ResolvedScene::set_aside)), or what a scene file written
+/// from a world cannot hold ([`Written::left_out`](crate::Written::left_out)).
 #[derive(Clone, Debug, PartialEq)]
 pub struct SetAside {
-    /// The entity it is about, by its persistent identity.
+    /// The entity it is about: by its persistent identity in a save and in a file written from a
+    /// world, by its path from the scene's root in a scene file.
     pub entity: String,
     /// The component it is about, if it is about one.
     pub component: Option<String>,

@@ -5,8 +5,8 @@ use glam::{Mat4, Vec3};
 use slime_assets::{AssetId, CookedScene, SceneNode};
 use slime_reflect::{Reflect, Value};
 use slime_world::{
-    Component, Entity, Hidden, Name, PersistentId, SceneError, SceneLibrary, Transform, World,
-    WorldError,
+    Component, Entity, Hidden, Name, PersistentId, SceneError, SceneLibrary, Transform, Unsaved,
+    World, WorldError, Written,
 };
 
 /// A colour.
@@ -36,9 +36,20 @@ struct Aim {
 }
 impl Component for Aim {}
 
+/// A count, and a cache of it that files leave out.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Reflect)]
+#[reflect(name = "test::Counter")]
+struct Counter {
+    count: u32,
+    #[reflect(transient, default)]
+    cached: u32,
+}
+impl Component for Counter {}
+
 const YARD: AssetId = AssetId::from_u128(1);
 const LAMP: AssetId = AssetId::from_u128(2);
 const VILLAGE: AssetId = AssetId::from_u128(3);
+const LEVEL: AssetId = AssetId::from_u128(4);
 const CHAPEL: AssetId = AssetId::from_u128(9);
 
 /// A lamp on a post: its light aims at the post, and its glass is hidden.
@@ -94,6 +105,7 @@ fn world() -> World {
     let mut world = World::new();
     world.register::<Glow>();
     world.register::<Aim>();
+    world.register::<Counter>();
     world
 }
 
@@ -941,7 +953,9 @@ fn a_world_changed_as_an_editor_would_is_written_back_and_spawns_the_same_world(
     assert_eq!(second.text, first.text, "{}", first.text);
     let third = respawned(&mut scenes, &second.text);
     assert_eq!(reread.first_difference(&third), None);
-    // What the editor did holds in the world spawned from the file.
+    // What the editor did holds in the world spawned from the file, whose created entities have
+    // the identities that the file gives them.
+    assert_eq!(edited.len(), reread.len());
     let children = children_of(&reread, "yard");
     assert_eq!(children.len(), 3);
     assert_eq!(children[0], "yard/gate");
@@ -1089,6 +1103,533 @@ fn an_entity_says_which_placement_it_belongs_to_and_whether_it_differs_from_the_
     assert_eq!(differs("yard", "Name"), None);
 }
 
+/// Writes the yard of `world` back, twice, which gives the same bytes, and spawns the file again
+/// among `scenes`: the file, and the world spawned from it.
+fn written_back(world: &mut World, scenes: &mut SceneLibrary) -> (Written, World) {
+    let root = entity(world, "yard");
+    let written = world.write_scene(root).expect("written");
+    assert_eq!(world.write_scene(root).expect("written").text, written.text);
+    let reread = respawned(scenes, &written.text);
+    (written, reread)
+}
+
+/// The entities and components of what a written file left out.
+fn left_out(written: &Written) -> Vec<(&str, Option<&str>)> {
+    written
+        .left_out
+        .iter()
+        .map(|aside| (aside.entity.as_str(), aside.component.as_deref()))
+        .collect()
+}
+
+#[test]
+fn changes_that_the_file_wrote_whose_target_the_world_removed_are_not_written_again() {
+    for removed in ["the component", "the entity", "its ancestor"] {
+        let mut scenes = library(&[(YARD, "yard", YARD_FILE), (LAMP, "lamp", LAMP_FILE)]);
+        let mut edited = world();
+        spawn(&mut edited, &mut scenes, YARD, "yard");
+        let light = entity(&edited, "yard/gate/light");
+        match removed {
+            "the component" => {
+                edited.remove::<Glow>(light);
+            }
+            "the entity" => {
+                edited.despawn(light);
+            }
+            _ => {
+                edited.despawn(entity(&edited, "yard/gate/post"));
+            }
+        }
+        let (written, reread) = written_back(&mut edited, &mut scenes);
+        assert!(
+            !written.text.contains("[changed.\"gate/light\"]"),
+            "{removed}: {}",
+            written.text
+        );
+        assert_eq!(left_out(&written), [], "{removed}");
+        let scene = scenes.resolve(reread.registry(), YARD).expect("resolved");
+        assert_eq!(scene.set_aside(), [], "{removed}");
+        assert_eq!(edited.first_difference(&reread), None, "{removed}");
+    }
+}
+
+#[test]
+fn overrides_that_the_file_wrote_follow_what_the_world_did_since() {
+    let lamp = format!(
+        "{LAMP_FILE}\n[entities.bulb]\nparent = \"post\"\n\n[entities.bulb.components]\n\
+         Light = {{ Point = {{ color = {{ r = 1.0, g = 0.8, b = 0.6, a = 1.0 }}, \
+         intensity = 40.0, range = 8.0 }} }}\n"
+    );
+    // A component added, one removed twice, and a part of a variant that the prefab's bulb does
+    // not hold, set aside.
+    let yard = format!(
+        "{YARD_FILE}\n[added.\"porch/post\".\"test::Glow\"]\nintensity = 5.0\n\
+         tint = {{ r = 0.0, g = 0.0, b = 0.0 }}\n\n[removed.components]\n\
+         \"gate/glass\" = [\"Hidden\"]\n\"shed/glass\" = [\"Hidden\"]\n\n\
+         [changed.\"gate/bulb\".Light.Spot]\nintensity = 10.0\n"
+    );
+    let mut scenes = library(&[(YARD, "yard", &yard), (LAMP, "lamp", &lamp)]);
+    let mut edited = world();
+    let set_aside = scenes
+        .resolve(edited.registry(), YARD)
+        .expect("resolved")
+        .set_aside()
+        .to_vec();
+    spawn(&mut edited, &mut scenes, YARD, "yard");
+    assert_eq!(set_aside.len(), 1, "{set_aside:?}");
+    // The component added is edited, and one removed is given back.
+    edited
+        .set_property(
+            entity(&edited, "yard/porch/post"),
+            "test::Glow",
+            &"intensity".parse().unwrap(),
+            Value::F32(7.0),
+        )
+        .expect("in range");
+    edited.insert(entity(&edited, "yard/gate/glass"), Hidden);
+    let (written, reread) = written_back(&mut edited, &mut scenes);
+    assert_eq!(left_out(&written), []);
+    for kept in [
+        "intensity = 7.0",
+        "\"shed/glass\" = [\"Hidden\"]",
+        "[changed.\"gate/bulb\".Light]\nSpot = { intensity = 10.0 }\n",
+    ] {
+        assert!(written.text.contains(kept), "{kept} in {}", written.text);
+    }
+    assert!(
+        !written.text.contains("\"gate/glass\" = [\"Hidden\"]"),
+        "{}",
+        written.text
+    );
+    assert_eq!(edited.first_difference(&reread), None);
+    let scene = scenes.resolve(reread.registry(), YARD).expect("resolved");
+    assert_eq!(scene.set_aside(), set_aside);
+
+    // The bulb changed since: the part set aside cannot say it, and gives way to the value.
+    let bulb = entity(&edited, "yard/gate/bulb");
+    let Some(Value::Enum(variant, mut fields)) = edited.component_value(bulb, "Light") else {
+        panic!("a light");
+    };
+    for (field, value) in &mut fields {
+        if field == "intensity" {
+            *value = Value::F32(20.0);
+        }
+    }
+    edited
+        .set_component_value(bulb, "Light", Value::Enum(variant, fields))
+        .expect("a light");
+    let (written, reread) = written_back(&mut edited, &mut scenes);
+    assert_eq!(left_out(&written), [("yard/gate/bulb", Some("Light"))]);
+    assert!(
+        written
+            .text
+            .contains("[changed.\"gate/bulb\".Light]\nPoint = { intensity = 20.0 }\n"),
+        "{}",
+        written.text
+    );
+    assert_eq!(edited.first_difference(&reread), None);
+}
+
+#[test]
+fn an_entity_whose_id_a_file_cannot_hold_or_that_another_has_now_is_written_under_another() {
+    // A node of a glTF scene without a name of its own, whose ID, `#1`, a file cannot hold.
+    let node = |name: &str, parent: Option<u32>| SceneNode {
+        name: name.to_owned(),
+        parent,
+        transform: Mat4::from_translation(Vec3::new(0.0, 1.0, 0.0)).to_cols_array(),
+        meshes: vec![AssetId::from_u128(7)],
+        light: None,
+        extras: Vec::new(),
+    };
+    let chapel = CookedScene {
+        name: "chapel".to_owned(),
+        nodes: vec![node("nave", None), node("", Some(0))],
+    };
+    let mut scenes = SceneLibrary::new();
+    scenes.insert_cooked(CHAPEL, chapel);
+    let mut zone = world();
+    let root = spawn(&mut zone, &mut scenes, CHAPEL, "zone");
+    let written = zone.write_scene(root).expect("written");
+    assert_eq!(left_out(&written), [("zone/#1", None)]);
+    scenes.insert_file(LEVEL, "zone", written.text.clone());
+    let mut reread = world();
+    let root = spawn(&mut reread, &mut scenes, LEVEL, "zone");
+    assert_eq!(reread.len(), zone.len());
+    let rewritten = reread.write_scene(root).expect("written");
+    assert_eq!(rewritten.text, written.text);
+    assert_eq!(left_out(&rewritten), []);
+
+    // An entity created outside a scene keeps the ID that it was first written under while that
+    // is free; once the file is spawned again, the entity that the file makes has it.
+    let mut editor = world();
+    let root = editor.spawn();
+    let hook = editor.spawn();
+    editor.insert(hook, Name("hook".to_owned()));
+    editor.set_parent(hook, Some(root)).expect("alive");
+    let first = editor.write_scene(root).expect("written");
+    let mut scenes = library(&[(LEVEL, "level", &first.text)]);
+    let level = spawn(&mut editor, &mut scenes, LEVEL, "level");
+    editor.remove::<Name>(hook);
+    editor.insert(hook, Hidden);
+    editor.set_parent(hook, Some(level)).expect("alive");
+    let written = editor.write_scene(level).expect("written");
+    let mut scenes = library(&[(LEVEL, "level", &written.text)]);
+    let mut reread = world();
+    let level = spawn(&mut reread, &mut scenes, LEVEL, "level");
+    let children: Vec<String> = reread
+        .children(level)
+        .iter()
+        .map(|&child| reread.persistent_id(child).expect("named").to_string())
+        .collect();
+    assert_eq!(children.len(), 2, "{}", written.text);
+    assert!(children[0].starts_with("level/hook-"), "{children:?}");
+    assert!(children[1].starts_with("level/entity-"), "{children:?}");
+}
+
+#[test]
+fn a_rotation_changed_is_written_whole_and_survives_its_prefab_turned() {
+    let mut scenes = library(&[(YARD, "yard", YARD_FILE), (LAMP, "lamp", LAMP_FILE)]);
+    let mut edited = world();
+    spawn(&mut edited, &mut scenes, YARD, "yard");
+    let post = entity(&edited, "yard/gate/post");
+    let mut transform = *edited.get::<Transform>(post).expect("held");
+    transform.rotation = glam::Quat::from_rotation_y(0.5);
+    edited.insert(post, transform);
+    let (written, _) = written_back(&mut edited, &mut scenes);
+    let rotation = transform.rotation;
+    let whole = format!(
+        "[changed.\"gate/post\".Transform]\nrotation = {{ x = 0.0, y = {:?}, z = 0.0, w = {:?} }}\n",
+        rotation.y, rotation.w
+    );
+    assert!(written.text.contains(&whole), "{}", written.text);
+    // The prefab's post turns about X: the file's rotation replaces it, whole.
+    let turned = LAMP_FILE.replace(
+        "Transform = { translation = { x = 0.0, y = 1.0, z = 0.0 } }",
+        "Transform = { translation = { x = 0.0, y = 1.0, z = 0.0 }, \
+         rotation = { x = 0.38268343, y = 0.0, z = 0.0, w = 0.9238795 } }",
+    );
+    scenes.insert_file(LAMP, "lamp", turned);
+    let reread = respawned(&mut scenes, &written.text);
+    let post = reread
+        .get::<Transform>(entity(&reread, "yard/gate/post"))
+        .expect("held");
+    assert_eq!(post.rotation, rotation);
+}
+
+#[test]
+fn what_a_file_cannot_say_of_a_root_or_of_a_placements_entities_is_reported() {
+    let written = |edit: &dyn Fn(&mut World)| {
+        let mut scenes = library(&[(YARD, "yard", YARD_FILE), (LAMP, "lamp", LAMP_FILE)]);
+        let mut edited = world();
+        spawn(&mut edited, &mut scenes, YARD, "yard");
+        edit(&mut edited);
+        edited
+            .write_scene(entity(&edited, "yard"))
+            .expect("written")
+    };
+    let move_last = |world: &mut World, id: &str| {
+        let moved = entity(world, id);
+        let parent = world.parent(moved);
+        world.set_parent(moved, None).expect("alive");
+        world.set_parent(moved, parent).expect("alive");
+    };
+    // The root without what spawning gives it.
+    let without_name = written(&|world| {
+        world.remove::<Name>(entity(world, "yard"));
+    });
+    assert_eq!(left_out(&without_name), [("yard", Some("Name"))]);
+    let without_transform = written(&|world| {
+        world.remove::<Transform>(entity(world, "yard"));
+    });
+    assert_eq!(left_out(&without_transform), [("yard", Some("Transform"))]);
+    // The children of a placement's entity reordered: its light last, an entity created first.
+    let reordered = written(&|world| {
+        let post = entity(world, "yard/gate/post");
+        let hook = world.spawn();
+        world.insert(hook, Name("hook".to_owned()));
+        world.set_parent(hook, Some(post)).expect("alive");
+        move_last(world, "yard/gate/glass");
+        move_last(world, "yard/gate/light");
+    });
+    assert_eq!(left_out(&reordered), [("yard/gate/post", None)]);
+    // A placement's entity moved out, first among the root's children, an entity created under
+    // it: written in its place, with what is under it.
+    let moved = written(&|world| {
+        let root = entity(world, "yard");
+        let light = entity(world, "yard/gate/light");
+        world.set_parent(light, Some(root)).expect("alive");
+        for id in ["yard/porch", "yard/gate", "yard/shed"] {
+            move_last(world, id);
+        }
+        let hook = world.spawn();
+        world.insert(hook, Name("hook".to_owned()));
+        world.set_parent(hook, Some(light)).expect("alive");
+    });
+    assert_eq!(left_out(&moved), [("yard/gate/light", None)]);
+    assert!(
+        moved.text.contains("parent = \"gate/light\""),
+        "{}",
+        moved.text
+    );
+    // Moved out of a place that is removed since: lost, and what the file wrote of it with it.
+    let lost = written(&|world| {
+        let root = entity(world, "yard");
+        world
+            .set_parent(entity(world, "yard/gate/light"), Some(root))
+            .expect("alive");
+        world.despawn(entity(world, "yard/gate/post"));
+    });
+    assert_eq!(left_out(&lost), [("yard/gate/light", None)]);
+    assert!(
+        lost.left_out[0].reason.contains("lost"),
+        "{:?}",
+        lost.left_out
+    );
+    assert!(
+        !lost.text.contains("[changed.\"gate/light\"]"),
+        "{}",
+        lost.text
+    );
+}
+
+#[test]
+fn entities_marked_unsaved_and_transient_fields_are_left_out() {
+    let mut scenes = library(&[(YARD, "yard", YARD_FILE), (LAMP, "lamp", LAMP_FILE)]);
+    let mut edited = world();
+    let root = spawn(&mut edited, &mut scenes, YARD, "yard");
+    // A placement's entity marked Unsaved, changed since: the file keeps what it wrote of it.
+    let light = entity(&edited, "yard/gate/light");
+    edited.insert(light, Unsaved);
+    edited
+        .set_property(
+            light,
+            "test::Glow",
+            &"intensity".parse().unwrap(),
+            Value::F32(3.0),
+        )
+        .expect("in range");
+    // An entity created and marked Unsaved, which a placed value refers to.
+    let helper = edited.spawn();
+    edited.insert(helper, Unsaved);
+    edited.set_parent(helper, Some(root)).expect("alive");
+    edited.insert(entity(&edited, "yard/porch/light"), Aim { at: helper });
+    // A component whose cache files leave out.
+    edited.insert(
+        entity(&edited, "yard/gate/post"),
+        Counter {
+            count: 3,
+            cached: 9,
+        },
+    );
+    let written = edited.write_scene(root).expect("written");
+    assert!(!written.text.contains("Unsaved"), "{}", written.text);
+    for kept in [
+        "[changed.\"gate/light\"]\n\"test::Glow\" = { intensity = 10.0 }\n",
+        "\"test::Counter\" = { count = 3 }",
+        "[changed.\"porch/light\"]\n\"test::Aim\" = { at = \"\" }\n",
+    ] {
+        assert!(written.text.contains(kept), "{kept} in {}", written.text);
+    }
+    assert_eq!(left_out(&written), [("created/1", None)]);
+    assert!(
+        written.left_out[0].reason.contains("Unsaved"),
+        "{:?}",
+        written.left_out
+    );
+}
+
+#[test]
+fn a_placement_made_while_the_world_runs_is_made_whole_or_not_at_all() {
+    // A prefab whose value breaks a rule of its type's check, which resolving leaves to the world.
+    let broken = "[entities.post.components]\nName = \"post\"\n\n[entities.light]\nparent = \"post\"\n\n\
+                  [entities.light.components]\n\
+                  Transform = { rotation = { x = 1.0, y = 1.0, z = 0.0, w = 0.0 } }\n";
+    let mut scenes = library(&[(VILLAGE, "broken", broken), (LAMP, "lamp", LAMP_FILE)]);
+    let mut world = world();
+    let parent = world.spawn();
+    let prefab = scenes.resolve(world.registry(), VILLAGE).expect("resolved");
+    let before = world.len();
+    assert!(matches!(
+        world.spawn_placement(&prefab, Some(parent)),
+        Err(WorldError::RefusedInScene { .. })
+    ));
+    let lamp = scenes.resolve(world.registry(), LAMP).expect("resolved");
+    let mut bare = World::new();
+    assert!(matches!(
+        bare.spawn_placement(&lamp, None),
+        Err(WorldError::UnknownComponent(_))
+    ));
+    assert_eq!(bare.len(), 0);
+    assert_eq!(world.len(), before);
+    assert!(world.children(parent).is_empty());
+    let next = world.spawn();
+    assert_eq!(
+        world.persistent_id(next).map(|id| id.to_string()),
+        Some("created/2".to_owned()),
+        "a placement refused takes no number"
+    );
+    let placed = world.spawn_placement(&lamp, Some(parent)).expect("placed");
+    assert_eq!(
+        world.persistent_id(placed).map(|id| id.to_string()),
+        Some("created/3".to_owned())
+    );
+    assert_eq!(world.parent(placed), Some(parent));
+    assert_eq!(world.get::<Name>(placed), None);
+    let light = entity(&world, "created/3/light");
+    assert_eq!(world.placement_root(light), Some(placed));
+    assert_eq!(world.differs_from_prefab(light, "test::Glow"), Some(false));
+    assert!(world.despawn(placed));
+    assert!(world.find(&"created/3/light".parse().unwrap()).is_none());
+}
+
+#[test]
+fn placements_made_while_the_world_runs_are_written_as_placements_of_their_prefabs() {
+    let mut scenes = library(&[(YARD, "yard", YARD_FILE), (LAMP, "lamp", LAMP_FILE)]);
+    // Another prefab, whose scene is named as the lamp's.
+    scenes.insert_file(VILLAGE, "lamp", LAMP_FILE);
+    let mut edited = world();
+    let root = spawn(&mut edited, &mut scenes, YARD, "yard");
+    let lamp = scenes.resolve(edited.registry(), LAMP).expect("resolved");
+    let other = scenes
+        .resolve(edited.registry(), VILLAGE)
+        .expect("resolved");
+    edited.spawn_placement(&lamp, Some(root)).expect("placed");
+    let named = edited.spawn_placement(&other, Some(root)).expect("placed");
+    edited.insert(named, Name("other".to_owned()));
+    let (written, mut reread) = written_back(&mut edited, &mut scenes);
+    assert_eq!(left_out(&written), []);
+    let children = children_of(&reread, "yard");
+    assert_eq!(children.len(), 5, "{children:?}");
+    let unnamed = children[3].strip_prefix("yard/").expect("in the yard");
+    assert!(unnamed.starts_with("lamp-"), "{children:?}");
+    assert!(children[4].starts_with("yard/other-"), "{children:?}");
+    for kept in [
+        format!("{unnamed} = {{ prefab = \"lamp\" }}"),
+        format!("{unnamed} = [\"Name\"]"),
+        "\"lamp 2\" = { id = \"00000000-0000-0000-0000-000000000003\" }".to_owned(),
+    ] {
+        assert!(written.text.contains(&kept), "{kept} in {}", written.text);
+    }
+    assert_eq!(edited.len(), reread.len());
+    let second = reread
+        .write_scene(entity(&reread, "yard"))
+        .expect("written");
+    assert_eq!(second.text, written.text);
+    let third = respawned(&mut scenes, &second.text);
+    assert_eq!(reread.first_difference(&third), None);
+}
+
+#[test]
+fn a_level_made_from_nothing_is_written_and_spawned_under_its_name() {
+    let mut scenes = library(&[(LAMP, "lamp", LAMP_FILE)]);
+    let mut made = world();
+    let root = made.spawn();
+    made.insert(root, Name("level".to_owned()));
+    let lamp = scenes.resolve(made.registry(), LAMP).expect("resolved");
+    let placed = made.spawn_placement(&lamp, Some(root)).expect("placed");
+    made.insert(placed, Name("lamp".to_owned()));
+    let first = made.write_scene(root).expect("written");
+    assert!(
+        first
+            .text
+            .contains("[root]\ncomponents = { Name = \"level\" }\n"),
+        "{}",
+        first.text
+    );
+    scenes.insert_file(LEVEL, "level", first.text.clone());
+    let mut reread = world();
+    let level = spawn(&mut reread, &mut scenes, LEVEL, "level");
+    // Spawned under its name, the root's name is the one that spawning gives it.
+    let second = reread.write_scene(level).expect("written");
+    assert_eq!(
+        second.text,
+        first
+            .text
+            .replace("[root]\ncomponents = { Name = \"level\" }\n\n", "")
+    );
+    scenes.insert_file(LEVEL, "level", second.text.clone());
+    let mut third = world();
+    let level = spawn(&mut third, &mut scenes, LEVEL, "level");
+    assert_eq!(reread.first_difference(&third), None);
+    assert_eq!(third.write_scene(level).expect("written").text, second.text);
+}
+
+#[test]
+fn nested_placements_edited_two_deep_are_written_back() {
+    let village = format!(
+        "[assets]\nlamp = {{ id = \"{LAMP}\" }}\n\n[entities.square]\nprefab = \"lamp\"\n\n\
+         [entities.well]\nprefab = \"lamp\"\n\n[changed.\"square/light\".\"test::Glow\"]\n\
+         intensity = 20.0\ntint = {{ r = 0.5 }}\n\n[removed]\nentities = [\"well/glass\"]\n"
+    );
+    let yard = format!(
+        "[assets]\nvillage = {{ id = \"{VILLAGE}\" }}\n\n[entities.north]\nprefab = \"village\"\n\n\
+         [entities.south]\nprefab = \"village\"\n\n[changed.\"north/square/light\".\"test::Glow\"]\n\
+         intensity = 30.0\n\n[added.\"south/well/post\"]\n\"test::Aim\" = {{ at = \"north/square/post\" }}\n"
+    );
+    let mut scenes = library(&[
+        (YARD, "yard", &yard),
+        (VILLAGE, "village", &village),
+        (LAMP, "lamp", LAMP_FILE),
+    ]);
+    let mut edited = world();
+    spawn(&mut edited, &mut scenes, YARD, "yard");
+    edited
+        .set_property(
+            entity(&edited, "yard/north/square/light"),
+            "test::Glow",
+            &"tint.b".parse().unwrap(),
+            Value::F32(0.125),
+        )
+        .expect("in range");
+    edited.despawn(entity(&edited, "yard/north/well/light"));
+    edited.insert(
+        entity(&edited, "yard/south/square/glass"),
+        Counter {
+            count: 1,
+            cached: 0,
+        },
+    );
+    edited.remove::<Hidden>(entity(&edited, "yard/north/square/glass"));
+    // A value two deep refers to an entity created under another placement.
+    let hook = edited.spawn();
+    edited.insert(hook, Name("hook".to_owned()));
+    edited
+        .set_parent(hook, Some(entity(&edited, "yard/north/square/post")))
+        .expect("alive");
+    edited.insert(entity(&edited, "yard/south/square/light"), Aim { at: hook });
+    let (written, mut reread) = written_back(&mut edited, &mut scenes);
+    assert_eq!(left_out(&written), []);
+    assert_eq!(edited.len(), reread.len());
+    let glow =
+        Glow::from_value(&value(&reread, "yard/north/square/light", "test::Glow").expect("held"))
+            .expect("a glow");
+    assert_eq!(
+        (glow.intensity, glow.tint.r, glow.tint.b),
+        (30.0, 0.5, 0.125)
+    );
+    assert!(
+        reread
+            .find(&"yard/north/well/light".parse().unwrap())
+            .is_none()
+    );
+    assert!(value(&reread, "yard/south/square/glass", "test::Counter").is_some());
+    assert!(value(&reread, "yard/north/square/glass", "Hidden").is_none());
+    assert!(value(&reread, "yard/south/well/post", "test::Aim").is_some());
+    let aim = reread
+        .get::<Aim>(entity(&reread, "yard/south/square/light"))
+        .expect("held");
+    let target = reread.persistent_id(aim.at).expect("named").to_string();
+    assert!(target.starts_with("yard/hook-"), "{target}");
+    assert_eq!(
+        parent(&reread, &target),
+        Some("yard/north/square/post".to_owned())
+    );
+    let second = reread
+        .write_scene(entity(&reread, "yard"))
+        .expect("written");
+    assert_eq!(second.text, written.text);
+}
+
 /// A prefab of `entities` entities, each a child of the one before, with a name, a transform and
 /// a glow.
 fn chain_prefab(entities: usize) -> String {
@@ -1124,7 +1665,7 @@ fn many_placements(placements: usize) -> String {
 
 #[test]
 #[ignore = "a measurement, run in a release build: cargo test --release -p slime-world -- --ignored --nocapture"]
-fn what_resolving_and_spawning_placements_costs() {
+fn what_resolving_spawning_and_writing_scenes_costs() {
     for (placements, entities) in [(1_000, 10), (1_000, 100)] {
         let mut scenes = library(&[
             (YARD, "yard", &many_placements(placements)),
@@ -1146,5 +1687,24 @@ fn what_resolving_and_spawning_placements_costs() {
             written.text.len()
         );
         assert_eq!(world.len(), placements * (entities + 1) + 1);
+    }
+    for count in [10_000, 80_000] {
+        let mut world = world();
+        let root = world.spawn();
+        for index in 0..count {
+            let entity = world.spawn();
+            world.insert(entity, Name(format!("e{index}")));
+            world.set_parent(entity, Some(root)).expect("alive");
+        }
+        let started = std::time::Instant::now();
+        let first = world.write_scene(root).expect("written");
+        let gave = started.elapsed();
+        let started = std::time::Instant::now();
+        world.write_scene(root).expect("written");
+        eprintln!(
+            "{count} entities created outside scenes: written in {gave:?}, then again in {:?}, {} bytes",
+            started.elapsed(),
+            first.text.len()
+        );
     }
 }

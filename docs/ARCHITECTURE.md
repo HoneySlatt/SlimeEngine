@@ -720,7 +720,8 @@ world.write_scene(root)                             the subtree back as a scene 
 │                                                   IDs that they keep, in the order of a walk
 ├── placements                                      each against its prefab's records, by
 │                                                   identity: what differs, and the overrides
-│                                                   that the scene wrote kept, set aside or not
+│                                                   that the scene wrote, set aside or not, kept
+│                                                   while the world holds their target
 └── Composer, without transient fields or defaults  the same world, the same bytes; what the
                                                     file cannot hold left out, and reported
 ```
