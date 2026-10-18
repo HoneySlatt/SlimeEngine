@@ -24,6 +24,7 @@ pub use error::WorldError;
 pub use identity::{ParsePersistentIdError, PersistentId};
 pub use library::{MAX_ENTITIES, MAX_NESTING, Placement, ResolvedScene, SceneError, SceneLibrary};
 pub use query::{Query, QueryIter, QueryMut};
+pub use scene_file::{OutlineAsset, OutlineEntity, SceneOutline, outline};
 pub use transform::{GlobalTransform, Transform};
 pub use world::{Component, World};
 pub use write_back::Written;

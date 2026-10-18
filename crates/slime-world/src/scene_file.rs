@@ -14,7 +14,7 @@ use crate::components::Name;
 use crate::document::{ADDED, CHANGED, REMOVED, SetAside};
 use crate::library::{
     AssetName, MAX_ENTITIES, NO_RECORD, Overrides, Placement, Record, Resolved, ResolvedScene,
-    SceneError, SceneLibrary, fingerprint,
+    SceneError, SceneFile, SceneLibrary, fingerprint,
 };
 use crate::transform::Transform;
 
@@ -109,21 +109,30 @@ impl References for SceneNames<'_> {
     }
 }
 
-/// Resolves the scene file `text`, the scene `id` named `name`, the prefabs that it places through
-/// `library`, within the scenes being resolved, `chain`.
+/// Resolves the scene file `source`, its text or its binary encoding, the scene `id` named `name`,
+/// the prefabs that it places through `library`, within the scenes being resolved, `chain`.
 pub(crate) fn resolve(
     library: &mut SceneLibrary,
     registry: &Registry,
     id: AssetId,
     name: &str,
-    text: &str,
+    source: &SceneFile,
     chain: &mut Vec<(AssetId, String)>,
 ) -> Result<ResolvedScene, SceneError> {
     let file = |error: ReadError| SceneError::File {
         scene: name.to_owned(),
         error,
     };
-    let mut document = Document::parse(registry, text, Mode::Strict).map_err(file)?;
+    let (mut document, bytes) = match source {
+        SceneFile::Text(text) => (
+            Document::parse(registry, text, Mode::Strict).map_err(file)?,
+            text.as_bytes(),
+        ),
+        SceneFile::Binary(bytes) => (
+            Document::parse_binary(registry, bytes, Mode::Strict).map_err(file)?,
+            bytes.as_slice(),
+        ),
+    };
     let Layout {
         assets,
         table,
@@ -163,11 +172,138 @@ pub(crate) fn resolve(
     };
     scene.components(&mut document, &names).map_err(file)?;
     scene.overrides(&mut document, &names).map_err(file)?;
-    let mut hash = fingerprint(0xcbf2_9ce4_8422_2325, text.as_bytes());
+    let mut hash = fingerprint(0xcbf2_9ce4_8422_2325, bytes);
     for prefab in prefabs.iter().flatten() {
         hash = fingerprint(hash, &prefab.0.fingerprint.to_le_bytes());
     }
     Ok(scene.finish(id, name, hash, table))
+}
+
+/// What a cooker checks of a scene file before it cooks it, read without the types of its values
+/// (`docs/adr/0095-cooked-scene-files.md`): its table of assets and its entities, each with the
+/// line of the text where it is.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SceneOutline {
+    /// The assets of its table, in their order.
+    pub assets: Vec<OutlineAsset>,
+    /// The entities that it makes and its placements, in their order.
+    pub entities: Vec<OutlineEntity>,
+}
+
+/// An asset of a scene file's table, as [`outline`] reads it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OutlineAsset {
+    /// Its short name, which the file's values use.
+    pub name: String,
+    /// Its ID, which decides.
+    pub id: AssetId,
+    /// Where its source was, relative to the scene file's directory, if the table says.
+    pub path: Option<String>,
+    /// The line of its entry, from 1.
+    pub line: usize,
+}
+
+/// An entity of a scene file, or a placement, as [`outline`] reads it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OutlineEntity {
+    /// Its ID in the file.
+    pub id: String,
+    /// What it places, if it is a placement.
+    pub prefab: Option<AssetId>,
+    /// The line of its record, from 1.
+    pub line: usize,
+}
+
+/// Reads the scene file `text`, the scene named `name`, without the types of its values, as a
+/// cooker does before it cooks it: its version, its table of assets, its entities, and what each
+/// places. It refuses what resolving it refuses of those, without the prefabs that it places: a
+/// text that is not TOML or not a scene file's, a key that a scene file does not have, an ID that
+/// an entity cannot have, an asset of the table without an ID or named twice, a prefab that the
+/// table does not name, a placement that holds components, a parent that names no entity of the
+/// file, and entities that would be each other's ancestors. A parent inside a placement, and the
+/// values of components and overrides, are checked when the scene is resolved, with its prefabs
+/// and the game's types ([`SceneLibrary::resolve`]).
+///
+/// # Errors
+///
+/// [`SceneError::File`], where, by line and column.
+pub fn outline(name: &str, text: &str) -> Result<SceneOutline, SceneError> {
+    let file = |error: ReadError| SceneError::File {
+        scene: name.to_owned(),
+        error,
+    };
+    let mut registry = Registry::new();
+    registry.register::<String>();
+    registry.register::<u64>();
+    // Lenient, so that the versions of the game's types, which the cooker does not know, are left
+    // alone: the layout refuses a key that a scene file does not have whatever the mode.
+    let mut document = Document::parse(&registry, text, Mode::Lenient).map_err(file)?;
+    let Layout { table, entries, .. } = layout(&mut document).map_err(file)?;
+    let line = |document: &Document<'_>, place: &[&str]| {
+        document
+            .error_at(place, Problem::Invalid(String::new()))
+            .line_and_column()
+            .map_or(1, |(line, _)| line)
+    };
+    let ids: HashMap<&str, usize> = entries
+        .iter()
+        .enumerate()
+        .map(|(index, entry)| (entry.id.as_str(), index))
+        .collect();
+    // Each entity's parent in the file: the root, or the entity that its parent's path starts with.
+    let mut parents = Vec::with_capacity(entries.len());
+    for entry in &entries {
+        let parent = match entry.parent.as_deref() {
+            None | Some(ROOT_NAME) => None,
+            Some(parent) => {
+                let first = parent.split('/').next().unwrap_or(parent);
+                match ids.get(first) {
+                    Some(&index) => Some(index),
+                    None => {
+                        return Err(file(document.error_at(
+                            &[ENTITIES, entry.id.as_str(), PARENT],
+                            Problem::Invalid(format!("no entity `{parent}` in this scene")),
+                        )));
+                    }
+                }
+            }
+        };
+        parents.push(parent);
+    }
+    for (index, entry) in entries.iter().enumerate() {
+        let mut next = parents[index];
+        for _ in 0..entries.len() {
+            let Some(at) = next else {
+                break;
+            };
+            if at == index {
+                return Err(file(document.error_at(
+                    &[ENTITIES, entry.id.as_str(), PARENT],
+                    Problem::Invalid(format!("`{}` would be its own ancestor", entry.id)),
+                )));
+            }
+            next = parents[at];
+        }
+    }
+    Ok(SceneOutline {
+        assets: table
+            .into_iter()
+            .map(|asset| OutlineAsset {
+                line: line(&document, &[ASSETS, asset.name.as_str()]),
+                name: asset.name,
+                id: asset.id,
+                path: asset.path,
+            })
+            .collect(),
+        entities: entries
+            .into_iter()
+            .map(|entry| OutlineEntity {
+                line: line(&document, &[ENTITIES, entry.id.as_str()]),
+                id: entry.id,
+                prefab: entry.prefab,
+            })
+            .collect(),
+    })
 }
 
 /// Reads the layout of a scene file: its version, its table of assets, and its entities' records,

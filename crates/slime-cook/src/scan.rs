@@ -14,8 +14,9 @@ use crate::ids::new_asset_id;
 use crate::metadata;
 
 /// The extensions of the files that the pipeline imports, its *source files*, compared without
-/// regard to case: glTF scenes, as JSON with external files or as GLB, and PNG and JPEG images.
-pub const SOURCE_EXTENSIONS: [&str; 5] = ["gltf", "glb", "png", "jpg", "jpeg"];
+/// regard to case: glTF scenes, as JSON with external files or as GLB, PNG and JPEG images, and
+/// scene files.
+pub const SOURCE_EXTENSIONS: [&str; 6] = ["gltf", "glb", "png", "jpg", "jpeg", "scene"];
 
 /// The extension of metadata files, which follows the source file's whole name: `rock.png.meta`.
 pub const METADATA_EXTENSION: &str = "meta";

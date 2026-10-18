@@ -12,8 +12,9 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, SystemTime};
 
-use slime_assets::{AssetId, CookedAssets, MANIFEST_FILE, TextureEncoding};
+use slime_assets::{AssetId, AssetKind, CookedAssets, MANIFEST_FILE, TextureEncoding};
 use slime_cook::{CookError, cook, scan};
+use slime_world::{PersistentId, SceneLibrary, World};
 
 /// An empty directory of its own for `name`, under Cargo's directory for temporary files of
 /// integration tests.
@@ -295,4 +296,185 @@ fn two_cooks_at_once_leave_the_cooked_data_whole() {
         .filter(|name| name.ends_with(".part"))
         .collect();
     assert!(leftovers.is_empty(), "{leftovers:?}");
+}
+
+/// The IDs that the tests give their scene files, and an image.
+const LAMP: AssetId = AssetId::from_u128(0x0001);
+const YARD: AssetId = AssetId::from_u128(0x0002);
+const ROCK: AssetId = AssetId::from_u128(0x0003);
+const ELSEWHERE: AssetId = AssetId::from_u128(0x0004);
+
+/// Writes the source `name` of `root` and its metadata file, which gives it `id`.
+fn source(root: &Path, name: &str, id: AssetId, bytes: &[u8]) {
+    fs::create_dir_all(root).expect("the directory can be created");
+    fs::write(root.join(name), bytes).expect("the source is written");
+    fs::write(
+        root.join(format!("{name}.meta")),
+        slime_cook::metadata::write(id),
+    )
+    .expect("the metadata file is written");
+}
+
+/// A lamp, and a yard that places it, whose table gives the lamp the path `path`.
+fn lamp_and_yard(root: &Path, path: &str) {
+    source(
+        root,
+        "lamp.scene",
+        LAMP,
+        b"[entities.post.components]\nName = \"post\"\n",
+    );
+    source(
+        root,
+        "yard.scene",
+        YARD,
+        format!(
+            "[assets]\nlamp = {{ id = \"{LAMP}\", path = \"{path}\" }}\n\n[entities.porch]\n\
+             prefab = \"lamp\"\n"
+        )
+        .as_bytes(),
+    );
+}
+
+#[test]
+fn scene_files_are_cooked_into_their_binary_encoding_and_need_the_assets_of_their_table() {
+    let root = directory("scene-files").join("sources");
+    let output = root.with_file_name("cooked");
+    lamp_and_yard(&root, "lamp.scene");
+    let cooked = cook(&root, &output).expect("cooked");
+    assert!(cooked.warnings.is_empty(), "{:?}", cooked.warnings);
+    let assets = CookedAssets::open(&output).expect("cooked data");
+    let entry = assets.manifest().get(YARD).expect("the yard is listed");
+    assert_eq!(entry.kind, AssetKind::SceneFile);
+    assert_eq!(entry.needs, [LAMP]);
+    assert_eq!(entry.source, "yard.scene");
+    let text = fs::read_to_string(root.join("yard.scene")).expect("the source is read");
+    assert_eq!(
+        assets.scene_file(YARD).expect("read"),
+        slime_serialize::encode(&text).expect("TOML")
+    );
+    // A world spawns them from the cooked data.
+    let mut world = World::new();
+    let mut scenes = SceneLibrary::of(assets);
+    let yard = scenes.resolve(world.registry(), YARD).expect("resolved");
+    world.spawn_scene("yard", &yard).expect("spawned");
+    assert!(
+        world
+            .find(&PersistentId::new(["yard", "porch", "post"]))
+            .is_some()
+    );
+    // Nothing cooked again; a path that is no longer the source's, a warning.
+    assert!(cook(&root, &output).expect("cooked").cooked.is_empty());
+    lamp_and_yard(&root, "old/lamp.scene");
+    let cooked = cook(&root, &output).expect("cooked");
+    assert_eq!(cooked.cooked, [YARD]);
+    assert_eq!(cooked.warnings.len(), 1, "{:?}", cooked.warnings);
+    assert!(
+        cooked.warnings[0].starts_with("yard.scene:2: ")
+            && cooked.warnings[0].contains("`old/lamp.scene`, where its source is `lamp.scene`"),
+        "{:?}",
+        cooked.warnings
+    );
+}
+
+#[test]
+fn scene_files_that_say_something_wrong_are_refused_with_their_file_and_line() {
+    let cases = [
+        (
+            format!("[assets]\nother = {{ id = \"{ELSEWHERE}\" }}\n"),
+            "line 2: the asset `other`",
+            "is not one that the sources make",
+        ),
+        (
+            "[entities.porch]\nprefab = \"lamp\"\n".to_owned(),
+            "line 2",
+            "no asset `lamp` in the table of assets",
+        ),
+        (
+            format!(
+                "[assets]\nrock = {{ id = \"{ROCK}\" }}\n\n[entities.porch]\nprefab = \"rock\"\n"
+            ),
+            "line 4",
+            "places the asset `rock`, a texture, where a scene goes",
+        ),
+        (
+            "[entities.a]\nparent = \"nowhere\"\n".to_owned(),
+            "line 2",
+            "no entity `nowhere` in this scene",
+        ),
+        (
+            "[entities.a]\nparent = \"b\"\n\n[entities.b]\nparent = \"a\"\n".to_owned(),
+            "line 2",
+            "would be its own ancestor",
+        ),
+        ("[entities.porch\n".to_owned(), "line 1", "not TOML"),
+    ];
+    for (index, (yard, line, reason)) in cases.iter().enumerate() {
+        let root = directory(&format!("wrong-{index}")).join("sources");
+        png(&root.join("rock.png"), 4, 4, 3);
+        fs::write(
+            root.join("rock.png.meta"),
+            slime_cook::metadata::write(ROCK),
+        )
+        .expect("the metadata file is written");
+        source(&root, "yard.scene", YARD, yard.as_bytes());
+        let error = cook(&root, &root.with_file_name("cooked")).expect_err(yard);
+        let text = error.to_string();
+        assert!(
+            matches!(error, CookError::Scene { .. })
+                && text.contains("yard.scene")
+                && text.contains(line)
+                && text.contains(reason),
+            "{yard}: {text}"
+        );
+    }
+    // Scene files that place each other.
+    let root = directory("cycle").join("sources");
+    lamp_and_yard(&root, "lamp.scene");
+    source(
+        &root,
+        "lamp.scene",
+        LAMP,
+        format!("[assets]\nyard = {{ id = \"{YARD}\" }}\n\n[entities.back]\nprefab = \"yard\"\n")
+            .as_bytes(),
+    );
+    let error = cook(&root, &root.with_file_name("cooked")).expect_err("a cycle");
+    let text = error.to_string();
+    assert!(
+        text.contains("lamp.scene: line 4: scene files that place each other: lamp.scene → yard.scene → lamp.scene"),
+        "{text}"
+    );
+}
+
+#[test]
+fn a_library_of_cooked_data_reads_again_the_scenes_that_changed_and_those_that_place_them() {
+    let root = directory("reload").join("sources");
+    let output = root.with_file_name("cooked");
+    lamp_and_yard(&root, "lamp.scene");
+    cook(&root, &output).expect("cooked");
+    let open = || CookedAssets::open(&output).expect("cooked data");
+    let mut scenes = SceneLibrary::of(open());
+    let name = |scenes: &mut SceneLibrary| {
+        let mut world = World::new();
+        let yard = scenes.resolve(world.registry(), YARD).expect("resolved");
+        world.spawn_scene("yard", &yard).expect("spawned");
+        let post = world
+            .find(&PersistentId::new(["yard", "porch", "post"]))
+            .expect("the post");
+        world
+            .get::<slime_world::Name>(post)
+            .expect("named")
+            .0
+            .clone()
+    };
+    assert_eq!(name(&mut scenes), "post");
+    assert!(scenes.reload(open()).is_empty(), "nothing changed");
+    source(
+        &root,
+        "lamp.scene",
+        LAMP,
+        b"[entities.post.components]\nName = \"pillar\"\n",
+    );
+    cook(&root, &output).expect("cooked again");
+    assert_eq!(scenes.reload(open()), [LAMP]);
+    assert_eq!(name(&mut scenes), "pillar", "the yard follows its lamp");
 }

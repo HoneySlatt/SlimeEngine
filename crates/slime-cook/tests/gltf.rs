@@ -15,6 +15,7 @@ use slime_cook::gltf_import::{GltfFile, Imported, MAX_FILE_VERTICES, MAX_MESH_VE
 use slime_cook::ids::{SubAssetKind, default_material_id, sub_asset_ids, texture_id};
 use slime_cook::texture::TextureRole;
 use slime_cook::{CookError, Mode, cook, scan};
+use slime_world::{PersistentId, ResolvedScene, World};
 
 /// The ID the tests give their files.
 const FILE: AssetId = AssetId::from_u128(0x6f1c2b3a_0d4e_4f5a_8b6c_7d8e9f0a1b2c);
@@ -899,4 +900,58 @@ fn materials_that_gltf_does_not_allow_are_refused() {
     let mut file = Glb::triangle().with_material(r#"{ "alphaMode": "MASK", "alphaCutoff": 1.5 }"#);
     let imported = file.import().expect("imported");
     assert_eq!(imported.materials[0].1.alpha_cutoff, Some(1.5));
+}
+
+/// How a lamp glows: a component that the tests' nodes carry as a typed property.
+#[derive(Clone, Copy, Debug, PartialEq, slime_reflect::Reflect)]
+#[reflect(name = "test::Glow")]
+struct Glow {
+    #[reflect(range(min = 0.0))]
+    intensity: f32,
+}
+impl slime_world::Component for Glow {}
+
+#[test]
+fn a_typed_property_becomes_its_component_and_a_wrong_one_refuses_the_scene() {
+    let mut file = Glb::triangle();
+    file.json["nodes"][0]["name"] = "lamp".into();
+    file.json["nodes"][0]["extras"] =
+        json(r#"{ "slime:test::Glow": "{ intensity = 40.0 }", "label": "porch" }"#);
+    let imported = file.import().expect("imported");
+    let scene = &imported.scenes[0].1;
+    assert_eq!(
+        scene.nodes[0].extras,
+        [("label".to_owned(), Extra::Text("porch".to_owned()))]
+    );
+    let mut world = World::new();
+    world.register::<Glow>();
+    let resolved = ResolvedScene::from_cooked(FILE, scene, world.registry()).expect("resolved");
+    world.spawn_scene("zone", &resolved).expect("spawned");
+    let lamp = world
+        .find(&PersistentId::new(["zone", "lamp"]))
+        .expect("the lamp");
+    assert_eq!(world.get::<Glow>(lamp), Some(&Glow { intensity: 40.0 }));
+    // A field that the type does not have, and a value out of its range: the scene is refused.
+    for (value, field) in [
+        ("{ intensity = 40.0, colour = 1 }", "colour"),
+        ("{ intensity = -1.0 }", "intensity"),
+    ] {
+        file.json["nodes"][0]["extras"] = json(&format!(r#"{{ "slime:test::Glow": "{value}" }}"#));
+        let imported = file.import().expect("imported");
+        let error = ResolvedScene::from_cooked(FILE, &imported.scenes[0].1, world.registry())
+            .expect_err("refused");
+        let text = error.to_string();
+        assert!(
+            text.contains("node `lamp`") && text.contains("`test::Glow") && text.contains(field),
+            "{text}"
+        );
+    }
+    // A value that is not written in the engine's notation: the import is refused.
+    file.json["nodes"][0]["extras"] = json(r#"{ "slime:test::Glow": "intensity 40" }"#);
+    let refusal = file.refusal();
+    assert!(
+        refusal.contains("lamp's property `slime:test::Glow`")
+            && refusal.contains("engine's notation"),
+        "{refusal}"
+    );
 }

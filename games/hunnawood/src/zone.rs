@@ -360,7 +360,8 @@ impl Zone {
         let root = world
             .spawn_scene(
                 KEY,
-                &ResolvedScene::from_cooked(crate::assets::zone_id(), scene),
+                &ResolvedScene::from_cooked(crate::assets::zone_id(), scene, world.registry())
+                    .map_err(|error| error.to_string())?,
             )
             .map_err(|error| error.to_string())?;
         let zone = Self::prepare(world, root, &scene.name);
@@ -771,7 +772,8 @@ pub mod cooked {
         world
             .spawn_scene(
                 "zone",
-                &ResolvedScene::from_cooked(crate::assets::zone_id(), &scene),
+                &ResolvedScene::from_cooked(crate::assets::zone_id(), &scene, world.registry())
+                    .expect("resolved"),
             )
             .expect("spawned");
         world.update_transforms();
@@ -814,10 +816,12 @@ pub mod cooked {
         let mut resolving: Vec<Duration> = Vec::new();
         let mut spawning: Vec<Duration> = Vec::new();
         for _ in 0..21 {
-            let started = Instant::now();
-            let resolved = ResolvedScene::from_cooked(crate::assets::zone_id(), &scene);
-            resolving.push(started.elapsed());
             let mut world = World::new();
+            let started = Instant::now();
+            let resolved =
+                ResolvedScene::from_cooked(crate::assets::zone_id(), &scene, world.registry())
+                    .expect("resolved");
+            resolving.push(started.elapsed());
             let started = Instant::now();
             world.spawn_scene("zone", &resolved).expect("spawned");
             spawning.push(started.elapsed());
@@ -850,7 +854,8 @@ pub mod cooked {
         world
             .spawn_scene(
                 "zone",
-                &ResolvedScene::from_cooked(crate::assets::zone_id(), &scene),
+                &ResolvedScene::from_cooked(crate::assets::zone_id(), &scene, world.registry())
+                    .expect("resolved"),
             )
             .expect("spawned");
         world.update_transforms();

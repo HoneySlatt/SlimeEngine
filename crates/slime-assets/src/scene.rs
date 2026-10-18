@@ -7,7 +7,7 @@ use crate::error::CookedError;
 
 const MAGIC: &[u8; 4] = b"SLSC";
 /// The version of the format of cooked scenes; a change of format changes it.
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 
 /// A custom value of a node: one of glTF's `extras`, as Blender writes a custom property.
 #[derive(Clone, Debug, PartialEq, slime_reflect::Reflect)]
@@ -65,9 +65,14 @@ pub struct SceneNode {
     pub meshes: Vec<AssetId>,
     /// The light it places, if any.
     pub light: Option<SceneLight>,
-    /// Its custom values, by name, in the order of their names: the engine passes them on without
-    /// reading them, and a game reads its colliders and markers from them.
+    /// Its custom values, by name, in the order of their names, but its typed components: the engine
+    /// passes them on without reading them.
     pub extras: Vec<(String, Extra)>,
+    /// Its typed components, which glTF's `extras` give as `slime:<type name>` properties: the
+    /// engine's binary encoding of a document whose keys are their types' names, as `slime-cook`
+    /// encodes them, which a world reads through its registry when it spawns the scene
+    /// (`docs/adr/0089-scenes-and-prefabs.md`); empty for none.
+    pub components: Vec<u8>,
 }
 
 /// A cooked scene: its nodes, each after its parent.
@@ -118,8 +123,8 @@ impl CookedScene {
     /// The scene's file, which [`CookedScene::from_bytes`] reads back: the format's four bytes,
     /// `SLSC`, and version, then its name and its nodes in order, each its name, its parent (4
     /// bytes, all set for none), its transform, its meshes, its light (a byte, 0 for none, then its
-    /// kind, color, intensity, range and cone) and its extras (each a name, a byte for its type,
-    /// and its value).
+    /// kind, color, intensity, range and cone), its extras (each a name, a byte for its type, and its
+    /// value), and its typed components (their length, then their bytes).
     ///
     /// # Panics
     ///
@@ -183,6 +188,7 @@ impl CookedScene {
                     }
                 }
             }
+            writer.bytes(&node.components);
         }
         writer.finish()
     }
@@ -197,8 +203,8 @@ impl CookedScene {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, CookedError> {
         let mut reader = Reader::open(bytes, MAGIC, VERSION, "scene")?;
         let name = reader.text()?;
-        // A node takes at least 81 bytes.
-        let count = reader.count(81)?;
+        // A node takes at least 85 bytes.
+        let count = reader.count(85)?;
         let mut nodes = Vec::with_capacity(count);
         for index in 0..count {
             let node_name = reader.text()?;
@@ -245,6 +251,7 @@ impl CookedScene {
                 };
                 extras.push((extra_name, extra));
             }
+            let components = reader.bytes()?;
             nodes.push(SceneNode {
                 name: node_name,
                 parent,
@@ -252,6 +259,7 @@ impl CookedScene {
                 meshes,
                 light,
                 extras,
+                components,
             });
         }
         reader.finish()?;
@@ -287,6 +295,7 @@ mod tests {
                         ("collider".to_owned(), Extra::Text("box".to_owned())),
                         ("height".to_owned(), Extra::Number(2.5)),
                     ],
+                    components: vec![0x53, 0x4c, 0x44, 0x42],
                 },
                 SceneNode {
                     name: "lantern".to_owned(),
@@ -303,6 +312,7 @@ mod tests {
                         range: Some(8.0),
                     }),
                     extras: vec![("lit".to_owned(), Extra::Bool(true))],
+                    components: Vec::new(),
                 },
                 SceneNode {
                     name: String::new(),
@@ -316,6 +326,7 @@ mod tests {
                         range: None,
                     }),
                     extras: Vec::new(),
+                    components: Vec::new(),
                 },
             ],
         }

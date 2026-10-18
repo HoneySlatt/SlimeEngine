@@ -677,7 +677,8 @@ fn assert_world_places(scene: &CookedScene) {
     let root = world
         .spawn_scene(
             "scene",
-            &ResolvedScene::from_cooked(AssetId::from_u128(1), scene),
+            &ResolvedScene::from_cooked(AssetId::from_u128(1), scene, world.registry())
+                .expect("resolved"),
         )
         .expect("spawned");
     world.update_transforms();

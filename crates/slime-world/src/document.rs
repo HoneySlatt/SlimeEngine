@@ -1305,7 +1305,8 @@ mod tests {
 
     /// `scene` resolved, as a game resolves a glTF scene that it spawns alone.
     fn resolved(scene: &CookedScene) -> ResolvedScene {
-        ResolvedScene::from_cooked(AssetId::from_u128(1), scene)
+        ResolvedScene::from_cooked(AssetId::from_u128(1), scene, World::new().registry())
+            .expect("a scene of the engine's components")
     }
 
     fn node(name: &str, parent: Option<u32>, at: [f32; 3]) -> SceneNode {
@@ -1316,6 +1317,7 @@ mod tests {
             meshes: vec![AssetId::from_u128(7)],
             light: None,
             extras: Vec::new(),
+            components: Vec::new(),
         }
     }
 

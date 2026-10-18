@@ -1069,6 +1069,7 @@ mod tests {
                 meshes: vec![id],
                 light: None,
                 extras: Vec::new(),
+                components: Vec::new(),
             });
         }
         let cooked = CookedScene {

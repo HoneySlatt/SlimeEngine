@@ -2038,6 +2038,7 @@ dependencies = [
  "slime-color",
  "slime-reflect",
  "slime-serialize",
+ "slime-world",
  "thiserror 2.0.21",
  "uuid",
  "zune-jpeg",

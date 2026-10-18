@@ -61,6 +61,12 @@ impl Writer {
         self.bytes.extend_from_slice(text.as_bytes());
     }
 
+    /// Bytes, after their length.
+    pub(crate) fn bytes(&mut self, bytes: &[u8]) {
+        self.count(bytes.len());
+        self.bytes.extend_from_slice(bytes);
+    }
+
     pub(crate) fn finish(self) -> Vec<u8> {
         self.bytes
     }
@@ -165,6 +171,12 @@ impl<'a> Reader<'a> {
         let length = self.count(1)?;
         let bytes = self.take(length)?;
         String::from_utf8(bytes.to_vec()).map_err(|_| self.malformed("a text is not UTF-8"))
+    }
+
+    /// Bytes, after their length.
+    pub(crate) fn bytes(&mut self) -> Result<Vec<u8>, CookedError> {
+        let length = self.count(1)?;
+        Ok(self.take(length)?.to_vec())
     }
 
     /// `count` values of `N` floats each.

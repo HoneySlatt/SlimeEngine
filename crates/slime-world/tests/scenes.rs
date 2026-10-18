@@ -398,6 +398,7 @@ fn a_gltf_scene_placed_as_a_prefab_gives_what_spawning_it_alone_gives() {
         meshes: vec![AssetId::from_u128(7)],
         light: None,
         extras: Vec::new(),
+        components: Vec::new(),
     };
     let mut door = node("door", Some(0), Vec3::new(0.0, 0.0, 10.5));
     door.light = Some(slime_assets::SceneLight {
@@ -1240,6 +1241,7 @@ fn an_entity_whose_id_a_file_cannot_hold_or_that_another_has_now_is_written_unde
         meshes: vec![AssetId::from_u128(7)],
         light: None,
         extras: Vec::new(),
+        components: Vec::new(),
     };
     let chapel = CookedScene {
         name: "chapel".to_owned(),

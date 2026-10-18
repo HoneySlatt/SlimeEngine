@@ -63,6 +63,10 @@ pub const MAX_FILE_VERTICES: usize = 16 * 1024 * 1024;
 /// The most indices all the meshes of one file take together, 256 MiB of them.
 pub const MAX_FILE_INDICES: usize = 64 * 1024 * 1024;
 
+/// What starts the name of a node's custom property that holds one of its typed components, before
+/// the name of the component's type: `slime:hunnawood::Collider`.
+pub const TYPED_PROPERTY: &str = "slime:";
+
 /// The extensions the importer reads; the `gltf` crate is built with their features.
 const READ_EXTENSIONS: [&str; 2] = ["KHR_lights_punctual", "KHR_materials_emissive_strength"];
 
@@ -767,6 +771,8 @@ impl GltfFile {
                     node.index()
                 ));
             }
+            let (extras, typed) = extras(&node, warnings);
+            let components = components(&named(node.name(), "node", node.index()), &typed)?;
             let index = u32::try_from(nodes.len()).expect("fewer than 4 billion nodes");
             nodes.push(SceneNode {
                 name: node.name().unwrap_or_default().to_owned(),
@@ -780,7 +786,8 @@ impl GltfFile {
                     .light()
                     .map(|light| read_light(&light, node.index()))
                     .transpose()?,
-                extras: extras(&node, warnings),
+                extras,
+                components,
             });
             // Reversed on the stack, so that the first child and its descendants come next.
             let children = stack.len();
@@ -1232,25 +1239,29 @@ fn read_light(
     })
 }
 
-/// The custom values of `node`, its `extras`: an object of booleans, numbers and texts, by name.
-/// Other values are left out, with a warning.
-fn extras(node: &gltf::Node<'_>, warnings: &mut Vec<String>) -> Vec<(String, Extra)> {
+/// Custom values of a node, by name.
+type Extras = Vec<(String, Extra)>;
+
+/// The custom values of `node`, its `extras`: an object of booleans, numbers and texts, by name;
+/// then, apart, those whose names start with [`TYPED_PROPERTY`]. Other values are left out, with a
+/// warning.
+fn extras(node: &gltf::Node<'_>, warnings: &mut Vec<String>) -> (Extras, Extras) {
     let Some(raw) = node.extras() else {
-        return Vec::new();
+        return (Vec::new(), Vec::new());
     };
     let label = named(node.name(), "node", node.index());
     let value: gltf::json::Value = match gltf::json::deserialize::from_str(raw.get()) {
         Ok(value) => value,
         Err(error) => {
             warnings.push(format!("{label}'s extras cannot be read: {error}"));
-            return Vec::new();
+            return (Vec::new(), Vec::new());
         }
     };
     let gltf::json::Value::Object(object) = value else {
         warnings.push(format!(
             "{label}'s extras are not an object of named values: left out"
         ));
-        return Vec::new();
+        return (Vec::new(), Vec::new());
     };
     let mut extras = Vec::new();
     for (name, value) in object {
@@ -1271,6 +1282,48 @@ fn extras(node: &gltf::Node<'_>, warnings: &mut Vec<String>) -> Vec<(String, Ext
         extras.push((name, extra));
     }
     extras
+        .into_iter()
+        .partition(|(name, _)| !name.starts_with(TYPED_PROPERTY))
+}
+
+/// The typed components of the node `label`, its properties `typed` named [`TYPED_PROPERTY`] and a
+/// type's name, each a value in the engine's notation, as a scene file writes a component's:
+/// the binary encoding of the document that holds them by their types' names, which a world reads
+/// through its registry; empty for none. A boolean or a number is that value.
+///
+/// # Errors
+///
+/// A property without a type's name, or whose value is not one in the engine's notation, which
+/// `slime_serialize` reads: the node, the property and why.
+fn components(label: &str, typed: &[(String, Extra)]) -> Result<Vec<u8>, ImportError> {
+    if typed.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut text = String::new();
+    for (name, value) in typed {
+        let ty = &name[TYPED_PROPERTY.len()..];
+        if ty.is_empty() {
+            return refuse(format!(
+                "{label}'s property `{name}` names no type after `{TYPED_PROPERTY}`"
+            ));
+        }
+        let value = match value {
+            Extra::Text(text) => text.clone(),
+            Extra::Bool(value) => value.to_string(),
+            Extra::Number(value) => format!("{value:?}"),
+        };
+        let key = ty.replace('\\', "\\\\").replace('"', "\\\"");
+        // Each checked alone, so that an error names its property.
+        let line = format!("\"{key}\" = {value}\n");
+        if let Err(error) = slime_serialize::encode(&line) {
+            return refuse(format!(
+                "{label}'s property `{name}` is not a value in the engine's notation: {error}"
+            ));
+        }
+        text.push_str(&line);
+    }
+    slime_serialize::encode(&text)
+        .map_err(|error| ImportError(format!("{label}'s typed components: {error}")))
 }
 
 #[cfg(test)]

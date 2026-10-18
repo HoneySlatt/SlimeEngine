@@ -79,6 +79,7 @@ fn cooked(name: &str, light_scale: Vec3) -> PathBuf {
         meshes,
         light,
         extras: Vec::new(),
+        components: Vec::new(),
     };
     let scene = CookedScene {
         name: "squares".to_owned(),
@@ -243,6 +244,7 @@ fn palette(name: &str, width: u32) -> (PathBuf, AssetId) {
             meshes: vec![id(mesh, index)],
             light: None,
             extras: Vec::new(),
+            components: Vec::new(),
         });
     }
     let cooked = CookedScene {

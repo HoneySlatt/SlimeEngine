@@ -11,6 +11,8 @@ use std::time::{Duration, SystemTime};
 
 use slime_assets::{AssetId, AssetKind, MANIFEST_FILE, Manifest, ManifestEntry};
 
+use slime_world::{SceneError, SceneOutline};
+
 use crate::gltf_import::{GltfFile, ImportError, lexical};
 use crate::ids::texture_id;
 use crate::image::{self, ImageError, ImageKind};
@@ -24,7 +26,14 @@ pub const TEXTURE_COOKER_VERSION: u32 = 1;
 
 /// The version of what the cooker makes of a glTF file: raised whenever the same file would give
 /// other meshes, materials or scenes, so that every glTF file is imported again.
-pub const GLTF_COOKER_VERSION: u32 = 1;
+pub const GLTF_COOKER_VERSION: u32 = 2;
+
+/// The version of what the cooker makes of a scene file: raised whenever the same file would give
+/// other bytes, so that every scene file is cooked again.
+pub const SCENE_FILE_COOKER_VERSION: u32 = 1;
+
+/// The extension of scene files (`docs/adr/0089-scenes-and-prefabs.md`).
+pub const SCENE_EXTENSION: &str = "scene";
 
 /// What a cook did.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -72,6 +81,15 @@ pub enum CookError {
         path: PathBuf,
         /// Why.
         source: ImportError,
+    },
+    /// A scene file cannot be cooked: it says something wrong, names an asset that the sources do
+    /// not make, places what is not a scene, or places scene files that place it; where, by its line.
+    #[error("{}: {reason}", path.display())]
+    Scene {
+        /// The scene file.
+        path: PathBuf,
+        /// What is wrong, and where.
+        reason: String,
     },
 }
 
@@ -136,8 +154,11 @@ pub fn cook(sources: &Path, output: &Path) -> Result<Cooked, CookError> {
     let mut manifest = Manifest::new();
     // The roles the glTF files' materials read each image file in.
     let mut requests: HashMap<AssetId, Vec<TextureRole>> = HashMap::new();
+    let scene_files = read_scene_files(&scan.sources, sources)?;
     for source in &scan.sources {
-        if ImageKind::from_extension(extension(&source.path)).is_some() {
+        if ImageKind::from_extension(extension(&source.path)).is_some()
+            || extension(&source.path).eq_ignore_ascii_case(SCENE_EXTENSION)
+        {
             continue;
         }
         let record = cook_gltf(source, sources, output, &image_ids, &mut result)?;
@@ -177,6 +198,7 @@ pub fn cook(sources: &Path, output: &Path) -> Result<Cooked, CookError> {
             );
         }
     }
+    scene_files.cook(sources, output, &mut manifest, &mut result)?;
     let path = output.join(MANIFEST_FILE);
     let bytes = manifest.to_bytes();
     if fs::read(&path).ok().as_deref() != Some(bytes.as_slice()) {
@@ -504,4 +526,201 @@ fn write(path: &Path, bytes: &[u8]) -> Result<(), CookError> {
     };
     fs::write(&temporary, bytes).map_err(io)?;
     fs::rename(&temporary, path).map_err(io)
+}
+
+/// A step of a walk of the placements of scene files: a file, the files that it places with the
+/// lines of those placements, and how many of them the walk took.
+type Step = (AssetId, Vec<(AssetId, usize)>, usize);
+
+/// The scene files of a cook, by their IDs: their paths and texts, and what checking them read.
+struct SceneFiles<'s> {
+    files: Vec<(&'s Source, String, SceneOutline)>,
+}
+
+/// Reads and checks the scene files among `sources`, inside `root`: each one's layout, without the
+/// types of its values ([`slime_world::outline`]).
+fn read_scene_files<'s>(sources: &'s [Source], root: &Path) -> Result<SceneFiles<'s>, CookError> {
+    let mut files = Vec::new();
+    for source in sources
+        .iter()
+        .filter(|source| extension(&source.path).eq_ignore_ascii_case(SCENE_EXTENSION))
+    {
+        let bytes = read(&source.path)?;
+        let text = String::from_utf8(bytes).map_err(|_| CookError::Scene {
+            path: source.path.clone(),
+            reason: "not UTF-8 text".to_owned(),
+        })?;
+        let name = relative(root, &source.path);
+        let outline = slime_world::outline(&name, &text).map_err(|error| CookError::Scene {
+            path: source.path.clone(),
+            reason: match error {
+                SceneError::File { error, .. } => error.to_string(),
+                error => error.to_string(),
+            },
+        })?;
+        files.push((source, text, outline));
+    }
+    Ok(SceneFiles { files })
+}
+
+impl SceneFiles<'_> {
+    /// Checks each scene file against what the cook makes, `manifest`, and the other scene files:
+    /// each asset of its table one that the cook makes, each prefab a scene, no scene files that
+    /// place each other; then encodes each, and adds it to `manifest`. The path that a table gives
+    /// an asset, which differs from its source's, is a warning.
+    fn cook(
+        &self,
+        root: &Path,
+        output: &Path,
+        manifest: &mut Manifest,
+        result: &mut Cooked,
+    ) -> Result<(), CookError> {
+        let ours: HashMap<AssetId, &(&Source, String, SceneOutline)> =
+            self.files.iter().map(|file| (file.0.id, file)).collect();
+        let refuse = |source: &Source, line: usize, reason: String| CookError::Scene {
+            path: source.path.clone(),
+            reason: format!("line {line}: {reason}"),
+        };
+        for (source, _, outline) in &self.files {
+            let directory = source.path.parent().unwrap_or(root);
+            for asset in &outline.assets {
+                let (kind, actual) = match (manifest.get(asset.id), ours.get(&asset.id)) {
+                    (Some(entry), _) => (entry.kind, entry.source.clone()),
+                    (None, Some(file)) => (AssetKind::SceneFile, relative(root, &file.0.path)),
+                    (None, None) => {
+                        return Err(refuse(
+                            source,
+                            asset.line,
+                            format!(
+                                "the asset `{}`, {}, is not one that the sources make",
+                                asset.name, asset.id
+                            ),
+                        ));
+                    }
+                };
+                if let Some(path) = &asset.path {
+                    let given = relative(&lexical(root), &lexical(&directory.join(path)));
+                    if given != actual {
+                        result.warnings.push(format!(
+                            "{}:{}: the table gives the asset `{}` the path `{path}`, where its \
+                             source is `{actual}`",
+                            relative(root, &source.path),
+                            asset.line,
+                            asset.name
+                        ));
+                    }
+                }
+                for entity in outline
+                    .entities
+                    .iter()
+                    .filter(|entity| entity.prefab == Some(asset.id))
+                {
+                    if !matches!(kind, AssetKind::Scene | AssetKind::SceneFile) {
+                        return Err(refuse(
+                            source,
+                            entity.line,
+                            format!(
+                                "`{}` places the asset `{}`, a {kind}, where a scene goes",
+                                entity.id, asset.name
+                            ),
+                        ));
+                    }
+                }
+            }
+        }
+        self.refuse_cycles(&ours, root)?;
+        for (source, text, outline) in &self.files {
+            let bytes = slime_serialize::encode(text).map_err(|error| CookError::Scene {
+                path: source.path.clone(),
+                reason: error.to_string(),
+            })?;
+            let mut hasher = blake3::Hasher::new();
+            hasher.update(b"scene file");
+            hasher.update(&SCENE_FILE_COOKER_VERSION.to_le_bytes());
+            hasher.update(&source.id.as_u128().to_le_bytes());
+            hasher.update(&bytes);
+            let file = format!("{}.scenefile", hasher.finalize().to_hex());
+            let path = output.join(&file);
+            if fs::metadata(&path).is_ok() {
+                result.reused.push(source.id);
+            } else {
+                write(&path, &bytes)?;
+                result.cooked.push(source.id);
+            }
+            let mut needs: Vec<AssetId> = Vec::new();
+            for asset in &outline.assets {
+                if !needs.contains(&asset.id) {
+                    needs.push(asset.id);
+                }
+            }
+            manifest.insert(
+                source.id,
+                ManifestEntry {
+                    kind: AssetKind::SceneFile,
+                    file,
+                    size: bytes.len() as u64,
+                    needs,
+                    source: relative(root, &source.path),
+                },
+            );
+        }
+        Ok(())
+    }
+
+    /// Refuses scene files that place each other, through their prefabs: where a walk of the
+    /// placements from the first file, in their order, first meets a file that it went through, at
+    /// the line of the placement that the cycle takes from that file.
+    fn refuse_cycles(
+        &self,
+        ours: &HashMap<AssetId, &(&Source, String, SceneOutline)>,
+        root: &Path,
+    ) -> Result<(), CookError> {
+        // The placements of a file that place another file: each prefab, and the line.
+        let placements = |id: AssetId| -> Vec<(AssetId, usize)> {
+            ours[&id]
+                .2
+                .entities
+                .iter()
+                .filter_map(|entity| Some((entity.prefab?, entity.line)))
+                .filter(|(prefab, _)| ours.contains_key(prefab))
+                .collect()
+        };
+        // Files whose walk ended, and those that the walk goes through.
+        let mut done: Vec<AssetId> = Vec::new();
+        for (source, _, _) in &self.files {
+            if done.contains(&source.id) {
+                continue;
+            }
+            // Each file the walk goes through, its placements, and how many it took.
+            let mut walk: Vec<Step> = vec![(source.id, placements(source.id), 0)];
+            while let Some(top) = walk.len().checked_sub(1) {
+                let Some(&(prefab, _)) = walk[top].1.get(walk[top].2) else {
+                    done.push(walk[top].0);
+                    walk.pop();
+                    continue;
+                };
+                walk[top].2 += 1;
+                if let Some(start) = walk.iter().position(|(id, _, _)| *id == prefab) {
+                    let (first, taken, count) = &walk[start];
+                    let line = taken[count - 1].1;
+                    let names: Vec<String> = walk[start..]
+                        .iter()
+                        .map(|(id, _, _)| relative(root, &ours[id].0.path))
+                        .chain(std::iter::once(relative(root, &ours[&prefab].0.path)))
+                        .collect();
+                    return Err(CookError::Scene {
+                        path: ours[first].0.path.clone(),
+                        reason: format!(
+                            "line {line}: scene files that place each other: {}",
+                            names.join(" → ")
+                        ),
+                    });
+                }
+                if !done.contains(&prefab) {
+                    walk.push((prefab, placements(prefab), 0));
+                }
+            }
+        }
+        Ok(())
+    }
 }

@@ -46,7 +46,10 @@ fn world() -> World {
     let scene = sample().scene(SCENE).expect("the sample's scene is read");
     let mut world = World::new();
     world
-        .spawn_scene("sample", &ResolvedScene::from_cooked(SCENE, &scene))
+        .spawn_scene(
+            "sample",
+            &ResolvedScene::from_cooked(SCENE, &scene, world.registry()).expect("resolved"),
+        )
         .expect("spawned");
     let sun = entity(&world, "sun");
     if let Some(slime_world::Light::Directional { in_sky, .. }) =

@@ -156,7 +156,8 @@ impl Game {
         let zone = Zone::spawn(world, zone)?;
         let hero = match world.spawn_scene(
             HERO,
-            &ResolvedScene::from_cooked(crate::assets::hero_id(), hero),
+            &ResolvedScene::from_cooked(crate::assets::hero_id(), hero, world.registry())
+                .map_err(|error| error.to_string())?,
         ) {
             Ok(hero) => hero,
             Err(error) => {
@@ -226,7 +227,8 @@ impl Game {
         self.hero = world
             .spawn_scene(
                 HERO,
-                &ResolvedScene::from_cooked(crate::assets::hero_id(), scene),
+                &ResolvedScene::from_cooked(crate::assets::hero_id(), scene, world.registry())
+                    .expect("the hero was resolved when the game started"),
             )
             .expect("the identities of the hero before went with it");
         if let Some(placed) = placed {
@@ -477,6 +479,7 @@ pub mod tests {
                 .iter()
                 .map(|(name, extra)| ((*name).to_owned(), extra.clone()))
                 .collect(),
+            components: Vec::new(),
         }
     }
 

@@ -25,8 +25,11 @@ pub enum AssetKind {
     Mesh,
     /// A material ([`CookedMaterial`](crate::CookedMaterial)).
     Material,
-    /// A scene ([`CookedScene`](crate::CookedScene)).
+    /// A scene of a glTF file ([`CookedScene`](crate::CookedScene)).
     Scene,
+    /// A scene file, in the engine's binary encoding of documents, which a world reads
+    /// (`docs/adr/0095-cooked-scene-files.md`).
+    SceneFile,
 }
 
 impl AssetKind {
@@ -37,6 +40,7 @@ impl AssetKind {
             Self::Mesh => 2,
             Self::Material => 3,
             Self::Scene => 4,
+            Self::SceneFile => 5,
         }
     }
 
@@ -46,6 +50,7 @@ impl AssetKind {
             2 => Some(Self::Mesh),
             3 => Some(Self::Material),
             4 => Some(Self::Scene),
+            5 => Some(Self::SceneFile),
             _ => None,
         }
     }
@@ -57,6 +62,7 @@ impl AssetKind {
             Self::Mesh => "mesh",
             Self::Material => "material",
             Self::Scene => "scene",
+            Self::SceneFile => "scene file",
         }
     }
 }

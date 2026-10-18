@@ -6,9 +6,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use glam::{DAffine3, Mat4};
-use slime_assets::{AssetId, CookedScene};
-use slime_reflect::{Reflect, Registry, Value};
-use slime_serialize::ReadError;
+use slime_assets::{AssetId, AssetKind, CookedAssets, CookedScene, LoadError};
+use slime_reflect::{Problem, Reflect, Registry, Value};
+use slime_serialize::{Document, Mode, ReadError};
 
 use crate::components::{Extras, Light, Meshes, Name};
 use crate::document::SetAside;
@@ -63,14 +63,23 @@ pub(crate) const NO_RECORD: u64 = u64::MAX;
 pub struct SceneLibrary {
     sources: HashMap<AssetId, Source>,
     resolved: HashMap<AssetId, ResolvedScene>,
+    /// The cooked data whose scenes it reads when they are first resolved, if it reads some.
+    assets: Option<CookedAssets>,
 }
 
-/// A scene as a game gives it to a library.
+/// A scene as a library holds it.
 enum Source {
     /// A glTF scene, as the cooker makes it.
     Cooked(CookedScene),
-    /// A scene file's text, and the scene's name, for messages.
-    File { name: String, text: String },
+    /// A scene file, and the scene's name, for messages.
+    File { name: String, file: SceneFile },
+}
+
+/// A scene file's document: its text, or its binary encoding, as the cooker writes it.
+#[derive(Clone)]
+pub(crate) enum SceneFile {
+    Text(String),
+    Binary(Vec<u8>),
 }
 
 impl std::fmt::Debug for SceneLibrary {
@@ -86,6 +95,62 @@ impl SceneLibrary {
     /// A library that holds no scene.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// A library of the scenes of `assets`, the cooked data of a game: glTF scenes and scene files,
+    /// each read from its cooked file when it is first resolved
+    /// (`docs/adr/0095-cooked-scene-files.md`). A scene inserted by hand stands for one of the same
+    /// ID in `assets`, until a reload changes it.
+    pub fn of(assets: CookedAssets) -> Self {
+        Self {
+            assets: Some(assets),
+            ..Self::default()
+        }
+    }
+
+    /// Takes `assets` in place of the cooked data that the library reads, as a game does when the
+    /// cooked data changes on disk (`docs/adr/0076-hot-reload-of-cooked-data.md`), and returns the
+    /// IDs of the scenes whose cooked files changed, or that the new data no longer has, in the
+    /// order of the IDs. Those are read again when next resolved, and every scene is resolved again,
+    /// so that a scene that places a prefab that changed follows it. A game compares the
+    /// fingerprints of the scenes that it spawned with those resolved now to know which changed.
+    pub fn reload(&mut self, assets: CookedAssets) -> Vec<AssetId> {
+        let file = |assets: &CookedAssets, id| {
+            assets
+                .manifest()
+                .get(id)
+                .filter(|entry| matches!(entry.kind, AssetKind::Scene | AssetKind::SceneFile))
+                .map(|entry| entry.file.clone())
+        };
+        let changed: Vec<AssetId> = match &self.assets {
+            Some(old) => {
+                let scenes = |assets: &CookedAssets| {
+                    assets
+                        .manifest()
+                        .iter()
+                        .filter(|(_, entry)| {
+                            matches!(entry.kind, AssetKind::Scene | AssetKind::SceneFile)
+                        })
+                        .map(|(id, _)| id)
+                        .collect::<Vec<_>>()
+                };
+                let mut ids = scenes(old);
+                ids.extend(scenes(&assets));
+                ids.sort();
+                ids.dedup();
+                ids.retain(|&id| file(old, id) != file(&assets, id));
+                ids
+            }
+            None => Vec::new(),
+        };
+        for id in &changed {
+            self.sources.remove(id);
+        }
+        if !changed.is_empty() {
+            self.resolved.clear();
+        }
+        self.assets = Some(assets);
+        changed
     }
 
     /// Holds `scene`, a glTF scene as the cooker makes it, under its asset ID, in place of the scene
@@ -110,7 +175,7 @@ impl SceneLibrary {
             id,
             Source::File {
                 name: name.into(),
-                text: text.into(),
+                file: SceneFile::Text(text.into()),
             },
         );
     }
@@ -157,6 +222,11 @@ impl SceneLibrary {
             }
             return Ok(resolved.clone());
         }
+        if !self.sources.contains_key(&id)
+            && let Some(source) = self.read(id)?
+        {
+            self.sources.insert(id, source);
+        }
         let source = self.sources.get(&id).ok_or_else(|| SceneError::Missing {
             id,
             placed_by: chain.last().map(|(_, name)| name.clone()),
@@ -171,20 +241,48 @@ impl SceneLibrary {
         if chain.len() == MAX_NESTING {
             return Err(SceneError::TooDeep(names(chain, &name)));
         }
-        let text = match source {
+        let file = match source {
             Source::Cooked(scene) => {
-                let resolved = ResolvedScene::from_cooked(id, scene);
+                let resolved = ResolvedScene::from_cooked(id, scene, registry)?;
                 self.resolved.insert(id, resolved.clone());
                 return Ok(resolved);
             }
-            Source::File { text, .. } => text.clone(),
+            Source::File { file, .. } => file.clone(),
         };
         chain.push((id, name.clone()));
-        let resolved = scene_file::resolve(self, registry, id, &name, &text, chain);
+        let resolved = scene_file::resolve(self, registry, id, &name, &file, chain);
         chain.pop();
         let resolved = resolved?;
         self.resolved.insert(id, resolved.clone());
         Ok(resolved)
+    }
+}
+
+impl SceneLibrary {
+    /// The scene `id` of the cooked data that the library reads, if it lists one by that ID.
+    ///
+    /// # Errors
+    ///
+    /// [`SceneError::Load`] if its cooked file cannot be read, or is not a scene's.
+    fn read(&self, id: AssetId) -> Result<Option<Source>, SceneError> {
+        let Some(assets) = &self.assets else {
+            return Ok(None);
+        };
+        let Some(entry) = assets.manifest().get(id) else {
+            return Ok(None);
+        };
+        let load = |error| SceneError::Load { id, error };
+        match entry.kind {
+            AssetKind::SceneFile => Ok(Some(Source::File {
+                name: std::path::Path::new(&entry.source).file_stem().map_or_else(
+                    || entry.source.clone(),
+                    |stem| stem.to_string_lossy().into_owned(),
+                ),
+                file: SceneFile::Binary(assets.scene_file(id).map_err(load)?),
+            })),
+            // Another kind than a scene's is refused as reading it as a glTF scene refuses it.
+            _ => Ok(Some(Source::Cooked(assets.scene(id).map_err(load)?))),
+        }
     }
 }
 
@@ -318,11 +416,25 @@ impl ResolvedScene {
     /// which a node turned under a node scaled unevenly gets, is dropped: its rotation keeps the
     /// direction of its first axis that is not flattened, and the others are made square to it.
     ///
+    /// A node's typed components, which its `slime:<type name>` properties give
+    /// (`docs/adr/0089-scenes-and-prefabs.md`), are read through `registry`, a world's, strictly, as
+    /// a scene file's components are.
+    ///
+    /// # Errors
+    ///
+    /// [`SceneError::Node`] if a typed component is of a type that `registry` does not hold, has a
+    /// value that its type refuses, or is one that the node gives already, its transform, name,
+    /// meshes, light or extras: the node, and the type and the field in the error's path.
+    ///
     /// # Panics
     ///
     /// If a node's parent does not come before it, which a scene read from cooked data never has
     /// (`CookedScene::from_bytes` refuses it).
-    pub fn from_cooked(id: AssetId, scene: &CookedScene) -> Self {
+    pub fn from_cooked(
+        id: AssetId,
+        scene: &CookedScene,
+        registry: &Registry,
+    ) -> Result<Self, SceneError> {
         check_order(scene);
         let mut has_children = vec![false; scene.nodes.len()];
         for node in &scene.nodes {
@@ -384,6 +496,15 @@ impl ResolvedScene {
             if !node.extras.is_empty() {
                 components.push(("Extras".to_owned(), Extras(node.extras.clone()).to_value()));
             }
+            if !node.components.is_empty() {
+                typed(registry, &node.components, &mut components).map_err(|error| {
+                    SceneError::Node {
+                        scene: scene.name.clone(),
+                        node: locals[index].clone(),
+                        error,
+                    }
+                })?;
+            }
             records.push(Record {
                 path: vec![locals[index].clone()],
                 parent: Some(node.parent.map_or(0, |parent| parent + 1)),
@@ -391,7 +512,7 @@ impl ResolvedScene {
                 placement: None,
             });
         }
-        Self(Arc::new(Resolved {
+        Ok(Self(Arc::new(Resolved {
             id,
             name: scene.name.clone(),
             fingerprint: fingerprint(0xcbf2_9ce4_8422_2325, &scene.to_bytes()),
@@ -399,7 +520,7 @@ impl ResolvedScene {
             records,
             set_aside: Vec::new(),
             assets: Vec::new(),
-        }))
+        })))
     }
 
     /// The scene's asset ID.
@@ -429,6 +550,38 @@ impl ResolvedScene {
     pub fn set_aside(&self) -> &[SetAside] {
         &self.0.set_aside
     }
+}
+
+/// Reads `bytes`, a node's typed components in the binary encoding of a document whose keys are
+/// their types' names, through `registry`, into `components`, by their types' names.
+///
+/// # Errors
+///
+/// A document that is not one, a type that `registry` does not hold, a value that its type refuses,
+/// or a component that `components` holds already.
+fn typed(
+    registry: &Registry,
+    bytes: &[u8],
+    components: &mut Vec<(String, Value)>,
+) -> Result<(), ReadError> {
+    let mut document = Document::parse_binary(registry, bytes, Mode::Strict)?;
+    for key in document.keys(&[]) {
+        let Some(value) = document.read(&[&key], &key, None)? else {
+            continue;
+        };
+        let name = registry.get(&key).map_or_else(
+            || key.clone(),
+            |registration| registration.info().name.clone(),
+        );
+        if components.iter().any(|(held, _)| *held == name) {
+            return Err(document.error_at(
+                &[&key],
+                Problem::Invalid(format!("the node gives its `{name}` already")),
+            ));
+        }
+        components.push((name, value));
+    }
+    Ok(())
 }
 
 /// Folds `bytes` into the FNV-1a hash `hash`, from `0xcbf2_9ce4_8422_2325`: a fingerprint of a
@@ -511,5 +664,28 @@ pub enum SceneError {
     TooLarge {
         /// The scene, by its name.
         scene: String,
+    },
+    /// A typed component of a glTF scene's node that the registry does not hold, or whose value its
+    /// type refuses (`docs/adr/0089-scenes-and-prefabs.md`): the scene, the node, and why, the type
+    /// and the field in the error's path.
+    #[error("scene `{scene}`, node `{node}`: {error}")]
+    Node {
+        /// The scene, by its name.
+        scene: String,
+        /// The node, by its name, or its index, `#12`, when it has none.
+        node: String,
+        /// What is wrong, and where.
+        #[source]
+        error: ReadError,
+    },
+    /// A scene that the cooked data that the library reads lists, but whose file cannot be read, or
+    /// is not a scene's.
+    #[error("the scene {id} cannot be read")]
+    Load {
+        /// The scene's asset ID.
+        id: AssetId,
+        /// Why.
+        #[source]
+        error: LoadError,
     },
 }

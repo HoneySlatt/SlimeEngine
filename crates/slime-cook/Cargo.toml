@@ -22,6 +22,8 @@ slime-color.workspace = true
 # Metadata files are read and written through the engine's serialization (ADR-0086).
 slime-reflect.workspace = true
 slime-serialize.workspace = true
+# Scene files are checked through the world, which reads them, before they are cooked (ADR-0089).
+slime-world.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
 zune-jpeg.workspace = true

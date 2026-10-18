@@ -94,6 +94,16 @@ impl CookedAssets {
         CookedScene::from_bytes(&bytes).map_err(|source| LoadError::Cooked { path, source })
     }
 
+    /// Reads the scene file `id`: its document in the engine's binary encoding, which a world reads
+    /// through its registry (`slime_world::SceneLibrary`).
+    ///
+    /// # Errors
+    ///
+    /// As [`CookedAssets::texture`], for a scene file, but for its bytes, which the world checks.
+    pub fn scene_file(&self, id: AssetId) -> Result<Vec<u8>, LoadError> {
+        self.file(id, AssetKind::SceneFile).map(|(_, bytes)| bytes)
+    }
+
     /// The path and the bytes of the cooked file of the asset `id`, which must be of `kind`.
     fn file(&self, id: AssetId, kind: AssetKind) -> Result<(PathBuf, Vec<u8>), LoadError> {
         let entry = self.manifest.get(id).ok_or_else(|| LoadError::NotCooked {

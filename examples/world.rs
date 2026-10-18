@@ -163,7 +163,10 @@ fn start(world: &mut World, assets: &CookedAssets) -> Result<(), AppError> {
     if let Some(root) = world.find(&PersistentId::new([KEY])) {
         world.despawn(root);
     }
-    world.spawn_scene(KEY, &ResolvedScene::from_cooked(SCENE, &scene))?;
+    world.spawn_scene(
+        KEY,
+        &ResolvedScene::from_cooked(SCENE, &scene, world.registry())?,
+    )?;
     let mut sun = false;
     world.query_mut::<&mut Light>(|_, light| {
         if let Light::Directional { in_sky, .. } = light {
