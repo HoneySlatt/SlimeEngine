@@ -36,9 +36,10 @@ sections. A save without it is of layout 1, as 0.3 wrote it, and is read as it w
 later layout is refused, at its line. A scene file names its layout by the same key.
 
 **What the world spawned while it ran is a section of its own, by its root.** `spawned` is keyed by
-the persistent identity of each root: a key that the start world did not spawn, or
-`created/<number>` for a placement made while the world ran. Each entry gives its scene's asset ID,
-which decides, its name, for messages, and its fingerprint, which covers its prefabs:
+the persistent identity of each root: a key under which the start world spawned no scene, or another
+scene, as when a run changes level, or `created/<number>` for a placement made while the world ran.
+Each entry gives its scene's asset ID, which decides, its name, for messages, and its fingerprint,
+which covers its prefabs:
 
 ```toml
 layout = 2
@@ -64,7 +65,9 @@ entities = ["created/1/glass"]
 parent = ["created/1/post"]
 ```
 
-`scenes` now holds the scenes that the start world spawned, which loading compares, as before. An
+`scenes` now holds the scenes that the start world spawned and that the world still has under their
+keys, which loading compares, as before. A scene is the same when its asset ID is: what changed of
+its content is what its fingerprint says. An
 entry of `spawned` is written while an entity of it is saved: a placement whose entities all hold
 `Unsaved`, or are under one that does, is not written.
 
@@ -77,23 +80,32 @@ go in the sections that hold the start world's: entities removed, parents, compo
 added and changed. A placement's root is spawned at the world's root, and its parent is a
 difference like any other.
 
-**Loading spawns them first, through a scene library.** `World::load(text, &mut SceneLibrary)`
-spawns each entry of `spawned` before the entities that the save creates and before any value is
-read, so that a reference can name its entities:
+**Loading reads all that can refuse the save first, then spawns, through a scene library.**
+`World::load(text, &mut SceneLibrary)` reads first, before the world changes, all that can refuse
+the save: its layout, the identities of what it spawns and of the entities that it creates, its
+count, its scenes, what it removes and the parents. Then it spawns each entry of `spawned`, before
+the entities that the save creates and before any value is read, so that a reference can name its
+entities. What comes after can only be set aside: a refused save leaves the world as it was, with
+nothing to undo.
 
 - **How it spawns.** Each scene is resolved as the library gives it now, under the identity that it
   had. A placement goes under its number, and the world's count stays above it.
-- **What refuses the save.** A number that the world gives already refuses the whole save, and so
-  does an identity that no world gives, as they do for the entities that a save creates.
+- **What refuses the save.** A number that the world gives already, or that the save gives twice,
+  refuses the whole save, and so does an identity that no world gives, as they do for the entities
+  that a save creates.
 - **What is set aside.** A scene that the library cannot give or resolve is set aside and reported
   with its reason. So is one whose values its types refuse. Its entities' differences are set aside
   with it, as their entities are missing. An entity that the save creates under one of its entities
   is left out of that parent, as ADR-0087 does.
-- **A key that the world spawned already**, because the start world now spawns that scene itself,
-  is set aside too. Its entities take the save's differences.
+- **A key under which the world spawned the same scene already**, because the start world now
+  spawns it itself, is set aside too. Its entities take the save's differences.
+- **A key under which the world spawned another scene**, as when a run changed level, has that
+  scene destroyed first, with what is under it. The save removes its entities, and nothing is
+  reported of them.
+- **How much it spawns.** A save spawns at most `MAX_ENTITIES` entities so, as a scene holds at
+  most as many. The scenes past it are set aside: a short save cannot make loading spawn without
+  end.
 - **What is named.** The scenes whose fingerprint changed since are named, these roots included.
-- **On an error.** If the save is refused later, what was spawned is destroyed again, as the
-  entities that it created are.
 
 **The world keeps a placement's prefab while an entity of it lives.** The world keeps the prefabs
 of the placements made while it runs, by their numbers. A save then still writes a placement whose
@@ -132,6 +144,9 @@ the measurements ([ADR-0053](0053-one-home-per-fact.md)).
   but a second way to resolve scenes beside the engine's library.
 - **The save parsed twice**, once to spawn the scenes and once for the rest: spawning simpler, but
   parsing is half of what loading costs.
+- **What was spawned destroyed again when the save is refused later**: the reading as it was, but a
+  scene destroyed to make room for another under its key could not be brought back as the game
+  made it.
 - **A save refused when it spawns under a key that the start world spawns now**: a game update that
   moves a scene into the start world would end every run saved before.
 

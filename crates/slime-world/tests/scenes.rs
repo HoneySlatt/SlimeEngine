@@ -1792,7 +1792,12 @@ fn a_prefab_fixed_after_a_save_reaches_what_the_run_spawned_but_what_the_run_cha
 #[test]
 fn what_a_run_spawned_from_a_scene_that_the_game_no_longer_has_is_set_aside() {
     let mut scenes = yard_lamp_and_village();
-    let played = run(&mut scenes);
+    let mut played = run(&mut scenes);
+    // A village placed as a prefab too, which goes with it.
+    let village = scenes
+        .resolve(played.registry(), VILLAGE)
+        .expect("resolved");
+    played.spawn_placement(&village, None).expect("placed");
     let save = played
         .save(&yard(&mut scenes), &Default::default())
         .expect("saved");
@@ -1802,6 +1807,7 @@ fn what_a_run_spawned_from_a_scene_that_the_game_no_longer_has_is_set_aside() {
     assert!(loaded.find(&"village".parse().unwrap()).is_none());
     for (entity, component) in [
         ("village", None),
+        ("created/3", None),
         ("village/square/post", Some("Hidden")),
         ("village/well/light", Some("test::Aim")),
         ("created/2", Some("test::Aim")),
@@ -1895,11 +1901,14 @@ fn saves_of_what_a_run_spawned_cut_or_changed_at_every_character_are_refused_or_
         .save(&yard(&mut scenes), &Default::default())
         .expect("saved");
     for (at, _) in save.char_indices() {
-        let mut loaded = yard(&mut scenes);
-        let _ = loaded.load(&save[..at], &mut scenes);
         let changed = format!("{}#{}", &save[..at], &save[at + 1..]);
-        let mut loaded = yard(&mut scenes);
-        let _ = loaded.load(&changed, &mut scenes);
+        for text in [&save[..at], &changed] {
+            let mut loaded = yard(&mut scenes);
+            if loaded.load(text, &mut scenes).is_err() {
+                assert_eq!(loaded.first_difference(&yard(&mut scenes)), None, "{text}");
+                assert_eq!(loaded.len(), yard(&mut scenes).len(), "{text}");
+            }
+        }
     }
 }
 
@@ -1932,6 +1941,86 @@ fn a_save_that_spawns_under_an_identity_in_use_is_refused_or_set_aside() {
         ["village"]
     );
     assert!(value(&spawning, "village/square/post", "Hidden").is_some());
+}
+
+#[test]
+fn a_run_that_spawns_another_scene_under_a_key_of_its_start_saves_and_loads_it() {
+    let mut scenes = yard_lamp_and_village();
+    let start = |scenes: &mut SceneLibrary| {
+        let mut world = yard(scenes);
+        spawn(&mut world, scenes, LAMP, "level");
+        world
+    };
+    // The run changes level: the lamp under `level` gives way to the village.
+    let mut played = start(&mut scenes);
+    played.despawn(entity(&played, "level"));
+    let village = scenes
+        .resolve(played.registry(), VILLAGE)
+        .expect("resolved");
+    played.spawn_scene("level", &village).expect("spawned");
+    played.insert(entity(&played, "level/square/post"), Hidden);
+    let save = played
+        .save(&start(&mut scenes), &Default::default())
+        .expect("saved");
+    assert!(
+        save.contains(&format!("level = {{ scene = \"{VILLAGE}\"")),
+        "{save}"
+    );
+    let mut loaded = start(&mut scenes);
+    let report = loaded.load(&save, &mut scenes).expect("loaded");
+    assert!(report.set_aside.is_empty(), "{:?}", report.set_aside);
+    assert_eq!(played.first_difference(&loaded), None, "{save}");
+    assert_eq!(
+        loaded
+            .save(&start(&mut scenes), &Default::default())
+            .expect("saved again"),
+        save
+    );
+}
+
+#[test]
+fn a_reference_to_an_entity_of_what_a_run_spawned_destroyed_since_saves_the_same_bytes_again() {
+    let mut scenes = yard_lamp_and_village();
+    let mut played = yard(&mut scenes);
+    let lamp = scenes.resolve(played.registry(), LAMP).expect("resolved");
+    played.spawn_placement(&lamp, None).expect("placed");
+    // The light, which aims at the post, moved out, then the post destroyed.
+    played
+        .set_parent(entity(&played, "created/1/light"), None)
+        .expect("alive");
+    played.despawn(entity(&played, "created/1/post"));
+    let save = played
+        .save(&yard(&mut scenes), &Default::default())
+        .expect("saved");
+    let mut loaded = yard(&mut scenes);
+    let report = loaded.load(&save, &mut scenes).expect("loaded");
+    assert!(report.set_aside.is_empty(), "{:?}", report.set_aside);
+    assert_eq!(played.first_difference(&loaded), None, "{save}");
+    assert_eq!(
+        loaded
+            .save(&yard(&mut scenes), &Default::default())
+            .expect("saved again"),
+        save
+    );
+}
+
+#[test]
+fn what_a_run_spawned_under_an_entity_marked_unsaved_is_left_out_whatever_the_order_of_the_file() {
+    // The child before its parent, which holds Unsaved.
+    const ODD: AssetId = AssetId::from_u128(10);
+    let mut scenes = yard_lamp_and_village();
+    scenes.insert_file(
+        ODD,
+        "odd",
+        "[entities.a]\nparent = \"z\"\n\n[entities.z.components]\nUnsaved = {}\n",
+    );
+    let mut played = yard(&mut scenes);
+    spawn(&mut played, &mut scenes, ODD, "odd");
+    played.despawn(entity(&played, "odd/a"));
+    let save = played
+        .save(&yard(&mut scenes), &Default::default())
+        .expect("saved");
+    assert!(!save.contains("odd/a"), "{save}");
 }
 
 /// A prefab of `entities` entities, each a child of the one before, with a name, a transform and

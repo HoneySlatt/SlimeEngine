@@ -13,13 +13,12 @@ use slime_serialize::{Composer, Document, Mode, ReadError, References};
 
 use crate::components::Unsaved;
 use crate::entity::Entity;
-use crate::error::WorldError;
 use crate::identity::{CREATED as CREATED_KEY, PersistentId};
-use crate::library::{ResolvedScene, SceneLibrary};
-use crate::scene::storages_of;
-use crate::scene_file::LAYOUT;
+use crate::library::{MAX_ENTITIES, ResolvedScene, SceneLibrary};
+use crate::scene::{record_ids, storages_of};
+use crate::scene_file::{LAYOUT, for_each_entity};
 use crate::world::{Identity, World};
-use crate::write_back::expected;
+use crate::write_back::{expected, handle_bits};
 
 /// What the game says of the save: its keys and texts.
 const ABOUT: &str = "about";
@@ -55,16 +54,21 @@ pub enum DocumentError {
     /// The save cannot be read: it is not TOML, is of a later version, or is not a save.
     #[error("the save cannot be read")]
     Read(#[source] ReadError),
-    /// The save creates an entity under an identity that is not one of an entity created outside a
-    /// scene, `created/<number>`, the number written without a sign or a leading zero and at most
-    /// `i64::MAX`.
+    /// The save creates an entity, or places a placement made while the world ran, under an identity
+    /// that is not one of an entity created outside a scene, `created/<number>`, the number written
+    /// without a sign or a leading zero and at most `i64::MAX`.
     #[error(
-        "the save creates `{0}`, which is not the identity of an entity created outside a scene"
+        "the save creates or places `{0}`, which is not the identity of an entity created outside \
+         a scene"
     )]
     NotCreated(String),
-    /// The save creates an entity under an identity that an entity of the world has: the game made
-    /// more entities at the start of its run than when the save was made.
-    #[error("the save creates `{0}`, an identity that an entity of the world has already")]
+    /// The save creates an entity, or places a placement made while the world ran, under an identity
+    /// that an entity of the world has, or that it gives twice: the game made more entities at the
+    /// start of its run than when the save was made.
+    #[error(
+        "the save creates or places `{0}`, an identity that an entity of the world, or of the save, \
+         has already"
+    )]
     IdentityInUse(PersistentId),
     /// The entity cannot be the root of a scene file written from the world: it is not alive, or it
     /// is a placement or an entity of one, which the scene that places it writes.
@@ -167,15 +171,15 @@ impl World {
     /// are left out, as are the fields marked transient: an entity of `start` that the world leaves
     /// out is not removed, and loading the save keeps it as `start` has it, out of its parent if the
     /// save removes that. A reference to an entity is its persistent identity, and a reference to an
-    /// entity destroyed or left out is `""`, no entity. The save also holds the scenes that the world
+    /// entity destroyed or left out is `""`, no entity. The save also holds the scenes that `start`
     /// spawned, so that loading it says which changed since, and the count of the entities created
     /// outside scenes. Its first section, after the versions of the types past version 1 if it holds
     /// some, is `about`, what the game says of it, keys and texts that the engine does not read, such
     /// as what the run was made on, which [`World::about`] reads without loading the save; none for
     /// an empty `about`.
     ///
-    /// What the world spawned while it ran, a scene under a key that `start` did not spawn
-    /// ([`World::spawn_scene`]) or a placement made while it ran ([`World::spawn_placement`]), is
+    /// What the world spawned while it ran, a scene under a key under which `start` spawned no scene
+    /// or another one ([`World::spawn_scene`]), or a placement made while it ran ([`World::spawn_placement`]), is
     /// written as its scene, by its asset ID and fingerprint, while an entity of it is saved: its
     /// entities are compared with what the scene spawns, as those of `start` are with `start`, and
     /// loading spawns the scene as it is then, under the same identity, before it applies the rest.
@@ -216,14 +220,14 @@ impl World {
         for (key, scene) in self
             .scenes
             .iter()
-            .filter(|(key, _)| start.scenes.contains_key(*key))
+            .filter(|(key, _)| self.spawned_as_at_start(start, key))
         {
             put(
                 &[SCENES, key, "name"],
                 "String",
                 Value::Text(scene.name.clone()),
             )?;
-            let content = Value::Text(format!("{:016x}", scene.content));
+            let content = Value::Text(content_text(scene.content));
             put(&[SCENES, key, "content"], "String", content)?;
         }
         let spawned = self.spawned_while_running(start, &now);
@@ -240,7 +244,7 @@ impl World {
                 "String",
                 Value::Text(scene.name.clone()),
             )?;
-            let content = Value::Text(format!("{:016x}", scene.fingerprint));
+            let content = Value::Text(content_text(scene.fingerprint));
             put(&[SPAWNED, &key, "content"], "String", content)?;
         }
         // What each entity is compared with: the start's entity of its identity, saved or not, or
@@ -319,6 +323,12 @@ impl World {
                         let Some(value) = self.component_value(entity, name) else {
                             continue;
                         };
+                        // A record gives no entity for one of its scene destroyed since: the world's
+                        // value compared the same way, as the save writes both `""`.
+                        let value = match old {
+                            Before::Spawned(..) => to_no_entity(value, &names),
+                            Before::Start(_) => value,
+                        };
                         match old.value(start, name) {
                             None => save.put(&[ADDED, &key, name], name, &value),
                             Some(was) => {
@@ -354,8 +364,10 @@ impl World {
     /// component's type refuses, is set aside, and the rest applied; so is a reference to an entity
     /// that the world no longer has, which refers to no entity then, a parent that the world does
     /// not have, and a scene spawned while the world ran that `scenes` cannot give, that the world
-    /// spawned already, or whose values its types refuse. The scenes that changed since the save,
-    /// those spawned while the world ran included, are named. The saves of 0.3, of layout 1, which
+    /// spawned already, whose values its types refuse, or that would bring the entities that the save
+    /// spawns so past [`MAX_ENTITIES`]. A scene spawned under a key under which the world spawned
+    /// another destroys that one first, with what is under it, as when a run changed level. The
+    /// scenes that changed since the save, those spawned while the world ran included, are named. The saves of 0.3, of layout 1, which
     /// hold nothing spawned while the world ran, are read as they were. Loading entities created
     /// costs about two and a half times as much as saving them, half of it parsing the text: 0.54 s
     /// for the 10 000 entities of [`World::save`]'s measure, which gives what placements cost too.
@@ -363,10 +375,16 @@ impl World {
     /// # Errors
     ///
     /// [`DocumentError::Read`] if the save is not one: not TOML, of a later version of the format,
-    /// of its layout or of a type, too large; [`DocumentError::NotCreated`] if it creates an entity,
-    /// or spawns a placement, under an identity that a world does not give to the entities it
-    /// creates; [`DocumentError::IdentityInUse`] if it creates one under an identity that an entity
-    /// of the world has. The world is unchanged then.
+    /// of its layout or of a type, too large, or with a section that is not what a save holds;
+    /// [`DocumentError::NotCreated`] if it creates an entity, or places a placement, under an
+    /// identity that a world does not give to the entities it creates;
+    /// [`DocumentError::IdentityInUse`] if it creates or places one under an identity that an entity
+    /// of the world has, or twice. All of it is read before the world changes, which is unchanged
+    /// then.
+    ///
+    /// # Panics
+    ///
+    /// If the world runs out of slots ([`World::spawn`]).
     pub fn load(&mut self, text: &str, scenes: &mut SceneLibrary) -> Result<Loaded, DocumentError> {
         // Set apart while the save is read, so that the entities that it creates are spawned while
         // the document, which reads through the registry, is open: the save is parsed once.
@@ -396,6 +414,10 @@ impl World {
     /// # Errors
     ///
     /// As [`World::save`] and [`World::load`]: nothing is carried then.
+    ///
+    /// # Panics
+    ///
+    /// As [`World::load`].
     pub fn carry(
         &self,
         old_start: &World,
@@ -522,14 +544,32 @@ impl World {
         None
     }
 
-    /// Spawns what the world that made the save `document` spawned while it ran, and the entities that
-    /// the save creates, then reads the rest of it; the world as it was if the save cannot be read.
+    /// Reads the save `document`: first all that can refuse it, the world untouched; then spawns
+    /// what the world that made it spawned while it ran, and the entities that it creates, so that
+    /// the components' values read last, which can only be set aside, can refer to them.
     fn read(
         &mut self,
         registry: &Registry,
         document: &mut Document<'_>,
         scenes: &mut SceneLibrary,
     ) -> Result<(Save, Loaded), DocumentError> {
+        let mut loaded = Loaded::default();
+        let (mut save, plan) = self.read_layout(document, &mut loaded)?;
+        // Nothing refuses the save from here on: the world changes.
+        self.spawn_what_ran(registry, scenes, plan.spawned, &mut save, &mut loaded);
+        self.create(&plan.created);
+        self.read_values(document, &mut save, &mut loaded);
+        Ok((save, loaded))
+    }
+
+    /// Reads all that refuses the save `document` if it is wrong, without changing the world: its
+    /// layout, what the world that made it spawned while it ran, the numbers of the entities that it
+    /// creates, its count, its scenes, the entities and components that it removes, and the parents.
+    fn read_layout(
+        &self,
+        document: &mut Document<'_>,
+        loaded: &mut Loaded,
+    ) -> Result<(Save, Plan), DocumentError> {
         if let Some(Value::UInt(layout)) = document
             .read(&[LAYOUT], "u64", None)
             .map_err(DocumentError::Read)?
@@ -543,185 +583,45 @@ impl World {
                 )),
             )));
         }
-        let mut loaded = Loaded::default();
-        let next_created = self.next_created;
-        // Spawned and created first, so that the values read next can refer to their entities.
-        let undone = |world: &mut World, roots: Vec<Spawning>, created: Vec<Entity>| {
-            for entity in created {
-                world.despawn(entity);
-            }
-            for root in roots {
-                world.despawn(root.entity);
-                match root.identity {
-                    SpawningAs::Key(key) => {
-                        world.scenes.remove(&key);
-                    }
-                    SpawningAs::Placement(number) => {
-                        world.placements.remove(&number);
-                    }
-                }
-            }
-            // Numbers from the count's again, larger than every number held.
-            world.created.forget_destroyed(&world.entities);
-            world.next_created = next_created;
-        };
-        let roots = self.spawn_what_ran(registry, document, scenes, &mut loaded)?;
-        let created = match self.create(document) {
-            Ok(created) => created,
-            Err(error) => {
-                undone(self, roots, Vec::new());
-                return Err(error);
-            }
-        };
-        match self.read_save(document, &mut loaded) {
-            Ok(save) => Ok((save, loaded)),
-            Err(error) => {
-                undone(self, roots, created);
-                Err(error)
-            }
-        }
-    }
-
-    /// Spawns what the world that made the save `document` spawned while it ran, each scene as
-    /// `scenes` resolves it now with the types of `registry`, the world's, under the identity that
-    /// it had, and returns their roots; sets aside those that cannot be spawned, and names those
-    /// whose scene changed since.
-    fn spawn_what_ran(
-        &mut self,
-        registry: &Registry,
-        document: &mut Document<'_>,
-        scenes: &mut SceneLibrary,
-        loaded: &mut Loaded,
-    ) -> Result<Vec<Spawning>, DocumentError> {
-        let mut roots = Vec::new();
-        let mut numbered = Vec::new();
-        let aside = |loaded: &mut Loaded, entity: &str, reason: String| {
-            loaded.set_aside.push(SetAside {
-                entity: entity.to_owned(),
-                component: None,
-                reason,
-            });
-        };
-        for key in document.keys(&[SPAWNED]) {
-            let mut text =
-                |field: &str| match document.read(&[SPAWNED, &key, field], "String", None) {
-                    Ok(Some(Value::Text(text))) => Ok(text),
-                    Ok(_) => Ok(String::new()),
-                    Err(error) => Err(DocumentError::Read(error)),
-                };
-            let (asset, name, content) = (text("scene")?, text("name")?, text("content")?);
-            let number = key
-                .parse::<PersistentId>()
-                .ok()
-                .filter(|id| id.parts().first().map(String::as_str) == Some(CREATED_KEY));
-            let identity = match number {
-                Some(id) => {
-                    let number = id
-                        .created_number()
-                        .filter(|&number| number <= LARGEST_CREATED)
-                        .ok_or_else(|| DocumentError::NotCreated(key.clone()))?;
-                    if self.created.find(number, &self.entities).is_some()
-                        || numbered.iter().any(|&(held, _)| held == number)
-                    {
-                        return Err(DocumentError::IdentityInUse(id));
-                    }
-                    SpawningAs::Placement(number)
-                }
-                None => SpawningAs::Key(key.clone()),
-            };
-            let Ok(asset_id) = asset.parse::<AssetId>() else {
-                aside(
-                    loaded,
-                    &key,
-                    format!("`{asset}` names no scene by its asset ID: not spawned"),
-                );
-                continue;
-            };
-            let scene = match scenes.resolve(registry, asset_id) {
-                Ok(scene) => scene,
-                Err(error) => {
-                    aside(
-                        loaded,
-                        &key,
-                        format!(
-                            "the scene `{name}` cannot be spawned, with what was under it: {error}"
-                        ),
-                    );
-                    continue;
-                }
-            };
-            let spawned = storages_of(registry, &self.component_ids, &scene).and_then(|storages| {
-                match &identity {
-                    SpawningAs::Key(key) if self.scenes.contains_key(key) => {
-                        Err(WorldError::IdentityInUse(PersistentId::new([key.as_str()])))
-                    }
-                    SpawningAs::Key(key) => self.spawn_keyed(key, &scene, &storages),
-                    SpawningAs::Placement(number) => self.place(&scene, *number, &storages),
-                }
-            });
-            match spawned {
-                Ok(entity) => {
-                    if let SpawningAs::Placement(number) = identity {
-                        numbered.push((number, entity));
-                        self.next_created = self.next_created.max(number + 1);
-                    }
-                    roots.push(Spawning { entity, identity });
-                    if format!("{:016x}", scene.0.fingerprint) != content {
-                        loaded.scenes_changed.push(key);
-                    }
-                }
-                Err(error) => aside(
-                    loaded,
-                    &key,
-                    format!(
-                        "the scene `{name}` cannot be spawned, with what was under it: {error}"
-                    ),
-                ),
-            }
-        }
-        self.created.extend(numbered);
-        Ok(roots)
-    }
-
-    /// Spawns the entities that the save `document` creates, under their identities, and returns
-    /// them.
-    fn create(&mut self, document: &Document<'_>) -> Result<Vec<Entity>, DocumentError> {
-        let keys = document.keys(&[CREATED]);
-        let mut numbers = Vec::new();
-        for key in keys {
-            let number = key
-                .parse::<PersistentId>()
-                .ok()
+        let mut plan = Plan::default();
+        // The numbers that the save gives, each once, none that the world gives already.
+        let mut numbers = HashSet::new();
+        let mut number = |key: &str, id: Option<PersistentId>| {
+            let number = id
                 .and_then(|id| id.created_number())
                 .filter(|&number| number <= LARGEST_CREATED)
-                .ok_or_else(|| DocumentError::NotCreated(key.clone()))?;
-            if self.created.find(number, &self.entities).is_some() {
+                .ok_or_else(|| DocumentError::NotCreated(key.to_owned()))?;
+            if self.created.find(number, &self.entities).is_some() || !numbers.insert(number) {
                 return Err(DocumentError::IdentityInUse(PersistentId::created(number)));
             }
-            numbers.push(number);
+            Ok(number)
+        };
+        for key in document.keys(&[SPAWNED]) {
+            let id = key.parse::<PersistentId>().ok();
+            let identity = match id {
+                Some(id) if id.parts().first().map(String::as_str) == Some(CREATED_KEY) => {
+                    SpawningAs::Placement(number(&key, Some(id))?)
+                }
+                _ => SpawningAs::Key(key.clone()),
+            };
+            let mut text = |field: &str| match document
+                .read(&[SPAWNED, &key, field], "String", None)
+                .map_err(DocumentError::Read)?
+            {
+                Some(Value::Text(text)) => Ok(text),
+                _ => Ok(String::new()),
+            };
+            plan.spawned.push(ToSpawn {
+                asset: text("scene")?,
+                name: text("name")?,
+                content: text("content")?,
+                key,
+                identity,
+            });
         }
-        let created: Vec<(u64, Entity)> = numbers
-            .into_iter()
-            .map(|number| {
-                let entity = self.spawn_bare();
-                self.nodes[entity.index() as usize].identity = Identity::Created(number);
-                // The count stays larger than every number given, whatever the save's says.
-                self.next_created = self.next_created.max(number + 1);
-                (number, entity)
-            })
-            .collect();
-        self.created.extend(created.iter().copied());
-        Ok(created.into_iter().map(|(_, entity)| entity).collect())
-    }
-
-    /// Reads all that the save `document` holds but the entities it creates, which are spawned
-    /// already.
-    fn read_save(
-        &self,
-        document: &mut Document<'_>,
-        loaded: &mut Loaded,
-    ) -> Result<Save, DocumentError> {
-        let names = Names::new(self);
+        for key in document.keys(&[CREATED]) {
+            plan.created.push(number(&key, key.parse().ok())?);
+        }
         let mut save = Save {
             next_created: match document.read(&[NEXT_CREATED], "u64", None) {
                 // Larger than any a world saves, so that the count never runs out.
@@ -736,22 +636,13 @@ impl World {
                 .read(&[SCENES, &key, "content"], "String", None)
                 .map_err(DocumentError::Read)?;
             let same = match (self.scenes.get(&key), content) {
-                (Some(scene), Some(Value::Text(content))) => {
-                    format!("{:016x}", scene.content) == content
-                }
+                (Some(scene), Some(Value::Text(content))) => content_text(scene.content) == content,
                 _ => false,
             };
             if !same {
                 loaded.scenes_changed.push(key);
             }
         }
-        let mut aside = |entity: &str, component: Option<&str>, reason: String| {
-            loaded.set_aside.push(SetAside {
-                entity: entity.to_owned(),
-                component: component.map(str::to_owned),
-                reason,
-            });
-        };
         if let Some(Value::List(entities)) = document
             .read(&[REMOVED, "entities"], "Vec<String>", None)
             .map_err(DocumentError::Read)?
@@ -766,42 +657,173 @@ impl World {
                 save.removed_components.push((key, texts(names)));
             }
         }
-        for key in document.keys(&[PARENTS]) {
-            if let Some(parent) = document
-                .read(&[PARENTS, &key], "Option<String>", None)
-                .map_err(DocumentError::Read)?
-            {
-                save.parents.push((key, option_text(&parent)));
+        for (section, parent) in [(PARENTS, None), (CREATED, Some("parent"))] {
+            for key in document.keys(&[section]) {
+                let place: Vec<&str> = [section, key.as_str()].into_iter().chain(parent).collect();
+                if let Some(parent) = document
+                    .read(&place, "Option<String>", None)
+                    .map_err(DocumentError::Read)?
+                {
+                    save.parents.push((key, option_text(&parent)));
+                }
             }
         }
-        // A component read, set aside if it cannot be, its references to entities that the world
-        // does not have reported.
+        Ok((save, plan))
+    }
+
+    /// Spawns what the world that made a save spawned while it ran, `spawned`, each scene as
+    /// `scenes` resolves it now with the types of `registry`, the world's, under the identity that it
+    /// had; sets aside those that cannot be spawned, and names those whose scene changed since.
+    fn spawn_what_ran(
+        &mut self,
+        registry: &Registry,
+        scenes: &mut SceneLibrary,
+        spawned: Vec<ToSpawn>,
+        save: &mut Save,
+        loaded: &mut Loaded,
+    ) {
+        let mut numbered = Vec::new();
+        let mut entities = 0;
+        for ToSpawn {
+            key,
+            identity,
+            asset,
+            name,
+            content,
+        } in spawned
+        {
+            let mut aside = |reason: String| {
+                loaded.set_aside.push(SetAside {
+                    entity: key.clone(),
+                    component: None,
+                    reason: format!(
+                        "the scene `{name}` is not spawned, with what was under it: {reason}"
+                    ),
+                });
+            };
+            let Ok(asset_id) = asset.parse::<AssetId>() else {
+                aside(format!("`{asset}` is not an asset ID"));
+                continue;
+            };
+            let scene = match scenes.resolve(registry, asset_id) {
+                Ok(scene) => scene,
+                Err(error) => {
+                    aside(error.to_string());
+                    continue;
+                }
+            };
+            entities += scene.len();
+            if entities > MAX_ENTITIES {
+                aside(format!(
+                    "the save spawns more than {MAX_ENTITIES} entities while it is loaded"
+                ));
+                continue;
+            }
+            let storages = match storages_of(registry, &self.component_ids, &scene) {
+                Ok(storages) => storages,
+                Err(error) => {
+                    aside(error.to_string());
+                    continue;
+                }
+            };
+            let root = match identity {
+                SpawningAs::Key(key) => {
+                    if let Some(held) = self.scenes.get(&key) {
+                        if held.scene.id() == asset_id {
+                            aside(
+                                "the world spawned it already, whose entities take the save's \
+                                 differences"
+                                    .to_owned(),
+                            );
+                            continue;
+                        }
+                        // Another scene under the key, as when a run changed level: the world's
+                        // goes first, with what was under it.
+                        let held = held.scene.clone();
+                        self.despawn_scene(&key, &held, &mut save.gone);
+                    }
+                    self.spawn_keyed(&key, &scene, &storages)
+                }
+                SpawningAs::Placement(number) => {
+                    self.place(&scene, number, &storages).inspect(|&root| {
+                        numbered.push((number, root));
+                        self.next_created = self.next_created.max(number + 1);
+                    })
+                }
+            };
+            match root {
+                Ok(_) if content_text(scene.0.fingerprint) != content => {
+                    loaded.scenes_changed.push(key);
+                }
+                Ok(_) => {}
+                Err(error) => aside(error.to_string()),
+            }
+        }
+        self.created.extend(numbered);
+    }
+
+    /// Destroys the entities of `scene`, spawned under `key`, with their descendants, and forgets
+    /// the scene; adds their identities to `gone`.
+    fn despawn_scene(&mut self, key: &str, scene: &ResolvedScene, gone: &mut HashSet<String>) {
+        for id in record_ids(&PersistentId::new([key]), scene) {
+            let Some(entity) = self.find(&id) else {
+                continue;
+            };
+            let mut next = vec![entity];
+            while let Some(entity) = next.pop() {
+                if let Some(id) = self.persistent_id(entity) {
+                    gone.insert(id.to_string());
+                }
+                next.extend(self.children(entity));
+            }
+            self.despawn(entity);
+        }
+        self.scenes.remove(key);
+    }
+
+    /// Spawns the entities that a save creates, under their `numbers`.
+    fn create(&mut self, numbers: &[u64]) {
+        let created: Vec<(u64, Entity)> = numbers
+            .iter()
+            .map(|&number| {
+                let entity = self.spawn_bare();
+                self.nodes[entity.index() as usize].identity = Identity::Created(number);
+                // The count stays larger than every number given, whatever the save's says.
+                self.next_created = self.next_created.max(number + 1);
+                (number, entity)
+            })
+            .collect();
+        self.created.extend(created);
+    }
+
+    /// Reads the components' values that the save `document` holds, into `save`, the entities they
+    /// belong to and refer to spawned already: those that cannot be read, and the references to
+    /// entities that the world does not have, are set aside.
+    fn read_values(&self, document: &mut Document<'_>, save: &mut Save, loaded: &mut Loaded) {
+        let names = Names::new(self);
         let mut take = |key: &str, name: &str, read: Result<Option<Value>, ReadError>| {
+            let mut aside = |reason: String| {
+                loaded.set_aside.push(SetAside {
+                    entity: key.to_owned(),
+                    component: Some(name.to_owned()),
+                    reason,
+                });
+            };
             let value = match read {
                 Ok(value) => value,
                 Err(error) => {
-                    aside(key, Some(name), error.to_string());
+                    aside(error.to_string());
                     None
                 }
             };
             for unknown in names.unknown.take() {
-                aside(
-                    key,
-                    Some(name),
-                    format!(
-                        "it refers to `{unknown}`, which the world does not have: to no entity now"
-                    ),
-                );
+                aside(format!(
+                    "it refers to `{unknown}`, which the world does not have: to no entity now"
+                ));
             }
             value
         };
         for key in document.keys(&[CREATED]) {
-            if let Some(parent) = document
-                .read(&[CREATED, &key, "parent"], "Option<String>", None)
-                .map_err(DocumentError::Read)?
-            {
-                save.parents.push((key.clone(), option_text(&parent)));
-            }
             for name in document.keys(&[CREATED, &key, "components"]) {
                 let read =
                     document.read(&[CREATED, &key, "components", &name], &name, Some(&names));
@@ -827,7 +849,6 @@ impl World {
             }
         }
         loaded.warnings.extend(document.warnings());
-        Ok(save)
     }
 
     /// Applies what a save holds, setting aside what cannot be.
@@ -846,6 +867,8 @@ impl World {
         for key in &save.removed {
             match self.entity_named(key) {
                 Some(entity) => removed.push(entity),
+                // Destroyed already, with a scene that another under its key replaced.
+                None if save.gone.contains(key) => {}
                 None => aside(key, None, GONE),
             }
         }
@@ -906,11 +929,14 @@ impl World {
             self.despawn(entity);
         }
         for (key, names) in &save.removed_components {
+            let Some(entity) = self.entity_named(key) else {
+                for name in names {
+                    aside(key, Some(name), GONE);
+                }
+                continue;
+            };
             for name in names {
-                let removed = self
-                    .entity_named(key)
-                    .and_then(|entity| self.remove_component_value(entity, name));
-                if removed.is_none() {
+                if self.remove_component_value(entity, name).is_none() {
                     aside(key, Some(name), "the entity holds no such component");
                 }
             }
@@ -1043,6 +1069,45 @@ struct Save {
     added: Vec<(String, String, Value)>,
     /// What changed of the components: the entity, the component and the part.
     changed: Vec<(String, String, Value)>,
+    /// The identities of the entities that loading destroyed when it spawned a scene under a key in
+    /// place of another: the save removes them, and nothing is reported of them.
+    gone: HashSet<String>,
+}
+
+/// What a save holds that refuses it if it is wrong, read before the world changes.
+#[derive(Default)]
+struct Plan {
+    /// What the world that made the save spawned while it ran.
+    spawned: Vec<ToSpawn>,
+    /// The numbers of the entities that the save creates.
+    created: Vec<u64>,
+}
+
+/// A scene that the world that made a save spawned while it ran, as the save gives it.
+struct ToSpawn {
+    /// The persistent identity of its root, as the save writes it.
+    key: String,
+    identity: SpawningAs,
+    /// Its asset ID, its name and its fingerprint, as the save writes them.
+    asset: String,
+    name: String,
+    content: String,
+}
+
+/// `value` with its references to the entities that `names` writes as no entity, destroyed or left
+/// out, made references to no entity.
+fn to_no_entity(mut value: Value, names: &Names) -> Value {
+    for_each_entity(&mut value, &mut |bits| {
+        if names.name(*bits).as_deref() == Some(NO_ENTITY) {
+            *bits = handle_bits(Entity::NONE);
+        }
+    });
+    value
+}
+
+/// A scene's fingerprint as a save writes it: sixteen hexadecimal digits.
+fn content_text(fingerprint: u64) -> String {
+    format!("{fingerprint:016x}")
 }
 
 /// The persistent identity `id`, if there is one, as an option of text.
@@ -1151,13 +1216,6 @@ impl Before<'_> {
     }
 }
 
-/// The root of a scene spawned while a save is read, and what it was spawned as: what undoing it
-/// needs.
-struct Spawning {
-    entity: Entity,
-    identity: SpawningAs,
-}
-
 /// What a scene spawned while a world ran was spawned as.
 enum SpawningAs {
     /// A scene under this key.
@@ -1167,6 +1225,15 @@ enum SpawningAs {
 }
 
 impl World {
+    /// Whether `start` spawned the scene that this world spawned under `key`: the same asset under
+    /// the same key.
+    fn spawned_as_at_start(&self, start: &World, key: &str) -> bool {
+        match (self.scenes.get(key), start.scenes.get(key)) {
+            (Some(ours), Some(theirs)) => ours.scene.id() == theirs.scene.id(),
+            _ => false,
+        }
+    }
+
     /// What this world spawned while it ran, against `start`, of which an entity is saved, `saved`:
     /// the scenes spawned under keys that `start` did not spawn, then the placements made while the
     /// world ran that `start` did not make, in the order of their roots' identities.
@@ -1178,7 +1245,7 @@ impl World {
         let keys = self
             .scenes
             .iter()
-            .filter(|(key, _)| !start.scenes.contains_key(*key))
+            .filter(|(key, _)| !self.spawned_as_at_start(start, key))
             .map(|(key, spawned)| {
                 (
                     PersistentId::new([key.as_str()]),
@@ -1195,22 +1262,24 @@ impl World {
             .chain(placements)
             .filter_map(|(root, scene, key)| {
                 let records = &scene.0.records;
-                let ids: Vec<PersistentId> = records
-                    .iter()
-                    .map(|record| {
-                        PersistentId::new(
-                            root.parts().iter().chain(&record.path).map(String::as_str),
-                        )
-                    })
-                    .collect();
+                let ids = record_ids(&root, scene);
                 if !ids.iter().any(|id| saved.contains_key(id)) {
                     return None;
                 }
-                let mut unsaved = vec![false; records.len()];
-                for (index, record) in records.iter().enumerate() {
-                    unsaved[index] = record.components.iter().any(|(name, _)| name == "Unsaved")
-                        || record.parent.is_some_and(|parent| unsaved[parent as usize]);
-                }
+                // Followed up through the parents, which a scene file may give after their children.
+                let unsaved = (0..records.len())
+                    .map(|index| {
+                        let mut next = Some(index);
+                        while let Some(at) = next {
+                            let record = &records[at];
+                            if record.components.iter().any(|(name, _)| name == "Unsaved") {
+                                return true;
+                            }
+                            next = record.parent.map(|parent| parent as usize);
+                        }
+                        false
+                    })
+                    .collect();
                 Some(Spawned {
                     entities: ids.iter().map(|id| self.find(id)).collect(),
                     root,
@@ -1524,9 +1593,51 @@ translation = { x = 6.5 }
     }
 
     #[test]
-    fn a_save_refused_after_it_spawned_what_the_run_spawned_leaves_the_world_as_it_was() {
+    fn a_save_refused_leaves_the_world_as_it_was_whatever_it_spawns_first() {
         let mut scenes = SceneLibrary::new();
         scenes.insert_cooked(AssetId::from_u128(1), scene());
+        let yard = "{ scene = \"00000000-0000-0000-0000-000000000001\" }";
+        for (text, refused) in [
+            (
+                format!("[spawned]\ncave = {yard}\n\"created/01\" = {yard}\n"),
+                "not the identity",
+            ),
+            (
+                format!("[spawned]\ncave = {yard}\nbad = {{ scene = 5 }}\n"),
+                "cannot be read",
+            ),
+            (
+                format!("[spawned]\n\"created/5\" = {yard}\n\"created/1\" = {yard}\n"),
+                "has already",
+            ),
+            (
+                format!("[spawned]\ncave = {yard}\n\n[created.\"created/1\"]\n"),
+                "has already",
+            ),
+        ] {
+            let made = || {
+                let mut world = start();
+                world.spawn();
+                world
+            };
+            let mut world = made();
+            let error = world.load(&text, &mut scenes).expect_err(&text);
+            assert!(
+                format!(
+                    "{error}: {}",
+                    std::error::Error::source(&error).map_or(String::new(), ToString::to_string)
+                )
+                .contains(refused),
+                "{text}: {error:?}"
+            );
+            assert_eq!(world.first_difference(&made()), None, "{text}");
+            assert!(
+                !world.scenes.contains_key("cave") && world.placements.is_empty(),
+                "{text}"
+            );
+            assert!(world.find(&PersistentId::created(5)).is_none(), "{text}");
+            assert_eq!(world.next_created, 2, "{text}");
+        }
         let save = "[spawned]\n\"created/4\" = { scene = \"00000000-0000-0000-0000-000000000001\" }\n\
                     cave = { scene = \"00000000-0000-0000-0000-000000000001\" }\n\n\
                     [created.\"yard/gate\"]\nparent = []\n";

@@ -820,8 +820,9 @@ world.save(&start, &about)                           slime-world
 │                                                    World::about reads alone
 ├── layout, next_created, [scenes]                   the save's layout; the world's count of
 │                                                    created entities; each scene that start
-│                                                    spawned: its key, name and a fingerprint of
-│                                                    what it resolves to, prefabs included
+│                                                    spawned and that no other replaced: its key,
+│                                                    name and a fingerprint of what it resolves
+│                                                    to, prefabs included
 ├── [spawned]                                        what the world spawned while it ran, by its
 │                                                    root, a key or created/N: its scene's asset
 │                                                    ID, name and fingerprint; its entities
@@ -838,15 +839,20 @@ world.save(&start, &about)                           slime-world
                                                      left out
 
 start.load(text, &mut scenes)                        a world the game made as at the start of a run
-├── spawn what ran                                   first reading: what the world spawned while
-│                                                    it ran, each scene as the library resolves it
-│                                                    now, under the same identity; what it cannot
-│                                                    give set aside
+├── read_layout                                      first reading: all that can refuse the save,
+│                                                    before the world changes: its layout, what
+│                                                    it spawns and creates, its count, its scenes,
+│                                                    what it removes, the parents
+├── spawn what ran                                   what the world spawned while it ran, each
+│                                                    scene as the library resolves it now, under
+│                                                    the same identity, another scene under its
+│                                                    key destroyed first; what it cannot give set
+│                                                    aside
 ├── create                                           the created entities spawned under their
 │                                                    numbers, so that references can name them
-├── read_save                                        second reading: every value, references
-│                                                    resolved; on an error, what was spawned and
-│                                                    created destroyed again, the world unchanged
+├── read_values                                      second reading: the components' values,
+│                                                    references resolved; what cannot be read set
+│                                                    aside
 └── apply                                            removed, parents, added, changed
                                                      (Registry::overlay): what the world no longer
                                                      has set aside; the scenes changed since named

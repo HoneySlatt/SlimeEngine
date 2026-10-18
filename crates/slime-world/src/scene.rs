@@ -58,16 +58,7 @@ impl World {
         if key.is_empty() || key.contains('/') || key == CREATED {
             return Err(WorldError::InvalidKey(key.to_owned()));
         }
-        let ids: Vec<PersistentId> = scene
-            .0
-            .records
-            .iter()
-            .map(|record| {
-                PersistentId::new(
-                    std::iter::once(key).chain(record.path.iter().map(String::as_str)),
-                )
-            })
-            .collect();
+        let ids = record_ids(&PersistentId::new([key]), scene);
         let entities = self.spawn_records(scene, &ids, None, storages)?;
         if !scene.0.records[0]
             .components
@@ -93,11 +84,12 @@ impl World {
     /// The placement's root is an entity created outside a scene: its persistent identity is
     /// `created/<number>`, the next of the world's count ([`World::spawn`]), and its entities'
     /// identities are its own followed by their paths in the prefab, `created/7/light`. The world
-    /// remembers its prefab ([`World::placement`]) while an entity of it lives, writes it as a
-    /// placement in a scene file ([`World::write_scene`]), and a save as a placement of its prefab
-    /// with what differs from it ([`World::save`]). The root holds no [`Name`], unlike a placement
-    /// that a file makes, which spawning names by its ID: the world gives it an ID when it first
-    /// writes it, and a file written while it has no name says that its `Name` is removed.
+    /// remembers its prefab, which [`World::placement`] gives while the root lives, and writes it as a
+    /// placement in a scene file ([`World::write_scene`]); a save writes it as its prefab with what
+    /// differs from it while an entity of it lives ([`World::save`]). The root holds no [`Name`],
+    /// unlike a placement that a file makes, which spawning names by its ID: the world gives it an ID
+    /// when it first writes it, and a file written while it has no name says that its `Name` is
+    /// removed.
     ///
     /// # Errors
     ///
@@ -141,19 +133,7 @@ impl World {
         number: u64,
         storages: &Storages<'_>,
     ) -> Result<Entity, WorldError> {
-        let ids: Vec<PersistentId> = prefab
-            .0
-            .records
-            .iter()
-            .map(|record| {
-                let number = number.to_string();
-                PersistentId::new(
-                    [CREATED, number.as_str()]
-                        .into_iter()
-                        .chain(record.path.iter().map(String::as_str)),
-                )
-            })
-            .collect();
+        let ids = record_ids(&PersistentId::created(number), prefab);
         let entities = self.spawn_records(prefab, &ids, Some(number), storages)?;
         let root = entities[0];
         self.nodes[root.index() as usize].placement = Some(Arc::new(Placement {
@@ -172,15 +152,9 @@ impl World {
         self.placements = placements
             .into_iter()
             .filter(|(number, prefab)| {
-                let number = number.to_string();
-                prefab.0.records.iter().any(|record| {
-                    self.find(&PersistentId::new(
-                        [CREATED, number.as_str()]
-                            .into_iter()
-                            .chain(record.path.iter().map(String::as_str)),
-                    ))
-                    .is_some()
-                })
+                record_ids(&PersistentId::created(*number), prefab)
+                    .iter()
+                    .any(|id| self.find(id).is_some())
             })
             .collect();
         self.placements_kept = self.placements.len();
@@ -292,6 +266,19 @@ impl World {
         self.identities.insert(id.clone(), entity);
         self.nodes[entity.index() as usize].identity = Identity::Scene(id);
     }
+}
+
+/// The persistent identity of each entity that `scene` spawns under `root`, in its records' order:
+/// `root`'s followed by the record's path, `zone/lamp 3/light`.
+pub(crate) fn record_ids(root: &PersistentId, scene: &ResolvedScene) -> Vec<PersistentId> {
+    scene
+        .0
+        .records
+        .iter()
+        .map(|record| {
+            PersistentId::new(root.parts().iter().chain(&record.path).map(String::as_str))
+        })
+        .collect()
 }
 
 /// The component ID of each component that a resolved scene holds, by its type's name.

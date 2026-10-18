@@ -56,7 +56,7 @@ in files. Where the engine stands at the start:
   its distance to a marker.
 - **Saves of what the start world spawns.** A save holds what differs from a start world that the
   game makes again ([ADR-0087](adr/0087-the-worlds-documents.md)); a scene spawned during a run
-  makes the next save one that loading refuses ([Known debt](#known-debt)).
+  made the next save one that loading refused, until M5b.3.
 - **Hot reload spawns the zone again**, and *Hunna Wood* puts back the key, the door and the time
   of day; the rest that the run changed in the zone is lost.
 - **No binary encoding.** `slime-serialize` writes TOML only
@@ -254,6 +254,14 @@ Risks:
   saves of 0.3 load as they did; the fixture of *Hunna Wood* resumes. `World::save`'s rustdoc holds
   what saving and loading placements cost. *Hunna Wood* and the `world` example pass an empty
   library: they spawn nothing while they run, until M5b.5 and M5b.6.
+
+  The review found, and a later commit fixed: a save refused while what it spawns was read left
+  what it had spawned in the world, which could be left inconsistent; all that can refuse a save is
+  now read before the world changes, with nothing to undo. Another scene spawned under a key of the
+  start world, as when a run changes level, still made a save that loading refused: it is saved as
+  spawned while the world ran, and loading destroys the start world's scene under that key first.
+  A reference to a destroyed entity of a placement gave other bytes when saved again; loading many
+  placements was quadratic; a save spawns at most `MAX_ENTITIES` entities while it is loaded.
 
 ### M5b.4 — The binary encoding of documents
 
