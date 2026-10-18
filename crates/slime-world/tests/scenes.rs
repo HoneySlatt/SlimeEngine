@@ -2023,6 +2023,31 @@ fn what_a_run_spawned_under_an_entity_marked_unsaved_is_left_out_whatever_the_or
     assert!(!save.contains("odd/a"), "{save}");
 }
 
+#[test]
+fn siblings_keep_their_order_whatever_their_records_hold() {
+    let mut scenes = library(&[(YARD, "yard", YARD_FILE), (LAMP, "lamp", LAMP_FILE)]);
+    let mut edited = world();
+    let root = spawn(&mut edited, &mut scenes, YARD, "yard");
+    // An entity created first, whose record holds its components, then the placements, whose
+    // records are small.
+    let hook = edited.spawn();
+    edited.insert(hook, Name("hook".to_owned()));
+    edited.set_parent(hook, Some(root)).expect("alive");
+    for id in ["yard/porch", "yard/gate", "yard/shed"] {
+        let placed = entity(&edited, id);
+        edited.set_parent(placed, None).expect("alive");
+        edited.set_parent(placed, Some(root)).expect("alive");
+    }
+    let (written, reread) = written_back(&mut edited, &mut scenes);
+    let children = children_of(&reread, "yard");
+    assert!(
+        children[0].starts_with("yard/hook-"),
+        "{children:?}\n{}",
+        written.text
+    );
+    assert_eq!(children[1..], ["yard/porch", "yard/gate", "yard/shed"]);
+}
+
 /// A prefab of `entities` entities, each a child of the one before, with a name, a transform and
 /// a glow.
 fn chain_prefab(entities: usize) -> String {

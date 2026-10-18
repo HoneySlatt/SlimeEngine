@@ -299,6 +299,11 @@ Risks:
   otherwise than their text, so that one document had two encodings: it is gone, and a composer's
   document is encoded from its text.
 
+  While checking it, the text writer was found to write a table's small values before its headers,
+  so that a scene file written back (M5b.2) lost the order of siblings when a placement came after
+  an entity whose record holds components: once a value of a table goes under a header, the tables
+  after it now do too, and a test holds the order.
+
 ### M5b.5 — Scene files cooked, typed components, prefabs in the `world` example
 
 - **Goal.** Scene files are sources that the cooker cooks and a game spawns; Blender's nodes carry

@@ -289,12 +289,13 @@ weights = [0.25, 0.75]
 corners = [1, 2]
 pair = ["ratio", 0.5]
 label = "door"
-marker = {}
 bounded = 0.5
 
 [mode.Blinking]
 period = 0.5
 tint = { r = 0.0, g = 1.0, b = 0.0 }
+
+[marker]
 
 [[spots]]
 at = { x = 0.0, y = 0.0, z = 0.0 }

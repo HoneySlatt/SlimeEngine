@@ -43,6 +43,8 @@
 //!   is larger. A larger table is written under a header of its own, `[a.b]`, and an array of
 //!   tables of which one is larger under `[[a.b]]`, once each table's values on their keys' lines
 //!   are written; a table that holds nothing but tables under headers has no header of its own.
+//!   Once a value of a table goes under a header, the tables after it do too, small or empty, so
+//!   that the tables of a table keep their order, as the entities of a scene file must.
 //!   Keys are bare where TOML lets them be, quoted otherwise; text is a basic string, `"..."`, with
 //!   TOML's escapes. Lines end with LF.
 //!

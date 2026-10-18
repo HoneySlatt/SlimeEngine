@@ -60,6 +60,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   spawning fail with `WorldError::RefusedInScene`, and nothing is spawned.
 - `Document::keys(&[])` lists the keys of a document's root, where it listed none.
 - A `Transform` read from data that leaves a field out gives that field the identity's value.
+- The text writer keeps the order of a table's tables: once a value of a table goes under a header,
+  the tables after it do too, small or empty, where they were written on their keys' lines before
+  the headers. A scene file written back kept the order of siblings only so.
 - A rotation that changed is a difference whole, its four coordinates, in a save as in a scene file
   written back (`Registry::difference`), so that it stays a rotation when the scene's turns later.
   Saves of 0.3, which hold the coordinates that changed, still load.

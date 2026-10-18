@@ -201,23 +201,54 @@ pub(crate) fn print(fields: &[(String, Value)]) -> String {
     out
 }
 
+/// Where each of `fields` is written in its table: as [`place`] says, but once one goes under a header,
+/// the tables after it go under headers too, small ones included, so that a table's tables keep
+/// their order, which the entities of a scene file need; numbers, booleans, texts and arrays that hold
+/// no table stay on their keys' lines, before the first header, as TOML wants them.
+fn placements(fields: &[(String, Value)]) -> Vec<Place> {
+    let first = fields
+        .iter()
+        .position(|(_, value)| place(value) != Place::Inline);
+    fields
+        .iter()
+        .enumerate()
+        .map(|(index, (_, value))| {
+            let after = first.is_some_and(|first| index > first);
+            match (place(value), value) {
+                (Place::Inline, Value::Struct(_)) if after => Place::Section,
+                (Place::Inline, Value::List(elements))
+                    if after
+                        && !elements.is_empty()
+                        && elements
+                            .iter()
+                            .all(|element| matches!(element, Value::Struct(_))) =>
+                {
+                    Place::Sections
+                }
+                (place, _) => place,
+            }
+        })
+        .collect()
+}
+
 fn body(out: &mut String, header: &[&str], fields: &[(String, Value)]) {
-    for (key, value) in fields {
-        if place(value) == Place::Inline {
+    let placed = placements(fields);
+    for ((key, value), place) in fields.iter().zip(&placed) {
+        if *place == Place::Inline {
             out.push_str(&key_text(key));
             out.push_str(" = ");
             inline(out, value);
             out.push('\n');
         }
     }
-    for (key, value) in fields {
+    for ((key, value), place) in fields.iter().zip(placed) {
         let path: Vec<&str> = header.iter().copied().chain([key.as_str()]).collect();
         let named = path.iter().map(|key| key_text(key)).collect::<Vec<_>>();
-        match (place(value), value) {
+        match (place, value) {
             // A table that holds nothing but tables under headers of their own has no header: theirs
-            // name it.
+            // name it. One that holds nothing has one, which makes it.
             (Place::Section, Value::Struct(inner)) => {
-                if inner.iter().any(|(_, value)| place(value) == Place::Inline) {
+                if inner.is_empty() || placements(inner).contains(&Place::Inline) {
                     gap(out);
                     let _ = writeln!(out, "[{}]", named.join("."));
                 }
@@ -419,7 +450,7 @@ mod tests {
     }
 
     #[test]
-    fn small_tables_are_inline_and_large_ones_under_headers() {
+    fn small_tables_are_inline_and_large_ones_under_headers_in_their_order() {
         let number = |n| Value::F64(n);
         let vector = Value::Struct(vec![("x".to_owned(), number(1.0))]);
         let spot = Value::Struct(vec![
@@ -438,15 +469,28 @@ mod tests {
                 Value::List(vec![vector.clone(), vector]),
             ),
         ];
+        // Before the light, on their keys' lines; after it, under headers, so that they come after it.
         assert_eq!(
             print(&root),
             "name = \"lantern\"\n\
-             at = { x = 1.0 }\n\
-             posts = [{ x = 1.0 }, { x = 1.0 }]\n\
              \n\
              [light.Spot]\n\
              color = { x = 1.0 }\n\
-             intensity = 140.0\n"
+             intensity = 140.0\n\
+             \n\
+             [at]\n\
+             x = 1.0\n\
+             \n\
+             [[posts]]\n\
+             x = 1.0\n\
+             \n\
+             [[posts]]\n\
+             x = 1.0\n"
+        );
+        let small_first = vec![root[2].clone(), root[1].clone()];
+        assert_eq!(
+            print(&small_first),
+            "at = { x = 1.0 }\n\n[light.Spot]\ncolor = { x = 1.0 }\nintensity = 140.0\n"
         );
     }
 }
