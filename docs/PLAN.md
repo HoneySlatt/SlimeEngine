@@ -18,7 +18,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   saves and resumes its runs, on Linux and on Windows.
 - Stage 5b — Scenes and prefabs: planned on 2026-10-17 and validated by the owner
   ([ADR-0089](adr/0089-scenes-and-prefabs.md), [ADR-0090](adr/0090-stage-5b-scenes-and-prefabs.md)),
-  to be released as 0.4 at its close. M5b.1 to M5b.5 are done; M5b.6 is next.
+  to be released as 0.4 at its close. M5b.1 to M5b.5 are done; M5b.6 is built: the owner plays the
+  zone and changes the lantern while it runs, and CI checks it.
 
 ## Status
 
@@ -29,7 +30,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M5b.3](#m5b3--saves-and-hot-reload-with-placements) | What a game spawns while it runs is saved as placements, and a run is carried through a save when its scenes change | Done |
 | [M5b.4](#m5b4--the-binary-encoding-of-documents) | A document is written in a binary encoding of the engine's own, and read back without parsing text | Done |
 | [M5b.5](#m5b5--scene-files-cooked-typed-components-prefabs-in-the-world-example) | Scene files are cooked and spawned, Blender's nodes carry typed components, and the `world` example places prefabs | Done |
-| [M5b.6](#m5b6--hunna-woods-zone-made-of-prefabs) | *Hunna Wood*'s zone is a scene file that places its land and its lanterns | Planned |
+| [M5b.6](#m5b6--hunna-woods-zone-made-of-prefabs) | *Hunna Wood*'s zone is a scene file that places its land and its lanterns | Built; the owner plays the zone and changes the lantern, CI checks it |
 | [M5b.7](#m5b7--windows-check-documentation-release-04) | Stage 5b is done and released as 0.4 | Planned |
 
 Stages 0, 1, 2, 3a, 3b, 3c, 3d, 4a, 4b and 5a are done; see [Completed stages](#completed-stages).
@@ -406,6 +407,31 @@ Risks:
 - **By hand (Linux).** Play by day and at night; F5, F9, quit and resume; change the lantern in
   Blender and export it while the game runs; move a lantern in the zone's file, a change of layout
   that starts the run again.
+- **Outcome.** Built on 2026-10-18. The zone's script exports `land.gltf`, which keeps the ID of the
+  zone's former export, and `lantern.gltf`, a lantern on its post at the origin, its glass a node of
+  its own; every node is named for what it is, `oak 12 collider`, and the script fails when Blender
+  numbers a name. Colliders, markers, the lights' times of day and the campfire's flicker are typed
+  properties, and the game's reading of untyped extras is gone, with the search for the campfire's
+  light near its marker. `assets/zone/zone.scene`, written by hand, places the land and the six
+  lanterns where `placements.toml` placed them, the third at 50 cd instead of 140, the fifth without
+  its light and its glass, and shows the moon in the sky. The game spawns it through
+  `SceneLibrary::of`; hot reload makes a new game of the scenes before and after the change,
+  restarts when their layouts differ and carries the run otherwise (`saves::reload`). The mirror's
+  release `hunnawood-7` holds the four new files; the textures and the hero did not change.
+
+  The script used to take a model's meshes in the order of a Python set, which changed from one run
+  to the next, and with it the rock placed at each scattered place: it takes them by name now, and
+  the land and the lantern come out the same from one run to the next, the hero not yet. The
+  scattered rocks thus have other meshes than in 0.3, at the same places: their colliders keep
+  their centers, with the sizes of their new rocks, and the test of the colliders of 0.3 compares
+  only their centers. The fixture was made again, at the same place; that of 0.3 is kept, and a
+  test sets it aside as a save of another layout.
+
+  Measured in a release build on the owner's machine, side by side with 0.3: spawning the zone's 555
+  entities takes 0.73 to 0.86 ms, as 0.3's 543 took 0.72 to 0.90 ms; reading the scenes from cooked
+  data and resolving them takes 1.5 to 1.75 ms, where 0.3 resolved a scene already in memory in 0.5
+  to 0.65 ms. Building a frame of the zone alone, 422 instances and 8 lights, takes 89 to 92 µs at
+  best, against 82 to 86 µs for 0.3's 429 instances and 9 lights.
 
 ### M5b.7 — Windows check, documentation, release 0.4
 
@@ -803,7 +829,10 @@ GitHub issues, linked from their entry; this list stays the reference.
   it once ([ADR-0084](adr/0084-what-the-world-draws.md)), as *Hunna Wood*'s does.
 - **A node renamed in Blender loses what saves held of it** (ADR-0079, ADR-0087). A scene's entity
   is known by its node's name: loading a save made before the rename sets aside what it held of
-  the node, and reports it.
+  the node, and reports it. *Hunna Wood*'s zone script names every node and fails when Blender
+  numbers one, so that only a change of the script renames a node; the saves made before it set
+  aside what they held of it, or are saves of another layout. Identities that a scene file keeps for
+  a former name wait for a game that has players (ADR-0089).
 - **The camera's yaw is not saved** (ADR-0088). It is the game's, outside the world: a run resumed
   or loaded puts the camera behind the hero.
 - **A save cut short may load in part** (ADR-0087). A save is a document of sections: one cut at the
@@ -817,11 +846,6 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **Children and queries in another order after loading** (ADR-0087). A world loaded from a save
   holds its entities in other slots, and an entity's children in the order the save set them: what
   must go the same way after loading cannot depend on either order.
-- **Hot reload compares the reloaded zone with the running world** (ADR-0088). `Game::reload_zone`,
-  in `games/hunnawood/src/rules.rs`, compares the layout of the zone reloaded with the layout of
-  the zone in the running world, where ADR-0088 says that it uses the fingerprint of a new game's
-  zone: a collider changed through the world panel makes the next reload start the run again. M5b.6
-  compares the old and the new start worlds ([ADR-0090](adr/0090-stage-5b-scenes-and-prefabs.md)).
 - **Spawning a large scene makes each component from its value** (ADR-0091, which holds the
   figures). A scene of 100 000 entities resolves and spawns in about a second in a release build,
   where spawning as many entities with `World::spawn` takes milliseconds (ADR-0083): each

@@ -68,6 +68,12 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   without its light; it writes the yard back when it quits, and checks the file; with `--watch`, it
   carries its run when a scene changes. The dev overlay's world panel shows the persistent identity
   of the entity selected and, for a placement, the prefab that it places.
+- *Hunna Wood*'s zone is made of prefabs: a scene file written by hand places the land and six
+  lanterns of one prefab, the third dimmer and the fifth without its light and its glass, and shows
+  the moon in the sky. The zone's Blender script exports the land and the lantern apart; its nodes
+  carry the colliders, the markers, the lights' times of day and the campfire's flicker as typed
+  components, each node has a name of its own, and the script fails when Blender numbers one. The
+  land and the lantern come out of the script the same from one run to the next.
 
 ### Changed
 
@@ -88,6 +94,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   Saves of 0.3, which hold the coordinates that changed, still load.
 - The cooked scene's format is at version 2, with the typed components of each node, and so is the
   cooker's import of glTF files: cooked data of 0.3 must be cooked again.
+- *Hunna Wood*'s hot reload carries the run through a save into the scenes that changed, and starts
+  it again when the layout of a new game of them is not the layout of a new game of the scenes
+  before: a collider changed through the world panel no longer starts the run again at the next
+  reload. Its saves of 0.3 are set aside as saves of another layout, and a new run starts: the
+  zone's entities have other identities, `zone/land/oak 12 wood`.
 
 ## [0.3.0] - 2026-10-17
 

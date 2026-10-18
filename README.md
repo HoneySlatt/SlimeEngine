@@ -48,7 +48,7 @@ overrides of its own, which a world spawns and writes back (`slime-world`), and 
 while it runs is saved as its scenes; `slime-serialize` encodes documents in a binary encoding of
 its own too, in which the cooker cooks scene files, and Blender's nodes carry typed components. The
 `world` example spawns a yard of prefabs from a scene file, and follows a prefab changed while it
-runs; *Hunna Wood* does not use scene files yet.
+runs; *Hunna Wood*'s zone is a scene file that places its land and six lanterns of one prefab.
 [`docs/PLAN.md`](docs/PLAN.md) says what comes next, and lists the known debt.
 
 ## Getting started

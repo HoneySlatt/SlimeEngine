@@ -66,12 +66,18 @@ and nothing loads (`slime_assets::ManifestWatch`), beside `slime-cook watch` run
 sources ([`CONTRIBUTING.md`](../../CONTRIBUTING.md#changing-assets-while-a-game-runs),
 [ADR-0076](../../docs/adr/0076-hot-reload-of-cooked-data.md)): the meshes, materials and
 textures that changed load again, the others are kept, and those drawn stay as they were until all
-of them are loaded. When the zone's scene or the hero's changed, the game spawns it again in its
-world: what moved or went changes at once, and what is new shows once its meshes are loaded, so
-that the zone changes in parts rather than whole. When the zone's layout changed, a collider, the start, the key, the door, the campfire, the
-terrace or the bounds, the run starts again, as R does; when only its looks changed, the run goes on
-in it, the key and the door as they were. A zone that cannot be played, or a scene that cannot be
-read, changes nothing, and a reload that fails keeps what is drawn; the log says why.
+of them are loaded. When a scene changed, the zone's scene file, the land, the lantern or the hero,
+the game makes a new game of the scenes as they are now, and compares its zone's layout with the
+layout of a new game of the scenes before ([`src/saves.rs`](src/saves.rs)). When the layout
+changed, a collider, the start, the key, the door, the campfire, the terrace or the bounds, the run
+starts again in the new game, as R does. Otherwise the run is carried into it through a save: what
+the run changed is saved against the game before and loaded into the new one, the hero where it
+stood, the key, the door and the time of day as they were
+([ADR-0093](../../docs/adr/0093-saves-and-hot-reload-with-placements.md)); what the run changed of
+the layout itself, a collider through the world panel, does not start it again. What moved or went
+changes at once, and what is new shows once its meshes are loaded, so that the zone changes in parts
+rather than whole. Scenes that cannot be played change nothing, and a reload that fails keeps what
+is drawn; the log says why.
 The same option reads the renderer's shaders, in `crates/slime-render/src`, when they change, and
 draws with them from the next frame; a shader that does not compile leaves the frames as they were,
 and the log says where it fails ([ADR-0077](../../docs/adr/0077-hot-reload-of-shaders.md)).
@@ -95,12 +101,15 @@ The log says what was saved or loaded, and where the run stands. When Windows en
 game is stopped without quitting, and the run since the last F5 is lost (see the known debt in
 [`docs/PLAN.md`](../../docs/PLAN.md#known-debt)).
 
-[`fixtures/save.toml`](fixtures/save.toml) is a save made with F5 at the chapel's portal, at night,
-which every later version must resume: a test resumes it and walks on to the terrace, and
-`scripts/check.sh` starts the game from a copy of it. A change of the zone's layout makes it a save
-of another layout, which the test then refuses: make it again at the same place, with
-`cargo run -p hunnawood -- --new --save games/hunnawood/fixtures/save.toml`, resting by the campfire
-and walking to the portal, then quitting without moving, which saves it, and say so in the commit.
+[`fixtures/save.toml`](fixtures/save.toml) is a save made at the chapel's portal, at night, after
+resting by the campfire, which every later version must resume: a test resumes it and walks on to
+the terrace, and `scripts/check.sh` starts the game from a copy of it. A change of the zone's layout
+makes it a save of another layout, which the test then refuses: make it again at the same place,
+with `cargo run -p hunnawood -- --new --save games/hunnawood/fixtures/save.toml`, resting by the
+campfire and walking to the portal, then quitting without moving, which saves it, and say so in the
+commit. [`fixtures/save-0.3.toml`](fixtures/save-0.3.toml) is the fixture of 0.3, made on the zone
+before it was made of prefabs, whose identities name entities that are gone or elsewhere: a test
+sets it aside as a save of another layout, and a new run starts.
 
 | Key | Does |
 |---|---|
@@ -123,37 +132,38 @@ still show and hide the panels. CI builds the game for Windows with the examples
 ## How it is made
 
 The game keeps its zone, its hero and its run in the engine's world (`slime-world`), which
-`slime-app` owns and calls around each fixed step ([ADR-0079](../../docs/adr/0079-the-engines-own-world.md)).
-At the start, the zone's cooked scene and the hero's are spawned in it, each node an entity, and
-the game gives the zone's entities components of its own, from the custom values of their nodes
-([below](#the-zone)): `Collider`, `Marker`, `TimeOfDay`, `Flickers`. The world holds the run itself:
-the hero is where the root of its scene stands, and the key taken, the door open and the time of
-day are components of the game's, `Key` on the key, `Door` on the door and `Clock` on the zone's root.
-At each step, the game hides what they say is not there (`slime_world::Hidden`): the key once
-taken, the door once open, which also takes its colliders away, and the lights of the other time of
-day. The run is data, which the dev overlay's world panel (F2) changes as it changes any
-component, and which the game follows from the next step. The game's own state is only
-the entities it refers to and the time of day a new game starts at. Each of the game's components
-is reflected, under a name such as `hunnawood::Collider`, as every component is
-([ADR-0085](../../docs/adr/0085-reflection.md)), and `Game::spawn` registers them all in the world
-before it spawns the zone.
+`slime-app` owns and calls around each fixed step
+([ADR-0079](../../docs/adr/0079-the-engines-own-world.md)). At the start, the game's scenes, read
+from the cooked data through a library (`slime_world::SceneLibrary`), are spawned in it: the zone's
+scene file, which places the land and six lanterns, and the hero's scene, each node an entity, with
+the components of the game's that their nodes carry as typed properties ([below](#the-zone)):
+`Collider`, `Marker`, `TimeOfDay`, `Flickers`. The world holds the run itself: the hero is where the
+root of its scene stands, and the key taken, the door open and the time of day are components of the
+game's, `Key` on the key, `Door` on the door and `Clock` on the zone's root. At each step, the game
+hides what they say is not there (`slime_world::Hidden`): the key once taken, the door once open,
+which also takes its colliders away, and the lights of the other time of day. The run is data, which
+the dev overlay's world panel (F2) changes as it changes any component, and which the game follows
+from the next step. The game's own state is only the entities it refers to and the time of day a new
+game starts at. Each of the game's components is reflected, under a name such as
+`hunnawood::Collider`, as every component is ([ADR-0085](../../docs/adr/0085-reflection.md)), and
+`Game::spawn` registers them all in the world before it spawns the zone.
 
 Since the run is in the world, a save is the world's: what differs between the world and a new game
-by day, made again from the cooked scenes when the game saves, and a run resumed is a new game by
-day to which the save is applied ([ADR-0087](../../docs/adr/0087-the-worlds-documents.md)). A new
-game by day, whatever `--night` says, so that a save made at night is resumed at night. What the
-game makes again at each frame is put back before it saves: the campfire's light, which the view
-makes flicker around the intensity that the zone gives it. F9 makes a new world, in place of the
-engine's, and a new `Game` with it; the view, which holds no entity, draws it from the next frame,
-and the world panel forgets the entity it showed.
+by day, made again from the scenes when the game saves, and a run resumed is a new game by day to
+which the save is applied ([ADR-0087](../../docs/adr/0087-the-worlds-documents.md)), as a run
+carried into scenes changed on disk is. A new game by day, whatever `--night` says, so that a save
+made at night is resumed at night. What the game makes again at each frame is put back before it
+saves: the campfire's light, which the view makes flicker around the intensity that the zone gives
+it. F9 makes a new world, in place of the engine's, and a new `Game` with it; the view, which holds
+no entity, draws it from the next frame, and the world panel forgets the entity it showed.
 
 | Module | What it holds |
 |---|---|
-| `main.rs` | The application: the world built before the window opens, a new run or the save resumed, and given to the engine, the game's loop through `slime_app::App`, saving with F5 and on quit and loading with F9, going on with a new GPU device after a loss, reading the manifest again with `--watch` and spawning the zone or the hero again when their scenes changed, the command line |
-| `assets.rs` | Where the cooked data is, and the IDs of the zone and the hero, from their metadata files |
-| `saves.rs` | The save: where its file is, what it holds and how it is written, and a run resumed from it |
-| `rules.rs` | The rules, as functions over the world and without the GPU: the hero's movement, its heading, and its collisions, as a circle on the ground against the colliders that are not hidden and the zone's edge; the key, the door, the campfire and the time of day; a zone spawned again, which starts the run again when its layout changed |
-| `zone.rs` | The zone spawned in the world and the game's components read from its extras; where its colliders stand on the ground, boxes turned about the vertical and cylinders, the size of its ground, where the hero starts and the places of the key, the door and the campfire, read from the world; the tests of the cooked zone |
+| `main.rs` | The application: the world built before the window opens, a new run or the save resumed, and given to the engine, the game's loop through `slime_app::App`, saving with F5 and on quit and loading with F9, going on with a new GPU device after a loss, reading the manifest again with `--watch` and carrying the run into the scenes that changed, the command line |
+| `assets.rs` | Where the cooked data is, and the IDs of the zone's scene file and the hero, from their metadata files |
+| `saves.rs` | The save: where its file is, what it holds and how it is written, and a run resumed from it; a run carried into the scenes that changed on disk, or started again when the zone's layout changed |
+| `rules.rs` | The rules, as functions over the world and without the GPU: the hero's movement, its heading, and its collisions, as a circle on the ground against the colliders that are not hidden and the zone's edge; the key, the door, the campfire and the time of day |
+| `zone.rs` | The zone spawned in the world from its scene file, and the game's components that its nodes carry; where its colliders stand on the ground, boxes turned about the vertical and cylinders, the size of its ground, where the hero starts and the places of the key, the door and the campfire, read from the world; the tests of the cooked zone |
 | `controls.rs` | Which of the game's keys are held |
 | `camera.rs` | The camera that follows the hero, coming nearer when a collider would stand between them |
 | `view.rs` | What the player sees: the renderer, the asset cache (`slime_render::AssetCache`), which loads the hero's meshes before the first frame and the rest in the background, and a frame builder for each time of day (`slime_world_render::FrameBuilder`): by day, the overcast sky, the zone's sun behind its clouds; by night, a dark sky around the moon's disc, the zone's moon showing in the sky; the fire that flickers, its light and its materials, and the key that pulses at night, their materials found by name in the cooked data and changed at each frame (`Material::set_values`) |
@@ -201,7 +211,8 @@ Git ignores what it fetches, and keeps the list and the metadata files.
 `assets/sources/` holds the files as they were published, about 190 MB: textures and models from
 Poly Haven, leaves from ambientCG, and the human body of Blender Studio's *Human Base Meshes*, which
 the zone's Blender script reads. `assets/zone/` holds what that script exports from them, about
-115 MB, which the cooker cooks; the game needs only that part:
+115 MB, the land, the lantern and the hero, and the zone's scene file, `zone.scene`, written by hand
+and kept in git, which the cooker cooks with them; the game needs only that part:
 
 ```sh
 scripts/fetch-assets.sh zone/
@@ -224,18 +235,26 @@ The hero starts in the south, walks a path under oaks and conifers, among mossy 
 crosses a dry gully on a stone bridge, passes a campfire in a clearing, and reaches a ruined gothic
 chapel; its north wall holds a sealed door, behind which a walled terrace looks over a cliff
 towards the region's capital, painted on a card far away. A line of trees painted the same way
-closes the other sides. Lanterns on posts line the path. The ground, the rocks and the stone, photographed
-warmer, are graded toward the zone's palette, cold and grey. The script also makes the hero: Blender
-Studio's body, its arms lowered, dressed in a tunic, trousers, boots and a hooded cloak. Its
-modules:
+closes the other sides. Lanterns on posts line the path. The ground, the rocks and the stone,
+photographed warmer, are graded toward the zone's palette, cold and grey. The script also makes the
+hero: Blender Studio's body, its arms lowered, dressed in a tunic, trousers, boots and a hooded
+cloak.
+
+The zone is made of prefabs ([ADR-0089](../../docs/adr/0089-scenes-and-prefabs.md)). The script
+exports the land, the zone but its lanterns, and the lantern on its post apart, each a glTF file. A
+scene file written by hand, [`assets/zone/zone.scene`](assets/zone/zone.scene), places the land
+under `land` and the lantern six times along the path: the third lights less, and the fifth, by
+the chapel's portal, is broken, without its light and its glass, which the file removes. It also
+shows the moon in the night's sky, which glTF cannot say. The zone's entities are known through it:
+`zone/land/oak 12 wood`, `zone/lantern 3/light`. The script's modules:
 
 | Module | What it makes |
 |---|---|
-| `build_zone.py` | Runs the others, exports the zone and the hero, and with `--preview DIR` renders views of the zone with EEVEE |
-| `common.py` | Materials, the photographed textures graded toward the zone's cold grey palette, meshes, and the colliders, markers and lights that the game reads |
+| `build_zone.py` | Runs the others, exports the land, the lantern and the hero, and with `--preview DIR` renders views of the zone with EEVEE, the lanterns where the scene file places them |
+| `common.py` | Materials, the photographed textures graded toward the zone's cold grey palette, meshes, the colliders, markers and lights that the game reads, their components written as typed properties, and the check that every node keeps the name it was given |
 | `land.py` | The ground, the path, the gully and the cliff |
 | `ruins.py` | The bridge, the chapel, its door's wall and the terrace |
-| `props.py` | Poly Haven's models, made lighter, the lanterns and their posts, the campfire, the door and the key |
+| `props.py` | Poly Haven's models, made lighter, each model's meshes taken in the order of their names; the lantern on its post, its glass a node of its own; the campfire, the door and the key |
 | `vegetation.py` | The oaks and conifers, their leaf cards, lit as masses of leaves, and the scatter of trees, rocks and ferns |
 | `backdrop.py` | The pictures of the capital and of the forest beyond, rendered with Cycles, and their cards |
 | `hero.py` | The hero |
@@ -249,55 +268,77 @@ Run it with Blender 5.2, from the repository's root, once the sources are fetche
 blender --background --factory-startup --python games/hunnawood/zone/build_zone.py
 ```
 
-Blender's output differs a little from one run to the next, so the export is a source like the
-others ([ADR-0070](../../docs/adr/0070-the-sample-games-source-assets.md)): after a change, give
-the new files an ID (`cargo run -p slime-cook -- scan games/hunnawood/assets/zone`), commit their
-metadata files, attach the files to a new release of the mirror and list them in
-`assets/sources.tsv`, so that everyone cooks the same files.
+The land and the lantern come out of the script the same from one run to the next: each model's
+meshes are taken in the order of their names. The hero still differs a little from one run to the
+next. The export is a source like the others
+([ADR-0070](../../docs/adr/0070-the-sample-games-source-assets.md)): after a change, give the new
+files an ID (`cargo run -p slime-cook -- scan games/hunnawood/assets/zone`), commit their metadata
+files, attach the files to a new release of the mirror and list them in `assets/sources.tsv`, so
+that everyone cooks the same files.
 
-Besides meshes, materials and lights, the export holds what the game reads, as custom properties
-of the scene's nodes, which the cooker passes on as their `extras`, and the world as their entities'
-`Extras`; the game turns them into components of its own when it spawns the zone:
+Besides meshes, materials and lights, the export holds what the game reads, as the game's
+components: typed properties of the nodes, named `slime:` and the type's name, whose text is the
+component's value as a scene file writes it
+([`CONTRIBUTING.md`](../../CONTRIBUTING.md#writing-and-cooking-a-scene-file),
+[ADR-0095](../../docs/adr/0095-cooked-scene-files.md)). The cooker keeps them typed, and the world
+gives them to the nodes' entities:
 
-- **Colliders** (`Collider`): `collider` is `"box"` or `"cylinder"`, `height` is in metres. A box's
-  node is turned about the vertical only; its scale is half its size. A cylinder's scale is its
-  radius.
-- **Markers** (`Marker`): `marker` names a place. `start`, where the hero starts, facing along the
-  node's −Z axis; `item`, the key, whose mesh is the marker's child, hidden once taken; `door`, the
-  sealed door, whose leaves and collider are its children, hidden once the door opens; `campfire`,
-  where the hero rests; `terrace`, behind the door; `bounds`, whose scale is half the size of the
-  ground the hero may walk.
-- **Lights** (`TimeOfDay`): `time` is `"day"` or `"night"`: the sun by day; by night, the moon, which
-  shows in the sky, a spot light in each lantern, which casts shadows, and the campfire's point
-  light, which flickers (`Flickers`): the night's point light within a metre of the `campfire`
-  marker. The lights of the other time of day are hidden; a light without a `time` shines at any
-  time.
+- **Colliders** (`hunnawood::Collider`): `{ kind = "Box", height = 1.2 }`, or a `"Cylinder"`, the
+  height in metres. A box's node is turned about the vertical only; its scale is half its size. A
+  cylinder's scale is its radius. A collider's node is named after what it stops:
+  `oak 12 collider`.
+- **Markers** (`hunnawood::Marker`), each held by one node: `"Start"`, where the hero starts, facing
+  along the node's −Z axis; `"Item"`, the key, whose mesh is the marker's child, hidden once taken;
+  `"Door"`, the sealed door, whose leaves and collider are its children, hidden once the door opens;
+  `"Campfire"`, where the hero rests; `"Terrace"`, behind the door; `"Bounds"`, whose scale is half
+  the size of the ground the hero may walk.
+- **Lights** (`hunnawood::TimeOfDay`): `"Day"` or `"Night"`: the sun by day; by night, the moon,
+  which the scene file shows in the sky, a spot light in each lantern, which casts shadows, and the
+  campfire's point light, which flickers around the intensity that `hunnawood::Flickers` gives it,
+  `{ intensity = 120.0 }`. The lights of the other time of day are hidden; a light without a time of
+  day shines at any time.
 - **Materials** that the game changes, by their names: `flames` and `embers`, the campfire's,
   which flicker with its light, and `brass`, the key's, which pulses at night.
 
+Every node has a name of its own, by which the scene file and the saves know its entity. Blender
+numbers a name that another object holds, `oak 12.001`: the script fails then, so that no node
+changes its name without a change of the script that the saves can be checked against.
+
+To change the lantern, change `props.lantern` in the script and run it again: every lantern of the
+zone follows, but what the scene file overrides, the third's intensity and the fifth's light and
+glass. A change of how it looks reaches a game running with `--watch` beside `slime-cook watch`, and
+the run goes on; a change of its collider is a change of the zone's layout, which starts the run
+again. To move a lantern, change its `Transform` in the scene file, a change of layout too.
+
 Tests read the cooked zone. In `src/zone.rs`: one marker of each kind, a start clear of every
-collider, the key and the campfire within reach, the terrace not until the door opens, the zone
-within the budgets that the test sets, and the zone spawned in a world (`slime-world`), each node
-placed where the file puts it and known by its name. In `src/rules.rs`: a walk along the path that
+collider, the key and the campfire within reach, the terrace not until the door opens; the zone
+within the budgets that the test sets, counted over the land and every lantern; the land spawned in
+a world (`slime-world`), each node placed where its file puts it and known by its name, and six
+lanterns of one prefab, the third dimmer and the fifth without its light and its glass; the lantern
+changed, which every lantern follows but for what the scene file overrides; the colliders where 0.3
+had them ([`fixtures/colliders-0.3.txt`](fixtures/colliders-0.3.txt)); no node named with
+Blender's numbers; and the moon in the night's sky. In `src/rules.rs`: a walk along the path that
 rests by the campfire, is saved at the chapel's portal and resumed in a new game, then takes the
 key, opens the door and reaches the terrace, and starts again from the same state; the save
-committed as a fixture, resumed, from which the walk goes on to the terrace; a run changed (an oak
-removed, a lantern dimmed, the key hidden), saved and resumed, which saves again to the same bytes
-and goes on the same for 300 steps; a walk to the door without the key, which it stops; and the
-hero kept out of every collider. In `src/view.rs`: the campfire's light, which flickers, and the
-materials that glow. They need the cooked zone, so `cargo test` leaves them out: `scripts/check.sh`
-fetches and cooks it, then runs them, and after the commands above, `cargo test -p hunnawood -- --ignored` does. One
-more is a measurement, which needs a GPU: what building a frame of the zone's world costs on the
-CPU.
+committed as a fixture, resumed, from which the walk goes on to the terrace, and the fixture of 0.3,
+a save of another layout; a run changed (an oak removed, a lantern dimmed, the key hidden), saved
+and resumed, which saves again to the same bytes and goes on the same for 300 steps; a walk to the
+door without the key, which it stops; and the hero kept out of every collider. In `src/view.rs`:
+the campfire's light, which flickers, and the materials that glow. In `src/main.rs`: the fixture of
+0.3, set aside, and a new run started. They need the cooked zone, so `cargo test` leaves them out:
+`scripts/check.sh` fetches and cooks it, then runs them, and after the commands above,
+`cargo test -p hunnawood -- --ignored` does. Two more are measurements: what reading, resolving and
+spawning the zone cost, and, on a GPU, what building a frame of the zone's world costs on the CPU.
 
 ## Dependencies
 
 The engine's crates only: `slime-app`, `slime-gfx`, `slime-platform`, `slime-render`, and
-`slime-devui` for the dev overlay and its world panel, engine tooling that turns `slime-gfx`'s `wgpu` feature on for
-itself (the game uses no wgpu type); `slime-assets`, which reads the cooked zone; `slime-color`, for
-the colors of its lights and skies; `slime-world`, its world, and `slime-world-render`, which
-draws it; `slime-reflect`, which describes its components, as every component is; and `tracing`
-for the log.
+`slime-devui` for the dev overlay and its world panel, engine tooling that turns `slime-gfx`'s
+`wgpu` feature on for itself (the game uses no wgpu type); `slime-assets`, which reads the cooked
+zone; `slime-color`, for the colors of its lights and skies; `slime-world`, its world, and
+`slime-world-render`, which draws it; `slime-reflect`, which describes its components, as every
+component is; and `tracing` for the log. Its tests encode the components of the zones they make with
+`slime-serialize`, as the cooker does.
 
 ## Must not
 
