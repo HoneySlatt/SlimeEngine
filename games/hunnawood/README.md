@@ -230,7 +230,8 @@ beside the game's Windows program, as `hunnawood-CREDITS.txt`.
 ## The zone
 
 A forest path, built in Blender by a script, [`zone/build_zone.py`](zone/build_zone.py), from the
-sources and from a readable file of placements, [`zone/placements.toml`](zone/placements.toml).
+sources and from a readable file of where it puts the zone's pieces,
+[`zone/placements.toml`](zone/placements.toml).
 The hero starts in the south, walks a path under oaks and conifers, among mossy rocks and ferns,
 crosses a dry gully on a stone bridge, passes a campfire in a clearing, and reaches a ruined gothic
 chapel; its north wall holds a sealed door, behind which a walled terrace looks over a cliff

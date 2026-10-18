@@ -31,6 +31,34 @@ pub(crate) const NO_RECORD: u64 = u64::MAX;
 /// files, each resolved once into what it spawns ([`SceneLibrary::resolve`]), the prefabs it places
 /// resolved with it (`docs/adr/0089-scenes-and-prefabs.md`).
 ///
+/// # The layout of a scene file
+///
+/// A scene file is a TOML document, which `slime-serialize` reads as its conventions say
+/// ([`slime_serialize::format`]), the versions of the types past version 1 under `$versions` at its
+/// top (`docs/adr/0091-scene-documents-and-placements.md`). Its keys:
+///
+/// - `layout`: the version of its layout, 1, which the file may leave out; a later one is refused.
+/// - `[assets]`: the assets that its values and its placements name, each under a short name, `lamp
+///   = { id = "<UUID>", path = "lamp.scene" }`. The ID decides; the path, relative to the file's
+///   directory and written with `/`, is a hint, which the cooker checks.
+/// - `[root.components]`: the components of the scene's root, by their types' names.
+/// - `[entities]`: the entities that the file makes and its placements, each under an ID of the
+///   file, which is not empty, holds no `/`, does not start with `#` and is not `.`; their order is
+///   that of siblings. An entity's record holds its `parent`, another entity's ID, a path into a
+///   placement, `porch/post`, or `.`, the root, which a record without a parent has; and its
+///   `components`, by their types' names. A placement's record holds `prefab`, the short name of a
+///   scene of the table, and may hold a parent, but no components: its entities are known through
+///   it, `porch/light`.
+/// - The overrides of the placements, in the sections of a save ([`World::save`](crate::World)):
+///   `[changed."<path>".<type>]` holds the parts of a component that the file changes,
+///   `[added."<path>"]` the components that it adds, whole, and `[removed]` what it removes,
+///   `entities = ["<path>"]` and `components = { "<path>" = ["<type>"] }`.
+///
+/// A value names an entity by its path from the file's root, `.` for the root and `""` for no
+/// entity, and an asset by its short name. The cooker cooks a scene file into the binary encoding
+/// of the same document (`docs/adr/0095-cooked-scene-files.md`), which a library reads as it reads
+/// the text.
+///
 /// ```
 /// use slime_assets::AssetId;
 /// use slime_world::{PersistentId, SceneLibrary, World};

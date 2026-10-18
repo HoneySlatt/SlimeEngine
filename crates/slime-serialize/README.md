@@ -10,8 +10,9 @@ binary encoding of the same documents, and read back, from earlier versions of t
 The cooker's metadata files and the world's saves (`docs/adr/0087-the-worlds-documents.md`) are
 read and written through it as text, and the world reads and writes scene files through it
 (`docs/adr/0091-scene-documents-and-placements.md`,
-`docs/adr/0092-a-world-written-back-as-a-scene.md`). Nothing writes or reads the binary encoding
-yet but its tests: the cooker will cook scene files into it (`docs/PLAN.md`, M5b.5).
+`docs/adr/0092-a-world-written-back-as-a-scene.md`). The cooker writes scene files, and the typed
+properties of glTF nodes, in the binary encoding, which a world reads when it resolves them
+(`docs/adr/0095-cooked-scene-files.md`); saves stay text.
 
 ## Role
 

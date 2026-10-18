@@ -53,14 +53,17 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - Scene files are cooked ([ADR-0095](docs/adr/0095-cooked-scene-files.md)): a `.scene` file with its
   metadata file is a source, which the cooker checks, `slime_world::outline` reading its layout
   without the game's types, and writes in the binary encoding, under the manifest's kind
-  `SceneFile`. It refuses, with the file and the line, an asset of the table that no source makes, a
-  prefab that is not a scene, and scene files that place each other; a stale path of the table is a
-  warning.
+  `SceneFile`, which `CookedAssets::scene_file` reads. It refuses, with the file and the line, an
+  asset of the table that no source makes, a prefab that is not a scene, a parent missing, parents
+  that would be each other's ancestors and scene files that place each other; a stale path of the
+  table is a warning. `slime_cook::scan::SOURCE_EXTENSIONS` holds `scene` too, and
+  `slime_cook::cook::SCENE_FILE_COOKER_VERSION` names what a scene file's cooked file is made by.
 - Typed properties on glTF nodes: a custom property named `slime:<type name>`, a text that holds a
   component's value written as in a scene file, or a boolean or a number, gives the node that
   component when a world resolves the scene, read strictly through its registry, at the version of
   its type that the node's `slime:$versions` gives, as a document's `$versions` does. The cooker
-  refuses a property of another kind, or whose text is not one value on one line.
+  refuses a property of another kind, or whose text is not one value on one line
+  (`slime_cook::gltf_import::TYPED_PROPERTY`, `TYPED_VERSIONS`).
 - `SceneLibrary::of` reads the glTF scenes and the scene files of cooked data, each when it is first
   resolved, and `SceneLibrary::reload` takes new cooked data and gives the scenes that changed;
   every scene is resolved again, so that one that places a changed prefab follows it.
@@ -73,15 +76,19 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   the moon in the sky. The zone's Blender script exports the land and the lantern apart; its nodes
   carry the colliders, the markers, the lights' times of day and the campfire's flicker as typed
   components, each node has a name of its own, and the script fails when Blender numbers one. The
-  land and the lantern come out of the script the same from one run to the next.
+  land and the lantern come out of the script the same from one run to the next. Its list of
+  sources names the new files, on the mirror's release `hunnawood-7`: fetch them with
+  `scripts/fetch-assets.sh zone/`, then cook the zone again.
 
 ### Changed
 
 - `World::load` takes a `SceneLibrary`, through which it spawns again what the world spawned while
-  it ran. A save says its layout, `layout = 2`; the saves of 0.3, of layout 1, still load.
+  it ran; a game that spawns nothing while it runs passes `&mut SceneLibrary::new()`. A save gives
+  the version of its layout, `layout = 2`; the saves of 0.3, of layout 1, still load.
 - `World::spawn_scene` spawns a `ResolvedScene`: a game that spawns a glTF scene alone resolves it
   first, `ResolvedScene::from_cooked(id, &scene, world.registry())`, which reads the typed
-  properties of its nodes and fails with `SceneError::Node` for one that the registry refuses. A
+  properties of its nodes and fails with `SceneError::Node` for one that the registry refuses, or
+  through a library of its cooked data, `SceneLibrary::of(assets).resolve(world.registry(), id)`. A
   value that its type's own check refuses makes spawning fail with `WorldError::RefusedInScene`, and
   nothing is spawned.
 - `Document::keys(&[])` lists the keys of a document's root, where it listed none.
@@ -93,7 +100,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   written back (`Registry::difference`), so that it stays a rotation when the scene's turns later.
   Saves of 0.3, which hold the coordinates that changed, still load.
 - The cooked scene's format is at version 2, with the typed components of each node, and so is the
-  cooker's import of glTF files: cooked data of 0.3 must be cooked again.
+  cooker's import of glTF files: cooked data of 0.3 must be cooked again. `slime_assets::SceneNode`
+  has a new field, `components`, its typed components in the binary encoding: code that builds
+  nodes adds `components: Vec::new()`. The `slime:` properties of a node are no longer among its
+  `extras`.
 - *Hunna Wood*'s hot reload carries the run through a save into the scenes that changed, and starts
   it again when the layout of a new game of them is not the layout of a new game of the scenes
   before: a collider changed through the world panel no longer starts the run again at the next

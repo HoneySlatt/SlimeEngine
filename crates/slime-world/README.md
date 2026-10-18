@@ -12,7 +12,9 @@ identities: glTF scenes as the cooker makes them, and scene files that place pre
 with values of its own. Its components say what is drawn, by asset ID, and it keeps where what moved
 during the last fixed step was, to draw it between its two transforms; `slime-world-render` draws
 it. Every component is reflected, and reached by name. It saves what differs from the world as a
-game makes it at the start of a run, as text, and loads it back.
+game makes it at the start of a run, as text, what it spawned while it ran as its scenes, and loads
+it back; it writes a world, or a subtree of it, back as a scene file that keeps its placements. Its
+library of scenes reads them from cooked data, the scene files in their binary encoding.
 
 ## Role
 
@@ -30,10 +32,15 @@ game makes it at the start of a run, as text, and loads it back.
 - Spawns scenes: glTF scenes, and scene files that place prefabs, other scenes placed many times,
   each placement with overrides of its own, resolved once by a library of scenes and then spawned
   as often as a game needs (`docs/adr/0089-scenes-and-prefabs.md`,
-  `docs/adr/0091-scene-documents-and-placements.md`).
+  `docs/adr/0091-scene-documents-and-placements.md`); reads them from cooked data, the typed
+  components of glTF nodes among them (`docs/adr/0095-cooked-scene-files.md`).
+- Writes a world, or a subtree of it, back as a scene file that keeps its placements
+  (`docs/adr/0092-a-world-written-back-as-a-scene.md`).
 - Saves a world as what differs from the world that the game makes at the start of a run, entities
-  named by their persistent identities, and loads it back, setting aside what no longer applies
-  (`docs/adr/0087-the-worlds-documents.md`).
+  named by their persistent identities, what it spawned while it ran as its scenes, and loads it
+  back, setting aside what no longer applies; carries a run into a world spawned anew from scenes
+  that changed (`docs/adr/0087-the-worlds-documents.md`,
+  `docs/adr/0093-saves-and-hot-reload-with-placements.md`).
 - Runs headless: it holds no GPU object and needs no window, so that tests, servers and tools hold
   worlds too. Worlds are values, which threads can share.
 

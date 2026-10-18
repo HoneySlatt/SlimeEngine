@@ -253,7 +253,7 @@ The stage comes right after Stage 4b, whose work is released with it.
 
 The stage comes right after Stage 5a, and is released as 0.4 (ADR-0090).
 
-**Exit.** The game's scenes round-trip through save and load as files. Prefabs instantiate with overrides.
+**Exit.** The game's scenes round-trip through save and load as files. Prefabs instantiate with overrides. The sample game's zone is made of prefabs.
 
 ### Stage 6 — Editor foundation → 0.5
 

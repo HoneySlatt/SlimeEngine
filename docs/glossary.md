@@ -222,6 +222,13 @@ a blurred level of it whose texels cover the solid angle the sample stands for, 
 noise of sharp features with few samples (Křivánek and Colbert); the *prefiltered levels* are
 computed so.
 
+**Fingerprint (scene).** The FNV-1a hash of what a scene was resolved from: a glTF scene's cooked
+bytes, or a scene file's *binary encoding* and its *prefabs*' fingerprints. A *save* names each
+scene that its world spawned with its fingerprint, and loading reports the scenes whose fingerprint
+changed since ([ADR-0087](adr/0087-the-worlds-documents.md),
+[ADR-0091](adr/0091-scene-documents-and-placements.md),
+[ADR-0095](adr/0095-cooked-scene-files.md)).
+
 **Firefly.** A tiny, very bright pixel, such as a highlight smaller than a pixel, whose *bloom*
 blinks as its coverage of the pixel changes from frame to frame. The renderer does not filter them
 (ADR-0040).
@@ -277,7 +284,9 @@ its tone-mapping pass reads.
 disk, without restarting the game. `slime-cook watch` cooks again the sources that change, and a
 game started with `--watch` loads its scenes again when their cooked data changes, keeping what did
 not change ([ADR-0076](adr/0076-hot-reload-of-cooked-data.md)), and the renderer's shaders when
-their files change ([ADR-0077](adr/0077-hot-reload-of-shaders.md)).
+their files change ([ADR-0077](adr/0077-hot-reload-of-shaders.md)). A game on a *world* carries its
+run into the world spawned anew from the scenes that changed (`World::carry`,
+[ADR-0093](adr/0093-saves-and-hot-reload-with-placements.md)).
 
 **Illuminance.** The light a surface facing a light receives from it, in *lux*, which the *BRDF*
 turns into the light the surface reflects: a `DirectionalLight`'s `illuminance`, and what a point
@@ -328,6 +337,18 @@ creation method of `slime_gfx::Gpu`. Error messages and GPU capture tools show i
 **lavapipe.** Mesa's Vulkan driver that renders on the CPU. The checks and CI use it on Linux, so
 that GPU tests give the same results on every machine, including machines without a GPU. It is
 the *reference driver* of the image tests.
+
+**Layout (document).** How a *save* or a *scene file* lays out its sections and keys, which a
+reader reads before their values (`slime_world::outline` reads a scene file's); its `layout` key
+gives the version of that layout, `layout = 2` for the saves of 0.4
+([ADR-0091](adr/0091-scene-documents-and-placements.md),
+[ADR-0093](adr/0093-saves-and-hot-reload-with-placements.md)).
+
+**Layout (zone).** In *Hunna Wood*, what decides how the game plays in its zone: the size of its
+ground, its colliders, where the hero starts and the places of the key, the door, the campfire and
+the terrace. A save names the *fingerprint* of the layout of the zone that it was made on, and one
+of another layout is not resumed; *hot reload* starts the run again when the layout changes
+([ADR-0088](adr/0088-saving-and-resuming-a-run.md)).
 
 **Leaf card.** A quad textured with leaves, whose texture's alpha cuts them out (an *alpha mask*):
 many of them make the foliage of a tree for a fraction of the triangles that modelled leaves
@@ -609,9 +630,10 @@ frame ([ADR-0084](adr/0084-what-the-world-draws.md)).
 
 **Scene file.** A scene written as TOML, with the extension `.scene`: its entities under IDs of the
 file, their parents and components, the *prefabs* that it places with their *overrides*, and the
-assets that it uses, by short names. Written by hand, or from a world, its placements kept as
-placements (`slime_world::World::write_scene`). The cooker checks its layout and cooks it into its
-*binary encoding*; a *scene library* reads it and resolves it
+assets that it uses, by short names; the rustdoc of `slime_world::SceneLibrary` lays out its keys.
+Written by hand, or from a world, its placements kept as placements
+(`slime_world::World::write_scene`). The cooker checks its layout and cooks it into its *binary
+encoding*; a *scene library* reads it and resolves it
 ([ADR-0089](adr/0089-scenes-and-prefabs.md), [ADR-0091](adr/0091-scene-documents-and-placements.md),
 [ADR-0092](adr/0092-a-world-written-back-as-a-scene.md),
 [ADR-0095](adr/0095-cooked-scene-files.md)).
@@ -621,6 +643,12 @@ glTF scenes and *scene files*, read from cooked data when first resolved, or giv
 resolved once into a *resolved scene*, the prefabs that it places with it, then shared, and read
 again when new cooked data changes it ([ADR-0091](adr/0091-scene-documents-and-placements.md),
 [ADR-0095](adr/0095-cooked-scene-files.md)).
+
+**Set aside.** Kept but not applied, and reported: an *override*, a reference or a part of a *save*
+whose target the *prefab* or the world no longer has (`slime_world::SetAside`,
+[ADR-0089](adr/0089-scenes-and-prefabs.md)). In *Hunna Wood*, a save that is not resumed is set
+aside too: renamed beside the save's file, so that the next save does not write over it
+([ADR-0088](adr/0088-saving-and-resuming-a-run.md)).
 
 **Shadow acne.** Speckles of shadow that a surface casts on itself where its depth and the one
 stored in the *shadow map* differ only by rounding or by the map's texels; a *depth bias* and a
@@ -657,8 +685,8 @@ drawn by the *sky pass*, not held.
 was drawn, after the scene pass.
 
 **Source asset.** A file that people make or download and that *cooking* imports: a glTF scene, a
-PNG or JPEG image. Its *metadata file* is committed beside it; the file itself is committed too, or
-fetched from the *mirror* ([ADR-0069](adr/0069-the-asset-pipeline.md),
+PNG or JPEG image, or a *scene file*. Its *metadata file* is committed beside it; the file itself
+is committed too, or fetched from the *mirror* ([ADR-0069](adr/0069-the-asset-pipeline.md),
 [ADR-0070](adr/0070-the-sample-games-source-assets.md)).
 
 **Spiral of death.** A fixed-step loop that falls further behind at each frame because running

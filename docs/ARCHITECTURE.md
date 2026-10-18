@@ -118,8 +118,8 @@ lists every dependency.
   of the engine's crates only, and no engine crate depends on it
   ([ADR-0055](adr/0055-games-in-the-workspace.md)).
 - `slime-world` depends on `slime-assets`, for the cooked scenes it spawns, `slime-color`, for the
-  colors of its lights, `slime-reflect`, and `slime-serialize`, for its saves, and on no GPU or
-  window, so that a world runs headless, in tests, servers and tools
+  colors of its lights, `slime-reflect`, and `slime-serialize`, for its saves and its scene files,
+  and on no GPU or window, so that a world runs headless, in tests, servers and tools
   ([ADR-0079](adr/0079-the-engines-own-world.md), [ADR-0087](adr/0087-the-worlds-documents.md)).
 - `slime-color` depends on `slime-reflect` only, so that a crate that holds a color does not need
   the GPU layer for it ([ADR-0079](adr/0079-the-engines-own-world.md)).
@@ -130,7 +130,8 @@ lists every dependency.
   ([ADR-0085](adr/0085-reflection.md)).
 - `slime-serialize` depends on `slime-reflect` and on a TOML parser only, and no crate that only
   describes its types depends on it: the crates that read and write files do, the cooker for its
-  metadata files and the world for its saves ([ADR-0086](adr/0086-serialization.md)).
+  metadata files and the scene files that it cooks, the world for its saves and its scene files
+  ([ADR-0086](adr/0086-serialization.md), [ADR-0095](adr/0095-cooked-scene-files.md)).
 - `slime-world-render` depends on the world and on the renderer, and neither depends on it: the
   world holds no GPU object, and the renderer draws any list of instances it is given
   ([ADR-0079](adr/0079-the-engines-own-world.md), [ADR-0084](adr/0084-what-the-world-draws.md)).
@@ -569,7 +570,10 @@ slime-cook cook <sources> <output>                     the cooker's program, bef
     │   ├── output/<key>.import there already?         reused: it lists what the import gave
     │   └── otherwise import(file ID, image IDs)       meshes (MikkTSpace tangents), materials,
     │                                                  scenes, the textures of embedded images;
-    │                                                  the image files asked for in their roles
+    │                                                  the image files asked for in their roles;
+    │                                                  nodes' `slime:` properties checked as
+    │                                                  values and kept as a binary document
+    │                                                  (ADR-0095)
     ├── for each image, in each role asked, or colors:
     │   name = BLAKE3(role, ID, bytes, cooker's version)
     │   ├── output/<name>.ktx2 there already?          reused: nothing is cooked again
@@ -588,8 +592,9 @@ slime-cook cook <sources> <output>                     the cooker's program, bef
     └── Manifest::to_bytes ──▶ output/manifest         each asset's kind, file, size, source;
                                                        written only if it changed
 
-a game that draws a cooked scene itself, as the `scene` example does (a world loads through an
-AssetCache: see "The world", below)
+a game that draws a cooked scene itself, as the `scene` example does (a world reads its scenes
+through a `SceneLibrary` and loads their meshes through an `AssetCache`: see "The world" and "Scenes
+and prefabs", below)
 ├── slime_assets::CookedAssets::open(output)           reads the manifest
 ├── renderer.load_scene_in_background(gpu, &assets, id)
 │   │                                                  slime-render: a SceneLoad, at once, for a
@@ -974,8 +979,9 @@ tests):
   their layouts, shader modules, pipelines), images read back, meshes, materials, environments,
   cameras, lights, scenes and instances, loaded scenes and loads in progress, the asset cache,
   statistics, windows, events, the application's `Context` and `AppConfig`, the dev overlay, worlds
-  and entity handles, the frame builder of `slime-world-render` and its frames, reflected values
-  and registries, and the error types of those crates. wgpu keeps its error scopes per thread, so
+  and entity handles, scene libraries and resolved scenes, the frame builder of
+  `slime-world-render` and its frames, reflected values and registries, and the error types of those
+  crates. wgpu keeps its error scopes per thread, so
   GPU objects can be created from several threads.
   wgpu fails to configure a window's surface when another thread submits work while it waits for
   the GPU, as the threads of a load do: the `Gpu`'s submissions, from any thread, wait while the

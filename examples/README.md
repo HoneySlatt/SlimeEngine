@@ -55,8 +55,8 @@ The log level of every example is set by the `SLIME_LOG` environment variable, f
   sphere, a checker texture, six small spheres of increasing roughness, dielectric and metal, their
   materials, light and sky) of another image test; PNG writing; and the comparison with a reference
   image.
-- [`assets/`](assets/README.md) holds the sample scene, the Blender script that made it, and its
-  license.
+- [`assets/`](assets/README.md) holds the sample scene, the Blender script that made it, the yard's
+  and the lamp's scene files, and their licenses.
 - The image tests compare a render with a reference, within a tolerance
   ([ADR-0018](../docs/adr/0018-reference-image-tests.md), amended by
   [ADR-0028](../docs/adr/0028-image-tests-tolerate-a-few-pixels.md),

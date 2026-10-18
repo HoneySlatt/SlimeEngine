@@ -502,7 +502,7 @@ the Windows programs that CI built from that commit, `world.exe` among them.
 | 3d — Anti-aliasing and the shadows of spot lights | M3d.1 multisampling in the GPU layer; M3d.2 anti-aliasing in the renderer; M3d.3 spot lights' shadows: what each tile sees; M3d.4 spot lights' shadows: drawn and read; M3d.5 *Nightwatch* and the Windows check; M3d.6 a smoother shadow filter; M3d.7 what each cascade sees; M3d.8 the cascades read; M3d.9 *Nightwatch* at 3840 × 2160 | Done; no release of its own: what it delivers is released with 0.2. Its decisions are in [ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md) and ADR-0058 to [ADR-0065](adr/0065-reading-the-cascades.md); the cost of its scene pass on Direct3D 12 with each shader compiler, which made DXC ship beside the Windows programs, is in [ADR-0066](adr/0066-shipping-dxc-beside-the-programs.md). |
 | 4a — Cooked assets → 0.2 | M4a.1 *Hunna Wood*'s skeleton; M4a.2 asset identity; M4a.3 images; M4a.4 glTF; M4a.5 the sample scene through the pipeline; M4a.6 the zone's sources; M4a.7 *Hunna Wood* by day; M4a.8 night; M4a.9 Windows check, documentation, release 0.2 | Done, released as 0.2 on 2026-10-15. Its decisions are in [ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md) to [ADR-0071](adr/0071-cooked-textures.md); the zone's budgets are set by the test that checks them, in `games/hunnawood/src/zone.rs`, and what was left to refine went to Stage 4b's M4b.8. |
 | 4b — Live assets | M4b.1 a shared GPU and a task pool; M4b.2 the zone loads while frames go on; M4b.3 recovering from a lost GPU device; M4b.4 *Hunna Wood* goes on after a lost device; M4b.5 materials that change in place; M4b.6 hot reload of cooked data; M4b.7 hot reload of shaders; M4b.8 refining *Hunna Wood*; M4b.9 Windows check, documentation, close | Done on 2026-10-16; no release of its own: what it delivers is released with 0.3, at the end of Stage 5a. Its decisions are in [ADR-0072](adr/0072-stage-4b-live-assets.md) to [ADR-0077](adr/0077-hot-reload-of-shaders.md). The owner checked the recovery from a lost device by hand at its close: in the Windows virtual machine, from the dev overlay and by a forced TDR, and in a KDE Plasma session after a real reset of the GPU (see [Known debt](#known-debt)). |
-| 5a — The world → 0.3 | M5a.1 the world: entities and components; M5a.2 the hierarchy and the transforms; M5a.3 what the world draws; M5a.4 *Hunna Wood* on the world; M5a.5 reflection; M5a.6 any component listed and edited; M5a.7 serialization with format versioning; M5a.8 the world round-trips; M5a.9 saving and resuming a run; M5a.10 Windows check, documentation, release 0.3 | Done, released as 0.3 on 2026-10-17 with Stage 4b. Its decisions are in [ADR-0078](adr/0078-stage-5-in-two-halves.md) to [ADR-0088](adr/0088-saving-and-resuming-a-run.md), with the measurements of the world's storage, transforms and frame in ADR-0082 to ADR-0084; the save that later versions of *Hunna Wood* must read is `games/hunnawood/fixtures/save.toml`, and how long CI took with each crate it added is in the [Notes](#notes). |
+| 5a — The world → 0.3 | M5a.1 the world: entities and components; M5a.2 the hierarchy and the transforms; M5a.3 what the world draws; M5a.4 *Hunna Wood* on the world; M5a.5 reflection; M5a.6 any component listed and edited; M5a.7 serialization with format versioning; M5a.8 the world round-trips; M5a.9 saving and resuming a run; M5a.10 Windows check, documentation, release 0.3 | Done, released as 0.3 on 2026-10-17 with Stage 4b. Its decisions are in [ADR-0078](adr/0078-stage-5-in-two-halves.md) to [ADR-0088](adr/0088-saving-and-resuming-a-run.md), with the measurements of the world's storage, transforms and frame in ADR-0082 to ADR-0084; its save fixture, now `games/hunnawood/fixtures/save-0.3.toml`, is set aside by later versions as a save of another layout ([ADR-0090](adr/0090-stage-5b-scenes-and-prefabs.md)), and how long CI took with each crate it added is in the [Notes](#notes). |
 
 The details of each completed milestone (what it delivered, how it was checked, what was measured)
 are in the history of this file and in the commits that implemented it; the measurements that
@@ -869,13 +869,12 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **Children and queries in another order after loading** (ADR-0087). A world loaded from a save
   holds its entities in other slots, and an entity's children in the order the save set them: what
   must go the same way after loading cannot depend on either order.
-- **Spawning a large scene makes each component from its value** (ADR-0091, which holds the
-  figures). A scene of 100 000 entities resolves and spawns in about a second in a release build,
-  where spawning as many entities with `World::spawn` takes milliseconds (ADR-0083): each
-  component is made from its value, and each entity's identity is a list of texts, held twice.
-  *Hunna Wood*'s zone, its seven placements resolved, takes about 2 ms. ADR-0089 orders the
-  remedies, inside the world: typed components copied rather than made from values, identities that
-  share their parts, scenes prepared on another thread.
+- **Spawning a large scene makes each component from its value** (ADR-0091 and the outcome of
+  M5b.6 hold the figures). A scene resolves and spawns far slower than as many entities spawned
+  with `World::spawn` (ADR-0083): each component is made from its value, and each entity's identity
+  is a list of texts, held twice. ADR-0089 orders the remedies, inside the world: typed components
+  copied rather than made from values, identities that share their parts, scenes prepared on another
+  thread.
 - **A world written back writes what it holds of what spawning set aside** (ADR-0092). A
   reference, or a parent, that a scene file wrote into a placement whose prefab no longer had its
   entity is written as the world holds it, no entity or the root: what it named is lost, as a save
@@ -894,6 +893,10 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **After a lost device, what is hidden loads only once shown** (ADR-0084): the cache loads what is
   drawn. In *Hunna Wood*, a key taken or a door opened before the loss shows a few frames after R
   shows them again.
+- **Any change of *Hunna Wood*'s cooked data makes a new game of its scenes.** With `--watch`, the
+  game makes a new game of the scenes before it knows whether a scene changed, a texture saved in an
+  image editor included (`take_assets` in `games/hunnawood/src/main.rs`): a little under the cost of
+  starting the game, which the outcome of M5b.6 measures, for a tool of development.
 - **A zone loaded again with `--watch` changes in parts.** Its entities change at once, the meshes,
   materials and textures that the cache holds when its reload ends, and new meshes once their batch
   is loaded; *Hunna Wood* swapped whole scenes before it ran on the world.

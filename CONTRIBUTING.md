@@ -161,8 +161,9 @@ tried yet.
 
 A scene file, `.scene`, is TOML that places entities and other scenes, glTF scenes or scene files,
 as prefabs, each placement with values of its own
-([ADR-0091](docs/adr/0091-scene-documents-and-placements.md)). `examples/assets/yard.scene` places
-the sample scene and four lamps of `lamp.scene`:
+([ADR-0091](docs/adr/0091-scene-documents-and-placements.md)); the rustdoc of
+`slime_world::SceneLibrary` lays out its keys. `examples/assets/yard.scene` places the sample scene
+and four lamps of `lamp.scene`:
 
 ```toml
 [assets]
@@ -270,8 +271,8 @@ code.
    the others link to ([one home per fact](AGENTS.md#one-home-per-fact)).
 3. Do not commit code that fails the checks of the
    [definition of done](AGENTS.md#definition-of-done).
-4. A source asset, a glTF, PNG or JPEG file that the asset pipeline imports, is committed with its
-   metadata file, `<file>.meta`, which holds its asset ID
+4. A source asset, a glTF, PNG, JPEG or scene file (`.scene`) that the cooker reads, is committed
+   with its metadata file, `<file>.meta`, which holds its asset ID
    ([ADR-0069](docs/adr/0069-the-asset-pipeline.md)): `cargo run -p slime-cook -- scan <directory>`
    writes one for each new file. Move or rename the two together, so that the asset keeps its ID;
    a copied file needs its own, so do not copy the metadata file with it.
