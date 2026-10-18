@@ -596,10 +596,11 @@ saves made before ([ADR-0079](adr/0079-the-engines-own-world.md),
 [ADR-0093](adr/0093-saves-and-hot-reload-with-placements.md)).
 
 **Scene (cooked).** A glTF file's node hierarchy as the cooker makes it
-(`slime_assets::CookedScene`): each node's name, parent, transform, meshes, light and `extras`,
-which a *resolved scene* turns into *entities* with *persistent identities*, spawned under a key or
-placed in a *scene file* as a *prefab*. A *save* names the scenes that its world spawned
-([ADR-0069](adr/0069-the-asset-pipeline.md), [ADR-0083](adr/0083-transforms-and-the-hierarchy.md)).
+(`slime_assets::CookedScene`): each node's name, parent, transform, meshes, light, `extras` and
+*typed properties*, which a *resolved scene* turns into *entities* with *persistent identities*,
+spawned under a key or placed in a *scene file* as a *prefab*. A *save* names the scenes that its
+world spawned ([ADR-0069](adr/0069-the-asset-pipeline.md),
+[ADR-0083](adr/0083-transforms-and-the-hierarchy.md), [ADR-0095](adr/0095-cooked-scene-files.md)).
 
 **Scene (render).** What the renderer draws in one frame: a camera, *punctual lights*, an
 *environment*, an *exposure* and *instances* (`slime_render::Scene`). Not a scene graph: the
@@ -609,15 +610,17 @@ frame ([ADR-0084](adr/0084-what-the-world-draws.md)).
 **Scene file.** A scene written as TOML, with the extension `.scene`: its entities under IDs of the
 file, their parents and components, the *prefabs* that it places with their *overrides*, and the
 assets that it uses, by short names. Written by hand, or from a world, its placements kept as
-placements (`slime_world::World::write_scene`). A *scene library* reads its text and resolves it;
-the cooker does not cook scene files yet ([ADR-0089](adr/0089-scenes-and-prefabs.md),
-[ADR-0091](adr/0091-scene-documents-and-placements.md),
-[ADR-0092](adr/0092-a-world-written-back-as-a-scene.md)).
+placements (`slime_world::World::write_scene`). The cooker checks its layout and cooks it into its
+*binary encoding*; a *scene library* reads it and resolves it
+([ADR-0089](adr/0089-scenes-and-prefabs.md), [ADR-0091](adr/0091-scene-documents-and-placements.md),
+[ADR-0092](adr/0092-a-world-written-back-as-a-scene.md),
+[ADR-0095](adr/0095-cooked-scene-files.md)).
 
 **Scene library.** The scenes that a game has, by their asset IDs (`slime_world::SceneLibrary`):
-glTF scenes as the cooker makes them and the text of *scene files*, each resolved once into a
-*resolved scene*, the prefabs that it places with it, then shared
-([ADR-0091](adr/0091-scene-documents-and-placements.md)).
+glTF scenes and *scene files*, read from cooked data when first resolved, or given one by one; each
+resolved once into a *resolved scene*, the prefabs that it places with it, then shared, and read
+again when new cooked data changes it ([ADR-0091](adr/0091-scene-documents-and-placements.md),
+[ADR-0095](adr/0095-cooked-scene-files.md)).
 
 **Shadow acne.** Speckles of shadow that a surface casts on itself where its depth and the one
 stored in the *shadow map* differ only by rounding or by the map's texels; a *depth bias* and a
@@ -764,6 +767,11 @@ next *shape* that declares it at the same size ([ADR-0041](adr/0041-render-graph
 **Type registry.** The reflected types that a program describes, by *stable name* and alias, with
 what reads and sets their *values* (`slime_reflect::Registry`). Each *world* keeps one, which holds
 the types of its components ([ADR-0085](adr/0085-reflection.md)).
+
+**Typed property.** A custom property of a glTF node named `slime:` followed by a registered type's
+*stable name*, whose value is a component's, written in the engine's notation: set in Blender, it
+gives the node that component when a world resolves the scene. Other custom properties stay untyped
+`extras` ([ADR-0095](adr/0095-cooked-scene-files.md)).
 
 **Uniform buffer.** A buffer of values that a whole draw reads, such as a camera's matrices,
 declared `var<uniform>` in WGSL and read through a *bind group* (`slime_gfx::UniformBuffer`).

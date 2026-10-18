@@ -84,12 +84,16 @@ assert_eq!(world.get::<Velocity>(cart).expect("held").0, 5.0);
   and a stretch that they do not. `World::global_transform` gives where it is in the world, a
   `GlobalTransform`, always current; `World::update_transforms` computes again what changed, so that
   reading costs a lookup.
-- `SceneLibrary` holds a game's scenes by asset ID, glTF scenes as `slime-assets` cooks them
-  (`insert_cooked`) and the text of scene files (`insert_file`), and resolves one
-  (`SceneLibrary::resolve`) into a `ResolvedScene`: its entities, the prefabs that it places
-  resolved with it, and their overrides applied, those whose target the prefab no longer has set
-  aside (`ResolvedScene::set_aside`). `ResolvedScene::from_cooked` resolves a glTF scene alone, an
-  entity per node with its `Transform`, `Name`, `Meshes`, `Light` and `Extras`.
+- `SceneLibrary` holds a game's scenes by asset ID: those of its cooked data, glTF scenes and
+  cooked scene files, read when first resolved (`SceneLibrary::of`), and read again when the cooked
+  data changes (`SceneLibrary::reload`); and those given by hand, glTF scenes (`insert_cooked`) and
+  the text of scene files (`insert_file`). It resolves one (`SceneLibrary::resolve`) into a
+  `ResolvedScene`: its entities, the prefabs that it places resolved with it, and their overrides
+  applied, those whose target the prefab no longer has set aside (`ResolvedScene::set_aside`).
+  `ResolvedScene::from_cooked` resolves a glTF scene alone, an entity per node with its
+  `Transform`, `Name`, `Meshes`, `Light`, `Extras` and its typed components, read through a
+  registry. `outline` reads a scene file's layout without the types of its values, as the cooker
+  checks it (`docs/adr/0095-cooked-scene-files.md`).
 - `World::spawn_scene` spawns a resolved scene under a key, its entities named by their paths
   through the placements, such as `zone/lamp 3/light`; `World::find` gives the entity of a
   `PersistentId`; `World::placement` says what the world remembers of a placement: its prefab, and

@@ -63,9 +63,9 @@ created only when code needs it.
 | [`slime-world`](../crates/slime-world/README.md) | The world: a game's entities, their components and their hierarchy, kept by the engine ([ADR-0079](adr/0079-the-engines-own-world.md)); headless | `slime-assets`, `slime-color`, `slime-reflect`, `slime-serialize`, `glam`, `thiserror`, `tracing` | Entities as handles of an index and a generation, the components attached to them stored by type, queries that read through an iterator or change through a closure ([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)); parents and children, transforms with `f64` translations, a uniform scale and a stretch, and where each entity is in the world, always current ([ADR-0083](adr/0083-transforms-and-the-hierarchy.md)); scenes spawned as entities with persistent identities, glTF scenes and scene files whose placements of prefabs carry overrides, resolved by a library of scenes, and written back as scene files that keep their placements ([ADR-0089](adr/0089-scenes-and-prefabs.md), [ADR-0091](adr/0091-scene-documents-and-placements.md), [ADR-0092](adr/0092-a-world-written-back-as-a-scene.md)); what is drawn, meshes by asset ID, lights and hidden subtrees, and the transforms before the last fixed step of what moved during it ([ADR-0084](adr/0084-what-the-world-draws.md)); every component reflected, and listed, read and set by name and property path through the world's registry ([ADR-0085](adr/0085-reflection.md)); saves of what differs from the world as a game makes it at the start of a run, what it spawned while it ran saved as its scenes, loaded back ([ADR-0087](adr/0087-the-worlds-documents.md), [ADR-0093](adr/0093-saves-and-hot-reload-with-placements.md)) |
 | [`slime-world-render`](../crates/slime-world-render/README.md) | The bridge from a world to the renderer: builds, at each frame, the instances, the lights and the sky's environment that a world draws, from the GPU objects of an asset cache ([ADR-0084](adr/0084-what-the-world-draws.md)); neither the world nor the renderer depends on it | `slime-world`, `slime-render`, `slime-gfx`, `tracing` | Meshes drawn where the world draws them between fixed steps, those the cache does not hold asked for; lights at their entities; hidden subtrees left out; the game's sky around the world's sun, given once |
 | [`slime-assets`](../crates/slime-assets/README.md) | The assets as games load them: asset IDs, cooked data and its manifest, read by ID from a directory of cooked data ([ADR-0069](adr/0069-the-asset-pipeline.md)); headless | `slime-reflect`, `ktx2`, `thiserror` | The asset ID and its text form, a UUID; cooked textures in KTX2 files ([ADR-0071](adr/0071-cooked-textures.md)), meshes, materials and scenes, their nodes' extras among them; the manifest; reading them by ID; a watch of the manifest, for hot reload |
-| [`slime-cook`](../crates/slime-cook/README.md) | The cooker: turns source assets into cooked data before games run; a library and its program, which no game links ([ADR-0069](adr/0069-the-asset-pipeline.md)) | `slime-assets`, `slime-color`, `slime-reflect`, `slime-serialize`, `bevy_mikktspace`, `blake3`, `block_compression`, `glam`, `gltf`, `png`, `uuid`, `zune-jpeg`, `thiserror` | IDs for source files in metadata files beside them, read and written through `slime-serialize`, their check, and the IDs of the assets inside a file; PNG and JPEG images cooked into textures compressed in BC7 or BC5, every level computed; glTF files imported into meshes (MikkTSpace tangents), materials and scenes; a directory cooked again only where it changed, with its manifest, once or at each change |
+| [`slime-cook`](../crates/slime-cook/README.md) | The cooker: turns source assets into cooked data before games run; a library and its program, which no game links ([ADR-0069](adr/0069-the-asset-pipeline.md)) | `slime-assets`, `slime-color`, `slime-reflect`, `slime-serialize`, `slime-world`, `bevy_mikktspace`, `blake3`, `block_compression`, `glam`, `gltf`, `png`, `uuid`, `zune-jpeg`, `thiserror` | IDs for source files in metadata files beside them, read and written through `slime-serialize`, their check, and the IDs of the assets inside a file; PNG and JPEG images cooked into textures compressed in BC7 or BC5, every level computed; glTF files imported into meshes (MikkTSpace tangents), materials and scenes; the typed properties of their nodes; scene files checked and cooked into the binary encoding of documents ([ADR-0095](adr/0095-cooked-scene-files.md)); a directory cooked again only where it changed, with its manifest, once or at each change |
 | [`slime-devui`](../crates/slime-devui/README.md) | The dev overlay: egui drawn over the engine's frames, fed with the engine's events, and its world panel; tooling, removed once something does at least as well ([ADR-0052](adr/0052-amend-roadmap-before-0-1.md), [ADR-0081](adr/0081-stage-5a-the-world.md)) | `egui`, `egui-wgpu`, `slime-assets`, `slime-color`, `slime-gfx` (with its `wgpu` feature), `slime-platform`, `slime-reflect`, `slime-world` | Panels over a frame; a world's entities listed by name and their components edited through reflection, each edit returned for the caller to apply; no clipboard or input methods |
-| [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-assets`, `slime-color`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `slime-world`, `slime-world-render`, `png`, `tracing`; for the tests, `slime-cook` and `gltf` | `hello`, `headless`, `window`, `offscreen`, `scene`, which draws a cooked scene, `world`, which draws it from a world; the reference image tests, and tests that cook glTF files and draw them |
+| [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-assets`, `slime-color`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `slime-world`, `slime-world-render`, `png`, `tracing`; for the tests, `slime-cook` and `gltf` | `hello`, `headless`, `window`, `offscreen`, `scene`, which draws a cooked scene, `world`, which spawns a yard of prefabs from a cooked scene file and draws it from a world; the reference image tests, and tests that cook glTF files and draw them |
 | [`hunnawood`](../games/hunnawood/README.md) | Hunna Wood, the game that every stage grows from Stage 4a on; a client of the engine through its public API only, not part of the engine ([ADR-0055](adr/0055-games-in-the-workspace.md), [ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)) | `slime-app`, `slime-assets`, `slime-color`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-reflect`, `slime-render`, `slime-world`, `slime-world-render`, `tracing` | A forest zone and its hero read from cooked data and spawned in the game's world, its colliders and markers as the game's components, the camera behind the hero, the hero's movement and its collisions with boxes turned about the vertical and cylinders, a key that opens a door, a campfire that flickers, the zone drawn while it loads, the run kept after a lost GPU device, the zone loaded again when its cooked data changes, and the shaders when their files do (`--watch`); the run saved on F5 and on quit, loaded on F9 and resumed on start ([ADR-0088](adr/0088-saving-and-resuming-a-run.md)) |
 
 ## Dependency rules
@@ -87,7 +87,8 @@ slime-examples ──▶ slime-app ──┬──▶ slime-platform ──▶ w
 hunnawood  ──▶ slime-app, slime-assets, slime-render, slime-platform, slime-gfx, slime-color, slime-devui,
                slime-world, slime-world-render, slime-reflect (public API only)
 
-slime-cook ──▶ slime-assets, slime-reflect, slime-serialize (metadata files)
+slime-cook ──▶ slime-assets, slime-reflect, slime-serialize (metadata files),
+               slime-world (the layout of the scene files that it checks)
 slime-render ──▶ slime-assets (cooked data)
 slime-world ──▶ slime-assets (cooked scenes), slime-serialize (saves, scene files)
 slime-world-render ──▶ slime-world, slime-render, slime-gfx
@@ -576,6 +577,13 @@ slime-cook cook <sources> <output>                     the cooker's program, bef
     │           └── CookedTexture::to_ktx2             BC7 or BC5 blocks on every thread; written
     │                                                  under a temporary name of the process's,
     │                                                  then renamed
+    ├── for each scene file: slime_world::outline      its layout, without its values' types;
+    │   │                                              refused, by line, for an asset that no
+    │   │                                              source makes, a prefab that is not a
+    │   │                                              scene, scene files that place each other
+    │   └── slime_serialize::encode                    its binary encoding, written to
+    │                                                  output/<name>.scenefile; it needs the
+    │                                                  assets of its table
     └── Manifest::to_bytes ──▶ output/manifest         each asset's kind, file, size, source;
                                                        written only if it changed
 
@@ -679,19 +687,24 @@ names loads again by itself. With `--watch`, the game gives new cooked data to
 ### Scenes and prefabs
 
 A scene is spawned under a key as a level, or placed in another scene as a *prefab*: a *placement*,
-with *overrides* of its own ([ADR-0089](adr/0089-scenes-and-prefabs.md)). A game gives its scenes
-to a `slime_world::SceneLibrary` by asset ID, glTF scenes as the cooker makes them and the text of
-scene files; the library resolves a scene once, with the world's registry, into a `ResolvedScene`
-that the world spawns as often as it needs ([ADR-0091](adr/0091-scene-documents-and-placements.md)),
-and writes back ([ADR-0092](adr/0092-a-world-written-back-as-a-scene.md)):
+with *overrides* of its own ([ADR-0089](adr/0089-scenes-and-prefabs.md)). A game reads its scenes
+through a `slime_world::SceneLibrary`, by asset ID: `SceneLibrary::of` reads glTF scenes and scene
+files from cooked data, each when it is first resolved, and a game or a test can also give it scenes
+one by one ([ADR-0095](adr/0095-cooked-scene-files.md)). The library resolves a scene once, with the
+world's registry, into a `ResolvedScene` that the world spawns as often as it needs
+([ADR-0091](adr/0091-scene-documents-and-placements.md)), and writes back
+([ADR-0092](adr/0092-a-world-written-back-as-a-scene.md)):
 
 ```text
 library.resolve(world.registry(), id)               slime-world
 ├── a glTF scene: ResolvedScene::from_cooked        a record per node: Transform (its matrix split
 │                                                    into a translation, a rotation, a uniform
 │                                                    scale and a stretch), Name, Meshes, Light,
-│                                                    Extras; its ID the node's name
-└── a scene file, read strictly                     slime-serialize's Document
+│                                                    Extras, and its typed properties, read
+│                                                    strictly through the registry; its ID the
+│                                                    node's name
+└── a scene file, read strictly                     slime-serialize's Document, from its text or
+    │                                               its binary encoding, as cooked
     ├── layout                                      [assets], [root], [entities]: IDs, parents,
     │                                               prefabs
     ├── each prefab resolved first, recursively     a cycle refused; nesting and the entities
@@ -725,6 +738,11 @@ world.write_scene(root)                             the subtree back as a scene 
 └── Composer, without transient fields or defaults  the same world, the same bytes; what the
                                                     file cannot hold left out, and reported
 ```
+
+With new cooked data, `library.reload(assets)` gives the IDs of the scenes whose cooked files
+changed, forgets what it read of them, and resolves every scene again when next asked, so that a
+scene that places a changed prefab follows it; a game then carries its run into the world spawned
+anew (`World::carry`, [ADR-0093](adr/0093-saves-and-hot-reload-with-placements.md)).
 
 ### Reflection
 

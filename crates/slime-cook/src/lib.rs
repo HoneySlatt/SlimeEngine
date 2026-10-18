@@ -9,7 +9,8 @@
 //! levels of detail it computes and compresses for the GPU ([`texture`]), and cooks a directory of
 //! sources into a directory of cooked data and its manifest ([`cook()`]), once or each time a
 //! source changes ([`watch`]). It imports glTF files ([`gltf_import`]) into meshes, materials and
-//! scenes.
+//! scenes, their nodes' typed properties into components, and cooks scene files into the engine's
+//! binary encoding of documents, checked through the world that reads them (`slime-world`).
 //!
 //! A game never links this crate: a shipped program holds no importer.
 

@@ -42,7 +42,9 @@ pub struct Cooked {
     pub cooked: Vec<AssetId>,
     /// The assets whose cooked file was there already, from an earlier cook of the same source.
     pub reused: Vec<AssetId>,
-    /// What the glTF files imported now have that the importer leaves out, each after its file.
+    /// What the glTF files imported now have that the importer leaves out, and the paths that the
+    /// tables of scene files give their assets where their sources are elsewhere, each after its
+    /// file.
     pub warnings: Vec<String>,
     /// Metadata files without their source, reported and left alone.
     pub problems: Vec<Problem>,
@@ -103,12 +105,19 @@ pub enum CookError {
 /// images. Each image file becomes a texture for each role the materials read it in, or a texture
 /// of colors ([`TextureRole::Color`]) if none reads it, whose ID is the image's: a game loads it
 /// by that ID. The texture of an image in another role has an ID derived from the image's
-/// ([`crate::ids::texture_id`]).
+/// ([`crate::ids::texture_id`]). Each scene file becomes its document in the engine's binary
+/// encoding (`slime_serialize::encode`), under its own ID, of the kind [`AssetKind::SceneFile`],
+/// which needs the assets of its table (`docs/adr/0095-cooked-scene-files.md`). It is read first
+/// without the types of its values ([`slime_world::outline`]), and refused if it says something
+/// wrong there, if its table names an asset that the sources do not make, if it places an asset
+/// that is not a scene, or if scene files place each other; the path that its table gives an asset
+/// whose source is elsewhere is a warning.
 ///
 /// Each cooked file is named by a BLAKE3 hash of all that made it: for a texture of an image file,
 /// the cooker's version ([`TEXTURE_COOKER_VERSION`]), the role, the image's ID and bytes; for what
 /// a glTF file gives, the cooker's versions ([`GLTF_COOKER_VERSION`]), the file's ID and bytes, the
-/// bytes of its buffers and the IDs of the image files it names, then the asset's ID. A record of
+/// bytes of its buffers and the IDs of the image files it names, then the asset's ID; for a scene
+/// file, its cooker's version ([`SCENE_FILE_COOKER_VERSION`]), its ID and its encoding. A record of
 /// each glTF file's import, named by the same hash, holds what it gave. What is in `output` already
 /// under its name is not cooked again; so a second cook of unchanged sources cooks nothing, and a
 /// source moved with its metadata neither. The same sources cooked into two empty directories give
@@ -126,8 +135,8 @@ pub enum CookError {
 ///
 /// [`CookError::Scan`] if `sources` cannot be scanned, [`CookError::SameId`] if two metadata
 /// files hold one ID, [`CookError::Import`] if a glTF file cannot be imported, [`CookError::Image`]
-/// if an image cannot be, and [`CookError::Io`] if a file cannot be read or written. Files cooked
-/// before the error stay.
+/// if an image cannot be, [`CookError::Scene`] if a scene file cannot be, by its line, and
+/// [`CookError::Io`] if a file cannot be read or written. Files cooked before the error stay.
 pub fn cook(sources: &Path, output: &Path) -> Result<Cooked, CookError> {
     let scan = scan::scan(sources, Mode::GiveIds)?;
     let mut result = Cooked::default();

@@ -4,6 +4,9 @@
 |---|---|---|---|
 | `scene.glb` | The scene of the `scene` example and its image test: a tiled floor, two wooden crates, a sphere, a pillar, a brick wall and a ring, with seven textures drawn in code and embedded as PNG images, and three lights; 128 400 bytes | [`make_scene.py`](make_scene.py), run in Blender 5.2: `blender --background --python examples/assets/make_scene.py -- examples/assets/scene.glb` | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/): public domain |
 | `scene.glb.meta` | The metadata file of `scene.glb`, which holds its asset ID: the identity that the asset pipeline knows it by, whatever its path ([ADR-0069](../../docs/adr/0069-the-asset-pipeline.md)) | `cargo run -p slime-cook -- scan examples/assets`, which gives an ID to each source file without one | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/): public domain |
+| `lamp.scene` | A lamp, a prefab that the yard places four times: a post of the sample's pillar, a glass of its sphere, and a warm point light in the glass ([ADR-0089](../../docs/adr/0089-scenes-and-prefabs.md)) | Written by hand | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/): public domain |
+| `yard.scene` | The yard of the `world` example: the sample scene, and four lamps around its floor, the second lit red and the fourth without its light, overrides of the lamp | Written by hand | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/): public domain |
+| `lamp.scene.meta`, `yard.scene.meta` | Their metadata files, which hold their asset IDs; the yard names the lamp by its ID | `cargo run -p slime-cook -- scan examples/assets` | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/): public domain |
 
 ## What `scene.glb` holds
 
@@ -60,3 +63,13 @@ The `scene` example draws this file once the cooker has cooked it
 ([`crates/slime-cook`](../../crates/slime-cook/README.md)) imports glTF files exported from Blender
 with its default settings, GLB or `.gltf`, when their images are PNG or JPEG; its rustdoc lists
 what it refuses, and what it leaves out with a warning.
+
+## The yard and the lamp
+
+`yard.scene` and `lamp.scene` are scene files
+([ADR-0091](../../docs/adr/0091-scene-documents-and-placements.md)), written by hand, which the
+cooker cooks into the binary encoding of documents
+([ADR-0095](../../docs/adr/0095-cooked-scene-files.md)). The lamp names the sample's `pillar` and
+`sphere` meshes by their asset IDs, which follow from `scene.glb`'s ID and the meshes' names: a
+change of those names in `make_scene.py` gives the meshes other IDs, and the cook then refuses the
+lamp until its table names them again. `CONTRIBUTING.md` says how to write and cook a scene file.

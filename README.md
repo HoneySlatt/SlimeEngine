@@ -46,7 +46,9 @@ saves its run on F5 and when it quits, loads it on F9, and resumes it when it st
 under way, writes worlds in files: a scene file places other scenes as prefabs, each placement with
 overrides of its own, which a world spawns and writes back (`slime-world`), and what a game spawns
 while it runs is saved as its scenes; `slime-serialize` encodes documents in a binary encoding of
-its own too. No game uses scene files yet.
+its own too, in which the cooker cooks scene files, and Blender's nodes carry typed components. The
+`world` example spawns a yard of prefabs from a scene file, and follows a prefab changed while it
+runs; *Hunna Wood* does not use scene files yet.
 [`docs/PLAN.md`](docs/PLAN.md) says what comes next, and lists the known debt.
 
 ## Getting started
@@ -129,8 +131,8 @@ today has:
 - A world (`slime-world`) of entities, components and their hierarchy, drawn through
   `slime-world-render`, whose components are reflected and edited by name (`slime-reflect`), and
   saved as what changed since the start of a run; *Hunna Wood* saves one run, in one file. Scene
-  files are read from their text, and the cooker does not cook them yet; a world is written back as
-  a scene file through the API, and no editor writes them yet.
+  files are cooked, and written by hand; a world is written back as a scene file through the API,
+  and no editor writes them yet.
 - A renderer without blended transparency or culling of what the camera does not see; with a
   capped number of lights, and shadows from one directional light and from spot lights, none from
   point lights.

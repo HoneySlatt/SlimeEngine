@@ -12,13 +12,17 @@ cooks them into textures, their levels of detail computed and compressed in BC7 
 ([ADR-0071](../../docs/adr/0071-cooked-textures.md)), into a directory of cooked data with its
 manifest, cooking again only what changed. It imports glTF files, `.gltf` with their buffers and
 images beside them or GLB, into meshes, with MikkTSpace tangents when they have none, materials and
-scenes, and cooks the textures their materials read in the roles they read them. It cooks a
-directory again each time one of its files changes, for games that load their data again while
-they run ([ADR-0076](../../docs/adr/0076-hot-reload-of-cooked-data.md)).
+scenes, and cooks the textures their materials read in the roles they read them; their nodes'
+`slime:<type name>` properties become typed components. It cooks scene files into the engine's
+binary encoding of documents, after it checks them
+([ADR-0095](../../docs/adr/0095-cooked-scene-files.md)). It cooks a directory again each time one
+of its files changes, for games that load their data again while they run
+([ADR-0076](../../docs/adr/0076-hot-reload-of-cooked-data.md)).
 
 ## Role
 
-- Knows which files are sources: glTF scenes (`.gltf`, `.glb`) and PNG and JPEG images.
+- Knows which files are sources: glTF scenes (`.gltf`, `.glb`), PNG and JPEG images, and scene
+  files (`.scene`).
 - Gives each source file a random ID the first time it meets it, in a *metadata file* beside it,
   `<file>.meta`, committed with it: a file moved or renamed with its metadata file keeps its ID.
 - Reports a metadata file left without its source, and two that hold one ID, as a file copied with
@@ -31,8 +35,14 @@ they run ([ADR-0076](../../docs/adr/0076-hot-reload-of-cooked-data.md)).
   its own ID if none reads it.
 - Imports glTF files: each primitive a mesh of only the vertices it names, flat normals and
   MikkTSpace tangents where the file has none; each material with its textures by ID; each scene's
-  nodes with their transforms, meshes, lights and `extras`. It refuses what it cannot read right
-  with a message that says what and where, and warns about what it leaves out.
+  nodes with their transforms, meshes, lights and `extras`, the `slime:<type name>` ones as typed
+  components, checked as written. It refuses what it cannot read right with a message that says
+  what and where, and warns about what it leaves out.
+- Cooks scene files: reads their layout without the types of their values, through `slime-world`;
+  refuses, by file and line, an asset of their table that the sources do not make, a prefab that is
+  not a scene, a parent missing, entities that would be each other's ancestors and scene files that
+  place each other; warns of a path that a table gives where the source is not; writes their
+  binary encoding, which needs the assets of their table.
 - Names each cooked file by the hash of all that made it, so that what is already cooked is not
   cooked again, and the same sources cook into the same bytes on one platform. Writes its files
   under temporary names of the process's own, then renames them, so that two cooks at once leave
@@ -64,8 +74,10 @@ Their rustdoc gives the formats and the rules.
 
 [`slime-assets`](../slime-assets/README.md), for the asset ID and the cooked formats;
 [`slime-color`](../slime-color/README.md), for the sRGB transfer function of the mipmaps;
-[`slime-serialize`](../slime-serialize/README.md), which reads and writes metadata files, and
-[`slime-reflect`](../slime-reflect/README.md), which describes what they hold. `uuid` for random
+[`slime-serialize`](../slime-serialize/README.md), which reads and writes metadata files and
+encodes scene files, and [`slime-reflect`](../slime-reflect/README.md), which describes what
+metadata files hold; [`slime-world`](../slime-world/README.md), which reads the layout of the scene
+files that it checks. `uuid` for random
 IDs, `blake3` to derive the IDs of sub-assets and name cooked files, `png` and `zune-jpeg` to decode
 images, `block_compression` to compress textures, `gltf` to read glTF files, `bevy_mikktspace` to
 compute tangents, `glam` for their vectors, `thiserror` for its error types.

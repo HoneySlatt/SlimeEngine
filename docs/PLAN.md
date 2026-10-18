@@ -18,7 +18,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   saves and resumes its runs, on Linux and on Windows.
 - Stage 5b — Scenes and prefabs: planned on 2026-10-17 and validated by the owner
   ([ADR-0089](adr/0089-scenes-and-prefabs.md), [ADR-0090](adr/0090-stage-5b-scenes-and-prefabs.md)),
-  to be released as 0.4 at its close. M5b.1 to M5b.4 are done; M5b.5 is next.
+  to be released as 0.4 at its close. M5b.1 to M5b.4 are done; M5b.5 is built: the owner changes the
+  lamp's file in the running example, and CI checks it.
 
 ## Status
 
@@ -28,7 +29,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M5b.2](#m5b2--a-world-written-back-as-a-scene) | A world, or a subtree of it, is written as a scene file that keeps its placements, and reads back to the same world | Done |
 | [M5b.3](#m5b3--saves-and-hot-reload-with-placements) | What a game spawns while it runs is saved as placements, and a run is carried through a save when its scenes change | Done |
 | [M5b.4](#m5b4--the-binary-encoding-of-documents) | A document is written in a binary encoding of the engine's own, and read back without parsing text | Done |
-| [M5b.5](#m5b5--scene-files-cooked-typed-components-prefabs-in-the-world-example) | Scene files are cooked and spawned, Blender's nodes carry typed components, and the `world` example places prefabs | Planned |
+| [M5b.5](#m5b5--scene-files-cooked-typed-components-prefabs-in-the-world-example) | Scene files are cooked and spawned, Blender's nodes carry typed components, and the `world` example places prefabs | Built; the owner changes the lamp in the running example, CI checks it |
 | [M5b.6](#m5b6--hunna-woods-zone-made-of-prefabs) | *Hunna Wood*'s zone is a scene file that places its land and its lanterns | Planned |
 | [M5b.7](#m5b7--windows-check-documentation-release-04) | Stage 5b is done and released as 0.4 | Planned |
 
@@ -336,6 +337,20 @@ Risks:
   `cargo run --release -p slime-cook -- watch examples/assets target/cooked/examples`.
 - **By hand (Linux).** The owner changes a value in the lamp's file and sees every lamp change but
   the one that overrides it, then changes an override and sees its lamp change.
+- **Outcome.** Built on 2026-10-18 ([ADR-0095](adr/0095-cooked-scene-files.md)). The cooker reads a
+  scene file's layout through `slime_world::outline`, without the game's types, and checks its table
+  of assets against the IDs and kinds of the sources, its parents and its prefabs, across files; it
+  writes the file's binary encoding under the manifest's kind `SceneFile`, whose needs are the
+  table's assets. A glTF node's `slime:<type name>` properties are checked as values when imported,
+  and kept in the cooked scene's node as a binary document, which `ResolvedScene::from_cooked` reads
+  strictly through the world's registry; the cooked scene's format and the import of glTF files took
+  a new version. `SceneLibrary::of` reads the scenes of cooked data when each is first resolved;
+  `SceneLibrary::reload` forgets the scenes whose cooked files changed and resolves every scene
+  again, so that a yard follows its lamp, as a test that cooks the lamp again shows without a GPU.
+  The `world` example spawns `yard.scene`, four lamps of `lamp.scene` around the sample scene, and,
+  when it quits, writes the yard back and checks that the file spawns the world written; with
+  `--watch`, it carries its run into the yard spawned anew. The world panel shows the identity of
+  the entity selected and the prefab of a placement.
 
 ### M5b.6 — *Hunna Wood*'s zone made of prefabs
 
@@ -803,6 +818,12 @@ GitHub issues, linked from their entry; this list stays the reference.
   Stage 6 decides whether a file says them.
 - **A scene file written back loses its comments** (ADR-0089): `World::write_scene` writes the
   canonical form. Stage 6 decides whether its editor keeps the comments of files written by hand.
+- **The cooked glTF scene is a format apart from the binary encoding** (ADR-0089, ADR-0095). A
+  glTF file's scenes are cooked into a format of their own, `slime_assets::CookedScene`, and only
+  the typed properties of their nodes into the binary encoding: cooked scenes have two formats, and
+  two readers. The renderer's scene loader, the `scene` example and the image tests read the format;
+  moving it onto the binary encoding would make `slime-render` depend on serialization, and waits
+  for a reason.
 - **After a lost device, what is hidden loads only once shown** (ADR-0084): the cache loads what is
   drawn. In *Hunna Wood*, a key taken or a door opened before the loss shows a few frames after R
   shows them again.

@@ -157,6 +157,38 @@ library path does not suit RenderDoc's interface), attach it to the running exam
 Running Instance), and trigger a capture. Captures on Windows, through Direct3D 12, have not been
 tried yet.
 
+### Writing and cooking a scene file
+
+A scene file, `.scene`, is TOML that places entities and other scenes, glTF scenes or scene files,
+as prefabs, each placement with values of its own
+([ADR-0091](docs/adr/0091-scene-documents-and-placements.md)). `examples/assets/yard.scene` places
+the sample scene and four lamps of `lamp.scene`:
+
+```toml
+[assets]
+lamp = { id = "6647a9c8-d378-4f9a-89d7-3ec9fc2b172a", path = "lamp.scene" }
+
+[entities]
+"lamp 2" = { prefab = "lamp" }
+
+[changed."lamp 2".Transform]
+translation = { x = -3.5, z = 3.5 }
+
+[changed."lamp 2/light".Light.Point]
+color = { r = 1.0, g = 0.1, b = 0.05 }
+```
+
+The table of assets names each asset that the file uses by a short name: its ID decides, which a
+source's metadata file holds; its path is a hint. Values name entities by their paths from the
+file's root, and assets by their short names. A new scene file gets its metadata file from
+`cargo run -p slime-cook -- scan <directory>`, as any source does; `check` and `cook` then refuse it
+without one. The cooker reads its layout and refuses, naming the file and the line, an asset that
+the sources do not make, a prefab that is not a scene, a parent missing, and scene files that place
+each other ([ADR-0095](docs/adr/0095-cooked-scene-files.md)); a game checks the values when it
+resolves the scene, through its types, and its tests resolve each of its scenes. A Blender node
+gives a game's component as a custom property named `slime:<type name>`, whose value is the
+component's in the same notation, `{ height = 2.6 }`, which the cooker keeps typed.
+
 ### Changing assets while a game runs
 
 `slime-cook watch` cooks a directory of sources again each time one of its files changes, and a

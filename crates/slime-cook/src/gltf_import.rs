@@ -15,7 +15,10 @@
 //! and emission, data for the metallic-roughness and occlusion, normals for the normal texture
 //! (ADR-0071). It reads every scene's nodes, their transforms, the meshes and the lights
 //! (`KHR_lights_punctual`) they place, and their `extras`: booleans, numbers and texts, other
-//! values left out with a warning.
+//! values left out with a warning. Those named [`TYPED_PROPERTY`] and a type's name are the node's
+//! typed components, each a value in the engine's notation, checked as written and kept in the
+//! binary encoding of a document, which a world reads through its registry
+//! (`docs/adr/0095-cooked-scene-files.md`).
 //!
 //! It refuses, with a message that says what and where: a file that is not valid glTF, which
 //! includes one that requires an extension other than the two it reads; a file that uses
@@ -26,7 +29,8 @@
 //! than its size or past its buffer); indices that name no vertex, or not a multiple of 3; values
 //! that are not finite numbers, which glTF forbids; a texture read through another set of texture
 //! coordinates than the first; a node hierarchy that is not a set of trees; materials and lights
-//! that glTF forbids; meshes larger than the GPU takes, and files whose meshes together pass
+//! that glTF forbids; a typed property without a type's name, or whose value is not written in the
+//! engine's notation; meshes larger than the GPU takes, and files whose meshes together pass
 //! [`MAX_FILE_VERTICES`] or [`MAX_FILE_INDICES`], checked before their vertices are copied. It
 //! warns about, and leaves out: animations, skins, cameras, vertex colors, and the extensions a
 //! file uses that it does not read.

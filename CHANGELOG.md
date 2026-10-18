@@ -50,14 +50,33 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - `slime_serialize::References` names assets too (`asset_name`, `asset`), by their IDs unless a
   document names them otherwise; `Document::is_table` and `Document::error_at` let a program read a
   document's layout itself, and place what it finds wrong at its line and column.
+- Scene files are cooked ([ADR-0095](docs/adr/0095-cooked-scene-files.md)): a `.scene` file with its
+  metadata file is a source, which the cooker checks, `slime_world::outline` reading its layout
+  without the game's types, and writes in the binary encoding, under the manifest's kind
+  `SceneFile`. It refuses, with the file and the line, an asset of the table that no source makes, a
+  prefab that is not a scene, and scene files that place each other; a stale path of the table is a
+  warning.
+- Typed properties on glTF nodes: a custom property named `slime:<type name>`, whose value is a
+  component written in the engine's notation, gives the node that component when a world resolves
+  the scene, read strictly through its registry. The cooker refuses a property that is not written
+  as a value.
+- `SceneLibrary::of` reads the glTF scenes and the scene files of cooked data, each when it is first
+  resolved, and `SceneLibrary::reload` takes new cooked data and gives the scenes that changed;
+  every scene is resolved again, so that one that places a changed prefab follows it.
+- The `world` example spawns a yard of four lamps, prefabs of a scene file, one of them red and one
+  without its light; it writes the yard back when it quits, and checks the file; with `--watch`, it
+  carries its run when a scene changes. The dev overlay's world panel shows the persistent identity
+  of the entity selected and, for a placement, the prefab that it places.
 
 ### Changed
 
 - `World::load` takes a `SceneLibrary`, through which it spawns again what the world spawned while
   it ran. A save says its layout, `layout = 2`; the saves of 0.3, of layout 1, still load.
 - `World::spawn_scene` spawns a `ResolvedScene`: a game that spawns a glTF scene alone resolves it
-  first, `ResolvedScene::from_cooked(id, &scene)`. A value that its type's own check refuses makes
-  spawning fail with `WorldError::RefusedInScene`, and nothing is spawned.
+  first, `ResolvedScene::from_cooked(id, &scene, world.registry())`, which reads the typed
+  properties of its nodes and fails with `SceneError::Node` for one that the registry refuses. A
+  value that its type's own check refuses makes spawning fail with `WorldError::RefusedInScene`, and
+  nothing is spawned.
 - `Document::keys(&[])` lists the keys of a document's root, where it listed none.
 - A `Transform` read from data that leaves a field out gives that field the identity's value.
 - The text writer keeps the order of a table's tables: once a value of a table goes under a header,
@@ -66,6 +85,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - A rotation that changed is a difference whole, its four coordinates, in a save as in a scene file
   written back (`Registry::difference`), so that it stays a rotation when the scene's turns later.
   Saves of 0.3, which hold the coordinates that changed, still load.
+- The cooked scene's format is at version 2, with the typed components of each node, and so is the
+  cooker's import of glTF files: cooked data of 0.3 must be cooked again.
 
 ## [0.3.0] - 2026-10-17
 

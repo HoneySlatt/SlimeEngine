@@ -13,11 +13,13 @@ input methods. A key pressed while Ctrl is held types no text, so that a shortcu
 letter into a text field. egui warns once at startup that the framebuffer is sRGB, since it prefers
 a linear one for its blending: the panels look slightly lighter than egui's own demos.
 
-Its world panel, `WorldPanel`, lists a world's entities and edits their components through
-reflection, for whoever works on a game, as `docs/adr/0081-stage-5a-the-world.md` decided. It does
-not undo, add, remove or save components, which the editor that `docs/ROADMAP.md` plans for
-Stage 6 is to do; the panel goes with the rest of the overlay once that editor does at least as
-well. What it edits, and its limits, are in the rustdoc of `WorldPanel`.
+Its world panel, `WorldPanel`, lists a world's entities, shows the persistent identity of the one
+selected and, for a placement, its prefab (`docs/adr/0090-stage-5b-scenes-and-prefabs.md`), and
+edits its components through reflection, for whoever works on a game, as
+`docs/adr/0081-stage-5a-the-world.md` decided. It does not undo, add, remove or save components,
+which the editor that `docs/ROADMAP.md` plans for Stage 6 is to do; the panel goes with the rest of
+the overlay once that editor does at least as well. What it edits, and its limits, are in the
+rustdoc of `WorldPanel`.
 
 ## Role
 
