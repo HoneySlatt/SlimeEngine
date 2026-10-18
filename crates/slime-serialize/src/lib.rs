@@ -12,7 +12,7 @@ use std::io::Read as _;
 use slime_reflect::{Path, Reflect, ReflectError, Registry, Value};
 
 pub use crate::compose::{Composer, Document};
-use crate::compose::{parsed, position, too_large};
+use crate::compose::{line_breaks, parsed, position, too_large};
 pub use crate::error::{ReadError, ReadProblem};
 
 /// The size of the largest document read, in bytes, as text or in the binary encoding: 16 MiB. The
@@ -204,7 +204,7 @@ pub fn read_file(
         let valid = &error.as_bytes()[..error.utf8_error().valid_up_to()];
         let before = String::from_utf8_lossy(valid);
         ReadError::new(
-            Some(position(&before, before.len())),
+            Some(position(&before, &line_breaks(&before), before.len())),
             Path::default(),
             ReadProblem::NotText,
         )

@@ -110,17 +110,18 @@ impl SceneLibrary {
 
     /// Takes `assets` in place of the cooked data that the library reads, as a game does when the
     /// cooked data changes on disk (`docs/adr/0076-hot-reload-of-cooked-data.md`), and returns the
-    /// IDs of the scenes whose cooked files changed, or that the new data no longer has, in the
-    /// order of the IDs. Those are read again when next resolved, and every scene is resolved again,
-    /// so that a scene that places a prefab that changed follows it. A game compares the
-    /// fingerprints of the scenes that it spawned with those resolved now to know which changed.
+    /// IDs of the scenes whose cooked files or sources changed, or that the new data no longer has,
+    /// in the order of the IDs. Those are read again when next resolved, in place of a scene of the
+    /// same ID inserted by hand, and every scene is resolved again, so that a scene that places a
+    /// prefab that changed follows it. A game that carries its run into a world spawned anew learns
+    /// which of the scenes that it spawned changed ([`World::carry`](crate::World::carry)).
     pub fn reload(&mut self, assets: CookedAssets) -> Vec<AssetId> {
         let file = |assets: &CookedAssets, id| {
             assets
                 .manifest()
                 .get(id)
                 .filter(|entry| matches!(entry.kind, AssetKind::Scene | AssetKind::SceneFile))
-                .map(|entry| entry.file.clone())
+                .map(|entry| (entry.file.clone(), entry.source.clone()))
         };
         let changed: Vec<AssetId> = match &self.assets {
             Some(old) => {
@@ -184,15 +185,18 @@ impl SceneLibrary {
     /// ([`World::registry`](crate::World::registry)): a glTF scene as
     /// [`ResolvedScene::from_cooked`] makes it; a scene file read strictly, the prefabs that it
     /// places resolved, at most [`MAX_NESTING`] deep, and its overrides applied. A scene is resolved
-    /// once, then shared, until a scene is inserted again, with the types of the registry given the
-    /// first time it is asked for: a library serves the worlds of one game, whose types are the same.
+    /// once, then shared, until a scene is inserted again or a reload changes one
+    /// ([`SceneLibrary::reload`]), with the types of the registry given the first time it is asked
+    /// for: a library serves the worlds of one game, whose types are the same.
     ///
     /// # Errors
     ///
     /// [`SceneError::Missing`] for a scene that the library does not hold; [`SceneError::File`]
     /// for a scene file that says something wrong, where; [`SceneError::Cycle`] for prefabs that
     /// place each other; [`SceneError::TooDeep`] for placements nested deeper than
-    /// [`MAX_NESTING`]; [`SceneError::TooLarge`] for a scene of more than [`MAX_ENTITIES`] entities.
+    /// [`MAX_NESTING`]; [`SceneError::TooLarge`] for a scene of more than [`MAX_ENTITIES`] entities;
+    /// [`SceneError::Node`] for a glTF scene's typed component that `registry` refuses;
+    /// [`SceneError::Load`] for a scene whose cooked file cannot be read.
     pub fn resolve(
         &mut self,
         registry: &Registry,
@@ -312,8 +316,9 @@ pub struct ResolvedScene(pub(crate) Arc<Resolved>);
 pub(crate) struct Resolved {
     pub(crate) id: AssetId,
     pub(crate) name: String,
-    /// The FNV-1a hash of what the scene was resolved from: its cooked bytes, or its text and the
-    /// fingerprints of the prefabs that it places, in their order.
+    /// The FNV-1a hash of what the scene was resolved from: a glTF scene's cooked bytes, or a scene
+    /// file's binary encoding, cooked or made from its text, and the fingerprints of the prefabs that
+    /// it places, in their order.
     pub(crate) fingerprint: u64,
     /// How many scenes deep its placements nest, itself included: 1 for a scene that places none.
     pub(crate) depth: usize,
@@ -641,8 +646,9 @@ pub enum SceneError {
     },
     /// A scene file that says something wrong: a text that is not TOML or not a scene file's, an ID
     /// that an entity cannot have, a parent, an asset, a placement or a component that it does not
-    /// have, a value that its type refuses; where, by its line and column, and the path of the part
-    /// at fault.
+    /// have, a value that its type refuses; where, by its line and column in a text, by its byte in
+    /// a cooked file's binary encoding, and the path of the part at fault, which names the entity,
+    /// the component and the field.
     #[error("scene `{scene}`: {error}")]
     File {
         /// The scene, by its name.
@@ -680,7 +686,7 @@ pub enum SceneError {
     },
     /// A scene that the cooked data that the library reads lists, but whose file cannot be read, or
     /// is not a scene's.
-    #[error("the scene {id} cannot be read")]
+    #[error("the scene {id} cannot be read: {error}")]
     Load {
         /// The scene's asset ID.
         id: AssetId,

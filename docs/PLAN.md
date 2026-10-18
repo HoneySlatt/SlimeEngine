@@ -352,6 +352,20 @@ Risks:
   `--watch`, it carries its run into the yard spawned anew. The world panel shows the identity of
   the entity selected and the prefab of a placement.
 
+  The review found, and a later commit fixed: after a change that the world refused, the example's
+  `--watch` built the next start world from the refused scenes, and carried nothing more; the
+  library now goes back to the cooked data that the run was spawned from. *Hunna Wood* panicked
+  when its hero, loaded again, held a typed property that its registry refused: the hero now stays
+  as it was. A typed property's text could hold several values through a line break, and an array
+  or an object was left out with a warning: both refuse the import. `outline` placed each entry by
+  counting the text's lines from its start, and walked each entity's ancestors to the root, so that
+  a file of 40 000 entities took 6.5 s: documents now keep the offsets of their line breaks when
+  they place errors (`slime-serialize`), and each entity's ancestors are walked once, 0.3 s for
+  such a file. The cooker let a parent's path go into an entity that is not a placement; a scene
+  file renamed kept its old name after a reload; the example's ring drifted at each carry. A scene
+  file's fingerprint now covers its binary encoding, whether cooked or made from its text, which
+  ADR-0095 records with the glTF scenes' fingerprints that the new format changes.
+
 ### M5b.6 — *Hunna Wood*'s zone made of prefabs
 
 - **Goal.** *Hunna Wood*'s zone is a scene file that places its land and its lanterns, its data

@@ -76,7 +76,9 @@ const FLOAT_PERIOD: f64 = 3.0;
 const TURN_SPEED: f32 = 0.2;
 
 struct WorldExample {
-    /// The cooked data the yard is spawned from, and its cache loads from.
+    /// The cooked data the yard in the world was spawned from: with `--watch`, the library goes
+    /// back to it when the scenes that changed cannot be spawned, so that it holds the scenes of
+    /// the world that runs.
     assets: CookedAssets,
     /// The scenes of the cooked data, the yard's and those it places.
     scenes: SceneLibrary,
@@ -122,15 +124,17 @@ impl WorldExample {
     /// Spawns the yard in `world`, as [`start`] does, and finds its ring.
     fn spawn(&mut self, world: &mut World) -> Result<(), AppError> {
         start(world, &mut self.scenes)?;
-        self.found(world);
+        let centre = ring(world).map(|(_, height)| height);
+        self.found(world, centre);
         Ok(())
     }
 
-    /// Finds the ring of the yard in `world`, and frames it.
-    fn found(&mut self, world: &mut World) {
-        self.ring = world
-            .find(&PersistentId::new([KEY, "sample", "ring"]))
-            .and_then(|ring| Some((ring, world.get::<Transform>(ring)?.translation.y)));
+    /// Finds the ring of the yard in `world`, which floats around `centre`, where the world as the
+    /// example starts it puts the ring, and frames the world.
+    fn found(&mut self, world: &mut World, centre: Option<f64>) {
+        self.ring = ring(world)
+            .zip(centre)
+            .map(|((ring, _), centre)| (ring, centre));
         world.update_transforms();
         self.framing = framing(world);
     }
@@ -138,7 +142,8 @@ impl WorldExample {
     /// With `--watch`, takes what changed in the cooked data, once nothing loads: the cache loads
     /// again the meshes, materials and textures that changed, keeping the rest, and the library the
     /// scenes that changed; then, if one did, the run is carried into the yard spawned anew from
-    /// them, as it was saved against the yard spawned before and loaded into the new one.
+    /// them, as it was saved against the yard spawned before and loaded into the new one. If they
+    /// cannot be spawned, the library goes back to the scenes of the world that runs, which goes on.
     fn watch(&mut self, ctx: &mut Context) {
         let Some(watch) = &mut self.watch else {
             return;
@@ -160,19 +165,22 @@ impl WorldExample {
         if let (Some(gpu), Some(renderer)) = (ctx.gpu(), &self.renderer) {
             self.cache.reload(renderer, gpu, assets.clone());
         }
-        self.assets = assets.clone();
         // The world as the example started it from the scenes before they changed, then after.
         let before = made(&mut self.scenes);
-        let changed = self.scenes.reload(assets);
+        let changed = self.scenes.reload(assets.clone());
         if changed.is_empty() {
+            self.assets = assets;
             return;
         }
         let carried = before.and_then(|before| {
             let after = made(&mut self.scenes)?;
-            Ok(ctx.world().carry(&before, after, &mut self.scenes)?)
+            let centre = ring(&after).map(|(_, height)| height);
+            let carried = ctx.world().carry(&before, after, &mut self.scenes)?;
+            Ok((carried, centre))
         });
         match carried {
-            Ok((world, loaded)) => {
+            Ok(((world, loaded), centre)) => {
+                self.assets = assets;
                 if !loaded.set_aside.is_empty() {
                     tracing::warn!(
                         set_aside = ?loaded.set_aside,
@@ -180,7 +188,7 @@ impl WorldExample {
                     );
                 }
                 *ctx.world_mut() = world;
-                self.found(ctx.world_mut());
+                self.found(ctx.world_mut(), centre);
                 // Its handles named the entities of the world before.
                 self.panel = WorldPanel::default();
                 tracing::info!(
@@ -188,10 +196,13 @@ impl WorldExample {
                     "the scenes that changed carried the run"
                 );
             }
-            Err(error) => tracing::error!(
-                "the scenes that changed cannot be spawned: {error}; the example goes on with the \
-                 world it has"
-            ),
+            Err(error) => {
+                self.scenes.reload(self.assets.clone());
+                tracing::error!(
+                    "the scenes that changed cannot be spawned: {error}; the example goes on with \
+                     the world it has"
+                );
+            }
         }
     }
 }
@@ -210,6 +221,12 @@ fn start(world: &mut World, scenes: &mut SceneLibrary) -> Result<(), AppError> {
         }
     });
     Ok(())
+}
+
+/// The ring of the yard in `world`, and its height.
+fn ring(world: &World) -> Option<(Entity, f64)> {
+    let ring = world.find(&PersistentId::new([KEY, "sample", "ring"]))?;
+    Some((ring, world.get::<Transform>(ring)?.translation.y))
 }
 
 /// A world made as the example starts it ([`start`]).

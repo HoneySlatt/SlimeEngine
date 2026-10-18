@@ -911,12 +911,20 @@ struct Glow {
 }
 impl slime_world::Component for Glow {}
 
+/// How many times a lamp flickers a second: a tuple struct of one field, written as that field's
+/// value.
+#[derive(Clone, Copy, Debug, PartialEq, slime_reflect::Reflect)]
+#[reflect(name = "test::Flicker")]
+struct Flicker(u32);
+impl slime_world::Component for Flicker {}
+
 #[test]
 fn a_typed_property_becomes_its_component_and_a_wrong_one_refuses_the_scene() {
     let mut file = Glb::triangle();
     file.json["nodes"][0]["name"] = "lamp".into();
-    file.json["nodes"][0]["extras"] =
-        json(r#"{ "slime:test::Glow": "{ intensity = 40.0 }", "label": "porch" }"#);
+    file.json["nodes"][0]["extras"] = json(
+        r#"{ "slime:test::Glow": "{ intensity = 40.0 }", "slime:test::Flicker": 3, "label": "porch" }"#,
+    );
     let imported = file.import().expect("imported");
     let scene = &imported.scenes[0].1;
     assert_eq!(
@@ -925,12 +933,14 @@ fn a_typed_property_becomes_its_component_and_a_wrong_one_refuses_the_scene() {
     );
     let mut world = World::new();
     world.register::<Glow>();
+    world.register::<Flicker>();
     let resolved = ResolvedScene::from_cooked(FILE, scene, world.registry()).expect("resolved");
     world.spawn_scene("zone", &resolved).expect("spawned");
     let lamp = world
         .find(&PersistentId::new(["zone", "lamp"]))
         .expect("the lamp");
     assert_eq!(world.get::<Glow>(lamp), Some(&Glow { intensity: 40.0 }));
+    assert_eq!(world.get::<Flicker>(lamp), Some(&Flicker(3)));
     // A field that the type does not have, and a value out of its range: the scene is refused.
     for (value, field) in [
         ("{ intensity = 40.0, colour = 1 }", "colour"),
@@ -946,12 +956,38 @@ fn a_typed_property_becomes_its_component_and_a_wrong_one_refuses_the_scene() {
             "{text}"
         );
     }
-    // A value that is not written in the engine's notation: the import is refused.
-    file.json["nodes"][0]["extras"] = json(r#"{ "slime:test::Glow": "intensity 40" }"#);
-    let refusal = file.refusal();
+    // A component that the node gives already: the scene is refused.
+    file.json["nodes"][0]["extras"] = json(r#"{ "slime:Transform": "{}" }"#);
+    let imported = file.import().expect("imported");
+    let error = ResolvedScene::from_cooked(FILE, &imported.scenes[0].1, world.registry())
+        .expect_err("refused")
+        .to_string();
     assert!(
-        refusal.contains("lamp's property `slime:test::Glow`")
-            && refusal.contains("engine's notation"),
-        "{refusal}"
+        error.contains("node `lamp`") && error.contains("gives its `Transform` already"),
+        "{error}"
     );
+    // What is not one value in the engine's notation, in a text, under a type's name: the import
+    // is refused, naming the property.
+    for (extras, why) in [
+        (
+            r#"{ "slime:test::Glow": "intensity 40" }"#,
+            "engine's notation",
+        ),
+        (r#"{ "slime:": "{}" }"#, "names no type"),
+        (
+            r#"{ "slime:test::Glow": [40.0] }"#,
+            "is not a text, a boolean or a number",
+        ),
+        (
+            r#"{ "slime:test::Glow": "{ intensity = 40.0 }\n\"Hidden\" = {}" }"#,
+            "more than one value",
+        ),
+    ] {
+        file.json["nodes"][0]["extras"] = json(extras);
+        let refusal = file.refusal();
+        assert!(
+            refusal.contains("lamp's property `slime:") && refusal.contains(why),
+            "{extras}: {refusal}"
+        );
+    }
 }

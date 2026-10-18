@@ -2,7 +2,7 @@
 //! what a world's documents and saves are. [`write`](crate::write) and [`read`](crate::read) write
 //! and read a document of one value through them.
 
-use std::cell::RefCell;
+use std::cell::{OnceCell, RefCell};
 use std::collections::{BTreeMap, HashMap};
 
 use slime_reflect::{Path, Problem, ReflectError, Registry, Step, Value};
@@ -273,6 +273,9 @@ enum Source<'a> {
     Text {
         text: &'a str,
         parsed: Box<toml_edit::Document<&'a str>>,
+        /// The offsets of the text's line breaks, found when the first error is placed, so that
+        /// placing many costs the text once.
+        breaks: OnceCell<Vec<usize>>,
     },
     /// The engine's binary encoding.
     Binary(&'a [u8]),
@@ -308,6 +311,7 @@ impl<'a> Document<'a> {
             Source::Text {
                 text,
                 parsed: Box::new(document),
+                breaks: OnceCell::new(),
             },
             root,
             mode,
@@ -620,10 +624,15 @@ impl<'a> Document<'a> {
             ReadProblem::Value(Problem::UnknownField { .. } | Problem::DuplicateField(_))
         );
         match &self.source {
-            Source::Text { text, parsed } => {
+            Source::Text {
+                text,
+                parsed,
+                breaks,
+            } => {
                 let span = text::locate(parsed, &failure.at, at_key);
+                let breaks = breaks.get_or_init(|| line_breaks(text));
                 ReadError::new(
-                    span.map(|span| position(text, span.start)),
+                    span.map(|span| position(text, breaks, span.start)),
                     failure.path,
                     failure.problem,
                 )
@@ -649,7 +658,7 @@ pub(crate) fn parsed(text: &str) -> Result<text::Parsed<'_>, ReadError> {
     }
     text::parse(text).map_err(|(span, problem)| {
         ReadError::new(
-            span.map(|span| position(text, span.start)),
+            span.map(|span| position(text, &line_breaks(text), span.start)),
             Path::default(),
             problem,
         )
@@ -674,10 +683,21 @@ fn take(root: &mut Vec<(String, Value)>, key: &str) -> Option<Value> {
     Some(root.remove(index).1)
 }
 
-/// The line and the column, from 1, of the byte `offset` in `text`, the column in characters.
-pub(crate) fn position(text: &str, offset: usize) -> (usize, usize) {
-    let before = text.get(..offset).unwrap_or(text);
-    let line = before.matches('\n').count() + 1;
-    let start = before.rfind('\n').map_or(0, |newline| newline + 1);
-    (line, before[start..].chars().count() + 1)
+/// The offsets of the line breaks of `text`, in order, by which [`position`] places a byte.
+pub(crate) fn line_breaks(text: &str) -> Vec<usize> {
+    text.match_indices('\n').map(|(at, _)| at).collect()
+}
+
+/// The line and the column, from 1, of the byte `offset` in `text`, whose line breaks are at
+/// `breaks` ([`line_breaks`]), the column in characters; the end of `text` for an offset past it,
+/// or inside a character.
+pub(crate) fn position(text: &str, breaks: &[usize], offset: usize) -> (usize, usize) {
+    let offset = if text.is_char_boundary(offset) {
+        offset
+    } else {
+        text.len()
+    };
+    let line = breaks.partition_point(|&at| at < offset);
+    let start = if line == 0 { 0 } else { breaks[line - 1] + 1 };
+    (line + 1, text[start..offset].chars().count() + 1)
 }

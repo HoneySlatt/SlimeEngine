@@ -16,8 +16,8 @@
 //! (ADR-0071). It reads every scene's nodes, their transforms, the meshes and the lights
 //! (`KHR_lights_punctual`) they place, and their `extras`: booleans, numbers and texts, other
 //! values left out with a warning. Those named [`TYPED_PROPERTY`] and a type's name are the node's
-//! typed components, each a value in the engine's notation, checked as written and kept in the
-//! binary encoding of a document, which a world reads through its registry
+//! typed components, each a value in the engine's notation, checked as written
+//! and kept in the binary encoding of a document, which a world reads through its registry
 //! (`docs/adr/0095-cooked-scene-files.md`).
 //!
 //! It refuses, with a message that says what and where: a file that is not valid glTF, which
@@ -29,11 +29,11 @@
 //! than its size or past its buffer); indices that name no vertex, or not a multiple of 3; values
 //! that are not finite numbers, which glTF forbids; a texture read through another set of texture
 //! coordinates than the first; a node hierarchy that is not a set of trees; materials and lights
-//! that glTF forbids; a typed property without a type's name, or whose value is not written in the
-//! engine's notation; meshes larger than the GPU takes, and files whose meshes together pass
-//! [`MAX_FILE_VERTICES`] or [`MAX_FILE_INDICES`], checked before their vertices are copied. It
-//! warns about, and leaves out: animations, skins, cameras, vertex colors, and the extensions a
-//! file uses that it does not read.
+//! that glTF forbids; a typed property without a type's name, whose value is not a boolean, a
+//! number or a text that holds one value in the engine's notation; meshes larger than the GPU takes, and files whose
+//! meshes together pass [`MAX_FILE_VERTICES`] or [`MAX_FILE_INDICES`], checked before their
+//! vertices are copied. It warns about, and leaves out: animations, skins, cameras, vertex colors,
+//! and the extensions a file uses that it does not read.
 
 use std::collections::HashMap;
 use std::f32::consts::FRAC_PI_2;
@@ -50,6 +50,8 @@ use slime_assets::{
     AssetId, CookedMaterial, CookedMesh, CookedScene, Extra, LightKind, MaterialTexture,
     SceneLight, SceneNode, TextureFilter, TextureSampler, TextureWrap,
 };
+use slime_reflect::Registry;
+use slime_serialize::{Document, Mode};
 
 use crate::ids::{SubAssetKind, default_material_id, sub_asset_ids, texture_id};
 use crate::image::ImageKind;
@@ -1246,10 +1248,13 @@ fn read_light(
 /// Custom values of a node, by name.
 type Extras = Vec<(String, Extra)>;
 
-/// The custom values of `node`, its `extras`: an object of booleans, numbers and texts, by name;
-/// then, apart, those whose names start with [`TYPED_PROPERTY`]. Other values are left out, with a
-/// warning.
-fn extras(node: &gltf::Node<'_>, warnings: &mut Vec<String>) -> (Extras, Extras) {
+/// Custom values of a node whose names start with [`TYPED_PROPERTY`], by name, as they are.
+type Typed = Vec<(String, gltf::json::Value)>;
+
+/// The custom values of `node`, its `extras`: an object of booleans, numbers and texts, by name,
+/// other values left out with a warning; then, apart, the values of those whose names start with
+/// [`TYPED_PROPERTY`], whatever they are.
+fn extras(node: &gltf::Node<'_>, warnings: &mut Vec<String>) -> (Extras, Typed) {
     let Some(raw) = node.extras() else {
         return (Vec::new(), Vec::new());
     };
@@ -1268,7 +1273,12 @@ fn extras(node: &gltf::Node<'_>, warnings: &mut Vec<String>) -> (Extras, Extras)
         return (Vec::new(), Vec::new());
     };
     let mut extras = Vec::new();
+    let mut typed = Vec::new();
     for (name, value) in object {
+        if name.starts_with(TYPED_PROPERTY) {
+            typed.push((name, value));
+            continue;
+        }
         let extra = match value {
             gltf::json::Value::Bool(value) => Extra::Bool(value),
             gltf::json::Value::Number(number) => match number.as_f64() {
@@ -1285,24 +1295,25 @@ fn extras(node: &gltf::Node<'_>, warnings: &mut Vec<String>) -> (Extras, Extras)
         };
         extras.push((name, extra));
     }
-    extras
-        .into_iter()
-        .partition(|(name, _)| !name.starts_with(TYPED_PROPERTY))
+    (extras, typed)
 }
 
 /// The typed components of the node `label`, its properties `typed` named [`TYPED_PROPERTY`] and a
-/// type's name, each a value in the engine's notation, as a scene file writes a component's:
-/// the binary encoding of the document that holds them by their types' names, which a world reads
-/// through its registry; empty for none. A boolean or a number is that value.
+/// type's name, each a text that holds one value in the engine's notation, as a scene file writes a
+/// component's, or a boolean or a number, the value of a tuple struct of one field: the binary
+/// encoding of the document that holds them by their types' names, which a world reads through its
+/// registry; empty for none.
 ///
 /// # Errors
 ///
-/// A property without a type's name, or whose value is not one in the engine's notation, which
-/// `slime_serialize` reads: the node, the property and why.
-fn components(label: &str, typed: &[(String, Extra)]) -> Result<Vec<u8>, ImportError> {
+/// A property without a type's name, one whose value is not a text, a boolean or a number, or whose
+/// text is not one value in the engine's notation, which `slime_serialize` reads: the node, the
+/// property and why.
+fn components(label: &str, typed: &[(String, gltf::json::Value)]) -> Result<Vec<u8>, ImportError> {
     if typed.is_empty() {
         return Ok(Vec::new());
     }
+    let registry = Registry::new();
     let mut text = String::new();
     for (name, value) in typed {
         let ty = &name[TYPED_PROPERTY.len()..];
@@ -1312,16 +1323,31 @@ fn components(label: &str, typed: &[(String, Extra)]) -> Result<Vec<u8>, ImportE
             ));
         }
         let value = match value {
-            Extra::Text(text) => text.clone(),
-            Extra::Bool(value) => value.to_string(),
-            Extra::Number(value) => format!("{value:?}"),
+            gltf::json::Value::String(text) => text.clone(),
+            gltf::json::Value::Bool(value) => value.to_string(),
+            // An integer stays one, for a field of integers.
+            gltf::json::Value::Number(number) => number.to_string(),
+            _ => {
+                return refuse(format!(
+                    "{label}'s property `{name}` is not a text, a boolean or a number: write the \
+                     component in the engine's notation, such as `{{ height = 2.6 }}`, as a text"
+                ));
+            }
         };
         let key = ty.replace('\\', "\\\\").replace('"', "\\\"");
-        // Each checked alone, so that an error names its property.
         let line = format!("\"{key}\" = {value}\n");
-        if let Err(error) = slime_serialize::encode(&line) {
+        // Each read alone, so that an error names its property, and so that a text that holds more
+        // than one value, through a line break, gives no other component.
+        let one = Document::parse(&registry, &line, Mode::Lenient)
+            .map(|document| document.keys(&[]) == [ty])
+            .map_err(|error| {
+                ImportError(format!(
+                    "{label}'s property `{name}` is not a value in the engine's notation: {error}"
+                ))
+            })?;
+        if !one {
             return refuse(format!(
-                "{label}'s property `{name}` is not a value in the engine's notation: {error}"
+                "{label}'s property `{name}` holds more than one value"
             ));
         }
         text.push_str(&line);

@@ -145,14 +145,7 @@ impl Game {
         hero: &CookedScene,
         starts_at_night: bool,
     ) -> Result<Self, String> {
-        // Each of the game's components, before any entity holds one.
-        world.register::<Collider>();
-        world.register::<Marker>();
-        world.register::<TimeOfDay>();
-        world.register::<Flickers>();
-        world.register::<Key>();
-        world.register::<Door>();
-        world.register::<Clock>();
+        register(world);
         let zone = Zone::spawn(world, zone)?;
         let hero = match world.spawn_scene(
             HERO,
@@ -202,6 +195,7 @@ impl Game {
     /// is spawned in a world of its own first.
     pub fn reload_zone(&mut self, world: &mut World, scene: &CookedScene) -> Result<bool, String> {
         let mut alone = World::new();
+        register(&mut alone);
         let layout = Zone::spawn(&mut alone, scene)?.layout(&alone);
         let changed = layout.fingerprint() != self.zone.layout(world).fingerprint();
         let (has_item, door_open, night) = (
@@ -221,19 +215,31 @@ impl Game {
 
     /// Takes `scene`, the hero's cooked scene read again after it changed on disk, and spawns it in
     /// `world` in place of the hero, where the hero stood.
-    pub fn reload_hero(&mut self, world: &mut World, scene: &CookedScene) {
+    ///
+    /// # Errors
+    ///
+    /// When a typed property of a node of `scene` is one that the world's registry refuses
+    /// ([`ResolvedScene::from_cooked`]), or holds a value that its type's check refuses
+    /// ([`World::spawn_scene`]). Nothing changes then.
+    pub fn reload_hero(&mut self, world: &mut World, scene: &CookedScene) -> Result<(), String> {
+        let resolved =
+            ResolvedScene::from_cooked(crate::assets::hero_id(), scene, world.registry())
+                .map_err(|error| error.to_string())?;
+        // Spawned in a world of its own first, so that a value that its type refuses changes nothing.
+        let mut alone = World::new();
+        register(&mut alone);
+        alone
+            .spawn_scene(HERO, &resolved)
+            .map_err(|error| error.to_string())?;
         let placed = world.get::<Transform>(self.hero).copied();
         despawn_scene(world, HERO);
         self.hero = world
-            .spawn_scene(
-                HERO,
-                &ResolvedScene::from_cooked(crate::assets::hero_id(), scene, world.registry())
-                    .expect("the hero was resolved when the game started"),
-            )
+            .spawn_scene(HERO, &resolved)
             .expect("the identities of the hero before went with it");
         if let Some(placed) = placed {
             world.insert(self.hero, placed);
         }
+        Ok(())
     }
 
     /// Makes a new game start at night, or by day, as `night` says: what [`Game::restart`] does,
@@ -395,6 +401,17 @@ impl Game {
         }
         self.show_run(world);
     }
+}
+
+/// Registers each of the game's components in `world`, before any entity holds one.
+fn register(world: &mut World) {
+    world.register::<Collider>();
+    world.register::<Marker>();
+    world.register::<TimeOfDay>();
+    world.register::<Flickers>();
+    world.register::<Key>();
+    world.register::<Door>();
+    world.register::<Clock>();
 }
 
 /// Destroys the scene spawned under `key` in `world`: every entity of its identities, its root with
@@ -787,7 +804,7 @@ pub mod tests {
         let before = game.hero_entity();
         let mut scene = no_hero();
         scene.nodes.push(node("cloak", None, Mat4::IDENTITY, &[]));
-        game.reload_hero(&mut world, &scene);
+        game.reload_hero(&mut world, &scene).expect("resolved");
         assert!(!world.contains(before));
         assert_eq!(game.hero(&world), hero);
         let cloak = world
@@ -797,6 +814,21 @@ pub mod tests {
         // It moves on as before.
         hold(&game, &mut world, Vec2::X, 1.0);
         assert!(game.hero(&world).position.x > hero.position.x + 2.0);
+    }
+
+    #[test]
+    fn a_hero_whose_typed_properties_are_refused_stays_as_it_was() {
+        let (mut world, mut game) = zone([0.0, 0.0], Vec::new()).play();
+        let before = game.hero_entity();
+        let mut scene = no_hero();
+        let mut cloak = node("cloak", None, Mat4::IDENTITY, &[]);
+        // Typed properties that are not the binary encoding of a document.
+        cloak.components = b"not a document".to_vec();
+        scene.nodes.push(cloak);
+        let error = game.reload_hero(&mut world, &scene).expect_err("refused");
+        assert!(error.contains("`cloak`"), "{error}");
+        assert_eq!(game.hero_entity(), before);
+        assert!(world.contains(before));
     }
 
     #[test]

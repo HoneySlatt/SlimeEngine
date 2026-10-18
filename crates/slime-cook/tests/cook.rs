@@ -14,7 +14,7 @@ use std::time::{Duration, SystemTime};
 
 use slime_assets::{AssetId, AssetKind, CookedAssets, MANIFEST_FILE, TextureEncoding};
 use slime_cook::{CookError, cook, scan};
-use slime_world::{PersistentId, SceneLibrary, World};
+use slime_world::{PersistentId, SceneError, SceneLibrary, World};
 
 /// An empty directory of its own for `name`, under Cargo's directory for temporary files of
 /// integration tests.
@@ -402,9 +402,32 @@ fn scene_files_that_say_something_wrong_are_refused_with_their_file_and_line() {
             "no entity `nowhere` in this scene",
         ),
         (
+            "[entities.a]\n\n[entities.b]\nparent = \"a/c\"\n".to_owned(),
+            "line 4",
+            "no entity `a/c` in this scene",
+        ),
+        (
             "[entities.a]\nparent = \"b\"\n\n[entities.b]\nparent = \"a\"\n".to_owned(),
             "line 2",
-            "would be its own ancestor",
+            "`a` would be its own ancestor",
+        ),
+        (
+            "[entities.c]\n\n[entities.b]\nparent = \"a\"\n\n[entities.a]\nparent = \"b\"\n"
+                .to_owned(),
+            "line 4",
+            "`b` would be its own ancestor",
+        ),
+        (
+            "[entities.a]\nparent = \"a\"\n".to_owned(),
+            "line 2",
+            "`a` would be its own ancestor",
+        ),
+        (
+            format!(
+                "[assets]\nyard = {{ id = \"{YARD}\" }}\n\n[entities.again]\nprefab = \"yard\"\n"
+            ),
+            "line 4",
+            "scene files that place each other: yard.scene → yard.scene",
         ),
         ("[entities.porch\n".to_owned(), "line 1", "not TOML"),
     ];
@@ -477,4 +500,54 @@ fn a_library_of_cooked_data_reads_again_the_scenes_that_changed_and_those_that_p
     cook(&root, &output).expect("cooked again");
     assert_eq!(scenes.reload(open()), [LAMP]);
     assert_eq!(name(&mut scenes), "pillar", "the yard follows its lamp");
+    // A change that the world refuses, then the cooked data before it: the library goes back.
+    let good = open();
+    let lamp = |name: &str| format!("[entities.post.components]\n{name} = \"pillar\"\n");
+    source(&root, "lamp.scene", LAMP, lamp("Nam").as_bytes());
+    cook(&root, &output).expect("cooked again: the cooker does not know the types");
+    assert_eq!(scenes.reload(open()), [LAMP]);
+    let error = scenes
+        .resolve(World::new().registry(), YARD)
+        .expect_err("refused")
+        .to_string();
+    assert!(error.contains("`Nam`"), "{error}");
+    assert_eq!(scenes.reload(good), [LAMP]);
+    assert_eq!(name(&mut scenes), "pillar");
+    // The source mended: its cooked file is the one before.
+    source(&root, "lamp.scene", LAMP, lamp("Name").as_bytes());
+    cook(&root, &output).expect("cooked again");
+    assert!(scenes.reload(open()).is_empty());
+    // A scene inserted by hand stands for the cooked one until a reload changes it.
+    scenes.insert_file(
+        LAMP,
+        "by hand",
+        "[entities.post.components]\nName = \"by hand\"\n",
+    );
+    assert_eq!(name(&mut scenes), "by hand");
+    assert!(scenes.reload(open()).is_empty());
+    assert_eq!(name(&mut scenes), "by hand");
+    // Renamed with its metadata file: its cooked file is the same, its name is not.
+    for (from, to) in [
+        ("lamp.scene", "column.scene"),
+        ("lamp.scene.meta", "column.scene.meta"),
+    ] {
+        fs::rename(root.join(from), root.join(to)).expect("renamed");
+    }
+    cook(&root, &output).expect("cooked again");
+    assert_eq!(scenes.reload(open()), [LAMP]);
+    let column = scenes
+        .resolve(World::new().registry(), LAMP)
+        .expect("resolved");
+    assert_eq!(column.name(), "column");
+    assert_eq!(name(&mut scenes), "pillar");
+    // The yard gone from the sources: gone from the library.
+    for gone in ["yard.scene", "yard.scene.meta"] {
+        fs::remove_file(root.join(gone)).expect("removed");
+    }
+    cook(&root, &output).expect("cooked again");
+    assert_eq!(scenes.reload(open()), [YARD]);
+    assert!(matches!(
+        scenes.resolve(World::new().registry(), YARD),
+        Err(SceneError::Missing { .. })
+    ));
 }

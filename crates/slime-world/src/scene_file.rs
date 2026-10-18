@@ -1,6 +1,7 @@
 //! Scene files read and resolved: their layout, the prefabs that they place, and the overrides that
 //! they write for them (`docs/adr/0089-scenes-and-prefabs.md`).
 
+use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
@@ -123,14 +124,16 @@ pub(crate) fn resolve(
         scene: name.to_owned(),
         error,
     };
-    let (mut document, bytes) = match source {
+    let (mut document, encoded) = match source {
         SceneFile::Text(text) => (
             Document::parse(registry, text, Mode::Strict).map_err(file)?,
-            text.as_bytes(),
+            // Its fingerprint is its encoding's, as cooked: its comments and its layout do not change
+            // it.
+            Cow::Owned(slime_serialize::encode(text).map_err(file)?),
         ),
         SceneFile::Binary(bytes) => (
             Document::parse_binary(registry, bytes, Mode::Strict).map_err(file)?,
-            bytes.as_slice(),
+            Cow::Borrowed(bytes.as_slice()),
         ),
     };
     let Layout {
@@ -172,7 +175,7 @@ pub(crate) fn resolve(
     };
     scene.components(&mut document, &names).map_err(file)?;
     scene.overrides(&mut document, &names).map_err(file)?;
-    let mut hash = fingerprint(0xcbf2_9ce4_8422_2325, bytes);
+    let mut hash = fingerprint(0xcbf2_9ce4_8422_2325, &encoded);
     for prefab in prefabs.iter().flatten() {
         hash = fingerprint(hash, &prefab.0.fingerprint.to_le_bytes());
     }
@@ -220,9 +223,11 @@ pub struct OutlineEntity {
 /// text that is not TOML or not a scene file's, a key that a scene file does not have, an ID that
 /// an entity cannot have, an asset of the table without an ID or named twice, a prefab that the
 /// table does not name, a placement that holds components, a parent that names no entity of the
-/// file, and entities that would be each other's ancestors. A parent inside a placement, and the
-/// values of components and overrides, are checked when the scene is resolved, with its prefabs
-/// and the game's types ([`SceneLibrary::resolve`]).
+/// file, or a path into one that is not a placement, and entities that would be each other's
+/// ancestors. A parent inside a placement, and the values of components and overrides, are checked
+/// when the scene is resolved, with its prefabs and the game's types ([`SceneLibrary::resolve`]).
+/// It costs about the text's length: the line of each entry is found by a search among the line
+/// breaks, and each entity's ancestors are walked once.
 ///
 /// # Errors
 ///
@@ -250,16 +255,19 @@ pub fn outline(name: &str, text: &str) -> Result<SceneOutline, SceneError> {
         .enumerate()
         .map(|(index, entry)| (entry.id.as_str(), index))
         .collect();
-    // Each entity's parent in the file: the root, or the entity that its parent's path starts with.
+    // Each entity's parent in the file: the root, an entity of the file, or the placement that its
+    // parent's path goes into.
     let mut parents = Vec::with_capacity(entries.len());
     for entry in &entries {
         let parent = match entry.parent.as_deref() {
             None | Some(ROOT_NAME) => None,
             Some(parent) => {
-                let first = parent.split('/').next().unwrap_or(parent);
+                let (first, inside) = parent.split_once('/').unwrap_or((parent, ""));
                 match ids.get(first) {
-                    Some(&index) => Some(index),
-                    None => {
+                    Some(&index) if inside.is_empty() || entries[index].prefab.is_some() => {
+                        Some(index)
+                    }
+                    _ => {
                         return Err(file(document.error_at(
                             &[ENTITIES, entry.id.as_str(), PARENT],
                             Problem::Invalid(format!("no entity `{parent}` in this scene")),
@@ -270,19 +278,37 @@ pub fn outline(name: &str, text: &str) -> Result<SceneOutline, SceneError> {
         };
         parents.push(parent);
     }
-    for (index, entry) in entries.iter().enumerate() {
-        let mut next = parents[index];
-        for _ in 0..entries.len() {
-            let Some(at) = next else {
-                break;
-            };
-            if at == index {
-                return Err(file(document.error_at(
-                    &[ENTITIES, entry.id.as_str(), PARENT],
-                    Problem::Invalid(format!("`{}` would be its own ancestor", entry.id)),
-                )));
+    // Each entity's ancestors walked once: a walk that comes back to an entity of its own is a
+    // cycle, named by its first entity in the file.
+    let mut walked = vec![Walked::Not; entries.len()];
+    for start in 0..entries.len() {
+        let mut next = Some(start);
+        while let Some(at) = next {
+            match walked[at] {
+                Walked::Done => break,
+                Walked::Now => {
+                    let mut first = at;
+                    let mut on = parents[at];
+                    while let Some(member) = on.filter(|&member| member != at) {
+                        first = first.min(member);
+                        on = parents[member];
+                    }
+                    let id = entries[first].id.as_str();
+                    return Err(file(document.error_at(
+                        &[ENTITIES, id, PARENT],
+                        Problem::Invalid(format!("`{id}` would be its own ancestor")),
+                    )));
+                }
+                Walked::Not => {
+                    walked[at] = Walked::Now;
+                    next = parents[at];
+                }
             }
-            next = parents[at];
+        }
+        let mut done = Some(start);
+        while let Some(at) = done.filter(|&at| walked[at] == Walked::Now) {
+            walked[at] = Walked::Done;
+            done = parents[at];
         }
     }
     Ok(SceneOutline {
@@ -304,6 +330,17 @@ pub fn outline(name: &str, text: &str) -> Result<SceneOutline, SceneError> {
             })
             .collect(),
     })
+}
+
+/// How far [`outline`] walked an entity's ancestors.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Walked {
+    /// Not yet.
+    Not,
+    /// On the walk that goes on.
+    Now,
+    /// To the root: no cycle goes through it.
+    Done,
 }
 
 /// Reads the layout of a scene file: its version, its table of assets, and its entities' records,

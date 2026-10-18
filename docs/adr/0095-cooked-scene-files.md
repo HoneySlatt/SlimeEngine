@@ -57,12 +57,13 @@ Where the engine stood:
 **Typed properties on glTF nodes.** A node's `slime:<type name>` custom properties are its typed
 components:
 
-- **How they are written.** Each value is text in the engine's notation, `{ height = 2.6 }`, or a
-  boolean or a number.
-- **What the cooker does.** It checks each as a value written in that notation, and keeps them in
+- **How they are written.** Each is a text that holds one value in the engine's notation, as a
+  scene file writes a component's value, `{ height = 2.6 }`, or a boolean or a number, as a tuple
+  struct of one field is written.
+- **What the cooker does.** It checks each as one value written in that notation, and keeps them in
   the cooked scene's node as the binary encoding of a document keyed by their types' names. A
-  property without a type, or not written as a value, refuses the import, naming the node and the
-  property.
+  property without a type, whose value is not a text, a boolean or a number, or whose text is not
+  one value refuses the import, naming the node and the property.
 - **What the world does.** It reads them through its registry when it resolves the scene:
   `ResolvedScene::from_cooked` takes a registry. It reads them strictly, and refuses the scene for a
   type that it does not hold, a value that the type refuses, or a component that the node gives
@@ -87,7 +88,9 @@ has no light.
 
 - **When it quits**, the example writes the yard back, spawns the file, and fails if the world
   spawned is not the one written.
-- **With `--watch`**, it carries its run when a scene changes, with a window or without.
+- **With `--watch`**, it carries its run when a scene changes, with a window or without. A change
+  that the world refuses leaves the run as it is, and the library goes back to the cooked data
+  that the run was spawned from, so that the next change is carried from it.
 
 **The world panel** shows the persistent identity of the entity selected and, for a placement's
 root, the prefab that it places.
@@ -118,5 +121,12 @@ root, the prefab that it places.
   placed by a scene file, in M5b.6.
 - The cooked glTF scene stays a format apart from the binary encoding, as ADR-0089 decides: the
   known debt in `docs/PLAN.md` records it.
+- **Fingerprints** (ADR-0091). A scene file's is that of its binary encoding, cooked or made from
+  its text, where ADR-0091 hashed its text: its comments and its layout in the text do not change
+  it. A glTF scene's is still its cooked bytes', which the new format changes: the saves of 0.3
+  name their scenes as changed, and load as before.
+- **Errors in values.** A value of a cooked scene file that a game's types refuse is reported by the
+  scene's name and its path in the document, which names the entity, the component and the field,
+  and by its byte in the encoding rather than its line: the world reads the cooked file.
 - Stage 6's editor writes the scene files that the cooker cooks, and shows what the panel shows now,
   with the overrides of each placement.

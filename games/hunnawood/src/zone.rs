@@ -353,9 +353,10 @@ impl Zone {
     ///
     /// # Errors
     ///
-    /// A message that says what is wrong: an entity alive with the key `zone` already, a marker
-    /// missing or given twice, a collider of another kind or without a height, a time of another
-    /// kind. Nothing is spawned then.
+    /// A message that says what is wrong: a typed property of a node that the world's registry
+    /// refuses ([`ResolvedScene::from_cooked`]), an entity alive with the key `zone` already, a
+    /// marker missing or given twice, a collider of another kind or without a height, a time of
+    /// another kind. Nothing is spawned then.
     pub fn spawn(world: &mut World, scene: &CookedScene) -> Result<Self, String> {
         let root = world
             .spawn_scene(

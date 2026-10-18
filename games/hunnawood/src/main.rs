@@ -259,9 +259,15 @@ impl HunnaWood {
             self.scenes.zone = zone;
         }
         if let Some(hero) = hero {
-            self.game.reload_hero(ctx.world_mut(), &hero);
-            tracing::info!("the hero changed, and is spawned again where it stood");
-            self.scenes.hero = hero;
+            match self.game.reload_hero(ctx.world_mut(), &hero) {
+                Ok(()) => {
+                    tracing::info!("the hero changed, and is spawned again where it stood");
+                    self.scenes.hero = hero;
+                }
+                Err(error) => tracing::warn!(
+                    "the hero loaded again cannot be played: {error}; it stays as it was"
+                ),
+            }
         }
         if let (Some(gpu), Some(view)) = (ctx.gpu(), &mut self.view) {
             view.reload(gpu, assets.clone());

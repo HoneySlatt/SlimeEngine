@@ -769,9 +769,10 @@ what reads and sets their *values* (`slime_reflect::Registry`). Each *world* kee
 the types of its components ([ADR-0085](adr/0085-reflection.md)).
 
 **Typed property.** A custom property of a glTF node named `slime:` followed by a registered type's
-*stable name*, whose value is a component's, written in the engine's notation: set in Blender, it
-gives the node that component when a world resolves the scene. Other custom properties stay untyped
-`extras` ([ADR-0095](adr/0095-cooked-scene-files.md)).
+*stable name*, whose value is a text that holds a component's value as a scene file writes it, the
+TOML that `slime-serialize` reads, such as `{ height = 2.6 }`, or a boolean or a number: set in
+Blender, it gives the node that component when a world resolves the scene. Other custom properties stay untyped `extras`
+([ADR-0095](adr/0095-cooked-scene-files.md)).
 
 **Uniform buffer.** A buffer of values that a whole draw reads, such as a camera's matrices,
 declared `var<uniform>` in WGSL and read through a *bind group* (`slime_gfx::UniformBuffer`).

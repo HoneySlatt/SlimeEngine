@@ -179,15 +179,18 @@ color = { r = 1.0, g = 0.1, b = 0.05 }
 ```
 
 The table of assets names each asset that the file uses by a short name: its ID decides, which a
-source's metadata file holds; its path is a hint. Values name entities by their paths from the
-file's root, and assets by their short names. A new scene file gets its metadata file from
-`cargo run -p slime-cook -- scan <directory>`, as any source does; `check` and `cook` then refuse it
+source's metadata file holds; its path, relative to the file's directory and written with `/`, is a
+hint, and the cooker warns when it is stale. Values name entities by their paths from the file's
+root, and assets by their short names. A new scene file gets its metadata file as any source does,
+from `cargo run -p slime-cook -- scan <directory>` or from the first cook; `check` refuses a source
 without one. The cooker reads its layout and refuses, naming the file and the line, an asset that
 the sources do not make, a prefab that is not a scene, a parent missing, and scene files that place
 each other ([ADR-0095](docs/adr/0095-cooked-scene-files.md)); a game checks the values when it
-resolves the scene, through its types, and its tests resolve each of its scenes. A Blender node
-gives a game's component as a custom property named `slime:<type name>`, whose value is the
-component's in the same notation, `{ height = 2.6 }`, which the cooker keeps typed.
+resolves the scene, through its types, and names then the entity, the component and the field at
+fault, without the line, since it reads the cooked file; its tests resolve each of its scenes. A
+Blender node gives a game's component as a custom property named `slime:<type name>`: a text that
+holds the component's value in the same notation, `{ height = 2.6 }`, or a boolean or a number for
+a tuple struct of one field, which the cooker keeps typed.
 
 ### Changing assets while a game runs
 

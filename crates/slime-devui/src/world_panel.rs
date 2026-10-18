@@ -845,7 +845,31 @@ mod tests {
             .expect("the placement");
         let mut panel = WorldPanel::default();
         panel.select(porch);
-        assert_eq!(frame(&egui::Context::default(), &mut panel, &world), []);
+        let ctx = egui::Context::default();
+        assert_eq!(frame(&ctx, &mut panel, &world), []);
+        // The texts that the next frame draws.
+        let mut texts = Vec::new();
+        let mut shapes: Vec<egui::Shape> = ctx
+            .run_ui(egui::RawInput::default(), |ui| {
+                panel.show(ui.ctx(), &world);
+            })
+            .shapes
+            .into_iter()
+            .map(|clipped| clipped.shape)
+            .collect();
+        while let Some(shape) = shapes.pop() {
+            match shape {
+                egui::Shape::Text(text) => texts.push(text.galley.text().to_owned()),
+                egui::Shape::Vec(inner) => shapes.extend(inner),
+                _ => {}
+            }
+        }
+        for shown in [
+            "Identity: yard/porch",
+            "Places the prefab `lamp`, 00000000-0000-0000-0000-000000000002",
+        ] {
+            assert!(texts.iter().any(|text| text == shown), "{shown}: {texts:?}");
+        }
     }
 
     #[test]
