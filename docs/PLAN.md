@@ -18,8 +18,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   saves and resumes its runs, on Linux and on Windows.
 - Stage 5b — Scenes and prefabs: planned on 2026-10-17 and validated by the owner
   ([ADR-0089](adr/0089-scenes-and-prefabs.md), [ADR-0090](adr/0090-stage-5b-scenes-and-prefabs.md)),
-  to be released as 0.4 at its close. M5b.1 to M5b.4 are done; M5b.5 is built: the owner changes the
-  lamp's file in the running example, and CI checks it.
+  to be released as 0.4 at its close. M5b.1 to M5b.5 are done; M5b.6 is next.
 
 ## Status
 
@@ -29,7 +28,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M5b.2](#m5b2--a-world-written-back-as-a-scene) | A world, or a subtree of it, is written as a scene file that keeps its placements, and reads back to the same world | Done |
 | [M5b.3](#m5b3--saves-and-hot-reload-with-placements) | What a game spawns while it runs is saved as placements, and a run is carried through a save when its scenes change | Done |
 | [M5b.4](#m5b4--the-binary-encoding-of-documents) | A document is written in a binary encoding of the engine's own, and read back without parsing text | Done |
-| [M5b.5](#m5b5--scene-files-cooked-typed-components-prefabs-in-the-world-example) | Scene files are cooked and spawned, Blender's nodes carry typed components, and the `world` example places prefabs | Built; the owner changes the lamp in the running example, CI checks it |
+| [M5b.5](#m5b5--scene-files-cooked-typed-components-prefabs-in-the-world-example) | Scene files are cooked and spawned, Blender's nodes carry typed components, and the `world` example places prefabs | Done |
 | [M5b.6](#m5b6--hunna-woods-zone-made-of-prefabs) | *Hunna Wood*'s zone is a scene file that places its land and its lanterns | Planned |
 | [M5b.7](#m5b7--windows-check-documentation-release-04) | Stage 5b is done and released as 0.4 | Planned |
 
@@ -337,7 +336,7 @@ Risks:
   `cargo run --release -p slime-cook -- watch examples/assets target/cooked/examples`.
 - **By hand (Linux).** The owner changes a value in the lamp's file and sees every lamp change but
   the one that overrides it, then changes an override and sees its lamp change.
-- **Outcome.** Built on 2026-10-18 ([ADR-0095](adr/0095-cooked-scene-files.md)). The cooker reads a
+- **Outcome.** Done on 2026-10-18 ([ADR-0095](adr/0095-cooked-scene-files.md)). The cooker reads a
   scene file's layout through `slime_world::outline`, without the game's types, and checks its table
   of assets against the IDs and kinds of the sources, its parents and its prefabs, across files; it
   writes the file's binary encoding under the manifest's kind `SceneFile`, whose needs are the
@@ -369,6 +368,9 @@ Risks:
   written in, so that a value of a type past version 1 was brought through upgrades meant for
   version 1: the owner chose that a node gives the versions in its property `slime:$versions`, as
   a document's `$versions` does.
+  The owner changed the lamp's file in the running example, and saw every lamp change but the one
+  that overrides it, then an override, and saw its lamp change. CI took 13 minutes 51 seconds on
+  Linux and 11 minutes 39 seconds on Windows.
 
 ### M5b.6 — *Hunna Wood*'s zone made of prefabs
 
