@@ -285,12 +285,19 @@ Risks:
   ([ADR-0094](adr/0094-the-binary-encoding-of-documents.md)). A document's tree, without its
   types, is encoded with its keys and texts once each in a table of strings, then its values, each a
   tag and what it holds; floats in four bytes when an `f32` holds them exactly. `encode` encodes a
-  text, `Composer::finish_binary` writes a document of values, and `Document::parse_binary` gives the
-  `Document` that a text gives, read through the same reader; errors name the byte, found by walking
-  the bytes again along their path. The module `format` lays out the bytes, and a test holds the
-  bytes of a fixed document. On a document of 543 entities, the encoding is a third of the text, and
-  is decoded about seven times faster than the text is parsed; reading the values then costs the
-  same, which `Document::parse_binary`'s rustdoc measures.
+  text, a composer's too, and `Document::parse_binary` gives the `Document` that a text gives, read
+  through the same reader; errors name the byte, found by walking the bytes again along their path.
+  The module `format` lays out the bytes, and a test holds the bytes of a fixed document. The
+  encoding is smaller than the text and decoded several times faster than the text is parsed;
+  reading the values then costs the same, which `Document::parse_binary`'s rustdoc measures.
+
+  The review found, and a later commit fixed: a short string named many times was copied each time,
+  so that a small file could make the reader hold more memory than any; the keys and texts of a
+  document are now counted where they are used, and refused past `MAX_SIZE`. Counts nested within a
+  few bytes reserved memory at each level; they now reserve little ahead. A string given twice let
+  a table hold a key twice; it is refused. `Composer::finish_binary` encoded the floats of 32 bits
+  otherwise than their text, so that one document had two encodings: it is gone, and a composer's
+  document is encoded from its text.
 
 ### M5b.5 — Scene files cooked, typed components, prefabs in the `world` example
 

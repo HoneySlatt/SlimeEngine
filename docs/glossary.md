@@ -168,7 +168,6 @@ descriptions: a TOML table of its fields, the versions of its types past 1 under
 the conventions of `slime_serialize::format` for what TOML lacks; or the same in the *binary
 encoding* ([ADR-0086](adr/0086-serialization.md)).
 
-
 **Double-sided material.** A material whose back faces are drawn too, shaded with their normals
 reversed (glTF).
 

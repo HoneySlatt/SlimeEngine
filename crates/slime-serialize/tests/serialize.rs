@@ -1326,22 +1326,18 @@ fn every_registered_type_reads_the_same_from_its_binary_encoding_as_from_its_tex
                 composer
             };
             let text = composer().finish().expect("written");
-            let bytes = composer().finish_binary().expect("encoded");
-            let encoded = slime_serialize::encode(&text).expect("TOML");
+            let bytes = slime_serialize::encode(&text).expect("TOML");
             for mode in [Mode::Strict, Mode::Lenient] {
                 let read = |source| {
                     read_at(&registry, source, mode, &["v"], ty, partial)
                         .unwrap_or_else(|error| panic!("{ty}: {error}\n{text}"))
                         .expect("a value")
                 };
-                let from_text = read(Ok(&text));
-                for source in [&bytes, &encoded] {
-                    let from_bytes = read(Err(source));
-                    assert!(
-                        diff(&from_text, &from_bytes).is_empty(),
-                        "{ty}: {from_text:?} from the text, {from_bytes:?} from the bytes"
-                    );
-                }
+                let (from_text, from_bytes) = (read(Ok(&text)), read(Err(&bytes)));
+                assert!(
+                    diff(&from_text, &from_bytes).is_empty(),
+                    "{ty}: {from_text:?} from the text, {from_bytes:?} from the bytes"
+                );
             }
         }
     }
@@ -1369,19 +1365,17 @@ fn upgrades_versions_and_warnings_read_the_same_from_the_binary_encoding() {
         assert_eq!(read(Ok(earlier)), read(Err(&bytes)), "{place}");
     }
     let newer = "\"$versions\" = { \"test::Lamp\" = 3 }\n[lamp]\npower = 1.0\n";
-    let error = Document::parse_binary(
-        &registry,
-        &slime_serialize::encode(newer).expect("TOML"),
-        Mode::Lenient,
-    )
-    .err()
-    .expect("version 3");
+    let newer_bytes = slime_serialize::encode(newer).expect("TOML");
+    let error = Document::parse_binary(&registry, &newer_bytes, Mode::Lenient)
+        .err()
+        .expect("version 3");
     assert!(matches!(
         error.problem(),
         ReadProblem::Value(Problem::NewerVersion { found: 3, known: 2 })
     ));
     assert_eq!(error.line_and_column(), None);
-    assert!(error.byte().is_some(), "{error}");
+    let at = error.byte().expect("a byte");
+    assert_eq!(newer_bytes[at], 2, "at the version, an integer: {error}");
     // A field that the type does not have: a warning in a save, read either way.
     let unknown =
         "[lamp]\npower = 1.0\ntint = { r = 1.0, g = 1.0, b = 1.0 }\nlit = true\nflicker = 2\n";
@@ -1398,15 +1392,17 @@ fn upgrades_versions_and_warnings_read_the_same_from_the_binary_encoding() {
     assert_eq!(text_warnings.len(), 1);
     assert_eq!(byte_warnings.len(), 1);
     assert_eq!(text_warnings[0].path(), byte_warnings[0].path());
+    // At the key of `flicker`, the eighth string, then the tag of its integer.
     let at = byte_warnings[0].byte().expect("a byte");
-    assert_eq!(&bytes[at..at + 1], &[bytes[at]], "within the bytes");
+    assert_eq!(bytes[at..at + 2], [7, 2], "{}", byte_warnings[0]);
 }
 
 #[test]
 fn a_fixed_document_gives_the_bytes_that_the_test_holds() {
     let text = "\"$versions\" = { \"test::Lamp\" = 2 }\nname = \"lantern\"\ncount = -3\non = true\n\
-                off = false\nhalf = 0.5\ntenth = 0.1\n\n[post]\nlist = [1, \"lantern\"]\n";
-    let mut expected = b"SLDB\x01\x0b".to_vec();
+                off = false\nhalf = 0.5\ntenth = 0.1\nlow = -9223372036854775808\nnan = -nan\n\
+                zero = -0.0\nnone = []\nempty = {}\n\n[post]\nlist = [1, \"lantern\"]\n";
+    let mut expected = b"SLDB\x01\x10".to_vec();
     // The strings, keys and texts once each, in the order in which they come.
     for string in [
         "$versions",
@@ -1418,18 +1414,26 @@ fn a_fixed_document_gives_the_bytes_that_the_test_holds() {
         "off",
         "half",
         "tenth",
+        "low",
+        "nan",
+        "zero",
+        "none",
+        "empty",
         "post",
         "list",
     ] {
         expected.push(string.len() as u8);
         expected.extend_from_slice(string.as_bytes());
     }
-    // The root table of 8 entries, each the index of its key's string and its value: a table of one
+    // The root table of 13 entries, each the index of its key's string and its value: a table of one
     // integer, 2 zigzagged; a text; an integer, -3 zigzagged; true; false; 0.5 as an `f32`; 0.1 as an
-    // `f64`; a table of an array of an integer and a text.
+    // `f64`; the smallest integer, zigzagged in ten bytes; -nan and -0.0 as `f32`s; an empty array;
+    // an empty table; a table of an array of an integer and a text.
     expected.extend_from_slice(&[
-        7, 8, 0, 7, 1, 1, 2, 4, 2, 5, 3, 4, 2, 5, 5, 1, 6, 0, 7, 3, 0, 0, 0, 0x3f, 8, 4, 0x9a,
-        0x99, 0x99, 0x99, 0x99, 0x99, 0xb9, 0x3f, 9, 7, 1, 10, 6, 2, 2, 2, 5, 3,
+        7, 13, 0, 7, 1, 1, 2, 4, 2, 5, 3, 4, 2, 5, 5, 1, 6, 0, 7, 3, 0, 0, 0, 0x3f, 8, 4, 0x9a,
+        0x99, 0x99, 0x99, 0x99, 0x99, 0xb9, 0x3f, 9, 2, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 1, 10, 3, 0, 0, 0xc0, 0xff, 11, 3, 0, 0, 0, 0x80, 12, 6, 0, 13, 7, 0, 14, 7, 1,
+        15, 6, 2, 2, 2, 5, 3,
     ]);
     assert_eq!(slime_serialize::encode(text).expect("TOML"), expected);
 }
@@ -1452,7 +1456,7 @@ fn binary_encodings_cut_or_changed_at_every_byte_are_refused_or_read_without_a_p
             &Value::Struct(vec![("g".to_owned(), Value::F32(0.5))]),
         )
         .expect("a part");
-    let bytes = composer.finish_binary().expect("encoded");
+    let bytes = slime_serialize::encode(&composer.finish().expect("written")).expect("TOML");
     let read = |bytes: &[u8]| {
         let mut document = Document::parse_binary(&registry, bytes, Mode::Lenient)?;
         document.read(&["everything"], "test::Everything", None)?;
@@ -1477,10 +1481,20 @@ fn binary_encodings_cut_or_changed_at_every_byte_are_refused_or_read_without_a_p
 #[test]
 fn binary_encodings_too_deep_or_too_large_are_refused() {
     let registry = registry();
-    // A root table that holds an array, which holds an array, and so on.
-    let mut deep = b"SLDB\x01\x01\x01v\x07\x01\x00".to_vec();
-    deep.extend(std::iter::repeat_n([6, 1], MAX_DEPTH).flatten());
-    deep.push(1);
+    // A root table that holds an array, which holds an array, and so on, then `true`: as deep as a
+    // text may nest, then one level deeper, read from the bytes as from the text.
+    let nested = |arrays: usize| {
+        let mut bytes = b"SLDB\x01\x01\x01v\x07\x01\x00".to_vec();
+        bytes.extend(std::iter::repeat_n([6, 1], arrays).flatten());
+        bytes.push(1);
+        let text = format!("v = {}true{}", "[".repeat(arrays), "]".repeat(arrays));
+        (bytes, text)
+    };
+    let (bytes, text) = nested(MAX_DEPTH - 2);
+    Document::parse(&registry, &text, Mode::Strict).expect("as deep as a text may nest");
+    Document::parse_binary(&registry, &bytes, Mode::Strict).expect("as deep as a text may nest");
+    let (deep, text) = nested(MAX_DEPTH - 1);
+    assert!(Document::parse(&registry, &text, Mode::Strict).is_err());
     let error = Document::parse_binary(&registry, &deep, Mode::Strict)
         .err()
         .expect("too deep");
@@ -1504,6 +1518,34 @@ fn binary_encodings_too_deep_or_too_large_are_refused() {
     let error = slime_serialize::encode(&deep_text).expect_err("too deep");
     assert!(
         matches!(error.problem(), ReadProblem::TooDeep { .. }),
+        "{error}"
+    );
+    // A text past the limit is not encoded, nor read.
+    let large_text = format!("v = \"{}\"", "a".repeat(MAX_SIZE));
+    let error = slime_serialize::encode(&large_text).expect_err("too large");
+    assert!(
+        matches!(error.problem(), ReadProblem::TooLarge { .. }),
+        "{error}"
+    );
+    // A string of 64 KiB, used 300 times in two bytes each: past the limit once copied.
+    let mut repeated = b"SLDB\x01\x02\x01v\x80\x80\x04".to_vec();
+    repeated.extend(std::iter::repeat_n(b'a', 1 << 16));
+    repeated.extend_from_slice(&[7, 1, 0, 6, 0xac, 0x02]);
+    repeated.extend(std::iter::repeat_n([5, 1], 300).flatten());
+    let error = Document::parse_binary(&registry, &repeated, Mode::Strict)
+        .err()
+        .expect("too large once copied");
+    assert!(
+        matches!(error.problem(), ReadProblem::TooLarge { .. }),
+        "{error}"
+    );
+    // The same string twice, which would let a table hold a key twice.
+    let twice = b"SLDB\x01\x02\x01v\x01v\x07\x02\x00\x01\x01\x01";
+    let error = Document::parse_binary(&registry, twice, Mode::Strict)
+        .err()
+        .expect("a string given twice");
+    assert!(
+        error.to_string().contains("a string given twice"),
         "{error}"
     );
 }
@@ -1630,7 +1672,7 @@ fn what_reading_a_document_of_the_size_of_the_zone_costs_in_text_and_in_binary()
         composer
     };
     let text = composed().finish().expect("text");
-    let bytes = composed().finish_binary().expect("bytes");
+    let bytes = slime_serialize::encode(&text).expect("TOML");
     let read_all = |mut document: Document<'_>| {
         for index in 0..543 {
             let id = format!("node {index}");

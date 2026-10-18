@@ -6,9 +6,9 @@ use std::collections::{HashMap, HashSet};
 
 use slime_reflect::{Path, Step, Value};
 
-use crate::MAX_DEPTH;
 use crate::error::ReadProblem;
 use crate::format::BINARY_VERSION as VERSION;
+use crate::{MAX_DEPTH, MAX_SIZE};
 
 /// The bytes that begin every document in the binary encoding: "Slime document, binary".
 pub(crate) const MARK: &[u8; 4] = b"SLDB";
@@ -150,10 +150,11 @@ fn varint(out: &mut Vec<u8>, mut number: u64) {
 ///
 /// # Errors
 ///
-/// Bytes that do not begin with [`MARK`], of a later version of the encoding, cut short, with a
-/// tag, a varint, a count or a string that the encoding does not have, a key given twice in a
-/// table, values nested deeper than [`MAX_DEPTH`], or bytes past the root table: at the byte, with
-/// the path of the part at fault.
+/// Bytes that do not begin with [`MARK`], of version 0 or of a later version of the encoding, cut
+/// short, with a tag, a varint, a count or a string index that the encoding does not have, a string
+/// that is not UTF-8 or that comes twice, a key given twice in a table, values nested deeper than
+/// [`MAX_DEPTH`], keys and texts that hold more than [`MAX_SIZE`] bytes counted where they are used,
+/// or bytes past the root table: at the byte, with the path of the part at fault.
 pub(crate) fn decode(bytes: &[u8]) -> Result<Vec<(String, Value)>, Failure> {
     let mut decoder = Decoder::new(bytes)?;
     let root = decoder.root()?;
@@ -165,8 +166,8 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<Vec<(String, Value)>, Failure> {
 
 /// Where the part at `at`, a path through the values of the document that `bytes` hold, lies in
 /// them: the byte of its key if `key` and it has one, of its value otherwise; of the nearest part
-/// that holds it when the document has no such part; 0 for the root. `None` for bytes that are not
-/// a document.
+/// that holds it when the document has no such part; 0 for the root. `bytes` are a document that
+/// [`decode`] read: bytes that it would refuse may give `None`, or any byte.
 pub(crate) fn locate(bytes: &[u8], at: &Path, key: bool) -> Option<usize> {
     let mut decoder = Decoder::new(bytes).ok()?;
     let mut found = 0;
@@ -208,6 +209,12 @@ pub(crate) fn locate(bytes: &[u8], at: &Path, key: bool) -> Option<usize> {
     Some(found)
 }
 
+/// What a count of things to read reserves: at most 1024, the rest grown as they are read, so that
+/// counts nested within a few bytes, each at most the bytes left, reserve little.
+fn capacity(count: u64) -> usize {
+    count.min(1024) as usize
+}
+
 /// Reads the binary encoding of a document, byte after byte.
 struct Decoder<'b> {
     bytes: &'b [u8],
@@ -215,6 +222,8 @@ struct Decoder<'b> {
     strings: Vec<&'b str>,
     /// The parts that lead to the one read: the index of a key's string, or of an array's element.
     path: Vec<Part>,
+    /// How many bytes of strings were copied into the document read so far.
+    copied: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -231,6 +240,7 @@ impl<'b> Decoder<'b> {
             at: 0,
             strings: Vec::new(),
             path: Vec::new(),
+            copied: 0,
         };
         if bytes.get(..MARK.len()) != Some(MARK) {
             return Err(decoder.fail("not the engine's mark, `SLDB`"));
@@ -255,12 +265,18 @@ impl<'b> Decoder<'b> {
             ));
         }
         let count = decoder.count()?;
-        decoder.strings.reserve(count as usize);
+        decoder.strings.reserve(capacity(count));
+        let mut seen = HashSet::new();
         for _ in 0..count {
-            let length = decoder.count()? as usize;
             let start = decoder.at;
-            let string = std::str::from_utf8(&bytes[start..start + length])
+            let length = decoder.count()? as usize;
+            let string = std::str::from_utf8(&bytes[decoder.at..decoder.at + length])
                 .map_err(|_| decoder.fail("a string that is not UTF-8"))?;
+            // Once each, so that a key is given twice in a table only by its index.
+            if !seen.insert(string) {
+                decoder.at = start;
+                return Err(decoder.fail("a string given twice"));
+            }
             decoder.at += length;
             decoder.strings.push(string);
         }
@@ -281,7 +297,7 @@ impl<'b> Decoder<'b> {
     fn table(&mut self, depth: usize) -> Result<Vec<(String, Value)>, Failure> {
         self.deep(depth)?;
         let count = self.count()?;
-        let mut fields: Vec<(String, Value)> = Vec::with_capacity(count as usize);
+        let mut fields: Vec<(String, Value)> = Vec::with_capacity(capacity(count));
         // A few keys looked through, many hashed.
         let mut few: Vec<usize> = Vec::new();
         let mut many: HashSet<usize> = HashSet::new();
@@ -302,7 +318,7 @@ impl<'b> Decoder<'b> {
             self.path.push(Part::Key(key));
             let value = self.value(depth + 1)?;
             self.path.pop();
-            fields.push((self.strings[key].to_owned(), value));
+            fields.push((self.copy(key)?, value));
         }
         Ok(fields)
     }
@@ -318,15 +334,23 @@ impl<'b> Decoder<'b> {
                 let zigzag = self.varint()?;
                 Value::Int(((zigzag >> 1) as i64) ^ -((zigzag & 1) as i64))
             }
-            F32 => Value::F64(f64::from(f32::from_le_bytes(self.array()?))),
+            F32 => {
+                let narrow = f32::from_le_bytes(self.array()?);
+                // NaN with its sign, which a cast does not promise to keep.
+                Value::F64(if narrow.is_nan() {
+                    f64::NAN.copysign(if narrow.is_sign_negative() { -1.0 } else { 1.0 })
+                } else {
+                    f64::from(narrow)
+                })
+            }
             F64 => Value::F64(f64::from_le_bytes(self.array()?)),
             TEXT => {
                 let index = self.string()?;
-                Value::Text(self.strings[index].to_owned())
+                Value::Text(self.copy(index)?)
             }
             ARRAY => {
                 let count = self.count()?;
-                let mut elements = Vec::with_capacity(count as usize);
+                let mut elements = Vec::with_capacity(capacity(count));
                 for index in 0..count as usize {
                     self.path.push(Part::Element(index));
                     elements.push(self.value(depth + 1)?);
@@ -429,6 +453,24 @@ impl<'b> Decoder<'b> {
             return Err(self.fail("a count past the bytes left"));
         }
         Ok(count)
+    }
+
+    /// The string at `index`, copied: each copy counts, so that the keys and texts of a document read
+    /// hold at most [`MAX_SIZE`] bytes, as those of a text do, however few bytes use them.
+    fn copy(&mut self, index: usize) -> Result<String, Failure> {
+        let string = self.strings[index];
+        self.copied += string.len();
+        if self.copied > MAX_SIZE {
+            return Err((
+                self.at,
+                self.path(),
+                ReadProblem::TooLarge {
+                    size: self.copied as u64,
+                    limit: MAX_SIZE,
+                },
+            ));
+        }
+        Ok(string.to_owned())
     }
 
     /// The index of a string, which the strings hold.

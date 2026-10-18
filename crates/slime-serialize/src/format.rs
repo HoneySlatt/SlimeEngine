@@ -61,7 +61,7 @@
 //! **The binary encoding** holds the same document, its tables, arrays, texts, integers, floats and
 //! booleans, without its types, and a reader reads it as it reads the text
 //! (`docs/adr/0094-the-binary-encoding-of-documents.md`):
-//! [`Composer::finish_binary`](crate::Composer::finish_binary) and [`encode`](crate::encode) write it,
+//! [`encode`](crate::encode) writes it, from a text, a [`Composer`](crate::Composer)'s too, and
 //! [`Document::parse_binary`](crate::Document::parse_binary) reads it. Its numbers are little-endian,
 //! its varints unsigned LEB128 of at most ten bytes:
 //!
@@ -75,9 +75,12 @@
 //!   eight bytes; 5, a text, the index of its string; 6, an array, its count, then its values; 7, a
 //!   table, its count, then the index of each key's string and its value.
 //!
-//! The same document gives the same bytes on every platform. A float is exact in it, where a text
-//! holds its shortest digits. A reader refuses bytes cut short, a tag, a varint, a count or a string
-//! that the encoding does not have, a key given twice in a table, and bytes past the root table.
+//! The same text gives the same bytes on every platform. A reader refuses bytes cut short, a tag, a
+//! varint, a count or a string index that the encoding does not have, a string that is not UTF-8 or
+//! that comes twice, a key given twice in a table, keys and texts that hold more than
+//! [`MAX_SIZE`](crate::MAX_SIZE) bytes counted where they are used, as a text holds them, and bytes
+//! past the root table. It reads a varint written in more bytes than it needs, and a string that the
+//! document does not use, which [`encode`](crate::encode) never writes.
 
 /// The version of the format that this program writes, and the latest it reads.
 pub const VERSION: u32 = 1;

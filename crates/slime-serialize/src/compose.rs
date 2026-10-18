@@ -219,32 +219,6 @@ impl<'a> Composer<'a> {
     /// When the text would be larger than [`MAX_SIZE`], or nest deeper than [`MAX_DEPTH`], which a
     /// reader refuses: what is written can be read.
     pub fn finish(self) -> Result<String, ReflectError> {
-        let text = text::print(&self.document()?);
-        sized(text.len())?;
-        Ok(text)
-    }
-
-    /// The document in the engine's binary encoding, which [`Document::parse_binary`] reads: the same
-    /// document as [`Composer::finish`]'s text, whose encoding by [`encode`](crate::encode) reads to
-    /// the same values, but in more bytes where a float of 32 bits is not one of 64 that its digits
-    /// write, as `0.1`.
-    ///
-    /// # Errors
-    ///
-    /// As [`Composer::finish`], the size counted in bytes of the encoding.
-    pub fn finish_binary(self) -> Result<Vec<u8>, ReflectError> {
-        let bytes = binary::encode(&self.document()?);
-        sized(bytes.len())?;
-        Ok(bytes)
-    }
-
-    /// The document's root table: `$versions` first, if a type past version 1 is in it, then the
-    /// values in the order they were put.
-    ///
-    /// # Errors
-    ///
-    /// When it would nest deeper than [`MAX_DEPTH`].
-    fn document(self) -> Result<Vec<(String, Value)>, ReflectError> {
         let mut root = Vec::new();
         if !self.writer.versions.is_empty() {
             let versions = self
@@ -266,18 +240,15 @@ impl<'a> Composer<'a> {
                 "the document would nest {depth} levels deep, past the {MAX_DEPTH} that a reader reads"
             ))));
         }
-        Ok(root)
+        let text = text::print(&root);
+        if text.len() > MAX_SIZE {
+            return Err(ReflectError::new(Problem::Invalid(format!(
+                "the document would be {} bytes, past the {MAX_SIZE} that a reader reads",
+                text.len()
+            ))));
+        }
+        Ok(text)
     }
-}
-
-/// Refuses a document of `size` bytes past [`MAX_SIZE`], which a reader refuses.
-fn sized(size: usize) -> Result<(), ReflectError> {
-    if size > MAX_SIZE {
-        return Err(ReflectError::new(Problem::Invalid(format!(
-            "the document would be {size} bytes, past the {MAX_SIZE} that a reader reads"
-        ))));
-    }
-    Ok(())
 }
 
 /// How deep `value` nests, as a reader counts it: 1 for a value that holds no other, one more for
@@ -345,12 +316,14 @@ impl<'a> Document<'a> {
 
     /// Reads `bytes`, a document in the engine's binary encoding of values of the types of `registry`,
     /// in `mode`, as [`Document::parse`] reads a text: the same document reads to the same values.
-    /// What [`Composer::finish_binary`] and [`encode`](crate::encode) write.
+    /// What [`encode`](crate::encode) writes, of a text, or of the text that a [`Composer`] writes.
     ///
     /// Measured in a release build on the owner's machine, on a document of 543 entities, the zone's
     /// count of nodes, each with a name and a struct of three fields, one in ten with a struct of 26
-    /// fields of every kind: its 46 kB are decoded in 0.6 ms, where its text, 143 kB, is parsed in
-    /// 4.2 ms; reading every value then takes 7 ms more, from either.
+    /// fields of every kind: its 53 kB are decoded in 0.7 ms, where its text, 143 kB, is parsed in
+    /// 4.2 ms; reading every value then takes 7 ms more, from either. An error or a warning is placed
+    /// by walking the bytes again from their start, along its path: a document read leniently costs
+    /// such a walk for each warning.
     ///
     /// # Errors
     ///

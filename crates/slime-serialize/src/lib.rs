@@ -21,8 +21,9 @@ pub use crate::error::{ReadError, ReadProblem};
 /// owner's machine (M5a.7), one of 1 MiB 0.24 s and 110 MB.
 pub const MAX_SIZE: usize = 16 << 20;
 
-/// The deepest that a document's values nest, tables and arrays within others, as read: 64 levels.
-/// The parser refuses deeper ones before they are counted, past 80.
+/// The deepest that a document's values nest, tables and arrays within others, as read: 64 levels,
+/// in a text as in the binary encoding. The text's parser refuses deeper ones before they are counted,
+/// past 80.
 pub const MAX_DEPTH: usize = 64;
 
 /// How a document names the entities and the assets that values refer to: entities by the
@@ -239,9 +240,10 @@ pub fn read_file(
 ///
 /// # Errors
 ///
-/// When `text` is larger than [`MAX_SIZE`], nests deeper than [`MAX_DEPTH`] or is not TOML, as
-/// reading it refuses, at its line and column; when the encoding would be larger than
-/// [`MAX_SIZE`], which [`Document::parse_binary`] refuses.
+/// When `text` is larger than [`MAX_SIZE`], nests deeper than [`MAX_DEPTH`], is not TOML or holds a
+/// date or a time, which the engine's values do not hold, as reading it refuses, at its line and
+/// column; when the encoding would be larger than [`MAX_SIZE`], which [`Document::parse_binary`]
+/// refuses. A document that a [`Composer`] writes is encoded so, from its text.
 pub fn encode(text: &str) -> Result<Vec<u8>, ReadError> {
     let bytes = binary::encode(&parsed(text)?.root);
     if bytes.len() > MAX_SIZE {

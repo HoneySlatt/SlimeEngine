@@ -39,18 +39,17 @@ such as the cooker, encodes a text it cannot read the values of.
   first meets them;
 - the root table, each value a tag of one byte and what it holds;
 - integers zigzagged as varints, unsigned LEB128;
-- a float in the four bytes of an `f32` when it is one exactly, which most of a game's are, in the
-  eight of an `f64` otherwise, NaN with its sign only, as a text keeps it;
+- a float in the four bytes of an `f32` when it is one exactly, such as 0.5 or 140, in the eight of
+  an `f64` otherwise, NaN with its sign only, as a text keeps it;
 - numbers in little-endian order.
 
-The table of strings holds the names of components and fields once, which every entity repeats: on a
-document of 543 entities, as many as *Hunna Wood*'s zone has nodes, the encoding holds a third of
-the text's bytes.
+The table of strings holds the names of components and fields once, which every entity repeats: the
+measurements of `Document::parse_binary`'s rustdoc show what it saves.
 
-**Who writes it.** `slime_serialize::encode(text)` encodes the document that a text holds, without
-its types, as the cooker will. `Composer::finish_binary` writes a document from values, as a world
-will write a scene. Both refuse an encoding larger than `MAX_SIZE`, which a reader refuses: what is
-written can be read.
+**One writer: from a text.** `slime_serialize::encode(text)` encodes the document that a text holds,
+without its types, as a cooker can. A document of values that a `Composer` writes is encoded from
+its text, so that the same document has one encoding, whose floats read as the text's, at any type.
+It refuses an encoding larger than `MAX_SIZE`, which a reader refuses: what is written can be read.
 
 **Who reads it.** `Document::parse_binary(registry, bytes, mode)` gives the `Document` that
 `Document::parse` gives for a text: the same keys, tables, values and errors, read through the same
@@ -60,21 +59,27 @@ reader.
 
 - Bytes that are not the encoding are refused at their byte and with the path of the part being
   read (`ReadProblem::Binary`): cut short; a tag, a varint, a count or a string index that the
-  encoding does not have; a string that is not UTF-8; a key given twice in a table; bytes past the
-  root table.
+  encoding does not have; a string that is not UTF-8, or that comes twice; a key given twice in a
+  table; bytes past the root table. A varint longer than it needs, and a string that nothing uses,
+  are read: no writer writes them, and they change no value.
 - A later version of the encoding is refused (`ReadProblem::NewerEncoding`).
 - An error in a value is placed as a text's is, at its key or at its value, but by its byte, from 0
   (`ReadError::byte`), where a text's error gives a line and a column. The reader finds that byte
   when an error needs it, walking the bytes again along the error's path: nothing is kept for
-  errors that do not happen.
+  errors that do not happen, and a document read leniently walks them once for each warning.
 
-**Within limits, never a panic.** A document is at most `MAX_SIZE` bytes and nests at most
-`MAX_DEPTH` levels deep, as a text does. A count is at most the bytes left, as each thing that it
-counts takes one at least, so that bytes never make the reader allocate more than they could hold.
+**Within limits, never a panic.** What bytes can make a reader hold is bounded as for a text:
+
+- a document is at most `MAX_SIZE` bytes, and nests at most `MAX_DEPTH` levels deep;
+- its keys and texts, each counted where it is used, hold at most `MAX_SIZE` bytes, as a text's do,
+  so that a short string named many times is not copied without end;
+- a count is at most the bytes left, as each thing that it counts takes one at least, and reserves
+  at most a thousand places ahead, the rest grown as it is read, so that counts nested within a few
+  bytes reserve little.
 
 **What it costs.** Decoding is several times faster than parsing a text; reading the values then
-costs the same from either. `Document::parse_binary`'s rustdoc holds the measurements
-([ADR-0053](0053-one-home-per-fact.md)).
+costs the same from either. The encoding holds a fraction of the text's bytes.
+`Document::parse_binary`'s rustdoc holds the measurements ([ADR-0053](0053-one-home-per-fact.md)).
 
 ## Alternatives considered
 
@@ -88,6 +93,12 @@ costs the same from either. `Document::parse_binary`'s rustdoc holds the measure
   the bytes again, but memory for each value of every document read, for errors that are rare.
 - **A larger limit of size for the encoding than for a text**: denser levels in one file, but the
   text that the cooker encodes is limited all the same, and two limits would say two things.
+- **A writer of the encoding from values**, beside the one from a text: no text printed and parsed
+  again, but two encodings of one document, the floats of 32 bits that a text writes in their
+  shortest digits exact in one and as those digits read in the other, which a value read at a
+  wider type would tell apart.
+- **A reader that refuses all but the encoding that the writer gives**: one form for one document
+  checked, but at a cost to every reading, for documents that no writer makes.
 - **CBOR or MessagePack, through a crate**: rejected by ADR-0089. They would also leave the
   guarantees of a document, such as a key once per table, to code of the engine all the same.
 - **An encoding of typed values**: rejected by ADR-0089, as the cooker would need the game's

@@ -44,8 +44,9 @@ too (`slime-serialize`), as the cooker's metadata files are; a world saves what 
 start of a run, and loads it back, which the `world` example checks when it quits, and *Hunna Wood*
 saves its run on F5 and when it quits, loads it on F9, and resumes it when it starts. Stage 5b,
 under way, writes worlds in files: a scene file places other scenes as prefabs, each placement with
-overrides of its own, which a world spawns and writes back (`slime-world`); no game uses scene files
-yet.
+overrides of its own, which a world spawns and writes back (`slime-world`), and what a game spawns
+while it runs is saved as its scenes; `slime-serialize` encodes documents in a binary encoding of
+its own too. No game uses scene files yet.
 [`docs/PLAN.md`](docs/PLAN.md) says what comes next, and lists the known debt.
 
 ## Getting started

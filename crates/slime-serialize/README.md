@@ -35,10 +35,10 @@ yet but its tests: the cooker will cook scene files into it (`docs/PLAN.md`, M5b
   place what it finds wrong at its line and column, as a world reads a scene file;
   `Composer::table` makes a table that holds nothing yet, and `Composer::without_defaults` leaves
   out the fields that hold their defaults, as a world writes a scene file.
-- `encode`, `Composer::finish_binary` and `Document::parse_binary`: the same documents in the
-  engine's binary encoding, without their types, written from a text, by a program that knows no
-  type such as a cooker, or from values, and read through the same reader as text, strict and
-  lenient alike; errors name the byte. The module `format` lays out its bytes.
+- `encode` and `Document::parse_binary`: the same documents in the engine's binary encoding,
+  without their types, encoded from a text, a composer's too, by a program that knows no type such
+  as a cooker, and read through the same reader as text, strict and lenient alike; errors name the
+  byte. The module `format` lays out its bytes.
 
 ## Entry points
 

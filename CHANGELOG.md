@@ -41,9 +41,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - The engine's binary encoding of documents
   ([ADR-0094](docs/adr/0094-the-binary-encoding-of-documents.md)): the document that a text holds,
   without its types, in bytes that are read back without parsing text, through the same reader,
-  strict and lenient alike. `slime_serialize::encode` encodes a text, `Composer::finish_binary`
-  writes a document of values, and `Document::parse_binary` reads it; its errors name the byte
-  (`ReadError::byte`). The module `format` lays out its bytes.
+  strict and lenient alike. `slime_serialize::encode` encodes a text, a composer's too, and
+  `Document::parse_binary` reads it; its errors name the byte (`ReadError::byte`). The module
+  `format` lays out its bytes.
 - `slime_serialize::Composer::without_defaults` leaves out the fields that hold their defaults, and
   `Composer::table` makes a table that holds nothing yet; `slime_reflect::Value::same` compares
   values with their floats by their bits.
