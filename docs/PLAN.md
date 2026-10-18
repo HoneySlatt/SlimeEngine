@@ -18,8 +18,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   saves and resumes its runs, on Linux and on Windows.
 - Stage 5b — Scenes and prefabs: planned on 2026-10-17 and validated by the owner
   ([ADR-0089](adr/0089-scenes-and-prefabs.md), [ADR-0090](adr/0090-stage-5b-scenes-and-prefabs.md)),
-  to be released as 0.4 at its close. M5b.1 to M5b.5 are done; M5b.6 is built: the owner plays the
-  zone and changes the lantern while it runs, and CI checks it.
+  to be released as 0.4 at its close. M5b.1 to M5b.6 are done; M5b.7 is next.
 
 ## Status
 
@@ -30,7 +29,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M5b.3](#m5b3--saves-and-hot-reload-with-placements) | What a game spawns while it runs is saved as placements, and a run is carried through a save when its scenes change | Done |
 | [M5b.4](#m5b4--the-binary-encoding-of-documents) | A document is written in a binary encoding of the engine's own, and read back without parsing text | Done |
 | [M5b.5](#m5b5--scene-files-cooked-typed-components-prefabs-in-the-world-example) | Scene files are cooked and spawned, Blender's nodes carry typed components, and the `world` example places prefabs | Done |
-| [M5b.6](#m5b6--hunna-woods-zone-made-of-prefabs) | *Hunna Wood*'s zone is a scene file that places its land and its lanterns | Built; the owner plays the zone and changes the lantern, CI checks it |
+| [M5b.6](#m5b6--hunna-woods-zone-made-of-prefabs) | *Hunna Wood*'s zone is a scene file that places its land and its lanterns | Done |
 | [M5b.7](#m5b7--windows-check-documentation-release-04) | Stage 5b is done and released as 0.4 | Planned |
 
 Stages 0, 1, 2, 3a, 3b, 3c, 3d, 4a, 4b and 5a are done; see [Completed stages](#completed-stages).
@@ -407,7 +406,7 @@ Risks:
 - **By hand (Linux).** Play by day and at night; F5, F9, quit and resume; change the lantern in
   Blender and export it while the game runs; move a lantern in the zone's file, a change of layout
   that starts the run again.
-- **Outcome.** Built on 2026-10-18. The zone's script exports `land.gltf`, which keeps the ID of the
+- **Outcome.** Done on 2026-10-18. The zone's script exports `land.gltf`, which keeps the ID of the
   zone's former export, and `lantern.gltf`, a lantern on its post at the origin, its glass a node of
   its own; every node is named for what it is, `oak 12 collider`, and the script fails when Blender
   numbers a name. Colliders, markers, the lights' times of day and the campfire's flicker are typed
@@ -428,9 +427,9 @@ Risks:
   rocks of the gully; and the lanterns' bodies, which 0.3 hung unturned whatever their posts, now
   turn with them. The layout's fingerprint hashes the colliders in the order of their numbers, so
   that the order of the scene file's records does not change it. The fixture was written from the
-  tests' walk to the chapel's portal, its hero where the fixture of 0.3 stood: it stands until the
-  owner makes it again by playing, as ADR-0090 asks. That of 0.3 is kept, and a test sets it aside
-  as a save of another layout.
+  tests' walk to the chapel's portal, its hero where the fixture of 0.3 stood; the owner chose to
+  keep it, rather than make it again by playing as ADR-0090 planned. That of 0.3 is kept, and a test
+  sets it aside as a save of another layout.
 
   Measured in a release build on the owner's machine, side by side with 0.3: spawning the zone's 555
   entities takes 0.59 to 0.86 ms, as 0.3's 543 took 0.72 to 0.90 ms; reading the scenes from cooked
@@ -446,6 +445,9 @@ Risks:
   set aside every save; and this outcome said less than what looks different from 0.3. It also
   found that any change of the cooked data, a texture's, makes a new game of the scenes before the
   game knows whether a scene changed: about 2 ms, left so in a tool of development.
+  The owner played the zone by day and at night, saved, loaded and resumed a run, changed the
+  lantern in Blender while the game ran and moved a lantern in the scene file, and found the zone as
+  it should be. CI took 14 minutes 17 seconds on Linux and 19 minutes 48 seconds on Windows.
 
 ### M5b.7 — Windows check, documentation, release 0.4
 
