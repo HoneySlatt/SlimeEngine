@@ -60,14 +60,21 @@ components:
 - **How they are written.** Each is a text that holds one value in the engine's notation, as a
   scene file writes a component's value, `{ height = 2.6 }`, or a boolean or a number, as a tuple
   struct of one field is written.
+- **Their versions, as a document's.** The node's property `slime:$versions`, a text that holds a
+  table, `{ "hunnawood::Collider" = 2 }`, gives the version of each type past version 1 that its
+  typed properties are written in, as `$versions` does in a scene file or a save
+  ([ADR-0086](0086-serialization.md)); a type that it leaves out is at version 1. The world brings
+  each value to its type's version through the type's upgrades, so that a Blender file made before
+  a type changed is still read right. The owner chose this rule.
 - **What the cooker does.** It checks each as one value written in that notation, and keeps them in
-  the cooked scene's node as the binary encoding of a document keyed by their types' names. A
-  property without a type, whose value is not a text, a boolean or a number, or whose text is not
-  one value refuses the import, naming the node and the property.
+  the cooked scene's node as the binary encoding of a document keyed by their types' names, with
+  the versions as its `$versions`. A property without a type, named after another of the format's
+  keys than `$versions`, whose value is not a text, a boolean or a number, or whose text holds a
+  line break or is not one value refuses the import, naming the node and the property.
 - **What the world does.** It reads them through its registry when it resolves the scene:
   `ResolvedScene::from_cooked` takes a registry. It reads them strictly, and refuses the scene for a
-  type that it does not hold, a value that the type refuses, or a component that the node gives
-  already, naming the scene, the node, the type and the field.
+  type that it does not hold, a version later than its type's, a value that the type refuses, or a
+  component that the node gives already, naming the scene, the node, the type and the field.
 - **The cooked scene's format takes a new version**, and so does the cooker's import of glTF files:
   cooked data is cooked again.
 
@@ -105,6 +112,12 @@ root, the prefab that it places.
 - **A component that a node gives already overridden by its typed property**: a way to set what the
   importer reads, a light's intensity, but two values for one component in one node, and an import
   that would silently lose one.
+- **A typed property's version in its name**, `slime:hunnawood::Collider@2`: the version beside its
+  value, but a second way to say versions, unlike every document's, and a property renamed when its
+  type changes.
+- **Typed properties read at their type's version, without upgrades**: nothing to write, but a
+  Blender file made before a type changed misread or refused after it, to mend by hand, where the
+  type's upgrades serve every other document.
 - **The scenes given to the library by the game**, as before: no library that knows cooked data, but
   every game would read its manifest, the kinds of its scenes and what changed in them itself.
 - **Every scene of the cooked data read when the library is made**: no reading later, but the memory
@@ -128,5 +141,10 @@ root, the prefab that it places.
 - **Errors in values.** A value of a cooked scene file that a game's types refuse is reported by the
   scene's name and its path in the document, which names the entity, the component and the field,
   and by its byte in the encoding rather than its line: the world reads the cooked file.
+- **A version not given.** A typed property written for a type past version 1, in its notation of
+  now, without the version in `slime:$versions`, is read as a value of version 1 and brought
+  through the upgrades: refused when its fields differ, misread when they mean another thing, as
+  in a scene file written by hand without `$versions`. A tool that writes the properties, the
+  editor or an add-on for Blender, can write the versions with them.
 - Stage 6's editor writes the scene files that the cooker cooks, and shows what the panel shows now,
   with the overrides of each placement.

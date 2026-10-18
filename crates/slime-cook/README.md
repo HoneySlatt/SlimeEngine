@@ -36,8 +36,8 @@ of its files changes, for games that load their data again while they run
 - Imports glTF files: each primitive a mesh of only the vertices it names, flat normals and
   MikkTSpace tangents where the file has none; each material with its textures by ID; each scene's
   nodes with their transforms, meshes, lights and `extras`, the `slime:<type name>` ones as typed
-  components, checked as written. It refuses what it cannot read right with a message that says
-  what and where, and warns about what it leaves out.
+  components, checked as written, at the versions that `slime:$versions` gives. It refuses what it
+  cannot read right with a message that says what and where, and warns about what it leaves out.
 - Cooks scene files: reads their layout without the types of their values, through `slime-world`;
   refuses, by file and line, an asset of their table that the sources do not make, a prefab that is
   not a scene, a parent missing, entities that would be each other's ancestors and scene files that

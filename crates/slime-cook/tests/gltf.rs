@@ -980,7 +980,12 @@ fn a_typed_property_becomes_its_component_and_a_wrong_one_refuses_the_scene() {
         ),
         (
             r#"{ "slime:test::Glow": "{ intensity = 40.0 }\n\"Hidden\" = {}" }"#,
-            "more than one value",
+            "holds a line break",
+        ),
+        (r#"{ "slime:$format": "1" }"#, "names no type"),
+        (
+            r#"{ "slime:$versions": "[2]" }"#,
+            "the types' versions are a table",
         ),
     ] {
         file.json["nodes"][0]["extras"] = json(extras);
@@ -988,6 +993,93 @@ fn a_typed_property_becomes_its_component_and_a_wrong_one_refuses_the_scene() {
         assert!(
             refusal.contains("lamp's property `slime:") && refusal.contains(why),
             "{extras}: {refusal}"
+        );
+    }
+}
+
+/// A lamp's beam at version 2, its reach in metres, where version 1 gave it in centimetres: a type
+/// whose upgrade changes what a field means.
+#[derive(Clone, Copy, Debug, PartialEq, slime_reflect::Reflect)]
+#[reflect(name = "test::Beam", version = 2, upgrade = upgrade_beam)]
+struct Beam {
+    reach: f32,
+}
+impl slime_world::Component for Beam {}
+
+/// Brings a beam from version 1: its reach from centimetres to metres.
+fn upgrade_beam(
+    version: u32,
+    value: slime_reflect::Value,
+    _partial: bool,
+) -> Result<slime_reflect::Value, String> {
+    use slime_reflect::Value;
+    let (1, Value::Struct(fields)) = (version, value) else {
+        return Err(format!("no beam of version {version} was a table"));
+    };
+    let metres = |value| match value {
+        Value::F32(centimetres) => Value::F32(centimetres / 100.0),
+        Value::F64(centimetres) => Value::F64(centimetres / 100.0),
+        other => other,
+    };
+    Ok(Value::Struct(
+        fields
+            .into_iter()
+            .map(|(name, value)| match name.as_str() {
+                "reach" => (name, metres(value)),
+                _ => (name, value),
+            })
+            .collect(),
+    ))
+}
+
+#[test]
+fn typed_properties_are_read_at_the_versions_that_their_node_gives() {
+    let mut file = Glb::triangle();
+    file.json["nodes"][0]["name"] = "lamp".into();
+    let mut world = World::new();
+    world.register::<Beam>();
+    let beam = |file: &mut Glb, extras: &str| {
+        file.json["nodes"][0]["extras"] = json(extras);
+        let imported = file.import().expect("imported");
+        let resolved = ResolvedScene::from_cooked(FILE, &imported.scenes[0].1, world.registry())?;
+        let mut spawned = World::new();
+        spawned.register::<Beam>();
+        spawned.spawn_scene("zone", &resolved).expect("spawned");
+        let lamp = spawned
+            .find(&PersistentId::new(["zone", "lamp"]))
+            .expect("the lamp");
+        Ok::<_, slime_world::SceneError>(*spawned.get::<Beam>(lamp).expect("its beam"))
+    };
+    // Without versions, a value is at version 1, and brought to the type's.
+    assert_eq!(
+        beam(&mut file, r#"{ "slime:test::Beam": "{ reach = 250.0 }" }"#).expect("upgraded"),
+        Beam { reach: 2.5 }
+    );
+    // At the version that the node gives, it is read as it is.
+    assert_eq!(
+        beam(
+            &mut file,
+            r#"{ "slime:test::Beam": "{ reach = 2.5 }", "slime:$versions": "{ \"test::Beam\" = 2 }" }"#
+        )
+        .expect("read"),
+        Beam { reach: 2.5 }
+    );
+    // A version later than the type's, or of a type that the registry does not hold: refused.
+    for (versions, why) in [
+        (r#"{ \"test::Beam\" = 3 }"#, "version"),
+        (r#"{ \"test::Bean\" = 2 }"#, "test::Bean"),
+    ] {
+        let error = beam(
+            &mut file,
+            &format!(
+                r#"{{ "slime:test::Beam": "{{ reach = 2.5 }}", "slime:$versions": "{versions}" }}"#
+            ),
+        )
+        .expect_err("refused")
+        .to_string();
+        assert!(
+            error.contains("node `lamp`") && error.contains(why),
+            "{versions}: {error}"
         );
     }
 }

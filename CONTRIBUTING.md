@@ -189,8 +189,11 @@ each other ([ADR-0095](docs/adr/0095-cooked-scene-files.md)); a game checks the 
 resolves the scene, through its types, and names then the entity, the component and the field at
 fault, without the line, since it reads the cooked file; its tests resolve each of its scenes. A
 Blender node gives a game's component as a custom property named `slime:<type name>`: a text that
-holds the component's value in the same notation, `{ height = 2.6 }`, or a boolean or a number for
-a tuple struct of one field, which the cooker keeps typed.
+holds the component's value in the same notation, on one line, `{ height = 2.6 }`, or a boolean or a
+number for a tuple struct of one field, which the cooker keeps typed. A type past version 1 gives
+the version that its value is written in in the node's property `slime:$versions`,
+`{ "hunnawood::Collider" = 2 }`, as a scene file does under `$versions`: a type left out is at
+version 1, and its value is brought through the type's upgrades.
 
 ### Changing assets while a game runs
 

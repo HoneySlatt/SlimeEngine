@@ -16,8 +16,9 @@
 //! (ADR-0071). It reads every scene's nodes, their transforms, the meshes and the lights
 //! (`KHR_lights_punctual`) they place, and their `extras`: booleans, numbers and texts, other
 //! values left out with a warning. Those named [`TYPED_PROPERTY`] and a type's name are the node's
-//! typed components, each a value in the engine's notation, checked as written
-//! and kept in the binary encoding of a document, which a world reads through its registry
+//! typed components, each a value in the engine's notation, checked as written and kept in the
+//! binary encoding of a document, which a world reads through its registry; [`TYPED_VERSIONS`]
+//! gives the versions of their types, as a document's `$versions` does
 //! (`docs/adr/0095-cooked-scene-files.md`).
 //!
 //! It refuses, with a message that says what and where: a file that is not valid glTF, which
@@ -30,10 +31,10 @@
 //! that are not finite numbers, which glTF forbids; a texture read through another set of texture
 //! coordinates than the first; a node hierarchy that is not a set of trees; materials and lights
 //! that glTF forbids; a typed property without a type's name, whose value is not a boolean, a
-//! number or a text that holds one value in the engine's notation; meshes larger than the GPU takes, and files whose
-//! meshes together pass [`MAX_FILE_VERTICES`] or [`MAX_FILE_INDICES`], checked before their
-//! vertices are copied. It warns about, and leaves out: animations, skins, cameras, vertex colors,
-//! and the extensions a file uses that it does not read.
+//! number or a text of one line that holds one value in the engine's notation; meshes larger than
+//! the GPU takes, and files whose meshes together pass [`MAX_FILE_VERTICES`] or
+//! [`MAX_FILE_INDICES`], checked before their vertices are copied. It warns about, and leaves out:
+//! animations, skins, cameras, vertex colors, and the extensions a file uses that it does not read.
 
 use std::collections::HashMap;
 use std::f32::consts::FRAC_PI_2;
@@ -72,6 +73,12 @@ pub const MAX_FILE_INDICES: usize = 64 * 1024 * 1024;
 /// What starts the name of a node's custom property that holds one of its typed components, before
 /// the name of the component's type: `slime:hunnawood::Collider`.
 pub const TYPED_PROPERTY: &str = "slime:";
+
+/// The name of a node's custom property that gives the versions of the types that its typed
+/// components are written in, past version 1, as the `$versions` of a document does:
+/// `{ "hunnawood::Collider" = 2 }` (`docs/adr/0086-serialization.md`). A type that it leaves out is
+/// at version 1.
+pub const TYPED_VERSIONS: &str = "slime:$versions";
 
 /// The extensions the importer reads; the `gltf` crate is built with their features.
 const READ_EXTENSIONS: [&str; 2] = ["KHR_lights_punctual", "KHR_materials_emissive_strength"];
@@ -1302,13 +1309,15 @@ fn extras(node: &gltf::Node<'_>, warnings: &mut Vec<String>) -> (Extras, Typed) 
 /// type's name, each a text that holds one value in the engine's notation, as a scene file writes a
 /// component's, or a boolean or a number, the value of a tuple struct of one field: the binary
 /// encoding of the document that holds them by their types' names, which a world reads through its
-/// registry; empty for none.
+/// registry; empty for none. The property [`TYPED_VERSIONS`] gives the document's `$versions`, the
+/// version of each type past version 1 that the others are written in, as a document's do.
 ///
 /// # Errors
 ///
-/// A property without a type's name, one whose value is not a text, a boolean or a number, or whose
-/// text is not one value in the engine's notation, which `slime_serialize` reads: the node, the
-/// property and why.
+/// A property without a type's name, or named after another of the format's keys than
+/// `$versions`; one whose value is not a text, a boolean or a number, or whose text holds a line
+/// break or is not one value in the engine's notation, which `slime_serialize` reads, a table of
+/// integers for [`TYPED_VERSIONS`]: the node, the property and why.
 fn components(label: &str, typed: &[(String, gltf::json::Value)]) -> Result<Vec<u8>, ImportError> {
     if typed.is_empty() {
         return Ok(Vec::new());
@@ -1320,6 +1329,12 @@ fn components(label: &str, typed: &[(String, gltf::json::Value)]) -> Result<Vec<
         if ty.is_empty() {
             return refuse(format!(
                 "{label}'s property `{name}` names no type after `{TYPED_PROPERTY}`"
+            ));
+        }
+        if ty.starts_with('$') && name != TYPED_VERSIONS {
+            return refuse(format!(
+                "{label}'s property `{name}` names no type: the keys that start with `$` are the \
+                 format's, and a node gives only `{TYPED_VERSIONS}`"
             ));
         }
         let value = match value {
@@ -1334,23 +1349,25 @@ fn components(label: &str, typed: &[(String, gltf::json::Value)]) -> Result<Vec<
                 ));
             }
         };
-        let key = ty.replace('\\', "\\\\").replace('"', "\\\"");
-        let line = format!("\"{key}\" = {value}\n");
-        // Each read alone, so that an error names its property, and so that a text that holds more
-        // than one value, through a line break, gives no other component.
-        let one = Document::parse(&registry, &line, Mode::Lenient)
-            .map(|document| document.keys(&[]) == [ty])
-            .map_err(|error| {
-                ImportError(format!(
-                    "{label}'s property `{name}` is not a value in the engine's notation: {error}"
-                ))
-            })?;
-        if !one {
+        // A line break could end the value and start another key, another component or versions.
+        if value.contains(['\n', '\r']) {
             return refuse(format!(
-                "{label}'s property `{name}` holds more than one value"
+                "{label}'s property `{name}` holds a line break: a typed property is one line"
             ));
         }
-        text.push_str(&line);
+        let key = ty.replace('\\', "\\\\").replace('"', "\\\"");
+        let line = format!("\"{key}\" = {value}\n");
+        // Each read alone, so that an error names its property.
+        Document::parse(&registry, &line, Mode::Lenient).map_err(|error| {
+            ImportError(format!(
+                "{label}'s property `{name}` is not a value in the engine's notation: {error}"
+            ))
+        })?;
+        if name == TYPED_VERSIONS {
+            text.insert_str(0, &line);
+        } else {
+            text.push_str(&line);
+        }
     }
     slime_serialize::encode(&text)
         .map_err(|error| ImportError(format!("{label}'s typed components: {error}")))

@@ -58,8 +58,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   warning.
 - Typed properties on glTF nodes: a custom property named `slime:<type name>`, a text that holds a
   component's value written as in a scene file, or a boolean or a number, gives the node that
-  component when a world resolves the scene, read strictly through its registry. The cooker refuses
-  a property of another kind, or whose text is not one value.
+  component when a world resolves the scene, read strictly through its registry, at the version of
+  its type that the node's `slime:$versions` gives, as a document's `$versions` does. The cooker
+  refuses a property of another kind, or whose text is not one value on one line.
 - `SceneLibrary::of` reads the glTF scenes and the scene files of cooked data, each when it is first
   resolved, and `SceneLibrary::reload` takes new cooked data and gives the scenes that changed;
   every scene is resolved again, so that one that places a changed prefab follows it.

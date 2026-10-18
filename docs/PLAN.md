@@ -365,6 +365,10 @@ Risks:
   file renamed kept its old name after a reload; the example's ring drifted at each carry. A scene
   file's fingerprint now covers its binary encoding, whether cooked or made from its text, which
   ADR-0095 records with the glTF scenes' fingerprints that the new format changes.
+  The review also found that a typed property could not say which version of its type it is
+  written in, so that a value of a type past version 1 was brought through upgrades meant for
+  version 1: the owner chose that a node gives the versions in its property `slime:$versions`, as
+  a document's `$versions` does.
 
 ### M5b.6 — *Hunna Wood*'s zone made of prefabs
 
