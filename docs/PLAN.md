@@ -18,7 +18,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   saves and resumes its runs, on Linux and on Windows.
 - Stage 5b — Scenes and prefabs: planned on 2026-10-17 and validated by the owner
   ([ADR-0089](adr/0089-scenes-and-prefabs.md), [ADR-0090](adr/0090-stage-5b-scenes-and-prefabs.md)),
-  to be released as 0.4 at its close. M5b.1 and M5b.2 are done; M5b.3 is next.
+  to be released as 0.4 at its close. M5b.1 and M5b.2 are done; M5b.3 is built, and CI checks it.
 
 ## Status
 
@@ -26,7 +26,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 |---|---|---|
 | [M5b.1](#m5b1--scenes-placed-in-a-world) | A scene written as text places entities and other scenes in a world, each placement with values of its own | Done |
 | [M5b.2](#m5b2--a-world-written-back-as-a-scene) | A world, or a subtree of it, is written as a scene file that keeps its placements, and reads back to the same world | Done |
-| [M5b.3](#m5b3--saves-and-hot-reload-with-placements) | What a game spawns while it runs is saved as placements, and a run is carried through a save when its scenes change | Planned |
+| [M5b.3](#m5b3--saves-and-hot-reload-with-placements) | What a game spawns while it runs is saved as placements, and a run is carried through a save when its scenes change | Built; CI checks it |
 | [M5b.4](#m5b4--the-binary-encoding-of-documents) | A document is written in a binary encoding of the engine's own, and read back without parsing text | Planned |
 | [M5b.5](#m5b5--scene-files-cooked-typed-components-prefabs-in-the-world-example) | Scene files are cooked and spawned, Blender's nodes carry typed components, and the `world` example places prefabs | Planned |
 | [M5b.6](#m5b6--hunna-woods-zone-made-of-prefabs) | *Hunna Wood*'s zone is a scene file that places its land and its lanterns | Planned |
@@ -241,6 +241,19 @@ Risks:
   but where an override or the run changed it; saves cut at every character refused or loaded,
   without a panic; CI is green.
 - **How to test.** `cargo test -p slime-world`.
+- **Outcome.** Built on 2026-10-18
+  ([ADR-0093](adr/0093-saves-and-hot-reload-with-placements.md)). A save says its layout,
+  `layout = 2`, and holds in `spawned` what the world spawned while it ran: each scene spawned under
+  a key that the start world did not spawn, and each placement made while the world ran, by its
+  root, with its scene's asset ID, name and fingerprint. Their entities are compared with the records
+  of their scene, in the sections that hold the start world's differences. `World::load` takes a
+  `SceneLibrary`, and spawns them first, as the library resolves them then, so that a fix of a prefab
+  reaches the saves made before; what it cannot spawn is set aside. The world keeps the prefab of a
+  placement made while it runs while an entity of it lives, and forgets the others as more are
+  made. `World::carry` saves a run against its old start world and loads it into the new one. The
+  saves of 0.3 load as they did; the fixture of *Hunna Wood* resumes. `World::save`'s rustdoc holds
+  what saving and loading placements cost. *Hunna Wood* and the `world` example pass an empty
+  library: they spawn nothing while they run, until M5b.5 and M5b.6.
 
 ### M5b.4 — The binary encoding of documents
 
@@ -736,12 +749,6 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **Children and queries in another order after loading** (ADR-0087). A world loaded from a save
   holds its entities in other slots, and an entity's children in the order the save set them: what
   must go the same way after loading cannot depend on either order.
-- **A scene spawned during a run makes the next save one that loading refuses** (ADR-0087).
-  `World::save` writes the entities of a scene that the start world did not spawn as created
-  entities, under their scene's identities, and `World::load` creates only `created/<n>` ones.
-  So does a placement made while the world runs (`World::spawn_placement`). *Hunna Wood* spawns no
-  scene or placement during a run. M5b.3 saves them as placements
-  ([ADR-0089](adr/0089-scenes-and-prefabs.md)).
 - **Hot reload compares the reloaded zone with the running world** (ADR-0088). `Game::reload_zone`,
   in `games/hunnawood/src/rules.rs`, compares the layout of the zone reloaded with the layout of
   the zone in the running world, where ADR-0088 says that it uses the fingerprint of a new game's

@@ -117,10 +117,14 @@ assert_eq!(world.get::<Velocity>(cart).expect("held").0, 5.0);
   added, removed and changed, parents changed, references to entities as persistent identities, or
   `""` for no entity. Entities that hold `Unsaved`, with their descendants, and fields marked
   transient are left out. The save begins with `about`, what the game says of it, keys and texts
-  that `World::about` reads without loading the save. `World::load` applies a save to such a world,
-  and says what it set aside and which scenes changed since; `World::first_difference` compares two
-  worlds as saves see them. `World::insert_component_value` and `remove_component_value` attach and
-  detach a component by its type's name, as loading a save does.
+  that `World::about` reads without loading the save. What the world spawned while it ran, a scene
+  under a key or a placement, is saved as its scene and what differs from it. `World::load` applies
+  a save to such a world, spawning those scenes again through a `SceneLibrary`, and says what it set
+  aside and which scenes changed since; `World::carry` carries a run into a start world made from
+  changed files, as hot reload does; `World::first_difference` compares two worlds as saves see
+  them (`docs/adr/0093-saves-and-hot-reload-with-placements.md`). `World::insert_component_value`
+  and `remove_component_value` attach and detach a component by its type's name, as loading a save
+  does.
 - `slime_world::glam` re-exports the math crate the API uses, so that callers use the same version.
 
 The rustdoc holds the contracts: what panics, what each query visits, what each operation costs.

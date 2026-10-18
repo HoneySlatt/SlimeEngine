@@ -810,17 +810,25 @@ Entities are matched by their persistent identities: a scene's entity by its key
 through the placements, `zone/door`, `zone/lamp 3/light`; one created outside a scene by its number,
 `created/3`. A save is one document of several values, written through `slime-serialize`'s
 `Composer` and read through its `Document`, references to entities written as persistent
-identities.
+identities. What the world spawned while it ran, a scene under a key or a placement made
+while it ran, is saved as its scene, by its asset ID, and what differs from it; loading spawns it
+again through a scene library ([ADR-0093](adr/0093-saves-and-hot-reload-with-placements.md)).
 
 ```text
 world.save(&start, &about)                           slime-world
 ├── about                                            what the game says of the save, which
 │                                                    World::about reads alone
-├── next_created, [scenes]                           the world's count of created entities; each
-│                                                    scene's key, name and a fingerprint of its
-│                                                    content
-├── [removed], [parents]                             the entities of start gone, the components
-│                                                    gone, the parents changed
+├── layout, next_created, [scenes]                   the save's layout; the world's count of
+│                                                    created entities; each scene that start
+│                                                    spawned: its key, name and a fingerprint of
+│                                                    what it resolves to, prefabs included
+├── [spawned]                                        what the world spawned while it ran, by its
+│                                                    root, a key or created/N: its scene's asset
+│                                                    ID, name and fingerprint; its entities
+│                                                    compared with what the scene spawns
+├── [removed], [parents]                             the entities of start, or of what was
+│                                                    spawned, gone; the components gone, the
+│                                                    parents changed
 ├── [created."created/N"]                            each entity created since, whole: its parent
 │                                                    and components
 ├── [added], [changed]                               the components added, whole; what changed of
@@ -829,16 +837,23 @@ world.save(&start, &about)                           slime-world
                                                      bytes; Unsaved entities and transient fields
                                                      left out
 
-start.load(text)                                     a world the game made as at the start of a run
-├── create                                           first reading: the created entities spawned
-│                                                    under their numbers, so that references can
-│                                                    name them
+start.load(text, &mut scenes)                        a world the game made as at the start of a run
+├── spawn what ran                                   first reading: what the world spawned while
+│                                                    it ran, each scene as the library resolves it
+│                                                    now, under the same identity; what it cannot
+│                                                    give set aside
+├── create                                           the created entities spawned under their
+│                                                    numbers, so that references can name them
 ├── read_save                                        second reading: every value, references
-│                                                    resolved; on an error, the created entities
-│                                                    destroyed again and the world unchanged
+│                                                    resolved; on an error, what was spawned and
+│                                                    created destroyed again, the world unchanged
 └── apply                                            removed, parents, added, changed
                                                      (Registry::overlay): what the world no longer
                                                      has set aside; the scenes changed since named
+
+run.carry(&old_start, start, &mut scenes)            hot reload: the run saved against the start
+                                                     world made before the files changed, and
+                                                     loaded into the one made from them
 ```
 
 ### Losing the GPU

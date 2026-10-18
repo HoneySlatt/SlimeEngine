@@ -583,10 +583,12 @@ edges (repeat, mirror or clamp) (`slime_gfx::Sampler`).
 **Save (game).** What differs between a *world* and its *start world*, written to a file: entities
 removed and created, components added, removed and changed, parents changed, entities named by
 their *persistent identities*; it begins with what the game says of it, such as what it was made
-on, which can be read alone. Loading applies the differences to a start world spawned from the
-scenes as they are now, so that a game update that changes a scene reaches the saves made before
-([ADR-0079](adr/0079-the-engines-own-world.md), [ADR-0087](adr/0087-the-worlds-documents.md),
-[ADR-0088](adr/0088-saving-and-resuming-a-run.md)).
+on, which can be read alone. What the world spawned while it ran is saved as its scenes, with what
+differs from them. Loading spawns those scenes again, then applies the differences, to a start world
+spawned from the scenes as they are now, so that a game update that changes a scene reaches the
+saves made before ([ADR-0079](adr/0079-the-engines-own-world.md),
+[ADR-0087](adr/0087-the-worlds-documents.md), [ADR-0088](adr/0088-saving-and-resuming-a-run.md),
+[ADR-0093](adr/0093-saves-and-hot-reload-with-placements.md)).
 
 **Scene (cooked).** A glTF file's node hierarchy as the cooker makes it
 (`slime_assets::CookedScene`): each node's name, parent, transform, meshes, light and `extras`,

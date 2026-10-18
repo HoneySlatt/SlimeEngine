@@ -6,8 +6,9 @@
   [0086](0086-serialization.md) (documents of several values, and references to entities);
   amended by [0088](0088-saving-and-resuming-a-run.md) (a save begins with what the game says of
   it), [0089](0089-scenes-and-prefabs.md) (what a save holds of the scenes and prefabs spawned while
-  a game runs) and [0092](0092-a-world-written-back-as-a-scene.md) (a rotation changed is a
-  difference whole)
+  a game runs), [0092](0092-a-world-written-back-as-a-scene.md) (a rotation changed is a difference
+  whole) and [0093](0093-saves-and-hot-reload-with-placements.md) (a save says its layout, holds
+  what the world spawned while it ran, and is loaded through a scene library)
 - Date: 2026-10-16
 
 ## Context

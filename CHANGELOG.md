@@ -31,6 +31,13 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   reported (`Written::left_out`). `World::spawn_placement` places a prefab while a world runs;
   `World::placement_root` and `World::differs_from_prefab` say which placement an entity belongs to,
   and whether a component of it differs from the prefab's.
+- Saves hold what a world spawned while it ran, a scene under a key or a placement made with
+  `World::spawn_placement`, as its scene and what differs from it
+  ([ADR-0093](docs/adr/0093-saves-and-hot-reload-with-placements.md)): loading spawns the scene as
+  it is then, so that a fix of a prefab reaches the saves made before; a scene that the game no
+  longer has is set aside. Such a save loads, where loading refused it before. `World::carry`
+  carries a run into a start world made from files that changed, through a save, as hot reload
+  does.
 - `slime_serialize::Composer::without_defaults` leaves out the fields that hold their defaults, and
   `Composer::table` makes a table that holds nothing yet; `slime_reflect::Value::same` compares
   values with their floats by their bits.
@@ -40,6 +47,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- `World::load` takes a `SceneLibrary`, through which it spawns again what the world spawned while
+  it ran. A save says its layout, `layout = 2`; the saves of 0.3, of layout 1, still load.
 - `World::spawn_scene` spawns a `ResolvedScene`: a game that spawns a glTF scene alone resolves it
   first, `ResolvedScene::from_cooked(id, &scene)`. A value that its type's own check refuses makes
   spawning fail with `WorldError::RefusedInScene`, and nothing is spawned.
