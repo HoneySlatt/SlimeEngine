@@ -8,8 +8,8 @@ games first, then open-world games, then large online worlds.
 
 Pre-alpha. Stages 0 (*Foundations*), 1 (*Core and platform*), 2 (*GPU layer*), 3a (*First
 renderer*), 3b (*Physically based renderer*), 3c (*A first game*), 3d (*Anti-aliasing and the
-shadows of spot lights*), 4a (*Cooked assets*), 4b (*Live assets*) and 5a (*The world*) are done;
-the latest release is 0.3 (git tag `v0.3.0`), which released Stages 4b and 5a together.
+shadows of spot lights*), 4a (*Cooked assets*), 4b (*Live assets*), 5a (*The world*) and 5b (*Scenes
+and prefabs*) are done; the latest release is 0.4 (git tag `v0.4.0`), which released Stage 5b.
 Applications run headless or with a window (Wayland or X11 on Linux, Win32 on Windows) that
 receives keyboard and mouse input, with a fixed-step main loop, logging, panic reporting and a clean shutdown on Ctrl+C. The
 engine opens the GPU (Vulkan on Linux, Direct3D 12 on Windows), paces frames with its own schedule
@@ -42,8 +42,8 @@ overlay lists the world's entities and edits their components, in the game and t
 on F2; values are written to TOML documents and read back, from earlier versions of their types
 too (`slime-serialize`), as the cooker's metadata files are; a world saves what changed since the
 start of a run, and loads it back, which the `world` example checks when it quits, and *Hunna Wood*
-saves its run on F5 and when it quits, loads it on F9, and resumes it when it starts. Stage 5b,
-under way, writes worlds in files: a scene file places other scenes as prefabs, each placement with
+saves its run on F5 and when it quits, loads it on F9, and resumes it when it starts. Stage 5b
+wrote worlds in files: a scene file places other scenes as prefabs, each placement with
 overrides of its own, which a world spawns and writes back (`slime-world`), and what a game spawns
 while it runs is saved as its scenes; `slime-serialize` encodes documents in a binary encoding of
 its own too, in which the cooker cooks scene files, and Blender's nodes carry typed components. The
@@ -82,15 +82,15 @@ not move.
 
 ```toml
 [dependencies]
-slime-app = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.3.0" }
-slime-assets = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.3.0" }
-slime-color = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.3.0" }
-slime-gfx = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.3.0" }
-slime-platform = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.3.0" }
-slime-reflect = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.3.0" }
-slime-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.3.0" }
-slime-world = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.3.0" }
-slime-world-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.3.0" }
+slime-app = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.4.0" }
+slime-assets = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.4.0" }
+slime-color = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.4.0" }
+slime-gfx = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.4.0" }
+slime-platform = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.4.0" }
+slime-reflect = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.4.0" }
+slime-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.4.0" }
+slime-world = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.4.0" }
+slime-world-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.4.0" }
 
 # The renderer computes a sky's lighting on the CPU, several times slower without optimizations.
 [profile.dev.package.slime-render]

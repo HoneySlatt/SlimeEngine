@@ -6,6 +6,18 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-18
+
+The seventh release, which closes Stage 5b of the roadmap: scenes and prefabs. Worlds are written in
+files: a scene file places entities and other scenes as prefabs, each placement with overrides of
+its own, which follow the changes of their prefab; a world, or a part of it, is written back as a
+scene file that keeps its placements, and what a game spawns while it runs is saved as placements
+of its scenes. Scene files are cooked into a binary encoding of the engine's own, and the nodes of
+glTF scenes made in Blender carry a game's components as typed properties. *Hunna Wood*'s zone is a
+scene file that places its land and six lanterns of one prefab, and the `world` example spawns a
+yard of prefabs. Cooked data of 0.3 must be cooked again, and the saves of 0.3 that *Hunna Wood*
+made are set aside. The Windows programs that CI builds are attached to the release on GitHub.
+
 ### Added
 
 - Scene files and prefabs ([ADR-0089](docs/adr/0089-scenes-and-prefabs.md),
@@ -112,6 +124,20 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - The look of *Hunna Wood*'s zone changes a little: its script takes each model's meshes in the
   order of their names, which gives some rocks and ferns other variants, and the lanterns' bodies
   turn with their posts. A zone's layout no longer depends on the order of its scene file's records.
+
+### Known limitations
+
+See the known debt in [`docs/PLAN.md`](docs/PLAN.md#known-debt) and what the engine does not do yet
+in the [`README.md`](README.md#what-it-does-not-do-yet). In short: no editor writes scene files yet,
+which Stage 6 brings, and a scene file written back loses its comments and writes what spawning set
+aside as the world holds it; a large scene resolves and spawns far slower than as many entities
+spawned in code; a node renamed in Blender loses what saves held of it; saves stay text, of limited
+size; the cooked glTF scene is a format apart from the binary encoding; and some meshes of *Hunna
+Wood*'s zone keep names that Blender numbered. Limitations of 0.3 remain: the world has no systems
+or schedule, the order of children and of queries may differ after loading, *Hunna Wood* does not
+save its camera, the renderer has no transparency, culling or instancing, at most 16 lights are
+drawn, point lights cast no shadow, frames are not synchronized with the display's refresh, and
+input methods, touch, gestures and gamepads are not reported.
 
 ## [0.3.0] - 2026-10-17
 

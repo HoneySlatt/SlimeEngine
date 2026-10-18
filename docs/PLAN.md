@@ -16,9 +16,11 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0078](adr/0078-stage-5-in-two-halves.md) to [ADR-0088](adr/0088-saving-and-resuming-a-run.md)).
   *Hunna Wood* runs on the engine's world, whose components are listed and edited by name, and
   saves and resumes its runs, on Linux and on Windows.
-- Stage 5b — Scenes and prefabs: planned on 2026-10-17 and validated by the owner
-  ([ADR-0089](adr/0089-scenes-and-prefabs.md), [ADR-0090](adr/0090-stage-5b-scenes-and-prefabs.md)),
-  to be released as 0.4 at its close. M5b.1 to M5b.6 are done; M5b.7 is next.
+- Stage 5b — Scenes and prefabs: done and released as 0.4 on 2026-10-18
+  ([ADR-0089](adr/0089-scenes-and-prefabs.md) to [ADR-0095](adr/0095-cooked-scene-files.md)).
+  Worlds are written in files, scene files that place prefabs with overrides, cooked into a binary
+  encoding of the engine's own; *Hunna Wood*'s zone is made of prefabs, on Linux and on Windows.
+  Next: plan Stage 6, the editor, with the owner.
 
 ## Status
 
@@ -30,9 +32,10 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M5b.4](#m5b4--the-binary-encoding-of-documents) | A document is written in a binary encoding of the engine's own, and read back without parsing text | Done |
 | [M5b.5](#m5b5--scene-files-cooked-typed-components-prefabs-in-the-world-example) | Scene files are cooked and spawned, Blender's nodes carry typed components, and the `world` example places prefabs | Done |
 | [M5b.6](#m5b6--hunna-woods-zone-made-of-prefabs) | *Hunna Wood*'s zone is a scene file that places its land and its lanterns | Done |
-| [M5b.7](#m5b7--windows-check-documentation-release-04) | Stage 5b is done and released as 0.4 | Planned |
+| [M5b.7](#m5b7--windows-check-documentation-release-04) | Stage 5b is done and released as 0.4 | Done |
 
-Stages 0, 1, 2, 3a, 3b, 3c, 3d, 4a, 4b and 5a are done; see [Completed stages](#completed-stages).
+Stages 0, 1, 2, 3a, 3b, 3c, 3d, 4a, 4b, 5a and 5b are done; see the stage below, and [Completed
+stages](#completed-stages).
 
 ## Stage 5b — Scenes and prefabs
 
@@ -459,6 +462,13 @@ Risks:
   with the owner.
 - **Done when.** The exit criteria hold on Linux and on Windows; `v0.4.0` is on a commit whose CI is
   green, and its GitHub release carries the Windows programs.
+- **Outcome.** Done on 2026-10-18. The documents, reread as a newcomer would and against the code,
+  held statements that were no longer so, terms that the glossary did not define, a scene file's
+  layout with no home but an ADR, now in the rustdoc of `SceneLibrary`, figures copied outside their
+  home, and a changelog that missed what an upgrade from 0.3 needs: each is fixed. The owner played
+  the game and the `world` example from CI's Windows programs, and saved, loaded and resumed a run
+  there. 0.4 is released, as [Releasing](#releasing) says. Stage 6, the editor, is planned next with
+  the owner.
 
 ## Releasing
 
@@ -488,6 +498,8 @@ release carries the Windows programs that CI built from that commit, *Hunna Wood
 cooked and the notice that credits its assets among them. 0.3 was released on 2026-10-17, with
 Stages 4b and 5a: the tag `v0.3.0` is on the commit "Release 0.3.0", and its GitHub release carries
 the Windows programs that CI built from that commit, `world.exe` among them.
+Stage 5b was released as 0.4 on 2026-10-18: the tag `v0.4.0` is on the commit "Release 0.4.0", and
+its GitHub release carries the Windows programs that CI built from that commit.
 
 ## Completed stages
 
