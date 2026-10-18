@@ -1506,9 +1506,8 @@ pub mod tests {
         }
     }
 
-    /// The save committed as a fixture, which every later version of the game must resume: made with
-    /// F5 at the chapel's portal, at night, after the walk of
-    /// [`walk_to_the_portal_at_night`].
+    /// The save committed as a fixture, which every later version of the game must resume: made at
+    /// the chapel's portal, at night, after the walk of [`walk_to_the_portal_at_night`].
     const FIXTURE: &str = include_str!("../fixtures/save.toml");
 
     /// The fixture of 0.3, made on the zone before it was made of prefabs: a save of another

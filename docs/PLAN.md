@@ -424,14 +424,28 @@ Risks:
   the land and the lantern come out the same from one run to the next, the hero not yet. The
   scattered rocks thus have other meshes than in 0.3, at the same places: their colliders keep
   their centers, with the sizes of their new rocks, and the test of the colliders of 0.3 compares
-  only their centers. The fixture was made again, at the same place; that of 0.3 is kept, and a
-  test sets it aside as a save of another layout.
+  only their centers. Other variants changed with the order too, the ferns' and seven of the ten
+  rocks of the gully; and the lanterns' bodies, which 0.3 hung unturned whatever their posts, now
+  turn with them. The layout's fingerprint hashes the colliders in the order of their numbers, so
+  that the order of the scene file's records does not change it. The fixture was written from the
+  tests' walk to the chapel's portal, its hero where the fixture of 0.3 stood: it stands until the
+  owner makes it again by playing, as ADR-0090 asks. That of 0.3 is kept, and a test sets it aside
+  as a save of another layout.
 
   Measured in a release build on the owner's machine, side by side with 0.3: spawning the zone's 555
-  entities takes 0.73 to 0.86 ms, as 0.3's 543 took 0.72 to 0.90 ms; reading the scenes from cooked
-  data and resolving them takes 1.5 to 1.75 ms, where 0.3 resolved a scene already in memory in 0.5
-  to 0.65 ms. Building a frame of the zone alone, 422 instances and 8 lights, takes 89 to 92 µs at
-  best, against 82 to 86 µs for 0.3's 429 instances and 9 lights.
+  entities takes 0.59 to 0.86 ms, as 0.3's 543 took 0.72 to 0.90 ms; reading the scenes from cooked
+  data and resolving them takes 1.24 to 1.75 ms, and resolving them again, their files read, 1.14
+  to 1.21 ms, where 0.3 resolved its one scene, already in memory, in 0.52 to 0.65 ms: the scene
+  file and its seven placements cost twice as much. Building a frame of the zone alone, 422
+  instances and 8 lights, takes 89 to 92 µs at best, against 82 to 86 µs for 0.3's 429 instances and
+  9 lights.
+
+  The review found, and a later commit fixed: the scene file's comments said east for west; no test
+  checked which way a lantern faces, which the places of the lanterns' lights in 0.3 now do; the
+  layout's fingerprint followed the order of the scene file's records, so that moving one would have
+  set aside every save; and this outcome said less than what looks different from 0.3. It also
+  found that any change of the cooked data, a texture's, makes a new game of the scenes before the
+  game knows whether a scene changed: about 2 ms, left so in a tool of development.
 
 ### M5b.7 — Windows check, documentation, release 0.4
 
@@ -833,6 +847,13 @@ GitHub issues, linked from their entry; this list stays the reference.
   numbers one, so that only a change of the script renames a node; the saves made before it set
   aside what they held of it, or are saves of another layout. Identities that a scene file keeps for
   a former name wait for a game that has players (ADR-0089).
+- **Some meshes of *Hunna Wood*'s zone are named with Blender's numbers** (`wooden_lantern_01.001`
+  in the lantern, `capital.004` in the land): the script checks the names of its objects, not of
+  their meshes. The cooker derives a mesh's ID from its name, so that a later change of the script
+  that numbers a mesh otherwise changes the mesh's ID. Naming the meshes changes the export, and
+  waits for the next release of the mirror.
+- **The hero's export differs from one run of the zone's script to the next**, where the land's
+  and the lantern's no longer do: the hero kept on the mirror is the one the game reads.
 - **The camera's yaw is not saved** (ADR-0088). It is the game's, outside the world: a run resumed
   or loaded puts the camera behind the hero.
 - **A save cut short may load in part** (ADR-0087). A save is a document of sections: one cut at the
@@ -850,9 +871,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   figures). A scene of 100 000 entities resolves and spawns in about a second in a release build,
   where spawning as many entities with `World::spawn` takes milliseconds (ADR-0083): each
   component is made from its value, and each entity's identity is a list of texts, held twice.
-  *Hunna Wood*'s zone takes about 1 ms. ADR-0089 orders the remedies, inside the world: typed
-  components copied rather than made from values, identities that share their parts, scenes
-  prepared on another thread.
+  *Hunna Wood*'s zone, its seven placements resolved, takes about 2 ms. ADR-0089 orders the
+  remedies, inside the world: typed components copied rather than made from values, identities that
+  share their parts, scenes prepared on another thread.
 - **A world written back writes what it holds of what spawning set aside** (ADR-0092). A
   reference, or a parent, that a scene file wrote into a placement whose prefab no longer had its
   entity is written as the world holds it, no entity or the root: what it named is lost, as a save

@@ -131,8 +131,8 @@ fn main() -> Result<(), RenderError> {
   for it. A load reads every mesh its nodes place, the materials they are drawn with and the
   textures those read, each once; its `LoadedScene` gives the `instances` to draw, the `lights` in
   world space, the box around them, its materials by their names (`material`), and the cooked
-  scene itself, whose nodes carry the `extras` a game reads its own data from. What cannot be
-  loaded is a `SceneError`.
+  scene itself, whose nodes carry their `extras` and their typed components (`SceneNode`). What
+  cannot be loaded is a `SceneError`.
   `Renderer::reload_scene_in_background(gpu, &CookedAssets, id, &previous)` loads a scene again
   once its cooked data changed, keeping the meshes and textures of the scene loaded before whose
   cooked file did not change (ADR-0076).

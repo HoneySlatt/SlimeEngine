@@ -99,6 +99,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   before: a collider changed through the world panel no longer starts the run again at the next
   reload. Its saves of 0.3 are set aside as saves of another layout, and a new run starts: the
   zone's entities have other identities, `zone/land/oak 12 wood`.
+- The look of *Hunna Wood*'s zone changes a little: its script takes each model's meshes in the
+  order of their names, which gives some rocks and ferns other variants, and the lanterns' bodies
+  turn with their posts. A zone's layout no longer depends on the order of its scene file's records.
 
 ## [0.3.0] - 2026-10-17
 

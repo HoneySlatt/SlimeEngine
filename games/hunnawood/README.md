@@ -295,8 +295,9 @@ gives them to the nodes' entities:
 - **Lights** (`hunnawood::TimeOfDay`): `"Day"` or `"Night"`: the sun by day; by night, the moon,
   which the scene file shows in the sky, a spot light in each lantern, which casts shadows, and the
   campfire's point light, which flickers around the intensity that `hunnawood::Flickers` gives it,
-  `{ intensity = 120.0 }`. The lights of the other time of day are hidden; a light without a time of
-  day shines at any time.
+  `{ intensity = 120.0 }`, the light's own: the view sets the light's intensity at each frame from
+  it, so that a scene file changes the fire's light through its `Flickers`. The lights of the other
+  time of day are hidden; a light without a time of day shines at any time.
 - **Materials** that the game changes, by their names: `flames` and `embers`, the campfire's,
   which flicker with its light, and `brass`, the key's, which pulses at night.
 
@@ -325,8 +326,8 @@ a save of another layout; a run changed (an oak removed, a lantern dimmed, the k
 and resumed, which saves again to the same bytes and goes on the same for 300 steps; a walk to the
 door without the key, which it stops; and the hero kept out of every collider. In `src/view.rs`:
 the campfire's light, which flickers, and the materials that glow. In `src/main.rs`: the fixture of
-0.3, set aside, and a new run started. They need the cooked zone, so `cargo test` leaves them out:
-`scripts/check.sh` fetches and cooks it, then runs them, and after the commands above,
+0.3, set aside, which leaves no run to resume. They need the cooked zone, so `cargo test` leaves
+them out: `scripts/check.sh` fetches and cooks it, then runs them, and after the commands above,
 `cargo test -p hunnawood -- --ignored` does. Two more are measurements: what reading, resolving and
 spawning the zone cost, and, on a GPU, what building a frame of the zone's world costs on the CPU.
 

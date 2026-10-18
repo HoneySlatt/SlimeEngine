@@ -199,11 +199,12 @@ def campfire(place, models):
     colliders += [common.collider_cylinder(f"stump seat {k + 1}", (x + dx, y + dy), 0.55, 0.4)
                   for k, (dx, dy, _) in enumerate(seats)]
     marker = common.marker("campfire", "campfire", (x, y, 0.0))
-    # 120 candelas: a small fire, a little below a lantern, which lights all around it, and which
-    # flickers around that intensity.
+    # 120 candelas: a small fire, a little below a lantern, which lights all around it. Its flicker
+    # varies around the same intensity, which the game puts back before it saves.
+    candelas = 120.0
     light = common.light("campfire light", "POINT", "night", (x, y, 0.6), (0.0, 0.0, -1.0),
-                         (1.0, 0.55, 0.25), 120.0)
-    common.component(light, "hunnawood::Flickers", f"{{ intensity = {common.number(120.0)} }}")
+                         (1.0, 0.55, 0.25), candelas)
+    common.component(light, "hunnawood::Flickers", f"{{ intensity = {common.number(candelas)} }}")
     return objects, colliders, marker, light
 
 

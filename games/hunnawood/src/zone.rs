@@ -234,25 +234,35 @@ pub struct Layout {
 
 impl Layout {
     /// A fingerprint of the layout, as 16 hexadecimal digits: the FNV-1a hash of its numbers, each
-    /// rounded to a ten-thousandth, of a metre or of a radian, in order, each list of colliders led
-    /// by its length and each footprint by its shape. Rounded, the numbers that the platforms'
-    /// maths gives, a box's yaw from its axes among them, are the same on every platform, and so is
-    /// the hash; two layouts that differ by less are the same layout. A save says the layout it was
-    /// made on so (`crate::saves`), and a zone loaded again keeps the run when the layout of its
-    /// new game keeps its fingerprint ([`crate::saves::reload`]).
+    /// rounded to a ten-thousandth, of a metre or of a radian: each list of colliders led by its
+    /// length, its footprints in the order of their numbers, each led by its shape, then the size
+    /// of the ground and the places. Rounded, the numbers that the platforms' maths gives, a box's
+    /// yaw from its axes among them, are the same on every platform, and so is the hash; two
+    /// layouts that differ by less are the same layout. Sorted, the footprints give the same hash
+    /// whatever the order of the world, which the order of the zone's scene file gives. A save says
+    /// the layout it was made on so (`crate::saves`), and a zone loaded again keeps the run when
+    /// the layout of its new game keeps its fingerprint ([`crate::saves::reload`]).
     pub fn fingerprint(&self) -> String {
-        let mut numbers = vec![self.half_size.x, self.half_size.y];
-        let mut counts = Vec::new();
+        // A saturating cast: −0.0 and 0.0 are one number, and NaN, which no layout holds, is 0.
+        let word = |number: f32| (number * 10_000.0).round() as i64;
+        let mut words = Vec::new();
         for colliders in [&self.colliders, &self.door_colliders] {
-            counts.push(colliders.len());
-            for footprint in colliders {
-                numbers.extend(match footprint.shape {
-                    Shape::Box { half_size, yaw } => [0.0, half_size.x, half_size.y, yaw],
-                    Shape::Cylinder { radius } => [1.0, radius, 0.0, 0.0],
-                });
-                numbers.extend([footprint.center.x, footprint.center.y, footprint.height]);
-            }
+            let mut footprints: Vec<[i64; 7]> = colliders
+                .iter()
+                .map(|footprint| {
+                    let [kind, a, b, c] = match footprint.shape {
+                        Shape::Box { half_size, yaw } => [0.0, half_size.x, half_size.y, yaw],
+                        Shape::Cylinder { radius } => [1.0, radius, 0.0, 0.0],
+                    };
+                    let center = footprint.center;
+                    [kind, a, b, c, center.x, center.y, footprint.height].map(word)
+                })
+                .collect();
+            footprints.sort_unstable();
+            words.push(colliders.len() as i64);
+            words.extend(footprints.into_iter().flatten());
         }
+        words.extend([self.half_size.x, self.half_size.y].map(word));
         for place in [
             self.start,
             self.facing,
@@ -261,15 +271,10 @@ impl Layout {
             self.campfire,
             self.terrace,
         ] {
-            numbers.extend([place.x, place.y]);
+            words.extend([place.x, place.y].map(word));
         }
-        // A saturating cast: −0.0 and 0.0 are one number, and NaN, which no layout holds, is 0.
-        let words = counts.iter().map(|&count| count as i64).chain(
-            numbers
-                .iter()
-                .map(|&number| (number * 10_000.0).round() as i64),
-        );
         let hash = words
+            .into_iter()
             .flat_map(i64::to_le_bytes)
             .fold(0xcbf2_9ce4_8422_2325_u64, |hash, byte| {
                 (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3)
@@ -442,6 +447,48 @@ mod tests {
         assert!(!collider.covers(Vec2::new(1.9, 0.0), 0.0));
         assert!(collider.covers(Vec2::new(0.7, 0.0), 0.25));
         assert!(!collider.covers(Vec2::new(0.8, 0.0), 0.25));
+    }
+
+    #[test]
+    fn a_layout_s_fingerprint_is_that_of_its_numbers_whatever_their_order() {
+        let footprint = |x: f32, shape| Footprint {
+            shape,
+            center: Vec2::new(x, 2.0),
+            height: 1.5,
+        };
+        let wall = footprint(
+            1.0,
+            Shape::Box {
+                half_size: Vec2::new(3.0, 0.5),
+                yaw: 0.25,
+            },
+        );
+        let pillar = footprint(-4.0, Shape::Cylinder { radius: 0.6 });
+        let layout = Layout {
+            half_size: Vec2::new(30.0, 50.0),
+            colliders: vec![wall, pillar],
+            door_colliders: Vec::new(),
+            start: Vec2::ZERO,
+            facing: Vec2::X,
+            item: Vec2::ONE,
+            door: Vec2::Y,
+            campfire: Vec2::NEG_ONE,
+            terrace: Vec2::NEG_Y,
+        };
+        let mut reordered = layout.clone();
+        reordered.colliders.reverse();
+        assert_eq!(layout.fingerprint(), reordered.fingerprint());
+        // A pillar moved by a ten-thousandth of a metre is the same layout; one moved by a
+        // thousandth is another, and so is a pillar that stops the door.
+        let mut near = layout.clone();
+        near.colliders[1].center.x += 0.000_04;
+        assert_eq!(layout.fingerprint(), near.fingerprint());
+        let mut moved = layout.clone();
+        moved.colliders[1].center.x += 0.001;
+        assert_ne!(layout.fingerprint(), moved.fingerprint());
+        let mut door = layout.clone();
+        door.door_colliders.push(door.colliders.remove(1));
+        assert_ne!(layout.fingerprint(), door.fingerprint());
     }
 }
 
@@ -716,12 +763,35 @@ pub mod cooked {
         }
     }
 
-    /// Six lanterns of one prefab, the lantern's scene: the third lights less than the others, and
-    /// the fifth has neither its light nor its glass.
+    /// Where the lanterns' lights stood in 0.3, in the world's axes: each lantern hangs from the
+    /// arm that its post turns towards the path, and its light with it.
+    const LIGHTS_IN_0_3: [[f64; 3]; 6] = [
+        [-0.9, 2.13, 40.0],
+        [0.5, 2.13, 22.6],
+        [3.5, 2.13, 7.4],
+        [-4.6, 2.13, -7.2],
+        [-2.4, 2.13, -21.8],
+        [2.4, 2.13, -21.8],
+    ];
+
+    /// Six lanterns of one prefab, the lantern's scene, each light where 0.3 had it: the third
+    /// lights less than the others, and the fifth has neither its light nor its glass.
     #[test]
     #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
     fn six_lanterns_from_one_prefab_the_third_dimmer_and_the_fifth_broken() {
-        let (world, _) = game();
+        let (mut world, _) = game();
+        world.update_transforms();
+        for (lantern, was) in (1..=6).zip(LIGHTS_IN_0_3) {
+            let Some(light) = find(&world, &format!("lantern {lantern}/light")) else {
+                continue;
+            };
+            let at = world.global_transform(light).expect("placed").translation;
+            let was = slime_render::glam::DVec3::from_array(was);
+            assert!(
+                at.abs_diff_eq(was, 1e-4),
+                "lantern {lantern}: {at}, where 0.3 had {was}"
+            );
+        }
         let intensity = |world: &World, lantern: u32| {
             let light = find(world, &format!("lantern {lantern}/light"))?;
             match world.get::<Light>(light)? {
@@ -902,16 +972,19 @@ pub mod cooked {
     }
 
     /// Prints what reading the zone's scenes, resolving them and spawning the zone in a world cost,
-    /// the median of 21 runs, a library made anew for each: what a game pays when it starts. Run it
-    /// in a release build:
-    /// `cargo test --release -p hunnawood -- --ignored --nocapture spawning_the_zone`.
+    /// the median of 21 runs, a library made anew for each: what a game pays when it starts; and
+    /// what resolving them again costs, their files read, as 0.3 resolved its zone's scene. Run it
+    /// in a release build: `cargo test --release -p hunnawood -- --ignored --nocapture
+    /// spawning_the_zone`.
     #[test]
     #[ignore = "a measurement, which needs the cooked zone"]
     fn what_spawning_the_zone_costs() {
         use std::time::{Duration, Instant};
 
         let (assets, _) = zone();
+        let land = scene(&assets, assets::land_id());
         let mut resolving: Vec<Duration> = Vec::new();
+        let mut again: Vec<Duration> = Vec::new();
         let mut spawning: Vec<Duration> = Vec::new();
         let mut entities = 0;
         for _ in 0..21 {
@@ -927,12 +1000,22 @@ pub mod cooked {
             world.spawn_scene("zone", &resolved).expect("spawned");
             spawning.push(started.elapsed());
             entities = world.len();
+            // The land inserted again, which the library holds already: every scene is resolved
+            // anew.
+            scenes.insert_cooked(assets::land_id(), land.clone());
+            let started = Instant::now();
+            scenes
+                .resolve(world.registry(), assets::zone_id())
+                .expect("resolved");
+            again.push(started.elapsed());
         }
-        resolving.sort_unstable();
-        spawning.sort_unstable();
+        for durations in [&mut resolving, &mut again, &mut spawning] {
+            durations.sort_unstable();
+        }
         eprintln!(
-            "the zone's {entities} entities: read and resolved in {:?}, spawned in {:?}",
-            resolving[10], spawning[10]
+            "the zone's {entities} entities: read and resolved in {:?}, resolved again in {:?}, \
+             spawned in {:?}",
+            resolving[10], again[10], spawning[10]
         );
     }
 
