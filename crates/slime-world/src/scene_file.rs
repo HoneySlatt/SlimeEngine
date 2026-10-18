@@ -18,8 +18,8 @@ use crate::library::{
 };
 use crate::transform::Transform;
 
-/// The version of the scene files' layout, past 1 only.
-const LAYOUT: &str = "layout";
+/// The version of a document's layout: of a scene file's, past 1 only, and of a save's.
+pub(crate) const LAYOUT: &str = "layout";
 /// The assets that the file names, by their short names.
 pub(crate) const ASSETS: &str = "assets";
 /// The scene's root.

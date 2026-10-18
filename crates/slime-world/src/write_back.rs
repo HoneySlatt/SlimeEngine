@@ -215,7 +215,7 @@ impl World {
         let Some(expected) = expected(
             placed[index].0,
             index,
-            &self.file_id(root),
+            Some(&self.file_id(root)),
             &entities,
             &name,
         ) else {
@@ -759,7 +759,7 @@ impl World {
                 )
                 .collect();
             for name in &names {
-                let base = expected(record, index, &entry.id, &entities, name)
+                let base = expected(record, index, Some(&entry.id), &entities, name)
                     .expect("a component of the record");
                 match self.component_value(entity, name) {
                     None => {
@@ -871,7 +871,7 @@ impl World {
                 // Removed since: the removal says it.
                 continue;
             };
-            let base = expected(placed[index].0, index, &entry.id, &entities, name);
+            let base = expected(placed[index].0, index, Some(&entry.id), &entities, name);
             match (base, self.component_value(entity, name)) {
                 // The prefab no longer has its component: set aside, as written.
                 (None, None) => {
@@ -931,20 +931,20 @@ impl World {
     }
 }
 
-/// The value of the component named `name` that `record`, a prefab's record at `index`, gives the
-/// entity placed from it, its references made references to `entities`; the placement's root, its
-/// ID `id`, is named after it unless the prefab names it. `None` if the record gives no such
-/// component.
-fn expected(
+/// The value of the component named `name` that `record`, a scene's record at `index`, gives the
+/// entity spawned from it, its references made references to `entities`; the root is named
+/// `root_name` unless the scene names it: a placement's ID in a file, a scene's key, none for a
+/// placement made while the world runs. `None` if the record gives no such component.
+pub(crate) fn expected(
     record: &Record,
     index: usize,
-    id: &str,
+    root_name: Option<&str>,
     entities: &[Option<Entity>],
     name: &str,
 ) -> Option<Value> {
     match record.components.iter().find(|(held, _)| held == name) {
         Some((_, value)) => Some(with_handles(value, entities)),
-        None if index == 0 && name == "Name" => Some(Name(id.to_owned()).to_value()),
+        None if index == 0 && name == "Name" => root_name.map(|id| Name(id.to_owned()).to_value()),
         None => None,
     }
 }

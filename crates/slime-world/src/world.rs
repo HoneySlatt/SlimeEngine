@@ -106,6 +106,13 @@ pub struct World {
     /// what a save names, so that loading it says which changed since. A scene stays when its root
     /// is destroyed, since its entities moved elsewhere live on.
     pub(crate) scenes: BTreeMap<String, SpawnedScene>,
+    /// The prefabs of the placements made while the world runs, by their numbers: kept while an
+    /// entity of one lives, as a save writes those whose entities live on, their root destroyed,
+    /// and forgotten some time after, as more are made.
+    pub(crate) placements: BTreeMap<u64, ResolvedScene>,
+    /// How many placements made while the world runs it kept when it last forgot those of which no
+    /// entity lives.
+    pub(crate) placements_kept: usize,
     /// How many transforms in the world were computed again, for the tests.
     #[cfg(test)]
     pub(crate) computed: usize,
@@ -307,6 +314,8 @@ impl World {
             created: Created::default(),
             next_created: 1,
             scenes: BTreeMap::new(),
+            placements: BTreeMap::new(),
+            placements_kept: 0,
             #[cfg(test)]
             computed: 0,
         };

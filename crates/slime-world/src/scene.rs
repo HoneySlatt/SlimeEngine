@@ -4,13 +4,14 @@ use std::any::TypeId;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use slime_reflect::Value;
+use slime_reflect::{Registry, Value};
 
 use crate::components::Name;
 use crate::entity::Entity;
 use crate::error::WorldError;
 use crate::identity::{CREATED, PersistentId};
 use crate::library::{Overrides, Placement, ResolvedScene};
+use crate::reflection::storage_in_registry;
 use crate::transform::Transform;
 use crate::world::{Identity, SpawnedScene, World, mark_stale};
 use crate::write_back::with_handles;
@@ -42,6 +43,18 @@ impl World {
     ///
     /// If the world runs out of slots ([`World::spawn`]).
     pub fn spawn_scene(&mut self, key: &str, scene: &ResolvedScene) -> Result<Entity, WorldError> {
+        let storages = storages_of(&self.registry, &self.component_ids, scene)?;
+        self.spawn_keyed(key, scene, &storages)
+    }
+
+    /// Spawns `scene` under `key` as [`World::spawn_scene`] does, the storages of its components
+    /// found already.
+    pub(crate) fn spawn_keyed(
+        &mut self,
+        key: &str,
+        scene: &ResolvedScene,
+        storages: &Storages<'_>,
+    ) -> Result<Entity, WorldError> {
         if key.is_empty() || key.contains('/') || key == CREATED {
             return Err(WorldError::InvalidKey(key.to_owned()));
         }
@@ -55,7 +68,7 @@ impl World {
                 )
             })
             .collect();
-        let entities = self.spawn_records(scene, &ids, None)?;
+        let entities = self.spawn_records(scene, &ids, None, storages)?;
         if !scene.0.records[0]
             .components
             .iter()
@@ -80,10 +93,11 @@ impl World {
     /// The placement's root is an entity created outside a scene: its persistent identity is
     /// `created/<number>`, the next of the world's count ([`World::spawn`]), and its entities'
     /// identities are its own followed by their paths in the prefab, `created/7/light`. The world
-    /// remembers its prefab ([`World::placement`]), and writes it as a placement in a scene file
-    /// ([`World::write_scene`]). The root holds no [`Name`], unlike a placement that a file
-    /// makes, which spawning names by its ID: the world gives it an ID when it first writes it, and
-    /// a file written while it has no name says that its `Name` is removed.
+    /// remembers its prefab ([`World::placement`]) while an entity of it lives, writes it as a
+    /// placement in a scene file ([`World::write_scene`]), and a save as a placement of its prefab
+    /// with what differs from it ([`World::save`]). The root holds no [`Name`], unlike a placement
+    /// that a file makes, which spawning names by its ID: the world gives it an ID when it first
+    /// writes it, and a file written while it has no name says that its `Name` is removed.
     ///
     /// # Errors
     ///
@@ -104,7 +118,29 @@ impl World {
         {
             return Err(WorldError::NotAlive(parent));
         }
+        let storages = storages_of(&self.registry, &self.component_ids, prefab)?;
         let number = self.next_created;
+        let root = self.place(prefab, number, &storages)?;
+        self.next_created += 1;
+        self.created.push(number, root);
+        if self.placements.len() > 2 * self.placements_kept.max(32) {
+            self.forget_gone_placements();
+        }
+        if parent.is_some() {
+            self.set_parent(root, parent)
+                .expect("both are alive, and the root is new");
+        }
+        Ok(root)
+    }
+
+    /// Spawns `prefab` as the placement made while the world runs numbered `number`, at the world's
+    /// root, and returns its root, which the caller puts in the count; all or nothing.
+    pub(crate) fn place(
+        &mut self,
+        prefab: &ResolvedScene,
+        number: u64,
+        storages: &Storages<'_>,
+    ) -> Result<Entity, WorldError> {
         let ids: Vec<PersistentId> = prefab
             .0
             .records
@@ -118,30 +154,47 @@ impl World {
                 )
             })
             .collect();
-        let entities = self.spawn_records(prefab, &ids, Some(number))?;
+        let entities = self.spawn_records(prefab, &ids, Some(number), storages)?;
         let root = entities[0];
-        self.next_created += 1;
-        self.created.push(number, root);
         self.nodes[root.index() as usize].placement = Some(Arc::new(Placement {
             prefab: prefab.clone(),
             overrides: Overrides::default(),
             set_aside: Vec::new(),
         }));
-        if parent.is_some() {
-            self.set_parent(root, parent)
-                .expect("both are alive, and the root is new");
-        }
+        self.placements.insert(number, prefab.clone());
         Ok(root)
     }
 
+    /// Forgets the placements made while the world runs of which no entity lives: kept until then,
+    /// as a save writes those whose entities live on, their root destroyed.
+    fn forget_gone_placements(&mut self) {
+        let placements = std::mem::take(&mut self.placements);
+        self.placements = placements
+            .into_iter()
+            .filter(|(number, prefab)| {
+                let number = number.to_string();
+                prefab.0.records.iter().any(|record| {
+                    self.find(&PersistentId::new(
+                        [CREATED, number.as_str()]
+                            .into_iter()
+                            .chain(record.path.iter().map(String::as_str)),
+                    ))
+                    .is_some()
+                })
+            })
+            .collect();
+        self.placements_kept = self.placements.len();
+    }
+
     /// Spawns the records of `scene`, each under its identity of `ids`, the root under the number
-    /// `created` if it is a placement made while the world runs, and returns their entities, in the
-    /// records' order: all or nothing.
+    /// `created` if it is a placement made while the world runs, their components in `storages`,
+    /// and returns their entities, in the records' order: all or nothing.
     fn spawn_records(
         &mut self,
         scene: &ResolvedScene,
         ids: &[PersistentId],
         created: Option<u64>,
+        storages: &Storages<'_>,
     ) -> Result<Vec<Entity>, WorldError> {
         let named = |index: usize| index > 0 || created.is_none();
         if let Some((_, id)) = ids
@@ -150,13 +203,6 @@ impl World {
             .find(|&(index, id)| named(index) && self.identities.contains_key(id))
         {
             return Err(WorldError::IdentityInUse(id.clone()));
-        }
-        let mut storages: HashMap<&str, usize> = HashMap::new();
-        for (name, _) in scene.0.records.iter().flat_map(|record| &record.components) {
-            if !storages.contains_key(name.as_str()) {
-                let (storage, _) = self.storage_named(name)?;
-                storages.insert(name, storage);
-            }
         }
         let entities: Vec<Entity> = scene.0.records.iter().map(|_| self.spawn_bare()).collect();
         let spawned: Vec<Option<Entity>> = entities.iter().copied().map(Some).collect();
@@ -246,6 +292,30 @@ impl World {
         self.identities.insert(id.clone(), entity);
         self.nodes[entity.index() as usize].identity = Identity::Scene(id);
     }
+}
+
+/// The component ID of each component that a resolved scene holds, by its type's name.
+pub(crate) type Storages<'s> = HashMap<&'s str, usize>;
+
+/// The storages of the components that `scene` holds, found through `registry` among a world's
+/// `component_ids`, which spawning it needs.
+///
+/// # Errors
+///
+/// [`WorldError::UnknownComponent`] for a type that the world stores no component of.
+pub(crate) fn storages_of<'s>(
+    registry: &Registry,
+    component_ids: &HashMap<TypeId, usize>,
+    scene: &'s ResolvedScene,
+) -> Result<Storages<'s>, WorldError> {
+    let mut storages = Storages::new();
+    for (name, _) in scene.0.records.iter().flat_map(|record| &record.components) {
+        if !storages.contains_key(name.as_str()) {
+            let (storage, _) = storage_in_registry(registry, component_ids, name)?;
+            storages.insert(name, storage);
+        }
+    }
+    Ok(storages)
 }
 
 /// Whether `value` holds a reference to an entity.
@@ -503,5 +573,29 @@ mod tests {
             .expect("spawned");
         let translation = world.global_transform(child).expect("placed").translation;
         assert!((translation - DVec3::new(3.0, 0.0, 0.0)).length() < 1e-9);
+    }
+
+    #[test]
+    fn the_prefabs_of_placements_made_while_the_world_runs_are_kept_while_an_entity_of_one_lives() {
+        let chapel = resolved(&chapel());
+        let mut world = World::new();
+        let kept = world.spawn_placement(&chapel, None).expect("placed");
+        let door = world
+            .find(&PersistentId::new([CREATED, "1", "door"]))
+            .expect("spawned");
+        world.set_parent(door, None).expect("alive");
+        world.despawn(kept);
+        for _ in 0..1000 {
+            let placed = world.spawn_placement(&chapel, None).expect("placed");
+            world.despawn(placed);
+        }
+        assert!(world.placements.len() <= 64, "{}", world.placements.len());
+        assert!(world.placements.contains_key(&1), "its door lives on");
+        world.despawn(door);
+        for _ in 0..100 {
+            let placed = world.spawn_placement(&chapel, None).expect("placed");
+            world.despawn(placed);
+        }
+        assert!(!world.placements.contains_key(&1));
     }
 }

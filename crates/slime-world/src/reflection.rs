@@ -2,6 +2,7 @@
 //! (`docs/adr/0085-reflection.md`).
 
 use std::any::TypeId;
+use std::collections::HashMap;
 
 use slime_reflect::{Path, Registry, Value};
 
@@ -218,15 +219,7 @@ impl World {
     /// [`WorldError::UnknownComponent`] if no component type of that name has a storage in the world:
     /// one that it has stored, or registered ([`World::register`]).
     pub(crate) fn storage_named(&self, component: &str) -> Result<(usize, String), WorldError> {
-        let unknown = || WorldError::UnknownComponent(component.to_owned());
-        let registration = self.registry.get(component).ok_or_else(unknown)?;
-        let type_id = registration.type_id().ok_or_else(unknown)?;
-        let id = self
-            .component_ids
-            .get(&type_id)
-            .copied()
-            .ok_or_else(unknown)?;
-        Ok((id, registration.info().name.clone()))
+        storage_in_registry(&self.registry, &self.component_ids, component)
     }
 
     /// The component ID of `entity`'s component whose type is named `component`, and the type's
@@ -248,6 +241,25 @@ impl World {
             Err(none())
         }
     }
+}
+
+/// The component ID, the index of its storage, of the type named `component` in `registry`, by its
+/// name or an alias, among a world's `component_ids`, and the type's name: what
+/// [`World::storage_named`] gives, for a world whose registry is set apart while a save is read.
+///
+/// # Errors
+///
+/// As [`World::storage_named`].
+pub(crate) fn storage_in_registry(
+    registry: &Registry,
+    component_ids: &HashMap<TypeId, usize>,
+    component: &str,
+) -> Result<(usize, String), WorldError> {
+    let unknown = || WorldError::UnknownComponent(component.to_owned());
+    let registration = registry.get(component).ok_or_else(unknown)?;
+    let type_id = registration.type_id().ok_or_else(unknown)?;
+    let id = component_ids.get(&type_id).copied().ok_or_else(unknown)?;
+    Ok((id, registration.info().name.clone()))
 }
 
 #[cfg(test)]

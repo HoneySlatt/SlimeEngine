@@ -11,7 +11,7 @@ use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
 
 use slime_assets::CookedScene;
-use slime_world::{DocumentError, Light, Loaded, World};
+use slime_world::{DocumentError, Light, Loaded, SceneLibrary, World};
 
 use crate::rules::Game;
 use crate::zone::Flickers;
@@ -104,7 +104,10 @@ pub fn resume(text: &str, start: (World, Game)) -> Result<(World, Game, Loaded),
     if about.get(LAYOUT) != Some(&game.zone().layout(&world).fingerprint()) {
         return Err(NotResumed::OtherLayout);
     }
-    let loaded = world.load(text).map_err(NotResumed::Unreadable)?;
+    // The game spawns no scene while it runs, which loading would spawn again from a library.
+    let loaded = world
+        .load(text, &mut SceneLibrary::new())
+        .map_err(NotResumed::Unreadable)?;
     Ok((world, game, loaded))
 }
 

@@ -821,7 +821,7 @@ fn a_world_spawned_from_scene_files_saves_and_loads_back() {
         .save(&start(&mut scenes), &Default::default())
         .expect("saved");
     let mut loaded = start(&mut scenes);
-    let report = loaded.load(&save).expect("loaded");
+    let report = loaded.load(&save, &mut scenes).expect("loaded");
     assert!(report.set_aside.is_empty(), "{:?}", report.set_aside);
     assert!(report.scenes_changed.is_empty());
     assert_eq!(played.first_difference(&loaded), None);
@@ -1630,6 +1630,310 @@ fn nested_placements_edited_two_deep_are_written_back() {
     assert_eq!(second.text, written.text);
 }
 
+/// A village that places the lamp twice, the well's without its glass.
+const VILLAGE_FILE: &str = r#"
+[assets]
+lamp = { id = "00000000-0000-0000-0000-000000000002" }
+
+[entities.square]
+prefab = "lamp"
+
+[entities.well]
+prefab = "lamp"
+
+[removed]
+entities = ["well/glass"]
+"#;
+
+/// A library of the yard, the lamp and the village.
+fn yard_lamp_and_village() -> SceneLibrary {
+    library(&[
+        (YARD, "yard", YARD_FILE),
+        (LAMP, "lamp", LAMP_FILE),
+        (VILLAGE, "village", VILLAGE_FILE),
+    ])
+}
+
+/// The yard spawned in a new world, as a game makes its start world.
+fn yard(scenes: &mut SceneLibrary) -> World {
+    let mut world = world();
+    spawn(&mut world, scenes, YARD, "yard");
+    world
+}
+
+/// A run of the yard: a lamp placed under the porch, its light dimmed and its glass removed; the
+/// village spawned under a key, a post hidden and a light's aim removed; an entity created under
+/// the lamp's post, which aims at a light of the village.
+fn run(scenes: &mut SceneLibrary) -> World {
+    let mut run = yard(scenes);
+    let lamp = scenes.resolve(run.registry(), LAMP).expect("resolved");
+    run.spawn_placement(&lamp, Some(entity(&run, "yard/porch")))
+        .expect("placed");
+    run.set_property(
+        entity(&run, "created/1/light"),
+        "test::Glow",
+        &"intensity".parse().unwrap(),
+        Value::F32(5.0),
+    )
+    .expect("in range");
+    run.despawn(entity(&run, "created/1/glass"));
+    let village = scenes.resolve(run.registry(), VILLAGE).expect("resolved");
+    run.spawn_scene("village", &village).expect("spawned");
+    run.insert(entity(&run, "village/square/post"), Hidden);
+    run.remove::<Aim>(entity(&run, "village/well/light"));
+    let hook = run.spawn();
+    run.insert(hook, Name("hook".to_owned()));
+    run.insert(
+        hook,
+        Aim {
+            at: entity(&run, "village/square/light"),
+        },
+    );
+    run.set_parent(hook, Some(entity(&run, "created/1/post")))
+        .expect("alive");
+    run
+}
+
+/// The intensity of the glow of the entity `id`.
+fn intensity(world: &World, id: &str) -> f32 {
+    Glow::from_value(&value(world, id, "test::Glow").expect("held"))
+        .expect("a glow")
+        .intensity
+}
+
+#[test]
+fn what_a_run_spawns_is_saved_as_its_scenes_and_loads_back_into_the_same_world() {
+    let mut scenes = yard_lamp_and_village();
+    let played = run(&mut scenes);
+    let save = played
+        .save(&yard(&mut scenes), &Default::default())
+        .expect("saved");
+    for written in [
+        "layout = 2\n".to_owned(),
+        format!("\"created/1\" = {{ scene = \"{LAMP}\", name = \"lamp\", content = "),
+        format!("village = {{ scene = \"{VILLAGE}\", name = \"village\", content = "),
+        "[changed.\"created/1/light\"]\n\"test::Glow\" = { intensity = 5.0 }\n".to_owned(),
+        "\"created/1\" = [\"yard/porch\"]".to_owned(),
+    ] {
+        assert!(save.contains(&written), "{written} in {save}");
+    }
+    assert!(
+        !save.contains("[created.\"created/1\"]") && !save.contains("[created.\"village"),
+        "placed, not created: {save}"
+    );
+    let mut loaded = yard(&mut scenes);
+    let report = loaded.load(&save, &mut scenes).expect("loaded");
+    assert!(
+        report.set_aside.is_empty() && report.scenes_changed.is_empty(),
+        "{report:?}"
+    );
+    assert_eq!(played.first_difference(&loaded), None, "{save}");
+    assert_eq!(
+        loaded
+            .save(&yard(&mut scenes), &Default::default())
+            .expect("saved again"),
+        save
+    );
+    assert!(loaded.placement(entity(&loaded, "created/1")).is_some());
+    let hook = loaded
+        .get::<Aim>(entity(&loaded, "created/2"))
+        .expect("held");
+    assert_eq!(hook.at, entity(&loaded, "village/square/light"));
+    let next = loaded.spawn();
+    assert_eq!(
+        loaded.persistent_id(next).map(|id| id.to_string()),
+        Some("created/3".to_owned())
+    );
+}
+
+#[test]
+fn a_prefab_fixed_after_a_save_reaches_what_the_run_spawned_but_what_the_run_changed() {
+    let mut scenes = yard_lamp_and_village();
+    let mut played = run(&mut scenes);
+    let lamp = scenes.resolve(played.registry(), LAMP).expect("resolved");
+    played.spawn_placement(&lamp, None).expect("placed");
+    let save = played
+        .save(&yard(&mut scenes), &Default::default())
+        .expect("saved");
+    // The lamp glows more, and holds a hook of its own.
+    let fixed = LAMP_FILE.replace("intensity = 40.0", "intensity = 50.0")
+        + "\n[entities.hook]\nparent = \"post\"\n";
+    scenes.insert_file(LAMP, "lamp", fixed);
+    let mut loaded = yard(&mut scenes);
+    let report = loaded.load(&save, &mut scenes).expect("loaded");
+    assert!(report.set_aside.is_empty(), "{:?}", report.set_aside);
+    let mut changed = report.scenes_changed.clone();
+    changed.sort();
+    assert_eq!(
+        changed,
+        ["created/1", "created/3", "village", "yard"],
+        "the scenes that place the lamp are named too"
+    );
+    for (id, expected) in [
+        ("created/3/light", 50.0),
+        ("created/1/light", 5.0),
+        ("village/square/light", 50.0),
+        ("yard/porch/light", 50.0),
+        ("yard/gate/light", 10.0),
+    ] {
+        assert_eq!(intensity(&loaded, id), expected, "{id}");
+    }
+    for id in [
+        "created/1/hook",
+        "created/3/hook",
+        "village/well/hook",
+        "yard/porch/hook",
+    ] {
+        assert!(loaded.find(&id.parse().unwrap()).is_some(), "{id}");
+    }
+    assert!(loaded.find(&"created/1/glass".parse().unwrap()).is_none());
+}
+
+#[test]
+fn what_a_run_spawned_from_a_scene_that_the_game_no_longer_has_is_set_aside() {
+    let mut scenes = yard_lamp_and_village();
+    let played = run(&mut scenes);
+    let save = played
+        .save(&yard(&mut scenes), &Default::default())
+        .expect("saved");
+    let mut without = library(&[(YARD, "yard", YARD_FILE), (LAMP, "lamp", LAMP_FILE)]);
+    let mut loaded = yard(&mut without);
+    let report = loaded.load(&save, &mut without).expect("loaded");
+    assert!(loaded.find(&"village".parse().unwrap()).is_none());
+    for (entity, component) in [
+        ("village", None),
+        ("village/square/post", Some("Hidden")),
+        ("village/well/light", Some("test::Aim")),
+        ("created/2", Some("test::Aim")),
+    ] {
+        assert!(
+            report
+                .set_aside
+                .iter()
+                .any(|aside| aside.entity == entity && aside.component.as_deref() == component),
+            "{entity}: {:?}",
+            report.set_aside
+        );
+    }
+    let hook = loaded
+        .get::<Aim>(entity(&loaded, "created/2"))
+        .expect("held");
+    assert!(!loaded.contains(hook.at), "it aims at no entity");
+    assert_eq!(intensity(&loaded, "created/1/light"), 5.0);
+}
+
+#[test]
+fn a_placement_whose_root_is_destroyed_is_saved_while_an_entity_of_it_lives() {
+    let mut scenes = yard_lamp_and_village();
+    let mut played = yard(&mut scenes);
+    let lamp = scenes.resolve(played.registry(), LAMP).expect("resolved");
+    let placed = played.spawn_placement(&lamp, None).expect("placed");
+    // Its light moved into the yard, then the lamp destroyed.
+    played
+        .set_parent(
+            entity(&played, "created/1/light"),
+            Some(entity(&played, "yard")),
+        )
+        .expect("alive");
+    played.despawn(placed);
+    // A lamp marked Unsaved, which a save leaves out.
+    let unsaved = played.spawn_placement(&lamp, None).expect("placed");
+    played.insert(unsaved, slime_world::Unsaved);
+    let save = played
+        .save(&yard(&mut scenes), &Default::default())
+        .expect("saved");
+    assert!(save.contains("\"created/1\" = { scene"), "{save}");
+    assert!(!save.contains("created/2"), "{save}");
+    let mut loaded = yard(&mut scenes);
+    let report = loaded.load(&save, &mut scenes).expect("loaded");
+    assert!(report.set_aside.is_empty(), "{:?}", report.set_aside);
+    assert_eq!(played.first_difference(&loaded), None, "{save}");
+    assert_eq!(parent(&loaded, "created/1/light"), Some("yard".to_owned()));
+}
+
+#[test]
+fn a_run_carried_through_a_save_into_a_new_start_is_the_run_saved_and_loaded_into_it() {
+    let mut scenes = yard_lamp_and_village();
+    let old_start = yard(&mut scenes);
+    let mut played = run(&mut scenes);
+    let lamp = scenes.resolve(played.registry(), LAMP).expect("resolved");
+    played.spawn_placement(&lamp, None).expect("placed");
+    played.insert(entity(&played, "yard/shed"), Hidden);
+    // The lamp changes on disk: the game makes a new start world from it.
+    scenes.insert_file(
+        LAMP,
+        "lamp",
+        LAMP_FILE.replace("intensity = 40.0", "intensity = 60.0"),
+    );
+    let (carried, report) = played
+        .carry(&old_start, yard(&mut scenes), &mut scenes)
+        .expect("carried");
+    assert!(report.set_aside.is_empty(), "{:?}", report.set_aside);
+    let save = played.save(&old_start, &Default::default()).expect("saved");
+    let mut loaded = yard(&mut scenes);
+    loaded.load(&save, &mut scenes).expect("loaded");
+    assert_eq!(carried.first_difference(&loaded), None);
+    // The lamp changed in every placement but where an override or the run changed it.
+    for (id, expected) in [
+        ("yard/porch/light", 60.0),
+        ("yard/shed/light", 60.0),
+        ("village/well/light", 60.0),
+        ("created/3/light", 60.0),
+        ("yard/gate/light", 10.0),
+        ("created/1/light", 5.0),
+    ] {
+        assert_eq!(intensity(&carried, id), expected, "{id}");
+    }
+    assert!(value(&carried, "yard/shed", "Hidden").is_some());
+    assert!(value(&carried, "village/square/post", "Hidden").is_some());
+}
+
+#[test]
+fn saves_of_what_a_run_spawned_cut_or_changed_at_every_character_are_refused_or_loaded() {
+    let mut scenes = yard_lamp_and_village();
+    let save = run(&mut scenes)
+        .save(&yard(&mut scenes), &Default::default())
+        .expect("saved");
+    for (at, _) in save.char_indices() {
+        let mut loaded = yard(&mut scenes);
+        let _ = loaded.load(&save[..at], &mut scenes);
+        let changed = format!("{}#{}", &save[..at], &save[at + 1..]);
+        let mut loaded = yard(&mut scenes);
+        let _ = loaded.load(&changed, &mut scenes);
+    }
+}
+
+#[test]
+fn a_save_that_spawns_under_an_identity_in_use_is_refused_or_set_aside() {
+    let mut scenes = yard_lamp_and_village();
+    let save = run(&mut scenes)
+        .save(&yard(&mut scenes), &Default::default())
+        .expect("saved");
+    // A world that created an entity of the placement's number already: refused, unchanged.
+    let mut taken = yard(&mut scenes);
+    taken.spawn();
+    let before = taken.len();
+    assert!(matches!(
+        taken.load(&save, &mut scenes),
+        Err(slime_world::DocumentError::IdentityInUse(_))
+    ));
+    assert_eq!(taken.len(), before);
+    assert!(taken.find(&"village".parse().unwrap()).is_none());
+    // A start world that spawns the village itself: its entities take the run's changes.
+    let mut spawning = yard(&mut scenes);
+    spawn(&mut spawning, &mut scenes, VILLAGE, "village");
+    let report = spawning.load(&save, &mut scenes).expect("loaded");
+    assert_eq!(
+        report
+            .set_aside
+            .iter()
+            .map(|aside| aside.entity.as_str())
+            .collect::<Vec<_>>(),
+        ["village"]
+    );
+    assert!(value(&spawning, "village/square/post", "Hidden").is_some());
+}
+
 /// A prefab of `entities` entities, each a child of the one before, with a name, a transform and
 /// a glow.
 fn chain_prefab(entities: usize) -> String {
@@ -1665,7 +1969,7 @@ fn many_placements(placements: usize) -> String {
 
 #[test]
 #[ignore = "a measurement, run in a release build: cargo test --release -p slime-world -- --ignored --nocapture"]
-fn what_resolving_spawning_and_writing_scenes_costs() {
+fn what_resolving_spawning_writing_and_saving_scenes_costs() {
     for (placements, entities) in [(1_000, 10), (1_000, 100)] {
         let mut scenes = library(&[
             (YARD, "yard", &many_placements(placements)),
@@ -1706,5 +2010,42 @@ fn what_resolving_spawning_and_writing_scenes_costs() {
             started.elapsed(),
             first.text.len()
         );
+    }
+    // Placements made while a world runs, each moved and a value of it changed, saved and loaded.
+    for entities in [10, 100] {
+        let mut scenes = library(&[(LAMP, "lamp", &chain_prefab(entities))]);
+        let mut world = world();
+        let lamp = scenes.resolve(world.registry(), LAMP).expect("resolved");
+        for index in 0..1_000 {
+            let placed = world.spawn_placement(&lamp, None).expect("placed");
+            world.insert(
+                placed,
+                Transform::from_translation(glam::DVec3::new(f64::from(index), 0.0, 0.0)),
+            );
+            let first = entity(&world, &format!("created/{}/e0", index + 1));
+            world
+                .set_property(
+                    first,
+                    "test::Glow",
+                    &"intensity".parse().unwrap(),
+                    Value::F32(2.0),
+                )
+                .expect("in range");
+        }
+        let started = std::time::Instant::now();
+        let save = world
+            .save(&self::world(), &Default::default())
+            .expect("saved");
+        let saved = started.elapsed();
+        let started = std::time::Instant::now();
+        let mut loaded = self::world();
+        loaded.load(&save, &mut scenes).expect("loaded");
+        eprintln!(
+            "1000 placements of {entities} entities made while the world runs: {} entities, saved in {saved:?}, loaded in {:?}, {} bytes",
+            world.len(),
+            started.elapsed(),
+            save.len()
+        );
+        assert_eq!(loaded.len(), world.len());
     }
 }

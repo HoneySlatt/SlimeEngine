@@ -47,7 +47,7 @@ use slime_gfx::RenderTarget;
 use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, WindowConfig};
 use slime_render::glam::DVec3;
 use slime_render::{AssetCache, Camera, Renderer};
-use slime_world::{Entity, Light, PersistentId, ResolvedScene, Transform, World};
+use slime_world::{Entity, Light, PersistentId, ResolvedScene, SceneLibrary, Transform, World};
 use slime_world_render::FrameBuilder;
 
 use sample_scene::{BLOOM, EXPOSURE, SCENE, SKY};
@@ -187,7 +187,8 @@ fn round_trip(world: &World, assets: &CookedAssets) -> Result<usize, AppError> {
     let save = world.save(&made()?, &BTreeMap::new())?;
     tracing::debug!("the save:\n{save}");
     let mut loaded = made()?;
-    let report = loaded.load(&save)?;
+    // The example spawns no scene while it runs, which loading would spawn again from a library.
+    let report = loaded.load(&save, &mut SceneLibrary::new())?;
     if !report.set_aside.is_empty() {
         return Err(format!("the save set aside {:?}", report.set_aside).into());
     }
