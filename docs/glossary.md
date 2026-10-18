@@ -37,6 +37,11 @@ clears it, as when its *device* is lost ([ADR-0084](adr/0084-what-the-world-draw
 its source, so that it stays the same when the file is moved or renamed. A *sub-asset*'s ID is
 derived from its file's ([ADR-0069](adr/0069-the-asset-pipeline.md)).
 
+**Binary encoding (documents).** The engine's own encoding of a *document* in bytes, without its
+types: its keys and texts once each, then its values, each a tag and what it holds. A reader reads it
+as it reads the text, and its errors name the byte (`slime_serialize::encode`,
+[ADR-0094](adr/0094-the-binary-encoding-of-documents.md)).
+
 **Bind group.** A set of GPU resources that a pipeline's shaders read together, bound at one
 `@group` index: uniform buffers, textures and samplers (`slime_gfx::BindGroup`). Its
 *bind group layout* says which bindings it has and what each holds (`slime_gfx::BindGroupLayout`,
@@ -160,8 +165,9 @@ one step apart. The renderer dithers 8-bit outputs by up to one step
 **Document (serialization).** A file that holds one *value* of a registered type, or several at
 their places as a *save* does, written by the engine's writer and read through the types'
 descriptions: a TOML table of its fields, the versions of its types past 1 under `$versions`, and
-the conventions of `slime_serialize::format` for what TOML lacks
-([ADR-0086](adr/0086-serialization.md)).
+the conventions of `slime_serialize::format` for what TOML lacks; or the same in the *binary
+encoding* ([ADR-0086](adr/0086-serialization.md)).
+
 
 **Double-sided material.** A material whose back faces are drawn too, shaded with their normals
 reversed (glTF).

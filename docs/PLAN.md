@@ -18,7 +18,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   saves and resumes its runs, on Linux and on Windows.
 - Stage 5b — Scenes and prefabs: planned on 2026-10-17 and validated by the owner
   ([ADR-0089](adr/0089-scenes-and-prefabs.md), [ADR-0090](adr/0090-stage-5b-scenes-and-prefabs.md)),
-  to be released as 0.4 at its close. M5b.1 to M5b.3 are done; M5b.4 is next.
+  to be released as 0.4 at its close. M5b.1 to M5b.3 are done; M5b.4 is built, and CI checks it.
 
 ## Status
 
@@ -27,7 +27,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M5b.1](#m5b1--scenes-placed-in-a-world) | A scene written as text places entities and other scenes in a world, each placement with values of its own | Done |
 | [M5b.2](#m5b2--a-world-written-back-as-a-scene) | A world, or a subtree of it, is written as a scene file that keeps its placements, and reads back to the same world | Done |
 | [M5b.3](#m5b3--saves-and-hot-reload-with-placements) | What a game spawns while it runs is saved as placements, and a run is carried through a save when its scenes change | Done |
-| [M5b.4](#m5b4--the-binary-encoding-of-documents) | A document is written in a binary encoding of the engine's own, and read back without parsing text | Planned |
+| [M5b.4](#m5b4--the-binary-encoding-of-documents) | A document is written in a binary encoding of the engine's own, and read back without parsing text | Built; CI checks it |
 | [M5b.5](#m5b5--scene-files-cooked-typed-components-prefabs-in-the-world-example) | Scene files are cooked and spawned, Blender's nodes carry typed components, and the `world` example places prefabs | Planned |
 | [M5b.6](#m5b6--hunna-woods-zone-made-of-prefabs) | *Hunna Wood*'s zone is a scene file that places its land and its lanterns | Planned |
 | [M5b.7](#m5b7--windows-check-documentation-release-04) | Stage 5b is done and released as 0.4 | Planned |
@@ -281,6 +281,16 @@ Risks:
   byte refused without a panic, in a bounded number of tries; too deep and too large refused; reading
   a document the size of the zone measured against its text; CI is green.
 - **How to test.** `cargo test -p slime-serialize`.
+- **Outcome.** Built on 2026-10-18
+  ([ADR-0094](adr/0094-the-binary-encoding-of-documents.md)). A document's tree, without its
+  types, is encoded with its keys and texts once each in a table of strings, then its values, each a
+  tag and what it holds; floats in four bytes when an `f32` holds them exactly. `encode` encodes a
+  text, `Composer::finish_binary` writes a document of values, and `Document::parse_binary` gives the
+  `Document` that a text gives, read through the same reader; errors name the byte, found by walking
+  the bytes again along their path. The module `format` lays out the bytes, and a test holds the
+  bytes of a fixed document. On a document of 543 entities, the encoding is a third of the text, and
+  is decoded about seven times faster than the text is parsed; reading the values then costs the
+  same, which `Document::parse_binary`'s rustdoc measures.
 
 ### M5b.5 — Scene files cooked, typed components, prefabs in the `world` example
 
@@ -754,7 +764,8 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **A save is text, of limited size** (ADR-0087). Saving refuses a save larger than what
   `slime-serialize` reads, and loading costs more than saving, much of it parsing the text: the
   rustdoc of `World::save` and `World::load` has the figures. *Hunna Wood*'s saves are far below
-  the limit; a larger world needs the binary encoding of Stage 5b, or saves read in parts.
+  the limit. The binary encoding exists since M5b.4, but saves stay text until a measurement asks
+  (ADR-0089): a larger world needs saves in the binary encoding, or read in parts.
 - **Children and queries in another order after loading** (ADR-0087). A world loaded from a save
   holds its entities in other slots, and an entity's children in the order the save set them: what
   must go the same way after loading cannot depend on either order.

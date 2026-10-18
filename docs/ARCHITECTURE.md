@@ -774,29 +774,41 @@ render
 `slime-serialize` writes the values of reflected types as TOML documents and reads them back
 ([ADR-0086](adr/0086-serialization.md)); its module `format` says how a document holds each kind
 of value. The type's description in a registry leads both ways, through the values as a document
-holds them: tables, arrays, text, numbers and booleans.
+holds them: tables, arrays, text, numbers and booleans. The same document is written and read in
+the engine's binary encoding too, without its types, through the same reader
+([ADR-0094](adr/0094-the-binary-encoding-of-documents.md)).
 
 ```text
 write(registry, ty, value)                a document of one value, through a Composer
 ├── Composer::put(place, ty, value)
 │   └── Writer::value(ty, value)          the value as a document holds it, by its type's
 │                                         description; the types past version 1 noted
-└── Composer::finish()                    refused if larger or deeper than a reader reads
-    └── text::print(root)                 "$versions" first, then each table's values on their
-                                          keys' lines, then its larger tables under headers:
-                                          the engine's own writer, LF endings
+├── Composer::finish()                    refused if larger or deeper than a reader reads
+│   └── text::print(root)                 "$versions" first, then each table's values on their
+│                                         keys' lines, then its larger tables under headers:
+│                                         the engine's own writer, LF endings
+└── Composer::finish_binary()             the same root in the binary encoding: its strings
+                                          once, then its values, each a tag and what it holds
+
+encode(text)                              the document that a text holds in the binary
+                                          encoding, without its types, which a program that
+                                          knows none, such as a cooker, can encode
 
 read(registry, ty, text, mode)            through a Document
 ├── Document::parse(text, mode)
 │   ├── text::parse(text)                 toml_edit's parser: the document's values, and where
 │   │                                     each value and key lies; size and depth limited
+│   │   or, for Document::parse_binary,
+│   ├── binary::decode(bytes)             the same values from the bytes; size, depth, counts
+│   │                                     and strings checked, never a panic
 │   └── "$format", "$versions"            a later version refused
 └── Document::root(ty) → Reader::value    at each value of a type of an earlier version, the
     │                                     type's upgrades first (Registry::upgrade), on the
     │                                     document's value; then its description reads it:
     │                                     kinds, fields by name or alias, defaults, ranges
     └── errors placed by line and column  at the key of a field unknown or given twice, at the
-                                          value otherwise
+                                          value otherwise; by byte in the binary encoding,
+                                          found by walking the bytes again
 ```
 
 `read_as` and `write_as` do the same for a Rust type, which `from_value` then checks. The cooker

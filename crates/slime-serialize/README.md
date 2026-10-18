@@ -1,16 +1,17 @@
 # slime-serialize
 
-The engine's serialization: values of reflected types written to TOML documents and read back,
-from earlier versions of their types too (`docs/adr/0080-reflection-and-serialization.md`,
-`docs/adr/0086-serialization.md`).
+The engine's serialization: values of reflected types written to TOML documents, or to the engine's
+binary encoding of the same documents, and read back, from earlier versions of their types too
+(`docs/adr/0080-reflection-and-serialization.md`, `docs/adr/0086-serialization.md`,
+`docs/adr/0094-the-binary-encoding-of-documents.md`).
 
 ## Status
 
-Text documents only: the cooker's metadata files and the world's saves
-(`docs/adr/0087-the-worlds-documents.md`) are read and written through it, and the world reads and
-writes scene files through it (`docs/adr/0091-scene-documents-and-placements.md`,
-`docs/adr/0092-a-world-written-back-as-a-scene.md`). It has no binary encoding yet
-(`docs/PLAN.md`, M5b.4).
+The cooker's metadata files and the world's saves (`docs/adr/0087-the-worlds-documents.md`) are
+read and written through it as text, and the world reads and writes scene files through it
+(`docs/adr/0091-scene-documents-and-placements.md`,
+`docs/adr/0092-a-world-written-back-as-a-scene.md`). Nothing writes or reads the binary encoding
+yet but its tests: the cooker will cook scene files into it (`docs/PLAN.md`, M5b.5).
 
 ## Role
 
@@ -34,6 +35,10 @@ writes scene files through it (`docs/adr/0091-scene-documents-and-placements.md`
   place what it finds wrong at its line and column, as a world reads a scene file;
   `Composer::table` makes a table that holds nothing yet, and `Composer::without_defaults` leaves
   out the fields that hold their defaults, as a world writes a scene file.
+- `encode`, `Composer::finish_binary` and `Document::parse_binary`: the same documents in the
+  engine's binary encoding, without their types, written from a text, by a program that knows no
+  type such as a cooker, or from values, and read through the same reader as text, strict and
+  lenient alike; errors name the byte. The module `format` lays out its bytes.
 
 ## Entry points
 

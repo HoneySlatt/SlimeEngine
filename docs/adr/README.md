@@ -161,3 +161,4 @@ the ADR linking to it.
 | [0091](0091-scene-documents-and-placements.md) | Scene documents and placements | Accepted |
 | [0092](0092-a-world-written-back-as-a-scene.md) | A world written back as a scene | Accepted |
 | [0093](0093-saves-and-hot-reload-with-placements.md) | Saves and hot reload with placements | Accepted |
+| [0094](0094-the-binary-encoding-of-documents.md) | The binary encoding of documents | Accepted |
