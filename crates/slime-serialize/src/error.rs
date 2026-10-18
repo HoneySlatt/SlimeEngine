@@ -6,8 +6,9 @@ use std::path::{Path as FilePath, PathBuf};
 use slime_reflect::{Path, Problem};
 
 /// Why a document cannot be read, or what a lenient reading left out of it
-/// ([`Mode::Lenient`](crate::Mode::Lenient)), and where: the file, if one was read, the line and the
-/// column, from 1, and the path of the part at fault in the value.
+/// ([`Mode::Lenient`](crate::Mode::Lenient)), and where: the file, if one was read; the line and the
+/// column, from 1, in a text, the byte, from 0, in the binary encoding; and the path of the part at
+/// fault in the value.
 ///
 /// Its `Display` and `Error` are written by hand rather than derived: its cause is its problem's.
 #[derive(Debug)]
@@ -17,9 +18,18 @@ pub struct ReadError(Box<Detail>);
 #[derive(Debug)]
 struct Detail {
     file: Option<PathBuf>,
-    at: Option<(usize, usize)>,
+    at: Option<At>,
     path: Path,
     problem: ReadProblem,
+}
+
+/// Where the part at fault lies in a document.
+#[derive(Clone, Copy, Debug)]
+enum At {
+    /// In a text: its line and its column, from 1, the column counted in characters.
+    Text(usize, usize),
+    /// In the binary encoding: its first byte, from 0.
+    Byte(usize),
 }
 
 /// What is wrong, in a [`ReadError`].
@@ -49,6 +59,9 @@ pub enum ReadProblem {
     /// Text that is not TOML: the parser's message.
     #[error("not TOML: {0}")]
     Syntax(String),
+    /// Bytes that are not the engine's binary encoding of a document: what is wrong with them.
+    #[error("not the binary encoding of a document: {0}")]
+    Binary(String),
     /// A document of a version of the format newer than the one this program knows
     /// ([`format::VERSION`](crate::format::VERSION)).
     #[error(
@@ -61,6 +74,18 @@ pub enum ReadProblem {
         /// The version this program writes and reads.
         known: u32,
     },
+    /// A document in a version of the binary encoding newer than the one this program knows
+    /// ([`format::BINARY_VERSION`](crate::format::BINARY_VERSION)).
+    #[error(
+        "a document in version {found} of the binary encoding, newer than version {known}, which \
+         this program knows"
+    )]
+    NewerEncoding {
+        /// The version the document says.
+        found: u8,
+        /// The version this program writes and reads.
+        known: u8,
+    },
     /// A value that is not one of its type, as reflection says: a kind, a field, a variant, a
     /// number out of its range, a version.
     #[error("{0}")]
@@ -71,7 +96,17 @@ impl ReadError {
     pub(crate) fn new(at: Option<(usize, usize)>, path: Path, problem: ReadProblem) -> Self {
         Self(Box::new(Detail {
             file: None,
-            at,
+            at: at.map(|(line, column)| At::Text(line, column)),
+            path,
+            problem,
+        }))
+    }
+
+    /// The error at the byte `at` of a document in the binary encoding.
+    pub(crate) fn at_byte(at: usize, path: Path, problem: ReadProblem) -> Self {
+        Self(Box::new(Detail {
+            file: None,
+            at: Some(At::Byte(at)),
             path,
             problem,
         }))
@@ -94,9 +129,22 @@ impl ReadError {
     }
 
     /// The line and the column of the part at fault in the text, from 1, the column counted in
-    /// characters; `None` when the problem has no place in it, as when a file cannot be read.
+    /// characters; `None` when the problem has no place in a text, as when a file cannot be read, or
+    /// when the document is in the binary encoding.
     pub fn line_and_column(&self) -> Option<(usize, usize)> {
-        self.0.at
+        match self.0.at {
+            Some(At::Text(line, column)) => Some((line, column)),
+            _ => None,
+        }
+    }
+
+    /// The byte of the part at fault in a document in the binary encoding, from 0; `None` for a
+    /// text, or when the problem has no place in the bytes, as when they are too many.
+    pub fn byte(&self) -> Option<usize> {
+        match self.0.at {
+            Some(At::Byte(at)) => Some(at),
+            _ => None,
+        }
     }
 
     /// The path of the part at fault in the value read, empty for the value itself.
@@ -110,7 +158,8 @@ impl ReadError {
     }
 }
 
-/// `scene.toml:3:9: `light.intensity`: -1 is not ≥ 0`, each part there if known.
+/// `scene.toml:3:9: `light.intensity`: -1 is not ≥ 0`, or `byte 120: ` for the binary encoding,
+/// each part there if known.
 impl fmt::Display for ReadError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Detail {
@@ -120,11 +169,13 @@ impl fmt::Display for ReadError {
             problem,
         } = &*self.0;
         match (file, at) {
-            (Some(file), Some((line, column))) => {
+            (Some(file), Some(At::Text(line, column))) => {
                 write!(f, "{}:{line}:{column}: ", file.display())?
             }
+            (Some(file), Some(At::Byte(at))) => write!(f, "{}: byte {at}: ", file.display())?,
             (Some(file), None) => write!(f, "{}: ", file.display())?,
-            (None, Some((line, column))) => write!(f, "line {line}, column {column}: ")?,
+            (None, Some(At::Text(line, column))) => write!(f, "line {line}, column {column}: ")?,
+            (None, Some(At::Byte(at))) => write!(f, "byte {at}: ")?,
             (None, None) => {}
         }
         if !path.is_empty() {

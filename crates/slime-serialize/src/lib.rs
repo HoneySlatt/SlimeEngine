@@ -1,5 +1,6 @@
 #![doc = include_str!("../README.md")]
 
+mod binary;
 mod compose;
 mod document;
 mod error;
@@ -10,14 +11,14 @@ use std::io::Read as _;
 
 use slime_reflect::{Path, Reflect, ReflectError, Registry, Value};
 
-use crate::compose::position;
 pub use crate::compose::{Composer, Document};
+use crate::compose::{parsed, position, too_large};
 pub use crate::error::{ReadError, ReadProblem};
 
-/// The size of the largest document read, in bytes: 16 MiB. The parser takes about a hundred bytes of
-/// memory for each value it reads: the densest document of that size, one array of small integers,
-/// took 3.7 s and 1.8 GB to read in a release build on the owner's machine (M5a.7), one of 1 MiB
-/// 0.24 s and 110 MB.
+/// The size of the largest document read, in bytes, as text or in the binary encoding: 16 MiB. The
+/// text's parser takes about a hundred bytes of memory for each value it reads: the densest document
+/// of that size, one array of small integers, took 3.7 s and 1.8 GB to read in a release build on the
+/// owner's machine (M5a.7), one of 1 MiB 0.24 s and 110 MB.
 pub const MAX_SIZE: usize = 16 << 20;
 
 /// The deepest that a document's values nest, tables and arrays within others, as read: 64 levels.
@@ -217,6 +218,36 @@ pub fn read_file(
             .map(|warning| warning.in_file(file))
             .collect(),
     })
+}
+
+/// The document that `text` holds in the engine's binary encoding, read without its types, so that a
+/// program that knows none, such as a cooker, encodes a source
+/// (`docs/adr/0094-the-binary-encoding-of-documents.md`):
+/// the bytes read through [`Document::parse_binary`] give the values that the text gives through
+/// [`Document::parse`]. The same text gives the same bytes on every platform.
+///
+/// ```
+/// use slime_reflect::{Registry, Value};
+/// use slime_serialize::{Document, Mode, encode};
+///
+/// let bytes = encode("[lamps]\nporch = 30.0\n").expect("TOML");
+/// let mut registry = Registry::new();
+/// registry.register::<f32>();
+/// let mut document = Document::parse_binary(&registry, &bytes, Mode::Strict).expect("a document");
+/// assert_eq!(document.read(&["lamps", "porch"], "f32", None).expect("a number"), Some(Value::F32(30.0)));
+/// ```
+///
+/// # Errors
+///
+/// When `text` is larger than [`MAX_SIZE`], nests deeper than [`MAX_DEPTH`] or is not TOML, as
+/// reading it refuses, at its line and column; when the encoding would be larger than
+/// [`MAX_SIZE`], which [`Document::parse_binary`] refuses.
+pub fn encode(text: &str) -> Result<Vec<u8>, ReadError> {
+    let bytes = binary::encode(&parsed(text)?.root);
+    if bytes.len() > MAX_SIZE {
+        return Err(too_large(bytes.len()));
+    }
+    Ok(bytes)
 }
 
 /// Writes `value` as [`write`](fn@write) does, its type registered in a registry of its own.

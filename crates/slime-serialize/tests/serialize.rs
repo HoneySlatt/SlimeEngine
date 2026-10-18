@@ -1278,3 +1278,398 @@ fn a_composer_makes_tables_that_hold_nothing_yet() {
         "[entities]\npost = {}\nlamp = { glow = 2.0 }\n"
     );
 }
+
+/// Reads, from the document `bytes` or `text`, the value of `ty` at `place`, whole or `partial`.
+fn read_at(
+    registry: &Registry,
+    source: Result<&str, &[u8]>,
+    mode: Mode,
+    place: &[&str],
+    ty: &str,
+    partial: bool,
+) -> Result<Option<Value>, slime_serialize::ReadError> {
+    let mut document = match source {
+        Ok(text) => Document::parse(registry, text, mode)?,
+        Err(bytes) => Document::parse_binary(registry, bytes, mode)?,
+    };
+    if partial {
+        document.read_part(place, ty, None)
+    } else {
+        document.read(place, ty, None)
+    }
+}
+
+#[test]
+fn every_registered_type_reads_the_same_from_its_binary_encoding_as_from_its_text() {
+    let registry = registry();
+    let mut values: Vec<(String, Value)> = registry
+        .iter()
+        .flat_map(|registration| {
+            let ty = registration.info().name.clone();
+            samples(&registry, &ty, None)
+                .into_iter()
+                .map(move |value| (ty.clone(), value))
+        })
+        .collect();
+    values.push(("test::Everything".to_owned(), everything().to_value()));
+    assert!(values.len() > 40, "{} values", values.len());
+    for (ty, value) in &values {
+        for partial in [false, true] {
+            let composer = || {
+                let mut composer = Composer::new(&registry);
+                if partial {
+                    composer.put_part(&["v"], ty, value)
+                } else {
+                    composer.put(&["v"], ty, value)
+                }
+                .unwrap_or_else(|error| panic!("{ty}: {error}"));
+                composer
+            };
+            let text = composer().finish().expect("written");
+            let bytes = composer().finish_binary().expect("encoded");
+            let encoded = slime_serialize::encode(&text).expect("TOML");
+            for mode in [Mode::Strict, Mode::Lenient] {
+                let read = |source| {
+                    read_at(&registry, source, mode, &["v"], ty, partial)
+                        .unwrap_or_else(|error| panic!("{ty}: {error}\n{text}"))
+                        .expect("a value")
+                };
+                let from_text = read(Ok(&text));
+                for source in [&bytes, &encoded] {
+                    let from_bytes = read(Err(source));
+                    assert!(
+                        diff(&from_text, &from_bytes).is_empty(),
+                        "{ty}: {from_text:?} from the text, {from_bytes:?} from the bytes"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn upgrades_versions_and_warnings_read_the_same_from_the_binary_encoding() {
+    let registry = lamps();
+    // Version 1 wrote no version: a type that a document does not name is at version 1.
+    let earlier =
+        "[lamp]\nwatts = 60.0\ntint = [1.0, 0.5, 0.25]\nlit = true\n\n[part]\nwatts = 75\n";
+    let bytes = slime_serialize::encode(earlier).expect("TOML");
+    for (place, partial) in [("lamp", false), ("part", true)] {
+        let read = |source| {
+            read_at(
+                &registry,
+                source,
+                Mode::Strict,
+                &[place],
+                "test::Lamp",
+                partial,
+            )
+            .expect("upgraded")
+        };
+        assert_eq!(read(Ok(earlier)), read(Err(&bytes)), "{place}");
+    }
+    let newer = "\"$versions\" = { \"test::Lamp\" = 3 }\n[lamp]\npower = 1.0\n";
+    let error = Document::parse_binary(
+        &registry,
+        &slime_serialize::encode(newer).expect("TOML"),
+        Mode::Lenient,
+    )
+    .err()
+    .expect("version 3");
+    assert!(matches!(
+        error.problem(),
+        ReadProblem::Value(Problem::NewerVersion { found: 3, known: 2 })
+    ));
+    assert_eq!(error.line_and_column(), None);
+    assert!(error.byte().is_some(), "{error}");
+    // A field that the type does not have: a warning in a save, read either way.
+    let unknown =
+        "[lamp]\npower = 1.0\ntint = { r = 1.0, g = 1.0, b = 1.0 }\nlit = true\nflicker = 2\n";
+    let bytes = slime_serialize::encode(unknown).expect("TOML");
+    let mut from_text = Document::parse(&registry, unknown, Mode::Lenient).expect("a save");
+    let mut from_bytes = Document::parse_binary(&registry, &bytes, Mode::Lenient).expect("a save");
+    assert_eq!(
+        from_text.read(&["lamp"], "test::Lamp", None).expect("read"),
+        from_bytes
+            .read(&["lamp"], "test::Lamp", None)
+            .expect("read")
+    );
+    let (text_warnings, byte_warnings) = (from_text.warnings(), from_bytes.warnings());
+    assert_eq!(text_warnings.len(), 1);
+    assert_eq!(byte_warnings.len(), 1);
+    assert_eq!(text_warnings[0].path(), byte_warnings[0].path());
+    let at = byte_warnings[0].byte().expect("a byte");
+    assert_eq!(&bytes[at..at + 1], &[bytes[at]], "within the bytes");
+}
+
+#[test]
+fn a_fixed_document_gives_the_bytes_that_the_test_holds() {
+    let text = "\"$versions\" = { \"test::Lamp\" = 2 }\nname = \"lantern\"\ncount = -3\non = true\n\
+                off = false\nhalf = 0.5\ntenth = 0.1\n\n[post]\nlist = [1, \"lantern\"]\n";
+    let mut expected = b"SLDB\x01\x0b".to_vec();
+    // The strings, keys and texts once each, in the order in which they come.
+    for string in [
+        "$versions",
+        "test::Lamp",
+        "name",
+        "lantern",
+        "count",
+        "on",
+        "off",
+        "half",
+        "tenth",
+        "post",
+        "list",
+    ] {
+        expected.push(string.len() as u8);
+        expected.extend_from_slice(string.as_bytes());
+    }
+    // The root table of 8 entries, each the index of its key's string and its value: a table of one
+    // integer, 2 zigzagged; a text; an integer, -3 zigzagged; true; false; 0.5 as an `f32`; 0.1 as an
+    // `f64`; a table of an array of an integer and a text.
+    expected.extend_from_slice(&[
+        7, 8, 0, 7, 1, 1, 2, 4, 2, 5, 3, 4, 2, 5, 5, 1, 6, 0, 7, 3, 0, 0, 0, 0x3f, 8, 4, 0x9a,
+        0x99, 0x99, 0x99, 0x99, 0x99, 0xb9, 0x3f, 9, 7, 1, 10, 6, 2, 2, 2, 5, 3,
+    ]);
+    assert_eq!(slime_serialize::encode(text).expect("TOML"), expected);
+}
+
+#[test]
+fn binary_encodings_cut_or_changed_at_every_byte_are_refused_or_read_without_a_panic() {
+    let registry = registry();
+    let mut composer = Composer::new(&registry);
+    composer
+        .put(
+            &["everything"],
+            "test::Everything",
+            &everything().to_value(),
+        )
+        .expect("everything");
+    composer
+        .put_part(
+            &["part"],
+            "test::Tint",
+            &Value::Struct(vec![("g".to_owned(), Value::F32(0.5))]),
+        )
+        .expect("a part");
+    let bytes = composer.finish_binary().expect("encoded");
+    let read = |bytes: &[u8]| {
+        let mut document = Document::parse_binary(&registry, bytes, Mode::Lenient)?;
+        document.read(&["everything"], "test::Everything", None)?;
+        document.read_part(&["part"], "test::Tint", None)
+    };
+    read(&bytes).expect("whole");
+    for at in 0..bytes.len() {
+        assert!(read(&bytes[..at]).is_err(), "cut at {at}");
+        for change in [0x00, 0x01, 0x7f, 0x80, 0xff, bytes[at] ^ 0x10] {
+            let mut changed = bytes.clone();
+            changed[at] = change;
+            if let Err(error) = read(&changed) {
+                assert!(
+                    error.byte().is_none_or(|byte| byte <= changed.len()),
+                    "{error}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn binary_encodings_too_deep_or_too_large_are_refused() {
+    let registry = registry();
+    // A root table that holds an array, which holds an array, and so on.
+    let mut deep = b"SLDB\x01\x01\x01v\x07\x01\x00".to_vec();
+    deep.extend(std::iter::repeat_n([6, 1], MAX_DEPTH).flatten());
+    deep.push(1);
+    let error = Document::parse_binary(&registry, &deep, Mode::Strict)
+        .err()
+        .expect("too deep");
+    assert!(
+        matches!(error.problem(), ReadProblem::TooDeep { limit } if *limit == MAX_DEPTH),
+        "{error}"
+    );
+    assert!(
+        error.byte().is_some_and(|byte| byte < deep.len()),
+        "{error}"
+    );
+    let large = vec![0; MAX_SIZE + 1];
+    let error = Document::parse_binary(&registry, &large, Mode::Strict)
+        .err()
+        .expect("too large");
+    assert!(
+        matches!(error.problem(), ReadProblem::TooLarge { .. }),
+        "{error}"
+    );
+    let deep_text = "a = ".to_owned() + &"[".repeat(MAX_DEPTH + 1) + &"]".repeat(MAX_DEPTH + 1);
+    let error = slime_serialize::encode(&deep_text).expect_err("too deep");
+    assert!(
+        matches!(error.problem(), ReadProblem::TooDeep { .. }),
+        "{error}"
+    );
+}
+
+#[test]
+fn errors_in_a_binary_encoding_name_the_byte_and_the_place() {
+    let registry = registry();
+    let mut composer = Composer::new(&registry);
+    composer
+        .put(
+            &["everything"],
+            "test::Everything",
+            &everything().to_value(),
+        )
+        .expect("everything");
+    let ranged = composer
+        .finish()
+        .expect("written")
+        .replace("bounded = 0.5", "bounded = 1.5");
+    let bytes = slime_serialize::encode(&ranged).expect("TOML");
+    let error = read_at(
+        &registry,
+        Err(&bytes),
+        Mode::Strict,
+        &["everything"],
+        "test::Everything",
+        false,
+    )
+    .expect_err("out of range");
+    assert_eq!(error.path().to_string(), "everything.bounded");
+    assert!(error.to_string().starts_with("byte "), "{error}");
+    assert!(
+        error.to_string().contains("1.5 is not from 0 to 1"),
+        "{error}"
+    );
+    let at = error.byte().expect("a byte");
+    assert_eq!(bytes[at], 3, "the tag of the float, an `f32`");
+    // A key that the type does not have, at its key.
+    let unknown =
+        slime_serialize::encode("[tint]\nr = 1.0\ng = 1.0\nb = 1.0\nalpha = 1.0\n").expect("TOML");
+    let error = read_at(
+        &registry,
+        Err(&unknown),
+        Mode::Strict,
+        &["tint"],
+        "test::Tint",
+        false,
+    )
+    .expect_err("unknown");
+    let at = error.byte().expect("a byte");
+    assert!(
+        matches!(
+            error.problem(),
+            ReadProblem::Value(Problem::UnknownField { .. })
+        ),
+        "{error}"
+    );
+    assert_eq!(
+        unknown[at..at + 2],
+        [4, 3],
+        "the index of `alpha`, then the tag of its float: {error}"
+    );
+    // Bytes that are not the encoding: where, and on the way to which part.
+    let mut broken = slime_serialize::encode("[a]\nb = [1, 2]\n").expect("TOML");
+    let last = broken.len() - 1;
+    broken[last - 1] = 9;
+    let error = Document::parse_binary(&registry, &broken, Mode::Strict)
+        .err()
+        .expect("no tag 9");
+    assert_eq!(error.byte(), Some(last - 1));
+    assert_eq!(error.path().to_string(), "a.b[1]");
+    assert!(matches!(error.problem(), ReadProblem::Binary(_)), "{error}");
+    let newer = [b"SLDB".as_slice(), &[2]].concat();
+    let error = Document::parse_binary(&registry, &newer, Mode::Strict)
+        .err()
+        .expect("version 2");
+    assert!(
+        matches!(
+            error.problem(),
+            ReadProblem::NewerEncoding { found: 2, known: 1 }
+        ),
+        "{error}"
+    );
+}
+
+#[test]
+#[ignore = "a measurement, run in a release build: cargo test --release -p slime-serialize -- --ignored --nocapture"]
+fn what_reading_a_document_of_the_size_of_the_zone_costs_in_text_and_in_binary() {
+    // A scene file of as many entities as the zone has nodes, 543, each with a name and a spot, and
+    // one in ten with a value of every kind.
+    let registry = registry();
+    let composed = || {
+        let mut composer = Composer::new(&registry);
+        for index in 0..543_u16 {
+            let id = format!("node {index}");
+            composer
+                .put(
+                    &["entities", &id, "components", "Name"],
+                    "String",
+                    &Value::Text(id.clone()),
+                )
+                .expect("a name");
+            let spot = Spot {
+                at: Vec3::new(f32::from(index) * 0.37, 1.25, -f32::from(index) * 1.1),
+                mode: Mode2::Fixed(f32::from(index) / 7.0),
+            };
+            composer
+                .put(
+                    &["entities", &id, "components", "test::Spot"],
+                    "test::Spot",
+                    &spot.to_value(),
+                )
+                .expect("a spot");
+            if index % 10 == 0 {
+                composer
+                    .put(
+                        &["entities", &id, "components", "test::Everything"],
+                        "test::Everything",
+                        &everything().to_value(),
+                    )
+                    .expect("everything");
+            }
+        }
+        composer
+    };
+    let text = composed().finish().expect("text");
+    let bytes = composed().finish_binary().expect("bytes");
+    let read_all = |mut document: Document<'_>| {
+        for index in 0..543 {
+            let id = format!("node {index}");
+            for (component, ty) in [
+                ("Name", "String"),
+                ("test::Spot", "test::Spot"),
+                ("test::Everything", "test::Everything"),
+            ] {
+                document
+                    .read(&["entities", &id, "components", component], ty, None)
+                    .expect("read");
+            }
+        }
+    };
+    let runs = 20;
+    let started = std::time::Instant::now();
+    for _ in 0..runs {
+        read_all(Document::parse(&registry, &text, Mode::Strict).expect("a document"));
+    }
+    let from_text = started.elapsed() / runs;
+    let started = std::time::Instant::now();
+    for _ in 0..runs {
+        read_all(Document::parse_binary(&registry, &bytes, Mode::Strict).expect("a document"));
+    }
+    let from_bytes = started.elapsed() / runs;
+    let started = std::time::Instant::now();
+    for _ in 0..runs {
+        Document::parse(&registry, &text, Mode::Strict).expect("a document");
+    }
+    let text_parsed = started.elapsed() / runs;
+    let started = std::time::Instant::now();
+    for _ in 0..runs {
+        Document::parse_binary(&registry, &bytes, Mode::Strict).expect("a document");
+    }
+    let bytes_decoded = started.elapsed() / runs;
+    eprintln!(
+        "543 entities: the text, {} bytes, parsed in {text_parsed:?} and read in {from_text:?}; \
+         the binary, {} bytes, decoded in {bytes_decoded:?} and read in {from_bytes:?}",
+        text.len(),
+        bytes.len()
+    );
+}

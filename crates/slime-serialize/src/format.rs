@@ -57,6 +57,30 @@
 //! [`read_partial`](crate::read_partial)); its tuples, lists and options are whole. Its option
 //! fields are written as options elsewhere are, so that it can say that one was emptied:
 //! `range = []` for an option that now holds none, `range = [5.0]` for one that holds 5.
+//!
+//! **The binary encoding** holds the same document, its tables, arrays, texts, integers, floats and
+//! booleans, without its types, and a reader reads it as it reads the text
+//! (`docs/adr/0094-the-binary-encoding-of-documents.md`):
+//! [`Composer::finish_binary`](crate::Composer::finish_binary) and [`encode`](crate::encode) write it,
+//! [`Document::parse_binary`](crate::Document::parse_binary) reads it. Its numbers are little-endian,
+//! its varints unsigned LEB128 of at most ten bytes:
+//!
+//! - `SLDB`, then the version of the encoding, one byte, [`BINARY_VERSION`].
+//! - The strings: their count, then each one's length and its UTF-8 bytes. Each key and each text of
+//!   the document is there once, in the order in which a walk of the document first meets it, keys
+//!   before their values.
+//! - The root table, then nothing more. A value is a tag, one byte, then what it holds: 0, `false`,
+//!   and 1, `true`, nothing; 2, an integer, its value zigzagged, as a varint; 3, a float that an
+//!   `f32` holds exactly, its four bytes, and NaN, an `f32`'s with its sign; 4, another float, its
+//!   eight bytes; 5, a text, the index of its string; 6, an array, its count, then its values; 7, a
+//!   table, its count, then the index of each key's string and its value.
+//!
+//! The same document gives the same bytes on every platform. A float is exact in it, where a text
+//! holds its shortest digits. A reader refuses bytes cut short, a tag, a varint, a count or a string
+//! that the encoding does not have, a key given twice in a table, and bytes past the root table.
 
 /// The version of the format that this program writes, and the latest it reads.
 pub const VERSION: u32 = 1;
+
+/// The version of the binary encoding that this program writes, and the latest it reads.
+pub const BINARY_VERSION: u8 = 1;
