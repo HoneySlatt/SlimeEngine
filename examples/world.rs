@@ -1,16 +1,20 @@
-//! Draws the examples' cooked scene from a world (`docs/adr/0084-what-the-world-draws.md`): spawned
-//! in the world that `slime-app` keeps, its meshes loaded by an asset cache in the background, and
-//! drawn through `slime-world-render`, its sun given once, to the sky and to the lights. The glowing
-//! ring floats up and down at the fixed step, its light with it, and each frame draws it between
-//! its last two places. The camera turns around the scene. After a lost GPU device, it goes on: the
-//! cache loads the world's meshes again, and the world is untouched. F2 shows the dev overlay's world
-//! panel, which lists the entities by name and edits their components (`slime-devui`). Escape,
-//! closing the window or Ctrl+C quits.
+//! Draws the examples' yard from a world (`docs/adr/0084-what-the-world-draws.md`): a scene file
+//! that places the cooked sample scene and four lamps, a prefab of its own, one lamp red and one
+//! without its light (`docs/adr/0095-cooked-scene-files.md`). It is spawned in the world that
+//! `slime-app` keeps, through a library of the cooked scenes, its meshes loaded by an asset cache
+//! in the background, and drawn through `slime-world-render`, its sun given once, to the sky and to
+//! the lights. The glowing ring floats up and down at the fixed step, its light with it, and each
+//! frame draws it between its last two places. The camera turns around the scene. After a lost GPU
+//! device, it goes on: the cache loads the world's meshes again, and the world is untouched. F2
+//! shows the dev overlay's world panel, which lists the entities by name and edits their
+//! components (`slime-devui`). Escape, closing the window or Ctrl+C quits.
 //!
 //! When it quits, it saves its world (`docs/adr/0087-the-worlds-documents.md`): what differs from
 //! the world as it spawns it at the start, the ring's place and what the panel changed. It loads
-//! the save into a world spawned anew, and the run fails if that world is not the one saved.
-//! `SLIME_LOG=debug` shows the save.
+//! the save into a world spawned anew, and the run fails if that world is not the one saved. It
+//! also writes the yard back as a scene file (`docs/adr/0092-a-world-written-back-as-a-scene.md`),
+//! spawns that file, and the run fails if the world spawned is not the one written.
+//! `SLIME_LOG=debug` shows the save and the file.
 //!
 //! It reads cooked data, which `slime-cook` makes first:
 //!
@@ -22,6 +26,11 @@
 //! cargo run --example world -- --watch           # draws again what changes in the cooked data
 //! ```
 //!
+//! With `--watch`, a change of the cooked data, as `slime-cook watch` makes it, is drawn: the cache
+//! loads again the meshes, materials and textures that changed, and a scene that changed, the lamp
+//! that the yard places among them, carries the run into the world spawned anew from it
+//! (`World::carry`): every lamp follows the lamp but where the yard overrides it.
+//!
 //! Without `--assets`, it reads `assets` beside the program if there is one, as where CI ships it,
 //! and `target/cooked/examples` otherwise. Without a window, nothing is drawn: the world runs, the
 //! ring floats, and the run says how far it went.
@@ -32,6 +41,8 @@
     reason = "this example takes the sample's sky, exposure and bloom, not its `SampleScene`"
 )]
 mod sample_scene;
+#[path = "common/yard.rs"]
+mod yard;
 
 use std::collections::BTreeMap;
 use std::f64::consts::TAU;
@@ -47,15 +58,16 @@ use slime_gfx::RenderTarget;
 use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, WindowConfig};
 use slime_render::glam::DVec3;
 use slime_render::{AssetCache, Camera, Renderer};
-use slime_world::{Entity, Light, PersistentId, ResolvedScene, SceneLibrary, Transform, World};
+use slime_world::{Entity, Light, PersistentId, SceneLibrary, Transform, World};
 use slime_world_render::FrameBuilder;
 
-use sample_scene::{BLOOM, EXPOSURE, SCENE, SKY};
+use sample_scene::{BLOOM, EXPOSURE, SKY};
+use yard::YARD;
 
 const USAGE: &str = "usage: world [--assets <directory>] [--frames <count>] [--headless] [--watch]";
 
-/// The key the scene is spawned under: its entities' identities start with it.
-const KEY: &str = "sample";
+/// The key the yard is spawned under: its entities' identities start with it.
+const KEY: &str = "yard";
 /// How high the ring floats above and below where the file puts it, in metres.
 const FLOAT_HEIGHT: f64 = 0.3;
 /// How long the ring takes to rise and fall back.
@@ -64,8 +76,10 @@ const FLOAT_PERIOD: f64 = 3.0;
 const TURN_SPEED: f32 = 0.2;
 
 struct WorldExample {
-    /// The cooked data the scene is spawned from, and its cache loads from.
+    /// The cooked data the yard is spawned from, and its cache loads from.
     assets: CookedAssets,
+    /// The scenes of the cooked data, the yard's and those it places.
+    scenes: SceneLibrary,
     /// The renderer, while there is a GPU.
     renderer: Option<Renderer>,
     /// The dev overlay, while there is a GPU, and its world panel, shown with F2.
@@ -89,9 +103,8 @@ struct WorldExample {
     /// With a window, the number of frames that draw the whole world after which the example
     /// closes itself, if `--frames` gives one; a run that sets one fails if no frame did.
     frame_limit: Option<u64>,
-    /// With `--watch`, what tells when the cooked data changes, and the name of the scene's cooked
-    /// file, which changes with the scene.
-    watch: Option<(ManifestWatch, String)>,
+    /// With `--watch`, what tells when the cooked data changes.
+    watch: Option<ManifestWatch>,
 }
 
 impl WorldExample {
@@ -106,22 +119,28 @@ impl WorldExample {
         Ok(())
     }
 
-    /// Spawns the scene of `assets` in `world`, as [`start`] does, and finds its ring.
+    /// Spawns the yard in `world`, as [`start`] does, and finds its ring.
     fn spawn(&mut self, world: &mut World) -> Result<(), AppError> {
-        start(world, &self.assets)?;
-        self.ring = world
-            .find(&PersistentId::new([KEY, "ring"]))
-            .and_then(|ring| Some((ring, world.get::<Transform>(ring)?.translation.y)));
-        world.update_transforms();
-        self.framing = framing(world);
+        start(world, &mut self.scenes)?;
+        self.found(world);
         Ok(())
     }
 
+    /// Finds the ring of the yard in `world`, and frames it.
+    fn found(&mut self, world: &mut World) {
+        self.ring = world
+            .find(&PersistentId::new([KEY, "sample", "ring"]))
+            .and_then(|ring| Some((ring, world.get::<Transform>(ring)?.translation.y)));
+        world.update_transforms();
+        self.framing = framing(world);
+    }
+
     /// With `--watch`, takes what changed in the cooked data, once nothing loads: the cache loads
-    /// again the meshes, materials and textures that changed, keeping the rest, and the scene is
-    /// spawned again if it changed.
+    /// again the meshes, materials and textures that changed, keeping the rest, and the library the
+    /// scenes that changed; then, if one did, the run is carried into the yard spawned anew from
+    /// them, as it was saved against the yard spawned before and loaded into the new one.
     fn watch(&mut self, ctx: &mut Context) {
-        let Some((watch, scene_file)) = &mut self.watch else {
+        let Some(watch) = &mut self.watch else {
             return;
         };
         if self.cache.loading() > 0 || self.cache.reloading() {
@@ -138,35 +157,51 @@ impl WorldExample {
                 return;
             }
         };
-        let file = assets
-            .manifest()
-            .get(SCENE)
-            .map(|entry| entry.file.clone())
-            .unwrap_or_default();
-        let respawn = file != *scene_file;
-        *scene_file = file;
         if let (Some(gpu), Some(renderer)) = (ctx.gpu(), &self.renderer) {
             self.cache.reload(renderer, gpu, assets.clone());
         }
-        self.assets = assets;
-        if respawn && let Err(error) = self.spawn(ctx.world_mut()) {
-            tracing::error!("the scene cannot be spawned again: {error}");
+        self.assets = assets.clone();
+        // The world as the example started it from the scenes before they changed, then after.
+        let before = made(&mut self.scenes);
+        let changed = self.scenes.reload(assets);
+        if changed.is_empty() {
+            return;
+        }
+        let carried = before.and_then(|before| {
+            let after = made(&mut self.scenes)?;
+            Ok(ctx.world().carry(&before, after, &mut self.scenes)?)
+        });
+        match carried {
+            Ok((world, loaded)) => {
+                if !loaded.set_aside.is_empty() {
+                    tracing::warn!(
+                        set_aside = ?loaded.set_aside,
+                        "the run set aside what the scenes no longer have"
+                    );
+                }
+                *ctx.world_mut() = world;
+                self.found(ctx.world_mut());
+                // Its handles named the entities of the world before.
+                self.panel = WorldPanel::default();
+                tracing::info!(
+                    scenes = changed.len(),
+                    "the scenes that changed carried the run"
+                );
+            }
+            Err(error) => tracing::error!(
+                "the scenes that changed cannot be spawned: {error}; the example goes on with the \
+                 world it has"
+            ),
         }
     }
 }
 
-/// Spawns the scene of `assets` in `world` under [`KEY`], in place of the one spawned before, its
-/// first directional light showing in the sky: the world as the example makes it at the start of a
-/// run, from which its save differs.
-fn start(world: &mut World, assets: &CookedAssets) -> Result<(), AppError> {
-    let scene = assets.scene(SCENE)?;
-    if let Some(root) = world.find(&PersistentId::new([KEY])) {
-        world.despawn(root);
-    }
-    world.spawn_scene(
-        KEY,
-        &ResolvedScene::from_cooked(SCENE, &scene, world.registry())?,
-    )?;
+/// Spawns the yard of `scenes` in `world` under [`KEY`], its first directional light, the sample's
+/// sun, showing in the sky: the world as the example makes it at the start of a run, from which its
+/// save differs.
+fn start(world: &mut World, scenes: &mut SceneLibrary) -> Result<(), AppError> {
+    let yard = scenes.resolve(world.registry(), YARD)?;
+    world.spawn_scene(KEY, &yard)?;
     let mut sun = false;
     world.query_mut::<&mut Light>(|_, light| {
         if let Light::Directional { in_sky, .. } = light {
@@ -177,28 +212,46 @@ fn start(world: &mut World, assets: &CookedAssets) -> Result<(), AppError> {
     Ok(())
 }
 
-/// Saves `world`, which ran from the scene of `assets`, as what differs from the world as the
+/// A world made as the example starts it ([`start`]).
+fn made(scenes: &mut SceneLibrary) -> Result<World, AppError> {
+    let mut world = World::new();
+    start(&mut world, scenes)?;
+    Ok(world)
+}
+
+/// Saves `world`, which ran from the yard of `scenes`, as what differs from the world as the
 /// example makes it at the start ([`start`]), loads the save into another world made so, and checks
-/// that it is the world saved, entity by entity, floats by their bits. Returns the save's size in
-/// bytes; logs its text at the `debug` level.
-fn round_trip(world: &World, assets: &CookedAssets) -> Result<usize, AppError> {
-    let made = || -> Result<World, AppError> {
-        let mut world = World::new();
-        start(&mut world, assets)?;
-        Ok(world)
-    };
-    let save = world.save(&made()?, &BTreeMap::new())?;
+/// that it is the world saved, entity by entity, floats by their bits; then writes the yard back as
+/// a scene file, spawns that file, and checks that the world spawned is the world written. Returns
+/// the sizes of the save and of the file in bytes; logs their texts at the `debug` level.
+fn round_trip(world: &mut World, scenes: &mut SceneLibrary) -> Result<(usize, usize), AppError> {
+    let save = world.save(&made(scenes)?, &BTreeMap::new())?;
     tracing::debug!("the save:\n{save}");
-    let mut loaded = made()?;
-    // The example spawns no scene while it runs, which loading would spawn again from a library.
-    let report = loaded.load(&save, &mut SceneLibrary::new())?;
+    let mut loaded = made(scenes)?;
+    let report = loaded.load(&save, scenes)?;
     if !report.set_aside.is_empty() {
         return Err(format!("the save set aside {:?}", report.set_aside).into());
     }
     if let Some(difference) = world.first_difference(&loaded) {
         return Err(format!("the world loaded is not the world saved: {difference}").into());
     }
-    Ok(save.len())
+    // The yard written back, then spawned from the file in place of its source.
+    let root = world
+        .find(&PersistentId::new([KEY]))
+        .ok_or("the yard is gone")?;
+    let written = world.write_scene(root)?;
+    tracing::debug!("the yard written back:\n{}", written.text);
+    if !written.left_out.is_empty() {
+        return Err(format!("the yard written back left out {:?}", written.left_out).into());
+    }
+    scenes.insert_file(YARD, "yard", written.text.clone());
+    if let Some(difference) = world.first_difference(&made(scenes)?) {
+        return Err(format!(
+            "the yard spawned from the file is not the world written: {difference}"
+        )
+        .into());
+    }
+    Ok((save.len(), written.text.len()))
 }
 
 /// The point the camera looks at, and how far the scene reaches from it: the box around where the
@@ -264,12 +317,13 @@ impl App for WorldExample {
         self.floated = (self.floated.0.min(height), self.floated.1.max(height));
     }
 
-    fn update(&mut self, _ctx: &mut Context, frame: &FrameTime) {
+    fn update(&mut self, ctx: &mut Context, frame: &FrameTime) {
+        // Without a window too, so that a run without one follows the cooked data.
+        self.watch(ctx);
         self.yaw += TURN_SPEED * frame.delta().as_secs_f32();
     }
 
     fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
-        self.watch(ctx);
         let (Some(gpu), Some(renderer)) = (ctx.gpu(), self.renderer.as_mut()) else {
             return;
         };
@@ -357,8 +411,13 @@ impl App for WorldExample {
         if self.ring.is_some() && self.time > FLOAT_PERIOD && self.floated.0 >= self.floated.1 {
             ctx.exit_with_error("the ring did not float");
         }
-        match round_trip(ctx.world(), &self.assets) {
-            Ok(bytes) => tracing::info!(bytes, "the world, saved and loaded, is the world saved"),
+        match round_trip(ctx.world_mut(), &mut self.scenes) {
+            Ok((save, file)) => tracing::info!(
+                save,
+                file,
+                "the world, saved and loaded, is the world saved, and the yard written back spawns \
+                 the world written"
+            ),
             Err(error) => ctx.exit_with_error(error),
         }
     }
@@ -394,16 +453,12 @@ fn main() -> ExitCode {
         restore_lost_device: true,
         ..AppConfig::default()
     };
-    let watch = options.watch.then(|| {
-        let file = assets
-            .manifest()
-            .get(SCENE)
-            .map(|entry| entry.file.clone())
-            .unwrap_or_default();
-        (ManifestWatch::new(&assets, Instant::now()), file)
-    });
+    let watch = options
+        .watch
+        .then(|| ManifestWatch::new(&assets, Instant::now()));
     let mut example = WorldExample {
         cache: AssetCache::new(assets.clone()),
+        scenes: SceneLibrary::of(assets.clone()),
         assets,
         renderer: None,
         overlay: None,

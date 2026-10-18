@@ -1,0 +1,23 @@
+# A lamp, which the yard of the `world` example places four times: a post of the sample's pillar,
+# a glass of its sphere on top, and a warm light in the glass
+# (`docs/adr/0089-scenes-and-prefabs.md`).
+
+[assets]
+pillar = { id = "fe6545bb-9d84-8eef-a402-f76f6e7a0678", path = "scene.glb" }
+sphere = { id = "018a2eae-3dd6-8e95-ace7-5b9998131681", path = "scene.glb" }
+
+[entities.post.components]
+Transform = { translation = { x = 0.0, y = 0.75, z = 0.0 }, scale = 0.75 }
+Meshes = { ids = ["pillar"], casts_shadows = true }
+
+[entities.glass.components]
+Transform = { translation = { x = 0.0, y = 1.7, z = 0.0 }, scale = 0.4 }
+Meshes = { ids = ["sphere"], casts_shadows = true }
+
+[entities.light]
+parent = "glass"
+
+[entities.light.components.Light.Point]
+color = { r = 1.0, g = 0.75, b = 0.45, a = 1.0 }
+intensity = 3000.0
+range = 4.0

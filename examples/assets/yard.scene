@@ -1,0 +1,31 @@
+# The yard of the `world` example: the sample scene, and four lamps around it, the second red and
+# the fourth without its light (`docs/adr/0089-scenes-and-prefabs.md`).
+
+[assets]
+lamp = { id = "6647a9c8-d378-4f9a-89d7-3ec9fc2b172a", path = "lamp.scene" }
+sample = { id = "850ad551-5098-42f9-ae42-26ed6174951a", path = "scene.glb" }
+
+[entities]
+sample = { prefab = "sample" }
+"lamp 1" = { prefab = "lamp" }
+"lamp 2" = { prefab = "lamp" }
+"lamp 3" = { prefab = "lamp" }
+"lamp 4" = { prefab = "lamp" }
+
+[changed."lamp 1".Transform]
+translation = { x = 3.5, z = 3.5 }
+
+[changed."lamp 2".Transform]
+translation = { x = -3.5, z = 3.5 }
+
+[changed."lamp 2/light".Light.Point]
+color = { r = 1.0, g = 0.1, b = 0.05 }
+
+[changed."lamp 3".Transform]
+translation = { x = -3.5, z = -3.5 }
+
+[changed."lamp 4".Transform]
+translation = { x = 3.5, z = -3.5 }
+
+[removed]
+entities = ["lamp 4/light"]

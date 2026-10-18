@@ -4,8 +4,10 @@
 //! glTF test's reference images (`tests/reference/gltf-front.png` and `gltf-back.png`) within the
 //! same tolerance (`common/reference_image.rs`); what moves at fixed steps is drawn where the
 //! fraction of a step puts it; a hidden subtree is not drawn, nor its light; after a lost device,
-//! the cache made again draws the same world, which the loss left as it was. Runs on whatever
-//! adapter the machine offers.
+//! the cache made again draws the same world, which the loss left as it was. The cooked yard
+//! (`examples/assets/yard.scene`) spawns its lamps with their overrides, and follows its lamp
+//! cooked again, without a GPU (`docs/adr/0095-cooked-scene-files.md`). Runs on whatever adapter
+//! the machine offers.
 
 #[path = "../common/cooked.rs"]
 mod cooked;
@@ -23,7 +25,11 @@ mod reference_image;
     reason = "these tests take the sample's constants and its box, not its `SampleScene`"
 )]
 mod sample_scene;
+#[path = "../common/yard.rs"]
+mod yard;
 
+use std::fs;
+use std::path::Path;
 use std::time::Duration;
 
 use cooked::sample;
@@ -31,8 +37,11 @@ use sample_scene::{BLOOM, Bounds, EXPOSURE, SCENE, SKY};
 use slime_gfx::{Gpu, Image, RenderTarget, TextureFormat};
 use slime_render::glam::DAffine3;
 use slime_render::{AssetCache, Camera, Light, Mesh, RenderStats, Renderer};
-use slime_world::{Entity, Hidden, Meshes, PersistentId, ResolvedScene, Transform, World};
+use slime_world::{
+    Entity, Hidden, Meshes, PersistentId, ResolvedScene, SceneLibrary, Transform, World,
+};
 use slime_world_render::FrameBuilder;
+use yard::YARD;
 
 const SIZE: u32 = 256;
 
@@ -350,5 +359,117 @@ fn after_a_lost_device_the_cache_made_again_draws_the_same_world() {
     assert!(
         before.pixels == after.pixels,
         "the same image after the loss"
+    );
+}
+
+/// The examples' yard spawned from `scenes` under the key `yard`, as the `world` example spawns it.
+fn yard(scenes: &mut SceneLibrary) -> World {
+    let mut world = World::new();
+    let yard = scenes
+        .resolve(world.registry(), YARD)
+        .expect("the yard resolves");
+    world.spawn_scene("yard", &yard).expect("spawned");
+    world
+}
+
+/// The color of the light of the yard's lamp `lamp`, if it has a light.
+fn lamp_color(world: &World, lamp: &str) -> Option<[f32; 3]> {
+    let light = world.find(&PersistentId::new(["yard", lamp, "light"]))?;
+    match world.get::<slime_world::Light>(light)? {
+        slime_world::Light::Point { color, .. } => Some([color.r, color.g, color.b]),
+        _ => None,
+    }
+}
+
+#[test]
+fn the_cooked_yard_spawns_the_sample_and_four_lamps_with_their_overrides() {
+    let mut scenes = SceneLibrary::of(sample().clone());
+    let world = yard(&mut scenes);
+    assert!(
+        world
+            .find(&PersistentId::new(["yard", "sample", "ring"]))
+            .is_some()
+    );
+    let warm = Some([1.0, 0.75, 0.45]);
+    assert_eq!(lamp_color(&world, "lamp 1"), warm);
+    assert_eq!(lamp_color(&world, "lamp 2"), Some([1.0, 0.1, 0.05]), "red");
+    assert_eq!(lamp_color(&world, "lamp 3"), warm);
+    assert_eq!(lamp_color(&world, "lamp 4"), None, "without its light");
+    let lamp = world
+        .find(&PersistentId::new(["yard", "lamp 2"]))
+        .expect("the second lamp");
+    let at = world.get::<Transform>(lamp).expect("placed").translation;
+    assert_eq!((at.x, at.z), (-3.5, 3.5));
+    assert!(world.placement(lamp).is_some());
+}
+
+#[test]
+fn a_lamp_cooked_again_reaches_every_lamp_but_where_the_yard_overrides_it() {
+    // The examples' sources, copied, so that the test changes the lamp.
+    let root = cooked::directory("lamp-changed");
+    let sources = root.join("sources");
+    fs::create_dir_all(&sources).expect("the directory can be made");
+    let assets = Path::new(env!("CARGO_MANIFEST_DIR")).join("assets");
+    for name in ["scene.glb", "lamp.scene", "yard.scene"] {
+        for file in [name.to_owned(), format!("{name}.meta")] {
+            fs::copy(assets.join(&file), sources.join(&file)).expect("the source is copied");
+        }
+    }
+    let output = root.join("cooked");
+    slime_cook::cook(&sources, &output).expect("cooked");
+    let open = || slime_assets::CookedAssets::open(&output).expect("the cooked data");
+    let mut scenes = SceneLibrary::of(open());
+    let old_start = yard(&mut scenes);
+    let mut run = yard(&mut scenes);
+    let ring = run
+        .find(&PersistentId::new(["yard", "sample", "ring"]))
+        .expect("the ring");
+    run.get_mut::<Transform>(ring)
+        .expect("placed")
+        .translation
+        .y = 1.25;
+    // The lamp's light turns green, and its glass grows.
+    let lamp = fs::read_to_string(sources.join("lamp.scene")).expect("the lamp is read");
+    let changed = lamp
+        .replace("g = 0.75, b = 0.45", "g = 1.0, b = 0.2")
+        .replace("scale = 0.4", "scale = 0.5");
+    assert_ne!(changed, lamp);
+    fs::write(sources.join("lamp.scene"), changed).expect("the lamp is written");
+    slime_cook::cook(&sources, &output).expect("cooked again");
+    assert_eq!(scenes.reload(open()).len(), 1, "the lamp changed");
+    let (carried, loaded) = run
+        .carry(&old_start, yard(&mut scenes), &mut scenes)
+        .expect("carried");
+    assert!(loaded.set_aside.is_empty(), "{:?}", loaded.set_aside);
+    let green = Some([1.0, 1.0, 0.2]);
+    assert_eq!(lamp_color(&carried, "lamp 1"), green);
+    assert_eq!(
+        lamp_color(&carried, "lamp 2"),
+        Some([1.0, 0.1, 0.05]),
+        "its override stays"
+    );
+    assert_eq!(lamp_color(&carried, "lamp 3"), green);
+    assert_eq!(lamp_color(&carried, "lamp 4"), None);
+    for lamp in ["lamp 1", "lamp 2", "lamp 3", "lamp 4"] {
+        let glass = carried
+            .find(&PersistentId::new(["yard", lamp, "glass"]))
+            .expect("a glass");
+        assert_eq!(
+            carried.get::<Transform>(glass).expect("placed").scale,
+            0.5,
+            "{lamp}"
+        );
+    }
+    let ring = carried
+        .find(&PersistentId::new(["yard", "sample", "ring"]))
+        .expect("the ring");
+    assert_eq!(
+        carried
+            .get::<Transform>(ring)
+            .expect("placed")
+            .translation
+            .y,
+        1.25,
+        "what the run changed stays"
     );
 }

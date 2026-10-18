@@ -1,5 +1,6 @@
-//! The world panel: the entities of a world listed by name, and the components of the one selected
-//! edited through reflection (`docs/adr/0081-stage-5a-the-world.md`).
+//! The world panel: the entities of a world listed by name, and the one selected shown, its
+//! identity, its prefab and its components edited through reflection
+//! (`docs/adr/0081-stage-5a-the-world.md`, `docs/adr/0090-stage-5b-scenes-and-prefabs.md`).
 
 use std::fmt;
 
@@ -35,8 +36,9 @@ pub struct Edit {
 }
 
 /// A panel of the overlay that lists the entities of a world by name, with a filter, and shows the
-/// components of the one selected, through the world's registry ([`World::registry`]): any
-/// component, the engine's or a game's, without knowing its type.
+/// one selected: its persistent identity, the prefab that it places if it is a placement's root
+/// ([`World::placement`]), and its components, through the world's registry ([`World::registry`]):
+/// any component, the engine's or a game's, without knowing its type.
 ///
 /// Booleans, numbers, text, enum variants and options are edited; vectors, rotations and colors
 /// whole, a rotation as three angles in degrees, turned about Y, then X, from −90° to 90°, then
@@ -123,6 +125,18 @@ impl WorldPanel {
             return;
         };
         ui.heading(name(world, entity));
+        // What files and saves name it by, and what it places, if it is a placement's root.
+        if let Some(id) = world.persistent_id(entity) {
+            ui.label(format!("Identity: {id}"));
+        }
+        if let Some(placement) = world.placement(entity) {
+            let prefab = placement.prefab();
+            ui.label(format!(
+                "Places the prefab `{}`, {}",
+                prefab.name(),
+                prefab.id()
+            ));
+        }
         if let Some(refusal) = &self.refusal {
             ui.colored_label(ui.visuals().error_fg_color, refusal);
         }
@@ -806,6 +820,32 @@ mod tests {
                 assert_eq!(frame(&ctx, &mut panel, &world), [], "nothing is touched");
             }
         }
+    }
+
+    #[test]
+    fn a_placement_shows_its_identity_and_its_prefab() {
+        let (yard, lamp) = (AssetId::from_u128(1), AssetId::from_u128(2));
+        let mut scenes = slime_world::SceneLibrary::new();
+        scenes.insert_file(
+            lamp,
+            "lamp",
+            "[entities.post.components]\nName = \"post\"\n",
+        );
+        scenes.insert_file(
+            yard,
+            "yard",
+            "[assets]\nlamp = { id = \"00000000-0000-0000-0000-000000000002\" }\n\n\
+             [entities.porch]\nprefab = \"lamp\"\n",
+        );
+        let mut world = World::new();
+        let scene = scenes.resolve(world.registry(), yard).expect("resolved");
+        world.spawn_scene("yard", &scene).expect("spawned");
+        let porch = world
+            .find(&slime_world::PersistentId::new(["yard", "porch"]))
+            .expect("the placement");
+        let mut panel = WorldPanel::default();
+        panel.select(porch);
+        assert_eq!(frame(&egui::Context::default(), &mut panel, &world), []);
     }
 
     #[test]
