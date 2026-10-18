@@ -18,7 +18,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   saves and resumes its runs, on Linux and on Windows.
 - Stage 5b — Scenes and prefabs: planned on 2026-10-17 and validated by the owner
   ([ADR-0089](adr/0089-scenes-and-prefabs.md), [ADR-0090](adr/0090-stage-5b-scenes-and-prefabs.md)),
-  to be released as 0.4 at its close. M5b.1 and M5b.2 are done; M5b.3 is built, and CI checks it.
+  to be released as 0.4 at its close. M5b.1 to M5b.3 are done; M5b.4 is next.
 
 ## Status
 
@@ -26,7 +26,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 |---|---|---|
 | [M5b.1](#m5b1--scenes-placed-in-a-world) | A scene written as text places entities and other scenes in a world, each placement with values of its own | Done |
 | [M5b.2](#m5b2--a-world-written-back-as-a-scene) | A world, or a subtree of it, is written as a scene file that keeps its placements, and reads back to the same world | Done |
-| [M5b.3](#m5b3--saves-and-hot-reload-with-placements) | What a game spawns while it runs is saved as placements, and a run is carried through a save when its scenes change | Built; CI checks it |
+| [M5b.3](#m5b3--saves-and-hot-reload-with-placements) | What a game spawns while it runs is saved as placements, and a run is carried through a save when its scenes change | Done |
 | [M5b.4](#m5b4--the-binary-encoding-of-documents) | A document is written in a binary encoding of the engine's own, and read back without parsing text | Planned |
 | [M5b.5](#m5b5--scene-files-cooked-typed-components-prefabs-in-the-world-example) | Scene files are cooked and spawned, Blender's nodes carry typed components, and the `world` example places prefabs | Planned |
 | [M5b.6](#m5b6--hunna-woods-zone-made-of-prefabs) | *Hunna Wood*'s zone is a scene file that places its land and its lanterns | Planned |
@@ -241,7 +241,7 @@ Risks:
   but where an override or the run changed it; saves cut at every character refused or loaded,
   without a panic; CI is green.
 - **How to test.** `cargo test -p slime-world`.
-- **Outcome.** Built on 2026-10-18
+- **Outcome.** Done on 2026-10-18
   ([ADR-0093](adr/0093-saves-and-hot-reload-with-placements.md)). A save says its layout,
   `layout = 2`, and holds in `spawned` what the world spawned while it ran: each scene spawned under
   a key that the start world did not spawn, and each placement made while the world ran, by its
@@ -261,7 +261,8 @@ Risks:
   start world, as when a run changes level, still made a save that loading refused: it is saved as
   spawned while the world ran, and loading destroys the start world's scene under that key first.
   A reference to a destroyed entity of a placement gave other bytes when saved again; loading many
-  placements was quadratic; a save spawns at most `MAX_ENTITIES` entities while it is loaded.
+  placements was quadratic; a save spawns at most `MAX_ENTITIES` entities while it is loaded. CI
+  took 11 minutes 34 seconds on Linux and 18 minutes 26 seconds on Windows.
 
 ### M5b.4 — The binary encoding of documents
 
