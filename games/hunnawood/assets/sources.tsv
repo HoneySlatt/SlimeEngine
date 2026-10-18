@@ -12,7 +12,8 @@
 # downloaded from, and MIRROR the address of its copy on an immutable release of
 # github.com/HoneySlatt/SlimeEngine-assets. Under sources/, the files as they were published,
 # which the zone's Blender script reads. Under zone/, what that script exports from them, the
-# zone and the hero, which the cooker cooks; their first publication is the mirror.
+# land, the lantern and the hero, which the cooker cooks with the zone's scene file, kept in git;
+# their first publication is the mirror.
 
 asset	stony_dirt_path	Poly Haven	https://polyhaven.com/a/stony_dirt_path	eye-candy.xyz	CC0-1.0	2026-10-15
 file	sources/stony_dirt_path/stony_dirt_path_diff_2k.jpg	4722246	9c35b98628c17382b3a494ae15f17f95410edcaaac2e5922e50e5878f98d4a20	https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/stony_dirt_path/stony_dirt_path_diff_2k.jpg	https://github.com/HoneySlatt/SlimeEngine-assets/releases/download/hunnawood-1/stony_dirt_path_diff_2k.jpg
@@ -149,8 +150,10 @@ file	sources/human_base_meshes/human-base-meshes-bundle-v1.4.1.zip	50643039	811f
 asset	hunna_wood_zone	SlimeEngine	https://github.com/HoneySlatt/SlimeEngine/tree/main/games/hunnawood/zone	SlimeEngine's contributors, from the assets above	CC0-1.0	2026-10-15
 file	zone/hero.bin	1711920	af4545f0e13191ab27444ba47ecbaa8954f7b98ee7d663bc86d99c4f83228648	https://github.com/HoneySlatt/SlimeEngine-assets/releases/download/hunnawood-5/hero.bin	https://github.com/HoneySlatt/SlimeEngine-assets/releases/download/hunnawood-5/hero.bin
 file	zone/hero.gltf	9857	f3e8a39f1a99ae295dcf4f72e2af577a55f612c3384449ffac219f7ea2316300	https://github.com/HoneySlatt/SlimeEngine-assets/releases/download/hunnawood-2/hero.gltf	https://github.com/HoneySlatt/SlimeEngine-assets/releases/download/hunnawood-2/hero.gltf
-file	zone/hunna_wood.bin	5540444	5be10e8fd6e85f1aa53a0b6a31ce763433146e8ad7916148655eede545b5eba4	https://github.com/HoneySlatt/SlimeEngine-assets/releases/download/hunnawood-6/hunna_wood.bin	https://github.com/HoneySlatt/SlimeEngine-assets/releases/download/hunnawood-6/hunna_wood.bin
-file	zone/hunna_wood.gltf	260145	20a2fd89faa0db4c08879aa41d61b2102e093c25dbb4f58f4053bb486e92c675	https://github.com/HoneySlatt/SlimeEngine-assets/releases/download/hunnawood-6/hunna_wood.gltf	https://github.com/HoneySlatt/SlimeEngine-assets/releases/download/hunnawood-6/hunna_wood.gltf
+file	zone/land.bin	5243004	cf96eccf8bb903c1d063d4221603c7e59746e947a5695eaf4f50448f7abf9f36	https://github.com/HoneySlatt/SlimeEngine-assets/releases/download/hunnawood-7/land.bin	https://github.com/HoneySlatt/SlimeEngine-assets/releases/download/hunnawood-7/land.bin
+file	zone/land.gltf	240578	1aa76e19eaa1915baf69bf26520ea8867ae66663be659e5239efe99916b0284b	https://github.com/HoneySlatt/SlimeEngine-assets/releases/download/hunnawood-7/land.gltf	https://github.com/HoneySlatt/SlimeEngine-assets/releases/download/hunnawood-7/land.gltf
+file	zone/lantern.bin	285920	568f34fb09fbcd22b318d504a8aea7ad47fb46c9ed2d39ce0ecce10c7e2719e1	https://github.com/HoneySlatt/SlimeEngine-assets/releases/download/hunnawood-7/lantern.bin	https://github.com/HoneySlatt/SlimeEngine-assets/releases/download/hunnawood-7/lantern.bin
+file	zone/lantern.gltf	10993	9c407f3d439b79f06679844235400ad0bb7b07495ad88914dfdb1ec2f391d976	https://github.com/HoneySlatt/SlimeEngine-assets/releases/download/hunnawood-7/lantern.gltf	https://github.com/HoneySlatt/SlimeEngine-assets/releases/download/hunnawood-7/lantern.gltf
 file	zone/textures/caban_arm_2k.jpg	5009613	46ff2d45899578e0128d66600677f3f13161e8f7f8063fb9f9244748cd736345	https://github.com/HoneySlatt/SlimeEngine-assets/releases/download/hunnawood-2/caban_arm_2k.jpg	https://github.com/HoneySlatt/SlimeEngine-assets/releases/download/hunnawood-2/caban_arm_2k.jpg
 file	zone/textures/caban_diff_2k.jpg	2964872	c616fd58f9e0b484e664094d47632bd9d0d2247d943389b69e0e89465a68af77	https://github.com/HoneySlatt/SlimeEngine-assets/releases/download/hunnawood-2/caban_diff_2k.jpg	https://github.com/HoneySlatt/SlimeEngine-assets/releases/download/hunnawood-2/caban_diff_2k.jpg
 file	zone/textures/caban_nor_gl_2k.jpg	2347216	837c536aebd668d449bd4c7b119d38767e9c4b58f3cdc8bfd25f233dcb628ea6	https://github.com/HoneySlatt/SlimeEngine-assets/releases/download/hunnawood-2/caban_nor_gl_2k.jpg	https://github.com/HoneySlatt/SlimeEngine-assets/releases/download/hunnawood-2/caban_nor_gl_2k.jpg

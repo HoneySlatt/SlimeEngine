@@ -2,7 +2,7 @@
 //! in the user's data directory unless `--save` names another, which holds what differs between the
 //! run and a new game by day (`slime_world::World::save`), and the layout of the zone it was made on.
 //! A save made on another layout is not resumed, as the run starts again when the layout changes
-//! under hot reload.
+//! under hot reload, which carries the run through a save otherwise ([`reload`]).
 
 use std::collections::BTreeMap;
 use std::ffi::OsString;
@@ -10,7 +10,6 @@ use std::fs::File;
 use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
 
-use slime_assets::CookedScene;
 use slime_world::{DocumentError, Light, Loaded, SceneLibrary, World};
 
 use crate::rules::Game;
@@ -47,20 +46,21 @@ pub fn default_file() -> Option<PathBuf> {
         .map(|directory| directory.join(DIRECTORY).join(FILE))
 }
 
-/// A new game of the zone `zone` and the hero `hero`, by day, in a world of its own: the world that
-/// saves differ from, whatever `--night` says, so that a save made at night is resumed at night.
+/// A new game of the zone and the hero as `scenes` resolves them, by day, in a world of its own:
+/// the world that saves differ from, whatever `--night` says, so that a save made at night is
+/// resumed at night.
 ///
 /// # Errors
 ///
 /// When the zone cannot be played, as [`Game::spawn`] says.
-pub fn start(zone: &CookedScene, hero: &CookedScene) -> Result<(World, Game), String> {
+pub fn start(scenes: &mut SceneLibrary) -> Result<(World, Game), String> {
     let mut world = World::new();
-    let game = Game::spawn(&mut world, zone, hero, false)?;
+    let game = Game::spawn(&mut world, scenes, false)?;
     Ok((world, game))
 }
 
-/// The save of the run in `world`, a game of `zone` and `hero`: what differs from a new game by day
-/// ([`start`]), and the fingerprint of that new game's layout, the zone's as its scene places it,
+/// The save of the run in `world`, a game of `scenes`: what differs from a new game by day
+/// ([`start`]), and the fingerprint of that new game's layout, the zone's as its scenes place it,
 /// whatever the run changed of it. The lights of the campfire are put back to the intensity they
 /// flicker around first, as the zone gives it, since the view makes them flicker at each frame and
 /// a save would hold each frame's.
@@ -68,13 +68,9 @@ pub fn start(zone: &CookedScene, hero: &CookedScene) -> Result<(World, Game), St
 /// # Errors
 ///
 /// When the zone cannot be played, or the world cannot be saved ([`World::save`]).
-pub fn save(world: &mut World, zone: &CookedScene, hero: &CookedScene) -> Result<String, String> {
-    world.query_mut::<(&Flickers, &mut Light)>(|_, (flickers, light)| {
-        if let Light::Point { intensity, .. } = light {
-            *intensity = flickers.intensity;
-        }
-    });
-    let (start, start_game) = start(zone, hero)?;
+pub fn save(world: &mut World, scenes: &mut SceneLibrary) -> Result<String, String> {
+    unflicker(world);
+    let (start, start_game) = start(scenes)?;
     let layout = start_game.zone().layout(&start).fingerprint();
     let about = BTreeMap::from([(LAYOUT.to_owned(), layout)]);
     world
@@ -91,24 +87,95 @@ pub enum NotResumed {
     Unreadable(DocumentError),
 }
 
-/// The run that the save `text` holds, resumed in `start`, a new game by day ([`start`]), and what
-/// loading it set aside.
+/// The run that the save `text` holds, resumed in `start`, a new game by day of `scenes`
+/// ([`start`]), and what loading it set aside.
 ///
 /// # Errors
 ///
 /// [`NotResumed::OtherLayout`] when the save says another layout of the zone than `start`'s, or
 /// none; [`NotResumed::Unreadable`] when it cannot be read.
-pub fn resume(text: &str, start: (World, Game)) -> Result<(World, Game, Loaded), NotResumed> {
+pub fn resume(
+    text: &str,
+    start: (World, Game),
+    scenes: &mut SceneLibrary,
+) -> Result<(World, Game, Loaded), NotResumed> {
     let about = World::about(text).map_err(NotResumed::Unreadable)?;
     let (mut world, game) = start;
     if about.get(LAYOUT) != Some(&game.zone().layout(&world).fingerprint()) {
         return Err(NotResumed::OtherLayout);
     }
-    // The game spawns no scene while it runs, which loading would spawn again from a library.
-    let loaded = world
-        .load(text, &mut SceneLibrary::new())
-        .map_err(NotResumed::Unreadable)?;
+    let loaded = world.load(text, scenes).map_err(NotResumed::Unreadable)?;
     Ok((world, game, loaded))
+}
+
+/// A run reloaded after the game's scenes changed on disk ([`reload`]).
+pub struct Reloaded {
+    /// The world of the run, in place of the one before.
+    pub world: World,
+    /// The game that plays in it.
+    pub game: Game,
+    /// Whether the run started again, the zone's layout having changed, rather than went on.
+    pub restarted: bool,
+    /// What carrying the run set aside, and the scenes that changed since the game was made: what
+    /// loading a save reports ([`World::load`]).
+    pub loaded: Option<Loaded>,
+}
+
+/// The run in `world` after the scenes of `scenes` changed: `before` is the new game by day of the
+/// scenes before they changed ([`start`]). The new game of the scenes as they are now decides:
+///
+/// - when its zone's layout is not `before`'s, by its fingerprint, a new run starts in it, at the
+///   time of day that `starts_at_night` gives, as R starts one, since the hero could stand in a new
+///   wall, or the key have moved after it was taken;
+/// - otherwise the run is carried into it: what the run changed of `before` is saved, and loaded
+///   into the new game (`World::carry`), the hero where it stood, the key, the door and the time of
+///   day as they were, the scenes as they are now. What the run changed of the layout itself, a
+///   collider through the world panel, does not start it again.
+///
+/// # Errors
+///
+/// When the new game cannot be played, as [`start`] says, or the run cannot be carried into it.
+/// `world` is left as it was then, but for the campfire's light, put back to the intensity it
+/// flickers around.
+pub fn reload(
+    world: &mut World,
+    before: &(World, Game),
+    scenes: &mut SceneLibrary,
+    starts_at_night: bool,
+) -> Result<Reloaded, String> {
+    let (mut after, mut game) = start(scenes)?;
+    game.set_starts_at_night(starts_at_night);
+    let layout = |(world, game): (&World, &Game)| game.zone().layout(world).fingerprint();
+    if layout((&before.0, &before.1)) != layout((&after, &game)) {
+        game.restart(&mut after);
+        return Ok(Reloaded {
+            world: after,
+            game,
+            restarted: true,
+            loaded: None,
+        });
+    }
+    unflicker(world);
+    let (world, loaded) = world
+        .carry(&before.0, after, scenes)
+        .map_err(|error| slime_app::error_chain(&error))?;
+    Ok(Reloaded {
+        world,
+        game,
+        restarted: false,
+        loaded: Some(loaded),
+    })
+}
+
+/// Puts the campfire's lights of `world` back to the intensity that they flicker around, as the
+/// zone gives it: the view makes them flicker at each frame, and what is saved would hold each
+/// frame's.
+fn unflicker(world: &mut World) {
+    world.query_mut::<(&Flickers, &mut Light)>(|_, (flickers, light)| {
+        if let Light::Point { intensity, .. } = light {
+            *intensity = flickers.intensity;
+        }
+    });
 }
 
 /// Writes `text` to `file`, its directory made if it has none, through a file beside it, written
@@ -237,37 +304,39 @@ mod runs {
     use slime_render::glam::Vec2;
 
     use super::*;
-    use crate::rules::tests::{no_hero, turned_box, zone};
+    use crate::rules::tests::{turned_box, zone};
     use crate::zone::Collider;
 
     #[test]
     fn a_run_is_resumed_only_from_a_save_of_its_layout_and_never_panics() {
         let plan = zone([0.0, 0.0], vec![turned_box([5.0, 5.0], [1.0, 2.0], 0.3)]);
-        let scene = plan.scene();
-        let new_game = || start(&scene, &no_hero()).expect("the zone can be played");
-        let (mut world, game) = new_game();
+        let mut scenes = plan.scenes();
+        let new_game = |scenes: &mut SceneLibrary| start(scenes).expect("the zone can be played");
+        let (mut world, game) = new_game(&mut scenes);
         for _ in 0..30 {
             game.step(&mut world, Vec2::X, 1.0 / 60.0);
         }
         // What the run changed of the layout, as the world panel changes it, does not make it another.
         world.query_mut::<&mut Collider>(|_, collider| collider.height = 3.5);
-        let text = save(&mut world, &scene, &no_hero()).expect("saved");
-        let (resumed, resumed_game, loaded) = resume(&text, new_game()).expect("resumed");
+        let text = save(&mut world, &mut scenes).expect("saved");
+        let new = new_game(&mut scenes);
+        let (resumed, resumed_game, loaded) = resume(&text, new, &mut scenes).expect("resumed");
         assert!(loaded.set_aside.is_empty() && loaded.scenes_changed.is_empty());
         assert_eq!(world.first_difference(&resumed), None, "{text}");
         assert_eq!(resumed_game.hero(&resumed), game.hero(&world));
         // Another layout: the zone's start moved.
         let mut moved = plan.clone();
         moved.start = Vec2::new(1.0, 0.0);
-        let other = moved.scene();
-        let elsewhere = start(&other, &no_hero()).expect("the zone can be played");
+        let mut other = moved.scenes();
+        let elsewhere = start(&mut other).expect("the zone can be played");
         assert!(matches!(
-            resume(&text, elsewhere),
+            resume(&text, elsewhere, &mut other),
             Err(NotResumed::OtherLayout)
         ));
         // Not a save, a save of a later format, one that says no layout.
         for refused in ["layout = [", "\"$format\" = 2\n", ""] {
-            let resumed = resume(refused, new_game());
+            let new = new_game(&mut scenes);
+            let resumed = resume(refused, new, &mut scenes);
             assert!(
                 matches!(
                     (refused, &resumed),
@@ -279,7 +348,8 @@ mod runs {
         }
         // Cut short anywhere, a save is refused or resumed, never with a panic.
         for end in (0..text.len()).filter(|&end| text.is_char_boundary(end)) {
-            let _ = resume(&text[..end], new_game());
+            let new = new_game(&mut scenes);
+            let _ = resume(&text[..end], new, &mut scenes);
         }
     }
 }

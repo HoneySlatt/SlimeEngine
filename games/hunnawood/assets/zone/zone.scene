@@ -1,0 +1,54 @@
+# Hunna Wood's zone (games/hunnawood/README.md, "The zone"): the land that the zone's Blender script
+# exports, and six lanterns on posts along the path, each a placement of the lantern that the script
+# exports apart. Written by hand: the script does not write it. Positions are in the game's axes,
+# x east, y up, z south, in metres; a lantern's post faces north, along -z, turned about y.
+
+[assets]
+land = { id = "0fa4aff1-e13f-4fcb-af87-eba0c5e34184", path = "land.gltf" }
+lantern = { id = "c4baa651-b4a9-450b-bd92-b4df00260898", path = "lantern.gltf" }
+
+[entities]
+land = { prefab = "land" }
+"lantern 1" = { prefab = "lantern" }
+"lantern 2" = { prefab = "lantern" }
+"lantern 3" = { prefab = "lantern" }
+"lantern 4" = { prefab = "lantern" }
+"lantern 5" = { prefab = "lantern" }
+"lantern 6" = { prefab = "lantern" }
+
+# The moon shows in the night's sky, where the day's sun stays behind the clouds: glTF cannot say it.
+[changed."land/moon".Light.Directional]
+in_sky = true
+
+# By the path south of the gully, their arms reaching west.
+[changed."lantern 1".Transform]
+translation = { x = -1.7, z = 40.0 }
+rotation = { y = -0.70710677, w = 0.70710677 }
+
+[changed."lantern 2".Transform]
+translation = { x = -0.3, z = 22.6 }
+rotation = { y = -0.70710677, w = 0.70710677 }
+
+# North of the bridge, reaching east; its light is old, and lights less.
+[changed."lantern 3".Transform]
+translation = { x = 4.3, z = 7.4 }
+rotation = { y = 0.70710677, w = 0.70710677 }
+
+[changed."lantern 3/light".Light.Spot]
+intensity = 50.0
+
+# Where the branch to the campfire leaves the path.
+[changed."lantern 4".Transform]
+translation = { x = -4.6, z = -6.4 }
+
+# On each side of the chapel's portal; the west one is broken, without its light and its glass.
+[changed."lantern 5".Transform]
+translation = { x = -3.2, z = -21.8 }
+rotation = { y = -0.70710677, w = 0.70710677 }
+
+[changed."lantern 6".Transform]
+translation = { x = 3.2, z = -21.8 }
+rotation = { y = 0.70710677, w = 0.70710677 }
+
+[removed]
+entities = ["lantern 5/light", "lantern 5/glass"]

@@ -3,23 +3,20 @@
 //! are x and z in metres, on the ground, at y = 0, +y up; north is −z and east +x; an angle about
 //! the vertical is in radians from +x towards +z.
 //!
-//! The zone comes from the cooked data: `games/hunnawood/zone/build_zone.py` builds it in Blender,
-//! the cooker cooks it, and [`Zone::spawn`] spawns its cooked scene in the game's world, then gives
-//! its entities the game's own components, which the custom values (`extras`) of its nodes
-//! describe, as `README.md` says ("The zone"): [`Collider`], [`Marker`], [`TimeOfDay`] and
-//! [`Flickers`]. The rules and the camera read the zone from the world, where its entities stand.
+//! The zone comes from the cooked data: `games/hunnawood/zone/build_zone.py` builds the land and
+//! the lantern in Blender, a scene file written by hand places them, the cooker cooks them, and
+//! [`Zone::spawn`] spawns the scene file in the game's world. Its nodes carry the game's own
+//! components as typed properties, as `README.md` says ("The zone"): [`Collider`], [`Marker`],
+//! [`TimeOfDay`] and [`Flickers`]. The rules and the camera read the zone from the world, where its
+//! entities stand.
 
-use slime_assets::{CookedScene, Extra};
 use slime_reflect::Reflect;
 use slime_render::glam::{DAffine3, Vec2, Vec3};
-use slime_world::{Component, Entity, Extras, Light, Name, ResolvedScene, Transform, World};
+use slime_world::{Component, Entity, SceneLibrary, Transform, World};
 
 /// The key that the zone's scene is spawned under: the first part of its entities' persistent
-/// identities, `zone/door`.
+/// identities, `zone/land/door`.
 pub const KEY: &str = "zone";
-/// How far from the campfire, on the ground, its light stands, at most, in metres: the zone places
-/// it above the fire pit.
-const CAMPFIRE_LIGHT_REACH: f32 = 1.0;
 
 /// The footprint of a collider on the ground, around its center.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -118,10 +115,10 @@ impl Footprint {
     }
 }
 
-/// A collider, a component of the game's: what stops the hero, `height` metres high, as its
-/// node's `collider` and `height` say. Its entity's transform in the world places it, turned about
-/// the vertical, and gives its size ([`Footprint::of`]): a box's scale along its x and z axes is
-/// half its size, a cylinder's along its x axis its radius.
+/// A collider, a component of the game's, which the zone's nodes carry as a typed property: what
+/// stops the hero, `height` metres high. Its entity's transform in the world places it, turned
+/// about the vertical, and gives its size ([`Footprint::of`]): a box's scale along its x and z axes
+/// is half its size, a cylinder's along its x axis its radius.
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
 #[reflect(name = "hunnawood::Collider")]
 pub struct Collider {
@@ -144,8 +141,8 @@ pub enum ColliderKind {
     Cylinder,
 }
 
-/// A place of the game's loop, a component of the game's, as its node's `marker` says. Its
-/// entity's transform places it.
+/// A place of the game's loop, a component of the game's, which the zone's nodes carry as a typed
+/// property; each is held by one entity of the zone. Its entity's transform places it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
 #[reflect(name = "hunnawood::Marker")]
 pub enum Marker {
@@ -165,8 +162,8 @@ pub enum Marker {
 
 impl Component for Marker {}
 
-/// The time of day a light shines at, a component of the game's, as its node's `time` says: the
-/// lights of the other time are hidden. A light without one shines at any time.
+/// The time of day a light shines at, a component of the game's, which the zone's lights carry as a
+/// typed property: the lights of the other time are hidden. A light without one shines at any time.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
 #[reflect(name = "hunnawood::TimeOfDay")]
 pub enum TimeOfDay {
@@ -178,8 +175,8 @@ pub enum TimeOfDay {
 
 impl Component for TimeOfDay {}
 
-/// A light that flickers, a component of the game's: the campfire's, whose intensity the view
-/// makes vary around `intensity`, the one the zone gives it, at each frame.
+/// A light that flickers, a component of the game's, which the campfire's light carries as a typed
+/// property: its intensity, which the view makes vary around `intensity` at each frame.
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
 #[reflect(name = "hunnawood::Flickers")]
 pub struct Flickers {
@@ -211,8 +208,8 @@ pub struct Zone {
 }
 
 /// The layout of a zone, which decides how the game plays in it: the size of its ground, its
-/// colliders, where the hero starts and the places of the game's loop. A zone loaded again with the
-/// same layout keeps the run (`crate::rules::Game::reload_zone`).
+/// colliders, where the hero starts and the places of the game's loop. A zone loaded again whose
+/// new game has the same layout as the one before keeps the run ([`crate::saves::reload`]).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Layout {
     /// Half the size of the ground along x and z, around the origin; the hero does not leave it.
@@ -241,8 +238,8 @@ impl Layout {
     /// by its length and each footprint by its shape. Rounded, the numbers that the platforms'
     /// maths gives, a box's yaw from its axes among them, are the same on every platform, and so is
     /// the hash; two layouts that differ by less are the same layout. A save says the layout it was
-    /// made on so (`crate::saves`), and a zone loaded again keeps the run when its layout keeps its
-    /// fingerprint ([`crate::rules::Game::reload_zone`]).
+    /// made on so (`crate::saves`), and a zone loaded again keeps the run when the layout of its
+    /// new game keeps its fingerprint ([`crate::saves::reload`]).
     pub fn fingerprint(&self) -> String {
         let mut numbers = vec![self.half_size.x, self.half_size.y];
         let mut counts = Vec::new();
@@ -286,22 +283,6 @@ fn ground(position: Vec3) -> Vec2 {
     Vec2::new(position.x, position.z)
 }
 
-/// The text of the custom value `name` among `extras`, if it has one that is a text.
-fn text<'a>(extras: &'a Extras, name: &str) -> Option<&'a str> {
-    match extras.get(name)? {
-        Extra::Text(text) => Some(text),
-        _ => None,
-    }
-}
-
-/// The number of the custom value `name` among `extras`, if it has one that is a number.
-fn number(extras: &Extras, name: &str) -> Option<f32> {
-    match extras.get(name)? {
-        Extra::Number(number) => Some(*number as f32),
-        _ => None,
-    }
-}
-
 /// Whether `ancestor` is `entity` or one of its ancestors.
 pub fn descends(world: &World, entity: Entity, ancestor: Entity) -> bool {
     let mut next = Some(entity);
@@ -336,118 +317,30 @@ pub fn colliders(world: &World) -> Vec<Footprint> {
 }
 
 impl Zone {
-    /// Spawns the zone's cooked `scene` in `world`, under the key `zone`
-    /// ([`World::spawn_scene`]), and gives its entities the game's components that their extras
-    /// describe:
-    ///
-    /// - a [`Collider`] to each whose `collider` is `"box"` or `"cylinder"`, with its `height`;
-    /// - a [`Marker`] to each whose `marker` is `start`, `item`, `door`, `campfire`, `terrace` or
-    ///   `bounds`, each given to one entity; another marker is ignored;
-    /// - a [`TimeOfDay`] to each whose `time` is `"day"` or `"night"`; the night's directional
-    ///   light, the moon, shows in the sky (`in_sky`), while the day's sun stays behind the
-    ///   overcast's clouds;
-    /// - [`Flickers`] to the night's first point light within [`CAMPFIRE_LIGHT_REACH`] of the
-    ///   campfire on the ground, if one is.
-    ///
-    /// Every light shines, whatever its time of day: the game hides those of the other time.
+    /// Spawns the zone's scene file, as `scenes` resolves it with the world's types
+    /// ([`SceneLibrary::resolve`]), in `world`, under the key `zone` ([`World::spawn_scene`]): the
+    /// land and the lanterns that it places, and the game's components that their nodes carry. The
+    /// game's components must be registered in `world` first, as [`crate::rules::Game::spawn`]
+    /// registers them.
     ///
     /// # Errors
     ///
-    /// A message that says what is wrong: a typed property of a node that the world's registry
-    /// refuses ([`ResolvedScene::from_cooked`]), an entity alive with the key `zone` already, a
-    /// marker missing or given twice, a collider of another kind or without a height, a time of
-    /// another kind. Nothing is spawned then.
-    pub fn spawn(world: &mut World, scene: &CookedScene) -> Result<Self, String> {
-        let root = world
-            .spawn_scene(
-                KEY,
-                &ResolvedScene::from_cooked(crate::assets::zone_id(), scene, world.registry())
-                    .map_err(|error| error.to_string())?,
-            )
+    /// A message that says what is wrong: a scene that cannot be resolved, a typed property among
+    /// them, or a component's value that its type refuses ([`slime_world::SceneError`]); an entity
+    /// alive with the key `zone` already; a marker held by no entity, or by several. Nothing is
+    /// spawned then.
+    pub fn spawn(world: &mut World, scenes: &mut SceneLibrary) -> Result<Self, String> {
+        let scene = scenes
+            .resolve(world.registry(), crate::assets::zone_id())
             .map_err(|error| error.to_string())?;
-        let zone = Self::prepare(world, root, &scene.name);
+        let root = world
+            .spawn_scene(KEY, &scene)
+            .map_err(|error| error.to_string())?;
+        let zone = Self::find(world, root, scene.name());
         if zone.is_err() {
             world.despawn(root);
         }
         zone
-    }
-
-    /// Gives the entities of the zone spawned under `root` the game's components, as
-    /// [`Zone::spawn`] says; `scene` names the zone in messages.
-    fn prepare(world: &mut World, root: Entity, scene: &str) -> Result<Self, String> {
-        let mut colliders = Vec::new();
-        let mut markers = Vec::new();
-        let mut times = Vec::new();
-        for (entity, extras) in world.query::<&Extras>() {
-            if !descends(world, entity, root) {
-                continue;
-            }
-            let name = || world.get::<Name>(entity).map_or("", |name| name.0.as_str());
-            if let Some(kind) = text(extras, "collider") {
-                let kind = match kind {
-                    "box" => ColliderKind::Box,
-                    "cylinder" => ColliderKind::Cylinder,
-                    other => return Err(format!("collider `{}` is a `{other}`", name())),
-                };
-                let height = number(extras, "height")
-                    .ok_or_else(|| format!("collider `{}` has no height", name()))?;
-                colliders.push((entity, Collider { kind, height }));
-            }
-            let marker = match text(extras, "marker") {
-                Some("start") => Some(Marker::Start),
-                Some("item") => Some(Marker::Item),
-                Some("door") => Some(Marker::Door),
-                Some("campfire") => Some(Marker::Campfire),
-                Some("terrace") => Some(Marker::Terrace),
-                Some("bounds") => Some(Marker::Bounds),
-                _ => None,
-            };
-            if let Some(marker) = marker {
-                markers.push((entity, marker));
-            }
-            match text(extras, "time") {
-                Some("day") => times.push((entity, TimeOfDay::Day)),
-                Some("night") => times.push((entity, TimeOfDay::Night)),
-                Some(other) => return Err(format!("light `{}` shines at `{other}`", name())),
-                None => {}
-            }
-        }
-        for (entity, collider) in colliders {
-            world.insert(entity, collider);
-        }
-        for (entity, marker) in markers {
-            world.insert(entity, marker);
-        }
-        for (entity, time) in times {
-            world.insert(entity, time);
-        }
-        let zone = Self::find(world, root, scene)?;
-        let campfire = zone.place(world, zone.campfire);
-        world.query_mut::<(&TimeOfDay, &mut Light)>(|_, (time, light)| {
-            if let (TimeOfDay::Night, Light::Directional { in_sky, .. }) = (time, light) {
-                *in_sky = true;
-            }
-        });
-        // The zone's script places the fire's light above the fire pit, among the lanterns' lights
-        // of the night, which stand farther: the first near the campfire is the fire's.
-        let fire = world
-            .query::<(&TimeOfDay, &Light)>()
-            .filter(|&(entity, (time, light))| {
-                *time == TimeOfDay::Night
-                    && matches!(light, Light::Point { .. })
-                    && descends(world, entity, root)
-                    && placed(world, entity).is_some_and(|at| {
-                        ground(at.translation.as_vec3()).distance(campfire) <= CAMPFIRE_LIGHT_REACH
-                    })
-            })
-            .find_map(|(entity, (_, light))| match light {
-                Light::Point { intensity, .. } => Some((entity, *intensity)),
-                _ => None,
-            });
-        if let Some((entity, intensity)) = fire {
-            world.insert(entity, Flickers { intensity });
-        }
-        Ok(zone)
     }
 
     /// The zone spawned under `root`, whose places are the entities that hold its [`Marker`]s;
@@ -556,31 +449,45 @@ mod tests {
 /// (`scripts/check.sh` does both): `cargo test` leaves them out.
 #[cfg(test)]
 pub mod cooked {
-    use std::collections::{HashSet, VecDeque};
+    use std::collections::{HashMap, HashSet, VecDeque};
 
-    use slime_assets::{AssetKind, CookedAssets, CookedScene};
+    use slime_assets::{AssetId, AssetKind, CookedAssets, CookedScene};
     use slime_render::glam::Vec2;
-    use slime_world::{Hidden, Light, Meshes, ResolvedScene, World};
+    use slime_world::{Hidden, Light, Meshes, PersistentId, SceneLibrary, World};
 
-    use super::{Footprint, TimeOfDay, Zone, descends};
+    use super::{Footprint, Shape, TimeOfDay, Zone, descends};
     use crate::assets;
-    use crate::rules::tests::no_hero;
     use crate::rules::{Game, HERO_RADIUS};
 
-    /// The cooked data, and the zone's scene, from `target/cooked/hunnawood`.
-    pub fn zone() -> (CookedAssets, CookedScene) {
+    /// The cooked data, from `target/cooked/hunnawood`, and a library of its scenes: the zone's,
+    /// those it places and the hero's.
+    pub fn zone() -> (CookedAssets, SceneLibrary) {
         let assets = CookedAssets::open(assets::cooked_in_target())
             .unwrap_or_else(|error| panic!("{error}; {}", assets::HOW_TO_COOK));
-        let scene = assets.scene(assets::zone_id()).expect("the zone is cooked");
-        (assets, scene)
+        let scenes = SceneLibrary::of(assets.clone());
+        (assets, scenes)
     }
 
-    /// A game in the cooked zone, in a world of its own, with a hero that draws nothing.
+    /// A game in the cooked zone, in a world of its own.
     pub fn game() -> (World, Game) {
-        let (_, scene) = zone();
+        let (_, mut scenes) = zone();
         let mut world = World::new();
-        let game = Game::spawn(&mut world, &scene, &no_hero(), false).expect("the zone is whole");
+        let game = Game::spawn(&mut world, &mut scenes, false).expect("the zone is whole");
         (world, game)
+    }
+
+    /// The cooked glTF scene `id`.
+    fn scene(assets: &CookedAssets, id: AssetId) -> CookedScene {
+        assets.scene(id).expect("the scene is cooked")
+    }
+
+    /// The entity of the zone `world` names `id`, from the zone's root: `lantern 3/light`.
+    fn find(world: &World, id: &str) -> Option<slime_world::Entity> {
+        world.find(
+            &format!("zone/{id}")
+                .parse::<PersistentId>()
+                .expect("an identity"),
+        )
     }
 
     /// The cells of a grid of `CELL` metres over the ground that the hero reaches from `start`,
@@ -700,17 +607,22 @@ pub mod cooked {
 
     /// The zone's budgets: what the renderer draws in every frame (it culls nothing, so every frame
     /// draws all of it), the lights that cast shadows at night, the GPU memory of its textures and
-    /// the size of its cooked data. They were set at Stage 4a, before the zone was made, from a
-    /// synthetic forest measured on an RX 6900 XT and on lavapipe.
+    /// the size of its cooked data, counted over the whole zone, the land and every lantern. They
+    /// were set at Stage 4a, before the zone was made, from a synthetic forest measured on an RX
+    /// 6900 XT and on lavapipe.
     #[test]
     #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
     fn the_cooked_zone_keeps_within_its_budgets() {
-        let (assets, scene) = zone();
+        let (assets, _) = zone();
+        let (world, game) = game();
         let mut triangles = 0;
         let mut instances = 0;
-        let mut meshes = std::collections::HashMap::new();
-        for node in &scene.nodes {
-            for &id in &node.meshes {
+        let mut meshes = HashMap::new();
+        for (entity, placed) in world.query::<&Meshes>() {
+            if !descends(&world, entity, game.zone().root) {
+                continue;
+            }
+            for &id in &placed.ids {
                 let count = *meshes.entry(id).or_insert_with(|| {
                     assets.mesh(id).expect("the mesh is cooked").indices.len() / 3
                 });
@@ -718,14 +630,14 @@ pub mod cooked {
                 instances += 1;
             }
         }
-        let (world, _) = game();
         let night_spots = world
             .query::<(&Light, &TimeOfDay)>()
             .filter(|(_, (light, time))| {
                 matches!(light, Light::Spot { .. }) && **time == TimeOfDay::Night
             })
             .count();
-        // Every asset the scene needs, through its meshes and materials, each once.
+        // Every asset the zone needs, through the scenes it places, their meshes and materials,
+        // each once.
         let manifest = assets.manifest();
         let mut seen = HashSet::new();
         let mut stack = vec![assets::zone_id()];
@@ -760,33 +672,32 @@ pub mod cooked {
         assert!(mib(size) <= 320.0, "{:.0} MiB of cooked data", mib(size));
     }
 
-    /// The zone spawned in a world, each node an entity placed where the file puts it, under its
-    /// name.
+    /// The zone spawned in a world: the land placed where its file puts each node, under its name,
+    /// six lanterns, and the two entities that the scene file removes from the fifth gone.
     #[test]
     #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
-    fn the_cooked_zone_spawns_in_a_world_as_its_file_places_it() {
+    fn the_cooked_zone_spawns_the_land_as_its_file_places_it_and_six_lanterns() {
         use slime_render::glam::{DMat4, Mat4};
-        use slime_world::{PersistentId, Transform};
+        use slime_world::Transform;
 
-        let (_, scene) = zone();
-        let mut world = World::new();
-        world
-            .spawn_scene(
-                "zone",
-                &ResolvedScene::from_cooked(crate::assets::zone_id(), &scene, world.registry())
-                    .expect("resolved"),
-            )
-            .expect("spawned");
-        world.update_transforms();
-        assert_eq!(
-            world.len(),
-            scene.nodes.len() + 1,
-            "a root and an entity per node"
+        let (assets, _) = zone();
+        let (land, lantern) = (
+            scene(&assets, assets::land_id()),
+            scene(&assets, assets::lantern_id()),
         );
-        for (node, expected) in scene.nodes.iter().zip(scene.world_transforms()) {
-            // Every node of the zone has a name of its own, so none is known by its index.
-            let entity = world
-                .find(&PersistentId::new(["zone", node.name.as_str()]))
+        let (mut world, game) = game();
+        world.update_transforms();
+        let in_zone = world
+            .entities()
+            .filter(|&entity| descends(&world, entity, game.zone().root))
+            .count();
+        assert_eq!(
+            in_zone,
+            1 + (1 + land.nodes.len()) + 6 * (1 + lantern.nodes.len()) - 2,
+            "the zone's root, the land and six lanterns, but the fifth's light and glass"
+        );
+        for (node, expected) in land.nodes.iter().zip(land.world_transforms()) {
+            let entity = find(&world, &format!("land/{}", node.name))
                 .unwrap_or_else(|| panic!("node `{}` is known by its name", node.name));
             let stretch = world.get::<Transform>(entity).expect("placed").stretch;
             let placed = world
@@ -805,35 +716,223 @@ pub mod cooked {
         }
     }
 
-    /// Prints what resolving the zone's cooked scene and spawning it in a world cost, the median of
-    /// 21 runs. Run it in a release build:
+    /// Six lanterns of one prefab, the lantern's scene: the third lights less than the others, and
+    /// the fifth has neither its light nor its glass.
+    #[test]
+    #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
+    fn six_lanterns_from_one_prefab_the_third_dimmer_and_the_fifth_broken() {
+        let (world, _) = game();
+        let intensity = |world: &World, lantern: u32| {
+            let light = find(world, &format!("lantern {lantern}/light"))?;
+            match world.get::<Light>(light)? {
+                Light::Spot { intensity, .. } => Some(*intensity),
+                _ => None,
+            }
+        };
+        for lantern in 1..=6 {
+            let root = find(&world, &format!("lantern {lantern}")).expect("placed");
+            let placement = world.placement(root).expect("a placement");
+            assert_eq!(placement.prefab().id(), assets::lantern_id());
+            assert!(find(&world, &format!("lantern {lantern}/post collider")).is_some());
+        }
+        let full = intensity(&world, 1).expect("the first lantern's light");
+        for lantern in [2, 4, 6] {
+            assert_eq!(intensity(&world, lantern), Some(full));
+        }
+        assert!(intensity(&world, 3).expect("the third's light") < full);
+        assert_eq!(intensity(&world, 5), None);
+        assert!(find(&world, "lantern 5/glass").is_none());
+        assert!(find(&world, "lantern 4/glass").is_some());
+    }
+
+    /// The lantern changed, as Blender would export it again: every lantern follows it, but for
+    /// what the zone's scene file overrides.
+    #[test]
+    #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
+    fn a_lantern_changed_reaches_every_lantern_but_what_the_zone_overrides() {
+        let (assets, mut scenes) = zone();
+        let mut lantern = scene(&assets, assets::lantern_id());
+        let light = lantern
+            .nodes
+            .iter_mut()
+            .find(|node| node.name == "light")
+            .expect("the lantern's light");
+        let light = light.light.as_mut().expect("a light");
+        light.color = [0.4, 0.6, 1.0];
+        light.intensity = 300.0;
+        let mut flag = lantern.nodes[0].clone();
+        flag.name = "flag".to_owned();
+        flag.parent = None;
+        lantern.nodes.push(flag);
+        scenes.insert_cooked(assets::lantern_id(), lantern);
+        let mut world = World::new();
+        Game::spawn(&mut world, &mut scenes, false).expect("the zone is whole");
+        let light = |lantern: u32| {
+            let light = find(&world, &format!("lantern {lantern}/light"))?;
+            match world.get::<Light>(light)? {
+                Light::Spot {
+                    color, intensity, ..
+                } => Some((color.r, *intensity)),
+                _ => None,
+            }
+        };
+        for lantern in [1, 2, 4, 6] {
+            assert_eq!(light(lantern), Some((0.4, 300.0)), "lantern {lantern}");
+        }
+        let (red, intensity) = light(3).expect("the third's light");
+        assert_eq!(red, 0.4, "its color follows the prefab");
+        assert!(intensity < 300.0, "its intensity stays the zone's");
+        assert_eq!(light(5), None, "the fifth stays without its light");
+        for lantern in 1..=6 {
+            assert!(find(&world, &format!("lantern {lantern}/flag")).is_some());
+        }
+    }
+
+    /// The colliders of 0.3, before the zone was made of prefabs (`fixtures/colliders-0.3.txt`):
+    /// each is where it was, within 10⁻⁴, whatever their order; a scattered rock's at its center,
+    /// its size the rock's that the zone's script now places there.
+    #[test]
+    #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
+    fn the_colliders_are_where_they_were_in_0_3() {
+        let (world, game) = game();
+        let layout = game.zone().layout(&world);
+        let mut kept: Vec<(&str, Footprint, bool)> = include_str!("../fixtures/colliders-0.3.txt")
+            .lines()
+            .filter(|line| !line.starts_with('#'))
+            .map(|line| {
+                let (numbers, name) = line.split_once('\t').expect("a name after a tab");
+                // `rock 12`, but not `rock face 3`.
+                let rock = name
+                    .strip_prefix("rock ")
+                    .is_some_and(|n| n.bytes().all(|b| b.is_ascii_digit()));
+                let words: Vec<&str> = numbers.split(' ').collect();
+                let n = |index: usize| words[index].parse::<f32>().expect("a number");
+                let center = Vec2::new(n(2), n(3));
+                let (shape, height) = match words[1] {
+                    "box" => (
+                        Shape::Box {
+                            half_size: Vec2::new(n(4), n(5)),
+                            yaw: n(6),
+                        },
+                        n(7),
+                    ),
+                    _ => (Shape::Cylinder { radius: n(4) }, n(5)),
+                };
+                let footprint = Footprint {
+                    shape,
+                    center,
+                    height,
+                };
+                (words[0], footprint, rock)
+            })
+            .collect();
+        let near = |a: f32, b: f32| (a - b).abs() <= 1e-4;
+        let same = |a: &Footprint, b: &Footprint| {
+            let shape = match (a.shape, b.shape) {
+                (
+                    Shape::Box { half_size, yaw },
+                    Shape::Box {
+                        half_size: h,
+                        yaw: y,
+                    },
+                ) => {
+                    // A box turned half a turn is the same box.
+                    let turn = (yaw - y).rem_euclid(std::f32::consts::PI);
+                    half_size.abs_diff_eq(h, 1e-4)
+                        && (turn <= 1e-4 || std::f32::consts::PI - turn <= 1e-4)
+                }
+                (Shape::Cylinder { radius }, Shape::Cylinder { radius: r }) => near(radius, r),
+                _ => false,
+            };
+            shape && a.center.abs_diff_eq(b.center, 1e-4) && near(a.height, b.height)
+        };
+        let now = layout
+            .colliders
+            .iter()
+            .map(|c| ("collider", c))
+            .chain(layout.door_colliders.iter().map(|c| ("door", c)));
+        for (list, collider) in now {
+            let index = kept
+                .iter()
+                .position(|(was, footprint, rock)| {
+                    *was == list
+                        && if *rock {
+                            footprint.center.abs_diff_eq(collider.center, 1e-4)
+                        } else {
+                            same(footprint, collider)
+                        }
+                })
+                .unwrap_or_else(|| panic!("{list} {collider:?} was not in 0.3"));
+            kept.swap_remove(index);
+        }
+        assert!(kept.is_empty(), "0.3's colliders gone: {kept:?}");
+    }
+
+    /// Every entity of the zone is known by the names that the zone's script gives its nodes, none
+    /// of which Blender numbered, `oak 12.001`, as it numbers a name that another object holds.
+    #[test]
+    #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
+    fn no_node_of_the_zone_is_named_with_blenders_numbers() {
+        let (world, _) = game();
+        let numbered = |part: &str| {
+            let digits = part.rsplit_once('.').map(|(_, end)| end);
+            digits.is_some_and(|d| d.len() == 3 && d.bytes().all(|b| b.is_ascii_digit()))
+        };
+        for entity in world.entities() {
+            if let Some(id) = world.persistent_id(entity) {
+                assert!(!id.parts().iter().any(|part| numbered(part)), "{id}");
+            }
+        }
+    }
+
+    /// The moon shows in the night's sky, as the zone's scene file says, and the sun stays behind
+    /// the day's clouds.
+    #[test]
+    #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
+    fn the_moon_shows_in_the_sky_and_the_sun_does_not() {
+        let (world, _) = game();
+        let in_sky = |name: &str| {
+            let light = find(&world, &format!("land/{name}")).expect("a light");
+            matches!(
+                world.get::<Light>(light),
+                Some(Light::Directional { in_sky: true, .. })
+            )
+        };
+        assert!(in_sky("moon") && !in_sky("sun"));
+    }
+
+    /// Prints what reading the zone's scenes, resolving them and spawning the zone in a world cost,
+    /// the median of 21 runs, a library made anew for each: what a game pays when it starts. Run it
+    /// in a release build:
     /// `cargo test --release -p hunnawood -- --ignored --nocapture spawning_the_zone`.
     #[test]
     #[ignore = "a measurement, which needs the cooked zone"]
     fn what_spawning_the_zone_costs() {
         use std::time::{Duration, Instant};
 
-        let (_, scene) = zone();
+        let (assets, _) = zone();
         let mut resolving: Vec<Duration> = Vec::new();
         let mut spawning: Vec<Duration> = Vec::new();
+        let mut entities = 0;
         for _ in 0..21 {
+            let mut scenes = SceneLibrary::of(assets.clone());
             let mut world = World::new();
+            crate::rules::register(&mut world);
             let started = Instant::now();
-            let resolved =
-                ResolvedScene::from_cooked(crate::assets::zone_id(), &scene, world.registry())
-                    .expect("resolved");
+            let resolved = scenes
+                .resolve(world.registry(), assets::zone_id())
+                .expect("resolved");
             resolving.push(started.elapsed());
             let started = Instant::now();
             world.spawn_scene("zone", &resolved).expect("spawned");
             spawning.push(started.elapsed());
+            entities = world.len();
         }
         resolving.sort_unstable();
         spawning.sort_unstable();
         eprintln!(
-            "the zone's {} nodes: resolved in {:?}, spawned in {:?}",
-            scene.nodes.len(),
-            resolving[10],
-            spawning[10]
+            "the zone's {entities} entities: read and resolved in {:?}, spawned in {:?}",
+            resolving[10], spawning[10]
         );
     }
 
@@ -850,15 +949,14 @@ pub mod cooked {
         use slime_render::{AssetCache, Renderer};
         use slime_world_render::FrameBuilder;
 
-        let (assets, scene) = zone();
+        let (assets, mut scenes) = zone();
+        // The zone alone, as 0.3 measured it: every light shines, whatever its time of day.
         let mut world = World::new();
-        world
-            .spawn_scene(
-                "zone",
-                &ResolvedScene::from_cooked(crate::assets::zone_id(), &scene, world.registry())
-                    .expect("resolved"),
-            )
-            .expect("spawned");
+        crate::rules::register(&mut world);
+        let zone = scenes
+            .resolve(world.registry(), assets::zone_id())
+            .expect("resolved");
+        world.spawn_scene("zone", &zone).expect("spawned");
         world.update_transforms();
         let gpu = Gpu::new().expect("a GPU adapter must be available");
         let renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");

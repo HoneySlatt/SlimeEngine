@@ -850,6 +850,7 @@ dependencies = [
  "slime-platform",
  "slime-reflect",
  "slime-render",
+ "slime-serialize",
  "slime-world",
  "slime-world-render",
  "tracing",

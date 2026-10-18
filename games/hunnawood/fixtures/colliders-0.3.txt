@@ -1,0 +1,118 @@
+# The colliders of Hunna Wood's zone in 0.3, before it was made of prefabs, which the zone keeps
+# where they were: a test finds each within 1e-4, whatever their order. One per line, in the game's
+# ground axes (x east, z south), in metres and radians: `collider` or `door` (the door's, which
+# open with it), then `box` and its center x z, half size x z, yaw and height, or `cylinder` and
+# its center x z, radius and height; after a tab, the name of its node in 0.3, without Blender's
+# numbers. A scattered rock's collider keeps its center only: its size is the rock's, and 0.3 placed
+# its rocks' meshes in an order that changed from one export to the next.
+collider box 3.625 15 0.25 7 0 1.2	bridge parapet east
+collider box 0.375 15 0.25 7 0 1.2	bridge parapet west
+collider cylinder -14.6295 23.562351 0.47360426 8	conifer 2
+collider cylinder -28.18615 -34.62015 0.4782366 8	conifer 4
+collider cylinder -18.667934 31.875948 0.47191626 8	conifer 5
+collider cylinder 25.129747 25.692291 0.45771897 8	conifer 6
+collider cylinder -13.164285 34.853447 0.4664567 8	conifer 7
+collider cylinder 27.66461 -45.185734 0.48846978 8	conifer 9
+collider cylinder 12.441491 24.108027 0.4209161 8	conifer 10
+collider cylinder -6.15228 37.212517 0.39651358 8	conifer 11
+collider cylinder -9.646487 -16.843071 0.45661628 8	conifer 12
+collider cylinder 20.1966 -34.716785 0.4422787 8	conifer 13
+collider cylinder -14.735359 -33.32944 0.4011764 8	conifer 14
+collider cylinder -27.846006 -38.88868 0.38929656 8	conifer 17
+collider cylinder 11.533111 -21.229996 0.4491164 8	conifer 18
+collider cylinder 20.68509 44.079685 0.4004916 8	conifer 19
+collider cylinder -10.464485 30.337833 0.5370423 8	conifer 20
+collider cylinder -15.80136 42.391777 0.49325478 8	conifer 21
+collider cylinder -11.079792 -48.489193 0.41886005 8	conifer 24
+door box 0 -44.45 1.1 0.3 0 3	door
+collider box 6.05 -26 0.45 3 0 6	east wall
+collider box 6.05 -31.5 0.45 2.5 0 1.8	east wall
+collider box 6.05 -39 0.45 5 0 6.8	east wall
+collider box 1.2 -33 0.475 0.4 -0.39999995 0.8	fallen drum
+collider box 1.9 -32 0.475 0.4 -1.3 0.8	fallen drum
+collider box -1.4 -36.2 0.47499996 0.40000004 -2.2 0.8	fallen drum
+collider cylinder -13 -4 1 0.5	fire pit
+collider box 17.9 15 14.1 4.4 0 3	gully east
+collider box -15.9 15 16.1 4.4 0 3	gully west
+collider box 1.6 -41.6 0.35 0.3 0 0.5	item block
+collider cylinder -1.7 40 0.25 2.6	lantern post 1
+collider cylinder -0.3 22.6 0.25 2.6	lantern post 2
+collider cylinder 4.3 7.4 0.25 2.6	lantern post 3
+collider cylinder -4.6 -6.4 0.25 2.6	lantern post 4
+collider cylinder -3.2 -21.8 0.25 2.6	lantern post 5
+collider cylinder 3.2 -21.8 0.25 2.6	lantern post 6
+collider box 16.100391 -44.62348 2.8 0.3 -0.072125055 0.6	log 1
+collider box -3.775 -44.45 2.725 0.45 0 8	north wall
+collider box 3.775 -44.45 2.725 0.45 0 8	north wall
+collider cylinder -20.4354 48.881115 0.73861074 8	oak 1
+collider cylinder -21.558928 -11.978661 0.662728 8	oak 6
+collider cylinder -5.4306126 28.032621 0.97969425 8	oak 7
+collider cylinder 8.63315 -3.5275106 0.7080662 8	oak 8
+collider cylinder -21.60529 -27.34135 0.6329011 8	oak 10
+collider cylinder 10.946906 -11.1853285 0.77933973 8	oak 11
+collider cylinder -13.248193 -23.61138 0.8996451 8	oak 12
+collider cylinder -30.933014 2.1052177 0.7330886 8	oak 14
+collider cylinder 10.338326 33.215473 0.801013 8	oak 15
+collider cylinder 13.6407585 -24.66801 0.74340683 8	oak 16
+collider cylinder -15.757041 52.802086 0.76783216 8	oak 19
+collider cylinder -3.9452229 2.263148 0.7359598 8	oak 20
+collider cylinder -15.462824 46.614117 0.8081623 8	oak 22
+collider cylinder -19.75886 38.774166 0.8541012 8	oak 24
+collider cylinder 5.644565 51.662262 0.73561335 8	oak 29
+collider cylinder 17.36226 -3.7213466 0.6475412 8	oak 30
+collider cylinder -9.394544 51.649685 0.89435357 8	oak 31
+collider cylinder -4.8533254 -11.668828 0.85723335 8	oak 32
+collider cylinder -6.9455104 44.364895 0.86785144 8	oak 33
+collider cylinder 6.5511723 24.3625 0.73941183 8	oak 34
+collider cylinder -29.174658 31.23161 0.9215582 8	oak 35
+collider cylinder 22.356796 6.671589 0.90801615 8	oak 36
+collider cylinder 5.921699 43.47609 0.71205086 8	oak 43
+collider cylinder -18.246264 -46.520115 0.79034334 8	oak 44
+collider cylinder -25.29574 36.09019 0.83706075 8	oak 45
+collider cylinder -24.005215 5.676588 0.7217844 8	oak 46
+collider cylinder 5.460511 35.777493 0.77627265 8	oak 47
+collider cylinder -30.994091 -11.98166 0.85285634 8	oak 48
+collider cylinder 18.275066 -30.239082 0.6775591 8	oak 49
+collider cylinder 20.382088 29.280092 0.70911914 8	oak 54
+collider cylinder -3.904658 53.4096 0.7629779 8	oak 55
+collider cylinder -18.100622 25.749073 0.72453743 8	oak 57
+collider cylinder -23.458464 -33.46455 0.65516037 8	oak 62
+collider cylinder -3 -27.5 0.6 6.4	pillar
+collider cylinder -3 -31.5 0.6 2.3	pillar
+collider cylinder -3 -35.5 0.6 6.4	pillar
+collider cylinder -3 -39.5 0.6 4.1	pillar
+collider cylinder 3 -27.5 0.6 1.2	pillar
+collider cylinder 3 -31.5 0.6 6.4	pillar
+collider cylinder 3 -35.5 0.6 3.2	pillar
+collider cylinder 3 -39.5 0.6 6.4	pillar
+collider box -4.15 -23.45 2.35 0.45 0 4.6	portal wall
+collider box 4.15 -23.45 2.35 0.45 0 2.6	portal wall
+collider cylinder 3.563663 -19.084614 1.4703683 1.478	rock 3
+collider cylinder -28.57631 -19.493298 0.8212562 0.936	rock 5
+collider cylinder 10.334626 41.41419 0.36801445 0.402	rock 8
+collider cylinder 14.375829 3.5137465 0.6332661 0.592	rock 9
+collider cylinder 16.032372 -51.979984 0.8813747 1.465	rock 10
+collider cylinder -11.373465 33.006424 0.8414744 0.923	rock 11
+collider cylinder -17.361406 -20.384575 0.4480625 0.521	rock 12
+collider cylinder 27.088596 35.21042 0.8882052 1.331	rock 13
+collider cylinder -19.080137 -34.95157 0.81002325 0.923	rock 18
+collider cylinder 22.63267 -48.346672 1.4769694 1.604	rock 19
+collider cylinder -27.145426 -7.5302863 0.62348723 0.544	rock 20
+collider cylinder 2.6963775 32.858524 0.37273997 0.407	rock 21
+collider cylinder -27.797235 36.9447 0.6289951 0.588	rock 22
+collider cylinder -17.995813 50.142178 0.6487797 1.078	rock 23
+collider cylinder 15.529862 -27.581081 1.2788569 1.403	rock 24
+collider cylinder -15.844891 -44.458626 0.42437747 0.494	rock 25
+collider cylinder 4.394143 39.679604 0.9620054 1.096	rock 31
+collider cylinder 23.139582 0.23581547 0.95555276 0.833	rock 33
+collider cylinder 12.570589 -39.379406 0.6 0.6	stump 1
+collider cylinder 22.363955 -4.311367 0.6 0.6	stump 2
+collider cylinder -10.6 -2.6 0.55 0.4	stump seat
+collider cylinder -14.9 -6.1 0.55 0.4	stump seat
+collider box 0 -53.3 6.5 0.3 0 1.1	terrace parapet
+collider box -6.05 -48.95 0.45 4.05 0 3.4	terrace wall
+collider box 6.05 -48.95 0.45 4.05 0 3.4	terrace wall
+collider box -6.05 -25 0.45 2 0 1.4	west wall
+collider box -6.05 -30 0.45 3 0 5.6	west wall
+collider box -6.05 -35.5 0.45 2.5 0 3	west wall
+collider box -6.05 -41 0.45 3 0 6.6	west wall

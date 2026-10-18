@@ -45,18 +45,6 @@ at = [-13.0, 4.0]
 [item]
 at = [1.6, 41.6]
 
-# Lanterns on posts, each lit at night by a spot light that casts shadows; a lantern hangs on the
-# side its post faces.
-[lanterns]
-posts = [
-    { at = [-1.7, -40.0], facing = -90.0 },
-    { at = [-0.3, -22.6], facing = -90.0 },
-    { at = [4.3, -7.4], facing = 90.0 },
-    { at = [-4.6, 6.4], facing = 0.0 },
-    { at = [-3.2, 21.8], facing = -90.0 },
-    { at = [3.2, 21.8], facing = 90.0 },
-]
-
 # What the seed scatters, kept away from the path, the gully, the chapel and the clearing.
 [scatter]
 oaks = 62

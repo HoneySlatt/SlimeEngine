@@ -31,9 +31,10 @@ def render(directory):
     world.node_tree.nodes["Background"].inputs["Color"].default_value = (0.62, 0.66, 0.72, 1.0)
     world.node_tree.nodes["Background"].inputs["Strength"].default_value = 1.0
     scene.world = world
-    # The moon and the lanterns light the night; the views show the day.
-    for obj in scene.objects:
-        if obj.type == "LIGHT" and obj.get("time") == "night":
+    # The moon and the lanterns light the night; the views show the day. The lanterns' lights are
+    # in the collection that their places show, outside the scene.
+    for obj in bpy.data.objects:
+        if obj.type == "LIGHT" and obj.get("slime:hunnawood::TimeOfDay") == '"Night"':
             obj.hide_render = True
     camera = bpy.data.cameras.new("view")
     camera.lens = 24

@@ -187,17 +187,17 @@ def chapel(place, stone):
 
     # West wall, from the portal northwards: a stump, a tall piece with a window, a broken piece,
     # a tall piece with a window.
-    add_wall("west wall", (x0, y0, 0), (x0 + WALL, y0 + 4.0, 1.4), ragged=0.8)
-    add_wall("west wall", (x0, y0 + 4.0, 0), (x0 + WALL, y0 + 10.0, 5.6), [(y0 + 7.0, 1.6, 1.6, 3.6)], ragged=0.6)
-    add_wall("west wall", (x0, y0 + 10.0, 0), (x0 + WALL, y0 + 15.0, 3.0), ragged=1.6)
-    add_wall("west wall", (x0, y0 + 15.0, 0), (x0 + WALL, y1, 6.6), [(y0 + 18.0, 1.6, 1.8, 4.0)], ragged=0.5)
+    add_wall("west wall 1", (x0, y0, 0), (x0 + WALL, y0 + 4.0, 1.4), ragged=0.8)
+    add_wall("west wall 2", (x0, y0 + 4.0, 0), (x0 + WALL, y0 + 10.0, 5.6), [(y0 + 7.0, 1.6, 1.6, 3.6)], ragged=0.6)
+    add_wall("west wall 3", (x0, y0 + 10.0, 0), (x0 + WALL, y0 + 15.0, 3.0), ragged=1.6)
+    add_wall("west wall 4", (x0, y0 + 15.0, 0), (x0 + WALL, y1, 6.6), [(y0 + 18.0, 1.6, 1.8, 4.0)], ragged=0.5)
     # East wall: a tall piece with a window, a fallen stretch, a tall piece with a window.
-    add_wall("east wall", (x1 - WALL, y0, 0), (x1, y0 + 6.0, 6.0), [(y0 + 3.0, 1.6, 1.6, 3.8)], ragged=0.5)
-    add_wall("east wall", (x1 - WALL, y0 + 6.0, 0), (x1, y0 + 11.0, 1.8), ragged=1.0)
-    add_wall("east wall", (x1 - WALL, y0 + 11.0, 0), (x1, y1, 6.8), [(y0 + 14.0, 1.6, 1.8, 4.0), (y0 + 18.0, 1.6, 1.8, 4.0)], ragged=0.4)
+    add_wall("east wall 1", (x1 - WALL, y0, 0), (x1, y0 + 6.0, 6.0), [(y0 + 3.0, 1.6, 1.6, 3.8)], ragged=0.5)
+    add_wall("east wall 2", (x1 - WALL, y0 + 6.0, 0), (x1, y0 + 11.0, 1.8), ragged=1.0)
+    add_wall("east wall 3", (x1 - WALL, y0 + 11.0, 0), (x1, y1, 6.8), [(y0 + 14.0, 1.6, 1.8, 4.0), (y0 + 18.0, 1.6, 1.8, 4.0)], ragged=0.4)
     # The portal's wall in the south: two jambs of different heights around a 3.6 m gap.
-    add_wall("portal wall", (x0, y0, 0), (-1.8, y0 + WALL, 4.6), ragged=1.2)
-    add_wall("portal wall", (1.8, y0, 0), (x1, y0 + WALL, 2.6), ragged=1.4)
+    add_wall("portal wall west", (x0, y0, 0), (-1.8, y0 + WALL, 4.6), ragged=1.2)
+    add_wall("portal wall east", (1.8, y0, 0), (x1, y0 + WALL, 2.6), ragged=1.4)
     # The north wall, whole, with the door's opening and a tall window above it; its collider is
     # cut in two around the door, which has its own.
     door_half = 1.05
@@ -205,14 +205,14 @@ def chapel(place, stone):
                       [(0.0, 2.1, -0.1, 2.0), (0.0, 1.4, 4.2, 6.4)], random))
     # The stone that fills the arch above the door, which is lower than the opening.
     parts.append(box("tympanum", (-1.1, y1 + 0.3, 2.95), (1.1, y1 + 0.6, 3.9), stone))
-    colliders.append(common.collider_box("north wall", ((x0 - door_half) / 2, y1 + WALL / 2),
+    colliders.append(common.collider_box("north wall west", ((x0 - door_half) / 2, y1 + WALL / 2),
                                          (-door_half - x0, WALL), 8.0))
-    colliders.append(common.collider_box("north wall", ((x1 + door_half) / 2, y1 + WALL / 2),
+    colliders.append(common.collider_box("north wall east", ((x1 + door_half) / 2, y1 + WALL / 2),
                                          (x1 - door_half, WALL), 8.0))
     # The terrace behind the door: its two walls, as high as a man and more, and the low parapet on
     # the edge of the cliff, over which the view opens.
-    add_wall("terrace wall", (x0, y1 + WALL, 0), (x0 + WALL, north, 3.4), ragged=0.6)
-    add_wall("terrace wall", (x1 - WALL, y1 + WALL, 0), (x1, north, 3.4), ragged=0.6)
+    add_wall("terrace wall west", (x0, y1 + WALL, 0), (x0 + WALL, north, 3.4), ragged=0.6)
+    add_wall("terrace wall east", (x1 - WALL, y1 + WALL, 0), (x1, north, 3.4), ragged=0.6)
     add_wall("terrace parapet", (x0, north, 0), (x1, north + 0.6, 1.1), ragged=0.25)
     parts.append(box("terrace floor", (x0 + WALL, y1 + WALL, 0.0), (x1 - WALL, north, 0.04), stone))
     # The pillars of the nave, some whole, some snapped, one fallen in drums.
@@ -228,11 +228,12 @@ def chapel(place, stone):
                                broken=None if whole else 0.25, random=random))
             if whole:
                 parts.append(prism("capital", (x, y), 0.55, h, h + 0.35, stone))
-            colliders.append(common.collider_cylinder("pillar", (x, y), 0.6, h))
+            colliders.append(common.collider_cylinder(f"pillar {k}", (x, y), 0.6, h))
     # Drums of the fallen shafts, on the floor of the nave.
-    for (x, y, yaw) in ((1.2, y0 + 10.0, 0.4), (1.9, y0 + 9.0, 1.3), (-1.4, y0 + 13.2, 2.2)):
+    drums = ((1.2, y0 + 10.0, 0.4), (1.9, y0 + 9.0, 1.3), (-1.4, y0 + 13.2, 2.2))
+    for k, (x, y, yaw) in enumerate(drums):
         parts.append(drum(x, y, yaw, stone))
-        colliders.append(common.collider_box("fallen drum", (x, y), (0.95, 0.8), 0.8, yaw))
+        colliders.append(common.collider_box(f"fallen drum {k + 1}", (x, y), (0.95, 0.8), 0.8, yaw))
     return finish(parts, "chapel"), colliders
 
 

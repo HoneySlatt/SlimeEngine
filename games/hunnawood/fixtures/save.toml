@@ -1,26 +1,26 @@
-about = { layout = "86cd911a08e511fb" }
+about = { layout = "c1134e3b3985cedb" }
+layout = 2
 next_created = 1
 
 [scenes]
-hero = { name = "Scene", content = "d7b965582ed4a378" }
-zone = { name = "Scene", content = "8fe31823c2a1615f" }
+hero = { name = "Scene", content = "71000817a2bfb57b" }
+zone = { name = "zone", content = "4e39102a2180c6ca" }
 
 [removed.components]
-"zone/campfire.001" = ["Hidden"]
-"zone/lantern 1" = ["Hidden"]
-"zone/lantern 2" = ["Hidden"]
-"zone/lantern 3" = ["Hidden"]
-"zone/lantern 4" = ["Hidden"]
-"zone/lantern 5" = ["Hidden"]
-"zone/lantern 6" = ["Hidden"]
-"zone/moon" = ["Hidden"]
+"zone/land/campfire light" = ["Hidden"]
+"zone/land/moon" = ["Hidden"]
+"zone/lantern 1/light" = ["Hidden"]
+"zone/lantern 2/light" = ["Hidden"]
+"zone/lantern 3/light" = ["Hidden"]
+"zone/lantern 4/light" = ["Hidden"]
+"zone/lantern 6/light" = ["Hidden"]
 
 [changed.hero.Transform]
 translation = { x = -0.041620731353759766, z = -22.223468780517578 }
-rotation = { y = -0.074625194, w = 0.99721164 }
+rotation = { x = 0.0, y = -0.074625194, z = 0.0, w = 0.99721164 }
 
 [changed.zone]
 "hunnawood::Clock" = { time = "Night" }
 
-[added."zone/sun"]
+[added."zone/land/sun"]
 Hidden = {}

@@ -1,5 +1,6 @@
-//! Where the game finds its cooked data, and the IDs of what it loads from it: the zone and the
-//! hero, which `games/hunnawood/zone/build_zone.py` exports and `slime-cook` cooks.
+//! Where the game finds its cooked data, and the IDs of what it loads from it: the zone, a scene
+//! file that places the land and the lanterns, which `games/hunnawood/zone/build_zone.py` exports
+//! with the hero, and which `slime-cook` cooks.
 
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -11,7 +12,7 @@ pub const HOW_TO_COOK: &str = "from the repository's root, fetch the zone with \
      `scripts/fetch-assets.sh zone/`, then cook it with `cargo run --release -p slime-cook -- cook \
      games/hunnawood/assets/zone target/cooked/hunnawood`";
 
-/// The ID that a metadata file of the zone's export holds: the ID of its file's default scene.
+/// The ID that a metadata file of the zone holds: a scene file's, or a glTF file's default scene's.
 fn id(metadata: &str) -> AssetId {
     let text = metadata
         .trim()
@@ -20,9 +21,21 @@ fn id(metadata: &str) -> AssetId {
     AssetId::from_str(text).expect("the zone's metadata files hold an ID each")
 }
 
-/// The zone's scene.
+/// The zone's scene file, which places the land and the lanterns.
 pub fn zone_id() -> AssetId {
-    id(include_str!("../assets/zone/hunna_wood.gltf.meta"))
+    id(include_str!("../assets/zone/zone.scene.meta"))
+}
+
+/// The land's scene: the zone but its lanterns.
+#[cfg(test)]
+pub fn land_id() -> AssetId {
+    id(include_str!("../assets/zone/land.gltf.meta"))
+}
+
+/// The lantern's scene, which the zone places six times.
+#[cfg(test)]
+pub fn lantern_id() -> AssetId {
+    id(include_str!("../assets/zone/lantern.gltf.meta"))
 }
 
 /// The hero's scene.

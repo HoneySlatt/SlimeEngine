@@ -7,10 +7,9 @@
 
 use std::f32::consts::{FRAC_PI_2, PI, TAU};
 
-use slime_assets::CookedScene;
 use slime_reflect::Reflect;
 use slime_render::glam::{DVec3, Quat, Vec2, Vec3};
-use slime_world::{Component, Entity, Hidden, ResolvedScene, Transform, World};
+use slime_world::{Component, Entity, Hidden, SceneLibrary, Transform, World};
 
 use crate::zone::{Collider, Flickers, Footprint, Marker, TimeOfDay, Zone, colliders};
 
@@ -130,32 +129,35 @@ pub struct Game {
 }
 
 impl Game {
-    /// Spawns the zone's cooked scene `zone` and the hero's `hero` in `world` ([`Zone::spawn`]),
-    /// and starts a new game in them, by day or at night as `starts_at_night` says, and again so at
+    /// Spawns the zone and the hero, as `scenes` resolves them, in `world` ([`Zone::spawn`]), and
+    /// starts a new game in them, by day or at night as `starts_at_night` says, and again so at
     /// each restart: the hero at the start, facing the way it says, the key in its place and the
     /// door closed. It registers the game's components in `world` first.
     ///
     /// # Errors
     ///
-    /// When the zone cannot be played, as [`Zone::spawn`] says, or an entity has the identity
-    /// `hero` already. Nothing is spawned then.
+    /// When the zone cannot be played, as [`Zone::spawn`] says, or the hero's scene cannot be
+    /// resolved, or an entity has the identity `hero` already. Nothing is spawned then.
     pub fn spawn(
         world: &mut World,
-        zone: &CookedScene,
-        hero: &CookedScene,
+        scenes: &mut SceneLibrary,
         starts_at_night: bool,
     ) -> Result<Self, String> {
         register(world);
-        let zone = Zone::spawn(world, zone)?;
-        let hero = match world.spawn_scene(
-            HERO,
-            &ResolvedScene::from_cooked(crate::assets::hero_id(), hero, world.registry())
-                .map_err(|error| error.to_string())?,
-        ) {
+        let zone = Zone::spawn(world, scenes)?;
+        let hero = scenes
+            .resolve(world.registry(), crate::assets::hero_id())
+            .map_err(|error| error.to_string())
+            .and_then(|hero| {
+                world
+                    .spawn_scene(HERO, &hero)
+                    .map_err(|error| error.to_string())
+            });
+        let hero = match hero {
             Ok(hero) => hero,
             Err(error) => {
                 world.despawn(zone.root);
-                return Err(error.to_string());
+                return Err(error);
             }
         };
         let game = Self {
@@ -180,66 +182,6 @@ impl Game {
                 heading: angle_of(facing),
             },
         );
-    }
-
-    /// Takes `scene`, the zone's cooked scene read again after it changed on disk, and spawns it in
-    /// `world` in place of the zone. When its layout changed, by its fingerprint
-    /// ([`Layout::fingerprint`](crate::zone::Layout::fingerprint)), the game starts
-    /// again in it, as [`Game::restart`] does, since the hero could stand in a new wall, or the key
-    /// have moved after it was taken; otherwise the run goes on in it, the key and the door as they
-    /// were, at the same time of day. Returns whether it started again.
-    ///
-    /// # Errors
-    ///
-    /// When the new zone cannot be played, as [`Zone::spawn`] says. Nothing changes then: the zone
-    /// is spawned in a world of its own first.
-    pub fn reload_zone(&mut self, world: &mut World, scene: &CookedScene) -> Result<bool, String> {
-        let mut alone = World::new();
-        register(&mut alone);
-        let layout = Zone::spawn(&mut alone, scene)?.layout(&alone);
-        let changed = layout.fingerprint() != self.zone.layout(world).fingerprint();
-        let (has_item, door_open, night) = (
-            self.has_item(world),
-            self.door_open(world),
-            self.night(world),
-        );
-        despawn_scene(world, crate::zone::KEY);
-        self.zone = Zone::spawn(world, scene).expect("the zone was spawned in a world of its own");
-        if changed {
-            self.restart(world);
-        } else {
-            self.set_run(world, has_item, door_open, night);
-        }
-        Ok(changed)
-    }
-
-    /// Takes `scene`, the hero's cooked scene read again after it changed on disk, and spawns it in
-    /// `world` in place of the hero, where the hero stood.
-    ///
-    /// # Errors
-    ///
-    /// When a typed property of a node of `scene` is one that the world's registry refuses
-    /// ([`ResolvedScene::from_cooked`]), or holds a value that its type's check refuses
-    /// ([`World::spawn_scene`]). Nothing changes then.
-    pub fn reload_hero(&mut self, world: &mut World, scene: &CookedScene) -> Result<(), String> {
-        let resolved =
-            ResolvedScene::from_cooked(crate::assets::hero_id(), scene, world.registry())
-                .map_err(|error| error.to_string())?;
-        // Spawned in a world of its own first, so that a value that its type refuses changes nothing.
-        let mut alone = World::new();
-        register(&mut alone);
-        alone
-            .spawn_scene(HERO, &resolved)
-            .map_err(|error| error.to_string())?;
-        let placed = world.get::<Transform>(self.hero).copied();
-        despawn_scene(world, HERO);
-        self.hero = world
-            .spawn_scene(HERO, &resolved)
-            .expect("the identities of the hero before went with it");
-        if let Some(placed) = placed {
-            world.insert(self.hero, placed);
-        }
-        Ok(())
     }
 
     /// Makes a new game start at night, or by day, as `night` says: what [`Game::restart`] does,
@@ -404,7 +346,7 @@ impl Game {
 }
 
 /// Registers each of the game's components in `world`, before any entity holds one.
-fn register(world: &mut World) {
+pub(crate) fn register(world: &mut World) {
     world.register::<Collider>();
     world.register::<Marker>();
     world.register::<TimeOfDay>();
@@ -412,22 +354,6 @@ fn register(world: &mut World) {
     world.register::<Key>();
     world.register::<Door>();
     world.register::<Clock>();
-}
-
-/// Destroys the scene spawned under `key` in `world`: every entity of its identities, its root with
-/// its descendants and those that a save moved out of it, so that the scene can be spawned again.
-fn despawn_scene(world: &mut World, key: &str) {
-    let scene: Vec<Entity> = world
-        .entities()
-        .filter(|&entity| {
-            world
-                .persistent_id(entity)
-                .is_some_and(|id| id.parts()[0] == key)
-        })
-        .collect();
-    for entity in scene {
-        world.despawn(entity);
-    }
 }
 
 /// `position` moved out of every collider that the circle of `radius` around it overlaps.
@@ -451,7 +377,7 @@ fn push_out(mut position: Vec2, radius: f32, colliders: &[Footprint]) -> Vec2 {
 
 #[cfg(test)]
 pub mod tests {
-    use slime_assets::{Extra, SceneLight, SceneNode};
+    use slime_assets::{CookedScene, SceneLight, SceneNode};
     use slime_reflect::{Kind, Leaf, Range, Registry, Value};
     use slime_render::glam::Mat4;
     use slime_world::Component;
@@ -479,12 +405,26 @@ pub mod tests {
         pub door_colliders: Vec<Footprint>,
     }
 
-    /// A node named `name` with the custom values `extras`, placed by `transform`.
+    /// The game's components that a node carries as typed properties, each a type's name and its
+    /// value in the engine's notation, as the cooker encodes them.
+    pub fn typed(components: &[(&str, &str)]) -> Vec<u8> {
+        if components.is_empty() {
+            return Vec::new();
+        }
+        let text: String = components
+            .iter()
+            .map(|(ty, value)| format!("\"{ty}\" = {value}\n"))
+            .collect();
+        slime_serialize::encode(&text).expect("components in the engine's notation")
+    }
+
+    /// A node named `name` with the game's components `components` ([`typed`]), placed by
+    /// `transform`.
     fn node(
         name: &str,
         parent: Option<u32>,
         transform: Mat4,
-        extras: &[(&str, Extra)],
+        components: &[(&str, &str)],
     ) -> SceneNode {
         SceneNode {
             name: name.to_owned(),
@@ -492,17 +432,22 @@ pub mod tests {
             transform: transform.to_cols_array(),
             meshes: Vec::new(),
             light: None,
-            extras: extras
-                .iter()
-                .map(|(name, extra)| ((*name).to_owned(), extra.clone()))
-                .collect(),
-            components: Vec::new(),
+            extras: Vec::new(),
+            components: typed(components),
         }
     }
 
-    /// A marker's custom values.
-    fn marker(kind: &str) -> [(&'static str, Extra); 1] {
-        [("marker", Extra::Text(kind.to_owned()))]
+    /// A marker's component.
+    fn marker(kind: &str) -> [(&'static str, String); 1] {
+        [("hunnawood::Marker", format!("\"{kind}\""))]
+    }
+
+    /// `components` borrowed, as [`node`] takes them.
+    fn borrowed<'a>(components: &'a [(&'static str, String)]) -> Vec<(&'static str, &'a str)> {
+        components
+            .iter()
+            .map(|(ty, value)| (*ty, value.as_str()))
+            .collect()
     }
 
     /// The node of `collider`, placed relative to `origin`, its parent's place.
@@ -513,10 +458,11 @@ pub mod tests {
         collider: &Footprint,
     ) -> SceneNode {
         let (kind, scale, yaw) = match collider.shape {
-            Shape::Box { half_size, yaw } => ("box", Vec3::new(half_size.x, 1.0, half_size.y), yaw),
-            Shape::Cylinder { radius } => ("cylinder", Vec3::new(radius, 1.0, radius), 0.0),
+            Shape::Box { half_size, yaw } => ("Box", Vec3::new(half_size.x, 1.0, half_size.y), yaw),
+            Shape::Cylinder { radius } => ("Cylinder", Vec3::new(radius, 1.0, radius), 0.0),
         };
         let center = collider.center - origin;
+        let value = format!("{{ kind = \"{kind}\", height = {:?} }}", collider.height);
         node(
             name,
             parent,
@@ -526,10 +472,7 @@ pub mod tests {
                 Quat::from_rotation_y(-yaw),
                 Vec3::new(center.x, 0.0, center.y),
             ),
-            &[
-                ("collider", Extra::Text(kind.to_owned())),
-                ("height", Extra::Number(f64::from(collider.height))),
-            ],
+            &[("hunnawood::Collider", &value)],
         )
     }
 
@@ -538,8 +481,37 @@ pub mod tests {
         Mat4::from_translation(Vec3::new(place.x, 0.0, place.y))
     }
 
+    /// A library of the zone `zone`, under the zone's ID, and of a hero that draws nothing.
+    pub fn library(zone: CookedScene) -> SceneLibrary {
+        let mut scenes = SceneLibrary::new();
+        scenes.insert_cooked(crate::assets::zone_id(), zone);
+        scenes.insert_cooked(crate::assets::hero_id(), no_hero());
+        scenes
+    }
+
+    /// A game of `scenes`, in a world of its own, started at night or by day as `night` says.
+    fn play(scenes: &mut SceneLibrary, night: bool) -> (World, Game) {
+        let mut world = World::new();
+        let game = Game::spawn(&mut world, scenes, night).expect("the zone can be played");
+        (world, game)
+    }
+
+    /// The run of `world`, after the scene `id` of `scenes`, the scenes of its game, became
+    /// `scene`, as hot reload takes it ([`saves::reload`]).
+    fn reload(
+        world: &mut World,
+        scenes: &mut SceneLibrary,
+        id: slime_assets::AssetId,
+        scene: CookedScene,
+    ) -> Result<saves::Reloaded, String> {
+        let before = saves::start(scenes).expect("the scenes before can be played");
+        scenes.insert_cooked(id, scene);
+        saves::reload(world, &before, scenes, false)
+    }
+
     impl Plan {
-        /// The cooked scene of this zone, as the zone's export holds one.
+        /// The cooked scene of this zone, as a glTF file's holds one, its nodes carrying the game's
+        /// components.
         pub fn scene(&self) -> CookedScene {
             let facing = Vec3::new(self.facing.x, 0.0, self.facing.y);
             let mut nodes = vec![
@@ -551,18 +523,28 @@ pub mod tests {
                         Quat::from_rotation_y((-facing.x).atan2(-facing.z)),
                         Vec3::new(self.start.x, 0.0, self.start.y),
                     ),
-                    &marker("start"),
+                    &borrowed(&marker("Start")),
                 ),
-                node("item", None, at(self.item), &marker("item")),
-                node("campfire", None, at(self.campfire), &marker("campfire")),
-                node("terrace", None, at(self.terrace), &marker("terrace")),
+                node("item", None, at(self.item), &borrowed(&marker("Item"))),
+                node(
+                    "campfire",
+                    None,
+                    at(self.campfire),
+                    &borrowed(&marker("Campfire")),
+                ),
+                node(
+                    "terrace",
+                    None,
+                    at(self.terrace),
+                    &borrowed(&marker("Terrace")),
+                ),
                 node(
                     "bounds",
                     None,
                     Mat4::from_scale(Vec3::new(self.half_size.x, 1.0, self.half_size.y)),
-                    &marker("bounds"),
+                    &borrowed(&marker("Bounds")),
                 ),
-                node("door", None, at(self.door), &marker("door")),
+                node("door", None, at(self.door), &borrowed(&marker("Door"))),
             ];
             let door = (nodes.len() - 1) as u32;
             for (index, collider) in self.door_colliders.iter().enumerate() {
@@ -579,12 +561,14 @@ pub mod tests {
             }
         }
 
+        /// A library of this zone's scene and of a hero that draws nothing ([`library`]).
+        pub fn scenes(&self) -> SceneLibrary {
+            library(self.scene())
+        }
+
         /// A game in this zone, in a world of its own, with a hero that draws nothing.
         pub fn play(&self) -> (World, Game) {
-            let mut world = World::new();
-            let game = Game::spawn(&mut world, &self.scene(), &no_hero(), false)
-                .expect("the zone can be played");
-            (world, game)
+            play(&mut self.scenes(), false)
         }
     }
 
@@ -731,8 +715,10 @@ pub mod tests {
 
     #[test]
     fn a_change_of_layout_starts_the_run_again_and_a_change_of_looks_does_not() {
+        let zone = crate::assets::zone_id();
         let plan = walled([5.0, 0.0]);
-        let (mut world, mut game) = plan.play();
+        let mut scenes = plan.scenes();
+        let (mut world, game) = play(&mut scenes, false);
         let first = game.hero(&world);
         hold(&game, &mut world, Vec2::X, 2.0);
         assert!(game.has_item(&world));
@@ -747,46 +733,51 @@ pub mod tests {
             range: None,
         });
         looks.nodes.push(lamp);
-        let zone = *game.zone();
-        assert!(!game.reload_zone(&mut world, &looks).expect("playable"));
-        assert_ne!(*game.zone(), zone, "the zone was spawned again");
-        assert!(!world.contains(zone.root));
+        let reloaded = reload(&mut world, &mut scenes, zone, looks).expect("playable");
+        assert!(!reloaded.restarted);
+        let (mut world, game) = (reloaded.world, reloaded.game);
+        let lamp = slime_world::PersistentId::new(["zone", "lamp"]);
+        assert!(world.find(&lamp).is_some(), "the zone was spawned again");
         assert_eq!(game.hero(&world), hero);
         assert!(game.has_item(&world) && world.is_hidden(game.zone().item));
         // A wall moved: the run starts again, in the new zone.
         let mut moved = plan.clone();
         moved.colliders[0].center.x = 11.0;
-        assert!(
-            game.reload_zone(&mut world, &moved.scene())
-                .expect("playable")
-        );
+        let reloaded = reload(&mut world, &mut scenes, zone, moved.scene()).expect("playable");
+        assert!(reloaded.restarted);
+        let (mut world, game) = (reloaded.world, reloaded.game);
         assert_eq!(game.hero(&world), first);
         assert!(!game.has_item(&world));
         let (alone, moved_game) = moved.play();
         assert_eq!(game.zone().layout(&world), moved_game.zone().layout(&alone));
         // A zone that cannot be played, without a start, changes nothing.
-        let zone = *game.zone();
         let mut broken = moved.scene();
-        broken.nodes[0].extras.clear();
-        let error = game.reload_zone(&mut world, &broken).expect_err("no start");
+        broken.nodes[0].components.clear();
+        let Err(error) = reload(&mut world, &mut scenes, zone, broken) else {
+            panic!("a zone without a start is played");
+        };
         assert!(error.contains("0 markers `start`"), "{error}");
-        assert_eq!(*game.zone(), zone);
-        assert!(world.contains(zone.root));
+        assert!(world.contains(game.zone().root));
+        hold(&game, &mut world, Vec2::X, 1.0);
     }
 
     #[test]
     fn a_change_of_looks_keeps_the_key_the_door_and_the_night() {
         let plan = walled([5.0, 0.0]);
-        let mut world = World::new();
-        let mut game = Game::spawn(&mut world, &plan.scene(), &no_hero(), true).expect("playable");
+        let mut scenes = plan.scenes();
+        let (mut world, game) = play(&mut scenes, true);
         hold(&game, &mut world, Vec2::X, 6.0);
         assert!(game.door_open(&world) && game.night(&world));
         let hero = game.hero(&world);
-        assert!(
-            !game
-                .reload_zone(&mut world, &plan.scene())
-                .expect("playable")
-        );
+        let reloaded = reload(
+            &mut world,
+            &mut scenes,
+            crate::assets::zone_id(),
+            plan.scene(),
+        )
+        .expect("playable");
+        assert!(!reloaded.restarted);
+        let (world, game) = (reloaded.world, reloaded.game);
         assert_eq!(game.hero(&world), hero);
         assert!(game.has_item(&world) && game.door_open(&world) && game.night(&world));
         assert_eq!(
@@ -797,15 +788,49 @@ pub mod tests {
     }
 
     #[test]
+    fn a_collider_changed_through_the_world_panel_does_not_start_the_run_again() {
+        let plan = walled([5.0, 0.0]);
+        let mut scenes = plan.scenes();
+        let (mut world, game) = play(&mut scenes, false);
+        hold(&game, &mut world, Vec2::X, 2.0);
+        // As the world panel changes it: a wall made higher, which the layout counts.
+        let (wall, _) = world.query::<&Collider>().next().expect("a collider");
+        let wall = world.persistent_id(wall).expect("an identity").clone();
+        world
+            .set_property(
+                world.find(&wall).expect("the wall"),
+                "hunnawood::Collider",
+                &"height".parse().expect("a path"),
+                Value::F32(9.0),
+            )
+            .expect("a height");
+        let hero = game.hero(&world);
+        let reloaded = reload(
+            &mut world,
+            &mut scenes,
+            crate::assets::zone_id(),
+            plan.scene(),
+        )
+        .expect("playable");
+        assert!(!reloaded.restarted, "the run goes on");
+        let world = reloaded.world;
+        assert_eq!(reloaded.game.hero(&world), hero);
+        let wall = world.find(&wall).expect("the wall, spawned again");
+        assert_eq!(world.get::<Collider>(wall).map(|c| c.height), Some(9.0));
+    }
+
+    #[test]
     fn a_hero_changed_on_disk_is_spawned_again_where_it_stood() {
-        let (mut world, mut game) = zone([0.0, 0.0], Vec::new()).play();
+        let mut scenes = zone([0.0, 0.0], Vec::new()).scenes();
+        let (mut world, game) = play(&mut scenes, false);
         hold(&game, &mut world, Vec2::new(1.0, 1.0), 1.0);
         let hero = game.hero(&world);
-        let before = game.hero_entity();
         let mut scene = no_hero();
         scene.nodes.push(node("cloak", None, Mat4::IDENTITY, &[]));
-        game.reload_hero(&mut world, &scene).expect("resolved");
-        assert!(!world.contains(before));
+        let reloaded =
+            reload(&mut world, &mut scenes, crate::assets::hero_id(), scene).expect("resolved");
+        assert!(!reloaded.restarted);
+        let (mut world, game) = (reloaded.world, reloaded.game);
         assert_eq!(game.hero(&world), hero);
         let cloak = world
             .find(&slime_world::PersistentId::new(["hero", "cloak"]))
@@ -818,17 +843,20 @@ pub mod tests {
 
     #[test]
     fn a_hero_whose_typed_properties_are_refused_stays_as_it_was() {
-        let (mut world, mut game) = zone([0.0, 0.0], Vec::new()).play();
+        let mut scenes = zone([0.0, 0.0], Vec::new()).scenes();
+        let (mut world, game) = play(&mut scenes, false);
         let before = game.hero_entity();
         let mut scene = no_hero();
         let mut cloak = node("cloak", None, Mat4::IDENTITY, &[]);
         // Typed properties that are not the binary encoding of a document.
         cloak.components = b"not a document".to_vec();
         scene.nodes.push(cloak);
-        let error = game.reload_hero(&mut world, &scene).expect_err("refused");
+        let Err(error) = reload(&mut world, &mut scenes, crate::assets::hero_id(), scene) else {
+            panic!("a hero that cannot be resolved is spawned");
+        };
         assert!(error.contains("`cloak`"), "{error}");
-        assert_eq!(game.hero_entity(), before);
         assert!(world.contains(before));
+        assert_eq!(game.hero_entity(), before);
     }
 
     #[test]
@@ -842,20 +870,25 @@ pub mod tests {
         };
         let cases: [(CookedScene, &str); 5] = [
             (
-                with(&|scene| scene.nodes[collider].extras[0].1 = Extra::Text("cone".to_owned())),
-                "is a `cone`",
-            ),
-            (
-                with(&|scene| scene.nodes[collider].extras.truncate(1)),
-                "has no height",
+                with(&|scene| {
+                    scene.nodes[collider].components =
+                        typed(&[("hunnawood::Collider", "{ kind = \"Cone\", height = 2.0 }")]);
+                }),
+                "`Cone`",
             ),
             (
                 with(&|scene| {
-                    scene.nodes[collider]
-                        .extras
-                        .push(("time".to_owned(), Extra::Text("dusk".to_owned())));
+                    scene.nodes[collider].components =
+                        typed(&[("hunnawood::Collider", "{ kind = \"Box\" }")]);
                 }),
-                "shines at `dusk`",
+                "`height`",
+            ),
+            (
+                with(&|scene| {
+                    scene.nodes[collider].components =
+                        typed(&[("hunnawood::TimeOfDay", "\"Dusk\"")]);
+                }),
+                "`Dusk`",
             ),
             (
                 with(&|scene| {
@@ -866,13 +899,14 @@ pub mod tests {
                 "2 markers `start`",
             ),
             (
-                with(&|scene| scene.nodes[1].extras.clear()),
+                with(&|scene| scene.nodes[1].components.clear()),
                 "0 markers `item`",
             ),
         ];
         for (scene, why) in cases {
             let mut world = World::new();
-            let error = Zone::spawn(&mut world, &scene).expect_err(why);
+            register(&mut world);
+            let error = Zone::spawn(&mut world, &mut library(scene)).expect_err(why);
             assert!(error.contains(why), "{error}");
             assert!(world.is_empty(), "{why}: something was left");
         }
@@ -898,9 +932,7 @@ pub mod tests {
 
     #[test]
     fn a_game_started_at_night_starts_again_at_night() {
-        let mut world = World::new();
-        let scene = walled([0.0, 30.0]).scene();
-        let game = Game::spawn(&mut world, &scene, &no_hero(), true).expect("playable");
+        let (mut world, game) = play(&mut walled([0.0, 30.0]).scenes(), true);
         assert!(game.night(&world));
         hold(&game, &mut world, -Vec2::Y, 2.8);
         assert!(game.rest(&mut world) && !game.night(&world));
@@ -976,7 +1008,10 @@ pub mod tests {
             "fire",
             None,
             at(plan.campfire),
-            &[("time", Extra::Text("night".to_owned()))],
+            &[
+                ("hunnawood::TimeOfDay", "\"Night\""),
+                ("hunnawood::Flickers", "{ intensity = 120.0 }"),
+            ],
         );
         fire.light = Some(SceneLight {
             kind: slime_assets::LightKind::Point,
@@ -985,9 +1020,7 @@ pub mod tests {
             range: None,
         });
         scene.nodes.push(fire);
-        let mut world = World::new();
-        let game = Game::spawn(&mut world, &scene, &no_hero(), true).expect("playable");
-        (world, game)
+        play(&mut library(scene), true)
     }
 
     #[test]
@@ -1051,13 +1084,7 @@ pub mod tests {
         );
         let spawned = |scenes: &mut SceneLibrary| {
             let mut world = World::new();
-            world.register::<Collider>();
-            world.register::<Marker>();
-            world.register::<TimeOfDay>();
-            world.register::<Flickers>();
-            world.register::<Key>();
-            world.register::<Door>();
-            world.register::<Clock>();
+            register(&mut world);
             let scene = scenes.resolve(world.registry(), yard).expect("resolved");
             let root = world.spawn_scene("yard", &scene).expect("spawned");
             (world, root)
@@ -1078,18 +1105,18 @@ pub mod tests {
     }
 
     #[test]
-    fn the_lights_of_the_other_time_of_day_are_hidden_and_the_moon_shows_in_the_sky() {
+    fn the_lights_of_the_other_time_of_day_are_hidden() {
         let mut scene = walled([0.0, 30.0]).scene();
         for (name, time, kind) in [
-            ("sun", "day", slime_assets::LightKind::Directional),
-            ("moon", "night", slime_assets::LightKind::Directional),
-            ("lantern", "night", slime_assets::LightKind::Point),
+            ("sun", "\"Day\"", slime_assets::LightKind::Directional),
+            ("moon", "\"Night\"", slime_assets::LightKind::Directional),
+            ("lantern", "\"Night\"", slime_assets::LightKind::Point),
         ] {
             let mut light = node(
                 name,
                 None,
                 at(Vec2::ZERO),
-                &[("time", Extra::Text(time.to_owned()))],
+                &[("hunnawood::TimeOfDay", time)],
             );
             light.light = Some(SceneLight {
                 kind,
@@ -1099,24 +1126,13 @@ pub mod tests {
             });
             scene.nodes.push(light);
         }
-        let mut world = World::new();
-        let game = Game::spawn(&mut world, &scene, &no_hero(), false).expect("playable");
+        let (mut world, game) = play(&mut library(scene), false);
         let find = |world: &World, name: &str| {
             world
                 .find(&slime_world::PersistentId::new(["zone", name]))
                 .expect("spawned")
         };
         let [sun, moon, lantern] = ["sun", "moon", "lantern"].map(|name| find(&world, name));
-        let in_sky = |entity| {
-            matches!(
-                world.get::<slime_world::Light>(entity),
-                Some(slime_world::Light::Directional { in_sky: true, .. })
-            )
-        };
-        assert!(
-            in_sky(moon) && !in_sky(sun),
-            "the sun stays behind the clouds"
-        );
         assert!(!world.is_hidden(sun) && world.is_hidden(moon) && world.is_hidden(lantern));
         hold(&game, &mut world, -Vec2::Y, 2.8);
         assert!(game.rest(&mut world));
@@ -1495,13 +1511,13 @@ pub mod tests {
     /// [`walk_to_the_portal_at_night`].
     const FIXTURE: &str = include_str!("../fixtures/save.toml");
 
-    /// The cooked scenes of the zone and the hero.
-    fn cooked_scenes() -> (CookedScene, CookedScene) {
-        let (assets, zone) = crate::zone::cooked::zone();
-        let hero = assets
-            .scene(crate::assets::hero_id())
-            .expect("the hero is cooked");
-        (zone, hero)
+    /// The fixture of 0.3, made on the zone before it was made of prefabs: a save of another
+    /// layout, whose identities name entities that are no longer there, or others.
+    const FIXTURE_0_3: &str = include_str!("../fixtures/save-0.3.toml");
+
+    /// The scenes of the cooked data: the zone's, those it places and the hero's.
+    fn cooked_scenes() -> SceneLibrary {
+        crate::zone::cooked::zone().1
     }
 
     /// Walks the hero from the start along the path to the campfire, rests there until the night,
@@ -1535,14 +1551,14 @@ pub mod tests {
     #[test]
     #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
     fn a_walk_at_night_saved_and_resumed_takes_the_key_and_opens_the_door() {
-        let (zone, hero) = cooked_scenes();
-        let (mut played, game) = saves::start(&zone, &hero).expect("the zone is whole");
+        let mut scenes = cooked_scenes();
+        let (mut played, game) = saves::start(&mut scenes).expect("the zone is whole");
         let first = game.hero(&played);
         walk_to_the_portal_at_night(&game, &mut played);
         // Saved there, and resumed in a new game: the same run, which goes on.
-        let text = saves::save(&mut played, &zone, &hero).expect("saved");
-        let start = saves::start(&zone, &hero).expect("the zone is whole");
-        let (mut world, game, loaded) = saves::resume(&text, start).expect("resumed");
+        let text = saves::save(&mut played, &mut scenes).expect("saved");
+        let start = saves::start(&mut scenes).expect("the zone is whole");
+        let (mut world, game, loaded) = saves::resume(&text, start, &mut scenes).expect("resumed");
         assert!(
             loaded.set_aside.is_empty() && loaded.scenes_changed.is_empty(),
             "{loaded:?}"
@@ -1563,9 +1579,9 @@ pub mod tests {
     #[test]
     #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
     fn the_save_committed_as_a_fixture_is_resumed_and_its_walk_goes_on() {
-        let (zone, hero) = cooked_scenes();
-        let start = saves::start(&zone, &hero).expect("the zone is whole");
-        let (mut world, game, loaded) = saves::resume(FIXTURE, start)
+        let mut scenes = cooked_scenes();
+        let start = saves::start(&mut scenes).expect("the zone is whole");
+        let (mut world, game, loaded) = saves::resume(FIXTURE, start, &mut scenes)
             .expect("the fixture is resumed; if the zone's layout changed, make it again (README)");
         assert!(
             loaded.set_aside.is_empty() && loaded.warnings.is_empty(),
@@ -1577,9 +1593,20 @@ pub mod tests {
 
     #[test]
     #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
+    fn the_fixture_of_0_3_is_a_save_of_another_layout() {
+        let mut scenes = cooked_scenes();
+        let start = saves::start(&mut scenes).expect("the zone is whole");
+        assert!(matches!(
+            saves::resume(FIXTURE_0_3, start, &mut scenes),
+            Err(saves::NotResumed::OtherLayout)
+        ));
+    }
+
+    #[test]
+    #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
     fn a_run_saved_and_resumed_in_a_new_game_goes_on_the_same() {
-        let (zone, hero) = cooked_scenes();
-        let (mut played, game) = saves::start(&zone, &hero).expect("the zone is whole");
+        let mut scenes = cooked_scenes();
+        let (mut played, game) = saves::start(&mut scenes).expect("the zone is whole");
         walk(&game, &mut played, &TO_THE_CHAPEL[..7]);
         // An entity removed, a value changed, a component added.
         let find = |world: &World, id: &str| world.find(&id.parse().expect("an identity"));
@@ -1591,7 +1618,7 @@ pub mod tests {
         let tree = tree.expect("an oak");
         let tree_id = played.persistent_id(tree).expect("an identity");
         played.despawn(tree);
-        let lantern = find(&played, "zone/lantern 1").expect("the first lantern's light");
+        let lantern = find(&played, "zone/lantern 1/light").expect("the first lantern's light");
         played
             .set_property(
                 lantern,
@@ -1601,9 +1628,10 @@ pub mod tests {
             )
             .expect("dimmed");
         played.insert(game.zone().item, Hidden);
-        let text = saves::save(&mut played, &zone, &hero).expect("saved");
-        let start = saves::start(&zone, &hero).expect("the zone is whole");
-        let (mut resumed, resumed_game, loaded) = saves::resume(&text, start).expect("resumed");
+        let text = saves::save(&mut played, &mut scenes).expect("saved");
+        let start = saves::start(&mut scenes).expect("the zone is whole");
+        let (mut resumed, resumed_game, loaded) =
+            saves::resume(&text, start, &mut scenes).expect("resumed");
         assert!(loaded.set_aside.is_empty(), "{:?}", loaded.set_aside);
         assert!(loaded.scenes_changed.is_empty() && loaded.warnings.is_empty());
         assert!(
@@ -1611,7 +1639,7 @@ pub mod tests {
             "the oak is gone"
         );
         assert_eq!(played.first_difference(&resumed), None, "{text}");
-        let again = saves::save(&mut resumed, &zone, &hero).expect("saved again");
+        let again = saves::save(&mut resumed, &mut scenes).expect("saved again");
         assert_eq!(again, text, "the same bytes");
         // The same input, step by step, gives both runs the same state.
         for index in 0..300u32 {

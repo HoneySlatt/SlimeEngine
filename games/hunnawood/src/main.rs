@@ -43,12 +43,12 @@ use std::time::{Duration, Instant};
 
 use slime_app::time::FrameTime;
 use slime_app::{App, AppConfig, AppError, Context};
-use slime_assets::{AssetId, CookedAssets, CookedScene, ManifestWatch};
+use slime_assets::{CookedAssets, ManifestWatch};
 use slime_gfx::RenderTarget;
 use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, WindowConfig};
 use slime_render::glam::Vec2;
 use slime_render::{RenderStats, ShaderSources, ShaderWatch};
-use slime_world::World;
+use slime_world::{SceneLibrary, World};
 
 use camera::FollowCamera;
 use controls::Controls;
@@ -68,9 +68,9 @@ struct HunnaWood {
     /// to the engine, which keeps it (`Context::world_mut`).
     world: Option<World>,
     game: Game,
-    /// The cooked scenes of the zone and the hero, of which a new game by day is made, which saves
-    /// differ from.
-    scenes: Scenes,
+    /// The scenes of the cooked data, the zone's, those it places and the hero's, of which a new
+    /// game by day is made, which saves differ from: the scenes of the run in the world.
+    scenes: SceneLibrary,
     /// The save's file, or why the run is not saved: the environment gives no data directory and
     /// `--save` names no file, or the save there can be neither read nor set aside.
     save_file: Result<PathBuf, String>,
@@ -133,7 +133,7 @@ impl HunnaWood {
     /// its data again when it changes; saving to `save_file`.
     fn new(
         assets: CookedAssets,
-        scenes: Scenes,
+        scenes: SceneLibrary,
         (world, game): (World, Game),
         save_file: Result<PathBuf, String>,
         options: &Options,
@@ -165,7 +165,7 @@ impl HunnaWood {
     }
 
     /// Saves the run to the save's file, as F5 asks and as quitting does.
-    fn save(&self, world: &mut World) {
+    fn save(&mut self, world: &mut World) {
         let file = match &self.save_file {
             Ok(file) => file,
             Err(why) => {
@@ -173,7 +173,7 @@ impl HunnaWood {
                 return;
             }
         };
-        let saved = saves::save(world, &self.scenes.zone, &self.scenes.hero)
+        let saved = saves::save(world, &mut self.scenes)
             .and_then(|text| saves::write(file, &text).map_err(|error| error.to_string()));
         match saved {
             Ok(()) => log_run(
@@ -196,7 +196,7 @@ impl HunnaWood {
                 return;
             }
         };
-        match resume_from(&file, &self.scenes) {
+        match resume_from(&file, &mut self.scenes) {
             Resume::Run(run) => {
                 let (world, mut game) = *run;
                 game.set_starts_at_night(self.starts_at_night);
@@ -214,60 +214,58 @@ impl HunnaWood {
         }
     }
 
-    /// Takes `assets`, the cooked data read again after it changed: the zone and the hero are
-    /// spawned again in the world if their scenes changed, and the view loads again what changed.
-    /// The game starts again if the zone's layout changed, the camera with it. A zone or a hero
-    /// that cannot be read changes nothing: the data before stays.
+    /// Takes `assets`, the cooked data read again after it changed: when scenes changed, the
+    /// zone's, those it places or the hero's, the run is carried into a new game of the scenes as
+    /// they are now, or starts again in it when the zone's layout changed, the camera with it
+    /// ([`saves::reload`]); the view loads again what changed. Scenes that cannot be played change
+    /// nothing: the library goes back to the scenes of the run, and the view keeps what it draws.
     fn take_assets(&mut self, ctx: &mut Context, assets: CookedAssets) {
-        let changed = |id: AssetId| {
-            let file = |assets: &CookedAssets| assets.manifest().get(id).map(|e| e.file.clone());
-            file(&self.assets) != file(&assets)
-        };
-        let scene = |id: AssetId| -> Result<Option<CookedScene>, String> {
-            if !changed(id) {
-                return Ok(None);
-            }
-            assets
-                .scene(id)
-                .map(Some)
-                .map_err(|error| error.to_string())
-        };
-        let scenes =
-            scene(assets::zone_id()).and_then(|zone| Ok((zone, scene(assets::hero_id())?)));
-        let (zone, hero) = match scenes {
-            Ok(scenes) => scenes,
-            Err(error) => {
-                tracing::warn!("the cooked data cannot be played: {error}; it stays as it was");
-                return;
-            }
-        };
-        if let Some(zone) = zone {
-            match self.game.reload_zone(ctx.world_mut(), &zone) {
-                Ok(true) => {
-                    let (_, facing) = self.game.zone().start(ctx.world());
-                    self.camera = FollowCamera::looking_along(facing);
-                    tracing::info!("the zone's layout changed: the run starts again");
-                }
-                Ok(false) => tracing::info!("the zone changed, and the run goes on"),
+        // The new game of the scenes before they changed, which the run differs from.
+        let before = saves::start(&mut self.scenes);
+        let changed = self.scenes.reload(assets.clone());
+        if !changed.is_empty() {
+            let reloaded = before.and_then(|before| {
+                saves::reload(
+                    ctx.world_mut(),
+                    &before,
+                    &mut self.scenes,
+                    self.starts_at_night,
+                )
+            });
+            let reloaded = match reloaded {
+                Ok(reloaded) => reloaded,
                 Err(error) => {
+                    self.scenes.reload(self.assets.clone());
                     tracing::warn!(
-                        "the zone loaded again cannot be played: {error}; it stays as it was"
+                        "the scenes loaded again cannot be played: {error}; they stay as they were"
                     );
                     return;
                 }
+            };
+            if reloaded.restarted {
+                let (_, facing) = reloaded.game.zone().start(&reloaded.world);
+                self.camera = FollowCamera::looking_along(facing);
+                tracing::info!("the zone's layout changed: the run starts again");
+            } else {
+                tracing::info!(
+                    scenes = changed.len(),
+                    "the scenes changed, and the run goes on"
+                );
             }
-            self.scenes.zone = zone;
-        }
-        if let Some(hero) = hero {
-            match self.game.reload_hero(ctx.world_mut(), &hero) {
-                Ok(()) => {
-                    tracing::info!("the hero changed, and is spawned again where it stood");
-                    self.scenes.hero = hero;
-                }
-                Err(error) => tracing::warn!(
-                    "the hero loaded again cannot be played: {error}; it stays as it was"
-                ),
+            for aside in reloaded.loaded.iter().flat_map(|loaded| &loaded.set_aside) {
+                tracing::warn!(
+                    entity = aside.entity,
+                    component = aside.component,
+                    "set aside from the run: {}",
+                    aside.reason
+                );
             }
+            // The panel's entity is a handle of the world replaced.
+            if let Some(overlay) = &mut self.overlay {
+                overlay.forget_world();
+            }
+            *ctx.world_mut() = reloaded.world;
+            self.game = reloaded.game;
         }
         if let (Some(gpu), Some(view)) = (ctx.gpu(), &mut self.view) {
             view.reload(gpu, assets.clone());
@@ -600,15 +598,11 @@ fn main() -> ExitCode {
     let loaded = CookedAssets::open(&directory)
         .map_err(|error| error.to_string())
         .and_then(|cooked| {
-            let scene = |id| cooked.scene(id).map_err(|error| error.to_string());
-            let scenes = Scenes {
-                zone: scene(assets::zone_id())?,
-                hero: scene(assets::hero_id())?,
-            };
-            let start = saves::start(&scenes.zone, &scenes.hero)?;
+            let mut scenes = SceneLibrary::of(cooked.clone());
+            let start = saves::start(&mut scenes)?;
             Ok((cooked, scenes, start))
         });
-    let (cooked, scenes, (mut world, mut game)) = match loaded {
+    let (cooked, mut scenes, (mut world, mut game)) = match loaded {
         Ok(loaded) => loaded,
         Err(error) => {
             eprintln!(
@@ -627,7 +621,7 @@ fn main() -> ExitCode {
             "the environment gives no data directory, and --save names no file".to_owned()
         });
     let resumed = match &save_file {
-        Ok(file) if !options.new => resume_from(file, &scenes),
+        Ok(file) if !options.new => resume_from(file, &mut scenes),
         _ => Resume::Nothing,
     };
     let new_run = !matches!(resumed, Resume::Run(..));
@@ -659,12 +653,6 @@ fn main() -> ExitCode {
     }
 }
 
-/// The cooked scenes of the game: the zone's and the hero's.
-struct Scenes {
-    zone: CookedScene,
-    hero: CookedScene,
-}
-
 /// What the save's file gives a run.
 enum Resume {
     /// The run of the save, resumed in a new game.
@@ -680,7 +668,7 @@ enum Resume {
 /// The run of the save in `file`, resumed in a new game of `scenes`, if the file holds one that
 /// can be resumed; logged either way. A save that cannot be read, or made on another layout of the
 /// zone, is set aside ([`saves::set_aside`]), so that the next save does not write over it.
-fn resume_from(file: &Path, scenes: &Scenes) -> Resume {
+fn resume_from(file: &Path, scenes: &mut SceneLibrary) -> Resume {
     let shown = file.display();
     let text = match std::fs::read_to_string(file) {
         Ok(text) => text,
@@ -690,7 +678,7 @@ fn resume_from(file: &Path, scenes: &Scenes) -> Resume {
         }
         Err(error) => return set_aside(file, "unreadable", &error.to_string()),
     };
-    let start = match saves::start(&scenes.zone, &scenes.hero) {
+    let start = match saves::start(scenes) {
         Ok(start) => start,
         Err(error) => {
             tracing::warn!(
@@ -699,7 +687,7 @@ fn resume_from(file: &Path, scenes: &Scenes) -> Resume {
             return Resume::Keep;
         }
     };
-    match saves::resume(&text, start) {
+    match saves::resume(&text, start, scenes) {
         Ok((world, game, loaded)) => {
             for scene in &loaded.scenes_changed {
                 tracing::info!("the scene `{scene}` changed since the save");
@@ -899,5 +887,24 @@ mod tests {
         }
         let hero = game.hero(&world).position;
         assert!(hero.x > 0.5, "{hero}");
+    }
+
+    #[test]
+    #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
+    fn a_save_of_another_layout_is_set_aside_and_a_new_run_starts() {
+        let directory =
+            std::env::temp_dir().join(format!("hunnawood-0.3-save-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).expect("a directory");
+        let file = directory.join("save.toml");
+        std::fs::write(&file, include_str!("../fixtures/save-0.3.toml")).expect("written");
+        let mut scenes = zone::cooked::zone().1;
+        assert!(matches!(resume_from(&file, &mut scenes), Resume::Nothing));
+        assert!(!file.exists(), "set aside");
+        let aside = directory.join("save.toml.other-layout");
+        assert_eq!(
+            std::fs::read_to_string(&aside).expect("set aside"),
+            include_str!("../fixtures/save-0.3.toml")
+        );
+        std::fs::remove_dir_all(&directory).expect("removed");
     }
 }

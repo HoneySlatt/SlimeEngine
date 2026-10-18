@@ -1,8 +1,9 @@
 """The models taken from Poly Haven, made lighter where they are too heavy for a game, and the props
-made here: the lanterns' posts, the campfire, the sealed door and the key."""
+made here: the lantern on its post, the campfire, the sealed door and the key."""
 
 import math
 
+import bmesh
 import bpy
 from mathutils import Euler, Matrix, Vector
 
@@ -29,7 +30,9 @@ class Models:
         before = set(bpy.data.objects)
         bpy.ops.import_scene.gltf(filepath=path)
         meshes = {}
-        for obj in set(bpy.data.objects) - before:
+        # By name: a set's order changes from one run to the next, and with it which mesh each
+        # placement of `meshes[i % n]` takes.
+        for obj in sorted(set(bpy.data.objects) - before, key=lambda o: o.name):
             if obj.type != "MESH":
                 bpy.data.objects.remove(obj)
                 continue
@@ -105,33 +108,58 @@ def lantern_glass(models):
                 mat["glowing"] = True
 
 
-def lanterns(place, models, wood):
-    """A post with an arm at each of the lanterns' places, a lantern hanging from the arm, and the
-    lantern's light at night: a spot light aimed down, warm, which casts shadows."""
+def lantern(models, wood):
+    """A lantern on a post, the zone's prefab, which its scene file places six times: the post at
+    the origin, its arm reaching 0.8 m north, along +y; the lantern hanging from the arm, its glass
+    a node of its own, `glass`, so that a placement can remove it; its collider; and its light at
+    night, `light`, a spot light aimed down, warm, which casts shadows. Every node is named for
+    what it is, as the scene file names its parts: `lantern 5/glass`."""
     meshes = models.load("wooden_lantern_01", "1k", 3000)
     lantern_glass(models)
-    objects, colliders, lights = [], [], []
-    for k, post in enumerate(place["lanterns"]["posts"]):
-        x, y = post["at"]
-        facing = math.radians(post["facing"])
-        # The arm reaches 0.8 m towards the side the post faces: north turned by `facing`.
-        reach = Vector((-math.sin(facing), math.cos(facing), 0.0)) * 0.8
-        parts = [ruins.box("post", (x - 0.09, y - 0.09, 0.0), (x + 0.09, y + 0.09, 2.6), wood)]
-        end = Vector((x, y, 2.45)) + reach
-        low = Vector((min(x, end.x) - 0.05, min(y, end.y) - 0.05, 2.4))
-        high = Vector((max(x, end.x) + 0.05, max(y, end.y) + 0.05, 2.5))
-        parts.append(ruins.box("arm", low, high, wood))
-        post_obj = common.join(parts, f"lantern post {k + 1}")
-        common.world_box_uvs(post_obj, 1.0)
-        objects.append(post_obj)
-        hang = end - Vector((0.0, 0.0, 0.62))
-        for name, mesh in meshes.items():
-            objects.append(models.place(mesh, f"lantern {k + 1} {name}", hang, scale=1.5, as_part=True))
-        colliders.append(common.collider_cylinder(f"lantern post {k + 1}", (x, y), 0.25, 2.6))
-        lights.append(common.light(f"lantern {k + 1}", "SPOT", "night", hang + Vector((0, 0, 0.3)),
-                                   (0.0, 0.0, -1.0), (1.0, 0.66, 0.36), 140.0,
-                                   cone=(math.radians(62), math.radians(35))))
-    return objects, colliders, lights
+    parts = [ruins.box("post", (-0.09, -0.09, 0.0), (0.09, 0.09, 2.6), wood),
+             ruins.box("arm", (-0.05, -0.05, 2.4), (0.05, 0.85, 2.5), wood)]
+    post = common.join(parts, "post")
+    common.world_box_uvs(post, 1.0)
+    hang = Vector((0.0, 0.8, 2.45 - 0.62))
+    glass = []
+    for name, mesh in meshes.items():
+        # wooden_lantern_01, wooden_lantern_01_door, wooden_lantern_01_handle.
+        part = name.removeprefix("wooden_lantern_01").lstrip("_") or "body"
+        obj = models.place(mesh, part, hang, scale=1.5, as_part=True)
+        if any(m and "glass" in m.name for m in obj.data.materials):
+            glass.append(split_material(obj, "glass", f"{part} glass"))
+    if len(glass) > 1:
+        common.join(glass, "glass")
+    else:
+        glass[0].name = "glass"
+    common.collider_cylinder("post", (0.0, 0.0), 0.25, 2.6)
+    common.light("light", "SPOT", "night", hang + Vector((0, 0, 0.3)), (0.0, 0.0, -1.0),
+                 (1.0, 0.66, 0.36), 140.0, cone=(math.radians(62), math.radians(35)))
+
+
+def split_material(obj, word, name):
+    """Moves the faces of `obj` whose material's name holds `word` into an object of their own,
+    named `name`, at the same place: `obj` keeps the others. Each keeps only the materials that its
+    faces use, so that the exporter writes no empty primitive."""
+    obj.data = obj.data.copy()
+    apart = bpy.data.objects.new(name, obj.data.copy())
+    bpy.context.scene.collection.objects.link(apart)
+    apart.matrix_world = obj.matrix_world
+    for target, keep in ((obj, False), (apart, True)):
+        mesh = target.data
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
+        chosen = {i for i, m in enumerate(mesh.materials) if m and word in m.name}
+        bmesh.ops.delete(bm, geom=[f for f in bm.faces if (f.material_index in chosen) != keep],
+                         context="FACES")
+        bm.to_mesh(mesh)
+        bm.free()
+        bpy.ops.object.select_all(action="DESELECT")
+        bpy.context.view_layer.objects.active = target
+        target.select_set(True)
+        bpy.ops.object.material_slot_remove_unused()
+        target.select_set(False)
+    return apart
 
 
 def campfire(place, models):
@@ -144,11 +172,14 @@ def campfire(place, models):
     objects = [models.place(m, "fire pit", (x, y, 0.0), scale=1.2) for m in pit.values()]
     for k, mesh in enumerate(wood.values()):
         a = k * 2 * math.pi / 3
-        objects.append(models.place(mesh, "firewood", (x + 0.15 * math.cos(a), y + 0.15 * math.sin(a), 0.12),
+        objects.append(models.place(mesh, f"firewood {k + 1}",
+                                    (x + 0.15 * math.cos(a), y + 0.15 * math.sin(a), 0.12),
                                     yaw=a, scale=0.6, tilt=(0.35, 0.0)))
-    for (dx, dy, yaw) in ((2.4, -1.4, 0.6), (-1.9, 2.1, 2.4)):
+    seats = ((2.4, -1.4, 0.6), (-1.9, 2.1, 2.4))
+    for k, (dx, dy, yaw) in enumerate(seats):
         for mesh in stump.values():
-            objects.append(models.place(mesh, "stump seat", (x + dx, y + dy, -0.05), yaw=yaw, scale=0.7))
+            objects.append(models.place(mesh, f"stump seat {k + 1}", (x + dx, y + dy, -0.05), yaw=yaw,
+                                        scale=0.7))
     # The fire: a bed of embers and three crossed tongues of flame, glowing by day and night.
     embers = common.material("embers", (0.05, 0.03, 0.02), roughness=0.9)
     flame = common.material("flames", (0.0, 0.0, 0.0), roughness=1.0, double_sided=True)
@@ -165,12 +196,14 @@ def campfire(place, models):
                                                     Vector((x, y, 0.85))], [(0, 1, 2)], material=flame))
     objects.append(common.join(tongues, "flames"))
     colliders = [common.collider_cylinder("fire pit", (x, y), 1.0, 0.5)]
-    colliders += [common.collider_cylinder("stump seat", (x + dx, y + dy), 0.55, 0.4)
-                  for dx, dy in ((2.4, -1.4), (-1.9, 2.1))]
+    colliders += [common.collider_cylinder(f"stump seat {k + 1}", (x + dx, y + dy), 0.55, 0.4)
+                  for k, (dx, dy, _) in enumerate(seats)]
     marker = common.marker("campfire", "campfire", (x, y, 0.0))
-    # 120 candelas: a small fire, a little below a lantern, which lights all around it.
-    light = common.light("campfire", "POINT", "night", (x, y, 0.6), (0.0, 0.0, -1.0),
+    # 120 candelas: a small fire, a little below a lantern, which lights all around it, and which
+    # flickers around that intensity.
+    light = common.light("campfire light", "POINT", "night", (x, y, 0.6), (0.0, 0.0, -1.0),
                          (1.0, 0.55, 0.25), 120.0)
+    common.component(light, "hunnawood::Flickers", f"{{ intensity = {common.number(120.0)} }}")
     return objects, colliders, marker, light
 
 
@@ -201,7 +234,7 @@ def key(place):
     bsdf.inputs["Emission Color"].default_value = (1.0, 0.75, 0.35, 1.0)
     bsdf.inputs["Emission Strength"].default_value = 6.0
     marker = common.marker("item", "item", (x, y, 0.0))
-    stone_block = ruins.box("block", (x - 0.35, y - 0.3, 0.0), (x + 0.35, y + 0.3, 0.5), None)
+    stone_block = ruins.box("item block", (x - 0.35, y - 0.3, 0.0), (x + 0.35, y + 0.3, 0.5), None)
     # Made about its middle at its true size, then scaled up and laid on the block: the bow, a
     # ring of eight segments; the shaft; the bit, two teeth.
     scale = 2.2

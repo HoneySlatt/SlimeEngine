@@ -7,17 +7,23 @@ sources:
     blender --background --factory-startup --python games/hunnawood/zone/build_zone.py -- --preview DIR
 
 It reads `games/hunnawood/assets/sources/` and `placements.toml`, beside this file, and writes
-`games/hunnawood/assets/zone/hunna_wood.gltf`, its buffer and its images. With `--preview DIR`, it
-also renders views of the zone into DIR, with Blender's EEVEE. Everything the script makes is
-released under CC0 1.0, as the sources it reads are.
+three glTF files into `games/hunnawood/assets/zone/`, each with its buffer, and their images:
+`land.gltf`, the zone but its lanterns; `lantern.gltf`, a lantern on its post, which the zone's
+scene file, `zone.scene`, written by hand, places six times beside the land; and `hero.gltf`.
+With `--preview DIR`, it also renders views of the zone into DIR, with Blender's EEVEE, the
+lanterns where the scene file places them. Everything the script makes is released under CC0 1.0,
+as the sources it reads are.
 
 The zone is a forest path: the hero starts in the south, crosses a gully on a stone bridge, passes
 a campfire in a clearing, and reaches a ruined chapel whose north wall holds a sealed door; behind
-it, a walled terrace on the edge of a cliff. Besides meshes, the export holds what the game reads:
-colliders (`collider` "box" or "cylinder", with a `height`; an empty whose scale is half the box's
-size, or the cylinder's radius), markers (`marker` "start", "item", "door", "campfire", "terrace",
-"bounds"; the item's and the door's meshes and collider are the marker's children), and lights
-with the `time` "day" or "night". The game's README describes them.
+it, a walled terrace on the edge of a cliff. Besides meshes, the export holds what the game reads,
+as the game's components, typed properties of the nodes: colliders (`hunnawood::Collider`, a box or
+a cylinder with its height; an empty whose scale is half the box's size, or the cylinder's
+radius), markers (`hunnawood::Marker`: the start, the item, the door, the campfire, the terrace,
+the bounds; the item's and the door's meshes and collider are the marker's children), the time of
+day of the lights (`hunnawood::TimeOfDay`), and the campfire's flicker (`hunnawood::Flickers`).
+Every node has a name of its own, and the script fails when Blender numbers one. The game's
+README describes them.
 """
 
 import math
@@ -41,8 +47,11 @@ import ruins  # noqa: E402
 import vegetation  # noqa: E402
 
 ASSETS = os.path.normpath(os.path.join(HERE, "..", "assets"))
-OUTPUT = os.path.join(ASSETS, "zone", "hunna_wood.gltf")
+LAND = os.path.join(ASSETS, "zone", "land.gltf")
+LANTERN = os.path.join(ASSETS, "zone", "lantern.gltf")
 HERO = os.path.join(ASSETS, "zone", "hero.gltf")
+# The zone's scene file, written by hand, which places the land and the lanterns.
+SCENE = os.path.join(ASSETS, "zone", "zone.scene")
 # The day is overcast: a sun of 12 000 lux behind the clouds, from the south-west, 48 degrees
 # high. The night is lit by the moon, the lanterns and the campfire.
 SUN = (12_000.0, (0.5, 0.5, -0.8), (1.0, 0.97, 0.92))
@@ -76,7 +85,6 @@ def build(place, sources):
     ruins.bridge(place, stone)
     ruins.chapel(place, stone)
     models = props.Models(sources)
-    props.lanterns(place, models, materials["pine bark"])
     props.campfire(place, models)
     props.door(place, models)
     block, _ = props.key(place)
@@ -89,6 +97,7 @@ def build(place, sources):
     markers(place)
     common.light("sun", "SUN", "day", (0.0, 0.0, 30.0), SUN[1], SUN[2], SUN[0])
     common.light("moon", "SUN", "night", (0.0, 0.0, 30.0), MOON[1], MOON[2], MOON[0])
+    return models, materials
 
 
 def forest(place, sources, models, materials, seed):
@@ -125,8 +134,9 @@ def forest(place, sources, models, materials, seed):
             wood, crown, radius = protos[i % len(protos)]
             scale = random.uniform(0.85, 1.2)
             yaw = random.uniform(0, 2 * math.pi)
-            for mesh in (wood, crown):
-                models.place(mesh, f"{kind} {i + 1}", (x, y, 0.0), yaw, scale)
+            crown_part = "leaves" if kind == "oak" else "needles"
+            for mesh, part in ((wood, "wood"), (crown, crown_part)):
+                models.place(mesh, f"{kind} {i + 1} {part}", (x, y, 0.0), yaw, scale)
             if vegetation.inside(place, x, y, 1.0):
                 common.collider_cylinder(f"{kind} {i + 1}", (x, y), radius * scale + 0.05, 8.0)
             taken.append((x, y, spacing))
@@ -245,12 +255,37 @@ def export(path, extras=True):
     )
 
 
-def report():
+def report(what):
     meshes = [o for o in bpy.context.scene.objects if o.type == "MESH"]
     triangles = sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in meshes)
     primitives = sum(max(1, len(o.data.materials)) for o in meshes)
-    print(f"zone: {len(meshes)} mesh objects, about {primitives} instances drawn, "
+    print(f"{what}: {len(meshes)} mesh objects, about {primitives} instances drawn, "
           f"{triangles} triangles, {len(bpy.data.images)} images")
+
+
+def preview_lanterns(models, wood):
+    """The lanterns, for the views of `--preview` only, which the export of the land holds none of:
+    the prefab built once, in a collection of its own, then shown where the zone's scene file
+    places each lantern, read from its `Transform` (glTF's axes: x, y up, z south; a turn about y)."""
+    with open(SCENE, "rb") as f:
+        scene = tomllib.load(f)
+    collection = bpy.data.collections.new("lantern")
+    before = set(bpy.context.scene.objects)
+    props.lantern(models, wood)
+    for obj in set(bpy.context.scene.objects) - before:
+        bpy.context.scene.collection.objects.unlink(obj)
+        collection.objects.link(obj)
+    for name, changed in scene.get("changed", {}).items():
+        transform = changed.get("Transform")
+        if not name.startswith("lantern") or transform is None:
+            continue
+        at, turn = transform.get("translation", {}), transform.get("rotation", {})
+        shown = bpy.data.objects.new(f"{name} shown", None)
+        shown.instance_type = "COLLECTION"
+        shown.instance_collection = collection
+        shown.location = (at.get("x", 0.0), -at.get("z", 0.0), at.get("y", 0.0))
+        shown.rotation_euler = (0.0, 0.0, 2 * math.atan2(turn.get("y", 0.0), turn.get("w", 1.0)))
+        bpy.context.scene.collection.objects.link(shown)
 
 
 def main():
@@ -261,15 +296,24 @@ def main():
     os.makedirs(scratch, exist_ok=True)
     sources = common.Sources(os.path.join(ASSETS, "sources"), scratch)
     bpy.ops.wm.read_factory_settings(use_empty=True)
-    build(place, sources)
-    report()
-    export(OUTPUT)
+    models, materials = build(place, sources)
+    report("land")
+    common.check_names()
+    export(LAND)
     if preview:
         import preview as views
+        preview_lanterns(models, materials["pine bark"])
         views.render(preview)
+    # The lantern, the zone's prefab, in a file of its own: the zone's scene file places it.
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    props.lantern(props.Models(sources), common.poly_haven_set(sources, "pine_bark", "1k"))
+    report("lantern")
+    common.check_names()
+    export(LANTERN)
     # The hero, in a file of its own: the game draws it where the hero stands.
     bpy.ops.wm.read_factory_settings(use_empty=True)
     hero.build(sources)
+    common.check_names()
     # Without extras: the body keeps properties of the bundle's add-ons, which the game does not read.
     export(HERO, extras=False)
 

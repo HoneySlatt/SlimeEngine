@@ -1,5 +1,6 @@
 """What the parts of the zone's script share: the source files, materials, meshes built from
-lists of vertices, and the nodes that the game reads (colliders, markers and lights).
+lists of vertices, and the nodes that the game reads (colliders, markers and lights), which carry
+the game's components as typed properties.
 
 Blender's axes: x east, y north, z up, in metres. The glTF exporter turns them into glTF's, y up
 and z south, which are the game's.
@@ -8,6 +9,7 @@ and z south, which are the game's.
 import math
 import os
 import random
+import re
 import zipfile
 
 import bmesh
@@ -250,44 +252,58 @@ def world_box_uvs(obj, scale):
             layer.data[index].uv = (u / scale, v / scale)
 
 
+def component(obj, type_name, value):
+    """Gives `obj`'s node the game's component `type_name`, `hunnawood::Collider`, as a typed
+    property: a custom property named `slime:` and the type's name, whose text is the component's
+    value in the engine's notation, as a scene file writes it. The exporter writes it among the
+    node's `extras`, and the cooker keeps it typed (docs/adr/0095-cooked-scene-files.md)."""
+    obj[f"slime:{type_name}"] = value
+
+
+def number(value):
+    """`value` as the engine's notation writes a float: `3.0` rather than `3`, which an integer
+    would be."""
+    return repr(float(value))
+
+
 def collider_box(name, center, size, height, yaw=0.0, parent=None):
-    """A box that stops the hero, standing on the ground: `center` (x, y), `size` (along its own
-    x and y), turned by `yaw` radians about the vertical, `height` metres high. An empty whose
-    custom properties the exporter writes as the node's `extras`; its scale holds half the size."""
+    """A box that stops the hero, standing on the ground, named `name` and ` collider`: `center`
+    (x, y), `size` (along its own x and y), turned by `yaw` radians about the vertical, `height`
+    metres high. An empty whose scale holds half the size, and which holds the game's `Collider`."""
     bpy.ops.object.empty_add(type="CUBE", location=(center[0], center[1], height / 2))
     obj = bpy.context.active_object
-    obj.name = name
+    obj.name = f"{name} collider"
     obj.rotation_euler = (0.0, 0.0, yaw)
     obj.scale = (size[0] / 2, size[1] / 2, height / 2)
-    obj["collider"] = "box"
-    obj["height"] = round(height, 3)
+    component(obj, "hunnawood::Collider", f'{{ kind = "Box", height = {number(round(height, 3))} }}')
     if parent is not None:
         reparent(obj, parent)
     return obj
 
 
 def collider_cylinder(name, center, radius, height, parent=None):
-    """A cylinder that stops the hero: an empty whose x scale is the radius."""
+    """A cylinder that stops the hero, named `name` and ` collider`: an empty whose x scale is the
+    radius."""
     bpy.ops.object.empty_add(type="CIRCLE", location=(center[0], center[1], 0.0))
     obj = bpy.context.active_object
-    obj.name = name
+    obj.name = f"{name} collider"
     obj.scale = (radius, radius, radius)
-    obj["collider"] = "cylinder"
-    obj["height"] = round(height, 3)
+    component(obj, "hunnawood::Collider",
+              f'{{ kind = "Cylinder", height = {number(round(height, 3))} }}')
     if parent is not None:
         reparent(obj, parent)
     return obj
 
 
 def marker(name, kind, location, facing=0.0):
-    """A point the game reads by its `marker` property: where the hero starts, the item, the door,
-    the campfire. It faces along its local +y, north turned by `facing` radians towards the west,
-    which glTF writes as the node's -z."""
+    """A point the game reads by its `Marker`, `kind`: "start", where the hero starts, "item",
+    "door", "campfire", "terrace" or "bounds". It faces along its local +y, north turned by
+    `facing` radians towards the west, which glTF writes as the node's -z."""
     bpy.ops.object.empty_add(type="ARROWS", location=location)
     obj = bpy.context.active_object
     obj.name = name
     obj.rotation_euler = (0.0, 0.0, facing)
-    obj["marker"] = kind
+    component(obj, "hunnawood::Marker", f'"{kind.capitalize()}"')
     return obj
 
 
@@ -301,11 +317,10 @@ def reparent(child, parent):
 
 
 def light(name, kind, time, location, direction, color, value, cone=None):
-    """A light of `time` ("day" or "night"), which the game reads from the node's `time`
-    property: `kind` "SUN" of `value` lux, or "SPOT" or "POINT" of `value` candelas, shining
-    along `direction`; `cone` is a spot light's outer and inner angles from its axis, in
-    radians. The exporter writes no range: the light fades with the square of the distance, without
-    end."""
+    """A light of `time` ("day" or "night"), which the game reads from the node's `TimeOfDay`:
+    `kind` "SUN" of `value` lux, or "SPOT" or "POINT" of `value` candelas, shining along
+    `direction`; `cone` is a spot light's outer and inner angles from its axis, in radians. The
+    exporter writes no range: the light fades with the square of the distance, without end."""
     data = bpy.data.lights.new(name, kind)
     data.color = color
     if kind == "SUN":
@@ -320,8 +335,18 @@ def light(name, kind, time, location, direction, color, value, cone=None):
     bpy.context.scene.collection.objects.link(obj)
     obj.location = location
     obj.rotation_euler = Vector(direction).to_track_quat("-Z", "Y").to_euler()
-    obj["time"] = time
+    component(obj, "hunnawood::TimeOfDay", f'"{time.capitalize()}"')
     return obj
+
+
+def check_names():
+    """Fails when an object of the scene has a name that Blender numbered, `oak 12.001`, as it
+    numbers a name that another object holds: each node keeps the name it was given, by which the
+    game's files and saves know it."""
+    numbered = sorted(o.name for o in bpy.context.scene.objects if re.search(r"\.\d{3}$", o.name))
+    if numbered:
+        raise SystemExit(f"Blender numbered the names of {len(numbered)} objects, whose names were "
+                         f"taken: {', '.join(numbered[:12])}; give each object a name of its own")
 
 
 def rng(seed):

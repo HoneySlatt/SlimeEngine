@@ -27,3 +27,7 @@ slime-render.workspace = true
 slime-world.workspace = true
 slime-world-render.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+# Encodes the game's components that the tests' zones carry as typed properties, as the cooker does.
+slime-serialize.workspace = true

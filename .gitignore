@@ -7,3 +7,5 @@
 !/games/hunnawood/assets/**/
 !/games/hunnawood/assets/sources.tsv
 !/games/hunnawood/assets/**/*.meta
+# The zone's scene file, written by hand.
+!/games/hunnawood/assets/zone/zone.scene
