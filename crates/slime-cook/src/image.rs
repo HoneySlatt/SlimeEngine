@@ -7,10 +7,9 @@ use zune_jpeg::zune_core::bytestream::ZCursor;
 use zune_jpeg::zune_core::colorspace::ColorSpace;
 use zune_jpeg::zune_core::options::DecoderOptions;
 
-/// The longest side of an image the cooker takes, in texels: the longest side of a cooked texture.
-/// Checked from the file's header, before its texels are allocated, since a header can claim
-/// gigabytes.
-pub use slime_assets::MAX_SIDE;
+// The longest side of an image that the cooker takes is that of a cooked texture, checked from the
+// file's header, before its texels are allocated, since a header can claim gigabytes.
+use slime_assets::MAX_SIDE;
 
 /// An image decoded into texels.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -47,8 +46,8 @@ pub enum ImageKind {
     /// PNG, of any color type and depth: palettes expanded, 16-bit channels cut to their most
     /// significant byte, gray spread to red, green and blue, a missing alpha opaque.
     Png,
-    /// JPEG, baseline or progressive, in YCbCr, gray, CMYK or YCCK, converted to RGB by the decoder,
-    /// alpha opaque.
+    /// JPEG, baseline or progressive, in YCbCr, gray, CMYK or YCCK, converted to RGB by the
+    /// decoder, alpha opaque.
     Jpeg,
 }
 

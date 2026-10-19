@@ -50,9 +50,8 @@ pub struct Unsaved;
 impl Component for Unsaved {}
 
 /// The light an entity places: at its origin, along its −Z axis, whatever its scale; in the
-/// physical units of glTF's `KHR_lights_punctual`, as the renderer's lights are, by the same rule
-/// ([`SceneLight::check`]): a color and a strength finite and not negative, whose product is
-/// finite, a range positive, a spot's cones within 0 ≤ inner < outer ≤ π / 2.
+/// physical units of glTF's `KHR_lights_punctual`, as the renderer's lights are, by the same rule,
+/// [`SceneLight::check`], and with a shadow distance positive and finite.
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
 #[reflect(name = "Light", check = Light::check)]
 pub enum Light {

@@ -39,6 +39,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   its own.
 - `GltfFile::open` takes the directory of sources, from inside which alone it reads a `.gltf`
   file's buffers.
+- The longest side of an image that the cooker takes is `slime_assets::MAX_SIDE`, the longest side
+  of a cooked texture, where it was `slime_cook::image::MAX_SIDE`.
 
 ### Fixed
 
@@ -75,8 +77,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   many warnings it gives: each warning's column was counted from its line's start, so that a line
   of 1 150 000 fields unknown took 488 s. A reading keeps the first `MAX_WARNINGS` warnings, then
   one that counts the rest (`ReadProblem::MoreLeftOut`), and places the first thousand errors and
-  warnings in the text or the bytes, each from the last placed. `Document::warn` adds a warning of
-  a reader that reads the document's layout itself, as a world reading a save does.
+  warnings: in a text each from the last placed, in the binary encoding through its tables and
+  arrays, each walked once, where each was placed from the first byte again. `Document::warn` adds a
+  warning of a reader that reads the document's layout itself, as a world reading a save does.
 - A panic in a type's check or upgrade, a game's code, refuses the value that it was called on, as
   its error does, rather than crash the program, unless it aborts on panics: a save edited to give
   a value that a game's check did not expect left the world half loaded.
@@ -109,7 +112,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   refuses a document that a reader would. A save then holds about 22 000 entities that have a name
   and a transform, where 16 MiB held 57 000. A resolved scene takes at most `MAX_SCENE_SIZE` bytes,
   256 MiB, its placements' copies of their prefabs counted before any is made, where a few small
-  files that placed a large prefab many times made a scene of gigabytes under `MAX_ENTITIES`.
+  files that placed a large prefab many times made a scene of gigabytes under `MAX_ENTITIES`; so do
+  the scenes that a save spawns while it is loaded, together, the others set aside.
 - A light that the renderer cannot draw is left out, with a warning that names it, where
   `Renderer::render` panicked: a damaged light ended a game at its first frame. One rule says what
   a light may be, `SceneLight::check`, which the cooker, the reader of cooked scenes, the world's

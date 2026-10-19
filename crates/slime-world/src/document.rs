@@ -14,7 +14,9 @@ use slime_serialize::{Composer, Document, Mode, ReadError, ReadProblem, Referenc
 use crate::components::{Name, Unsaved};
 use crate::entity::Entity;
 use crate::identity::{CREATED as CREATED_KEY, PersistentId};
-use crate::library::{MAX_ENTITIES, ResolvedScene, SceneLibrary, fingerprint};
+use crate::library::{
+    MAX_ENTITIES, MAX_SCENE_SIZE, ResolvedScene, SceneLibrary, fingerprint, placed_size,
+};
 use crate::scene::{record_ids, storages_of};
 use crate::scene_file::{LAYOUT, for_each_entity, table};
 use crate::world::{Identity, World};
@@ -276,9 +278,9 @@ impl World {
     /// entities created, each with a name and a transform, save in 0.22 s into 2.9 MB of text, and
     /// 40 000 in four times as long. A save holds at most [`slime_serialize::MAX_SIZE`] bytes and
     /// [`slime_serialize::MAX_VALUES`] values, as a reader counts them, about 22 000 such entities,
-    /// whose values it counts 47 each. A thousand placements made while the world runs, each moved and a value
-    /// of it changed, save in 0.08 s into 238 kB, and load in 0.03 s, for a prefab of 10 entities;
-    /// in 0.85 s and 0.16 s for a prefab of 100.
+    /// whose values it counts 47 each. A thousand placements made while the world runs, each moved
+    /// and a value of it changed, save in 0.08 s into 238 kB, and load in 0.03 s, for a prefab of
+    /// 10 entities; in 0.85 s and 0.16 s for a prefab of 100.
     ///
     /// # Errors
     ///
@@ -459,23 +461,24 @@ impl World {
     /// another order ([`World::spawn`]): a key names an entity whatever the start creates
     /// ([`World::spawn_keyed`]). A save of layout 2 or earlier, which does not say what its start
     /// created, gives its numbers as they are, unchecked, as 0.4 did. What is set aside names its
-    /// entity as the save does, a number of the run as the save numbers it
-    /// ([`Loaded::set_aside`]). A save is read leniently: what this program does not know is left
-    /// out, with a warning ([`Loaded::warnings`]), a section of the save, a field, and a component
-    /// of a type or with a variant that it does not know included. A difference whose entity or component the world
-    /// no longer has, or that the component's type refuses, is set aside, and the rest applied; so
-    /// is a reference to an entity that the world no longer has, which refers to no entity then, a
+    /// entity as the save does, a number of the run as the save numbers it ([`Loaded::set_aside`]).
+    /// A save is read leniently: what this program does not know is left out, with a warning
+    /// ([`Loaded::warnings`]), a section of the save, a field, and a component of a type or with a
+    /// variant that it does not know included. A difference whose entity or component the world no
+    /// longer has, or that the component's type refuses, is set aside, and the rest applied; so is
+    /// a reference to an entity that the world no longer has, which refers to no entity then, a
     /// parent that the world does not have, and a scene spawned while the world ran that `scenes`
     /// cannot give, that the world spawned already, whose values its types refuse, or that would
-    /// bring the entities that the save spawns so past [`MAX_ENTITIES`]. A scene spawned under a
-    /// key under which the world spawned another destroys that one's entities first, as when a run
-    /// changed level; what is under them without being of that scene stays, and the save removes
-    /// it, or places it where the run left it, as a hero that the start placed in the level and
-    /// that walked out of it. The scenes that changed since the save, those spawned while the world
-    /// ran included, are named. The saves of 0.3, of layout 1, which hold nothing spawned while the
-    /// world ran, are read as they were. Loading entities created costs about two and a half times
-    /// as much as saving them, half of it parsing the text: 0.54 s for the 10 000 entities of
-    /// [`World::save`]'s measure, which gives what placements cost too.
+    /// bring the entities that the save spawns so past [`MAX_ENTITIES`], or what they take past
+    /// [`MAX_SCENE_SIZE`](crate::MAX_SCENE_SIZE), as a resolved scene's placements are bounded. A
+    /// scene spawned under a key under which the world spawned another destroys that one's entities
+    /// first, as when a run changed level; what is under them without being of that scene stays,
+    /// and the save removes it, or places it where the run left it, as a hero that the start placed
+    /// in the level and that walked out of it. The scenes that changed since the save, those
+    /// spawned while the world ran included, are named. The saves of 0.3, of layout 1, which hold
+    /// nothing spawned while the world ran, are read as they were. Loading entities created costs
+    /// about two and a half times as much as saving them, half of it parsing the text: 0.54 s for
+    /// the 10 000 entities of [`World::save`]'s measure, which gives what placements cost too.
     ///
     /// # Errors
     ///
@@ -840,6 +843,7 @@ impl World {
     ) {
         let mut numbered = Vec::new();
         let mut entities = 0;
+        let mut size: usize = 0;
         for ToSpawn {
             key,
             identity,
@@ -869,9 +873,11 @@ impl World {
                 }
             };
             entities += scene.len();
-            if entities > MAX_ENTITIES {
+            size = size.saturating_add(placed_size(&scene, &key));
+            if entities > MAX_ENTITIES || size > MAX_SCENE_SIZE {
                 aside(format!(
-                    "the save spawns more than {MAX_ENTITIES} entities while it is loaded"
+                    "the save spawns more than {MAX_ENTITIES} entities, or more than \
+                     {MAX_SCENE_SIZE} bytes of scenes, while it is loaded"
                 ));
                 continue;
             }

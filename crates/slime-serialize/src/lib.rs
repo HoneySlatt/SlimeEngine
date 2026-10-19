@@ -29,9 +29,9 @@ pub const MAX_SIZE: usize = 16 << 20;
 /// with its value, or a million tables, took 570 MB and up to 2 s in a release build.
 pub const MAX_VALUES: usize = 1 << 20;
 
-/// The most warnings that a lenient reading keeps ([`Read::warnings`], [`Document::warnings`]): 100.
-/// Past them, one more counts those left out ([`ReadProblem::MoreLeftOut`]), so that a document that
-/// holds many costs memory and time in proportion with its size.
+/// The most warnings that a lenient reading keeps ([`Read::warnings`], [`Document::warnings`]):
+/// 100. Past them, one more counts those left out ([`ReadProblem::MoreLeftOut`]), so that a
+/// document that holds many costs memory and time in proportion with its size.
 pub const MAX_WARNINGS: usize = 100;
 
 /// The deepest that a document's values nest, tables and arrays within others, as read: 64 levels,
@@ -256,9 +256,10 @@ pub fn read_file(
 /// # Errors
 ///
 /// When `text` is larger than [`MAX_SIZE`], holds more than [`MAX_VALUES`] values, nests deeper
-/// than [`MAX_DEPTH`], is not TOML or holds a date or a time, which the engine's values do not hold, as reading it refuses, at its line and
-/// column; when the encoding would be larger than [`MAX_SIZE`], which [`Document::parse_binary`]
-/// refuses. A document that a [`Composer`] writes is encoded so, from its text.
+/// than [`MAX_DEPTH`], is not TOML or holds a date or a time, which the engine's values do not
+/// hold, as reading it refuses, at its line and column; when the encoding would be larger than
+/// [`MAX_SIZE`], which [`Document::parse_binary`] refuses. A document that a [`Composer`] writes is
+/// encoded so, from its text.
 pub fn encode(text: &str) -> Result<Vec<u8>, ReadError> {
     let bytes = binary::encode(&parsed(text)?.root);
     if bytes.len() > MAX_SIZE {

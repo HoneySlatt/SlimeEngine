@@ -109,7 +109,8 @@ impl CookedTexture {
     /// # Panics
     ///
     /// If the levels are not those of [`CookedTexture`], each of [`TextureEncoding::level_size`],
-    /// or if a side is longer than [`MAX_SIDE`]: [`CookedTexture::from_ktx2`] would refuse the file.
+    /// or if a side is longer than [`MAX_SIDE`]: [`CookedTexture::from_ktx2`] would refuse the
+    /// file.
     pub fn to_ktx2(&self) -> Vec<u8> {
         self.check().unwrap_or_else(|reason| panic!("{reason}"));
         let format = self.encoding.format();
@@ -390,5 +391,10 @@ mod tests {
             .check()
             .expect_err("refused");
         assert!(error.contains("8192"), "{error}");
+        // A file that says it is twice as wide: refused for its width, before its levels are read.
+        let mut file = texture(TextureEncoding::Rgba8, MAX_SIDE, 1).to_ktx2();
+        file[20..24].copy_from_slice(&(MAX_SIDE * 2).to_le_bytes());
+        let error = CookedTexture::from_ktx2(&file).expect_err("refused");
+        assert!(error.to_string().contains("1 to 8192 on a side"), "{error}");
     }
 }

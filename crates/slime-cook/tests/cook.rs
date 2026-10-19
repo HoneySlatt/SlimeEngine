@@ -323,9 +323,9 @@ fn a_cooked_file_deleted_emptied_or_cut_short_is_cooked_again() {
     let mut damaged = Vec::new();
     for (index, kind) in [
         AssetKind::Mesh,
-        AssetKind::Material,
-        AssetKind::Scene,
         AssetKind::SceneFile,
+        AssetKind::Scene,
+        AssetKind::Material,
         AssetKind::Texture,
     ]
     .into_iter()
@@ -367,6 +367,27 @@ fn a_cooked_file_deleted_emptied_or_cut_short_is_cooked_again() {
             _ => assets.scene_file(id).map(drop),
         };
         read.unwrap_or_else(|error| panic!("{id}, {}: {error}", entry.source));
+    }
+    // A file that never ends in place of a scene file, which a read whole would never finish.
+    #[cfg(unix)]
+    {
+        let (id, entry) = assets
+            .manifest()
+            .iter()
+            .find(|(_, entry)| entry.kind == AssetKind::SceneFile)
+            .expect("a scene file");
+        let path = output.join(&entry.file);
+        fs::remove_file(&path).expect("removed");
+        std::os::unix::fs::symlink("/dev/zero", &path).expect("linked");
+        let started = std::time::Instant::now();
+        let again = cook(&root, &output).expect("cooked again");
+        assert!(again.cooked.contains(&id), "{again:?}");
+        // Read, it would take seconds, then the memory.
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "{:?}",
+            started.elapsed()
+        );
     }
 }
 

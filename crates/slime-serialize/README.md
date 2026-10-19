@@ -24,11 +24,11 @@ properties of glTF nodes, in the binary encoding, which a world reads when it re
 - `read`, `read_partial` and `read_file`: the value of a registered type that a document holds,
   whole or in part, brought from the version of its type that the document says to the type's
   version through the type's upgrade (`slime_reflect::Upgrade`). A source is read strictly, a save
-  leniently (`Mode`). Errors name the file, the line, the column and the path of the part at
-  fault; documents larger, of more values or deeper than a limit (`MAX_SIZE`, `MAX_VALUES`,
-  `MAX_DEPTH`) are refused, a text's values counted before it is parsed, so that reading takes
-  memory and time bounded by the limits; reading never panics. `read_as` and `write_as` do so for a Rust type's value, through a registry of its
-  own.
+  leniently (`Mode`). Errors name the file, the line, the column and the path of the part at fault;
+  documents larger, of more values or deeper than a limit (`MAX_SIZE`, `MAX_VALUES`, `MAX_DEPTH`)
+  are refused, a text's values counted before it is parsed, so that reading takes memory and time
+  bounded by the limits; reading never panics. `read_as` and `write_as` do so for a Rust type's
+  value, through a registry of its own.
 - `Composer` and `Document`: a document of several values, each at its place, written and read one
   at a time, as the world's saves and scene files hold one per component. Given `References`, they
   write and read references to entities as the names it gives them, and to assets as it names

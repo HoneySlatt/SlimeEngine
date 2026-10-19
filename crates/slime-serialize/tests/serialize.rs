@@ -555,6 +555,19 @@ fn many_warnings_cost_time_in_proportion_with_the_document_and_are_capped() {
             if *count == unknown - slime_serialize::MAX_WARNINGS),
         "{more}"
     );
+    // In the binary encoding, which read its strings and walked from its first byte again for
+    // each warning placed: 13 s of a debug build, about 1 s since.
+    let bytes = slime_serialize::encode(&text).expect("TOML");
+    let started = std::time::Instant::now();
+    let mut document = Document::parse_binary(&registry, &bytes, Mode::Lenient).expect("lenient");
+    document
+        .read(&["$value"], "test::Tint", None)
+        .expect("a tint");
+    let warnings = document.warnings();
+    let took = started.elapsed();
+    assert!(took < std::time::Duration::from_secs(6), "{took:?}");
+    assert_eq!(warnings.len(), slime_serialize::MAX_WARNINGS + 1);
+    assert!(warnings[0].byte().is_some(), "{}", warnings[0]);
 }
 
 #[test]

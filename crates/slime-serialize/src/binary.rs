@@ -2,6 +2,8 @@
 //! read back without parsing text. [`format`](crate::format) says how its bytes are laid out
 //! (`docs/adr/0094-the-binary-encoding-of-documents.md`).
 
+use std::cell::RefCell;
+use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 
 use slime_reflect::{Path, Step, Value};
@@ -165,49 +167,110 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<Vec<(String, Value)>, Failure> {
     Ok(root)
 }
 
-/// Where the part at `at`, a path through the values of the document that `bytes` hold, lies in
-/// them: the byte of its key if `key` and it has one, of its value otherwise; of the nearest part
-/// that holds it when the document has no such part; 0 for the root. `bytes` are a document that
-/// [`decode`] read: bytes that it would refuse may give `None`, or any byte.
-pub(crate) fn locate(bytes: &[u8], at: &Path, key: bool) -> Option<usize> {
-    let mut decoder = Decoder::new(bytes).ok()?;
-    let mut found = 0;
-    for step in at.steps() {
-        let tag = decoder.byte().ok()?;
-        let count = match tag {
-            TABLE | ARRAY => decoder.count().ok()?,
-            _ => return Some(found),
-        };
-        // The byte of the step's key, if it has one, its value next.
-        let key_at = match (tag, step) {
-            (TABLE, Step::Field(name)) => {
-                let mut found_key = None;
-                for _ in 0..count {
-                    let key_at = decoder.at;
-                    let index = decoder.varint().ok()?;
-                    if decoder.strings.get(index as usize) == Some(&name.as_str()) {
-                        found_key = Some(key_at);
-                        break;
-                    }
-                    decoder.skip(1).ok()?;
-                }
-                match found_key {
-                    Some(key_at) => Some(key_at),
-                    None => return Some(found),
-                }
-            }
-            (ARRAY, &Step::Index(index)) if (index as u64) < count => {
-                decoder.skip(index as u64).ok()?;
-                None
-            }
-            _ => return Some(found),
-        };
-        found = match key_at {
-            Some(key_at) if key => key_at,
-            _ => decoder.at,
-        };
+/// An entry of a table, or an element of an array, that a [`Locator`] walked: the index of its
+/// key's string and the byte of its key, for a table's, 0 for an array's, and the byte of its
+/// value's tag.
+type Walked = (usize, usize, usize);
+
+/// Places the parts of a document in its bytes, for its errors and warnings: it reads the
+/// document's strings once, and keeps the entries of each table and the elements of each array that
+/// a placement walked through, by the byte of their tag, so that placing many parts walks each of
+/// them once, not once per part.
+pub(crate) struct Locator<'b> {
+    bytes: &'b [u8],
+    strings: Vec<&'b str>,
+    /// The byte of the root table's tag.
+    root: usize,
+    /// The entries of each table walked.
+    tables: RefCell<HashMap<usize, Vec<Walked>>>,
+    /// The byte of the tag of each element of each array walked.
+    arrays: RefCell<HashMap<usize, Vec<usize>>>,
+}
+
+impl<'b> Locator<'b> {
+    /// A locator of the document that `bytes` hold, which [`decode`] read; `None` for bytes that it
+    /// would refuse.
+    pub(crate) fn new(bytes: &'b [u8]) -> Option<Self> {
+        let decoder = Decoder::new(bytes).ok()?;
+        Some(Self {
+            bytes,
+            root: decoder.at,
+            strings: decoder.strings,
+            tables: RefCell::default(),
+            arrays: RefCell::default(),
+        })
     }
-    Some(found)
+
+    /// Where the part at `at`, a path through the document's values, lies in its bytes: the byte
+    /// of its key if `key` and it has one, of its value otherwise; of the nearest part that holds
+    /// it when the document has no such part; 0 for the root.
+    pub(crate) fn locate(&self, at: &Path, key: bool) -> Option<usize> {
+        let mut place = self.root;
+        let mut found = 0;
+        for step in at.steps() {
+            let next = match (*self.bytes.get(place)?, step) {
+                (TABLE, Step::Field(name)) => {
+                    let mut tables = self.tables.borrow_mut();
+                    let entries = match tables.entry(place) {
+                        Entry::Occupied(entries) => entries.into_mut(),
+                        Entry::Vacant(entries) => entries.insert(self.walk(place, true)?),
+                    };
+                    entries
+                        .iter()
+                        .find(|&&(string, _, _)| self.strings.get(string) == Some(&name.as_str()))
+                        .map(|&(_, key_at, value_at)| (Some(key_at), value_at))
+                }
+                (ARRAY, &Step::Index(index)) => {
+                    let mut arrays = self.arrays.borrow_mut();
+                    let elements = match arrays.entry(place) {
+                        Entry::Occupied(elements) => elements.into_mut(),
+                        Entry::Vacant(elements) => elements.insert(
+                            self.walk(place, false)?
+                                .into_iter()
+                                .map(|(_, _, value_at)| value_at)
+                                .collect(),
+                        ),
+                    };
+                    elements.get(index).map(|&value_at| (None, value_at))
+                }
+                _ => None,
+            };
+            let Some((key_at, value_at)) = next else {
+                return Some(found);
+            };
+            found = match key_at {
+                Some(key_at) if key => key_at,
+                _ => value_at,
+            };
+            place = value_at;
+        }
+        Some(found)
+    }
+
+    /// The entries of the table, or the elements of the array, whose tag is at the byte `place`.
+    fn walk(&self, place: usize, table: bool) -> Option<Vec<Walked>> {
+        let mut decoder = Decoder {
+            bytes: self.bytes,
+            at: place + 1,
+            strings: Vec::new(),
+            path: Vec::new(),
+            copied: 0,
+            values: 0,
+        };
+        let count = decoder.count().ok()?;
+        let mut walked = Vec::with_capacity(capacity(count));
+        for _ in 0..count {
+            let key_at = decoder.at;
+            let string = if table {
+                decoder.varint().ok()? as usize
+            } else {
+                0
+            };
+            walked.push((string, key_at, decoder.at));
+            decoder.skip(1).ok()?;
+        }
+        Some(walked)
+    }
 }
 
 /// What a count of things to read reserves: at most 1024, the rest grown as they are read, so that

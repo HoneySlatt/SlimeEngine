@@ -361,10 +361,10 @@ impl Registry {
     /// # Errors
     ///
     /// [`Problem::NotRegistered`] for a type that the registry does not hold;
-    /// [`Problem::NewerVersion`] for a version past the type's; [`Problem::Upgrade`] for version
-    /// 0, which no type has, when the type has no upgrade, or when its upgrade refuses the value or
-    /// panics on it, unless the program aborts on panics: an upgrade is a game's code, which a value
-    /// from a damaged or edited file must not make crash the program.
+    /// [`Problem::NewerVersion`] for a version past the type's; [`Problem::Upgrade`] for version 0,
+    /// which no type has, when the type has no upgrade, or when its upgrade refuses the value or
+    /// panics on it, unless the program aborts on panics: an upgrade is a game's code, which a
+    /// value from a damaged or edited file must not make crash the program.
     pub fn upgrade(
         &self,
         ty: &str,

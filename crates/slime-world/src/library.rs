@@ -25,10 +25,12 @@ pub const MAX_NESTING: usize = 16;
 pub const MAX_ENTITIES: usize = 1 << 20;
 
 /// The most bytes that a resolved scene takes in memory, about, its placements' copies of their
-/// prefabs counted: 256 MiB, so that a few small files that place a large prefab many times cannot
-/// fill the memory, as [`MAX_ENTITIES`] does for a prefab of many entities. Counted for each record
-/// and each report of what was set aside, their texts' and names' bytes and, for each value, the
-/// size of a [`Value`], which leaves out what the allocator and the vectors' spare room add.
+/// prefabs counted, and the ID of each placement, which every entity copied repeats: 256 MiB, so
+/// that a few small files that place a large prefab many times, or under a long ID, cannot fill the
+/// memory, as [`MAX_ENTITIES`] does for a prefab of many entities. The scenes that a save spawns
+/// while it is loaded take at most as much, together (`World::load`). Counted for each record and
+/// each report of what was set aside, their texts' and names' bytes and, for each value, the size
+/// of a [`Value`], which leaves out what the allocator and the vectors' spare room add.
 pub const MAX_SCENE_SIZE: usize = 256 << 20;
 
 /// What a template's reference to an entity holds for no entity: `""` in a scene file.
@@ -226,13 +228,12 @@ impl SceneLibrary {
     ///
     /// # Errors
     ///
-    /// [`SceneError::Missing`] for a scene that the library does not hold; [`SceneError::File`]
-    /// for a scene file that says something wrong, where; [`SceneError::Cycle`] for prefabs that
-    /// place each other; [`SceneError::TooDeep`] for placements nested deeper than
-    /// [`MAX_NESTING`]; [`SceneError::TooLarge`] for a scene of more than [`MAX_ENTITIES`] entities,
-    /// or that takes more than [`MAX_SCENE_SIZE`] bytes;
-    /// [`SceneError::Node`] for a glTF scene's typed component that `registry` refuses;
-    /// [`SceneError::Load`] for a scene whose cooked file cannot be read.
+    /// [`SceneError::Missing`] for a scene that the library does not hold; [`SceneError::File`] for
+    /// a scene file that says something wrong, where; [`SceneError::Cycle`] for prefabs that place
+    /// each other; [`SceneError::TooDeep`] for placements nested deeper than [`MAX_NESTING`];
+    /// [`SceneError::TooLarge`] for a scene of more than [`MAX_ENTITIES`] entities, or that takes
+    /// more than [`MAX_SCENE_SIZE`] bytes; [`SceneError::Node`] for a glTF scene's typed component
+    /// that `registry` refuses; [`SceneError::Load`] for a scene whose cooked file cannot be read.
     pub fn resolve(
         &mut self,
         registry: &Registry,
@@ -367,7 +368,8 @@ pub(crate) struct Resolved {
     pub(crate) assets: Vec<AssetName>,
 }
 
-/// About the bytes that `records` and `set_aside` take in memory, as [`MAX_SCENE_SIZE`] counts them.
+/// About the bytes that `records` and `set_aside` take in memory, as [`MAX_SCENE_SIZE`] counts
+/// them.
 pub(crate) fn size(records: &[Record], set_aside: &[SetAside]) -> usize {
     let text = |text: &String| size_of::<String>() + text.len();
     let records: usize = records
@@ -392,6 +394,17 @@ pub(crate) fn size(records: &[Record], set_aside: &[SetAside]) -> usize {
         })
         .sum();
     records + set_aside
+}
+
+/// About the bytes that placing `scene` under the identity `under` takes, as [`MAX_SCENE_SIZE`]
+/// counts them: the scene's records, and `under` again for each of them, which its path and the
+/// key that names it repeat.
+pub(crate) fn placed_size(scene: &ResolvedScene, under: &str) -> usize {
+    let repeated = 2 * (size_of::<String>() + under.len());
+    scene
+        .0
+        .size
+        .saturating_add(scene.0.records.len().saturating_mul(repeated))
 }
 
 /// About the bytes that `value` takes in memory, what it holds included.

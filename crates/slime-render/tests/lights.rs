@@ -478,6 +478,26 @@ fn a_light_that_cannot_be_drawn_is_left_out() {
 }
 
 #[test]
+fn a_light_farther_from_the_camera_than_a_float_measures_is_left_out() {
+    // Finite, as positions are in 64-bit floats, but beyond what the shader's 32-bit floats hold,
+    // or whose distance, squared, they do not.
+    let mut setup = Setup::new();
+    let lit = setup.draw(&[point(1.0, 1.0, None)], 1.0);
+    for x in [1e39, 1e20] {
+        let far = Light::Point(PointLight {
+            position: DVec3::new(x, 0.0, 1.0),
+            intensity: 1e30,
+            ..PointLight::default()
+        });
+        assert_eq!(
+            setup.draw(&[point(1.0, 1.0, None), far], 1.0).pixels,
+            lit.pixels,
+            "{x}"
+        );
+    }
+}
+
+#[test]
 fn a_light_far_brighter_than_any_adds_no_more_than_its_bound() {
     // Finite, but its light, once divided by the square of a distance below a metre, is not: the
     // back of the square, which it does not reach, stays black, and nothing is not a number.

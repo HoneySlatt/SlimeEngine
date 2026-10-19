@@ -19,10 +19,10 @@ const FORMAT: &str = "$format";
 const VERSIONS: &str = "$versions";
 /// The root's key of a value that is not written as a table.
 const VALUE: &str = "$value";
-/// How many errors and warnings a document places in its text or its bytes. Each placement walks the
-/// document along the path of what it places, and a text's line from the last placement on it, or
-/// from its start: past these, an error or a warning says no place, so that a document that holds
-/// many costs time in proportion with its size.
+/// How many errors and warnings a document places in its text or its bytes. Each placement walks
+/// the document along the path of what it places, and a text's line from the last placement on it,
+/// or from its start: past these, an error or a warning says no place, so that a document that
+/// holds many costs time in proportion with its size.
 const PLACED: usize = 1000;
 
 /// Writes a document of several values, each a value of a registered type at its place: the keys
@@ -294,8 +294,12 @@ enum Source<'a> {
         /// same line, further on, counts its column: errors come mostly in the text's order.
         last: Cell<Option<(usize, usize, usize)>>,
     },
-    /// The engine's binary encoding.
-    Binary(&'a [u8]),
+    /// The engine's binary encoding, and what places parts in it, made when the first error is
+    /// placed: `None` inside for bytes that a reading would refuse.
+    Binary {
+        bytes: &'a [u8],
+        locator: OnceCell<Option<binary::Locator<'a>>>,
+    },
 }
 
 /// Reads a document of several values, one place at a time, each as the value of a registered type
@@ -349,9 +353,9 @@ impl<'a> Document<'a> {
     /// Measured in a release build on the owner's machine, on a document of 543 entities, the zone's
     /// count of nodes, each with a name and a struct of three fields, one in ten with a struct of 26
     /// fields of every kind: its 53 kB are decoded in 0.7 ms, where its text, 143 kB, is parsed in
-    /// 4.2 ms; reading every value then takes 7 ms more, from either. An error or a warning is placed
-    /// by walking the bytes again from their start, along its path, for each of the first thousand
-    /// that the document places; those after say no place.
+    /// 4.2 ms; reading every value then takes 7 ms more, from either. The first thousand errors and
+    /// warnings that the document places are placed along their paths, the strings read once and
+    /// each table or array walked through once, its entries kept; those after say no place.
     ///
     /// # Errors
     ///
@@ -368,7 +372,15 @@ impl<'a> Document<'a> {
         }
         let root = binary::decode(bytes)
             .map_err(|(at, path, problem)| ReadError::at_byte(at, path, problem))?;
-        Self::checked(registry, Source::Binary(bytes), root, mode)
+        Self::checked(
+            registry,
+            Source::Binary {
+                bytes,
+                locator: OnceCell::new(),
+            },
+            root,
+            mode,
+        )
     }
 
     /// The document read from `source`, whose root table holds `root`, its format's version and its
@@ -690,8 +702,12 @@ impl<'a> Document<'a> {
                 });
                 ReadError::new(place, failure.path, failure.problem)
             }
-            Source::Binary(bytes) => ReadError::at_byte(
-                binary::locate(bytes, &failure.at, at_key).unwrap_or(0),
+            Source::Binary { bytes, locator } => ReadError::at_byte(
+                locator
+                    .get_or_init(|| binary::Locator::new(bytes))
+                    .as_ref()
+                    .and_then(|locator| locator.locate(&failure.at, at_key))
+                    .unwrap_or(0),
                 failure.path,
                 failure.problem,
             ),

@@ -79,8 +79,9 @@ pub struct ManifestEntry {
     /// Its kind.
     pub kind: AssetKind,
     /// The name of its cooked file, in the directory of cooked data: ASCII letters, digits, `-`,
-    /// `_` and `.`, not starting with `.`, so that it names a file of that directory on every
-    /// system, never one outside it.
+    /// `_` and `.`, not starting with `.`, so that it never names a file outside that directory. A
+    /// name that a system reserves, as `NUL` on Windows, is refused when the file is read, as not a
+    /// file.
     pub file: String,
     /// The size of that file, in bytes.
     pub size: u64,

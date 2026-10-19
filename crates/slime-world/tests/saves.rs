@@ -555,3 +555,65 @@ fn a_save_that_holds_many_unknown_keys_warns_of_the_first_and_counts_the_rest() 
     let more = loaded.warnings.last().expect("a last warning");
     assert!(more.to_string().starts_with("900 more"), "{more}");
 }
+
+#[test]
+fn a_save_that_spawns_more_bytes_of_scenes_than_a_scene_holds_sets_the_rest_aside() {
+    // A scene of 2 MiB, which a save edited by hand spawns 130 times: 260 MiB, with far fewer
+    // entities than the limit.
+    let big = AssetId::from_u128(7);
+    let mut scenes = SceneLibrary::new();
+    scenes.insert_file(
+        big,
+        "big",
+        format!("[root.components]\nName = \"{}\"\n", "a".repeat(2 << 20)),
+    );
+    let text: String = (0..130)
+        .map(|index| {
+            format!(
+                "[spawned.k{index}]\nscene = \"{big}\"\nname = \"big\"\n\
+                 content = \"0000000000000000\"\n\n"
+            )
+        })
+        .collect();
+    let mut world = World::new();
+    let loaded = world.load(&text, &mut scenes).expect("a save");
+    let aside: Vec<&str> = loaded
+        .set_aside
+        .iter()
+        .map(|aside| aside.reason.as_str())
+        .collect();
+    assert!((1..10).contains(&aside.len()), "{aside:?}");
+    assert!(
+        aside
+            .iter()
+            .all(|reason| reason.contains("bytes of scenes")),
+        "{aside:?}"
+    );
+}
+
+#[test]
+fn a_save_that_spawns_a_scene_under_a_long_key_counts_it_in_the_limit() {
+    // A scene of 1 000 entities, which a save edited by hand spawns under a key of 4 MiB that each
+    // entity's identity repeats: 8 GB, from a save of 4 MiB.
+    let lamp = AssetId::from_u128(7);
+    let entities: String = (0..1_000)
+        .map(|index| format!("[entities.e{index}.components]\nName = \"e{index}\"\n\n"))
+        .collect();
+    let mut scenes = SceneLibrary::new();
+    scenes.insert_file(lamp, "lamp", entities);
+    let text = format!(
+        "[spawned.{}]\nscene = \"{lamp}\"\nname = \"lamp\"\ncontent = \"0000000000000000\"\n",
+        "a".repeat(4 << 20)
+    );
+    let mut world = World::new();
+    let loaded = world.load(&text, &mut scenes).expect("a save");
+    assert!(
+        loaded.set_aside.len() == 1 && loaded.set_aside[0].reason.contains("bytes of scenes"),
+        "{:?}",
+        loaded
+            .set_aside
+            .iter()
+            .map(|aside| &aside.reason)
+            .collect::<Vec<_>>()
+    );
+}

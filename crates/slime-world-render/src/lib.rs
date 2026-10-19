@@ -1,5 +1,7 @@
 #![doc = include_str!("../README.md")]
 
+use std::collections::HashSet;
+
 use slime_gfx::Gpu;
 use slime_render::glam::Vec3;
 use slime_render::{
@@ -50,7 +52,7 @@ pub struct FrameBuilder {
     warned: bool,
     /// The entities whose lights the frame built last left out: each is said when it is first
     /// left out, not at every frame.
-    left_out: Vec<Entity>,
+    left_out: HashSet<Entity>,
 }
 
 /// What the renderer draws of a world in one frame, which [`FrameBuilder::build`] gives.
@@ -91,7 +93,7 @@ impl FrameBuilder {
             environment: None,
             lights: Vec::new(),
             warned: false,
-            left_out: Vec::new(),
+            left_out: HashSet::new(),
         }
     }
 

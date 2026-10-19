@@ -311,10 +311,13 @@ Risks:
   - G06: `a_document_of_more_values_than_a_reader_reads_is_refused_before_it_is_read`
     (`slime-serialize`), whose 16 MiB of empty arrays were parsed in 13.6 s of a debug build, and
     `a_scene_whose_placements_copy_more_than_the_limit_is_refused_before_any_is_made`
-    (`slime-world`), which passed 3 GB before it stalled at a limit of 5 GB.
+    (`slime-world`), which passed 3 GB before it stalled at a limit of 5 GB, and
+    `a_save_that_spawns_more_bytes_of_scenes_than_a_scene_holds_sets_the_rest_aside`, a save edited
+    to spawn a scene of 2 MiB 130 times, which the loader spawned whole.
   - G04: `a_light_that_cannot_be_drawn_is_refused` (`slime-assets`);
-    `a_light_that_cannot_be_drawn_is_left_out`, `a_light_far_brighter_than_any_adds_no_more_than_its_bound`
-    and `a_sun_whose_disc_is_brighter_than_a_float_holds_leaves_the_rest_of_the_sky_as_it_is`
+    `a_light_that_cannot_be_drawn_is_left_out`,
+    `a_light_far_brighter_than_any_adds_no_more_than_its_bound` and
+    `a_sun_whose_disc_is_brighter_than_a_float_holds_leaves_the_rest_of_the_sky_as_it_is`
     (`slime-render`), the last two of which lit pixels that the light does not reach, and whitened
     the sky; and `a_light_placed_where_no_number_reaches_is_left_out` (`slime-world-render`).
 
@@ -692,8 +695,11 @@ GitHub issues, linked from their entry; this list stays the reference.
   reuses**, and cooked files that no source makes any more stay in the output directory (ADR-0071,
   ADR-0102): nothing records a source's size and time to skip unchanged ones, which is to measure
   on *Hunna Wood*'s zone, nor cleans the output, where each change that `slime-cook watch` cooks
-  leaves the files it replaced (ADR-0076). Reading the zone's cooked files to check them took a
-  cook that changes nothing from 0.09 s to 0.23 s, in a release build.
+  leaves the files it replaced (ADR-0076). The rustdoc of `slime_cook::cook` measures what reading
+  the cooked files costs.
+- **The `ktx2` crate's panic is not reported to its authors** (ADR-0102): one byte of a KTX2 file's
+  data format descriptor makes its reader panic, which the engine no longer uses to read; P2 asks
+  the owner's agreement to report it.
 - **A cooked file damaged within its ranges is not found** (ADR-0102): the cooker cooks again a
   file deleted, emptied, cut short or that its reader refuses, and a game refuses such a file with
   an error, but texels or numbers changed within their ranges draw wrong, without a word.
@@ -935,12 +941,13 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **A save cut short may load in part** (ADR-0087). A save is a document of sections: one cut at the
   boundary of a section is still a document, and loads what it holds without an error. *Hunna Wood*
   writes its saves whole or not at all (ADR-0088), as every game that writes saves must.
-- **A save is text, of limited size** (ADR-0087, ADR-0102). Saving refuses a save larger, or of
-  more values, than what `slime-serialize` reads, about 22 000 entities that have a name and a
-  transform, a value counted for each `=`, `,`, `[`, `{` and `.` of the text, a float's point
-  included; loading costs more than saving, much of it parsing the text: the rustdoc of
-  `World::save` and `World::load` has the figures. *Hunna Wood*'s saves are far below the limit. The binary encoding exists since M5b.4, but saves stay text until a measurement asks
-  (ADR-0089): a larger world needs saves in the binary encoding, or read in parts.
+- **A save is text, of limited size** (ADR-0087, ADR-0102). Saving refuses a save larger, or of more
+  values, than what `slime-serialize` reads, about 22 000 entities that have a name and a transform,
+  a value counted for each `=`, `,`, `[`, `{` and `.` of the text, a float's point included; loading
+  costs more than saving, much of it parsing the text: the rustdoc of `World::save` and
+  `World::load` has the figures. *Hunna Wood*'s saves are far below the limit. The binary encoding
+  exists since M5b.4, but saves stay text until a measurement asks (ADR-0089): a larger world needs
+  saves in the binary encoding, or read in parts.
 - **What a start creates without a key, alike in its types and without a name, can take another's
   saved changes** (ADR-0101). A save tells a start that created other entities outside scenes by a
   fingerprint of their numbers, the types of their components and their names: a later version of
@@ -1051,15 +1058,15 @@ GitHub issues, linked from their entry; this list stays the reference.
   average dims the sun's halo and makes it flicker, measured), a highlight smaller than a pixel
   blooms as its coverage of the pixel changes from frame to frame. Temporal anti-aliasing, or a cap
   on the light a pixel brings to the chain, belong to Stage 9a (ADR-0052).
-- **A pixel whose light is not a number spreads through the bloom** (ADR-0040). The renderer
-  refuses values that are not finite in meshes and materials, and the skies' radiances; it leaves
-  out a light that it cannot draw, as the frame builder does a sun, and bounds the light that each
-  light and the sun's disc give a point (ADR-0102). Not everything that reaches the shaders is checked: a
+- **A pixel whose light is not a number spreads through the bloom** (ADR-0040). The renderer refuses
+  values that are not finite in meshes and materials, and the skies' radiances; it leaves out a
+  light that it cannot draw, as the frame builder does a sun, and bounds the light that each light
+  and the sun's disc give a point (ADR-0102). Not everything that reaches the shaders is checked: a
   normal of zero length, which `MeshData` asks callers not to give, can make its pixels NaN in the
   high-dynamic-range target, and so can, at an exposure of 0, an emission so strong that, added to
-  the light of the scene, it is not finite; the bloom averages them into its levels,
-  and from there into every pixel within reach of their halo, a blot where one surface was wrong.
-  Dropping such light before the bloom would keep it to its pixels.
+  the light of the scene, it is not finite; the bloom averages them into its levels, and from there
+  into every pixel within reach of their halo, a blot where one surface was wrong. Dropping such
+  light before the bloom would keep it to its pixels.
 - **The bloom has one shape** (ADR-0040): every level the same weight, down to a side of 8 texels;
   no radius, threshold or tint for a game to set. A window resized across a power of two adds or
   removes a level: the glow's reach changes a little while the edge is dragged.

@@ -15,7 +15,7 @@ use crate::components::Name;
 use crate::document::{ADDED, CHANGED, REMOVED, SetAside};
 use crate::library::{
     AssetName, MAX_ENTITIES, MAX_SCENE_SIZE, NO_RECORD, Overrides, Placement, Record, Resolved,
-    ResolvedScene, SceneError, SceneFile, SceneLibrary, fingerprint, size,
+    ResolvedScene, SceneError, SceneFile, SceneLibrary, fingerprint, placed_size, size,
 };
 use crate::transform::Transform;
 
@@ -554,12 +554,12 @@ impl Resolution<'_> {
             .iter()
             .map(|prefab| prefab.as_ref().map_or(1, |prefab| prefab.0.records.len()))
             .sum::<usize>();
-        let copied: usize = self
-            .prefabs
+        let copied = self
+            .entries
             .iter()
-            .flatten()
-            .map(|prefab| prefab.0.size)
-            .sum();
+            .zip(self.prefabs)
+            .filter_map(|(entry, prefab)| Some(placed_size(prefab.as_ref()?, &entry.id)))
+            .fold(0_usize, usize::saturating_add);
         if entities > MAX_ENTITIES || copied > MAX_SCENE_SIZE {
             return Err(too_large());
         }

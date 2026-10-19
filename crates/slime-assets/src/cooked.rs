@@ -30,8 +30,8 @@ impl CookedAssets {
     /// # Errors
     ///
     /// [`LoadError::Io`] if the manifest cannot be read, as when the directory was not cooked, and
-    /// [`LoadError::Cooked`] if it is not a file, as a directory, a pipe or a device are not, or not
-    /// a manifest of this version of the engine.
+    /// [`LoadError::Cooked`] if it is not a file, as a directory, a pipe or a device are not, or
+    /// not a manifest of this version of the engine.
     pub fn open(directory: impl Into<PathBuf>) -> Result<Self, LoadError> {
         let directory = directory.into();
         let path = directory.join(MANIFEST_FILE);

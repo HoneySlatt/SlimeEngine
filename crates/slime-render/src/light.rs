@@ -28,6 +28,12 @@ pub(crate) const NO_TILE: u32 = u32::MAX;
 /// `shader.wgsl`, which a unit test compares).
 pub(crate) const LARGEST_LIGHT: f32 = 1e30;
 
+/// The farthest from the camera that a point or spot light is drawn, along each axis, in metres:
+/// 10¹⁸, so that its position, which the shader reads relative to the camera in 32-bit floats, and
+/// the square of its distance to what the camera sees within as far, stay finite numbers there,
+/// which WGSL lets a driver assume. A light farther away gives such points no light that counts.
+pub(crate) const FARTHEST_LIGHT: f64 = 1e18;
+
 /// The kinds of light as the scene shader numbers them (`Light::kind` in `shader.wgsl`).
 const DIRECTIONAL: u32 = 0;
 const POINT: u32 = 1;
@@ -188,12 +194,10 @@ impl Default for SpotLight {
 
 impl Light {
     /// Accepts the light if the renderer can draw it; refuses it otherwise, with the reason: its
-    /// color, strength, range and cones by the rule of a cooked scene's lights
-    /// (`slime_assets::SceneLight::check`), a color or a strength negative or not finite, whose
-    /// product is not finite, a range not positive and finite, a spot's cones out of order or wider
-    /// than π / 2; and a position that is not finite, a direction that is zero or not finite, or a
-    /// shadow distance that is not positive and finite. [`Renderer::render`](crate::Renderer::render)
-    /// leaves out a light that it refuses.
+    /// color, strength, range and cones by the rule of `slime_assets::SceneLight::check`, the one
+    /// rule of a light; and a position that is not finite, a direction that is zero or not finite,
+    /// or a shadow distance that is not positive and finite.
+    /// [`Renderer::render`](crate::Renderer::render) leaves out a light that it refuses.
     ///
     /// # Errors
     ///
@@ -249,6 +253,23 @@ impl Light {
                 direction(light.direction)
             }
         }
+    }
+
+    /// As [`Light::check`], and refuses a point or spot light farther than [`FARTHEST_LIGHT`] from
+    /// `eye`, the camera's position, along an axis.
+    pub(crate) fn check_from(&self, eye: DVec3) -> Result<(), String> {
+        self.check()?;
+        let position = match *self {
+            Self::Directional(_) => return Ok(()),
+            Self::Point(light) => light.position,
+            Self::Spot(light) => light.position,
+        };
+        if (position - eye).abs().max_element() > FARTHEST_LIGHT {
+            return Err(format!(
+                "its position {position} is more than 10¹⁸ m from the camera, at {eye}"
+            ));
+        }
+        Ok(())
     }
 
     /// Appends the values the scene shader reads for this light, laid out as `Light` in
@@ -429,6 +450,30 @@ mod tests {
         ];
         for (light, reason) in cases {
             assert_eq!(light.check().err().as_deref(), Some(reason), "{light:?}");
+        }
+    }
+
+    #[test]
+    fn a_light_drawn_from_the_camera_gives_the_shader_finite_numbers() {
+        let eye = DVec3::new(-1e18, 0.0, 0.0);
+        for (x, drawn) in [(0.0, true), (-2e18, true), (1e18, false), (1e39, false)] {
+            let light = Light::Point(PointLight {
+                position: DVec3::new(x, 0.0, 0.0),
+                intensity: f32::MAX,
+                range: Some(1e-30),
+                ..PointLight::default()
+            });
+            assert_eq!(light.check_from(eye).is_ok(), drawn, "{x}");
+            if drawn {
+                let mut bytes = Vec::new();
+                light.push_values(&mut bytes, eye, NO_TILE);
+                // The floats: all words but the kind, the tile and the padding.
+                let words = words(&bytes);
+                let floats = (0..13)
+                    .filter(|&index| index != 3)
+                    .map(|index| float(words[index]));
+                assert!(floats.into_iter().all(f32::is_finite), "{x}");
+            }
         }
     }
 

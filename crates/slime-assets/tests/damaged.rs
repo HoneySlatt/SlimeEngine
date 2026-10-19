@@ -1,8 +1,8 @@
-//! Cooked files damaged (`docs/adr/0096-the-files-the-engine-reads.md`): each reader of cooked data,
-//! given a valid file cut at every byte, its bytes changed and mutated at random, refuses it or
-//! reads it, and never panics; a texture that announces more than its file holds is refused before
-//! its levels are copied; and a directory of cooked data opens only the files of its own that the
-//! manifest names.
+//! Cooked files damaged (`docs/adr/0096-the-files-the-engine-reads.md`): each reader of cooked
+//! data, given a valid file cut at every byte, its bytes changed and mutated at random, refuses it
+//! or reads it, and never panics; a texture that announces more than its file holds is refused
+//! before its levels are copied; and a directory of cooked data opens only the files of its own
+//! that the manifest names.
 
 #[path = "common/damage.rs"]
 mod damage;

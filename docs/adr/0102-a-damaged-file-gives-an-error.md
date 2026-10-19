@@ -63,10 +63,11 @@ a direction finite and not zero and, for a directional light, a shadow distance 
 **Cooked data is checked before it is used.**
 
 - A manifest names its cooked files by ASCII letters, digits, `-`, `_` and `.`, not starting with
-  `.`: a name that would leave the directory, or that a system reads otherwise, refuses the
-  manifest.
-- `CookedAssets` refuses a cooked file that is not a file, a directory, a pipe or a device, or that
-  is of another size than the manifest says, before it opens it, and reads it up to that size.
+  `.`: a name that would leave the directory refuses the manifest. A name that a system reserves,
+  as `NUL` on Windows, is refused when the file is read.
+- `CookedAssets` refuses a cooked file that is not a file, as a directory, a pipe or a device is
+  not, or that is of another size than the manifest says, before it opens it, and reads it up to
+  that size.
 - `CookedTexture::from_ktx2` reads KTX2 files with a reader of the engine's own, for the layout that
   the cooker writes: it checks the header, the sides, at most `slime_assets::MAX_SIDE`, 8192, which
   the GPU takes with the engine's default limits, the count of levels and each level's place and
@@ -89,11 +90,12 @@ a direction finite and not zero and, for a directional light, a shadow distance 
 - A resolved scene takes at most `slime_world::MAX_SCENE_SIZE` bytes, 256 MiB, counted for its
   records and its reports of what was set aside, their texts and, for each value, the size of a
   `Value`; the copies that its placements make of their prefabs are counted before any is made, as
-  `MAX_ENTITIES` counts their entities. ADR-0091 counted entities only, which a large prefab placed
-  many times passed.
+  `MAX_ENTITIES` counts their entities; and so are the scenes that a save spawns while it is
+  loaded, together. ADR-0091 counted entities only, which a large prefab placed many times passed.
 - A lenient reading keeps the first `MAX_WARNINGS` warnings, 100, then one that counts the rest, and
-  places the first thousand errors and warnings in the text or the bytes, each from the one placed
-  before.
+  places the first thousand errors and warnings: in a text each from the one placed before, in the
+  binary encoding along their paths, its strings read once and each table or array walked through
+  once, its entries kept.
 
 **The cooker checks what it reuses, and writes whole.** A cooked file is reused only if its kind's
 reader reads it, of the size that the record of its import says for what a glTF file gave, and a
@@ -151,8 +153,8 @@ copy of the cooked sample with one byte of a mesh changed, which ends with an er
   `GltfFile::open` takes the directory of sources; a manifest's names are restricted; a save holds
   about 22 000 entities with a name and a transform, by its values, where 16 MiB held 57 000
   (`World::save` says it); a scene file whose placements copy more than 256 MiB is refused.
-- A cook that changes nothing reads every cooked file it reuses: 0.15 s for *Hunna Wood*'s zone,
-  248 MB, in a release build, where it took 0.09 s.
+- A cook that changes nothing reads every cooked file it reuses, at a cost that the rustdoc of
+  `slime_cook::cook` measures.
 - Damage that leaves a file readable, texels or numbers changed within their ranges, is not found:
   it draws wrong. Checksums may come later beside the rule, with archives, as ADR-0096 says.
 - Every new reader comes with its damaged-input tests, through the shared helper.

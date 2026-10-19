@@ -843,6 +843,21 @@ fn a_scene_whose_placements_copy_more_than_the_limit_is_refused_before_any_is_ma
 }
 
 #[test]
+fn a_placement_whose_id_each_copy_repeats_counts_it_in_the_limit() {
+    // A prefab of 1 000 entities placed once under an ID of 4 MiB, which each entity's path, and
+    // the key that names it while the scene resolves, repeat: 8 GB of copies, from a file of 4 MiB.
+    let yard = format!(
+        "[assets]\nlamp = {{ id = \"{LAMP}\" }}\n\n[entities.{}]\nprefab = \"lamp\"\n",
+        "a".repeat(4 << 20)
+    );
+    let mut scenes = library(&[(YARD, "yard", &yard), (LAMP, "lamp", &chain_prefab(1_000))]);
+    match scenes.resolve(world().registry(), YARD) {
+        Err(SceneError::TooLarge { scene }) => assert_eq!(scene, "yard"),
+        other => panic!("{other:?}"),
+    }
+}
+
+#[test]
 fn a_gltf_scene_counts_in_the_depth_of_the_placements_that_nest_it() {
     let places = |id: u128| {
         format!(

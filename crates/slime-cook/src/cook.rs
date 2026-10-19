@@ -2,8 +2,8 @@
 //! made them, and its manifest.
 
 use std::collections::HashMap;
-use std::fs;
-use std::io;
+use std::fs::{self, File};
+use std::io::{self, Read};
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 use std::thread;
@@ -126,18 +126,18 @@ pub enum CookError {
 /// nothing, and a source moved with its metadata neither. Whole, a cooked file is a file that its
 /// kind's reader reads, of the size that the record of its import says for what a glTF file gave,
 /// and a scene file's encoding byte for byte: a cooked file deleted, emptied or cut short is cooked
-/// again, which reads every cooked file reused, 248 MB for *Hunna Wood*'s zone, in 0.15 s. Damage
-/// that leaves a file readable, texels changed, is not found. The same sources cooked into two
-/// empty directories give the same bytes, on one platform.
+/// again. Every cooked file reused is read: a cook of *Hunna Wood*'s zone that changes nothing,
+/// which reads its 248 MB, took 0.23 s in a release build, where it took 0.09 s without the check.
+/// Damage that leaves a file readable, texels changed, is not found. The same sources cooked into
+/// two empty directories give the same bytes, on one platform.
 ///
 /// Files are written under a temporary name of the process's own, forced to the disk, then renamed,
 /// so that a cook stopped half-way, or a power cut, leaves no damaged file under a cooked name, and
-/// two cooks of the same sources at once, which write the same bytes under the same names, leave the
-/// cooked data whole. The
-/// manifest is written last, and only when what it lists changed: a game that loads its data again
-/// when its manifest changes ([`slime_assets::ManifestWatch`]) loads nothing again after a cook
-/// that changed nothing.
-/// Files that no source makes any more stay in `output`.
+/// two cooks of the same sources at once, which write the same bytes under the same names, leave
+/// the cooked data whole. The manifest is written last, and only when what it lists changed: a game
+/// that loads its data again when its manifest changes ([`slime_assets::ManifestWatch`]) loads
+/// nothing again after a cook that changed nothing. Files that no source makes any more stay in
+/// `output`.
 ///
 /// # Errors
 ///
@@ -218,7 +218,7 @@ pub fn cook(sources: &Path, output: &Path) -> Result<Cooked, CookError> {
     scene_files.cook(sources, output, &mut manifest, &mut result)?;
     let path = output.join(MANIFEST_FILE);
     let bytes = manifest.to_bytes();
-    if fs::read(&path).ok().as_deref() != Some(bytes.as_slice()) {
+    if read_output(&path, None).as_deref() != Some(bytes.as_slice()) {
         write(&path, &bytes)?;
     }
     Ok(result)
@@ -388,8 +388,7 @@ fn cook_gltf(
     }
     let key = hasher.finalize();
     let record_path = output.join(format!("{}.import", key.to_hex()));
-    if let Some(record) = fs::read(&record_path)
-        .ok()
+    if let Some(record) = read_output(&record_path, None)
         .and_then(|bytes| Record::from_bytes(&bytes))
         .filter(|record| {
             record
@@ -551,9 +550,7 @@ fn write(path: &Path, bytes: &[u8]) -> Result<(), CookError> {
 /// full disk leaves one, is cooked again; damage that leaves it readable, a texel changed, is not
 /// found.
 fn intact(path: &Path, kind: AssetKind, size: Option<u64>) -> bool {
-    let wanted = fs::metadata(path)
-        .is_ok_and(|metadata| metadata.is_file() && size.is_none_or(|size| size == metadata.len()));
-    let Some(bytes) = wanted.then(|| fs::read(path).ok()).flatten() else {
+    let Some(bytes) = read_output(path, size) else {
         return false;
     };
     match kind {
@@ -564,6 +561,22 @@ fn intact(path: &Path, kind: AssetKind, size: Option<u64>) -> bool {
         // Scene files are compared with their encoding, which a cook makes again.
         _ => false,
     }
+}
+
+/// The bytes of the file of the output at `path`, which the cooker reuses: `None` if it is not a
+/// file, as a directory, a pipe or a device is not, or is not of `size` bytes when it is given, both
+/// checked before it is read, or if it cannot be read; the cooker makes it again then.
+fn read_output(path: &Path, size: Option<u64>) -> Option<Vec<u8>> {
+    let metadata = fs::metadata(path).ok()?;
+    let size = size.unwrap_or(metadata.len());
+    if !metadata.is_file() || metadata.len() != size {
+        return None;
+    }
+    let mut bytes = Vec::new();
+    File::open(path)
+        .and_then(|file| file.take(size).read_to_end(&mut bytes))
+        .ok()?;
+    Some(bytes)
 }
 
 /// A step of a walk of the placements of scene files: a file, the files that it places with the
@@ -679,7 +692,7 @@ impl SceneFiles<'_> {
             hasher.update(&bytes);
             let file = format!("{}.scenefile", hasher.finalize().to_hex());
             let path = output.join(&file);
-            if fs::read(&path).is_ok_and(|cooked| cooked == bytes) {
+            if read_output(&path, Some(bytes.len() as u64)).is_some_and(|cooked| cooked == bytes) {
                 result.reused.push(source.id);
             } else {
                 write(&path, &bytes)?;

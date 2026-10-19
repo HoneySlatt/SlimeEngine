@@ -888,9 +888,11 @@ impl Renderer {
     /// or bloom is outside the range its documentation gives (the message names it); or if the
     /// instances need a buffer larger than the device allows (256 MiB with the default limits:
     /// about a million instances): these are bugs in the caller. A light with a value outside the
-    /// range its documentation gives, which a game's data may hold, is left out, with a warning
-    /// that names it by its index in the scene's lights when it is first left out
-    /// ([`Light::check`]); the [`MAX_LIGHTS`] drawn are the first of the others.
+    /// range its documentation gives, which a game's data may hold ([`Light::check`]), or a point
+    /// or spot light farther than 10¹⁸ m from the camera along an axis, where the shader's 32-bit
+    /// floats no longer measure it, is left out, with a warning that names it by its index in the
+    /// scene's lights when it is first left out; the [`MAX_LIGHTS`] drawn are the first of the
+    /// others.
     ///
     /// With glam's assertions on (see [`Camera`]), also for a camera that would otherwise draw
     /// nothing usable, as [`Camera::view_projection`] does.
@@ -917,10 +919,11 @@ impl Renderer {
         let mut left_out = Vec::new();
         let mut lights = Vec::with_capacity(scene.lights.len().min(MAX_LIGHTS));
         for (index, light) in scene.lights.iter().enumerate() {
-            match light.check() {
+            match light.check_from(scene.camera.eye) {
                 Ok(()) => lights.push(*light),
                 Err(reason) => {
-                    if !self.left_out_lights.contains(&index) {
+                    // In the order of the indices, as `left_out` is.
+                    if self.left_out_lights.binary_search(&index).is_err() {
                         tracing::warn!(
                             "light {index} of the scene is left out: {reason} (said again once it \
                              is drawn and left out again)"
