@@ -664,6 +664,39 @@ fn ranges_hold_finite_numbers_of_the_field_s_kind_and_bind_list_elements() {
         .expect("positive");
 }
 
+/// The least and the largest integers that a 64-bit float holds exactly, and past which it rounds.
+const LOWEST: i64 = -(1 << 53);
+const HIGHEST: i64 = 1 << 53;
+
+/// A count bounded by constants.
+#[derive(Debug, Reflect)]
+#[reflect(name = "test::Tally")]
+struct Tally {
+    #[reflect(range(min = LOWEST, max = HIGHEST))]
+    count: i64,
+}
+
+#[test]
+fn a_bound_given_as_a_constant_is_compared_exactly() {
+    let mut registry = Registry::new();
+    registry.register::<Tally>();
+    let mut value = Tally { count: 0 }.to_value();
+    for (number, held) in [
+        (HIGHEST, true),
+        (HIGHEST + 1, false),
+        (LOWEST, true),
+        (LOWEST - 1, false),
+    ] {
+        let set = registry.set(
+            "test::Tally",
+            &mut value,
+            &path("count"),
+            Value::Int(number),
+        );
+        assert_eq!(set.is_ok(), held, "{number}");
+    }
+}
+
 #[test]
 fn a_field_given_twice_is_refused() {
     let tint = Value::Struct(vec![

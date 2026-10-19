@@ -132,7 +132,8 @@ pub type Upgrade = fn(u32, Value, bool) -> Result<Value, String>;
 /// }
 /// ```
 ///
-/// an integer bound that a 64-bit float does not hold exactly, which a range would round:
+/// an integer bound that a 64-bit float does not hold exactly, which a range would round, written
+/// as a number or given as a constant:
 ///
 /// ```compile_fail
 /// #[derive(slime_reflect::Reflect)]
@@ -140,6 +141,17 @@ pub type Upgrade = fn(u32, Value, bool) -> Result<Value, String>;
 /// struct Tally {
 ///     #[reflect(range(max = 9_007_199_254_740_993_i64))]
 ///     count: i64,
+/// }
+/// ```
+///
+/// ```compile_fail
+/// const BELOW_MAX: u64 = u64::MAX - 1;
+///
+/// #[derive(slime_reflect::Reflect)]
+/// #[reflect(name = "Tally")]
+/// struct Tally {
+///     #[reflect(range(max = BELOW_MAX))]
+///     count: u64,
 /// }
 /// ```
 ///

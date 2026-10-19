@@ -2,9 +2,10 @@
 
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as Tokens;
-use quote::{ToTokens, quote};
+use quote::{ToTokens, quote, quote_spanned};
 use syn::ext::IdentExt;
 use syn::parse::ParseStream;
+use syn::spanned::Spanned;
 use syn::{
     Attribute, Data, DataEnum, DeriveInput, Expr, ExprLit, Fields, Ident, Index, Lit, LitInt,
     LitStr, Meta, Token, Type,
@@ -52,6 +53,8 @@ struct RangeAttribute {
     min: Option<Tokens>,
     min_excluded: bool,
     max: Option<Tokens>,
+    /// The bounds given as constants, whose values the derive checks at compile time.
+    constants: Vec<syn::Path>,
 }
 
 /// A field as the generated code names and describes it.
@@ -237,12 +240,12 @@ fn field_attributes(attributes: &[Attribute]) -> syn::Result<FieldAttributes> {
                 meta.parse_nested_meta(|bound| {
                     let value = bound.value()?;
                     if bound.path.is_ident("min") {
-                        range.min = Some(number(value)?);
+                        range.min = Some(number(value, &mut range.constants)?);
                     } else if bound.path.is_ident("above") {
-                        range.min = Some(number(value)?);
+                        range.min = Some(number(value, &mut range.constants)?);
                         range.min_excluded = true;
                     } else if bound.path.is_ident("max") {
-                        range.max = Some(number(value)?);
+                        range.max = Some(number(value, &mut range.constants)?);
                     } else {
                         return Err(bound.error("a range takes `min`, `above` and `max`"));
                     }
@@ -273,10 +276,11 @@ fn field_attributes(attributes: &[Attribute]) -> syn::Result<FieldAttributes> {
     Ok(parsed)
 }
 
-/// A bound of a range: a number, negative or not, or a constant's path. An integer that a 64-bit
-/// float does not hold exactly is refused: a range holds its bounds as such floats, and would check
-/// another bound than the one written.
-fn number(input: ParseStream<'_>) -> syn::Result<Tokens> {
+/// A bound of a range: a number, negative or not, or a constant's path, added to `constants`. An
+/// integer that a 64-bit float does not hold exactly is refused: a range holds its bounds as such
+/// floats, and would check another bound than the one written. A constant's value is not known
+/// here: [`range_checks`] checks it at compile time.
+fn number(input: ParseStream<'_>, constants: &mut Vec<syn::Path>) -> syn::Result<Tokens> {
     if input.peek(Token![-]) || input.peek(Lit) {
         let negative = input.parse::<Option<Token![-]>>()?.is_some();
         let literal: Lit = input.parse()?;
@@ -304,7 +308,9 @@ fn number(input: ParseStream<'_>) -> syn::Result<Tokens> {
         return Ok(quote!(#sign #literal));
     }
     let path: syn::Path = input.parse()?;
-    Ok(path.into_token_stream())
+    let tokens = path.to_token_stream();
+    constants.push(path);
+    Ok(tokens)
 }
 
 fn fields(fields: &Fields) -> syn::Result<Vec<Field<'_>>> {
@@ -347,6 +353,7 @@ fn field_infos(fields: &[Field<'_>]) -> Vec<Tokens> {
                     min,
                     min_excluded,
                     max,
+                    ..
                 }) => {
                     let min = min
                         .as_ref()
@@ -394,16 +401,29 @@ fn field_infos(fields: &[Field<'_>]) -> Vec<Tokens> {
         .collect()
 }
 
-/// The checks that the fields given a range hold numbers, as items of their own.
+/// The checks that the fields given a range hold numbers, and that each bound given as a constant
+/// is a number that a 64-bit float holds exactly, as items of their own: an integer constant
+/// rounded to another float, `u64::MAX - 1` to 2⁶⁴, fails to compile, as such a literal does.
 fn range_checks(fields: &[Field<'_>]) -> Vec<Tokens> {
-    fields
-        .iter()
-        .filter(|field| field.attributes.range.is_some())
-        .map(|field| {
-            let ty = field.ty;
-            quote!(const _: fn() = ::slime_reflect::support::ranged::<#ty>;)
-        })
-        .collect()
+    let mut checks = Vec::new();
+    for field in fields {
+        let Some(range) = &field.attributes.range else {
+            continue;
+        };
+        let ty = field.ty;
+        checks.push(quote!(const _: fn() = ::slime_reflect::support::ranged::<#ty>;));
+        for constant in &range.constants {
+            // A float, of either width, goes to `i128` the same way whether widened first or not:
+            // only an integer that the widening rounds differs.
+            checks.push(quote_spanned! {constant.span()=>
+                const _: () = ::std::assert!(
+                    (#constant) as f64 as i128 == (#constant) as i128,
+                    "a range holds its bounds as 64-bit floats, and this integer is not one"
+                );
+            });
+        }
+    }
+    checks
 }
 
 /// The registrations of the described fields' types.

@@ -160,11 +160,9 @@ Risks:
   `cargo test -p hunnawood -- --ignored`; `cargo run -p hunnawood -- --new --save <file>`.
 - **By hand.** On Linux: play, F5, F9, quit and resume. In the Windows virtual machine: two copies
   of the game at once; the game killed during F5, then started again.
-- **Progress.** Fixed, each with the audit's tests moved into the repository: G09, G08 for bounds
-  written as numbers, G39, G24, G10, and G01 in the engine. Left: loading compares the fingerprint
-  of what the start created without the world's types, so that every change of an entity that the
-  start created with `World::spawn` is set aside; G08 for bounds given as constants; G02, G03, G11,
-  G35 and G36; the ADRs, the rustdoc and the game's README.
+- **Progress.** Fixed, each with the audit's tests moved into the repository: G09, G08, G39, G24,
+  G10, and G01 in the engine. Left: G02, G03, G11, G35 and G36; the ADRs, the rustdoc and the
+  game's README.
 
 ### P2 — A damaged file gives an error, never a crash
 
