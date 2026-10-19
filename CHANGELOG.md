@@ -60,6 +60,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   left out with a warning in `Loaded::warnings`, as `World::load`'s rustdoc said of what it does
   not know: it was set aside, as a value that its type refuses, so that a game could not tell a save
   that a later version of it wrote from one whose entities an update removed.
+- The cooker decodes JPEG images in CMYK and YCCK to their colors: zune-jpeg 0.5.15 converted them
+  to RGBA with the stride of RGB, which shifted the colors of every texel and left alpha wrong,
+  without a word. It asks the decoder for RGB, and adds an opaque alpha itself; the images in YCbCr
+  and gray, as all of *Hunna Wood*'s, cook to the same bytes.
 - Reading a document leniently, as a save is read, costs time in proportion with its size however
   many warnings it gives: each warning's column was counted from its line's start, so that a line
   of 1 150 000 fields unknown took 488 s. A reading keeps the first `MAX_WARNINGS` warnings, then

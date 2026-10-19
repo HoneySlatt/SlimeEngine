@@ -47,7 +47,8 @@ pub enum ImageKind {
     /// PNG, of any color type and depth: palettes expanded, 16-bit channels cut to their most
     /// significant byte, gray spread to red, green and blue, a missing alpha opaque.
     Png,
-    /// JPEG, baseline or progressive, converted to RGB by the decoder, alpha opaque.
+    /// JPEG, baseline or progressive, in YCbCr, gray, CMYK or YCCK, converted to RGB by the decoder,
+    /// alpha opaque.
     Jpeg,
 }
 
@@ -123,8 +124,10 @@ fn decode_png(bytes: &[u8]) -> Result<Image, ImageError> {
 
 fn decode_jpeg(bytes: &[u8]) -> Result<Image, ImageError> {
     let error = |what: &dyn std::fmt::Display| ImageError::Decode(what.to_string());
+    // RGB, then alpha added here: zune-jpeg 0.5.15 converts CMYK and YCCK to RGBA with the stride
+    // of RGB, which shifts the colors of every texel; to RGB, it converts them right.
     let options = DecoderOptions::default()
-        .jpeg_set_out_colorspace(ColorSpace::RGBA)
+        .jpeg_set_out_colorspace(ColorSpace::RGB)
         .set_max_width(MAX_SIDE as usize)
         .set_max_height(MAX_SIDE as usize);
     let mut decoder = JpegDecoder::new_with_options(ZCursor::new(bytes), options);
@@ -134,14 +137,19 @@ fn decode_jpeg(bytes: &[u8]) -> Result<Image, ImageError> {
         .ok_or_else(|| error(&"it has no image header"))?;
     let (width, height) = (u32::from(info.width), u32::from(info.height));
     check_size(width, height)?;
-    let rgba = decoder.decode().map_err(|e| error(&e))?;
-    if rgba.len() != width as usize * height as usize * 4 {
+    let rgb = decoder.decode().map_err(|e| error(&e))?;
+    if rgb.len() != width as usize * height as usize * 3 {
         return Err(error(&"the decoder gave texels of another size"));
     }
     Ok(Image {
         width,
         height,
-        rgba,
+        rgba: rgb
+            .as_chunks::<3>()
+            .0
+            .iter()
+            .flat_map(|&[r, g, b]| [r, g, b, 255])
+            .collect(),
     })
 }
 
@@ -254,6 +262,34 @@ mod tests {
             for (got, want) in texel.iter().zip([48, 128, 192, 255]) {
                 assert!(got.abs_diff(want) <= 3, "{texel:?}");
             }
+        }
+    }
+
+    #[test]
+    fn a_jpeg_image_in_cmyk_is_decoded_into_its_colors() {
+        // 48 × 8 texels, stripes of 8 of red, green, blue, white, grey and black, converted to CMYK
+        // and written by Pillow at quality 100.
+        let bytes = include_bytes!("../tests/fixtures/stripes-cmyk.jpg");
+        let image = decode(ImageKind::Jpeg, bytes).expect("the image is decoded");
+        assert_eq!((image.width, image.height), (48, 8));
+        let stripes = [
+            [255, 0, 0],
+            [0, 255, 0],
+            [0, 0, 255],
+            [255, 255, 255],
+            [128, 128, 128],
+            [0, 0, 0],
+        ];
+        for (index, texel) in image.rgba.as_chunks::<4>().0.iter().enumerate() {
+            let want = stripes[index % 48 / 8];
+            let near = texel[..3]
+                .iter()
+                .zip(want)
+                .all(|(got, want)| got.abs_diff(want) <= 3);
+            assert!(
+                near && texel[3] == 255,
+                "texel {index}: {texel:?}, not {want:?}"
+            );
         }
     }
 
