@@ -25,8 +25,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   editor, is planned with the owner after it. P1 is done
   ([ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)), P2
   ([ADR-0102](adr/0102-a-damaged-file-gives-an-error.md)) and P3
-  ([ADR-0103](adr/0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md)); P5 waits for the
-  owner's go.
+  ([ADR-0103](adr/0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md)), and P5
+  ([ADR-0104](adr/0104-the-build-ci-and-measurements.md),
+  [ADR-0105](adr/0105-egui-fonts-ship-with-the-dev-overlay.md)); P4 waits for the owner's go.
 - The games the engine aims at, described on 2026-10-19
   ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)): nine profiles, from *Hunna Wood* to a
   massively multiplayer game, listed in [`ROADMAP.md`](ROADMAP.md). They add criteria to P6, one UI
@@ -43,7 +44,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [P1](#p1--saves-and-identities-that-never-mislead) | A save, a scene file and a level written back hold what the world holds and name the entities they mean; a game resumes only a save it can play, and never loses one | Done |
 | [P2](#p2--a-damaged-file-gives-an-error-never-a-crash) | No damaged or edited file makes the engine panic, hang or exhaust its memory (ADR-0096) | Done |
 | [P3](#p3--the-loss-of-the-gpu-device-and-the-main-loop) | A lost GPU device is recovered wherever the loss is found, and a panic in `render` stays an ordinary panic | Done |
-| [P5](#p5--the-build-ci-and-measurements-tracked-from-one-commit-to-the-next) | Every crate compiled once, CI under its limit, and the engine's measurements tracked from one commit to the next | Planned |
+| [P5](#p5--the-build-ci-and-measurements-tracked-from-one-commit-to-the-next) | Every crate compiled once, CI under its limit, and the engine's measurements tracked from one commit to the next | Done |
 | [P4](#p4--the-measured-quick-wins) | The quick wins that the audit measured, each measured again before and after | Planned |
 | [P6](#p6--the-foundation-decisions) | What the editor will freeze, decided as ADRs | Planned |
 
@@ -455,6 +456,59 @@ Risks:
 - **By hand.** In the Windows virtual machine, once the benchmarks are in the repository: the
   measurements of rendering and loading on Direct3D 12; the Windows job's log of `af512af`, whose
   WARP figures no one compared.
+- **Outcome.** Done on 2026-10-19.
+  [ADR-0104](adr/0104-the-build-ci-and-measurements.md) records the build's profiles, CI's cache of
+  the cooked zone and its two Windows jobs, the benchmarks, the file of measurements and the trace,
+  and amends ADR-0004 and ADR-0077; [ADR-0105](adr/0105-egui-fonts-ship-with-the-dev-overlay.md)
+  amends ADR-0031: egui's fonts ship with the dev overlay, as `deny.toml` and
+  [`dependencies.md`](dependencies.md) now say (G54).
+  - B1-F01, B1-F02: `cargo test --workspace` after `cargo build --workspace` compiles no library
+    again, where it compiled 12, and the target directory of both is a third smaller; ADR-0104
+    gives each change's figures. The dependencies keep their line tables, which the plan did not
+    say: a backtrace through wgpu or winit keeps its files and lines, for 1.2 GB more than no
+    debug information. CI's Windows jobs build the tests without `cargo build` before them, so
+    that B1-F01 does not shorten them; what the line tables change on Windows is not measured,
+    the runners' speed varying more from one run to the next.
+  - B1-F05: every job keeps the cooked zone in its cache, which the cook then reuses. The Windows
+    job took 13 minutes 38 seconds before P5, then 21 minutes 54 seconds and 19 minutes 5 seconds
+    with the same work on slower runners, the cook taking 1 minute 54 seconds to 3 minutes 9
+    seconds of it: past 20 minutes, ADR-0081 had decided to split it in two jobs that run in
+    parallel, which P5 does. With the two jobs, on `2d71729`, whose new key cooked the zone again
+    in each job, CI took 13 minutes 4 seconds on Linux, 11 minutes 35 seconds for `windows` and 11
+    minutes 7 seconds for `windows-release`.
+  - C6-04, C7-08: the benchmarks are in the repository, a program of the workspace,
+    [`slime-benches`](../benches/README.md), and [`measurements.md`](measurements.md) holds their
+    figures and the build's, measured on lavapipe on a machine of 4 logical CPUs. They show four
+    of P4's findings there: the sky made again at 14 frames of 24 around a sun that did not move
+    (G13); a parent of twice as many children emptied in four times as long (G27); a scene file of
+    four times as many placements resolved in more than six times as long (G26); a load started in
+    5 ms with a manifest of 10 000 assets, 74 ms with 100 000 (G25). The workspace's tests take
+    79 s there, which the known debt now says. ADR-0077's 7 ms was measured with every shader in
+    the driver's cache, which an edited shader is not: ADR-0104 amends it, and
+    `Renderer::set_shaders`'s rustdoc names the machine of each figure. On lavapipe, an edit cost
+    from 2 to 11 ms more than unchanged sources in two runs; on the RX 6900 XT it is not measured.
+  - The figures of lavapipe are not those of a GPU: P4's gains of the renderer and of loading
+    (B3-F02, B3-F05, B4-F01) are measured on the owner's RX 6900 XT, in a section of that GPU,
+    which the owner takes before P4 starts, and `render.instances.100k`, which lavapipe (Mesa
+    26.2.4) cannot run, crashing in `lvp_descriptor_set_create`, runs only there; the crash is not
+    reported to Mesa.
+  - The trace: `SLIME_TRACE` names a file into which any program that calls `init_diagnostics`
+    writes its spans, which Perfetto opens. *Hunna Wood*, run for 20 frames, wrote a trace of 717
+    events, each frame's phases and each submission to the GPU, which parses whole. The renderer's
+    passes and the loading threads have no span of their own yet, and what a trace costs a frame
+    is not measured.
+  - `loading.zone` places each mesh of the cooked zone once rather than spawning its scene, whose
+    components only the game registers: the zone's bytes loaded while frames are drawn, not its
+    layout.
+  - A review of P5 found the Windows job past its limit with the split that ADR-0081 decided not
+    made; the benchmark of the sky counting the frame that makes the sky first, the zone's drawn
+    without a sun; a trace that made and dispatched every log record of the dependencies; a
+    script that could count no library compiled again when it could not read cargo's output; and
+    documents that said more than the code did. All are fixed, but the cost of a trace, which is
+    documented.
+  - Not done, the owner's by hand: the measurements of rendering and loading on Direct3D 12 in
+    the Windows virtual machine, the Windows job's log of `af512af`, and the section of the RX
+    6900 XT on Linux.
 
 ### P4 — The measured quick wins
 
@@ -638,7 +692,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   instead of 6.2 s, in a release build. Leaves that cast no shadow in the farther cascades would
   lower it, to measure with views of the zone.
 - **`cargo test` leaves out the tests of the cooked zone**: they need the zone fetched and cooked,
-  so they are ignored (`#[ignore]`); `scripts/check.sh` and CI's Windows job fetch and cook the
+  so they are ignored (`#[ignore]`); `scripts/check.sh` and CI's `windows` job fetch and cook the
   zone, then run them (`cargo test -p hunnawood -- --ignored`).
 - **Frames are not synchronized with the display's refresh** (ADR-0021; issue
   [#1](https://github.com/HoneySlatt/SlimeEngine/issues/1)). With Mailbox, the default, the
@@ -961,13 +1015,14 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **The environment is computed on the CPU, in every process that draws a sky** (ADR-0039): 23 ms
   in a release build on the owner's 16 threads, 162 ms on one core, and the BRDF table once (15
   ms); about eight times longer in a debug build, which every test that draws a sky with a gradient
-  or a sun pays: the workspace's tests took 23.9 s instead of 9.7 s on lavapipe on the owner's
-  machine, most in `slime-render`'s `tests/environment.rs` (6.2 s) and the examples'
-  `tests/gltf.rs` (5.7 s), whose every load of a file computes the sample's sky. A sky that changes
-  needs a new environment: no time of day. To measure: `cargo test --release -p slime-render --lib
-  -- --ignored --nocapture`, against the budget of M3b.6. Not yet scheduled: to move to the
-  cooker, or to compute passes if skies change at run time; if the tests' time matters first,
-  building `slime-render` optimized in debug builds would shorten it, at the cost of stepping through it in
+  or a sun pays, most in `slime-render`'s `tests/environment.rs` and the examples' `tests/gltf.rs`,
+  whose every load of a file computes the sample's sky: 9 s and 13 s, timed by hand at P5, of the
+  workspace's 79 s of tests on lavapipe, on a machine of 4 logical CPUs
+  ([measurements](measurements.md) holds the total). A sky that changes needs a new environment:
+  no time of day. To measure: `cargo test --release -p slime-render --lib -- --ignored
+  --nocapture`, against the budget of M3b.6. Not yet scheduled: to move to the cooker, or to
+  compute passes if skies change at run time; if the tests' time matters first, building
+  `slime-render` optimized in debug builds would shorten it, at the cost of stepping through it in
   a debugger.
 - **The sky's sun is described twice in the renderer's own API** (ADR-0039). A game that draws
   with it gives the same `DirectionalLight` to `Sky::sun`, for the disc and the glow, and to
@@ -1249,4 +1304,8 @@ waits for. A test that confirms each is kept outside the repository, and comes i
   2026-10-16): Linux 9 minutes 6 seconds, Windows 18 minutes 27 seconds. With `slime-serialize`
   (M5a.7, 2026-10-16): Linux 13 minutes 26 seconds, Windows 15 minutes 31 seconds. With no crate
   added since, at M5b.6 (2026-10-18): Linux 14 minutes 17 seconds, Windows 19 minutes 48 seconds,
-  12 seconds under the limit; the audit pass's P5 shortens it.
+  12 seconds under the limit. At P5 (2026-10-19), with the same work, from 13 minutes 38 seconds to
+  21 minutes 54 seconds on Windows, as the runners' speed varied: the Windows job is split in two
+  jobs that run in parallel (ADR-0081, ADR-0104), and every job keeps the cooked zone in its cache:
+  on `2d71729`, the zone cooked again, Linux 13 minutes 4 seconds, `windows` 11 minutes 35
+  seconds, `windows-release` 11 minutes 7 seconds.
