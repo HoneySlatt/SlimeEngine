@@ -34,6 +34,14 @@ jobs:
             games/hunnawood/assets/zone
             !games/hunnawood/assets/zone/**/*.meta
           key: hunnawood-zone-${{ hashFiles('games/hunnawood/assets/sources.tsv') }}
+      # The zone cooked, kept from one run to the next while what makes its bytes is unchanged: its
+      # sources and their metadata, the crates of the cooker, the locked dependencies, the toolchain
+      # and the platform (docs/adr/0072-stage-4b-live-assets.md, docs/adr/0081-stage-5a-the-world.md).
+      # The cook then reuses every file, which it checks first.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: target/cooked/hunnawood
+          key: hunnawood-cooked-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('games/hunnawood/assets/sources.tsv', 'games/hunnawood/assets/zone/**/*.meta', 'games/hunnawood/assets/zone/**/*.scene', 'crates/slime-cook/src/**', 'crates/slime-cook/Cargo.toml', 'crates/slime-assets/src/**', 'crates/slime-assets/Cargo.toml', 'crates/slime-color/src/**', 'crates/slime-color/Cargo.toml', 'crates/slime-reflect/src/**', 'crates/slime-reflect/Cargo.toml', 'crates/slime-reflect-derive/src/**', 'crates/slime-reflect-derive/Cargo.toml', 'crates/slime-serialize/src/**', 'crates/slime-serialize/Cargo.toml', 'crates/slime-world/src/**', 'crates/slime-world/Cargo.toml', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml') }}
       # Without the flag, an incomplete flake.lock would be completed with an unpinned revision.
       - run: nix develop --no-update-lock-file --command scripts/check.sh
 
@@ -95,6 +103,11 @@ jobs:
             games/hunnawood/assets/zone
             !games/hunnawood/assets/zone/**/*.meta
           key: hunnawood-zone-${{ hashFiles('games/hunnawood/assets/sources.tsv') }}
+      # The zone cooked, kept as in the Linux job.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: target/cooked/hunnawood
+          key: hunnawood-cooked-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('games/hunnawood/assets/sources.tsv', 'games/hunnawood/assets/zone/**/*.meta', 'games/hunnawood/assets/zone/**/*.scene', 'crates/slime-cook/src/**', 'crates/slime-cook/Cargo.toml', 'crates/slime-assets/src/**', 'crates/slime-assets/Cargo.toml', 'crates/slime-color/src/**', 'crates/slime-color/Cargo.toml', 'crates/slime-reflect/src/**', 'crates/slime-reflect/Cargo.toml', 'crates/slime-reflect-derive/src/**', 'crates/slime-reflect-derive/Cargo.toml', 'crates/slime-serialize/src/**', 'crates/slime-serialize/Cargo.toml', 'crates/slime-world/src/**', 'crates/slime-world/Cargo.toml', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml') }}
       - name: Fetch and cook the sample game's zone
         run: |
           scripts/fetch-assets.sh zone/
