@@ -124,6 +124,38 @@ impl Default for MaterialData<'_> {
 }
 
 impl MaterialData<'_> {
+    /// Each texture slot, in the order of the material's group: its name, its texture, and whether
+    /// it holds colors, in an sRGB format, rather than data.
+    fn slots(&self) -> [(&'static str, Option<SampledTexture<'_>>, bool); 5] {
+        [
+            ("base color", self.base_color_texture, true),
+            ("metallic-roughness", self.metallic_roughness_texture, false),
+            ("normal", self.normal_texture, false),
+            ("occlusion", self.occlusion_texture, false),
+            ("emissive", self.emissive_texture, true),
+        ]
+    }
+
+    /// Why a texture's format does not suit its slot, if one does not: read in the other kind of
+    /// format, its values would be wrong.
+    pub(crate) fn misplaced_texture(&self) -> Option<String> {
+        self.slots()
+            .into_iter()
+            .find_map(|(slot, sampled, colors)| {
+                let format = sampled?.texture.format();
+                (format.is_srgb() != colors).then(|| {
+                    format!(
+                        "its {slot} texture is {format:?}, but the {slot} slot reads {}",
+                        if colors {
+                            "colors, from an sRGB format"
+                        } else {
+                            "data, from Rgba8Unorm"
+                        }
+                    )
+                })
+            })
+    }
+
     /// Its values that can change once the material is made.
     pub(crate) fn values(&self) -> MaterialValues {
         MaterialValues {
@@ -344,36 +376,18 @@ impl MaterialParts {
                 reason,
             });
         }
+        if let Some(reason) = data.misplaced_texture() {
+            panic!("material `{label}`: {reason}");
+        }
         let normal_texture = data.normal_texture.is_some();
         let uniform = gpu.create_uniform_buffer(label, &values.bytes(normal_texture))?;
-        // Each slot: its name, its texture, and whether it holds colors (sRGB) rather than data.
-        let slots = [
-            ("base color", data.base_color_texture, true),
-            ("metallic-roughness", data.metallic_roughness_texture, false),
-            ("normal", data.normal_texture, false),
-            ("occlusion", data.occlusion_texture, false),
-            ("emissive", data.emissive_texture, true),
-        ];
         let mut entries = vec![BindGroupEntry {
             binding: 0,
             resource: BindingResource::UniformBuffer(&uniform),
         }];
-        for (binding, (slot, sampled, colors)) in (1u32..).step_by(2).zip(slots) {
+        for (binding, (_, sampled, _)) in (1u32..).step_by(2).zip(data.slots()) {
             let (texture, sampler) = match sampled {
-                Some(sampled) => {
-                    let format = sampled.texture.format();
-                    assert!(
-                        format.is_srgb() == colors,
-                        "material `{label}`: its {slot} texture is {format:?}, but the {slot} \
-                             slot reads {}",
-                        if colors {
-                            "colors, from an sRGB format"
-                        } else {
-                            "data, from Rgba8Unorm"
-                        }
-                    );
-                    (sampled.texture, sampled.sampler)
-                }
+                Some(sampled) => (sampled.texture, sampled.sampler),
                 None => (&self.white, &self.sampler),
             };
             entries.push(BindGroupEntry {

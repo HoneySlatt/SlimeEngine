@@ -73,6 +73,18 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - A panic in a type's check or upgrade, a game's code, refuses the value that it was called on, as
   its error does, rather than crash the program, unless it aborts on panics: a save edited to give
   a value that a game's check did not expect left the world half loaded.
+- The readers of cooked data check a file before they use it, and refuse a damaged one with an
+  error, never a panic, a hang or memory exhausted. The manifest names its cooked files inside its
+  directory only, by ASCII letters, digits, `-`, `_` and `.`, where `../` or an absolute path was
+  read; a cooked file that is not a file, as a pipe or a device, or that is of another size than
+  the manifest says, is refused before it is read, and read up to that size, where it was read
+  whole first. `CookedTexture::from_ktx2` reads KTX2 files with a reader of the engine's own, which
+  checks the header, the sides, up to `MAX_SIDE`, the count of levels and each level's place and
+  size before it copies them: one byte of the data format descriptor made the `ktx2` crate panic,
+  and a file of 1 MiB could announce levels of gigabytes. A cooked material that reads a texture of
+  the wrong kind for its slot, data for colors or the reverse, is refused with
+  `RenderError::InvalidMaterial`, where the load panicked. `AssetCache::poll` ends a batch whose
+  load panicked, and does not ask for its meshes again, where the cache stayed loading them.
 - A save that gives one key both to a scene that it spawns and to an entity that it creates, as a
   save edited by hand may, is refused with `DocumentError::IdentityInUse`: it was loaded, two
   entities claiming one identity, and the next save left one of them out.

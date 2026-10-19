@@ -3,7 +3,18 @@
 
 use ktx2::dfd;
 
+use crate::bytes::Reader;
 use crate::error::CookedError;
+
+/// The longest side of a texture, in texels: the largest that the GPU takes with the engine's
+/// default limits (`slime_gfx::Gpu::max_texture_dimension`). The cooker refuses a larger image, and
+/// [`CookedTexture::from_ktx2`] a larger texture.
+pub const MAX_SIDE: u32 = 8192;
+
+/// The twelve bytes that a KTX2 file starts with.
+const KTX2_IDENTIFIER: [u8; 12] = [
+    0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, 0xbb, 0x0d, 0x0a, 0x1a, 0x0a,
+];
 
 /// How the texels of a cooked texture are stored, which sets how the GPU reads them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -56,7 +67,8 @@ impl TextureEncoding {
         }
     }
 
-    fn from_format(format: ktx2::Format) -> Option<Self> {
+    /// The encoding of the Vulkan format numbered `format`, if it is a cooked one.
+    fn from_format(format: u32) -> Option<Self> {
         [
             Self::Bc7Srgb,
             Self::Bc7,
@@ -65,7 +77,7 @@ impl TextureEncoding {
             Self::Rgba8,
         ]
         .into_iter()
-        .find(|encoding| encoding.format() == format)
+        .find(|encoding| encoding.format().value() == format)
     }
 }
 
@@ -87,7 +99,7 @@ pub struct CookedTexture {
 impl CookedTexture {
     /// The size of level `index`, in texels.
     pub fn level_dimensions(&self, index: usize) -> (u32, u32) {
-        ((self.width >> index).max(1), (self.height >> index).max(1))
+        level_dimensions(self.width, self.height, index)
     }
 
     /// The texture as a KTX2 file: one image, no supercompression, a data format descriptor of the
@@ -96,7 +108,8 @@ impl CookedTexture {
     ///
     /// # Panics
     ///
-    /// If the levels are not those of [`CookedTexture`], each of [`TextureEncoding::level_size`].
+    /// If the levels are not those of [`CookedTexture`], each of [`TextureEncoding::level_size`],
+    /// or if a side is longer than [`MAX_SIDE`]: [`CookedTexture::from_ktx2`] would refuse the file.
     pub fn to_ktx2(&self) -> Vec<u8> {
         self.check().unwrap_or_else(|reason| panic!("{reason}"));
         let format = self.encoding.format();
@@ -157,63 +170,83 @@ impl CookedTexture {
         file
     }
 
-    /// The texture that a KTX2 file of [`CookedTexture::to_ktx2`] holds.
+    /// The texture that a KTX2 file of [`CookedTexture::to_ktx2`] holds, read by the engine's own
+    /// reader of that layout: its header and its index of levels are checked first, its sides
+    /// against [`MAX_SIDE`], its count of levels against its sides, and each level's place and size
+    /// against the file, before any level is copied. The texture takes at most the file's size in
+    /// memory, and a time linear in it. The data format descriptor, which says the format again,
+    /// and the key-value data are not read.
     ///
     /// # Errors
     ///
-    /// [`CookedError::Malformed`] if the file is not such a KTX2 file: not KTX2, of another
-    /// encoding, supercompressed, of several images or of a depth, or with levels of the wrong
-    /// size.
+    /// [`CookedError::Malformed`] if the file is not such a KTX2 file: not KTX2, cut short, of
+    /// another encoding, supercompressed, of several images or of a depth, larger than
+    /// [`MAX_SIDE`], or with levels that are not those of its size, or that lie outside the file.
     pub fn from_ktx2(bytes: &[u8]) -> Result<Self, CookedError> {
-        let malformed = |reason: String| CookedError::Malformed {
-            what: "texture",
-            reason,
-        };
-        let reader = ktx2::Reader::new(bytes).map_err(|error| malformed(error.to_string()))?;
-        let header = reader.header();
-        let encoding = header
-            .format
-            .and_then(TextureEncoding::from_format)
-            .ok_or_else(|| malformed(format!("format {:?} is not a cooked one", header.format)))?;
-        if header.supercompression_scheme.is_some()
-            || header.pixel_depth != 0
-            || header.layer_count != 0
-            || header.face_count != 1
-        {
-            return Err(malformed("not one plain two-dimensional image".to_owned()));
+        let mut reader = Reader::new(bytes, "texture");
+        if reader.take(12)? != KTX2_IDENTIFIER {
+            return Err(reader.malformed("it does not start with the KTX2 identifier"));
         }
-        let texture = Self {
-            width: header.pixel_width,
-            height: header.pixel_height,
+        let format = reader.u32()?;
+        let encoding = TextureEncoding::from_format(format).ok_or_else(|| {
+            reader.malformed(&format!("Vulkan format {format} is not a cooked one"))
+        })?;
+        let _type_size = reader.u32()?;
+        let width = reader.u32()?;
+        let height = reader.u32()?;
+        let depth = reader.u32()?;
+        let layers = reader.u32()?;
+        let faces = reader.u32()?;
+        let level_count = reader.u32()? as usize;
+        let supercompression = reader.u32()?;
+        if supercompression != 0 || depth != 0 || layers != 0 || faces != 1 {
+            return Err(reader.malformed("it is not one plain two-dimensional image"));
+        }
+        check_size(width, height, encoding, level_count)
+            .map_err(|reason| reader.malformed(&reason))?;
+        // The offsets and lengths of the descriptors, which are not read.
+        reader.take(32)?;
+        let mut ranges = Vec::with_capacity(level_count);
+        let mut total = 0_usize;
+        for index in 0..level_count {
+            let start = reader.u64()?;
+            let length = reader.u64()?;
+            let _uncompressed = reader.u64()?;
+            let (level_width, level_height) = level_dimensions(width, height, index);
+            let expected = encoding.level_size(level_width, level_height);
+            let within = start
+                .checked_add(length)
+                .is_some_and(|end| end <= bytes.len() as u64);
+            if length != expected as u64 || !within {
+                return Err(reader.malformed(&format!(
+                    "level {index}, of {level_width}x{level_height} texels, takes {length} bytes \
+                     from byte {start}, where it needs {expected} bytes within the file's {}",
+                    bytes.len()
+                )));
+            }
+            total += expected;
+            ranges.push(start as usize..(start + length) as usize);
+        }
+        if total > bytes.len() {
+            return Err(reader.malformed(&format!(
+                "its levels take {total} bytes, more than the file's {}",
+                bytes.len()
+            )));
+        }
+        Ok(Self {
+            width,
+            height,
             encoding,
-            levels: reader.levels().map(|level| level.data.to_vec()).collect(),
-        };
-        texture.check().map_err(malformed)?;
-        Ok(texture)
+            levels: ranges
+                .into_iter()
+                .map(|range| bytes[range].to_vec())
+                .collect(),
+        })
     }
 
     /// Why the texture is not one the GPU can take, if it is not.
     fn check(&self) -> Result<(), String> {
-        if self.width == 0 || self.height == 0 {
-            return Err(format!("{}x{} texels", self.width, self.height));
-        }
-        let full_chain = (u32::BITS - self.width.max(self.height).leading_zeros()) as usize;
-        if self.levels.is_empty() || self.levels.len() > full_chain {
-            return Err(format!(
-                "{} levels for {}x{} texels, which take 1 to {full_chain}",
-                self.levels.len(),
-                self.width,
-                self.height
-            ));
-        }
-        if self.encoding.is_block_compressed()
-            && !(self.width.is_multiple_of(4) && self.height.is_multiple_of(4))
-        {
-            return Err(format!(
-                "{}x{} texels in blocks of 4x4",
-                self.width, self.height
-            ));
-        }
+        check_size(self.width, self.height, self.encoding, self.levels.len())?;
         for (index, level) in self.levels.iter().enumerate() {
             let (width, height) = self.level_dimensions(index);
             let expected = self.encoding.level_size(width, height);
@@ -227,6 +260,43 @@ impl CookedTexture {
         }
         Ok(())
     }
+}
+
+/// The size of level `index` of a texture of `width` × `height` texels, in texels.
+fn level_dimensions(width: u32, height: u32, index: usize) -> (u32, u32) {
+    let shift = |side: u32| {
+        u32::try_from(index)
+            .ok()
+            .and_then(|index| side.checked_shr(index))
+            .unwrap_or(0)
+            .max(1)
+    };
+    (shift(width), shift(height))
+}
+
+/// Why a texture of `width` × `height` texels in `encoding`, with `levels` levels, is not one the
+/// GPU can take, if it is not.
+fn check_size(
+    width: u32,
+    height: u32,
+    encoding: TextureEncoding,
+    levels: usize,
+) -> Result<(), String> {
+    if width == 0 || height == 0 || width.max(height) > MAX_SIDE {
+        return Err(format!(
+            "{width}x{height} texels, where a texture takes 1 to {MAX_SIDE} on a side"
+        ));
+    }
+    let full_chain = (u32::BITS - width.max(height).leading_zeros()) as usize;
+    if levels == 0 || levels > full_chain {
+        return Err(format!(
+            "{levels} levels for {width}x{height} texels, which take 1 to {full_chain}"
+        ));
+    }
+    if encoding.is_block_compressed() && !(width.is_multiple_of(4) && height.is_multiple_of(4)) {
+        return Err(format!("{width}x{height} texels in blocks of 4x4"));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -311,5 +381,14 @@ mod tests {
         file.truncate(file.len() - 8);
         assert!(CookedTexture::from_ktx2(&file).is_err());
         assert!(wrong.check().is_err());
+    }
+
+    #[test]
+    fn a_texture_longer_than_the_gpu_takes_is_refused() {
+        assert!(texture(TextureEncoding::Rgba8, MAX_SIDE, 1).check().is_ok());
+        let error = texture(TextureEncoding::Rgba8, MAX_SIDE * 2, 1)
+            .check()
+            .expect_err("refused");
+        assert!(error.contains("8192"), "{error}");
     }
 }

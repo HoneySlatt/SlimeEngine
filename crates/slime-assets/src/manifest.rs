@@ -78,7 +78,9 @@ impl fmt::Display for AssetKind {
 pub struct ManifestEntry {
     /// Its kind.
     pub kind: AssetKind,
-    /// The name of its cooked file, in the directory of cooked data.
+    /// The name of its cooked file, in the directory of cooked data: ASCII letters, digits, `-`,
+    /// `_` and `.`, not starting with `.`, so that it names a file of that directory on every
+    /// system, never one outside it.
     pub file: String,
     /// The size of that file, in bytes.
     pub size: u64,
@@ -155,7 +157,8 @@ impl Manifest {
     /// # Errors
     ///
     /// [`CookedError::Version`] if another version of the format wrote it, and
-    /// [`CookedError::Malformed`] if it is not a manifest, or is cut short.
+    /// [`CookedError::Malformed`] if it is not a manifest, is cut short, or names a cooked file by
+    /// what is not the name of a file of its directory ([`ManifestEntry::file`]).
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, CookedError> {
         let mut reader = Reader::open(bytes, MAGIC, VERSION, "manifest")?;
         let mut manifest = Self::new();
@@ -168,6 +171,11 @@ impl Manifest {
             })?;
             let size = reader.u64()?;
             let file = reader.text()?;
+            if !is_file_name(&file) {
+                return Err(reader.malformed(&format!(
+                    "asset {id} is in `{file}`, which is not the name of a file of its directory"
+                )));
+            }
             let source = reader.text()?;
             let needs = (0..reader.count(16)?)
                 .map(|_| reader.id())
@@ -186,6 +194,15 @@ impl Manifest {
         reader.finish()?;
         Ok(manifest)
     }
+}
+
+/// Whether `name` is the name of a cooked file, as [`ManifestEntry::file`] says.
+fn is_file_name(name: &str) -> bool {
+    !name.starts_with('.')
+        && !name.is_empty()
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
 }
 
 #[cfg(test)]

@@ -1,7 +1,7 @@
 //! The binary layout of the cooked formats that the engine defines (the manifest, meshes,
 //! materials and scenes): four bytes that name the format, its version, then the values in order,
 //! every number little-endian, a text as its length and its UTF-8 bytes, a list as its length and
-//! its elements.
+//! its elements. The reader of KTX2 files reads their numbers through it too.
 
 use crate::AssetId;
 use crate::error::CookedError;
@@ -80,6 +80,12 @@ pub(crate) struct Reader<'a> {
 }
 
 impl<'a> Reader<'a> {
+    /// Reads `bytes`, a file read as `what`, from its start: a KTX2 file, whose numbers are
+    /// little-endian too.
+    pub(crate) fn new(bytes: &'a [u8], what: &'static str) -> Self {
+        Self { bytes, what }
+    }
+
     /// Opens `bytes`, a file of the format named `magic`, which must be in `version`.
     pub(crate) fn open(
         bytes: &'a [u8],
@@ -87,7 +93,7 @@ impl<'a> Reader<'a> {
         version: u32,
         what: &'static str,
     ) -> Result<Self, CookedError> {
-        let mut reader = Self { bytes, what };
+        let mut reader = Self::new(bytes, what);
         if reader.take(4).ok() != Some(magic.as_slice()) {
             return Err(reader.malformed(&format!(
                 "it does not start with `{}`",
@@ -112,7 +118,8 @@ impl<'a> Reader<'a> {
         }
     }
 
-    fn take(&mut self, count: usize) -> Result<&'a [u8], CookedError> {
+    /// The next `count` bytes.
+    pub(crate) fn take(&mut self, count: usize) -> Result<&'a [u8], CookedError> {
         if self.bytes.len() < count {
             return Err(self.malformed("it is cut short"));
         }

@@ -1,6 +1,7 @@
 //! A directory of cooked data, as a game reads it.
 
-use std::fs;
+use std::fs::{self, File};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -29,11 +30,12 @@ impl CookedAssets {
     /// # Errors
     ///
     /// [`LoadError::Io`] if the manifest cannot be read, as when the directory was not cooked, and
-    /// [`LoadError::Cooked`] if it is not a manifest of this version of the engine.
+    /// [`LoadError::Cooked`] if it is not a file, as a directory, a pipe or a device are not, or not
+    /// a manifest of this version of the engine.
     pub fn open(directory: impl Into<PathBuf>) -> Result<Self, LoadError> {
         let directory = directory.into();
         let path = directory.join(MANIFEST_FILE);
-        let bytes = read(&path)?;
+        let bytes = read(&path, "manifest", None)?;
         let manifest =
             Manifest::from_bytes(&bytes).map_err(|source| LoadError::Cooked { path, source })?;
         Ok(Self {
@@ -58,7 +60,9 @@ impl CookedAssets {
     ///
     /// [`LoadError::NotCooked`] if the manifest does not list it, [`LoadError::WrongKind`] if it
     /// lists another kind of asset by that ID, [`LoadError::Io`] if its file cannot be read, and
-    /// [`LoadError::Cooked`] if the file is not a texture of this version of the engine.
+    /// [`LoadError::Cooked`] if it is not a file, as a directory, a pipe or a device are not, is of
+    /// another size than the manifest says, both checked before it is read, or is not a texture of
+    /// this version of the engine ([`CookedTexture::from_ktx2`]).
     pub fn texture(&self, id: AssetId) -> Result<CookedTexture, LoadError> {
         let (path, bytes) = self.file(id, AssetKind::Texture)?;
         CookedTexture::from_ktx2(&bytes).map_err(|source| LoadError::Cooked { path, source })
@@ -118,20 +122,7 @@ impl CookedAssets {
             });
         }
         let path = self.directory.join(&entry.file);
-        let bytes = read(&path)?;
-        if bytes.len() as u64 != entry.size {
-            return Err(LoadError::Cooked {
-                path,
-                source: CookedError::Malformed {
-                    what: kind.name(),
-                    reason: format!(
-                        "it holds {} bytes, and the manifest says {}",
-                        bytes.len(),
-                        entry.size
-                    ),
-                },
-            });
-        }
+        let bytes = read(&path, kind.name(), Some(entry.size))?;
         Ok((path, bytes))
     }
 }
@@ -204,11 +195,43 @@ impl ManifestWatch {
     }
 }
 
-fn read(path: &Path) -> Result<Vec<u8>, LoadError> {
-    fs::read(path).map_err(|source| LoadError::Io {
+/// The bytes of the file at `path`, read as `what`, of `size` bytes if it is given: refused before
+/// it is opened if it is not a file, as a directory, a pipe that would never end the read, or a
+/// device, are not, or if it has another size; and read up to that size, in case it grew.
+fn read(path: &Path, what: &'static str, size: Option<u64>) -> Result<Vec<u8>, LoadError> {
+    let io = |source| LoadError::Io {
         path: path.to_owned(),
         source,
-    })
+    };
+    let malformed = |reason: String| LoadError::Cooked {
+        path: path.to_owned(),
+        source: CookedError::Malformed { what, reason },
+    };
+    let metadata = fs::metadata(path).map_err(io)?;
+    if !metadata.is_file() {
+        return Err(malformed("it is not a file".to_owned()));
+    }
+    let expected = size.unwrap_or(metadata.len());
+    let wrong_size = |found: u64| {
+        malformed(match size {
+            Some(size) => format!("it holds {found} bytes, and the manifest says {size}"),
+            None => "it changed while it was read".to_owned(),
+        })
+    };
+    if metadata.len() != expected {
+        return Err(wrong_size(metadata.len()));
+    }
+    let mut bytes = Vec::new();
+    File::open(path)
+        .and_then(|file| {
+            file.take(expected.saturating_add(1))
+                .read_to_end(&mut bytes)
+        })
+        .map_err(io)?;
+    if bytes.len() as u64 != expected {
+        return Err(wrong_size(bytes.len() as u64));
+    }
+    Ok(bytes)
 }
 
 #[cfg(test)]

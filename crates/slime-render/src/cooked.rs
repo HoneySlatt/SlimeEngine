@@ -125,8 +125,9 @@ impl SceneLoad {
     /// # Panics
     ///
     /// With the panic of a loading thread, if one panicked, even when an asset also failed: a bug,
-    /// as when a texture is larger than the device allows ([`Renderer::create_texture`]). Also if
-    /// the operating system could not start the renderer's threads.
+    /// as when a scene is reloaded on another device than the one it was loaded on
+    /// ([`Renderer::reload_scene_in_background`]). Also if the operating system could not start
+    /// the renderer's threads.
     pub fn take(&mut self) -> Option<Result<LoadedScene, SceneError>> {
         self.load.take()
     }
@@ -156,6 +157,11 @@ pub(crate) struct Load<T> {
 }
 
 impl<T> Load<T> {
+    /// Whether the load finished: its result, or its panic, waits to be taken, or was taken.
+    pub(crate) fn is_finished(&self) -> bool {
+        self.thread.as_ref().is_none_or(JoinHandle::is_finished)
+    }
+
     /// What the load gave, once it finished: `None` while it goes on, and once its result was
     /// taken. A panic of its thread or of one of its tasks is raised again here.
     pub(crate) fn take(&mut self) -> Option<Result<T, SceneError>> {
@@ -198,7 +204,8 @@ impl Renderer {
     ///
     /// [`SceneError::Load`] if an asset cannot be read; [`SceneError::Render`] if the GPU's memory
     /// cannot hold an object, the device is lost, the GPU cannot sample the cooked textures
-    /// (`GfxError::UnsupportedTexture`), or a material has values out of their ranges
+    /// (`GfxError::UnsupportedTexture`), or a material has values out of their ranges, or a texture
+    /// of the wrong kind for its slot, data where it reads colors or the reverse
     /// ([`RenderError::InvalidMaterial`]); [`SceneError::Placement`] if a node places a mesh at a
     /// point that is not finite, which a transform that overflows gives, or a light at such a point
     /// or with no direction, as a transform that flattens its −Z axis gives. When several assets
@@ -831,6 +838,15 @@ impl Loader {
             },
             double_sided: cooked.double_sided,
         };
+        // A slot that reads a texture of the wrong kind is a bug of a game's code, which panics,
+        // but an error of the cooked data.
+        if let Some(reason) = data.misplaced_texture() {
+            return Err(RenderError::InvalidMaterial {
+                label: cooked.name.clone(),
+                reason,
+            }
+            .into());
+        }
         Ok(self.parts.create(&self.gpu, &cooked.name, &data)?)
     }
 }

@@ -757,9 +757,10 @@ impl Renderer {
     ///
     /// # Panics
     ///
-    /// If `data`'s levels are not those of its size and encoding, which a texture read from a
-    /// cooked file always has, or if it is larger than the device allows
-    /// ([`Gpu::max_texture_dimension`]).
+    /// If `data`'s levels are not those of its size and encoding, or if it is larger than the
+    /// device allows ([`Gpu::max_texture_dimension`]): a texture read from a cooked file has its
+    /// levels, and is no larger than `slime_assets::MAX_SIDE`, which the device's default limits
+    /// allow.
     pub fn create_texture(
         &self,
         gpu: &Gpu,

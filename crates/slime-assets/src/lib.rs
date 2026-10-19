@@ -25,7 +25,7 @@ pub use manifest::{AssetKind, MANIFEST_FILE, Manifest, ManifestEntry};
 pub use material::{CookedMaterial, MaterialTexture, TextureFilter, TextureSampler, TextureWrap};
 pub use mesh::CookedMesh;
 pub use scene::{CookedScene, Extra, LightKind, SceneLight, SceneNode};
-pub use texture::{CookedTexture, TextureEncoding};
+pub use texture::{CookedTexture, MAX_SIDE, TextureEncoding};
 
 /// The identity of an asset: a 128-bit number, written as a UUID.
 ///

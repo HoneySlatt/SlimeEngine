@@ -148,30 +148,41 @@ impl AssetCache {
     ///
     /// # Panics
     ///
-    /// With the panic of a loading thread, as [`SceneLoad::take`](crate::SceneLoad::take) says.
+    /// With the panic of a loading thread, as [`SceneLoad::take`](crate::SceneLoad::take) says:
+    /// the batch that panicked is then over, and its meshes are not asked for again, as for a batch
+    /// that failed; a reload that panicked is over, and leaves what the cache held whole. The
+    /// errors of the batches taken before it are lost.
     pub fn poll(&mut self) -> Vec<SceneError> {
         let mut errors = Vec::new();
         let mut index = 0;
         while index < self.loads.len() {
-            let Some(result) = self.loads[index].1.take() else {
+            if !self.loads[index].1.is_finished() {
                 index += 1;
                 continue;
-            };
-            let (ids, _) = self.loads.swap_remove(index);
+            }
+            // Out of the cache before its result is taken, which raises its panic: the batch's
+            // meshes are then failed, not asked for again.
+            let (ids, mut load) = self.loads.swap_remove(index);
             for id in &ids {
                 self.loading.remove(id);
             }
-            match result {
-                Ok(batch) => self.take(batch, false),
-                Err(error) => {
-                    self.failed.extend(ids);
-                    errors.push(error);
+            self.failed.extend(ids.iter().copied());
+            match load.take().expect("a finished load gives its result once") {
+                Ok(batch) => {
+                    for id in &ids {
+                        self.failed.remove(id);
+                    }
+                    self.take(batch, false);
                 }
+                Err(error) => errors.push(error),
             }
         }
-        if let Some(result) = self.reload.as_mut().and_then(Load::take) {
-            self.reload = None;
-            match result {
+        if self.reload.as_ref().is_some_and(Load::is_finished) {
+            let mut reload = self.reload.take().expect("a reload");
+            match reload
+                .take()
+                .expect("a finished load gives its result once")
+            {
                 Ok(batch) => self.take(batch, true),
                 Err(error) => errors.push(error),
             }

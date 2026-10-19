@@ -1,11 +1,12 @@
 //! Loading a cooked scene: a directory of cooked data written in a temporary directory with the
 //! formats of `slime-assets`, loaded onto the GPU, its meshes placed by their nodes, each loaded
 //! once, its lights in world space, and drawn; loads polled, side by side, one of them dropped, and
-//! a panic of a loading thread raised again; a material found by its name, and changed; a scene
-//! loaded again, which keeps what did not change, and fails without harm to the scene before; the
-//! asset cache, which loads what is asked for once, in batches, keeps the textures it holds, does
-//! not ask again for what failed, loads again after it is cleared, and reloads what changed. Runs
-//! on whatever adapter the machine offers.
+//! a panic of a loading thread raised again; a texture of the wrong kind for its slot refused; a
+//! material found by its name, and changed; a scene loaded again, which keeps what did not change,
+//! and fails without harm to the scene before; the asset cache, which loads what is asked for once,
+//! in batches, keeps the textures it holds, does not ask again for what failed or panicked, loads
+//! again after it is cleared, and reloads what changed. Runs on whatever adapter the machine
+//! offers.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -21,7 +22,7 @@ use slime_gfx::{Gpu, TextureFormat};
 use slime_render::glam::{DAffine3, DVec3, Mat4, Vec3};
 use slime_render::{
     AssetCache, Camera, DirectionalLight, Instance, Light, LoadedScene, MaterialValues, MeshData,
-    Renderer, Scene, SceneError, scene_lights,
+    RenderError, Renderer, Scene, SceneError, scene_lights,
 };
 
 const TEXTURE: AssetId = AssetId::from_u128(1);
@@ -439,21 +440,20 @@ fn loads_go_on_side_by_side_and_dropping_one_leaves_the_others_alone() {
 fn a_panic_on_a_loading_thread_is_raised_where_the_load_is_taken() {
     let gpu = gpu();
     let renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
-    // Wider than the device allows: wgpu refuses to create it, which is a bug of the caller's.
-    let width = gpu.max_texture_dimension() * 2;
-    let (directory, scene) = palette("panic", width);
+    let (directory, scene) = palette("panic", 4);
     let assets = CookedAssets::open(directory).expect("the manifest is read");
-    let Err(panic) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        renderer.load_scene(&gpu, &assets, scene)
-    })) else {
-        panic!("the load did not panic");
-    };
-    let message = panic
-        .downcast_ref::<String>()
-        .map(String::as_str)
-        .or_else(|| panic.downcast_ref::<&str>().copied())
-        .unwrap_or_default();
-    assert!(message.contains("wgpu error"), "{message}");
+    let previous = renderer
+        .load_scene(&gpu, &assets, scene)
+        .expect("the scene loads");
+    // Reloaded on another device, which cannot read the textures it keeps: wgpu panics when the
+    // materials are made, on the load's thread, a bug of the caller's.
+    let other = self::gpu();
+    let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        renderer
+            .reload_scene_in_background(&other, &assets, scene, &previous)
+            .wait()
+    }));
+    assert!(panicked.is_err(), "the load panicked");
 
     // The renderer's threads caught the panic: they go on loading.
     let (directory, scene) = palette("after a panic", 4);
@@ -461,6 +461,31 @@ fn a_panic_on_a_loading_thread_is_raised_where_the_load_is_taken() {
     renderer
         .load_scene(&gpu, &assets, scene)
         .expect("the scene loads");
+}
+
+#[test]
+fn a_cooked_texture_of_the_wrong_kind_for_its_slot_is_refused() {
+    let gpu = gpu();
+    let renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
+    let (directory, scene) = palette("wrong kind", 4);
+    // Data, where the base color slot reads colors: a file of the same size.
+    let data = CookedTexture {
+        width: 4,
+        height: 1,
+        encoding: TextureEncoding::Rgba8,
+        levels: vec![COLORS[0].repeat(4)],
+    };
+    fs::write(directory.join("0.ktx2"), data.to_ktx2()).expect("written");
+    let assets = CookedAssets::open(directory).expect("the manifest is read");
+    let error = renderer
+        .load_scene(&gpu, &assets, scene)
+        .err()
+        .expect("refused");
+    assert!(
+        matches!(&error, SceneError::Render(RenderError::InvalidMaterial { reason, .. })
+            if reason.contains("its base color texture is Rgba8Unorm")),
+        "{error}"
+    );
 }
 
 #[test]
@@ -724,6 +749,28 @@ fn a_mesh_that_cannot_be_read_is_reported_once_and_not_asked_for_again() {
     assert_eq!(cache.loading(), 0);
     assert!(cache.poll().is_empty());
     assert!(cache.mesh(missing).is_none());
+}
+
+#[test]
+fn a_panic_while_the_cache_loads_leaves_it_loading_nothing() {
+    let gpu = gpu();
+    let renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
+    let (directory, _) = palette("cache-panic", 4);
+    let mut cache = AssetCache::new(CookedAssets::open(&directory).expect("the manifest is read"));
+    let meshes = palette_meshes();
+    cache.request(&renderer, &gpu, [meshes[0]]);
+    assert!(settle(&mut cache).is_empty());
+    // Square 3 is drawn with square 0's material, which a batch makes again with the texture the
+    // cache holds: on another device, which cannot read it, a bug of the caller's that panics.
+    let other = self::gpu();
+    cache.request(&renderer, &other, [meshes[3]]);
+    let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| settle(&mut cache)));
+    assert!(panicked.is_err(), "the batch panicked");
+    assert_eq!(cache.loading(), 0, "the batch is over");
+    assert!(cache.mesh(meshes[3]).is_none());
+    // Its mesh is not asked for again, as for a batch that failed.
+    cache.request(&renderer, &gpu, [meshes[3]]);
+    assert_eq!(cache.loading(), 0);
 }
 
 #[test]

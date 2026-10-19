@@ -37,14 +37,17 @@ threads of its own.
   (`slime_world::SceneLibrary`).
 - `ManifestWatch` tells a game that hot-reloads when the manifest of its cooked data changed, and
   gives the cooked data again ([ADR-0076](../../docs/adr/0076-hot-reload-of-cooked-data.md)).
-- `CookedTexture` and its KTX2 file (`to_ktx2`, `from_ktx2`); `CookedMesh`, `CookedMaterial`,
-  `CookedScene` and `Manifest`, and their binary files (`to_bytes`, `from_bytes`). Their rustdoc
-  gives the formats.
+- `CookedTexture` and its KTX2 file (`to_ktx2`, `from_ktx2`), up to `MAX_SIDE` texels on a side;
+  `CookedMesh`, `CookedMaterial`, `CookedScene` and `Manifest`, and their binary files
+  (`to_bytes`, `from_bytes`). Their rustdoc gives the formats. Each reader checks a file before it
+  uses it, and refuses a damaged one with an error, never a panic
+  ([ADR-0096](../../docs/adr/0096-the-files-the-engine-reads.md)); `tests/damaged.rs` gives them
+  damaged files.
 
 ## Dependencies
 
 `slime-reflect`, which it describes its asset IDs and the custom values of nodes to, and no other
-engine crate. `ktx2` to read and write KTX2 files, `thiserror` for its error types.
+engine crate. `ktx2` to write KTX2 files, which it reads itself, `thiserror` for its error types.
 
 ## Must not
 

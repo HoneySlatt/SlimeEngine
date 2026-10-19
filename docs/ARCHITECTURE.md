@@ -402,7 +402,8 @@ renderer = Renderer::new(&gpu, format)                 the output's format; four
 │                                                      and sampler pairs (one white pixel for
 │                                                      each slot left empty) in a bind group,
 │                                                      after a check of its values; a texture in
-│                                                      the wrong format for its slot panics;
+│                                                      the wrong format for its slot panics (in
+│                                                      a cooked material, an error);
 │                                                      Material::set_values checks new values
 │                                                      and writes them into the uniform buffer,
 │                                                      for the frames submitted after it
@@ -596,7 +597,11 @@ slime-cook cook <sources> <output>                     the cooker's program, bef
 a game that draws a cooked scene itself, as the `scene` example does (a world reads its scenes
 through a `SceneLibrary` and loads their meshes through an `AssetCache`: see "The world" and "Scenes
 and prefabs", below)
-├── slime_assets::CookedAssets::open(output)           reads the manifest
+├── slime_assets::CookedAssets::open(output)           reads the manifest, which names its files
+│                                                      inside the directory only; each file is
+│                                                      checked, its kind and size, before it is
+│                                                      read, and each reader checks what it reads
+│                                                      before it uses it (ADR-0096)
 ├── renderer.load_scene_in_background(gpu, &assets, id)
 │   │                                                  slime-render: a SceneLoad, at once, for a
 │   │                                                  scene, the file's ID for a glTF file's
@@ -609,9 +614,10 @@ and prefabs", below)
 │       │                                              assets.texture(id), uploaded in the GPU
 │       │                                              format of its encoding, through a buffer
 │       │                                              of its own and a copy (ADR-0074)
-│       └── once every task has reported              materials and samplers created, nodes
-│                                                      placed: the LoadedScene, its instances and
-│                                                      its lights in world space
+│       └── once every task has reported              materials and samplers created, a texture
+│                                                      of the wrong kind for its slot refused,
+│                                                      nodes placed: the LoadedScene, its
+│                                                      instances and its lights in world space
 ├── load.take(), at each frame                         None while it loads, then the whole scene
 └── with --watch, once the scene is shown, at each frame:
     ManifestWatch::poll                                a new manifest, read again now and then:

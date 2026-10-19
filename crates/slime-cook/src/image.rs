@@ -7,10 +7,10 @@ use zune_jpeg::zune_core::bytestream::ZCursor;
 use zune_jpeg::zune_core::colorspace::ColorSpace;
 use zune_jpeg::zune_core::options::DecoderOptions;
 
-/// The longest side of an image the cooker takes, in texels: the largest texture the GPU takes with
-/// the engine's default limits. Checked from the file's header, before its texels are allocated,
-/// since a header can claim gigabytes.
-pub const MAX_SIDE: u32 = 8192;
+/// The longest side of an image the cooker takes, in texels: the longest side of a cooked texture.
+/// Checked from the file's header, before its texels are allocated, since a header can claim
+/// gigabytes.
+pub use slime_assets::MAX_SIDE;
 
 /// An image decoded into texels.
 #[derive(Clone, Debug, PartialEq, Eq)]
