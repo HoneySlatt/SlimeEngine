@@ -1,6 +1,8 @@
 # 0072. Stage 4b: live assets
 
 - Status: Accepted; amended by [0078](0078-stage-5-in-two-halves.md) (0.3 at the end of Stage 5a)
+  and [0103](0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md) (when a run gives up
+  replacing a lost device)
 - Date: 2026-10-15
 
 ## Context

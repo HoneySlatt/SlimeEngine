@@ -41,6 +41,18 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   file's buffers.
 - The longest side of an image that the cooker takes is `slime_assets::MAX_SIDE`, the longest side
   of a cooked texture, where it was `slime_cook::image::MAX_SIDE`.
+- `Overlay::new` returns `GfxError::DeviceLost` on a lost device, where egui's renderer panicked:
+  it returns a `Result`.
+- A run that replaces lost GPU devices gives up at a loss that comes after three new devices within
+  five minutes, where it gave up after three in a row without a frame shown: a device lost again a
+  few frames after each new one was replaced without end.
+- An error of a lost GPU device that the application passes to `Context::exit_with_error`, or
+  returns from `App::gpu_restored`, once the run's device is lost, leaves the loss to the run, which
+  replaces the device as for any loss, or stops with `RunError::Gfx`: it stopped the run as the
+  application's error. *Hunna Wood* and the examples skip the frame that a lost device failed.
+- `Gpu::wait_idle` and the readbacks wait for the GPU without polling the device, waking up to 1 ms
+  after it finishes; every creation of a GPU object asks wgpu whether the device is still valid,
+  with a buffer of 4 bytes, a few microseconds more on lavapipe.
 
 ### Fixed
 
@@ -156,6 +168,17 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   does not save, where both wrote the save and the last to quit wrote over the other's run. Each
   copy writes through a file of its own, `save.toml.<process id>.new`, where two saves at once could
   leave a file mixed from both.
+- A panic in `App::render` after the frame drew ends the process as a panic does, with exit
+  status 101: on Vulkan, the window's surface, dropped while the panic unwound, panicked again in
+  wgpu, which aborted the process. A lost device that wgpu refused to present the image to, the
+  loss found by another thread after the engine's check, no longer makes `Surface::restore` or the
+  surface's drop panic: the surface releases its last image before its swap chain goes.
+- A loss of the GPU device found by a loading thread, a wait or a readback is `GfxError::DeviceLost`:
+  creating a texture panicked in wgpu's unmap of its uploads, reading a target back in its mapping,
+  and `Gpu::wait_idle` and the readbacks in `Device::poll`, which wgpu treats as fatal; a readback
+  also failed as `GfxError::Readback`.
+- After a restore of the GPU device that failed, `run` returns the error that the application gave
+  in `shutdown`, as its rustdoc said, rather than the restore's.
 
 ## [0.4.0] - 2026-10-18
 

@@ -23,8 +23,10 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   lost GPU device that covers one case, and quick wins that it measured. Milestones P1 to P5 fix
   them; then a foundations pass, P6, decides as ADRs what the editor will freeze. Stage 6, the
   editor, is planned with the owner after it. P1 is done
-  ([ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)), and P2
-  ([ADR-0102](adr/0102-a-damaged-file-gives-an-error.md)); P3 waits for the owner's go.
+  ([ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)), P2
+  ([ADR-0102](adr/0102-a-damaged-file-gives-an-error.md)) and P3
+  ([ADR-0103](adr/0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md)); P5 waits for the
+  owner's go.
 - The games the engine aims at, described on 2026-10-19
   ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)): nine profiles, from *Hunna Wood* to a
   massively multiplayer game, listed in [`ROADMAP.md`](ROADMAP.md). They add criteria to P6, one UI
@@ -40,7 +42,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 |---|---|---|
 | [P1](#p1--saves-and-identities-that-never-mislead) | A save, a scene file and a level written back hold what the world holds and name the entities they mean; a game resumes only a save it can play, and never loses one | Done |
 | [P2](#p2--a-damaged-file-gives-an-error-never-a-crash) | No damaged or edited file makes the engine panic, hang or exhaust its memory (ADR-0096) | Done |
-| [P3](#p3--the-loss-of-the-gpu-device-and-the-main-loop) | A lost GPU device is recovered wherever the loss is found, and a panic in `render` stays an ordinary panic | Planned |
+| [P3](#p3--the-loss-of-the-gpu-device-and-the-main-loop) | A lost GPU device is recovered wherever the loss is found, and a panic in `render` stays an ordinary panic | Done |
 | [P5](#p5--the-build-ci-and-measurements-tracked-from-one-commit-to-the-next) | Every crate compiled once, CI under its limit, and the engine's measurements tracked from one commit to the next | Planned |
 | [P4](#p4--the-measured-quick-wins) | The quick wins that the audit measured, each measured again before and after | Planned |
 | [P6](#p6--the-foundation-decisions) | What the editor will freeze, decided as ADRs | Planned |
@@ -374,6 +376,41 @@ Risks:
 - **How to test.** `cargo test -p slime-gfx -p slime-app -p slime-devui`; `scripts/check.sh`.
 - **By hand.** In the Windows virtual machine: a timeout detection and recovery (TDR) forced while
   the zone loads, then while the game restores its GPU objects.
+- **Outcome.** Done on 2026-10-19.
+  [ADR-0103](adr/0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md) records how each
+  finding is fixed, and amends ADR-0022, ADR-0072 and ADR-0075. Each defect that lavapipe can show
+  is confirmed by a test that failed before its fix and passes with it; the audit's own tests were
+  not available, and these were written from the findings above. The tests, by finding:
+  - G14: the windowed lifecycle test's `panic-in-render`, whose process wgpu aborted, panicking
+    again as it destroyed the window's swap chain while the first panic unwound, and
+    `lost-unrecorded`, the device made invalid in `render` as wgpu does before it reports a
+    driver's loss, its loss recorded at the next frame, on which `Surface::restore` panicked in
+    wgpu.
+  - G15: `a_device_invalid_before_its_loss_is_recorded_gives_errors_not_panics` (`slime-gfx`), on
+    which creating a texture panicked in wgpu's unmap of its uploads, and reading a target back in
+    its mapping; `an_overlay_is_not_created_on_a_lost_device` (`slime-devui`), on which egui's
+    renderer panicked; the lifecycle test's `lost-in-gpu-restored` and `loss-returned-by-render`,
+    which stopped the run as `RunError::App`, and `lost-soon-after-each-restore`, a device lost at
+    every other frame, which opened 15 devices in a run of 35 frames and ended `Ok`.
+
+  Not shown by a test: a wait that is the first to find a driver's loss, on which wgpu's
+  `Device::poll` panics by its source, since lavapipe cannot lose a device as a driver does (the
+  engine's waits no longer poll); the error that `run` returns after a restore that fails, since
+  none fails in a windowed run; and the loss recorded before it is logged, an order of two lines.
+  *Hunna Wood* and the examples keep passing a frame's errors to `exit_with_error`, which now
+  leaves a loss to the run: the frame is skipped. The `lost-now-and-then` scenario, whose device,
+  lost at every other frame, was replaced four times, is replaced by
+  `lost-soon-after-each-restore`, given up at the fourth loss. Every creation now asks wgpu whether
+  the device is valid, which the rustdoc of `Gpu::still_valid` measures. The three behaviours of
+  wgpu that P3 works around are not reported to its authors yet: that waits for the owner's
+  agreement. A review of P3's changes found, from wgpu's sources, that the surface kept the last
+  image's texture while it was configured again, which Direct3D 12 refuses to resize, so that each
+  resize of the window would have dropped a frame and created the surface again on Windows; that
+  *Hunna Wood* turned a load that a lost device failed into a message, which hid the loss, so that
+  a loss found by a loading thread stopped the game; that shaders and pipelines were created
+  without the question to wgpu; and documents that said more than the code did. All are fixed. The
+  checks by hand in the Windows virtual machine, a TDR forced while the zone loads, then while the
+  game restores its objects, are the owner's, after the push.
 
 ### P5 — The build, CI, and measurements tracked from one commit to the next
 
@@ -647,7 +684,16 @@ GitHub issues, linked from their entry; this list stays the reference.
   since winit allows one event loop per process, carrying on means starting the process again. An
   application that asks drops and creates its GPU objects again itself, as *Hunna Wood* does. A
   real driver reset can only be checked by hand, as it was at Stage 4b's end (above). A restore
-  that fails in a windowed run is not tested: nothing makes one fail on purpose there.
+  that fails in a windowed run is not tested: nothing makes one fail on purpose there, nor, so,
+  that `run` then returns the application's error first (ADR-0103).
+- **Three behaviours of wgpu 30 are worked around, and not reported to its authors**
+  ([ADR-0103](adr/0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md)): wgpu holds a
+  device invalid before it reports the loss, without a way to ask, and reports the use of objects
+  created in between as a misuse; `Device::poll` panics on a lost device; on Vulkan, wgpu panics
+  when it destroys a swap chain whose image work in flight still holds. The engine asks with a
+  buffer of 4 bytes after each creation, waits for the GPU by submitting empty work, which wakes
+  later after the GPU finishes than a poll would (`Gpu::wait_idle` says how much), and releases a
+  surface's last image before its swap chain. P3 asks the owner's agreement to report them.
 - **In capture tools, the sky pass shows as a second `scene`.** A pass is named after the target it
   draws into, and the sky pass draws into the scene's high-dynamic-range target, after the scene
   pass (`declare_frame` in `crates/slime-render/src/renderer.rs`); only its pipeline is named `sky`.
@@ -745,11 +791,12 @@ GitHub issues, linked from their entry; this list stays the reference.
   wgpu 30 discards such a frame with wgpu-hal's `discard_texture`, which does nothing on Vulkan.
   The image stays acquired until the surface is configured again, and once none is left,
   `Surface::acquire` waits one second and returns `None`. `SurfaceFrame` documents this as a
-  misuse, and nothing reports it. The engine presents every frame it acquires but on two paths,
-  which crash the program and which P3 closes: a panic in `App::render` after it drew, and a loss
-  of the device found between the engine's check and the present. A `Drop` that presents was
-  rejected: it would show a black or half-drawn frame instead of skipping it, and present during
-  unwinding.
+  misuse, and nothing reports it. The engine presents every frame it acquires, a panic in
+  `App::render` aside, whose frame the surface releases when it is dropped, as it releases an image
+  that a lost device refused to present
+  ([ADR-0103](adr/0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md)). A `Drop` that
+  presents was rejected: it would show a black or half-drawn frame instead of skipping it, and
+  present during unwinding.
 - **An oversize window's surface is configured again at every frame on X11.** A window wider or
   taller than the device's largest image (8192 pixels with the default limits) gets images of that
   size, smaller than the window. On X11, Mesa's Vulkan drivers mark such a swapchain suboptimal, and
@@ -840,11 +887,12 @@ GitHub issues, linked from their entry; this list stays the reference.
   one costs what it costs on a new renderer (0.054 ms against 21.4 ms before, on lavapipe).
   Uploading only the live slots would amend ADR-0026's rule that a uniform buffer is always
   written at its creation size.
-- **The dev overlay can still panic on a lost device** (ADR-0022). `Overlay::render` skips the
-  frame when the device was lost earlier in it, but two cases panic inside egui-wgpu or wgpu: a
-  loss that egui-wgpu's own buffer upload is the first to find, and `Overlay::new` on a device
-  already lost (egui-wgpu creates its buffers with `create_buffer_init`). Both are documented
-  under `# Panics`; closing them needs a change in egui-wgpu or wgpu.
+- **The dev overlay can still panic on a lost device** (ADR-0022, ADR-0103). `Overlay::render`
+  skips the frame when the device was lost earlier in it, and `Overlay::new` returns an error on a
+  lost device, but two cases panic inside egui-wgpu or wgpu: a loss that egui-wgpu's own buffer
+  upload is the first to find, and a device lost between `Overlay::new`'s check and egui-wgpu's
+  creation of its buffers (`create_buffer_init`). Both are documented under `# Panics`; closing
+  them needs a change in egui-wgpu or wgpu.
 - **Exposed light beyond 64 × 65 504 is clamped** (ADR-0035, ADR-0037, ADR-0039, ADR-0040). The
   scene and sky shaders write exposed light divided by 64 into the `Rgba16Float` target, and light
   above 64 × 65 504 as 65 504, the largest half, rather than leave it to the driver, which may store

@@ -52,14 +52,17 @@ turns around it, and the hero does not move. The log says when the zone is first
 many frames, and the longest interval between two of them, the measure that
 [ADR-0074](../../docs/adr/0074-uploading-textures-without-holding-up-frames.md) gives.
 
-When the GPU device is lost (the driver crashed or was reset, as Windows resets a GPU that takes
-too long to answer), the game goes on with a new one
+When the GPU device is lost (the driver crashed or was reset, as Windows resets a GPU that takes too
+long to answer), the game goes on with a new one
 ([ADR-0075](../../docs/adr/0075-recovering-from-a-lost-gpu-device.md)): it makes its GPU objects
 again and loads what its world draws again, behind the same view as at the start, while the world,
 which holds no GPU object, keeps the run where it was, the hero where it stood, the key, the door
-and the time of day as they were. The log says
-where the run was. To try it without a driver reset, `--lose-device-at` loses the device on purpose
-after a number of frames, and so does the button of the dev overlay (F1).
+and the time of day as they were. The log says where the run was. The game goes on so wherever the
+loss is found, by a frame, by a load or while the game makes its objects again, and gives up,
+stopping with the error, when the device is lost again soon after each new one
+([ADR-0103](../../docs/adr/0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md)). To try
+it without a driver reset, `--lose-device-at` loses the device on purpose after a number of frames,
+and so does the button of the dev overlay (F1).
 
 With `--watch`, the game reads the manifest of its cooked data now and then, once the zone is shown
 and nothing loads (`slime_assets::ManifestWatch`), beside `slime-cook watch` running on the zone's

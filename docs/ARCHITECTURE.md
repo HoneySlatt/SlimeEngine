@@ -960,10 +960,18 @@ what it names again from the new device ([ADR-0084](adr/0084-what-the-world-draw
 
 Nothing may hold the lost device when the new one opens: Direct3D 12 opens no device on an
 adapter while a removed one exists in the process. The run does not restore when it is stopping
-anyway or its window's surface was lost for good; after three new devices in a row without a frame
-shown, or when none opens, it gives up and stops, `run` returning `GfxError::CannotRestore` or the
-error that opening a device gave. A program without
+anyway or its window's surface was lost for good; after three new devices within five minutes, or
+when none opens, it gives up and stops, `run` returning `GfxError::DeviceLost`,
+`GfxError::CannotRestore` or the error that opening a device gave. A program without
 `slime-app` replaces its device with `Gpu::restore`, or `Surface::restore` for a window.
+
+A loss is found wherever the device is used: by the main thread's frame, by a loading thread's
+creation, by a wait. wgpu marks the device invalid before it reports the loss, which records it in
+the `Gpu` that every clone shares; `slime-gfx` returns `GfxError::DeviceLost` wherever it finds the
+loss, recording it if wgpu has not yet, and the application that meets it passes it to
+`Context::exit_with_error`, or returns it from `gpu_restored`, which leaves it to the run: the
+run restores between frames whatever found the loss
+([ADR-0103](adr/0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md)).
 
 The window's surface can be lost for good as well, when it cannot be created again after a loss or
 is lost again each time it is: `Surface::check` reports it, and the run stops the same way with

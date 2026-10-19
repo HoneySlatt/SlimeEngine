@@ -1,6 +1,6 @@
 # 0022. Losing the GPU device
 
-- Status: Accepted; amended by [0025](0025-giving-up-a-lost-surface.md) (surface lost for good), [0044](0044-running-out-of-gpu-memory.md) (a lost device creates nothing; memory that runs out unseen gives the device up) and [0075](0075-recovering-from-a-lost-gpu-device.md) (a run may go on with a new device)
+- Status: Accepted; amended by [0025](0025-giving-up-a-lost-surface.md) (surface lost for good), [0044](0044-running-out-of-gpu-memory.md) (a lost device creates nothing; memory that runs out unseen gives the device up), [0075](0075-recovering-from-a-lost-gpu-device.md) (a run may go on with a new device) and [0103](0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md) (a loss is an error wherever the engine finds it, a wait included)
 - Date: 2026-10-12
 
 ## Context

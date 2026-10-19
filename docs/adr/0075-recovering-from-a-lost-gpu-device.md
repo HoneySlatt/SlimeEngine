@@ -1,7 +1,9 @@
 # 0075. Recovering from a lost GPU device
 
 - Status: Accepted; amends [0022](0022-losing-the-gpu-device.md) (the run stops after a loss,
-  unless the application chose to go on)
+  unless the application chose to go on); amended by
+  [0103](0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md) (when the run gives up, and
+  a loss that the application meets)
 - Date: 2026-10-15
 
 ## Context
