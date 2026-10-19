@@ -19,6 +19,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   bound what a file can make a reader take: `slime_assets::MAX_SIDE`, the longest side of a cooked
   texture; `slime_serialize::MAX_VALUES`, the most values of a document, with
   `ReadProblem::TooMany`; `slime_world::MAX_SCENE_SIZE`, the most bytes of a resolved scene.
+- `SLIME_TRACE=<file>` (`slime_app::TRACE_ENV_VAR`) makes a program that calls `init_diagnostics`
+  write every span it enters and leaves into the file, in the Chrome Trace Event format, which
+  Perfetto and `chrome://tracing` open: the phases of each frame, and each submission to the GPU.
 
 ### Changed
 

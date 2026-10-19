@@ -5,8 +5,12 @@ use std::panic::{self, PanicHookInfo};
 use std::sync::Once;
 
 use tracing::level_filters::LevelFilter;
-use tracing_subscriber::EnvFilter;
 use tracing_subscriber::fmt::format::FmtSpan;
+use tracing_subscriber::layer::SubscriberExt as _;
+use tracing_subscriber::util::SubscriberInitExt as _;
+use tracing_subscriber::{EnvFilter, Layer as _};
+
+use crate::trace::{TRACE_ENV_VAR, TraceLayer};
 
 /// The environment variable that selects which log events are recorded.
 ///
@@ -44,9 +48,13 @@ pub const DEFAULT_LOG_FILTER: &str =
 ///   it contains; a bare `trace` also turns on wgpu's own trace logs, a line per command of each
 ///   draw, whose writing counts in the spans too. An event that cannot be written, because the
 ///   reader of standard error exited or the terminal closed, is dropped and the process goes on.
+/// - When [`TRACE_ENV_VAR`] names a file, the subscriber also writes into it a trace of every span
+///   that the process enters and leaves, whatever the log filter keeps, which profilers read; a
+///   file that cannot be created is reported in the log, and no trace is written.
 /// - If the process already has a global subscriber, for example because the game installed its
-///   own, that subscriber is kept and receives the engine's events. A `log` logger installed before
-///   this call keeps receiving the records that dependencies emit through `log`.
+///   own, that subscriber is kept and receives the engine's events, and no trace is written. A
+///   `log` logger installed before this call keeps receiving the records that dependencies emit
+///   through `log`.
 /// - Installs a panic hook that logs the panic message, its location and the name of the thread
 ///   as an `error` event, then runs the hook that was installed before it. By default that is the
 ///   standard library's hook, which prints the message and, when `RUST_BACKTRACE` asks for it, a
@@ -100,8 +108,7 @@ fn install_subscriber() {
     let filter = EnvFilter::builder()
         .with_default_directive(LevelFilter::INFO.into())
         .parse_lossy(directives);
-    let installed = tracing_subscriber::fmt()
-        .with_env_filter(filter)
+    let log = tracing_subscriber::fmt::layer()
         .with_writer(std::io::stderr)
         .with_ansi(use_colors())
         .with_span_events(FmtSpan::CLOSE)
@@ -110,9 +117,34 @@ fn install_subscriber() {
         // since the panic hook logs through the subscriber the process aborts. The events are lost
         // either way; the engine must go on.
         .log_internal_errors(false)
+        // The log's filter is its own, so that the trace holds the spans that the log leaves out.
+        .with_filter(filter);
+    let trace_path = std::env::var_os(TRACE_ENV_VAR).filter(|path| !path.is_empty());
+    let trace_file = trace_path
+        .as_ref()
+        .map(|path| (path, std::fs::File::create(path)));
+    let mut unwritable = None;
+    let trace = match trace_file {
+        Some((_, Ok(file))) => Some(TraceLayer::new(file)),
+        Some((path, Err(error))) => {
+            unwritable = Some((path.clone(), error));
+            None
+        }
+        None => None,
+    };
+    let installed = tracing_subscriber::registry()
+        .with(log)
+        .with(trace)
         .try_init();
     if let Err(error) = installed {
         tracing::debug!(%error, "the process already has a log subscriber or logger, keeping it");
+    }
+    if let Some((path, error)) = unwritable {
+        tracing::error!(
+            %error,
+            "no trace is written: {} cannot be created",
+            std::path::Path::new(&path).display()
+        );
     }
 }
 

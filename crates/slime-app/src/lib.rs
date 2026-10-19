@@ -5,11 +5,13 @@ mod diagnostics;
 mod error;
 mod signal;
 pub mod time;
+mod trace;
 mod windowed;
 
 pub use app::{App, AppConfig, Context, run};
 pub use diagnostics::{DEFAULT_LOG_FILTER, LOG_ENV_VAR, error_chain, init_diagnostics};
 pub use error::{AppError, RunError};
+pub use trace::TRACE_ENV_VAR;
 
 /// Which types may cross threads (`docs/ARCHITECTURE.md`, "Threads"): checked when the tests are
 /// compiled.

@@ -259,3 +259,51 @@ fn a_failed_run_is_logged_with_every_cause() {
         "the failure must be logged with its causes\n{stderr}"
     );
 }
+
+#[test]
+fn a_trace_of_the_spans_is_written_when_asked_for() {
+    const FRAMES: u64 = 3;
+    let path = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("diagnostics-trace.json");
+    if is_child() {
+        struct Quiet;
+        impl slime_app::App for Quiet {}
+        let config = slime_app::AppConfig {
+            frame_limit: Some(FRAMES),
+            ..slime_app::AppConfig::default()
+        };
+        slime_app::run(&mut Quiet, &config).expect("a headless run succeeds");
+        return;
+    }
+
+    let _ = std::fs::remove_file(&path);
+    let output = Command::new(std::env::current_exe().expect("test binary path"))
+        .args([
+            "--exact",
+            "a_trace_of_the_spans_is_written_when_asked_for",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env(CHILD_ENV, "1")
+        .env_remove(slime_app::LOG_ENV_VAR)
+        .env(slime_app::TRACE_ENV_VAR, &path)
+        .output()
+        .expect("child test process runs");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let trace = std::fs::read_to_string(&path).expect("the trace is written");
+    assert!(trace.starts_with("[\n"), "a JSON array: {trace}");
+    // Every frame's span is entered and left once, the log filter at `info` notwithstanding, on a
+    // thread that the trace names.
+    for phase in ["B", "E"] {
+        let events = format!("{{\"name\":\"frame\",\"cat\":\"slime_app::app\",\"ph\":\"{phase}\"");
+        assert_eq!(
+            trace.matches(&events).count(),
+            FRAMES as usize,
+            "{phase}: {trace}"
+        );
+    }
+    assert!(trace.contains("\"name\":\"thread_name\""), "{trace}");
+}

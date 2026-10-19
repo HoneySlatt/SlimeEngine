@@ -179,7 +179,11 @@ if slime_app::run(&mut Game, &config).is_err() {
   name of that environment variable. When it is unset, `DEFAULT_LOG_FILTER` applies: `info` and
   above, except for wgpu-hal's details about the GPU, the Vulkan loader's messages, and the error
   that winit's client-side decorations log when no desktop portal answers
-  (`docs/adr/0019-default-log-filter.md`).
+  (`docs/adr/0019-default-log-filter.md`). With the `SLIME_TRACE` environment variable
+  (`TRACE_ENV_VAR`) naming a file, it also writes there a trace of every span of every thread,
+  whatever `SLIME_LOG` keeps, in the Chrome Trace Event format that Perfetto and `chrome://tracing`
+  open (`docs/adr/0104-the-build-ci-and-measurements.md`): the phases of each frame and each
+  submission to the GPU, not yet the renderer's passes.
 - `error_chain(&error)`: an error's message followed by the message of each of its causes
   (`error: cause: cause of cause`), the line `run` logs for a failed run. A program that does not
   use `run`, as the `offscreen` example, logs its errors with it.
@@ -193,7 +197,8 @@ for the window's image), `render` (with `submit`, recorded by `slime-gfx`) and `
 line is written to standard error when its span closes, while the enclosing span is still open, so
 a span's time includes writing the lines of the spans it contains; with `slime_gfx=trace`, the
 renderer's `RenderStats::cpu_time` likewise includes the `submit` lines of its submissions. Take
-timing baselines with `SLIME_LOG` unset, and use the span lines for where the time goes. A bare
+timing baselines with `SLIME_LOG` unset, and use the span lines, or a trace (`SLIME_TRACE`), which
+writes no line, for where the time goes. A bare
 `SLIME_LOG=trace` logs them too, but also turns on the trace logs of wgpu and of its shader
 compiler, among them a line for each command of each draw, written while a pass is encoded: they
 flood standard error, and the time spent writing them counts in the spans. In GPU capture tools
