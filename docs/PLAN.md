@@ -410,7 +410,8 @@ Risks:
   a loss found by a loading thread stopped the game; that shaders and pipelines were created
   without the question to wgpu; and documents that said more than the code did. All are fixed. The
   checks by hand in the Windows virtual machine, a TDR forced while the zone loads, then while the
-  game restores its objects, are the owner's, after the push.
+  game restores its objects, are the owner's, after the push. CI took 14 minutes 19 seconds on
+  Linux and 16 minutes 22 seconds on Windows.
 
 ### P5 — The build, CI, and measurements tracked from one commit to the next
 
