@@ -21,6 +21,11 @@ pub use crate::error::{ReadError, ReadProblem};
 /// owner's machine (M5a.7), one of 1 MiB 0.24 s and 110 MB.
 pub const MAX_SIZE: usize = 16 << 20;
 
+/// The most warnings that a lenient reading keeps ([`Read::warnings`], [`Document::warnings`]): 100.
+/// Past them, one more counts those left out ([`ReadProblem::MoreLeftOut`]), so that a document that
+/// holds many costs memory and time in proportion with its size.
+pub const MAX_WARNINGS: usize = 100;
+
 /// The deepest that a document's values nest, tables and arrays within others, as read: 64 levels,
 /// in a text as in the binary encoding. The text's parser refuses deeper ones before they are counted,
 /// past 80.
@@ -68,8 +73,8 @@ pub enum Mode {
 pub struct Read {
     /// The value, of the type read, at that type's version.
     pub value: Value,
-    /// What was left out, in [`Mode::Lenient`]: fields and types unknown; none in
-    /// [`Mode::Strict`].
+    /// What was left out, in [`Mode::Lenient`]: fields and types unknown, the first
+    /// [`MAX_WARNINGS`], then one that counts the rest; none in [`Mode::Strict`].
     pub warnings: Vec<ReadError>,
 }
 

@@ -2,14 +2,14 @@
 //! what a world's documents and saves are. [`write`](crate::write) and [`read`](crate::read) write
 //! and read a document of one value through them.
 
-use std::cell::{OnceCell, RefCell};
+use std::cell::{Cell, OnceCell, RefCell};
 use std::collections::{BTreeMap, HashMap};
 
 use slime_reflect::{Path, Problem, ReflectError, Registry, Step, Value};
 
 use crate::document::{Failure, Reader, Writer};
 use crate::error::{ReadError, ReadProblem};
-use crate::{MAX_DEPTH, MAX_SIZE, Mode, References, binary, format, text};
+use crate::{MAX_DEPTH, MAX_SIZE, MAX_WARNINGS, Mode, References, binary, format, text};
 
 /// The root's key of the version of the format.
 const FORMAT: &str = "$format";
@@ -17,6 +17,11 @@ const FORMAT: &str = "$format";
 const VERSIONS: &str = "$versions";
 /// The root's key of a value that is not written as a table.
 const VALUE: &str = "$value";
+/// How many errors and warnings a document places in its text or its bytes. Each placement walks the
+/// document along the path of what it places, and a text's line from the last placement on it, or
+/// from its start: past these, an error or a warning says no place, so that a document that holds
+/// many costs time in proportion with its size.
+const PLACED: usize = 1000;
 
 /// Writes a document of several values, each a value of a registered type at its place: the keys
 /// of the tables that lead to it from the root, made where missing. One `$versions` holds the
@@ -276,6 +281,9 @@ enum Source<'a> {
         /// The offsets of the text's line breaks, found when the first error is placed, so that
         /// placing many costs the text once.
         breaks: OnceCell<Vec<usize>>,
+        /// The last offset placed, its line and its column, from which the next placement on the
+        /// same line, further on, counts its column: errors come mostly in the text's order.
+        last: Cell<Option<(usize, usize, usize)>>,
     },
     /// The engine's binary encoding.
     Binary(&'a [u8]),
@@ -290,7 +298,12 @@ pub struct Document<'a> {
     /// The versions of the types that the document says, by the names it gives them.
     versions: HashMap<String, u32>,
     mode: Mode,
+    /// The first [`MAX_WARNINGS`] warnings.
     warnings: Vec<ReadError>,
+    /// How many warnings came past [`MAX_WARNINGS`], counted rather than kept.
+    left_out: usize,
+    /// How many errors and warnings were placed, up to [`PLACED`].
+    placed: Cell<usize>,
     /// The place of each key of each table that a lookup went through, by the keys of the table.
     index: RefCell<HashMap<Vec<String>, HashMap<String, usize>>>,
 }
@@ -312,6 +325,7 @@ impl<'a> Document<'a> {
                 text,
                 parsed: Box::new(document),
                 breaks: OnceCell::new(),
+                last: Cell::new(None),
             },
             root,
             mode,
@@ -326,8 +340,8 @@ impl<'a> Document<'a> {
     /// count of nodes, each with a name and a struct of three fields, one in ten with a struct of 26
     /// fields of every kind: its 53 kB are decoded in 0.7 ms, where its text, 143 kB, is parsed in
     /// 4.2 ms; reading every value then takes 7 ms more, from either. An error or a warning is placed
-    /// by walking the bytes again from their start, along its path: a document read leniently costs
-    /// such a walk for each warning.
+    /// by walking the bytes again from their start, along its path, for each of the first thousand
+    /// that the document places; those after say no place.
     ///
     /// # Errors
     ///
@@ -362,6 +376,8 @@ impl<'a> Document<'a> {
             versions: HashMap::new(),
             mode,
             warnings: Vec::new(),
+            left_out: 0,
+            placed: Cell::new(0),
             index: RefCell::default(),
         };
         read.format()?;
@@ -427,7 +443,7 @@ impl<'a> Document<'a> {
                 match self.mode {
                     Mode::Strict => return Err(unknown),
                     Mode::Lenient => {
-                        self.warnings.push(unknown);
+                        self.warn(unknown);
                         continue;
                     }
                 }
@@ -576,17 +592,37 @@ impl<'a> Document<'a> {
             warnings: Vec::new(),
         };
         let read = reader.value(ty, document, &path, &at, None);
-        let warnings = reader.warnings;
-        for warning in warnings {
-            let warning = self.locate(warning);
-            self.warnings.push(warning);
+        for warning in reader.warnings {
+            if self.warnings.len() < MAX_WARNINGS {
+                let warning = self.locate(warning);
+                self.warnings.push(warning);
+            } else {
+                self.left_out += 1;
+            }
         }
         read.map_err(|failure| self.locate(failure))
     }
 
-    /// What a lenient reading left out so far, taken out of the document.
+    /// Adds `warning` to what the document warns of ([`Document::warnings`]), as a reader that
+    /// reads the document's layout itself, such as a world reading a save, finds what it leaves out
+    /// ([`Document::error_at`]).
+    pub fn warn(&mut self, warning: ReadError) {
+        if self.warnings.len() < MAX_WARNINGS {
+            self.warnings.push(warning);
+        } else {
+            self.left_out += 1;
+        }
+    }
+
+    /// What a lenient reading left out so far, taken out of the document: the first
+    /// [`MAX_WARNINGS`], then, if more came, one that counts them ([`ReadProblem::MoreLeftOut`]).
     pub fn warnings(&mut self) -> Vec<ReadError> {
-        std::mem::take(&mut self.warnings)
+        let mut warnings = std::mem::take(&mut self.warnings);
+        if self.left_out > 0 {
+            let more = ReadProblem::MoreLeftOut(std::mem::take(&mut self.left_out));
+            warnings.push(ReadError::new(None, Path::default(), more));
+        }
+        warnings
     }
 
     /// The document's value at `place`, if it holds one: a lookup per key, each table's keys found
@@ -617,25 +653,32 @@ impl<'a> Document<'a> {
     }
 
     /// The error that `failure` makes, placed in the text: at the key of a field unknown or given
-    /// twice, at the value otherwise.
+    /// twice, at the value otherwise; nowhere once [`PLACED`] were.
     fn locate(&self, failure: Failure) -> ReadError {
         let at_key = matches!(
             failure.problem,
             ReadProblem::Value(Problem::UnknownField { .. } | Problem::DuplicateField(_))
         );
+        if self.placed.get() >= PLACED {
+            return ReadError::new(None, failure.path, failure.problem);
+        }
+        self.placed.set(self.placed.get() + 1);
         match &self.source {
             Source::Text {
                 text,
                 parsed,
                 breaks,
+                last,
             } => {
                 let span = text::locate(parsed, &failure.at, at_key);
                 let breaks = breaks.get_or_init(|| line_breaks(text));
-                ReadError::new(
-                    span.map(|span| position(text, breaks, span.start)),
-                    failure.path,
-                    failure.problem,
-                )
+                let place = span.map(|span| {
+                    let (offset, line, column) =
+                        position_after(text, breaks, span.start, last.get());
+                    last.set(Some((offset, line, column)));
+                    (line + 1, column)
+                });
+                ReadError::new(place, failure.path, failure.problem)
             }
             Source::Binary(bytes) => ReadError::at_byte(
                 binary::locate(bytes, &failure.at, at_key).unwrap_or(0),
@@ -692,12 +735,28 @@ pub(crate) fn line_breaks(text: &str) -> Vec<usize> {
 /// `breaks` ([`line_breaks`]), the column in characters; the end of `text` for an offset past it,
 /// or inside a character.
 pub(crate) fn position(text: &str, breaks: &[usize], offset: usize) -> (usize, usize) {
+    let (_, line, column) = position_after(text, breaks, offset, None);
+    (line + 1, column)
+}
+
+/// The byte `offset` of `text`, as [`position`] places it, its line from 0 and its column from 1,
+/// the column counted from `last`, the offset, line and column of a byte placed before, when it
+/// lies on the same line before `offset`, rather than from the line's start.
+fn position_after(
+    text: &str,
+    breaks: &[usize],
+    offset: usize,
+    last: Option<(usize, usize, usize)>,
+) -> (usize, usize, usize) {
     let offset = if text.is_char_boundary(offset) {
         offset
     } else {
         text.len()
     };
     let line = breaks.partition_point(|&at| at < offset);
-    let start = if line == 0 { 0 } else { breaks[line - 1] + 1 };
-    (line + 1, text[start..offset].chars().count() + 1)
+    let (from, column) = match last {
+        Some((at, on, column)) if on == line && at <= offset => (at, column),
+        _ => (if line == 0 { 0 } else { breaks[line - 1] + 1 }, 1),
+    };
+    (offset, line, column + text[from..offset].chars().count())
 }

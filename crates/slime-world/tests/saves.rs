@@ -538,3 +538,20 @@ fn a_save_that_gives_a_key_to_a_scene_and_to_an_entity_it_creates_is_refused() {
     );
     assert!(world.is_empty(), "the world is left as it was");
 }
+
+#[test]
+fn a_save_that_holds_many_unknown_keys_warns_of_the_first_and_counts_the_rest() {
+    let keys: String = (0..1000)
+        .map(|index| format!("unknown{index} = 1\n"))
+        .collect();
+    let mut world = World::new();
+    let loaded = world.load(&keys, &mut SceneLibrary::new()).expect("a save");
+    assert_eq!(loaded.warnings.len(), slime_serialize::MAX_WARNINGS + 1);
+    assert!(
+        loaded.warnings[0].to_string().contains("unknown0"),
+        "{}",
+        loaded.warnings[0]
+    );
+    let more = loaded.warnings.last().expect("a last warning");
+    assert!(more.to_string().starts_with("900 more"), "{more}");
+}

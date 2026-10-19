@@ -90,6 +90,10 @@ pub enum ReadProblem {
     /// number out of its range, a version.
     #[error("{0}")]
     Value(Problem),
+    /// The count of the warnings that a lenient reading left out past
+    /// [`MAX_WARNINGS`](crate::MAX_WARNINGS): the last warning, after those it keeps.
+    #[error("{0} more left out, which are not listed")]
+    MoreLeftOut(usize),
 }
 
 impl ReadError {

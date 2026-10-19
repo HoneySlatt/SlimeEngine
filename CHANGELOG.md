@@ -60,6 +60,12 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   left out with a warning in `Loaded::warnings`, as `World::load`'s rustdoc said of what it does
   not know: it was set aside, as a value that its type refuses, so that a game could not tell a save
   that a later version of it wrote from one whose entities an update removed.
+- Reading a document leniently, as a save is read, costs time in proportion with its size however
+  many warnings it gives: each warning's column was counted from its line's start, so that a line
+  of 1 150 000 fields unknown took 488 s. A reading keeps the first `MAX_WARNINGS` warnings, then
+  one that counts the rest (`ReadProblem::MoreLeftOut`), and places the first thousand errors and
+  warnings in the text or the bytes, each from the last placed. `Document::warn` adds a warning of
+  a reader that reads the document's layout itself, as a world reading a save does.
 - A panic in a type's check or upgrade, a game's code, refuses the value that it was called on, as
   its error does, rather than crash the program, unless it aborts on panics: a save edited to give
   a value that a game's check did not expect left the world half loaded.

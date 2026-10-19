@@ -102,7 +102,8 @@ pub struct Loaded {
     /// another entity.
     pub set_aside: Vec<SetAside>,
     /// What the save holds that this program does not know, left out: fields, types, variants, and
-    /// sections of the save. A component of a type, or whose value names a variant, that this
+    /// sections of the save; the first [`slime_serialize::MAX_WARNINGS`], then one that counts the
+    /// rest. A component of a type, or whose value names a variant, that this
     /// program does not know is left out whole, as a later version of the game writes them: a game
     /// that writes the save back without them loses them.
     pub warnings: Vec<ReadError>,
@@ -126,7 +127,7 @@ pub struct SetAside {
 /// Checks the sections of the save `document` and their entries: one that is not a table, where a
 /// save holds one, refuses the save, and a key that a save does not hold, misspelled or of a later
 /// program, is a warning, as a field that its type does not have is.
-fn sections(document: &Document<'_>, loaded: &mut Loaded) -> Result<(), DocumentError> {
+fn sections(document: &mut Document<'_>) -> Result<(), DocumentError> {
     let mut section = |place: &[&str], known: Option<&[&str]>| {
         let keys = table(document, place).map_err(DocumentError::Read)?;
         for key in keys
@@ -135,19 +136,18 @@ fn sections(document: &Document<'_>, loaded: &mut Loaded) -> Result<(), Document
         {
             let mut at = place.to_vec();
             at.push(key);
-            loaded.warnings.push(
-                document.error_at(
-                    &at,
-                    Problem::UnknownField {
-                        field: key.clone(),
-                        known: known
-                            .into_iter()
-                            .flatten()
-                            .map(|&key| key.to_owned())
-                            .collect(),
-                    },
-                ),
+            let unknown = document.error_at(
+                &at,
+                Problem::UnknownField {
+                    field: key.clone(),
+                    known: known
+                        .into_iter()
+                        .flatten()
+                        .map(|&key| key.to_owned())
+                        .collect(),
+                },
             );
+            document.warn(unknown);
         }
         Ok::<_, DocumentError>(keys)
     };
@@ -699,7 +699,7 @@ impl World {
                 )),
             )));
         }
-        sections(document, loaded)?;
+        sections(document)?;
         let start_created = document
             .read(&[START, "created"], "u64", None)
             .map_err(DocumentError::Read)?;
@@ -974,7 +974,10 @@ impl World {
     /// are set aside.
     fn read_values(&self, document: &mut Document<'_>, save: &mut Save, loaded: &mut Loaded) {
         let names = Names::new(self, save.numbers);
-        let mut take = |key: &str, name: &str, read: Result<Option<Value>, ReadError>| {
+        let mut take = |document: &mut Document<'_>,
+                        key: &str,
+                        name: &str,
+                        read: Result<Option<Value>, ReadError>| {
             let aside = |loaded: &mut Loaded, reason: String| {
                 loaded.set_aside.push(SetAside {
                     entity: key.to_owned(),
@@ -985,7 +988,7 @@ impl World {
             let value = match read {
                 Ok(value) => value,
                 Err(error) if unknown(&error) => {
-                    loaded.warnings.push(error);
+                    document.warn(error);
                     None
                 }
                 Err(error) => {
@@ -1010,7 +1013,7 @@ impl World {
             for name in document.keys(&[CREATED, &key, "components"]) {
                 let read =
                     document.read(&[CREATED, &key, "components", &name], &name, Some(&names));
-                if let Some(value) = take(&key, &name, read) {
+                if let Some(value) = take(document, &key, &name, read) {
                     save.added.push((key.clone(), name, value));
                 }
             }
@@ -1018,7 +1021,7 @@ impl World {
         for key in document.keys(&[ADDED]) {
             for name in document.keys(&[ADDED, &key]) {
                 let read = document.read(&[ADDED, &key, &name], &name, Some(&names));
-                if let Some(value) = take(&key, &name, read) {
+                if let Some(value) = take(document, &key, &name, read) {
                     save.added.push((key.clone(), name, value));
                 }
             }
@@ -1026,7 +1029,7 @@ impl World {
         for key in document.keys(&[CHANGED]) {
             for name in document.keys(&[CHANGED, &key]) {
                 let read = document.read_part(&[CHANGED, &key, &name], &name, Some(&names));
-                if let Some(part) = take(&key, &name, read) {
+                if let Some(part) = take(document, &key, &name, read) {
                     save.changed.push((key.clone(), name, part));
                 }
             }

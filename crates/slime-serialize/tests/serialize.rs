@@ -529,6 +529,35 @@ fn a_field_that_the_type_does_not_have_is_an_error_in_a_source_and_a_warning_in_
 }
 
 #[test]
+fn many_warnings_cost_time_in_proportion_with_the_document_and_are_capped() {
+    // A save of a later program, which wrote fields that this one does not know, all on one line:
+    // each warning, placed from the line's start, made reading quadratic.
+    let registry = registry();
+    let unknown = 200_000;
+    let fields: String = (0..unknown)
+        .map(|index| format!(", f{index} = 0"))
+        .collect();
+    let text = format!("\"$value\" = {{ r = 1.0, g = 0.5, b = 0.25{fields} }}\n");
+    let started = std::time::Instant::now();
+    let read = read(&registry, "test::Tint", &text, Mode::Lenient).expect("lenient");
+    let took = started.elapsed();
+    assert!(took < std::time::Duration::from_secs(15), "{took:?}");
+    assert_eq!(read.warnings.len(), slime_serialize::MAX_WARNINGS + 1);
+    assert_eq!(
+        read.warnings[0].line_and_column(),
+        Some((1, 42)),
+        "{}",
+        read.warnings[0]
+    );
+    let more = read.warnings.last().expect("a last warning");
+    assert!(
+        matches!(more.problem(), ReadProblem::MoreLeftOut(count)
+            if *count == unknown - slime_serialize::MAX_WARNINGS),
+        "{more}"
+    );
+}
+
+#[test]
 fn errors_say_where_the_value_is_wrong() {
     let registry = registry();
     let cases = [
