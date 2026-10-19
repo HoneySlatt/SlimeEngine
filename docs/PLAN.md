@@ -22,8 +22,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   found defects that lose or change a player's saves, files that crash the engine, a recovery from a
   lost GPU device that covers one case, and quick wins that it measured. Milestones P1 to P5 fix
   them; then a foundations pass, P6, decides as ADRs what the editor will freeze. Stage 6, the
-  editor, is planned with the owner after it. P1 is built
-  ([ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)): the owner checks it by hand.
+  editor, is planned with the owner after it. P1 is done
+  ([ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)); P2 is next, on the owner's go.
 - The games the engine aims at, described on 2026-10-19
   ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)): nine profiles, from *Hunna Wood* to a
   massively multiplayer game, listed in [`ROADMAP.md`](ROADMAP.md). They add criteria to P6, one UI
@@ -37,7 +37,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 
 | Milestone | Goal | Status |
 |---|---|---|
-| [P1](#p1--saves-and-identities-that-never-mislead) | A save, a scene file and a level written back hold what the world holds and name the entities they mean; a game resumes only a save it can play, and never loses one | Built; the owner checks it by hand, on Linux and in the Windows virtual machine, CI checks it |
+| [P1](#p1--saves-and-identities-that-never-mislead) | A save, a scene file and a level written back hold what the world holds and name the entities they mean; a game resumes only a save it can play, and never loses one | Done |
 | [P2](#p2--a-damaged-file-gives-an-error-never-a-crash) | No damaged or edited file makes the engine panic, hang or exhaust its memory (ADR-0096) | Planned |
 | [P3](#p3--the-loss-of-the-gpu-device-and-the-main-loop) | A lost GPU device is recovered wherever the loss is found, and a panic in `render` stays an ordinary panic | Planned |
 | [P5](#p5--the-build-ci-and-measurements-tracked-from-one-commit-to-the-next) | Every crate compiled once, CI under its limit, and the engine's measurements tracked from one commit to the next | Planned |
@@ -162,7 +162,7 @@ Risks:
   `cargo test -p hunnawood -- --ignored`; `cargo run -p hunnawood -- --new --save <file>`.
 - **By hand.** On Linux: play, F5, F9, quit and resume. In the Windows virtual machine: two copies
   of the game at once; the game killed during F5, then started again.
-- **Outcome.** Built on 2026-10-19; the owner's checks by hand are left.
+- **Outcome.** Done on 2026-10-19.
   [ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md) records how each finding is
   fixed, and amends the ADRs above. Each defect is confirmed by a test that failed before its fix
   and passes with it; the audit's own tests of G03, G11, G35 and G36 were not available, and
@@ -208,8 +208,12 @@ Risks:
   on one save: the second said that the other held the save and played a new run that it did not
   save, the first saved its run as it stopped, and a third resumed it. A review of the commits that
   P1 pushed first found, in the fix of G01, an edited save that gave one key to two entities, which
-  is refused since, and rustdoc and reports that said more than the code did, corrected. What P1
-  leaves is in the [known debt](#known-debt), and its questions for the owner in P6.
+  is refused since, and rustdoc and reports that said more than the code did, corrected. The owner
+  made the checks by hand, on Linux and in the Windows virtual machine, and found that everything
+  works. CI took 14 minutes 4 seconds on Linux and 19 minutes 4 seconds on Windows, 56 seconds
+  under the 20 minutes that the owner allows. The owner decided on 2026-10-19 to keep the start's
+  fingerprint without values, to weigh again in P6, and the save fixture of 0.4 until the game's
+  first release. What P1 leaves is in the [known debt](#known-debt), and its questions in P6.
 
 ### P2 — A damaged file gives an error, never a crash
 
@@ -422,13 +426,16 @@ Risks:
     can hold from one machine to another.
   - Stable references and operations that undo keeps reversible, so that undoing a deletion gives
     back the same entity, built on P1's identities (C1-03, C4-01).
-    P1 leaves a question for the owner: what a game creates in code without a key is named by its
+    P1 leaves a question, which the owner decided on 2026-10-19 to weigh here, with stable
+    references: what a game creates in code without a key is named by its
     rank of creation, and a save tells a start that created others by a fingerprint of their
     numbers, the types of their components and their names, not of their values
     ([ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)). Entities alike in their
     types, without names, created in another order, are not told apart, and a save's changes go to
     the entity of each number. A fingerprint that holds their values too would tell them apart, at
     the cost of setting aside all that a save holds of them at an update that changes one value.
+    Until then, the fingerprint holds no values, and a game names by a key what it creates at its
+    start.
   - How the editor runs a game's code: a game becomes a library and its binaries, amending
     [ADR-0055](adr/0055-games-in-the-workspace.md); playing in the editor starts the game in a
     child process first (C4-02, C6-01, C7-02).
@@ -887,8 +894,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   fingerprint of their numbers, the types of their components and their names: a later version of
   a game that creates two such entities in the other order is not told apart, and the save's
   changes go to the entity of each number. A game names by a key what it creates at its start
-  (`World::spawn_keyed`); whether the fingerprint holds the values too is a question for the owner,
-  in P6.
+  (`World::spawn_keyed`); whether the fingerprint holds the values too is weighed in P6, with
+  stable references, as the owner decided.
 - **`World::spawn_keyed` gives a key under which the world remembers a scene of which nothing
   lives** (ADR-0101): the entity created is then saved as that scene's root, and set aside with the
   scene when a save loads where the scene cannot be resolved. `World::spawn_scene` refuses a key
@@ -899,8 +906,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   `Range::holds` (ADR-0101); the helpers can move to it, and `contains` go.
 - ***Hunna Wood* compares the saves of 0.4 by the fingerprint of their layout** (ADR-0101), as 0.4
   did, its fragility at the boundaries of its rounding included, until the save fixture is made
-  again, which ADR-0100 allows before the game's first release. Later saves say their layout's
-  numbers.
+  again: the owner decided to keep it until the game's first release, before which ADR-0100 allows
+  making it again. Later saves say their layout's numbers.
 - **Files stay beside *Hunna Wood*'s save**: `save.toml.lock`, which locks the save while a copy of
   the game runs, and `save.toml.<process id>.new`, when the game is killed while it writes. Neither
   is read again, nor removed.

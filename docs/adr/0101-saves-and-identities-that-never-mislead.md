@@ -153,7 +153,8 @@ saves changes so:
 - **A fingerprint that holds the start's values too**, which tells apart entities alike in their
   types: an update that changes one default value of a start's entity would set aside all that
   saves hold of the start's numbered entities, and its values' references would have to be written
-  by identity. Left as a question for the owner, with the foundations pass's identities.
+  by identity. The owner decided on 2026-10-19 to keep the fingerprint without values, and to weigh
+  it again with the foundations pass's stable references.
 - **What survived a change of level kept under the old key**: two entities would claim identities
   under one key; the question goes to the foundations pass.
 - **Ranges compared in `f64` within an epsilon**: one more bound chosen by hand, which a number at
