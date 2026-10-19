@@ -1,6 +1,7 @@
 //! Opening the GPU: the adapter, the device and its queue.
 
 use std::sync::{Arc, OnceLock, PoisonError, RwLock};
+use std::time::Duration;
 
 use crate::error::GfxError;
 
@@ -241,19 +242,22 @@ impl Gpu {
         let loss = Arc::new(OnceLock::new());
         device.set_device_lost_callback({
             let loss = Arc::clone(&loss);
-            move |reason, message| {
+            move |reason, message: String| {
                 let kind = match reason {
-                    wgpu::DeviceLostReason::Destroyed => {
-                        tracing::debug!("GPU device destroyed");
-                        LossKind::Destroyed
-                    }
-                    _ => {
-                        tracing::error!(%message, "GPU device lost");
-                        LossKind::Driver
-                    }
+                    wgpu::DeviceLostReason::Destroyed => LossKind::Destroyed,
+                    _ => LossKind::Driver,
                 };
-                // Only the first loss counts: one that `lose` recorded is not overwritten.
-                let _ = loss.set(Loss { kind, message });
+                // Recorded before it is logged, which can take a while, so that other threads see
+                // the loss as soon as possible: wgpu holds the device invalid already. Only the
+                // first loss counts: one that `lose` or `lost` recorded is not overwritten.
+                let _ = loss.set(Loss {
+                    kind,
+                    message: message.clone(),
+                });
+                match kind {
+                    LossKind::Driver => tracing::error!(%message, "GPU device lost"),
+                    _ => tracing::debug!("GPU device destroyed"),
+                }
             }
         });
         device.on_uncaptured_error(Arc::new({
@@ -320,38 +324,113 @@ impl Gpu {
     ///
     /// # Errors
     ///
-    /// [`GfxError::DeviceLost`] if the device is lost once `create` returns. On Vulkan, a driver
-    /// that fails to create a shader or pipeline (which a conformant one does only when it runs
-    /// out of memory) makes wgpu lose the device, and no scope sees an error.
+    /// [`GfxError::DeviceLost`] if the device is lost once `create` returns, recorded or not yet
+    /// ([`Gpu::still_valid`]). On Vulkan, a driver that fails to create a shader or pipeline (which
+    /// a conformant one does only when it runs out of memory) makes wgpu lose the device, and no
+    /// scope sees an error.
     pub(crate) fn catch_errors<T>(
         &self,
         create: impl FnOnce() -> T,
     ) -> Result<(T, Option<wgpu::Error>), GfxError> {
         let (created, error) = within_error_scopes(&self.device, create);
         self.check()?;
+        if !self.still_valid() {
+            return Err(self.lost("creating a shader or a pipeline"));
+        }
         Ok((created, error))
     }
 
     /// Runs `create`, which creates the GPU objects of `label`, inside an out-of-memory error
-    /// scope, and returns what it created. On a lost device, `create` does not run: nothing could
-    /// be created. Errors of other kinds reach the error handler.
+    /// scope, and returns what it created, which can be used: wgpu held the device valid once
+    /// `create` returned ([`Gpu::still_valid`]). On a lost device, `create` does not run: nothing
+    /// could be created. Errors of other kinds reach the error handler.
     ///
     /// # Errors
     ///
     /// [`GfxError::OutOfMemory`] if wgpu reports that the GPU's memory cannot hold what `create`
     /// asked for, and [`GfxError::DeviceLost`] if the device is lost before `create` runs or once
-    /// it returns.
+    /// it returns, recorded or not yet.
     pub(crate) fn create<T>(&self, label: &str, create: impl FnOnce() -> T) -> Result<T, GfxError> {
         self.check()?;
         let scope = self.device.push_error_scope(wgpu::ErrorFilter::OutOfMemory);
         let created = create();
+        let valid = self.still_valid();
         let error = pollster::block_on(scope.pop());
         self.check()?;
         match error {
-            None => Ok(created),
             Some(_) => Err(GfxError::OutOfMemory {
                 label: label.to_owned(),
             }),
+            None if !valid => Err(self.lost(&format!("creating `{label}`"))),
+            None => Ok(created),
+        }
+    }
+
+    /// Whether wgpu still holds the device valid. wgpu marks a device lost before it reports the
+    /// loss, and does not say so otherwise: every creation in between makes objects that cannot be
+    /// used, which wgpu then reports as a misuse, an error that panics (ADR-0022). It asks: a
+    /// buffer of 4 bytes created mapped can be written only on a valid device, or one whose memory
+    /// is full, which wgpu reports, where it says nothing of a lost device. It costs that buffer
+    /// and an error scope: in a release build on lavapipe, the question alone took 1.2 to 1.6 µs,
+    /// and creating a vertex buffer of 1 KiB 6.8 to 9.5 µs with it, 5.2 to 7.2 µs without, from one
+    /// run to the next.
+    pub(crate) fn still_valid(&self) -> bool {
+        // Its own scope, so that memory full is neither taken for the creation of a caller's
+        // object nor reported where no caller hears of it, which gives the device up (ADR-0044).
+        let scope = self.device.push_error_scope(wgpu::ErrorFilter::OutOfMemory);
+        let probe = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("SlimeEngine probe of the device"),
+            size: wgpu::COPY_BUFFER_ALIGNMENT,
+            usage: wgpu::BufferUsages::MAP_WRITE,
+            mapped_at_creation: true,
+        });
+        let mapped = probe.get_mapped_range_mut(..).is_ok();
+        let out_of_memory = pollster::block_on(scope.pop()).is_some();
+        mapped || out_of_memory
+    }
+
+    /// The loss of the device that `what` found, an operation that fails only on a lost device:
+    /// recorded, as the driver's, if wgpu has not reported it yet ([`Gpu::still_valid`]), so that
+    /// [`Gpu::check`] reports it from then on.
+    pub(crate) fn lost(&self, what: &str) -> GfxError {
+        let recorded = self.loss.set(Loss {
+            kind: LossKind::Driver,
+            message: format!("{what} failed, as it does once the device is lost"),
+        });
+        if recorded.is_ok() {
+            tracing::error!("the GPU device is lost: {what} failed before wgpu reported the loss");
+        }
+        self.check()
+            .expect_err("the loss is recorded, by wgpu or above")
+    }
+
+    /// Blocks until `ready` gives what it waits for, which a callback of wgpu's gives once the GPU
+    /// has finished the work it waits for, and returns it.
+    ///
+    /// wgpu runs such callbacks when the device is polled or work is submitted. It treats a poll
+    /// that finds the device lost as fatal and panics, where a submission only reports the loss
+    /// (ADR-0022): the wait submits empty work, sleeping in between, rather than poll, as
+    /// [`Gpu::wait_idle`] says.
+    ///
+    /// # Errors
+    ///
+    /// [`GfxError::DeviceLost`] if the device is lost before `ready` gives anything.
+    pub(crate) fn wait_for<T>(&self, mut ready: impl FnMut() -> Option<T>) -> Result<T, GfxError> {
+        let mut pause = Duration::from_micros(50);
+        loop {
+            if let Some(ready) = ready() {
+                return Ok(ready);
+            }
+            self.check()?;
+            if !self.still_valid() {
+                return Err(self.lost("waiting for the GPU"));
+            }
+            submit(self, []);
+            if let Some(ready) = ready() {
+                return Ok(ready);
+            }
+            std::thread::sleep(pause);
+            pause = (pause * 2).min(Duration::from_millis(1));
         }
     }
 
@@ -372,7 +451,7 @@ impl Gpu {
         });
         // wgpu's own `create_buffer_init` panics here when the buffer could not be created, on a
         // lost device or out of memory: it is invalid and cannot be mapped. Such a buffer is
-        // returned as it is, and `create` reports why (ADR-0022, ADR-0044).
+        // returned as it is, and `create`, which this runs in, reports why (ADR-0022, ADR-0044).
         if let Ok(mut mapped) = buffer.get_mapped_range_mut(..) {
             mapped.slice(..contents.len()).copy_from_slice(contents);
             drop(mapped);
@@ -426,16 +505,14 @@ impl Gpu {
     }
 
     /// Submits an empty piece of work, then blocks until the GPU has finished everything submitted
-    /// so far.
+    /// so far, or the device is lost. It does not poll the device, on which wgpu panics when the
+    /// poll finds the device lost (ADR-0103): it submits empty work until the GPU has finished,
+    /// sleeping 50 µs at first, then twice as long each time, up to 1 ms, so that it wakes up to
+    /// 1 ms after the GPU has finished.
     ///
     /// # Errors
     ///
-    /// [`GfxError::DeviceLost`] once the device is lost ([`Gpu::check`]).
-    ///
-    /// # Panics
-    ///
-    /// If the wait itself is what finds the device lost: wgpu treats that as fatal. Also if wgpu
-    /// reports an error that its indefinite wait cannot produce.
+    /// [`GfxError::DeviceLost`] once the device is lost ([`Gpu::check`]), before or while it waits.
     pub fn wait_idle(&self) -> Result<(), GfxError> {
         self.check()?;
         let encoder = self
@@ -444,18 +521,18 @@ impl Gpu {
                 label: Some("SlimeEngine wait_idle"),
             });
         submit(self, [encoder.finish()]);
-        // wgpu reports a wait that timed out or that named a submission not made yet; an indefinite
-        // wait without a submission index does neither.
-        self.device
-            .poll(wgpu::PollType::wait_indefinitely())
-            .expect("an indefinite wait neither times out nor names a submission");
-        Ok(())
+        let done = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        self.queue.on_submitted_work_done({
+            let done = Arc::clone(&done);
+            move || done.store(true, std::sync::atomic::Ordering::Release)
+        });
+        self.wait_for(|| {
+            done.load(std::sync::atomic::Ordering::Acquire)
+                .then_some(())
+        })
     }
 }
 
-/// Runs `run` inside a validation and an internal error scope of `device`, and returns what it
-/// gave, with the error wgpu reported in either scope, if any; errors of other kinds reach the
-/// error handler.
 /// Submits `commands` to the queue of `gpu`, unless a surface of its device is being configured,
 /// which it waits for ([`Gpu::submissions`]).
 pub(crate) fn submit(gpu: &Gpu, commands: impl IntoIterator<Item = wgpu::CommandBuffer>) {
@@ -467,6 +544,9 @@ pub(crate) fn submit(gpu: &Gpu, commands: impl IntoIterator<Item = wgpu::Command
     gpu.queue.submit(commands);
 }
 
+/// Runs `run` inside a validation and an internal error scope of `device`, and returns what it
+/// gave, with the error wgpu reported in either scope, if any; errors of other kinds reach the
+/// error handler.
 pub(crate) fn within_error_scopes<T>(
     device: &wgpu::Device,
     run: impl FnOnce() -> T,
@@ -667,6 +747,42 @@ mod tests {
                 matches!(result, Err(GfxError::DeviceLost { .. })),
                 "a lost device is reported by every method that returns a result: {result:?}"
             );
+        }
+    }
+
+    #[test]
+    fn a_device_invalid_before_its_loss_is_recorded_gives_errors_not_panics() {
+        // As a driver reset comes: wgpu holds the device invalid before it reports the loss, which,
+        // for a device destroyed, it does only when the device is next polled. Creating a texture
+        // panicked in wgpu's unmap of its uploads, and reading a target back in its mapping.
+        type Call = fn(&Gpu, &RenderTarget) -> Result<(), GfxError>;
+        let calls: [(&str, Call); 4] = [
+            ("a texture", |gpu, _| {
+                gpu.create_texture("lost", 4, 4, TextureFormat::Rgba8UnormSrgb, &[0; 64])
+                    .map(|_| ())
+            }),
+            ("a vertex buffer", |gpu, _| {
+                gpu.create_vertex_buffer("lost", &[0; 16]).map(|_| ())
+            }),
+            ("a readback", |gpu, target| {
+                gpu.read_render_target(target).map(|_| ())
+            }),
+            ("a wait", |gpu, _| gpu.wait_idle()),
+        ];
+        for (what, call) in calls {
+            let gpu = Gpu::new()
+                .expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+            let target = gpu
+                .create_render_target("before", 4, 4, TextureFormat::Rgba8UnormSrgb)
+                .expect("the GPU has memory for it");
+            gpu.device.destroy();
+            assert!(gpu.check().is_ok(), "{what}: the loss is not recorded yet");
+            let result = call(&gpu, &target);
+            assert!(
+                matches!(result, Err(GfxError::DeviceLost { .. })),
+                "{what}: {result:?}"
+            );
+            assert!(gpu.check().is_err(), "{what}: the loss is recorded");
         }
     }
 

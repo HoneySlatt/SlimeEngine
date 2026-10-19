@@ -112,7 +112,9 @@ fn main() -> Result<(), GfxError> {
   `Gpu::new_for_window(window, width, height, present_mode)` one that can draw into a window,
   together with the window's `Surface` (ADR-0020). `Gpu::check()` says whether the device was lost;
   once it is, the methods that return a `Result` return `GfxError::DeviceLost`, which says why
-  (`LossKind`; ADR-0022). `Gpu::restore` takes a lost device and opens one to replace it,
+  (`LossKind`; ADR-0022), and so do they when they are the first to find the loss, on any thread,
+  waits included: the engine never polls the device, on which wgpu panics (ADR-0103).
+  `Gpu::restore` takes a lost device and opens one to replace it,
   and `Surface::restore` does it for a window, whose surface it creates again; nothing else may hold
   the lost device then, since Direct3D 12 would not open the new one on the same adapter;
   `Gpu::lose` loses a device on purpose, for tests and tools (ADR-0075). Clones of a `Gpu` share its
@@ -140,8 +142,10 @@ fn main() -> Result<(), GfxError> {
   as it ends (ADR-0059); a later pass's shader can also read them sample by sample, at a
   `BindingType::MultisampledTexture` binding (ADR-0060).
 - `Surface::acquire` gives the `SurfaceFrame` to draw a window's next image into, and
-  `SurfaceFrame::present` shows it, as its `PresentMode` says (ADR-0021). Applications built on
-  `slime-app` do not call these: the engine does.
+  `SurfaceFrame::present` shows it, as its `PresentMode` says (ADR-0021). The surface releases the
+  last image when it is dropped or restored, so that an image that a panic or a lost device left
+  held does not crash the program (ADR-0103). Applications built on `slime-app` do not call these:
+  the engine does.
 - `GfxError`: why the GPU could not be opened or used.
 
 The documentation of each item holds its contracts: its formats, limits, errors and panics, and

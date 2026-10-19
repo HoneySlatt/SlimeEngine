@@ -88,6 +88,9 @@ pub struct Surface {
     lost: Option<String>,
     /// Whether the [`SurfaceFrame`] of the last image acquired still exists.
     frame_outstanding: Arc<AtomicBool>,
+    /// The texture of the last image acquired, which [`Surface::release_image`] destroys before
+    /// the window's swap chain is configured again or goes.
+    image: Option<wgpu::Texture>,
 }
 
 impl Gpu {
@@ -154,27 +157,16 @@ impl Surface {
             Arc::ptr_eq(&self.device_loss, &lost.loss),
             "the lost device given to Surface::restore is not the one that drew into the window"
         );
-        // Refused before the window's surface goes, when the device ran out of memory.
         let lost = Lost::of(lost)?;
-        let Surface {
-            surface,
-            instance,
-            window,
-            device,
-            queue,
-            config,
-            present_mode,
-            ..
-        } = self;
+        let (instance, window, size, present_mode) = (
+            self.instance.clone(),
+            Arc::clone(&self.window),
+            (self.config.width, self.config.height),
+            self.present_mode,
+        );
         // Every reference to the lost device goes before the new one opens.
-        drop((surface, device, queue));
-        Surface::open(
-            instance,
-            window,
-            (config.width, config.height),
-            present_mode,
-            Some(&lost),
-        )
+        drop(self);
+        Surface::open(instance, window, size, present_mode, Some(&lost))
     }
 
     /// Creates the surface of `window` with `instance`, and opens the most capable GPU that can
@@ -248,6 +240,7 @@ impl Surface {
             losses_in_a_row: 0,
             lost: None,
             frame_outstanding: Arc::new(AtomicBool::new(false)),
+            image: None,
         };
         surface.resize(width, height);
         Ok((gpu, surface))
@@ -401,13 +394,27 @@ impl Surface {
         self.losses_in_a_row = 0;
         let target = RenderTarget::new(texture.texture.clone(), label, self.format);
         self.frame_outstanding.store(true, Ordering::Relaxed);
+        self.image = Some(texture.texture.clone());
         Some(SurfaceFrame {
             texture,
             target,
             queue: self.queue.clone(),
-            device_loss: Arc::clone(&self.device_loss),
             _outstanding: Outstanding(Arc::clone(&self.frame_outstanding)),
         })
+    }
+
+    /// Lets the window's swap chain go, or be configured again, with the last image acquired, which
+    /// may still hold its synchronization: wgpu keeps an image acquired when the device refused to
+    /// present it, lost before the engine knew, and work still in flight holds an image that a
+    /// panic left unpresented. On Vulkan, wgpu panics when it destroys a swap chain whose
+    /// synchronization an image holds, and during a panic, that aborts the process. Destroying the
+    /// image's texture releases it, and does nothing to an image already presented; dropping the
+    /// texture lets Direct3D 12 resize the swap chain's images, which it refuses while one is
+    /// referred to.
+    fn release_image(&mut self) {
+        if let Some(image) = self.image.take() {
+            image.destroy();
+        }
     }
 
     /// Applies `config` to the surface, and whether an image can be acquired from it next. Not
@@ -418,6 +425,9 @@ impl Surface {
     /// the display went away, a swap chain that cannot be created): the surface then counts as
     /// lost, and is created again, or given up (`docs/adr/0025-giving-up-a-lost-surface.md`).
     fn configure(&mut self) -> bool {
+        // On Direct3D 12, the swap chain's images cannot be resized while a texture of one exists:
+        // the last image goes first.
+        self.release_image();
         // wgpu waits for the GPU to finish its work, then fails if work came meanwhile: no thread
         // submits until the surface is configured. The thread that owns the surface makes its own
         // submissions, and those of the frames, outside of this call.
@@ -479,6 +489,7 @@ impl Surface {
         match self.instance.create_surface(Arc::clone(&self.window)) {
             Ok(surface) => {
                 tracing::warn!("the window's surface was lost; it was created again");
+                self.release_image();
                 self.surface = surface;
                 self.stale = true;
             }
@@ -489,6 +500,12 @@ impl Surface {
     fn give_up(&mut self, message: String) {
         tracing::error!(%message, "the window's surface was lost for good");
         self.lost = Some(message);
+    }
+}
+
+impl Drop for Surface {
+    fn drop(&mut self) {
+        self.release_image();
     }
 }
 
@@ -507,18 +524,18 @@ impl fmt::Debug for Surface {
 ///
 /// Every frame acquired must be presented, even one that nothing drew into (it is shown cleared
 /// to black); to keep the window's current image, do not acquire a new one. Dropping a frame
-/// without presenting it is a misuse that nothing reports: on Vulkan, wgpu cannot give such an
-/// image back to the window (its discard does nothing), so each drop takes one of the window's
-/// images until the surface is configured again, and leaves wgpu's synchronization of that image
-/// in a state that Vulkan forbids. Once the window has no image left,
-/// [`acquire`](Surface::acquire) waits one second at every call and returns `None`.
+/// without presenting it is a misuse that nothing reports, but for a frame that a panic drops: on
+/// Vulkan, wgpu cannot give such an image back to the window (its discard does nothing), so each
+/// drop takes one of the window's images until the surface is configured again, and leaves wgpu's
+/// synchronization of that image in a state that Vulkan forbids. Once the window has no image
+/// left, [`acquire`](Surface::acquire) waits one second at every call and returns `None`. The
+/// [`Surface`] releases the last image when it is configured again, created again, dropped or
+/// restored, so that a panic that drops a frame ends as a panic does, not as an abort.
 #[derive(Debug)]
 pub struct SurfaceFrame {
     texture: wgpu::SurfaceTexture,
     target: RenderTarget,
     queue: wgpu::Queue,
-    /// Why the device was lost, once it has been: the [`Gpu`]'s record.
-    device_loss: Arc<OnceLock<Loss>>,
     /// Tells the surface that the frame is gone, when it is presented or dropped.
     _outstanding: Outstanding,
 }
@@ -547,8 +564,9 @@ impl SurfaceFrame {
     /// surface's [`PresentMode`] says. Call it after the work that draws into the target has been
     /// submitted, as [`Gpu::render`] does; an image that nothing drew into is shown cleared to
     /// black. With [`PresentMode::Fifo`], it can wait for the window (one second per frame for a
-    /// hidden window on niri). Once the GPU device is lost, nothing is shown: the image is
-    /// released instead, so that the [`Surface`] can still be dropped.
+    /// hidden window on niri). Once the GPU device is lost, nothing is shown: wgpu 30 refuses to
+    /// present the image, silently, and keeps it acquired until the [`Surface`] releases it, when
+    /// it is configured again, dropped or restored at the latest.
     pub fn present(self) {
         if !self.target.drawn.load(Ordering::Relaxed) {
             // wgpu clears an image that nothing drew into when it is presented, and keeps that
@@ -556,17 +574,6 @@ impl SurfaceFrame {
             // GPU has finished. A frame that draws nothing must give it one, or that work piles up
             // at every frame for as long as the run lasts.
             self.queue.submit([]);
-        }
-        // Checked after this frame's submissions, which are where a loss is most often found.
-        if self.device_loss.get().is_some() {
-            // Once the device is lost, wgpu 30 refuses to present or discard the image and keeps
-            // it acquired. On Vulkan, dropping the surface would then panic: destroying the
-            // swapchain needs back the semaphores that the image still holds. Destroying the
-            // image's texture releases them. Dropping the frame then asks wgpu to discard the
-            // image, which it refuses silently, as it does every error that only repeats that
-            // the device is lost.
-            self.texture.texture.destroy();
-            return;
         }
         self.queue.present(self.texture);
     }

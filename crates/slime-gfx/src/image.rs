@@ -37,20 +37,20 @@ pub struct FloatImage {
 
 impl Gpu {
     /// Copies the content of an 8-bit `target` to the CPU. It waits for the GPU to finish the work
-    /// submitted before, so the image shows everything rendered into `target` so far.
+    /// submitted before, as [`Gpu::wait_idle`] waits, so the image shows everything rendered into
+    /// `target` so far.
     ///
     /// # Errors
     ///
-    /// [`GfxError::DeviceLost`] once the device is lost ([`Gpu::check`]); [`GfxError::OutOfMemory`]
-    /// if the GPU's memory cannot hold the buffer the pixels are copied into;
-    /// [`GfxError::Readback`] if waiting for the GPU or reading its memory fails.
+    /// [`GfxError::DeviceLost`] once the device is lost ([`Gpu::check`]), before or while it waits
+    /// for the GPU; [`GfxError::OutOfMemory`] if the GPU's memory cannot hold the buffer the pixels
+    /// are copied into; [`GfxError::Readback`] if reading the GPU's memory fails otherwise.
     ///
     /// # Panics
     ///
     /// If `target` is `Rgba16Float`, which [`Gpu::read_float_render_target`] reads; if `target` is
     /// the image of a window ([`SurfaceFrame::target`](crate::SurfaceFrame::target)): only targets
-    /// created by [`Gpu::create_render_target`] can be read back. Also if the wait for the GPU is
-    /// what finds the device lost: wgpu treats that as fatal.
+    /// created by [`Gpu::create_render_target`] can be read back.
     pub fn read_render_target(&self, target: &RenderTarget) -> Result<Image, GfxError> {
         assert!(
             target.format() != TextureFormat::Rgba16Float,
@@ -77,15 +77,12 @@ impl Gpu {
     ///
     /// # Errors
     ///
-    /// [`GfxError::DeviceLost`] once the device is lost ([`Gpu::check`]); [`GfxError::OutOfMemory`]
-    /// if the GPU's memory cannot hold the buffer the pixels are copied into;
-    /// [`GfxError::Readback`] if waiting for the GPU or reading its memory fails.
+    /// As [`read_render_target`](Self::read_render_target).
     ///
     /// # Panics
     ///
     /// If `target` is not `Rgba16Float` (the image of a window never is), or is multisampled: only
-    /// targets created by [`Gpu::create_render_target`] can be read back. Also if the wait for the
-    /// GPU is what finds the device lost: wgpu treats that as fatal.
+    /// targets created by [`Gpu::create_render_target`] can be read back.
     pub fn read_float_render_target(&self, target: &RenderTarget) -> Result<FloatImage, GfxError> {
         assert!(
             target.format() == TextureFormat::Rgba16Float,
@@ -189,13 +186,15 @@ impl Gpu {
                 // The receiver waits below; it cannot be gone.
                 let _ = sender.send(result);
             });
-            self.device
-                .poll(wgpu::PollType::wait_indefinitely())
-                .map_err(|error| readback_error(Box::new(error)))?;
-            receiver
-                .recv()
-                .map_err(|error| readback_error(Box::new(error)))?
-                .map_err(|error| readback_error(Box::new(error)))?;
+            if let Err(error) = self.wait_for(|| receiver.try_recv().ok())? {
+                // The buffer is the readback's own: only the device's loss fails its mapping, which
+                // wgpu may not have reported yet.
+                return Err(if self.check().is_ok() && self.still_valid() {
+                    readback_error(Box::new(error))
+                } else {
+                    self.lost(&format!("mapping `{buffer_label}`"))
+                });
+            }
 
             let mapped = buffer
                 .get_mapped_range(..)

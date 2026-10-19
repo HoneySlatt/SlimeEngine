@@ -269,17 +269,23 @@ impl Gpu {
             let size = u64::from(band.pitch) * u64::from(band.rows);
             let first = (band.layer * rows + band.first_row) as usize * row as usize;
             let source = &levels[band.level][first..first + band.rows as usize * row as usize];
-            // A buffer that could not be created cannot be mapped either; `check` below reports
-            // why.
-            if let Ok(mut mapped) =
+            // Created mapped, the buffer is mapped unless the device was lost since `create`
+            // checked it, and another thread's submission released its objects; unmapped, a buffer
+            // that is not mapped would be a misuse that panics.
+            let Ok(mut mapped) =
                 staging[band.buffer].get_mapped_range_mut(band.offset..band.offset + size)
-            {
-                for (index, source_row) in source.chunks_exact(row as usize).enumerate() {
-                    let start = index * band.pitch as usize;
-                    mapped
-                        .slice(start..start + row as usize)
-                        .copy_from_slice(source_row);
-                }
+            else {
+                assert!(
+                    self.check().is_err() || !self.still_valid(),
+                    "the upload of `{label}` cannot be mapped, on a device that is not lost"
+                );
+                return Err(self.lost(&format!("mapping the upload of `{label}`")));
+            };
+            for (index, source_row) in source.chunks_exact(row as usize).enumerate() {
+                let start = index * band.pitch as usize;
+                mapped
+                    .slice(start..start + row as usize)
+                    .copy_from_slice(source_row);
             }
         }
         for buffer in &staging {
