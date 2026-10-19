@@ -323,13 +323,22 @@ Risks:
 
   The mutation tests are `tests/damaged.rs` in `slime-assets` (textures, meshes, materials, cooked
   scenes, the manifest), `slime-serialize` (documents as text and in the binary encoding),
-  `slime-world` (a save, a scene file) and `slime-cook` (a GLB file cooked as the cooker does,
-  PNG and JPEG images, a metadata file), each under a few seconds of a debug build; they found no
-  panic past the fixes above. `scripts/check.sh` runs the `scene` example on a copy of the cooked
-  sample whose first mesh has one byte changed: it ends with status 1 and an error that names the
-  file. What P2 leaves is in the [known debt](#known-debt): a cooked file damaged within its ranges,
-  a save's capacity in values, the cost of checking what a cook reuses. The `ktx2` crate's panic is
-  not reported to its authors yet: that waits for the owner's agreement.
+  `slime-world` (a save, a scene file) and `slime-cook` (a GLB file cooked as the cooker does, PNG
+  and JPEG images, a metadata file), each under a few seconds of a debug build; they found no panic
+  past the fixes above. `scripts/check.sh` runs the `scene` example on a copy of the cooked sample
+  whose first mesh has one byte changed: it ends with status 1 and an error that names the file. A
+  review of P2's commits found that an ID of a few megabytes, which every entity copied repeats,
+  made gigabytes of a resolved scene or a save's spawned scene under the limits
+  (`a_placement_whose_id_each_copy_repeats_counts_it_in_the_limit`,
+  `a_save_that_spawns_a_scene_under_a_long_key_counts_it_in_the_limit`, both of which exhausted a
+  limit of 3 GB); that the binary encoding placed each error from its first byte again, 13 s of a
+  debug build where the text took 2 (the warnings test, since in both encodings); that the cooker
+  read a reused scene file whole before checking it; that a light beyond what the shader's 32-bit
+  floats measure from the camera reached it as an infinity, which lavapipe happens to draw as no
+  light; and documents that said more than the code did. All are fixed. What P2 leaves is in the
+  [known debt](#known-debt): a cooked file damaged within its ranges, a save's capacity in values,
+  the cost of checking what a cook reuses. The `ktx2` crate's panic is not reported to its authors
+  yet: that waits for the owner's agreement.
 
 ### P3 — The loss of the GPU device and the main loop
 
