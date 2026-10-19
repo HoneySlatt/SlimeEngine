@@ -2,6 +2,8 @@
 
 - Status: Accepted; its rule on the `wgpu` feature is widened to the engine's own tests
   (2026-10-13); amended by [0052](0052-amend-roadmap-before-0-1.md) (when the overlay is removed)
+  and [0105](0105-egui-fonts-ship-with-the-dev-overlay.md) (egui's fonts ship in the programs that
+  draw the overlay)
 - Date: 2026-10-13
 
 ## Context

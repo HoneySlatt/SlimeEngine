@@ -806,9 +806,10 @@ Khronos glTF Sample Viewer, which keeps hues and lowers dark and mid tones by up
 meant to balance the reflection of their surroundings that surfaces get from image-based lighting
 ([ADR-0034](adr/0034-hdr-rendering-and-tone-mapping.md)).
 
-**Tooling (engine's).** Code that serves development and ships with no game: the dev *overlay*
-today. It alone may reach wgpu, through the `wgpu` feature of `slime-gfx`
-([ADR-0031](adr/0031-dev-overlay-with-egui.md)).
+**Tooling (engine's).** Code that serves development, not what a game is made of: the dev
+*overlay* today, which a game may keep, as *Hunna Wood* does, its fonts with it
+([ADR-0105](adr/0105-egui-fonts-ship-with-the-dev-overlay.md)). It alone may reach wgpu, through
+the `wgpu` feature of `slime-gfx` ([ADR-0031](adr/0031-dev-overlay-with-egui.md)).
 
 **Transform in the world (global transform).** Where an entity is in the world: its `Transform`
 composed with its ancestors', a translation in `f64`, a rotation and a uniform scale, without its
