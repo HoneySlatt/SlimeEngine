@@ -3,8 +3,9 @@
 - Status: Accepted; amends [0080](0080-reflection-and-serialization.md) (where serialization lives,
   and the conventions of its documents) and [0085](0085-reflection.md) (defaults described by
   their values, and upgrades); amended by [0087](0087-the-worlds-documents.md) (documents of
-  several values, and references to entities) and [0091](0091-scene-documents-and-placements.md)
-  (how documents name assets, and the errors of a document's layout)
+  several values, and references to entities), [0091](0091-scene-documents-and-placements.md)
+  (how documents name assets, and the errors of a document's layout) and
+  [0102](0102-a-damaged-file-gives-an-error.md) (the bound of a document)
 - Date: 2026-10-16
 
 ## Context

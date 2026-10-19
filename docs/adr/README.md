@@ -109,7 +109,7 @@ the ADR linking to it.
 | [0039](0039-image-based-lighting-computed-on-the-cpu.md) | Image-based lighting computed on the CPU | Accepted; amended by 0041 |
 | [0040](0040-bloom.md) | Bloom | Accepted; amended by 0041 |
 | [0041](0041-render-graph.md) | The render graph | Accepted |
-| [0042](0042-lights-beyond-the-most-drawn-and-checked-scene-values.md) | Lights beyond the most drawn, and checked scene values | Accepted |
+| [0042](0042-lights-beyond-the-most-drawn-and-checked-scene-values.md) | Lights beyond the most drawn, and checked scene values | Accepted; amended by 0102 |
 | [0043](0043-application-errors-during-a-run.md) | Application errors during a run | Accepted |
 | [0044](0044-running-out-of-gpu-memory.md) | Running out of GPU memory | Accepted |
 | [0045](0045-one-linear-color-type.md) | One linear color type | Accepted; amended by 0079, 0084 |
@@ -136,14 +136,14 @@ the ADR linking to it.
 | [0066](0066-shipping-dxc-beside-the-programs.md) | Shipping DXC beside the programs | Accepted |
 | [0067](0067-hunna-wood-replaces-nightwatch.md) | Hunna Wood replaces Nightwatch as the sample game | Accepted |
 | [0068](0068-stage-4-in-two-halves.md) | Stage 4 in two halves, and audio import at Stage 7 | Accepted; amended by 0078 |
-| [0069](0069-the-asset-pipeline.md) | The asset pipeline: identity, cooking and what a game loads | Accepted; amended by 0080 |
+| [0069](0069-the-asset-pipeline.md) | The asset pipeline: identity, cooking and what a game loads | Accepted; amended by 0080 and 0102 |
 | [0070](0070-the-sample-games-source-assets.md) | The sample game's source assets: free, listed, mirrored | Accepted |
-| [0071](0071-cooked-textures.md) | Cooked textures | Accepted |
+| [0071](0071-cooked-textures.md) | Cooked textures | Accepted; amended by 0102 |
 | [0072](0072-stage-4b-live-assets.md) | Stage 4b: live assets | Accepted; amended by 0078 |
 | [0073](0073-loading-scenes-in-the-background.md) | Loading scenes in the background | Accepted; amended by 0074 |
 | [0074](0074-uploading-textures-without-holding-up-frames.md) | Uploading textures without holding up frames | Accepted |
 | [0075](0075-recovering-from-a-lost-gpu-device.md) | Recovering from a lost GPU device | Accepted |
-| [0076](0076-hot-reload-of-cooked-data.md) | Hot reload of cooked data | Accepted; amended by 0084 |
+| [0076](0076-hot-reload-of-cooked-data.md) | Hot reload of cooked data | Accepted; amended by 0084 and 0102 |
 | [0077](0077-hot-reload-of-shaders.md) | Hot reload of shaders | Accepted |
 | [0078](0078-stage-5-in-two-halves.md) | Stage 5 in two halves | Accepted; amended by 0090 |
 | [0079](0079-the-engines-own-world.md) | The engine's own world | Accepted; amended by 0087 |
@@ -153,12 +153,12 @@ the ADR linking to it.
 | [0083](0083-transforms-and-the-hierarchy.md) | Transforms and the hierarchy | Accepted; amended by 0087 |
 | [0084](0084-what-the-world-draws.md) | What the world draws | Accepted |
 | [0085](0085-reflection.md) | Reflection | Accepted; amended by 0086, 0087 and 0101 |
-| [0086](0086-serialization.md) | Serialization | Accepted; amended by 0087 and 0091 |
+| [0086](0086-serialization.md) | Serialization | Accepted; amended by 0087, 0091 and 0102 |
 | [0087](0087-the-worlds-documents.md) | The world's documents | Accepted; amended by 0088, 0089, 0092, 0093 and 0101 |
 | [0088](0088-saving-and-resuming-a-run.md) | Saving and resuming a run | Accepted; amended by 0101 |
 | [0089](0089-scenes-and-prefabs.md) | Scenes and prefabs | Accepted; amended by 0101 |
 | [0090](0090-stage-5b-scenes-and-prefabs.md) | Stage 5b: scenes and prefabs | Accepted |
-| [0091](0091-scene-documents-and-placements.md) | Scene documents and placements | Accepted |
+| [0091](0091-scene-documents-and-placements.md) | Scene documents and placements | Accepted; amended by 0102 |
 | [0092](0092-a-world-written-back-as-a-scene.md) | A world written back as a scene | Accepted; amended by 0101 |
 | [0093](0093-saves-and-hot-reload-with-placements.md) | Saves and hot reload with placements | Accepted; amended by 0101 |
 | [0094](0094-the-binary-encoding-of-documents.md) | The binary encoding of documents | Accepted |
@@ -169,3 +169,4 @@ the ADR linking to it.
 | [0099](0099-ai-agents-drive-the-engine.md) | AI agents drive the engine through its own MCP server | Accepted |
 | [0100](0100-updates-of-shipped-games.md) | Updates of shipped games | Accepted |
 | [0101](0101-saves-and-identities-that-never-mislead.md) | Saves and identities that never mislead | Accepted |
+| [0102](0102-a-damaged-file-gives-an-error.md) | A damaged file gives an error, never a crash | Accepted |

@@ -23,7 +23,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   lost GPU device that covers one case, and quick wins that it measured. Milestones P1 to P5 fix
   them; then a foundations pass, P6, decides as ADRs what the editor will freeze. Stage 6, the
   editor, is planned with the owner after it. P1 is done
-  ([ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)); P2 is in progress.
+  ([ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)), and P2
+  ([ADR-0102](adr/0102-a-damaged-file-gives-an-error.md)); P3 waits for the owner's go.
 - The games the engine aims at, described on 2026-10-19
   ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)): nine profiles, from *Hunna Wood* to a
   massively multiplayer game, listed in [`ROADMAP.md`](ROADMAP.md). They add criteria to P6, one UI
@@ -38,7 +39,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | Milestone | Goal | Status |
 |---|---|---|
 | [P1](#p1--saves-and-identities-that-never-mislead) | A save, a scene file and a level written back hold what the world holds and name the entities they mean; a game resumes only a save it can play, and never loses one | Done |
-| [P2](#p2--a-damaged-file-gives-an-error-never-a-crash) | No damaged or edited file makes the engine panic, hang or exhaust its memory (ADR-0096) | In progress |
+| [P2](#p2--a-damaged-file-gives-an-error-never-a-crash) | No damaged or edited file makes the engine panic, hang or exhaust its memory (ADR-0096) | Done |
 | [P3](#p3--the-loss-of-the-gpu-device-and-the-main-loop) | A lost GPU device is recovered wherever the loss is found, and a panic in `render` stays an ordinary panic | Planned |
 | [P5](#p5--the-build-ci-and-measurements-tracked-from-one-commit-to-the-next) | Every crate compiled once, CI under its limit, and the engine's measurements tracked from one commit to the next | Planned |
 | [P4](#p4--the-measured-quick-wins) | The quick wins that the audit measured, each measured again before and after | Planned |
@@ -282,6 +283,50 @@ Risks:
   mutation tests pass within their time budget; the `scene` example, on a copy of the cooked data
   with one byte changed, ends with an error, not a panic; CI is green.
 - **How to test.** `cargo test --workspace`; `scripts/check.sh`.
+- **Outcome.** Done on 2026-10-19. [ADR-0102](adr/0102-a-damaged-file-gives-an-error.md) records
+  how each finding is fixed, and amends ADR-0042, ADR-0086 and ADR-0091, and ADR-0069, ADR-0071 and
+  ADR-0076, which said that the cooker reuses any file under its name. Each defect is confirmed by a
+  test that failed before its fix and passes with it; the audit's own tests were not available, and
+  these were written from the findings above. The tests, by finding:
+  - G41: `a_panic_in_a_type_s_upgrade_or_check_sets_its_value_aside` (`slime-world`).
+  - G07: `many_warnings_cost_time_in_proportion_with_the_document_and_are_capped`
+    (`slime-serialize`), 200 000 unknown fields on one line, and
+    `a_save_that_holds_many_unknown_keys_warns_of_the_first_and_counts_the_rest` (`slime-world`).
+  - G22: `a_jpeg_image_in_cmyk_is_decoded_into_its_colors` (`slime-cook`), on an image of 401 bytes
+    made for it.
+  - G05: in `slime-assets`, `a_damaged_texture_is_refused_or_read_never_a_panic`, which found the
+    `ktx2` crate's panic on byte 168 set to 255, in the data format descriptor;
+    `a_texture_that_announces_more_levels_than_its_file_holds_is_refused_before_they_are_copied`, a
+    file of 1 MiB whose 4 000 levels, copied, exhausted a limit of 3 GB;
+    `a_texture_longer_than_the_gpu_takes_is_refused`;
+    `a_manifest_that_names_a_file_outside_its_directory_is_refused`; and
+    `a_cooked_file_is_checked_before_it_is_read`, whose link to `/dev/zero` was read until the
+    memory ran out. In `slime-render`, `a_cooked_texture_of_the_wrong_kind_for_its_slot_is_refused`
+    and `a_panic_while_the_cache_loads_leaves_it_loading_nothing`.
+  - G19: `a_cooked_file_deleted_emptied_or_cut_short_is_cooked_again` (`slime-cook`), on a copy of
+    the examples' sources.
+  - G21: `positions_too_large_for_their_tangents_are_refused`, whose triangle a search among 20 000
+    random ones found, and `a_gltf_file_reads_its_buffers_from_files_inside_its_sources_only`
+    (`slime-cook`).
+  - G06: `a_document_of_more_values_than_a_reader_reads_is_refused_before_it_is_read`
+    (`slime-serialize`), whose 16 MiB of empty arrays were parsed in 13.6 s of a debug build, and
+    `a_scene_whose_placements_copy_more_than_the_limit_is_refused_before_any_is_made`
+    (`slime-world`), which passed 3 GB before it stalled at a limit of 5 GB.
+  - G04: `a_light_that_cannot_be_drawn_is_refused` (`slime-assets`);
+    `a_light_that_cannot_be_drawn_is_left_out`, `a_light_far_brighter_than_any_adds_no_more_than_its_bound`
+    and `a_sun_whose_disc_is_brighter_than_a_float_holds_leaves_the_rest_of_the_sky_as_it_is`
+    (`slime-render`), the last two of which lit pixels that the light does not reach, and whitened
+    the sky; and `a_light_placed_where_no_number_reaches_is_left_out` (`slime-world-render`).
+
+  The mutation tests are `tests/damaged.rs` in `slime-assets` (textures, meshes, materials, cooked
+  scenes, the manifest), `slime-serialize` (documents as text and in the binary encoding),
+  `slime-world` (a save, a scene file) and `slime-cook` (a GLB file cooked as the cooker does,
+  PNG and JPEG images, a metadata file), each under a few seconds of a debug build; they found no
+  panic past the fixes above. `scripts/check.sh` runs the `scene` example on a copy of the cooked
+  sample whose first mesh has one byte changed: it ends with status 1 and an error that names the
+  file. What P2 leaves is in the [known debt](#known-debt): a cooked file damaged within its ranges,
+  a save's capacity in values, the cost of checking what a cook reuses. The `ktx2` crate's panic is
+  not reported to its authors yet: that waits for the owner's agreement.
 
 ### P3 — The loss of the GPU device and the main loop
 
@@ -643,10 +688,16 @@ GitHub issues, linked from their entry; this list stays the reference.
   (ADR-0071): the cooker computes the sRGB curve with the platform's mathematical functions, which
   may round differently on Linux and Windows. Tests compare decoded values across platforms; a
   table of the curve's values would make the bytes the same everywhere.
-- **A cook reads and hashes every source file at every run**, and cooked files that no source makes
-  any more stay in the output directory (ADR-0071): nothing records a source's size and time to
-  skip unchanged ones, which is to measure on *Hunna Wood*'s zone, nor cleans the output, where
-  each change that `slime-cook watch` cooks leaves the files it replaced (ADR-0076).
+- **A cook reads and hashes every source file at every run, and reads every cooked file it
+  reuses**, and cooked files that no source makes any more stay in the output directory (ADR-0071,
+  ADR-0102): nothing records a source's size and time to skip unchanged ones, which is to measure
+  on *Hunna Wood*'s zone, nor cleans the output, where each change that `slime-cook watch` cooks
+  leaves the files it replaced (ADR-0076). Reading the zone's cooked files to check them took a
+  cook that changes nothing from 0.09 s to 0.23 s, in a release build.
+- **A cooked file damaged within its ranges is not found** (ADR-0102): the cooker cooks again a
+  file deleted, emptied, cut short or that its reader refuses, and a game refuses such a file with
+  an error, but texels or numbers changed within their ranges draw wrong, without a word.
+  Checksums may come beside the rule, with archives (ADR-0096).
 - **Two watches repeat the same polling** (ADR-0077): `slime_assets::ManifestWatch` and
   `slime_render::ShaderWatch` each read their files every half second and tell a failure once,
   with the same dozen lines, over what each reads. No crate that both reach suits a type for both
@@ -884,10 +935,11 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **A save cut short may load in part** (ADR-0087). A save is a document of sections: one cut at the
   boundary of a section is still a document, and loads what it holds without an error. *Hunna Wood*
   writes its saves whole or not at all (ADR-0088), as every game that writes saves must.
-- **A save is text, of limited size** (ADR-0087). Saving refuses a save larger than what
-  `slime-serialize` reads, and loading costs more than saving, much of it parsing the text: the
-  rustdoc of `World::save` and `World::load` has the figures. *Hunna Wood*'s saves are far below
-  the limit. The binary encoding exists since M5b.4, but saves stay text until a measurement asks
+- **A save is text, of limited size** (ADR-0087, ADR-0102). Saving refuses a save larger, or of
+  more values, than what `slime-serialize` reads, about 22 000 entities that have a name and a
+  transform, a value counted for each `=`, `,`, `[`, `{` and `.` of the text, a float's point
+  included; loading costs more than saving, much of it parsing the text: the rustdoc of
+  `World::save` and `World::load` has the figures. *Hunna Wood*'s saves are far below the limit. The binary encoding exists since M5b.4, but saves stay text until a measurement asks
   (ADR-0089): a larger world needs saves in the binary encoding, or read in parts.
 - **What a start creates without a key, alike in its types and without a name, can take another's
   saved changes** (ADR-0101). A save tells a start that created other entities outside scenes by a
@@ -1000,11 +1052,14 @@ GitHub issues, linked from their entry; this list stays the reference.
   blooms as its coverage of the pixel changes from frame to frame. Temporal anti-aliasing, or a cap
   on the light a pixel brings to the chain, belong to Stage 9a (ADR-0052).
 - **A pixel whose light is not a number spreads through the bloom** (ADR-0040). The renderer
-  refuses values that are not finite in meshes, materials, lights (ADR-0042) and skies, but not
-  everything that reaches the shaders is checked: a normal of zero length, which `MeshData` asks
-  callers not to give, can make its pixels NaN in the high-dynamic-range target, and the bloom
-  averages them into its levels, and from there into every pixel within reach of their halo, a blot
-  where one surface was wrong. Dropping such light before the bloom would keep it to its pixels.
+  refuses values that are not finite in meshes and materials, and the skies' radiances; it leaves
+  out a light that it cannot draw, as the frame builder does a sun, and bounds the light that each
+  light and the sun's disc give a point (ADR-0102). Not everything that reaches the shaders is checked: a
+  normal of zero length, which `MeshData` asks callers not to give, can make its pixels NaN in the
+  high-dynamic-range target, and so can, at an exposure of 0, an emission so strong that, added to
+  the light of the scene, it is not finite; the bloom averages them into its levels,
+  and from there into every pixel within reach of their halo, a blot where one surface was wrong.
+  Dropping such light before the bloom would keep it to its pixels.
 - **The bloom has one shape** (ADR-0040): every level the same weight, down to a side of 8 texels;
   no radius, threshold or tint for a game to set. A window resized across a power of two adds or
   removes a level: the glow's reach changes a little while the edge is dragged.
@@ -1053,7 +1108,8 @@ waits for. A test that confirms each is kept outside the repository, and comes i
   coverage per level for textures that a masked material reads is to do before large exteriors.
 - **`World::write_scene` writes, without an error, a level that cannot be opened again** (G31,
   medium; Stage 6): it never counts the entities that the file gives once its placements resolve,
-  which the reader refuses beyond `MAX_ENTITIES`.
+  which the reader refuses beyond `MAX_ENTITIES`, nor what they take, refused beyond
+  `MAX_SCENE_SIZE`.
 - **A very deep hierarchy costs quadratic time** (G32, medium; Stage 6): spawning, loading, saving
   and each frame walk every entity's ancestors (`set_parent`'s search for a cycle, `World::unsaved`,
   `is_hidden`, `interpolated_transform`).

@@ -1,7 +1,8 @@
 # 0091. Scene documents and placements
 
 - Status: Accepted; amends [0086](0086-serialization.md) (how documents name assets, and the errors
-  of a document's layout)
+  of a document's layout); amended by [0102](0102-a-damaged-file-gives-an-error.md) (the bound of a
+  resolved scene)
 - Date: 2026-10-17
 
 ## Context

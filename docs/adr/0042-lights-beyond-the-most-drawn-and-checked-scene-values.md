@@ -1,6 +1,7 @@
 # 0042. Lights beyond the most drawn, and checked scene values
 
-- Status: Accepted; amends [0037](0037-lights-in-physical-units-and-pre-exposure.md)
+- Status: Accepted; amends [0037](0037-lights-in-physical-units-and-pre-exposure.md); amended by
+  [0102](0102-a-damaged-file-gives-an-error.md) (a light that cannot be drawn is left out)
 - Date: 2026-10-14
 
 ## Context

@@ -14,6 +14,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   key saves it, and loading creates it again.
 - `Range::holds` checks a number against a field's range in the number's own type, and `Number`
   holds a number so, which `Value::number` gives of a value that is one.
+- `SceneLight::check` says whether the engine draws a light, and `slime_render::Light::check`
+  whether the renderer draws one where it is placed: the one rule of a valid light. The limits that
+  bound what a file can make a reader take: `slime_assets::MAX_SIDE`, the longest side of a cooked
+  texture; `slime_serialize::MAX_VALUES`, the most values of a document, with
+  `ReadProblem::TooMany`; `slime_world::MAX_SCENE_SIZE`, the most bytes of a resolved scene.
 
 ### Changed
 

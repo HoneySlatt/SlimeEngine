@@ -1,7 +1,7 @@
 # 0076. Hot reload of cooked data
 
 - Status: Accepted; amended by [0084](0084-what-the-world-draws.md) (the asset cache reloads what
-  the world draws)
+  the world draws) and [0102](0102-a-damaged-file-gives-an-error.md) (the cooked files reused)
 - Date: 2026-10-15
 
 ## Context

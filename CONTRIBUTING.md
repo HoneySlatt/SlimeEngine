@@ -233,7 +233,9 @@ database, so it needs network access), the list of the sample game's source asse
 (`scripts/fetch-assets.sh`), `slime-cook check` (every source asset has a metadata file of its own,
 [ADR-0069](docs/adr/0069-the-asset-pipeline.md)), the sample's assets cooked twice and compared, the
 sample game's zone fetched and cooked, and the tests that read it, the
-samples with no display server available, the windowed samples, the game (its new runs, and one
+samples with no display server available, the windowed samples, the `scene` example on a copy of
+the cooked sample with one byte changed, which must end with an error and not a panic, the game
+(its new runs, and one
 resumed from a copy of its save fixture, its saves kept in a private directory) and the windowed
 lifecycle test inside a headless Weston compositor (and that test's resize scenario in a second
 one, at scale 2), and `lychee` (links between Markdown files). The individual commands are listed
@@ -284,7 +286,9 @@ code.
 5. Code that reads a file from outside the program, cooked data, the manifest, a save, a scene
    file, a source asset or its metadata file, follows
    [ADR-0096](docs/adr/0096-the-files-the-engine-reads.md): a damaged or edited file gives an
-   error, never a panic, a hang or memory exhausted, and the reader's tests damage its input.
+   error, never a panic, a hang or memory exhausted, and the reader's tests damage its input,
+   through the helper that every crate's tests share, `crates/slime-assets/tests/common/damage.rs`
+   ([ADR-0102](docs/adr/0102-a-damaged-file-gives-an-error.md)).
 
 ## Architecture decisions
 

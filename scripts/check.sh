@@ -99,6 +99,22 @@ env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_
 env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
     timeout -k 10 120 cargo run --locked --example scene -- --assets "$cooked/first" --frames 120 ||
     { cat "$runtime/slime-check.log"; exit 1; }
+# On a copy of the sample with one byte of a mesh changed, the first of its name, which is then not
+# UTF-8, it ends with an error, status 1, not a panic, status 101 (ADR-0096).
+damaged="$cooked/damaged"
+rm -rf "$damaged"
+cp -r "$cooked/first" "$damaged"
+mesh=$(find "$damaged" -name '*.mesh' | sort | head -n 1)
+printf '\377' | dd of="$mesh" bs=1 seek=12 conv=notrunc status=none
+status=0
+env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+    timeout -k 10 120 cargo run --locked --example scene -- --assets "$damaged" --frames 120 ||
+    status=$?
+[ "$status" -eq 1 ] || {
+    echo "the scene example ended with status $status on damaged cooked data, where an error gives 1"
+    cat "$runtime/slime-check.log"
+    exit 1
+}
 # The world example draws it from a world, and fails if no frame drew all of it.
 env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
     timeout -k 10 120 cargo run --locked --example world -- --assets "$cooked/first" --frames 120 ||
