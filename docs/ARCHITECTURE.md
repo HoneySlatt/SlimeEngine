@@ -10,6 +10,7 @@ it is built this way.
 ```text
 .
 ├── .github/workflows/   CI: scripts/check.sh on Linux; tests and samples on Windows
+├── benches/             the engine's benchmarks (`slime-benches`), whose figures docs/ keeps
 ├── Cargo.toml           virtual workspace: shared metadata, lints and dependency versions
 ├── Cargo.lock           the exact version of every dependency, checked in
 ├── crates/              engine crates, one directory per crate, named after the package
@@ -34,8 +35,9 @@ it is built this way.
 ├── games/               games made with the engine through its public API
 │   └── hunnawood/       Hunna Wood, a role-playing game: the sample every stage grows
 ├── rust-toolchain.toml  pinned Rust toolchain
-├── scripts/             check.sh, every automated check as CI runs them; the scripts that fetch
-│                        DXC and the sample game's source assets, and write their credits
+├── scripts/             check.sh, every automated check as CI runs them; measure.sh, the build's
+│                        and the benchmarks' figures; the scripts that fetch DXC and the sample
+│                        game's source assets, and write their credits
 ├── AGENTS.md            rules for every contributor
 ├── CHANGELOG.md         notable changes, per release
 ├── CONTRIBUTING.md      environment, checks, how a change is made and reviewed
@@ -66,6 +68,7 @@ created only when code needs it.
 | [`slime-cook`](../crates/slime-cook/README.md) | The cooker: turns source assets into cooked data before games run; a library and its program, which no game links ([ADR-0069](adr/0069-the-asset-pipeline.md)) | `slime-assets`, `slime-color`, `slime-reflect`, `slime-serialize`, `slime-world`, `bevy_mikktspace`, `blake3`, `block_compression`, `glam`, `gltf`, `png`, `uuid`, `zune-jpeg`, `thiserror` | IDs for source files in metadata files beside them, read and written through `slime-serialize`, their check, and the IDs of the assets inside a file; PNG and JPEG images cooked into textures compressed in BC7 or BC5, every level computed; glTF files imported into meshes (MikkTSpace tangents), materials and scenes; the typed properties of their nodes; scene files checked and cooked into the binary encoding of documents ([ADR-0095](adr/0095-cooked-scene-files.md)); a directory cooked again only where it changed, with its manifest, once or at each change |
 | [`slime-devui`](../crates/slime-devui/README.md) | The dev overlay: egui drawn over the engine's frames, fed with the engine's events, and its world panel; tooling, removed once something does at least as well ([ADR-0052](adr/0052-amend-roadmap-before-0-1.md), [ADR-0081](adr/0081-stage-5a-the-world.md)) | `egui`, `egui-wgpu`, `slime-assets`, `slime-color`, `slime-gfx` (with its `wgpu` feature), `slime-platform`, `slime-reflect`, `slime-world` | Panels over a frame; a world's entities listed by name and their components edited through reflection, each edit returned for the caller to apply; no clipboard or input methods |
 | [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-assets`, `slime-color`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `slime-world`, `slime-world-render`, `png`, `tracing`; for the tests, `slime-cook` and `gltf` | `hello`, `headless`, `window`, `offscreen`, `scene`, which draws a cooked scene, `world`, which spawns a yard of prefabs from a cooked scene file and draws it from a world; the reference image tests, and tests that cook glTF files and draw them |
+| [`slime-benches`](../benches/README.md) | The engine's benchmarks, a program whose figures [`measurements.md`](measurements.md) keeps; a client of the engine through its public API only, not part of the engine ([ADR-0104](adr/0104-the-build-ci-and-measurements.md)) | `slime-assets`, `slime-color`, `slime-cook`, `slime-gfx`, `slime-render`, `slime-world`, `slime-world-render` | Objects drawn by the thousand, the renderer's pipelines made again, frames built and transforms computed over 100 000 entities, large hierarchies emptied and scene files resolved, frames built under a sky, loads started with large manifests, and the meshes of *Hunna Wood*'s zone loaded while frames are drawn |
 | [`hunnawood`](../games/hunnawood/README.md) | Hunna Wood, the game that every stage grows from Stage 4a on; a client of the engine through its public API only, not part of the engine ([ADR-0055](adr/0055-games-in-the-workspace.md), [ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)) | `slime-app`, `slime-assets`, `slime-color`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-reflect`, `slime-render`, `slime-serialize`, `slime-world`, `slime-world-render`, `tracing` | A forest zone, a scene file that places the land and six lanterns of one prefab, and its hero, read from cooked data and spawned in the game's world, its colliders, markers and lights' times of day as the game's components, typed properties of their nodes, the camera behind the hero, the hero's movement and its collisions with boxes turned about the vertical and cylinders, a key that opens a door, a campfire that flickers, the zone drawn while it loads, the run kept after a lost GPU device, the run carried into the scenes changed on disk, and the shaders loaded again when their files change (`--watch`); the run saved on F5 and on quit, loaded on F9 and resumed on start, a save checked before it is resumed and held by one copy of the game at a time ([ADR-0088](adr/0088-saving-and-resuming-a-run.md), [ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)) |
 
 ## Dependency rules
@@ -87,6 +90,9 @@ slime-examples ──▶ slime-app ──┬──▶ slime-platform ──▶ w
 hunnawood  ──▶ slime-app, slime-assets, slime-render, slime-platform, slime-gfx, slime-color, slime-devui,
                slime-world, slime-world-render, slime-reflect, slime-serialize (the size of a
                save; its tests, the zones they make) (public API only)
+
+slime-benches ──▶ slime-assets, slime-color, slime-cook, slime-gfx, slime-render, slime-world,
+                  slime-world-render (public API only)
 
 slime-cook ──▶ slime-assets, slime-reflect, slime-serialize (metadata files),
                slime-world (the layout of the scene files that it checks)
@@ -116,7 +122,9 @@ lists every dependency.
   through `slime-devui`, as *Hunna Wood* does for its dev overlay.
 - A game, such as `hunnawood`, is a client of the engine like the examples: it uses the public API
   of the engine's crates only, and no engine crate depends on it
-  ([ADR-0055](adr/0055-games-in-the-workspace.md)).
+  ([ADR-0055](adr/0055-games-in-the-workspace.md)). The benchmarks, `slime-benches`, are a client
+  in the same way, so that they measure what a game gets
+  ([ADR-0104](adr/0104-the-build-ci-and-measurements.md)).
 - `slime-world` depends on `slime-assets`, for the cooked scenes it spawns, `slime-color`, for the
   colors of its lights, `slime-reflect`, and `slime-serialize`, for its saves and its scene files,
   and on no GPU or window, so that a world runs headless, in tests, servers and tools
@@ -160,7 +168,10 @@ An engine program calls `slime_app::init_diagnostics()` first. It installs a glo
 subscriber writing to standard error (unless one already exists), filtered by the `SLIME_LOG`
 environment variable, then a panic hook that logs panics before the standard hook prints them,
 then logs one line describing the engine and the machine. From then on, every `tracing` event
-from the engine, the game or a dependency goes through that subscriber. Source:
+from the engine, the game or a dependency goes through that subscriber. When the `SLIME_TRACE`
+environment variable names a file, the subscriber also writes there every span entered and left,
+the phases of each frame among them, in a format that profilers open
+([ADR-0104](adr/0104-the-build-ci-and-measurements.md)). Source:
 [`crates/slime-app/src/diagnostics.rs`](../crates/slime-app/src/diagnostics.rs); conventions:
 [ADR-0008](adr/0008-errors-logging-and-assertions.md).
 

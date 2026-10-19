@@ -1,0 +1,21 @@
+[package]
+name = "slime-benches"
+description = "SlimeEngine's benchmarks, whose figures docs/measurements.md tracks from one milestone to the next."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+slime-assets.workspace = true
+slime-color.workspace = true
+# Cooks the examples' sample, whose meshes the world's benchmarks place.
+slime-cook.workspace = true
+slime-gfx.workspace = true
+slime-render.workspace = true
+slime-world.workspace = true
+slime-world-render.workspace = true

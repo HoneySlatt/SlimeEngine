@@ -2019,6 +2019,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "slime-benches"
+version = "0.4.0"
+dependencies = [
+ "slime-assets",
+ "slime-color",
+ "slime-cook",
+ "slime-gfx",
+ "slime-render",
+ "slime-world",
+ "slime-world-render",
+]
+
+[[package]]
 name = "slime-color"
 version = "0.4.0"
 dependencies = [

@@ -36,8 +36,9 @@ jobs:
           key: hunnawood-zone-${{ hashFiles('games/hunnawood/assets/sources.tsv') }}
       # The zone cooked, kept from one run to the next while what makes its bytes is unchanged: its
       # sources and their metadata, the crates of the cooker, the locked dependencies, the toolchain
-      # and the platform (docs/adr/0072-stage-4b-live-assets.md, docs/adr/0081-stage-5a-the-world.md).
-      # The cook then reuses every file, which it checks first.
+      # and the platform (docs/adr/0104-the-build-ci-and-measurements.md). The cook then reuses
+      # every file, which it checks first. A crate of the workspace that the cooker comes to depend
+      # on joins the key, here and in the Windows job.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: target/cooked/hunnawood

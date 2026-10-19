@@ -1,6 +1,7 @@
 # 0077. Hot reload of shaders
 
-- Status: Accepted
+- Status: Accepted; amended by [0104](0104-the-build-ci-and-measurements.md) (what an edited
+  shader costs)
 - Date: 2026-10-15
 
 ## Context

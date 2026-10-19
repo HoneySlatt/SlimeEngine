@@ -707,9 +707,12 @@ impl Renderer {
     ///
     /// It compiles the four shaders and makes the ten pipelines on the calling thread, which waits
     /// for the driver: the frame that calls it is late by that long. In a release build on an RX
-    /// 6900 XT (RADV), 7 ms when the driver's cache holds the shaders already, as when one file
-    /// changed, and 76 ms when it does not; 45 ms on lavapipe. A debug build takes about twice as
-    /// long, in wgpu's own work. Direct3D 12 compiles the shaders again with DXC for each pipeline.
+    /// 6900 XT (RADV), 7 ms when the driver's cache holds every shader already, as when the
+    /// sources come back to shaders that it compiled before, and 76 ms when it holds none; an
+    /// edited shader is one that the cache does not hold, which costs between the two
+    /// (ADR-0104); 45 ms on lavapipe. A debug build takes about twice as long, in wgpu's own work.
+    /// Direct3D 12 compiles the shaders again with DXC for each pipeline. The benchmark
+    /// `render.shaders` of `slime-benches` measures both cases on the machine that runs it.
     ///
     /// # Errors
     ///

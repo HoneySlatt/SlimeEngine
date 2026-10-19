@@ -155,6 +155,7 @@ today has:
 | [`docs/adr/`](docs/adr/README.md) | Every architecture decision, with its context and the alternatives rejected. |
 | [`docs/glossary.md`](docs/glossary.md) | Terms the project defines. |
 | [`docs/dependencies.md`](docs/dependencies.md) | Every third-party dependency and tool, and why it is used. |
+| [`docs/measurements.md`](docs/measurements.md) | What the build and the benchmarks measured, milestone after milestone. |
 | [`CHANGELOG.md`](CHANGELOG.md) | Notable changes, per release. |
 
 ## License

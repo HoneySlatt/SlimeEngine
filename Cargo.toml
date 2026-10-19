@@ -1,7 +1,7 @@
 # Workspace layout and naming: docs/adr/0004-workspace-layout-and-crate-naming.md
 # Lints and unsafe policy: docs/adr/0005-lints-and-unsafe-policy.md
 [workspace]
-members = ["crates/*", "examples", "games/*"]
+members = ["benches", "crates/*", "examples", "games/*"]
 resolver = "3"
 
 [workspace.package]
@@ -98,8 +98,8 @@ slime-render = { path = "crates/slime-render" }
 slime-world = { path = "crates/slime-world" }
 slime-world-render = { path = "crates/slime-world-render" }
 
-# Each crate compiled once, and dependencies with their line tables only (docs/PLAN.md, P5: B1-F01
-# and B1-F02). The workspace's procedural macro is built with
+# Each crate compiled once, and dependencies with their line tables only
+# (docs/adr/0104-the-build-ci-and-measurements.md). The workspace's procedural macro is built with
 # the debug information of `dev` when it is built as a member, and of `build-override` when it is
 # built for the crates that use it: the two match, or `cargo test` after `cargo build` builds it
 # again, with every crate that depends on it.

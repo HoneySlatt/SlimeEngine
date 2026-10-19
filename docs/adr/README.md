@@ -144,7 +144,7 @@ the ADR linking to it.
 | [0074](0074-uploading-textures-without-holding-up-frames.md) | Uploading textures without holding up frames | Accepted |
 | [0075](0075-recovering-from-a-lost-gpu-device.md) | Recovering from a lost GPU device | Accepted; amended by 0103 |
 | [0076](0076-hot-reload-of-cooked-data.md) | Hot reload of cooked data | Accepted; amended by 0084 and 0102 |
-| [0077](0077-hot-reload-of-shaders.md) | Hot reload of shaders | Accepted |
+| [0077](0077-hot-reload-of-shaders.md) | Hot reload of shaders | Accepted; amended by 0104 |
 | [0078](0078-stage-5-in-two-halves.md) | Stage 5 in two halves | Accepted; amended by 0090 |
 | [0079](0079-the-engines-own-world.md) | The engine's own world | Accepted; amended by 0087 |
 | [0080](0080-reflection-and-serialization.md) | Reflection and serialization | Accepted; amended by 0085, 0086 and 0101 |
@@ -171,4 +171,5 @@ the ADR linking to it.
 | [0101](0101-saves-and-identities-that-never-mislead.md) | Saves and identities that never mislead | Accepted |
 | [0102](0102-a-damaged-file-gives-an-error.md) | A damaged file gives an error, never a crash | Accepted |
 | [0103](0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md) | A lost GPU device is recovered wherever the loss is found | Accepted |
+| [0104](0104-the-build-ci-and-measurements.md) | The build, CI and measurements | Accepted |
 | [0105](0105-egui-fonts-ship-with-the-dev-overlay.md) | egui's fonts ship with the dev overlay | Accepted |

@@ -22,6 +22,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - `SLIME_TRACE=<file>` (`slime_app::TRACE_ENV_VAR`) makes a program that calls `init_diagnostics`
   write every span it enters and leaves into the file, in the Chrome Trace Event format, which
   Perfetto and `chrome://tracing` open: the phases of each frame, and each submission to the GPU.
+- The engine's benchmarks, `cargo run --release -p slime-benches`, and `scripts/measure.sh`, which
+  times the build and runs them; `docs/measurements.md` keeps their figures from one milestone to
+  the next.
 
 ### Changed
 
@@ -56,6 +59,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - `Gpu::wait_idle` and the readbacks wait for the GPU without polling the device, waking up to 1 ms
   after it finishes; every creation of a GPU object asks wgpu whether the device is still valid,
   with a buffer of 4 bytes, a few microseconds more on lavapipe.
+- Debug builds compile each crate of the workspace once, where `cargo test` after `cargo build`
+  compiled again every crate that depends on the reflection's derive, and give the dependencies
+  their line tables only, not the rest of their debug information: the target directory is about a
+  third smaller.
 
 ### Fixed
 

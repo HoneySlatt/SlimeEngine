@@ -41,6 +41,8 @@ scripts/check.sh                                          # everything above, pl
 cargo run -p slime-cook -- cook examples/assets target/cooked/examples  # cook what the scene and world examples draw
 cargo run --release -p slime-cook -- watch <sources> <output>  # cook again each change (ADR-0076)
 cargo run --example <name>                                # run an example (list in examples/README.md)
+cargo run --release -p slime-benches -- [<name>...]       # run the benchmarks (benches/README.md)
+scripts/measure.sh "<title>" >> docs/measurements.md      # time the build, run the benchmarks (ADR-0104)
 scripts/fetch-assets.sh                                   # fetch the game's source assets (games/hunnawood/README.md)
 blender --background --factory-startup --python games/hunnawood/zone/build_zone.py  # rebuild the game's zone (same README)
 cargo run -p hunnawood                                    # play the game (games/hunnawood/README.md)
@@ -134,6 +136,7 @@ A document that needs a fact held elsewhere states it in a sentence, without its
 | `docs/adr/README.md` | The index of the ADRs and their statuses | An ADR is added, or its status changes |
 | `docs/glossary.md` | Terms the project defines | A term is coined or changes meaning |
 | `docs/dependencies.md` | Every third-party dependency and tool: who uses it, why, the alternative considered, its license | A dependency is added, removed or repurposed |
+| `docs/measurements.md` | The build's and the benchmarks' figures, one section per milestone or machine | A milestone measures what it claims to make faster, or changes what the benchmarks measure |
 | `CHANGELOG.md` | Notable changes, per release | A change users would notice; a release is tagged |
 | `crates/*/README.md` | Role, what it depends on, entry points, what it must not do | Crate created or its role changes |
 | `examples/README.md` | Each example, its options, and the examples' tests | An example or one of their tests changes |

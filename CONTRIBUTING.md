@@ -218,6 +218,32 @@ it looks does not ([`games/hunnawood/README.md`](games/hunnawood/README.md#playi
 leaves the cooked files it replaced in the directory of cooked data, and a watch stopped with Ctrl+C
 the temporary files of its cook: delete the directory to clean it.
 
+### Measuring
+
+The engine's benchmarks are a program of the workspace, `slime-benches`; its
+[README](benches/README.md) says what each measures and how its figures are read.
+[`scripts/measure.sh`](scripts/measure.sh) runs them after timing the build, and prints a section
+of [`docs/measurements.md`](docs/measurements.md), which keeps them from one milestone to the next
+([ADR-0104](docs/adr/0104-the-build-ci-and-measurements.md)). A change that claims a gain shows the
+figures before it and after it, measured on the same machine, driver and build:
+
+```sh
+cargo run --release -p slime-benches -- world        # the benchmarks whose names start with `world`
+scripts/measure.sh "<milestone>, <GPU>" >> docs/measurements.md
+```
+
+To see where a frame's time goes, `SLIME_TRACE=<file>` makes any engine program write a trace of
+its spans, which [Perfetto](https://ui.perfetto.dev) opens in the browser, without sending the
+file anywhere; the rustdoc of `slime_app::TRACE_ENV_VAR` says what it holds.
+
+Debug builds give the dependencies the tables that place a backtrace's frames in their source
+only, not the rest of their debug information. To step through a dependency in a debugger, build
+it with all of it:
+
+```sh
+cargo build --config 'profile.dev.package."*".debug = true'
+```
+
 ## Checks
 
 One script runs every automated check, exactly as CI does:
