@@ -12,6 +12,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   what a game creates in code while it makes its start world, named so that saves and hot reload
   find it whatever else the game creates, and in whichever order. A run that creates one under a
   key saves it, and loading creates it again.
+- `Range::holds` checks a number against a field's range in the number's own type, and `Number`
+  holds a number so, which `Value::number` gives of a value that is one.
 
 ### Changed
 
@@ -20,7 +22,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   follow the world's count, so that an update of the game that creates one more entity at the start
   no longer makes the save refused, nor moves or destroys another entity; what the save holds of
   the start's numbered entities is set aside, and said, when the start that it is loaded into
-  created others. The saves of 0.4, of layout 2, load as they did.
+  created others, by a fingerprint of their numbers, the types of their components and their names,
+  not of their values. The saves of 0.4, of layout 2, load as they did; 0.4 does not read the saves
+  of layout 3.
+- `Problem::OutOfRange` carries the number out of range as a `Number`, in its own type, where it
+  held an `f64`.
 - `World::spawn_scene` refuses, with `WorldError::KeyInUse`, a key under which the world spawned
   another scene of which an entity lives still, as a companion that followed the hero out of the
   level: its identity is under the key, as the new scene's would be, and the next save of the run
@@ -37,9 +43,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   rounded to the nearest 32-bit float, so that `range(min = 0.7)` holds `0.7_f32`, and with an
   integer exactly, beyond 2⁵³ too (`Range::holds`). A save, a scene file or a level written back
   that held such a value failed whole, and a type whose default sat on its bound panicked when
-  registered. `Problem::OutOfRange` carries the number as a `Number`, written in its own type, and
-  the derive refuses an integer bound that a 64-bit float does not hold exactly, written as a
-  number or given as a constant.
+  registered. The derive refuses an integer bound that a 64-bit float does not hold exactly, written
+  as a number or given as a constant.
 - A section of a save that a save does not hold, misspelled or of a later program, is a warning
   in `Loaded::warnings`, and a section, or an entry of one, that is not a table refuses the save, as
   `World::load`'s rustdoc said: both were left out without a word.

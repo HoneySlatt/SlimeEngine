@@ -22,7 +22,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   found defects that lose or change a player's saves, files that crash the engine, a recovery from a
   lost GPU device that covers one case, and quick wins that it measured. Milestones P1 to P5 fix
   them; then a foundations pass, P6, decides as ADRs what the editor will freeze. Stage 6, the
-  editor, is planned with the owner after it.
+  editor, is planned with the owner after it. P1 is built
+  ([ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)): the owner checks it by hand.
 - The games the engine aims at, described on 2026-10-19
   ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)): nine profiles, from *Hunna Wood* to a
   massively multiplayer game, listed in [`ROADMAP.md`](ROADMAP.md). They add criteria to P6, one UI
@@ -36,7 +37,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 
 | Milestone | Goal | Status |
 |---|---|---|
-| [P1](#p1--saves-and-identities-that-never-mislead) | A save, a scene file and a level written back hold what the world holds and name the entities they mean; a game resumes only a save it can play, and never loses one | In progress |
+| [P1](#p1--saves-and-identities-that-never-mislead) | A save, a scene file and a level written back hold what the world holds and name the entities they mean; a game resumes only a save it can play, and never loses one | Built; the owner checks it by hand, on Linux and in the Windows virtual machine, CI checks it |
 | [P2](#p2--a-damaged-file-gives-an-error-never-a-crash) | No damaged or edited file makes the engine panic, hang or exhaust its memory (ADR-0096) | Planned |
 | [P3](#p3--the-loss-of-the-gpu-device-and-the-main-loop) | A lost GPU device is recovered wherever the loss is found, and a panic in `render` stays an ordinary panic | Planned |
 | [P5](#p5--the-build-ci-and-measurements-tracked-from-one-commit-to-the-next) | Every crate compiled once, CI under its limit, and the engine's measurements tracked from one commit to the next | Planned |
@@ -161,9 +162,53 @@ Risks:
   `cargo test -p hunnawood -- --ignored`; `cargo run -p hunnawood -- --new --save <file>`.
 - **By hand.** On Linux: play, F5, F9, quit and resume. In the Windows virtual machine: two copies
   of the game at once; the game killed during F5, then started again.
-- **Progress.** Fixed, each with the audit's tests moved into the repository: G09, G08, G39, G24,
-  G10, G01 in the engine, and G02. Left: G03, G11, G35 and G36; the ADRs, the rustdoc and the
-  game's README.
+- **Outcome.** Built on 2026-10-19; the owner's checks by hand are left.
+  [ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md) records how each finding is
+  fixed, and amends the ADRs above. Each defect is confirmed by a test that failed before its fix
+  and passes with it; the session that finished P1 did not have the audit's own tests, and wrote
+  those of G03, G11, G35 and G36 from the findings above. The tests, by finding:
+  - G09: `an_alias_that_another_field_has_is_a_bug_in_the_type` and four cases of
+    `a_description_that_is_not_one_is_refused` (`slime-reflect`), and two `compile_fail` doc tests.
+  - G08: `a_number_is_compared_with_the_bounds_in_its_own_type` and
+    `a_bound_given_as_a_constant_is_compared_exactly` (`slime-reflect`), with a `compile_fail` doc
+    test of a constant bound; `numbers_are_checked_against_their_range_in_their_own_type`
+    (`slime-serialize`); `a_value_at_its_field_s_bound_is_saved_spawned_and_written_back`
+    (`slime-world`).
+  - G39: `a_section_that_a_save_does_not_hold_is_a_warning_and_one_of_the_wrong_kind_refuses_it`.
+  - G24: `a_reference_that_the_run_changed_is_saved_whatever_order_the_start_was_made_in`.
+  - G10: `a_level_written_back_unchanged_keeps_what_its_file_marks_unsaved` and
+    `unsaved_is_written_but_what_was_created_with_it_and_transient_fields_are_left_out`.
+  - G01: `an_update_that_creates_one_more_entity_at_the_start_never_moves_another`,
+    `an_entity_that_a_run_creates_under_a_key_is_saved_and_loads_back`,
+    `a_hot_reload_after_a_level_gains_a_marker_moves_only_the_enemy_that_the_run_moved`,
+    `what_a_run_changed_of_the_start_made_in_code_loads_back_into_the_same_start` and
+    `a_save_that_gives_a_key_to_a_scene_and_to_an_entity_it_creates_is_refused`.
+  - G02: `a_level_spawned_under_a_key_waits_until_nothing_of_the_one_before_lives`,
+    `what_the_start_placed_in_a_level_outlives_the_run_leaving_it` and
+    `a_scene_that_the_start_places_in_a_level_outlives_the_run_leaving_it`.
+  - G03, in *Hunna Wood*: `a_save_whose_run_cannot_be_played_is_not_resumed`, which removed the key
+    and made the game panic at its next restart, `a_save_is_read_up_to_the_size_of_the_largest_one`
+    and `what_is_not_a_file_at_the_save_s_place_is_neither_read_nor_moved`.
+  - G11: `a_layout_is_the_same_within_a_ten_thousandth_wherever_its_numbers_lie`,
+    `a_save_is_resumed_on_its_layout_given_a_few_units_in_the_last_place`, and, on the cooked zone,
+    `the_zone_s_layout_is_the_same_a_unit_in_the_last_place_away`: of the 793 numbers of the zone's
+    layout, seven moved by one unit in the last place changed the fingerprint of 0.4, as the audit
+    found.
+  - G35: `a_component_of_a_type_or_a_variant_that_this_program_does_not_know_is_a_warning`
+    (`slime-world`), which loading set aside, so that a game could not tell it from what an update
+    removed; `a_save_of_a_later_version_or_holding_what_this_one_does_not_know_is_not_resumed`,
+    `saves_set_aside_keep_names_of_their_own` and
+    `a_save_not_resumed_is_set_aside_under_a_name_that_says_why`.
+  - G36: `one_copy_of_the_game_at_a_time_holds_a_save` and
+    `a_save_is_written_whole_or_not_at_all_through_a_file_of_its_own`.
+
+  The save fixture of 0.4 resumes as before, by the fingerprint of its layout that it says, and the
+  game's tests pass on the zone. The game was played in a compositor without a screen, two copies
+  on one save: the second said that the other held the save and played a new run that it did not
+  save, the first saved its run as it stopped, and a third resumed it. A review of the commits that
+  P1 pushed first found, in the fix of G01, an edited save that gave one key to two entities, which
+  is refused since, and rustdoc and reports that said more than the code did, corrected. What P1
+  leaves is in the [known debt](#known-debt), and its questions for the owner in P6.
 
 ### P2 — A damaged file gives an error, never a crash
 
@@ -376,6 +421,13 @@ Risks:
     can hold from one machine to another.
   - Stable references and operations that undo keeps reversible, so that undoing a deletion gives
     back the same entity, built on P1's identities (C1-03, C4-01).
+    P1 leaves a question for the owner: what a game creates in code without a key is named by its
+    rank of creation, and a save tells a start that created others by a fingerprint of their
+    numbers, the types of their components and their names, not of their values
+    ([ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)). Entities alike in their
+    types, without names, created in another order, are not told apart, and a save's changes go to
+    the entity of each number. A fingerprint that holds their values too would tell them apart, at
+    the cost of setting aside all that a save holds of them at an update that changes one value.
   - How the editor runs a game's code: a game becomes a library and its binaries, amending
     [ADR-0055](adr/0055-games-in-the-workspace.md); playing in the editor starts the game in a
     child process first (C4-02, C6-01, C7-02).
@@ -829,6 +881,28 @@ GitHub issues, linked from their entry; this list stays the reference.
   rustdoc of `World::save` and `World::load` has the figures. *Hunna Wood*'s saves are far below
   the limit. The binary encoding exists since M5b.4, but saves stay text until a measurement asks
   (ADR-0089): a larger world needs saves in the binary encoding, or read in parts.
+- **What a start creates without a key, alike in its types and without a name, can take another's
+  saved changes** (ADR-0101). A save tells a start that created other entities outside scenes by a
+  fingerprint of their numbers, the types of their components and their names: a later version of
+  a game that creates two such entities in the other order is not told apart, and the save's
+  changes go to the entity of each number. A game names by a key what it creates at its start
+  (`World::spawn_keyed`); whether the fingerprint holds the values too is a question for the owner,
+  in P6.
+- **`World::spawn_keyed` gives a key under which the world remembers a scene of which nothing
+  lives** (ADR-0101): the entity created is then saved as that scene's root, and set aside with the
+  scene when a save loads where the scene cannot be resolved. `World::spawn_scene` refuses a key
+  whose scene has an entity alive; a key whose scene is gone whole is the world's to forget or
+  refuse, with P6's study of open worlds.
+- **`Range::contains` stays public beside `Range::holds`**: two ways to check a number against a
+  range, the first in `f64`, which only tests' helpers use. Every check of a field's range uses
+  `Range::holds` (ADR-0101); the helpers can move to it, and `contains` go.
+- ***Hunna Wood* compares the saves of 0.4 by the fingerprint of their layout** (ADR-0101), as 0.4
+  did, its fragility at the boundaries of its rounding included, until the save fixture is made
+  again, which ADR-0100 allows before the game's first release. Later saves say their layout's
+  numbers.
+- **Files stay beside *Hunna Wood*'s save**: `save.toml.lock`, which locks the save while a copy of
+  the game runs, and `save.toml.<process id>.new`, when the game is killed while it writes. Neither
+  is read again, nor removed.
 - **Children and queries in another order after loading** (ADR-0087). A world loaded from a save
   holds its entities in other slots, and an entity's children in the order the save set them: what
   must go the same way after loading cannot depend on either order.

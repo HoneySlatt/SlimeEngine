@@ -1,7 +1,8 @@
 # 0089. Scenes and prefabs
 
 - Status: Accepted; amends [0087](0087-the-worlds-documents.md) (what a save holds of the scenes and
-  prefabs spawned while a game runs, and of the prefabs that its scenes place)
+  prefabs spawned while a game runs, and of the prefabs that its scenes place); amended by
+  [0101](0101-saves-and-identities-that-never-mislead.md) (`Unsaved` in a level written back, and the numbers of what a run spawned)
 - Date: 2026-10-17
 
 ## Context

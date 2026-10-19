@@ -1,7 +1,7 @@
 # 0092. A world written back as a scene
 
 - Status: Accepted; amends [0087](0087-the-worlds-documents.md) (a rotation changed is a
-  difference whole)
+  difference whole); amended by [0101](0101-saves-and-identities-that-never-mislead.md) (`Unsaved` in a level written back)
 - Date: 2026-10-17
 
 ## Context

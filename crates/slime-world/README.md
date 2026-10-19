@@ -102,8 +102,10 @@ assert_eq!(world.get::<Velocity>(cart).expect("held").0, 5.0);
   registry. `outline` reads a scene file's layout without the types of its values, as the cooker
   checks it (`docs/adr/0095-cooked-scene-files.md`).
 - `World::spawn_scene` spawns a resolved scene under a key, its entities named by their paths
-  through the placements, such as `zone/lamp 3/light`; `World::find` gives the entity of a
-  `PersistentId`; `World::placement` says what the world remembers of a placement: its prefab, and
+  through the placements, such as `zone/lamp 3/light`, and refuses a key under which it spawned
+  another scene of which an entity lives (`WorldError::KeyInUse`); `World::spawn_keyed` creates an
+  entity named by a key that the game chooses, as what it creates at its start, which saves find
+  whatever else it creates; `World::find` gives the entity of a `PersistentId`; `World::placement` says what the world remembers of a placement: its prefab, and
   the overrides of the scene that placed it that were set aside. `World::spawn_placement` places a
   prefab while the world runs, under `created/<number>`.
 - `World::write_scene` writes a subtree back as a scene file (`Written`): placements as placements
@@ -128,10 +130,12 @@ assert_eq!(world.get::<Velocity>(cart).expect("held").0, 5.0);
   added, removed and changed, parents changed, references to entities as persistent identities, or
   `""` for no entity. Entities that hold `Unsaved`, with their descendants, and fields marked
   transient are left out. The save begins with `about`, what the game says of it, keys and texts
-  that `World::about` reads without loading the save. What the world spawned while it ran, a scene
-  under a key or a placement, is saved as its scene and what differs from it. `World::load` applies
-  a save to such a world, spawning those scenes again through a `SceneLibrary`, and says what it set
-  aside and which scenes changed since; `World::carry` carries a run into a start world made from
+  that `World::about` reads without loading the save, and says what `start` created outside scenes.
+  What the world spawned while it ran, a scene under a key or a placement, is saved as its scene and
+  what differs from it. `World::load` applies a save to such a world, spawning those scenes again
+  through a `SceneLibrary`, what the run created numbered after the world's count, and says what it
+  set aside, what it did not know (`Loaded::warnings`) and which scenes changed since
+  (`docs/adr/0101-saves-and-identities-that-never-mislead.md`); `World::carry` carries a run into a start world made from
   changed files, as hot reload does; `World::first_difference` compares two worlds as saves see
   them (`docs/adr/0093-saves-and-hot-reload-with-placements.md`). `World::insert_component_value`
   and `remove_component_value` attach and detach a component by its type's name, as loading a save

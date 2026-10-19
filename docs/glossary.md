@@ -346,13 +346,16 @@ the *reference driver* of the image tests.
 reader reads before their values (`slime_world::outline` reads a scene file's); its `layout` key
 gives the version of that layout, `layout = 2` for the saves of 0.4, 3 for those that say what
 the start of their run created ([ADR-0091](adr/0091-scene-documents-and-placements.md),
-[ADR-0093](adr/0093-saves-and-hot-reload-with-placements.md)).
+[ADR-0093](adr/0093-saves-and-hot-reload-with-placements.md),
+[ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)).
 
 **Layout (zone).** In *Hunna Wood*, what decides how the game plays in its zone: the size of its
 ground, its colliders, where the hero starts and the places of the key, the door, the campfire and
-the terrace. A save names the *fingerprint* of the layout of the zone that it was made on, and one
-of another layout is not resumed; *hot reload* starts the run again when the layout changes
-([ADR-0088](adr/0088-saving-and-resuming-a-run.md)).
+the terrace. A save gives the numbers of the layout of the zone that it was made on, a save of 0.4
+its *fingerprint*, and one of another layout, a number further than a ten-thousandth from the
+zone's, is not resumed; *hot reload* starts the run again when the layout changes
+([ADR-0088](adr/0088-saving-and-resuming-a-run.md),
+[ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)).
 
 **Leaf card.** A quad textured with leaves, whose texture's alpha cuts them out (an *alpha mask*):
 many of them make the foliage of a tree for a fraction of the triangles that modelled leaves
@@ -500,12 +503,16 @@ proposed, so that a shadow's edge fades smoothly over about six texels
 **Persistent identity.** How files and saves name an *entity*: the key that a scene was spawned
 under, then the path of the IDs local to each file through the *placements* that placed it, such as
 `zone/door` or `zone/lamp 3/light`, where an imported glTF node's ID is its name, or its index,
-`#12`, when it has no name of its own; for an entity created outside a scene, `created/<number>`,
-from a count that saves keep, and for an entity of a *placement* made while a world runs, its
-root's followed by its path in the prefab, `created/7/light`
-([ADR-0079](adr/0079-the-engines-own-world.md), [ADR-0087](adr/0087-the-worlds-documents.md),
+`#12`, when it has no name of its own; for an entity created outside a scene, a key that the game
+chose, one part, as a scene's key, `camera` (`World::spawn_keyed`), or `created/<number>`, its rank
+in the world's count of what it created so, which loading a save gives, for what the run created,
+the numbers that follow the count of the world it is loaded into; and for an entity of a
+*placement* made while a world runs, its root's followed by its path in the prefab,
+`created/7/light` ([ADR-0079](adr/0079-the-engines-own-world.md),
+[ADR-0087](adr/0087-the-worlds-documents.md),
 [ADR-0091](adr/0091-scene-documents-and-placements.md),
-[ADR-0092](adr/0092-a-world-written-back-as-a-scene.md)).
+[ADR-0092](adr/0092-a-world-written-back-as-a-scene.md),
+[ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)).
 
 **Peter-panning.** A shadow that starts a little away from the object that casts it, because the
 *depth bias* pushes the stored depths back, or the *normal offset* moves the point looked up: in
@@ -627,12 +634,15 @@ edges (repeat, mirror or clamp) (`slime_gfx::Sampler`).
 **Save (game).** What differs between a *world* and its *start world*, written to a file: entities
 removed and created, components added, removed and changed, parents changed, entities named by
 their *persistent identities*; it begins with what the game says of it, such as what it was made
-on, which can be read alone. What the world spawned while it ran is saved as its scenes, with what
+on, which can be read alone, and what its start world created outside scenes, its count and a
+fingerprint of those entities. What the world spawned while it ran is saved as its scenes, with what
 differs from them. Loading spawns those scenes again, then applies the differences, to a start world
 spawned from the scenes as they are now, so that a game update that changes a scene reaches the
-saves made before ([ADR-0079](adr/0079-the-engines-own-world.md),
+saves made before; what the run created takes the numbers that follow that world's count
+([ADR-0079](adr/0079-the-engines-own-world.md),
 [ADR-0087](adr/0087-the-worlds-documents.md), [ADR-0088](adr/0088-saving-and-resuming-a-run.md),
-[ADR-0093](adr/0093-saves-and-hot-reload-with-placements.md)).
+[ADR-0093](adr/0093-saves-and-hot-reload-with-placements.md),
+[ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)).
 
 **Scene (cooked).** A glTF file's node hierarchy as the cooker makes it
 (`slime_assets::CookedScene`): each node's name, parent, transform, meshes, light, `extras` and
@@ -830,7 +840,9 @@ declared `var<uniform>` in WGSL and read through a *bind group* (`slime_gfx::Uni
 
 **Unsaved (entity).** An entity that holds the `Unsaved` component, or whose ancestor does: saves
 leave it out, with its descendants, as they do what a game makes again at each run, such as an
-effect ([ADR-0087](adr/0087-the-worlds-documents.md)).
+effect ([ADR-0087](adr/0087-the-worlds-documents.md)). A level written back as a scene file writes
+the component, and leaves out only what the run created that holds it, or is under what does
+([ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)).
 
 **Upgrade.** The function that brings a value of a reflected type from one version of the type to
 the next, on the value as a *document* holds it, before the type reads it; a type past version 1
