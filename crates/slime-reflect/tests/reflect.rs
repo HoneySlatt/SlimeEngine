@@ -3,7 +3,7 @@
 
 use slime_reflect::{
     FieldInfo, Kind, Path, Problem, Range, Reflect, Registry, RegistryError, TypeInfo, Value,
-    apply, diff,
+    VariantInfo, apply, diff,
 };
 
 /// The colour of a light.
@@ -757,12 +757,104 @@ fn a_description_that_is_not_one_is_refused() {
             ),
             "`$value` starts with `$`",
         ),
+        (
+            described(
+                "script::Renamed",
+                Kind::Struct(vec![aliased("a", &["b"]), FieldInfo::new("b", "f32")]),
+            ),
+            "`b`, an alias of `a`, is also the name or an alias of `b`",
+        ),
+        (
+            described(
+                "script::Shared",
+                Kind::Struct(vec![aliased("a", &["old"]), aliased("b", &["old"])]),
+            ),
+            "`old`, an alias of `a`, is also the name or an alias of `b`",
+        ),
+        (
+            described(
+                "script::Switch",
+                Kind::Enum(vec![
+                    variant("A", &["B"], Vec::new()),
+                    variant("B", &[], Vec::new()),
+                ]),
+            ),
+            "`B`, an alias of `A`, is also the name or an alias of `B`",
+        ),
+        (
+            described(
+                "script::Move",
+                Kind::Enum(vec![variant(
+                    "To",
+                    &[],
+                    vec![aliased("x", &["y"]), FieldInfo::new("y", "f32")],
+                )]),
+            ),
+            "`y`, an alias of `x`, is also the name or an alias of `y`",
+        ),
     ] {
         let error = registry.register_dynamic(info).expect_err(reason);
         assert!(error.to_string().contains(reason), "{error}");
     }
     assert!(registry.get("script::Odd").is_none());
     assert!(registry.get("script::Flag").is_none(), "taken out again");
+}
+
+/// A field of type `f32` named `name`, with `aliases`.
+fn aliased(name: &str, aliases: &[&str]) -> FieldInfo {
+    FieldInfo {
+        aliases: aliases.iter().map(|alias| (*alias).to_owned()).collect(),
+        ..FieldInfo::new(name, "f32")
+    }
+}
+
+/// A variant named `name`, with `aliases` and `fields`.
+fn variant(name: &str, aliases: &[&str], fields: Vec<FieldInfo>) -> VariantInfo {
+    VariantInfo {
+        name: name.to_owned(),
+        aliases: aliases.iter().map(|alias| (*alias).to_owned()).collect(),
+        doc: String::new(),
+        fields,
+    }
+}
+
+/// A type described by hand, as a derive would refuse it: its field `a` was named `b`, which its
+/// field `b` now is.
+struct Renamed;
+
+impl Reflect for Renamed {
+    fn type_name() -> String {
+        "test::Renamed".to_owned()
+    }
+
+    fn type_info() -> TypeInfo {
+        TypeInfo {
+            name: Self::type_name(),
+            aliases: Vec::new(),
+            version: 1,
+            doc: String::new(),
+            default: None,
+            kind: Kind::Struct(vec![aliased("a", &["b"]), FieldInfo::new("b", "f32")]),
+        }
+    }
+
+    fn register_dependencies(registry: &mut Registry) {
+        registry.register::<f32>();
+    }
+
+    fn to_value(&self) -> Value {
+        Value::Struct(Vec::new())
+    }
+
+    fn from_value(_: &Value) -> Result<Self, slime_reflect::ReflectError> {
+        Ok(Self)
+    }
+}
+
+#[test]
+#[should_panic(expected = "`b`, an alias of `a`, is also the name or an alias of `b`")]
+fn an_alias_that_another_field_has_is_a_bug_in_the_type() {
+    Registry::new().register::<Renamed>();
 }
 
 #[test]

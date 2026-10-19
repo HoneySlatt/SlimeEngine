@@ -6,6 +6,13 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ## [Unreleased]
 
+### Fixed
+
+- An alias of a field or a variant that is also the name, or an alias, of another field or variant
+  beside it is refused: `#[derive(Reflect)]` fails to compile, `Registry::register_dynamic` returns
+  an error, and `Registry::register` panics on a type described so by hand. Data that gave it read
+  back as the other field or variant, without a word.
+
 ## [0.4.0] - 2026-10-18
 
 The seventh release, which closes Stage 5b of the roadmap: scenes and prefabs. Worlds are written in

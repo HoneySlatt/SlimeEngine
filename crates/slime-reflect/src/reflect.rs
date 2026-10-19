@@ -171,6 +171,30 @@ pub type Upgrade = fn(u32, Value, bool) -> Result<Value, String>;
 /// }
 /// ```
 ///
+/// an alias that is also the name or an alias of another field of the same struct or variant, or
+/// of another variant of the same enum, whose values data that gives it would read (a name given
+/// to another field or variant takes a new version of the type, whose upgrade renames it):
+///
+/// ```compile_fail
+/// #[derive(slime_reflect::Reflect)]
+/// #[reflect(name = "Lamp")]
+/// struct Lamp {
+///     #[reflect(alias = "power")]
+///     intensity: f32,
+///     power: f32,
+/// }
+/// ```
+///
+/// ```compile_fail
+/// #[derive(slime_reflect::Reflect)]
+/// #[reflect(name = "Switch")]
+/// enum Switch {
+///     #[reflect(alias = "Off")]
+///     On,
+///     Off,
+/// }
+/// ```
+///
 /// a type past version 1 without an upgrade, which could not read its earlier values, or an upgrade
 /// on a type at version 1, which has no earlier values:
 ///

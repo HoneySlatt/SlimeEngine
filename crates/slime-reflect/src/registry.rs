@@ -76,13 +76,19 @@ impl Registry {
     ///
     /// If another type has `T`'s name, or one of its names has: two types under one name would
     /// read each other's values. If a default that `T` declares is not a value of its type within
-    /// its field's range, or a transient field has no default or is a tuple's: a bug in the type.
+    /// its field's range, a transient field has no default or is a tuple's, or an alias of a field
+    /// or a variant is also the name or an alias of another beside it, so that data giving it reads
+    /// as either, which the derive refuses: a bug in the type.
     pub fn register<T: Reflect>(&mut self) {
         if self.rust.contains_key(&TypeId::of::<T>()) {
             return;
         }
+        let info = T::type_info();
+        if let Some(reason) = shared_alias(&info.kind) {
+            panic!("`{}` cannot be registered: {reason}", T::type_name());
+        }
         let index = self
-            .add(T::type_info(), Some(TypeId::of::<T>()), T::upgrade())
+            .add(info, Some(TypeId::of::<T>()), T::upgrade())
             .unwrap_or_else(|error| panic!("`{}` cannot be registered: {error}", T::type_name()));
         self.rust.insert(TypeId::of::<T>(), index);
         T::register_dependencies(self);
@@ -99,10 +105,11 @@ impl Registry {
     ///
     /// When another type has its name or one of its aliases, when it holds values of a type that
     /// the registry does not hold, or when its description is not one: integers of another width
-    /// than 8, 16, 32 or 64 bits, two fields or variants of one name, a field or a variant whose name
-    /// or alias starts with `$`, which documents keep (`slime-serialize`), a default that is not a
-    /// value of its type within its field's range, a transient field without a default or of a
-    /// tuple. Nothing is registered then.
+    /// than 8, 16, 32 or 64 bits, two fields or variants of one name, an alias of a field or a
+    /// variant that is also the name or an alias of another beside it, so that data giving it reads
+    /// as either, a field or a variant whose name or alias starts with `$`, which documents keep
+    /// (`slime-serialize`), a default that is not a value of its type within its field's range, a
+    /// transient field without a default or of a tuple. Nothing is registered then.
     pub fn register_dynamic(&mut self, info: TypeInfo) -> Result<(), RegistryError> {
         let invalid = |reason: String| RegistryError::Invalid {
             ty: info.name.clone(),
@@ -140,6 +147,9 @@ impl Registry {
             Kind::Option(ty) | Kind::List { element: ty, .. } => vec![ty.as_str()],
             _ => Vec::new(),
         };
+        if let Some(reason) = shared_alias(&info.kind) {
+            return Err(invalid(reason));
+        }
         if let Some(missing) = named.iter().find(|name| self.get(name).is_none()) {
             return Err(RegistryError::UnknownType {
                 ty: info.name.clone(),
@@ -751,4 +761,45 @@ fn within_width<N: Into<i128> + Copy>(
 fn first_repeated<'a>(names: impl IntoIterator<Item = &'a String>) -> Option<&'a String> {
     let mut seen = HashSet::new();
     names.into_iter().find(|&name| !seen.insert(name))
+}
+
+/// Why an alias of a struct's field, an enum's variant or a variant's field is also the name, or
+/// an alias, of another part beside it, if one is: data that gives it would read back as the
+/// other's value.
+fn shared_alias(kind: &Kind) -> Option<String> {
+    let groups: Vec<Vec<(&String, &Vec<String>)>> = match kind {
+        Kind::Struct(fields) => vec![fields.iter().map(|f| (&f.name, &f.aliases)).collect()],
+        Kind::Enum(variants) => {
+            std::iter::once(variants.iter().map(|v| (&v.name, &v.aliases)).collect())
+                .chain(
+                    variants
+                        .iter()
+                        .map(|v| v.fields.iter().map(|f| (&f.name, &f.aliases)).collect()),
+                )
+                .collect()
+        }
+        _ => Vec::new(),
+    };
+    groups.iter().find_map(|parts| {
+        parts
+            .iter()
+            .enumerate()
+            .find_map(|(index, (name, aliases))| {
+                aliases.iter().find_map(|alias| {
+                    parts
+                        .iter()
+                        .enumerate()
+                        .find(|(other, (other_name, other_aliases))| {
+                            *other != index
+                                && (*other_name == alias || other_aliases.contains(alias))
+                        })
+                        .map(|(_, (other_name, _))| {
+                            format!(
+                                "`{alias}`, an alias of `{name}`, is also the name or an alias of \
+                             `{other_name}`, so that data giving it reads as either"
+                            )
+                        })
+                })
+            })
+    })
 }

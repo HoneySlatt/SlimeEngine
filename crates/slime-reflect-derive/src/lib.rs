@@ -180,6 +180,44 @@ fn part_alias(meta: &syn::meta::ParseNestedMeta<'_>) -> syn::Result<LitStr> {
     Ok(alias)
 }
 
+/// Refuses an alias that is also the name, or an alias, of another of `parts`, the described fields
+/// of one struct or variant, or the variants of one enum: data that gives it would read back as the
+/// other `what`, a field or a variant.
+fn distinct_names(parts: &[(String, &[LitStr])], what: &str) -> syn::Result<()> {
+    for (index, (_, aliases)) in parts.iter().enumerate() {
+        for alias in *aliases {
+            let text = alias.value();
+            let other = parts
+                .iter()
+                .enumerate()
+                .find(|(other, (name, other_aliases))| {
+                    *other != index
+                        && (*name == text || other_aliases.iter().any(|a| a.value() == text))
+                });
+            if let Some((_, (name, _))) = other {
+                return Err(syn::Error::new_spanned(
+                    alias,
+                    format!(
+                        "`{text}` is also the name or an alias of the {what} `{name}`, so that data \
+                         giving it reads as either: to give the name to another {what}, give the \
+                         type a new version, whose upgrade renames the {what}"
+                    ),
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// The names and aliases of the described `fields`.
+fn field_names<'a>(fields: &'a [Field<'_>]) -> Vec<(String, &'a [LitStr])> {
+    fields
+        .iter()
+        .filter(|field| !field.attributes.skip)
+        .map(|field| (field.name.clone(), field.attributes.aliases.as_slice()))
+        .collect()
+}
+
 fn field_attributes(attributes: &[Attribute]) -> syn::Result<FieldAttributes> {
     let mut parsed = FieldAttributes::default();
     for attribute in attributes.iter().filter(|a| a.path().is_ident("reflect")) {
@@ -484,6 +522,7 @@ fn expand_struct(
     shape: &Fields,
     fields: &[Field<'_>],
 ) -> syn::Result<Tokens> {
+    distinct_names(&field_names(fields), "field")?;
     let ident = &input.ident;
     let (head, methods) = type_parts(input, attributes);
     let finish = finish(attributes);
@@ -554,6 +593,7 @@ fn expand_enum(
     let mut from_values = Vec::new();
     let mut variant_names = Vec::new();
     let mut checks = Vec::new();
+    let mut variant_parts = Vec::new();
     for variant in &data.variants {
         let variant_ident = &variant.ident;
         let variant_name = variant_ident.unraw().to_string();
@@ -573,6 +613,7 @@ fn expand_enum(
             })?;
         }
         let fields = fields(&variant.fields)?;
+        distinct_names(&field_names(&fields), "field")?;
         let doc = doc(&variant.attrs);
         let field_infos = field_infos(&fields);
         infos.push(quote! {
@@ -629,8 +670,14 @@ fn expand_enum(
                 #construct
             }
         });
+        variant_parts.push((variant_name.clone(), aliases));
         variant_names.push(variant_name);
     }
+    let variants: Vec<(String, &[LitStr])> = variant_parts
+        .iter()
+        .map(|(name, aliases)| (name.clone(), aliases.as_slice()))
+        .collect();
+    distinct_names(&variants, "variant")?;
     Ok(quote! {
         impl ::slime_reflect::Reflect for #ident {
             fn type_name() -> ::std::string::String {
