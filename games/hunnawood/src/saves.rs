@@ -1,15 +1,19 @@
 //! The game's saves (`docs/adr/0088-saving-and-resuming-a-run.md`): one file, `hunnawood/save.toml`
 //! in the user's data directory unless `--save` names another, which holds what differs between the
-//! run and a new game by day (`slime_world::World::save`), and the layout of the zone it was made on
-//! ([`Layout`]). A save made on another layout is not resumed, as the run starts again when the
-//! layout changes under hot reload, which carries the run through a save otherwise ([`reload`]).
+//! run and a new game by day (`slime_world::World::save`), the version of the game that wrote it,
+//! and the layout of the zone it was made on. A save is checked before it is resumed ([`resume`]):
+//! one made on another layout is not resumed, as the run starts again when the layout changes under
+//! hot reload, which carries the run through a save otherwise ([`reload`]); nor is one that a later
+//! version of the game wrote, one that holds what this version does not know, which writing it
+//! back would lose, or one whose run cannot be played.
 
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fs::File;
-use std::io::{self, Write as _};
+use std::io::{self, Read as _, Write as _};
 use std::path::{Path, PathBuf};
 
+use slime_serialize::MAX_SIZE;
 use slime_world::{DocumentError, Light, Loaded, SceneLibrary, World};
 
 use crate::rules::Game;
@@ -19,12 +23,15 @@ use crate::zone::{Flickers, Layout};
 const DIRECTORY: &str = "hunnawood";
 /// The save's file in the game's directory.
 const FILE: &str = "save.toml";
-/// The key under which a save says the layout of the zone it was made on, in what it says of
-/// itself ([`World::about`]): its numbers ([`Layout::to_text`]).
+/// The keys under which a save says, in what it says of itself ([`World::about`]), the version of
+/// the game that wrote it, and the layout of the zone it was made on ([`Layout::to_text`]).
+const VERSION: &str = "version";
 const ZONE: &str = "zone";
 /// The key under which a save of 0.4 says the fingerprint of the zone's layout it was made on
 /// ([`Layout::fingerprint`]), which it is compared by, as 0.4 compared it.
 const LAYOUT_0_4: &str = "layout";
+/// The version of the game, which its saves say.
+const THIS_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// The user's data directory, as `var` gives the environment's variables: `%APPDATA%` on Windows;
 /// elsewhere `$XDG_DATA_HOME`, else `$HOME/.local/share`, as the XDG base directories say. `None`
@@ -63,10 +70,10 @@ pub fn start(scenes: &mut SceneLibrary) -> Result<(World, Game), String> {
 }
 
 /// The save of the run in `world`, a game of `scenes`: what differs from a new game by day
-/// ([`start`]), and the layout of that new game's zone, as its scenes place it, whatever the run
-/// changed of it. The lights of the campfire are put back to the intensity they
-/// flicker around first, as the zone gives it, since the view makes them flicker at each frame and
-/// a save would hold each frame's.
+/// ([`start`]); the version of the game; and the layout of that new game's zone, as its scenes place
+/// it, whatever the run changed of it. The lights of the campfire are put back to the intensity
+/// they flicker around first, as the zone gives it, since the view makes them flicker at each frame
+/// and a save would hold each frame's.
 ///
 /// # Errors
 ///
@@ -75,7 +82,10 @@ pub fn save(world: &mut World, scenes: &mut SceneLibrary) -> Result<String, Stri
     unflicker(world);
     let (start, start_game) = start(scenes)?;
     let layout = start_game.zone().layout(&start).to_text();
-    let about = BTreeMap::from([(ZONE.to_owned(), layout)]);
+    let about = BTreeMap::from([
+        (VERSION.to_owned(), THIS_VERSION.to_owned()),
+        (ZONE.to_owned(), layout),
+    ]);
     world
         .save(&start, &about)
         .map_err(|error| slime_app::error_chain(&error))
@@ -84,26 +94,43 @@ pub fn save(world: &mut World, scenes: &mut SceneLibrary) -> Result<String, Stri
 /// Why a save is not resumed.
 #[derive(Debug)]
 pub enum NotResumed {
+    /// It is not a save that this program reads: not TOML, of a later version of its format, not a
+    /// save.
+    Unreadable(DocumentError),
+    /// A later version of the game wrote it, as it says: the version it says.
+    Later(String),
     /// It was made on another layout of the zone.
     OtherLayout,
-    /// It is not a save that this program reads: not TOML, of a later version, not a save.
-    Unreadable(DocumentError),
+    /// It holds what this version of the game does not know, which writing it back would lose:
+    /// what loading it left out, as it warned of it ([`Loaded::warnings`]).
+    Unknown(Vec<String>),
+    /// The run it holds cannot be played: why ([`Game::find`]).
+    Unplayable(String),
 }
 
 /// The run that the save `text` holds, resumed in `start`, a new game by day of `scenes`
-/// ([`start`]), and what loading it set aside. A save of 0.4 says the fingerprint of its layout,
-/// which is compared with the fingerprint of `start`'s, as 0.4 compared it.
+/// ([`start`]), and what loading it set aside. The save is checked first: what it says of itself,
+/// the version of the game that wrote it and the layout it was made on, then what loading it left
+/// out, and last the game found again in the world loaded, which loading may have changed whole.
+/// A save of 0.4 says no version, and the fingerprint of its layout, which is compared with the
+/// fingerprint of `start`'s, as 0.4 compared it.
 ///
 /// # Errors
 ///
-/// [`NotResumed::OtherLayout`] when the save says another layout of the zone than `start`'s
-/// ([`Layout::matches`]), or none; [`NotResumed::Unreadable`] when it cannot be read.
+/// In the order checked: [`NotResumed::Unreadable`] when it cannot be read; [`NotResumed::Later`]
+/// when it says a later version than this one ([`later`]); [`NotResumed::OtherLayout`] when it says
+/// another layout of the zone than `start`'s ([`Layout::matches`]), or none;
+/// [`NotResumed::Unknown`] when loading it warned of what this version does not know;
+/// [`NotResumed::Unplayable`] when the run loaded cannot be played.
 pub fn resume(
     text: &str,
     start: (World, Game),
     scenes: &mut SceneLibrary,
 ) -> Result<(World, Game, Loaded), NotResumed> {
     let about = World::about(text).map_err(NotResumed::Unreadable)?;
+    if let Some(version) = about.get(VERSION).filter(|version| later(version)) {
+        return Err(NotResumed::Later(version.clone()));
+    }
     let (mut world, game) = start;
     let layout = game.zone().layout(&world);
     let same = match (about.get(ZONE), about.get(LAYOUT_0_4)) {
@@ -115,7 +142,28 @@ pub fn resume(
         return Err(NotResumed::OtherLayout);
     }
     let loaded = world.load(text, scenes).map_err(NotResumed::Unreadable)?;
+    if !loaded.warnings.is_empty() {
+        let unknown = loaded.warnings.iter().map(ToString::to_string).collect();
+        return Err(NotResumed::Unknown(unknown));
+    }
+    let game = Game::find(&world, false).map_err(NotResumed::Unplayable)?;
     Ok((world, game, loaded))
+}
+
+/// Whether `version`, as a save says it, is a later version of the game than this one: its numbers,
+/// separated by dots, compared in turn, as `0.10.0` after `0.4.0`. A version that is not numbers so,
+/// which no version of the game writes, is a later one unless it is this one.
+fn later(version: &str) -> bool {
+    let numbers = |version: &str| -> Option<Vec<u64>> {
+        version
+            .split('.')
+            .map(|number| number.parse().ok())
+            .collect()
+    };
+    match (numbers(version), numbers(THIS_VERSION)) {
+        (Some(save), Some(this)) => save > this,
+        _ => version != THIS_VERSION,
+    }
 }
 
 /// A run reloaded after the game's scenes changed on disk ([`reload`]).
@@ -139,14 +187,15 @@ pub struct Reloaded {
 ///   wall, or the key have moved after it was taken;
 /// - otherwise the run is carried into it: what the run changed of `before` is saved, and loaded
 ///   into the new game (`World::carry`), the hero where it stood, the key, the door and the time of
-///   day as they were, the scenes as they are now. What the run changed of the layout itself, a
-///   collider through the world panel, does not start it again.
+///   day as they were, the scenes as they are now, and the game found again in the world carried
+///   ([`Game::find`]). What the run changed of the layout itself, a collider through the world
+///   panel, does not start it again.
 ///
 /// # Errors
 ///
-/// When the new game cannot be played, as [`start`] says, or the run cannot be carried into it.
-/// `world` is left as it was then, but for the campfire's light, put back to the intensity it
-/// flickers around.
+/// When the new game cannot be played, as [`start`] says, or the run cannot be carried into it, or
+/// played once carried. `world` is left as it was then, but for the campfire's light, put back to
+/// the intensity it flickers around.
 pub fn reload(
     world: &mut World,
     before: &(World, Game),
@@ -169,6 +218,8 @@ pub fn reload(
     let (world, loaded) = world
         .carry(&before.0, after, scenes)
         .map_err(|error| slime_app::error_chain(&error))?;
+    let game = Game::find(&world, starts_at_night)
+        .map_err(|why| format!("the run carried cannot be played: {why}"))?;
     Ok(Reloaded {
         world,
         game,
@@ -186,6 +237,33 @@ fn unflicker(world: &mut World) {
             *intensity = flickers.intensity;
         }
     });
+}
+
+/// The text of the save in `file`, read up to the size of the largest document that a world reads
+/// ([`MAX_SIZE`]), not further: a larger file is refused before it is read.
+///
+/// # Errors
+///
+/// As the file system's operations; [`io::ErrorKind::InvalidData`] when the file is not text, or is
+/// larger than a save.
+pub fn read(file: &Path) -> io::Result<String> {
+    let too_large = || {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("it is larger than a save, which holds at most {MAX_SIZE} bytes"),
+        )
+    };
+    let opened = File::open(file)?;
+    if opened.metadata()?.len() > MAX_SIZE as u64 {
+        return Err(too_large());
+    }
+    let mut text = String::new();
+    // Bounded all the same, should the file grow while it is read.
+    opened.take(MAX_SIZE as u64 + 1).read_to_string(&mut text)?;
+    if text.len() > MAX_SIZE {
+        return Err(too_large());
+    }
+    Ok(text)
 }
 
 /// Writes `text` to `file`, its directory made if it has none, through a file beside it, written
@@ -213,14 +291,21 @@ pub fn write(file: &Path, text: &str) -> io::Result<()> {
     renamed
 }
 
-/// Moves `file` aside, to `<file>.<why>`, in place of the one set aside so before, so that the next
-/// save does not write over it; returns where.
+/// Moves `file` aside, to `<file>.<why>`, or `<file>.<why>.2`, `.3` and on, the first of these
+/// names that nothing has, so that neither the next save nor one set aside later writes over it;
+/// returns where.
 ///
 /// # Errors
 ///
 /// As the file system's operations.
 pub fn set_aside(file: &Path, why: &str) -> io::Result<PathBuf> {
-    let aside = beside(file, why);
+    let aside = (1..=u32::MAX)
+        .map(|count| match count {
+            1 => beside(file, why),
+            _ => beside(file, &format!("{why}.{count}")),
+        })
+        .find(|aside| std::fs::symlink_metadata(aside).is_err())
+        .ok_or_else(|| io::Error::other("every name to set it aside under is taken"))?;
     std::fs::rename(file, &aside)?;
     Ok(aside)
 }
@@ -281,10 +366,18 @@ mod tests {
         assert_eq!(windows(&[("HOME", &home)]), None);
     }
 
-    #[test]
-    fn a_save_is_written_whole_or_not_at_all_and_set_aside_when_unreadable() {
+    /// A directory of the test's own, named after it and the process, made empty.
+    fn directory(test: &str) -> PathBuf {
         let directory =
-            std::env::temp_dir().join(format!("hunnawood-saves-{}", std::process::id()));
+            std::env::temp_dir().join(format!("hunnawood-{test}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&directory);
+        std::fs::create_dir_all(&directory).expect("a directory");
+        directory
+    }
+
+    #[test]
+    fn a_save_is_written_whole_or_not_at_all() {
+        let directory = directory("written");
         let file = directory.join("deep").join(FILE);
         write(&file, "first").expect("written, its directory made");
         write(&file, "second").expect("written over");
@@ -293,19 +386,88 @@ mod tests {
             !beside(&file, "new").exists(),
             "the file written beside it is renamed"
         );
-        let aside = set_aside(&file, "unreadable").expect("set aside");
-        assert_eq!(aside, beside(&file, "unreadable"));
-        assert!(!file.exists());
-        assert_eq!(std::fs::read_to_string(&aside).expect("read"), "second");
-        // Set aside again, in place of the one set aside before.
-        write(&file, "third").expect("written");
-        set_aside(&file, "unreadable").expect("set aside again");
-        assert_eq!(std::fs::read_to_string(&aside).expect("read"), "third");
         // A file that cannot be written leaves nothing beside it: here, a directory in its place.
+        std::fs::remove_file(&file).expect("removed");
         std::fs::create_dir(&file).expect("a directory");
-        assert!(write(&file, "fourth").is_err());
+        assert!(write(&file, "third").is_err());
         assert!(!beside(&file, "new").exists());
         std::fs::remove_dir_all(&directory).expect("removed");
+    }
+
+    #[test]
+    fn saves_set_aside_keep_names_of_their_own() {
+        let directory = directory("aside");
+        let file = directory.join(FILE);
+        let mut asides = Vec::new();
+        for (text, why) in [
+            ("first", "unreadable"),
+            ("second", "unreadable"),
+            ("third", "other-layout"),
+            ("fourth", "unreadable"),
+        ] {
+            write(&file, text).expect("written");
+            asides.push(set_aside(&file, why).expect("set aside"));
+            assert!(!file.exists());
+        }
+        let names: Vec<String> = asides
+            .iter()
+            .map(|aside| {
+                aside
+                    .file_name()
+                    .expect("a name")
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+        assert_eq!(
+            names,
+            [
+                "save.toml.unreadable",
+                "save.toml.unreadable.2",
+                "save.toml.other-layout",
+                "save.toml.unreadable.3"
+            ]
+        );
+        for (aside, text) in asides.iter().zip(["first", "second", "third", "fourth"]) {
+            assert_eq!(std::fs::read_to_string(aside).expect("kept"), text);
+        }
+        std::fs::remove_dir_all(&directory).expect("removed");
+    }
+
+    #[test]
+    fn a_save_is_read_up_to_the_size_of_the_largest_one() {
+        let directory = directory("read");
+        let file = directory.join(FILE);
+        std::fs::write(&file, "a = 1\n").expect("written");
+        assert_eq!(read(&file).expect("read"), "a = 1\n");
+        std::fs::write(&file, vec![b' '; MAX_SIZE + 1]).expect("written");
+        let error = read(&file).expect_err("larger than a save");
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData, "{error}");
+        std::fs::write(&file, [0xff, 0xfe]).expect("written");
+        assert_eq!(
+            read(&file).expect_err("not text").kind(),
+            io::ErrorKind::InvalidData
+        );
+        std::fs::remove_dir_all(&directory).expect("removed");
+    }
+
+    #[test]
+    fn a_later_version_is_one_whose_numbers_come_after() {
+        assert!(!later(THIS_VERSION));
+        for earlier in ["0.0.1", "0.3.0", "0", "0.4"] {
+            assert!(!later(earlier), "{earlier}");
+        }
+        for after in [
+            "99.0.0",
+            "0.10.0",
+            "1",
+            "0.4.0.1",
+            "0.4.0-dev",
+            "banana",
+            "",
+        ] {
+            assert!(later(after), "{after}");
+        }
     }
 }
 
@@ -374,6 +536,92 @@ mod runs {
         game.step(&mut world, Vec2::X, 1.0 / 60.0);
         change(&mut world, &game);
         (save(&mut world, &mut scenes).expect("saved"), scenes)
+    }
+
+    #[test]
+    fn a_save_whose_run_cannot_be_played_is_not_resumed() {
+        let plan = zone([0.0, 0.0], Vec::new());
+        // The key's entity removed, the hero's, the zone's start without its marker: as a save
+        // edited by hand, or written by a game with a bug.
+        type Change = fn(&mut World, &Game);
+        let cases: [(Change, &str); 3] = [
+            (
+                |world, game| {
+                    world.despawn(game.zone().item);
+                },
+                "0 markers `item`",
+            ),
+            (
+                |world, game| {
+                    world.despawn(game.hero_entity());
+                },
+                "no hero",
+            ),
+            (
+                |world, game| {
+                    world.remove::<crate::zone::Marker>(game.zone().start);
+                },
+                "0 markers `start`",
+            ),
+        ];
+        for (change, why) in cases {
+            let (text, mut scenes) = saved(&plan, change);
+            let new = start(&mut scenes).expect("the zone can be played");
+            match resume(&text, new, &mut scenes) {
+                Err(NotResumed::Unplayable(reason)) => assert!(reason.contains(why), "{reason}"),
+                other => panic!("{why}: {:?}", other.err()),
+            }
+        }
+        // A save that the game can play is resumed with a game whose entities are the world's: a
+        // new run starts in it, and plays.
+        let (text, mut scenes) = saved(&plan, |_, _| {});
+        let new = start(&mut scenes).expect("the zone can be played");
+        let (mut world, game, _) = resume(&text, new, &mut scenes).expect("resumed");
+        game.restart(&mut world);
+        game.step(&mut world, Vec2::X, 1.0 / 60.0);
+    }
+
+    #[test]
+    fn a_save_of_a_later_version_or_holding_what_this_one_does_not_know_is_not_resumed() {
+        let plan = zone([0.0, 0.0], Vec::new());
+        let (text, mut scenes) = saved(&plan, |_, _| {});
+        let version = format!("version = \"{THIS_VERSION}\"");
+        assert!(text.contains(&version), "{text}");
+        let resumed = |text: &str, scenes: &mut SceneLibrary| {
+            let new = start(scenes).expect("the zone can be played");
+            resume(text, new, scenes)
+        };
+        // An earlier version's is resumed.
+        let earlier = text.replacen(&version, "version = \"0.4.0\"", 1);
+        resumed(&earlier, &mut scenes).expect("an earlier version's");
+        let later = text.replacen(&version, "version = \"99.0.0\"", 1);
+        assert!(matches!(
+            resumed(&later, &mut scenes),
+            Err(NotResumed::Later(version)) if version == "99.0.0"
+        ));
+        // A component of a type that this version does not know, a variant, a field.
+        for (unknown, name) in [
+            (
+                "[added.hero]\n\"hunnawood::Chest\" = { gold = 3 }\n",
+                "hunnawood::Chest",
+            ),
+            (
+                "[changed.zone]\n\"hunnawood::Clock\" = { time = \"Dusk\" }\n",
+                "Dusk",
+            ),
+            (
+                "[changed.zone]\n\"hunnawood::Clock\" = { weather = \"rain\" }\n",
+                "weather",
+            ),
+        ] {
+            let text = format!("{text}\n{unknown}");
+            match resumed(&text, &mut scenes) {
+                Err(NotResumed::Unknown(warnings)) => {
+                    assert!(warnings.iter().any(|w| w.contains(name)), "{warnings:?}");
+                }
+                other => panic!("{unknown}: {:?}", other.err()),
+            }
+        }
     }
 
     #[test]

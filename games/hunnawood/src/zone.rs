@@ -14,7 +14,7 @@ use std::f32::consts::PI;
 
 use slime_reflect::Reflect;
 use slime_render::glam::{DAffine3, Vec2, Vec3};
-use slime_world::{Component, Entity, SceneLibrary, Transform, World};
+use slime_world::{Component, Entity, PersistentId, SceneLibrary, Transform, World};
 
 /// The key that the zone's scene is spawned under: the first part of its entities' persistent
 /// identities, `zone/land/door`.
@@ -503,6 +503,20 @@ impl Zone {
             world.despawn(root);
         }
         zone
+    }
+
+    /// The zone of `world`, spawned under the key `zone` ([`Zone::spawn`]), found by its persistent
+    /// identity, as when a save loaded into the world may have spawned it again.
+    ///
+    /// # Errors
+    ///
+    /// When the world has no entity `zone`, or a marker is held by no entity under it, or by
+    /// several.
+    pub fn find_in(world: &World) -> Result<Self, String> {
+        let root = world
+            .find(&PersistentId::new([KEY]))
+            .ok_or_else(|| format!("the world has no zone, `{KEY}`"))?;
+        Self::find(world, root, KEY)
     }
 
     /// The zone spawned under `root`, whose places are the entities that hold its [`Marker`]s;

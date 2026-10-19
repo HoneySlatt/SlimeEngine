@@ -68,6 +68,17 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   A save says its layout's numbers, under `zone`; the saves of 0.4, which say a fingerprint, are
   compared by it, as 0.4 compared them.
 
+- *Hunna Wood* checks a save before it resumes it. It finds its zone and its hero again in the world
+  loaded, by their identities, where it kept handles to entities that loading may have destroyed,
+  so that a save edited to remove the key made it panic at its first step, at each launch. A save
+  whose run cannot be played, that a later version of the game wrote, as the version that a save
+  now says tells, or that holds what this version does not know, is set aside as one of another
+  layout is, rather than resumed and written back without what this version did not know. It reads
+  a save up to the size of the largest one, rather than whole before checking it, and neither reads
+  nor moves what is not a file in the save's place, where it renamed a directory.
+- *Hunna Wood* sets a save aside under a name of its own, `save.toml.<why>.2` and on, rather than
+  in place of the one set aside before.
+
 ## [0.4.0] - 2026-10-18
 
 The seventh release, which closes Stage 5b of the roadmap: scenes and prefabs. Worlds are written in

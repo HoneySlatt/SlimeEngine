@@ -23,11 +23,10 @@ slime-platform.workspace = true
 # Describes the game's components, as every component is (ADR-0080).
 slime-reflect.workspace = true
 slime-render.workspace = true
+# The size of the largest save, up to which the game reads its save's file; its tests encode the
+# game's components that their zones carry as typed properties, as the cooker does.
+slime-serialize.workspace = true
 # The world that holds the zone, the hero and the run, and what draws it.
 slime-world.workspace = true
 slime-world-render.workspace = true
 tracing.workspace = true
-
-[dev-dependencies]
-# Encodes the game's components that the tests' zones carry as typed properties, as the cooker does.
-slime-serialize.workspace = true

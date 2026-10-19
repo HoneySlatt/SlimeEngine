@@ -9,7 +9,7 @@ use std::f32::consts::{FRAC_PI_2, PI, TAU};
 
 use slime_reflect::Reflect;
 use slime_render::glam::{DVec3, Quat, Vec2, Vec3};
-use slime_world::{Component, Entity, Hidden, SceneLibrary, Transform, World};
+use slime_world::{Component, Entity, Hidden, PersistentId, SceneLibrary, Transform, World};
 
 use crate::zone::{Collider, Flickers, Footprint, Marker, TimeOfDay, Zone, colliders};
 
@@ -167,6 +167,33 @@ impl Game {
         };
         game.restart(world);
         Ok(game)
+    }
+
+    /// The game played in `world`, a world in which [`Game::spawn`] made one, found again by the
+    /// persistent identities of its entities once the world changed as loading a save changes it
+    /// (`World::load`), which may destroy them, or spawn them again: the zone spawned under the key
+    /// `zone` and its markers ([`Zone::find_in`]), and the hero's scene spawned under the key
+    /// `hero`, which places the hero by its transform. A new game starts at night or by day as
+    /// `starts_at_night` says.
+    ///
+    /// # Errors
+    ///
+    /// When the run cannot be played: the world holds no zone, a marker is held by no entity of the
+    /// zone or by several, or the world holds no hero, or one without a transform. A message says
+    /// what is wrong.
+    pub fn find(world: &World, starts_at_night: bool) -> Result<Self, String> {
+        let zone = Zone::find_in(world)?;
+        let hero = world
+            .find(&PersistentId::new([HERO]))
+            .ok_or_else(|| format!("the world has no hero, `{HERO}`"))?;
+        if world.get::<Transform>(hero).is_none() {
+            return Err(format!("the hero, `{HERO}`, has no transform to place it"));
+        }
+        Ok(Self {
+            zone,
+            hero,
+            starts_at_night,
+        })
     }
 
     /// Starts a new game in the same zone: the hero at the start, the key in its place, the door

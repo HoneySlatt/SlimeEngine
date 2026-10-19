@@ -89,18 +89,29 @@ saves the run, and F9 loads the save in place of the run, the hero at once where
 first save, on F5 or on quitting, writes over the save, as after R. The save is one file,
 `hunnawood/save.toml` in the user's data directory: `$XDG_DATA_HOME`, else `~/.local/share`, on
 Linux; `%APPDATA%` on Windows; `--save <file>` names another. It is text, which says what differs
-between the run and a new game by day (`slime_world::World::save`), and begins with the layout of
-the zone it was made on, its numbers.
+between the run and a new game by day (`slime_world::World::save`), and begins with what it says of
+itself: the version of the game that wrote it, and the layout of the zone it was made on, its
+numbers.
 
-A save that is not resumed is set aside, so that the next save does not write over it, and a new
-run starts: one made on another layout of the zone, as hot reload starts the run again when the
-layout changes, as `save.toml.other-layout`, the saves of 0.4 compared by the fingerprint of their
-layout that they say; one that cannot be read as `save.toml.unreadable`. One
-that can be neither read nor set aside, locked by another program, is kept, and the run is not
-saved: the log says so, and `--save` names another file. A save is written beside the file, to the
-disk, and renamed over it, so that the file is the save before or the new one, never part of one.
-The log says what was saved or loaded, and where the run stands. When Windows ends the session, the
-game is stopped without quitting, and the run since the last F5 is lost (see the known debt in
+A save is checked before it is resumed. One that is not resumed is set aside, so that the next save
+does not write over it, and a new run starts. It is set aside under a name that says why, and never
+in place of one set aside before, which keeps its own: `save.toml.later-version`, then
+`save.toml.later-version.2`, and on. A save is not resumed when it cannot be read, not a save, or
+larger than the 16 MiB a save holds at most, which the game does not read further
+(`unreadable`); when a later version of the game wrote it (`later-version`); when it was made on
+another layout of the zone, as hot reload starts the run again when the layout changes
+(`other-layout`), the saves of 0.4 compared by the fingerprint of their layout that they say; when
+it holds what this version of the game does not know, a component, a field or a value that a later
+version adds, which writing it back would lose (`unknown-content`); and when the run it holds
+cannot be played, as when it removes the hero or the key (`unplayable`). One that can be neither
+read nor set aside, locked by another program, is kept, and so is a directory in the save's place,
+which the game neither reads nor moves; the run is not saved then: the log says so, and `--save`
+names another file.
+
+A save is written beside the file, to the disk, and renamed over it, so that the file is the save
+before or the new one, never part of one. The log says what was saved or loaded, and where the run
+stands. When Windows ends the session, the game is stopped
+without quitting, and the run since the last F5 is lost (see the known debt in
 [`docs/PLAN.md`](../../docs/PLAN.md#known-debt)).
 
 [`fixtures/save.toml`](fixtures/save.toml) is a save of 0.4 made at the chapel's portal, at night,
@@ -164,7 +175,7 @@ no entity, draws it from the next frame, and the world panel forgets the entity 
 |---|---|
 | `main.rs` | The application: the world built before the window opens, a new run or the save resumed, and given to the engine, the game's loop through `slime_app::App`, saving with F5 and on quit and loading with F9, going on with a new GPU device after a loss, reading the manifest again with `--watch` and carrying the run into the scenes that changed, the command line |
 | `assets.rs` | Where the cooked data is, and the IDs of the zone's scene file and the hero, from their metadata files |
-| `saves.rs` | The save: where its file is, what it holds and how it is written, and a run resumed from it; a run carried into the scenes that changed on disk, or started again when the zone's layout changed |
+| `saves.rs` | The save: where its file is, what it holds and how it is read and written, and a run resumed from it once it is checked; a run carried into the scenes that changed on disk, or started again when the zone's layout changed |
 | `rules.rs` | The rules, as functions over the world and without the GPU: the hero's movement, its heading, and its collisions, as a circle on the ground against the colliders that are not hidden and the zone's edge; the key, the door, the campfire and the time of day |
 | `zone.rs` | The zone spawned in the world from its scene file, and the game's components that its nodes carry; where its colliders stand on the ground, boxes turned about the vertical and cylinders, the size of its ground, where the hero starts and the places of the key, the door and the campfire, read from the world; the tests of the cooked zone |
 | `controls.rs` | Which of the game's keys are held |
@@ -343,8 +354,9 @@ The engine's crates only: `slime-app`, `slime-gfx`, `slime-platform`, `slime-ren
 `wgpu` feature on for itself (the game uses no wgpu type); `slime-assets`, which reads the cooked
 zone; `slime-color`, for the colors of its lights and skies; `slime-world`, its world, and
 `slime-world-render`, which draws it; `slime-reflect`, which describes its components, as every
-component is; and `tracing` for the log. Its tests encode the components of the zones they make with
-`slime-serialize`, as the cooker does.
+component is; `slime-serialize`, for the size of the largest save, up to which it reads its save,
+and whose tests encode with it the components of the zones they make, as the cooker does; and
+`tracing` for the log.
 
 ## Must not
 

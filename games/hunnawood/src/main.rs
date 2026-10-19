@@ -660,22 +660,31 @@ enum Resume {
     /// No run: the file holds no save, or held one that is set aside, which the next save does not
     /// write over.
     Nothing,
-    /// No run, and a save that can be neither read nor set aside: the next save would write over
-    /// it, which the game must not do.
+    /// No run, and a save that can be neither read nor set aside, or what is not a file in its
+    /// place: the next save would write over it, which the game must not do.
     Keep,
 }
 
 /// The run of the save in `file`, resumed in a new game of `scenes`, if the file holds one that
-/// can be resumed; logged either way. A save that cannot be read, or made on another layout of the
-/// zone, is set aside ([`saves::set_aside`]), so that the next save does not write over it.
+/// can be resumed ([`saves::resume`]); logged either way. A save that is not resumed is set aside
+/// ([`saves::set_aside`]), so that the next save does not write over it, under a name that says
+/// why: `unreadable`, `later-version`, `other-layout`, `unknown-content`, `unplayable`. What is not
+/// a file, a directory or a pipe, is neither read nor moved.
 fn resume_from(file: &Path, scenes: &mut SceneLibrary) -> Resume {
     let shown = file.display();
-    let text = match std::fs::read_to_string(file) {
-        Ok(text) => text,
+    match std::fs::metadata(file) {
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
             tracing::info!("there is no save in {shown}");
             return Resume::Nothing;
         }
+        Ok(metadata) if !metadata.is_file() => {
+            tracing::warn!("{shown} is not a file: it is neither read nor set aside");
+            return Resume::Keep;
+        }
+        _ => {}
+    }
+    let text = match saves::read(file) {
+        Ok(text) => text,
         Err(error) => return set_aside(file, "unreadable", &error.to_string()),
     };
     let start = match saves::start(scenes) {
@@ -700,25 +709,44 @@ fn resume_from(file: &Path, scenes: &mut SceneLibrary) -> Resume {
                     aside.reason
                 );
             }
-            for warning in &loaded.warnings {
-                tracing::warn!("left out of the save, which this version does not know: {warning}");
-            }
             log_run(&game, &world, &format!("the run resumes from {shown}"));
             Resume::Run(Box::new((world, game)))
         }
+        Err(NotResumed::Unreadable(error)) => {
+            set_aside(file, "unreadable", &slime_app::error_chain(&error))
+        }
+        Err(NotResumed::Later(version)) => set_aside(
+            file,
+            "later-version",
+            &format!(
+                "version {version} of the game wrote it, a later one than this one, {}",
+                env!("CARGO_PKG_VERSION")
+            ),
+        ),
         Err(NotResumed::OtherLayout) => set_aside(
             file,
             "other-layout",
             "it was made on another layout of the zone",
         ),
-        Err(NotResumed::Unreadable(error)) => {
-            set_aside(file, "unreadable", &slime_app::error_chain(&error))
-        }
+        Err(NotResumed::Unknown(unknown)) => set_aside(
+            file,
+            "unknown-content",
+            &format!(
+                "it holds what this version of the game does not know, which writing it back \
+                 would lose: {}",
+                unknown.join("; ")
+            ),
+        ),
+        Err(NotResumed::Unplayable(why)) => set_aside(
+            file,
+            "unplayable",
+            &format!("its run cannot be played: {why}"),
+        ),
     }
 }
 
-/// Sets aside the save in `file`, which is not resumed for `why`, as `<file>.<what>`, and logs it:
-/// [`Resume::Nothing`] once it is, [`Resume::Keep`] if it cannot be.
+/// Sets aside the save in `file`, which is not resumed for `why`, under a name that ends in `what`,
+/// and logs it: [`Resume::Nothing`] once it is, [`Resume::Keep`] if it cannot be.
 fn set_aside(file: &Path, what: &str, why: &str) -> Resume {
     match saves::set_aside(file, what) {
         Ok(aside) => {
@@ -887,6 +915,52 @@ mod tests {
         }
         let hero = game.hero(&world).position;
         assert!(hero.x > 0.5, "{hero}");
+    }
+
+    #[test]
+    fn what_is_not_a_file_at_the_save_s_place_is_neither_read_nor_moved() {
+        let directory =
+            std::env::temp_dir().join(format!("hunnawood-not-a-file-{}", std::process::id()));
+        let file = directory.join("save.toml");
+        std::fs::create_dir_all(file.join("inside")).expect("a directory in its place");
+        let mut scenes = zone([0.0, 0.0], Vec::new()).scenes();
+        assert!(matches!(resume_from(&file, &mut scenes), Resume::Keep));
+        assert!(file.join("inside").is_dir(), "left where it was");
+        assert_eq!(std::fs::read_dir(&directory).expect("listed").count(), 1);
+        std::fs::remove_dir_all(&directory).expect("removed");
+    }
+
+    #[test]
+    fn a_save_not_resumed_is_set_aside_under_a_name_that_says_why() {
+        let directory =
+            std::env::temp_dir().join(format!("hunnawood-set-aside-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).expect("a directory");
+        let file = directory.join("save.toml");
+        let plan = zone([0.0, 0.0], Vec::new());
+        let mut scenes = plan.scenes();
+        let (mut world, _) = saves::start(&mut scenes).expect("playable");
+        let text = saves::save(&mut world, &mut scenes).expect("saved");
+        let later = text.replacen(
+            &format!("version = \"{}\"", env!("CARGO_PKG_VERSION")),
+            "version = \"99.0.0\"",
+            1,
+        );
+        for (written, name) in [
+            (later.as_str(), "save.toml.later-version"),
+            ("not = [ a save", "save.toml.unreadable"),
+            ("", "save.toml.other-layout"),
+            (later.as_str(), "save.toml.later-version.2"),
+        ] {
+            std::fs::write(&file, written).expect("written");
+            assert!(matches!(resume_from(&file, &mut scenes), Resume::Nothing));
+            assert!(!file.exists());
+            let aside = std::fs::read_to_string(directory.join(name)).expect("set aside");
+            assert_eq!(aside, written, "{name}");
+        }
+        // The save itself is resumed.
+        std::fs::write(&file, &text).expect("written");
+        assert!(matches!(resume_from(&file, &mut scenes), Resume::Run(_)));
+        std::fs::remove_dir_all(&directory).expect("removed");
     }
 
     #[test]
