@@ -54,7 +54,7 @@ use camera::FollowCamera;
 use controls::Controls;
 use overlay::DevOverlay;
 use rules::Game;
-use saves::NotResumed;
+use saves::{NotResumed, SaveFile};
 use view::View;
 
 const USAGE: &str = "usage: hunnawood [--assets <directory>] [--frames <count>] [--night] \
@@ -71,9 +71,10 @@ struct HunnaWood {
     /// The scenes of the cooked data, the zone's, those it places and the hero's, of which a new
     /// game by day is made, which saves differ from: the scenes of the run in the world.
     scenes: SceneLibrary,
-    /// The save's file, or why the run is not saved: the environment gives no data directory and
-    /// `--save` names no file, or the save there can be neither read nor set aside.
-    save_file: Result<PathBuf, String>,
+    /// The save's file, which this copy of the game holds, or why the run is not saved: the
+    /// environment gives no data directory and `--save` names no file, another copy of the game
+    /// holds the file, or the save there can be neither read nor set aside.
+    save_file: Result<SaveFile, String>,
     /// Whether a new game starts at night, as `--night` asks.
     starts_at_night: bool,
     controls: Controls,
@@ -135,7 +136,7 @@ impl HunnaWood {
         assets: CookedAssets,
         scenes: SceneLibrary,
         (world, game): (World, Game),
-        save_file: Result<PathBuf, String>,
+        save_file: Result<SaveFile, String>,
         options: &Options,
     ) -> Self {
         Self {
@@ -167,7 +168,7 @@ impl HunnaWood {
     /// Saves the run to the save's file, as F5 asks and as quitting does.
     fn save(&mut self, world: &mut World) {
         let file = match &self.save_file {
-            Ok(file) => file,
+            Ok(file) => file.path(),
             Err(why) => {
                 tracing::warn!("the run is not saved: {why}");
                 return;
@@ -190,7 +191,7 @@ impl HunnaWood {
     /// it is.
     fn load(&mut self, ctx: &mut Context) {
         let file = match &self.save_file {
-            Ok(file) => file.clone(),
+            Ok(file) => file.path().to_owned(),
             Err(why) => {
                 tracing::warn!("no save is loaded: {why}");
                 return;
@@ -619,16 +620,21 @@ fn main() -> ExitCode {
         .or_else(saves::default_file)
         .ok_or_else(|| {
             "the environment gives no data directory, and --save names no file".to_owned()
-        });
+        })
+        .and_then(SaveFile::hold);
     let resumed = match &save_file {
-        Ok(file) if !options.new => resume_from(file, &mut scenes),
-        _ => Resume::Nothing,
+        Ok(file) if !options.new => resume_from(file.path(), &mut scenes),
+        Ok(_) => Resume::Nothing,
+        Err(why) => {
+            tracing::warn!("no save is resumed, and the run is not saved: {why}");
+            Resume::Nothing
+        }
     };
     let new_run = !matches!(resumed, Resume::Run(..));
     match resumed {
         Resume::Run(run) => (world, game) = *run,
         Resume::Nothing => {}
-        Resume::Keep => save_file = save_file.and_then(|file| Err(kept(&file))),
+        Resume::Keep => save_file = save_file.and_then(|file| Err(kept(file.path()))),
     }
     game.set_starts_at_night(options.night);
     if new_run {

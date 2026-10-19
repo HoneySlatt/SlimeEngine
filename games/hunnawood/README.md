@@ -108,9 +108,13 @@ read nor set aside, locked by another program, is kept, and so is a directory in
 which the game neither reads nor moves; the run is not saved then: the log says so, and `--save`
 names another file.
 
-A save is written beside the file, to the disk, and renamed over it, so that the file is the save
-before or the new one, never part of one. The log says what was saved or loaded, and where the run
-stands. When Windows ends the session, the game is stopped
+One copy of the game at a time holds the save: it locks a file beside it, `save.toml.lock`, while it
+runs, which the system lets go however the game ends, and leaves on the disk. Another copy started
+meanwhile with the same save says so, and starts a new run, which it does not save. A save is
+written beside the file, in a file of the game's process, `save.toml.<process id>.new`, to the
+disk, and renamed over it, so that the file is the save before or the new one, never part of one,
+nor a mix of two; a game killed while it writes leaves that file beside the save. The log says what
+was saved or loaded, and where the run stands. When Windows ends the session, the game is stopped
 without quitting, and the run since the last F5 is lost (see the known debt in
 [`docs/PLAN.md`](../../docs/PLAN.md#known-debt)).
 
@@ -175,7 +179,7 @@ no entity, draws it from the next frame, and the world panel forgets the entity 
 |---|---|
 | `main.rs` | The application: the world built before the window opens, a new run or the save resumed, and given to the engine, the game's loop through `slime_app::App`, saving with F5 and on quit and loading with F9, going on with a new GPU device after a loss, reading the manifest again with `--watch` and carrying the run into the scenes that changed, the command line |
 | `assets.rs` | Where the cooked data is, and the IDs of the zone's scene file and the hero, from their metadata files |
-| `saves.rs` | The save: where its file is, what it holds and how it is read and written, and a run resumed from it once it is checked; a run carried into the scenes that changed on disk, or started again when the zone's layout changed |
+| `saves.rs` | The save: where its file is, held by one copy of the game at a time, what it holds and how it is read and written, and a run resumed from it once it is checked; a run carried into the scenes that changed on disk, or started again when the zone's layout changed |
 | `rules.rs` | The rules, as functions over the world and without the GPU: the hero's movement, its heading, and its collisions, as a circle on the ground against the colliders that are not hidden and the zone's edge; the key, the door, the campfire and the time of day |
 | `zone.rs` | The zone spawned in the world from its scene file, and the game's components that its nodes carry; where its colliders stand on the ground, boxes turned about the vertical and cylinders, the size of its ground, where the hero starts and the places of the key, the door and the campfire, read from the world; the tests of the cooked zone |
 | `controls.rs` | Which of the game's keys are held |

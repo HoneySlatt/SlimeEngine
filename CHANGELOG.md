@@ -79,6 +79,12 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - *Hunna Wood* sets a save aside under a name of its own, `save.toml.<why>.2` and on, rather than
   in place of the one set aside before.
 
+- One copy of *Hunna Wood* at a time holds a save, through a lock on a file beside it,
+  `save.toml.lock`: another copy started with the same save says so, and plays a new run that it
+  does not save, where both wrote the save and the last to quit wrote over the other's run. Each
+  copy writes through a file of its own, `save.toml.<process id>.new`, where two saves at once could
+  leave a file mixed from both.
+
 ## [0.4.0] - 2026-10-18
 
 The seventh release, which closes Stage 5b of the roadmap: scenes and prefabs. Worlds are written in

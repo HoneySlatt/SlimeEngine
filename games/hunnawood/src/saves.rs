@@ -5,11 +5,12 @@
 //! one made on another layout is not resumed, as the run starts again when the layout changes under
 //! hot reload, which carries the run through a save otherwise ([`reload`]); nor is one that a later
 //! version of the game wrote, one that holds what this version does not know, which writing it
-//! back would lose, or one whose run cannot be played.
+//! back would lose, or one whose run cannot be played. One copy of the game at a time holds a
+//! save's file ([`SaveFile`]).
 
 use std::collections::BTreeMap;
 use std::ffi::OsString;
-use std::fs::File;
+use std::fs::{File, TryLockError};
 use std::io::{self, Read as _, Write as _};
 use std::path::{Path, PathBuf};
 
@@ -239,6 +240,50 @@ fn unflicker(world: &mut World) {
     });
 }
 
+/// A save's file, which this copy of the game holds, so that one copy at a time resumes and writes
+/// the save: no other holds it while this one does. It holds the lock of a file beside it,
+/// `<file>.lock`, which the system lets go when the program ends, however it ends, a crash
+/// included; the lock file stays, empty.
+pub struct SaveFile {
+    path: PathBuf,
+    /// The lock file, locked while this copy holds the save's file.
+    _lock: File,
+}
+
+impl SaveFile {
+    /// Holds the save's file `path`, its directory made if it has none.
+    ///
+    /// # Errors
+    ///
+    /// When another copy of the game holds it, or its lock file cannot be made or locked, as on a
+    /// file system without locks: a message that says why.
+    pub fn hold(path: PathBuf) -> Result<Self, String> {
+        let shown = path.display();
+        let cannot = |error: io::Error| format!("the save in {shown} cannot be held: {error}");
+        if let Some(directory) = path.parent() {
+            std::fs::create_dir_all(directory).map_err(cannot)?;
+        }
+        let lock = File::options()
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(beside(&path, "lock"))
+            .map_err(cannot)?;
+        match lock.try_lock() {
+            Ok(()) => Ok(Self { path, _lock: lock }),
+            Err(TryLockError::WouldBlock) => Err(format!(
+                "another copy of the game holds the save in {shown}, and writes it"
+            )),
+            Err(TryLockError::Error(error)) => Err(cannot(error)),
+        }
+    }
+
+    /// The save's file.
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
 /// The text of the save in `file`, read up to the size of the largest document that a world reads
 /// ([`MAX_SIZE`]), not further: a larger file is refused before it is read.
 ///
@@ -266,9 +311,11 @@ pub fn read(file: &Path) -> io::Result<String> {
     Ok(text)
 }
 
-/// Writes `text` to `file`, its directory made if it has none, through a file beside it, written
-/// to the disk, then renamed over it: `file` holds the save before or the new one, never part of
-/// one, a power cut included. The file beside it does not outlive an error.
+/// Writes `text` to `file`, its directory made if it has none, through a file beside it of this
+/// process's own, `<file>.<process id>.new`, written to the disk, then renamed over it: `file` holds
+/// the save before or the new one, never part of one, a power cut included, and never a mix of two
+/// writers'. The file beside it does not outlive an error; a process killed while it writes leaves
+/// it.
 ///
 /// # Errors
 ///
@@ -277,7 +324,7 @@ pub fn write(file: &Path, text: &str) -> io::Result<()> {
     if let Some(directory) = file.parent() {
         std::fs::create_dir_all(directory)?;
     }
-    let written = beside(file, "new");
+    let written = beside(file, &format!("{}.new", std::process::id()));
     let renamed = File::create(&written)
         .and_then(|mut new| {
             new.write_all(text.as_bytes())?;
@@ -293,7 +340,8 @@ pub fn write(file: &Path, text: &str) -> io::Result<()> {
 
 /// Moves `file` aside, to `<file>.<why>`, or `<file>.<why>.2`, `.3` and on, the first of these
 /// names that nothing has, so that neither the next save nor one set aside later writes over it;
-/// returns where.
+/// returns where. One copy of the game at a time holds a save's file ([`SaveFile`]), so that no
+/// other takes the name meanwhile.
 ///
 /// # Errors
 ///
@@ -376,21 +424,27 @@ mod tests {
     }
 
     #[test]
-    fn a_save_is_written_whole_or_not_at_all() {
+    fn a_save_is_written_whole_or_not_at_all_through_a_file_of_its_own() {
         let directory = directory("written");
         let file = directory.join("deep").join(FILE);
         write(&file, "first").expect("written, its directory made");
+        // Another copy of the game, or an older version of it, half-way through its write: this
+        // one writes through a file of its own, and leaves the other's.
+        let others = beside(&file, "new");
+        std::fs::write(&others, "another writer's").expect("written");
         write(&file, "second").expect("written over");
         assert_eq!(std::fs::read_to_string(&file).expect("read"), "second");
-        assert!(
-            !beside(&file, "new").exists(),
-            "the file written beside it is renamed"
+        assert_eq!(
+            std::fs::read_to_string(&others).expect("left"),
+            "another writer's"
         );
+        let own = beside(&file, &format!("{}.new", std::process::id()));
+        assert!(!own.exists(), "the file written beside it is renamed");
         // A file that cannot be written leaves nothing beside it: here, a directory in its place.
         std::fs::remove_file(&file).expect("removed");
         std::fs::create_dir(&file).expect("a directory");
         assert!(write(&file, "third").is_err());
-        assert!(!beside(&file, "new").exists());
+        assert!(!own.exists());
         std::fs::remove_dir_all(&directory).expect("removed");
     }
 
@@ -448,6 +502,23 @@ mod tests {
             read(&file).expect_err("not text").kind(),
             io::ErrorKind::InvalidData
         );
+        std::fs::remove_dir_all(&directory).expect("removed");
+    }
+
+    #[test]
+    fn one_copy_of_the_game_at_a_time_holds_a_save() {
+        let directory = directory("held");
+        let file = directory.join("deep").join(FILE);
+        let held = SaveFile::hold(file.clone()).expect("held, its directory made");
+        assert_eq!(held.path(), file);
+        let Err(why) = SaveFile::hold(file.clone()) else {
+            panic!("a save held twice");
+        };
+        assert!(why.contains("another copy of the game"), "{why}");
+        // Another save beside it is another file.
+        SaveFile::hold(directory.join("other.toml")).expect("held");
+        drop(held);
+        SaveFile::hold(file).expect("held once let go");
         std::fs::remove_dir_all(&directory).expect("removed");
     }
 
