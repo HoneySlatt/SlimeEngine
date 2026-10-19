@@ -337,9 +337,9 @@ Risks:
   floats measure from the camera reached it as an infinity, which lavapipe happens to draw as no
   light; and documents that said more than the code did. All are fixed. What P2 leaves is in the
   [known debt](#known-debt): a cooked file damaged within its ranges, a save's capacity in values,
-  the cost of checking what a cook reuses. The `ktx2` crate's panic is not reported to its authors
-  yet: that waits for the owner's agreement. CI took 10 minutes 36 seconds on Linux and 16 minutes
-  11 seconds on Windows.
+  the cost of checking what a cook reuses. The owner decided on 2026-10-19 not to report the
+  `ktx2` crate's panic to its authors: the engine no longer reads with it. CI took 10 minutes 36
+  seconds on Linux and 16 minutes 11 seconds on Windows.
 
 ### P3 — The loss of the GPU device and the main loop
 
@@ -707,9 +707,6 @@ GitHub issues, linked from their entry; this list stays the reference.
   on *Hunna Wood*'s zone, nor cleans the output, where each change that `slime-cook watch` cooks
   leaves the files it replaced (ADR-0076). The rustdoc of `slime_cook::cook` measures what reading
   the cooked files costs.
-- **The `ktx2` crate's panic is not reported to its authors** (ADR-0102): one byte of a KTX2 file's
-  data format descriptor makes its reader panic, which the engine no longer uses to read; P2 asks
-  the owner's agreement to report it.
 - **A cooked file damaged within its ranges is not found** (ADR-0102): the cooker cooks again a
   file deleted, emptied, cut short or that its reader refuses, and a game refuses such a file with
   an error, but texels or numbers changed within their ranges draw wrong, without a word.
