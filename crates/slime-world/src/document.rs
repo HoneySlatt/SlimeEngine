@@ -476,6 +476,8 @@ impl World {
     ///
     /// If the world runs out of slots ([`World::spawn`]).
     pub fn load(&mut self, text: &str, scenes: &mut SceneLibrary) -> Result<Loaded, DocumentError> {
+        // Taken while the world holds its registry, which names the components' types.
+        let start = self.created_fingerprint();
         // Set apart while the save is read, so that the entities that it creates are spawned while
         // the document, which reads through the registry, is open: the save is parsed once.
         let read = {
@@ -486,7 +488,11 @@ impl World {
             };
             Document::parse(&apart.registry, text, Mode::Lenient)
                 .map_err(DocumentError::Read)
-                .and_then(|mut document| apart.world.read(&apart.registry, &mut document, scenes))
+                .and_then(|mut document| {
+                    apart
+                        .world
+                        .read(&apart.registry, &mut document, start, scenes)
+                })
         };
         let (save, mut loaded) = read?;
         self.apply(save, &mut loaded);
@@ -639,15 +645,17 @@ impl World {
 
     /// Reads the save `document`: first all that can refuse it, the world untouched; then spawns
     /// what the world that made it spawned while it ran, and the entities that it creates, so that
-    /// the components' values read last, which can only be set aside, can refer to them.
+    /// the components' values read last, which can only be set aside, can refer to them. `start` is
+    /// the world's [`World::created_fingerprint`], taken before its registry was set apart.
     fn read(
         &mut self,
         registry: &Registry,
         document: &mut Document<'_>,
+        start: u64,
         scenes: &mut SceneLibrary,
     ) -> Result<(Save, Loaded), DocumentError> {
         let mut loaded = Loaded::default();
-        let (mut save, plan) = self.read_layout(document, &mut loaded)?;
+        let (mut save, plan) = self.read_layout(document, start, &mut loaded)?;
         // Nothing refuses the save from here on: the world changes.
         self.spawn_what_ran(registry, scenes, plan.spawned, &mut save, &mut loaded);
         self.create(plan.created);
@@ -658,9 +666,11 @@ impl World {
     /// Reads all that refuses the save `document` if it is wrong, without changing the world: its
     /// layout, what the world that made it spawned while it ran, the numbers of the entities that it
     /// creates, its count, its scenes, the entities and components that it removes, and the parents.
+    /// `start` is the world's [`World::created_fingerprint`].
     fn read_layout(
         &self,
         document: &mut Document<'_>,
+        start: u64,
         loaded: &mut Loaded,
     ) -> Result<(Save, Plan), DocumentError> {
         if let Some(Value::UInt(layout)) = document
@@ -687,8 +697,7 @@ impl World {
             Some(Value::UInt(from)) => Numbers {
                 from,
                 to: self.next_created,
-                start_changed: start_content
-                    != Some(Value::Text(content_text(self.created_fingerprint()))),
+                start_changed: start_content != Some(Value::Text(content_text(start))),
             },
             _ => Numbers::SAME,
         };

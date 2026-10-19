@@ -35,7 +35,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 
 | Milestone | Goal | Status |
 |---|---|---|
-| [P1](#p1--saves-and-identities-that-never-mislead) | A save, a scene file and a level written back hold what the world holds and name the entities they mean; a game resumes only a save it can play, and never loses one | Next |
+| [P1](#p1--saves-and-identities-that-never-mislead) | A save, a scene file and a level written back hold what the world holds and name the entities they mean; a game resumes only a save it can play, and never loses one | In progress |
 | [P2](#p2--a-damaged-file-gives-an-error-never-a-crash) | No damaged or edited file makes the engine panic, hang or exhaust its memory (ADR-0096) | Planned |
 | [P3](#p3--the-loss-of-the-gpu-device-and-the-main-loop) | A lost GPU device is recovered wherever the loss is found, and a panic in `render` stays an ordinary panic | Planned |
 | [P5](#p5--the-build-ci-and-measurements-tracked-from-one-commit-to-the-next) | Every crate compiled once, CI under its limit, and the engine's measurements tracked from one commit to the next | Planned |
@@ -160,6 +160,11 @@ Risks:
   `cargo test -p hunnawood -- --ignored`; `cargo run -p hunnawood -- --new --save <file>`.
 - **By hand.** On Linux: play, F5, F9, quit and resume. In the Windows virtual machine: two copies
   of the game at once; the game killed during F5, then started again.
+- **Progress.** Fixed, each with the audit's tests moved into the repository: G09, G08 for bounds
+  written as numbers, G39, G24, G10, and G01 in the engine. Left: loading compares the fingerprint
+  of what the start created without the world's types, so that every change of an entity that the
+  start created with `World::spawn` is set aside; G08 for bounds given as constants; G02, G03, G11,
+  G35 and G36; the ADRs, the rustdoc and the game's README.
 
 ### P2 — A damaged file gives an error, never a crash
 

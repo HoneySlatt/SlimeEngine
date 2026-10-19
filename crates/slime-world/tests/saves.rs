@@ -172,6 +172,23 @@ fn x(world: &World, name: &str) -> f64 {
 }
 
 #[test]
+fn what_a_run_changed_of_the_start_made_in_code_loads_back_into_the_same_start() {
+    for keyed in [false, true] {
+        let mut run = made_in_code(&["rig", "weather"], keyed);
+        let rig = named(&run, "rig");
+        run.insert(rig, Transform::from_translation(DVec3::new(5.0, 0.0, 0.0)));
+        let start = made_in_code(&["rig", "weather"], keyed);
+        let save = run.save(&start, &Default::default()).expect("saved");
+        let mut loaded = made_in_code(&["rig", "weather"], keyed);
+        let report = loaded
+            .load(&save, &mut SceneLibrary::new())
+            .expect("loaded");
+        assert!(report.set_aside.is_empty(), "keyed: {keyed}: {report:?}");
+        assert_eq!(run.first_difference(&loaded), None, "keyed: {keyed}");
+    }
+}
+
+#[test]
 fn an_update_that_creates_one_more_entity_at_the_start_never_moves_another() {
     // Version 1 of a game makes the rig and the weather; the run moves the rig and creates an
     // enemy. Version 2 makes the music first.
