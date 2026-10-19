@@ -50,9 +50,9 @@ pub struct Unsaved;
 impl Component for Unsaved {}
 
 /// The light an entity places: at its origin, along its −Z axis, whatever its scale; in the
-/// physical units of glTF's `KHR_lights_punctual`, as the renderer's lights are, with the same
-/// ranges: a color and a strength finite and not negative, a range positive, a spot's cones
-/// within 0 ≤ inner < outer ≤ π / 2.
+/// physical units of glTF's `KHR_lights_punctual`, as the renderer's lights are, by the same rule
+/// ([`SceneLight::check`]): a color and a strength finite and not negative, whose product is
+/// finite, a range positive, a spot's cones within 0 ≤ inner < outer ≤ π / 2.
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
 #[reflect(name = "Light", check = Light::check)]
 pub enum Light {
@@ -106,70 +106,56 @@ pub enum Light {
 }
 
 impl Light {
-    /// Accepts the light if its values lie within the ranges its documentation gives, which the
-    /// renderer refuses a light outside of; refuses it with the reason otherwise: what reflection
-    /// checks when it reads a light (`#[reflect(check)]`), the rules between fields and on the
-    /// color included, which ranges cannot say.
+    /// Accepts the light if the engine can draw it, by the rule of a cooked scene's lights
+    /// ([`SceneLight::check`]), its shadow distance positive and finite; refuses it with the reason
+    /// otherwise: what reflection checks when it reads a light (`#[reflect(check)]`), the rules
+    /// between fields and on the color included, which ranges cannot say.
     fn check(&self) -> Result<(), String> {
-        let color = |color: &LinearColor| {
-            let ok = [color.r, color.g, color.b]
-                .into_iter()
-                .all(|channel| channel.is_finite() && channel >= 0.0);
-            ok.then_some(())
-                .ok_or_else(|| format!("its color {color:?} is negative or not finite"))
-        };
-        let strength = |name: &str, value: f32| {
-            (value.is_finite() && value >= 0.0)
-                .then_some(())
-                .ok_or_else(|| format!("its {name} {value} is negative or not finite"))
-        };
-        let distance = |name: &str, value: Option<f32>| match value {
-            Some(value) if !(value.is_finite() && value > 0.0) => {
-                Err(format!("its {name} {value} is not positive and finite"))
-            }
-            _ => Ok(()),
-        };
-        match self {
+        let (color, intensity, range, kind) = match *self {
             Self::Directional {
-                color: tint,
+                color,
                 illuminance,
                 shadow_distance,
                 ..
             } => {
-                color(tint)?;
-                strength("illuminance", *illuminance)?;
-                distance("shadow distance", *shadow_distance)
+                if let Some(distance) = shadow_distance
+                    && !(distance.is_finite() && distance > 0.0)
+                {
+                    return Err(format!(
+                        "its shadow distance {distance} is not positive and finite"
+                    ));
+                }
+                (color, illuminance, None, LightKind::Directional)
             }
             Self::Point {
-                color: tint,
+                color,
                 intensity,
                 range,
-            } => {
-                color(tint)?;
-                strength("intensity", *intensity)?;
-                distance("range", *range)
-            }
+            } => (color, intensity, range, LightKind::Point),
             Self::Spot {
-                color: tint,
+                color,
                 intensity,
                 range,
-                inner_cone_angle: inner,
-                outer_cone_angle: outer,
+                inner_cone_angle,
+                outer_cone_angle,
                 ..
-            } => {
-                color(tint)?;
-                strength("intensity", *intensity)?;
-                distance("range", *range)?;
-                (0.0 <= *inner && inner < outer && *outer <= std::f32::consts::FRAC_PI_2)
-                    .then_some(())
-                    .ok_or_else(|| {
-                        format!(
-                            "its cones of {inner} and {outer} radians are not \
-                             0 ≤ inner < outer ≤ π / 2"
-                        )
-                    })
-            }
+            } => (
+                color,
+                intensity,
+                range,
+                LightKind::Spot {
+                    inner_cone_angle,
+                    outer_cone_angle,
+                },
+            ),
+        };
+        SceneLight {
+            kind,
+            color: [color.r, color.g, color.b],
+            intensity,
+            range,
         }
+        .check()
     }
 
     /// The light of a cooked scene's node: casting shadows if it can, a directional one not in the

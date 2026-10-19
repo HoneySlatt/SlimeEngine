@@ -27,6 +27,10 @@ const LARGEST_HALF: f32 = 65504.0;
 const HEADROOM: f32 = 64.0;
 // The most lights a scene holds: MAX_LIGHTS in light.rs, which a unit test compares with it.
 const MAX_LIGHTS: u32 = 16u;
+// The most light that one light gives a point before the surface reflects it: LARGEST_LIGHT in
+// light.rs, which a unit test compares with it. Bounded before it is multiplied by what the
+// surface reflects, which may be 0: an infinity times 0 is not a number.
+const LARGEST_LIGHT: f32 = 1e30;
 // How many cascades the shadowed light's shadows have: CASCADES in shadow.rs, which a unit test
 // compares with it.
 const CASCADES: u32 = 4u;
@@ -339,7 +343,7 @@ fn fs_main(
                 attenuation *= spot_light_reaching(light, tile, input.position, geometric, l);
             }
         }
-        direct += light.color * attenuation
+        direct += min(light.color * attenuation, vec3<f32>(LARGEST_LIGHT))
             * reflected(base.rgb, metallic, roughness, normal, l, to_camera);
     }
     // The environment's light, which occlusion darkens, and it alone (glTF: indirect light). Its

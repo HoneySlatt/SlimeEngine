@@ -39,7 +39,6 @@
 //! animations, skins, cameras, vertex colors, and the extensions a file uses that it does not read.
 
 use std::collections::HashMap;
-use std::f32::consts::FRAC_PI_2;
 use std::fs::{self, File};
 use std::io::{self, Read};
 use std::path::{Component, Path, PathBuf};
@@ -1226,65 +1225,36 @@ fn check_factors(cooked: &CookedMaterial) -> Result<(), ImportError> {
 }
 
 /// The light `light` of node `node`, refused if `KHR_lights_punctual` does not allow it, which
-/// the `gltf` crate does not check: a color or an intensity that is negative or not finite, a range
-/// that is not positive and finite, or a spot light's cone outside 0 ≤ inner < outer ≤ π / 2.
+/// the `gltf` crate does not check, or if the engine cannot draw it ([`SceneLight::check`]).
 fn read_light(
     light: &gltf::khr_lights_punctual::Light<'_>,
     node: usize,
 ) -> Result<SceneLight, ImportError> {
-    let name = named(light.name(), "light", light.index());
-    let refused = |what: String| ImportError(format!("node {node}'s light `{name}` {what}"));
-    let color = light.color();
-    if !color
-        .iter()
-        .all(|channel| channel.is_finite() && *channel >= 0.0)
-    {
-        return Err(refused(format!(
-            "has a color of {color:?}; glTF requires channels of at least 0"
-        )));
-    }
-    let intensity = light.intensity();
-    if !(intensity.is_finite() && intensity >= 0.0) {
-        return Err(refused(format!(
-            "has an intensity of {intensity}; glTF requires at least 0"
-        )));
-    }
-    let range = light.range();
-    if let Some(range) = range
-        && !(range.is_finite() && range > 0.0)
-    {
-        return Err(refused(format!(
-            "has a range of {range}; glTF requires a positive range"
-        )));
-    }
     let kind = match light.kind() {
         Kind::Directional => LightKind::Directional,
         Kind::Point => LightKind::Point,
         Kind::Spot {
             inner_cone_angle,
             outer_cone_angle,
-        } => {
-            if !(0.0 <= inner_cone_angle
-                && inner_cone_angle < outer_cone_angle
-                && outer_cone_angle <= FRAC_PI_2)
-            {
-                return Err(refused(format!(
-                    "has cone angles of {inner_cone_angle} and {outer_cone_angle} radians; glTF \
-                     requires 0 ≤ inner < outer ≤ π/2"
-                )));
-            }
-            LightKind::Spot {
-                inner_cone_angle,
-                outer_cone_angle,
-            }
-        }
+        } => LightKind::Spot {
+            inner_cone_angle,
+            outer_cone_angle,
+        },
     };
-    Ok(SceneLight {
+    let read = SceneLight {
         kind,
-        color,
-        intensity,
-        // A directional light has no range: glTF allows one on point and spot lights only.
-        range: range.filter(|_| kind != LightKind::Directional),
+        color: light.color(),
+        intensity: light.intensity(),
+        range: light.range(),
+    };
+    read.check().map_err(|reason| {
+        let name = named(light.name(), "light", light.index());
+        ImportError(format!("node {node}'s light `{name}` is refused: {reason}"))
+    })?;
+    Ok(SceneLight {
+        // A directional light has no range: glTF gives one to point and spot lights only.
+        range: read.range.filter(|_| kind != LightKind::Directional),
+        ..read
     })
 }
 

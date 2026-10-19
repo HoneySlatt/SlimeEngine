@@ -156,7 +156,10 @@ fn main() -> Result<(), RenderError> {
 - `Camera`: where the scene is seen from. `Light`: one of glTF's punctual lights, a
   `DirectionalLight`, of which the first that casts shadows casts the scene's through cascades, a
   `PointLight` or a `SpotLight`, every one of which may cast shadows into a tile of the shadow
-  atlas; a scene has at most `MAX_LIGHTS` of them drawn.
+  atlas; a scene has at most `MAX_LIGHTS` of them drawn. `Light::check` says whether the renderer
+  draws a light, by the rule of `slime_assets::SceneLight::check` for its values: `render` leaves
+  out, with a warning, a light that it refuses, which a game's data may hold, and the shader bounds
+  the light that each light gives a point.
 - `RenderError`: an invalid mesh or material, or a failure of the GPU layer (`GfxError`): a shader
   or pipeline the driver rejects, memory that runs out, or a lost device.
 - `slime_render::glam` re-exports the math crate the API uses (`DVec3`, `DAffine3`, `Vec3`), so

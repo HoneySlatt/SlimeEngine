@@ -451,11 +451,53 @@ fn a_negative_exposure_is_a_bug() {
 }
 
 #[test]
-#[should_panic(
-    expected = "light 1 of the scene is not valid: its intensity -64 is negative or not finite"
-)]
-fn a_light_outside_its_documented_range_is_a_bug_named_in_the_message() {
-    Setup::new().draw(&[point(1.0, 1.0, None), point(1.0, -64.0, None)], 1.0);
+fn a_light_that_cannot_be_drawn_is_left_out() {
+    let mut setup = Setup::new();
+    let lit = setup.draw(&[point(1.0, 1.0, None)], 1.0);
+    for wrong in [
+        point(1.0, -64.0, None),
+        point(1.0, f32::NAN, None),
+        point(1.0, 1.0, Some(0.0)),
+        // Its color times its intensity, which the shader reads, is not finite.
+        Light::Point(PointLight {
+            color: LinearColor::rgb(1e30, 1e30, 1e30),
+            intensity: 1e30,
+            ..PointLight::default()
+        }),
+        Light::Directional(DirectionalLight {
+            direction: Vec3::ZERO,
+            ..DirectionalLight::default()
+        }),
+    ] {
+        assert_eq!(
+            setup.draw(&[point(1.0, 1.0, None), wrong], 1.0).pixels,
+            lit.pixels,
+            "{wrong:?}"
+        );
+    }
+}
+
+#[test]
+fn a_light_far_brighter_than_any_adds_no_more_than_its_bound() {
+    // Finite, but its light, once divided by the square of a distance below a metre, is not: the
+    // back of the square, which it does not reach, stays black, and nothing is not a number.
+    let mut setup = Setup::new();
+    let bright = Light::Point(PointLight {
+        position: DVec3::new(0.0, 0.0, -0.01),
+        color: LinearColor::WHITE,
+        intensity: f32::MAX,
+        ..PointLight::default()
+    });
+    let image = setup.draw(&[bright], 1.0);
+    assert!(
+        image.pixels.iter().all(|channel| channel.is_finite()),
+        "a pixel is not a number"
+    );
+    assert_eq!(
+        image.pixels,
+        setup.draw(&[], 1.0).pixels,
+        "lit from behind the square it faces"
+    );
 }
 
 #[test]

@@ -14,8 +14,10 @@ hold yet, and draws the game's sky around the world's sun.
 
 - Builds, at each frame, the instances of the meshes that a world's entities place, from the GPU
   objects of a `slime_render::AssetCache`, which it asks for the meshes it does not hold; the
-  lights they place; and the sky's environment around the directional light that shows in the
-  sky, given once to the sky and to the lights.
+  lights they place, but those that the renderer would not draw where their entities' transforms,
+  composed, place them (`Light::check`), which it leaves out with a warning; and the sky's
+  environment around the directional light that shows in the sky, given once to the sky and to
+  the lights.
 - Keeps no world and no mesh: the world keeps what is drawn, the cache its GPU objects. It keeps the
   sky's environment, which it makes again when the sky or its sun changes.
 

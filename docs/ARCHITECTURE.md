@@ -409,7 +409,9 @@ renderer = Renderer::new(&gpu, format)                 the output's format; four
 │                                                      for the frames submitted after it
 └── render(&gpu, &target, &Scene { camera, lights, environment, exposure, bloom, instances })
     │                                                  → RenderStats, or the error of a creation
-    │                                                  (ADR-0044); draws the first 16 lights
+    │                                                  (ADR-0044); draws the first 16 lights of
+    │                                                  those that Light::check accepts, the
+    │                                                  others left out with a warning (ADR-0102)
     ├── every position moved by −camera.eye, in f64 (ADR-0048): the GPU draws relative to the
     │   camera, so that what is near it keeps its precision however far from the origin
     ├── the four cascades of the first directional light that casts shadows (shadow.rs,

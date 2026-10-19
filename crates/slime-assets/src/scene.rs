@@ -39,6 +39,9 @@ pub enum LightKind {
 }
 
 /// A light a node places, by `KHR_lights_punctual`, in the node's own space.
+///
+/// Its values are those of a light that the engine draws ([`SceneLight::check`]): the cooker, the
+/// reader of cooked scenes, the world's lights and the renderer's check them by that one rule.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SceneLight {
     /// What the light is.
@@ -49,6 +52,66 @@ pub struct SceneLight {
     pub intensity: f32,
     /// How far it reaches, in metres, for a point or spot light; `None` for no limit.
     pub range: Option<f32>,
+}
+
+impl SceneLight {
+    /// Accepts the light if the engine can draw it, as `KHR_lights_punctual` allows it and as the
+    /// renderer's shader reads it; refuses it otherwise, with the reason: a color channel or an
+    /// intensity (an illuminance for a directional light) negative or not finite, a color times the
+    /// intensity that is not finite in 32-bit floats, which the shader reads, a range that is not
+    /// positive and finite, or a spot light's cones outside 0 ≤ inner < outer ≤ π / 2.
+    ///
+    /// # Errors
+    ///
+    /// The reason, a phrase that starts with `its`: `its intensity -1 is negative or not finite`.
+    pub fn check(&self) -> Result<(), String> {
+        let [r, g, b] = self.color;
+        if !self
+            .color
+            .iter()
+            .all(|channel| channel.is_finite() && *channel >= 0.0)
+        {
+            return Err(format!(
+                "its color [{r}, {g}, {b}] is negative or not finite"
+            ));
+        }
+        // A directional light's strength is an illuminance, in lux; the others', an intensity.
+        let strength = match self.kind {
+            LightKind::Directional => "illuminance",
+            _ => "intensity",
+        };
+        let intensity = self.intensity;
+        if !(intensity.is_finite() && intensity >= 0.0) {
+            return Err(format!(
+                "its {strength} {intensity} is negative or not finite"
+            ));
+        }
+        if !self
+            .color
+            .iter()
+            .all(|channel| (channel * intensity).is_finite())
+        {
+            return Err(format!(
+                "its color times its {strength}, [{r}, {g}, {b}] × {intensity}, is not finite"
+            ));
+        }
+        if let Some(range) = self.range
+            && !(range.is_finite() && range > 0.0)
+        {
+            return Err(format!("its range {range} is not positive and finite"));
+        }
+        if let LightKind::Spot {
+            inner_cone_angle: inner,
+            outer_cone_angle: outer,
+        } = self.kind
+            && !(0.0 <= inner && inner < outer && outer <= std::f32::consts::FRAC_PI_2)
+        {
+            return Err(format!(
+                "its cones of {inner} and {outer} radians are not 0 ≤ inner < outer ≤ π / 2"
+            ));
+        }
+        Ok(())
+    }
 }
 
 /// A node of a scene.
@@ -198,8 +261,8 @@ impl CookedScene {
     /// # Errors
     ///
     /// [`CookedError::Version`] if another version of the format wrote it, and
-    /// [`CookedError::Malformed`] if it is not a scene, is cut short, or has a node whose parent
-    /// does not come before it.
+    /// [`CookedError::Malformed`] if it is not a scene, is cut short, has a node whose parent
+    /// does not come before it, or a light that the engine cannot draw ([`SceneLight::check`]).
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, CookedError> {
         let mut reader = Reader::open(bytes, MAGIC, VERSION, "scene")?;
         let name = reader.text()?;
@@ -222,9 +285,10 @@ impl CookedScene {
                 kind @ 1..=3 => {
                     let color = reader.f32s()?;
                     let intensity = reader.f32()?;
-                    let range = Some(reader.f32()?).filter(|&range| range > 0.0);
+                    // 0 stands for none, which `to_bytes` writes, -0 too.
+                    let range = Some(reader.f32()?).filter(|&range| range != 0.0);
                     let [inner_cone_angle, outer_cone_angle] = reader.f32s()?;
-                    Some(SceneLight {
+                    let light = SceneLight {
                         kind: match kind {
                             1 => LightKind::Directional,
                             2 => LightKind::Point,
@@ -236,7 +300,11 @@ impl CookedScene {
                         color,
                         intensity,
                         range,
-                    })
+                    };
+                    light.check().map_err(|reason| {
+                        reader.malformed(&format!("node {index}'s light: {reason}"))
+                    })?;
+                    Some(light)
                 }
                 _ => return Err(reader.malformed("a light's kind is unknown")),
             };
@@ -347,6 +415,43 @@ mod tests {
         let world = scene().world_transforms();
         assert_eq!(world[1][12..15], [1.0, 2.0, 0.0]);
         assert_eq!(world[0][12..15], [1.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn a_light_that_cannot_be_drawn_is_refused() {
+        let spot =
+            |color: [f32; 3], intensity: f32, range: Option<f32>, cones: (f32, f32)| SceneLight {
+                kind: LightKind::Spot {
+                    inner_cone_angle: cones.0,
+                    outer_cone_angle: cones.1,
+                },
+                color,
+                intensity,
+                range,
+            };
+        for (light, reason) in [
+            (
+                spot([1.0, f32::NAN, 1.0], 1.0, None, (0.0, 0.5)),
+                "its color",
+            ),
+            (spot([1.0; 3], -1.0, None, (0.0, 0.5)), "its intensity -1"),
+            // Each finite, their product is not.
+            (
+                spot([1e30; 3], 1e30, None, (0.0, 0.5)),
+                "its color times its intensity",
+            ),
+            (spot([1.0; 3], 1.0, Some(-2.0), (0.0, 0.5)), "its range -2"),
+            (
+                spot([1.0; 3], 1.0, Some(f32::NAN), (0.0, 0.5)),
+                "its range NaN",
+            ),
+            (spot([1.0; 3], 1.0, None, (0.5, 0.5)), "its cones"),
+        ] {
+            let mut scene = scene();
+            scene.nodes[1].light = Some(light);
+            let error = CookedScene::from_bytes(&scene.to_bytes()).expect_err(reason);
+            assert!(error.to_string().contains(reason), "{reason}: {error}");
+        }
     }
 
     #[test]

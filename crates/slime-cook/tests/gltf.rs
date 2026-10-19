@@ -424,29 +424,34 @@ fn lights_that_gltf_does_not_allow_are_refused() {
     for (light, expected) in [
         (
             r#"{ "type": "point", "intensity": -1 }"#,
-            "has an intensity of -1; glTF requires at least 0",
+            "is refused: its intensity -1 is negative or not finite",
         ),
         // 10³⁹ is beyond the largest 32-bit float: the `gltf` crate reads it as an infinity.
         (
             r#"{ "type": "point", "intensity": 1e39 }"#,
-            "has an intensity of inf",
+            "its intensity inf is negative or not finite",
         ),
         (
             r#"{ "type": "directional", "color": [1, -0.5, 1] }"#,
-            "has a color of [1.0, -0.5, 1.0]",
+            "its color [1, -0.5, 1] is negative or not finite",
+        ),
+        // Each finite, but not their product, which the renderer's shader reads.
+        (
+            r#"{ "type": "point", "color": [1e30, 1, 1], "intensity": 1e30 }"#,
+            "its color times its intensity",
         ),
         (
             r#"{ "type": "point", "range": 0 }"#,
-            "has a range of 0; glTF requires a positive range",
+            "its range 0 is not positive and finite",
         ),
         // Equal angles, as Blender writes them for a spot whose blend is 0.
         (
             r#"{ "type": "spot", "spot": { "innerConeAngle": 0.5, "outerConeAngle": 0.5 } }"#,
-            "has cone angles of 0.5 and 0.5 radians",
+            "its cones of 0.5 and 0.5 radians are not 0 ≤ inner < outer ≤ π / 2",
         ),
         (
             r#"{ "type": "spot", "spot": { "outerConeAngle": 2 } }"#,
-            "has cone angles of 0 and 2 radians",
+            "its cones of 0 and 2 radians",
         ),
         // What the `gltf` crate's validation refuses, before its readers would panic on it.
         (r#"{ "type": "spot" }"#, "spot: Missing data"),

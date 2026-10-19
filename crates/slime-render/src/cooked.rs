@@ -895,8 +895,8 @@ fn placed(transform: &[f32; 16]) -> DAffine3 {
 }
 
 /// The light that a node placed by `transform` holds, in world space: at the node's origin, along
-/// its −Z axis whatever its scale; refused, with the reason, at a point that is not finite or
-/// without a direction.
+/// its −Z axis whatever its scale; refused, with the reason, at a point that is not finite, without
+/// a direction, or if the renderer would not draw it ([`Light::check`]).
 fn place_light(light: SceneLight, transform: DAffine3) -> Result<Light, String> {
     let position = transform.translation;
     if !position.is_finite() {
@@ -916,7 +916,7 @@ fn place_light(light: SceneLight, transform: DAffine3) -> Result<Light, String> 
         .as_vec3();
     let [r, g, b] = light.color;
     let color = LinearColor::rgb(r, g, b);
-    Ok(match light.kind {
+    let placed = match light.kind {
         LightKind::Directional => Light::Directional(DirectionalLight {
             direction,
             color,
@@ -942,7 +942,9 @@ fn place_light(light: SceneLight, transform: DAffine3) -> Result<Light, String> 
             outer_cone_angle,
             casts_shadows: true,
         }),
-    })
+    };
+    // Its values were checked when the scene was read, by the rule that this applies too.
+    placed.check().map(|()| placed)
 }
 
 /// Uploads a cooked texture, as [`Renderer::create_texture`] says.

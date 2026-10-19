@@ -345,6 +345,9 @@ pub struct Renderer {
     /// Whether a scene with more than [`MAX_LIGHTS`] lights was drawn: it is said once, not at
     /// every frame.
     warned_of_lights: bool,
+    /// The indices of the lights that the last frame left out, which [`Light::check`] refused:
+    /// each is said when it is first left out, not at every frame.
+    left_out_lights: Vec<usize>,
 }
 
 /// The passes of the renderer's frame (ADR-0041), as its graph names them.
@@ -693,6 +696,7 @@ impl Renderer {
             bloom_sampler,
             tone_mapping_settings,
             warned_of_lights: false,
+            left_out_lights: Vec::new(),
         })
     }
 
@@ -736,8 +740,10 @@ impl Renderer {
     /// # Panics
     ///
     /// If the zenith's, the horizon's or the ground's radiance is negative, not finite, or above
-    /// 65 504 nits, the largest value of the environment's half-precision texels: this is a bug in
-    /// the caller. A clear sky stays below about 30 000 nits away from the sun.
+    /// 65 504 nits, the largest value of the environment's half-precision texels, or if the sun is
+    /// not a light that the renderer draws ([`Light::check`], its shadow distance aside): this is a
+    /// bug in the caller. A clear sky stays below about 30 000 nits away from the sun. A sun whose
+    /// disc would be brighter than 10³⁰ nits is drawn that bright.
     pub fn create_environment(&self, gpu: &Gpu, sky: &Sky) -> Result<Environment, RenderError> {
         Ok(Environment::new(gpu, sky)?)
     }
@@ -879,10 +885,12 @@ impl Renderer {
     /// # Panics
     ///
     /// If `target` does not have the format the renderer was created for; if the scene's exposure
-    /// or bloom, or a value of one of the lights it draws, is outside the range its documentation
-    /// gives (the message names it); or if the instances need a buffer larger than the device
-    /// allows (256 MiB with the default limits: about a million instances): these are bugs in the
-    /// caller.
+    /// or bloom is outside the range its documentation gives (the message names it); or if the
+    /// instances need a buffer larger than the device allows (256 MiB with the default limits:
+    /// about a million instances): these are bugs in the caller. A light with a value outside the
+    /// range its documentation gives, which a game's data may hold, is left out, with a warning
+    /// that names it by its index in the scene's lights when it is first left out
+    /// ([`Light::check`]); the [`MAX_LIGHTS`] drawn are the first of the others.
     ///
     /// With glam's assertions on (see [`Camera`]), also for a camera that would otherwise draw
     /// nothing usable, as [`Camera::view_projection`] does.
@@ -903,22 +911,36 @@ impl Renderer {
             "the scene's bloom is {}; it is from 0 to 1",
             scene.bloom
         );
-        // A scene with more lights than the renderer packs draws its first ones: lights come from
-        // a game's data, which a player should not see end the game.
-        let lights = &scene.lights[..scene.lights.len().min(MAX_LIGHTS)];
-        if lights.len() < scene.lights.len() && !self.warned_of_lights {
+        // Lights come from a game's data, which a player should not see end the game: a light that
+        // cannot be drawn is left out, and a scene with more lights than the renderer packs draws
+        // its first ones.
+        let mut left_out = Vec::new();
+        let mut lights = Vec::with_capacity(scene.lights.len().min(MAX_LIGHTS));
+        for (index, light) in scene.lights.iter().enumerate() {
+            match light.check() {
+                Ok(()) => lights.push(*light),
+                Err(reason) => {
+                    if !self.left_out_lights.contains(&index) {
+                        tracing::warn!(
+                            "light {index} of the scene is left out: {reason} (said again once it \
+                             is drawn and left out again)"
+                        );
+                    }
+                    left_out.push(index);
+                }
+            }
+        }
+        self.left_out_lights = left_out;
+        if lights.len() > MAX_LIGHTS && !self.warned_of_lights {
             tracing::warn!(
-                lights = scene.lights.len(),
+                lights = lights.len(),
                 "the scene has more lights than the renderer draws, {MAX_LIGHTS}: the first are \
                  drawn and the others left out (said once per renderer)"
             );
             self.warned_of_lights = true;
         }
-        for (index, light) in lights.iter().enumerate() {
-            if let Some(reason) = light.invalid() {
-                panic!("light {index} of the scene is not valid: {reason}");
-            }
-        }
+        lights.truncate(MAX_LIGHTS);
+        let lights = &lights[..];
         assert!(
             target.format() == self.format,
             "the renderer draws into {:?} targets, not into `{}`, which is {:?}",
@@ -2136,6 +2158,14 @@ mod tests {
         assert!(
             ShaderSources::embedded().scene.contains(&declared),
             "shader.wgsl lacks `{declared}`"
+        );
+        // And the same bound on what one light gives.
+        assert_eq!(crate::light::LARGEST_LIGHT, 1e30);
+        assert!(
+            ShaderSources::embedded()
+                .scene
+                .contains("const LARGEST_LIGHT: f32 = 1e30;"),
+            "shader.wgsl lacks `const LARGEST_LIGHT: f32 = 1e30;`"
         );
         // And as many cascades.
         let cascades = format!("const CASCADES: u32 = {CASCADES}u;");

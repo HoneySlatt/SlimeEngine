@@ -4,6 +4,7 @@
 use std::f32::consts::FRAC_PI_4;
 
 use glam::{DVec3, Vec3};
+use slime_assets::{LightKind, SceneLight};
 use slime_color::LinearColor;
 
 use crate::bytes::{push_f32s, push_u32s};
@@ -20,6 +21,13 @@ pub(crate) const LIGHT_VALUES_SIZE: usize = 64;
 /// `shader.wgsl`).
 pub(crate) const NO_TILE: u32 = u32::MAX;
 
+/// The most light that one light, or the sun's disc, gives a point, before the surface reflects it
+/// and the exposure: 10³⁰, far beyond any light in physical units, the sun's 10⁵ lux or its disc's
+/// 1.5 × 10⁹ nits, and low enough that the light of every light a scene draws, reflected and
+/// exposed, stays a finite 32-bit float, never infinity times zero (`LARGEST_LIGHT` in
+/// `shader.wgsl`, which a unit test compares).
+pub(crate) const LARGEST_LIGHT: f32 = 1e30;
+
 /// The kinds of light as the scene shader numbers them (`Light::kind` in `shader.wgsl`).
 const DIRECTIONAL: u32 = 0;
 const POINT: u32 = 1;
@@ -32,9 +40,8 @@ const SPOT: u32 = 2;
 /// reaches a surface facing it, its illuminance, times the BRDF and the cosine of incidence. A
 /// white matte surface facing a light and the camera reflects 0.97 / π of the illuminance it
 /// receives, in nits (candelas per square metre) for an illuminance in lux. Distances are in
-/// metres, as in glTF. [`Renderer::render`](crate::Renderer::render) panics on a light it draws
-/// (the first [`MAX_LIGHTS`](crate::MAX_LIGHTS) of a scene) with a value outside the range its
-/// documentation gives.
+/// metres, as in glTF. [`Renderer::render`](crate::Renderer::render) leaves out, with a warning, a
+/// light with a value outside the range its documentation gives ([`Light::check`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Light {
     /// A light from one direction everywhere, like the sun.
@@ -180,60 +187,67 @@ impl Default for SpotLight {
 }
 
 impl Light {
-    /// Which value of the light is outside the range its documentation gives, if one is: a color
-    /// or a strength that is not finite or is negative, a position that is not finite, a
-    /// direction that is zero or not finite, a range or a shadow distance that is not positive and
-    /// finite, or a spot's cones out of order or wider than π / 2.
-    pub(crate) fn invalid(&self) -> Option<String> {
-        let color = |color: LinearColor| {
-            let color = rgb(color);
-            (!color.is_finite() || color.min_element() < 0.0)
-                .then(|| format!("its color {color} is negative or not finite"))
-        };
-        let strength = |name: &str, value: f32| {
-            (!value.is_finite() || value < 0.0)
-                .then(|| format!("its {name} {value} is negative or not finite"))
-        };
+    /// Accepts the light if the renderer can draw it; refuses it otherwise, with the reason: its
+    /// color, strength, range and cones by the rule of a cooked scene's lights
+    /// (`slime_assets::SceneLight::check`), a color or a strength negative or not finite, whose
+    /// product is not finite, a range not positive and finite, a spot's cones out of order or wider
+    /// than π / 2; and a position that is not finite, a direction that is zero or not finite, or a
+    /// shadow distance that is not positive and finite. [`Renderer::render`](crate::Renderer::render)
+    /// leaves out a light that it refuses.
+    ///
+    /// # Errors
+    ///
+    /// The reason, a phrase that starts with `its`: `its position [inf, 0, 0] is not finite`.
+    pub fn check(&self) -> Result<(), String> {
         let position = |position: DVec3| {
-            (!position.is_finite()).then(|| format!("its position {position} is not finite"))
+            if position.is_finite() {
+                Ok(())
+            } else {
+                Err(format!("its position {position} is not finite"))
+            }
         };
         let direction = |direction: Vec3| {
-            (!direction.is_finite() || direction == Vec3::ZERO)
-                .then(|| format!("its direction {direction} is zero or not finite"))
+            if direction.is_finite() && direction != Vec3::ZERO {
+                Ok(())
+            } else {
+                Err(format!("its direction {direction} is zero or not finite"))
+            }
         };
-        let range = |range: Option<f32>| {
-            range
-                .filter(|&range| !(range.is_finite() && range > 0.0))
-                .map(|range| format!("its range {range} is not positive and finite"))
-        };
-        let cones = |inner: f32, outer: f32| {
-            let ordered = 0.0 <= inner && inner < outer && outer <= std::f32::consts::FRAC_PI_2;
-            (!ordered).then(|| {
-                format!(
-                    "its cones of {inner} and {outer} radians are not 0 ≤ inner < outer ≤ π / 2"
-                )
-            })
+        let values = |color: LinearColor, intensity: f32, range: Option<f32>, kind: LightKind| {
+            SceneLight {
+                kind,
+                color: rgb(color).to_array(),
+                intensity,
+                range,
+            }
+            .check()
         };
         match *self {
-            Self::Directional(light) => color(light.color)
-                .or_else(|| strength("illuminance", light.illuminance))
-                .or_else(|| direction(light.direction))
-                .or_else(|| {
-                    let distance = light.shadow_distance;
-                    (!(distance.is_finite() && distance > 0.0)).then(|| {
-                        format!("its shadow distance {distance} is not positive and finite")
-                    })
-                }),
-            Self::Point(light) => color(light.color)
-                .or_else(|| strength("intensity", light.intensity))
-                .or_else(|| position(light.position))
-                .or_else(|| range(light.range)),
-            Self::Spot(light) => color(light.color)
-                .or_else(|| strength("intensity", light.intensity))
-                .or_else(|| position(light.position))
-                .or_else(|| direction(light.direction))
-                .or_else(|| range(light.range))
-                .or_else(|| cones(light.inner_cone_angle, light.outer_cone_angle)),
+            Self::Directional(light) => {
+                values(light.color, light.illuminance, None, LightKind::Directional)?;
+                direction(light.direction)?;
+                let distance = light.shadow_distance;
+                if distance.is_finite() && distance > 0.0 {
+                    Ok(())
+                } else {
+                    Err(format!(
+                        "its shadow distance {distance} is not positive and finite"
+                    ))
+                }
+            }
+            Self::Point(light) => {
+                values(light.color, light.intensity, light.range, LightKind::Point)?;
+                position(light.position)
+            }
+            Self::Spot(light) => {
+                let kind = LightKind::Spot {
+                    inner_cone_angle: light.inner_cone_angle,
+                    outer_cone_angle: light.outer_cone_angle,
+                };
+                values(light.color, light.intensity, light.range, kind)?;
+                position(light.position)?;
+                direction(light.direction)
+            }
         }
     }
 
@@ -276,8 +290,10 @@ impl Light {
         let strength = rgb(color) * intensity;
         push_f32s(bytes, &strength.to_array());
         push_u32s(bytes, &[kind]);
-        // 1 / range², so that the shader's (d / range)⁴ is (d² / range²)², and 0 for no range.
-        let inverse_range_squared = range.map_or(0.0, |range| 1.0 / (range * range));
+        // 1 / range², so that the shader's (d / range)⁴ is (d² / range²)², and 0 for no range; the
+        // largest float for a range so short that its square is 0, which reaches nothing.
+        let inverse_range_squared =
+            range.map_or(0.0, |range| (1.0 / (range * range)).min(f32::MAX));
         let position = (position - origin).as_vec3();
         push_f32s(bytes, &position.to_array());
         push_f32s(bytes, &[inverse_range_squared]);
@@ -325,7 +341,7 @@ mod tests {
             Light::Point(point),
             Light::Spot(spot),
         ] {
-            assert_eq!(light.invalid(), None, "{light:?}");
+            assert_eq!(light.check(), Ok(()), "{light:?}");
         }
         let cases = [
             (
@@ -401,9 +417,18 @@ mod tests {
                 }),
                 "its cones of 0 and 2 radians are not 0 ≤ inner < outer ≤ π / 2",
             ),
+            (
+                Light::Point(PointLight {
+                    color: LinearColor::rgb(1e30, 1.0, 1.0),
+                    intensity: 1e30,
+                    ..point
+                }),
+                "its color times its intensity, [1000000000000000000000000000000, 1, 1] × \
+                 1000000000000000000000000000000, is not finite",
+            ),
         ];
         for (light, reason) in cases {
-            assert_eq!(light.invalid().as_deref(), Some(reason), "{light:?}");
+            assert_eq!(light.check().err().as_deref(), Some(reason), "{light:?}");
         }
     }
 
@@ -503,8 +528,8 @@ mod tests {
                     direction,
                     ..DirectionalLight::default()
                 })
-                .invalid(),
-                None,
+                .check(),
+                Ok(()),
                 "{direction} is a valid direction"
             );
             for light in [

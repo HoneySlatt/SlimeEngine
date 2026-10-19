@@ -11,11 +11,11 @@
 use std::f32::consts::{PI, TAU};
 use std::sync::{Arc, LazyLock};
 
-use glam::Vec3;
+use glam::{DVec3, Vec3};
 use slime_color::LinearColor;
 use slime_gfx::{GfxError, Gpu, Texture, TextureFormat, f32_to_f16};
 
-use crate::light::{DirectionalLight, rgb, unit};
+use crate::light::{DirectionalLight, LARGEST_LIGHT, Light, rgb, unit};
 
 /// The width of the faces of the environment's first level, in texels: 0.90° per texel at a face's
 /// centre, 0.45° at its edges.
@@ -120,16 +120,21 @@ impl Sky {
     }
 
     /// The direction towards the sun's disc and its radiance, in nits, which gives a surface facing
-    /// it the sun's illuminance: the illuminance over the disc's solid angle. No radiance without a
-    /// sun.
+    /// it the sun's illuminance: the illuminance over the disc's solid angle, at most
+    /// [`LARGEST_LIGHT`]. No radiance without a sun.
     fn sun_disc(&self) -> (Vec3, Vec3) {
         self.sun.map_or((Vec3::Y, Vec3::ZERO), |sun| {
             // 2π (1 − cos r), written 4π sin²(r / 2): 1 − cos r cancels most digits of a cosine
             // so near 1.
             let solid_angle = 4.0 * std::f64::consts::PI * (SUN_ANGULAR_RADIUS / 2.0).sin().powi(2);
+            // In f64, then bounded: a sun's light that a float holds can give a disc that it does
+            // not, which the sky pass would multiply by 0 outside the disc.
+            let radiance = rgb(sun.color).as_dvec3() * (f64::from(sun.illuminance) / solid_angle);
             (
                 -unit(sun.direction),
-                rgb(sun.color) * (f64::from(sun.illuminance) / solid_angle) as f32,
+                radiance
+                    .min(DVec3::splat(f64::from(LARGEST_LIGHT)))
+                    .as_vec3(),
             )
         })
     }
@@ -224,7 +229,7 @@ fn halves(values: &[f32]) -> Vec<u8> {
 /// # Panics
 ///
 /// If the zenith's, the horizon's or the ground's radiance is negative, not finite, or above
-/// 65 504.
+/// 65 504, or if the sun is not a light that the renderer draws ([`Light::check`]).
 pub(crate) fn environment_levels(sky: &Sky) -> Vec<Vec<f32>> {
     let [zenith, horizon, ground] = [sky.zenith, sky.horizon, sky.ground].map(rgb);
     for (name, radiance) in [("zenith", zenith), ("horizon", horizon), ("ground", ground)] {
@@ -234,6 +239,16 @@ pub(crate) fn environment_levels(sky: &Sky) -> Vec<Vec<f32>> {
                 && radiance.cmple(Vec3::splat(LARGEST_HALF)).all(),
             "the sky's {name} radiance is {radiance}: each channel must be from 0 to 65 504 nits"
         );
+    }
+    if let Some(sun) = sky.sun {
+        // Its shadows mean nothing here.
+        let light = Light::Directional(DirectionalLight {
+            shadow_distance: DirectionalLight::default().shadow_distance,
+            ..sun
+        });
+        if let Err(reason) = light.check() {
+            panic!("the sky's sun is not a light that the renderer draws: {reason}");
+        }
     }
     if sky.sun.is_none() && zenith == horizon && horizon == ground {
         let texel = [zenith.x, zenith.y, zenith.z, 1.0];

@@ -771,6 +771,14 @@ mod tests {
                 Value::F32(f32::NAN),
                 "is negative or not finite",
             ),
+            // Finite, but not once multiplied by the intensity, 30, as the renderer's shader reads
+            // it.
+            (
+                "Light",
+                "color.b",
+                Value::F32(f32::MAX),
+                "its color times its intensity",
+            ),
             ("Transform", "rotation.w", Value::F32(0.0), "is not one"),
             (
                 "Transform",

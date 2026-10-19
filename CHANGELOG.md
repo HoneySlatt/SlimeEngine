@@ -105,6 +105,15 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   and a transform, where 16 MiB held 57 000. A resolved scene takes at most `MAX_SCENE_SIZE` bytes,
   256 MiB, its placements' copies of their prefabs counted before any is made, where a few small
   files that placed a large prefab many times made a scene of gigabytes under `MAX_ENTITIES`.
+- A light that the renderer cannot draw is left out, with a warning that names it, where
+  `Renderer::render` panicked: a damaged light ended a game at its first frame. One rule says what
+  a light may be, `SceneLight::check`, which the cooker, the reader of cooked scenes, the world's
+  `Light`, the renderer's `Light::check` and the sky's sun apply; it also refuses a color times an
+  intensity that a 32-bit float does not hold. The frame builder leaves out a light that its
+  entity's transforms, each finite, place where no number reaches, and the scene shader bounds the
+  light that each light gives a point, and the sky its sun's disc, to 10³⁰, so that a light far
+  brighter than any no longer makes pixels that are not numbers, which the bloom spread over the
+  screen.
 - A save that gives one key both to a scene that it spawns and to an entity that it creates, as a
   save edited by hand may, is refused with `DocumentError::IdentityInUse`: it was loaded, two
   entities claiming one identity, and the next save left one of them out.

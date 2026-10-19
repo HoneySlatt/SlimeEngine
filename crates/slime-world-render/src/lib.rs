@@ -19,7 +19,9 @@ use slime_world::{Entity, Meshes, Transform, World};
 ///   it at the frame's fraction of a fixed step ([`World::interpolated_transform`]), its stretch
 ///   included; a mesh that the [`AssetCache`] does not hold yet is left out, and asked for.
 /// - Each entity that holds a [`slime_world::Light`] and a `Transform` places its light at its
-///   origin, along its −Z axis.
+///   origin, along its −Z axis. A light that the renderer would not draw ([`Light::check`]), as one
+///   placed so far that its position is not a finite number, through transforms each finite, is
+///   left out, with a warning that names its entity when it is first left out.
 /// - An entity that holds [`Hidden`](slime_world::Hidden), or one of whose ancestors does
 ///   ([`World::is_hidden`]), is not drawn, nor is its light.
 /// - The sky the game gives ([`FrameBuilder::set_sky`]) is drawn around the first directional light
@@ -46,6 +48,9 @@ pub struct FrameBuilder {
     lights: Vec<Light>,
     /// Whether the warning of several suns was logged, since the world last had one at most.
     warned: bool,
+    /// The entities whose lights the frame built last left out: each is said when it is first
+    /// left out, not at every frame.
+    left_out: Vec<Entity>,
 }
 
 /// What the renderer draws of a world in one frame, which [`FrameBuilder::build`] gives.
@@ -86,6 +91,7 @@ impl FrameBuilder {
             environment: None,
             lights: Vec::new(),
             warned: false,
+            left_out: Vec::new(),
         }
     }
 
@@ -153,7 +159,18 @@ impl FrameBuilder {
             }
         }
 
-        let (sun, suns) = world_lights(world, fraction, &mut self.lights);
+        let mut left_out = Vec::new();
+        let (sun, suns) = world_lights(world, fraction, &mut self.lights, &mut left_out);
+        for (entity, reason) in &left_out {
+            if !self.left_out.contains(entity) {
+                tracing::warn!(
+                    ?entity,
+                    "the light of the entity is left out: {reason} (said again once it is drawn \
+                     and left out again)"
+                );
+            }
+        }
+        self.left_out = left_out.into_iter().map(|(entity, _)| entity).collect();
         if suns > 1 && !self.warned {
             tracing::warn!(
                 suns,
@@ -194,12 +211,14 @@ impl FrameBuilder {
 
 /// Puts into `lights` the lights that `world` draws at `fraction` of a step, the sky's sun first, so
 /// that its shadows are the ones drawn when it casts any: the first directional light, in the
-/// world's order, that shows in the sky. Returns the sun, if there is one, and how many lights show
-/// in the sky.
+/// world's order, that shows in the sky. Puts into `left_out` the entities whose lights the
+/// renderer would not draw, placed so, and why ([`Light::check`]). Returns the sun, if there is
+/// one, and how many lights show in the sky.
 fn world_lights(
     world: &World,
     fraction: f64,
     lights: &mut Vec<Light>,
+    left_out: &mut Vec<(Entity, String)>,
 ) -> (Option<DirectionalLight>, usize) {
     lights.clear();
     let mut sun = None;
@@ -212,6 +231,10 @@ fn world_lights(
             continue;
         };
         let light = placed_light(light, at.translation, at.rotation * Vec3::NEG_Z);
+        if let Err(reason) = light.check() {
+            left_out.push((entity, reason));
+            continue;
+        }
         if let (Light::Directional(directional), true) = (light, shows_in_sky(entity, world)) {
             suns += 1;
             if sun.is_none() {
@@ -330,11 +353,74 @@ mod tests {
             world.insert(entity, light);
         }
         let mut lights = Vec::new();
-        let (sun, suns) = world_lights(&world, 0.0, &mut lights);
+        let (sun, suns) = world_lights(&world, 0.0, &mut lights, &mut Vec::new());
         assert_eq!(suns, 1);
         assert_eq!(sun.map(|sun| sun.illuminance), Some(3.0));
         assert_eq!(lights.len(), 3);
         assert!(matches!(lights[0], Light::Directional(light) if light.illuminance == 3.0));
+    }
+
+    #[test]
+    fn a_light_placed_where_no_number_reaches_is_left_out() {
+        // Each transform finite and checked, the light placed by the two is not: 10³⁸ times
+        // 10³⁰⁰ metres.
+        let mut world = World::new();
+        let far = world.spawn();
+        world.insert(
+            far,
+            Transform {
+                scale: 1e38,
+                ..Transform::IDENTITY
+            },
+        );
+        for in_sky in [false, true] {
+            let light = world.spawn();
+            world.insert(
+                light,
+                Transform::from_translation(DVec3::new(1e300, 0.0, 0.0)),
+            );
+            world.insert(
+                light,
+                slime_world::Light::Directional {
+                    color: LinearColor::WHITE,
+                    illuminance: 1.0,
+                    casts_shadows: true,
+                    shadow_distance: None,
+                    in_sky,
+                },
+            );
+            let point = world.spawn();
+            world.insert(
+                point,
+                Transform::from_translation(DVec3::new(1e300, 0.0, 0.0)),
+            );
+            world.insert(
+                point,
+                slime_world::Light::Point {
+                    color: LinearColor::WHITE,
+                    intensity: 1.0,
+                    range: None,
+                },
+            );
+            world.set_parent(point, Some(far)).expect("a parent");
+        }
+        let mut lights = Vec::new();
+        let mut left_out = Vec::new();
+        let (sun, suns) = world_lights(&world, 0.0, &mut lights, &mut left_out);
+        assert_eq!(lights.len(), 2, "{lights:?}");
+        assert!(
+            lights.iter().all(|light| light.check().is_ok()),
+            "{lights:?}"
+        );
+        assert_eq!((sun.is_some(), suns), (true, 1));
+        assert_eq!(left_out.len(), 2, "{left_out:?}");
+        assert!(
+            left_out
+                .iter()
+                .all(|(_, reason)| reason.starts_with("its position")
+                    && reason.ends_with("is not finite")),
+            "{left_out:?}"
+        );
     }
 
     #[test]

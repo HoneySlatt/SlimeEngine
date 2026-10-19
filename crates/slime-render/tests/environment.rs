@@ -506,6 +506,45 @@ fn the_sky_shows_where_no_surface_is() {
 }
 
 #[test]
+fn a_sun_whose_disc_is_brighter_than_a_float_holds_leaves_the_rest_of_the_sky_as_it_is() {
+    // Its color times its illuminance, 3 nits, is finite, but its disc's radiance, its illuminance
+    // over the disc's solid angle first, is not: the sky away from the disc stays the sky's.
+    let sky = Sky {
+        sun: Some(DirectionalLight {
+            color: LinearColor::rgb(1e-38, 1e-38, 1e-38),
+            illuminance: 3e38,
+            ..SUNNY_SKY.sun.expect("a sun")
+        }),
+        ..SKY
+    };
+    let mut setup = Setup::new();
+    let environment = setup.environment(&sky);
+    let direction = Vec3::new(0.3, -1.0, 0.4);
+    let camera = Camera {
+        eye: direction.as_dvec3() * 3.0,
+        target: DVec3::ZERO,
+        fov_y: 70f32.to_radians(),
+        ..Camera::default()
+    };
+    let to_sun = -SUNNY_SKY
+        .sun
+        .expect("a sun")
+        .direction
+        .as_dvec3()
+        .normalize();
+    let image = setup.draw(camera, &environment, None, 0.5);
+    for y in 0..SIZE {
+        for x in 0..SIZE {
+            let d = view_ray(&camera, (x, y));
+            if d.y.abs() < 0.2 || d.dot(to_sun) > 2f64.to_radians().cos() {
+                continue;
+            }
+            assert_pixel(&image, (x, y), radiance(&sky, d) * 0.5, SKY_TOLERANCE, "up");
+        }
+    }
+}
+
+#[test]
 fn an_environment_draws_with_any_renderer_and_a_scene_without_one_is_black() {
     // A renderer builds the group of the environment a scene names, and builds it again when the
     // scene names another one or none: an environment that one renderer made draws the same with
