@@ -338,7 +338,8 @@ Risks:
   light; and documents that said more than the code did. All are fixed. What P2 leaves is in the
   [known debt](#known-debt): a cooked file damaged within its ranges, a save's capacity in values,
   the cost of checking what a cook reuses. The `ktx2` crate's panic is not reported to its authors
-  yet: that waits for the owner's agreement.
+  yet: that waits for the owner's agreement. CI took 10 minutes 36 seconds on Linux and 16 minutes
+  11 seconds on Windows.
 
 ### P3 — The loss of the GPU device and the main loop
 
