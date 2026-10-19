@@ -5,6 +5,7 @@ use std::panic::{self, PanicHookInfo};
 use std::sync::Once;
 
 use tracing::level_filters::LevelFilter;
+use tracing_subscriber::filter::filter_fn;
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::layer::SubscriberExt as _;
 use tracing_subscriber::util::SubscriberInitExt as _;
@@ -52,7 +53,8 @@ pub const DEFAULT_LOG_FILTER: &str =
 ///   that the process enters and leaves, whatever the log filter keeps, which profilers read; a
 ///   file that cannot be created is reported in the log, and no trace is written.
 /// - If the process already has a global subscriber, for example because the game installed its
-///   own, that subscriber is kept and receives the engine's events, and no trace is written. A
+///   own, that subscriber is kept and receives the engine's events, and no trace is written: the
+///   file that [`TRACE_ENV_VAR`] names is created, without a span, and a warning says why. A
 ///   `log` logger installed before this call keeps receiving the records that dependencies emit
 ///   through `log`.
 /// - Installs a panic hook that logs the panic message, its location and the name of the thread
@@ -112,10 +114,10 @@ fn install_subscriber() {
         .with_writer(std::io::stderr)
         .with_ansi(use_colors())
         .with_span_events(FmtSpan::CLOSE)
-        // A write to standard error can fail: its reader exited, the terminal closed. By default the
-        // subscriber then reports the failure with `eprintln!`, which panics on the same error, and
-        // since the panic hook logs through the subscriber the process aborts. The events are lost
-        // either way; the engine must go on.
+        // A write to standard error can fail: its reader exited, the terminal closed. By default
+        // the subscriber then reports the failure with `eprintln!`, which panics on the same
+        // error, and since the panic hook logs through the subscriber the process aborts. The
+        // events are lost either way; the engine must go on.
         .log_internal_errors(false)
         // The log's filter is its own, so that the trace holds the spans that the log leaves out.
         .with_filter(filter);
@@ -124,8 +126,12 @@ fn install_subscriber() {
         .as_ref()
         .map(|path| (path, std::fs::File::create(path)));
     let mut unwritable = None;
+    // The trace takes spans only: the events that the log leaves out, the records of dependencies
+    // among them, are then dropped before they are made.
     let trace = match trace_file {
-        Some((_, Ok(file))) => Some(TraceLayer::new(file)),
+        Some((_, Ok(file))) => {
+            Some(TraceLayer::new(file).with_filter(filter_fn(|metadata| metadata.is_span())))
+        }
         Some((path, Err(error))) => {
             unwritable = Some((path.clone(), error));
             None
@@ -138,6 +144,9 @@ fn install_subscriber() {
         .try_init();
     if let Err(error) = installed {
         tracing::debug!(%error, "the process already has a log subscriber or logger, keeping it");
+        if trace_path.is_some() {
+            tracing::warn!("no trace is written: the process already had a subscriber");
+        }
     }
     if let Some((path, error)) = unwritable {
         tracing::error!(

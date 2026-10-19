@@ -17,8 +17,8 @@ use tracing_subscriber::registry::LookupSpan;
 
 /// The environment variable that names the file into which the process writes a trace of the
 /// spans it enters and leaves, every thread's, in the Chrome Trace Event format, which Perfetto
-/// (<https://ui.perfetto.dev>, which reads the file in the browser, without sending it anywhere) and
-/// Chrome's `chrome://tracing` open.
+/// (<https://ui.perfetto.dev>, which reads the file in the browser, without sending it anywhere)
+/// and Chrome's `chrome://tracing` open.
 ///
 /// [`init_diagnostics`](crate::init_diagnostics) reads it. Unset or empty, nothing is written. The
 /// trace holds every span, the `trace` level included, whatever [`LOG_ENV_VAR`](crate::LOG_ENV_VAR)
@@ -26,8 +26,12 @@ use tracing_subscriber::registry::LookupSpan;
 /// submission of commands to the GPU (`submit`), winit's calls, and any span that the game enters.
 /// The renderer's passes and the loading threads have none of their own. A thread's events reach
 /// the file each time it leaves its outermost span, at the end of each frame for the main thread:
-/// the frame in progress when the process ends is not in it. Writing the trace costs each span a
-/// lock and a few hundred bytes, which the times it shows include.
+/// the frame in progress when the process ends is not in it.
+///
+/// Writing the trace costs each span a lock and a few hundred bytes, which the times it shows
+/// include. A trace also lets every log record of the dependencies reach the subscriber, which
+/// drops those that the log leaves out, where the `log` crate dropped them at once: wgpu writes
+/// several at each command of a pass, at the `trace` level. Neither cost is measured.
 pub const TRACE_ENV_VAR: &str = "SLIME_TRACE";
 
 /// A layer that writes each span entered and left as a pair of events of the Chrome Trace Event
