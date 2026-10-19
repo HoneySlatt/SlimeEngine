@@ -12,14 +12,12 @@ use slime_render::{AssetCache, Renderer};
 use slime_world::{Entity, Light, Meshes, SceneLibrary, Transform, World};
 use slime_world_render::FrameBuilder;
 
-use crate::measure::{Context, Row, meshes_of, ms, percentile, timed};
+use crate::measure::{Context, LOAD_LIMIT, Row, meshes_of, ms, percentile, timed};
 use crate::render::{FORMAT, sky_and_sun};
 
 /// The parents of the large world, and the children of each.
 const PARENTS: usize = 1_000;
 const CHILDREN: usize = 100;
-/// How long the meshes of a frame may take to load before a benchmark gives up.
-const LOAD_LIMIT: Duration = Duration::from_secs(120);
 
 /// A world of `PARENTS` entities on a grid, each the parent of `CHILDREN` that place one of
 /// `meshes` each, in turn, on a grid of their own: its parents, and its transforms computed.
@@ -57,6 +55,28 @@ fn large_world(meshes: &[AssetId]) -> Result<(World, Vec<Entity>), String> {
     }
     world.update_transforms();
     Ok((world, parents))
+}
+
+/// Spawns in `world` a sun that casts shadows and shows in the sky; returns it, and the transform
+/// that places it.
+pub fn spawn_sun(world: &mut World) -> (Entity, Transform) {
+    let sun = world.spawn();
+    let at = Transform {
+        rotation: Quat::from_rotation_x(-0.9) * Quat::from_rotation_y(0.4),
+        ..Transform::IDENTITY
+    };
+    world.insert(sun, at);
+    world.insert(
+        sun,
+        Light::Directional {
+            color: LinearColor::rgb(1.0, 0.98, 0.9),
+            illuminance: 100_000.0,
+            casts_shadows: true,
+            shadow_distance: None,
+            in_sky: true,
+        },
+    );
+    (sun, at)
 }
 
 /// Builds frames of `world` until the cache holds every mesh it places, and returns how many
@@ -150,7 +170,7 @@ pub fn children(_context: &mut Context) -> Result<Vec<Row>, String> {
         });
         emptied.map_err(|error| error.to_string())?;
         rows.push(Row::new(
-            format!("a parent of {count} children emptied"),
+            format!("a parent of {count} children emptied, once"),
             ms(duration),
         ));
     }
@@ -198,33 +218,22 @@ pub fn placements(_context: &mut Context) -> Result<Vec<Row>, String> {
 /// Frames built around a sun that does not move, after fixed steps that set the sun where it
 /// already is, as a game that sets the time of day at each step does: twenty-four frames, with the
 /// examples' sky, at the fractions of a fixed step at which a display of 144 Hz shows frames of a
-/// game that steps at 60 Hz.
+/// game that steps at 60 Hz, after a first frame, which makes the sky's environment for the first
+/// time and is not counted.
 pub fn sky(context: &mut Context) -> Result<Vec<Row>, String> {
     let assets = context.sample()?;
     let (sky, _) = sky_and_sun();
     let mut world = World::new();
-    let sun = world.spawn();
-    let at = Transform {
-        rotation: Quat::from_rotation_x(-0.9) * Quat::from_rotation_y(0.4),
-        ..Transform::IDENTITY
-    };
-    world.insert(sun, at);
-    world.insert(
-        sun,
-        Light::Directional {
-            color: LinearColor::rgb(1.0, 0.98, 0.9),
-            illuminance: 100_000.0,
-            casts_shadows: true,
-            shadow_distance: None,
-            in_sky: true,
-        },
-    );
+    let (sun, at) = spawn_sun(&mut world);
     world.update_transforms();
     let renderer = Renderer::new(&context.gpu, FORMAT).map_err(|error| error.to_string())?;
     let mut cache = AssetCache::new(assets);
     let mut builder = FrameBuilder::new(Some(slime_render::Sky { sun: None, ..sky }));
+    builder
+        .build(&world, &mut cache, &renderer, &context.gpu, 0.0)
+        .map_err(|error| error.to_string())?;
     let mut times = Vec::new();
-    for frame in 0..24 {
+    for frame in 1..=24 {
         world.begin_fixed_step();
         if let Some(transform) = world.get_mut::<Transform>(sun) {
             *transform = at;

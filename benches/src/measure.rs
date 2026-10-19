@@ -1,5 +1,5 @@
-//! What every benchmark shares: the GPU, the examples' sample cooked, and the figures of a series of
-//! times.
+//! What every benchmark shares: the GPU, the examples' sample cooked, and the figures of a series
+//! of times.
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -37,6 +37,9 @@ impl Row {
         ]
     }
 }
+
+/// How long the assets of a frame may take to load before a benchmark gives up.
+pub const LOAD_LIMIT: Duration = Duration::from_secs(120);
 
 /// What the benchmarks of one run share.
 pub struct Context {

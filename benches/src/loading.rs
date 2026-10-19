@@ -11,8 +11,9 @@ use slime_render::{AssetCache, Camera, Renderer, Sky};
 use slime_world::{Meshes, Transform, World};
 use slime_world_render::FrameBuilder;
 
-use crate::measure::{Context, Row, meshes_of, ms, percentile, timed};
+use crate::measure::{Context, LOAD_LIMIT, Row, meshes_of, ms, percentile, timed};
 use crate::render::{EXPOSURE, FORMAT, sky_and_sun};
+use crate::world::spawn_sun;
 
 /// How far apart the zone's meshes are placed, in metres: more than the largest of them.
 const SPACING: f64 = 30.0;
@@ -68,11 +69,12 @@ pub fn batch(context: &mut Context) -> Result<Vec<Row>, String> {
 }
 
 /// *Hunna Wood*'s zone, cooked in `target/cooked/hunnawood`: each of its meshes placed once, on
-/// a grid, then drawn by day at 1280 × 720 from above while they load with their materials and
-/// textures, each frame waited for on the GPU, until a frame draws them whole; then five frames
-/// more. Not the zone's scene, whose components of the game's only the game registers: the zone's
-/// bytes, laid out otherwise. It runs only when asked for, since the zone is fetched and cooked
-/// first.
+/// a grid, then drawn by day, under a sun that casts shadows, at 1280 × 720 from above while they
+/// load with their materials and textures, each frame waited for on the GPU, until a frame draws
+/// them whole; then five frames more. The time to that frame runs from the opening of the cooked
+/// zone, once the renderer is made. Not the zone's scene, whose components of the game's only the
+/// game registers: the zone's bytes, laid out otherwise. It runs only when asked for, since the
+/// zone is fetched and cooked first.
 pub fn zone(context: &mut Context) -> Result<Vec<Row>, String> {
     let directory = Context::root().join("target/cooked/hunnawood");
     if !directory.join(MANIFEST_FILE).is_file() {
@@ -84,6 +86,10 @@ pub fn zone(context: &mut Context) -> Result<Vec<Row>, String> {
         ));
     }
     let gpu = &context.gpu;
+    let mut renderer = Renderer::new(gpu, FORMAT).map_err(|error| error.to_string())?;
+    let target = gpu
+        .create_render_target("benchmark frame", 1280, 720, FORMAT)
+        .map_err(|error| error.to_string())?;
     let start = Instant::now();
     let (assets, opened) = timed(|| CookedAssets::open(&directory));
     let assets = assets.map_err(|error| error.to_string())?;
@@ -105,12 +111,9 @@ pub fn zone(context: &mut Context) -> Result<Vec<Row>, String> {
             },
         );
     }
+    spawn_sun(&mut world);
     world.update_transforms();
     let middle = (side as f64 - 1.0) * SPACING / 2.0;
-    let mut renderer = Renderer::new(gpu, FORMAT).map_err(|error| error.to_string())?;
-    let target = gpu
-        .create_render_target("benchmark frame", 1280, 720, FORMAT)
-        .map_err(|error| error.to_string())?;
     let mut cache = AssetCache::new(assets);
     let (sky, _) = sky_and_sun();
     let mut builder = FrameBuilder::new(Some(Sky { sun: None, ..sky }));
@@ -139,6 +142,8 @@ pub fn zone(context: &mut Context) -> Result<Vec<Row>, String> {
         if whole {
             first_whole.get_or_insert(start.elapsed());
             after.push(stats.cpu_time);
+        } else if start.elapsed() > LOAD_LIMIT {
+            return Err(format!("the zone's meshes did not load in {LOAD_LIMIT:?}"));
         } else {
             loading.push(stats.cpu_time);
         }

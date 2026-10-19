@@ -1,6 +1,6 @@
-//! SlimeEngine's benchmarks (`docs/adr/0104-the-build-ci-and-measurements.md`): each runs a scenario
-//! of the size that the engine aims at, many times, and prints what it measured as rows of a
-//! Markdown table, which `scripts/measure.sh` puts in `docs/measurements.md` with the build's own
+//! SlimeEngine's benchmarks (`docs/adr/0104-the-build-ci-and-measurements.md`): each runs a
+//! scenario of the size that the engine aims at, many times, and prints what it measured as rows of
+//! a Markdown table, which `scripts/measure.sh` puts in `docs/measurements.md` with the build's own
 //! figures. `benches/README.md` lists them, and says how their figures are read.
 //!
 //! ```sh
@@ -39,8 +39,7 @@ const BENCHMARKS: &[Benchmark] = &[
     },
     Benchmark {
         name: "render.instances.100k",
-        about: "100 000 cubes, as `render.instances.10k`: for a GPU, since lavapipe (Mesa 26.2.4) \
-                crashes executing such a frame, in `lvp_descriptor_set_create`",
+        about: "100 000 cubes, as `render.instances.10k`, on request since lavapipe crashes on it",
         on_request: true,
         run: |context| render::instances(context, 100_000, 8),
     },
@@ -70,7 +69,7 @@ const BENCHMARKS: &[Benchmark] = &[
     },
     Benchmark {
         name: "world.placements",
-        about: "a scene file that places a prefab 2 000, then 8 000 times, each with a change, resolved",
+        about: "a scene file that places a prefab 2 000, then 8 000 times, each changed, resolved",
         on_request: false,
         run: world::placements,
     },
@@ -98,6 +97,7 @@ const BENCHMARKS: &[Benchmark] = &[
 const USAGE: &str = "usage: slime-benches [--list] [<name or name prefix>...]";
 
 fn main() -> ExitCode {
+    slime_app::init_diagnostics();
     let arguments: Vec<String> = std::env::args().skip(1).collect();
     if arguments.iter().any(|argument| argument == "--list") {
         for benchmark in BENCHMARKS {

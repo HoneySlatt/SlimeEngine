@@ -120,6 +120,8 @@ A fact written in two places drifts: one copy is updated, the other is not. Each
 - **ADRs**: why a decision was taken and what was rejected. Only their status changes afterwards.
 - **`docs/PLAN.md`**: status and known debt, linking to where the facts live.
 - **`CHANGELOG.md`**: what changed for users, once, when it changes.
+- **`docs/measurements.md`**: what the build and the benchmarks measured, one section per milestone
+  or machine.
 
 A document that needs a fact held elsewhere states it in a sentence, without its figures, and links to its home.
 
@@ -140,6 +142,7 @@ A document that needs a fact held elsewhere states it in a sentence, without its
 | `CHANGELOG.md` | Notable changes, per release | A change users would notice; a release is tagged |
 | `crates/*/README.md` | Role, what it depends on, entry points, what it must not do | Crate created or its role changes |
 | `examples/README.md` | Each example, its options, and the examples' tests | An example or one of their tests changes |
+| `benches/README.md` | Each benchmark, what it measures, and how its figures are read | A benchmark changes |
 | `games/*/README.md` | What the game is, how to play it, how it is made, its assets | The game changes |
 | rustdoc | Public API | Public API changes |
 

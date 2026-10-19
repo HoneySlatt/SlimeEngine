@@ -147,9 +147,13 @@ pub fn instances(context: &mut Context, count: usize, frames: usize) -> Result<V
     let mut rows = Vec::new();
     rows.extend(Row::times("CPU of `Renderer::render`", &cpu));
     rows.extend(Row::times("frame, until the GPU finished it", &whole));
+    // Each frame reports the latest time that came back from the GPU, a few frames old.
     if !scene_gpu.is_empty() {
         rows.push(Row::new(
-            format!("scene pass on the GPU, median of {}", scene_gpu.len()),
+            format!(
+                "scene pass on the GPU, median of what {} frames reported",
+                scene_gpu.len()
+            ),
             ms(percentile(&scene_gpu, 0.5)),
         ));
     }

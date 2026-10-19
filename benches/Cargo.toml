@@ -11,6 +11,8 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+# The engine's log, and the trace that SLIME_TRACE asks for.
+slime-app.workspace = true
 slime-assets.workspace = true
 slime-color.workspace = true
 # Cooks the examples' sample, whose meshes the world's benchmarks place.
