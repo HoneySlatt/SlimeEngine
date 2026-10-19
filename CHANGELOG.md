@@ -6,6 +6,22 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ## [Unreleased]
 
+### Added
+
+- `World::spawn_keyed` creates an entity whose persistent identity is a key that the game chooses:
+  what a game creates in code while it makes its start world, named so that saves and hot reload
+  find it whatever else the game creates, and in whichever order. A run that creates one under a
+  key saves it, and loading creates it again.
+
+### Changed
+
+- Saves are of layout 3: they say what the start of the run created outside scenes, its count and a
+  fingerprint of those entities. What the run created takes, when the save loads, the numbers that
+  follow the world's count, so that an update of the game that creates one more entity at the start
+  no longer makes the save refused, nor moves or destroys another entity; what the save holds of
+  the start's numbered entities is set aside, and said, when the start that it is loaded into
+  created others. The saves of 0.4, of layout 2, load as they did.
+
 ### Fixed
 
 - An alias of a field or a variant that is also the name, or an alias, of another field or variant

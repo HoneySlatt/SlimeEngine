@@ -16,6 +16,15 @@ use crate::transform::Transform;
 use crate::world::{Identity, SpawnedScene, World, mark_stale};
 use crate::write_back::with_handles;
 
+/// The identity of what is spawned under `key`, if it can be a key: not empty, without `/`, and not
+/// `created`, under which the world names the entities it creates outside scenes.
+pub(crate) fn valid_key(key: &str) -> Result<PersistentId, WorldError> {
+    if key.is_empty() || key.contains('/') || key == CREATED {
+        return Err(WorldError::InvalidKey(key.to_owned()));
+    }
+    Ok(PersistentId::new([key]))
+}
+
 impl World {
     /// Spawns a resolved scene as entities, under a root entity whose persistent identity is `key`,
     /// and returns the root (`docs/adr/0089-scenes-and-prefabs.md`).
@@ -44,20 +53,54 @@ impl World {
     /// If the world runs out of slots ([`World::spawn`]).
     pub fn spawn_scene(&mut self, key: &str, scene: &ResolvedScene) -> Result<Entity, WorldError> {
         let storages = storages_of(&self.registry, &self.component_ids, scene)?;
-        self.spawn_keyed(key, scene, &storages)
+        self.spawn_scene_with(key, scene, &storages)
+    }
+
+    /// A new entity, which holds no component and has no parent yet, whose persistent identity is
+    /// `key`: what a game creates in code while it makes the world it starts a run from, a camera,
+    /// a manager or an enemy at a marker, named so that saves and hot reload find it whatever else
+    /// the game creates, and in whichever order. An entity created with [`World::spawn`] is named
+    /// by its rank of creation instead, which a later version of the game, or another order, gives
+    /// to another entity. Keys are shared with the scenes spawned under keys
+    /// ([`World::spawn_scene`]).
+    ///
+    /// ```
+    /// use slime_world::{Name, World};
+    ///
+    /// let mut world = World::new();
+    /// let camera = world.spawn_keyed("camera").expect("a free key");
+    /// world.insert(camera, Name("camera".to_owned()));
+    /// assert_eq!(world.find(&"camera".parse().unwrap()), Some(camera));
+    /// assert!(world.spawn_keyed("camera").is_err(), "one entity per key");
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// [`WorldError::InvalidKey`] if `key` is empty, holds `/`, or is `created`;
+    /// [`WorldError::IdentityInUse`] if an entity has the identity `key` already.
+    ///
+    /// # Panics
+    ///
+    /// If the world runs out of slots ([`World::spawn`]).
+    pub fn spawn_keyed(&mut self, key: &str) -> Result<Entity, WorldError> {
+        let id = valid_key(key)?;
+        if self.identities.contains_key(&id) {
+            return Err(WorldError::IdentityInUse(id));
+        }
+        let entity = self.spawn_bare();
+        self.identify(entity, id);
+        Ok(entity)
     }
 
     /// Spawns `scene` under `key` as [`World::spawn_scene`] does, the storages of its components
     /// found already.
-    pub(crate) fn spawn_keyed(
+    pub(crate) fn spawn_scene_with(
         &mut self,
         key: &str,
         scene: &ResolvedScene,
         storages: &Storages<'_>,
     ) -> Result<Entity, WorldError> {
-        if key.is_empty() || key.contains('/') || key == CREATED {
-            return Err(WorldError::InvalidKey(key.to_owned()));
-        }
+        valid_key(key)?;
         let ids = record_ids(&PersistentId::new([key]), scene);
         let entities = self.spawn_records(scene, &ids, None, storages)?;
         if !scene.0.records[0]
@@ -262,7 +305,7 @@ impl World {
         }
     }
 
-    fn identify(&mut self, entity: Entity, id: PersistentId) {
+    pub(crate) fn identify(&mut self, entity: Entity, id: PersistentId) {
         self.identities.insert(id.clone(), entity);
         self.nodes[entity.index() as usize].identity = Identity::Scene(id);
     }

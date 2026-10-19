@@ -31,9 +31,9 @@ pub enum WorldError {
         /// The component's type, by the name it was given.
         component: String,
     },
-    /// A key that no scene is spawned under: empty, holding `/`, or `created`, under which the world
-    /// names the entities it creates outside scenes.
-    #[error("`{0}` cannot be a scene's key: it is empty, holds `/`, or is `created`")]
+    /// A key that no scene or entity is spawned under: empty, holding `/`, or `created`, under
+    /// which the world names the entities it creates outside scenes.
+    #[error("`{0}` cannot be a key: it is empty, holds `/`, or is `created`")]
     InvalidKey(String),
     /// No component type of this name is registered in the world
     /// ([`World::register`](crate::World::register)).

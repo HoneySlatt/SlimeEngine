@@ -210,6 +210,18 @@ impl Created {
         }
     }
 
+    /// The numbers whose entities `entities` holds, with their entities, in the order of the
+    /// numbers.
+    pub(crate) fn alive<'a>(
+        &'a self,
+        entities: &'a Entities,
+    ) -> impl Iterator<Item = (u64, Entity)> + 'a {
+        self.entries
+            .iter()
+            .copied()
+            .filter(|&(_, entity)| entities.contains(entity))
+    }
+
     /// Leaves out the entries whose entities `entities` no longer holds.
     pub(crate) fn forget_destroyed(&mut self, entities: &Entities) {
         self.entries
@@ -335,7 +347,12 @@ impl World {
 
     /// A new entity, which holds no component and has no parent yet. Its persistent identity is
     /// `created/<number>`, the next number of the world's count of the entities it created outside
-    /// scenes, which saves keep: a save holds it, whole, unless it or an ancestor holds [`Unsaved`].
+    /// scenes, which saves keep: a save holds it whole if the run created it, unless it or an
+    /// ancestor holds [`Unsaved`], and what changed of it if the start of the run did. A number
+    /// names an entity by its rank of creation, which a later version of the game, or another
+    /// order, gives to another: an entity that a game creates while it makes its start world is
+    /// named by a key instead ([`World::spawn_keyed`]), and a save sets aside what it holds of
+    /// the start's numbered entities when the start that it is loaded into created others.
     ///
     /// # Panics
     ///

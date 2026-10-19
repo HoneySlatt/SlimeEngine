@@ -340,8 +340,8 @@ the *reference driver* of the image tests.
 
 **Layout (document).** How a *save* or a *scene file* lays out its sections and keys, which a
 reader reads before their values (`slime_world::outline` reads a scene file's); its `layout` key
-gives the version of that layout, `layout = 2` for the saves of 0.4
-([ADR-0091](adr/0091-scene-documents-and-placements.md),
+gives the version of that layout, `layout = 2` for the saves of 0.4, 3 for those that say what
+the start of their run created ([ADR-0091](adr/0091-scene-documents-and-placements.md),
 [ADR-0093](adr/0093-saves-and-hot-reload-with-placements.md)).
 
 **Layout (zone).** In *Hunna Wood*, what decides how the game plays in its zone: the size of its

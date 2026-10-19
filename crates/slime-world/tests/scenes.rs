@@ -1846,7 +1846,7 @@ fn what_a_run_spawns_is_saved_as_its_scenes_and_loads_back_into_the_same_world()
         .save(&yard(&mut scenes), &Default::default())
         .expect("saved");
     for written in [
-        "layout = 2\n".to_owned(),
+        "layout = 3\n".to_owned(),
         format!("\"created/1\" = {{ scene = \"{LAMP}\", name = \"lamp\", content = "),
         format!("village = {{ scene = \"{VILLAGE}\", name = \"village\", content = "),
         "[changed.\"created/1/light\"]\n\"test::Glow\" = { intensity = 5.0 }\n".to_owned(),
@@ -2055,12 +2055,28 @@ fn a_save_that_spawns_under_an_identity_in_use_is_refused_or_set_aside() {
     let save = run(&mut scenes)
         .save(&yard(&mut scenes), &Default::default())
         .expect("saved");
-    // A world that created an entity of the placement's number already: refused, unchanged.
+    // A start that created one more entity outside scenes: what the run created takes the numbers
+    // that follow the world's count.
+    let mut more = yard(&mut scenes);
+    let extra = more.spawn();
+    more.load(&save, &mut scenes).expect("loaded");
+    assert_eq!(
+        more.persistent_id(extra),
+        Some("created/1".parse().unwrap())
+    );
+    assert!(value(&more, "created/2/light", "test::Glow").is_some());
+    // A save of 0.4, which does not say what its start created, into such a world: refused,
+    // unchanged.
+    let old = save.replace("layout = 3", "layout = 2").replace(
+        "start = { created = 1, content = \"cbf29ce484222325\" }\n",
+        "",
+    );
+    assert_ne!(old, save);
     let mut taken = yard(&mut scenes);
     taken.spawn();
     let before = taken.len();
     assert!(matches!(
-        taken.load(&save, &mut scenes),
+        taken.load(&old, &mut scenes),
         Err(slime_world::DocumentError::IdentityInUse(_))
     ));
     assert_eq!(taken.len(), before);
