@@ -75,14 +75,14 @@ the cooker's crates, and both cook it again then.
 
 **The engine's benchmarks, a program of the workspace.** [`slime-benches`](../../benches/README.md),
 a package in a top-level directory of its own, `benches/`, beside `examples/`, which ADR-0004's
-list of top-level directories gains, runs scenarios of the size that the engine aims at, as ADR-0097 measures it: 10 000
-objects drawn, 100 000 entities placed, manifests of 100 000 assets, and the meshes of *Hunna
-Wood*'s zone, each placed once, since the zone's scene holds components that only the game
-registers. Each is timed a number of times, and the program prints rows of a Markdown table, the
-median and the 90th percentile of each series or what its row says, after the machine, its GPU
-and its build. It depends on the engine's
-crates as a game does, through their public API, and measures with `std::time::Instant` and the
-renderer's own GPU timings ([`RenderStats`](../../crates/slime-render/src/renderer.rs)).
+list of top-level directories gains, runs scenarios of the size that the engine aims at, as
+ADR-0097 measures it: 10 000 objects drawn, 100 000 entities placed, manifests of 100 000 assets,
+and the meshes of *Hunna Wood*'s zone, each placed once, since the zone's scene holds components
+that only the game registers. Each is timed a number of times, and the program prints rows of a
+Markdown table, the median and the 90th percentile of each series or what its row says, after the
+machine, its GPU and its build. It depends on the engine's crates as a game does, through their
+public API, and measures with `std::time::Instant` and the renderer's own GPU timings
+([`RenderStats`](../../crates/slime-render/src/renderer.rs)).
 
 **A file of measurements, versioned.** [`docs/measurements.md`](../measurements.md) keeps, one
 section per milestone or machine, the build's figures and the benchmarks', which

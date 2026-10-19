@@ -710,9 +710,10 @@ impl Renderer {
     /// 6900 XT (RADV), 7 ms when the driver's cache holds every shader already, as when the
     /// sources come back to shaders that it compiled before, and 76 ms when it holds none; an
     /// edited shader is one that the cache does not hold (ADR-0104), which was not measured there.
-    /// On lavapipe in a release build, 45 ms from unchanged sources on a machine of 16 threads; 60
-    /// ms from unchanged sources and 71 ms after an edit of the scene's shader on one of 4 logical
-    /// CPUs. A debug build takes about twice as long, in wgpu's own work. Direct3D 12 compiles the
+    /// On lavapipe in a release build, 45 ms from unchanged sources on a machine of 16 threads; on
+    /// one of 4 logical CPUs, 55 to 60 ms from unchanged sources and 57 to 71 ms after an edit of
+    /// the scene's shader, over two runs. A debug build takes about twice as long, in wgpu's own
+    /// work. Direct3D 12 compiles the
     /// shaders again with DXC for each pipeline. The benchmark `render.shaders` of `slime-benches`
     /// measures both cases on the machine that runs it.
     ///
