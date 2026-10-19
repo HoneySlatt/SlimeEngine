@@ -294,6 +294,9 @@ impl View {
         // its error again.
         loop {
             if let Some(error) = errors.first() {
+                // A load that a lost device failed misses no data: the loss is the run's to
+                // handle (`Context::exit_with_error`), which the message of `cannot_load` hides.
+                gpu.check()?;
                 return Err(cannot_load("zone or hero", error));
             }
             if hero.iter().all(|&id| view.cache.mesh(id).is_some()) {
@@ -385,6 +388,8 @@ impl View {
         let frame = builder.build(world, &mut self.cache, &self.renderer, gpu, alpha)?;
         if !self.zone_shown {
             if let Some(error) = taken.first().or(frame.errors.first()) {
+                // As in `View::new`: the loss itself, not a message that hides it.
+                gpu.check()?;
                 return Err(cannot_load("zone", error));
             }
             self.zone_shown = frame.loading == 0;

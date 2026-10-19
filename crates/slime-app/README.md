@@ -139,8 +139,11 @@ if slime_app::run(&mut Game, &config).is_err() {
     stops like after an exit request, `shutdown` included
     (`docs/adr/0022-losing-the-gpu-device.md`, `docs/adr/0025-giving-up-a-lost-surface.md`),
     unless the application set `AppConfig::restore_lost_device`: the run then opens a new device
-    and goes on. It gives up after three new devices in a row without a frame shown, and when no
-    device should or can replace the lost one; it does not try when it is stopping anyway. Only
+    and goes on. It gives up at a loss that comes after three new devices within five minutes, and
+    when no device should or can replace the lost one; it does not try when it is stopping anyway.
+    A loss that the application meets, an error of a lost device that it passes to
+    `Context::exit_with_error` or returns from `gpu_restored`, is the run's to handle, as one the
+    run found (`docs/adr/0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md`). Only
     one windowed run, or attempt, is possible per process. A failed run is logged at the `error`
     level with each of its causes (`the run failed: cannot draw into the window: no GPU adapter is
     available: ...`), which the error's own message, the most general, does not give.

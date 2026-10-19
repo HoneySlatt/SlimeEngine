@@ -2,10 +2,13 @@
 //! `init`, the order of the calls, the stop conditions, the frame schedule after a burst of
 //! redraws, the time each frame represents, the profiling spans of each frame, the memory of a run
 //! whose frames draw nothing, a run whose GPU cannot open, a window larger than the GPU can draw
-//! into, a GPU device lost in the middle of a frame, replaced by a new one, and lost again at every
-//! frame until the run gives up, an application that stops the run with an error, and a window
-//! resized during the run, alone or while another thread submits work to the GPU, as threads that
-//! load a scene do.
+//! into, a GPU device lost in the middle of a frame, replaced by a new one, lost again at every
+//! frame or soon after each new device until the run gives up, lost in the order a driver reports
+//! it, the device invalid before its loss is recorded, lost again while the application creates
+//! its objects anew, or lost where the application's own call finds it and stops the run with it,
+//! an application that stops the run with an error or panics after drawing, and a window resized
+//! during the run, alone or while another thread submits work to the GPU, as threads that load a
+//! scene do.
 //! `scripts/check.sh` runs it in a headless Weston with lavapipe, then runs it again in a second
 //! one, at scale 2, for the resizes alone (ADR-0024). It is not in the default run of `cargo test`
 //! (`test = false` in Cargo.toml), since it needs a compositor, and it has no harness, since the
@@ -41,7 +44,7 @@ mod linux {
     use slime_platform::{Event, PlatformError, WindowConfig};
 
     const SCENARIO_ENV: &str = "SLIME_APP_TEST_SCENARIO";
-    const SCENARIOS: [&str; 12] = [
+    const SCENARIOS: [&str; 16] = [
         "calls",
         "spans",
         "init-error",
@@ -52,8 +55,12 @@ mod linux {
         "device-lost",
         "device-restored",
         "lost-again",
-        "lost-now-and-then",
+        "lost-soon-after-each-restore",
+        "lost-unrecorded",
+        "lost-in-gpu-restored",
+        "loss-returned-by-render",
         "error-in-render",
+        "panic-in-render",
     ];
     /// When this variable is set, the program runs `SCALED_SCENARIOS` instead of `SCENARIOS`, as
     /// `scripts/check.sh` does in a compositor at scale 2. Such a compositor reports its scale
@@ -61,10 +68,12 @@ mod linux {
     /// window once it exists.
     const SCALED_ENV: &str = "SLIME_APP_TEST_SCALED";
     const SCALED_SCENARIOS: [&str; 2] = ["resized", "resized-while-submitting"];
-    /// The frame in whose `render` the `device-lost` and `device-restored` scenarios lose the GPU
-    /// device, from which the `lost-again` scenario loses it at every frame and the
-    /// `lost-now-and-then` scenario at every other frame, four times, and in which the
-    /// `error-in-render` scenario stops the run with an error.
+    /// The frame in whose `render` the `device-lost`, `device-restored`, `lost-in-gpu-restored` and
+    /// `loss-returned-by-render` scenarios lose the GPU device and the `lost-unrecorded` scenario
+    /// makes it invalid, from which the `lost-again` scenario loses it at every frame and the
+    /// `lost-soon-after-each-restore` scenario at every other frame, and in which the
+    /// `error-in-render` scenario stops the run with an error and the `panic-in-render` scenario
+    /// panics.
     const STOP_FRAME: u64 = 5;
 
     /// Frames of the `calls` and `spans` scenarios, and those in which the application asks for an
@@ -93,6 +102,8 @@ mod linux {
         /// When `init` returned, which the times of the frames count from.
         start: Option<Instant>,
         last_update: u64,
+        /// How many times `gpu_restored` was called.
+        restored: u32,
         /// In `resized-while-submitting`, the thread that submits work to the GPU while the run
         /// goes on, as threads that load a scene do, and what stops it.
         submitter: Option<(Arc<AtomicBool>, JoinHandle<()>)>,
@@ -175,6 +186,10 @@ mod linux {
             {
                 println!("memory {} {}", frame.index(), resident_kib());
             }
+            if self.scenario == "lost-unrecorded" && frame.index() == STOP_FRAME + 1 {
+                // What wgpu's report of the loss does, a frame after the device became invalid.
+                ctx.gpu().expect("windowed run").lose();
+            }
         }
 
         fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
@@ -191,11 +206,14 @@ mod linux {
                 };
                 let gpu = ctx.gpu().expect("windowed run");
                 let lost_here = match self.scenario {
-                    "device-lost" | "device-restored" => self.last_update == STOP_FRAME,
+                    "device-lost" | "device-restored" | "lost-in-gpu-restored" => {
+                        self.last_update == STOP_FRAME
+                    }
                     "lost-again" => self.last_update >= STOP_FRAME,
-                    "lost-now-and-then" => [0, 2, 4, 6]
-                        .iter()
-                        .any(|&later| self.last_update == STOP_FRAME + later),
+                    "lost-soon-after-each-restore" => {
+                        self.last_update >= STOP_FRAME
+                            && (self.last_update - STOP_FRAME).is_multiple_of(2)
+                    }
                     _ => false,
                 };
                 if lost_here {
@@ -203,7 +221,24 @@ mod linux {
                     // frame's own submission would find, as a driver reset would.
                     gpu.lose();
                 }
+                // The application's own call finds the loss, and stops the run with it.
+                let mut failed = None;
+                if self.scenario == "loss-returned-by-render" && self.last_update == STOP_FRAME {
+                    gpu.lose();
+                    failed = gpu
+                        .create_render_target("lost", 4, 4, TextureFormat::Rgba8Unorm)
+                        .err();
+                }
                 gpu.render(&pass, |_pass| {});
+                if self.scenario == "lost-unrecorded" && self.last_update == STOP_FRAME {
+                    // As a driver reset comes: wgpu holds the device invalid before it tells the
+                    // engine, here at the next frame's update, so that the engine presents the
+                    // image to a device it does not know is lost.
+                    gpu.wgpu_device().destroy();
+                }
+                if let Some(error) = failed {
+                    ctx.exit_with_error(error);
+                }
             }
             if matches!(
                 self.scenario,
@@ -222,6 +257,9 @@ mod linux {
             if self.scenario == "error-in-render" && self.last_update == STOP_FRAME {
                 ctx.exit_with_error("the frame failed");
             }
+            if self.scenario == "panic-in-render" && self.last_update == STOP_FRAME {
+                panic!("the frame cannot be drawn");
+            }
         }
 
         fn gpu_lost(&mut self, ctx: &mut Context) {
@@ -232,11 +270,19 @@ mod linux {
         }
 
         fn gpu_restored(&mut self, ctx: &mut Context) -> Result<(), AppError> {
+            let gpu = ctx.gpu().expect("a new device");
             println!(
                 "call gpu_restored gpu={} format={:?}",
-                ctx.gpu().is_some_and(|gpu| gpu.check().is_ok()),
+                gpu.check().is_ok(),
                 ctx.surface_format()
             );
+            self.restored += 1;
+            if self.scenario == "lost-in-gpu-restored" && self.restored == 1 {
+                // Lost again while the application creates its objects anew, which returns the
+                // loss its creation finds.
+                gpu.lose();
+                gpu.create_render_target("restored", 4, 4, TextureFormat::Rgba8Unorm)?;
+            }
             Ok(())
         }
 
@@ -265,9 +311,17 @@ mod linux {
                 config.frame_limit = Some(UNDRAWN_FRAMES);
                 config.max_frame_rate = 1000;
             }
-            "device-restored" | "lost-again" | "lost-now-and-then" => {
+            "device-restored"
+            | "lost-again"
+            | "lost-unrecorded"
+            | "lost-in-gpu-restored"
+            | "loss-returned-by-render" => {
                 config.restore_lost_device = true;
                 config.frame_limit = Some(STOP_FRAME + 10);
+            }
+            "lost-soon-after-each-restore" => {
+                config.restore_lost_device = true;
+                config.frame_limit = Some(STOP_FRAME + 30);
             }
             "oversize" => {
                 // Wider than the largest image the device accepts (8192 pixels with the default
@@ -328,6 +382,11 @@ mod linux {
             let output = command.output().expect("child test process runs");
             let stdout = String::from_utf8_lossy(&output.stdout);
             let stderr = String::from_utf8_lossy(&output.stderr);
+            if scenario == "panic-in-render" {
+                check_panic_in_render(output.status, &stdout, &stderr);
+                println!("scenario {scenario} ... ok");
+                continue;
+            }
             assert!(
                 output.status.success(),
                 "scenario {scenario}: the child failed: {}\n{stdout}\n{stderr}",
@@ -344,8 +403,9 @@ mod linux {
                 "oversize" => check_oversize(&lines),
                 "device-lost" => check_device_lost(&lines),
                 "device-restored" => check_device_restored(&lines),
-                "lost-again" => check_lost_again(&lines),
-                "lost-now-and-then" => check_lost_now_and_then(&lines),
+                "lost-again" | "lost-soon-after-each-restore" => check_lost_again(&lines),
+                "lost-unrecorded" | "loss-returned-by-render" => check_device_restored(&lines),
+                "lost-in-gpu-restored" => check_lost_in_gpu_restored(&lines),
                 "error-in-render" => check_error_in_render(&lines),
                 "resized" => check_resized(&lines),
                 "resized-while-submitting" => {
@@ -368,6 +428,7 @@ mod linux {
             scenario,
             start: None,
             last_update: 0,
+            restored: 0,
             submitter: None,
         };
         let result = if scenario == "spans" {
@@ -771,18 +832,18 @@ mod linux {
         restored
     }
 
-    /// A device lost at every other frame is replaced each time, since a frame is shown between
-    /// two losses: four new devices, and the run goes on to its end.
-    fn check_lost_now_and_then(lines: &[&str]) {
-        assert_eq!(restores(lines).len(), 4, "four new devices: {lines:?}");
+    /// A device lost again while the application creates its objects anew, which `gpu_restored`
+    /// returns, is replaced as any other: two new devices, and the run goes on to its end.
+    fn check_lost_in_gpu_restored(lines: &[&str]) {
+        assert_eq!(restores(lines).len(), 2, "two new devices: {lines:?}");
         assert!(
             lines.contains(&"result Ok"),
             "the run goes on to its end: {lines:?}"
         );
     }
 
-    /// A device lost at every frame is replaced three times in a row, then the run gives up: it
-    /// stops, and `run` returns `DeviceLost`.
+    /// A device lost at every frame, or soon after each new device, a frame shown in between, is
+    /// replaced three times, then the run gives up: it stops, and `run` returns `DeviceLost`.
     fn check_lost_again(lines: &[&str]) {
         let calls = calls(lines);
         assert_eq!(restores(lines).len(), 3, "three new devices: {lines:?}");
@@ -806,6 +867,25 @@ mod linux {
         assert!(
             lines.contains(&"result App(the frame failed)"),
             "the run returns the application's error: {lines:?}"
+        );
+    }
+
+    /// A panic in `render`, after the frame drew into the window's image, ends the process as a
+    /// panic does, with exit status 101, not as an abort: the image that the panic leaves held is
+    /// released before the window's surface is dropped.
+    fn check_panic_in_render(status: std::process::ExitStatus, stdout: &str, stderr: &str) {
+        assert_eq!(
+            status.code(),
+            Some(101),
+            "the child ends as a panic does: {status}\n{stdout}\n{stderr}"
+        );
+        assert!(
+            stderr.contains("the frame cannot be drawn"),
+            "the panic is the application's: {stderr}"
+        );
+        assert!(
+            !stderr.contains("aborting") && !stderr.contains("in use by a SurfaceTexture"),
+            "nothing panics again while the first panic unwinds: {stderr}"
         );
     }
 

@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use slime_gfx::{Gpu, PresentMode, RenderTarget, Surface, TextureFormat};
+use slime_gfx::{GfxError, Gpu, PresentMode, RenderTarget, Surface, TextureFormat};
 use slime_platform::{Event, Window, WindowConfig};
 use slime_world::World;
 
@@ -97,16 +97,18 @@ pub trait App {
     /// again here, as in [`init`](Self::init). The default does nothing.
     ///
     /// The run does not restore, and stops as without the setting, once it has opened three devices
-    /// in a row without a frame shown in between, when the device was lost because memory ran out,
-    /// when only a CPU adapter is left where the lost device was a GPU's, or when no device opens
-    /// ([`Surface::restore`]); nor when the run is stopping anyway, or the window's surface was lost
-    /// for good. When no device opens after `gpu_lost`, [`Context::gpu`] is `None` from then on,
-    /// [`App::shutdown`] included.
+    /// within five minutes, as a device lost again soon after each new one, when the device was
+    /// lost because memory ran out, when only a CPU adapter is left where the lost device was a
+    /// GPU's, or when no device opens ([`Surface::restore`]); nor when the run is stopping anyway,
+    /// or the window's surface was lost for good. When no device opens after `gpu_lost`,
+    /// [`Context::gpu`] is `None` from then on, [`App::shutdown`] included.
     ///
     /// # Errors
     ///
     /// An application returns an error when it cannot go on with the new device. The run then stops
-    /// as after [`Context::exit_with_error`], and [`run`] returns [`RunError::App`] with this error.
+    /// as after [`Context::exit_with_error`], and [`run`] returns [`RunError::App`] with this error;
+    /// but for the loss of the new device, which the run handles as any other loss
+    /// (`exit_with_error` says how), opening another device within the limit above.
     fn gpu_restored(&mut self, ctx: &mut Context) -> Result<(), AppError> {
         let _ = ctx;
         Ok(())
@@ -213,9 +215,23 @@ impl Context {
     ///
     /// Only the first error is returned; a later one is logged as an error. When the GPU device or
     /// the window's surface is lost as well, `run` returns the application's error, and the loss is
-    /// in the log, where the engine writes it when it happens.
+    /// in the log, where the engine writes it when it happens; but for an error that the loss
+    /// causes.
+    ///
+    /// An error that is, or is caused by, the loss of the GPU device ([`GfxError::DeviceLost`]),
+    /// once the device of [`Context::gpu`] is lost, does not stop the run: the loss is the run's to
+    /// handle, as when the engine finds it. It opens a new device, as
+    /// [`AppConfig::restore_lost_device`] asks, or stops with [`RunError::Gfx`]. The error is
+    /// logged at the `debug` level. An error that hides its cause, a message made of it, cannot be
+    /// told from another one: it stops the run.
     pub fn exit_with_error(&mut self, error: impl Into<AppError>) {
         let error = error.into();
+        if self.gpu().is_some_and(|gpu| gpu.check().is_err()) && is_device_lost(&*error) {
+            tracing::debug!(
+                "the application met the loss of the GPU device, which the run handles: {error}"
+            );
+            return;
+        }
         if self.error.is_some() {
             tracing::error!("the application failed again: {error}");
         } else {
@@ -310,6 +326,16 @@ impl Context {
     }
 }
 
+/// Whether `error`, or one of its causes, is the loss of a GPU device.
+fn is_device_lost(error: &(dyn std::error::Error + 'static)) -> bool {
+    std::iter::successors(Some(error), |error| error.source()).any(|error| {
+        matches!(
+            error.downcast_ref::<GfxError>(),
+            Some(GfxError::DeviceLost { .. })
+        )
+    })
+}
+
 /// Why a run stops before reaching its frame limit.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ExitReason {
@@ -370,7 +396,8 @@ pub(crate) enum ExitReason {
 ///
 /// - [`RunError::Init`] if [`App::init`] returns an error.
 /// - [`RunError::App`] if the application passed an error to [`Context::exit_with_error`], from
-///   any method; it is returned even when the GPU device or the window's surface was lost too.
+///   any method; it is returned even when the GPU device or the window's surface was lost too, but
+///   for an error that the device's loss causes, which the run handles as its own loss.
 /// - With a window, [`RunError::Platform`]: no windowing system can be reached, the window cannot
 ///   be created, a windowed run was already attempted in this process (the windowing library
 ///   allows one attempt per process, even a failed one), or the event loop fails.
@@ -381,7 +408,7 @@ pub(crate) enum ExitReason {
 ///   run stops like after an exit request: the frame in progress finishes, without drawing, and
 ///   `shutdown` is called. An application that sets [`AppConfig::restore_lost_device`] goes on
 ///   with a new device instead ([`App::gpu_lost`], [`App::gpu_restored`]): its run returns
-///   `GfxError::DeviceLost` after three new devices in a row without a frame shown, and
+///   `GfxError::DeviceLost` at a loss that comes after three new devices within five minutes, and
 ///   `GfxError::CannotRestore`, or the error of opening a device, when none replaces the lost one.
 ///
 /// When the window or the GPU could not be opened, neither `init` nor `shutdown` is called.
@@ -421,7 +448,7 @@ fn run_headless(app: &mut impl App, config: &AppConfig) -> Result<(), RunError> 
         if let Some(reason) = frames.check_stop(&mut ctx, None, false) {
             break reason;
         }
-        let _ = frames.run_one(app, &mut ctx, config.fixed_step, None);
+        frames.run_one(app, &mut ctx, config.fixed_step, None);
     };
     tracing::info!(frames = frames.count(), "stopping: {reason}");
     app.shutdown(&mut ctx);
@@ -488,14 +515,14 @@ impl Frames {
     }
 
     /// Runs one frame that represents `raw_delta` of time, and draws it into `surface` when there
-    /// is one and it can show a new image. Returns whether the window showed the frame's image.
+    /// is one and it can show a new image.
     pub(crate) fn run_one(
         &mut self,
         app: &mut impl App,
         ctx: &mut Context,
         raw_delta: Duration,
         surface: Option<&mut Surface>,
-    ) -> bool {
+    ) {
         let frame = self.clock.advance(raw_delta);
         let _frame_span = tracing::trace_span!("frame", index = frame.index()).entered();
         let steps = self.fixed.advance(frame.delta());
@@ -516,7 +543,6 @@ impl Frames {
             let _span = tracing::trace_span!("acquire").entered();
             surface.acquire(&format!("window, frame {}", frame.index()))
         });
-        let mut shown = false;
         if let Some(image) = image {
             {
                 let _span = tracing::trace_span!("render").entered();
@@ -524,10 +550,7 @@ impl Frames {
             }
             let _span = tracing::trace_span!("present").entered();
             image.present();
-            // Once the device is lost, the image is released rather than shown.
-            shown = ctx.gpu().is_some_and(|gpu| gpu.check().is_ok());
         }
         self.count += 1;
-        shown
     }
 }

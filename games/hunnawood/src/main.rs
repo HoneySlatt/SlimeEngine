@@ -532,9 +532,10 @@ impl App for HunnaWood {
                     ctx.request_exit();
                 }
             }
-            // The GPU's memory cannot hold the targets of the window's new size, the device was
-            // lost, or the zone cannot be loaded: the game stops with the error, which `run` logs
-            // with its causes.
+            // The GPU's memory cannot hold the targets of the window's new size, or the zone
+            // cannot be loaded: the game stops with the error, which `run` logs with its causes.
+            // The device lost, the frame is skipped: the run opens a new one before the next
+            // frame, and `exit_with_error` leaves the loss to it.
             Err(error) => ctx.exit_with_error(error),
         }
         // Applied once the frame is drawn: the next one shows them.

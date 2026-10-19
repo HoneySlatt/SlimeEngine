@@ -408,9 +408,10 @@ impl App for SceneExample {
             self.bloom,
         ) {
             Ok(stats) => self.stats = stats,
-            // The GPU's memory cannot hold the targets of the window's new size, or the device was
-            // lost: the example stops with the error, which `run` logs with its causes. A game could
-            // instead draw at a lower resolution.
+            // The GPU's memory cannot hold the targets of the window's new size: the example stops
+            // with the error, which `run` logs with its causes. A game could instead draw at a
+            // lower resolution. The device lost, the run stops with the loss, which
+            // `exit_with_error` leaves to it.
             Err(error) => {
                 ctx.exit_with_error(error);
                 return;

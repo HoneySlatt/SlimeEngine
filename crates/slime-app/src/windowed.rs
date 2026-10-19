@@ -9,9 +9,12 @@ use slime_platform::{Event, EventHandler, LoopControl, Window, WindowConfig};
 use crate::app::{App, AppConfig, Context, ExitReason, Frames};
 use crate::error::RunError;
 
-/// How many devices in a row the run opens after losses with no frame shown in between: at the
-/// next loss, it gives up, since a device lost again at once every time will not come back.
-const MAX_RESTORES_IN_A_ROW: u32 = 3;
+/// How many devices the run opens to replace lost ones within `RESTORE_WINDOW`: at the next loss
+/// within it, it gives up, since a device lost again at once, or soon after each new one, will not
+/// stay.
+const MAX_RESTORES: usize = 3;
+/// The time within which the run opens at most `MAX_RESTORES` devices.
+const RESTORE_WINDOW: Duration = Duration::from_secs(5 * 60);
 
 pub(crate) fn run_windowed(
     app: &mut impl App,
@@ -30,7 +33,7 @@ pub(crate) fn run_windowed(
         surface: None,
         present_mode: config.present_mode,
         restore_lost_device: config.restore_lost_device,
-        restores_in_a_row: 0,
+        restores: Vec::new(),
         frame_period: Duration::from_secs(1) / config.max_frame_rate,
         last_frame: now,
         next_frame: now,
@@ -53,8 +56,8 @@ struct WindowedDriver<'a, A> {
     /// Whether a lost device is replaced (`AppConfig::restore_lost_device`); cleared when the run
     /// gives up replacing it.
     restore_lost_device: bool,
-    /// How many devices the run opened since the last frame shown.
-    restores_in_a_row: u32,
+    /// When the run opened the devices that replaced lost ones, within `RESTORE_WINDOW`.
+    restores: Vec<Instant>,
     /// The interval at which frames are scheduled, from `AppConfig::max_frame_rate`.
     frame_period: Duration,
     last_frame: Instant,
@@ -84,8 +87,8 @@ impl<A: App> WindowedDriver<'_, A> {
     /// device for the window and lets the application create its objects again
     /// (`App::gpu_restored`), between frames. Does nothing when the run is stopping anyway, or the
     /// window's surface was lost for good. Gives up, leaving the loss to stop the run, once
-    /// `MAX_RESTORES_IN_A_ROW` devices were opened in a row without a frame shown; and when no
-    /// device opens, stops the run with that error.
+    /// `MAX_RESTORES` devices were opened within `RESTORE_WINDOW`; and when no device opens, stops
+    /// the run with that error.
     fn restore(&mut self) {
         if !self.restore_lost_device || self.stop.is_some() || self.ctx.exit_requested() {
             return;
@@ -100,11 +103,15 @@ impl<A: App> WindowedDriver<'_, A> {
         {
             return;
         }
-        if self.restores_in_a_row >= MAX_RESTORES_IN_A_ROW {
+        let now = Instant::now();
+        self.restores
+            .retain(|&opened| now.duration_since(opened) < RESTORE_WINDOW);
+        if self.restores.len() >= MAX_RESTORES {
             tracing::error!(
                 %loss,
-                "the GPU device was lost again after {MAX_RESTORES_IN_A_ROW} new ones in a row, \
-                 without a frame shown: no new one replaces it"
+                "the GPU device was lost again after {MAX_RESTORES} new ones within {} minutes: \
+                 no new one replaces it",
+                RESTORE_WINDOW.as_secs() / 60
             );
             self.restore_lost_device = false;
             return;
@@ -116,10 +123,12 @@ impl<A: App> WindowedDriver<'_, A> {
         let surface = self.surface.take().expect("checked above");
         match surface.restore(lost) {
             Ok((gpu, surface)) => {
-                self.restores_in_a_row += 1;
+                self.restores.push(now);
                 tracing::warn!(%loss, "the GPU device was lost; a new one replaces it");
                 self.ctx.set_gpu(Some(gpu), Some(surface.format()));
                 self.surface = Some(surface);
+                // A loss of the new device that it returns is handled as any other
+                // (`Context::exit_with_error`).
                 if let Err(error) = self.app.gpu_restored(&mut self.ctx) {
                     self.ctx.exit_with_error(error);
                 }
@@ -184,15 +193,12 @@ impl<A: App> EventHandler for WindowedDriver<'_, A> {
             return;
         }
         let now = Instant::now();
-        let shown = self.frames.run_one(
+        self.frames.run_one(
             self.app,
             &mut self.ctx,
             now - self.last_frame,
             self.surface.as_mut(),
         );
-        if shown {
-            self.restores_in_a_row = 0;
-        }
         self.last_frame = now;
         self.next_frame = next_due(self.next_frame, now, self.frame_period);
     }
@@ -229,8 +235,12 @@ impl<A: App> EventHandler for WindowedDriver<'_, A> {
             tracing::info!(frames = self.frames.count(), "stopping: {reason}");
             self.app.shutdown(&mut self.ctx);
         }
-        if let Some(error) = self.ctx.take_error() {
-            self.error.get_or_insert(RunError::App(error));
+        // The application's error comes first, before the error of a restore that failed; not
+        // before the error of `init`, which `run` returns rather than any later one.
+        if let Some(error) = self.ctx.take_error()
+            && !matches!(self.error, Some(RunError::Init(_)))
+        {
+            self.error = Some(RunError::App(error));
         }
         if let Some(Err(error)) = self.ctx.gpu().map(Gpu::check) {
             self.error.get_or_insert(RunError::Gfx(error));
