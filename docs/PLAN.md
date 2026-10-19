@@ -23,6 +23,11 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   lost GPU device that covers one case, and quick wins that it measured. Milestones P1 to P5 fix
   them; then a foundations pass, P6, decides as ADRs what the editor will freeze. Stage 6, the
   editor, is planned with the owner after it.
+- The games the engine aims at, described on 2026-10-19
+  ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)): nine profiles, from *Hunna Wood* to a
+  massively multiplayer game, listed in [`ROADMAP.md`](ROADMAP.md). They add criteria to P6, one UI
+  framework of the engine's own for the editor and games, a stage of native GPU backends (9c), and
+  needs to Stages 7, 9a, 9b, 10a and 10b.
 
 ## Status
 
@@ -353,9 +358,16 @@ Risks:
   - The execution model: the phases of a frame, where the engine's systems run, the priorities and
     budgets of background work (C1-01, C1-06, C5-01, C7-05). Three mechanisms of threads exist
     today, none with priorities; the parallel job system stays at Stage 7.
+    [ADR-0098](adr/0098-the-games-the-engine-aims-at.md) adds: a game time apart from real time,
+    that slows while the UI and the camera run at real speed; background work budgeted so that a
+    hidden loading never drops a frame; a simulation that holds the authority apart from what is
+    shown, so that a server can one day run it alone.
   - Change detection beyond transforms, changes deferred during a traversal, lifecycle hooks, and
     the state that systems compute apart from the state an author writes (C1-02, C1-04, C1-07,
     C5-02, C5-04).
+    ADR-0098 adds: a world cheap to snapshot and simulate again, as the prediction of a shooter
+    needs; change detection precise enough to send only what changed; identities of entities that
+    can hold from one machine to another.
   - Stable references and operations that undo keeps reversible, so that undoing a deletion gives
     back the same entity, built on P1's identities (C1-03, C4-01).
   - How the editor runs a game's code: a game becomes a library and its binaries, amending
@@ -366,11 +378,18 @@ Risks:
     while the next is built: a frame that the renderer owns, built from the world, loading taken
     apart from the renderer, and views apart from the renderer, which today keeps targets and
     shadow atlases per output.
+    ADR-0098 adds: what a game hands the renderer for an object is not limited to the fields of
+    the physically based material, and a frame may hold several views.
   - A study of open worlds: cells, identities, saves per scene, references across scenes (C3-02,
     C4-03, C4-05, C7-03).
+    ADR-0098 adds: several worlds, and a state that follows the player from one to the other; a
+    whole region loaded during play, then switched to; content of a scene that depends on the state
+    of the story, that state belonging to one player or to a step of the story that all share;
+    cells that serve streaming and, one day, the split of a world between servers.
   - An asset request API, with priorities, cancellation, a memory budget and eviction (C3-01).
-  - A minimum and a target hardware tier, with budgets scaled from the RX 6900 XT's measurements
-    (C2-03); the engine keeps WebGPU's default limits today.
+  - Hardware tiers, with budgets scaled from the RX 6900 XT's measurements (C2-03): a modest
+    minimum at high frame rates, and a high-end tier for the visual targets of the realistic games
+    (ADR-0098); the engine keeps WebGPU's default limits today.
   - What the GPU layer gives the editor and the start of Stage 6: blending, lines, an unlit
     material, picking, passes that a client inserts in a view; storage buffers and instanced draws
     for culling and instancing (C2-02, C2-05).
@@ -537,8 +556,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   sctk-adwaita, on compositors that do not draw decorations), each waiting up to 100 ms when the
   settings portal does not answer; the error they log when no session bus or portal answers is
   hidden by the default log filter (ADR-0019).
-- **Upgrading wgpu waits for egui** while the engine's tooling draws with it: the dev overlay, and
-  from Stage 6 the editor (ADR-0031, ADR-0052). `egui-wgpu` is built against one wgpu version
+- **Upgrading wgpu waits for egui** while the dev overlay draws with it (ADR-0031); the editor
+  uses the engine's own UI framework (ADR-0098). `egui-wgpu` is built against one wgpu version
   (egui 0.36 against wgpu 30 today), so wgpu moves only once egui follows.
 - **The dev overlay blends in an sRGB framebuffer.** egui prefers a linear one for its blending,
   warns once at startup, and its panels look slightly lighter than egui's own demos (ADR-0031).

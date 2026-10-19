@@ -21,6 +21,20 @@ The project is a complete platform (runtime, asset pipeline, editor, SDK), not a
 
 3D comes first. 2D and stylized games are made with the same renderer, through pieces that the stages add where they are needed: an orthographic camera, sprites, transparency, unlit and custom materials, crisp sampling for pixel art. There is no separate 2D renderer (ADR-0052).
 
+The games the engine is weighed against, as profiles (ADR-0098). The games played alone come first; the online games come after them.
+
+- *Hunna Wood*, the sample: a realistic third-person role-playing game in one open world without loading screens, centred on a story whose choices have consequences, with demanding combat and a horse to ride.
+- A space opera across several hand-made planets, played on foot in first or third person and at the controls of cars, motorbikes and spaceships, with loadings the player does not notice, a ship to walk in while it flies, and choices that destroy places.
+- A linear, turn-based narrative role-playing game in anime-style 3D, toon-shaded everywhere, with menus of a strong identity.
+- A hand-drawn 2D metroidvania: a large map of connected rooms and precise controls.
+- A painted action role-playing game with a party, whose combat slows time while orders are given.
+- A first-person photorealistic horror game in one small place that changes at each pass.
+- A massively multiplayer online role-playing game told in expansions, with about 500 players in one place and few instances.
+- A competitive first-person shooter on dedicated servers, at high frame rates on modest computers.
+- Online co-op games hosted by a player, with physics-driven characters, vehicles and proximity voice chat.
+
+Each style aims at the best rendering possible: realistic, anime, painted or hand-drawn. Each game sets *visual targets*, reference images on its target hardware at its frame rate, which principle 9 measures against. The engine runs on *hardware tiers*, from modest computers at high frame rates to high-end ones; a game picks its minimum tier. No mobile platform is aimed at.
+
 ## 2. Architecture
 
 | Layer | Contents | Boundary below |
@@ -28,7 +42,7 @@ The project is a complete platform (runtime, asset pipeline, editor, SDK), not a
 | Games | Rust, C++, scripting, visual scripting, data | Public engine API |
 | SDK | C++ wrapper, plugin API, script bindings | Stable C ABI (promised from 1.0) |
 | Engine (Rust) | core, platform, gfx, render, assets, reflect, world, jobs, physics, audio, animation, net | Internal Rust API (unstable) |
-| Foundation | OS, wgpu (Vulkan / D3D12 / Metal), middleware | |
+| Foundation | OS, wgpu, then native backends (Vulkan / D3D12, Stage 9c), middleware | |
 
 The editor sits beside games, not inside the engine: it is a client of the engine's public systems and never reaches into internals.
 
@@ -42,7 +56,7 @@ The editor sits beside games, not inside the engine: it is a client of the engin
 6. **Instrumented from day one.** Profiling spans and GPU markers are added as systems are written, not retrofitted.
 7. **Existing crates are used wherever they are not the point of the engine,** and wrapped at the boundary so they can be replaced.
 8. **Stability is promised in one place only:** the C ABI, from 1.0. Everything else may break during 0.x.
-9. **Techniques enter because they solve a measured problem,** not to match another engine's feature list.
+9. **Techniques enter because they solve a measured problem,** not to match another engine's feature list. For rendering, the measured problem is the gap between a game's image and its visual targets (section 1, ADR-0098).
 
 ## 4. Decisions
 
@@ -52,9 +66,10 @@ The editor sits beside games, not inside the engine: it is a client of the engin
 |---|---|
 | Engine language | Rust |
 | License | MPL-2.0 |
-| GPU abstraction | wgpu. Its types stay inside the `gfx` and `render` crates, and the dev overlay, tooling (ADR-0031); the rest of the engine uses engine-owned handles. |
+| GPU abstraction | wgpu, then native backends, Vulkan and Direct3D 12, at Stage 9c (ADR-0098). Their types stay inside the `gfx` and `render` crates, and the dev overlay, tooling (ADR-0031); the rest of the engine uses engine-owned handles. |
 | Shaders | WGSL to start |
-| First platforms | Linux (Wayland and X11) and Windows: games run on both from Stage 2 on. macOS comes later. |
+| First platforms | Linux (Wayland and X11) and Windows: games run on both from Stage 2 on. macOS comes later. No mobile platform (ADR-0098). |
+| UI | One framework of the engine's own, GPU-rendered, for the editor and the UI of games; egui only for the dev overlay, tooling. No Qt or GTK. (ADR-0098) |
 | Game-facing API | Rust first. The C ABI and C++ SDK are derived later from a proven API. |
 | Windowing and input | winit, used only inside `platform`; its types never leave that crate (ADR-0011) |
 | Entity model | The engine's own: entities, components stored by type, and a transform hierarchy, with `f64` translations (ADR-0079) |
@@ -66,12 +81,11 @@ Each is decided by ADR at the stage where it becomes necessary, not earlier.
 
 | Topic | Candidates | Decide at |
 |---|---|---|
-| Editor UI | egui to start, as the dev overlay uses; an engine-owned, GPU-rendered framework (retained, immediate or hybrid) only for a measured need: performance, a limit of egui that the editor meets, or reuse for the UI of games. No Qt or GTK. (ADR-0052) | Stage 6 |
-| UI of games | The editor's framework, or one of their own | Stage 6, with the editor's |
-| Physics backend | rapier3d or other, behind an abstraction | Stage 7 |
-| Audio backend | To evaluate | Stage 7 |
+| Design of the UI framework | Retained, immediate or hybrid; the crates it builds on for text, layout and accessibility (ADR-0098) | Stage 6 |
+| Physics backend | rapier3d, Jolt or other, behind an abstraction, against the needs of ADR-0098 | Stage 7 |
+| Audio backend | To evaluate, against the needs of ADR-0098 | Stage 7 |
 | Scripting language | Lua, C#, dedicated VM, other | Stage 8 |
-| Shader language beyond WGSL | Slang, generated WGSL | Stage 9b |
+| Shader language beyond WGSL | Slang, generated WGSL, with the native backends of Stage 9c in view | Stage 9b |
 | Network transport | To evaluate | Stage 10b |
 
 ## 5. Repository layout
@@ -255,14 +269,14 @@ The stage comes right after Stage 5a, and is released as 0.4 (ADR-0090).
 
 **Exit.** The game's scenes round-trip through save and load as files. Prefabs instantiate with overrides. The sample game's zone is made of prefabs.
 
-Between Stage 5b and Stage 6 come two passes, without a release of their own (ADR-0097): an audit pass, which fixes what an audit of 0.4 found in saves, identities, the readers of files (ADR-0096), the recovery from a lost GPU device, and measured quick wins, and puts the engine's measurements in CI; then a foundations pass, which decides as ADRs what the editor will freeze: the execution model, change detection, stable references and reversible operations, how the editor runs a game's code, the frame contract, a study of open worlds, an asset request API, a minimum and a target hardware tier, and what the GPU layer gives the editor. `docs/PLAN.md` details both.
+Between Stage 5b and Stage 6 come two passes, without a release of their own (ADR-0097): an audit pass, which fixes what an audit of 0.4 found in saves, identities, the readers of files (ADR-0096), the recovery from a lost GPU device, and measured quick wins, and puts the engine's measurements in CI; then a foundations pass, which decides as ADRs what the editor will freeze: the execution model, change detection, stable references and reversible operations, how the editor runs a game's code, the frame contract, a study of open worlds, an asset request API, hardware tiers, and what the GPU layer gives the editor, each weighed against the games of section 1 (ADR-0098). `docs/PLAN.md` details both.
 
 ### Stage 6 — Editor foundation → 0.5
 
 **Goal.** A real editor, built as a client of the engine.
 
 - Frustum culling and instancing, moved from Stage 9a (ADR-0097), first, before the viewport, on the decisions of the foundations pass
-- Editor UI: text, layout, docking, widgets, input routing, focus, drag and drop, theming; on egui to start, on an engine-owned framework only if a measured need decides it (section 4)
+- The engine's UI framework, as far as the editor needs it: text in several writing systems, layout, docking, widgets, input routing, focus, drag and drop, theming (ADR-0098)
 - Viewport, hierarchy, inspector (driven by reflection), asset browser
 - Command and transaction system: every edit is undoable
 - Play in editor, the game running in a child process first, as the foundations pass decides (ADR-0097)
@@ -277,11 +291,12 @@ Between Stage 5b and Stage 6 come two passes, without a release of their own (AD
 - Job system: work stealing, dependencies, priorities
 - Memory: frame, arena and pool allocators where measurements justify them; allocation tracking
 - Visual profiler: CPU, jobs, memory, GPU, frames, from a trace stream
-- Physics behind an engine abstraction: bodies, colliders, constraints, queries (a ray or a segment against the world, ADR-0057), character controller
-- Audio: sources, listener, spatialization, buses, mixing, streaming; the importer of audio files, moved from Stage 4 (ADR-0068)
+- Physics behind an engine abstraction: bodies, colliders, constraints, queries (a ray or a segment against the world, ADR-0057), character controller; the backend chosen against vehicles (wheels and suspension, motorbikes, free flight), walking inside a moving vehicle, 2D, characters driven by physics, worlds in double precision and a simulation that runs the same way twice (ADR-0098)
+- Riding: a character attached to a mount or a seat, with its animations, input and camera (ADR-0098)
+- Audio: sources, listener, spatialization, buses, mixing, streaming; the importer of audio files, moved from Stage 4 (ADR-0068); the backend chosen against sound placed precisely around the listener's head, reverberation per room and sounds muffled by walls (ADR-0098)
 - The core of skeletal animation: skeletons, skinning, clips, blending, moved from Stage 9b (ADR-0097)
 - Input action mapping, and the keys and buttons held if Stage 6 did not need them
-- UI of games: text, menus, HUD, on the framework decided at Stage 6
+- UI of games: text, menus, HUD, on the engine's UI framework, grown with animation, transforms, masks, effects on text and three-dimensional elements (ADR-0098)
 
 **Exit.** The game has an animated character in a physical level, with sound and a UI, and is profiled end to end.
 
@@ -304,12 +319,16 @@ Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b nee
 **Goal.** Render what a shipped game shows, beyond a simple scene.
 
 - Shadows: shadows of point lights, the tiles of spot lights' shadows sized by how large each light shows on screen (ADR-0058)
-- Many lights
+- Many lights, by a method that keeps several ways of lighting possible in one frame: clustered forward is expected, chosen here by measurement (ADR-0098)
 - Transparency
 - Temporal anti-aliasing
 - Fog, ambient occlusion, decals
 - A day-night cycle
 - The pieces for 2D and stylized games that no earlier stage needed (section 1)
+- The look of a game: how each material is lit, passes of the game's own, its tone-mapping curve and its color grading (ADR-0098)
+- The stability of the image as a measured goal: no shimmering, no trails, no detail that pops in (ADR-0098)
+- Skin lit through subsurface scattering (ADR-0098)
+- Quality set per hardware tier (section 1, ADR-0098)
 
 **Exit.** A level of the game, outdoors and indoors, with a day-night cycle, many lights, transparency and anti-aliasing, within the frame budgets tracked for the sample, covered by image tests.
 
@@ -317,14 +336,33 @@ Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b nee
 
 **Goal.** A team can produce a narrative game.
 
-- Animation beyond the core that Stage 7 builds (ADR-0097): state machines, blend trees, IK, retargeting, root motion
+- Animation beyond the core that Stage 7 builds (ADR-0097): state machines, blend trees, IK, retargeting, root motion; motion matching and quadrupeds; 2D animation (ADR-0098)
+- Faces through blend shapes, and lip sync; simple secondary motion of hair, cloth and flesh (ADR-0098)
 - Material graph → IR → shader generation; values set per instance (ADR-0057); variants, permutation cache, async compilation
 - Sequencer: camera, animation, audio, event and VFX tracks
 - VFX: CPU and GPU particles
-- Navigation: navmesh, pathfinding, spatial queries
+- Navigation: navmesh, pathfinding, spatial queries; the AI of characters beside it (ADR-0098)
+- Dialogue and quests, with the state of a story that they read and that scenes depend on; the rules of a particular game stay in the game (ADR-0098)
+- Translation tables and voice (ADR-0098)
 - Build, cook and package: Development, Shipping, Server, Editor configurations, for Linux and Windows. Builds without a console (Windows games) write their log to a file.
 
 **Exit.** The game grows into a short narrative vertical slice (animated character, cutscene, gameplay) that ships as a packaged build.
+
+The stage is split in two halves when it is planned, if it needs to be (ADR-0098).
+
+Stage 9c is added by ADR-0098: the rendering of the games of section 1, and consoles one day, need native graphics APIs.
+
+### Stage 9c — Native GPU backends
+
+**Goal.** Give the renderer the features of the GPU that wgpu lacks or holds as experimental.
+
+- Vulkan and Direct3D 12 backends behind the engine-owned API of `slime-gfx`
+- Work on several queues of the GPU in parallel, ray tracing, mesh shaders, resources without a declaration per binding, explicit memory, upscalers and frame generation, the vendors' tools for latency and GPU crashes
+- Whether wgpu stays: as a fallback, for debugging, or for macOS
+
+Before this stage, a feature that wgpu blocks goes through wgpu's access to the API underneath it. The stage comes right after Stage 9b and has no release of its own; what it delivers is released with 0.10.
+
+**Exit.** The game runs on the native backends on Linux and on Windows, and the image tests pass on them as on wgpu.
 
 Stage 10 is split in two (ADR-0097): streaming, which an open world needs, does not wait for networking, which the first game does not need.
 
@@ -335,7 +373,12 @@ Stage 10 is split in two (ADR-0097): streaming, which an open world needs, does 
 - World streaming: cells, async I/O, priorities, memory budgets, HLOD
 - Terrain, vegetation and their editing tools
 - Large-world coordinates
-- High-scale rendering: GPU-driven rendering, advanced culling, virtual texturing, virtual geometry, global illumination, ray tracing. Each is admitted against a measured problem and depends on what wgpu exposes at that time.
+- High-scale rendering: GPU-driven rendering, advanced culling, virtual texturing, virtual geometry, global illumination, ray tracing. Each is admitted against a measured problem, on the native backends of Stage 9c.
+- Crowds and traffic, with hundreds of characters drawn (ADR-0098)
+- Terrain that deforms, hair drawn strand by strand, simulated cloth (ADR-0098)
+- Water and weather (ADR-0098)
+
+The stage is split in two halves when it is planned (ADR-0098).
 
 **Exit.** The game streams an open world.
 
@@ -343,8 +386,12 @@ Stage 10 is split in two (ADR-0097): streaming, which an open world needs, does 
 
 **Goal.** Scale beyond a single machine.
 
-- Networking: transport, replication, RPC, prediction, reconciliation, interest management
+- Networking: transport, replication, RPC, prediction, reconciliation, lag compensation, interest management for hundreds of players in one place (ADR-0098)
+- Synchronized physics, proximity voice chat, games hosted by a player with relays, a world split between servers (ADR-0098)
+- The threat model of ADR-0096 extended to the network (ADR-0098)
 - Dedicated server build
+
+The stage is split in two halves when it is planned (ADR-0098).
 
 **Exit.** Several clients play the game connected to a dedicated server.
 
@@ -384,11 +431,11 @@ These run through every stage. They are never "a phase for later".
 
 Direction only. None of this is planned work until Stage 11 is reached.
 
-- **Online platform for MMO-scale games.** Distinct from the engine: gateway, authentication, persistence, world and instance services, chat, economy, observability, deployment. The engine supplies serialization, replication, headless servers and world partitioning.
-- **Consoles.** Only with official SDK access. Requires a native GPU backend if wgpu offers none.
+- **Online platform for MMO-scale games.** Distinct from the engine: gateway, authentication, persistence, world and instance services, chat, economy, group finding, anti-cheat, observability, deployment. The engine supplies serialization, replication, headless servers and world partitioning.
+- **Consoles.** Only with official SDK access, and hardware to test on. Built on the native backends of Stage 9c (ADR-0098).
 - **Large-team workflows.** Multi-user editing, asset locking, distributed builds, shared derived-data cache.
 - **Ecosystem.** Plugin registry, templates, asset packages. After users exist, not before.
-- **Advanced world simulation.** Crowds, traffic, weather, water, destruction, procedural generation.
+- **Advanced world simulation.** Destruction, procedural generation. Crowds, traffic, water and weather moved to Stage 10a (ADR-0098).
 - **Visual scripting.** Node graph → IR → VM or native code, once reflection, scripting and undo/redo are mature.
 - **Research track.** Paper → prototype → benchmark → production evaluation → merge.
 
@@ -408,6 +455,9 @@ Direction only. None of this is planned work until Stage 11 is reached.
 | UI of games | render, input action mapping, UI framework |
 | undo/redo | reflect, editor commands |
 | physics, audio, animation, navigation | world |
+| riding | physics, animation, input action mapping |
+| AI of characters | world, navigation |
+| dialogue and quests | world, serialization |
 | plugins, C ABI, scripting | reflect, stable module boundaries |
 | material graph | render, reflect, UI framework |
 | streaming | world, assets, jobs, profiler |
@@ -434,6 +484,7 @@ Direction only. None of this is planned work until Stage 11 is reached.
 | 0.7 | 8 | Plugins, scripting |
 | 0.8 | 9a | Production renderer |
 | 0.9 | 9b | Content production |
+| — | 9c | Native GPU backends, released with 0.10 |
 | 0.10 | 10a | Large worlds |
 | 0.11 | 10b | Networking |
 | 0.12 | 11 | Usable by external projects |

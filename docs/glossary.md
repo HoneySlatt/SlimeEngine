@@ -272,6 +272,10 @@ Linux) and Direct3D 12 (on Windows). wgpu translates the engine's calls into one
 values up to ±65 504. The channels of `Rgba16Float` render targets, which the engine converts to
 `f32` by hand when it reads them back (`Gpu::read_float_render_target`).
 
+**Hardware tier.** A class of computers that the engine runs on, from modest ones at high frame
+rates to high-end ones: a game picks the lowest it supports, and each technique of the renderer
+belongs to a tier ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)).
+
 **Headless.** Running the engine without a window, renderer or audio output. It is a normal
 configuration, used by automated tests and, later, by dedicated servers.
 
@@ -426,6 +430,10 @@ lights'.
 covers each pixel at several points, its *samples (multisampling)*, and shades the pixel once for
 the samples it covers; the *resolve (multisampling)* averages them into one pixel. It smooths the
 edges of triangles, not what a shader draws inside them.
+
+**Native backend.** An implementation of `slime-gfx`'s engine-owned API on a *graphics API*
+directly, Vulkan or Direct3D 12, without wgpu; planned at Stage 9c of the roadmap
+([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)).
 
 **Nit (cd/m²).** The unit of luminance, candelas per square metre: the light that surfaces reflect
 and emit and the *sky*'s, as the renderer computes them before the *exposure*.
@@ -827,6 +835,10 @@ names one, `#[reflect(upgrade = ...)]`, and a reader applies them in turn
 **Value (reflection).** A reflected value as plain data, without its Rust type: booleans, integers,
 floats of either width, text, structs, enums, options, lists, references to assets and entities
 (`slime_reflect::Value`). What passes between reflection, files, saves and editors.
+
+**Visual target.** A reference image that a game sets for its look, on its target *hardware tier*
+at its frame rate: the gap between the game's image and its targets is the measured problem by
+which a rendering technique enters the engine ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)).
 
 **WARP.** Microsoft's software driver for Direct3D 12, part of Windows. wgpu uses it on Windows
 machines without a GPU, such as the CI runners.

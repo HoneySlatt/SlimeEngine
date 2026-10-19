@@ -1,7 +1,8 @@
 # 0097. An audit pass and a foundations pass before Stage 6, and the roadmap after them
 
 - Status: Accepted; amends [0052](0052-amend-roadmap-before-0-1.md) (Stage 9a's content and the
-  release map)
+  release map); amended by [0098](0098-the-games-the-engine-aims-at.md) (the criteria of the
+  foundations pass)
 - Date: 2026-10-19
 
 ## Context
