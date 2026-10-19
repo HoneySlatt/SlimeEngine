@@ -372,7 +372,7 @@ fn cook_gltf(
         path: source.path.clone(),
         source: error,
     };
-    let file = GltfFile::open(&source.path, &bytes).map_err(import_error)?;
+    let file = GltfFile::open(&source.path, &bytes, sources).map_err(import_error)?;
     let mut hasher = blake3::Hasher::new();
     hasher.update(b"gltf");
     hasher.update(&GLTF_COOKER_VERSION.to_le_bytes());

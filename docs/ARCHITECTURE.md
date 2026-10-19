@@ -568,7 +568,8 @@ slime-cook cook <sources> <output>                     the cooker's program, bef
 └── slime_cook::cook(sources, output)
     ├── scan(sources, GiveIds)                         every source file and its ID, from the
     │                                                  `.meta` beside it, given if it has none
-    ├── for each glTF file: GltfFile::open(path, bytes) parsed, validated, its buffers read
+    ├── for each glTF file: GltfFile::open(path, ..)   parsed, validated, its buffers read from
+    │                                                  files inside the sources only
     │   ├── output/<key>.import there already?         reused if each file that it lists is
     │   │                                              whole: read by its kind's reader, of its
     │   │                                              size

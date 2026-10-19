@@ -24,11 +24,13 @@
 //! It refuses, with a message that says what and where: a file that is not valid glTF, which
 //! includes one that requires an extension other than the two it reads; a file that uses
 //! `KHR_texture_transform`, which it does not read; buffers and images that cannot be found or
-//! lie outside their buffer; images that are neither PNG nor JPEG, or that are not sources of the
-//! directory cooked; primitives that are not triangle lists, have no positions, or store an
-//! attribute in a way glTF does not allow (types, sparse or empty accessors, data closer together
-//! than its size or past its buffer); indices that name no vertex, or not a multiple of 3; values
-//! that are not finite numbers, which glTF forbids; a texture read through another set of texture
+//! lie outside their buffer; buffer files outside the directory cooked, or that are not files;
+//! images that are neither PNG nor JPEG, or that are not sources of the directory cooked;
+//! primitives that are not triangle lists, have no positions, or store an attribute in a way glTF
+//! does not allow (types, sparse or empty accessors, data closer together than its size or past its
+//! buffer); indices that name no vertex, or not a multiple of 3; values that are not finite
+//! numbers, which glTF forbids, and normals or tangents computed from positions so far apart that
+//! they are not; a texture read through another set of texture
 //! coordinates than the first; a node hierarchy that is not a set of trees; materials and lights
 //! that glTF forbids; a typed property without a type's name, whose value is not a boolean, a
 //! number or a text of one line that holds one value in the engine's notation; meshes larger than
@@ -38,7 +40,8 @@
 
 use std::collections::HashMap;
 use std::f32::consts::FRAC_PI_2;
-use std::fs;
+use std::fs::{self, File};
+use std::io::{self, Read};
 use std::path::{Component, Path, PathBuf};
 use std::slice;
 
@@ -186,19 +189,41 @@ fn data_uri(name: &str) -> ImportError {
     ))
 }
 
+/// The first `length` bytes of the buffer file `file`, which must be a file inside `sources`; or
+/// why it cannot be read.
+fn read_buffer(file: &Path, sources: &Path, length: usize) -> Result<Vec<u8>, String> {
+    let cannot = |error: io::Error| format!("cannot be read: {error}");
+    let canonical = fs::canonicalize(file).map_err(cannot)?;
+    if !canonical.starts_with(fs::canonicalize(sources).map_err(cannot)?) {
+        return Err("is outside the directory of sources".to_owned());
+    }
+    if !fs::metadata(&canonical).map_err(cannot)?.is_file() {
+        return Err("is not a file".to_owned());
+    }
+    let mut bytes = Vec::new();
+    File::open(&canonical)
+        .and_then(|opened| opened.take(length as u64).read_to_end(&mut bytes))
+        .map_err(cannot)?;
+    Ok(bytes)
+}
+
 /// A name for messages: the object's own, or its kind and index.
 fn named(name: Option<&str>, kind: &str, index: usize) -> String {
     name.map_or_else(|| format!("{kind} {index}"), str::to_owned)
 }
 
 impl GltfFile {
-    /// Opens the glTF file `path`, whose bytes are `bytes`: parses and validates it, and reads its
-    /// buffers, from its binary chunk or from the files beside it.
+    /// Opens the glTF file `path`, whose bytes are `bytes`, inside the directory of sources
+    /// `sources`: parses and validates it, and reads its buffers, from its binary chunk or from the
+    /// files that it names, each up to the length that the file declares for it. A buffer file
+    /// must be a file inside `sources`, its symbolic links followed, so that a file edited by hand
+    /// reads neither outside the sources, nor a pipe or a device that never ends.
     ///
     /// # Errors
     ///
-    /// [`ImportError`] if the file is not valid glTF, or a buffer cannot be read.
-    pub fn open(path: &Path, bytes: &[u8]) -> Result<Self, ImportError> {
+    /// [`ImportError`] if the file is not valid glTF, or a buffer cannot be read: it is outside
+    /// `sources`, is not a file, or holds fewer bytes than the file declares.
+    pub fn open(path: &Path, bytes: &[u8], sources: &Path) -> Result<Self, ImportError> {
         // The `gltf` crate subtracts the header's 12 bytes from the length a GLB header declares
         // without checking it first, an overflow that panics in debug builds.
         let declared = bytes
@@ -231,11 +256,8 @@ impl GltfFile {
                 }
                 gltf::buffer::Source::Uri(uri) => {
                     let file = lexical(&directory.join(decode_uri(uri)));
-                    fs::read(&file).map_err(|error| {
-                        ImportError(format!(
-                            "{name}, the file `{}`, cannot be read: {error}",
-                            file.display()
-                        ))
+                    read_buffer(&file, sources, buffer.length()).map_err(|reason| {
+                        ImportError(format!("{name}, the file `{}`, {reason}", file.display()))
                     })?
                 }
             };
@@ -733,6 +755,20 @@ impl GltfFile {
         };
         if tangents.is_none() {
             with_mikktspace_tangents(&mut mesh);
+        }
+        // Finite positions can give normals and tangents that are not: the cross product of sides
+        // longer than the square root of the largest float overflows.
+        if !mesh
+            .normals
+            .iter()
+            .flatten()
+            .chain(mesh.tangents.as_flattened())
+            .all(|value| value.is_finite())
+        {
+            return refuse(format!(
+                "{label} has normals or tangents, computed from positions too large, that are not \
+                 finite numbers"
+            ));
         }
         let (min, max) = mesh.positions.iter().fold(
             (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)),
@@ -1465,7 +1501,8 @@ mod blender {
 
     #[test]
     fn mikktspace_tangents_match_blender_s() {
-        let file = GltfFile::open(Path::new("scene.glb"), SAMPLE).expect("the sample opens");
+        let file = GltfFile::open(Path::new("scene.glb"), SAMPLE, Path::new("."))
+            .expect("the sample opens");
         let mut compared = 0;
         for mesh in file.document.meshes() {
             for primitive in mesh.primitives() {

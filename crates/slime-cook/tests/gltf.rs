@@ -155,7 +155,7 @@ impl Glb {
 
 /// What the importer gives of the GLB file `bytes`, or its error.
 fn import_bytes(bytes: &[u8]) -> Result<Imported, String> {
-    GltfFile::open(Path::new("test.glb"), bytes)
+    GltfFile::open(Path::new("test.glb"), bytes, Path::new("."))
         .and_then(|file| file.import(FILE, &HashMap::new()))
         .map_err(|error| error.to_string())
 }
@@ -686,6 +686,28 @@ fn values_that_are_not_finite_numbers_are_refused() {
 }
 
 #[test]
+fn positions_too_large_for_their_tangents_are_refused() {
+    // Finite, but two of them 2 × 3.4 × 10³⁸ apart, which no 32-bit float holds: the tangents that
+    // MikkTSpace computes from them are not finite numbers, with the normals of the file or with
+    // flat ones.
+    let max = f32::MAX;
+    let corners = [1.0, 0.0, -1.0, 0.0, 0.0, -max, -1.0, 1.0, max];
+    for normals in [true, false] {
+        let mut file =
+            Glb::triangle().with_attribute("TEXCOORD_0", "VEC2", &[0.0, 0.0, 1.0, 1.0, 0.0, 1.0]);
+        if normals {
+            file = file.with_attribute("NORMAL", "VEC3", &[0.0, 1.0, 0.0].repeat(3));
+        }
+        file.bin[..36].copy_from_slice(&corners.map(f32::to_le_bytes).concat());
+        let refusal = file.refusal();
+        assert!(
+            refusal.contains("computed from positions too large"),
+            "{normals}: {refusal}"
+        );
+    }
+}
+
+#[test]
 fn meshes_larger_than_the_gpu_takes_are_refused_before_they_are_copied() {
     // The triangle drawn over and over, with 8-bit indices: a file of a few MiB, whose flat normals
     // take three vertices per triangle, one triangle more than a mesh takes.
@@ -864,6 +886,43 @@ fn a_gltf_file_whose_image_is_missing_fails_the_cook_with_its_path() {
         message.contains("triangle.gltf") && message.contains("textures/rock.png"),
         "{message}"
     );
+}
+
+#[test]
+fn a_gltf_file_reads_its_buffers_from_files_inside_its_sources_only() {
+    let root = directory("buffers");
+    let sources = root.join("sources");
+    gltf_with_files_beside(&sources);
+    let gltf = sources.join("triangle.gltf");
+    let original = fs::read_to_string(&gltf).expect("read");
+    // A buffer beside the sources, which a path that climbs out of them, or an absolute one,
+    // would read.
+    fs::copy(sources.join("triangle.bin"), root.join("outside.bin")).expect("copied");
+    let outside = root.join("outside.bin");
+    let absolute = outside.to_string_lossy().replace('\\', "/");
+    let mut uris = vec![("../outside.bin", "is outside the directory of sources")];
+    uris.push((absolute.as_str(), "is outside the directory of sources"));
+    fs::create_dir(sources.join("folder")).expect("created");
+    uris.push(("folder", "is not a file"));
+    // A file that never ends, which a read whole would never finish.
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink("/dev/zero", sources.join("zero.bin")).expect("linked");
+        uris.push(("zero.bin", "is outside the directory of sources"));
+    }
+    for (uri, expected) in uris {
+        fs::write(&gltf, original.replace("triangle.bin", uri)).expect("written");
+        let error = cook(&sources, &root.join("cooked")).expect_err(uri);
+        let message = error.to_string();
+        assert!(message.contains(expected), "{uri}: {message}");
+    }
+    // A buffer file longer than the file declares is read up to its length.
+    fs::write(&gltf, &original).expect("written");
+    let mut longer = fs::read(sources.join("triangle.bin")).expect("read");
+    longer.extend_from_slice(&[0; 64]);
+    fs::write(sources.join("triangle.bin"), longer).expect("written");
+    let file = GltfFile::open(&gltf, original.as_bytes(), &sources).expect("opened");
+    assert_eq!(file.buffers()[0].len(), 36);
 }
 
 #[test]

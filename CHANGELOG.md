@@ -32,6 +32,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   level: its identity is under the key, as the new scene's would be, and the next save of the run
   could not be loaded. A level that keeps something of the one before it is spawned under a key of
   its own.
+- `GltfFile::open` takes the directory of sources, from inside which alone it reads a `.gltf`
+  file's buffers.
 
 ### Fixed
 
@@ -91,6 +93,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   file under the expected name as good, so that the cook that a game advised repaired nothing. It
   forces what it writes to the disk before it renames it, and writes a new metadata file through a
   file beside it, as it writes cooked files.
+- The glTF importer reads a `.gltf` file's buffers only from files inside the directory cooked,
+  each up to the length that the file declares, where a path with `..`, an absolute one, a pipe or
+  `/dev/zero` was read, and whole before its size was compared; and it refuses positions so far
+  apart that the tangents computed from them are not finite numbers, where the cooker panicked.
 - A save that gives one key both to a scene that it spawns and to an entity that it creates, as a
   save edited by hand may, is refused with `DocumentError::IdentityInUse`: it was loaded, two
   entities claiming one identity, and the next save left one of them out.
