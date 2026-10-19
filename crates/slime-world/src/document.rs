@@ -274,15 +274,17 @@ impl World {
     /// in the order of their names. Its cost grows in proportion with the entities of the two
     /// worlds and with what differs: measured in a release build on the owner's machine, 10 000
     /// entities created, each with a name and a transform, save in 0.22 s into 2.9 MB of text, and
-    /// 40 000 in four times as long. A save holds at most [`slime_serialize::MAX_SIZE`], about 57
-    /// 000 such entities. A thousand placements made while the world runs, each moved and a value
+    /// 40 000 in four times as long. A save holds at most [`slime_serialize::MAX_SIZE`] bytes and
+    /// [`slime_serialize::MAX_VALUES`] values, as a reader counts them, about 22 000 such entities,
+    /// whose values it counts 47 each. A thousand placements made while the world runs, each moved and a value
     /// of it changed, save in 0.08 s into 238 kB, and load in 0.03 s, for a prefab of 10 entities;
     /// in 0.85 s and 0.16 s for a prefab of 100.
     ///
     /// # Errors
     ///
     /// [`DocumentError::Write`] if a value cannot be written, a number out of its field's range, or
-    /// the save would be larger or deeper than a reader reads ([`slime_serialize::MAX_SIZE`],
+    /// the save would be larger, of more values or deeper than a reader reads
+    /// ([`slime_serialize::MAX_SIZE`], [`slime_serialize::MAX_VALUES`],
     /// [`slime_serialize::MAX_DEPTH`]).
     pub fn save(
         &self,

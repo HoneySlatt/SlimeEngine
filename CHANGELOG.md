@@ -97,6 +97,14 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   each up to the length that the file declares, where a path with `..`, an absolute one, a pipe or
   `/dev/zero` was read, and whole before its size was compared; and it refuses positions so far
   apart that the tangents computed from them are not finite numbers, where the cooker panicked.
+- Reading a document takes memory bounded by its limits: a document holds at most `MAX_VALUES`
+  values, 2²⁰, a text's counted before it is parsed by one for each `=`, `,`, `[`, `{` and `.` that
+  it holds, the binary encoding's as they are read (`ReadProblem::TooMany`), so that a save of
+  16 MiB of empty arrays, which the parser took gigabytes to read, is refused at once; and a writer
+  refuses a document that a reader would. A save then holds about 22 000 entities that have a name
+  and a transform, where 16 MiB held 57 000. A resolved scene takes at most `MAX_SCENE_SIZE` bytes,
+  256 MiB, its placements' copies of their prefabs counted before any is made, where a few small
+  files that placed a large prefab many times made a scene of gigabytes under `MAX_ENTITIES`.
 - A save that gives one key both to a scene that it spawns and to an entity that it creates, as a
   save edited by hand may, is refused with `DocumentError::IdentityInUse`: it was loaded, two
   entities claiming one identity, and the next save left one of them out.

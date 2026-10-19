@@ -15,11 +15,19 @@ pub use crate::compose::{Composer, Document};
 use crate::compose::{line_breaks, parsed, position, too_large};
 pub use crate::error::{ReadError, ReadProblem};
 
-/// The size of the largest document read, in bytes, as text or in the binary encoding: 16 MiB. The
-/// text's parser takes about a hundred bytes of memory for each value it reads: the densest document
-/// of that size, one array of small integers, took 3.7 s and 1.8 GB to read in a release build on the
-/// owner's machine (M5a.7), one of 1 MiB 0.24 s and 110 MB.
+/// The size of the largest document read, in bytes, as text or in the binary encoding: 16 MiB. A
+/// document holds at most [`MAX_VALUES`] values too, which bounds the memory that reading it takes.
 pub const MAX_SIZE: usize = 16 << 20;
+
+/// The most values that a document read holds, its tables, arrays and the tables that dotted keys
+/// make included: 2²⁰, a little over a million. A text's are counted before it is parsed, by an
+/// upper bound linear in its size: one for each `=`, `,`, `[`, `{` and `.` that it holds, a float's
+/// point or a quoted key's included; the binary encoding's as they are read.
+///
+/// The text's parser takes up to about 600 bytes of memory for each value counted, besides its keys
+/// and texts: the documents of that many values that took the most to read, a million keys each
+/// with its value, or a million tables, took 570 MB and up to 2 s in a release build.
+pub const MAX_VALUES: usize = 1 << 20;
 
 /// The most warnings that a lenient reading keeps ([`Read::warnings`], [`Document::warnings`]): 100.
 /// Past them, one more counts those left out ([`ReadProblem::MoreLeftOut`]), so that a document that
@@ -110,7 +118,8 @@ pub struct Read {
 /// value of another kind, an integer wider than its type, an array of another length, a number
 /// out of its field's range, NaN or an infinity in a field that has one; and when it holds a
 /// reference to an entity, which is not written; and when the document would be larger than
-/// [`MAX_SIZE`] or nest deeper than [`MAX_DEPTH`], which [`read`] refuses.
+/// [`MAX_SIZE`], hold more than [`MAX_VALUES`] values or nest deeper than [`MAX_DEPTH`], which
+/// [`read`] refuses.
 pub fn write(registry: &Registry, ty: &str, value: &Value) -> Result<String, ReflectError> {
     write_document(registry, ty, value, false)
 }
@@ -147,8 +156,9 @@ fn write_document(
 ///
 /// # Errors
 ///
-/// When `text` is larger than [`MAX_SIZE`], nests deeper than [`MAX_DEPTH`], is not TOML, is of a
-/// later version of the format, or does not hold a value of `ty`: a field missing, or one that the
+/// When `text` is larger than [`MAX_SIZE`], holds more than [`MAX_VALUES`] values, nests deeper
+/// than [`MAX_DEPTH`], is not TOML, is of a later version of the format, or does not hold a value
+/// of `ty`: a field missing, or one that the
 /// type does not have in [`Mode::Strict`], a value of another kind, a number out of its field's
 /// range or of its type's width, a type of a later version, or of an earlier one whose upgrade
 /// refuses it ([`ReadProblem`]). The error says where, by line and column and by the path in the
@@ -245,8 +255,8 @@ pub fn read_file(
 ///
 /// # Errors
 ///
-/// When `text` is larger than [`MAX_SIZE`], nests deeper than [`MAX_DEPTH`], is not TOML or holds a
-/// date or a time, which the engine's values do not hold, as reading it refuses, at its line and
+/// When `text` is larger than [`MAX_SIZE`], holds more than [`MAX_VALUES`] values, nests deeper
+/// than [`MAX_DEPTH`], is not TOML or holds a date or a time, which the engine's values do not hold, as reading it refuses, at its line and
 /// column; when the encoding would be larger than [`MAX_SIZE`], which [`Document::parse_binary`]
 /// refuses. A document that a [`Composer`] writes is encoded so, from its text.
 pub fn encode(text: &str) -> Result<Vec<u8>, ReadError> {

@@ -14,8 +14,8 @@ use slime_serialize::{Document, Mode, ReadError, References};
 use crate::components::Name;
 use crate::document::{ADDED, CHANGED, REMOVED, SetAside};
 use crate::library::{
-    AssetName, MAX_ENTITIES, NO_RECORD, Overrides, Placement, Record, Resolved, ResolvedScene,
-    SceneError, SceneFile, SceneLibrary, fingerprint,
+    AssetName, MAX_ENTITIES, MAX_SCENE_SIZE, NO_RECORD, Overrides, Placement, Record, Resolved,
+    ResolvedScene, SceneError, SceneFile, SceneLibrary, fingerprint, size,
 };
 use crate::transform::Transform;
 
@@ -541,7 +541,9 @@ impl Resolution<'_> {
     ///
     /// # Errors
     ///
-    /// [`SceneError::TooLarge`] for a scene of more than [`MAX_ENTITIES`] entities: the scene `name`.
+    /// [`SceneError::TooLarge`] for a scene of more than [`MAX_ENTITIES`] entities, or whose
+    /// placements' copies of their prefabs take more than [`MAX_SCENE_SIZE`] bytes: the scene
+    /// `name`.
     fn place(&mut self, name: &str) -> Result<(), SceneError> {
         let too_large = || SceneError::TooLarge {
             scene: name.to_owned(),
@@ -552,7 +554,13 @@ impl Resolution<'_> {
             .iter()
             .map(|prefab| prefab.as_ref().map_or(1, |prefab| prefab.0.records.len()))
             .sum::<usize>();
-        if entities > MAX_ENTITIES {
+        let copied: usize = self
+            .prefabs
+            .iter()
+            .flatten()
+            .map(|prefab| prefab.0.size)
+            .sum();
+        if entities > MAX_ENTITIES || copied > MAX_SCENE_SIZE {
             return Err(too_large());
         }
         self.records.reserve(entities);
@@ -1036,6 +1044,7 @@ impl Resolution<'_> {
             name: name.to_owned(),
             fingerprint,
             depth,
+            size: size(&self.records, &set_aside),
             records: self.records,
             set_aside,
             assets,

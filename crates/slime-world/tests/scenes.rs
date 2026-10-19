@@ -824,6 +824,25 @@ fn a_scene_of_more_entities_than_the_limit_is_refused_before_any_is_made() {
 }
 
 #[test]
+fn a_scene_whose_placements_copy_more_than_the_limit_is_refused_before_any_is_made() {
+    // A lamp of 512 kB, placed 2 000 times by a file of 60 kB: 1 GB of copies, far fewer entities
+    // than the limit.
+    let lamp = format!(
+        "[entities.post.components]\nName = \"{}\"\n",
+        "a".repeat(512 << 10)
+    );
+    let mut scenes = library(&[
+        (YARD, "yard", &many_placements(2_000)),
+        (LAMP, "lamp", &lamp),
+    ]);
+    let world = world();
+    match scenes.resolve(world.registry(), YARD) {
+        Err(SceneError::TooLarge { scene }) => assert_eq!(scene, "yard"),
+        other => panic!("{other:?}"),
+    }
+}
+
+#[test]
 fn a_gltf_scene_counts_in_the_depth_of_the_placements_that_nest_it() {
     let places = |id: u128| {
         format!(

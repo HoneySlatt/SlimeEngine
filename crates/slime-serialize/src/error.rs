@@ -47,6 +47,12 @@ pub enum ReadProblem {
         /// The largest size read.
         limit: usize,
     },
+    /// More values than a document read holds ([`MAX_VALUES`](crate::MAX_VALUES)).
+    #[error("more values than the {limit} that a document may hold")]
+    TooMany {
+        /// The most values read.
+        limit: usize,
+    },
     /// Values nested deeper than the deepest read ([`MAX_DEPTH`](crate::MAX_DEPTH)).
     #[error("values nested deeper than the {limit} levels that a document may hold")]
     TooDeep {

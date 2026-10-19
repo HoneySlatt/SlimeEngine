@@ -9,7 +9,9 @@ use slime_reflect::{Path, Problem, ReflectError, Registry, Step, Value};
 
 use crate::document::{Failure, Reader, Writer};
 use crate::error::{ReadError, ReadProblem};
-use crate::{MAX_DEPTH, MAX_SIZE, MAX_WARNINGS, Mode, References, binary, format, text};
+use crate::{
+    MAX_DEPTH, MAX_SIZE, MAX_VALUES, MAX_WARNINGS, Mode, References, binary, format, text,
+};
 
 /// The root's key of the version of the format.
 const FORMAT: &str = "$format";
@@ -221,8 +223,8 @@ impl<'a> Composer<'a> {
     ///
     /// # Errors
     ///
-    /// When the text would be larger than [`MAX_SIZE`], or nest deeper than [`MAX_DEPTH`], which a
-    /// reader refuses: what is written can be read.
+    /// When the text would be larger than [`MAX_SIZE`], hold more than [`MAX_VALUES`] values, or
+    /// nest deeper than [`MAX_DEPTH`], which a reader refuses: what is written can be read.
     pub fn finish(self) -> Result<String, ReflectError> {
         let mut root = Vec::new();
         if !self.writer.versions.is_empty() {
@@ -250,6 +252,13 @@ impl<'a> Composer<'a> {
             return Err(ReflectError::new(Problem::Invalid(format!(
                 "the document would be {} bytes, past the {MAX_SIZE} that a reader reads",
                 text.len()
+            ))));
+        }
+        let values = counted_values(&text);
+        if values > MAX_VALUES {
+            return Err(ReflectError::new(Problem::Invalid(format!(
+                "the document would hold {values} values, as a reader counts them, past the \
+                 {MAX_VALUES} that it reads"
             ))));
         }
         Ok(text)
@@ -314,7 +323,8 @@ impl<'a> Document<'a> {
     ///
     /// # Errors
     ///
-    /// As [`read`](crate::read): a text too large, too deep or not TOML, a later version of the
+    /// As [`read`](crate::read): a text too large, of too many values, too deep or not TOML, a
+    /// later version of the
     /// format or of a type, a type that the registry does not hold under `$versions` in
     /// [`Mode::Strict`].
     pub fn parse(registry: &'a Registry, text: &'a str, mode: Mode) -> Result<Self, ReadError> {
@@ -693,11 +703,18 @@ impl<'a> Document<'a> {
 ///
 /// # Errors
 ///
-/// When `text` is larger than [`MAX_SIZE`], nests deeper than [`MAX_DEPTH`] or is not TOML, at its
-/// line and column.
+/// When `text` is larger than [`MAX_SIZE`], holds more than [`MAX_VALUES`] values, counted before
+/// it is parsed, nests deeper than [`MAX_DEPTH`] or is not TOML, at its line and column.
 pub(crate) fn parsed(text: &str) -> Result<text::Parsed<'_>, ReadError> {
     if text.len() > MAX_SIZE {
         return Err(too_large(text.len()));
+    }
+    if counted_values(text) > MAX_VALUES {
+        return Err(ReadError::new(
+            None,
+            Path::default(),
+            ReadProblem::TooMany { limit: MAX_VALUES },
+        ));
     }
     text::parse(text).map_err(|(span, problem)| {
         ReadError::new(
@@ -706,6 +723,15 @@ pub(crate) fn parsed(text: &str) -> Result<text::Parsed<'_>, ReadError> {
             problem,
         )
     })
+}
+
+/// The values that `text` holds, at most, as [`MAX_VALUES`] counts them: each value but the root
+/// follows a `=`, a `,`, a `[`, a `{` or a `.`, which a key, a text or a comment may hold too.
+fn counted_values(text: &str) -> usize {
+    1 + text
+        .bytes()
+        .filter(|byte| matches!(byte, b'=' | b',' | b'[' | b'{' | b'.'))
+        .count()
 }
 
 /// The error of a document of `size` bytes, past [`MAX_SIZE`].

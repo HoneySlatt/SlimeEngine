@@ -24,6 +24,13 @@ pub const MAX_NESTING: usize = 16;
 /// fills the memory.
 pub const MAX_ENTITIES: usize = 1 << 20;
 
+/// The most bytes that a resolved scene takes in memory, about, its placements' copies of their
+/// prefabs counted: 256 MiB, so that a few small files that place a large prefab many times cannot
+/// fill the memory, as [`MAX_ENTITIES`] does for a prefab of many entities. Counted for each record
+/// and each report of what was set aside, their texts' and names' bytes and, for each value, the
+/// size of a [`Value`], which leaves out what the allocator and the vectors' spare room add.
+pub const MAX_SCENE_SIZE: usize = 256 << 20;
+
 /// What a template's reference to an entity holds for no entity: `""` in a scene file.
 pub(crate) const NO_RECORD: u64 = u64::MAX;
 
@@ -222,7 +229,8 @@ impl SceneLibrary {
     /// [`SceneError::Missing`] for a scene that the library does not hold; [`SceneError::File`]
     /// for a scene file that says something wrong, where; [`SceneError::Cycle`] for prefabs that
     /// place each other; [`SceneError::TooDeep`] for placements nested deeper than
-    /// [`MAX_NESTING`]; [`SceneError::TooLarge`] for a scene of more than [`MAX_ENTITIES`] entities;
+    /// [`MAX_NESTING`]; [`SceneError::TooLarge`] for a scene of more than [`MAX_ENTITIES`] entities,
+    /// or that takes more than [`MAX_SCENE_SIZE`] bytes;
     /// [`SceneError::Node`] for a glTF scene's typed component that `registry` refuses;
     /// [`SceneError::Load`] for a scene whose cooked file cannot be read.
     pub fn resolve(
@@ -350,11 +358,59 @@ pub(crate) struct Resolved {
     pub(crate) fingerprint: u64,
     /// How many scenes deep its placements nest, itself included: 1 for a scene that places none.
     pub(crate) depth: usize,
+    /// About the bytes that its records and its reports take ([`MAX_SCENE_SIZE`], [`size`]).
+    pub(crate) size: usize,
     /// The root first; each entity's parent may come after it, as a scene file's may.
     pub(crate) records: Vec<Record>,
     pub(crate) set_aside: Vec<SetAside>,
     /// The scene file's table of assets, in its order; none for a glTF scene.
     pub(crate) assets: Vec<AssetName>,
+}
+
+/// About the bytes that `records` and `set_aside` take in memory, as [`MAX_SCENE_SIZE`] counts them.
+pub(crate) fn size(records: &[Record], set_aside: &[SetAside]) -> usize {
+    let text = |text: &String| size_of::<String>() + text.len();
+    let records: usize = records
+        .iter()
+        .map(|record| {
+            size_of::<Record>()
+                + record.path.iter().map(text).sum::<usize>()
+                + record
+                    .components
+                    .iter()
+                    .map(|(name, value)| text(name) + value_size(value))
+                    .sum::<usize>()
+        })
+        .sum();
+    let set_aside: usize = set_aside
+        .iter()
+        .map(|aside| {
+            size_of::<SetAside>()
+                + aside.entity.len()
+                + aside.component.as_ref().map_or(0, String::len)
+                + aside.reason.len()
+        })
+        .sum();
+    records + set_aside
+}
+
+/// About the bytes that `value` takes in memory, what it holds included.
+fn value_size(value: &Value) -> usize {
+    let fields = |fields: &[(String, Value)]| -> usize {
+        fields
+            .iter()
+            .map(|(name, value)| size_of::<String>() + name.len() + value_size(value))
+            .sum()
+    };
+    size_of::<Value>()
+        + match value {
+            Value::Text(text) => text.len(),
+            Value::Struct(inner) => fields(inner),
+            Value::Enum(variant, inner) => variant.len() + fields(inner),
+            Value::Option(Some(inner)) => value_size(inner),
+            Value::List(elements) => elements.iter().map(value_size).sum(),
+            _ => 0,
+        }
 }
 
 /// An asset of a scene file's table: its short name, its ID, and where its source was.
@@ -550,6 +606,7 @@ impl ResolvedScene {
             name: scene.name.clone(),
             fingerprint: fingerprint(0xcbf2_9ce4_8422_2325, &scene.to_bytes()),
             depth: 1,
+            size: size(&records, &[]),
             records,
             set_aside: Vec::new(),
             assets: Vec::new(),
@@ -693,8 +750,12 @@ pub enum SceneError {
     /// placed.
     #[error("placements nested deeper than {MAX_NESTING} scenes: {}", .0.join(" → "))]
     TooDeep(Vec<String>),
-    /// A scene of more than [`MAX_ENTITIES`] entities, its placements' counted.
-    #[error("scene `{scene}` holds more than {MAX_ENTITIES} entities, its placements' counted")]
+    /// A scene of more than [`MAX_ENTITIES`] entities, or that takes more than [`MAX_SCENE_SIZE`]
+    /// bytes, its placements' counted.
+    #[error(
+        "scene `{scene}` holds more than {MAX_ENTITIES} entities, or takes more than \
+         {MAX_SCENE_SIZE} bytes, its placements' counted"
+    )]
     TooLarge {
         /// The scene, by its name.
         scene: String,

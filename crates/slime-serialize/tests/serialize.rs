@@ -4,8 +4,8 @@
 use glam::{DVec3, Quat, Vec3};
 use slime_reflect::{Kind, Problem, Range, Reflect, Registry, TypeInfo, Value, diff};
 use slime_serialize::{
-    Composer, Document, MAX_DEPTH, MAX_SIZE, Mode, ReadProblem, References, read, read_file,
-    read_partial, write, write_partial,
+    Composer, Document, MAX_DEPTH, MAX_SIZE, MAX_VALUES, Mode, ReadProblem, References, read,
+    read_file, read_partial, write, write_partial,
 };
 
 /// A colour.
@@ -554,6 +554,44 @@ fn many_warnings_cost_time_in_proportion_with_the_document_and_are_capped() {
         matches!(more.problem(), ReadProblem::MoreLeftOut(count)
             if *count == unknown - slime_serialize::MAX_WARNINGS),
         "{more}"
+    );
+}
+
+#[test]
+fn a_document_of_more_values_than_a_reader_reads_is_refused_before_it_is_read() {
+    let registry = registry();
+    // 16 MiB of empty arrays, more than 5 million, which the parser took gigabytes to read.
+    let text = format!("a = [{}]", vec!["[]"; (MAX_SIZE - 6) / 3].join(","));
+    assert!(text.len() <= MAX_SIZE);
+    let started = std::time::Instant::now();
+    let error = Document::parse(&registry, &text, Mode::Lenient)
+        .err()
+        .expect("refused");
+    assert!(
+        matches!(error.problem(), ReadProblem::TooMany { limit: MAX_VALUES }),
+        "{error}"
+    );
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(2),
+        "{:?}: it was parsed",
+        started.elapsed()
+    );
+    // The binary encoding, with one more value than a reader reads: a root table, `a`, and an array
+    // of empty arrays.
+    let mut bytes = b"SLDB\x01\x01\x01a\x07\x01\x00\x06".to_vec();
+    let mut count = MAX_VALUES as u64;
+    while count >= 0x80 {
+        bytes.push((count as u8 & 0x7f) | 0x80);
+        count >>= 7;
+    }
+    bytes.push(count as u8);
+    bytes.extend([6, 0].repeat(MAX_VALUES));
+    let error = Document::parse_binary(&registry, &bytes, Mode::Lenient)
+        .err()
+        .expect("refused");
+    assert!(
+        matches!(error.problem(), ReadProblem::TooMany { limit: MAX_VALUES }),
+        "{error}"
     );
 }
 

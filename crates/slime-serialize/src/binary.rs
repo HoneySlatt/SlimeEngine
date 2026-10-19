@@ -8,7 +8,7 @@ use slime_reflect::{Path, Step, Value};
 
 use crate::error::ReadProblem;
 use crate::format::BINARY_VERSION as VERSION;
-use crate::{MAX_DEPTH, MAX_SIZE};
+use crate::{MAX_DEPTH, MAX_SIZE, MAX_VALUES};
 
 /// The bytes that begin every document in the binary encoding: "Slime document, binary".
 pub(crate) const MARK: &[u8; 4] = b"SLDB";
@@ -153,8 +153,9 @@ fn varint(out: &mut Vec<u8>, mut number: u64) {
 /// Bytes that do not begin with [`MARK`], of version 0 or of a later version of the encoding, cut
 /// short, with a tag, a varint, a count or a string index that the encoding does not have, a string
 /// that is not UTF-8 or that comes twice, a key given twice in a table, values nested deeper than
-/// [`MAX_DEPTH`], keys and texts that hold more than [`MAX_SIZE`] bytes counted where they are used,
-/// or bytes past the root table: at the byte, with the path of the part at fault.
+/// [`MAX_DEPTH`], more than [`MAX_VALUES`] values, keys and texts that hold more than [`MAX_SIZE`]
+/// bytes counted where they are used, or bytes past the root table: at the byte, with the path of
+/// the part at fault.
 pub(crate) fn decode(bytes: &[u8]) -> Result<Vec<(String, Value)>, Failure> {
     let mut decoder = Decoder::new(bytes)?;
     let root = decoder.root()?;
@@ -224,6 +225,8 @@ struct Decoder<'b> {
     path: Vec<Part>,
     /// How many bytes of strings were copied into the document read so far.
     copied: usize,
+    /// How many values were read so far, the root included.
+    values: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -241,6 +244,7 @@ impl<'b> Decoder<'b> {
             strings: Vec::new(),
             path: Vec::new(),
             copied: 0,
+            values: 0,
         };
         if bytes.get(..MARK.len()) != Some(MARK) {
             return Err(decoder.fail("not the engine's mark, `SLDB`"));
@@ -284,6 +288,7 @@ impl<'b> Decoder<'b> {
     }
 
     fn root(&mut self) -> Result<Vec<(String, Value)>, Failure> {
+        self.count_value()?;
         match self.byte()? {
             TABLE => self.table(1),
             _ => {
@@ -326,6 +331,7 @@ impl<'b> Decoder<'b> {
     /// A value, at `depth`.
     fn value(&mut self, depth: usize) -> Result<Value, Failure> {
         self.deep(depth)?;
+        self.count_value()?;
         let start = self.at;
         Ok(match self.byte()? {
             FALSE => Value::Bool(false),
@@ -392,6 +398,19 @@ impl<'b> Decoder<'b> {
                 }
                 _ => return Err(self.fail("a tag that the encoding does not have")),
             }
+        }
+        Ok(())
+    }
+
+    /// Counts one more value read, and refuses it past [`MAX_VALUES`], as a text's parsing does.
+    fn count_value(&mut self) -> Result<(), Failure> {
+        self.values += 1;
+        if self.values > MAX_VALUES {
+            return Err((
+                self.at,
+                self.path(),
+                ReadProblem::TooMany { limit: MAX_VALUES },
+            ));
         }
         Ok(())
     }
