@@ -2380,7 +2380,8 @@ translation = { x = 6.5 }
         assert!(report.set_aside[0].reason.contains("`yard/shed`"));
     }
 
-    /// A component of a version that no upgrade brings forward: reading one panics.
+    /// A component of a version that no upgrade brings forward: its upgrade panics, as a game's may
+    /// on a value that it did not expect.
     #[derive(Clone, Debug, PartialEq, Reflect)]
     #[reflect(name = "test::Brittle", version = 2, upgrade = shatter)]
     struct Brittle {
@@ -2392,16 +2393,57 @@ translation = { x = 6.5 }
         panic!("shattered");
     }
 
+    /// A component whose check panics on a weight that it did not expect.
+    #[derive(Clone, Debug, PartialEq, Reflect)]
+    #[reflect(name = "test::Fragile", check = Fragile::check)]
+    struct Fragile {
+        weight: f32,
+    }
+    impl crate::Component for Fragile {}
+
+    impl Fragile {
+        fn check(&self) -> Result<(), String> {
+            assert!(self.weight < 100.0, "too heavy");
+            Ok(())
+        }
+    }
+
     #[test]
-    fn a_world_keeps_its_registry_when_reading_a_save_panics() {
+    fn a_panic_in_a_type_s_upgrade_or_check_sets_its_value_aside() {
         let mut world = start();
         world.register::<Brittle>();
+        world.register::<Fragile>();
         let text = "\"$versions\" = { \"test::Brittle\" = 1 }\n\n\
-                    [added.\"yard/gate\".\"test::Brittle\"]\nhardness = 2.0\n";
-        let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            world.load(text, &mut SceneLibrary::new())
-        }));
-        assert!(panicked.is_err());
+                    [removed]\nentities = [\"yard/tree\"]\n\n\
+                    [added.\"yard/gate\".\"test::Brittle\"]\nhardness = 2.0\n\n\
+                    [added.\"yard/well\".\"test::Fragile\"]\nweight = 500.0\n";
+        let report = world
+            .load(text, &mut SceneLibrary::new())
+            .expect("loaded, the values that panicked set aside");
+        let aside: Vec<(&str, Option<&str>)> = report
+            .set_aside
+            .iter()
+            .map(|aside| (aside.entity.as_str(), aside.component.as_deref()))
+            .collect();
+        assert_eq!(
+            aside,
+            [
+                ("yard/gate", Some("test::Brittle")),
+                ("yard/well", Some("test::Fragile"))
+            ]
+        );
+        assert!(
+            report
+                .set_aside
+                .iter()
+                .all(|aside| aside.reason.contains("panicked")),
+            "{:?}",
+            report.set_aside
+        );
+        // The rest is applied, and the world keeps its registry.
+        assert!(world.find(&"yard/tree".parse().unwrap()).is_none());
+        let gate = entity(&world, "yard/gate");
+        assert!(world.get::<Brittle>(gate).is_none());
         assert!(world.registry().get("test::Brittle").is_some());
         assert!(world.registry().get("Transform").is_some());
     }

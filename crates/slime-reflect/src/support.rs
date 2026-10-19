@@ -74,14 +74,35 @@ pub fn known(fields: &[(String, Value)], known: &[&[&str]]) -> Result<(), Reflec
 }
 
 /// `value`, once `check` accepts it: what a type declares with `#[reflect(check = ...)]`, the
-/// rules between its fields that their ranges cannot say.
+/// rules between its fields that their ranges cannot say. A panic of `check` refuses `value` as its
+/// error does, unless the program aborts on panics: a check is a game's code, which a value from a
+/// damaged or edited file must not make crash the program
+/// (`docs/adr/0096-the-files-the-engine-reads.md`).
 ///
 /// # Errors
 ///
-/// [`Problem::Invalid`], with the reason that `check` gives, if it refuses `value`.
+/// [`Problem::Invalid`], with the reason that `check` gives, if it refuses `value`, or with the
+/// message of its panic.
 pub fn checked<T>(value: T, check: fn(&T) -> Result<(), String>) -> Result<T, ReflectError> {
-    check(&value).map_err(|reason| ReflectError::new(Problem::Invalid(reason)))?;
+    caught(|| check(&value))
+        .and_then(|checked| checked)
+        .map_err(|reason| ReflectError::new(Problem::Invalid(reason)))?;
     Ok(value)
+}
+
+/// What `f` returns, or, if it panics, a reason that says so with the panic's message: how a type's
+/// functions that a game writes, its check and its upgrade, are called on a value read.
+pub(crate) fn caught<R>(f: impl FnOnce() -> R) -> Result<R, String> {
+    // A panic leaves nothing half done that the caller goes on with: the value that `f` read is
+    // refused whole.
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).map_err(|payload| {
+        let message = payload
+            .downcast_ref::<&str>()
+            .map(|message| (*message).to_owned())
+            .or_else(|| payload.downcast_ref::<String>().cloned())
+            .unwrap_or_else(|| "without a message".to_owned());
+        format!("it panicked: {message}")
+    })
 }
 
 /// The field of `fields` named `name`, or one of `aliases`, read as a `T`, if there is one.

@@ -60,6 +60,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   left out with a warning in `Loaded::warnings`, as `World::load`'s rustdoc said of what it does
   not know: it was set aside, as a value that its type refuses, so that a game could not tell a save
   that a later version of it wrote from one whose entities an update removed.
+- A panic in a type's check or upgrade, a game's code, refuses the value that it was called on, as
+  its error does, rather than crash the program, unless it aborts on panics: a save edited to give
+  a value that a game's check did not expect left the world half loaded.
 - A save that gives one key both to a scene that it spawns and to an entity that it creates, as a
   save edited by hand may, is refused with `DocumentError::IdentityInUse`: it was loaded, two
   entities claiming one identity, and the next save left one of them out.

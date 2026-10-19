@@ -23,7 +23,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   lost GPU device that covers one case, and quick wins that it measured. Milestones P1 to P5 fix
   them; then a foundations pass, P6, decides as ADRs what the editor will freeze. Stage 6, the
   editor, is planned with the owner after it. P1 is done
-  ([ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)); P2 is next, on the owner's go.
+  ([ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)); P2 is in progress.
 - The games the engine aims at, described on 2026-10-19
   ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)): nine profiles, from *Hunna Wood* to a
   massively multiplayer game, listed in [`ROADMAP.md`](ROADMAP.md). They add criteria to P6, one UI
@@ -38,7 +38,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | Milestone | Goal | Status |
 |---|---|---|
 | [P1](#p1--saves-and-identities-that-never-mislead) | A save, a scene file and a level written back hold what the world holds and name the entities they mean; a game resumes only a save it can play, and never loses one | Done |
-| [P2](#p2--a-damaged-file-gives-an-error-never-a-crash) | No damaged or edited file makes the engine panic, hang or exhaust its memory (ADR-0096) | Planned |
+| [P2](#p2--a-damaged-file-gives-an-error-never-a-crash) | No damaged or edited file makes the engine panic, hang or exhaust its memory (ADR-0096) | In progress |
 | [P3](#p3--the-loss-of-the-gpu-device-and-the-main-loop) | A lost GPU device is recovered wherever the loss is found, and a panic in `render` stays an ordinary panic | Planned |
 | [P5](#p5--the-build-ci-and-measurements-tracked-from-one-commit-to-the-next) | Every crate compiled once, CI under its limit, and the engine's measurements tracked from one commit to the next | Planned |
 | [P4](#p4--the-measured-quick-wins) | The quick wins that the audit measured, each measured again before and after | Planned |

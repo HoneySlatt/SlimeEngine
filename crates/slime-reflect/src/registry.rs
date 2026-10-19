@@ -362,7 +362,9 @@ impl Registry {
     ///
     /// [`Problem::NotRegistered`] for a type that the registry does not hold;
     /// [`Problem::NewerVersion`] for a version past the type's; [`Problem::Upgrade`] for version
-    /// 0, which no type has, when the type has no upgrade, or when its upgrade refuses the value.
+    /// 0, which no type has, when the type has no upgrade, or when its upgrade refuses the value or
+    /// panics on it, unless the program aborts on panics: an upgrade is a game's code, which a value
+    /// from a damaged or edited file must not make crash the program.
     pub fn upgrade(
         &self,
         ty: &str,
@@ -394,7 +396,9 @@ impl Registry {
             let upgrade = registration
                 .upgrade
                 .ok_or_else(|| refused(from, "the type has no upgrade"))?;
-            value = upgrade(from, value, partial).map_err(|reason| refused(from, &reason))?;
+            value = crate::support::caught(|| upgrade(from, value, partial))
+                .and_then(|upgraded| upgraded)
+                .map_err(|reason| refused(from, &reason))?;
         }
         Ok(value)
     }
