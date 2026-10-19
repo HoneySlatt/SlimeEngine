@@ -59,7 +59,7 @@ impl App for Game {
             ctx.surface_format().expect("windowed"),
             ctx.window().expect("windowed"),
         );
-        self.overlay = Some(Overlay::new(gpu, format, window.scale_factor()));
+        self.overlay = Some(Overlay::new(gpu, format, window.scale_factor())?);
         Ok(())
     }
 
@@ -84,7 +84,8 @@ impl App for Game {
 ```
 
 - `Overlay::new(gpu, format, scale_factor)`: for targets of the window's format; the scale
-  factor sizes the text in logical pixels.
+  factor sizes the text in logical pixels. An error once the GPU device is lost, as when the run
+  replaced it again while the application creates its objects.
 - `Overlay::handle(&event)`: every event of the window, before the application reads it;
   `Overlay::wants_pointer()` then says whether the cursor is over a panel, as of the last frame
   drawn, so that the application leaves clicks and the wheel to the overlay, and

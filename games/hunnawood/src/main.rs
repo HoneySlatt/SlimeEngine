@@ -308,7 +308,7 @@ impl App for HunnaWood {
         let (world, hero) = (ctx.world(), self.game.hero_entity());
         let night = self.game.night(world);
         self.view = Some(View::new(gpu, format, &self.assets, world, hero, night)?);
-        self.overlay = Some(DevOverlay::new(gpu, format, window.scale_factor()));
+        self.overlay = Some(DevOverlay::new(gpu, format, window.scale_factor())?);
         if self.frame_limit == Some(0) {
             ctx.request_exit();
         }
@@ -339,7 +339,7 @@ impl App for HunnaWood {
         let night = self.game.night(world);
         self.view = Some(View::new(gpu, format, &self.assets, world, hero, night)?);
         if let Some(overlay) = &mut self.overlay {
-            overlay.restore(gpu, format, window.scale_factor());
+            overlay.restore(gpu, format, window.scale_factor())?;
         }
         self.loading = Some(Loading::default());
         // A reload in progress went with the lost device: the data it loaded is given again.

@@ -3,7 +3,7 @@
 //! on the game, not part of it.
 
 use slime_devui::{Edit, Overlay, WorldPanel, egui};
-use slime_gfx::{Gpu, RenderTarget, TextureFormat};
+use slime_gfx::{GfxError, Gpu, RenderTarget, TextureFormat};
 use slime_platform::Event;
 use slime_render::RenderStats;
 use slime_world::World;
@@ -30,15 +30,16 @@ pub struct Asked {
 }
 
 impl DevOverlay {
-    /// The overlay, hidden, for targets of `format` in a window of `scale_factor`.
-    pub fn new(gpu: &Gpu, format: TextureFormat, scale_factor: f64) -> Self {
-        Self {
-            overlay: Some(Overlay::new(gpu, format, scale_factor)),
+    /// The overlay, hidden, for targets of `format` in a window of `scale_factor`; an error once
+    /// the GPU device is lost.
+    pub fn new(gpu: &Gpu, format: TextureFormat, scale_factor: f64) -> Result<Self, GfxError> {
+        Ok(Self {
+            overlay: Some(Overlay::new(gpu, format, scale_factor)?),
             statistics_shown: false,
             panel: WorldPanel::default(),
             panel_shown: false,
             frame_ms: 0.0,
-        }
+        })
     }
 
     /// Drops the overlay's GPU objects, once the GPU device is lost; it draws nothing until
@@ -48,9 +49,16 @@ impl DevOverlay {
     }
 
     /// Makes the overlay again with `gpu`, a device that replaced a lost one, for targets of
-    /// `format` in a window of `scale_factor`: its panels shown or hidden as they were.
-    pub fn restore(&mut self, gpu: &Gpu, format: TextureFormat, scale_factor: f64) {
-        self.overlay = Some(Overlay::new(gpu, format, scale_factor));
+    /// `format` in a window of `scale_factor`: its panels shown or hidden as they were. An error
+    /// once that device is lost too.
+    pub fn restore(
+        &mut self,
+        gpu: &Gpu,
+        format: TextureFormat,
+        scale_factor: f64,
+    ) -> Result<(), GfxError> {
+        self.overlay = Some(Overlay::new(gpu, format, scale_factor)?);
+        Ok(())
     }
 
     /// Hands `event` to the overlay, shown or not, so that it takes events as they come.

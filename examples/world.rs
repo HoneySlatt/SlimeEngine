@@ -116,7 +116,7 @@ impl WorldExample {
             (ctx.gpu(), ctx.surface_format(), ctx.window())
         {
             self.renderer = Some(Renderer::new(gpu, format)?);
-            self.overlay = Some(Overlay::new(gpu, format, window.scale_factor()));
+            self.overlay = Some(Overlay::new(gpu, format, window.scale_factor())?);
         }
         Ok(())
     }

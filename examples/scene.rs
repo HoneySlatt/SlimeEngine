@@ -232,7 +232,7 @@ impl App for SceneExample {
         let renderer = Renderer::new(gpu, format)?;
         let load = renderer.load_scene_in_background(gpu, &self.assets, self.scene_id);
         self.loading = Some((renderer, load));
-        self.overlay = Some(Overlay::new(gpu, format, window.scale_factor()));
+        self.overlay = Some(Overlay::new(gpu, format, window.scale_factor())?);
         if self.frame_limit == Some(0) {
             ctx.request_exit();
         }

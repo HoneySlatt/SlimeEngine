@@ -6,7 +6,7 @@ mod world_panel;
 use std::time::Instant;
 
 use slime_gfx::wgpu;
-use slime_gfx::{Gpu, RenderPassDescriptor, RenderTarget, TextureFormat};
+use slime_gfx::{GfxError, Gpu, RenderPassDescriptor, RenderTarget, TextureFormat};
 use slime_platform::Event;
 
 /// The UI library the overlay draws, re-exported so that callers build their panels with the
@@ -33,11 +33,16 @@ impl Overlay {
     /// physical pixels per logical pixel (`slime_platform::Window::scale_factor`), which sizes
     /// the text.
     ///
+    /// # Errors
+    ///
+    /// [`GfxError::DeviceLost`] once the device is lost ([`Gpu::check`]): nothing is created then.
+    ///
     /// # Panics
     ///
-    /// If the device is already lost ([`Gpu::check`]): egui's renderer creates its buffers with a
-    /// wgpu call that panics then.
-    pub fn new(gpu: &Gpu, format: TextureFormat, scale_factor: f64) -> Self {
+    /// If the device is lost while egui's renderer creates its buffers, with a wgpu call that
+    /// panics on a lost device, between the check and the creation.
+    pub fn new(gpu: &Gpu, format: TextureFormat, scale_factor: f64) -> Result<Self, GfxError> {
+        gpu.check()?;
         let renderer = egui_wgpu::Renderer::new(
             gpu.wgpu_device(),
             format.wgpu_format(),
@@ -48,13 +53,13 @@ impl Overlay {
                 predictable_texture_filtering: false,
             },
         );
-        Self {
+        Ok(Self {
             context: egui::Context::default(),
             renderer,
             input: input::Input::new(scale_factor),
             started: Instant::now(),
             format,
-        }
+        })
     }
 
     /// Gives the overlay an event of the window. It keeps what egui understands: the cursor, the
@@ -202,6 +207,19 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn an_overlay_is_not_created_on_a_lost_device() {
+        // egui's renderer panicked, creating its buffers on the lost device.
+        let gpu = gpu();
+        gpu.lose();
+        let overlay = Overlay::new(&gpu, FORMAT, 1.0);
+        assert!(
+            matches!(overlay, Err(GfxError::DeviceLost { .. })),
+            "{:?}",
+            overlay.err()
+        );
+    }
+
     /// Checked when the tests are compiled (`docs/ARCHITECTURE.md`, "Threads").
     #[test]
     fn the_overlay_can_be_shared_between_threads() {
@@ -235,7 +253,7 @@ mod tests {
         let target = gpu
             .create_render_target("overlay target", 64, 64, FORMAT)
             .expect("the GPU has memory for it");
-        let mut overlay = Overlay::new(&gpu, FORMAT, 1.0);
+        let mut overlay = Overlay::new(&gpu, FORMAT, 1.0).expect("the device is not lost");
         let mut focused = None;
         for (event, expected) in [(Event::Focused(false), false), (Event::Focused(true), true)] {
             overlay.handle(&event);
@@ -255,7 +273,7 @@ mod tests {
         let large = gpu
             .create_render_target("2x target", 1600, 1200, FORMAT)
             .expect("the GPU has memory for it");
-        let mut overlay = Overlay::new(&gpu, FORMAT, 1.0);
+        let mut overlay = Overlay::new(&gpu, FORMAT, 1.0).expect("the device is not lost");
         // egui sizes the window on the first frame and draws it from the second.
         frame(&mut overlay, &gpu, &small);
         let (_, before) = frame(&mut overlay, &gpu, &small);
@@ -277,7 +295,7 @@ mod tests {
         let target = gpu
             .create_render_target("overlay target", 800, 600, FORMAT)
             .expect("the GPU has memory for it");
-        let mut overlay = Overlay::new(&gpu, FORMAT, 1.0);
+        let mut overlay = Overlay::new(&gpu, FORMAT, 1.0).expect("the device is not lost");
         overlay.render(&gpu, &target, |ctx| ctx.set_zoom_factor(2.0));
         // egui applies the zoom on the next frame, the only one it lays out in an area of its own.
         let mut area = egui::Rect::NOTHING;
@@ -306,7 +324,7 @@ mod tests {
         let target = gpu
             .create_render_target("overlay target", 200, 200, FORMAT)
             .expect("the GPU has memory for it");
-        let mut overlay = Overlay::new(&gpu, FORMAT, 1.0);
+        let mut overlay = Overlay::new(&gpu, FORMAT, 1.0).expect("the device is not lost");
         overlay.handle(&Event::CursorMoved { x: 20.0, y: 20.0 });
         let passes = Cell::new(0);
         let discard = Cell::new(false);
@@ -341,7 +359,7 @@ mod tests {
         let target = gpu
             .create_render_target("overlay target", 200, 200, FORMAT)
             .expect("the GPU has memory for it");
-        let mut overlay = Overlay::new(&gpu, FORMAT, 1.0);
+        let mut overlay = Overlay::new(&gpu, FORMAT, 1.0).expect("the device is not lost");
         // Opaque, not black, and exact in sRGB: an overlay pass that cleared the target, to black or
         // to transparent black, would not leave this color around the panel.
         let blue = slime_color::LinearColor::rgb(0.0, 0.0, 1.0);
@@ -380,7 +398,7 @@ mod tests {
         let target = gpu
             .create_render_target("overlay target", 200, 200, FORMAT)
             .expect("the GPU has memory for it");
-        let mut overlay = Overlay::new(&gpu, FORMAT, 1.0);
+        let mut overlay = Overlay::new(&gpu, FORMAT, 1.0).expect("the device is not lost");
         // egui hands its font texture over on its first frame, which draws nothing here: the
         // panels drawn later sample it.
         overlay.render(&gpu, &target, |_| {});
@@ -404,7 +422,7 @@ mod tests {
         let target = gpu
             .create_render_target("overlay target", 200, 200, FORMAT)
             .expect("the GPU has memory for it");
-        let mut overlay = Overlay::new(&gpu, FORMAT, 1.0);
+        let mut overlay = Overlay::new(&gpu, FORMAT, 1.0).expect("the device is not lost");
         let panels = |ctx: &egui::Context| {
             egui::Window::new("panel").show(ctx, |ui| ui.label("text"));
         };
@@ -424,7 +442,8 @@ mod tests {
         let target = gpu
             .create_render_target("overlay target", 4, 4, FORMAT)
             .expect("the GPU has memory for it");
-        let mut overlay = Overlay::new(&gpu, TextureFormat::Bgra8UnormSrgb, 1.0);
+        let mut overlay =
+            Overlay::new(&gpu, TextureFormat::Bgra8UnormSrgb, 1.0).expect("the device is not lost");
         overlay.render(&gpu, &target, |_| {});
     }
 
@@ -434,7 +453,7 @@ mod tests {
         let target = gpu
             .create_render_target("overlay target", 400, 300, FORMAT)
             .expect("the GPU has memory for it");
-        let mut overlay = Overlay::new(&gpu, FORMAT, 1.0);
+        let mut overlay = Overlay::new(&gpu, FORMAT, 1.0).expect("the device is not lost");
         let mut text = String::new();
         let mut rects = (egui::Rect::NOTHING, egui::Rect::NOTHING);
         let mut frame = |overlay: &mut Overlay| {
