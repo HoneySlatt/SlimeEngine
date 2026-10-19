@@ -475,7 +475,10 @@ Risks:
     seconds of it: past 20 minutes, ADR-0081 had decided to split it in two jobs that run in
     parallel, which P5 does. With the two jobs, on `2d71729`, whose new key cooked the zone again
     in each job, CI took 13 minutes 4 seconds on Linux, 11 minutes 35 seconds for `windows` and 11
-    minutes 7 seconds for `windows-release`.
+    minutes 7 seconds for `windows-release`; on `1cc469b`, the cooked zone in the cache, 9 minutes
+    9 seconds, 10 minutes 26 seconds and 8 minutes 51 seconds: the longer Windows job 9 minutes 34
+    seconds under the limit, on a runner whose tests took 6 minutes 16 seconds, where the slowest
+    of P5's took 7 minutes 20 seconds.
   - C6-04, C7-08: the benchmarks are in the repository, a program of the workspace,
     [`slime-benches`](../benches/README.md), and [`measurements.md`](measurements.md) holds their
     figures and the build's, measured on lavapipe on a machine of 4 logical CPUs. They show four
@@ -1308,4 +1311,5 @@ waits for. A test that confirms each is kept outside the repository, and comes i
   21 minutes 54 seconds on Windows, as the runners' speed varied: the Windows job is split in two
   jobs that run in parallel (ADR-0081, ADR-0104), and every job keeps the cooked zone in its cache:
   on `2d71729`, the zone cooked again, Linux 13 minutes 4 seconds, `windows` 11 minutes 35
-  seconds, `windows-release` 11 minutes 7 seconds.
+  seconds, `windows-release` 11 minutes 7 seconds; on `1cc469b`, the cooked zone in the cache, 9
+  minutes 9 seconds, 10 minutes 26 seconds and 8 minutes 51 seconds.
