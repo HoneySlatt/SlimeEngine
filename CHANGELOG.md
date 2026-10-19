@@ -18,6 +18,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   that held such a value failed whole, and a type whose default sat on its bound panicked when
   registered. `Problem::OutOfRange` carries the number as a `Number`, written in its own type, and
   the derive refuses an integer bound that a 64-bit float does not hold exactly.
+- A section of a save that a save does not hold, misspelled or of a later program, is a warning
+  in `Loaded::warnings`, and a section, or an entry of one, that is not a table refuses the save, as
+  `World::load`'s rustdoc said: both were left out without a word.
 
 ## [0.4.0] - 2026-10-18
 

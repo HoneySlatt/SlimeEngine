@@ -16,7 +16,7 @@ use crate::entity::Entity;
 use crate::identity::{CREATED as CREATED_KEY, PersistentId};
 use crate::library::{MAX_ENTITIES, ResolvedScene, SceneLibrary};
 use crate::scene::{record_ids, storages_of};
-use crate::scene_file::{LAYOUT, for_each_entity};
+use crate::scene_file::{LAYOUT, for_each_entity, table};
 use crate::world::{Identity, World};
 use crate::write_back::{expected, handle_bits};
 
@@ -109,6 +109,68 @@ pub struct SetAside {
     pub component: Option<String>,
     /// Why it was set aside.
     pub reason: String,
+}
+
+/// Checks the sections of the save `document` and their entries: one that is not a table, where a
+/// save holds one, refuses the save, and a key that a save does not hold, misspelled or of a later
+/// program, is a warning, as a field that its type does not have is.
+fn sections(document: &Document<'_>, loaded: &mut Loaded) -> Result<(), DocumentError> {
+    let mut section = |place: &[&str], known: Option<&[&str]>| {
+        let keys = table(document, place).map_err(DocumentError::Read)?;
+        for key in keys
+            .iter()
+            .filter(|key| known.is_some_and(|known| !known.contains(&key.as_str())))
+        {
+            let mut at = place.to_vec();
+            at.push(key);
+            loaded.warnings.push(
+                document.error_at(
+                    &at,
+                    Problem::UnknownField {
+                        field: key.clone(),
+                        known: known
+                            .into_iter()
+                            .flatten()
+                            .map(|&key| key.to_owned())
+                            .collect(),
+                    },
+                ),
+            );
+        }
+        Ok::<_, DocumentError>(keys)
+    };
+    let root = [
+        ABOUT,
+        LAYOUT,
+        NEXT_CREATED,
+        SCENES,
+        SPAWNED,
+        REMOVED,
+        PARENTS,
+        CREATED,
+        ADDED,
+        CHANGED,
+    ];
+    section(&[], Some(&root))?;
+    section(&[ABOUT], None)?;
+    section(&[PARENTS], None)?;
+    section(&[REMOVED], Some(&["entities", "components"]))?;
+    section(&[REMOVED, "components"], None)?;
+    for (name, known) in [
+        (SCENES, Some(&["name", "content"][..])),
+        (SPAWNED, Some(&["scene", "name", "content"][..])),
+        (CREATED, Some(&["parent", "components"][..])),
+        (ADDED, None),
+        (CHANGED, None),
+    ] {
+        for key in section(&[name], None)? {
+            section(&[name, &key], known)?;
+            if name == CREATED {
+                section(&[name, &key, "components"], None)?;
+            }
+        }
+    }
+    Ok(())
 }
 
 /// What a save writes for a reference to no entity: one destroyed, or one that it leaves out.
@@ -360,17 +422,18 @@ impl World {
     /// despawned, the entities saved under them that the save does not remove taken out of them
     /// first, the components removed, added and changed, and the count of the entities created
     /// outside scenes kept. A save is read leniently: what this program does not know is left out,
-    /// with a warning. A difference whose entity or component the world no longer has, or that the
-    /// component's type refuses, is set aside, and the rest applied; so is a reference to an entity
-    /// that the world no longer has, which refers to no entity then, a parent that the world does
-    /// not have, and a scene spawned while the world ran that `scenes` cannot give, that the world
-    /// spawned already, whose values its types refuse, or that would bring the entities that the save
-    /// spawns so past [`MAX_ENTITIES`]. A scene spawned under a key under which the world spawned
-    /// another destroys that one first, with what is under it, as when a run changed level. The
-    /// scenes that changed since the save, those spawned while the world ran included, are named. The saves of 0.3, of layout 1, which
-    /// hold nothing spawned while the world ran, are read as they were. Loading entities created
-    /// costs about two and a half times as much as saving them, half of it parsing the text: 0.54 s
-    /// for the 10 000 entities of [`World::save`]'s measure, which gives what placements cost too.
+    /// with a warning, a section of the save included. A difference whose entity or component the
+    /// world no longer has, or that the component's type refuses, is set aside, and the rest
+    /// applied; so is a reference to an entity that the world no longer has, which refers to no
+    /// entity then, a parent that the world does not have, and a scene spawned while the world ran
+    /// that `scenes` cannot give, that the world spawned already, whose values its types refuse, or
+    /// that would bring the entities that the save spawns so past [`MAX_ENTITIES`]. A scene spawned
+    /// under a key under which the world spawned another destroys that one first, with what is
+    /// under it, as when a run changed level. The scenes that changed since the save, those spawned
+    /// while the world ran included, are named. The saves of 0.3, of layout 1, which hold nothing
+    /// spawned while the world ran, are read as they were. Loading entities created costs about two
+    /// and a half times as much as saving them, half of it parsing the text: 0.54 s for the 10 000
+    /// entities of [`World::save`]'s measure, which gives what placements cost too.
     ///
     /// # Errors
     ///
@@ -378,9 +441,9 @@ impl World {
     /// of its layout or of a type, too large, or with a section that is not what a save holds;
     /// [`DocumentError::NotCreated`] if it creates an entity, or places a placement, under an
     /// identity that a world does not give to the entities it creates;
-    /// [`DocumentError::IdentityInUse`] if it creates or places one under an identity that an entity
-    /// of the world has, or twice. All of it is read before the world changes, which is unchanged
-    /// then.
+    /// [`DocumentError::IdentityInUse`] if it creates or places one under an identity that an
+    /// entity of the world has, or twice. All of it is read before the world changes, which is
+    /// unchanged then.
     ///
     /// # Panics
     ///
@@ -583,6 +646,7 @@ impl World {
                 )),
             )));
         }
+        sections(document, loaded)?;
         let mut plan = Plan::default();
         // The numbers that the save gives, each once, none that the world gives already.
         let mut numbers = HashSet::new();

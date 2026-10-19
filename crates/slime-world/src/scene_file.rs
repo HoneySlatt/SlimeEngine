@@ -482,7 +482,7 @@ fn holds(document: &Document<'_>, place: &[&str]) -> bool {
 /// # Errors
 ///
 /// When it holds something other than a table there.
-fn table(document: &Document<'_>, place: &[&str]) -> Result<Vec<String>, ReadError> {
+pub(crate) fn table(document: &Document<'_>, place: &[&str]) -> Result<Vec<String>, ReadError> {
     if document.is_table(place) {
         Ok(document.keys(place))
     } else if holds(document, place) {
