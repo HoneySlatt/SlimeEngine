@@ -98,6 +98,19 @@ slime-render = { path = "crates/slime-render" }
 slime-world = { path = "crates/slime-world" }
 slime-world-render = { path = "crates/slime-world-render" }
 
+# Each crate compiled once, and dependencies with their line tables only (docs/PLAN.md, P5: B1-F01
+# and B1-F02). The workspace's procedural macro is built with
+# the debug information of `dev` when it is built as a member, and of `build-override` when it is
+# built for the crates that use it: the two match, or `cargo test` after `cargo build` builds it
+# again, with every crate that depends on it.
+[profile.dev.build-override]
+debug = true
+
+# Dependencies keep the tables that give a backtrace's frames their file and line in them, not the
+# rest of their debug information, which made most of `target`.
+[profile.dev.package."*"]
+debug = "line-tables-only"
+
 [workspace.lints.rust]
 missing_docs = "warn"
 unsafe_code = "deny"
