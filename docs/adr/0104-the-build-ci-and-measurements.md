@@ -1,6 +1,7 @@
 # 0104. The build, CI and measurements
 
-- Status: Accepted; amends [0077](0077-hot-reload-of-shaders.md) (what an edited shader costs)
+- Status: Accepted; amends [0004](0004-workspace-layout-and-crate-naming.md) (a top-level
+  `benches/` package) and [0077](0077-hot-reload-of-shaders.md) (what an edited shader costs)
 - Date: 2026-10-19
 
 ## Context
@@ -20,7 +21,11 @@ commit to the next ([`docs/PLAN.md`](../PLAN.md), P5):
 - **B1-F05.** CI's Windows job was 12 seconds under the 20 minutes that the owner allows, and each
   job cooked *Hunna Wood*'s zone again, about two minutes and a half on Windows.
   [ADR-0072](0072-stage-4b-live-assets.md) and [ADR-0081](0081-stage-5a-the-world.md) had decided
-  to keep the cooked zone in CI's cache past 19 minutes.
+  to keep the cooked zone in CI's cache past 19 minutes, and ADR-0081 to split the Windows job in
+  two jobs that run in parallel past 20. The job's duration depends on its runner more than on
+  the code: from one run to the next of P5, with the same work, it took 13 minutes 38 seconds, 21
+  minutes 54 seconds and 19 minutes 5 seconds, each of its steps about as much slower as the
+  others.
 - **C6-04, C7-08.** The audit's benchmarks stayed outside the repository, and documented figures
   were stale or wrong: the workspace's tests took twice as long on lavapipe as the known debt said;
   ADR-0077 gave 7 ms for the renderer's pipelines made again "as when one file changed", a figure
@@ -54,19 +59,28 @@ through a dependency in a debugger builds it with its debug information for that
 cargo build --config 'profile.dev.package."*".debug = true'
 ```
 
-**The cooked zone in CI's cache.** Both jobs keep `target/cooked/hunnawood` from one run to the next
-with `actions/cache`, keyed on what makes its bytes: its sources' list and their metadata, its
+**The cooked zone in CI's cache.** Every job keeps `target/cooked/hunnawood` from one run to the
+next with `actions/cache`, keyed on what makes its bytes: its sources' list and their metadata, its
 scene files, the sources of the cooker and of the crates of the workspace that the cooker depends
 on, the workspace's `Cargo.toml`, `Cargo.lock`, the toolchain, the runner's system and processor.
 The cook still runs: it reuses each file of the cache, which it checks before reusing it
 ([ADR-0102](0102-a-damaged-file-gives-an-error.md)), and cooks again what the cache does not hold.
 
+**The Windows job in two**, as ADR-0081 decided, since a run took 21 minutes 54 seconds. The job
+`windows` runs the tests, the image tests and the samples of the debug build, then cooks the zone
+for the tests that read it, which use that build; the job `windows-release` runs clippy, builds the
+programs that CI publishes in release, cooks the zone for them, runs them and publishes them. The
+two cook the zone each, from the same cache; its key changes with `Cargo.toml`, `Cargo.lock` and
+the cooker's crates, and both cook it again then.
+
 **The engine's benchmarks, a program of the workspace.** [`slime-benches`](../../benches/README.md),
-in `benches/`, runs scenarios of the size that the engine aims at, as ADR-0097 measures it: 10 000
+a package in a top-level directory of its own, `benches/`, beside `examples/`, which ADR-0004's
+list of top-level directories gains, runs scenarios of the size that the engine aims at, as ADR-0097 measures it: 10 000
 objects drawn, 100 000 entities placed, manifests of 100 000 assets, and the meshes of *Hunna
 Wood*'s zone, each placed once, since the zone's scene holds components that only the game
-registers. Each is timed a number of times, and the program prints the median and the 90th percentile of each as a
-row of a Markdown table, after the machine, its GPU and its build. It depends on the engine's
+registers. Each is timed a number of times, and the program prints rows of a Markdown table, the
+median and the 90th percentile of each series or what its row says, after the machine, its GPU
+and its build. It depends on the engine's
 crates as a game does, through their public API, and measures with `std::time::Instant` and the
 renderer's own GPU timings ([`RenderStats`](../../crates/slime-render/src/renderer.rs)).
 
@@ -109,6 +123,11 @@ both on the machine that runs it.
 - **The measurements in a file that a program reads**, TOML or JSON, compared by a tool: no
   consumer reads it yet but a person, who compares two sections; a tool comes with the first
   consumer that needs one.
+- **The Windows jobs split otherwise.** The tests that read the zone in the release job, in a
+  release build, would have saved the cooker's build and cook in the tests' job, but run without
+  the debug build's assertions on Windows. In the release job in a debug build, they would have
+  built every dependency a second time, in debug. The tests split in two jobs, by crate, would
+  have built the debug dependencies twice.
 - **`tracing-chrome`** for the trace: a dependency for what about a hundred lines do.
 - **Tracy** (`tracing-tracy`): a profiler of more power, but a client in C++ built into the
   engine, which listens on a network port for the profiler, and a program of its own to install.
@@ -118,8 +137,8 @@ both on the machine that runs it.
 ## Consequences
 
 - `cargo test --workspace` after `cargo build --workspace` compiles no library again, and `target`
-  is smaller, in `scripts/check.sh` as on a developer's machine. CI's Windows job, which builds the
-  tests without building the workspace first, gains only the smaller debug information. A
+  is smaller, in `scripts/check.sh` as on a developer's machine. CI's Windows jobs, which build the
+  tests without building the workspace first, gain only the smaller debug information. A
   debugger shows a dependency's frames and lines, not its variables, unless the developer asks for
   them as above.
 - A crate of the workspace that the cooker comes to depend on joins the cache's key in
@@ -128,6 +147,9 @@ both on the machine that runs it.
 - Each milestone of the audit pass from P4 on, and each later one that changes what the benchmarks
   measure, appends its section to `docs/measurements.md`. The benchmarks' figures compare only on
   the same machine, driver and build, which each section names.
-- The trace costs nothing when `SLIME_TRACE` is unset, and a lock per span when it is set, which
-  the times it shows include.
+- When `SLIME_TRACE` is unset, the subscriber has no layer of the trace. When it is set, each span
+  costs a lock, and every log record of the dependencies reaches the subscriber, which drops those
+  that the log leaves out; `TRACE_ENV_VAR`'s rustdoc says what is not measured.
+- The two Windows jobs take the time of the longer, and a change to the cooker's key cooks the
+  zone in each.
 - ADR-0077's measurements stand, but its "as when one file changed" does not.

@@ -94,8 +94,8 @@ Used by [`.github/workflows/ci.yml`](../.github/workflows/ci.yml), pinned to com
 |---|---|---|
 | [actions/checkout](https://github.com/actions/checkout) | Checks out the repository | MIT |
 | [cachix/install-nix-action](https://github.com/cachix/install-nix-action) | Installs Nix with flakes enabled, so CI runs the same development shell as contributors | Apache-2.0 |
-| [actions/upload-artifact](https://github.com/actions/upload-artifact) | Publishes the examples and the game built by the Windows job, to run by hand on a Windows machine, and, when the job fails, the images that failing image tests rendered on WARP | MIT |
-| [actions/cache](https://github.com/actions/cache) | Keeps the files of the sample game's zone that `scripts/fetch-assets.sh` fetched, from one run of each job to the next, while their list is unchanged ([ADR-0070](adr/0070-the-sample-games-source-assets.md)) | MIT |
+| [actions/upload-artifact](https://github.com/actions/upload-artifact) | Publishes the examples and the game built by the `windows-release` job, to run by hand on a Windows machine, and, when the `windows` job fails, the images that failing image tests rendered on WARP | MIT |
+| [actions/cache](https://github.com/actions/cache) | Keeps the files of the sample game's zone that `scripts/fetch-assets.sh` fetched, from one run of each job to the next, while their list is unchanged ([ADR-0070](adr/0070-the-sample-games-source-assets.md)), and the zone cooked, while what makes its bytes is unchanged ([ADR-0104](adr/0104-the-build-ci-and-measurements.md)) | MIT |
 
-The Windows job uses the Rust toolchain manager (rustup) and the Visual Studio build tools that the
+The Windows jobs use the Rust toolchain manager (rustup) and the Visual Studio build tools that the
 `windows-2025` runner image provides; rustup installs the toolchain of `rust-toolchain.toml`.

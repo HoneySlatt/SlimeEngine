@@ -232,7 +232,8 @@ cargo run --release -p slime-benches -- world        # the benchmarks whose name
 scripts/measure.sh "<milestone>, <GPU>" >> docs/measurements.md
 ```
 
-To see where a frame's time goes, `SLIME_TRACE=<file>` makes any engine program write a trace of
+To see where a frame's time goes, `SLIME_TRACE=<file>` makes a program that calls
+`slime_app::init_diagnostics`, as the examples, the game and the benchmarks do, write a trace of
 its spans, which [Perfetto](https://ui.perfetto.dev) opens in the browser, without sending the
 file anywhere; the rustdoc of `slime_app::TRACE_ENV_VAR` says what it holds.
 
@@ -271,18 +272,20 @@ The script also runs clippy for the Windows target, which catches code that does
 Windows without a Windows machine.
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push to `main` and every
-pull request. A Linux job runs the same script; a Windows job runs clippy, the tests, then the
-image tests, the GPU timing test, the multi-pass test and the test that makes the renderer's
-shaders again with `--nocapture` so that its log shows what they measured on WARP, then the
-headless samples on Windows, fetches and cooks the sample game's zone and runs the tests that read
-it, runs the release build of the headless samples, and publishes the `hello`, `headless`,
-`window`, `offscreen`, `scene` and `world` examples and the `hunnawood` game built for Windows,
-with the sample cooked for `scene` and `world` and the zone cooked for the game, as an artifact
-named `slime-examples-windows`, to run by hand on a Windows machine. The Windows job runs the tests
-one at a time (`--test-threads=1`): WARP's shader compiler crashes the process, now and then, when
-several threads compile shaders at once. It does not stop at the first test program that fails,
-and when a step fails, it publishes instead the images that the failing image tests rendered on
-WARP, as an artifact named `image-test-failures-windows`.
+pull request. A Linux job runs the same script. Two Windows jobs run beside it
+([ADR-0104](docs/adr/0104-the-build-ci-and-measurements.md)). The first, `windows`, runs the
+tests, then the image tests, the GPU timing test, the multi-pass test and the test that makes the
+renderer's shaders again with `--nocapture` so that its log shows what they measured on WARP, then
+the headless samples, fetches and cooks the sample game's zone and runs the tests that read it.
+It runs the tests one at a time (`--test-threads=1`): WARP's shader compiler crashes the process,
+now and then, when several threads compile shaders at once. It does not stop at the first test
+program that fails, and when a step fails, it publishes the images that the failing image tests
+rendered on WARP, as an artifact named `image-test-failures-windows`. The second,
+`windows-release`, runs clippy, builds in release and runs the headless samples, and publishes the
+`hello`, `headless`, `window`, `offscreen`, `scene` and `world` examples and the `hunnawood` game
+built for Windows, with the sample cooked for `scene` and `world` and the zone cooked for the game,
+as an artifact named `slime-examples-windows`, to run by hand on a Windows machine. Each job keeps
+the cooked zone in its cache, keyed on what makes its bytes.
 [ADR-0007](docs/adr/0007-documentation-tooling-and-ci.md) and
 [ADR-0015](docs/adr/0015-platforms-and-ci.md) explain the setup.
 

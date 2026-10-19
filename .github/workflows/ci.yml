@@ -38,7 +38,7 @@ jobs:
       # sources and their metadata, the crates of the cooker, the locked dependencies, the toolchain
       # and the platform (docs/adr/0104-the-build-ci-and-measurements.md). The cook then reuses
       # every file, which it checks first. A crate of the workspace that the cooker comes to depend
-      # on joins the key, here and in the Windows job.
+      # on joins the key, here and in the Windows jobs.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: target/cooked/hunnawood
@@ -48,7 +48,10 @@ jobs:
 
   # What can only be checked on Windows: running the build, the tests and the samples there. The
   # checks that do not depend on the platform (formatting, rustdoc, dependencies, links) and
-  # compiling for Windows already run in the Linux job.
+  # compiling for Windows already run in the Linux job. Two jobs run in parallel, past the 20
+  # minutes that one took (docs/adr/0081-stage-5a-the-world.md,
+  # docs/adr/0104-the-build-ci-and-measurements.md): this one runs the tests and the samples of the
+  # debug build; `windows-release` runs clippy and builds the programs that CI publishes.
   windows:
     runs-on: windows-2025
     timeout-minutes: 45
@@ -59,8 +62,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install the toolchain pinned in rust-toolchain.toml
         run: rustup toolchain install
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets --locked -- -D warnings
       # Direct3D 12 compiles shaders with the DXC that lies beside the program, as where the
       # engine's programs are shipped (docs/adr/0066-shipping-dxc-beside-the-programs.md): here,
       # beside the tests and the samples that cargo runs.
@@ -85,19 +86,9 @@ jobs:
           cargo run --locked --example headless -- --frames 600
           cargo run --locked --example window -- --headless --frames 600
           cargo run --locked --example offscreen -- --output target/triangle.png
-      # The C runtime is linked statically, so that the published programs start on a Windows
-      # without the Visual C++ Redistributable (a fresh install, Windows Sandbox). How shipped games
-      # link it is decided with their packaging (Stage 9b).
-      - name: Build the examples and the game for checks by hand
-        run: |
-          cargo build --locked --release --examples
-          cargo build --locked --release -p hunnawood
-        env:
-          RUSTFLAGS: -C target-feature=+crt-static
       # The sample game's zone, fetched from its mirror and kept between runs while its list is
-      # unchanged, then cooked for the tests that read it and for the game that CI ships
-      # (docs/adr/0070-the-sample-games-source-assets.md). The cooker is built as the examples were
-      # above, which already built its library.
+      # unchanged, then cooked for the tests that read it
+      # (docs/adr/0070-the-sample-games-source-assets.md).
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -113,10 +104,58 @@ jobs:
         run: |
           scripts/fetch-assets.sh zone/
           cargo run --locked --release -p slime-cook -- cook games/hunnawood/assets/zone target/cooked/hunnawood
-        env:
-          RUSTFLAGS: -C target-feature=+crt-static
       - name: The tests that read the sample game's zone
         run: cargo test --locked -p hunnawood -- --ignored
+      # An image test that fails writes the image it rendered in target/tmp (CARGO_TARGET_TMPDIR).
+      # Only this job can show what WARP drew, and the runner is discarded with that image.
+      - name: Publish the images rendered by the image tests that failed
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: image-test-failures-windows
+          path: target/tmp/*.actual.png
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # Clippy on Windows, and the programs that CI publishes, built in release and run.
+  windows-release:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    # The C runtime is linked statically, so that the published programs start on a Windows
+    # without the Visual C++ Redistributable (a fresh install, Windows Sandbox). How shipped games
+    # link it is decided with their packaging (Stage 9b). The cooker is built the same way, so that
+    # it shares the programs' build.
+    env:
+      RUSTFLAGS: -C target-feature=+crt-static
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install the toolchain pinned in rust-toolchain.toml
+        run: rustup toolchain install
+      # Clippy builds nothing that the release build shares; RUSTFLAGS does not change its lints.
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Build the examples and the game for checks by hand
+        run: |
+          cargo build --locked --release --examples
+          cargo build --locked --release -p hunnawood
+      # The zone, fetched and cooked as in the `windows` job, for the game that CI ships.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            games/hunnawood/assets/zone
+            !games/hunnawood/assets/zone/**/*.meta
+          key: hunnawood-zone-${{ hashFiles('games/hunnawood/assets/sources.tsv') }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: target/cooked/hunnawood
+          key: hunnawood-cooked-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('games/hunnawood/assets/sources.tsv', 'games/hunnawood/assets/zone/**/*.meta', 'games/hunnawood/assets/zone/**/*.scene', 'crates/slime-cook/src/**', 'crates/slime-cook/Cargo.toml', 'crates/slime-assets/src/**', 'crates/slime-assets/Cargo.toml', 'crates/slime-color/src/**', 'crates/slime-color/Cargo.toml', 'crates/slime-reflect/src/**', 'crates/slime-reflect/Cargo.toml', 'crates/slime-reflect-derive/src/**', 'crates/slime-reflect-derive/Cargo.toml', 'crates/slime-serialize/src/**', 'crates/slime-serialize/Cargo.toml', 'crates/slime-world/src/**', 'crates/slime-world/Cargo.toml', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml') }}
+      - name: Fetch and cook the sample game's zone
+        run: |
+          scripts/fetch-assets.sh zone/
+          cargo run --locked --release -p slime-cook -- cook games/hunnawood/assets/zone target/cooked/hunnawood
       - name: Check that the examples and the game do not import the Visual C++ runtime
         run: |
           if grep -l -a -i 'vcruntime140' target/release/examples/*.exe target/release/hunnawood.exe; then
@@ -129,7 +168,7 @@ jobs:
           cp target/release/examples/{hello,headless,window,offscreen,scene,world}.exe target/windows/
           cp target/release/hunnawood.exe target/windows/
           scripts/fetch-dxc.sh target/windows
-          cargo run --locked -p slime-cook -- cook examples/assets target/windows/assets
+          cargo run --locked --release -p slime-cook -- cook examples/assets target/windows/assets
           cp -r target/cooked/hunnawood target/windows/hunnawood-assets
           scripts/credits.sh > target/windows/hunnawood-CREDITS.txt
       # The offscreen sample's log says which compiler Direct3D 12 took: DXC, beside it.
@@ -146,14 +185,4 @@ jobs:
           name: slime-examples-windows
           path: target/windows/
           if-no-files-found: error
-          retention-days: 14
-      # An image test that fails writes the image it rendered in target/tmp (CARGO_TARGET_TMPDIR).
-      # Only this job can show what WARP drew, and the runner is discarded with that image.
-      - name: Publish the images rendered by the image tests that failed
-        if: failure()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: image-test-failures-windows
-          path: target/tmp/*.actual.png
-          if-no-files-found: ignore
           retention-days: 14
