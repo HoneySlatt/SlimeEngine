@@ -497,3 +497,27 @@ fn a_scene_that_the_start_places_in_a_level_outlives_the_run_leaving_it() {
     assert!(loaded.find(&"hero/sword".parse().unwrap()).is_some());
     assert_eq!(run.first_difference(&loaded), None);
 }
+
+#[test]
+fn a_component_of_a_type_or_a_variant_that_this_program_does_not_know_is_a_warning() {
+    // As a later version of a game writes them: a type of its own, and a variant that it added.
+    let mut world = World::new();
+    world
+        .spawn_scene("a", &cooked("a", &["gate", "well"]))
+        .expect("spawned");
+    let text = "[added.\"a/gate\"]\n\"test::Chest\" = { gold = 3 }\n\
+                [added.\"a/well\"]\nLight = { Laser = { color = [1.0, 0.0, 0.0, 1.0] } }\n\
+                [changed.\"a/well\".Transform]\ntranslation = { x = -1.0 }\n";
+    let loaded = world.load(text, &mut SceneLibrary::new()).expect("a save");
+    assert!(loaded.set_aside.is_empty(), "{:?}", loaded.set_aside);
+    let warnings: Vec<String> = loaded.warnings.iter().map(ToString::to_string).collect();
+    assert_eq!(warnings.len(), 2, "{warnings:?}");
+    assert!(warnings[0].contains("test::Chest"), "{warnings:?}");
+    assert!(warnings[1].contains("Laser"), "{warnings:?}");
+    // The rest is applied: the well's transform.
+    let well = entity(&world, "a/well");
+    assert_eq!(
+        world.get::<Transform>(well).map(|at| at.translation.x),
+        Some(-1.0)
+    );
+}

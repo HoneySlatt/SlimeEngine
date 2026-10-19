@@ -51,6 +51,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   wrote a placement's entity that holds it as the file had it, its changes since lost, without a
   report. It leaves out only the entities created outside scenes that hold it, or that are under an
   entity that does, and reports them.
+- A saved component of a type, or whose value names a variant, that the program does not know is
+  left out with a warning in `Loaded::warnings`, as `World::load`'s rustdoc said of what it does
+  not know: it was set aside, as a value that its type refuses, so that a game could not tell a save
+  that a later version of it wrote from one whose entities an update removed.
 - Loading a save of a run that changed level, another scene spawned under a key, or carrying the
   run through hot reload, destroys only the old scene's entities: what the start placed in the
   level, the hero's prefab at a spawn point, stays where the run left it. It was destroyed with the

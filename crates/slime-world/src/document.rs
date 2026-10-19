@@ -9,7 +9,7 @@ use std::mem;
 
 use slime_assets::AssetId;
 use slime_reflect::{Problem, Reflect, ReflectError, Registry, Value};
-use slime_serialize::{Composer, Document, Mode, ReadError, References};
+use slime_serialize::{Composer, Document, Mode, ReadError, ReadProblem, References};
 
 use crate::components::{Name, Unsaved};
 use crate::entity::Entity;
@@ -98,7 +98,10 @@ pub struct Loaded {
     /// The differences that could not be applied, or only in part: a reference to an entity that
     /// the world does not have refers to no entity.
     pub set_aside: Vec<SetAside>,
-    /// What the save holds that this program does not know, left out: fields, types.
+    /// What the save holds that this program does not know, left out: fields, types, variants, and
+    /// sections of the save. A component of a type, or whose value names a variant, that this
+    /// program does not know is left out whole, as a later version of the game writes them: a game
+    /// that writes the save back without them loses them.
     pub warnings: Vec<ReadError>,
 }
 
@@ -448,20 +451,21 @@ impl World {
     /// start of the run created keeps its numbers, and what the save holds of it is set aside if
     /// this world's start created other entities outside scenes, by the fingerprint that the save
     /// holds: a key names an entity whatever the start creates ([`World::spawn_keyed`]). A save is
-    /// read leniently: what this program does not know is left out, with a warning, a section of
-    /// the save included. A difference whose entity or component the world no longer has, or that
-    /// the component's type refuses, is set aside, and the rest applied; so is a reference to an
-    /// entity that the world no longer has, which refers to no entity then, a parent that the world
-    /// does not have, and a scene spawned while the world ran that `scenes` cannot give, that the
-    /// world spawned already, whose values its types refuse, or that would bring the entities that
-    /// the save spawns so past [`MAX_ENTITIES`]. A scene spawned under a key under which the world
-    /// spawned another destroys that one's entities first, as when a run changed level; what is
-    /// under them without being of that scene stays, and the save removes it, or places it where
-    /// the run left it, as a hero that the start placed in the level and that walked out of it.
-    /// The scenes that changed since the save, those spawned while the world ran included, are
-    /// named. The saves of 0.3, of layout 1, which hold nothing spawned while the world ran, are
-    /// read as they were. Loading entities created costs about two and a half times as much as
-    /// saving them, half of it parsing the text: 0.54 s for the 10 000 entities of
+    /// read leniently: what this program does not know is left out, with a warning
+    /// ([`Loaded::warnings`]), a section of the save, a field, and a component of a type or with
+    /// a variant that it does not know included. A difference whose entity or component the world
+    /// no longer has, or that the component's type refuses, is set aside, and the rest applied; so
+    /// is a reference to an entity that the world no longer has, which refers to no entity then, a
+    /// parent that the world does not have, and a scene spawned while the world ran that `scenes`
+    /// cannot give, that the world spawned already, whose values its types refuse, or that would
+    /// bring the entities that the save spawns so past [`MAX_ENTITIES`]. A scene spawned under a
+    /// key under which the world spawned another destroys that one's entities first, as when a run
+    /// changed level; what is under them without being of that scene stays, and the save removes
+    /// it, or places it where the run left it, as a hero that the start placed in the level and
+    /// that walked out of it. The scenes that changed since the save, those spawned while the world
+    /// ran included, are named. The saves of 0.3, of layout 1, which hold nothing spawned while the
+    /// world ran, are read as they were. Loading entities created costs about two and a half times
+    /// as much as saving them, half of it parsing the text: 0.54 s for the 10 000 entities of
     /// [`World::save`]'s measure, which gives what placements cost too.
     ///
     /// # Errors
@@ -951,12 +955,14 @@ impl World {
     }
 
     /// Reads the components' values that the save `document` holds, into `save`, the entities they
-    /// belong to and refer to spawned already: those that cannot be read, and the references to
-    /// entities that the world does not have, are set aside.
+    /// belong to and refer to spawned already: a value of a type or with a variant that this program
+    /// does not know is left out with a warning, as a field that its type does not have is; those
+    /// that cannot be read otherwise, and the references to entities that the world does not have,
+    /// are set aside.
     fn read_values(&self, document: &mut Document<'_>, save: &mut Save, loaded: &mut Loaded) {
         let names = Names::new(self, save.numbers);
         let mut take = |key: &str, name: &str, read: Result<Option<Value>, ReadError>| {
-            let mut aside = |reason: String| {
+            let aside = |loaded: &mut Loaded, reason: String| {
                 loaded.set_aside.push(SetAside {
                     entity: key.to_owned(),
                     component: Some(name.to_owned()),
@@ -965,15 +971,22 @@ impl World {
             };
             let value = match read {
                 Ok(value) => value,
+                Err(error) if unknown(&error) => {
+                    loaded.warnings.push(error);
+                    None
+                }
                 Err(error) => {
-                    aside(error.to_string());
+                    aside(loaded, error.to_string());
                     None
                 }
             };
             for unknown in names.unknown.take() {
-                aside(format!(
-                    "it refers to `{unknown}`, which the world does not have: to no entity now"
-                ));
+                aside(
+                    loaded,
+                    format!(
+                        "it refers to `{unknown}`, which the world does not have: to no entity now"
+                    ),
+                );
             }
             value
         };
@@ -1379,6 +1392,15 @@ fn to_no_entity(mut value: Value, names: &Names) -> Value {
         }
     });
     value
+}
+
+/// Whether `error` says that a value names a type or a variant that this program does not know, as
+/// a later version of a game writes them: what a lenient reading leaves out with a warning.
+fn unknown(error: &ReadError) -> bool {
+    matches!(
+        error.problem(),
+        ReadProblem::Value(Problem::NotRegistered(_) | Problem::UnknownVariant { .. })
+    )
 }
 
 /// A scene's fingerprint as a save writes it: sixteen hexadecimal digits.
