@@ -21,6 +21,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - A section of a save that a save does not hold, misspelled or of a later program, is a warning
   in `Loaded::warnings`, and a section, or an entry of one, that is not a table refuses the save, as
   `World::load`'s rustdoc said: both were left out without a word.
+- `World::save` compares a reference between entities with the start world's by the identity that
+  each names: when the start world was made in another order than the run's, a reference that the
+  run changed was compared by its handle, and could be left out of the save.
 
 ## [0.4.0] - 2026-10-18
 

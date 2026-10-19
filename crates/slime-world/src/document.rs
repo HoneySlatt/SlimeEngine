@@ -225,35 +225,37 @@ impl World {
     /// What differs between this world and `start`, the world that the game makes at the start of a
     /// run, from the same scenes and as it prepares them, as the text of a save
     /// (`docs/adr/0087-the-worlds-documents.md`,
-    /// `docs/adr/0093-saves-and-hot-reload-with-placements.md`): the entities removed; those created
-    /// while the world ran, whole; the components added, whole, and removed; the parents changed;
-    /// and what changed of the other components, in parts.
-    /// Entities are matched by their persistent identities: one is created since the start if
-    /// `start` has no entity of its identity. Those that hold [`Unsaved`], or whose ancestor does,
-    /// are left out, as are the fields marked transient: an entity of `start` that the world leaves
-    /// out is not removed, and loading the save keeps it as `start` has it, out of its parent if the
-    /// save removes that. A reference to an entity is its persistent identity, and a reference to an
-    /// entity destroyed or left out is `""`, no entity. The save also holds the scenes that `start`
+    /// `docs/adr/0093-saves-and-hot-reload-with-placements.md`): the entities removed; those
+    /// created while the world ran, whole; the components added, whole, and removed; the parents
+    /// changed; and what changed of the other components, in parts. Entities are matched by their
+    /// persistent identities: one is created since the start if `start` has no entity of its
+    /// identity. Those that hold [`Unsaved`], or whose ancestor does, are left out, as are the
+    /// fields marked transient: an entity of `start` that the world leaves out is not removed, and
+    /// loading the save keeps it as `start` has it, out of its parent if the save removes that. A
+    /// reference to an entity is its persistent identity, compared with `start`'s by the identity
+    /// that each names, whatever order the two worlds were made in, and a reference to an entity
+    /// destroyed or left out is `""`, no entity. The save also holds the scenes that `start`
     /// spawned, so that loading it says which changed since, and the count of the entities created
-    /// outside scenes. Its first section, after the versions of the types past version 1 if it holds
-    /// some, is `about`, what the game says of it, keys and texts that the engine does not read, such
-    /// as what the run was made on, which [`World::about`] reads without loading the save; none for
-    /// an empty `about`.
+    /// outside scenes. Its first section, after the versions of the types past version 1 if it
+    /// holds some, is `about`, what the game says of it, keys and texts that the engine does not
+    /// read, such as what the run was made on, which [`World::about`] reads without loading the
+    /// save; none for an empty `about`.
     ///
-    /// What the world spawned while it ran, a scene under a key under which `start` spawned no scene
-    /// or another one ([`World::spawn_scene`]), or a placement made while it ran ([`World::spawn_placement`]), is
-    /// written as its scene, by its asset ID and fingerprint, while an entity of it is saved: its
-    /// entities are compared with what the scene spawns, as those of `start` are with `start`, and
-    /// loading spawns the scene as it is then, under the same identity, before it applies the rest.
+    /// What the world spawned while it ran, a scene under a key under which `start` spawned no
+    /// scene or another one ([`World::spawn_scene`]), or a placement made while it ran
+    /// ([`World::spawn_placement`]), is written as its scene, by its asset ID and fingerprint,
+    /// while an entity of it is saved: its entities are compared with what the scene spawns, as
+    /// those of `start` are with `start`, and loading spawns the scene as it is then, under the
+    /// same identity, before it applies the rest.
     ///
     /// The same worlds give the same bytes: entities in the order of their identities, components
-    /// in the order of their names. Its cost grows in proportion with the entities of the two worlds
-    /// and with what differs: measured in a release build on the owner's machine, 10 000 entities
-    /// created, each with a name and a transform, save in 0.22 s into 2.9 MB of text, and 40 000 in
-    /// four times as long. A save holds at most [`slime_serialize::MAX_SIZE`], about 57 000 such
-    /// entities. A thousand placements made while the world runs, each moved and a value of it
-    /// changed, save in 0.08 s into 238 kB, and load in 0.03 s, for a prefab of 10 entities; in
-    /// 0.85 s and 0.16 s for a prefab of 100.
+    /// in the order of their names. Its cost grows in proportion with the entities of the two
+    /// worlds and with what differs: measured in a release build on the owner's machine, 10 000
+    /// entities created, each with a name and a transform, save in 0.22 s into 2.9 MB of text, and
+    /// 40 000 in four times as long. A save holds at most [`slime_serialize::MAX_SIZE`], about 57
+    /// 000 such entities. A thousand placements made while the world runs, each moved and a value
+    /// of it changed, save in 0.08 s into 238 kB, and load in 0.03 s, for a prefab of 10 entities;
+    /// in 0.85 s and 0.16 s for a prefab of 100.
     ///
     /// # Errors
     ///
@@ -385,13 +387,14 @@ impl World {
                         let Some(value) = self.component_value(entity, name) else {
                             continue;
                         };
-                        // A record gives no entity for one of its scene destroyed since: the world's
-                        // value compared the same way, as the save writes both `""`.
-                        let value = match old {
-                            Before::Spawned(..) => to_no_entity(value, &names),
-                            Before::Start(_) => value,
-                        };
-                        match old.value(start, name) {
+                        // A reference to an entity that the save writes as no entity, destroyed or
+                        // left out, compared as one, on both sides: a record gives no entity for
+                        // one of its scene destroyed since.
+                        let value = to_no_entity(value, &names);
+                        let was = old
+                            .value(start, self, name)
+                            .map(|was| to_no_entity(was, &names));
+                        match was {
                             None => save.put(&[ADDED, &key, name], name, &value),
                             Some(was) => {
                                 let part = self
@@ -1264,11 +1267,21 @@ impl Before<'_> {
         }
     }
 
-    /// The value of the component named `name`, its references to the entities of the world that
-    /// holds the entity compared, if it holds one.
-    fn value(self, start: &World, name: &str) -> Option<Value> {
+    /// The value of the component named `name`, if it holds one, its references made references to
+    /// the entities of `world` of the identities that they name, as the world saved and `start`
+    /// give the same entity other handles when they were not made in the same order.
+    fn value(self, start: &World, world: &World, name: &str) -> Option<Value> {
         match self {
-            Before::Start(entity) => start.component_value(entity, name),
+            Before::Start(entity) => start.component_value(entity, name).map(|mut value| {
+                for_each_entity(&mut value, &mut |bits| {
+                    let found = Entity::from_value(&Value::Entity(*bits))
+                        .ok()
+                        .and_then(|entity| start.persistent_id(entity))
+                        .and_then(|id| world.find(&id));
+                    *bits = handle_bits(found.unwrap_or(Entity::NONE));
+                });
+                value
+            }),
             Before::Spawned(spawned, index) => expected(
                 &spawned.scene.0.records[index],
                 index,
