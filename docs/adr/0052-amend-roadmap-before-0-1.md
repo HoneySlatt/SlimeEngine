@@ -2,8 +2,10 @@
 
 - Status: Accepted; amends [0031](0031-dev-overlay-with-egui.md) (when the dev overlay is removed);
   amended by [0056](0056-stage-3d-anti-aliasing-and-spot-light-shadows.md) and
-  [0064](0064-cascaded-shadow-maps.md) (Stage 9a's content), and
-  [0067](0067-hunna-wood-replaces-nightwatch.md) (the sample game replaced)
+  [0064](0064-cascaded-shadow-maps.md) (Stage 9a's content),
+  [0067](0067-hunna-wood-replaces-nightwatch.md) (the sample game replaced), and
+  [0097](0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md) (culling and instancing
+  moved to Stage 6, and the release map)
 - Date: 2026-10-14
 
 ## Context

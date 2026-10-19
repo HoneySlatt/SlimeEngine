@@ -401,7 +401,7 @@ coordinates, which glTF's *normal textures* assume; the cooker computes them so
 
 **Milestone.** A small, verifiable step of a stage, listed with its goal, its done criteria and
 how to test it in [`docs/PLAN.md`](PLAN.md). Milestones are numbered `M<stage>.<n>`, for example
-M1.3.
+M1.3; those of a *pass*, `P<n>`.
 
 **Mipmaps.** Copies of a texture at half, a quarter, ... of its size, down to one pixel: the
 *levels of detail* among which a *sampler* chooses by the size the texture is drawn at, so that a
@@ -471,6 +471,11 @@ kept and reported ([ADR-0089](adr/0089-scenes-and-prefabs.md)).
 **Partial value.** A *value* that leaves some of its fields out, those of its structs and variants
 at any depth, its tuples, lists and options whole: what changed of a value, as a save holds it. An
 *upgrade* brings it forward, told that it is partial ([ADR-0086](adr/0086-serialization.md)).
+
+**Pass (plan).** Milestones between two stages that fix or decide rather than add a stage's
+features, such as the audit pass and the foundations pass before Stage 6
+([ADR-0097](adr/0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md)), not a render
+pass.
 
 **Percentage-closer filtering (PCF).** Reading a *shadow map* by comparing a point's depth with
 several stored depths around it and averaging the results, so that the edges of shadows are soft
@@ -761,6 +766,10 @@ stops a run cleanly; a second one, half a second or more later, ends the process
 
 **Texture role.** What a cooked texture is used for: colors, data or normals, which sets how the
 cooker averages its levels and compresses it ([ADR-0071](adr/0071-cooked-textures.md)).
+
+**Threat model.** What the files that the engine reads from outside its program may hold, damaged,
+edited or made by a buggy tool, and what the engine promises about them: no panic, hang, exhausted
+memory or lost progress ([ADR-0096](adr/0096-the-files-the-engine-reads.md)).
 
 **Timestamp query.** A GPU feature that writes the GPU's clock at a point of its command stream;
 two of them, around a render pass, give its *GPU time* (`slime_gfx::GpuTimer`). Optional: the

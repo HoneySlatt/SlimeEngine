@@ -72,7 +72,7 @@ Each is decided by ADR at the stage where it becomes necessary, not earlier.
 | Audio backend | To evaluate | Stage 7 |
 | Scripting language | Lua, C#, dedicated VM, other | Stage 8 |
 | Shader language beyond WGSL | Slang, generated WGSL | Stage 9b |
-| Network transport | To evaluate | Stage 10 |
+| Network transport | To evaluate | Stage 10b |
 
 ## 5. Repository layout
 
@@ -82,7 +82,7 @@ Indicative. The structure in use is described in `docs/ARCHITECTURE.md` and its 
 engine/
 ├── crates/          engine crates (core, platform, gfx, render, assets, ...)
 ├── editor/          editor application and editor crates
-├── sdk/             C ABI and C++ wrapper (Stage 8)
+├── sdk/             C ABI and C++ wrapper (Stage 11)
 ├── tools/           asset cooker, CLI, profiler
 ├── examples/        one runnable sample per stage
 ├── tests/           integration and image-comparison tests
@@ -255,14 +255,17 @@ The stage comes right after Stage 5a, and is released as 0.4 (ADR-0090).
 
 **Exit.** The game's scenes round-trip through save and load as files. Prefabs instantiate with overrides. The sample game's zone is made of prefabs.
 
+Between Stage 5b and Stage 6 come two passes, without a release of their own (ADR-0097): an audit pass, which fixes what an audit of 0.4 found in saves, identities, the readers of files (ADR-0096), the recovery from a lost GPU device, and measured quick wins, and puts the engine's measurements in CI; then a foundations pass, which decides as ADRs what the editor will freeze: the execution model, change detection, stable references and reversible operations, how the editor runs a game's code, the frame contract, a study of open worlds, an asset request API, a minimum and a target hardware tier, and what the GPU layer gives the editor. `docs/PLAN.md` details both.
+
 ### Stage 6 — Editor foundation → 0.5
 
 **Goal.** A real editor, built as a client of the engine.
 
+- Frustum culling and instancing, moved from Stage 9a (ADR-0097), first, before the viewport, on the decisions of the foundations pass
 - Editor UI: text, layout, docking, widgets, input routing, focus, drag and drop, theming; on egui to start, on an engine-owned framework only if a measured need decides it (section 4)
 - Viewport, hierarchy, inspector (driven by reflection), asset browser
 - Command and transaction system: every edit is undoable
-- Play in editor
+- Play in editor, the game running in a child process first, as the foundations pass decides (ADR-0097)
 - The keys and buttons held, kept by the engine, if the viewport's camera moves with them, with the keyboard shared between the editor's UI and the game; at Stage 7 otherwise (ADR-0057)
 
 **Exit.** A level of the game is built, saved and reloaded entirely in the editor, with undo/redo on every operation. The editor uses no private engine API.
@@ -276,10 +279,11 @@ The stage comes right after Stage 5a, and is released as 0.4 (ADR-0090).
 - Visual profiler: CPU, jobs, memory, GPU, frames, from a trace stream
 - Physics behind an engine abstraction: bodies, colliders, constraints, queries (a ray or a segment against the world, ADR-0057), character controller
 - Audio: sources, listener, spatialization, buses, mixing, streaming; the importer of audio files, moved from Stage 4 (ADR-0068)
+- The core of skeletal animation: skeletons, skinning, clips, blending, moved from Stage 9b (ADR-0097)
 - Input action mapping, and the keys and buttons held if Stage 6 did not need them
 - UI of games: text, menus, HUD, on the framework decided at Stage 6
 
-**Exit.** The game has a character in a physical level, with sound and a UI, and is profiled end to end.
+**Exit.** The game has an animated character in a physical level, with sound and a UI, and is profiled end to end.
 
 ### Stage 8 — Extensibility → 0.7
 
@@ -287,11 +291,11 @@ The stage comes right after Stage 5a, and is released as 0.4 (ADR-0090).
 
 - Module activation: a game enables only what it needs
 - Plugin architecture for runtime and editor
-- C ABI: opaque handles, versioned structures, function tables, explicit ownership, explicit error codes
-- C++ SDK as an ergonomic wrapper over the C ABI
 - Scripting (language decided here), bound through reflection, with reload and debugging
 
-**Exit.** The game's gameplay lives in a plugin using only public API. A C++ sample builds against the SDK.
+The C ABI and the C++ SDK moved to Stage 11, derived from the API that the editor and the game will have proven (ADR-0097).
+
+**Exit.** The game's gameplay lives in a plugin using only public API.
 
 Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b needs a production renderer first.
 
@@ -303,7 +307,6 @@ Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b nee
 - Many lights
 - Transparency
 - Temporal anti-aliasing
-- Frustum culling, instancing
 - Fog, ambient occlusion, decals
 - A day-night cycle
 - The pieces for 2D and stylized games that no earlier stage needed (section 1)
@@ -314,7 +317,7 @@ Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b nee
 
 **Goal.** A team can produce a narrative game.
 
-- Animation: skeletons, skinning, clips, blending, state machines, blend trees, IK, retargeting, root motion
+- Animation beyond the core that Stage 7 builds (ADR-0097): state machines, blend trees, IK, retargeting, root motion
 - Material graph → IR → shader generation; values set per instance (ADR-0057); variants, permutation cache, async compilation
 - Sequencer: camera, animation, audio, event and VFX tracks
 - VFX: CPU and GPU particles
@@ -323,32 +326,43 @@ Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b nee
 
 **Exit.** The game grows into a short narrative vertical slice (animated character, cutscene, gameplay) that ships as a packaged build.
 
-### Stage 10 — Large worlds and networking → 0.10
+Stage 10 is split in two (ADR-0097): streaming, which an open world needs, does not wait for networking, which the first game does not need.
 
-**Goal.** Scale beyond a single level and a single machine.
+### Stage 10a — Large worlds → 0.10
+
+**Goal.** Scale beyond a single level.
 
 - World streaming: cells, async I/O, priorities, memory budgets, HLOD
 - Terrain, vegetation and their editing tools
 - Large-world coordinates
 - High-scale rendering: GPU-driven rendering, advanced culling, virtual texturing, virtual geometry, global illumination, ray tracing. Each is admitted against a measured problem and depends on what wgpu exposes at that time.
+
+**Exit.** The game streams an open world.
+
+### Stage 10b — Networking → 0.11
+
+**Goal.** Scale beyond a single machine.
+
 - Networking: transport, replication, RPC, prediction, reconciliation, interest management
 - Dedicated server build
 
-**Exit.** The game streams an open world, with several clients connected to a dedicated server.
+**Exit.** Several clients play the game connected to a dedicated server.
 
-### Stage 11 — Production readiness → 0.11, then 1.0
+### Stage 11 — Production readiness → 0.12, then 1.0
 
 **Goal.** External projects can rely on the engine.
 
 - Complete editor: material, animation, VFX and audio editors, sequencer, profiler, build tools, plugin manager, saved layouts, multi-window, command palette
 - Editor extensibility: custom panels, inspectors, importers, asset types, build steps
+- C ABI: opaque handles, versioned structures, function tables, explicit ownership, explicit error codes; moved from Stage 8 (ADR-0097)
+- C++ SDK as an ergonomic wrapper over the C ABI, with a C++ sample that builds against it
 - Crash reporting and diagnostics
 - Migration tooling for assets, projects and serialized formats
 - Deprecation policy
 - macOS as a supported platform
 - User, SDK and engine documentation
 
-**Exit for 0.11.** An external project is built without touching engine source.
+**Exit for 0.12.** An external project is built without touching engine source.
 **Exit for 1.0.** A compatibility promise can be made and kept. There is no deadline for this.
 
 ## 7. Continuous tracks
@@ -414,11 +428,13 @@ Direction only. None of this is planned work until Stage 11 is reached.
 | — | 4b | Live assets, released with 0.3 |
 | 0.3 | 5a | Reflection, serialization, world |
 | 0.4 | 5b | Scenes and prefabs |
+| — | — | An audit pass and a foundations pass, released with 0.5 (ADR-0097) |
 | 0.5 | 6 | Editor |
 | 0.6 | 7 | Runtime systems |
-| 0.7 | 8 | Plugins, SDK, scripting |
+| 0.7 | 8 | Plugins, scripting |
 | 0.8 | 9a | Production renderer |
 | 0.9 | 9b | Content production |
-| 0.10 | 10 | Large worlds, networking |
-| 0.11 | 11 | Usable by external projects |
+| 0.10 | 10a | Large worlds |
+| 0.11 | 10b | Networking |
+| 0.12 | 11 | Usable by external projects |
 | 1.0 | 11 | Stable API and SDK |

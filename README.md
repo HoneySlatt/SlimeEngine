@@ -49,7 +49,8 @@ while it runs is saved as its scenes; `slime-serialize` encodes documents in a b
 its own too, in which the cooker cooks scene files, and Blender's nodes carry typed components. The
 `world` example spawns a yard of prefabs from a scene file, and follows a prefab changed while it
 runs; *Hunna Wood*'s zone is a scene file that places its land and six lanterns of one prefab.
-[`docs/PLAN.md`](docs/PLAN.md) says what comes next, and lists the known debt.
+[`docs/PLAN.md`](docs/PLAN.md) says what comes next, a pass over an audit of 0.4 and the decisions
+that the editor will rest on, before Stage 6, the editor, and lists the known debt.
 
 ## Getting started
 

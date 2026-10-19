@@ -281,6 +281,10 @@ code.
    `scripts/fetch-assets.sh` ([ADR-0070](docs/adr/0070-the-sample-games-source-assets.md);
    [`games/hunnawood/README.md`](games/hunnawood/README.md#its-assets) says how to add one, and
    how to build the zone again with Blender).
+5. Code that reads a file from outside the program, cooked data, the manifest, a save, a scene
+   file, a source asset or its metadata file, follows
+   [ADR-0096](docs/adr/0096-the-files-the-engine-reads.md): a damaged or edited file gives an
+   error, never a panic, a hang or memory exhausted, and the reader's tests damage its input.
 
 ## Architecture decisions
 
