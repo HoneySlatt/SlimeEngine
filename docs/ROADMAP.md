@@ -57,6 +57,7 @@ The editor sits beside games, not inside the engine: it is a client of the engin
 7. **Existing crates are used wherever they are not the point of the engine,** and wrapped at the boundary so they can be replaced.
 8. **Stability is promised in one place only:** the C ABI, from 1.0. Everything else may break during 0.x.
 9. **Techniques enter because they solve a measured problem,** not to match another engine's feature list. For rendering, the measured problem is the gap between a game's image and its visual targets (section 1, ADR-0098).
+10. **What a person does, an agent does.** Every operation of the editor and of a running game that a person performs is a command that an AI agent can call through the engine's MCP server, the same command, not a path of its own (ADR-0099).
 
 ## 4. Decisions
 
@@ -269,7 +270,7 @@ The stage comes right after Stage 5a, and is released as 0.4 (ADR-0090).
 
 **Exit.** The game's scenes round-trip through save and load as files. Prefabs instantiate with overrides. The sample game's zone is made of prefabs.
 
-Between Stage 5b and Stage 6 come two passes, without a release of their own (ADR-0097): an audit pass, which fixes what an audit of 0.4 found in saves, identities, the readers of files (ADR-0096), the recovery from a lost GPU device, and measured quick wins, and puts the engine's measurements in CI; then a foundations pass, which decides as ADRs what the editor will freeze: the execution model, change detection, stable references and reversible operations, how the editor runs a game's code, the frame contract, a study of open worlds, an asset request API, hardware tiers, and what the GPU layer gives the editor, each weighed against the games of section 1 (ADR-0098). `docs/PLAN.md` details both.
+Between Stage 5b and Stage 6 come two passes, without a release of their own (ADR-0097): an audit pass, which fixes what an audit of 0.4 found in saves, identities, the readers of files (ADR-0096), the recovery from a lost GPU device, and measured quick wins, and puts the engine's measurements in CI; then a foundations pass, which decides as ADRs what the editor will freeze: the execution model, change detection, stable references and reversible operations, how the editor runs a game's code, the frame contract, a study of open worlds, an asset request API, hardware tiers, and what the GPU layer gives the editor, each weighed against the games of section 1 (ADR-0098) and against AI agents driving the engine (ADR-0099). `docs/PLAN.md` details both.
 
 ### Stage 6 — Editor foundation → 0.5
 
@@ -280,6 +281,7 @@ Between Stage 5b and Stage 6 come two passes, without a release of their own (AD
 - Viewport, hierarchy, inspector (driven by reflection), asset browser
 - Command and transaction system: every edit is undoable
 - Play in editor, the game running in a child process first, as the foundations pass decides (ADR-0097)
+- The engine's MCP server: AI agents read the world, act through the editor's commands, capture views, read measurements and logs, cook, run tests and play the game with scripted input; reachable from the user's machine only, absent from shipped builds (ADR-0099)
 - The keys and buttons held, kept by the engine, if the viewport's camera moves with them, with the keyboard shared between the editor's UI and the game; at Stage 7 otherwise (ADR-0057)
 
 **Exit.** A level of the game is built, saved and reloaded entirely in the editor, with undo/redo on every operation. The editor uses no private engine API.
@@ -426,6 +428,7 @@ These run through every stage. They are never "a phase for later".
 | Diagnostics | Logs, assertions, crash context |
 | Documentation | ADRs, architecture notes, API docs, sample walkthroughs |
 | Samples | One runnable example per stage, kept working; from Stage 3c on, the game that each stage grows |
+| Agents | From Stage 6 on, each system exposed to AI agents through the engine's MCP server as it is written (ADR-0099) |
 
 ## 8. Horizon
 

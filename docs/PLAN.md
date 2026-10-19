@@ -27,7 +27,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)): nine profiles, from *Hunna Wood* to a
   massively multiplayer game, listed in [`ROADMAP.md`](ROADMAP.md). They add criteria to P6, one UI
   framework of the engine's own for the editor and games, a stage of native GPU backends (9c), and
-  needs to Stages 7, 9a, 9b, 10a and 10b.
+  needs to Stages 7, 9a, 9b, 10a and 10b. [ADR-0099](adr/0099-ai-agents-drive-the-engine.md):
+  AI agents drive the engine through an MCP server of its own, from Stage 6, each later stage
+  exposing its systems to it.
 
 ## Status
 
@@ -373,6 +375,8 @@ Risks:
   - How the editor runs a game's code: a game becomes a library and its binaries, amending
     [ADR-0055](adr/0055-games-in-the-workspace.md); playing in the editor starts the game in a
     child process first (C4-02, C6-01, C7-02).
+    [ADR-0099](adr/0099-ai-agents-drive-the-engine.md) adds: the channel between the editor and
+    the game's process also serves tools outside the editor, the engine's MCP server among them.
   - The frame contract (G17, C2-04, C2-09, C7-04). `FrameBuilder::build` borrows the asset cache,
     and the frame it returns holds references into it, so that no render thread can draw one frame
     while the next is built: a frame that the renderer owns, built from the world, loading taken

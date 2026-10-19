@@ -2,6 +2,7 @@
 
 - Status: Accepted; amends [0052](0052-amend-roadmap-before-0-1.md) (Stage 9a's content and the
   release map); amended by [0098](0098-the-games-the-engine-aims-at.md) (the criteria of the
+  foundations pass) and [0099](0099-ai-agents-drive-the-engine.md) (one more criterion of the
   foundations pass)
 - Date: 2026-10-19
 

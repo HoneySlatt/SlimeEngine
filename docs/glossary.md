@@ -388,6 +388,11 @@ alpha mode and double-sidedness (`slime_render::Material`, from `MaterialData`;
 [ADR-0035](adr/0035-physically-based-materials.md)). Its values can change while a game runs,
 but not its textures, its sidedness or the kind of its alpha mode (`Material::set_values`).
 
+**MCP (Model Context Protocol).** An open protocol through which coding agents, such as Claude
+Code and Codex, call the tools of other programs. The engine is to have a server of its own from
+Stage 6, through which agents drive the editor and running games
+([ADR-0099](adr/0099-ai-agents-drive-the-engine.md)).
+
 **Mesh.** Triangles given as vertices (a position, a normal, texture coordinates and a *tangent*
 each) and indices, uploaded to the GPU (`slime_render::Mesh`, from `MeshData`).
 
