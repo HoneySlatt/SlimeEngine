@@ -455,7 +455,9 @@ impl World {
     /// does not have, and a scene spawned while the world ran that `scenes` cannot give, that the
     /// world spawned already, whose values its types refuse, or that would bring the entities that
     /// the save spawns so past [`MAX_ENTITIES`]. A scene spawned under a key under which the world
-    /// spawned another destroys that one first, with what is under it, as when a run changed level.
+    /// spawned another destroys that one's entities first, as when a run changed level; what is
+    /// under them without being of that scene stays, and the save removes it, or places it where
+    /// the run left it, as a hero that the start placed in the level and that walked out of it.
     /// The scenes that changed since the save, those spawned while the world ran included, are
     /// named. The saves of 0.3, of layout 1, which hold nothing spawned while the world ran, are
     /// read as they were. Loading entities created costs about two and a half times as much as
@@ -897,20 +899,34 @@ impl World {
         self.created.extend(numbered);
     }
 
-    /// Destroys the entities of `scene`, spawned under `key`, with their descendants, and forgets
-    /// the scene; adds their identities to `gone`.
+    /// Destroys the entities of `scene`, spawned under `key`, and forgets the scene; adds their
+    /// identities to `gone`. What is under them and not of the scene, another scene's entity, a
+    /// placement or an entity created outside scenes, is taken out of them first, but what a save
+    /// leaves out ([`Unsaved`]): the save removes it, or says where it went when the run left the
+    /// level, as a hero that walked out of it.
     fn despawn_scene(&mut self, key: &str, scene: &ResolvedScene, gone: &mut HashSet<String>) {
+        let mut entities = Vec::new();
         for id in record_ids(&PersistentId::new([key]), scene) {
-            let Some(entity) = self.find(&id) else {
-                continue;
-            };
-            let mut next = vec![entity];
-            while let Some(entity) = next.pop() {
-                if let Some(id) = self.persistent_id(entity) {
-                    gone.insert(id.to_string());
-                }
-                next.extend(self.children(entity));
+            if let Some(entity) = self.find(&id) {
+                gone.insert(id.to_string());
+                entities.push(entity);
             }
+        }
+        let of_scene: HashSet<Entity> = entities.iter().copied().collect();
+        for &entity in &entities {
+            let kept: Vec<Entity> = self
+                .children(entity)
+                .iter()
+                .copied()
+                .filter(|child| !of_scene.contains(child) && !self.unsaved(*child))
+                .collect();
+            for child in kept {
+                // Alive, so taking it out of its parent cannot fail.
+                let _ = self.set_parent(child, None);
+            }
+        }
+        for entity in entities {
+            // Gone already when an ancestor of the scene went first.
             self.despawn(entity);
         }
         self.scenes.remove(key);

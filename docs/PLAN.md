@@ -161,7 +161,7 @@ Risks:
 - **By hand.** On Linux: play, F5, F9, quit and resume. In the Windows virtual machine: two copies
   of the game at once; the game killed during F5, then started again.
 - **Progress.** Fixed, each with the audit's tests moved into the repository: G09, G08, G39, G24,
-  G10, and G01 in the engine. Left: G02, G03, G11, G35 and G36; the ADRs, the rustdoc and the
+  G10, G01 in the engine, and G02. Left: G03, G11, G35 and G36; the ADRs, the rustdoc and the
   game's README.
 
 ### P2 — A damaged file gives an error, never a crash
@@ -393,6 +393,10 @@ Risks:
     whole region loaded during play, then switched to; content of a scene that depends on the state
     of the story, that state belonging to one player or to a step of the story that all share;
     cells that serve streaming and, one day, the split of a world between servers.
+    P1 leaves a question: how an entity lives on when another scene takes the key of the scene
+    that spawned it, as a companion that follows the hero from one level to the next. For now,
+    `World::spawn_scene` refuses the new scene until nothing of the old one lives (G02), and a level
+    that keeps something of the one before it goes under a key of its own.
   - An asset request API, with priorities, cancellation, a memory budget and eviction (C3-01).
   - Hardware tiers, with budgets scaled from the RX 6900 XT's measurements (C2-03): a modest
     minimum at high frame rates, and a high-end tier for the visual targets of the realistic games

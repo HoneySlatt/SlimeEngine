@@ -37,12 +37,17 @@ impl World {
     /// names by its name and fingerprint and a file written back reads the table of assets of
     /// ([`World::write_scene`]), even once its root is destroyed, since entities moved out of it live
     /// on, until another is spawned under `key`: a scene that its library holds too costs a count.
+    /// Another scene is spawned under `key`, as when a run changes level, once nothing of the one
+    /// spawned under it before lives: an entity of it kept, a companion that follows the hero, keeps
+    /// an identity under `key`, which the new scene's would share, so that a level that keeps
+    /// something of the one before it is spawned under a key of its own.
     ///
     /// # Errors
     ///
     /// [`WorldError::InvalidKey`] if `key` is empty, holds `/`, or is `created`, which names the
     /// entities created outside scenes; [`WorldError::IdentityInUse`] if an entity has the identity
     /// `key`, or one of the scene's, already, as a scene spawned twice under one key gives;
+    /// [`WorldError::KeyInUse`] if an entity of the scene spawned under `key` before lives still;
     /// [`WorldError::UnknownComponent`] if a component's type has no storage in the world, as a
     /// type that the game did not register ([`World::register`]) has;
     /// [`WorldError::RefusedInScene`] if a value breaks a rule of its type's check, which reflection
@@ -100,8 +105,20 @@ impl World {
         scene: &ResolvedScene,
         storages: &Storages<'_>,
     ) -> Result<Entity, WorldError> {
-        valid_key(key)?;
-        let ids = record_ids(&PersistentId::new([key]), scene);
+        let root = valid_key(key)?;
+        // A root alive is a scene spawned twice under the key, which `spawn_records` refuses.
+        if !self.identities.contains_key(&root)
+            && let Some(held) = self.scenes.get(key)
+            && let Some(entity) = record_ids(&root, &held.scene)
+                .into_iter()
+                .find(|id| self.identities.contains_key(id))
+        {
+            return Err(WorldError::KeyInUse {
+                key: key.to_owned(),
+                entity,
+            });
+        }
+        let ids = record_ids(&root, scene);
         let entities = self.spawn_records(scene, &ids, None, storages)?;
         if !scene.0.records[0]
             .components

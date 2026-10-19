@@ -21,6 +21,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   no longer makes the save refused, nor moves or destroys another entity; what the save holds of
   the start's numbered entities is set aside, and said, when the start that it is loaded into
   created others. The saves of 0.4, of layout 2, load as they did.
+- `World::spawn_scene` refuses, with `WorldError::KeyInUse`, a key under which the world spawned
+  another scene of which an entity lives still, as a companion that followed the hero out of the
+  level: its identity is under the key, as the new scene's would be, and the next save of the run
+  could not be loaded. A level that keeps something of the one before it is spawned under a key of
+  its own.
 
 ### Fixed
 
@@ -46,6 +51,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   wrote a placement's entity that holds it as the file had it, its changes since lost, without a
   report. It leaves out only the entities created outside scenes that hold it, or that are under an
   entity that does, and reports them.
+- Loading a save of a run that changed level, another scene spawned under a key, or carrying the
+  run through hot reload, destroys only the old scene's entities: what the start placed in the
+  level, the hero's prefab at a spawn point, stays where the run left it. It was destroyed with the
+  level, and the save loaded without it.
 
 ## [0.4.0] - 2026-10-18
 

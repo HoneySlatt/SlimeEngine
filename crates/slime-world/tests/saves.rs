@@ -7,6 +7,7 @@ use slime_assets::{AssetId, CookedScene, SceneNode};
 use slime_reflect::Reflect;
 use slime_world::{
     Component, DocumentError, Entity, Name, ResolvedScene, SceneLibrary, Transform, World,
+    WorldError,
 };
 
 /// What an entity aims at.
@@ -336,4 +337,163 @@ fn a_hot_reload_after_a_level_gains_a_marker_moves_only_the_enemy_that_the_run_m
             assert!(!report.set_aside.is_empty());
         }
     }
+}
+
+/// The levels of a run that changes level under one key, `level`, and the hero's prefab.
+const TOWN: AssetId = AssetId::from_u128(20);
+const CAVE: AssetId = AssetId::from_u128(21);
+const HERO: AssetId = AssetId::from_u128(22);
+
+/// The town, a floor, a marker where the hero starts and a companion; the cave, a rock; the hero, a
+/// sword.
+fn levels() -> SceneLibrary {
+    let mut scenes = SceneLibrary::new();
+    let entities = |names: &[&str]| {
+        names
+            .iter()
+            .map(|name| format!("[entities.{name}.components]\nName = \"{name}\"\n"))
+            .collect::<String>()
+    };
+    scenes.insert_file(TOWN, "town", entities(&["floor", "start", "companion"]));
+    scenes.insert_file(CAVE, "cave", entities(&["rock"]));
+    scenes.insert_file(HERO, "hero", entities(&["sword"]));
+    scenes
+}
+
+/// The start of a run: the town under `level`, and the hero, created outside scenes.
+fn in_town(scenes: &mut SceneLibrary) -> World {
+    let mut world = World::new();
+    let town = scenes.resolve(world.registry(), TOWN).expect("resolved");
+    world.spawn_scene("level", &town).expect("spawned");
+    let hero = world.spawn();
+    world.insert(hero, Name("hero".to_owned()));
+    world
+}
+
+/// The town of `world`, under `key`, left for the cave under `level`.
+fn to_the_cave(world: &mut World, key: &str, scenes: &mut SceneLibrary) {
+    world.despawn(entity(world, key));
+    let cave = scenes.resolve(world.registry(), CAVE).expect("resolved");
+    world.spawn_scene("level", &cave).expect("spawned");
+}
+
+#[test]
+fn a_level_spawned_under_a_key_waits_until_nothing_of_the_one_before_lives() {
+    let mut scenes = levels();
+    let mut run = in_town(&mut scenes);
+    // The companion follows the hero out of the town, whose root is destroyed.
+    let hero = entity(&run, "created/1");
+    run.set_parent(entity(&run, "level/companion"), Some(hero))
+        .expect("alive");
+    run.despawn(entity(&run, "level"));
+    let cave = scenes.resolve(run.registry(), CAVE).expect("resolved");
+    let refused = run
+        .spawn_scene("level", &cave)
+        .expect_err("the companion lives");
+    assert_eq!(
+        refused,
+        WorldError::KeyInUse {
+            key: "level".to_owned(),
+            entity: "level/companion".parse().unwrap(),
+        }
+    );
+    // The cave under a key of its own keeps the companion, through a save and a load.
+    run.spawn_scene("cave", &cave).expect("spawned");
+    let save = run
+        .save(&in_town(&mut scenes), &Default::default())
+        .expect("saved");
+    let mut loaded = in_town(&mut scenes);
+    let report = loaded.load(&save, &mut scenes).expect("loaded");
+    assert!(report.set_aside.is_empty(), "{report:?}");
+    assert_eq!(run.first_difference(&loaded), None);
+    // Once the companion is gone, the cave goes under `level`.
+    let mut run = in_town(&mut scenes);
+    to_the_cave(&mut run, "level", &mut scenes);
+    assert!(run.find(&"level/rock".parse().unwrap()).is_some());
+}
+
+#[test]
+fn what_the_start_placed_in_a_level_outlives_the_run_leaving_it() {
+    let mut scenes = levels();
+    // The game's start places the hero's prefab at the town's start marker, as a game spawns its
+    // player at a spawn point.
+    let start = |scenes: &mut SceneLibrary| {
+        let mut world = World::new();
+        let town = scenes.resolve(world.registry(), TOWN).expect("resolved");
+        world.spawn_scene("level", &town).expect("spawned");
+        let hero = scenes.resolve(world.registry(), HERO).expect("resolved");
+        let marker = entity(&world, "level/start");
+        world.spawn_placement(&hero, Some(marker)).expect("placed");
+        world
+    };
+    // The hero walks out of the town, which gives way to the cave.
+    let mut run = start(&mut scenes);
+    run.set_parent(entity(&run, "created/1"), None)
+        .expect("alive");
+    to_the_cave(&mut run, "level", &mut scenes);
+    let save = run
+        .save(&start(&mut scenes), &Default::default())
+        .expect("saved");
+    let mut loaded = start(&mut scenes);
+    let report = loaded.load(&save, &mut scenes).expect("loaded");
+    assert!(report.set_aside.is_empty(), "{report:?}");
+    assert!(loaded.find(&"created/1/sword".parse().unwrap()).is_some());
+    assert_eq!(run.first_difference(&loaded), None);
+    // Loaded, then saved again: the same save.
+    let again = loaded
+        .save(&start(&mut scenes), &Default::default())
+        .expect("saved");
+    assert_eq!(again, save);
+    // Carried through hot reload, the cave edited: the edit reaches the run, the hero stays.
+    scenes.insert_file(
+        CAVE,
+        "cave",
+        "[entities.rock.components]\nName = \"rock\"\n\
+         [entities.torch.components]\nName = \"torch\"\n",
+    );
+    let (carried, report) = run
+        .carry(&start(&mut levels()), start(&mut scenes), &mut scenes)
+        .expect("carried");
+    assert!(report.set_aside.is_empty(), "{report:?}");
+    assert!(carried.find(&"level/torch".parse().unwrap()).is_some());
+    assert!(carried.find(&"created/1/sword".parse().unwrap()).is_some());
+    // A hero that stayed in the town is gone with it, in the run and once loaded.
+    let mut scenes = levels();
+    let mut run = start(&mut scenes);
+    to_the_cave(&mut run, "level", &mut scenes);
+    let save = run
+        .save(&start(&mut scenes), &Default::default())
+        .expect("saved");
+    let mut loaded = start(&mut scenes);
+    let report = loaded.load(&save, &mut scenes).expect("loaded");
+    assert!(report.set_aside.is_empty(), "{report:?}");
+    assert!(loaded.find(&"created/1".parse().unwrap()).is_none());
+    assert_eq!(run.first_difference(&loaded), None);
+}
+
+#[test]
+fn a_scene_that_the_start_places_in_a_level_outlives_the_run_leaving_it() {
+    let mut scenes = levels();
+    // The game's start spawns the hero under its own key, on the town's floor.
+    let start = |scenes: &mut SceneLibrary| {
+        let mut world = World::new();
+        let town = scenes.resolve(world.registry(), TOWN).expect("resolved");
+        world.spawn_scene("level", &town).expect("spawned");
+        let hero = scenes.resolve(world.registry(), HERO).expect("resolved");
+        let hero = world.spawn_scene("hero", &hero).expect("spawned");
+        let floor = entity(&world, "level/floor");
+        world.set_parent(hero, Some(floor)).expect("alive");
+        world
+    };
+    let mut run = start(&mut scenes);
+    run.set_parent(entity(&run, "hero"), None).expect("alive");
+    to_the_cave(&mut run, "level", &mut scenes);
+    let save = run
+        .save(&start(&mut scenes), &Default::default())
+        .expect("saved");
+    let mut loaded = start(&mut scenes);
+    let report = loaded.load(&save, &mut scenes).expect("loaded");
+    assert!(report.set_aside.is_empty(), "{report:?}");
+    assert!(loaded.find(&"hero/sword".parse().unwrap()).is_some());
+    assert_eq!(run.first_difference(&loaded), None);
 }
