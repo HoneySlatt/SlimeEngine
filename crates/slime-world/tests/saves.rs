@@ -521,3 +521,20 @@ fn a_component_of_a_type_or_a_variant_that_this_program_does_not_know_is_a_warni
         Some(-1.0)
     );
 }
+
+#[test]
+fn a_save_that_gives_a_key_to_a_scene_and_to_an_entity_it_creates_is_refused() {
+    // Edited by hand: the run spawned a scene under `camp`, and created an entity under the same key.
+    let text = "[spawned.camp]\nscene = \"00000000-0000-0000-0000-000000000007\"\n\
+                name = \"camp\"\ncontent = \"0000000000000000\"\n\
+                [created.camp]\nparent = []\n";
+    let mut world = World::new();
+    let error = world
+        .load(text, &mut SceneLibrary::new())
+        .expect_err("one identity, two entities");
+    assert!(
+        matches!(&error, DocumentError::IdentityInUse(id) if id.to_string() == "camp"),
+        "{error}"
+    );
+    assert!(world.is_empty(), "the world is left as it was");
+}

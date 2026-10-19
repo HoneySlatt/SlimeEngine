@@ -69,7 +69,8 @@ pub enum DocumentError {
     NotCreated(String),
     /// The save creates an entity, or places a placement made while the world ran, under an identity
     /// that an entity of the world has, or that it gives twice: a key that the world's start gives
-    /// already, or, in a save of layout 2 or earlier, a number, when the game made more entities at
+    /// already, or that the save gives both to a scene that it spawns and to an entity that it
+    /// creates; or, in a save of layout 2 or earlier, a number, when the game made more entities at
     /// the start of its run than when the save was made.
     #[error(
         "the save creates or places `{0}`, an identity that an entity of the world, or of the save, \
@@ -722,13 +723,20 @@ impl World {
             }
             Ok(number)
         };
+        // The keys that the save gives, to the scenes that it spawns and to the entities that it
+        // creates, each once.
+        let mut keys = HashSet::new();
         for key in document.keys(&[SPAWNED]) {
             let id = key.parse::<PersistentId>().ok();
             let identity = match id {
                 Some(id) if id.parts().first().map(String::as_str) == Some(CREATED_KEY) => {
                     SpawningAs::Placement(number(&key, Some(id))?)
                 }
-                _ => SpawningAs::Key(key.clone()),
+                // A key that cannot be one, which spawning the scene refuses, takes nothing.
+                id => {
+                    keys.extend(id.filter(|id| id.parts().len() == 1));
+                    SpawningAs::Key(key.clone())
+                }
             };
             let mut text = |field: &str| match document
                 .read(&[SPAWNED, &key, field], "String", None)
@@ -745,7 +753,6 @@ impl World {
                 identity,
             });
         }
-        let mut keys = HashSet::new();
         for key in document.keys(&[CREATED]) {
             let id = key.parse::<PersistentId>().ok();
             let creation = match id {

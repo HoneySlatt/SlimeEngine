@@ -55,6 +55,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   left out with a warning in `Loaded::warnings`, as `World::load`'s rustdoc said of what it does
   not know: it was set aside, as a value that its type refuses, so that a game could not tell a save
   that a later version of it wrote from one whose entities an update removed.
+- A save that gives one key both to a scene that it spawns and to an entity that it creates, as a
+  save edited by hand may, is refused with `DocumentError::IdentityInUse`: it was loaded, two
+  entities claiming one identity, and the next save left one of them out.
 - Loading a save of a run that changed level, another scene spawned under a key, or carrying the
   run through hot reload, destroys only the old scene's entities: what the start placed in the
   level, the hero's prefab at a spawn point, stays where the run left it. It was destroyed with the
