@@ -1175,22 +1175,31 @@ fn written_back(world: &mut World, scenes: &mut SceneLibrary) -> (Written, World
 }
 
 #[test]
-fn an_entity_that_a_key_names_under_a_level_written_back_is_left_out_as_such() {
+fn an_entity_that_a_key_names_and_another_scene_under_a_level_written_back_are_left_out_as_such() {
     let mut scenes = library(&[(YARD, "yard", YARD_FILE), (LAMP, "lamp", LAMP_FILE)]);
     let mut world = world();
     let root = spawn(&mut world, &mut scenes, YARD, "yard");
     let camera = world.spawn_keyed("camera").expect("a free key");
     world.set_parent(camera, Some(root)).expect("alive");
+    // And the root of another scene, whose identity is one part too.
+    let other = spawn(&mut world, &mut scenes, LAMP, "other");
+    world.set_parent(other, Some(root)).expect("alive");
     let written = world.write_scene(root).expect("written");
-    let reasons: Vec<(&str, &str)> = written
-        .left_out
-        .iter()
-        .map(|aside| (aside.entity.as_str(), aside.reason.as_str()))
-        .collect();
+    let reason = |entity: &str| {
+        let aside = written.left_out.iter().find(|aside| aside.entity == entity);
+        aside.map_or("", |aside| aside.reason.as_str())
+    };
     assert!(
-        matches!(reasons[..], [("camera", reason)] if reason.contains("a key names it")),
-        "{reasons:?}"
+        reason("camera").contains("a key names it"),
+        "{:?}",
+        written.left_out
     );
+    assert!(
+        reason("other").contains("another scene"),
+        "{:?}",
+        written.left_out
+    );
+    assert_eq!(written.left_out.len(), 2, "{:?}", written.left_out);
 }
 
 /// The entities and components of what a written file left out.

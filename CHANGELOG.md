@@ -71,7 +71,6 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   run through hot reload, destroys only the old scene's entities: what the start placed in the
   level, the hero's prefab at a spawn point, stays where the run left it. It was destroyed with the
   level, and the save loaded without it.
-
 - *Hunna Wood* compares the zone's layout that a save was made on with its own number by number,
   within a ten-thousandth of a metre or of a radian, whatever the order of the colliders, and so
   does its hot reload: a fingerprint of the numbers rounded to ten-thousandths changed when one of
@@ -79,7 +78,6 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   that unit, as an update that does not change the zone may make it, and every save was set aside.
   A save says its layout's numbers, under `zone`; the saves of 0.4, which say a fingerprint, are
   compared by it, as 0.4 compared them.
-
 - *Hunna Wood* checks a save before it resumes it. It finds its zone and its hero again in the world
   loaded, by their identities, where it kept handles to entities that loading may have destroyed,
   so that a save edited to remove the key made it panic at its first step, at each launch. A save
@@ -90,7 +88,6 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   nor moves what is not a file in the save's place, where it renamed a directory.
 - *Hunna Wood* sets a save aside under a name of its own, `save.toml.<why>.2` and on, rather than
   in place of the one set aside before.
-
 - One copy of *Hunna Wood* at a time holds a save, through a lock on a file beside it,
   `save.toml.lock`: another copy started with the same save says so, and plays a new run that it
   does not save, where both wrote the save and the last to quit wrote over the other's run. Each

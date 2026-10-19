@@ -666,8 +666,9 @@ enum Resume {
     /// No run: the file holds no save, or held one that is set aside, which the next save does not
     /// write over.
     Nothing,
-    /// No run, and a save that can be neither read nor set aside, or what is not a file in its
-    /// place: the next save would write over it, which the game must not do.
+    /// No run, and a save that can be neither read nor set aside, a save not checked as the zone
+    /// cannot be played, or what is not a file in its place: the next save would write over it,
+    /// which the game must not do.
     Keep,
 }
 
@@ -726,7 +727,7 @@ fn resume_from(file: &Path, scenes: &mut SceneLibrary) -> Resume {
             "later-version",
             &format!(
                 "version {version} of the game wrote it, a later one than this one, {}",
-                env!("CARGO_PKG_VERSION")
+                saves::THIS_VERSION
             ),
         ),
         Err(NotResumed::OtherLayout) => set_aside(
@@ -947,7 +948,7 @@ mod tests {
         let (mut world, _) = saves::start(&mut scenes).expect("playable");
         let text = saves::save(&mut world, &mut scenes).expect("saved");
         let later = text.replacen(
-            &format!("version = \"{}\"", env!("CARGO_PKG_VERSION")),
+            &format!("version = \"{}\"", saves::THIS_VERSION),
             "version = \"99.0.0\"",
             1,
         );

@@ -69,7 +69,7 @@ textures that changed load again, the others are kept, and those drawn stay as t
 of them are loaded. When a scene changed, the zone's scene file, the land, the lantern or the hero,
 the game makes a new game of the scenes as they are now, and compares its zone's layout with the
 layout of a new game of the scenes before ([`src/saves.rs`](src/saves.rs)), number by number,
-within a ten-thousandth of a metre or of a radian, whatever the order of the colliders. When the
+within a small tolerance (`zone::SAME_WITHIN`), whatever the order of the colliders. When the
 layout changed, a collider, the start, the key, the door, the campfire, the terrace or the bounds,
 the run starts again in the new game, as R does. Otherwise the run is carried into it through a save: what
 the run changed is saved against the game before and loaded into the new one, the hero where it
@@ -96,13 +96,15 @@ numbers.
 A save is checked before it is resumed. One that is not resumed is set aside, so that the next save
 does not write over it, and a new run starts. It is set aside under a name that says why, and never
 in place of one set aside before, which keeps its own: `save.toml.later-version`, then
-`save.toml.later-version.2`, and on. A save is not resumed when it cannot be read, not a save, or
-larger than the 16 MiB a save holds at most, which the game does not read further
-(`unreadable`); when a later version of the game wrote it (`later-version`); when it was made on
-another layout of the zone, as hot reload starts the run again when the layout changes
+`save.toml.later-version.2`, and on. A save is not resumed when it cannot be read, not TOML, of a
+later version of the format, or larger than the largest save that the engine reads
+(`slime_serialize::MAX_SIZE`), which the game does not read further (`unreadable`); when a later
+version of the game wrote it (`later-version`); when it was made on another layout of the zone, as
+hot reload starts the run again when the layout changes, or says none, as a file that is not a save
 (`other-layout`), the saves of 0.4 compared by the fingerprint of their layout that they say; when
 it holds what this version of the game does not know, a component, a field or a value that a later
-version adds, which writing it back would lose (`unknown-content`); and when the run it holds
+version adds, or that an update removed without an upgrade, which writing it back would lose
+(`unknown-content`); and when the run it holds
 cannot be played, as when it removes the hero or the key (`unplayable`). One that can be neither
 read nor set aside, locked by another program, is kept, and so is a directory in the save's place,
 which the game neither reads nor moves; the run is not saved then: the log says so, and `--save`

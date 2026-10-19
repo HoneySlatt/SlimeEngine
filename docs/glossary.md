@@ -352,8 +352,8 @@ the start of their run created ([ADR-0091](adr/0091-scene-documents-and-placemen
 **Layout (zone).** In *Hunna Wood*, what decides how the game plays in its zone: the size of its
 ground, its colliders, where the hero starts and the places of the key, the door, the campfire and
 the terrace. A save gives the numbers of the layout of the zone that it was made on, a save of 0.4
-its *fingerprint*, and one of another layout, a number further than a ten-thousandth from the
-zone's, is not resumed; *hot reload* starts the run again when the layout changes
+its *fingerprint*, and one of another layout, a number further from the zone's than a small
+tolerance, is not resumed; *hot reload* starts the run again when the layout changes
 ([ADR-0088](adr/0088-saving-and-resuming-a-run.md),
 [ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)).
 

@@ -32,7 +32,7 @@ const ZONE: &str = "zone";
 /// ([`Layout::fingerprint`]), which it is compared by, as 0.4 compared it.
 const LAYOUT_0_4: &str = "layout";
 /// The version of the game, which its saves say.
-const THIS_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const THIS_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// The user's data directory, as `var` gives the environment's variables: `%APPDATA%` on Windows;
 /// elsewhere `$XDG_DATA_HOME`, else `$HOME/.local/share`, as the XDG base directories say. `None`

@@ -5,10 +5,10 @@
   [0087](0087-the-worlds-documents.md) (the identities of what a game creates in code, saves of
   layout 3, references compared by the identity they name, and what loading warns of),
   [0088](0088-saving-and-resuming-a-run.md) (what *Hunna Wood*'s saves say, and how the game checks,
-  sets aside and writes them), [0089](0089-scenes-and-prefabs.md) and
-  [0092](0092-a-world-written-back-as-a-scene.md) (`Unsaved` in a level written back), and
-  [0093](0093-saves-and-hot-reload-with-placements.md) (a change of level, and the numbers of what
-  a run spawned)
+  sets aside and writes them), [0089](0089-scenes-and-prefabs.md) (`Unsaved` in a level written
+  back, and the numbers of what a run spawned), [0092](0092-a-world-written-back-as-a-scene.md)
+  (`Unsaved` in a level written back) and [0093](0093-saves-and-hot-reload-with-placements.md) (a
+  change of level, and the numbers of what a run spawned)
 - Date: 2026-10-19
 
 ## Context
@@ -44,7 +44,8 @@ the code no longer does is listed under each decision.
 **What a game creates in code at its start is named by a key.** `World::spawn_keyed(key)` creates
 an entity whose persistent identity is `key`, one part, which shares its namespace with the keys of
 scenes: a key that an entity alive has, a scene's root or another entity created under it, is
-refused (`WorldError::IdentityInUse`), and so is an empty key, one that holds `/`, or `created`.
+refused (`WorldError::IdentityInUse`), and an empty key, one that holds `/`, or `created`, is not a
+key (`WorldError::InvalidKey`).
 A run that creates an entity under a key saves it under `created` by its key, and loading creates
 it again under it. `created/<n>` stays for what a game creates without a key, the run's
 projectiles and effects.
@@ -125,8 +126,9 @@ saves changes so:
   radian, the colliders whatever their order, and so is hot reload's. The saves of 0.4 say the
   fingerprint, and are compared by it, as 0.4 compared them.
 - A save is read up to the size of the largest document (`slime_serialize::MAX_SIZE`), then
-  checked, in order: it is a save; no later version wrote it; it was made on the zone's layout;
-  loading warned of nothing; and the game is found again in the world loaded, its zone, markers and
+  checked, in order: it reads, as TOML of a format and a layout that this version knows; no later
+  version wrote it; it says that it was made on the zone's layout, which a file that is not a save
+  does not say; loading warned of nothing; and the game is found again in the world loaded, its zone, markers and
   hero by their persistent identities, as loading may have destroyed or spawned them again. One
   that fails is set aside, and a new run starts. A save of which loading set differences aside, as
   when an update removed what the run changed, is resumed without them, as ADR-0093 decided.
@@ -184,8 +186,11 @@ saves changes so:
   `World::load` states.
 - A change of level under one key waits until nothing of the level before lives, until the
   foundations pass decides how an entity lives on across scenes.
-- A player who goes back to an earlier version of *Hunna Wood* keeps the save of the later one,
-  set aside, and plays a new run until they come back to it.
+- A player who goes back to an earlier version of *Hunna Wood* finds the save of the later one
+  set aside under a name of its own, and plays a new run, which the later version then resumes:
+  the save set aside comes back only when the player renames it. 0.4 itself sets the saves of later
+  versions aside as of another layout, under its fixed name, in place of one that it set aside so
+  before, as G35 found.
 - `save.toml.lock`, and the file of a game killed while it wrote, stay beside the save.
 - The fingerprint that the saves of 0.4 say is compared as 0.4 compared it, its fragility included,
   until *Hunna Wood*'s fixture is made again, which [ADR-0100](0100-updates-of-shipped-games.md)

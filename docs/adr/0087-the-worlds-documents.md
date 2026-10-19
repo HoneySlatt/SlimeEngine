@@ -1,16 +1,16 @@
 # 0087. The world's documents
 
 - Status: Accepted; amends [0079](0079-the-engines-own-world.md) (what a save differs from, and the
-  identities of entities created outside scenes), [0083](0083-transforms-and-the-hierarchy.md)
-  (keys and names that hold `/`), [0085](0085-reflection.md) (a transient field has a default) and
-  [0086](0086-serialization.md) (documents of several values, and references to entities);
-  amended by [0088](0088-saving-and-resuming-a-run.md) (a save begins with what the game says of
-  it), [0089](0089-scenes-and-prefabs.md) (what a save holds of the scenes and prefabs spawned while
-  a game runs), [0092](0092-a-world-written-back-as-a-scene.md) (a rotation changed is a difference
-  whole), [0093](0093-saves-and-hot-reload-with-placements.md) (a save says its layout, holds
-  what the world spawned while it ran, and is loaded through a scene library) and
-  [0101](0101-saves-and-identities-that-never-mislead.md) (the identities of what a game creates in code, saves of layout 3, references
-  compared by the identity they name, and what loading warns of)
+  identities of entities created outside scenes), [0083](0083-transforms-and-the-hierarchy.md) (keys
+  and names that hold `/`), [0085](0085-reflection.md) (a transient field has a default) and
+  [0086](0086-serialization.md) (documents of several values, and references to entities); amended
+  by [0088](0088-saving-and-resuming-a-run.md) (a save begins with what the game says of it),
+  [0089](0089-scenes-and-prefabs.md) (what a save holds of the scenes and prefabs spawned while a
+  game runs), [0092](0092-a-world-written-back-as-a-scene.md) (a rotation changed is a difference
+  whole), [0093](0093-saves-and-hot-reload-with-placements.md) (a save says its layout, holds what
+  the world spawned while it ran, and is loaded through a scene library) and
+  [0101](0101-saves-and-identities-that-never-mislead.md) (the identities of what a game creates in
+  code, saves of layout 3, references compared by the identity they name, and what loading warns of)
 - Date: 2026-10-16
 
 ## Context

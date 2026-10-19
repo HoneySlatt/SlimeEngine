@@ -455,11 +455,12 @@ impl World {
     /// this world's start created other entities outside scenes, by the fingerprint that the save
     /// holds, which does not tell apart entities alike in their types and without names created in
     /// another order ([`World::spawn`]): a key names an entity whatever the start creates
-    /// ([`World::spawn_keyed`]). What is set aside names its entity as the save does, a number of
-    /// the run as the save numbers it ([`Loaded::set_aside`]). A save is
-    /// read leniently: what this program does not know is left out, with a warning
-    /// ([`Loaded::warnings`]), a section of the save, a field, and a component of a type or with
-    /// a variant that it does not know included. A difference whose entity or component the world
+    /// ([`World::spawn_keyed`]). A save of layout 2 or earlier, which does not say what its start
+    /// created, gives its numbers as they are, unchecked, as 0.4 did. What is set aside names its
+    /// entity as the save does, a number of the run as the save numbers it
+    /// ([`Loaded::set_aside`]). A save is read leniently: what this program does not know is left
+    /// out, with a warning ([`Loaded::warnings`]), a section of the save, a field, and a component
+    /// of a type or with a variant that it does not know included. A difference whose entity or component the world
     /// no longer has, or that the component's type refuses, is set aside, and the rest applied; so
     /// is a reference to an entity that the world no longer has, which refers to no entity then, a
     /// parent that the world does not have, and a scene spawned while the world ran that `scenes`
@@ -1387,7 +1388,7 @@ fn created_root(id: &PersistentId) -> Option<u64> {
 /// Why a save's difference is set aside when its entity is an entity that the save's start created,
 /// and this world's start created others.
 const START_CHANGED: &str = "the game's start creates other entities outside scenes than when the \
-                             save was made, so that this one may be another: a key names it \
+                             save was made, so that this one may be another: a key would name it \
                              whatever the start creates (`World::spawn_keyed`)";
 
 /// A scene that the world that made a save spawned while it ran, as the save gives it.

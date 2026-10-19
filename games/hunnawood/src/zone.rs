@@ -418,8 +418,10 @@ impl Layout {
 }
 
 /// Whether `a` and `b` hold the same footprints ([`Footprint::matches`]), whatever their order: as
-/// many, each of `a` the same as one of `b` that no other took. It costs the product of their
-/// lengths, a few thousand comparisons for a zone's colliders.
+/// many, each of `a` the same as the first of `b` that no other took. It costs the product of their
+/// lengths, a few thousand comparisons for a zone's colliders. Two colliders of one list that lie
+/// within twice the tolerance of each other, but not within it, could be taken crosswise and the
+/// same layout refused, which no zone holds.
 fn same_footprints(a: &[Footprint], b: &[Footprint]) -> bool {
     let mut left: Vec<&Footprint> = b.iter().collect();
     a.len() == b.len()

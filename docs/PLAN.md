@@ -165,8 +165,8 @@ Risks:
 - **Outcome.** Built on 2026-10-19; the owner's checks by hand are left.
   [ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md) records how each finding is
   fixed, and amends the ADRs above. Each defect is confirmed by a test that failed before its fix
-  and passes with it; the session that finished P1 did not have the audit's own tests, and wrote
-  those of G03, G11, G35 and G36 from the findings above. The tests, by finding:
+  and passes with it; the audit's own tests of G03, G11, G35 and G36 were not available, and
+  theirs were written from the findings above. The tests, by finding:
   - G09: `an_alias_that_another_field_has_is_a_bug_in_the_type` and four cases of
     `a_description_that_is_not_one_is_refused` (`slime-reflect`), and two `compile_fail` doc tests.
   - G08: `a_number_is_compared_with_the_bounds_in_its_own_type` and
@@ -189,11 +189,12 @@ Risks:
   - G03, in *Hunna Wood*: `a_save_whose_run_cannot_be_played_is_not_resumed`, which removed the key
     and made the game panic at its next restart, `a_save_is_read_up_to_the_size_of_the_largest_one`
     and `what_is_not_a_file_at_the_save_s_place_is_neither_read_nor_moved`.
-  - G11: `a_layout_is_the_same_within_a_ten_thousandth_wherever_its_numbers_lie`,
-    `a_save_is_resumed_on_its_layout_given_a_few_units_in_the_last_place`, and, on the cooked zone,
-    `the_zone_s_layout_is_the_same_a_unit_in_the_last_place_away`: of the 793 numbers of the zone's
-    layout, seven moved by one unit in the last place changed the fingerprint of 0.4, as the audit
-    found.
+  - G11: `a_save_is_resumed_on_its_layout_given_a_few_units_in_the_last_place`, whose two layouts
+    0.4's fingerprint tells apart, and
+    `a_layout_is_the_same_within_a_ten_thousandth_wherever_its_numbers_lie`; on the cooked zone,
+    `the_zone_s_layout_is_the_same_a_unit_in_the_last_place_away` moves each of its layout's numbers
+    by one unit in the last place, up and down. Measured once, as P1 was built: seven of those
+    moves, of the 793 numbers, changed 0.4's fingerprint, as the audit found.
   - G35: `a_component_of_a_type_or_a_variant_that_this_program_does_not_know_is_a_warning`
     (`slime-world`), which loading set aside, so that a game could not tell it from what an update
     removed; `a_save_of_a_later_version_or_holding_what_this_one_does_not_know_is_not_resumed`,
@@ -903,6 +904,15 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **Files stay beside *Hunna Wood*'s save**: `save.toml.lock`, which locks the save while a copy of
   the game runs, and `save.toml.<process id>.new`, when the game is killed while it writes. Neither
   is read again, nor removed.
+- ***Hunna Wood*'s lock holds a save by its path** (ADR-0101): two copies that reach one save by two
+  paths, one through a symbolic link, take two lock files and do not exclude each other; on a file
+  system without locks, the game neither resumes nor saves, and says so; a copy of 0.4, which takes
+  no lock, still writes a save that a later copy holds.
+- **A save that removes a component of a type that the program does not know sets it aside**
+  (ADR-0101): `removed.components` names it, and loading reports that the entity holds no such
+  component, where a value of an unknown type is a warning. Writing the save back loses the
+  removal, which a later version that knows the type would have applied; *Hunna Wood* sets aside
+  the saves of later versions by the version that they say, which covers it for the game.
 - **Children and queries in another order after loading** (ADR-0087). A world loaded from a save
   holds its entities in other slots, and an entity's children in the order the save set them: what
   must go the same way after loading cannot depend on either order.

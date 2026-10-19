@@ -315,7 +315,11 @@ impl World {
                 };
                 if !ours {
                     let reason = match &node.identity {
-                        Identity::Scene(id) if id.parts().len() == 1 => {
+                        // One part, as the root of a scene spawned under a key has too.
+                        Identity::Scene(id)
+                            if id.parts().len() == 1
+                                && !self.scenes.contains_key(&id.parts()[0]) =>
+                        {
                             "a key names it (`World::spawn_keyed`), which a scene file does not \
                              hold: left out, with its descendants"
                         }

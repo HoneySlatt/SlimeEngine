@@ -2,8 +2,9 @@
 
 - Status: Accepted; amends [0069](0069-the-asset-pipeline.md) (what `slime-assets` depends on, and
   who reads metadata files); amended by [0085](0085-reflection.md) (when a component's type is
-  registered, and the `check` attribute), [0086](0086-serialization.md) (where serialization
-  lives, and the conventions of its documents) and [0101](0101-saves-and-identities-that-never-mislead.md) (aliases that collide)
+  registered, and the `check` attribute), [0086](0086-serialization.md) (where serialization lives,
+  and the conventions of its documents) and [0101](0101-saves-and-identities-that-never-mislead.md)
+  (aliases that collide)
 - Date: 2026-10-16
 
 ## Context
