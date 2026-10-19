@@ -310,7 +310,7 @@ impl World {
     }
 
     /// The entity's persistent identity, if it is alive and has one: a scene's entity, or one created
-    /// outside a scene ([`World::spawn`]).
+    /// outside a scene, by its number ([`World::spawn`]) or its key ([`World::spawn_keyed`]).
     pub fn persistent_id(&self, entity: Entity) -> Option<PersistentId> {
         if !self.contains(entity) {
             return None;

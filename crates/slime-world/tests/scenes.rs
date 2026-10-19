@@ -1174,6 +1174,25 @@ fn written_back(world: &mut World, scenes: &mut SceneLibrary) -> (Written, World
     (written, reread)
 }
 
+#[test]
+fn an_entity_that_a_key_names_under_a_level_written_back_is_left_out_as_such() {
+    let mut scenes = library(&[(YARD, "yard", YARD_FILE), (LAMP, "lamp", LAMP_FILE)]);
+    let mut world = world();
+    let root = spawn(&mut world, &mut scenes, YARD, "yard");
+    let camera = world.spawn_keyed("camera").expect("a free key");
+    world.set_parent(camera, Some(root)).expect("alive");
+    let written = world.write_scene(root).expect("written");
+    let reasons: Vec<(&str, &str)> = written
+        .left_out
+        .iter()
+        .map(|aside| (aside.entity.as_str(), aside.reason.as_str()))
+        .collect();
+    assert!(
+        matches!(reasons[..], [("camera", reason)] if reason.contains("a key names it")),
+        "{reasons:?}"
+    );
+}
+
 /// The entities and components of what a written file left out.
 fn left_out(written: &Written) -> Vec<(&str, Option<&str>)> {
     written

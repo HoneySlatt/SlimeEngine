@@ -97,7 +97,9 @@ pub struct Loaded {
     /// it ran whose scene changed since: a key, or `created/<number>` for a placement.
     pub scenes_changed: Vec<String>,
     /// The differences that could not be applied, or only in part: a reference to an entity that
-    /// the world does not have refers to no entity.
+    /// the world does not have refers to no entity. Each names its entity as the save does: the
+    /// number of an entity that the run created is the save's, which the world loaded may give
+    /// another entity.
     pub set_aside: Vec<SetAside>,
     /// What the save holds that this program does not know, left out: fields, types, variants, and
     /// sections of the save. A component of a type, or whose value names a variant, that this
@@ -451,7 +453,10 @@ impl World {
     /// takes the numbers that follow this world's count, whatever the start creates now; what the
     /// start of the run created keeps its numbers, and what the save holds of it is set aside if
     /// this world's start created other entities outside scenes, by the fingerprint that the save
-    /// holds: a key names an entity whatever the start creates ([`World::spawn_keyed`]). A save is
+    /// holds, which does not tell apart entities alike in their types and without names created in
+    /// another order ([`World::spawn`]): a key names an entity whatever the start creates
+    /// ([`World::spawn_keyed`]). What is set aside names its entity as the save does, a number of
+    /// the run as the save numbers it ([`Loaded::set_aside`]). A save is
     /// read leniently: what this program does not know is left out, with a warning
     /// ([`Loaded::warnings`]), a section of the save, a field, and a component of a type or with
     /// a variant that it does not know included. A difference whose entity or component the world
@@ -988,11 +993,14 @@ impl World {
                 }
             };
             for unknown in names.unknown.take() {
+                let why = if save.numbers.doubtful(&unknown) {
+                    START_CHANGED
+                } else {
+                    "the world does not have it"
+                };
                 aside(
                     loaded,
-                    format!(
-                        "it refers to `{unknown}`, which the world does not have: to no entity now"
-                    ),
+                    format!("it refers to `{unknown}`, to no entity now: {why}"),
                 );
             }
             value
@@ -1071,7 +1079,10 @@ impl World {
                         aside(
                             key,
                             None,
-                            &format!("the world has no parent `{parent}`: it has none now"),
+                            &format!(
+                                "it has no parent now, where it had `{parent}`: {}",
+                                gone(parent)
+                            ),
                         );
                         None
                     }

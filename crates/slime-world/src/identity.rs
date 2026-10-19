@@ -8,11 +8,15 @@ use std::str::FromStr;
 /// the outermost one under. The node `door` of a scene spawned under the key `zone` is `zone/door`.
 ///
 /// An entity that a world creates outside a scene ([`World::spawn`](crate::World::spawn)) is
-/// `created/<number>`, from a count that saves keep. No part holds `/`, nor is empty: `Display`
-/// joins the parts with `/`, and parsing splits the text there.
+/// `created/<number>`, its rank in the world's count of what it created so, or a key that the game
+/// chooses ([`World::spawn_keyed`](crate::World::spawn_keyed)), one part, as a scene's key is. No
+/// part holds `/`, nor is empty: `Display` joins the parts with `/`, and parsing splits the text
+/// there.
 ///
 /// An entity's [`Entity`](crate::Entity) handle changes from one run to the next; its persistent
-/// identity does not, as long as the names it is made of stay.
+/// identity does not, as long as the names it is made of stay, but for the number of an entity
+/// that a run created, which loading the run's save into another world numbers from that world's
+/// count ([`World::load`](crate::World::load)).
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct PersistentId(Vec<String>);
 

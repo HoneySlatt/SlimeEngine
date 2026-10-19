@@ -27,7 +27,8 @@ pub struct Written {
     /// The scene file's text.
     pub text: String,
     /// What the file could not hold as the world has it, each with its entity and why: an entity of
-    /// another scene, left out; an entity created outside a scene that holds [`Unsaved`], or is under
+    /// another scene, or one that a key names ([`World::spawn_keyed`]), left out, with its
+    /// descendants; an entity created outside a scene that holds [`Unsaved`], or is under
     /// an entity that does, left out; the place, or the order among its siblings, of an entity of a
     /// placement, which a scene file cannot say; an entity whose place in its prefab is removed; an
     /// override that no longer fits its prefab and whose value changed since; an entity whose ID a
@@ -111,7 +112,9 @@ impl World {
     ///   root created outside a scene writes its `Name`: the file spawned under that name gives it
     ///   back, and the world spawned so writes the file without it.
     /// - Each entity of the subtree that the scene of `root` holds, `zone/door` under `zone`, is a
-    ///   record of the file under its ID, with its parent and its components, whole; each one
+    ///   record of the file under its ID, with its parent and its components, whole; an entity of
+    ///   another scene, or one that a key names ([`World::spawn_keyed`]), which a file cannot name,
+    ///   is left out, with its descendants, and reported; each one
     ///   created outside a scene, and each whose ID a file cannot hold, such as a glTF node without
     ///   a name of its own, `#3`, is a record under an ID that the world gives it: its `Name`, or its
     ///   prefab's name for a placement, or `entity`, and four random letters or digits,
@@ -137,11 +140,12 @@ impl World {
     /// created outside scenes keep their identities, `created/<number>`: the file gives them their
     /// IDs when it is spawned. The comments of the file that the scene was read from are not kept.
     ///
-    /// The cost is linear in the entities of the subtree. Measured in a release build on the owner's
-    /// machine: a world of a thousand placements of a prefab of 10 entities, 11 001 entities, is
-    /// written in 0.12 s; of a prefab of 100 entities, 101 001 entities, in 1.06 s, both files
-    /// 136 kB, the prefab's entities placed, not copied; 10 000 entities created outside scenes, in
-    /// 0.08 s, 548 kB; 80 000, in 1.0 s, 4.5 MB.
+    /// The cost is linear in the entities of the subtree, but that each entity created outside
+    /// scenes looks for [`Unsaved`] among its ancestors below the root. Measured in a release build
+    /// on the owner's machine: a world of a thousand placements of a prefab of 10 entities, 11 001
+    /// entities, is written in 0.12 s; of a prefab of 100 entities, 101 001 entities, in 1.06 s,
+    /// both files 136 kB, the prefab's entities placed, not copied; 10 000 entities created outside
+    /// scenes, in 0.08 s, 548 kB; 80 000, in 1.0 s, 4.5 MB.
     ///
     /// ```
     /// use slime_assets::AssetId;
@@ -310,12 +314,20 @@ impl World {
                     Identity::None => false,
                 };
                 if !ours {
+                    let reason = match &node.identity {
+                        Identity::Scene(id) if id.parts().len() == 1 => {
+                            "a key names it (`World::spawn_keyed`), which a scene file does not \
+                             hold: left out, with its descendants"
+                        }
+                        _ => {
+                            "it belongs to another scene than the one written, or to a placement \
+                             out of it: left out, with its descendants"
+                        }
+                    };
                     left_out.push(SetAside {
                         entity: reported(self, entity),
                         component: None,
-                        reason: "it belongs to another scene than the one written, or to a \
-                                 placement out of it: left out, with its descendants"
-                            .to_owned(),
+                        reason: reason.to_owned(),
                     });
                     continue;
                 }

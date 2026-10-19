@@ -58,6 +58,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - A save that gives one key both to a scene that it spawns and to an entity that it creates, as a
   save edited by hand may, is refused with `DocumentError::IdentityInUse`: it was loaded, two
   entities claiming one identity, and the next save left one of them out.
+- Reports say why they set aside: `World::write_scene` reports an entity that a key names, which
+  a scene file does not hold, as such, not as an entity of another scene; loading a save sets aside
+  a reference or a parent to an entity of the start, when the start created other entities than
+  the save's, for that reason, not as one that the world does not have.
 - Loading a save of a run that changed level, another scene spawned under a key, or carrying the
   run through hot reload, destroys only the old scene's entities: what the start placed in the
   level, the hero's prefab at a spawn point, stays where the run left it. It was destroyed with the

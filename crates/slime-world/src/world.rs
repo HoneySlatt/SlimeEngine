@@ -147,7 +147,8 @@ pub(crate) enum Identity {
     /// No name: an entity that a scene spawns before it names it.
     #[default]
     None,
-    /// The path through the scenes that placed it.
+    /// The path through the scenes that placed it, or the key that the game gave it
+    /// (`World::spawn_keyed`).
     Scene(PersistentId),
     /// Its number, as an entity created outside a scene: its persistent identity is
     /// `created/<number>`.
@@ -347,12 +348,17 @@ impl World {
 
     /// A new entity, which holds no component and has no parent yet. Its persistent identity is
     /// `created/<number>`, the next number of the world's count of the entities it created outside
-    /// scenes, which saves keep: a save holds it whole if the run created it, unless it or an
-    /// ancestor holds [`Unsaved`], and what changed of it if the start of the run did. A number
-    /// names an entity by its rank of creation, which a later version of the game, or another
-    /// order, gives to another: an entity that a game creates while it makes its start world is
-    /// named by a key instead ([`World::spawn_keyed`]), and a save sets aside what it holds of
-    /// the start's numbered entities when the start that it is loaded into created others.
+    /// scenes: a save holds it whole if the run created it, unless it or an ancestor holds
+    /// [`Unsaved`], and what changed of it if the start of the run did. A number names an entity by
+    /// its rank of creation, which a later version of the game, or another order, gives to another:
+    /// an entity that a game creates while it makes its start world is named by a key instead
+    /// ([`World::spawn_keyed`]). What the run created takes, when its save loads, the numbers that
+    /// follow the count of the world that it is loaded into. Of the start's numbered entities, a
+    /// save holds a fingerprint, their numbers, the types of their components and their [`Name`]s,
+    /// but not their values, and loading sets aside what the save holds of them when the start that
+    /// it is loaded into created others ([`World::load`]): a start that creates entities alike in
+    /// their types, and without names, in another order is not told apart, and the save's changes
+    /// go to the entity of each number.
     ///
     /// # Panics
     ///
