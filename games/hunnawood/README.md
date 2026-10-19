@@ -68,9 +68,10 @@ sources ([`CONTRIBUTING.md`](../../CONTRIBUTING.md#changing-assets-while-a-game-
 textures that changed load again, the others are kept, and those drawn stay as they were until all
 of them are loaded. When a scene changed, the zone's scene file, the land, the lantern or the hero,
 the game makes a new game of the scenes as they are now, and compares its zone's layout with the
-layout of a new game of the scenes before ([`src/saves.rs`](src/saves.rs)). When the layout
-changed, a collider, the start, the key, the door, the campfire, the terrace or the bounds, the run
-starts again in the new game, as R does. Otherwise the run is carried into it through a save: what
+layout of a new game of the scenes before ([`src/saves.rs`](src/saves.rs)), number by number,
+within a ten-thousandth of a metre or of a radian, whatever the order of the colliders. When the
+layout changed, a collider, the start, the key, the door, the campfire, the terrace or the bounds,
+the run starts again in the new game, as R does. Otherwise the run is carried into it through a save: what
 the run changed is saved against the game before and loaded into the new one, the hero where it
 stood, the key, the door and the time of day as they were
 ([ADR-0093](../../docs/adr/0093-saves-and-hot-reload-with-placements.md)); what the run changed of
@@ -88,12 +89,13 @@ saves the run, and F9 loads the save in place of the run, the hero at once where
 first save, on F5 or on quitting, writes over the save, as after R. The save is one file,
 `hunnawood/save.toml` in the user's data directory: `$XDG_DATA_HOME`, else `~/.local/share`, on
 Linux; `%APPDATA%` on Windows; `--save <file>` names another. It is text, which says what differs
-between the run and a new game by day (`slime_world::World::save`), and begins with the fingerprint
-of the zone's layout it was made on.
+between the run and a new game by day (`slime_world::World::save`), and begins with the layout of
+the zone it was made on, its numbers.
 
 A save that is not resumed is set aside, so that the next save does not write over it, and a new
 run starts: one made on another layout of the zone, as hot reload starts the run again when the
-layout changes, as `save.toml.other-layout`; one that cannot be read as `save.toml.unreadable`. One
+layout changes, as `save.toml.other-layout`, the saves of 0.4 compared by the fingerprint of their
+layout that they say; one that cannot be read as `save.toml.unreadable`. One
 that can be neither read nor set aside, locked by another program, is kept, and the run is not
 saved: the log says so, and `--save` names another file. A save is written beside the file, to the
 disk, and renamed over it, so that the file is the save before or the new one, never part of one.
@@ -101,9 +103,10 @@ The log says what was saved or loaded, and where the run stands. When Windows en
 game is stopped without quitting, and the run since the last F5 is lost (see the known debt in
 [`docs/PLAN.md`](../../docs/PLAN.md#known-debt)).
 
-[`fixtures/save.toml`](fixtures/save.toml) is a save made at the chapel's portal, at night, after
-resting by the campfire, which every later version must resume: a test resumes it and walks on to
-the terrace, and `scripts/check.sh` starts the game from a copy of it. A change of the zone's layout
+[`fixtures/save.toml`](fixtures/save.toml) is a save of 0.4 made at the chapel's portal, at night,
+after resting by the campfire, which every later version must resume: a test resumes it and walks on
+to the terrace, and `scripts/check.sh` starts the game from a copy of it. It says the fingerprint of
+its layout, where later saves say their layout's numbers. A change of the zone's layout
 makes it a save of another layout, which the test then refuses: make it again at the same place,
 with `cargo run -p hunnawood -- --new --save games/hunnawood/fixtures/save.toml`, resting by the
 campfire and walking to the portal, then quitting without moving, which saves it, and say so in the
@@ -313,8 +316,9 @@ the run goes on; a change of its collider is a change of the zone's layout, whic
 again. To move a lantern, change its `Transform` in the scene file, a change of layout too.
 
 Tests read the cooked zone. In `src/zone.rs`: one marker of each kind, a start clear of every
-collider, the key and the campfire within reach, the terrace not until the door opens; the zone
-within the budgets that the test sets, counted over the land and every lantern; the land spawned in
+collider, the key and the campfire within reach, the terrace not until the door opens; the zone's
+layout the same with each of its numbers one unit in the last place away; the zone within the
+budgets that the test sets, counted over the land and every lantern; the land spawned in
 a world (`slime-world`), each node placed where its file puts it and known by its name, and six
 lanterns of one prefab, the third dimmer and the fifth without its light and its glass; the lantern
 changed, which every lantern follows but for what the scene file overrides; the colliders where 0.3

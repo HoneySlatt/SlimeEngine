@@ -1,8 +1,8 @@
 //! The game's saves (`docs/adr/0088-saving-and-resuming-a-run.md`): one file, `hunnawood/save.toml`
 //! in the user's data directory unless `--save` names another, which holds what differs between the
-//! run and a new game by day (`slime_world::World::save`), and the layout of the zone it was made on.
-//! A save made on another layout is not resumed, as the run starts again when the layout changes
-//! under hot reload, which carries the run through a save otherwise ([`reload`]).
+//! run and a new game by day (`slime_world::World::save`), and the layout of the zone it was made on
+//! ([`Layout`]). A save made on another layout is not resumed, as the run starts again when the
+//! layout changes under hot reload, which carries the run through a save otherwise ([`reload`]).
 
 use std::collections::BTreeMap;
 use std::ffi::OsString;
@@ -13,15 +13,18 @@ use std::path::{Path, PathBuf};
 use slime_world::{DocumentError, Light, Loaded, SceneLibrary, World};
 
 use crate::rules::Game;
-use crate::zone::Flickers;
+use crate::zone::{Flickers, Layout};
 
 /// The game's directory in the user's data directory.
 const DIRECTORY: &str = "hunnawood";
 /// The save's file in the game's directory.
 const FILE: &str = "save.toml";
 /// The key under which a save says the layout of the zone it was made on, in what it says of
-/// itself ([`World::about`]).
-const LAYOUT: &str = "layout";
+/// itself ([`World::about`]): its numbers ([`Layout::to_text`]).
+const ZONE: &str = "zone";
+/// The key under which a save of 0.4 says the fingerprint of the zone's layout it was made on
+/// ([`Layout::fingerprint`]), which it is compared by, as 0.4 compared it.
+const LAYOUT_0_4: &str = "layout";
 
 /// The user's data directory, as `var` gives the environment's variables: `%APPDATA%` on Windows;
 /// elsewhere `$XDG_DATA_HOME`, else `$HOME/.local/share`, as the XDG base directories say. `None`
@@ -60,8 +63,8 @@ pub fn start(scenes: &mut SceneLibrary) -> Result<(World, Game), String> {
 }
 
 /// The save of the run in `world`, a game of `scenes`: what differs from a new game by day
-/// ([`start`]), and the fingerprint of that new game's layout, the zone's as its scenes place it,
-/// whatever the run changed of it. The lights of the campfire are put back to the intensity they
+/// ([`start`]), and the layout of that new game's zone, as its scenes place it, whatever the run
+/// changed of it. The lights of the campfire are put back to the intensity they
 /// flicker around first, as the zone gives it, since the view makes them flicker at each frame and
 /// a save would hold each frame's.
 ///
@@ -71,8 +74,8 @@ pub fn start(scenes: &mut SceneLibrary) -> Result<(World, Game), String> {
 pub fn save(world: &mut World, scenes: &mut SceneLibrary) -> Result<String, String> {
     unflicker(world);
     let (start, start_game) = start(scenes)?;
-    let layout = start_game.zone().layout(&start).fingerprint();
-    let about = BTreeMap::from([(LAYOUT.to_owned(), layout)]);
+    let layout = start_game.zone().layout(&start).to_text();
+    let about = BTreeMap::from([(ZONE.to_owned(), layout)]);
     world
         .save(&start, &about)
         .map_err(|error| slime_app::error_chain(&error))
@@ -88,12 +91,13 @@ pub enum NotResumed {
 }
 
 /// The run that the save `text` holds, resumed in `start`, a new game by day of `scenes`
-/// ([`start`]), and what loading it set aside.
+/// ([`start`]), and what loading it set aside. A save of 0.4 says the fingerprint of its layout,
+/// which is compared with the fingerprint of `start`'s, as 0.4 compared it.
 ///
 /// # Errors
 ///
-/// [`NotResumed::OtherLayout`] when the save says another layout of the zone than `start`'s, or
-/// none; [`NotResumed::Unreadable`] when it cannot be read.
+/// [`NotResumed::OtherLayout`] when the save says another layout of the zone than `start`'s
+/// ([`Layout::matches`]), or none; [`NotResumed::Unreadable`] when it cannot be read.
 pub fn resume(
     text: &str,
     start: (World, Game),
@@ -101,7 +105,13 @@ pub fn resume(
 ) -> Result<(World, Game, Loaded), NotResumed> {
     let about = World::about(text).map_err(NotResumed::Unreadable)?;
     let (mut world, game) = start;
-    if about.get(LAYOUT) != Some(&game.zone().layout(&world).fingerprint()) {
+    let layout = game.zone().layout(&world);
+    let same = match (about.get(ZONE), about.get(LAYOUT_0_4)) {
+        (Some(zone), _) => Layout::from_text(zone).is_some_and(|zone| zone.matches(&layout)),
+        (None, Some(fingerprint)) => *fingerprint == layout.fingerprint(),
+        (None, None) => false,
+    };
+    if !same {
         return Err(NotResumed::OtherLayout);
     }
     let loaded = world.load(text, scenes).map_err(NotResumed::Unreadable)?;
@@ -124,7 +134,7 @@ pub struct Reloaded {
 /// The run in `world` after the scenes of `scenes` changed: `before` is the new game by day of the
 /// scenes before they changed ([`start`]). The new game of the scenes as they are now decides:
 ///
-/// - when its zone's layout is not `before`'s, by its fingerprint, a new run starts in it, at the
+/// - when its zone's layout is not `before`'s ([`Layout::matches`]), a new run starts in it, at the
 ///   time of day that `starts_at_night` gives, as R starts one, since the hero could stand in a new
 ///   wall, or the key have moved after it was taken;
 /// - otherwise the run is carried into it: what the run changed of `before` is saved, and loaded
@@ -145,8 +155,8 @@ pub fn reload(
 ) -> Result<Reloaded, String> {
     let (mut after, mut game) = start(scenes)?;
     game.set_starts_at_night(starts_at_night);
-    let layout = |(world, game): (&World, &Game)| game.zone().layout(world).fingerprint();
-    if layout((&before.0, &before.1)) != layout((&after, &game)) {
+    let layout = |(world, game): (&World, &Game)| game.zone().layout(world);
+    if !layout((&before.0, &before.1)).matches(&layout((&after, &game))) {
         game.restart(&mut after);
         return Ok(Reloaded {
             world: after,
@@ -351,5 +361,40 @@ mod runs {
             let new = new_game(&mut scenes);
             let _ = resume(&text[..end], new, &mut scenes);
         }
+    }
+
+    /// A save of a run in the zone `plan`, its hero moved, after `change` changed the run; the
+    /// scenes of the zone.
+    fn saved(
+        plan: &crate::rules::tests::Plan,
+        change: impl FnOnce(&mut World, &Game),
+    ) -> (String, SceneLibrary) {
+        let mut scenes = plan.scenes();
+        let (mut world, game) = start(&mut scenes).expect("the zone can be played");
+        game.step(&mut world, Vec2::X, 1.0 / 60.0);
+        change(&mut world, &game);
+        (save(&mut world, &mut scenes).expect("saved"), scenes)
+    }
+
+    #[test]
+    fn a_save_is_resumed_on_its_layout_given_a_few_units_in_the_last_place() {
+        // The start on a boundary of the rounding of 0.4's fingerprint, and the save made on the
+        // next number up: as the platforms' maths, or an update that does not change the zone,
+        // may give the same layout.
+        let word = |number: f32| (number * 10_000.0).round();
+        let at = (1..1000)
+            .map(|n| (n as f32 + 0.5) / 10_000.0)
+            .find(|&at| word(at) != word(at.next_up()))
+            .expect("a number on a boundary");
+        let (text, mut made_on) = saved(&zone([at, 0.0], Vec::new()), |_, _| {});
+        let mut scenes = zone([at.next_up(), 0.0], Vec::new()).scenes();
+        let new = start(&mut scenes).expect("the zone can be played");
+        let fingerprint = |(world, game): &(World, Game)| game.zone().layout(world).fingerprint();
+        assert_ne!(
+            fingerprint(&start(&mut made_on).expect("playable")),
+            fingerprint(&new),
+            "0.4 would have set the save aside"
+        );
+        resume(&text, new, &mut scenes).expect("the same layout");
     }
 }

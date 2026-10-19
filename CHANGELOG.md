@@ -60,6 +60,14 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   level, the hero's prefab at a spawn point, stays where the run left it. It was destroyed with the
   level, and the save loaded without it.
 
+- *Hunna Wood* compares the zone's layout that a save was made on with its own number by number,
+  within a ten-thousandth of a metre or of a radian, whatever the order of the colliders, and so
+  does its hot reload: a fingerprint of the numbers rounded to ten-thousandths changed when one of
+  the seven of them that lie within one unit in the last place of a rounding's boundary moved by
+  that unit, as an update that does not change the zone may make it, and every save was set aside.
+  A save says its layout's numbers, under `zone`; the saves of 0.4, which say a fingerprint, are
+  compared by it, as 0.4 compared them.
+
 ## [0.4.0] - 2026-10-18
 
 The seventh release, which closes Stage 5b of the roadmap: scenes and prefabs. Worlds are written in

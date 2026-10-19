@@ -10,6 +10,8 @@
 //! [`TimeOfDay`] and [`Flickers`]. The rules and the camera read the zone from the world, where its
 //! entities stand.
 
+use std::f32::consts::PI;
+
 use slime_reflect::Reflect;
 use slime_render::glam::{DAffine3, Vec2, Vec3};
 use slime_world::{Component, Entity, SceneLibrary, Transform, World};
@@ -113,6 +115,59 @@ impl Footprint {
             Shape::Cylinder { radius } => point.distance(self.center) <= radius + margin,
         }
     }
+
+    /// Whether `other` is the same footprint, each of its numbers within `tolerance` of this
+    /// one's, in metres or radians: the same shape, center and height. A box turned half a turn is
+    /// the same box.
+    pub fn matches(&self, other: &Footprint, tolerance: f32) -> bool {
+        let near = |a: f32, b: f32| (a - b).abs() <= tolerance;
+        let shape = match (self.shape, other.shape) {
+            (
+                Shape::Box { half_size, yaw },
+                Shape::Box {
+                    half_size: h,
+                    yaw: y,
+                },
+            ) => {
+                let turn = (yaw - y).rem_euclid(PI);
+                half_size.abs_diff_eq(h, tolerance) && (turn <= tolerance || PI - turn <= tolerance)
+            }
+            (Shape::Cylinder { radius }, Shape::Cylinder { radius: r }) => near(radius, r),
+            _ => false,
+        };
+        shape && self.center.abs_diff_eq(other.center, tolerance) && near(self.height, other.height)
+    }
+
+    /// Its numbers, as a layout's text and fingerprint give them: its shape, 0 for a box and 1 for
+    /// a cylinder; a box's half size and yaw, or a cylinder's radius and two zeros; the center of
+    /// its footprint; its height.
+    fn numbers(&self) -> [f32; 7] {
+        let [kind, a, b, c] = match self.shape {
+            Shape::Box { half_size, yaw } => [0.0, half_size.x, half_size.y, yaw],
+            Shape::Cylinder { radius } => [1.0, radius, 0.0, 0.0],
+        };
+        [kind, a, b, c, self.center.x, self.center.y, self.height]
+    }
+
+    /// The footprint whose numbers ([`Footprint::numbers`]) are `numbers`, if they are a
+    /// footprint's.
+    fn from_numbers([kind, a, b, c, x, z, height]: [f32; 7]) -> Option<Self> {
+        let shape = if kind == 0.0 {
+            Shape::Box {
+                half_size: Vec2::new(a, b),
+                yaw: c,
+            }
+        } else if kind == 1.0 && b == 0.0 && c == 0.0 {
+            Shape::Cylinder { radius: a }
+        } else {
+            return None;
+        };
+        Some(Self {
+            shape,
+            center: Vec2::new(x, z),
+            height,
+        })
+    }
 }
 
 /// A collider, a component of the game's, which the zone's nodes carry as a typed property: what
@@ -207,9 +262,15 @@ pub struct Zone {
     pub bounds: Entity,
 }
 
+/// How far apart two numbers of a layout may be and still be the same, in metres or radians: a
+/// ten-thousandth, far more than the few units in the last place by which the platforms' maths may
+/// give one number two ways, and far less than a change made to the zone.
+pub const SAME_WITHIN: f32 = 1e-4;
+
 /// The layout of a zone, which decides how the game plays in it: the size of its ground, its
 /// colliders, where the hero starts and the places of the game's loop. A zone loaded again whose
-/// new game has the same layout as the one before keeps the run ([`crate::saves::reload`]).
+/// new game has the same layout as the one before keeps the run ([`crate::saves::reload`]), and a
+/// save is resumed only in a new game of the layout it was made on ([`crate::saves::resume`]).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Layout {
     /// Half the size of the ground along x and z, around the origin; the hero does not leave it.
@@ -233,15 +294,87 @@ pub struct Layout {
 }
 
 impl Layout {
-    /// A fingerprint of the layout, as 16 hexadecimal digits: the FNV-1a hash of its numbers, each
-    /// rounded to a ten-thousandth, of a metre or of a radian: each list of colliders led by its
-    /// length, its footprints in the order of their numbers, each led by its shape, then the size
-    /// of the ground and the places. Rounded, the numbers that the platforms' maths gives, a box's
-    /// yaw from its axes among them, are the same on every platform, and so is the hash; two
-    /// layouts that differ by less are the same layout. Sorted, the footprints give the same hash
-    /// whatever the order of the world, which the order of the zone's scene file gives. A save says
-    /// the layout it was made on so (`crate::saves`), and a zone loaded again keeps the run when
-    /// the layout of its new game keeps its fingerprint ([`crate::saves::reload`]).
+    /// Whether `other` is the same layout: each of its numbers within [`SAME_WITHIN`] of this
+    /// one's, and each list of colliders as long, each of its footprints the same as one of the
+    /// other's ([`Footprint::matches`]), whatever their order, which the order of the zone's scene
+    /// file gives. Two numbers that the platforms' maths, or an update that does not change the
+    /// zone, give a few units in the last place apart are the same number, wherever they lie.
+    pub fn matches(&self, other: &Layout) -> bool {
+        self.places()
+            .iter()
+            .zip(other.places())
+            .all(|(a, b)| a.abs_diff_eq(b, SAME_WITHIN))
+            && same_footprints(&self.colliders, &other.colliders)
+            && same_footprints(&self.door_colliders, &other.door_colliders)
+    }
+
+    /// The layout as text, which a save holds (`crate::saves`) and [`Layout::from_text`] reads
+    /// back: its numbers, separated by spaces, each the shortest that reads back as the same
+    /// `f32`. First the size of the ground and the places, x then z ([`Layout::places`]); then
+    /// each list of colliders, the colliders then the door's, its length first, then each of its
+    /// footprints, by seven numbers: its shape, 0 for a box and 1 for a cylinder; a box's half size
+    /// and yaw, or a cylinder's radius and two zeros; its center; its height.
+    pub fn to_text(&self) -> String {
+        let mut words: Vec<String> = self
+            .places()
+            .iter()
+            .flat_map(|place| [place.x, place.y])
+            .map(|number| number.to_string())
+            .collect();
+        for colliders in [&self.colliders, &self.door_colliders] {
+            words.push(colliders.len().to_string());
+            words.extend(
+                colliders
+                    .iter()
+                    .flat_map(Footprint::numbers)
+                    .map(|number| number.to_string()),
+            );
+        }
+        words.join(" ")
+    }
+
+    /// The layout that `text` writes ([`Layout::to_text`]), if it writes one: `None` for text
+    /// that is not as many numbers as a layout holds, in its order.
+    pub fn from_text(text: &str) -> Option<Self> {
+        let numbers: Vec<f32> = text
+            .split_whitespace()
+            .map(str::parse)
+            .collect::<Result<_, _>>()
+            .ok()?;
+        let mut numbers = numbers.into_iter();
+        let places = take::<14>(&mut numbers)?;
+        let [half_size, start, facing, item, door, campfire, terrace]: [Vec2; 7] =
+            std::array::from_fn(|index| Vec2::new(places[2 * index], places[2 * index + 1]));
+        let mut colliders = || -> Option<Vec<Footprint>> {
+            let [count] = take(&mut numbers)?;
+            if count < 0.0 || count.fract() != 0.0 {
+                return None;
+            }
+            (0..count as usize)
+                .map(|_| Footprint::from_numbers(take(&mut numbers)?))
+                .collect()
+        };
+        let (colliders, door_colliders) = (colliders()?, colliders()?);
+        numbers.next().is_none().then_some(Self {
+            half_size,
+            colliders,
+            door_colliders,
+            start,
+            facing,
+            item,
+            door,
+            campfire,
+            terrace,
+        })
+    }
+
+    /// The fingerprint of the layout that the saves of 0.4 say they were made on (`crate::saves`),
+    /// as 16 hexadecimal digits: the FNV-1a hash of its numbers, each rounded to a ten-thousandth,
+    /// of a metre or of a radian: each list of colliders led by its length, its footprints sorted
+    /// by their numbers, each as [`Layout::to_text`] writes it, then the size of the ground and the
+    /// places. A number that lies within a few units in the last place of a rounding's boundary
+    /// may round either way, by the platforms' maths or an update that does not change the zone,
+    /// and change the fingerprint: [`Layout::matches`] compares layouts since.
     pub fn fingerprint(&self) -> String {
         // A saturating cast: −0.0 and 0.0 are one number, and NaN, which no layout holds, is 0.
         let word = |number: f32| (number * 10_000.0).round() as i64;
@@ -249,30 +382,17 @@ impl Layout {
         for colliders in [&self.colliders, &self.door_colliders] {
             let mut footprints: Vec<[i64; 7]> = colliders
                 .iter()
-                .map(|footprint| {
-                    let [kind, a, b, c] = match footprint.shape {
-                        Shape::Box { half_size, yaw } => [0.0, half_size.x, half_size.y, yaw],
-                        Shape::Cylinder { radius } => [1.0, radius, 0.0, 0.0],
-                    };
-                    let center = footprint.center;
-                    [kind, a, b, c, center.x, center.y, footprint.height].map(word)
-                })
+                .map(|footprint| footprint.numbers().map(word))
                 .collect();
             footprints.sort_unstable();
             words.push(colliders.len() as i64);
             words.extend(footprints.into_iter().flatten());
         }
-        words.extend([self.half_size.x, self.half_size.y].map(word));
-        for place in [
-            self.start,
-            self.facing,
-            self.item,
-            self.door,
-            self.campfire,
-            self.terrace,
-        ] {
-            words.extend([place.x, place.y].map(word));
-        }
+        words.extend(
+            self.places()
+                .into_iter()
+                .flat_map(|place| [place.x, place.y].map(word)),
+        );
         let hash = words
             .into_iter()
             .flat_map(i64::to_le_bytes)
@@ -281,6 +401,43 @@ impl Layout {
             });
         format!("{hash:016x}")
     }
+
+    /// Half the size of the ground, then the places, in this order: the start, the way the hero
+    /// faces there, the key, the door, the campfire and the terrace.
+    fn places(&self) -> [Vec2; 7] {
+        [
+            self.half_size,
+            self.start,
+            self.facing,
+            self.item,
+            self.door,
+            self.campfire,
+            self.terrace,
+        ]
+    }
+}
+
+/// Whether `a` and `b` hold the same footprints ([`Footprint::matches`]), whatever their order: as
+/// many, each of `a` the same as one of `b` that no other took. It costs the product of their
+/// lengths, a few thousand comparisons for a zone's colliders.
+fn same_footprints(a: &[Footprint], b: &[Footprint]) -> bool {
+    let mut left: Vec<&Footprint> = b.iter().collect();
+    a.len() == b.len()
+        && a.iter().all(|footprint| {
+            let found = left
+                .iter()
+                .position(|other| footprint.matches(other, SAME_WITHIN));
+            found.map(|index| left.swap_remove(index)).is_some()
+        })
+}
+
+/// The next `N` of `numbers`, if there are as many.
+fn take<const N: usize>(numbers: &mut impl Iterator<Item = f32>) -> Option<[f32; N]> {
+    let mut taken = [0.0; N];
+    for number in &mut taken {
+        *number = numbers.next()?;
+    }
+    Some(taken)
 }
 
 /// The point on the ground under `position`.
@@ -490,6 +647,106 @@ mod tests {
         door.door_colliders.push(door.colliders.remove(1));
         assert_ne!(layout.fingerprint(), door.fingerprint());
     }
+
+    /// A layout of a wall, a pillar and a door's collider, whose numbers lie within one unit in the
+    /// last place of the boundaries of the fingerprint's rounding.
+    fn on_the_boundaries() -> Layout {
+        // 0.00015 is a boundary of the rounding to ten-thousandths, and so is 12.34565.
+        let footprint = |x: f32, shape| Footprint {
+            shape,
+            center: Vec2::new(x, 12.345_65),
+            height: 1.5,
+        };
+        Layout {
+            half_size: Vec2::new(30.0, 50.0),
+            colliders: vec![
+                footprint(
+                    1.0,
+                    Shape::Box {
+                        half_size: Vec2::new(3.0, 0.5),
+                        yaw: std::f32::consts::PI,
+                    },
+                ),
+                footprint(-4.0, Shape::Cylinder { radius: 0.6 }),
+            ],
+            door_colliders: vec![footprint(
+                0.000_15,
+                Shape::Box {
+                    half_size: Vec2::new(1.0, 0.2),
+                    yaw: 0.0,
+                },
+            )],
+            start: Vec2::new(0.000_15, -45.0),
+            facing: Vec2::NEG_Y,
+            item: Vec2::ONE,
+            door: Vec2::Y,
+            campfire: Vec2::NEG_ONE,
+            terrace: Vec2::NEG_Y,
+        }
+    }
+
+    #[test]
+    fn a_layout_is_the_same_within_a_ten_thousandth_wherever_its_numbers_lie() {
+        let layout = on_the_boundaries();
+        assert!(layout.matches(&layout));
+        // One unit in the last place up or down, of a place, a collider's center, a yaw turned
+        // half a turn: the same layout, where the fingerprint of 0.4 changes.
+        let mut nudged = layout.clone();
+        nudged.start.x = nudged.start.x.next_up();
+        nudged.door_colliders[0].center.x = nudged.door_colliders[0].center.x.next_down();
+        nudged.colliders[1].center.y = nudged.colliders[1].center.y.next_up();
+        if let Shape::Box { yaw, .. } = &mut nudged.colliders[0].shape {
+            *yaw = -*yaw;
+        }
+        assert!(layout.matches(&nudged) && nudged.matches(&layout));
+        assert_ne!(layout.fingerprint(), nudged.fingerprint());
+        // Whatever the order of the colliders.
+        let mut reordered = nudged.clone();
+        reordered.colliders.reverse();
+        assert!(layout.matches(&reordered));
+        // A pillar moved by a thousandth of a metre is another layout, and so is a pillar that
+        // stops the door, a door's collider more, or a place moved.
+        let mut moved = layout.clone();
+        moved.colliders[1].center.x += 0.001;
+        assert!(!layout.matches(&moved));
+        let mut door = layout.clone();
+        door.door_colliders.push(door.colliders.remove(1));
+        assert!(!layout.matches(&door));
+        let mut more = layout.clone();
+        more.door_colliders.push(more.door_colliders[0]);
+        assert!(!layout.matches(&more) && !more.matches(&layout));
+        let mut campfire = layout.clone();
+        campfire.campfire.y += 0.01;
+        assert!(!layout.matches(&campfire));
+        let mut wider = layout.clone();
+        wider.colliders[1].shape = Shape::Cylinder { radius: 0.61 };
+        assert!(!layout.matches(&wider));
+    }
+
+    #[test]
+    fn a_layout_reads_back_from_its_text_and_nothing_else_does() {
+        let layout = on_the_boundaries();
+        let text = layout.to_text();
+        assert_eq!(Layout::from_text(&text), Some(layout.clone()), "{text}");
+        // Number for number, to the bit.
+        let read = Layout::from_text(&text).expect("a layout");
+        assert_eq!(read.fingerprint(), layout.fingerprint());
+        let words: Vec<&str> = text.split(' ').collect();
+        let without_last = words[..words.len() - 1].join(" ");
+        for wrong in [
+            String::new(),
+            "1 2 3".to_owned(),
+            without_last,
+            format!("{text} 4"),
+            text.replacen("30", "thirty", 1),
+            // A shape that is neither a box nor a cylinder, and a count that is not one.
+            text.replacen(" 2 0 3 0.5", " 2 7 3 0.5", 1),
+            text.replacen(" 2 0 3 0.5", " 2.5 0 3 0.5", 1),
+            text.replacen(" 2 0 3 0.5", " -2 0 3 0.5", 1),
+        ] {
+            assert_eq!(Layout::from_text(&wrong), None, "{wrong}");
+        }
+    }
 }
 
 /// The tests that read the cooked zone, which they need fetched and cooked
@@ -502,7 +759,7 @@ pub mod cooked {
     use slime_render::glam::Vec2;
     use slime_world::{Hidden, Light, Meshes, PersistentId, SceneLibrary, World};
 
-    use super::{Footprint, Shape, TimeOfDay, Zone, descends};
+    use super::{Footprint, SAME_WITHIN, Shape, TimeOfDay, Zone, descends};
     use crate::assets;
     use crate::rules::{Game, HERO_RADIUS};
 
@@ -896,26 +1153,6 @@ pub mod cooked {
                 (words[0], footprint, rock)
             })
             .collect();
-        let near = |a: f32, b: f32| (a - b).abs() <= 1e-4;
-        let same = |a: &Footprint, b: &Footprint| {
-            let shape = match (a.shape, b.shape) {
-                (
-                    Shape::Box { half_size, yaw },
-                    Shape::Box {
-                        half_size: h,
-                        yaw: y,
-                    },
-                ) => {
-                    // A box turned half a turn is the same box.
-                    let turn = (yaw - y).rem_euclid(std::f32::consts::PI);
-                    half_size.abs_diff_eq(h, 1e-4)
-                        && (turn <= 1e-4 || std::f32::consts::PI - turn <= 1e-4)
-                }
-                (Shape::Cylinder { radius }, Shape::Cylinder { radius: r }) => near(radius, r),
-                _ => false,
-            };
-            shape && a.center.abs_diff_eq(b.center, 1e-4) && near(a.height, b.height)
-        };
         let now = layout
             .colliders
             .iter()
@@ -927,15 +1164,60 @@ pub mod cooked {
                 .position(|(was, footprint, rock)| {
                     *was == list
                         && if *rock {
-                            footprint.center.abs_diff_eq(collider.center, 1e-4)
+                            footprint.center.abs_diff_eq(collider.center, SAME_WITHIN)
                         } else {
-                            same(footprint, collider)
+                            footprint.matches(collider, SAME_WITHIN)
                         }
                 })
                 .unwrap_or_else(|| panic!("{list} {collider:?} was not in 0.3"));
             kept.swap_remove(index);
         }
         assert!(kept.is_empty(), "0.3's colliders gone: {kept:?}");
+    }
+
+    /// Each number of the zone's layout one unit in the last place away, up or down, as the
+    /// platforms' maths or an update that does not change the zone may give it: the same layout.
+    #[test]
+    #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
+    fn the_zone_s_layout_is_the_same_a_unit_in_the_last_place_away() {
+        use super::Layout;
+
+        let (world, game) = game();
+        let layout = game.zone().layout(&world);
+        let numbers: Vec<f32> = layout
+            .to_text()
+            .split(' ')
+            .map(|word| word.parse().expect("a number"))
+            .collect();
+        // The counts, the shapes and a cylinder's two zeros, which measure nothing, stay.
+        let mut kept = Vec::new();
+        let mut at = 14;
+        for _ in 0..2 {
+            kept.push(at);
+            let count = numbers[at] as usize;
+            for footprint in (0..count).map(|index| at + 1 + 7 * index) {
+                kept.push(footprint);
+                if numbers[footprint] == 1.0 {
+                    kept.extend([footprint + 2, footprint + 3]);
+                }
+            }
+            at += 1 + 7 * count;
+        }
+        for (index, number) in numbers.iter().enumerate() {
+            if kept.contains(&index) {
+                continue;
+            }
+            for nudged in [number.next_up(), number.next_down()] {
+                let mut words = numbers.clone();
+                words[index] = nudged;
+                let text: Vec<String> = words.iter().map(f32::to_string).collect();
+                let other = Layout::from_text(&text.join(" ")).expect("a layout");
+                assert!(
+                    layout.matches(&other),
+                    "number {index}: {number} to {nudged}"
+                );
+            }
+        }
     }
 
     /// Every entity of the zone is known by the names that the zone's script gives its nodes, none
