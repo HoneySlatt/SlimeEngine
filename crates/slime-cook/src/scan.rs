@@ -126,8 +126,9 @@ pub enum ScanError {
 /// Scans the directory `root` and every directory inside it for source files, whose extension is
 /// one of [`SOURCE_EXTENSIONS`], and for metadata files, and reads the ID of each source file
 /// from its metadata file. A source file without one gets a new random ID, written into a new
-/// metadata file, in [`Mode::GiveIds`]; in [`Mode::Check`], nothing is written. Every other file is
-/// left alone, and symbolic links are not followed.
+/// metadata file, whole or not at all, through a file beside it that is renamed, in
+/// [`Mode::GiveIds`]; in [`Mode::Check`], nothing is written. Every other file is left alone, and
+/// symbolic links are not followed.
 ///
 /// A second scan in [`Mode::GiveIds`] writes nothing more and finds the same IDs. A source file
 /// moved or renamed with its metadata file keeps its ID. The scan reports, as [`Problem`]s, a
@@ -185,9 +186,11 @@ pub fn scan(root: &Path, mode: Mode) -> Result<Scan, ScanError> {
             None => {
                 let id = new_asset_id();
                 let metadata = metadata_path(&path);
-                fs::write(&metadata, metadata::write(id)).map_err(|source| ScanError::Io {
-                    path: metadata.clone(),
-                    source,
+                crate::write(&metadata, metadata::write(id).as_bytes()).map_err(|source| {
+                    ScanError::Io {
+                        path: metadata.clone(),
+                        source,
+                    }
                 })?;
                 result.created.push(metadata);
                 id

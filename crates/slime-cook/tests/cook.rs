@@ -1,7 +1,7 @@
 //! Cooking directories of source images into directories of cooked data, in temporary
 //! directories: the same bytes from the same sources, nothing cooked again that has not changed,
-//! not even the manifest, and textures that a game loads by the image's ID; a watch that cooks
-//! what changes, and two cooks at once, in two processes.
+//! not even the manifest, but what was damaged, and textures that a game loads by the image's ID;
+//! a watch that cooks what changes, and two cooks at once, in two processes.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -296,6 +296,78 @@ fn two_cooks_at_once_leave_the_cooked_data_whole() {
         .filter(|name| name.ends_with(".part"))
         .collect();
     assert!(leftovers.is_empty(), "{leftovers:?}");
+}
+
+/// Copies the examples' sources, a glTF file whose images it holds and two scene files, into a
+/// directory of sources named `name`, beside an image of its own, `rock.png`.
+fn examples(name: &str) -> PathBuf {
+    let root = directory(name).join("sources");
+    fs::create_dir_all(&root).expect("the directory can be created");
+    let examples = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/assets");
+    for file in ["scene.glb", "lamp.scene", "yard.scene"] {
+        for file in [file.to_owned(), format!("{file}.meta")] {
+            fs::copy(examples.join(&file), root.join(&file)).expect("copied");
+        }
+    }
+    png(&root.join("rock.png"), 16, 8, 3);
+    root
+}
+
+#[test]
+fn a_cooked_file_deleted_emptied_or_cut_short_is_cooked_again() {
+    let root = examples("cooked-damaged");
+    let output = root.with_file_name("cooked");
+    cook(&root, &output).expect("cooked");
+    let assets = CookedAssets::open(&output).expect("the manifest is read");
+    // A file of each kind, and the image's texture.
+    let mut damaged = Vec::new();
+    for (index, kind) in [
+        AssetKind::Mesh,
+        AssetKind::Material,
+        AssetKind::Scene,
+        AssetKind::SceneFile,
+        AssetKind::Texture,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let (id, entry) = assets
+            .manifest()
+            .iter()
+            .find(|(_, entry)| {
+                entry.kind == kind && (kind != AssetKind::Texture || entry.source == "rock.png")
+            })
+            .expect("one is cooked");
+        let path = output.join(&entry.file);
+        match index % 3 {
+            0 => fs::remove_file(&path).expect("deleted"),
+            1 => fs::write(&path, []).expect("emptied"),
+            _ => fs::write(
+                &path,
+                &fs::read(&path).expect("read")[..entry.size as usize / 2],
+            )
+            .expect("cut short"),
+        }
+        damaged.push(id);
+    }
+    let again = cook(&root, &output).expect("cooked again");
+    for id in damaged {
+        assert!(
+            again.cooked.contains(&id),
+            "{id} is cooked again: {again:?}"
+        );
+    }
+    let assets = CookedAssets::open(&output).expect("the manifest is read");
+    for (id, entry) in assets.manifest().iter() {
+        let read = match entry.kind {
+            AssetKind::Texture => assets.texture(id).map(drop),
+            AssetKind::Mesh => assets.mesh(id).map(drop),
+            AssetKind::Material => assets.material(id).map(drop),
+            AssetKind::Scene => assets.scene(id).map(drop),
+            _ => assets.scene_file(id).map(drop),
+        };
+        read.unwrap_or_else(|error| panic!("{id}, {}: {error}", entry.source));
+    }
 }
 
 /// The IDs that the tests give their scene files, and an image.

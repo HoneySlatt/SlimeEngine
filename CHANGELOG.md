@@ -85,6 +85,12 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   the wrong kind for its slot, data for colors or the reverse, is refused with
   `RenderError::InvalidMaterial`, where the load panicked. `AssetCache::poll` ends a batch whose
   load panicked, and does not ask for its meshes again, where the cache stayed loading them.
+- The cooker cooks again a cooked file that it finds deleted, emptied or cut short, as a power cut
+  or a full disk leaves one: it reuses a file only if its kind's reader reads it, of the size that
+  the record of its import says, and a scene file's encoding only byte for byte, where it took any
+  file under the expected name as good, so that the cook that a game advised repaired nothing. It
+  forces what it writes to the disk before it renames it, and writes a new metadata file through a
+  file beside it, as it writes cooked files.
 - A save that gives one key both to a scene that it spawns and to an entity that it creates, as a
   save edited by hand may, is refused with `DocumentError::IdentityInUse`: it was loaded, two
   entities claiming one identity, and the next save left one of them out.

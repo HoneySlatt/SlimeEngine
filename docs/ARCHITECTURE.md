@@ -569,7 +569,9 @@ slime-cook cook <sources> <output>                     the cooker's program, bef
     ├── scan(sources, GiveIds)                         every source file and its ID, from the
     │                                                  `.meta` beside it, given if it has none
     ├── for each glTF file: GltfFile::open(path, bytes) parsed, validated, its buffers read
-    │   ├── output/<key>.import there already?         reused: it lists what the import gave
+    │   ├── output/<key>.import there already?         reused if each file that it lists is
+    │   │                                              whole: read by its kind's reader, of its
+    │   │                                              size
     │   └── otherwise import(file ID, image IDs)       meshes (MikkTSpace tangents), materials,
     │                                                  scenes, the textures of embedded images;
     │                                                  the image files asked for in their roles;
@@ -578,19 +580,21 @@ slime-cook cook <sources> <output>                     the cooker's program, bef
     │                                                  (ADR-0095)
     ├── for each image, in each role asked, or colors:
     │   name = BLAKE3(role, ID, bytes, cooker's version)
-    │   ├── output/<name>.ktx2 there already?          reused: nothing is cooked again
+    │   ├── output/<name>.ktx2 there already?          reused if it reads as a texture: nothing
+    │   │                                              is cooked again
     │   └── otherwise image::decode                    PNG or JPEG into 8-bit texels
     │       └── texture::cook_texture(image, role)     every level, averaged for the role, then
     │           └── CookedTexture::to_ktx2             BC7 or BC5 blocks on every thread; written
     │                                                  under a temporary name of the process's,
-    │                                                  then renamed
+    │                                                  forced to the disk, then renamed
     ├── for each scene file: slime_world::outline      its layout, without its values' types;
     │   │                                              refused, by line, for an asset that no
     │   │                                              source makes, a prefab that is not a
     │   │                                              scene, scene files that place each other
     │   └── slime_serialize::encode                    its binary encoding, written to
-    │                                                  output/<name>.scenefile; it needs the
-    │                                                  assets of its table
+    │                                                  output/<name>.scenefile unless the file
+    │                                                  there holds it; it needs the assets of
+    │                                                  its table
     └── Manifest::to_bytes ──▶ output/manifest         each asset's kind, file, size, source;
                                                        written only if it changed
 

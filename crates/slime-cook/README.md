@@ -43,10 +43,11 @@ of its files changes, for games that load their data again while they run
   not a scene, a parent missing, entities that would be each other's ancestors and scene files that
   place each other; warns of a path that a table gives where the source is not; writes their
   binary encoding, which needs the assets of their table.
-- Names each cooked file by the hash of all that made it, so that what is already cooked is not
-  cooked again, and the same sources cook into the same bytes on one platform. Writes its files
-  under temporary names of the process's own, then renames them, so that two cooks at once leave
-  the cooked data whole, and the manifest only when what it lists changed.
+- Names each cooked file by the hash of all that made it, so that what is already cooked, and
+  reads back whole, is not cooked again, and the same sources cook into the same bytes on one
+  platform. Writes its files, and the metadata files it gives, under temporary names of the
+  process's own, forced to the disk, then renames them, so that a cook stopped half-way and two
+  cooks at once leave the cooked data whole, and the manifest only when what it lists changed.
 
 ## Entry points
 

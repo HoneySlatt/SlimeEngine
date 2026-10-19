@@ -22,5 +22,30 @@ pub mod metadata;
 pub mod scan;
 pub mod texture;
 
+use std::fs::{self, File};
+use std::io::{self, Write};
+use std::path::{Path, PathBuf};
+
 pub use cook::{CookError, Cooked, WATCH_INTERVAL, cook, watch};
 pub use scan::{Mode, Problem, Scan, ScanError, Source, scan};
+
+/// Writes `bytes` to `path` through a file beside it, `<path>.<process id>.part`, forced to the
+/// disk, then renamed to `path`: `path` holds what it held before or `bytes`, never a part of
+/// them, when the cooker is stopped or the power cut half-way, and two processes that write the
+/// same file at once each write a file of their own. The file beside it does not outlive an error.
+pub(crate) fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let mut temporary = path.as_os_str().to_owned();
+    temporary.push(format!(".{}.part", std::process::id()));
+    let temporary = PathBuf::from(temporary);
+    let written = File::create(&temporary)
+        .and_then(|mut file| {
+            file.write_all(bytes)?;
+            // On the disk before the rename, which a file system may otherwise put there first.
+            file.sync_all()
+        })
+        .and_then(|()| fs::rename(&temporary, path));
+    if written.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    written
+}
