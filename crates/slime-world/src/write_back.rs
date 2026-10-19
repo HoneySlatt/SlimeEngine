@@ -27,7 +27,8 @@ pub struct Written {
     /// The scene file's text.
     pub text: String,
     /// What the file could not hold as the world has it, each with its entity and why: an entity of
-    /// another scene, left out; the place, or the order among its siblings, of an entity of a
+    /// another scene, left out; an entity created outside a scene that holds [`Unsaved`], or is under
+    /// an entity that does, left out; the place, or the order among its siblings, of an entity of a
     /// placement, which a scene file cannot say; an entity whose place in its prefab is removed; an
     /// override that no longer fits its prefab and whose value changed since; an entity whose ID a
     /// file cannot hold, written under another; a root without a `Name` or a `Transform`, which
@@ -121,10 +122,12 @@ impl World {
     ///   parts, components added and removed, entities removed. The overrides that the scene that
     ///   placed it wrote are kept: one that holds the prefab's value still, and one set aside, whose
     ///   entity or component the prefab no longer has, or that no longer fits it, while the value
-    ///   is the prefab's; one whose entity or component the world removed since is not, and an
-    ///   entity of a placement that holds [`Unsaved`] keeps what the file wrote of it.
-    /// - Entities that hold [`Unsaved`], with their descendants, the `Unsaved` component, fields
-    ///   marked transient, and fields that hold their defaults are left out.
+    ///   is the prefab's; one whose entity or component the world removed since is not.
+    /// - [`Unsaved`], which leaves an entity out of saves, is written as any other component, for
+    ///   the root, the scene's entities and its placements' alike. Entities created outside scenes
+    ///   that hold it, or that are under an entity other than the root that holds it, are left
+    ///   out, with their descendants, and reported: what a run creates and does not save. Fields
+    ///   marked transient, and fields that hold their defaults, are left out.
     /// - References to entities are paths from the root, `.` the root itself; one to an entity that
     ///   the file does not hold is `""`, no entity, and reported if it is alive. Assets are named by
     ///   the short names of a table: those of the file that the scene was spawned from, else a
@@ -258,8 +261,9 @@ impl World {
     /// The entities of the subtree of `root` that the file holds records of, in the order of a walk
     /// of the hierarchy, children in their order: those of the scene `namespace` that its file
     /// makes or places, and those created outside a scene. The entities of a placement of the
-    /// subtree are its prefab's, wherever they are; those of another scene are left out, with their
-    /// descendants, and reported; those that hold [`Unsaved`] are left out, with their descendants.
+    /// subtree are its prefab's, wherever they are; those of another scene, and those created outside
+    /// a scene that a save of the subtree would leave out ([`World::left_unsaved`]), are left out,
+    /// with their descendants, and reported.
     fn walk(
         &self,
         root: Entity,
@@ -280,7 +284,14 @@ impl World {
         let mut entries = Vec::new();
         let mut next: Vec<Entity> = self.children(root).iter().rev().copied().collect();
         while let Some(entity) = next.pop() {
-            if self.get::<Unsaved>(entity).is_some() {
+            if self.left_unsaved(root, entity) {
+                left_out.push(SetAside {
+                    entity: reported(self, entity),
+                    component: None,
+                    reason: "created outside a scene, and Unsaved holds it or an entity above it: \
+                             left out, with its descendants"
+                        .to_owned(),
+                });
                 continue;
             }
             let node = &self.nodes[entity.index() as usize];
@@ -440,7 +451,7 @@ impl World {
         let mut sections = Sections::default();
         for entry in entries {
             if let Some(placement) = &entry.placement {
-                self.overrides_of(entry, placement, scene, &mut sections, &mut left_out)?;
+                self.overrides_of(root, entry, placement, scene, &mut sections, &mut left_out)?;
             }
         }
         for (component, missing) in [
@@ -581,8 +592,8 @@ impl World {
             if !self.contains(entity) {
                 continue;
             }
-            let reason = if self.unsaved(entity) {
-                "a value refers to it, which holds Unsaved: `\"\"`, no entity, there"
+            let reason = if self.left_unsaved(root, entity) {
+                "a value refers to it, which is left out with Unsaved: `\"\"`, no entity, there"
             } else {
                 "a value refers to it, out of the subtree written: `\"\"`, no entity, there"
             };
@@ -595,9 +606,8 @@ impl World {
         Ok(Written { text, left_out })
     }
 
-    /// The components that a scene file writes of `entity`, by their names, in their order, without
-    /// [`Unsaved`]: the root's without the `Name` that spawning gives it and without the identity as
-    /// its transform.
+    /// The components that a scene file writes of `entity`, by their names, in their order: the
+    /// root's without the `Name` that spawning gives it and without the identity as its transform.
     fn written_components(&self, entity: Entity, root: bool) -> Vec<(String, Value)> {
         let spawned_name = match &self.nodes[entity.index() as usize].identity {
             Identity::Scene(id) => id.parts().last().cloned(),
@@ -605,7 +615,6 @@ impl World {
         };
         self.component_names_sorted(entity)
             .into_iter()
-            .filter(|&name| name != "Unsaved")
             .filter_map(|name| {
                 let value = self.component_value(entity, name)?;
                 if root
@@ -622,6 +631,26 @@ impl World {
                 Some((name.to_owned(), value))
             })
             .collect()
+    }
+
+    /// Whether a scene file written from `root` leaves `entity` out: an entity created outside a
+    /// scene that holds [`Unsaved`], or whose ancestor below `root` does, what a run creates and does
+    /// not save. The scene's own entities and its placements are written whatever they hold.
+    fn left_unsaved(&self, root: Entity, entity: Entity) -> bool {
+        if !matches!(
+            self.nodes[entity.index() as usize].identity,
+            Identity::Created(_)
+        ) {
+            return false;
+        }
+        let mut next = Some(entity);
+        while let Some(entity) = next.filter(|&entity| entity != root) {
+            if self.get::<Unsaved>(entity).is_some() {
+                return true;
+            }
+            next = self.parent(entity);
+        }
+        false
     }
 
     /// The records of `placement`'s prefab, each with the entity of the world that has its identity
@@ -647,11 +676,12 @@ impl World {
             .collect()
     }
 
-    /// Adds to `sections` what differs between the placement of `entry` and its prefab, and the
-    /// overrides that the scene that placed it wrote, `scene`, that still say something; and to
-    /// `left_out` what the file cannot say of it.
+    /// Adds to `sections` what differs between the placement of `entry`, in a file written from
+    /// `root`, and its prefab, and the overrides that the scene that placed it wrote, `scene`, that
+    /// still say something; and to `left_out` what the file cannot say of it.
     fn overrides_of(
         &self,
+        root: Entity,
         entry: &Entry,
         placement: &Placement,
         scene: Option<(&str, &ResolvedScene)>,
@@ -682,7 +712,6 @@ impl World {
         let write = DocumentError::Write;
         // Each record whose entity is lost with its place in the prefab, or held out of the file.
         let mut lost = vec![false; placed.len()];
-        let mut kept_as_written = vec![false; placed.len()];
         let mut differences: BTreeMap<(String, String), Value> = BTreeMap::new();
         for (index, (record, entity)) in placed.iter().enumerate() {
             let path = path_of(&record.path);
@@ -691,10 +720,7 @@ impl World {
                 parent.is_some_and(|parent| entities[parent].is_none() || lost[parent]);
             let Some(entity) = *entity else {
                 lost[index] = place_gone;
-                let under_unsaved = parent
-                    .and_then(|parent| entities[parent])
-                    .is_some_and(|parent| self.unsaved(parent));
-                if !place_gone && !under_unsaved {
+                if !place_gone {
                     sections.removed.insert(path);
                 }
                 continue;
@@ -706,10 +732,6 @@ impl World {
                     entity,
                     "its place in the prefab is removed: it is lost when the file is spawned",
                 );
-                continue;
-            }
-            if self.unsaved(entity) {
-                kept_as_written[index] = true;
                 continue;
             }
             if let Some(parent) = parent
@@ -726,7 +748,7 @@ impl World {
             let mut last = None;
             let mut file_child_seen = false;
             let ordered = self.children(entity).iter().all(|child| {
-                if self.unsaved(*child) {
+                if self.left_unsaved(root, *child) {
                     return true;
                 }
                 match index_of.get(child) {
@@ -810,7 +832,6 @@ impl World {
             for name in names {
                 let kept = match held {
                     None => true,
-                    Some(index) if kept_as_written[index] => true,
                     Some(index) => match entities[index] {
                         Some(entity) => {
                             self.component_value(entity, name).is_none()
@@ -838,9 +859,6 @@ impl World {
                 None => {
                     sections.added.insert(key, self.authored(value, scene));
                 }
-                Some(index) if kept_as_written[index] => {
-                    sections.added.insert(key, self.authored(value, scene));
-                }
                 Some(index) => {
                     if let Some(entity) = entities[index]
                         && !lost[index]
@@ -863,10 +881,6 @@ impl World {
                 differences.insert(key, written);
                 continue;
             };
-            if kept_as_written[index] {
-                differences.insert(key, written);
-                continue;
-            }
             let Some(entity) = entities[index].filter(|_| !lost[index]) else {
                 // Removed since: the removal says it.
                 continue;

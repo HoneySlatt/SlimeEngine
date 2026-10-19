@@ -24,6 +24,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - `World::save` compares a reference between entities with the start world's by the identity that
   each names: when the start world was made in another order than the run's, a reference that the
   run changed was compared by its handle, and could be left out of the save.
+- `World::write_scene` writes `Unsaved` as any other component, for the root, the scene's entities
+  and its placements': it left out what a scene file marks `Unsaved`, with what was under it, and
+  wrote a placement's entity that holds it as the file had it, its changes since lost, without a
+  report. It leaves out only the entities created outside scenes that hold it, or that are under an
+  entity that does, and reports them.
 
 ## [0.4.0] - 2026-10-18
 

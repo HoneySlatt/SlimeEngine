@@ -1455,11 +1455,76 @@ fn what_a_file_cannot_say_of_a_root_or_of_a_placements_entities_is_reported() {
 }
 
 #[test]
-fn entities_marked_unsaved_and_transient_fields_are_left_out() {
+fn a_level_written_back_unchanged_keeps_what_its_file_marks_unsaved() {
+    // A campfire whose smoke, made again at each run, saves leave out, with an ember under it; a
+    // lamp placed, marked the same way; the root marked too.
+    let zone = r#"
+[assets]
+lamp = { id = "00000000-0000-0000-0000-000000000002", path = "lamp.scene" }
+
+[root.components]
+Unsaved = {}
+
+[entities.campfire.components]
+Name = "campfire"
+
+[entities.smoke]
+parent = "campfire"
+
+[entities.smoke.components]
+Unsaved = {}
+
+[entities.ember]
+parent = "smoke"
+
+[entities.ember.components]
+Name = "ember"
+
+[entities.lantern]
+prefab = "lamp"
+
+[added.lantern]
+Unsaved = {}
+"#;
+    let mut scenes = library(&[(YARD, "yard", zone), (LAMP, "lamp", LAMP_FILE)]);
+    let mut world = world();
+    let root = spawn(&mut world, &mut scenes, YARD, "yard");
+    // A spark that the run made under the smoke, which neither a save nor the file keeps.
+    let spark = world.spawn();
+    world
+        .set_parent(spark, Some(entity(&world, "yard/smoke")))
+        .expect("alive");
+    let written = world.write_scene(root).expect("written");
+    assert_eq!(left_out(&written), [("created/1", None)]);
+    let again = respawned(&mut scenes, &written.text);
+    for id in [
+        "yard/smoke",
+        "yard/ember",
+        "yard/lantern",
+        "yard/lantern/light",
+    ] {
+        assert!(
+            again.find(&id.parse().unwrap()).is_some(),
+            "{id}: {}",
+            written.text
+        );
+    }
+    for id in ["yard", "yard/smoke", "yard/lantern"] {
+        assert!(again.get::<Unsaved>(entity(&again, id)).is_some(), "{id}");
+    }
+    assert_eq!(again.len() + 1, world.len());
+    let rewritten = respawned(&mut scenes, &written.text)
+        .write_scene(entity(&again, "yard"))
+        .expect("written");
+    assert_eq!(rewritten.text, written.text);
+}
+
+#[test]
+fn unsaved_is_written_but_what_was_created_with_it_and_transient_fields_are_left_out() {
     let mut scenes = library(&[(YARD, "yard", YARD_FILE), (LAMP, "lamp", LAMP_FILE)]);
     let mut edited = world();
     let root = spawn(&mut edited, &mut scenes, YARD, "yard");
-    // A placement's entity marked Unsaved, changed since: the file keeps what it wrote of it.
+    // A placement's entity marked Unsaved, changed since: written as it is.
     let light = entity(&edited, "yard/gate/light");
     edited.insert(light, Unsaved);
     edited
@@ -1484,19 +1549,29 @@ fn entities_marked_unsaved_and_transient_fields_are_left_out() {
         },
     );
     let written = edited.write_scene(root).expect("written");
-    assert!(!written.text.contains("Unsaved"), "{}", written.text);
     for kept in [
-        "[changed.\"gate/light\"]\n\"test::Glow\" = { intensity = 10.0 }\n",
+        "[added.\"gate/light\"]\nUnsaved = {}\n",
+        "[changed.\"gate/light\"]\n\"test::Glow\" = { intensity = 3.0 }\n",
         "\"test::Counter\" = { count = 3 }",
         "[changed.\"porch/light\"]\n\"test::Aim\" = { at = \"\" }\n",
     ] {
         assert!(written.text.contains(kept), "{kept} in {}", written.text);
     }
-    assert_eq!(left_out(&written), [("created/1", None)]);
+    // The helper, left out, and the reference to it.
+    assert_eq!(left_out(&written), [("created/1", None); 2]);
     assert!(
-        written.left_out[0].reason.contains("Unsaved"),
+        written
+            .left_out
+            .iter()
+            .all(|aside| aside.reason.contains("Unsaved")),
         "{:?}",
         written.left_out
+    );
+    assert_eq!(
+        respawned(&mut scenes, &written.text).first_difference(&edited),
+        None,
+        "{}",
+        written.text
     );
 }
 
