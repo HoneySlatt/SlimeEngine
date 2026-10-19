@@ -4,7 +4,7 @@ use std::any::TypeId;
 use std::collections::{HashMap, HashSet};
 
 use crate::error::{Problem, ReflectError, RegistryError};
-use crate::info::{FieldInfo, Kind, Range, TypeInfo};
+use crate::info::{FieldInfo, Kind, Number, Range, TypeInfo};
 use crate::part::is_tuple;
 use crate::path::{Path, Step};
 use crate::reflect::{Reflect, Upgrade};
@@ -634,7 +634,7 @@ impl Registry {
         };
         // Its kind first, then its range: a number of another kind is of the wrong kind.
         let in_range = || match (ranges, range, value.number()) {
-            (true, Some(range), Some(number)) if !range.contains(number) => {
+            (true, Some(range), Some(number)) if !range.holds(number) => {
                 Err(ReflectError::new(Problem::OutOfRange {
                     value: number,
                     range,
@@ -649,10 +649,12 @@ impl Registry {
             | (Kind::Entity, Value::Entity(_)) => Ok(()),
             (Kind::F32, Value::F32(_)) | (Kind::F64, Value::F64(_)) => in_range(),
             (&Kind::Int { bits }, &Value::Int(number)) => {
-                within_width(number, bits, true).and_then(|()| in_range())
+                within_width(i128::from(number), Number::Int(number), bits, true)
+                    .and_then(|()| in_range())
             }
             (&Kind::UInt { bits }, &Value::UInt(number)) => {
-                within_width(number, bits, false).and_then(|()| in_range())
+                within_width(i128::from(number), Number::UInt(number), bits, false)
+                    .and_then(|()| in_range())
             }
             (Kind::Struct(fields), Value::Struct(values)) => {
                 self.verify_fields(fields, values, ranges)
@@ -731,23 +733,18 @@ fn within_default(error: &ReflectError) -> String {
     }
 }
 
-/// Checks that `number` fits in an integer of `bits` bits, signed or not.
-fn within_width<N: Into<i128> + Copy>(
-    number: N,
-    bits: u32,
-    signed: bool,
-) -> Result<(), ReflectError> {
+/// Checks that `number`, which is `value`, fits in an integer of `bits` bits, signed or not.
+fn within_width(number: i128, value: Number, bits: u32, signed: bool) -> Result<(), ReflectError> {
     let (min, max): (i128, i128) = if signed {
         (-(1 << (bits - 1)), (1 << (bits - 1)) - 1)
     } else {
         (0, (1 << bits) - 1)
     };
-    let number: i128 = number.into();
     if (min..=max).contains(&number) {
         Ok(())
     } else {
         Err(ReflectError::new(Problem::OutOfRange {
-            value: number as f64,
+            value,
             range: Range {
                 min: min as f64,
                 min_excluded: false,

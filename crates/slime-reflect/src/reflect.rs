@@ -72,8 +72,8 @@ pub type Upgrade = fn(u32, Value, bool) -> Result<Value, String>;
 ///   field, which a save writes whole;
 ///   `range(min = 0.0, max = 1.0)`, or `above = 0.0` for a lower bound left out, each bound a
 ///   number or a constant, which edits through reflection respect, and which holds finite numbers
-///   only; `unit = "m"`, the symbol of
-///   its numbers' unit;
+///   only, each compared in its own type ([`Range::holds`](crate::Range::holds)); `unit = "m"`,
+///   the symbol of its numbers' unit;
 /// - on a variant: `alias = "..."`.
 ///
 /// A field that data leaves out is refused, unless the field or its type gives a default: an
@@ -129,6 +129,17 @@ pub type Upgrade = fn(u32, Value, bool) -> Result<Value, String>;
 /// struct Lamp {
 ///     #[reflect(range(min = 0.0))]
 ///     lit: bool,
+/// }
+/// ```
+///
+/// an integer bound that a 64-bit float does not hold exactly, which a range would round:
+///
+/// ```compile_fail
+/// #[derive(slime_reflect::Reflect)]
+/// #[reflect(name = "Tally")]
+/// struct Tally {
+///     #[reflect(range(max = 9_007_199_254_740_993_i64))]
+///     count: i64,
 /// }
 /// ```
 ///

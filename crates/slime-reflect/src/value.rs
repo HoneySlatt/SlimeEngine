@@ -1,5 +1,6 @@
 //! The value type: what a reflected value is, as plain data.
 
+use crate::info::Number;
 use crate::path::{Path, Step};
 
 /// A value of a reflected type, as plain data: what passes between reflection, files, saves, the
@@ -112,13 +113,13 @@ impl Value {
         }
     }
 
-    /// Its number, if it is one, for a range to check.
-    pub(crate) fn number(&self) -> Option<f64> {
+    /// Its number, if it is one.
+    pub fn number(&self) -> Option<Number> {
         match *self {
-            Self::Int(number) => Some(number as f64),
-            Self::UInt(number) => Some(number as f64),
-            Self::F32(number) => Some(f64::from(number)),
-            Self::F64(number) => Some(number),
+            Self::Int(number) => Some(Number::Int(number)),
+            Self::UInt(number) => Some(Number::UInt(number)),
+            Self::F32(number) => Some(Number::F32(number)),
+            Self::F64(number) => Some(Number::F64(number)),
             _ => None,
         }
     }

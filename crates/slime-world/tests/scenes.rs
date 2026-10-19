@@ -100,6 +100,24 @@ Hidden = {}
 entities = ["porch/glass"]
 "#;
 
+/// A blend between two looks, from 0.7 to 0.9: bounds that a 32-bit float does not hold.
+#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
+#[reflect(name = "test::Blend", default)]
+struct Blend {
+    #[reflect(range(min = 0.7, max = 0.9))]
+    amount: f32,
+}
+impl Component for Blend {}
+
+/// At its lower bound, as a game that clamps it to its range sets it.
+impl Default for Blend {
+    fn default() -> Self {
+        Self {
+            amount: 0.2_f32.clamp(0.7, 0.9),
+        }
+    }
+}
+
 /// A world that knows the tests' components.
 fn world() -> World {
     let mut world = World::new();
@@ -142,6 +160,48 @@ fn parent(world: &World, id: &str) -> Option<String> {
         .parent(entity(world, id))
         .and_then(|parent| world.persistent_id(parent))
         .map(|id| id.to_string())
+}
+
+#[test]
+fn a_value_at_its_field_s_bound_is_saved_spawned_and_written_back() {
+    let blended = |scenes: &mut SceneLibrary| {
+        let mut world = world();
+        // Its default at its bound, which registering checks.
+        world.register::<Blend>();
+        let root = spawn(&mut world, scenes, YARD, "yard");
+        (world, root)
+    };
+    let mut scenes = library(&[(
+        YARD,
+        "yard",
+        "[entities.mill.components]\nName = \"mill\"\n\"test::Blend\" = { amount = 0.7 }\n",
+    )]);
+    let (start, _) = blended(&mut scenes);
+    let (mut run, root) = blended(&mut scenes);
+    let mill = entity(&run, "yard/mill");
+    assert_eq!(
+        run.get::<Blend>(mill),
+        Some(&Blend::default()),
+        "a file at the bound"
+    );
+    run.get_mut::<Blend>(mill).expect("held").amount = 0.9;
+    let save = run
+        .save(&start, &Default::default())
+        .expect("saved at the bound");
+    let (mut loaded, _) = blended(&mut scenes);
+    loaded.load(&save, &mut scenes).expect("loaded");
+    assert_eq!(
+        loaded.get::<Blend>(entity(&loaded, "yard/mill")),
+        Some(&Blend { amount: 0.9 })
+    );
+    run.get_mut::<Blend>(mill).expect("held").amount = 0.7;
+    let written = run.write_scene(root).expect("written at the bound");
+    scenes.insert_file(YARD, "yard", written.text);
+    let (again, _) = blended(&mut scenes);
+    assert_eq!(
+        again.get::<Blend>(entity(&again, "yard/mill")),
+        Some(&Blend::default())
+    );
 }
 
 #[test]

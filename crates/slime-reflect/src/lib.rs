@@ -16,7 +16,7 @@ mod value;
 
 pub use diff::{apply, diff};
 pub use error::{Problem, ReflectError, RegistryError};
-pub use info::{FieldInfo, Kind, Range, TypeInfo, VariantInfo};
+pub use info::{FieldInfo, Kind, Number, Range, TypeInfo, VariantInfo};
 pub use part::is_tuple;
 pub use path::{ParsePathError, Path, Step};
 pub use reflect::{Reflect, Upgrade};

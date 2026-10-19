@@ -12,6 +12,12 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   beside it is refused: `#[derive(Reflect)]` fails to compile, `Registry::register_dynamic` returns
   an error, and `Registry::register` panics on a type described so by hand. Data that gave it read
   back as the other field or variant, without a word.
+- A number on its field's bound is accepted: a range's bounds are compared with a 32-bit float
+  rounded to the nearest 32-bit float, so that `range(min = 0.7)` holds `0.7_f32`, and with an
+  integer exactly, beyond 2⁵³ too (`Range::holds`). A save, a scene file or a level written back
+  that held such a value failed whole, and a type whose default sat on its bound panicked when
+  registered. `Problem::OutOfRange` carries the number as a `Number`, written in its own type, and
+  the derive refuses an integer bound that a 64-bit float does not hold exactly.
 
 ## [0.4.0] - 2026-10-18
 

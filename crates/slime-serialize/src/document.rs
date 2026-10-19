@@ -4,7 +4,8 @@
 use std::collections::{BTreeMap, HashMap};
 
 use slime_reflect::{
-    FieldInfo, Kind, Path, Problem, Range, ReflectError, Registry, TypeInfo, Value, is_tuple,
+    FieldInfo, Kind, Number, Path, Problem, Range, ReflectError, Registry, TypeInfo, Value,
+    is_tuple,
 };
 
 use crate::error::ReadProblem;
@@ -44,8 +45,8 @@ impl Writer<'_> {
             self.versions.insert(info.name.clone(), info.version);
         }
         let error = |problem| ReflectError::at(path.clone(), problem);
-        let within = |number: f64| match range {
-            Some(range) if !range.contains(number) => Err(error(Problem::OutOfRange {
+        let within = |number: Number| match range {
+            Some(range) if !range.holds(number) => Err(error(Problem::OutOfRange {
                 value: number,
                 range,
             })),
@@ -61,24 +62,24 @@ impl Writer<'_> {
             (Kind::Bool, Value::Bool(boolean)) => Value::Bool(*boolean),
             (Kind::Int { .. }, &Value::Int(number)) => {
                 fits()?;
-                within(number as f64)?;
+                within(Number::Int(number))?;
                 Value::Int(number)
             }
             // Integers past TOML's, which holds 64 signed bits, are written as text.
             (Kind::UInt { .. }, &Value::UInt(number)) => {
                 fits()?;
-                within(number as f64)?;
+                within(Number::UInt(number))?;
                 match i64::try_from(number) {
                     Ok(number) => Value::Int(number),
                     Err(_) => Value::Text(number.to_string()),
                 }
             }
             (Kind::F32, &Value::F32(number)) => {
-                within(f64::from(number))?;
+                within(Number::F32(number))?;
                 Value::F32(number)
             }
             (Kind::F64, &Value::F64(number)) => {
-                within(number)?;
+                within(Number::F64(number))?;
                 Value::F64(number)
             }
             (Kind::Text, Value::Text(text)) => Value::Text(text.clone()),
@@ -303,19 +304,18 @@ impl Reader<'_> {
                 found: kind(document),
             })
         };
-        let within = |number: f64| match range {
-            Some(range) if !range.contains(number) => Err(fail(Problem::OutOfRange {
+        let within = |number: Number, value: Value| match range {
+            Some(range) if !range.holds(number) => Err(fail(Problem::OutOfRange {
                 value: number,
                 range,
             })),
-            _ => Ok(()),
+            _ => Ok(value),
         };
         Ok(match (&info.kind, document) {
             (Kind::Bool, Value::Bool(boolean)) => Value::Bool(boolean),
             (Kind::Int { .. }, Value::Int(number)) => {
                 self.fits(info, Value::Int(number)).map_err(fail)?;
-                within(number as f64)?;
-                Value::Int(number)
+                within(Number::Int(number), Value::Int(number))?
             }
             (Kind::UInt { .. }, document @ (Value::Int(_) | Value::Text(_))) => {
                 let number = match &document {
@@ -327,8 +327,7 @@ impl Reader<'_> {
                 }
                 .ok_or_else(|| wrong(&document))?;
                 self.fits(info, Value::UInt(number)).map_err(fail)?;
-                within(number as f64)?;
-                Value::UInt(number)
+                within(Number::UInt(number), Value::UInt(number))?
             }
             (Kind::F32, Value::F64(number)) => {
                 // A NaN keeps its sign, which a cast does not promise.
@@ -339,7 +338,7 @@ impl Reader<'_> {
                 };
                 if number.is_finite() && narrow.is_infinite() {
                     return Err(fail(Problem::OutOfRange {
-                        value: number,
+                        value: Number::F64(number),
                         range: Range {
                             min: f64::from(f32::MIN),
                             min_excluded: false,
@@ -347,20 +346,14 @@ impl Reader<'_> {
                         },
                     }));
                 }
-                within(f64::from(narrow))?;
-                Value::F32(narrow)
+                within(Number::F32(narrow), Value::F32(narrow))?
             }
             (Kind::F32, Value::Int(number)) => {
-                within(number as f64)?;
-                Value::F32(number as f32)
+                within(Number::F32(number as f32), Value::F32(number as f32))?
             }
-            (Kind::F64, Value::F64(number)) => {
-                within(number)?;
-                Value::F64(number)
-            }
+            (Kind::F64, Value::F64(number)) => within(Number::F64(number), Value::F64(number))?,
             (Kind::F64, Value::Int(number)) => {
-                within(number as f64)?;
-                Value::F64(number as f64)
+                within(Number::F64(number as f64), Value::F64(number as f64))?
             }
             (Kind::Text, Value::Text(text)) => Value::Text(text),
             (Kind::Asset, Value::Text(text)) => Value::Asset(match self.references {

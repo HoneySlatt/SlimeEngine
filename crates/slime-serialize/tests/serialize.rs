@@ -436,6 +436,66 @@ fn later_versions_are_refused() {
     ));
 }
 
+/// A count, at most 2⁵³, which a 64-bit float holds exactly where it does not hold the integers
+/// just above it.
+#[derive(Debug, PartialEq, Reflect)]
+#[reflect(name = "test::Tally")]
+struct Tally {
+    #[reflect(range(max = 9_007_199_254_740_992_i64))]
+    signed: i64,
+    #[reflect(range(max = 9_007_199_254_740_992_u64))]
+    unsigned: u64,
+    /// From 0.7 to 0.9, bounds that a 32-bit float does not hold.
+    #[reflect(range(min = 0.7, max = 0.9))]
+    blend: f32,
+}
+
+#[test]
+fn numbers_are_checked_against_their_range_in_their_own_type() {
+    let mut registry = Registry::new();
+    registry.register::<Tally>();
+    let read = |text: &str| read(&registry, "test::Tally", text, Mode::Strict);
+    let at_bounds = Tally {
+        signed: 9_007_199_254_740_992,
+        unsigned: 9_007_199_254_740_992,
+        blend: 0.7,
+    };
+    let text = write(&registry, "test::Tally", &at_bounds.to_value()).expect("at its bounds");
+    assert_eq!(read(&text).expect("read").value, at_bounds.to_value());
+    let up_to = Tally {
+        blend: 0.9,
+        ..at_bounds
+    };
+    let text = write(&registry, "test::Tally", &up_to.to_value()).expect("at its bounds");
+    assert_eq!(read(&text).expect("read").value, up_to.to_value());
+    for (text, message) in [
+        (
+            "signed = 9007199254740993\nunsigned = 0\nblend = 0.8\n",
+            "9007199254740993 is not ≤ 9007199254740992",
+        ),
+        (
+            "signed = 0\nunsigned = 9007199254740993\nblend = 0.8\n",
+            "9007199254740993 is not ≤ 9007199254740992",
+        ),
+        (
+            "signed = 0\nunsigned = 0\nblend = 0.6999999\n",
+            "0.6999999 is not from 0.7 to 0.9",
+        ),
+    ] {
+        let error = read(text).expect_err(message);
+        assert!(error.to_string().contains(message), "{error}");
+    }
+    let past = Tally {
+        signed: 9_007_199_254_740_993,
+        ..at_bounds
+    };
+    let error = write(&registry, "test::Tally", &past.to_value()).expect_err("past its bound");
+    assert!(
+        error.to_string().contains("9007199254740993 is not"),
+        "{error}"
+    );
+}
+
 #[test]
 fn aliases_of_fields_and_variants_read() {
     let registry = registry();

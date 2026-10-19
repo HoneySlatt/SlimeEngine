@@ -273,7 +273,9 @@ fn field_attributes(attributes: &[Attribute]) -> syn::Result<FieldAttributes> {
     Ok(parsed)
 }
 
-/// A bound of a range: a number, negative or not, or a constant's path.
+/// A bound of a range: a number, negative or not, or a constant's path. An integer that a 64-bit
+/// float does not hold exactly is refused: a range holds its bounds as such floats, and would check
+/// another bound than the one written.
 fn number(input: ParseStream<'_>) -> syn::Result<Tokens> {
     if input.peek(Token![-]) || input.peek(Lit) {
         let negative = input.parse::<Option<Token![-]>>()?.is_some();
@@ -283,6 +285,20 @@ fn number(input: ParseStream<'_>) -> syn::Result<Tokens> {
                 literal,
                 "a bound of a range is a number",
             ));
+        }
+        if let Lit::Int(integer) = &literal {
+            let magnitude: i128 = integer.base10_parse()?;
+            let bound = if negative { -magnitude } else { magnitude };
+            if bound as f64 as i128 != bound {
+                return Err(syn::Error::new_spanned(
+                    integer,
+                    format!(
+                        "a range holds its bounds as 64-bit floats, and {bound} is not one: the \
+                         nearest is {}",
+                        bound as f64 as i128
+                    ),
+                ));
+            }
         }
         let sign = negative.then(|| quote!(-));
         return Ok(quote!(#sign #literal));

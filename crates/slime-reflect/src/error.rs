@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use crate::info::Range;
+use crate::info::{Number, Range};
 use crate::path::{Path, Step};
 
 /// Why reflection refuses a value or a path, and where: the path of the part at fault, from the
@@ -52,8 +52,8 @@ pub enum Problem {
     },
     /// A number outside the range of the field it is set in, or of its type's width.
     OutOfRange {
-        /// The number.
-        value: f64,
+        /// The number, in its own type.
+        value: Number,
         /// The values it may take.
         range: Range,
     },
@@ -253,6 +253,24 @@ mod tests {
         assert_eq!(
             unknown.to_string(),
             "the value: no field `colour`, where there are `color`, `range` and `intensity`"
+        );
+        let range = Range {
+            min: 0.7,
+            max: 0.9,
+            ..Range::ALL
+        };
+        let out = |value| ReflectError::new(Problem::OutOfRange { value, range }).to_string();
+        assert_eq!(
+            out(Number::F32(0.65)),
+            "the value: 0.65 is not from 0.7 to 0.9"
+        );
+        assert_eq!(
+            out(Number::F32(f32::NAN)),
+            "the value: NaN is not a finite number"
+        );
+        assert_eq!(
+            out(Number::UInt(u64::MAX)),
+            "the value: 18446744073709551615 is not from 0.7 to 0.9"
         );
     }
 }

@@ -124,9 +124,51 @@ pub struct VariantInfo {
     pub fields: Vec<FieldInfo>,
 }
 
+/// A number as a value holds it, in its own type: what a [`Range`] checks, and what
+/// [`Problem::OutOfRange`](crate::Problem::OutOfRange) gives, written as the shortest text that
+/// reads back to it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Number {
+    /// A signed integer.
+    Int(i64),
+    /// An unsigned integer.
+    UInt(u64),
+    /// A 32-bit float.
+    F32(f32),
+    /// A 64-bit float.
+    F64(f64),
+}
+
+impl Number {
+    /// Whether it is finite: not an infinity, not a `NaN`.
+    pub fn is_finite(self) -> bool {
+        match self {
+            Number::F32(number) => number.is_finite(),
+            Number::F64(number) => number.is_finite(),
+            Number::Int(_) | Number::UInt(_) => true,
+        }
+    }
+}
+
+impl fmt::Display for Number {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Number::Int(number) => write!(f, "{number}"),
+            Number::UInt(number) => write!(f, "{number}"),
+            Number::F32(number) => write!(f, "{number}"),
+            Number::F64(number) => write!(f, "{number}"),
+        }
+    }
+}
+
 /// The finite numbers a field may hold: from `min` to `max`, `min` itself included unless
 /// `min_excluded`, `max` included. A range without a lower or upper bound has an infinite one; it
 /// holds no infinity and no `NaN` either way.
+///
+/// Its bounds are `f64`s, and a number is compared with them in its own type
+/// ([`Range::holds`]): a 32-bit float with the bounds rounded once to the nearest 32-bit float, so
+/// that a field whose range starts at `0.7` holds the 32-bit float nearest 0.7; an integer exactly,
+/// however large, with the bounds as they are.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Range {
     /// Its lower bound, `-∞` for none.
@@ -145,8 +187,41 @@ impl Range {
         max: f64::INFINITY,
     };
 
-    /// Whether `number` lies within it. A range holds finite numbers only: an infinity or a `NaN`
-    /// lies within none, whatever its bounds.
+    /// Whether `number` lies within it, compared in its own type: a 32-bit float with the bounds
+    /// rounded to the nearest 32-bit float, a 64-bit float with the bounds, an integer exactly. An
+    /// infinity or a `NaN` lies within none. What every check of a field's range uses: the
+    /// registry's, and documents' readers and writers.
+    pub fn holds(&self, number: Number) -> bool {
+        match number {
+            Number::F32(number) => {
+                let (min, max) = (self.min as f32, self.max as f32);
+                let above = if self.min_excluded {
+                    number > min
+                } else {
+                    number >= min
+                };
+                number.is_finite() && above && number <= max
+            }
+            Number::F64(number) => self.contains(number),
+            Number::Int(number) => self.holds_integer(i128::from(number)),
+            Number::UInt(number) => self.holds_integer(i128::from(number)),
+        }
+    }
+
+    /// Whether the integer `number` lies within it: above the ceiling of `min` (its floor, when
+    /// `min` is left out), and up to the floor of `max`, which is exact for any bound; an infinite
+    /// bound becomes the widest integer, as `as` saturates.
+    fn holds_integer(&self, number: i128) -> bool {
+        let above = if self.min_excluded {
+            number > self.min.floor() as i128
+        } else {
+            number >= self.min.ceil() as i128
+        };
+        above && number <= self.max.floor() as i128
+    }
+
+    /// Whether `number`, a 64-bit float, lies within it. A range holds finite numbers only: an
+    /// infinity or a `NaN` lies within none, whatever its bounds.
     pub fn contains(&self, number: f64) -> bool {
         if !number.is_finite() {
             return false;
@@ -198,5 +273,69 @@ mod tests {
         assert!(!positive.contains(f64::INFINITY) && !Range::ALL.contains(f64::NEG_INFINITY));
         assert_eq!(positive.to_string(), "> 0");
         assert_eq!(cone.to_string(), "from 0 to 1.5");
+    }
+
+    #[test]
+    fn a_number_is_compared_with_the_bounds_in_its_own_type() {
+        let ranges = [0.01, 0.1, 0.3, 0.7, 0.9, 0.99].map(|bound| {
+            (
+                bound,
+                Range {
+                    min: bound,
+                    ..Range::ALL
+                },
+                Range {
+                    max: bound,
+                    ..Range::ALL
+                },
+            )
+        });
+        for (bound, from, up_to) in ranges {
+            let nearest = Number::F32(bound as f32);
+            assert!(from.holds(nearest) && up_to.holds(nearest), "{bound}");
+            let below = Number::F32(f32::from_bits((bound as f32).to_bits() - 1));
+            let above = Number::F32(f32::from_bits((bound as f32).to_bits() + 1));
+            assert!(!from.holds(below) && !up_to.holds(above), "{bound}");
+        }
+        let positive = Range {
+            min: 0.0,
+            min_excluded: true,
+            ..Range::ALL
+        };
+        assert!(
+            !positive.holds(Number::F32(0.0)) && positive.holds(Number::F32(f32::MIN_POSITIVE))
+        );
+        assert!(
+            !Range::ALL.holds(Number::F32(f32::INFINITY))
+                && !Range::ALL.holds(Number::F32(f32::NAN))
+        );
+
+        // Integers past 2⁵³, which a 64-bit float rounds.
+        let limit = 2_i64.pow(53);
+        let up_to = Range {
+            max: limit as f64,
+            ..Range::ALL
+        };
+        assert!(up_to.holds(Number::Int(limit)) && !up_to.holds(Number::Int(limit + 1)));
+        let from = Range {
+            min: -(limit as f64),
+            ..Range::ALL
+        };
+        assert!(from.holds(Number::Int(-limit)) && !from.holds(Number::Int(-limit - 1)));
+        assert!(
+            Range::ALL.holds(Number::UInt(u64::MAX)) && Range::ALL.holds(Number::Int(i64::MIN))
+        );
+        let half = Range {
+            min: 0.5,
+            max: 2.5,
+            ..Range::ALL
+        };
+        assert!(!half.holds(Number::Int(0)) && half.holds(Number::Int(1)));
+        assert!(half.holds(Number::UInt(2)) && !half.holds(Number::UInt(3)));
+        let above_half = Range {
+            min_excluded: true,
+            ..half
+        };
+        assert!(above_half.holds(Number::Int(1)) && !above_half.holds(Number::Int(0)));
     }
 }

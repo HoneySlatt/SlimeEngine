@@ -4,7 +4,7 @@
 use glam::{DVec3, Quat, Vec3};
 
 use crate::error::{Problem, ReflectError};
-use crate::info::{FieldInfo, Kind, Range, TypeInfo};
+use crate::info::{FieldInfo, Kind, Number, Range, TypeInfo};
 use crate::path::Step;
 use crate::reflect::Reflect;
 use crate::registry::Registry;
@@ -68,7 +68,7 @@ macro_rules! integer {
                 match *value {
                     Value::$variant(number) => <$ty>::try_from(number).map_err(|_| {
                         ReflectError::new(Problem::OutOfRange {
-                            value: number as f64,
+                            value: Number::$variant(number),
                             range: Range {
                                 min: <$ty>::MIN as f64,
                                 min_excluded: false,

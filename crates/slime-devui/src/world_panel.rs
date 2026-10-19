@@ -611,19 +611,21 @@ fn variant_value(
 /// that `range` holds. `None` for a reference to an asset or an entity, which has no value to
 /// start at, and for a value that holds one.
 fn initial(registry: &Registry, ty: &str, range: Option<Range>) -> Option<Value> {
-    let number = || {
+    // Each candidate made a number of the field's kind first, as the world checks it in that kind.
+    let number = |of_kind: fn(f64) -> Value| {
         let range = range.unwrap_or(Range::ALL);
         [0.0, 1.0, range.min, range.max]
             .into_iter()
-            .find(|&number| range.contains(number))
-            .unwrap_or(0.0)
+            .map(of_kind)
+            .find(|number| number.number().is_some_and(|number| range.holds(number)))
+            .unwrap_or_else(|| of_kind(0.0))
     };
     Some(match &registry.get(ty)?.info().kind {
         Kind::Bool => Value::Bool(false),
-        Kind::Int { .. } => Value::Int(number() as i64),
-        Kind::UInt { .. } => Value::UInt(number() as u64),
-        Kind::F32 => Value::F32(number() as f32),
-        Kind::F64 => Value::F64(number()),
+        Kind::Int { .. } => number(|number| Value::Int(number as i64)),
+        Kind::UInt { .. } => number(|number| Value::UInt(number as u64)),
+        Kind::F32 => number(|number| Value::F32(number as f32)),
+        Kind::F64 => number(Value::F64),
         Kind::Text => Value::Text(String::new()),
         Kind::Option(_) => Value::Option(None),
         Kind::List { len: None, .. } => Value::List(Vec::new()),
@@ -912,6 +914,15 @@ mod tests {
             ..Range::ALL
         };
         assert_eq!(initial(registry, "f32", Some(above)), Some(Value::F32(1.0)));
+        // A bound that a 32-bit float does not hold: the float nearest it, which the range holds.
+        let blend = Range {
+            min: 0.7,
+            max: 0.9,
+            ..Range::ALL
+        };
+        let start = initial(registry, "f32", Some(blend)).expect("a number");
+        assert_eq!(start, Value::F32(0.7));
+        assert!(start.number().is_some_and(|number| blend.holds(number)));
     }
 
     #[test]
