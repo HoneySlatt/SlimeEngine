@@ -347,6 +347,7 @@ Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b nee
 - Dialogue and quests, with the state of a story that they read and that scenes depend on; the rules of a particular game stay in the game (ADR-0098)
 - Translation tables and voice (ADR-0098)
 - Build, cook and package: Development, Shipping, Server, Editor configurations, for Linux and Windows. Builds without a console (Windows games) write their log to a file.
+- Updates of shipped games: archives, patches that download only what changed, downloadable content and expansions as packages added to an installed game; from its first release, a save written by a shipped version of a game loads in all of its later versions, checked in CI with one save fixture per shipped version (ADR-0100)
 
 **Exit.** The game grows into a short narrative vertical slice (animated character, cutscene, gameplay) that ships as a packaged build.
 
@@ -391,6 +392,7 @@ The stage is split in two halves when it is planned (ADR-0098).
 - Networking: transport, replication, RPC, prediction, reconciliation, lag compensation, interest management for hundreds of players in one place (ADR-0098)
 - Synchronized physics, proximity voice chat, games hosted by a player with relays, a world split between servers (ADR-0098)
 - The threat model of ADR-0096 extended to the network (ADR-0098)
+- The data that servers keep for players converted from one version of a game to the next (ADR-0100)
 - Dedicated server build
 
 The stage is split in two halves when it is planned (ADR-0098).

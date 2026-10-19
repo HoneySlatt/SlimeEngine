@@ -164,6 +164,7 @@ the ADR linking to it.
 | [0094](0094-the-binary-encoding-of-documents.md) | The binary encoding of documents | Accepted |
 | [0095](0095-cooked-scene-files.md) | Cooked scene files | Accepted |
 | [0096](0096-the-files-the-engine-reads.md) | The files the engine reads: what they may hold, and what the engine promises | Accepted |
-| [0097](0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md) | An audit pass and a foundations pass before Stage 6, and the roadmap after them | Accepted; amended by 0098 and 0099 |
+| [0097](0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md) | An audit pass and a foundations pass before Stage 6, and the roadmap after them | Accepted; amended by 0098, 0099 and 0100 |
 | [0098](0098-the-games-the-engine-aims-at.md) | The games the engine aims at, and the roadmap they shape | Accepted |
 | [0099](0099-ai-agents-drive-the-engine.md) | AI agents drive the engine through its own MCP server | Accepted |
+| [0100](0100-updates-of-shipped-games.md) | Updates of shipped games | Accepted |

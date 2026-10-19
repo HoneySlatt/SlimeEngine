@@ -29,7 +29,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   framework of the engine's own for the editor and games, a stage of native GPU backends (9c), and
   needs to Stages 7, 9a, 9b, 10a and 10b. [ADR-0099](adr/0099-ai-agents-drive-the-engine.md):
   AI agents drive the engine through an MCP server of its own, from Stage 6, each later stage
-  exposing its systems to it.
+  exposing its systems to it. [ADR-0100](adr/0100-updates-of-shipped-games.md): updates of shipped
+  games at Stages 9b and 10b, and a shipped game's saves that load in all its later versions.
 
 ## Status
 
