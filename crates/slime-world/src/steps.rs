@@ -4,6 +4,7 @@
 use std::mem;
 
 use crate::entity::Entity;
+use crate::hierarchy::children_of;
 use crate::transform::GlobalTransform;
 use crate::world::World;
 
@@ -53,9 +54,8 @@ impl World {
         }
         let mut subtree = vec![entity.index()];
         while let Some(slot) = subtree.pop() {
-            let node = &mut self.nodes[slot as usize];
-            node.moved = 0;
-            subtree.extend(node.children.iter().map(|child| child.index()));
+            self.nodes[slot as usize].moved = 0;
+            subtree.extend(children_of(&self.nodes, slot).map(|child| child.index()));
         }
     }
 

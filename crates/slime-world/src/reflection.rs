@@ -532,7 +532,8 @@ mod tests {
             (world, root)
         };
         let (mut world, root) = spawned(&mut scenes);
-        let placed = world.children(world.children(root)[0])[0];
+        let placement = world.children(root).next().expect("a placement");
+        let placed = world.children(placement).next().expect("its entity");
         every_leaf_is_set_and_read_back::<Transform>(&mut world, placed);
         every_leaf_is_set_and_read_back::<Name>(&mut world, placed);
         every_leaf_is_set_and_read_back::<Meshes>(&mut world, placed);

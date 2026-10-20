@@ -302,7 +302,7 @@ fn a_hot_reload_after_a_level_gains_a_marker_moves_only_the_enemy_that_the_run_m
         let level = scenes.resolve(world.registry(), LEVEL).expect("resolved");
         let root = world.spawn_scene("level", &level).expect("spawned");
         let enemy = scenes.resolve(world.registry(), ENEMY).expect("resolved");
-        for marker in world.children(root).to_vec() {
+        for marker in world.children(root).collect::<Vec<_>>() {
             let name = format!("enemy at {}", world.get::<Name>(marker).expect("named").0);
             let at = world.get::<Transform>(marker).expect("placed").translation;
             let placed = if keyed {

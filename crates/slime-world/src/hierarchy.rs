@@ -1,10 +1,102 @@
 //! The hierarchy: each entity's parent and children, and where each entity is in the world.
 
+use std::iter::FusedIterator;
+
 use crate::components::Hidden;
 use crate::entity::Entity;
 use crate::error::WorldError;
 use crate::transform::{GlobalTransform, Transform};
 use crate::world::{Node, World, mark_stale, storage_in};
+
+/// The children of an entity, in the order they became its children: what [`World::children`]
+/// gives. It reads them from either end, and knows how many are left.
+#[derive(Clone, Debug)]
+pub struct Children<'w> {
+    nodes: &'w [Node],
+    front: Option<Entity>,
+    back: Option<Entity>,
+    left: usize,
+}
+
+impl Iterator for Children<'_> {
+    type Item = Entity;
+
+    fn next(&mut self) -> Option<Entity> {
+        if self.left == 0 {
+            return None;
+        }
+        let child = self.front?;
+        self.left -= 1;
+        self.front = self.nodes[child.index() as usize].next_sibling;
+        Some(child)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.left, Some(self.left))
+    }
+}
+
+impl DoubleEndedIterator for Children<'_> {
+    fn next_back(&mut self) -> Option<Entity> {
+        if self.left == 0 {
+            return None;
+        }
+        let child = self.back?;
+        self.left -= 1;
+        self.back = self.nodes[child.index() as usize].previous_sibling;
+        Some(child)
+    }
+}
+
+impl ExactSizeIterator for Children<'_> {}
+
+impl FusedIterator for Children<'_> {}
+
+/// The children of the slot's entity.
+pub(crate) fn children_of(nodes: &[Node], slot: u32) -> Children<'_> {
+    let node = &nodes[slot as usize];
+    Children {
+        nodes,
+        front: node.first_child,
+        back: node.last_child,
+        left: node.child_count as usize,
+    }
+}
+
+/// Makes `child`, which has no parent, the last child of `parent`.
+fn join_parent(nodes: &mut [Node], child: Entity, parent: Entity) {
+    let last = nodes[parent.index() as usize].last_child;
+    let node = &mut nodes[child.index() as usize];
+    node.parent = Some(parent);
+    node.previous_sibling = last;
+    node.next_sibling = None;
+    match last {
+        Some(last) => nodes[last.index() as usize].next_sibling = Some(child),
+        None => nodes[parent.index() as usize].first_child = Some(child),
+    }
+    let parent = &mut nodes[parent.index() as usize];
+    parent.last_child = Some(child);
+    parent.child_count += 1;
+}
+
+/// Takes `child` out of its parent's children, its siblings linked to each other in its place,
+/// and puts it at the root; nothing if it has no parent.
+pub(crate) fn leave_parent(nodes: &mut [Node], child: Entity) {
+    let node = &mut nodes[child.index() as usize];
+    let Some(parent) = node.parent.take() else {
+        return;
+    };
+    let (previous, next) = (node.previous_sibling.take(), node.next_sibling.take());
+    match previous {
+        Some(previous) => nodes[previous.index() as usize].next_sibling = next,
+        None => nodes[parent.index() as usize].first_child = next,
+    }
+    match next {
+        Some(next) => nodes[next.index() as usize].previous_sibling = previous,
+        None => nodes[parent.index() as usize].last_child = previous,
+    }
+    nodes[parent.index() as usize].child_count -= 1;
+}
 
 impl World {
     /// Makes `parent` the parent of `child`, its last child, or puts `child` at the root for
@@ -30,14 +122,9 @@ impl World {
                 ancestor = self.nodes[entity.index() as usize].parent;
             }
         }
-        if let Some(old) = self.nodes[child.index() as usize].parent.take() {
-            self.nodes[old.index() as usize]
-                .children
-                .retain(|&sibling| sibling != child);
-        }
+        leave_parent(&mut self.nodes, child);
         if let Some(parent) = parent {
-            self.nodes[parent.index() as usize].children.push(child);
-            self.nodes[child.index() as usize].parent = Some(parent);
+            join_parent(&mut self.nodes, child, parent);
         }
         if self.nodes[child.index() as usize].stale {
             // Stale already, perhaps through its old parent, whose subtree no longer holds it.
@@ -57,11 +144,16 @@ impl World {
     }
 
     /// The entity's children, in the order they became its children; none if it is not alive.
-    pub fn children(&self, entity: Entity) -> &[Entity] {
+    pub fn children(&self, entity: Entity) -> Children<'_> {
         if !self.contains(entity) {
-            return &[];
+            return Children {
+                nodes: &self.nodes,
+                front: None,
+                back: None,
+                left: 0,
+            };
         }
-        &self.nodes[entity.index() as usize].children
+        children_of(&self.nodes, entity.index())
     }
 
     /// Whether the entity, or one of its ancestors, holds [`Hidden`]: then it is not drawn, nor
@@ -146,6 +238,8 @@ impl World {
                 Some(parent) => nodes[parent.index() as usize].global,
                 None => GlobalTransform::IDENTITY,
             };
+            // Each node of the subtree is read once: it gives its first child, and its next
+            // sibling but for the top's, which share its parent but not its subtree.
             next.push((top, base));
             while let Some((slot, parent)) = next.pop() {
                 let global = match transforms.and_then(|transforms| transforms.get(slot)) {
@@ -156,7 +250,14 @@ impl World {
                 node.global = global;
                 node.stale = false;
                 computed += 1;
-                next.extend(node.children.iter().map(|child| (child.index(), global)));
+                if let Some(sibling) = node.next_sibling
+                    && slot != top
+                {
+                    next.push((sibling.index(), parent));
+                }
+                if let Some(child) = node.first_child {
+                    next.push((child.index(), global));
+                }
             }
         }
         #[cfg(test)]
@@ -204,15 +305,59 @@ mod tests {
     fn children_keep_their_order_and_follow_their_parent() {
         let mut world = World::new();
         let [root, first, second, grandchild] = family(&mut world);
-        assert_eq!(world.children(root), [first, second]);
+        assert_eq!(world.children(root).collect::<Vec<_>>(), [first, second]);
         assert_eq!(world.parent(grandchild), Some(first));
         assert_eq!(x_of(&world, grandchild), 3.0);
         world.set_parent(grandchild, Some(second)).expect("alive");
-        assert_eq!(world.children(first), []);
+        assert_eq!(world.children(first).len(), 0);
         assert_eq!(x_of(&world, grandchild), 4.0);
         world.set_parent(grandchild, None).expect("alive");
         assert_eq!(world.parent(grandchild), None);
         assert_eq!(x_of(&world, grandchild), 1.0);
+    }
+
+    /// Children that leave their parent from its first, its last and its middle, by a new parent,
+    /// by none or destroyed, leave the others in their order, read from either end.
+    #[test]
+    fn children_leave_from_anywhere_and_the_others_keep_their_order() {
+        let mut world = World::new();
+        let parent = world.spawn();
+        let other = world.spawn();
+        let children: Vec<Entity> = (0..6)
+            .map(|_| {
+                let child = world.spawn();
+                world.set_parent(child, Some(parent)).expect("alive");
+                child
+            })
+            .collect();
+        world.set_parent(children[0], None).expect("alive");
+        world.set_parent(children[5], Some(other)).expect("alive");
+        assert!(world.despawn(children[2]));
+        let left = [children[1], children[3], children[4]];
+        assert_eq!(world.children(parent).collect::<Vec<_>>(), left);
+        assert_eq!(
+            world.children(parent).rev().collect::<Vec<_>>(),
+            [children[4], children[3], children[1]]
+        );
+        assert_eq!(world.children(parent).len(), 3);
+        let mut both_ends = world.children(parent);
+        assert_eq!(
+            (both_ends.next(), both_ends.next_back(), both_ends.next()),
+            (Some(children[1]), Some(children[4]), Some(children[3]))
+        );
+        assert_eq!((both_ends.next(), both_ends.next_back()), (None, None));
+        world.set_parent(children[0], Some(parent)).expect("alive");
+        assert_eq!(
+            world.children(parent).collect::<Vec<_>>(),
+            [children[1], children[3], children[4], children[0]],
+            "a child that comes back is the last"
+        );
+        assert_eq!(world.children(other).collect::<Vec<_>>(), [children[5]]);
+        for child in world.children(parent).collect::<Vec<_>>() {
+            world.set_parent(child, None).expect("alive");
+        }
+        assert_eq!(world.children(parent).len(), 0);
+        assert_eq!(world.children(parent).next_back(), None);
     }
 
     #[test]
@@ -257,7 +402,7 @@ mod tests {
         let [root, first, second, grandchild] = family(&mut world);
         assert!(world.despawn(first));
         assert!(!world.contains(grandchild));
-        assert_eq!(world.children(root), [second]);
+        assert_eq!(world.children(root).collect::<Vec<_>>(), [second]);
         assert_eq!(world.len(), 2);
         assert_eq!(
             world.set_parent(second, Some(first)),
@@ -389,12 +534,12 @@ mod tests {
         // The second child and the grandchild went before the first child, which stays.
         assert!(!world.contains(second) && !world.contains(grandchild));
         assert!(world.contains(root) && world.contains(first));
-        assert_eq!(world.children(root), [first]);
-        assert_eq!(world.children(first), []);
+        assert_eq!(world.children(root).collect::<Vec<_>>(), [first]);
+        assert_eq!(world.children(first).len(), 0);
         let other = world.spawn();
         assert_eq!(world.parent(other), None);
         assert_eq!(
-            world.children(root),
+            world.children(root).collect::<Vec<_>>(),
             [first],
             "an entity in a freed slot is no one's child"
         );
@@ -462,7 +607,7 @@ mod costs {
         eprintln!("compute again the 1 000 whose root moved: {moved:?}");
         let entities: Vec<Entity> = roots
             .iter()
-            .flat_map(|&root| world.children(root).to_vec())
+            .flat_map(|&root| world.children(root).collect::<Vec<_>>())
             .collect();
         let read = best(&mut || {
             let started = Instant::now();

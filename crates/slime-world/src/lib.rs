@@ -21,6 +21,7 @@ pub use components::{Extras, Hidden, Light, Meshes, Name, Unsaved};
 pub use document::{DocumentError, Loaded, SetAside};
 pub use entity::Entity;
 pub use error::WorldError;
+pub use hierarchy::Children;
 pub use identity::{ParsePersistentIdError, PersistentId};
 pub use library::{
     MAX_ENTITIES, MAX_NESTING, MAX_SCENE_SIZE, Placement, ResolvedScene, SceneError, SceneLibrary,

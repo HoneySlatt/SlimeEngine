@@ -213,8 +213,7 @@ fn a_prefab_placed_three_times_gives_three_subtrees_equal_to_it_but_where_overri
     let root = spawn(&mut yard, &mut scenes, YARD, "yard");
     let children: Vec<String> = yard
         .children(root)
-        .iter()
-        .map(|&child| yard.persistent_id(child).expect("named").to_string())
+        .map(|child| yard.persistent_id(child).expect("named").to_string())
         .collect();
     assert_eq!(children, ["yard/porch", "yard/gate", "yard/shed"]);
     for placement in ["porch", "gate", "shed"] {
@@ -985,8 +984,7 @@ fn respawned(scenes: &mut SceneLibrary, text: &str) -> World {
 fn children_of(world: &World, id: &str) -> Vec<String> {
     world
         .children(entity(world, id))
-        .iter()
-        .map(|&child| world.persistent_id(child).expect("named").to_string())
+        .map(|child| world.persistent_id(child).expect("named").to_string())
         .collect()
 }
 
@@ -1402,8 +1400,7 @@ fn an_entity_whose_id_a_file_cannot_hold_or_that_another_has_now_is_written_unde
     let level = spawn(&mut reread, &mut scenes, LEVEL, "level");
     let children: Vec<String> = reread
         .children(level)
-        .iter()
-        .map(|&child| reread.persistent_id(child).expect("named").to_string())
+        .map(|child| reread.persistent_id(child).expect("named").to_string())
         .collect();
     assert_eq!(children.len(), 2, "{}", written.text);
     assert!(children[0].starts_with("level/hook-"), "{children:?}");
@@ -1660,7 +1657,7 @@ fn a_placement_made_while_the_world_runs_is_made_whole_or_not_at_all() {
     ));
     assert_eq!(bare.len(), 0);
     assert_eq!(world.len(), before);
-    assert!(world.children(parent).is_empty());
+    assert_eq!(world.children(parent).len(), 0);
     let next = world.spawn();
     assert_eq!(
         world.persistent_id(next).map(|id| id.to_string()),

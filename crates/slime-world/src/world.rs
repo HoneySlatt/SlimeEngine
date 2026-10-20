@@ -9,6 +9,7 @@ use slime_reflect::{Reflect, Registry};
 
 use crate::components::{Extras, Hidden, Light, Meshes, Name, Unsaved};
 use crate::entity::{Entities, Entity};
+use crate::hierarchy::{children_of, leave_parent};
 use crate::identity::PersistentId;
 use crate::library::{Placement, ResolvedScene};
 use crate::query::{Query, QueryIter, QueryMut};
@@ -122,8 +123,16 @@ pub struct World {
 #[derive(Debug, Default)]
 pub(crate) struct Node {
     pub(crate) parent: Option<Entity>,
-    /// In the order they became its children.
-    pub(crate) children: Vec<Entity>,
+    /// Its first and last children, in the order they became its children, each child linked to
+    /// the siblings before and after it: a child leaves its parent without a walk among its
+    /// siblings (`crate::hierarchy`).
+    pub(crate) first_child: Option<Entity>,
+    pub(crate) last_child: Option<Entity>,
+    /// How many children it has.
+    pub(crate) child_count: u32,
+    /// The sibling before it and the one after it among its parent's children.
+    pub(crate) previous_sibling: Option<Entity>,
+    pub(crate) next_sibling: Option<Entity>,
     /// How files and saves name it.
     pub(crate) identity: Identity,
     /// Where the entity is in the world: its ancestors' transforms and its own composed, an absent
@@ -270,13 +279,15 @@ pub(crate) fn mark_stale(nodes: &mut [Node], changes: &mut Changes, slot: u32) {
     }
     changes.went_stale(node, slot);
     changes.stale.push(slot);
-    // Empty for an entity without children, as most are: nothing to allocate then.
-    let mut subtree: Vec<u32> = node.children.iter().map(|child| child.index()).collect();
+    // Each descendant read once: it gives its first child and its next sibling. Empty for an
+    // entity without children, as most are: nothing to allocate then.
+    let mut subtree: Vec<u32> = node.first_child.map(Entity::index).into_iter().collect();
     while let Some(slot) = subtree.pop() {
         let node = &mut nodes[slot as usize];
+        subtree.extend(node.next_sibling.map(Entity::index));
         if !node.stale {
             changes.went_stale(node, slot);
-            subtree.extend(node.children.iter().map(|child| child.index()));
+            subtree.extend(node.first_child.map(Entity::index));
         }
     }
 }
@@ -396,17 +407,17 @@ impl World {
         if !self.entities.contains(entity) {
             return false;
         }
-        if self.nodes[entity.index() as usize].children.is_empty() {
+        if self.nodes[entity.index() as usize].child_count == 0 {
             self.destroy(entity);
             return true;
         }
         // Each entity before its children, its first child first: destroyed in the opposite
-        // order, each entity goes after its descendants, and as the last child left to its parent.
+        // order, each entity goes after its descendants.
         let mut subtree = Vec::new();
         let mut next = vec![entity];
         while let Some(entity) = next.pop() {
             subtree.push(entity);
-            next.extend(self.nodes[entity.index() as usize].children.iter().rev());
+            next.extend(children_of(&self.nodes, entity.index()).rev());
         }
         for &entity in subtree.iter().rev() {
             self.destroy(entity);
@@ -423,15 +434,8 @@ impl World {
         for storage in &mut self.storages {
             storage.remove_slot(slot);
         }
+        leave_parent(&mut self.nodes, entity);
         let node = mem::take(&mut self.nodes[slot as usize]);
-        if let Some(parent) = node.parent {
-            let siblings = &mut self.nodes[parent.index() as usize].children;
-            if siblings.last() == Some(&entity) {
-                siblings.pop();
-            } else {
-                siblings.retain(|&child| child != entity);
-            }
-        }
         self.entities.despawn(entity);
         match node.identity {
             Identity::None => {}

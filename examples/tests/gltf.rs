@@ -684,10 +684,10 @@ fn assert_world_places(scene: &CookedScene) {
     world.update_transforms();
     // The scene's nodes are in the order of a walk of the hierarchy, which the entities keep.
     let mut walk = Vec::new();
-    let mut next: Vec<_> = world.children(root).iter().rev().copied().collect();
+    let mut next: Vec<_> = world.children(root).rev().collect();
     while let Some(entity) = next.pop() {
         walk.push(entity);
-        next.extend(world.children(entity).iter().rev());
+        next.extend(world.children(entity).rev());
     }
     assert_eq!(walk.len(), scene.nodes.len());
     for ((entity, node), expected) in walk

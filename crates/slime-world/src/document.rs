@@ -941,8 +941,6 @@ impl World {
         for &entity in &entities {
             let kept: Vec<Entity> = self
                 .children(entity)
-                .iter()
-                .copied()
                 .filter(|child| !of_scene.contains(child) && !self.unsaved(*child))
                 .collect();
             for child in kept {
@@ -1121,8 +1119,6 @@ impl World {
         for &entity in &removed {
             let kept: Vec<Entity> = self
                 .children(entity)
-                .iter()
-                .copied()
                 .filter(|child| !removing.contains(child) && !self.unsaved(*child))
                 .collect();
             for child in kept {

@@ -276,7 +276,7 @@ impl World {
     ) -> Vec<Entity> {
         // The placements of the subtree first, so that an entity of one moved before it is known.
         let mut placements: HashSet<Vec<String>> = HashSet::new();
-        let mut next: Vec<Entity> = self.children(root).to_vec();
+        let mut next: Vec<Entity> = self.children(root).collect();
         while let Some(entity) = next.pop() {
             if self.nodes[entity.index() as usize].placement.is_some()
                 && let Some(id) = self.persistent_id(entity)
@@ -286,7 +286,7 @@ impl World {
             next.extend(self.children(entity));
         }
         let mut entries = Vec::new();
-        let mut next: Vec<Entity> = self.children(root).iter().rev().copied().collect();
+        let mut next: Vec<Entity> = self.children(root).rev().collect();
         while let Some(entity) = next.pop() {
             if self.left_unsaved(root, entity) {
                 left_out.push(SetAside {
@@ -337,7 +337,7 @@ impl World {
                 }
                 entries.push(entity);
             }
-            next.extend(self.children(entity).iter().rev());
+            next.extend(self.children(entity).rev());
         }
         entries
     }
@@ -763,11 +763,11 @@ impl World {
             // A placement's entities keep its prefab's order, before the file's.
             let mut last = None;
             let mut file_child_seen = false;
-            let ordered = self.children(entity).iter().all(|child| {
-                if self.left_unsaved(root, *child) {
+            let ordered = self.children(entity).all(|child| {
+                if self.left_unsaved(root, child) {
                     return true;
                 }
-                match index_of.get(child) {
+                match index_of.get(&child) {
                     Some(&at) if placed[at].0.parent == Some(index as u32) => {
                         let in_order = !file_child_seen && last.is_none_or(|last| last < at);
                         last = Some(at);
