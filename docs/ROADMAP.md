@@ -282,7 +282,7 @@ Between Stage 5b and Stage 6 come two passes, without a release of their own (AD
 - The engine's UI framework, as far as the editor needs it: text in several writing systems, layout, docking, widgets, input routing, focus, drag and drop, theming (ADR-0098)
 - Viewport, hierarchy, inspector (driven by reflection), asset browser
 - Command and transaction system: every edit is undoable, its entities named by their persistent identities, a deletion undone by creating its entities again under the same identities, the commands kept in a journal; what the editor creates named at once as its level's file names it (ADR-0109)
-- Play in editor, the game running in a child process first, as the foundations pass decides (ADR-0097)
+- Play in editor, the game running in a child process first (ADR-0097), in its own window, linked to the editor and to tools by a development channel; a change of the game's code starts it again where it was; a game is a library, its program and its editor (ADR-0110)
 - The engine's MCP server: AI agents read the world, act through the editor's commands, capture views, read measurements and logs, cook, run tests and play the game with scripted input; reachable from the user's machine only, absent from shipped builds (ADR-0099)
 - The keys and buttons held, kept by the engine, if the viewport's camera moves with them, with the keyboard shared between the editor's UI and the game; at Stage 7 otherwise (ADR-0057)
 

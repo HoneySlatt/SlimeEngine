@@ -122,7 +122,7 @@ the ADR linking to it.
 | [0052](0052-amend-roadmap-before-0-1.md) | Amend the roadmap before 0.1 | Accepted; amended by 0056, 0064, 0067, 0097 and 0098 |
 | [0053](0053-one-home-per-fact.md) | One home per fact in the documentation | Accepted |
 | [0054](0054-image-tests-allow-0-2-percent-on-other-drivers.md) | Image tests allow 0.2 % of the pixels to differ on other drivers | Accepted |
-| [0055](0055-games-in-the-workspace.md) | Games in the workspace | Accepted; amended by 0067 |
+| [0055](0055-games-in-the-workspace.md) | Games in the workspace | Accepted; amended by 0067 and 0110 |
 | [0056](0056-stage-3d-anti-aliasing-and-spot-light-shadows.md) | Stage 3d: anti-aliasing and the shadows of spot lights | Accepted; amended by 0058 and 0064 |
 | [0057](0057-what-the-first-game-asks-of-the-next-stages.md) | What the first game asks of the next stages | Accepted |
 | [0058](0058-shadows-for-every-spot-light-in-one-atlas.md) | Shadows for every spot light, in one atlas | Accepted |
@@ -177,3 +177,4 @@ the ADR linking to it.
 | [0107](0107-the-execution-model.md) | The execution model | Accepted |
 | [0108](0108-what-the-world-knows-of-its-changes.md) | What the world knows of its changes | Accepted |
 | [0109](0109-stable-references-and-undo.md) | Stable references and undo | Accepted |
+| [0110](0110-how-the-editor-runs-a-games-code.md) | How the editor runs a game's code | Accepted |

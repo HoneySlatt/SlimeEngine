@@ -1,7 +1,9 @@
 # 0055. Games in the workspace
 
 - Status: Accepted; amends [0004](0004-workspace-layout-and-crate-naming.md); amended by
-  [0067](0067-hunna-wood-replaces-nightwatch.md) (the first game replaced)
+  [0067](0067-hunna-wood-replaces-nightwatch.md) (the first game replaced) and
+  [0110](0110-how-the-editor-runs-a-games-code.md) (a game is a library, its program and its
+  editor)
 - Date: 2026-10-14
 
 ## Context

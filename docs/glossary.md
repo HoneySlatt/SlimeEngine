@@ -154,6 +154,12 @@ which a render pass keeps the nearest surface whatever the order the surfaces ar
 *depth test* (`slime_gfx::DepthTarget`, `slime_gfx::DepthState`). Later passes can sample it, as
 a *shadow map* is read. Depths are reversed (*reversed depth*).
 
+**Development channel.** The link between a game that runs in development and the tools that
+drive it: the editor that started it, the MCP server, tests. The game listens on the machine's own
+address, guarded by a secret token that whoever starts it gives it; through it, the editor pauses,
+steps and inspects the game, and sends it commands. Shipped games have none
+([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)). Decided, not built yet.
+
 **Device (GPU).** The engine's connection to an adapter: it creates GPU resources, and its
 *queue* receives the work to execute (`slime_gfx::Gpu`). It is *lost* when the driver crashes or
 is reset, the GPU is removed, or it runs out of memory: its objects can then no longer be used,
@@ -298,9 +304,10 @@ before it is mapped to the display's range by *tone mapping*. The engine draws t
 its tone-mapping pass reads.
 
 **Host.** What runs a game's *simulation*, and its *presentation* when it has one: it owns the loop,
-the world, *game time* and *real time*, the input and the decision to stop. The game's program, the
-editor's child process, a test and a dedicated server are hosts
-([ADR-0107](adr/0107-the-execution-model.md)). Decided, not built yet.
+the world, *game time* and *real time*, the input and the decision to stop. The game's program,
+which the editor also starts as its child process and drives through the *development channel*, a
+test and a dedicated server are hosts ([ADR-0107](adr/0107-the-execution-model.md),
+[ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)). Decided, not built yet.
 
 **Hot reload.** Replacing, in a running game, the *cooked data* or the shaders that changed on
 disk, without restarting the game. `slime-cook watch` cooks again the sources that change, and a

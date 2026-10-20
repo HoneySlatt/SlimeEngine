@@ -30,8 +30,10 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   [ADR-0105](adr/0105-egui-fonts-ship-with-the-dev-overlay.md)) are done, and P4
   ([ADR-0106](adr/0106-the-measured-quick-wins.md)) but B4-F01, which P6's execution model weighs;
   P6 is current: its execution model ([ADR-0107](adr/0107-the-execution-model.md)), what the
-  world knows of its changes ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)), and
-  stable references and undo ([ADR-0109](adr/0109-stable-references-and-undo.md)) are decided.
+  world knows of its changes ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)),
+  stable references and undo ([ADR-0109](adr/0109-stable-references-and-undo.md)), and how the
+  editor runs a game's code ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)) are
+  decided.
 - The games the engine aims at, described on 2026-10-19
   ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)): nine profiles, from *Hunna Wood* to a
   massively multiplayer game, listed in [`ROADMAP.md`](ROADMAP.md). They add criteria to P6, one UI
@@ -714,6 +716,12 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
     child process first (C4-02, C6-01, C7-02).
     [ADR-0099](adr/0099-ai-agents-drive-the-engine.md) adds: the channel between the editor and
     the game's process also serves tools outside the editor, the engine's MCP server among them.
+    **Decided** on 2026-10-20, in [ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md): a
+    game's editor links its library and reaches its types through reflection only; Play starts
+    the game in a child process, in its own window; a development channel on `127.0.0.1`, guarded
+    by a token, links it to the editor, the MCP server and tests; a change of code starts the game
+    again on a save of its run; running the game in the editor's process is decided again if Play
+    takes more than 3 s or the channel cannot inspect what the editor needs.
   - The frame contract (G17, C2-04, C2-09, C7-04). `FrameBuilder::build` borrows the asset cache,
     and the frame it returns holds references into it, so that no render thread can draw one frame
     while the next is built: a frame that the renderer owns, built from the world, loading taken
