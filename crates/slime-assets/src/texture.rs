@@ -27,11 +27,13 @@ pub enum TextureEncoding {
     /// BC5 blocks, linear: two channels, the x and y of a normal map, whose z the renderer
     /// rebuilds.
     Bc5,
-    /// Red, green, blue and alpha, a byte each, sRGB-encoded: colors whose sides are not
-    /// multiples of 4, which blocks cannot hold.
+    /// Red, green, blue and alpha, a byte each, sRGB-encoded: colors of an image smaller than a
+    /// block of 4 × 4 texels, along either side, which the cooker keeps so; it stretches others
+    /// whose sides are not multiples of 4 to whole blocks
+    /// (`docs/adr/0106-the-measured-quick-wins.md`).
     Rgba8Srgb,
-    /// Red, green, blue and alpha, a byte each, linear: data or normals whose sides are not
-    /// multiples of 4.
+    /// Red, green, blue and alpha, a byte each, linear: data or normals of an image smaller than a
+    /// block, as [`TextureEncoding::Rgba8Srgb`] says.
     Rgba8,
 }
 

@@ -177,6 +177,34 @@ fn a_write_of_another_size_than_the_uniform_buffer_is_rejected() {
     gpu.write_uniform_buffer(&buffer, &[0; 8]);
 }
 
+#[test]
+#[should_panic(
+    expected = "uniform buffer `slots` holds 16 bytes, and 20 cannot be written at its \
+                           start"
+)]
+fn a_write_at_the_start_longer_than_the_uniform_buffer_is_rejected() {
+    let gpu = gpu();
+    let buffer = gpu
+        .create_uniform_buffer("slots", &[0; 16])
+        .expect("the GPU has memory for it");
+    gpu.write_uniform_buffer_start(&buffer, &[0; 8]);
+    gpu.write_uniform_buffer_start(&buffer, &[0; 16]);
+    gpu.write_uniform_buffer_start(&buffer, &[0; 20]);
+}
+
+#[test]
+#[should_panic(
+    expected = "uniform buffer `slots` holds 16 bytes, and 6 cannot be written at its \
+                           start"
+)]
+fn a_write_at_the_start_of_a_length_that_copies_refuse_is_rejected() {
+    let gpu = gpu();
+    let buffer = gpu
+        .create_uniform_buffer("slots", &[0; 16])
+        .expect("the GPU has memory for it");
+    gpu.write_uniform_buffer_start(&buffer, &[0; 6]);
+}
+
 /// The pipeline error of `descriptor`, which must be rejected.
 fn pipeline_error(gpu: &Gpu, descriptor: &RenderPipelineDescriptor<'_>) -> String {
     let error = gpu

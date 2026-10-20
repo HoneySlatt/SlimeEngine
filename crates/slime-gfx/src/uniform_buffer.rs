@@ -13,7 +13,8 @@ use crate::gpu::Gpu;
 pub struct UniformBuffer {
     pub(crate) buffer: wgpu::Buffer,
     label: String,
-    /// The length of the contents given at creation, in bytes, which every write has.
+    /// The length of the contents given at creation, in bytes: what every write has, or holds,
+    /// when it writes the start ([`Gpu::write_uniform_buffer_start`]).
     size: usize,
 }
 

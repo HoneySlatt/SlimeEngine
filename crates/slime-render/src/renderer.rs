@@ -6,7 +6,6 @@
 //! bloom in.
 
 use std::collections::HashMap;
-use std::hash::{BuildHasherDefault, Hasher};
 use std::ptr;
 use std::time::{Duration, Instant};
 
@@ -181,7 +180,10 @@ pub struct Scene<'a> {
     /// smaller than 15 × 15 pixels have no bloom. From 0 to 1: [`Renderer::render`] panics
     /// otherwise.
     pub bloom: f32,
-    /// What to draw, in this order.
+    /// What to draw. Each pass draws them grouped by pipeline, then by material, then by mesh,
+    /// each material and mesh in the order it first appears here, then in this order, so that a
+    /// draw binds only what changed since the one before (ADR-0106): of two surfaces at the same
+    /// depth, the one drawn first stays, which this order alone does not decide.
     pub instances: &'a [Instance<'a>],
 }
 
@@ -317,7 +319,8 @@ pub struct Renderer {
     environment_sampler: Sampler,
     instances: InstanceSlots,
     /// The values of the instances of the frame drawn last, each slot padded to the buffer's
-    /// stride: kept from one frame to the next, so that a frame writes into memory it has.
+    /// stride: kept from one frame to the next, so that a frame writes into memory it has, and no
+    /// larger than the buffer once the buffer shrinks.
     instance_values: Vec<u8>,
     /// The frame's graph and what reads its targets: created by the first `render`, and again
     /// when the frame's shape changes.
@@ -1214,6 +1217,9 @@ impl Renderer {
         if capacity != self.instances.capacity {
             tracing::debug!(capacity, "resizing the instance buffer");
             self.instances = InstanceSlots::new(gpu, &self.layouts.instance, capacity)?;
+            // The values' memory follows the buffer, back down after a peak.
+            self.instance_values
+                .shrink_to(capacity * self.instances.stride);
         }
         let stride = self.instances.stride;
         // The slots are written one after another, each padded to the stride, and only those that
@@ -1308,7 +1314,7 @@ impl Renderer {
             } else {
                 &self.pipelines.shadow
             });
-            bound.pipeline_set(u8::from(masked));
+            bound.pipeline = Some(u8::from(masked));
         }
         self.instances.draw(render_pass, bound, slot, instance);
     }
@@ -1375,7 +1381,7 @@ impl Renderer {
                     let cull = scene_pipeline(instance);
                     if bound.pipeline != Some(cull as u8) {
                         render_pass.set_pipeline(self.pipelines.scene.get(cull));
-                        bound.pipeline_set(cull as u8);
+                        bound.pipeline = Some(cull as u8);
                     }
                     self.instances.draw(render_pass, &mut bound, slot, instance);
                     stats.draw_calls += 1;
@@ -2095,23 +2101,14 @@ impl InstanceSlots {
 }
 
 /// What a pass bound for the draws before the next: its pipeline, by the index that the pass gives
-/// its pipelines, the material and the mesh. A draw binds only what differs.
+/// its pipelines, the material and the mesh. A draw binds only what differs. The pipelines of a
+/// pass share their groups' layouts and their vertices' layout, so that what is bound stays bound
+/// when one pipeline replaces another.
 #[derive(Default)]
 struct Bound<'a> {
     pipeline: Option<u8>,
     material: Option<&'a Material>,
     mesh: Option<&'a Mesh>,
-}
-
-impl Bound<'_> {
-    /// Records that the pass set the pipeline of index `pipeline`. The material and the mesh are
-    /// bound again after it, whose layout may differ from the one before.
-    fn pipeline_set(&mut self, pipeline: u8) {
-        *self = Self {
-            pipeline: Some(pipeline),
-            ..Self::default()
-        };
-    }
 }
 
 /// How the scene pass draws `instance`: the faces its pipeline culls.
@@ -2126,7 +2123,7 @@ fn scene_pipeline(instance: &Instance<'_>) -> CullMode {
 /// [`draw_orders`] sorts by, which a frame of 10 000 instances asks 20 000 times.
 #[derive(Default)]
 struct FirstSeen {
-    ranks: HashMap<*const (), u32, BuildHasherDefault<AddressHasher>>,
+    ranks: HashMap<*const (), u32>,
     /// The last object asked for, and its rank: instances that follow each other often share
     /// their material and their mesh.
     last: Option<(*const (), u32)>,
@@ -2144,30 +2141,6 @@ impl FirstSeen {
         let rank = *self.ranks.entry(object).or_insert(next);
         self.last = Some((object, rank));
         rank
-    }
-}
-
-/// The hasher of [`FirstSeen`]: an address, spread over the 64 bits by a multiplication, which
-/// the standard hasher's rounds would cost several times over.
-#[derive(Default)]
-struct AddressHasher(u64);
-
-impl Hasher for AddressHasher {
-    fn finish(&self) -> u64 {
-        self.0
-    }
-
-    fn write_usize(&mut self, address: usize) {
-        self.0 = (address as u64)
-            .wrapping_mul(0x9e37_79b9_7f4a_7c15)
-            .rotate_left(26);
-    }
-
-    // An address writes a `usize`; any other way of writing it still hashes every byte.
-    fn write(&mut self, bytes: &[u8]) {
-        for &byte in bytes {
-            self.0 = (self.0.rotate_left(8) ^ u64::from(byte)).wrapping_mul(0x9e37_79b9_7f4a_7c15);
-        }
     }
 }
 

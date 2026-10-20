@@ -152,11 +152,7 @@ pub(crate) fn resolve(
     let mut scene = Resolution {
         registry,
         entries: &entries,
-        entry_of: entries
-            .iter()
-            .enumerate()
-            .map(|(index, entry)| (entry.id.as_str(), index))
-            .collect(),
+        entry_of: entry_indices(&entries),
         prefabs: &prefabs,
         records: Vec::new(),
         paths: HashMap::new(),
@@ -255,11 +251,7 @@ pub fn outline(name: &str, text: &str) -> Result<SceneOutline, SceneError> {
             .line_and_column()
             .map_or(1, |(line, _)| line)
     };
-    let ids: HashMap<&str, usize> = entries
-        .iter()
-        .enumerate()
-        .map(|(index, entry)| (entry.id.as_str(), index))
-        .collect();
+    let ids = entry_indices(&entries);
     // Each entity's parent in the file: the root, an entity of the file, or the placement that its
     // parent's path goes into.
     let mut parents = Vec::with_capacity(entries.len());
@@ -346,6 +338,15 @@ enum Walked {
     Now,
     /// To the root: no cycle goes through it.
     Done,
+}
+
+/// The index of each of `entries`, by its ID.
+fn entry_indices(entries: &[Entry]) -> HashMap<&str, usize> {
+    entries
+        .iter()
+        .enumerate()
+        .map(|(index, entry)| (entry.id.as_str(), index))
+        .collect()
 }
 
 /// Reads the layout of a scene file: its version, its table of assets, and its entities' records,

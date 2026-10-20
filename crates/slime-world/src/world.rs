@@ -71,7 +71,8 @@ pub trait Component: Reflect {}
 ///
 /// Reading, changing, attaching or detaching an entity's component looks up its type, then its
 /// slot. Destroying an entity takes a step for each component type that the world has held, for it
-/// and each of its descendants, and up to a step per child of its parent. A query walks the
+/// and each of its descendants; a child leaves its parent in a few steps, whatever its siblings.
+/// A query walks the
 /// components of the type that the fewest entities hold, and looks the others up for each of them.
 /// A type that no entity has held costs nothing; one that entities have held keeps its storage,
 /// whose index from slots to values grows with the highest slot that held one. Changing a

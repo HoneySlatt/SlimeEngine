@@ -60,13 +60,12 @@ impl TextureRole {
 /// smaller than a block repeats its last row and column to fill it.
 pub fn cook_texture(image: &Image, role: TextureRole) -> CookedTexture {
     let compressed = image.width >= 4 && image.height >= 4;
-    let stretched;
-    let image = if compressed {
-        stretched = stretched_to_blocks(image, role);
-        &stretched
+    let stretched = if compressed {
+        stretched_to_blocks(image, role)
     } else {
-        image
+        None
     };
+    let image = stretched.as_ref().unwrap_or(image);
     let levels = levels(image, role);
     let (encoding, variant) = match (role, compressed) {
         (TextureRole::Color, true) => {
@@ -127,23 +126,23 @@ fn halved(level: &Image, role: TextureRole) -> Image {
     )
 }
 
-/// `image` stretched to the next multiples of 4 along each side, unchanged if its sides are
-/// multiples already: each texel the average of the texels of `image` it covers, each weighted
-/// by how much of it is covered.
-fn stretched_to_blocks(image: &Image, role: TextureRole) -> Image {
+/// `image` stretched to the next multiples of 4 along each side, each texel the average of the
+/// texels of `image` it covers, each weighted by how much of it is covered; `None` if its sides are
+/// multiples already.
+fn stretched_to_blocks(image: &Image, role: TextureRole) -> Option<Image> {
     let (width, height) = (
         image.width.next_multiple_of(4),
         image.height.next_multiple_of(4),
     );
     if (width, height) == (image.width, image.height) {
-        return image.clone();
+        return None;
     }
-    filtered(
+    Some(filtered(
         image,
         &spread(image.width, width),
         &spread(image.height, height),
         role,
-    )
+    ))
 }
 
 /// The image whose texel at column `i` and row `j` is the average of the texels of `level` that
@@ -366,7 +365,7 @@ mod tests {
             assert_eq!(texture.levels.len(), 4);
             assert_eq!(CookedTexture::from_ktx2(&texture.to_ktx2()), Ok(texture));
         }
-        let stretched = stretched_to_blocks(&odd, TextureRole::Color);
+        let stretched = stretched_to_blocks(&odd, TextureRole::Color).expect("stretched");
         assert_eq!((stretched.width, stretched.height), (12, 8));
         assert!(
             stretched
@@ -377,7 +376,9 @@ mod tests {
         // Two black texels then four white along x, stretched to 8: the texel that straddles the
         // edge covers two thirds of a black texel and a third of a white one.
         let edge = image(6, 4, |x, _| if x < 2 { [0, 0, 0, 255] } else { [255; 4] });
-        let row: Vec<u8> = stretched_to_blocks(&edge, TextureRole::Data).rgba[..32]
+        let row: Vec<u8> = stretched_to_blocks(&edge, TextureRole::Data)
+            .expect("stretched")
+            .rgba[..32]
             .chunks(4)
             .map(|texel| texel[0])
             .collect();

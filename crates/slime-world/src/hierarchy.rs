@@ -10,7 +10,7 @@ use crate::world::{Node, World, mark_stale, storage_in};
 
 /// The children of an entity, in the order they became its children: what [`World::children`]
 /// gives. It reads them from either end, and knows how many are left.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Children<'w> {
     nodes: &'w [Node],
     front: Option<Entity>,
@@ -49,6 +49,13 @@ impl DoubleEndedIterator for Children<'_> {
 }
 
 impl ExactSizeIterator for Children<'_> {}
+
+impl std::fmt::Debug for Children<'_> {
+    /// The children left, not the world's nodes, which it reads them from.
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.debug_list().entries(self.clone()).finish()
+    }
+}
 
 impl FusedIterator for Children<'_> {}
 
