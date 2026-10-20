@@ -118,15 +118,6 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
 - **P5, in the Windows virtual machine.** The benchmarks on Direct3D 12, `cargo run --release -p
   slime-benches -- render world loading`; the figures of WARP that the Windows job's log of
   `af512af` prints.
-- **P5 and P4, on Linux with the RX 6900 XT.** The sections of that GPU in
-  [`measurements.md`](measurements.md), before P4 and after it, the zone cooked at each commit as
-  [*Hunna Wood*'s README](../games/hunnawood/README.md) says: at `b55721c`, the last commit before
-  P4, `scripts/measure.sh "P5, RX 6900 XT" render world loading loading.zone
-  render.instances.100k`, then the same at P4's last commit, titled `"P4, RX 6900 XT"`, both
-  sections added to `docs/measurements.md` in that order. They show what P4's changes of the
-  renderer and of the cooker gain on a GPU (B3-F02, B3-F05, B1-F06), which lavapipe could not,
-  and B4-F01's figures, which P6's execution model weighs; `render.unseen.10k`, which P4 added,
-  has no figure before it.
 - **P4, on Linux.** *Hunna Wood*'s zone played by day and at night, `cargo run -p hunnawood --
   --new --save <a file of its own>`, and found unchanged: the hero's coat, whose textures are now
   compressed, and the shadows, whose draws go in another order.
@@ -527,12 +518,13 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
     79 s there, which the known debt now says. ADR-0077's 7 ms was measured with every shader in
     the driver's cache, which an edited shader is not: ADR-0104 amends it, and
     `Renderer::set_shaders`'s rustdoc names the machine of each figure. On lavapipe, an edit cost
-    from 2 to 11 ms more than unchanged sources in two runs; on the RX 6900 XT it is not measured.
+    from 2 to 11 ms more than unchanged sources in two runs; on the RX 6900 XT, 0.8 ms more before
+    P4 and none after it, in one run each.
   - The figures of lavapipe are not those of a GPU: P4's gains of the renderer and of loading
     (B3-F02, B3-F05, B4-F01) are measured on the owner's RX 6900 XT, in sections of that GPU
-    before P4 and after it, which the owner takes, and `render.instances.100k`, which lavapipe (Mesa
-    26.2.4) cannot run, crashing in `lvp_descriptor_set_create`, runs only there; the crash is not
-    reported to Mesa.
+    before P4 and after it, measured on 2026-10-20 (see P4's outcome), and
+    `render.instances.100k`, which lavapipe (Mesa 26.2.4) cannot run, crashing in
+    `lvp_descriptor_set_create`, runs only there; the crash is not reported to Mesa.
   - The trace: `SLIME_TRACE` names a file into which any program that calls `init_diagnostics`
     writes its spans, which Perfetto opens. *Hunna Wood*, run for 20 frames, wrote a trace of 717
     events, each frame's phases and each submission to the GPU, which parses whole. The renderer's
@@ -549,8 +541,8 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
     documented.
   - Not done, the owner's by hand, which wait in the
     [list of checks by hand](#checks-by-hand-waiting-for-the-owner): the measurements of
-    rendering and loading on Direct3D 12 in the Windows virtual machine, the Windows job's log of
-    `af512af`, and the section of the RX 6900 XT on Linux.
+    rendering and loading on Direct3D 12 in the Windows virtual machine, and the Windows job's log
+    of `af512af`.
 
 ### P4 — The measured quick wins
 
@@ -634,9 +626,9 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
     alternated before the renderer's changes (`2b770c8`) and after them, the scene pass of
     `render.instances.10k` took 128 to 146 ms before, 135 to 138 ms after, and the CPU of
     `render.unseen.10k`, added for it, 231 to 239 ms before, 225 to 238 ms after: no gain on
-    lavapipe, where ordering 10 000 instances costs about 0.8 ms of CPU. Whether a GPU gains more,
-    as the audit measured, is the owner's to measure. The section "P4, lavapipe" was taken in a
-    slower moment: its scene pass took 155 ms, and its `render.shaders`, which P4 did not change,
+    lavapipe, where ordering 10 000 instances costs about 0.8 ms of CPU. A GPU gains more, as the
+    audit measured: see below, on the RX 6900 XT. The section "P4, lavapipe" was taken in a slower
+    moment: its scene pass took 155 ms, and its `render.shaders`, which P4 did not change,
     9 ms more than in P5's section.
   - B3-F05: the renderer keeps the instances' values from one frame to the next and sends only the
     slots used, through `Gpu::write_uniform_buffer_start`. Writing and sending the values of 10 000
@@ -648,6 +640,15 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
     by hand, for P6's execution model to weigh; the [known debt](#known-debt) states it meanwhile.
   - The five possible gains that the audit had not measured are measured, and none is changed:
     ADR-0106 gives each figure and why.
+  - On the RX 6900 XT, on 2026-10-20, in one run at `b55721c` and one at P4's last commit, the
+    sections "P5, RX 6900 XT" and "P4, RX 6900 XT" of [`measurements.md`](measurements.md): the
+    CPU of `render.instances.10k` went from 17.9 to 8.8 ms at the median, its scene pass on the
+    GPU from 0.93 to 0.15 ms; the CPU of `render.instances.100k` from 131 to 74 ms, its scene pass
+    from 27.4 to 1.2 ms; `FrameBuilder::build` over 100 000 entities from 20.1 to 11.7 ms; the
+    first frame that draws the zone's meshes whole from 220 to 161 ms after it is opened. While the
+    zone loads, the render CPU is 0.96 and 0.77 ms at the median, 2.4 and 2.2 ms at the 90th
+    percentile, against 0.64 and 0.54 ms once it is loaded: B4-F01 on the zone's textures, of
+    2048² texels at most. One run each does not tell how much these figures vary.
   - A review of P4 found the vector of the instances' values keeping its peak size, a hasher of
     addresses of its own whose 60 µs per 10 000 instances were not worth its code, a pass binding
     again what its pipelines share, the `Debug` of `Children` printing every node of the world,
@@ -656,7 +657,7 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
     ADRs that it amends. All are fixed.
   - Not done, the owner's by hand, which wait in the
     [list of checks by hand](#checks-by-hand-waiting-for-the-owner): the zone played by day and at
-    night, and the sections of the RX 6900 XT before P4 and after it.
+    night.
 
 ### P6 — The foundation decisions
 

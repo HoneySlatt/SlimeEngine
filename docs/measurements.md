@@ -115,3 +115,113 @@ Commit `0a5c7da`, on 2026-10-20.
 | `loading.zone` | CPU of `Renderer::render` while they load, 90th percentile of 5 | 76.51 ms |
 | `loading.zone` | CPU of `Renderer::render` once they are loaded, median of 5 | 767.79 ms |
 | `loading.zone` | CPU of `Renderer::render` once they are loaded, 90th percentile of 5 | 1155.19 ms |
+
+## P5, RX 6900 XT
+
+Commit `b55721c`, on 2026-10-20.
+
+| Build | Measure | Value |
+|---|---|---|
+| `cargo build --workspace` | from an empty target directory | 34.6 s |
+| `cargo test --workspace --no-run` | after it | 24.8 s |
+| `cargo test --workspace --no-run` | libraries compiled again | 0 |
+| target directory | after both | 8.19 GB |
+| `cargo test --workspace` | its tests run, once built, doc tests included | 51.3 s |
+
+16 logical CPUs, linux on x86_64, GPU `AMD Radeon RX 6900 XT (RADV NAVI21)`, a release build.
+
+| Benchmark | Measure | Value |
+|---|---|---|
+| `render.instances.10k` | CPU of `Renderer::render`, median of 30 | 17.90 ms |
+| `render.instances.10k` | CPU of `Renderer::render`, 90th percentile of 30 | 18.53 ms |
+| `render.instances.10k` | frame, until the GPU finished it, median of 30 | 20.37 ms |
+| `render.instances.10k` | frame, until the GPU finished it, 90th percentile of 30 | 21.33 ms |
+| `render.instances.10k` | scene pass on the GPU, median of what 30 frames reported | 934.2 µs |
+| `render.instances.10k` | draw calls: scene, shadow cascades | 10000, 1715 |
+| `render.instances.100k` | CPU of `Renderer::render`, median of 8 | 131.20 ms |
+| `render.instances.100k` | CPU of `Renderer::render`, 90th percentile of 8 | 134.26 ms |
+| `render.instances.100k` | frame, until the GPU finished it, median of 8 | 165.99 ms |
+| `render.instances.100k` | frame, until the GPU finished it, 90th percentile of 8 | 168.63 ms |
+| `render.instances.100k` | scene pass on the GPU, median of what 8 frames reported | 27.43 ms |
+| `render.instances.100k` | draw calls: scene, shadow cascades | 100000, 1331 |
+| `render.shaders` | pipelines made again, shaders unchanged, median of 5 | 4.79 ms |
+| `render.shaders` | pipelines made again after an edit of the scene's shader, median of 5 | 5.56 ms |
+| `world.frame.100k` | `FrameBuilder::build`, median of 20 | 20.05 ms |
+| `world.frame.100k` | `FrameBuilder::build`, 90th percentile of 20 | 20.67 ms |
+| `world.frame.100k` | instances in a frame | 100000 |
+| `world.transforms.100k` | `World::update_transforms` after 1 000 parents moved, median of 20 | 3.63 ms |
+| `world.transforms.100k` | `World::update_transforms` after 1 000 parents moved, 90th percentile of 20 | 3.75 ms |
+| `world.children` | a parent of 10000 children emptied, once | 30.36 ms |
+| `world.children` | a parent of 20000 children emptied, once | 124.35 ms |
+| `world.placements` | 2000 placements resolved, median of 3 | 37.82 ms |
+| `world.placements` | 8000 placements resolved, median of 3 | 257.25 ms |
+| `world.sky` | `FrameBuilder::build`, median of 24 | 28.18 ms |
+| `world.sky` | `FrameBuilder::build`, slowest of 24 | 32.47 ms |
+| `world.sky` | frames that made the sky again, longer than 1 ms, of 24 | 14 |
+| `loading.batch` | a load started, the manifest of 10000 assets, median of 5 | 4.02 ms |
+| `loading.batch` | a load started, the manifest of 100000 assets, median of 5 | 51.95 ms |
+| `loading.zone` | cooked zone opened | 664.3 µs |
+| `loading.zone` | meshes placed | 73 |
+| `loading.zone` | first frame that draws them whole, from the opening | 220.03 ms |
+| `loading.zone` | CPU of `Renderer::render` while they load, median of 92 | 956.5 µs |
+| `loading.zone` | CPU of `Renderer::render` while they load, 90th percentile of 92 | 2.39 ms |
+| `loading.zone` | CPU of `Renderer::render` once they are loaded, median of 5 | 639.2 µs |
+| `loading.zone` | CPU of `Renderer::render` once they are loaded, 90th percentile of 5 | 1.38 ms |
+
+## P4, RX 6900 XT
+
+Commit `5b7b05d`, on 2026-10-20.
+
+| Build | Measure | Value |
+|---|---|---|
+| `cargo build --workspace` | from an empty target directory | 34.0 s |
+| `cargo test --workspace --no-run` | after it | 24.3 s |
+| `cargo test --workspace --no-run` | libraries compiled again | 0 |
+| target directory | after both | 8.20 GB |
+| `cargo test --workspace` | its tests run, once built, doc tests included | 50.4 s |
+
+16 logical CPUs, linux on x86_64, GPU `AMD Radeon RX 6900 XT (RADV NAVI21)`, a release build.
+
+| Benchmark | Measure | Value |
+|---|---|---|
+| `render.instances.10k` | CPU of `Renderer::render`, median of 30 | 8.76 ms |
+| `render.instances.10k` | CPU of `Renderer::render`, 90th percentile of 30 | 9.83 ms |
+| `render.instances.10k` | frame, until the GPU finished it, median of 30 | 9.47 ms |
+| `render.instances.10k` | frame, until the GPU finished it, 90th percentile of 30 | 10.50 ms |
+| `render.instances.10k` | scene pass on the GPU, median of what 30 frames reported | 151.6 µs |
+| `render.instances.10k` | draw calls: scene, shadow cascades | 10000, 1715 |
+| `render.unseen.10k` | CPU of `Renderer::render`, median of 30 | 8.76 ms |
+| `render.unseen.10k` | CPU of `Renderer::render`, 90th percentile of 30 | 9.40 ms |
+| `render.unseen.10k` | frame, until the GPU finished it, median of 30 | 9.25 ms |
+| `render.unseen.10k` | frame, until the GPU finished it, 90th percentile of 30 | 9.79 ms |
+| `render.unseen.10k` | scene pass on the GPU, median of what 30 frames reported | 107.6 µs |
+| `render.unseen.10k` | draw calls: scene, shadow cascades | 10000, 2447 |
+| `render.instances.100k` | CPU of `Renderer::render`, median of 8 | 74.27 ms |
+| `render.instances.100k` | CPU of `Renderer::render`, 90th percentile of 8 | 74.75 ms |
+| `render.instances.100k` | frame, until the GPU finished it, median of 8 | 77.86 ms |
+| `render.instances.100k` | frame, until the GPU finished it, 90th percentile of 8 | 78.52 ms |
+| `render.instances.100k` | scene pass on the GPU, median of what 8 frames reported | 1.20 ms |
+| `render.instances.100k` | draw calls: scene, shadow cascades | 100000, 1331 |
+| `render.shaders` | pipelines made again, shaders unchanged, median of 5 | 4.20 ms |
+| `render.shaders` | pipelines made again after an edit of the scene's shader, median of 5 | 4.19 ms |
+| `world.frame.100k` | `FrameBuilder::build`, median of 20 | 11.72 ms |
+| `world.frame.100k` | `FrameBuilder::build`, 90th percentile of 20 | 13.04 ms |
+| `world.frame.100k` | instances in a frame | 100000 |
+| `world.transforms.100k` | `World::update_transforms` after 1 000 parents moved, median of 20 | 3.72 ms |
+| `world.transforms.100k` | `World::update_transforms` after 1 000 parents moved, 90th percentile of 20 | 3.84 ms |
+| `world.children` | a parent of 10000 children emptied, once | 91.9 µs |
+| `world.children` | a parent of 20000 children emptied, once | 188.8 µs |
+| `world.placements` | 2000 placements resolved, median of 3 | 31.97 ms |
+| `world.placements` | 8000 placements resolved, median of 3 | 161.18 ms |
+| `world.sky` | `FrameBuilder::build`, median of 24 | 0.1 µs |
+| `world.sky` | `FrameBuilder::build`, slowest of 24 | 4.0 µs |
+| `world.sky` | frames that made the sky again, longer than 1 ms, of 24 | 0 |
+| `loading.batch` | a load started, the manifest of 10000 assets, median of 5 | 18.5 µs |
+| `loading.batch` | a load started, the manifest of 100000 assets, median of 5 | 17.8 µs |
+| `loading.zone` | cooked zone opened | 384.0 µs |
+| `loading.zone` | meshes placed | 73 |
+| `loading.zone` | first frame that draws them whole, from the opening | 161.17 ms |
+| `loading.zone` | CPU of `Renderer::render` while they load, median of 83 | 774.5 µs |
+| `loading.zone` | CPU of `Renderer::render` while they load, 90th percentile of 83 | 2.24 ms |
+| `loading.zone` | CPU of `Renderer::render` once they are loaded, median of 5 | 538.9 µs |
+| `loading.zone` | CPU of `Renderer::render` once they are loaded, 90th percentile of 5 | 1.41 ms |
