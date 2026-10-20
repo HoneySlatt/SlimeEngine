@@ -2019,8 +2019,8 @@ fn is_mirrored(linear: Mat3) -> bool {
 /// How many slots the instance buffer has for a frame of `instances` instances when it has
 /// `capacity`: twice as many as before until they fit, and back to the smallest such size from
 /// [`INITIAL_INSTANCE_CAPACITY`] once the frame uses a quarter or less, so that a peak (a
-/// loading screen, a burst of debris) does not leave every later frame uploading its whole size,
-/// and a count that hovers around a size does not resize the buffer at every frame.
+/// loading screen, a burst of debris) does not keep its memory for every later frame, and a count
+/// that hovers around a size does not resize the buffer at every frame.
 fn instance_capacity(capacity: usize, instances: usize) -> usize {
     let fitting = |mut capacity: usize| {
         while capacity < instances {
