@@ -79,10 +79,25 @@ fn cube() -> MeshData {
     mesh
 }
 
-/// `count` cubes on a square grid, 3 m apart, of eight materials, seen from above one side of the
-/// grid, under the examples' sky and its sun: `frames` frames drawn into a target of 1280 × 720,
-/// each waited for on the GPU before the next.
-pub fn instances(context: &mut Context, count: usize, frames: usize) -> Result<Vec<Row>, String> {
+/// Where the camera of [`instances`] looks.
+#[derive(Clone, Copy)]
+pub enum View {
+    /// At the grid, from above one side of it: every cube is drawn.
+    Grid,
+    /// Up at the sky, from high above the grid's middle: no cube is in view nor casts a shadow
+    /// into it, so that the frame's time is mostly that of the commands encoded and submitted.
+    Sky,
+}
+
+/// `count` cubes on a square grid, 3 m apart, of eight materials, in turn, seen as `view` says,
+/// under the examples' sky and its sun: `frames` frames drawn into a target of 1280 × 720, each
+/// waited for on the GPU before the next.
+pub fn instances(
+    context: &mut Context,
+    count: usize,
+    frames: usize,
+    view: View,
+) -> Result<Vec<Row>, String> {
     let gpu = &context.gpu;
     let error = |error: slime_render::RenderError| error.to_string();
     let mut renderer = Renderer::new(gpu, FORMAT).map_err(error)?;
@@ -115,10 +130,18 @@ pub fn instances(context: &mut Context, count: usize, frames: usize) -> Result<V
             Instance::new(&mesh, &materials[index % 8], DAffine3::from_translation(at))
         })
         .collect();
-    let camera = Camera {
-        eye: DVec3::new(0.0, half * 0.6, half * 1.4),
-        target: DVec3::ZERO,
-        ..Camera::default()
+    let camera = match view {
+        View::Grid => Camera {
+            eye: DVec3::new(0.0, half * 0.6, half * 1.4),
+            target: DVec3::ZERO,
+            ..Camera::default()
+        },
+        View::Sky => Camera {
+            eye: DVec3::new(0.0, 100.0, 0.0),
+            target: DVec3::new(0.0, 200.0, 1.0),
+            up: Vec3::Z,
+            ..Camera::default()
+        },
     };
     let lights = [Light::Directional(sun)];
     let mut scene = Scene::new(camera, &instances);

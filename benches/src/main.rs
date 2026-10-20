@@ -35,13 +35,19 @@ const BENCHMARKS: &[Benchmark] = &[
         name: "render.instances.10k",
         about: "10 000 cubes, each its own draw, lit by a sun that casts shadows, under a sky",
         on_request: false,
-        run: |context| render::instances(context, 10_000, 30),
+        run: |context| render::instances(context, 10_000, 30, render::View::Grid),
+    },
+    Benchmark {
+        name: "render.unseen.10k",
+        about: "the 10 000 cubes of `render.instances.10k`, none of them in view: the commands",
+        on_request: false,
+        run: |context| render::instances(context, 10_000, 30, render::View::Sky),
     },
     Benchmark {
         name: "render.instances.100k",
         about: "100 000 cubes, as `render.instances.10k`, on request since lavapipe crashes on it",
         on_request: true,
-        run: |context| render::instances(context, 100_000, 8),
+        run: |context| render::instances(context, 100_000, 8, render::View::Grid),
     },
     Benchmark {
         name: "render.shaders",
