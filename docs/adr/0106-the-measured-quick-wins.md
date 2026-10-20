@@ -2,8 +2,9 @@
 
 - Status: Accepted; amends [0042](0042-lights-beyond-the-most-drawn-and-checked-scene-values.md)
   and [0084](0084-what-the-world-draws.md) (which lights a world gives the renderer first),
-  [0071](0071-cooked-textures.md) (textures whose sides are not multiples of 4) and
-  [0083](0083-transforms-and-the-hierarchy.md) (how an entity's children are read)
+  [0069](0069-the-asset-pipeline.md) and [0071](0071-cooked-textures.md) (textures whose sides are
+  not multiples of 4), [0083](0083-transforms-and-the-hierarchy.md) (how an entity's children are
+  read) and [0026](0026-resource-binding-and-depth.md) (a uniform buffer's start written alone)
 - Date: 2026-10-20
 
 ## Context
@@ -36,8 +37,8 @@ each node once, its first child and its next sibling.
 
 **A frame looks each storage up once.** The map from a component type to its storage keeps the hash
 that a `TypeId` already is; `World::is_hidden` looks the storage of `Hidden` up once rather than at
-each ancestor; a transform in the world that is current needs no lookup; an entity is drawn where
-it is without a walk up its ancestors when nothing moved during the last step.
+each ancestor; a transform in the world that is current needs one lookup, not two; an entity is
+drawn where it is without a walk up its ancestors when nothing moved during the last step.
 
 **A scene file's entries are indexed by their IDs**, once, where each override looked its
 placement up among all of them.
@@ -77,20 +78,19 @@ from one frame to the next, and sends only the slots of the frame's instances, t
 
 **Measured, and left as they are.** The plan asked to measure five more possible gains:
 
-- *The order of the bind groups*: on lavapipe, what a draw binds costs nothing measurable, as the
-  draws' order shows above; a GPU's driver may differ, which nothing measured.
+- *The order of the bind groups*: on lavapipe, what a draw binds costs nothing measurable, as
+  `render.unseen.10k` shows, unchanged by the draws' order above; a GPU's driver may differ,
+  which nothing measured.
 - *An opaque pipeline without `discard`*: without the `discard` of masked materials, the scene pass
   of `render.instances.10k` took 159 to 161 ms on lavapipe, where it took 128 to 140 ms with it; a
   GPU that tests depths before shading may gain instead, which nothing measured.
-- *The number of passes per submission*: [ADR-0041](0041-render-graph.md) measured it,
-  about 35 µs per submission on the RX 6900 XT against stalls of up to 8 ms in the kernel with
-  submissions of a whole frame.
+- *The number of passes per submission*: [ADR-0041](0041-render-graph.md) measured it and chose
+  four passes per submission, against the stalls in the kernel that longer submissions met.
 - *Foliage left out of the farther cascades*: in *Hunna Wood*'s zone by day, seen from where the
   hero starts, the farthest cascade draws 409 of the 653 shadows' draws, but no caster covers less
   than 4 of its texels: leaving out the smallest casters would leave out none.
-- *The CPU mipmaps of `Gpu::create_texture`*: about 70 ms for 2048 × 2048 texels on the
-  development machine, as its rustdoc says, paid only by textures made in code, of which the
-  engine makes one, of a texel; cooked textures bring their levels.
+- *The CPU mipmaps of `Gpu::create_texture`*, whose cost its rustdoc gives: paid only by textures
+  made in code, of which the engine makes one, of a texel; cooked textures bring their levels.
 
 ## Alternatives considered
 
@@ -121,6 +121,9 @@ from one frame to the next, and sends only the slots of the frame's instances, t
 - `World::children` is an iterator: code that indexed the children or kept them as a slice collects
   them.
 - `Frame::scene` takes the frame mutably, and `Frame::lights` is a mutable slice.
+- The order of a scene's instances no longer decides, alone, which of two surfaces at the same
+  depth is drawn first: the draws go by pipeline, material and mesh before it. A game that drew
+  an overlay on a surface by the order of their instances gives it a depth of its own.
 - Every texture is cooked again once; an image of 2 048 × 2 043 texels is a texture of 2 048 × 2 044
   texels, a quarter of its memory, and the zone's cooked bytes went from 259.5 MB to 209.4 MB.
 - Ordering the draws of 10 000 instances takes about 0.8 ms on lavapipe's machine, where it saves

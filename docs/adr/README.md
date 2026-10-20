@@ -93,7 +93,7 @@ the ADR linking to it.
 | [0023](0023-dependency-checks-for-the-supported-targets.md) | Check the dependencies of the supported targets only | Accepted |
 | [0024](0024-windowed-lifecycle-check-in-weston.md) | Windowed lifecycle check in the headless compositor | Accepted; extended on 2026-10-13 |
 | [0025](0025-giving-up-a-lost-surface.md) | Giving up a window's surface that is lost for good | Accepted |
-| [0026](0026-resource-binding-and-depth.md) | Resource binding and depth in `slime-gfx` | Accepted; amended by 0032, 0033 and 0047 |
+| [0026](0026-resource-binding-and-depth.md) | Resource binding and depth in `slime-gfx` | Accepted; amended by 0032, 0033, 0047 and 0106 |
 | [0027](0027-the-render-crate.md) | The render crate, what it draws, and glam | Accepted; amended by 0034, 0035, 0037, 0038, 0039, 0040, 0041, 0047 and 0048 |
 | [0028](0028-image-tests-tolerate-a-few-pixels.md) | Image tests tolerate a few differing pixels | Accepted; amended by 0030 |
 | [0029](0029-temporary-gltf-loading.md) | Temporary glTF loading, in the examples | Superseded by 0069 |
@@ -136,7 +136,7 @@ the ADR linking to it.
 | [0066](0066-shipping-dxc-beside-the-programs.md) | Shipping DXC beside the programs | Accepted |
 | [0067](0067-hunna-wood-replaces-nightwatch.md) | Hunna Wood replaces Nightwatch as the sample game | Accepted |
 | [0068](0068-stage-4-in-two-halves.md) | Stage 4 in two halves, and audio import at Stage 7 | Accepted; amended by 0078 |
-| [0069](0069-the-asset-pipeline.md) | The asset pipeline: identity, cooking and what a game loads | Accepted; amended by 0080 and 0102 |
+| [0069](0069-the-asset-pipeline.md) | The asset pipeline: identity, cooking and what a game loads | Accepted; amended by 0080, 0102 and 0106 |
 | [0070](0070-the-sample-games-source-assets.md) | The sample game's source assets: free, listed, mirrored | Accepted |
 | [0071](0071-cooked-textures.md) | Cooked textures | Accepted; amended by 0102 and 0106 |
 | [0072](0072-stage-4b-live-assets.md) | Stage 4b: live assets | Accepted; amended by 0078 and 0103 |

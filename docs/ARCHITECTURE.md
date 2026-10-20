@@ -446,7 +446,10 @@ renderer = Renderer::new(&gpu, format)                 the output's format; four
     │   environment (a black one for none)
     ├── the instance buffer ← each instance's relative transform,     bind group 2, one dynamic
     │   normal matrix and handedness (−1 when it mirrors), one slot    offset per instance
-    │   each, at the device's alignment; grows when a scene needs it, shrinks back after a peak
+    │   each, at the device's alignment; grows when a scene needs it, shrinks back after a peak;
+    │   only the frame's slots written (ADR-0106)
+    ├── each pass's draws ordered by pipeline, then material, then mesh, each as it first appears
+    │   among the instances: a draw binds only what changed since the one before (ADR-0106)
     ├── the frame's render graph, built again when the frame's shape changes (the target's size,
     │   either shadow pass or the bloom starting or stopping): the passes below, each declaring the
     │   targets it draws into and samples, ordered by them; the HDR target (Rgba16Float) and the
@@ -460,8 +463,7 @@ renderer = Renderer::new(&gpu, format)                 the output's format; four
     │   │   depth-only pass skipped when no light or no instance casts shadows: for each cascade,
     │   │   its tile (set_viewport) and its view's slot at group 3; for each instance that casts
     │   │   shadows and whose box reaches across its square, the shadow pipeline its material
-    │   │   asks for (masked or not), its bind groups and buffers, draw_indexed; each pass draws
-    │   │   by pipeline, then material, then mesh, and binds only what changed (ADR-0106)
+    │   │   asks for (masked or not), its bind groups and buffers, draw_indexed
     │   ├── the spot lights' shadow pass into the atlas, created by the first frame that needs it,
     │   │   skipped when no spot light casts shadows: for each such light, its tile
     │   │   (set_viewport) and its view's slot; for each instance that casts shadows and whose box
