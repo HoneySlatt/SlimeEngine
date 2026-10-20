@@ -192,8 +192,9 @@ Risks:
 - **How to test.** `cargo test -p slime-gfx -p slime-render`; `cargo run --release -p
   slime-benches -- render render.instances.100k`.
 - **By hand.** The owner plays the zone by day and at night, and finds it unchanged.
-- **Outcome.** Done on 2026-10-20, its check by hand waiting for the owner
-  ([the list](#checks-by-hand-waiting-for-the-owner)).
+- **Outcome.** Done on 2026-10-20. The owner's check by hand, on Linux: the owner played the zone
+  by day and at night on 2026-10-21, from `cargo run --release -p hunnawood -- --new --save <a file
+  of its own>`, and found it unchanged.
   [ADR-0117](adr/0117-frustum-culling-and-instancing.md) records the design, and amends ADR-0026,
   ADR-0027, ADR-0106 and ADR-0115: the scene pass culls by each instance's box against the
   camera's view; each pass draws each run of instances of one pipeline, material and mesh with one
@@ -629,8 +630,6 @@ The checks by hand of the milestones done that the owner has not made yet. The o
 check leaves the list once made, its result written in its milestone's outcome. The game is run
 with `--new --save <a file of its own>`, so that the owner's save is left alone.
 
-- **M6a.1, on Linux.** The zone played by day and at night, `cargo run --release -p hunnawood --
-  --new --save <a file of its own>`: unchanged, now that the renderer culls and draws by instances.
 - **P2, in the Windows virtual machine.** `scene.exe` of CI's artifact, on a copy of its `assets`
   directory whose first mesh has one byte changed: an error that names the file, then status 1.
 - **G20, in the Windows virtual machine.** A source asset whose `.meta` differs from its own name
