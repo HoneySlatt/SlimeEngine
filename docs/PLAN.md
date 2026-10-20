@@ -50,13 +50,14 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 - Stage 6a — What the editor stands on: planned on 2026-10-20 and validated by the owner
   ([ADR-0116](adr/0116-stage-6-in-two-halves.md)), to be released as 0.5 at its close, with both
   passes. Stage 6 is split in two halves: Stage 6b, the editor, is planned in detail at Stage 6a's
-  close and released as 0.6. Next: M6a.1.
+  close and released as 0.6. M6a.1, frustum culling and instancing, is done
+  ([ADR-0117](adr/0117-frustum-culling-and-instancing.md)). Next: M6a.2.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
-| [M6a.1](#m6a1--frustum-culling-and-instancing) | What the camera does not see is not drawn, and the instances of one mesh and one material are drawn together | Planned |
+| [M6a.1](#m6a1--frustum-culling-and-instancing) | What the camera does not see is not drawn, and the instances of one mesh and one material are drawn together | Done |
 | [M6a.2](#m6a2--the-engines-task-pool-and-copies-to-the-gpu-within-a-budget) | A load never slows the frames, and the engine's compute work runs on one task pool | Planned |
 | [M6a.3](#m6a3--what-the-world-knows-of-its-changes) | Each reader of the world asks what changed since it last read; components clone | Planned |
 | [M6a.4](#m6a4--a-frame-that-owns-what-it-draws) | A frame owns what it draws, and loading needs no renderer | Planned |
@@ -94,7 +95,7 @@ foundations pass. Where the engine stands at the start:
 
 - **Every instance is drawn, with a draw call of its own**, its values in a slot of 256 bytes of a
   uniform buffer. The shadow passes leave out the instances that a cascade or a spot light does not
-  reach; the scene pass draws them all ([Known debt](#known-debt)).
+  reach; the scene pass draws them all. M6a.1 changed it.
 - **Threads started four ways**: `slime-render`'s private pool of up to four threads, which loads;
   a thread per load, which waits for its tasks; a thread per logical core for the sky's
   environment; the cooker's own. The loading tasks submit their copies to the GPU as they read, and
@@ -191,6 +192,34 @@ Risks:
 - **How to test.** `cargo test -p slime-gfx -p slime-render`; `cargo run --release -p
   slime-benches -- render render.instances.100k`.
 - **By hand.** The owner plays the zone by day and at night, and finds it unchanged.
+- **Outcome.** Done on 2026-10-20, its check by hand waiting for the owner
+  ([the list](#checks-by-hand-waiting-for-the-owner)).
+  [ADR-0117](adr/0117-frustum-culling-and-instancing.md) records the design, and amends ADR-0026,
+  ADR-0027, ADR-0106 and ADR-0115: the scene pass culls by each instance's box against the
+  camera's view; each pass draws each run of instances of one pipeline, material and mesh with one
+  draw call, the shadow passes by mesh alone but for masked materials; the instances' values in a
+  storage buffer, read through a list per draw; the meshes in pages shared by the renderer and its
+  loads; typed buffers whose uses are those of their type, written by ranges, where "Delivers" asked
+  for buffers that declare several uses, which the owner chose on 2026-10-20. The tests:
+  `a_square_above_a_floor_darkens_a_square_of_the_floor_blended_over_six_texels`, whose square lies
+  outside the view, is not drawn, and still shadows the floor in it;
+  `the_instances_of_one_mesh_and_one_material_take_one_draw_call_per_pipeline`;
+  `the_instances_drawn_beyond_what_the_values_buffer_holds_are_left_out_of_every_pass` (G29);
+  `an_instanced_draw_reads_each_instance_s_values_and_a_mesh_from_its_base_vertex`;
+  `meshes_share_a_page_until_it_is_full_and_a_page_is_freed_with_its_last_mesh`. The image tests
+  pass unchanged, on lavapipe and on the RX 6900 XT. On the RX 6900 XT
+  ([`measurements.md`](measurements.md), sections "M6a.1, before" and "M6a.1", two runs before and
+  three after, the machine installing a game), the CPU of `Renderer::render` at the three tiers'
+  sizes: `render.instances.10k` 2.0 to 2.6 ms, where it took 8.9 to 17.3 ms; `render.unseen.10k`
+  1.3 to 1.4 ms, where it took 14.5 to 23.4 ms; `render.instances.100k` 17 to 21 ms, where it took
+  73 to 93 ms. The passes on the GPU, summed: 0.15 to 0.32 ms for 10 000 cubes, where they took
+  0.27 to 0.46 ms; 0.26 to 0.50 ms for 100 000, where they took 2.0 to 2.3 ms. On lavapipe, 65 to
+  160 ms for `render.instances.10k`, where it took 223 to 346 ms; lavapipe now runs
+  `render.instances.100k`, which is no longer run on request only. Within the GPU budgets of every
+  tier; the CPU of 100 000 cubes is beyond the main thread's budget at 60 frames a second, which
+  the known debt says. `world.frame.100k`, 13.1 to 13.6 ms, still costs less than drawing its
+  frame: ADR-0111's condition for building the frame from what changed does not hold yet. Retired
+  from the known debt: one draw call per instance, the slots of 256 bytes, and G29.
 
 ### M6a.2 — The engine's task pool, and copies to the GPU within a budget
 
@@ -426,7 +455,10 @@ Risks:
 - **Goal.** What a view lacks loads before what is fetched ahead, a load that nothing needs any more
   stops, and the memory that assets take stays within a budget.
 - **Findings.** G16, in part: one unreadable file hides its whole batch of meshes, until the cooked
-  data changes. Trying a passing error again, such as GPU memory running out, is Stage 6b's.
+  data changes. Trying a passing error again, such as GPU memory running out, is Stage 6b's. Since
+  M6a.1, meshes share pages, and dropping one frees no GPU memory until its page empties
+  ([ADR-0117](adr/0117-frustum-culling-and-instancing.md)): how the budgets count meshes is this
+  milestone's to decide.
 - **Crates.** `slime-render`, `slime-world-render`; *Hunna Wood*, the examples, the benchmarks and
   the MCP server.
 - **Delivers.** As [ADR-0113](adr/0113-asset-requests-residency-and-priorities.md) decides:
@@ -597,6 +629,8 @@ The checks by hand of the milestones done that the owner has not made yet. The o
 check leaves the list once made, its result written in its milestone's outcome. The game is run
 with `--new --save <a file of its own>`, so that the owner's save is left alone.
 
+- **M6a.1, on Linux.** The zone played by day and at night, `cargo run --release -p hunnawood --
+  --new --save <a file of its own>`: unchanged, now that the renderer culls and draws by instances.
 - **P2, in the Windows virtual machine.** `scene.exe` of CI's artifact, on a copy of its `assets`
   directory whose first mesh has one byte changed: an error that names the file, then status 1.
 - **G20, in the Windows virtual machine.** A source asset whose `.meta` differs from its own name
@@ -1593,11 +1627,6 @@ GitHub issues, linked from their entry; this list stays the reference.
   that pass until the next time replaces it. wgpu does not tell how many bits are valid, so the
   wrapped difference cannot be recovered. Dropping such a sample (`end.checked_sub(start)` in
   `crates/slime-gfx/src/timer.rs`) is a one-line change if it ever matters.
-- **Each instance's values take a slot of 256 bytes, half of it padding** (ADR-0026,
-  [ADR-0106](adr/0106-the-measured-quick-wins.md)). `Renderer::render` writes and sends only the
-  slots of the frame's instances, but each is a slot of a uniform buffer, aligned as the device's
-  limits ask, 256 bytes with the defaults, for 128 bytes of values. A storage buffer indexed by the
-  instance would send half as many bytes; instancing decides it at M6a.1 (ADR-0097).
 - **The dev overlay can still panic on a lost device** (ADR-0022, ADR-0103). `Overlay::render`
   skips the frame when the device was lost earlier in it, and `Overlay::new` returns an error on a
   lost device, but two cases panic inside egui-wgpu or wgpu: a loss that egui-wgpu's own buffer
@@ -1625,13 +1654,21 @@ GitHub issues, linked from their entry; this list stays the reference.
   light that casts shadows casts them, ADR-0038, and so do spot lights, ADR-0058). The sample's ring
   light, a point light, reaches 4 m, and gives little beyond a metre. The shadows of point lights
   come with Stage 9a (ADR-0052).
-- **Every instance is drawn, with a draw call of its own** (`Renderer`). Nothing leaves out the
-  instances that the camera does not see, and instances of the same mesh and material are not
-  drawn together: a frame's CPU and GPU time grow with every instance of the scene, wherever it is,
-  0.6 to 2.4 µs of CPU per instance on the owner's machine. Frustum culling and instancing begin
-  Stage 6a, at M6a.1 (ADR-0097). Since P4, each pass draws by pipeline, material and mesh, and
-  binds only what changed ([ADR-0106](adr/0106-the-measured-quick-wins.md)), which lavapipe shows
-  no gain from; on a GPU, it is not measured yet.
+- **Every instance of a scene costs CPU time at each frame** (`Renderer`,
+  [ADR-0117](adr/0117-frustum-culling-and-instancing.md)). Frustum culling and instancing make a
+  frame's draws and its GPU work follow what each pass sees, but the renderer keeps nothing from
+  one frame to the next: at each frame, it places and tests every instance's box against the
+  camera's view and against every cascade and spot light, on one thread, ranks every instance's
+  material and mesh, sorts those drawn, and packs and sends their values, about 0.2 µs per
+  instance of 100 000 cubes on the owner's machine (`render.instances.100k`,
+  [`measurements.md`](measurements.md)). A render scene kept from one frame to the next, with
+  stable keys, and culling and draws decided by the GPU come with Stage 9a (ADR-0097).
+- **A page of meshes keeps the ranges of dropped meshes until new ones fill them or it empties**
+  ([ADR-0117](adr/0117-frustum-culling-and-instancing.md)). Nothing moves a mesh to pack its
+  page: a game that drops half its meshes keeps their pages' memory while one mesh stays in each.
+  Dropping a mesh frees no GPU memory until its page empties: how the asset cache's budgets
+  (ADR-0113) count meshes in pages is M6a.9's to decide. Capture tools name a page's buffers, not
+  its meshes.
 - **Cascades are fitted to spheres around slices of the view** (ADR-0064). Each covers its slice
   whichever way the camera looks, which keeps its texels steady, but a wide view makes the spheres
   large: in the first game, *Nightwatch* (deleted at M4a.7), with the single map's 30 m, the texels
@@ -1892,9 +1929,6 @@ waits for. A test that confirms each is kept outside the repository, and comes i
   after destruction** (G28, medium; Stage 10a): each type keeps an index of 4 bytes per slot up to
   the highest slot that held it, and neither the index, the nodes nor the slots shrink
   ([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)).
-- **Beyond 1 048 576 meshes drawn, `render` panics in wgpu** (G29, medium; M6a.1): the instance
-  buffer doubles past the 256 MiB that the device allows, and a world loaded from files reaches it
-  with no cap. Instancing lifts it; capping the instances as ADR-0042 caps lights would avoid it.
 - **Masked foliage loses its coverage in its smaller mip levels** (G30, medium; Stage 9a): the
   cooker averages alpha from one level to the next, so that the share of texels above the cutoff
   falls in the levels drawn far away, down to none, and trees fade in the distance. Preserving
