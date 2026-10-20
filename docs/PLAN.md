@@ -22,12 +22,14 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   found defects that lose or change a player's saves, files that crash the engine, a recovery from a
   lost GPU device that covers one case, and quick wins that it measured. Milestones P1 to P5 fix
   them; then a foundations pass, P6, decides as ADRs what the editor will freeze. Stage 6, the
-  editor, is planned with the owner after it. P1 is done
+  editor, is planned with the owner after it. P1
   ([ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)), P2
-  ([ADR-0102](adr/0102-a-damaged-file-gives-an-error.md)) and P3
-  ([ADR-0103](adr/0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md)), and P5
+  ([ADR-0102](adr/0102-a-damaged-file-gives-an-error.md)), P3
+  ([ADR-0103](adr/0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md)) and P5
   ([ADR-0104](adr/0104-the-build-ci-and-measurements.md),
-  [ADR-0105](adr/0105-egui-fonts-ship-with-the-dev-overlay.md)); P4 waits for the owner's go.
+  [ADR-0105](adr/0105-egui-fonts-ship-with-the-dev-overlay.md)) are done, and P4
+  ([ADR-0106](adr/0106-the-measured-quick-wins.md)) but B4-F01, which waits for the owner's
+  decision; P6 waits for the owner's go.
 - The games the engine aims at, described on 2026-10-19
   ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)): nine profiles, from *Hunna Wood* to a
   massively multiplayer game, listed in [`ROADMAP.md`](ROADMAP.md). They add criteria to P6, one UI
@@ -45,7 +47,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [P2](#p2--a-damaged-file-gives-an-error-never-a-crash) | No damaged or edited file makes the engine panic, hang or exhaust its memory (ADR-0096) | Done |
 | [P3](#p3--the-loss-of-the-gpu-device-and-the-main-loop) | A lost GPU device is recovered wherever the loss is found, and a panic in `render` stays an ordinary panic | Done |
 | [P5](#p5--the-build-ci-and-measurements-tracked-from-one-commit-to-the-next) | Every crate compiled once, CI under its limit, and the engine's measurements tracked from one commit to the next | Done |
-| [P4](#p4--the-measured-quick-wins) | The quick wins that the audit measured, each measured again before and after | Planned |
+| [P4](#p4--the-measured-quick-wins) | The quick wins that the audit measured, each measured again before and after | Done but B4-F01, which waits for the owner's decision |
 | [P6](#p6--the-foundation-decisions) | What the editor will freeze, decided as ADRs | Planned |
 
 Stages 0, 1, 2, 3a, 3b, 3c, 3d, 4a, 4b, 5a and 5b are done; see [Completed
@@ -72,7 +74,7 @@ with P5's benchmarks. Each follows the definition of done, its review included, 
 owner's go. Neither pass has a release of its own: what they deliver ships with 0.5, the editor's
 release.
 
-The audit left unfinished: the measurements of five quick wins, which P4 makes; a run of an hour,
+The audit left unfinished: the measurements of five quick wins, which P4 made; a run of an hour,
 how memory, open files and frame times move over a long game; and every check on Windows, which the
 milestones below give to the owner's virtual machine where they touch it. Not covered by the audit
 at all: NVIDIA and Intel GPUs (see [Known debt](#known-debt)), X11, a game outside the workspace,
@@ -116,9 +118,18 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
 - **P5, in the Windows virtual machine.** The benchmarks on Direct3D 12, `cargo run --release -p
   slime-benches -- render world loading`; the figures of WARP that the Windows job's log of
   `af512af` prints.
-- **P5, on Linux with the RX 6900 XT, before P4 starts.** The section of that GPU in
-  [`measurements.md`](measurements.md), the zone cooked: `scripts/measure.sh "P5, RX 6900 XT"
-  render world loading loading.zone render.instances.100k >> docs/measurements.md`.
+- **P5 and P4, on Linux with the RX 6900 XT.** The sections of that GPU in
+  [`measurements.md`](measurements.md), before P4 and after it, the zone cooked at each commit as
+  [*Hunna Wood*'s README](../games/hunnawood/README.md) says: at `b55721c`, the last commit before
+  P4, `scripts/measure.sh "P5, RX 6900 XT" render world loading loading.zone
+  render.instances.100k`, then the same at P4's last commit, titled `"P4, RX 6900 XT"`, both
+  sections added to `docs/measurements.md` in that order. They show what P4's changes of the
+  renderer and of the cooker gain on a GPU (B3-F02, B3-F05, B1-F06), which lavapipe could not,
+  and B4-F01's figures before the owner decides on it; `render.unseen.10k`, which P4 added, has no
+  figure before it.
+- **P4, on Linux.** *Hunna Wood*'s zone played by day and at night, `cargo run -p hunnawood --
+  --new --save <a file of its own>`, and found unchanged: the hero's coat, whose textures are now
+  compressed, and the shadows, whose draws go in another order.
 
 ### P1 — Saves and identities that never mislead
 
@@ -518,8 +529,8 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
     `Renderer::set_shaders`'s rustdoc names the machine of each figure. On lavapipe, an edit cost
     from 2 to 11 ms more than unchanged sources in two runs; on the RX 6900 XT it is not measured.
   - The figures of lavapipe are not those of a GPU: P4's gains of the renderer and of loading
-    (B3-F02, B3-F05, B4-F01) are measured on the owner's RX 6900 XT, in a section of that GPU,
-    which the owner takes before P4 starts, and `render.instances.100k`, which lavapipe (Mesa
+    (B3-F02, B3-F05, B4-F01) are measured on the owner's RX 6900 XT, in sections of that GPU
+    before P4 and after it, which the owner takes, and `render.instances.100k`, which lavapipe (Mesa
     26.2.4) cannot run, crashing in `lvp_descriptor_set_create`, runs only there; the crash is not
     reported to Mesa.
   - The trace: `SLIME_TRACE` names a file into which any program that calls `init_diagnostics`
@@ -586,6 +597,66 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
   [ADR-0054](adr/0054-image-tests-allow-0-2-percent-on-other-drivers.md); CI is green.
 - **How to test.** The benchmarks of P5; `scripts/check.sh`.
 - **By hand (Linux).** The owner plays the zone by day and at night and finds it unchanged.
+- **Outcome.** Done on 2026-10-20, but B4-F01, which waits for the owner's decision.
+  [ADR-0106](adr/0106-the-measured-quick-wins.md) records each change and the five possible gains
+  measured and left as they are, and amends ADR-0026, ADR-0042, ADR-0069, ADR-0071, ADR-0083 and
+  ADR-0084. Every figure below was measured on lavapipe, on a machine of 4 logical CPUs: before,
+  in [`measurements.md`](measurements.md)'s section "P5, lavapipe" and in two runs at `b55721c`,
+  the last commit before P4; after, in its section "P4, lavapipe" and in runs at each change. What
+  the GPU's own work gains is not measured.
+  - G27: a child leaves its parent in constant time, the others keeping their order, which
+    `children_leave_from_anywhere_and_the_others_keep_their_order` checks. A parent of 10 000
+    children is emptied in 0.13 to 0.19 ms, where it took 50 to 56 ms; one of 20 000 in 0.20 to
+    0.42 ms, where it took 202 to 223 ms. `World::children` gives an iterator, `Children`, rather
+    than a slice. Computing the transforms costs what it did: 4.9 to 5.3 ms before, 5.1 ms after.
+  - B2-F06: `FrameBuilder::build` over 100 000 entities takes 16 to 18 ms, where it took 23 to
+    26 ms.
+  - G26: the instructions that resolving a scene file takes double with its placements, 3.9
+    billion for 8 000, 7.8 billion for 16 000, counted by callgrind; 8 000 placements resolve in
+    206 to 236 ms, where they took 305 to 322 ms. The rest is parsing the file and encoding its
+    values.
+  - G13: the frames of `world.sky` that make the sky again went from 14 of 24 to none, the median
+    frame from 73 to 79 ms to 0.2 µs;
+    `an_entity_set_where_it_is_during_a_step_is_drawn_exactly_there` checks that an entity set
+    where it is at each step is drawn exactly there.
+  - G12: beyond `MAX_LIGHTS`, `Frame::scene` gives the renderer the sun, the other directional
+    lights, then the lights nearest the camera, which
+    `beyond_the_lights_drawn_the_nearest_to_the_camera_come_first` checks.
+  - G25 and B4-F03: a load starts in 19 to 29 µs with a manifest of 10 000 assets or of 100 000,
+    where it took 4.7 to 8.6 ms and 74 to 107 ms.
+  - B1-F06: textures whose sides are not multiples of 4 are stretched to whole blocks and
+    compressed, which `sides_that_blocks_do_not_divide_are_stretched_to_whole_blocks` checks. The
+    zone's cooked bytes went from 259.5 MB to 209.4 MB. The time until a frame draws the zone's
+    meshes whole varies more from one run to the next than this change could be told from: 1.91
+    to 2.79 s before, 1.75 to 2.12 s after.
+  - B3-F02: each pass draws by pipeline, material and mesh, and binds only what changed, which
+    `draws_go_by_pipeline_then_material_then_mesh_as_they_first_appear` checks. In three runs
+    alternated before the renderer's changes (`2b770c8`) and after them, the scene pass of
+    `render.instances.10k` took 128 to 146 ms before, 135 to 138 ms after, and the CPU of
+    `render.unseen.10k`, added for it, 231 to 239 ms before, 225 to 238 ms after: no gain on
+    lavapipe, where ordering 10 000 instances costs about 0.8 ms of CPU. Whether a GPU gains more,
+    as the audit measured, is the owner's to measure. The section "P4, lavapipe" was taken in a
+    slower moment: its scene pass took 155 ms, and its `render.shaders`, which P4 did not change,
+    9 ms more than in P5's section.
+  - B3-F05: the renderer keeps the instances' values from one frame to the next and sends only the
+    slots used, through `Gpu::write_uniform_buffer_start`. Writing and sending the values of 10 000
+    instances, timed in the renderer by code not kept, went from 1.54 to 1.13 ms at the median,
+    from 2.0 to 1.19 ms at the 90th percentile.
+  - B4-F01: not changed. One thread that submits within a budget of bytes per frame would change
+    what ADR-0072 and ADR-0074 decided, and budget background work, which P6's execution model
+    decides; its gain shows only on a GPU. The owner decides between doing it now, leaving it to P6
+    and Stage 7, or fewer loading threads; the [known debt](#known-debt) states it meanwhile.
+  - The five possible gains that the audit had not measured are measured, and none is changed:
+    ADR-0106 gives each figure and why.
+  - A review of P4 found the vector of the instances' values keeping its peak size, a hasher of
+    addresses of its own whose 60 µs per 10 000 instances were not worth its code, a pass binding
+    again what its pipelines share, the `Debug` of `Children` printing every node of the world,
+    the cooker copying textures it did not stretch, rustdoc that said what the code no longer did,
+    the start write of a uniform buffer without a test of its contract, and ADR-0106 silent on two
+    ADRs that it amends. All are fixed.
+  - Not done, the owner's by hand, which wait in the
+    [list of checks by hand](#checks-by-hand-waiting-for-the-owner): the zone played by day and at
+    night, and the sections of the RX 6900 XT before P4 and after it.
 
 ### P6 — The foundation decisions
 
@@ -708,6 +779,14 @@ justify a decision are also in its ADR.
 Limitations known and accepted for now. The ones that a contributor could take on alone are also
 GitHub issues, linked from their entry; this list stays the reference.
 
+- **A load slows every frame while it lasts** (B4-F01). The renderer's loading threads, four at
+  most, create the GPU objects and submit their copies as they read them, alongside the frames: on
+  the audit's RX 6900 XT, the render CPU went from 0.5 to 2.9 ms during a load, and to 16.6 ms at
+  the 99th percentile with textures of 4096² texels. One thread that submits, within a budget of
+  bytes per frame, would change who creates and uploads the GPU objects, which
+  [ADR-0072](adr/0072-stage-4b-live-assets.md) and
+  [ADR-0074](adr/0074-uploading-textures-without-holding-up-frames.md) decided, and the budgets of
+  background work are P6's execution model: P4 leaves it to the owner's decision.
 - **The first frame that draws shadows costs more, and more still while a scene loads**
   ([ADR-0074](adr/0074-uploading-textures-without-holding-up-frames.md)). It makes the renderer
   create its shadow atlas and its frame again; during a load, the GPU, busy with the load's copies,
@@ -966,13 +1045,11 @@ GitHub issues, linked from their entry; this list stays the reference.
   that pass until the next time replaces it. wgpu does not tell how many bits are valid, so the
   wrapped difference cannot be recovered. Dropping such a sample (`end.checked_sub(start)` in
   `crates/slime-gfx/src/timer.rs`) is a one-line change if it ever matters.
-- **The instance buffer is uploaded whole every frame.** `Renderer::render` uploads
-  `capacity × stride` bytes (256-byte slots with the default limits), where the capacity is a
-  power of two from 64 that fits the frame's instances, up to four times as many: it shrinks back
-  once a frame uses a quarter of it or less, so that a 10-instance frame after a 100 000-instance
-  one costs what it costs on a new renderer (0.054 ms against 21.4 ms before, on lavapipe).
-  Uploading only the live slots would amend ADR-0026's rule that a uniform buffer is always
-  written at its creation size.
+- **Each instance's values take a slot of 256 bytes, half of it padding** (ADR-0026,
+  [ADR-0106](adr/0106-the-measured-quick-wins.md)). `Renderer::render` writes and sends only the
+  slots of the frame's instances, but each is a slot of a uniform buffer, aligned as the device's
+  limits ask, 256 bytes with the defaults, for 128 bytes of values. A storage buffer indexed by the
+  instance would send half as many bytes; instancing decides it at Stage 6 (ADR-0097).
 - **The dev overlay can still panic on a lost device** (ADR-0022, ADR-0103). `Overlay::render`
   skips the frame when the device was lost earlier in it, and `Overlay::new` returns an error on a
   lost device, but two cases panic inside egui-wgpu or wgpu: a loss that egui-wgpu's own buffer
@@ -1004,7 +1081,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   instances that the camera does not see, and instances of the same mesh and material are not
   drawn together: a frame's CPU and GPU time grow with every instance of the scene, wherever it is,
   0.6 to 2.4 µs of CPU per instance on the owner's machine. Frustum culling and instancing begin
-  Stage 6 (ADR-0097); sorting the draws is a quick win of P4.
+  Stage 6 (ADR-0097). Since P4, each pass draws by pipeline, material and mesh, and binds only what
+  changed ([ADR-0106](adr/0106-the-measured-quick-wins.md)), which lavapipe shows no gain from;
+  on a GPU, it is not measured yet.
 - **Cascades are fitted to spheres around slices of the view** (ADR-0064). Each covers its slice
   whichever way the camera looks, which keeps its texels steady, but a wide view makes the spheres
   large: in the first game, *Nightwatch* (deleted at M4a.7), with the single map's 30 m, the texels
@@ -1020,9 +1099,10 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **Every draw of the scene pass runs a shader that can discard fragments** (ADR-0035). The `MASK`
   alpha mode discards in the one fragment shader that every material uses, opaque materials with a
   cutoff of 0. Some GPUs then test depth after the shader rather than before, for opaque draws
-  too, which costs overdraw. Not measured: compare the scene pass's GPU time on a scene with much
-  overdraw against a build whose opaque materials use a fragment entry point without `discard`
-  (six pipelines instead of three).
+  too, which costs overdraw. On lavapipe, opaque materials drawn without `discard` did not make the
+  scene pass faster ([ADR-0106](adr/0106-the-measured-quick-wins.md)); on a GPU, not measured:
+  compare the scene pass's GPU time on a scene with much overdraw against a build whose opaque
+  materials use a fragment entry point without `discard` (six pipelines instead of three).
 - **Edges that a masked material cuts inside a triangle stay aliased** (ADR-0059). Multisampling
   smooths the edges of triangles, but the scene shader runs once per pixel, and the `MASK` alpha
   mode keeps or discards all of a pixel's samples at once. Smoothing those edges, alpha to

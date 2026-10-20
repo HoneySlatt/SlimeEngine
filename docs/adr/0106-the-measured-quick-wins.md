@@ -82,8 +82,9 @@ from one frame to the next, and sends only the slots of the frame's instances, t
   `render.unseen.10k` shows, unchanged by the draws' order above; a GPU's driver may differ,
   which nothing measured.
 - *An opaque pipeline without `discard`*: without the `discard` of masked materials, the scene pass
-  of `render.instances.10k` took 159 to 161 ms on lavapipe, where it took 128 to 140 ms with it; a
-  GPU that tests depths before shading may gain instead, which nothing measured.
+  of `render.instances.10k` took 159 to 161 ms on lavapipe, where it took 128 to 155 ms with it in
+  the runs of P4: no faster there. A GPU that tests depths before shading may gain, which nothing
+  measured.
 - *The number of passes per submission*: [ADR-0041](0041-render-graph.md) measured it and chose
   four passes per submission, against the stalls in the kernel that longer submissions met.
 - *Foliage left out of the farther cascades*: in *Hunna Wood*'s zone by day, seen from where the
