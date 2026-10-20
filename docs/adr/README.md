@@ -109,7 +109,7 @@ the ADR linking to it.
 | [0039](0039-image-based-lighting-computed-on-the-cpu.md) | Image-based lighting computed on the CPU | Accepted; amended by 0041 |
 | [0040](0040-bloom.md) | Bloom | Accepted; amended by 0041 |
 | [0041](0041-render-graph.md) | The render graph | Accepted |
-| [0042](0042-lights-beyond-the-most-drawn-and-checked-scene-values.md) | Lights beyond the most drawn, and checked scene values | Accepted; amended by 0102 |
+| [0042](0042-lights-beyond-the-most-drawn-and-checked-scene-values.md) | Lights beyond the most drawn, and checked scene values | Accepted; amended by 0102 and 0106 |
 | [0043](0043-application-errors-during-a-run.md) | Application errors during a run | Accepted |
 | [0044](0044-running-out-of-gpu-memory.md) | Running out of GPU memory | Accepted |
 | [0045](0045-one-linear-color-type.md) | One linear color type | Accepted; amended by 0079, 0084 |
@@ -138,7 +138,7 @@ the ADR linking to it.
 | [0068](0068-stage-4-in-two-halves.md) | Stage 4 in two halves, and audio import at Stage 7 | Accepted; amended by 0078 |
 | [0069](0069-the-asset-pipeline.md) | The asset pipeline: identity, cooking and what a game loads | Accepted; amended by 0080 and 0102 |
 | [0070](0070-the-sample-games-source-assets.md) | The sample game's source assets: free, listed, mirrored | Accepted |
-| [0071](0071-cooked-textures.md) | Cooked textures | Accepted; amended by 0102 |
+| [0071](0071-cooked-textures.md) | Cooked textures | Accepted; amended by 0102 and 0106 |
 | [0072](0072-stage-4b-live-assets.md) | Stage 4b: live assets | Accepted; amended by 0078 and 0103 |
 | [0073](0073-loading-scenes-in-the-background.md) | Loading scenes in the background | Accepted; amended by 0074 |
 | [0074](0074-uploading-textures-without-holding-up-frames.md) | Uploading textures without holding up frames | Accepted |
@@ -150,8 +150,8 @@ the ADR linking to it.
 | [0080](0080-reflection-and-serialization.md) | Reflection and serialization | Accepted; amended by 0085, 0086 and 0101 |
 | [0081](0081-stage-5a-the-world.md) | Stage 5a: the world | Accepted |
 | [0082](0082-the-worlds-storage-and-handles.md) | The world's storage and handles | Accepted |
-| [0083](0083-transforms-and-the-hierarchy.md) | Transforms and the hierarchy | Accepted; amended by 0087 |
-| [0084](0084-what-the-world-draws.md) | What the world draws | Accepted |
+| [0083](0083-transforms-and-the-hierarchy.md) | Transforms and the hierarchy | Accepted; amended by 0087 and 0106 |
+| [0084](0084-what-the-world-draws.md) | What the world draws | Accepted; amended by 0106 |
 | [0085](0085-reflection.md) | Reflection | Accepted; amended by 0086, 0087 and 0101 |
 | [0086](0086-serialization.md) | Serialization | Accepted; amended by 0087, 0091 and 0102 |
 | [0087](0087-the-worlds-documents.md) | The world's documents | Accepted; amended by 0088, 0089, 0092, 0093 and 0101 |
@@ -173,3 +173,4 @@ the ADR linking to it.
 | [0103](0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md) | A lost GPU device is recovered wherever the loss is found | Accepted |
 | [0104](0104-the-build-ci-and-measurements.md) | The build, CI and measurements | Accepted |
 | [0105](0105-egui-fonts-ship-with-the-dev-overlay.md) | egui's fonts ship with the dev overlay | Accepted |
+| [0106](0106-the-measured-quick-wins.md) | The measured quick wins | Accepted |

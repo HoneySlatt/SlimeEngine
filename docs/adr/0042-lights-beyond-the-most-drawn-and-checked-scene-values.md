@@ -1,7 +1,8 @@
 # 0042. Lights beyond the most drawn, and checked scene values
 
 - Status: Accepted; amends [0037](0037-lights-in-physical-units-and-pre-exposure.md); amended by
-  [0102](0102-a-damaged-file-gives-an-error.md) (a light that cannot be drawn is left out)
+  [0102](0102-a-damaged-file-gives-an-error.md) (a light that cannot be drawn is left out) and
+  [0106](0106-the-measured-quick-wins.md) (a world's lights ordered nearest the camera first)
 - Date: 2026-10-14
 
 ## Context

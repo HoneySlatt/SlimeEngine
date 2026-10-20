@@ -1,6 +1,7 @@
 # 0084. What the world draws
 
-- Status: Accepted
+- Status: Accepted; amended by [0106](0106-the-measured-quick-wins.md) (the lights nearest the
+  camera first, beyond those the renderer draws)
 - Date: 2026-10-16
 
 ## Context

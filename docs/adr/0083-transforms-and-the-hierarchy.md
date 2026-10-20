@@ -1,6 +1,8 @@
 # 0083. Transforms and the hierarchy
 
 - Status: Accepted; amended by [0087](0087-the-worlds-documents.md) (keys and names that hold `/`)
+  and [0106](0106-the-measured-quick-wins.md) (the children read through an iterator, linked to
+  their siblings)
 - Date: 2026-10-16
 
 ## Context

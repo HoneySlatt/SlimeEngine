@@ -460,7 +460,8 @@ renderer = Renderer::new(&gpu, format)                 the output's format; four
     │   │   depth-only pass skipped when no light or no instance casts shadows: for each cascade,
     │   │   its tile (set_viewport) and its view's slot at group 3; for each instance that casts
     │   │   shadows and whose box reaches across its square, the shadow pipeline its material
-    │   │   asks for (masked or not), its bind groups and buffers, draw_indexed
+    │   │   asks for (masked or not), its bind groups and buffers, draw_indexed; each pass draws
+    │   │   by pipeline, then material, then mesh, and binds only what changed (ADR-0106)
     │   ├── the spot lights' shadow pass into the atlas, created by the first frame that needs it,
     │   │   skipped when no spot light casts shadows: for each such light, its tile
     │   │   (set_viewport) and its view's slot; for each instance that casts shadows and whose box
@@ -597,7 +598,9 @@ slime-cook cook <sources> <output>                     the cooker's program, bef
     │   ├── output/<name>.ktx2 there already?          reused if it reads as a texture: nothing
     │   │                                              is cooked again
     │   └── otherwise image::decode                    PNG or JPEG into 8-bit texels
-    │       └── texture::cook_texture(image, role)     every level, averaged for the role, then
+    │       └── texture::cook_texture(image, role)     stretched to whole blocks of 4 × 4 texels
+    │           │                                      (ADR-0106), every level, averaged for the
+    │           │                                      role, then
     │           └── CookedTexture::to_ktx2             BC7 or BC5 blocks on every thread; written
     │                                                  under a temporary name of the process's,
     │                                                  forced to the disk, then renamed
@@ -704,7 +707,9 @@ frame
         ├── cache.request(missing)                   one batch, loaded in the background on the
         │                                            renderer's threads (ADR-0073)
         ├── each entity with a Light: the renderer's light at its origin, along its −Z axis, the
-        │   sun first, so that it casts the shadows
+        │   sun first, so that it casts the shadows; beyond the lights that the renderer draws,
+        │   frame.scene(camera) puts the other directional lights next, then the nearest to the
+        │   camera (ADR-0106)
         ├── the sky's environment, made again when the game's sky or the sun changed: the first
         │   directional light that shows in the sky
         └── Frame { instances, lights, environment, loading, errors } → frame.scene(camera)

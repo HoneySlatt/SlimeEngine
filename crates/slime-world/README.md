@@ -86,7 +86,9 @@ assert_eq!(world.get::<Velocity>(cart).expect("held").0, 5.0);
 - `World::query` reads the entities that hold every component of a `Query`, `&T` or a tuple of up
   to four, through an iterator; `World::query_mut` changes them through a closure, with `&mut T`
   in its `QueryMut`.
-- `World::set_parent`, `parent` and `children` keep the hierarchy. `Transform` places an entity
+- `World::set_parent`, `parent` and `children` keep the hierarchy, `children` an iterator over an
+  entity's children in their order, each linked to its siblings, so that one leaves its parent in
+  constant time (`docs/adr/0106-the-measured-quick-wins.md`). `Transform` places an entity
   relative to its parent: an `f64` translation, a rotation, a uniform scale that children inherit
   and a stretch that they do not. `World::global_transform` gives where it is in the world, a
   `GlobalTransform`, always current; `World::update_transforms` computes again what changed, so that

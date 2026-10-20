@@ -8,9 +8,11 @@ library, and its program, `slime-cook`.
 
 Started in M4a.2. It gives every source file an asset ID that survives a move, kept in a metadata
 file beside it, and checks the metadata files of a directory. It imports PNG and JPEG images and
-cooks them into textures, their levels of detail computed and compressed in BC7 or BC5
-([ADR-0071](../../docs/adr/0071-cooked-textures.md)), into a directory of cooked data with its
-manifest, cooking again only what changed. It imports glTF files, `.gltf` with their buffers and
+cooks them into textures, their levels of detail computed and compressed in BC7 or BC5, an image
+whose sides are not multiples of 4 stretched to whole blocks first
+([ADR-0071](../../docs/adr/0071-cooked-textures.md),
+[ADR-0106](../../docs/adr/0106-the-measured-quick-wins.md)), into a directory of cooked data with
+its manifest, cooking again only what changed. It imports glTF files, `.gltf` with their buffers and
 images beside them or GLB, into meshes, with MikkTSpace tangents when they have none, materials and
 scenes, and cooks the textures their materials read in the roles they read them; their nodes'
 `slime:<type name>` properties become typed components. It cooks scene files into the engine's

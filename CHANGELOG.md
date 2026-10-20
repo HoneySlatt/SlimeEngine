@@ -25,6 +25,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - The engine's benchmarks, `cargo run --release -p slime-benches`, and `scripts/measure.sh`, which
   times the build and runs them; `docs/measurements.md` keeps their figures from one milestone to
   the next.
+- `Gpu::write_uniform_buffer_start` writes the start of a uniform buffer and leaves the rest as it
+  is.
 
 ### Changed
 
@@ -63,6 +65,22 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   compiled again every crate that depends on the reflection's derive, and give the dependencies
   their line tables only, not the rest of their debug information: the target directory is about a
   third smaller.
+- `World::children` returns `Children`, an iterator over an entity's children in their order, read
+  from either end, where it returned a slice: a child now leaves its parent in constant time.
+- `Frame::scene` takes the frame mutably, and `Frame::lights` is a mutable slice: when a world
+  places more lights than the renderer draws, the scene gives first the sun, then the other
+  directional lights, then the point and spot lights nearest the camera, where the lamps beyond the
+  first 16 in the world's order stayed dark.
+- The cooker stretches an image whose sides are at least 4 texels but not multiples of 4 to the next
+  multiples, and compresses it as any other, where it kept its 8-bit texels: a texture of
+  2 048 × 2 043 texels takes a quarter of the memory. `TEXTURE_COOKER_VERSION` is 2: every texture
+  is cooked again once.
+- The renderer draws by pipeline, then material, then mesh, and binds a draw's material and mesh
+  only when they differ from the draw before; it sends the GPU only the instances' slots that a
+  frame uses.
+- A frame of a large world is built faster: the world looks its component storages up once where a
+  frame asked for them at each entity, and each ancestor.
+- Starting a load of cooked data no longer copies its manifest: `CookedAssets`' clones share it.
 
 ### Fixed
 
@@ -189,6 +207,12 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   also failed as `GfxError::Readback`.
 - After a restore of the GPU device that failed, `run` returns the error that the application gave
   in `shutdown`, as its rustdoc said, rather than the restore's.
+- Emptying a parent of many children, by giving them other parents or none or by destroying them,
+  took time quadratic in their number; resolving a scene file took time quadratic in its
+  placements.
+- A sun set where it already is, at each fixed step, kept the sky's environment: interpolating two
+  equal transforms gives them back exactly, where the frame builder made the sky again at most
+  frames.
 
 ## [0.4.0] - 2026-10-18
 

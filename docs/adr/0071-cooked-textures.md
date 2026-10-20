@@ -2,7 +2,8 @@
 
 - Status: Accepted; amends [0032](0032-mipmaps-computed-at-texture-creation.md) (who computes the
   levels of a texture); amended by [0102](0102-a-damaged-file-gives-an-error.md) (who reads KTX2
-  files, and the cooked files reused)
+  files, and the cooked files reused) and [0106](0106-the-measured-quick-wins.md) (images whose
+  sides are not multiples of 4 stretched to whole blocks)
 - Date: 2026-10-15
 
 ## Context

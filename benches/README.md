@@ -33,6 +33,7 @@ it is their whole name.
 | Name | What it measures | For |
 |---|---|---|
 | `render.instances.10k` | 10 000 cubes, each its own draw, of eight materials, lit by a sun that casts shadows, under a sky with bloom, drawn at 1280 × 720: the CPU of `Renderer::render`, the frame until the GPU finished it, the scene pass on the GPU, the draw calls | B3-F02, B3-F05 |
+| `render.unseen.10k` | The same 10 000 cubes, of eight materials in turn, with the camera looking at the sky above them: none is in view, and the frame's time is mostly that of its commands, encoded, submitted and set up by the driver | B3-F02, B3-F05 |
 | `render.instances.100k` | The same with 100 000 cubes; on request only, since lavapipe (Mesa 26.2.4) crashes executing such a frame | B3-F02, B3-F05 |
 | `render.shaders` | The renderer's pipelines made again from its shaders unchanged, then after an edit of the scene's shader that the driver's cache cannot hold | C7-08 |
 | `world.frame.100k` | `FrameBuilder::build` over 100 000 entities that place one of the sample's meshes each, under 1 000 parents, once the cache holds them | B2-F06 |
@@ -52,7 +53,8 @@ benchmark measures before and after.
   frame's earlier submissions, which lavapipe runs one after the other
   ([`RenderStats::cpu_time`](../crates/slime-render/src/renderer.rs)): it is not a CPU time
   there. `world.transforms.100k`, `world.children`, `world.placements` and `loading.batch` do not
-  touch the GPU; the others draw, or make objects on the GPU.
+  touch the GPU; the others draw, or make objects on the GPU. On lavapipe, what a draw costs is
+  not in what it binds: `render.unseen.10k` shows no gain where a GPU's driver may.
 - A frame "until the GPU finished it" includes the wait of `Gpu::wait_idle`, which wakes up to 1 ms
   after the GPU finished: on a GPU whose frames take a few milliseconds, the time of the scene
   pass on the GPU is the figure to compare. Each frame reports the latest time of the scene pass
