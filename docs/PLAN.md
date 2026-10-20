@@ -28,8 +28,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0103](adr/0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md)) and P5
   ([ADR-0104](adr/0104-the-build-ci-and-measurements.md),
   [ADR-0105](adr/0105-egui-fonts-ship-with-the-dev-overlay.md)) are done, and P4
-  ([ADR-0106](adr/0106-the-measured-quick-wins.md)) but B4-F01, which waits for the owner's
-  decision; P6 waits for the owner's go.
+  ([ADR-0106](adr/0106-the-measured-quick-wins.md)) but B4-F01, which P6's execution model weighs;
+  P6 is current.
 - The games the engine aims at, described on 2026-10-19
   ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)): nine profiles, from *Hunna Wood* to a
   massively multiplayer game, listed in [`ROADMAP.md`](ROADMAP.md). They add criteria to P6, one UI
@@ -47,8 +47,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [P2](#p2--a-damaged-file-gives-an-error-never-a-crash) | No damaged or edited file makes the engine panic, hang or exhaust its memory (ADR-0096) | Done |
 | [P3](#p3--the-loss-of-the-gpu-device-and-the-main-loop) | A lost GPU device is recovered wherever the loss is found, and a panic in `render` stays an ordinary panic | Done |
 | [P5](#p5--the-build-ci-and-measurements-tracked-from-one-commit-to-the-next) | Every crate compiled once, CI under its limit, and the engine's measurements tracked from one commit to the next | Done |
-| [P4](#p4--the-measured-quick-wins) | The quick wins that the audit measured, each measured again before and after | Done but B4-F01, which waits for the owner's decision |
-| [P6](#p6--the-foundation-decisions) | What the editor will freeze, decided as ADRs | Planned |
+| [P4](#p4--the-measured-quick-wins) | The quick wins that the audit measured, each measured again before and after | Done but B4-F01, which P6's execution model weighs |
+| [P6](#p6--the-foundation-decisions) | What the editor will freeze, decided as ADRs | Current |
 
 Stages 0, 1, 2, 3a, 3b, 3c, 3d, 4a, 4b, 5a and 5b are done; see [Completed
 stages](#completed-stages).
@@ -125,8 +125,8 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
   render.instances.100k`, then the same at P4's last commit, titled `"P4, RX 6900 XT"`, both
   sections added to `docs/measurements.md` in that order. They show what P4's changes of the
   renderer and of the cooker gain on a GPU (B3-F02, B3-F05, B1-F06), which lavapipe could not,
-  and B4-F01's figures before the owner decides on it; `render.unseen.10k`, which P4 added, has no
-  figure before it.
+  and B4-F01's figures, which P6's execution model weighs; `render.unseen.10k`, which P4 added,
+  has no figure before it.
 - **P4, on Linux.** *Hunna Wood*'s zone played by day and at night, `cargo run -p hunnawood --
   --new --save <a file of its own>`, and found unchanged: the hero's coat, whose textures are now
   compressed, and the shadows, whose draws go in another order.
@@ -597,7 +597,7 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
   [ADR-0054](adr/0054-image-tests-allow-0-2-percent-on-other-drivers.md); CI is green.
 - **How to test.** The benchmarks of P5; `scripts/check.sh`.
 - **By hand (Linux).** The owner plays the zone by day and at night and finds it unchanged.
-- **Outcome.** Done on 2026-10-20, but B4-F01, which waits for the owner's decision.
+- **Outcome.** Done on 2026-10-20, but B4-F01, which P6's execution model weighs.
   [ADR-0106](adr/0106-the-measured-quick-wins.md) records each change and the five possible gains
   measured and left as they are, and amends ADR-0026, ADR-0042, ADR-0069, ADR-0071, ADR-0083 and
   ADR-0084. Every figure below was measured on lavapipe, on a machine of 4 logical CPUs: before,
@@ -644,8 +644,8 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
     from 2.0 to 1.19 ms at the 90th percentile.
   - B4-F01: not changed. One thread that submits within a budget of bytes per frame would change
     what ADR-0072 and ADR-0074 decided, and budget background work, which P6's execution model
-    decides; its gain shows only on a GPU. The owner decides between doing it now, leaving it to P6
-    and Stage 7, or fewer loading threads; the [known debt](#known-debt) states it meanwhile.
+    decides; its gain shows only on a GPU. The owner set it aside on 2026-10-20, with P4's checks
+    by hand, for P6's execution model to weigh; the [known debt](#known-debt) states it meanwhile.
   - The five possible gains that the audit had not measured are measured, and none is changed:
     ADR-0106 gives each figure and why.
   - A review of P4 found the vector of the instances' values keeping its peak size, a hasher of
@@ -670,6 +670,9 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
     that slows while the UI and the camera run at real speed; background work budgeted so that a
     hidden loading never drops a frame; a simulation that holds the authority apart from what is
     shown, so that a server can one day run it alone.
+    P4 leaves B4-F01, the frames that a load slows (see [Known debt](#known-debt)): one thread
+    that submits to the GPU within a budget of bytes per frame, against what ADR-0072 and
+    ADR-0074 decided.
   - Change detection beyond transforms, changes deferred during a traversal, lifecycle hooks, and
     the state that systems compute apart from the state an author writes (C1-02, C1-04, C1-07,
     C5-02, C5-04).
@@ -786,7 +789,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   bytes per frame, would change who creates and uploads the GPU objects, which
   [ADR-0072](adr/0072-stage-4b-live-assets.md) and
   [ADR-0074](adr/0074-uploading-textures-without-holding-up-frames.md) decided, and the budgets of
-  background work are P6's execution model: P4 leaves it to the owner's decision.
+  background work are P6's execution model, which weighs it.
 - **The first frame that draws shadows costs more, and more still while a scene loads**
   ([ADR-0074](adr/0074-uploading-textures-without-holding-up-frames.md)). It makes the renderer
   create its shadow atlas and its frame again; during a load, the GPU, busy with the load's copies,
