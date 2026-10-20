@@ -276,10 +276,11 @@ Between Stage 5b and Stage 6 come two passes, without a release of their own (AD
 
 **Goal.** A real editor, built as a client of the engine.
 
-- Frustum culling and instancing, moved from Stage 9a (ADR-0097), first, before the viewport, on the decisions of the foundations pass
+- Frustum culling and instancing, moved from Stage 9a (ADR-0097), first, before the viewport, on the decisions of the foundations pass, with the GPU layer's storage buffers and instanced draws (ADR-0115)
 - The frame contract (ADR-0111), before the editor's viewport: a frame that owns what it draws, an asset cache that loads without the renderer, views apart from the renderer with settings of their own, and materials of a kind registered with the renderer, the physically based one first; the adapter's limits asked for above a floor checked at startup, and the benchmarks measured at the hardware tiers' resolutions (ADR-0114)
 - The execution model (ADR-0107), before play in editor: one task pool of the engine's, with a priority for the frame and one for the background; the copies to the GPU submitted by one owner within a budget of bytes per frame; the phases of a frame, the world read only while it is drawn; game time apart from real time, with pause and one step; a game as a simulation and a presentation, run by a host
 - What the world knows of its changes (ADR-0108), before the hierarchy and the inspector: a tick on every value of a component, read since a reader's last tick, with summaries, a log of removals and a structure counter; components that clone; the mark of driven components, before the editor writes levels
+- A milestone of rendering for the editor before its viewport: blending and lines, an unlit material, picking by the GPU and by the CPU, two points of each view's graph where the editor inserts its grid, icons, gizmos and outline (ADR-0115)
 - The engine's UI framework, as far as the editor needs it: text in several writing systems, layout, docking, widgets, input routing, focus, drag and drop, theming (ADR-0098)
 - Viewport, hierarchy, inspector (driven by reflection), asset browser
 - Command and transaction system: every edit is undoable, its entities named by their persistent identities, a deletion undone by creating its entities again under the same identities, the commands kept in a journal; what the editor creates named at once as its level's file names it (ADR-0109)
@@ -328,13 +329,13 @@ Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b nee
 **Goal.** Render what a shipped game shows, beyond a simple scene.
 
 - Shadows: shadows of point lights, the tiles of spot lights' shadows sized by how large each light shows on screen (ADR-0058)
-- Many lights, by a method that keeps several ways of lighting possible in one frame: clustered forward is expected, chosen here by measurement (ADR-0098)
+- Many lights, by a method that keeps several ways of lighting possible in one frame: clustered forward is expected, chosen here by measurement (ADR-0098); compute shaders and indirect draws in the GPU layer (ADR-0115)
 - Transparency
 - Temporal anti-aliasing
 - Fog, ambient occlusion, decals
 - A day-night cycle
 - The pieces for 2D and stylized games that no earlier stage needed (section 1)
-- The look of a game: how each material is lit, passes of the game's own, its tone-mapping curve and its color grading (ADR-0098); the kinds of materials that a game registers (ADR-0111)
+- The look of a game: how each material is lit, passes of the game's own, its tone-mapping curve and its color grading (ADR-0098); the kinds of materials that a game registers (ADR-0111); more points of a view's graph where a game inserts its own passes (ADR-0115)
 - The stability of the image as a measured goal: no shimmering, no trails, no detail that pops in (ADR-0098)
 - Skin lit through subsurface scattering (ADR-0098)
 - Quality set per hardware tier (section 1, ADR-0098), each technique stating its tier and its fallback, measured against the tiers' budgets (ADR-0114)

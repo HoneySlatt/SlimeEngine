@@ -3,8 +3,9 @@
 - Status: Accepted; amends [0027](0027-the-render-crate.md) (what the renderer keeps from one frame
   to the next), [0035](0035-physically-based-materials.md) (the physically based material is one
   kind of material), [0041](0041-render-graph.md) (views apart from the renderer, a part of the
-  graph each) and [0084](0084-what-the-world-draws.md) (a frame that owns what it draws, and a
-  cache that loads without the renderer)
+  graph each) and [0084](0084-what-the-world-draws.md) (a frame that owns what it draws, and a cache
+  that loads without the renderer); amended by [0115](0115-what-the-gpu-layer-gives-the-editor.md)
+  (an unlit kind of material at Stage 6)
 - Date: 2026-10-20
 
 ## Context

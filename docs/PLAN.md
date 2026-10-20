@@ -35,8 +35,10 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   runs a game's code ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)), the frame
   contract ([ADR-0111](adr/0111-the-frame-contract.md)), levels, saves and worlds for open worlds
   ([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)), asset requests
-  ([ADR-0113](adr/0113-asset-requests-residency-and-priorities.md)), and hardware tiers
-  ([ADR-0114](adr/0114-hardware-tiers-and-the-gpus-limits.md)) are decided.
+  ([ADR-0113](adr/0113-asset-requests-residency-and-priorities.md)), hardware tiers
+  ([ADR-0114](adr/0114-hardware-tiers-and-the-gpus-limits.md)), and what the GPU layer gives the
+  editor ([ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md)) are decided: every decision
+  of P6 is taken, and Stage 6 is to be planned with the owner on them.
 - The games the engine aims at, described on 2026-10-19
   ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)): nine profiles, from *Hunna Wood* to a
   massively multiplayer game, listed in [`ROADMAP.md`](ROADMAP.md). They add criteria to P6, one UI
@@ -55,7 +57,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [P3](#p3--the-loss-of-the-gpu-device-and-the-main-loop) | A lost GPU device is recovered wherever the loss is found, and a panic in `render` stays an ordinary panic | Done |
 | [P5](#p5--the-build-ci-and-measurements-tracked-from-one-commit-to-the-next) | Every crate compiled once, CI under its limit, and the engine's measurements tracked from one commit to the next | Done |
 | [P4](#p4--the-measured-quick-wins) | The quick wins that the audit measured, each measured again before and after | Done but B4-F01, which P6's execution model weighs |
-| [P6](#p6--the-foundation-decisions) | What the editor will freeze, decided as ADRs | Current |
+| [P6](#p6--the-foundation-decisions) | What the editor will freeze, decided as ADRs | Current: every decision taken (ADR-0107 to ADR-0115); Stage 6 to be planned with the owner |
 
 Stages 0, 1, 2, 3a, 3b, 3c, 3d, 4a, 4b, 5a and 5b are done; see [Completed
 stages](#completed-stages).
@@ -770,6 +772,11 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
   - What the GPU layer gives the editor and the start of Stage 6: blending, lines, an unlit
     material, picking, passes that a client inserts in a view; storage buffers and instanced draws
     for culling and instancing (C2-02, C2-05).
+    **Decided** on 2026-10-20, in [ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md):
+    the GPU layer grows by pieces with their first users, now known; a milestone of rendering for
+    the editor early in Stage 6, with blending, lines, an unlit material and picking by the GPU and
+    the CPU; two points of each view's graph where a client inserts its
+    draws.
 - **Delivers.** The ADRs, accepted by the owner; [`ROADMAP.md`](ROADMAP.md) and
   [`ARCHITECTURE.md`](ARCHITECTURE.md) where they change; the code that a decision needs to be
   measured, and no more.

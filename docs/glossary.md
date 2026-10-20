@@ -298,6 +298,10 @@ and disappear into it: any loss or gain of light shows.
 speed, 1 by default, less to slow the game down, 0 to pause it, and its fixed steps keep their
 duration at every speed ([ADR-0107](adr/0107-the-execution-model.md)). Decided, not built yet.
 
+**Gizmo.** A handle that an editor draws over a selection to move, turn or scale it with the mouse,
+in the scene or always on top of it ([ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md)).
+Decided, not built yet.
+
 **glTF.** The Khronos Group's format for 3D scenes: meshes, materials, textures and a node
 hierarchy, as a JSON file with binary buffers, or as one GLB file with everything embedded. The
 cooker, `slime-cook`, imports both ([ADR-0069](adr/0069-the-asset-pipeline.md)).
@@ -389,8 +393,9 @@ crashed replays it and a test replays an editing session
 
 **Kind (material).** A way of lighting a surface that the renderer knows by registration: its
 shaders, its parameters described by reflection, and the passes it draws in. The physically based
-material is the one kind until Stage 9a ([ADR-0111](adr/0111-the-frame-contract.md)). Decided, not
-built yet.
+material is the first kind, an unlit one for the editor's gizmos and icons the second, at Stage 6;
+games register theirs from Stage 9a ([ADR-0111](adr/0111-the-frame-contract.md),
+[ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md)). Decided, not built yet.
 
 **KTX2.** The Khronos Group's file format for GPU textures, which holds every mipmap level of a
 texture in its GPU format: the format of cooked textures
@@ -601,6 +606,11 @@ letter key of the top row is `KeyQ` on every layout, whether it is labelled Q (Q
 (AZERTY). Suits movement keys. See also *logical key*.
 
 **Physical pixel.** A pixel of the display. See *logical pixel*.
+
+**Picking.** Finding which object is under the mouse: by the GPU, from an image where each pixel
+holds the number of the instance drawn there, read back without holding up a frame; or by the CPU,
+a ray against the instances' bounds then their triangles, without a GPU
+([ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md)). Decided, not built yet.
 
 **Placement.** A *prefab* placed in a scene, under an ID of that scene, with its *overrides*, or
 while a world runs, under `created/<number>`; the entities of a placement are named through it, as
