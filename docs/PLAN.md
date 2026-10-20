@@ -33,8 +33,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   world knows of its changes ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)),
   stable references and undo ([ADR-0109](adr/0109-stable-references-and-undo.md)), how the editor
   runs a game's code ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)), the frame
-  contract ([ADR-0111](adr/0111-the-frame-contract.md)), and levels, saves and worlds for open
-  worlds ([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)) are decided.
+  contract ([ADR-0111](adr/0111-the-frame-contract.md)), levels, saves and worlds for open worlds
+  ([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)), and asset requests
+  ([ADR-0113](adr/0113-asset-requests-residency-and-priorities.md)) are decided.
 - The games the engine aims at, described on 2026-10-19
   ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)): nine profiles, from *Hunna Wood* to a
   massively multiplayer game, listed in [`ROADMAP.md`](ROADMAP.md). They add criteria to P6, one UI
@@ -752,6 +753,11 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
     adoption of what outlives its scene, transfer between worlds at Stage 10a, layers that depend
     on the story at Stage 9b.
   - An asset request API, with priorities, cancellation, a memory budget and eviction (C3-01).
+    **Decided** on 2026-10-20, in
+    [ADR-0113](adr/0113-asset-requests-residency-and-priorities.md): requests that carry a
+    priority, now, soon or later, and return a handle that keeps their assets in memory or loading;
+    a load cancelled when no handle holds it; what nothing holds dropped least recently used first
+    under a budget of memory per kind; textures streamed by their levels of detail at Stage 10a.
   - Hardware tiers, with budgets scaled from the RX 6900 XT's measurements (C2-03): a modest
     minimum at high frame rates, and a high-end tier for the visual targets of the realistic games
     (ADR-0098); the engine keeps WebGPU's default limits today.

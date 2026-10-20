@@ -140,7 +140,7 @@ the ADR linking to it.
 | [0070](0070-the-sample-games-source-assets.md) | The sample game's source assets: free, listed, mirrored | Accepted |
 | [0071](0071-cooked-textures.md) | Cooked textures | Accepted; amended by 0102 and 0106 |
 | [0072](0072-stage-4b-live-assets.md) | Stage 4b: live assets | Accepted; amended by 0078, 0103 and 0107 |
-| [0073](0073-loading-scenes-in-the-background.md) | Loading scenes in the background | Accepted; amended by 0074 and 0107 |
+| [0073](0073-loading-scenes-in-the-background.md) | Loading scenes in the background | Accepted; amended by 0074, 0107 and 0113 |
 | [0074](0074-uploading-textures-without-holding-up-frames.md) | Uploading textures without holding up frames | Accepted; amended by 0107 |
 | [0075](0075-recovering-from-a-lost-gpu-device.md) | Recovering from a lost GPU device | Accepted; amended by 0103 |
 | [0076](0076-hot-reload-of-cooked-data.md) | Hot reload of cooked data | Accepted; amended by 0084 and 0102 |
@@ -151,7 +151,7 @@ the ADR linking to it.
 | [0081](0081-stage-5a-the-world.md) | Stage 5a: the world | Accepted; amended by 0109 |
 | [0082](0082-the-worlds-storage-and-handles.md) | The world's storage and handles | Accepted |
 | [0083](0083-transforms-and-the-hierarchy.md) | Transforms and the hierarchy | Accepted; amended by 0087, 0106 and 0108 |
-| [0084](0084-what-the-world-draws.md) | What the world draws | Accepted; amended by 0106 and 0111 |
+| [0084](0084-what-the-world-draws.md) | What the world draws | Accepted; amended by 0106, 0111 and 0113 |
 | [0085](0085-reflection.md) | Reflection | Accepted; amended by 0086, 0087, 0101 and 0108 |
 | [0086](0086-serialization.md) | Serialization | Accepted; amended by 0087, 0091 and 0102 |
 | [0087](0087-the-worlds-documents.md) | The world's documents | Accepted; amended by 0088, 0089, 0092, 0093, 0101, 0108 and 0112 |
@@ -180,3 +180,4 @@ the ADR linking to it.
 | [0110](0110-how-the-editor-runs-a-games-code.md) | How the editor runs a game's code | Accepted |
 | [0111](0111-the-frame-contract.md) | The frame contract | Accepted |
 | [0112](0112-levels-saves-and-worlds-for-open-worlds.md) | Levels, saves and worlds for open worlds | Accepted |
+| [0113](0113-asset-requests-residency-and-priorities.md) | Asset requests, residency and priorities | Accepted |

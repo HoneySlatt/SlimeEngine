@@ -1,8 +1,10 @@
 # 0084. What the world draws
 
 - Status: Accepted; amended by [0106](0106-the-measured-quick-wins.md) (the lights nearest the
-  camera first, beyond those the renderer draws) and [0111](0111-the-frame-contract.md) (a frame
-  that owns what it draws, and a cache that loads without the renderer)
+  camera first, beyond those the renderer draws), [0111](0111-the-frame-contract.md) (a frame that
+  owns what it draws, and a cache that loads without the renderer) and
+  [0113](0113-asset-requests-residency-and-priorities.md) (assets requested through handles, by the
+  bridge, the editor and games, and dropped when nothing holds them)
 - Date: 2026-10-16
 
 ## Context

@@ -42,6 +42,12 @@ clears it, as when its *device* is lost ([ADR-0084](adr/0084-what-the-world-draw
 its source, so that it stays the same when the file is moved or renamed. A *sub-asset*'s ID is
 derived from its file's ([ADR-0069](adr/0069-the-asset-pipeline.md)).
 
+**Asset request.** Asking the *asset cache* for assets, with a priority (*now*, *soon* or *later*),
+which returns a request handle: while a request handle lives, its assets stay in memory or keep
+loading; once none does, a load not done is cancelled and a loaded asset may be dropped, least
+recently used first, when the cache passes its budget of memory
+([ADR-0113](adr/0113-asset-requests-residency-and-priorities.md)). Decided, not built yet.
+
 **Attachment (bone).** A component that hangs an entity on a bone of another entity's skeleton,
 naming the entity and the bone; saves and scene files hold it as any reference
 ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)). Decided, not built yet.

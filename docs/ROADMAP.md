@@ -283,6 +283,7 @@ Between Stage 5b and Stage 6 come two passes, without a release of their own (AD
 - The engine's UI framework, as far as the editor needs it: text in several writing systems, layout, docking, widgets, input routing, focus, drag and drop, theming (ADR-0098)
 - Viewport, hierarchy, inspector (driven by reflection), asset browser
 - Command and transaction system: every edit is undoable, its entities named by their persistent identities, a deletion undone by creating its entities again under the same identities, the commands kept in a journal; what the editor creates named at once as its level's file names it (ADR-0109)
+- Assets asked for by requests that carry a priority and return a handle, their loads cancelled when no handle holds them, and dropped least recently used first under a budget of memory (ADR-0113)
 - Levels made of several scene files, former identities written when the editor moves an entity out of its file, references to entities of other scenes (`EntityRef`), saves made of differences per scene with what persists chosen by the game, and entities adopted out of their scene (ADR-0112)
 - Play in editor, the game running in a child process first (ADR-0097), in its own window, linked to the editor and to tools by a development channel; a change of the game's code starts it again where it was; a game is a library, its program and its editor (ADR-0110)
 - The engine's MCP server: AI agents read the world, act through the editor's commands, capture views, read measurements and logs, cook, run tests and play the game with scripted input; reachable from the user's machine only, absent from shipped builds (ADR-0099)
@@ -379,7 +380,7 @@ Stage 10 is split in two (ADR-0097): streaming, which an open world needs, does 
 
 **Goal.** Scale beyond a single level.
 
-- World streaming: cells, async I/O, priorities, memory budgets, HLOD; cells computed by cooking and kept out of identities, what refers to each other loaded together, a region prepared in a second world then switched to with what follows the player (ADR-0112)
+- World streaming: cells, async I/O, priorities, memory budgets, HLOD; cells computed by cooking and kept out of identities, what refers to each other loaded together, a region prepared in a second world then switched to with what follows the player (ADR-0112); textures streamed by their levels of detail, and a priority computed at each frame within the classes of requests (ADR-0113)
 - Terrain, vegetation and their editing tools
 - Large-world coordinates
 - High-scale rendering: GPU-driven rendering, advanced culling, virtual texturing, virtual geometry, global illumination, ray tracing. Each is admitted against a measured problem, on the native backends of Stage 9c.

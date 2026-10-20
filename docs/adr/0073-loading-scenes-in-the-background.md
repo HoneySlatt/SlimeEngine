@@ -1,8 +1,9 @@
 # 0073. Loading scenes in the background
 
 - Status: Accepted; amended by [0074](0074-uploading-textures-without-holding-up-frames.md) (what a
-  load costs the frames) and [0107](0107-the-execution-model.md) (the engine's task pool, and one
-  owner of the copies to the GPU)
+  load costs the frames), [0107](0107-the-execution-model.md) (the engine's task pool, and one owner
+  of the copies to the GPU) and [0113](0113-asset-requests-residency-and-priorities.md) (loads given
+  a priority, and cancelled)
 - Date: 2026-10-15
 
 ## Context
