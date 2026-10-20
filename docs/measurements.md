@@ -552,3 +552,72 @@ before the last changes of its review, gave, for `render.instances.10k`, 72.93, 
 | `render.instances.100k` | passes on the GPU, summed at 2560 × 1440, median of what 8 frames reported | 399.58 ms |
 | `render.instances.100k` | draw calls at 2560 × 1440: scene, shadow cascades | 8, 2 |
 | `render.instances.100k` | instances that the scene pass drew at 2560 × 1440 | 95310 |
+
+
+## M6a.2, before, RX 6900 XT
+
+Commit `b191845`, on 2026-10-21: the loads before the engine's task pool and the uploader, with the
+benchmark of textures of 4096² and the warm-up frame that M6a.2 added first. The build is not
+measured in this section, nor in the next. A second run gave, for `loading.textures`, its meshes
+whole after 259.85 ms, the longest frame 26.17 ms, the render CPU at the 90th percentile 766.3 µs
+while they load; for `loading.zone`, 77.33 ms, 6.25 ms and 1.76 ms. Runs earlier the same day, on
+a machine that ran other programs, gave longest frames of 29.78 and 31.27 ms for the textures.
+
+16 logical CPUs, linux on x86_64, GPU `AMD Radeon RX 6900 XT (RADV NAVI21)`, a release build.
+
+| Benchmark | Measure | Value |
+|---|---|---|
+| `loading.textures` | cooked data opened | 37.9 µs |
+| `loading.textures` | meshes placed | 16 |
+| `loading.textures` | first frame that draws them whole, from the opening | 277.00 ms |
+| `loading.textures` | CPU of `Renderer::render` while they load, median of 234 | 375.7 µs |
+| `loading.textures` | CPU of `Renderer::render` while they load, 90th percentile of 234 | 648.7 µs |
+| `loading.textures` | frame while they load, built, drawn and waited for on the GPU, longest of 234 | 23.89 ms |
+| `loading.textures` | CPU of `Renderer::render` once they are loaded, median of 5 | 502.6 µs |
+| `loading.textures` | CPU of `Renderer::render` once they are loaded, 90th percentile of 5 | 2.13 ms |
+| `loading.zone` | cooked zone opened | 63.6 µs |
+| `loading.zone` | meshes placed | 73 |
+| `loading.zone` | first frame that draws them whole, from the opening | 70.24 ms |
+| `loading.zone` | CPU of `Renderer::render` while they load, median of 51 | 747.3 µs |
+| `loading.zone` | CPU of `Renderer::render` while they load, 90th percentile of 51 | 1.37 ms |
+| `loading.zone` | frame while they load, built, drawn and waited for on the GPU, longest of 51 | 6.32 ms |
+| `loading.zone` | CPU of `Renderer::render` once they are loaded, median of 5 | 492.6 µs |
+| `loading.zone` | CPU of `Renderer::render` once they are loaded, 90th percentile of 5 | 891.5 µs |
+
+## M6a.2, RX 6900 XT
+
+Commit `b5cb3fa`, on 2026-10-21, measured as the section above. A second run gave, for
+`loading.textures`, its meshes whole after 207.77 ms, the longest frame 10.60 ms, the render CPU
+at the 90th percentile 557.1 µs while they load; for `loading.zone`, 43.46 ms, 1.32 ms and
+753.2 µs. Every frame is within the 16.7 ms of a frame at 60 frames a second
+([ADR-0114](adr/0114-hardware-tiers-and-the-gpus-limits.md)), and the render CPU while the meshes
+load is near what it is once they are loaded. Loaded without a frame drawn, by a benchmark written
+for the occasion and not kept, the zone's meshes came whole after 49.0 and 55.3 ms, where they
+took 72.0 and 78.4 ms at `b191845`, and the textures' after 204.1 and 209.2 ms, where they took
+223.7 and 236.9 ms. Starting a load, `loading.batch`, takes 0.7 to 1.1 µs on the calling thread,
+where it took 11.8 to 18.0 µs at `b191845`; the sample's sky's environment, computed by frame
+tasks, 17.7 ms at the median of 11, where it took 19.5 ms on a thread per core
+(`measure_the_precomputation` in `crates/slime-render/src/environment.rs`).
+[ADR-0118](adr/0118-the-task-pool-and-the-copies-to-the-gpu.md) gives the runs that chose how many
+of the loads' tasks run at once and the budget of copies per frame.
+
+16 logical CPUs, linux on x86_64, GPU `AMD Radeon RX 6900 XT (RADV NAVI21)`, a release build.
+
+| Benchmark | Measure | Value |
+|---|---|---|
+| `loading.textures` | cooked data opened | 23.6 µs |
+| `loading.textures` | meshes placed | 16 |
+| `loading.textures` | first frame that draws them whole, from the opening | 215.03 ms |
+| `loading.textures` | CPU of `Renderer::render` while they load, median of 342 | 338.2 µs |
+| `loading.textures` | CPU of `Renderer::render` while they load, 90th percentile of 342 | 455.2 µs |
+| `loading.textures` | frame while they load, built, drawn and waited for on the GPU, longest of 342 | 7.61 ms |
+| `loading.textures` | CPU of `Renderer::render` once they are loaded, median of 5 | 342.3 µs |
+| `loading.textures` | CPU of `Renderer::render` once they are loaded, 90th percentile of 5 | 706.9 µs |
+| `loading.zone` | cooked zone opened | 59.8 µs |
+| `loading.zone` | meshes placed | 73 |
+| `loading.zone` | first frame that draws them whole, from the opening | 45.85 ms |
+| `loading.zone` | CPU of `Renderer::render` while they load, median of 56 | 544.7 µs |
+| `loading.zone` | CPU of `Renderer::render` while they load, 90th percentile of 56 | 869.0 µs |
+| `loading.zone` | frame while they load, built, drawn and waited for on the GPU, longest of 56 | 4.32 ms |
+| `loading.zone` | CPU of `Renderer::render` once they are loaded, median of 5 | 407.3 µs |
+| `loading.zone` | CPU of `Renderer::render` once they are loaded, 90th percentile of 5 | 810.6 µs |

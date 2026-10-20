@@ -51,14 +51,16 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0116](adr/0116-stage-6-in-two-halves.md)), to be released as 0.5 at its close, with both
   passes. Stage 6 is split in two halves: Stage 6b, the editor, is planned in detail at Stage 6a's
   close and released as 0.6. M6a.1, frustum culling and instancing, is done
-  ([ADR-0117](adr/0117-frustum-culling-and-instancing.md)). Next: M6a.2.
+  ([ADR-0117](adr/0117-frustum-culling-and-instancing.md)), and so is M6a.2, the engine's task
+  pool and the copies to the GPU within a budget
+  ([ADR-0118](adr/0118-the-task-pool-and-the-copies-to-the-gpu.md)). Next: M6a.3.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
 | [M6a.1](#m6a1--frustum-culling-and-instancing) | What the camera does not see is not drawn, and the instances of one mesh and one material are drawn together | Done |
-| [M6a.2](#m6a2--the-engines-task-pool-and-copies-to-the-gpu-within-a-budget) | A load never slows the frames, and the engine's compute work runs on one task pool | Planned |
+| [M6a.2](#m6a2--the-engines-task-pool-and-copies-to-the-gpu-within-a-budget) | A load never slows the frames, and the engine's compute work runs on one task pool | Done |
 | [M6a.3](#m6a3--what-the-world-knows-of-its-changes) | Each reader of the world asks what changed since it last read; components clone | Planned |
 | [M6a.4](#m6a4--a-frame-that-owns-what-it-draws) | A frame owns what it draws, and loading needs no renderer | Planned |
 | [M6a.5](#m6a5--the-phases-of-a-frame-game-time-and-a-game-as-a-simulation-and-a-presentation) | Each phase of a frame says who may change the world; game time pauses and steps; a game's rules run without a GPU | Planned |
@@ -251,6 +253,36 @@ Risks:
 - **How to test.** `cargo test --workspace`; `cargo run --release -p slime-benches -- loading
   loading.zone`; `scripts/check.sh`.
 - **By hand.** The owner starts the game, and sees the zone appear as before.
+- **Outcome.** Done on 2026-10-21. The owner's check by hand waits
+  ([the list](#checks-by-hand-waiting-for-the-owner)).
+  [ADR-0118](adr/0118-the-task-pool-and-the-copies-to-the-gpu.md) records the design, and amends
+  ADR-0107: the pool, `slime-tasks`, on the standard library alone, its tasks owning what they
+  read, without `unsafe` code; the sky's environment and the table of the BRDF computed by frame
+  tasks, the cooker's encoding and the loads by background tasks; the loads' tasks two at a time,
+  where ADR-0107 gave them every background thread, which let frames take up to 68 ms, while the
+  pool's other background work keeps every thread but one; the uploader in `slime-gfx`, one per
+  renderer, 8 MiB of copies per frame, renewed by each frame and by 16.7 ms without one, and no
+  budget before the first frame nor 100 ms after the last, so that a load that a program waits
+  for without drawing is not held back; a load completed by its last task or copy, without a
+  thread of its own. The tests: `a_frame_task_finds_a_thread_while_background_tasks_fill_the_pool`
+  and `a_free_thread_takes_a_frame_task_before_every_background_task` in `slime-tasks`;
+  `two_tasks_of_loads_run_at_once_at_most_completions_first_then_the_earlier_loads`;
+  `a_scene_loaded_in_the_background_holds_each_asset_once_where_its_nodes_place_it` and the
+  cache's tests, a scene still arriving whole; the uploader's tests in `slime-gfx`'s
+  `tests/uploads.rs` and `tests/textures.rs`, among them a device lost while copies wait;
+  `a_load_on_a_lost_device_ends_with_the_loss_and_never_hangs`;
+  `a_panic_of_a_task_in_its_upload_s_hand_off_is_the_one_raised`; the cook twice from empty
+  directories, the same bytes, and P3's scenarios of a lost device, in `scripts/check.sh`. On the
+  RX 6900 XT ([`measurements.md`](measurements.md), sections "M6a.2, before" and "M6a.2", two runs
+  each): while sixteen textures of 4096² load, the longest frame 7.6 to 10.6 ms, where frames took
+  up to 23.9 and 26.2 ms, and the render CPU 455 to 557 µs at the 90th percentile, where it took
+  649 to 766 µs, beside 692 to 707 µs once they are loaded; while the zone loads, the longest
+  frame 1.3 to 4.3 ms, where it took 6.3 ms, the render CPU 753 to 869 µs at the 90th percentile,
+  where it took 1.4 to 1.8 ms, beside 811 to 821 µs once loaded. The meshes come whole sooner: the
+  textures' after 208 to 215 ms, where they took 260 to 277 ms, the zone's after 43 to 46 ms,
+  where they took 70 to 77 ms, and loaded without a frame drawn, the zone's after 49 to 55 ms,
+  where they took 72 to 78 ms. Retired from the known debt: B4-F01; added: what a load reads waits
+  in staging memory.
 
 ### M6a.3 — What the world knows of its changes
 
@@ -645,6 +677,8 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
 - **P5, in the Windows virtual machine.** The benchmarks on Direct3D 12, `cargo run --release -p
   slime-benches -- render world loading`; the figures of WARP that the Windows job's log of
   `af512af` prints.
+- **M6a.2, on Linux.** The game started with `cargo run --release -p hunnawood -- --new --save <a
+  file of its own>`: the zone appears as before.
 
 ### P1 — Saves and identities that never mislead
 
