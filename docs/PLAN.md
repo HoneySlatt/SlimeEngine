@@ -34,8 +34,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   stable references and undo ([ADR-0109](adr/0109-stable-references-and-undo.md)), how the editor
   runs a game's code ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)), the frame
   contract ([ADR-0111](adr/0111-the-frame-contract.md)), levels, saves and worlds for open worlds
-  ([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)), and asset requests
-  ([ADR-0113](adr/0113-asset-requests-residency-and-priorities.md)) are decided.
+  ([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)), asset requests
+  ([ADR-0113](adr/0113-asset-requests-residency-and-priorities.md)), and hardware tiers
+  ([ADR-0114](adr/0114-hardware-tiers-and-the-gpus-limits.md)) are decided.
 - The games the engine aims at, described on 2026-10-19
   ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)): nine profiles, from *Hunna Wood* to a
   massively multiplayer game, listed in [`ROADMAP.md`](ROADMAP.md). They add criteria to P6, one UI
@@ -761,6 +762,11 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
   - Hardware tiers, with budgets scaled from the RX 6900 XT's measurements (C2-03): a modest
     minimum at high frame rates, and a high-end tier for the visual targets of the realistic games
     (ADR-0098); the engine keeps WebGPU's default limits today.
+    **Decided** on 2026-10-20, in [ADR-0114](adr/0114-hardware-tiers-and-the-gpus-limits.md):
+    the adapter's limits above a floor checked at startup, modern features with the techniques
+    that need them; three tiers, handheld, modest and high, each with a reference machine and
+    budgets of frame time and memory, an enthusiast tier at Stage 9c; budgets checked by hand on
+    the RX 6900 XT, scaled by each tier's ratio.
   - What the GPU layer gives the editor and the start of Stage 6: blending, lines, an unlit
     material, picking, passes that a client inserts in a view; storage buffers and instanced draws
     for culling and instancing (C2-02, C2-05).
@@ -1168,7 +1174,10 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **One GPU, an AMD, and two CPU drivers have run the engine.** The image tests' tolerances
   (ADR-0030), the measurements of this plan and the samples' looks come from an RX 6900 XT, with
   RADV on Linux and AMD's driver on Windows, from lavapipe and from WARP: NVIDIA's and Intel's GPUs
-  are untried, and stay so for now, the owner having no other machine (ADR-0097).
+  are untried, and stay so for now, the owner having no other machine (ADR-0097). The ratios that
+  scale the hardware tiers' budgets to the RX 6900 XT are estimates from public benchmarks until
+  the tiers' machines are measured ([ADR-0114](adr/0114-hardware-tiers-and-the-gpus-limits.md)):
+  a GPU rented in the cloud, a Steam Deck, or contributors would end it.
 - **The environment is computed on the CPU, in every process that draws a sky** (ADR-0039): 23 ms
   in a release build on the owner's 16 threads, 162 ms on one core, and the BRDF table once (15
   ms); about eight times longer in a debug build, which every test that draws a sky with a gradient

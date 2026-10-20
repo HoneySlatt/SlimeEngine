@@ -3,7 +3,8 @@
 - Status: Accepted; amends [0016](0016-gpu-layer-with-wgpu.md) (native backends after wgpu),
   [0052](0052-amend-roadmap-before-0-1.md) (the editor's UI and the UI of games) and
   [0097](0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md) (the criteria of the
-  foundations pass)
+  foundations pass); amended by [0114](0114-hardware-tiers-and-the-gpus-limits.md) (a handheld tier
+  below the modest one)
 - Date: 2026-10-19
 
 ## Context

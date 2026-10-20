@@ -33,7 +33,7 @@ The games the engine is weighed against, as profiles (ADR-0098). The games playe
 - A competitive first-person shooter on dedicated servers, at high frame rates on modest computers.
 - Online co-op games hosted by a player, with physics-driven characters, vehicles and proximity voice chat.
 
-Each style aims at the best rendering possible: realistic, anime, painted or hand-drawn. Each game sets *visual targets*, reference images on its target hardware at its frame rate, which principle 9 measures against. The engine runs on *hardware tiers*, from modest computers at high frame rates to high-end ones; a game picks its minimum tier. No mobile platform is aimed at.
+Each style aims at the best rendering possible: realistic, anime, painted or hand-drawn. Each game sets *visual targets*, reference images on its target hardware at its frame rate, which principle 9 measures against. The engine runs on *hardware tiers*, from handheld PCs and modest computers at high frame rates to high-end ones: handheld, modest and high, each with a reference machine and budgets, and an enthusiast tier with ray tracing at Stage 9c (ADR-0114); a game picks its minimum tier among the first three. No mobile platform is aimed at.
 
 ## 2. Architecture
 
@@ -277,7 +277,7 @@ Between Stage 5b and Stage 6 come two passes, without a release of their own (AD
 **Goal.** A real editor, built as a client of the engine.
 
 - Frustum culling and instancing, moved from Stage 9a (ADR-0097), first, before the viewport, on the decisions of the foundations pass
-- The frame contract (ADR-0111), before the editor's viewport: a frame that owns what it draws, an asset cache that loads without the renderer, views apart from the renderer with settings of their own, and materials of a kind registered with the renderer, the physically based one first
+- The frame contract (ADR-0111), before the editor's viewport: a frame that owns what it draws, an asset cache that loads without the renderer, views apart from the renderer with settings of their own, and materials of a kind registered with the renderer, the physically based one first; the adapter's limits asked for above a floor checked at startup, and the benchmarks measured at the hardware tiers' resolutions (ADR-0114)
 - The execution model (ADR-0107), before play in editor: one task pool of the engine's, with a priority for the frame and one for the background; the copies to the GPU submitted by one owner within a budget of bytes per frame; the phases of a frame, the world read only while it is drawn; game time apart from real time, with pause and one step; a game as a simulation and a presentation, run by a host
 - What the world knows of its changes (ADR-0108), before the hierarchy and the inspector: a tick on every value of a component, read since a reader's last tick, with summaries, a log of removals and a structure counter; components that clone; the mark of driven components, before the editor writes levels
 - The engine's UI framework, as far as the editor needs it: text in several writing systems, layout, docking, widgets, input routing, focus, drag and drop, theming (ADR-0098)
@@ -337,7 +337,7 @@ Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b nee
 - The look of a game: how each material is lit, passes of the game's own, its tone-mapping curve and its color grading (ADR-0098); the kinds of materials that a game registers (ADR-0111)
 - The stability of the image as a measured goal: no shimmering, no trails, no detail that pops in (ADR-0098)
 - Skin lit through subsurface scattering (ADR-0098)
-- Quality set per hardware tier (section 1, ADR-0098)
+- Quality set per hardware tier (section 1, ADR-0098), each technique stating its tier and its fallback, measured against the tiers' budgets (ADR-0114)
 
 **Exit.** A level of the game, outdoors and indoors, with a day-night cycle, many lights, transparency and anti-aliasing, within the frame budgets tracked for the sample, covered by image tests.
 
@@ -369,6 +369,7 @@ Stage 9c is added by ADR-0098: the rendering of the games of section 1, and cons
 - Vulkan and Direct3D 12 backends behind the engine-owned API of `slime-gfx`
 - Work on several queues of the GPU in parallel, ray tracing, mesh shaders, resources without a declaration per binding, explicit memory, upscalers and frame generation, the vendors' tools for latency and GPU crashes
 - Whether wgpu stays: as a fallback, for debugging, or for macOS
+- The enthusiast hardware tier, at 4K with ray tracing (ADR-0114)
 
 Before this stage, a feature that wgpu blocks goes through wgpu's access to the API underneath it. The stage comes right after Stage 9b and has no release of its own; what it delivers is released with 0.10.
 

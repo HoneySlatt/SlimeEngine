@@ -1,7 +1,9 @@
 # 0104. The build, CI and measurements
 
-- Status: Accepted; amends [0004](0004-workspace-layout-and-crate-naming.md) (a top-level
-  `benches/` package) and [0077](0077-hot-reload-of-shaders.md) (what an edited shader costs)
+- Status: Accepted; amends [0004](0004-workspace-layout-and-crate-naming.md) (a top-level `benches/`
+  package) and [0077](0077-hot-reload-of-shaders.md) (what an edited shader costs); amended by
+  [0114](0114-hardware-tiers-and-the-gpus-limits.md) (benchmarks measured at the tiers' resolutions
+  and compared with their budgets)
 - Date: 2026-10-19
 
 ## Context

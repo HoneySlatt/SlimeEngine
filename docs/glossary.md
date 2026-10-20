@@ -315,9 +315,11 @@ Linux) and Direct3D 12 (on Windows). wgpu translates the engine's calls into one
 values up to ±65 504. The channels of `Rgba16Float` render targets, which the engine converts to
 `f32` by hand when it reads them back (`Gpu::read_float_render_target`).
 
-**Hardware tier.** A class of computers that the engine runs on, from modest ones at high frame
-rates to high-end ones: a game picks the lowest it supports, and each technique of the renderer
-belongs to a tier ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)).
+**Hardware tier.** A class of computers that the engine runs on, from handheld PCs and modest
+computers at high frame rates to high-end ones: a game picks the lowest it supports, and each
+technique of the renderer belongs to a tier ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)).
+Three are named, each by a reference machine and budgets: handheld, modest and high; an enthusiast
+tier comes with ray tracing ([ADR-0114](adr/0114-hardware-tiers-and-the-gpus-limits.md)).
 
 **Headless.** Running the engine without a window, renderer or audio output. It is a normal
 configuration, used by automated tests and, later, by dedicated servers.
