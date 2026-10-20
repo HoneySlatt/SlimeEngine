@@ -59,8 +59,8 @@ impl TextureRole {
 /// time, and every level of a texture of 4096 × 4096 texels takes about 5 s on the 16 threads of
 /// the development machine (ADR-0071). The blocks of each level are encoded on the engine's task
 /// pool, as background work, and on the calling thread, each task a band of rows; the result does
-/// not depend on their number. A level
-/// smaller than a block repeats its last row and column to fill it.
+/// not depend on their number. A level smaller than a block repeats its last row and column to fill
+/// it.
 pub fn cook_texture(image: &Image, role: TextureRole) -> CookedTexture {
     let compressed = image.width >= 4 && image.height >= 4;
     let stretched = if compressed {

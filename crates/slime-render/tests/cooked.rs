@@ -1,7 +1,7 @@
 //! Loading a cooked scene: a directory of cooked data written in a temporary directory with the
 //! formats of `slime-assets`, loaded onto the GPU, its meshes placed by their nodes, each loaded
 //! once, its lights in world space, and drawn; loads polled, side by side, one of them dropped, and
-//! a panic of a loading thread raised again; a texture of the wrong kind for its slot refused; a
+//! a panic of a task of a load raised again; a texture of the wrong kind for its slot refused; a
 //! material found by its name, and changed; a scene loaded again, which keeps what did not change,
 //! and fails without harm to the scene before; the asset cache, which loads what is asked for once,
 //! in batches, keeps the textures it holds, does not ask again for what failed or panicked, loads
@@ -18,7 +18,7 @@ use slime_assets::{
     TextureEncoding, TextureFilter, TextureSampler, TextureWrap,
 };
 use slime_color::LinearColor;
-use slime_gfx::{Gpu, TextureFormat};
+use slime_gfx::{GfxError, Gpu, TextureFormat};
 use slime_render::glam::{DAffine3, DVec3, Mat4, Vec3};
 use slime_render::{
     AssetCache, Camera, DirectionalLight, Instance, Light, LoadedScene, MaterialValues, MeshData,
@@ -437,7 +437,41 @@ fn loads_go_on_side_by_side_and_dropping_one_leaves_the_others_alone() {
 }
 
 #[test]
-fn a_panic_on_a_loading_thread_is_raised_where_the_load_is_taken() {
+fn a_load_on_a_lost_device_ends_with_the_loss_and_never_hangs() {
+    let gpu = gpu();
+    let renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
+    let (directory, scene) = palette("lost", 4);
+    let assets = CookedAssets::open(directory).expect("the manifest is read");
+    gpu.lose();
+    // The load's tasks find the loss when they create the meshes' and the textures' GPU objects,
+    // before any copy reaches the uploader, and the load ends with the loss.
+    let Err(error) = renderer.load_scene(&gpu, &assets, scene) else {
+        panic!("the scene loaded on a lost device");
+    };
+    assert!(
+        matches!(
+            &error,
+            SceneError::Render(RenderError::Gfx(GfxError::DeviceLost { .. }))
+        ),
+        "{error:?}"
+    );
+    // The asset cache's batches end the same way.
+    let mut cache = AssetCache::new(assets);
+    cache.request(&renderer, &gpu, palette_meshes());
+    let errors = settle(&mut cache);
+    assert!(
+        errors.iter().all(|error| matches!(
+            error,
+            SceneError::Render(RenderError::Gfx(GfxError::DeviceLost { .. }))
+        )),
+        "{errors:?}"
+    );
+    // The renderer, its uploader's thread with it, goes.
+    drop(renderer);
+}
+
+#[test]
+fn a_panic_of_a_load_s_task_is_raised_where_the_load_is_taken() {
     let gpu = gpu();
     let renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
     let (directory, scene) = palette("panic", 4);
@@ -446,7 +480,7 @@ fn a_panic_on_a_loading_thread_is_raised_where_the_load_is_taken() {
         .load_scene(&gpu, &assets, scene)
         .expect("the scene loads");
     // Reloaded on another device, which cannot read the textures it keeps: wgpu panics when the
-    // materials are made, on the load's thread, a bug of the caller's.
+    // materials are made, by the task that completes the load, a bug of the caller's.
     let other = self::gpu();
     let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         renderer
@@ -455,7 +489,7 @@ fn a_panic_on_a_loading_thread_is_raised_where_the_load_is_taken() {
     }));
     assert!(panicked.is_err(), "the load panicked");
 
-    // The renderer's threads caught the panic: they go on loading.
+    // The pool's threads caught the panic: they go on loading.
     let (directory, scene) = palette("after a panic", 4);
     let assets = CookedAssets::open(directory).expect("the manifest is read");
     renderer

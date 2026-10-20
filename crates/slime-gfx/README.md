@@ -25,6 +25,9 @@ them back, and draws into a window:
 - It creates textures from the CPU: two-dimensional ones whose levels of detail it computes, or
   whose levels the caller gives, in 8-bit or half-precision float formats, or in blocks of BC7 and
   BC5 compression, which the asset pipeline's cooked textures use, and cube textures.
+- It brings what loads read to the GPU through an uploader: textures and ranges of buffers written
+  into staging buffers by the threads that load, reused from one upload to the next, and their
+  copies submitted by one thread of the uploader's, within a budget of bytes per frame.
 
 Not there yet: blending and array textures.
 
@@ -134,6 +137,11 @@ fn main() -> Result<(), GfxError> {
   `BindGroup`, the resources a pipeline's shaders read (ADR-0026), whose uniform bindings declare
   the size of their values, so that a pipeline whose shader reads more is refused when it is made
   (ADR-0077); `ShaderModule` and `RenderPipeline`; and `GpuTimer`, which times passes on the GPU.
+- `Uploader::new(gpu, bytes_per_frame)` makes the one owner of the copies of what loads bring
+  (ADR-0107, ADR-0118): `Uploader::texture` and `Uploader::buffers` write a texture's levels or
+  ranges of vertex and index buffers into staging buffers on the calling thread, and call back once
+  the uploader's thread has submitted their copies; `Uploader::frame` renews the budget, as a
+  renderer does after each frame.
 - `Gpu::render` and `Gpu::render_depth` run one pass, through a `RenderPass`, and `Gpu::submit`
   records several into one submission (ADR-0033). `RenderPass::draw_indexed` draws a range of
   instances, from a base vertex (ADR-0117). `RenderPass::set_viewport` draws into part of a

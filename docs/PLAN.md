@@ -26,7 +26,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0103](adr/0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md)), P5
   ([ADR-0104](adr/0104-the-build-ci-and-measurements.md),
   [ADR-0105](adr/0105-egui-fonts-ship-with-the-dev-overlay.md)) and P4
-  ([ADR-0106](adr/0106-the-measured-quick-wins.md)) fixed them, but B4-F01, which M6a.2 fixes.
+  ([ADR-0106](adr/0106-the-measured-quick-wins.md)) fixed them, and M6a.2 B4-F01, which P4 left.
   P6 decided as ADRs what the editor will freeze: the execution model
   ([ADR-0107](adr/0107-the-execution-model.md)), what the world knows of its changes
   ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)), stable references and undo
@@ -72,7 +72,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [P2](#p2--a-damaged-file-gives-an-error-never-a-crash) | No damaged or edited file makes the engine panic, hang or exhaust its memory (ADR-0096) | Done |
 | [P3](#p3--the-loss-of-the-gpu-device-and-the-main-loop) | A lost GPU device is recovered wherever the loss is found, and a panic in `render` stays an ordinary panic | Done |
 | [P5](#p5--the-build-ci-and-measurements-tracked-from-one-commit-to-the-next) | Every crate compiled once, CI under its limit, and the engine's measurements tracked from one commit to the next | Done |
-| [P4](#p4--the-measured-quick-wins) | The quick wins that the audit measured, each measured again before and after | Done but B4-F01, which M6a.2 fixes |
+| [P4](#p4--the-measured-quick-wins) | The quick wins that the audit measured, each measured again before and after | Done; M6a.2 fixed B4-F01, which it left |
 | [P6](#p6--the-foundation-decisions) | What the editor will freeze, decided as ADRs | Done |
 
 Stages 0, 1, 2, 3a, 3b, 3c, 3d, 4a, 4b, 5a and 5b are done; see [Completed
@@ -99,7 +99,7 @@ foundations pass. Where the engine stands at the start:
 - **Threads started four ways**: `slime-render`'s private pool of up to four threads, which loads;
   a thread per load, which waits for its tasks; a thread per logical core for the sky's
   environment; the cooker's own. The loading tasks submit their copies to the GPU as they read, and
-  a load slows every frame (B4-F01, [ADR-0107](adr/0107-the-execution-model.md)).
+  a load slows every frame (B4-F01, [ADR-0107](adr/0107-the-execution-model.md)). M6a.2 changed it.
 - **Only transforms tell that they changed**: every other reader reads the whole world each time
   ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)).
 - **A frame borrows**: `FrameBuilder::build` and `AssetCache::request` take the `Renderer`, and
@@ -1194,7 +1194,7 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
     that slows while the UI and the camera run at real speed; background work budgeted so that a
     hidden loading never drops a frame; a simulation that holds the authority apart from what is
     shown, so that a server can one day run it alone.
-    P4 leaves B4-F01, the frames that a load slows (see [Known debt](#known-debt)): one thread
+    P4 leaves B4-F01, the frames that a load slows, which M6a.2 fixed: one thread
     that submits to the GPU within a budget of bytes per frame, against what ADR-0072 and
     ADR-0074 decided.
     **Decided** on 2026-10-20, in [ADR-0107](adr/0107-the-execution-model.md): one task pool of
@@ -1361,18 +1361,20 @@ justify a decision are also in its ADR.
 Limitations known and accepted for now. The ones that a contributor could take on alone are also
 GitHub issues, linked from their entry; this list stays the reference.
 
-- **A load slows every frame while it lasts** (B4-F01). The renderer's loading threads, four at
-  most, create the GPU objects and submit their copies as they read them, alongside the frames: on
-  the audit's RX 6900 XT, the render CPU went from 0.5 to 2.9 ms during a load, and to 16.6 ms at
-  the 99th percentile with textures of 4096² texels; on *Hunna Wood*'s zone, from 0.54 to 0.77 ms
-  at the median and 2.2 ms at the 90th percentile (P4's outcome).
-  [ADR-0107](adr/0107-the-execution-model.md) decides one thread that submits the copies, within a
-  budget of bytes per frame, built at M6a.2.
+- **What a load reads waits in staging memory until its copies are submitted**
+  ([ADR-0118](adr/0118-the-task-pool-and-the-copies-to-the-gpu.md)). The renderer's uploader sends
+  at most a budget of bytes per frame, and nothing holds the loads back when they read faster: a
+  load of many hundreds of megabytes keeps them in the CPU's memory while it lasts. The asset
+  requests of M6a.9 ([ADR-0113](adr/0113-asset-requests-residency-and-priorities.md)) weigh it.
+  How many of the loads' tasks run at once, and the budget, were measured on the owner's RX 6900 XT
+  alone; each renderer has an uploader of its own, and two renderers send twice the budget.
 - **The first frame that draws shadows costs more, and more still while a scene loads**
   ([ADR-0074](adr/0074-uploading-textures-without-holding-up-frames.md)). It makes the renderer
   create its shadow atlas and its frame again; during a load, the GPU, busy with the load's copies,
-  presents that frame late, past 33 ms in some runs. *Hunna Wood* draws its hero, and so its first
-  shadows, from its first frame. Creating the atlases with the renderer would remove it, at a cost in
+  presents that frame late, past 33 ms in some runs, measured before M6a.2. M6a.2 holds the copies
+  to a budget once a frame is drawn, but not those before the first frame, which that frame waits
+  for; it was not measured again. *Hunna Wood* draws its hero, and so its first shadows, from its
+  first frame. Creating the atlases with the renderer would remove it, at a cost in
   memory for every program, shadows or not.
 - **The zone costs up to 8 s per frame on lavapipe**, the CPU driver of the checks, where the RX
   6900 XT takes under 2 ms: most of it goes to the four shadow cascades of the sun, each 2048 ×

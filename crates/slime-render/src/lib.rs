@@ -8,6 +8,7 @@ mod environment;
 mod error;
 mod graph;
 mod light;
+mod loads;
 mod material;
 mod mesh;
 mod renderer;

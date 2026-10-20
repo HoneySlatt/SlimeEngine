@@ -23,6 +23,7 @@ mod surface;
 mod texture;
 mod timer;
 mod uniform_buffer;
+mod upload;
 mod vertex_buffer;
 
 pub use bind_group::{
@@ -48,6 +49,7 @@ pub use surface::{PresentMode, Surface, SurfaceFrame};
 pub use texture::Texture;
 pub use timer::GpuTimer;
 pub use uniform_buffer::UniformBuffer;
+pub use upload::{UploadTarget, Uploader};
 pub use vertex_buffer::VertexBuffer;
 
 /// Which types may cross threads (`docs/ARCHITECTURE.md`, "Threads"): checked when the tests are
@@ -73,6 +75,7 @@ mod threads {
         send_and_sync::<IndexBuffer>();
         send_and_sync::<UniformBuffer>();
         send_and_sync::<StorageBuffer>();
+        send_and_sync::<Uploader>();
         send_and_sync::<BindGroupLayout>();
         send_and_sync::<BindGroup>();
         send_and_sync::<ShaderModule>();

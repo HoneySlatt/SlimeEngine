@@ -174,7 +174,7 @@ the ADR linking to it.
 | [0104](0104-the-build-ci-and-measurements.md) | The build, CI and measurements | Accepted; amended by 0114 |
 | [0105](0105-egui-fonts-ship-with-the-dev-overlay.md) | egui's fonts ship with the dev overlay | Accepted |
 | [0106](0106-the-measured-quick-wins.md) | The measured quick wins | Accepted; amended by 0117 |
-| [0107](0107-the-execution-model.md) | The execution model | Accepted |
+| [0107](0107-the-execution-model.md) | The execution model | Accepted; amended by 0118 |
 | [0108](0108-what-the-world-knows-of-its-changes.md) | What the world knows of its changes | Accepted |
 | [0109](0109-stable-references-and-undo.md) | Stable references and undo | Accepted; amended by 0116 |
 | [0110](0110-how-the-editor-runs-a-games-code.md) | How the editor runs a game's code | Accepted; amended by 0116 |
@@ -185,3 +185,4 @@ the ADR linking to it.
 | [0115](0115-what-the-gpu-layer-gives-the-editor.md) | What the GPU layer gives the editor | Accepted; amended by 0117 |
 | [0116](0116-stage-6-in-two-halves.md) | Stage 6 in two halves | Accepted |
 | [0117](0117-frustum-culling-and-instancing.md) | Frustum culling and instancing | Accepted |
+| [0118](0118-the-task-pool-and-the-copies-to-the-gpu.md) | The task pool and the copies to the GPU | Accepted |

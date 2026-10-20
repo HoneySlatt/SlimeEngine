@@ -56,7 +56,7 @@ created only when code needs it.
 |---|---|---|---|
 | [`slime-platform`](../crates/slime-platform/README.md) | The window, its events and keyboard and mouse input; the only crate that uses the windowing library (winit) | `winit`, `raw-window-handle`, `thiserror`, `tracing` | One window; window, keyboard and mouse events |
 | [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `slime-platform`, `slime-gfx`, `slime-world`, `ctrlc`, `thiserror`, `tracing`, `tracing-subscriber`, `nu-ansi-term` (Windows only) | Headless runs, and windowed runs drawn by the GPU, which go on with a new device after a lost one when the application asks |
-| [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu, apart from the dev overlay through its `wgpu` feature | `wgpu`, `pollster`, `raw-window-handle`, `slime-color`, `thiserror`, `tracing` | Opens a GPU device, and another in place of a lost one; draws into offscreen images, 8-bit or 16-bit float, and reads them back; draws into a window; later passes sample what earlier ones drew; depth-only passes; images of four samples per pixel, resolved for anti-aliasing; textures and cube textures whose levels the caller gives, half-precision floats and BC7 and BC5 blocks among their formats; storage buffers, buffers written by ranges, instanced draws from a base vertex |
+| [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu, apart from the dev overlay through its `wgpu` feature | `wgpu`, `pollster`, `raw-window-handle`, `slime-color`, `thiserror`, `tracing` | Opens a GPU device, and another in place of a lost one; draws into offscreen images, 8-bit or 16-bit float, and reads them back; draws into a window; later passes sample what earlier ones drew; depth-only passes; images of four samples per pixel, resolved for anti-aliasing; textures and cube textures whose levels the caller gives, half-precision floats and BC7 and BC5 blocks among their formats; storage buffers, buffers written by ranges, instanced draws from a base vertex; an uploader that submits the copies of what loads bring within a budget of bytes per frame, on a thread of its own |
 | [`slime-color`](../crates/slime-color/README.md) | The color type of every API of the engine, `LinearColor`, and the sRGB transfer function, below every crate that holds a color ([ADR-0045](adr/0045-one-linear-color-type.md), [ADR-0079](adr/0079-the-engines-own-world.md)); headless | `slime-reflect` | Linear colors and their constructors, sRGB bytes decoded and encoded |
 | [`slime-tasks`](../crates/slime-tasks/README.md) | The engine's task pool: the threads on which the engine computes, with a priority for the work that a frame waits for ([ADR-0107](adr/0107-the-execution-model.md)); headless, on the standard library alone | none | One pool, the machine's logical cores but one; frame and background tasks, a thread always left for frame tasks; items computed in parallel, the calling thread taking its share |
 | [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, lit by directional, point and spot lights, seen from a camera, into render targets, and reports what a frame cost; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `slime-assets`, `slime-color`, `slime-tasks`, `glam`, `thiserror`, `tracing` | Textures and scenes cooked by the asset pipeline, loaded onto the GPU, BC7 and BC5 among them, normal textures read by x and y; meshes with tangents, simple shapes made in code (a cube, a sphere, a square), glTF's metallic-roughness materials (five textures, masks, double-sided, values that change while a game runs, found by name in a loaded scene), a perspective camera, the depth test, up to 16 directional, point and spot lights in physical units (`KHR_lights_punctual`), a procedural sky computed on the CPU that surfaces reflect (image-based lighting) and that is drawn behind them with its sun's disc, the shadows of the first directional light that casts them (four cascades in one atlas, filtered over 5 × 5 texels) and of every spot light that casts them (a tile each of one atlas), mirrored instances drawn with their front faces, the scene drawn in HDR with its light exposed, at four samples per pixel (multisample anti-aliasing), an energy-conserving bloom, then tone mapped, the passes ordered by a render graph and recorded four to a submission, statistics with the GPU time of each pass; scenes loaded in the background, and again when their cooked data changed, keeping what did not change; the meshes a game draws kept by asset ID in a cache, loaded in batches as they are asked for, loaded again when their cooked data changes, dropped after a lost device ([ADR-0084](adr/0084-what-the-world-draws.md)); its shaders replaced while it runs |
@@ -405,9 +405,10 @@ renderer = Renderer::new(&gpu, format)                 the output's format; four
 │                                                      sources, all or none: on an error, the
 │                                                      ones it had stay (ADR-0077)
 ├── create_environment(&gpu, &Sky)                     the sky drawn on the CPU into a 128-texel
-│                                                      cube, prefiltered into four levels on
-│                                                      every core (environment.rs), uploaded in
-│                                                      Rgba16Float; its sun's disc
+│                                                      cube, prefiltered into four levels by
+│                                                      frame tasks of the engine's pool and the
+│                                                      calling thread (environment.rs),
+│                                                      uploaded in Rgba16Float; its sun's disc
 ├── create_mesh(&gpu, label, &MeshData)                after a check, 48-byte vertices with their
 │                                                      tangent and the indices written into the
 │                                                      first page of the renderer's meshes with
@@ -617,7 +618,8 @@ slime-cook cook <sources> <output>                     the cooker's program, bef
     │       └── texture::cook_texture(image, role)     stretched to whole blocks of 4 × 4 texels
     │           │                                      (ADR-0106), every level, averaged for the
     │           │                                      role, then
-    │           └── CookedTexture::to_ktx2             BC7 or BC5 blocks on every thread; written
+    │           └── CookedTexture::to_ktx2             BC7 or BC5 blocks, encoded by background
+    │                                                  tasks of the engine's pool; written
     │                                                  under a temporary name of the process's,
     │                                                  forced to the disk, then renamed
     ├── for each scene file: slime_world::outline      its layout, without its values' types;
@@ -643,17 +645,23 @@ and prefabs", below)
 │   │                                                  slime-render: a SceneLoad, at once, for a
 │   │                                                  scene, the file's ID for a glTF file's
 │   │                                                  default one (load_scene: then waits)
-│   └── on the load's own thread
+│   └── as tasks of the engine's pool, a few of the process's loads' tasks at once (loads.rs):
 │       ├── assets.scene(id)                           its nodes, and the meshes they place
-│       ├── a task per mesh, on the task pool          assets.mesh(id), written through a clone
-│       │                                              of the Gpu into the renderer's pages of
-│       │                                              meshes, which the tasks share under a
-│       │                                              lock (ADR-0117)
+│       ├── a task per mesh                            assets.mesh(id), its ranges taken in the
+│       │                                              renderer's pages of meshes (ADR-0117),
+│       │                                              its vertices and indices written into
+│       │                                              staging buffers
 │       ├── assets.material(id), as meshes name them   each read once; then a task per texture:
-│       │                                              assets.texture(id), uploaded in the GPU
-│       │                                              format of its encoding, through a buffer
-│       │                                              of its own and a copy (ADR-0074)
-│       └── once every task has reported              materials and samplers created, a texture
+│       │                                              assets.texture(id), a texture of the GPU
+│       │                                              format of its encoding created, its
+│       │                                              levels written into staging buffers
+│       ├── the renderer's uploader, on its thread     the copies from the staging buffers,
+│       │                                              submitted after each frame, at most
+│       │                                              the renderer's budget of bytes per
+│       │                                              frame while frames are drawn; the
+│       │                                              staging buffers kept for the next
+│       │                                              uploads (ADR-0107, ADR-0118)
+│       └── once the last task and the last copy end  materials and samplers created, a texture
 │                                                      of the wrong kind for its slot refused,
 │                                                      nodes placed: the LoadedScene, its
 │                                                      instances and its lights in world space
@@ -673,9 +681,11 @@ ShaderWatch::poll                                      the renderer's shader fil
                                                        renderer is given the files again
 ```
 
-A load runs in the background (ADR-0073): the thread of the load reads the scene and its materials
-and puts the loaded scene together; the tasks, which read and upload one mesh or one texture each,
-run as background tasks of the engine's pool, which every load of the process shares (ADR-0107).
+A load runs in the background (ADR-0073), as background tasks of the engine's pool, without a
+thread of its own: a first task reads the scene, others read one mesh or one texture each and write
+it into staging buffers, a few tasks of the process's loads at once, and the renderer's uploader
+submits their copies within a budget per frame; the last task or copy to end puts the loaded scene
+together (ADR-0107, ADR-0118).
 A game that hot-reloads (ADR-0076) watches its manifest, since the cooker writes it last, and only
 when what it lists changed.
 
@@ -999,12 +1009,12 @@ when none opens, it gives up and stops, `run` returning `GfxError::DeviceLost`,
 `GfxError::CannotRestore` or the error that opening a device gave. A program without
 `slime-app` replaces its device with `Gpu::restore`, or `Surface::restore` for a window.
 
-A loss is found wherever the device is used: by the main thread's frame, by a loading thread's
-creation, by a wait. wgpu marks the device invalid before it reports the loss, which records it in
-the `Gpu` that every clone shares; `slime-gfx` returns `GfxError::DeviceLost` wherever it finds the
-loss, recording it if wgpu has not yet, and the application that meets it passes it to
-`Context::exit_with_error`, or returns it from `gpu_restored`, which leaves it to the run: the
-run restores between frames whatever found the loss
+A loss is found wherever the device is used: by the main thread's frame, by a load's task's
+creation, by the uploader's submission, by a wait. wgpu marks the device invalid before
+it reports the loss, which records it in the `Gpu` that every clone shares; `slime-gfx`
+returns `GfxError::DeviceLost` wherever it finds the loss, recording it if wgpu has not yet,
+and the application that meets it passes it to `Context::exit_with_error`, or returns it from
+`gpu_restored`, which leaves it to the run: the run restores between frames whatever found the loss
 ([ADR-0103](adr/0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md)).
 
 The window's surface can be lost for good as well, when it cannot be created again after a loss or
@@ -1035,10 +1045,12 @@ frame (measured, or simulated in headless runs), gets a `FrameTime` back, and gi
 
 `run` drives the application from the main thread, and the renderer records and submits its
 passes on the thread that calls it. The renderer loads cooked scenes, and the asset cache its
-batches of meshes, in the background ([above](#cooking-and-loading-assets), ADR-0073): a thread
-per load, and background tasks of the engine's pool (`slime-tasks`, ADR-0107), whose threads,
-the machine's logical cores but one, live as long as the process; they create GPU objects through
-clones of the `Gpu`. The sky's environment is computed by frame tasks of the same pool, and the
+batches of meshes, in the background ([above](#cooking-and-loading-assets), ADR-0073): as
+background tasks of the engine's pool (`slime-tasks`, ADR-0107), whose threads, the machine's
+logical cores but one, live as long as the process, a few of the loads' tasks at once; they create
+GPU objects through clones of the `Gpu`. Each renderer has a thread of its own besides, its
+uploader's, which submits the copies of what the loads bring, and waits rather than computes
+(ADR-0118). The sky's environment is computed by frame tasks of the same pool, and the
 cooker encodes textures on it. What may cross threads is stated, so that
 later stages (a render thread, the job system) can rely on it, and checked when the tests of the
 crates that own these types compile (a `threads` module in their `lib.rs`, or in `slime-devui`'s
@@ -1046,15 +1058,15 @@ tests):
 
 - **Shared between threads** (`Send` and `Sync`): the `Gpu`, whose clones share its device, its
   `Surface` and every GPU object it creates (targets, textures, samplers, buffers, bind groups and
-  their layouts, shader modules, pipelines), images read back, meshes, materials, environments,
-  cameras, lights, scenes and instances, loaded scenes and loads in progress, the asset cache,
-  statistics, windows, events, the application's `Context` and `AppConfig`, the dev overlay, worlds
-  and entity handles, scene libraries and resolved scenes, the frame builder of
+  their layouts, shader modules, pipelines), its uploaders, images read back, meshes, materials,
+  environments, cameras, lights, scenes and instances, loaded scenes and loads in progress, the
+  asset cache, statistics, windows, events, the application's `Context` and `AppConfig`, the dev
+  overlay, worlds and entity handles, scene libraries and resolved scenes, the frame builder of
   `slime-world-render` and its frames, reflected values and registries, and the error types of those
   crates. wgpu keeps its error scopes per thread, so
   GPU objects can be created from several threads.
   wgpu fails to configure a window's surface when another thread submits work while it waits for
-  the GPU, as the threads of a load do: the `Gpu`'s submissions, from any thread, wait while the
+  the GPU, as the uploader's thread does: the `Gpu`'s submissions, from any thread, wait while the
   surface is configured.
 - **Moved between threads, used by one at a time** (`Send` only): a `GpuTimer`, which reads its
   times back through a cell, and so the `Renderer` that holds them; `Renderer::render` takes it

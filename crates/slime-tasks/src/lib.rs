@@ -54,6 +54,11 @@ where
 
 /// How many threads the engine's pool has: the machine's logical cores but one, at least one,
 /// since a core stays for the main thread (ADR-0107).
+///
+/// # Panics
+///
+/// If the operating system cannot start the pool's threads, which the first call of this
+/// crate's functions starts.
 pub fn threads() -> usize {
     pool().threads
 }

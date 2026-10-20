@@ -14,8 +14,8 @@ use crate::storage_buffer::write_range;
 #[derive(Clone, Debug)]
 pub struct VertexBuffer {
     pub(crate) buffer: wgpu::Buffer,
-    label: String,
-    size: u64,
+    pub(crate) label: String,
+    pub(crate) size: u64,
 }
 
 impl Gpu {

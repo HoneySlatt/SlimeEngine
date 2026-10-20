@@ -24,7 +24,7 @@ use tracing_subscriber::registry::LookupSpan;
 /// trace holds every span, the `trace` level included, whatever [`LOG_ENV_VAR`](crate::LOG_ENV_VAR)
 /// keeps for the log: each frame of a run with its phases (see [`run`](crate::run)), each
 /// submission of commands to the GPU (`submit`), winit's calls, and any span that the game enters.
-/// The renderer's passes and the loading threads have none of their own. A thread's events reach
+/// The renderer's passes and the tasks of loads have none of their own. A thread's events reach
 /// the file each time it leaves its outermost span, at the end of each frame for the main thread:
 /// the frame in progress when the process ends is not in it.
 ///

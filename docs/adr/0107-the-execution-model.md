@@ -8,7 +8,8 @@
   owner of the copies to the GPU), [0079](0079-the-engines-own-world.md) (the phases of a frame,
   decided before Stage 7's systems) and
   [0097](0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md) (the time of a game, brought
-  from Stage 7 to Stage 6)
+  from Stage 7 to Stage 6); amended by [0118](0118-the-task-pool-and-the-copies-to-the-gpu.md) (the
+  loads' tasks two at a time, and a budget of copies that lasts a frame or a frame's time)
 - Date: 2026-10-20
 
 ## Context

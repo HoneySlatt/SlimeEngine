@@ -1,13 +1,14 @@
 //! Cooked scenes on the GPU: a scene that the asset pipeline cooked, its meshes, materials and
-//! textures uploaded by tasks of the engine's pool, its nodes flattened into instances and its lights
-//! placed in world space.
+//! textures uploaded by tasks of the engine's pool, its nodes flattened into instances and its
+//! lights placed in world space.
 
+use std::any::Any;
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::panic::{self, AssertUnwindSafe};
-use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::{Arc, Mutex};
-use std::thread::{self, JoinHandle};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
+use std::thread;
 
 use glam::{DAffine3, DVec3, Mat4};
 use slime_assets::{
@@ -15,11 +16,14 @@ use slime_assets::{
     SceneLight, TextureEncoding, TextureFilter, TextureSampler, TextureWrap,
 };
 use slime_color::LinearColor;
-use slime_gfx::{AddressMode, Filter, Gpu, Sampler, SamplerDescriptor, Texture, TextureFormat};
-use slime_tasks::Priority;
+use slime_gfx::{
+    AddressMode, Filter, GfxError, Gpu, Sampler, SamplerDescriptor, Texture, TextureFormat,
+    Uploader,
+};
 
 use crate::error::RenderError;
 use crate::light::{DirectionalLight, Light, PointLight, SpotLight};
+use crate::loads;
 use crate::material::{AlphaMode, Material, MaterialData, MaterialParts, SampledTexture};
 use crate::mesh::{Mesh, MeshData, MeshPages};
 
@@ -109,8 +113,9 @@ impl LoadedScene {
 ///
 /// Dropping it cancels the load. The drop waits for the load's tasks that are running, a mesh or a
 /// texture each, and drops what they made; the tasks that have not started then do nothing when
-/// their turn comes, and never use the GPU. Once the drop returns, no thread of the load holds the
-/// `Gpu`.
+/// their turn comes, and never use the GPU. Once the drop returns, no task of the load holds the
+/// `Gpu`; the copies that it left to the renderer's uploader go to the GPU as the others do, those
+/// still waiting when the renderer is dropped at once.
 pub struct SceneLoad {
     load: Load<LoadedScene>,
 }
@@ -125,10 +130,9 @@ impl SceneLoad {
     ///
     /// # Panics
     ///
-    /// With the panic of a loading thread, if one panicked, even when an asset also failed: a bug,
-    /// as when a scene is reloaded on another device than the one it was loaded on
-    /// ([`Renderer::reload_scene_in_background`]). Also if the operating system could not start
-    /// the threads of the engine's pool.
+    /// With the panic of a task of the load, if one panicked, even when an asset also failed: a
+    /// bug, as when a scene is reloaded on another device than the one it was loaded on
+    /// ([`Renderer::reload_scene_in_background`]).
     pub fn take(&mut self) -> Option<Result<LoadedScene, SceneError>> {
         self.load.take()
     }
@@ -147,199 +151,142 @@ impl SceneLoad {
     }
 }
 
-/// A load that runs on a thread of its own, which waits for its tasks on the engine's pool: a
-/// scene's ([`SceneLoad`]), or a batch of meshes for the asset cache. Dropping it cancels the load,
-/// as [`SceneLoad`] says.
+/// A load that runs as tasks of the engine's pool, without a thread of its own: a scene's
+/// ([`SceneLoad`]), or a batch of meshes for the asset cache. The last of its tasks and of its
+/// uploads to end completes it (ADR-0107). Dropping it cancels the load, as [`SceneLoad`] says.
 pub(crate) struct Load<T> {
-    /// The thread that runs the load; `None` once its result is taken.
-    thread: Option<JoinHandle<Option<Result<T, SceneError>>>>,
-    /// Tells the load's thread, which waits for the reports of its tasks, that the load is dropped.
-    reports: Sender<Report>,
+    job: Arc<Job<T>>,
 }
 
 impl<T> Load<T> {
     /// Whether the load finished: its result, or its panic, waits to be taken, or was taken.
     pub(crate) fn is_finished(&self) -> bool {
-        self.thread.as_ref().is_none_or(JoinHandle::is_finished)
+        let progress = self.job.progress();
+        progress.result.is_some() || progress.taken
     }
 
     /// What the load gave, once it finished: `None` while it goes on, and once its result was
-    /// taken. A panic of its thread or of one of its tasks is raised again here.
+    /// taken. A panic of one of its tasks is raised again here.
     pub(crate) fn take(&mut self) -> Option<Result<T, SceneError>> {
-        if !self.thread.as_ref()?.is_finished() {
-            return None;
-        }
-        self.thread.take().map(finish)
+        let mut progress = self.job.progress();
+        let result = progress.result.take()?;
+        progress.taken = true;
+        drop(progress);
+        Some(finish(result))
     }
 
     /// Waits for the load to finish, and returns what it gave.
-    fn wait(mut self) -> Result<T, SceneError> {
-        finish(self.thread.take().expect("the load's result is taken once"))
+    fn wait(self) -> Result<T, SceneError> {
+        let mut progress = self.job.progress();
+        loop {
+            if let Some(result) = progress.result.take() {
+                progress.taken = true;
+                drop(progress);
+                return finish(result);
+            }
+            assert!(!progress.taken, "the load's result is taken once");
+            progress = self
+                .job
+                .changed
+                .wait(progress)
+                .unwrap_or_else(PoisonError::into_inner);
+        }
     }
 }
 
 impl<T> Drop for Load<T> {
     fn drop(&mut self) {
-        if let Some(thread) = self.thread.take() {
-            // The load's thread is gone if it has finished: it has nothing to cancel then.
-            let _ = self.reports.send(Report::Dropped);
-            // What the load gives, its panic included, is dropped with it.
-            let _ = thread.join();
+        let mut progress = self.job.progress();
+        progress.dropped = true;
+        progress.stopped = true;
+        // What the load gave, its panic included, is dropped with it, and what its tasks share,
+        // the GPU's objects among them.
+        let result = progress.result.take();
+        let work = self.job.work().take();
+        while progress.running > 0 {
+            progress = self
+                .job
+                .changed
+                .wait(progress)
+                .unwrap_or_else(PoisonError::into_inner);
         }
+        drop(progress);
+        drop((result, work));
     }
 }
 
-/// The result of the load that `thread` ran, or its panic, raised again.
-fn finish<T>(thread: JoinHandle<Option<Result<T, SceneError>>>) -> Result<T, SceneError> {
-    match thread.join() {
-        Ok(result) => result.expect("only a dropped load gives no result"),
+/// The result of a load, or the panic of one of its tasks, raised again.
+fn finish<T>(result: thread::Result<Result<T, SceneError>>) -> Result<T, SceneError> {
+    match result {
+        Ok(result) => result,
         Err(panic) => panic::resume_unwind(panic),
     }
 }
 
-impl Renderer {
-    /// Loads the cooked scene `id` from `assets` onto the GPU, as
-    /// [`Renderer::load_scene_in_background`] does, and waits for it.
-    ///
-    /// # Errors
-    ///
-    /// [`SceneError::Load`] if an asset cannot be read; [`SceneError::Render`] if the GPU's memory
-    /// cannot hold an object, the device is lost, the GPU cannot sample the cooked textures
-    /// (`GfxError::UnsupportedTexture`), or a material has values out of their ranges, or a texture
-    /// of the wrong kind for its slot, data where it reads colors or the reverse
-    /// ([`RenderError::InvalidMaterial`]); [`SceneError::Placement`] if a node places a mesh at a
-    /// point that is not finite, which a transform that overflows gives, or a light at such a point
-    /// or with no direction, as a transform that flattens its −Z axis gives. When several assets
-    /// fail, the error is the first that a loading thread reports, which can change from one run to
-    /// the next.
-    ///
-    /// # Panics
-    ///
-    /// As [`Renderer::load_scene_in_background`] and [`SceneLoad::take`].
-    pub fn load_scene(
-        &self,
-        gpu: &Gpu,
-        assets: &CookedAssets,
-        id: AssetId,
-    ) -> Result<LoadedScene, SceneError> {
-        self.load_scene_in_background(gpu, assets, id).wait()
-    }
-
-    /// Starts loading the cooked scene `id` from `assets` onto the GPU, and returns at once: the
-    /// returned [`SceneLoad`] gives the scene once it is loaded. The load reads every mesh its
-    /// nodes place, every material those meshes are drawn with and every texture those materials
-    /// read, each once, by background tasks of the engine's pool (`slime_tasks`), which create their
-    /// GPU objects through clones of `gpu` (ADR-0073, ADR-0107); and it places its lights by their nodes in world space, at the node's
-    /// origin, along its −Z axis whatever its scale. A glTF file's default scene has the file's ID.
-    ///
-    /// The pool's threads are shared by every load of the process, and keep one for the work that
-    /// a frame waits for; each load has a thread of its own besides, which
-    /// reads the scene and its materials and puts the loaded scene together. Their uploads do not
-    /// hold up the thread that submits frames (ADR-0074); a frame that draws the first shadows, or
-    /// changes the shape of the frame otherwise, still costs more during a load than after it.
-    ///
-    /// # Panics
-    ///
-    /// If the operating system cannot start the load's thread.
-    pub fn load_scene_in_background(
-        &self,
-        gpu: &Gpu,
-        assets: &CookedAssets,
-        id: AssetId,
-    ) -> SceneLoad {
-        self.start_load(gpu, assets, id, Reusable::default())
-    }
-
-    /// Starts loading the cooked scene `id` from `assets` again, as
-    /// [`Renderer::load_scene_in_background`] does, once the cooked data has changed: the meshes
-    /// and textures of `previous` whose cooked file the manifest of `assets` still names are kept,
-    /// neither read nor uploaded again: the cooker names each cooked file after what made it
-    /// (`slime_cook::cook` says how), so the same name holds the same data. The materials are made
-    /// again, from the textures kept or uploaded, with the values the cooked data gives: the values
-    /// that a game set on the materials of `previous` ([`Material::set_values`]) are not carried
-    /// over, and a game that changes them finds them again in the new scene
-    /// ([`LoadedScene::material`]). `previous` stays whole, to be drawn while the load goes on; the
-    /// new scene and it share what was kept.
-    ///
-    /// # Panics
-    ///
-    /// As [`Renderer::load_scene_in_background`]; and when a material is made, if `previous` was
-    /// loaded on another device than `gpu`'s: wgpu refuses its textures.
-    pub fn reload_scene_in_background(
-        &self,
-        gpu: &Gpu,
-        assets: &CookedAssets,
-        id: AssetId,
-        previous: &LoadedScene,
-    ) -> SceneLoad {
-        self.start_load(gpu, assets, id, previous.reusable.clone())
-    }
-
-    /// Starts the load of the scene `id` from `assets`, which keeps what `reuse` holds whose cooked
-    /// file the manifest still names.
-    fn start_load(
-        &self,
-        gpu: &Gpu,
-        assets: &CookedAssets,
-        id: AssetId,
-        reuse: Reusable,
-    ) -> SceneLoad {
-        SceneLoad {
-            load: self.start(
-                "slime-render scene load",
-                gpu,
-                assets,
-                reuse,
-                move |loader, reports| loader.load_scene(id, reports),
-            ),
-        }
-    }
-
-    /// Starts a load on a thread of its own, named `name`, which runs `load` with a [`Loader`] of
-    /// `assets` that keeps what `reuse` holds whose cooked file the manifest still names.
-    ///
-    /// # Panics
-    ///
-    /// If the operating system cannot start the load's thread.
-    pub(crate) fn start<T: Send + 'static>(
-        &self,
-        name: &str,
-        gpu: &Gpu,
-        assets: &CookedAssets,
-        reuse: Reusable,
-        load: impl FnOnce(&Loader, &Receiver<Report>) -> Option<Result<T, SceneError>> + Send + 'static,
-    ) -> Load<T> {
-        let (sender, reports) = mpsc::channel();
-        let loader = Loader {
-            gpu: gpu.clone(),
-            assets: Arc::new(assets.clone()),
-            parts: self.material_parts.clone(),
-            meshes: self.meshes.clone(),
-            reuse,
-            sender: sender.clone(),
-        };
-        let thread = thread::Builder::new()
-            .name(name.to_owned())
-            .spawn(move || load(&loader, &reports))
-            .expect("the operating system starts a thread");
-        Load {
-            thread: Some(thread),
-            reports: sender,
-        }
-    }
+/// One load: what it and its tasks share.
+struct Job<T> {
+    /// Its number in the loads' lane, which runs the tasks of the loads started first first.
+    number: u64,
+    progress: Mutex<Progress<T>>,
+    /// Told when the load finishes, and when a running task ends.
+    changed: Condvar,
+    /// What its tasks work with, the GPU's objects among them; `None` once the load stopped or
+    /// finished, so that the tasks that start later hold no GPU object.
+    work: Mutex<Option<Work>>,
+    /// The tasks and the uploads that have not ended: the last to end completes the load.
+    left: AtomicUsize,
+    /// The first error of a task or an upload, which stops the load.
+    failure: Mutex<Option<SceneError>>,
+    /// The first panic of a task, which stops the load.
+    panic: Mutex<Option<Box<dyn Any + Send>>>,
+    /// Whether a panic dropped one of its uploads before its copies were submitted, which stops
+    /// the load with a panic of its own unless a task's panic says more: the task that panicked in
+    /// its upload's hand-off records its panic after the upload is dropped.
+    upload_dropped: AtomicBool,
+    /// Makes the load's result from its work, once everything is made.
+    complete: Mutex<Option<Complete<T>>>,
 }
 
-/// What the thread of a load works with.
-pub(crate) struct Loader {
+/// What makes a load's result from its work.
+type Complete<T> = Box<dyn FnOnce(Work) -> Result<T, SceneError> + Send>;
+
+struct Progress<T> {
+    /// What the load gave once it finished, or the panic of one of its tasks; `None` before, and
+    /// once taken.
+    result: Option<thread::Result<Result<T, SceneError>>>,
+    taken: bool,
+    /// Whether the `Load` was dropped: the load then gives nothing.
+    dropped: bool,
+    /// Whether the load stopped, dropped or failed: the tasks that start from then on do nothing.
+    stopped: bool,
+    /// How many of its tasks run with the GPU, its completion included.
+    running: usize,
+}
+
+/// What a load's tasks work with, and what they made.
+pub(crate) struct Work {
     gpu: Gpu,
     assets: Arc<CookedAssets>,
     parts: MaterialParts,
     /// The pages of the renderer's meshes, into which the load's meshes go.
     meshes: MeshPages,
+    /// The renderer's uploader, which brings the load's meshes and textures to the GPU.
+    uploader: Uploader,
     /// What the scene that the load reloads was made of, to keep; empty for a first load.
     reuse: Reusable,
-    /// Where the load's tasks report.
-    sender: Sender<Report>,
+    /// The meshes asked for, in their order.
+    mesh_ids: Vec<AssetId>,
+    /// The scene of a scene's load, once read.
+    scene: Option<CookedScene>,
+    made: Assembly,
+}
+
+/// What a task works with: clones of the parts of [`Work`] that it reads.
+struct Context {
+    gpu: Gpu,
+    assets: Arc<CookedAssets>,
+    meshes: MeshPages,
+    uploader: Uploader,
 }
 
 /// A mesh that a task of a load made.
@@ -374,12 +321,13 @@ pub(crate) struct Batch {
 }
 
 /// What a load has made, or kept, so far.
+#[derive(Default)]
 struct Assembly {
     /// The meshes asked for, in their order.
     meshes: Vec<Option<MadeMesh>>,
     /// The materials that the meshes made so far are drawn with.
     materials: HashMap<AssetId, CookedMaterial>,
-    /// The textures those materials read, `None` until uploaded.
+    /// The textures those materials read, `None` until made.
     textures: HashMap<AssetId, Option<Texture>>,
     /// How many meshes were kept.
     kept_meshes: usize,
@@ -387,305 +335,545 @@ struct Assembly {
     kept_textures: usize,
 }
 
-/// What a task of a load made.
-pub(crate) enum Made {
-    /// The mesh at this index of the meshes asked for.
-    Mesh(usize, MadeMesh),
-    /// The texture of this ID.
-    Texture(AssetId, Texture),
+impl<T> Job<T> {
+    fn progress(&self) -> MutexGuard<'_, Progress<T>> {
+        // A task's panic is caught before it reaches a lock: a lock poisoned is as good as whole.
+        self.progress.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn work(&self) -> MutexGuard<'_, Option<Work>> {
+        self.work.lock().unwrap_or_else(PoisonError::into_inner)
+    }
 }
 
-/// What the thread of a load hears from its tasks and from its [`Load`].
-pub(crate) enum Report {
-    /// A task ran: what it made, or the error that stopped it, or its panic.
-    Ran(thread::Result<Result<Made, SceneError>>),
-    /// A task's turn came after the load stopped: it did nothing.
-    Skipped,
-    /// The `Load` was dropped.
-    Dropped,
-}
-
-/// What the tasks of a load work with, shared by them: emptied when the load stops, so that the
-/// tasks that start after that do nothing, and never use the GPU.
-struct Work {
-    /// The GPU and the cooked data; `None` once the load has stopped.
-    shared: Option<(Gpu, Arc<CookedAssets>)>,
-    /// How many tasks took them.
-    started: usize,
-}
-
-/// The tasks of a load on the pool.
-struct Tasks {
-    work: Arc<Mutex<Work>>,
-    sender: Sender<Report>,
-    /// How many tasks have not reported.
-    pending: usize,
-    /// How many tasks that ran have reported.
-    ran: usize,
-}
-
-impl Tasks {
-    /// Runs `task` on the pool with the load's GPU and cooked data, unless the load has stopped
-    /// when its turn comes; it reports to the load's thread. The task drops its clones of the GPU
-    /// and of the cooked data before it reports, so that none outlives the load.
+impl<T: Send + 'static> Job<T> {
+    /// Runs `task` as a background task of the engine's pool, with clones of what the load works
+    /// with, unless the load stopped when its turn comes; its error or its panic stops the load.
     fn spawn(
-        &mut self,
-        task: impl FnOnce(&Gpu, &CookedAssets) -> Result<Made, SceneError> + Send + 'static,
+        self: &Arc<Self>,
+        task: impl FnOnce(&Arc<Self>, &Context) -> Result<(), SceneError> + Send + 'static,
     ) {
-        self.pending += 1;
-        let work = Arc::clone(&self.work);
-        let sender = self.sender.clone();
-        slime_tasks::run(Priority::Background, move || {
-            let shared = {
-                let mut work = work
-                    .lock()
-                    .expect("no thread panics while it holds a load's work");
-                let shared = work.shared.clone();
-                work.started += usize::from(shared.is_some());
-                shared
-            };
-            let report = match shared {
-                Some((gpu, assets)) => {
-                    Report::Ran(panic::catch_unwind(AssertUnwindSafe(move || {
-                        task(&gpu, &assets)
-                    })))
+        self.left.fetch_add(1, Ordering::AcqRel);
+        let job = Arc::clone(self);
+        loads::run(self.number, move || {
+            if let Some(context) = job.start_running() {
+                match panic::catch_unwind(AssertUnwindSafe(|| task(&job, &context))) {
+                    Ok(Ok(())) => {}
+                    Ok(Err(error)) => job.fail(error),
+                    Err(panic) => job.panicked(panic),
                 }
-                None => Report::Skipped,
-            };
-            // The load's thread waits for the report of every task that ran; a task skipped after
-            // the load ended finds it gone.
-            let _ = sender.send(report);
+                drop(context);
+                job.stop_running();
+            }
+            job.end_one();
         });
     }
 
-    /// Stops the load: the tasks that start from now on do nothing. Returns how many started
-    /// before, whose reports the load's thread waits for.
-    fn stop(&self) -> usize {
-        let mut work = self
-            .work
+    /// Clones of what the load works with, counted as running, unless the load stopped.
+    fn start_running(&self) -> Option<Context> {
+        {
+            let mut progress = self.progress();
+            if progress.stopped {
+                return None;
+            }
+            progress.running += 1;
+        }
+        // Not under the lock of the load's progress, which a game polls at each frame.
+        let context = self.work().as_ref().map(|work| Context {
+            gpu: work.gpu.clone(),
+            assets: Arc::clone(&work.assets),
+            meshes: work.meshes.clone(),
+            uploader: work.uploader.clone(),
+        });
+        if context.is_none() {
+            self.stop_running();
+        }
+        context
+    }
+
+    fn stop_running(&self) {
+        self.progress().running -= 1;
+        self.changed.notify_all();
+    }
+
+    fn fail(&self, error: SceneError) {
+        self.failure
             .lock()
-            .expect("no thread panics while it holds a load's work");
-        work.shared = None;
-        work.started
+            .unwrap_or_else(PoisonError::into_inner)
+            .get_or_insert(error);
+        self.progress().stopped = true;
     }
-}
 
-impl Drop for Tasks {
-    /// Stops the load when its thread ends, a panic of its own included, so that no task left in
-    /// the pool's queue uses the GPU after it.
-    fn drop(&mut self) {
-        self.stop();
+    fn panicked(&self, panic: Box<dyn Any + Send>) {
+        self.panic
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get_or_insert(panic);
+        self.progress().stopped = true;
     }
-}
 
-impl Loader {
-    /// Loads the scene `id`, hearing from its tasks and its [`Load`] through `reports`: `None` if
-    /// the `Load` was dropped.
-    fn load_scene(
-        &self,
-        id: AssetId,
-        reports: &Receiver<Report>,
-    ) -> Option<Result<LoadedScene, SceneError>> {
-        let scene = match self.assets.scene(id) {
-            Ok(scene) => scene,
-            Err(error) => return Some(Err(error.into())),
+    /// The callback of an upload, which counts until it is called or dropped: an error stops the
+    /// load, and the end of the last upload or task completes it. Dropped uncalled, as when its
+    /// hand-off returned an error, it ends the upload all the same; dropped by a panic, of its
+    /// hand-off or of the uploader's thread, it also stops the load, which then raises the task's
+    /// panic, or one of its own, where it is taken, so that the load still ends.
+    fn upload_done(self: &Arc<Self>) -> impl FnOnce(Result<(), GfxError>) + Send + 'static {
+        self.left.fetch_add(1, Ordering::AcqRel);
+        let end = UploadEnd {
+            job: Some(Arc::clone(self)),
         };
-        // The meshes, each once, in the order in which the nodes first place them.
-        let mut mesh_ids = Vec::new();
-        let mut seen = HashSet::new();
-        for &mesh in scene.nodes.iter().flat_map(|node| &node.meshes) {
-            if seen.insert(mesh) {
-                mesh_ids.push(mesh);
-            }
-        }
-        Some(match self.load_meshes(&mesh_ids, reports)? {
-            Ok(batch) => self.assemble(scene, batch),
-            Err(error) => Err(error),
-        })
+        move |result| end.call(result)
     }
 
-    /// Loads the meshes `mesh_ids`, each once, the materials they are drawn with and the textures
-    /// those read, keeping what the loader's `reuse` holds whose cooked file the manifest still
-    /// names; hearing from its tasks and its [`Load`] through `reports`: `None` if the `Load` was
-    /// dropped.
-    pub(crate) fn load_meshes(
-        &self,
-        mesh_ids: &[AssetId],
-        reports: &Receiver<Report>,
-    ) -> Option<Result<Batch, SceneError>> {
-        // No task has started: the only report there can be is the drop of the `Load`.
-        if reports.try_recv().is_ok() {
-            return None;
+    /// Ends a task or an upload that is not the last; the last completes the load.
+    fn end_one(self: &Arc<Self>) {
+        if self.left.fetch_sub(1, Ordering::AcqRel) == 1 {
+            self.complete();
         }
-        let mut tasks = Tasks {
-            work: Arc::new(Mutex::new(Work {
-                shared: Some((self.gpu.clone(), Arc::clone(&self.assets))),
-                started: 0,
-            })),
-            sender: self.sender.clone(),
-            pending: 0,
-            ran: 0,
-        };
-        // The meshes that the scene reloaded holds are kept; a task reads and uploads each other.
-        let mut kept = Vec::new();
-        for (index, &id) in mesh_ids.iter().enumerate() {
-            if let Some(mesh) = self.kept(&self.reuse.meshes, id) {
-                kept.push((index, mesh));
-                continue;
+    }
+
+    /// Gives the load's result, once nothing of it is left to end: its first panic, its first
+    /// error, or what its completion makes from its work. A dropped load gives nothing.
+    fn complete(&self) {
+        let (work, complete) = {
+            let mut progress = self.progress();
+            if progress.dropped {
+                return;
             }
-            let pages = self.meshes.clone();
-            tasks.spawn(move |gpu, assets| {
-                let cooked = assets.mesh(id)?;
-                let data = MeshData {
-                    positions: cooked.positions,
-                    normals: cooked.normals,
-                    uvs: cooked.uvs,
-                    tangents: cooked.tangents,
-                    indices: cooked.indices,
-                };
-                let mesh = Mesh::new(gpu, &pages, &cooked.name, &data)?;
-                let material = cooked.material;
-                let bounds = cooked.bounds;
-                Ok(Made::Mesh(
-                    index,
-                    MadeMesh {
-                        mesh,
-                        material,
-                        bounds,
-                    },
-                ))
+            // Counted as running, so that a drop waits for the completion, which uses the GPU.
+            progress.running += 1;
+            let complete = self
+                .complete
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .take();
+            (self.work().take(), complete)
+        };
+        let panic = self
+            .panic
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take()
+            .or_else(|| {
+                self.upload_dropped.load(Ordering::Acquire).then(|| {
+                    Box::new(
+                        "an upload was dropped before its copies were submitted: a panic stopped \
+                         its hand-off or the uploader's thread"
+                            .to_owned(),
+                    ) as Box<dyn Any + Send>
+                })
             });
-        }
-        // A mesh names its material, which is read here, small, and names its textures, which
-        // tasks upload: they start as soon as the first mesh that needs them is made, or kept.
-        let mut made = Assembly {
-            meshes: mesh_ids.iter().map(|_| None).collect(),
-            materials: HashMap::new(),
-            textures: HashMap::new(),
-            kept_meshes: kept.len(),
-            kept_textures: 0,
+        let failure = self
+            .failure
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take();
+        let result = match (panic, failure, work, complete) {
+            (Some(panic), ..) => Err(panic),
+            (None, Some(error), ..) => Ok(Err(error)),
+            (None, None, Some(work), Some(complete)) => {
+                panic::catch_unwind(AssertUnwindSafe(|| complete(work)))
+            }
+            // The load is completed once, and its work taken by the completion alone.
+            (None, None, ..) => unreachable!("a load is completed once"),
         };
-        let mut failure = None;
-        let mut panicked = None;
-        let mut dropped = false;
-        // Once the load stops, how many tasks had started: their reports are waited for.
-        let mut stopped: Option<usize> = None;
-        for (index, mesh) in kept {
-            if let Err(error) = self.take_mesh(index, mesh, &mut made, &mut tasks) {
-                failure = Some(error);
-                stopped = Some(tasks.stop());
-                break;
-            }
+        let mut progress = self.progress();
+        if progress.dropped {
+            // Dropped while it completed: what it made goes before the drop returns.
+            drop(progress);
+            drop(result);
+            progress = self.progress();
+        } else {
+            progress.result = Some(result);
         }
-        while match stopped {
-            Some(started) => tasks.ran < started,
-            None => tasks.pending > 0,
-        } {
-            let ran = match reports
-                .recv()
-                .expect("the load's thread keeps a sender of its reports")
-            {
-                Report::Dropped => {
-                    dropped = true;
-                    stopped.get_or_insert_with(|| tasks.stop());
-                    continue;
-                }
-                Report::Skipped => {
-                    tasks.pending -= 1;
-                    continue;
-                }
-                Report::Ran(ran) => {
-                    tasks.pending -= 1;
-                    tasks.ran += 1;
-                    ran
-                }
-            };
-            match ran {
-                Err(panic) => {
-                    panicked.get_or_insert(panic);
-                    stopped.get_or_insert_with(|| tasks.stop());
-                }
-                Ok(Err(error)) => {
-                    failure.get_or_insert(error);
-                    stopped.get_or_insert_with(|| tasks.stop());
-                }
-                // What a task made after the load stopped is dropped with it.
-                Ok(Ok(_)) if stopped.is_some() => {}
-                Ok(Ok(Made::Texture(id, texture))) => {
-                    made.textures.insert(id, Some(texture));
-                }
-                Ok(Ok(Made::Mesh(index, mesh))) => {
-                    if let Err(error) = self.take_mesh(index, mesh, &mut made, &mut tasks) {
-                        failure.get_or_insert(error);
-                        stopped.get_or_insert_with(|| tasks.stop());
-                    }
-                }
-            }
-        }
-        if let Some(panic) = panicked {
-            panic::resume_unwind(panic);
-        }
-        if dropped {
-            return None;
-        }
-        if let Some(error) = failure {
-            return Some(Err(error));
-        }
-        Some(self.finish(mesh_ids, made))
+        progress.running -= 1;
+        drop(progress);
+        self.changed.notify_all();
     }
 
-    /// Takes the mesh made or kept at `index` into `made`: reads its material, unless a mesh read
-    /// it before, and starts uploading the textures that the material reads, but those that the
-    /// load or the scene it reloads holds.
-    fn take_mesh(
-        &self,
-        index: usize,
-        mesh: MadeMesh,
-        made: &mut Assembly,
-        tasks: &mut Tasks,
-    ) -> Result<(), SceneError> {
-        let material = mesh.material;
-        made.meshes[index] = Some(mesh);
-        if made.materials.contains_key(&material) {
-            return Ok(());
-        }
-        let cooked = self.assets.material(material)?;
-        for slot in cooked.textures().into_iter().flatten() {
-            let id = slot.texture;
-            let Entry::Vacant(entry) = made.textures.entry(id) else {
-                continue;
+    /// Asks for the meshes `mesh_ids`, each once: those that the load's `reuse` holds whose cooked
+    /// file the manifest still names are kept, a task reads and uploads each other.
+    fn ask(self: &Arc<Self>, mesh_ids: Vec<AssetId>) -> Result<(), SceneError> {
+        let held: Vec<Option<MadeMesh>> = {
+            let mut work = self.work();
+            let Some(work) = work.as_mut() else {
+                return Ok(());
             };
-            if let Some(texture) = self.kept(&self.reuse.textures, id) {
-                entry.insert(Some(texture));
-                made.kept_textures += 1;
-                continue;
+            work.made.meshes = mesh_ids.iter().map(|_| None).collect();
+            let held: Vec<Option<MadeMesh>> = mesh_ids
+                .iter()
+                .map(|&id| kept(&work.assets, &work.reuse.meshes, id))
+                .collect();
+            work.made.kept_meshes = held.iter().flatten().count();
+            work.mesh_ids.clone_from(&mesh_ids);
+            held
+        };
+        for (index, (&id, held)) in mesh_ids.iter().zip(&held).enumerate() {
+            if held.is_none() {
+                self.spawn(move |job, context| job.read_mesh(context, index, id));
             }
-            entry.insert(None);
-            // Named after its source, whichever material asks for it first.
-            let label = match self.assets.manifest().get(id) {
-                Some(entry) => format!("texture {id} from {}", entry.source),
-                None => format!("texture {id}"),
-            };
-            tasks.spawn(move |gpu, assets| {
-                let texture = upload_texture(gpu, &label, &assets.texture(id)?)?;
-                Ok(Made::Texture(id, texture))
-            });
         }
-        made.materials.insert(material, cooked);
+        for (index, mesh) in held.into_iter().enumerate() {
+            if let Some(mesh) = mesh {
+                self.take_mesh(index, mesh)?;
+            }
+        }
         Ok(())
     }
 
-    /// What `kept` holds of the asset `id`, if the manifest still names the cooked file it was read
-    /// from.
-    fn kept<T: Clone>(&self, kept: &HashMap<AssetId, (String, T)>, id: AssetId) -> Option<T> {
-        let (file, made) = kept.get(&id)?;
-        (self.assets.manifest().get(id)?.file == *file).then(|| made.clone())
+    /// Reads the mesh `id`, the one at `index` of those asked for, places it in a page of the
+    /// renderer's meshes, and leaves its copy to the renderer's uploader.
+    fn read_mesh(
+        self: &Arc<Self>,
+        context: &Context,
+        index: usize,
+        id: AssetId,
+    ) -> Result<(), SceneError> {
+        let cooked = context.assets.mesh(id)?;
+        let data = MeshData {
+            positions: cooked.positions,
+            normals: cooked.normals,
+            uvs: cooked.uvs,
+            tangents: cooked.tangents,
+            indices: cooked.indices,
+        };
+        // An upload that does not start ends with its callback, dropped uncalled.
+        let done = self.upload_done();
+        let mesh = Mesh::upload(
+            &context.gpu,
+            &context.meshes,
+            &context.uploader,
+            &cooked.name,
+            &data,
+            done,
+        )?;
+        self.take_mesh(
+            index,
+            MadeMesh {
+                mesh,
+                material: cooked.material,
+                bounds: cooked.bounds,
+            },
+        )
     }
 
-    /// Completes the batch of `mesh_ids` from what the load `made`, once it made everything: the
-    /// materials its meshes are drawn with, created with the samplers they need.
-    fn finish(&self, mesh_ids: &[AssetId], made: Assembly) -> Result<Batch, SceneError> {
-        let meshes: Vec<(AssetId, MadeMesh)> = mesh_ids
+    /// Takes the mesh made or kept at `index` into what the load made: reads its material, unless
+    /// a mesh read it before, and starts reading the textures that the material reads, but those
+    /// that the load or the scene it reloads holds.
+    fn take_mesh(self: &Arc<Self>, index: usize, mesh: MadeMesh) -> Result<(), SceneError> {
+        let material = mesh.material;
+        let assets = {
+            let mut work = self.work();
+            let Some(work) = work.as_mut() else {
+                return Ok(());
+            };
+            work.made.meshes[index] = Some(mesh);
+            if work.made.materials.contains_key(&material) {
+                return Ok(());
+            }
+            Arc::clone(&work.assets)
+        };
+        // Read outside the lock, which the other tasks of the load take; two meshes of one
+        // material may both read it, and the second keeps the first's.
+        let cooked = assets.material(material)?;
+        let wanted = {
+            let mut work = self.work();
+            let Some(work) = work.as_mut() else {
+                return Ok(());
+            };
+            if work.made.materials.contains_key(&material) {
+                return Ok(());
+            }
+            let mut wanted = Vec::new();
+            for slot in cooked.textures().into_iter().flatten() {
+                let id = slot.texture;
+                let Entry::Vacant(entry) = work.made.textures.entry(id) else {
+                    continue;
+                };
+                if let Some(texture) = kept(&work.assets, &work.reuse.textures, id) {
+                    entry.insert(Some(texture));
+                    work.made.kept_textures += 1;
+                    continue;
+                }
+                entry.insert(None);
+                // Named after its source, whichever material asks for it first.
+                let label = match work.assets.manifest().get(id) {
+                    Some(entry) => format!("texture {id} from {}", entry.source),
+                    None => format!("texture {id}"),
+                };
+                wanted.push((id, label));
+            }
+            work.made.materials.insert(material, cooked);
+            wanted
+        };
+        for (id, label) in wanted {
+            self.spawn(move |job, context| job.read_texture(context, id, &label));
+        }
+        Ok(())
+    }
+
+    /// Reads the texture `id`, and leaves its upload to the renderer's uploader.
+    fn read_texture(
+        self: &Arc<Self>,
+        context: &Context,
+        id: AssetId,
+        label: &str,
+    ) -> Result<(), SceneError> {
+        let cooked = context.assets.texture(id)?;
+        // As in `read_mesh`.
+        let done = self.upload_done();
+        let texture = queue_texture(&context.uploader, label, &cooked, done)?;
+        if let Some(work) = self.work().as_mut() {
+            work.made.textures.insert(id, Some(texture));
+        }
+        Ok(())
+    }
+}
+
+/// The end of one upload of a load's ([`Job::upload_done`]).
+struct UploadEnd<T: Send + 'static> {
+    /// `None` once called.
+    job: Option<Arc<Job<T>>>,
+}
+
+impl<T: Send + 'static> UploadEnd<T> {
+    /// Ends the upload: an error stops the load; the last upload or task to end has the load
+    /// completed, before the tasks that wait in the loads' lane, so that a load is not held behind
+    /// others. Called on the uploader's thread, it does little there.
+    fn call(mut self, result: Result<(), GfxError>) {
+        let job = self.job.take().expect("an upload ends once");
+        if let Err(error) = result {
+            job.fail(RenderError::from(error).into());
+        }
+        Self::end(job);
+    }
+
+    fn end(job: Arc<Job<T>>) {
+        if job.left.fetch_sub(1, Ordering::AcqRel) == 1 {
+            loads::run(0, move || job.complete());
+        }
+    }
+}
+
+impl<T: Send + 'static> Drop for UploadEnd<T> {
+    fn drop(&mut self) {
+        if let Some(job) = self.job.take() {
+            // An upload whose hand-off returned an error has its task's error; one that a panic
+            // dropped has none, unless the panic was its task's.
+            if thread::panicking() {
+                job.upload_dropped.store(true, Ordering::Release);
+                job.progress().stopped = true;
+            }
+            Self::end(job);
+        }
+    }
+}
+
+/// What `kept` holds of the asset `id`, if the manifest of `assets` still names the cooked file it
+/// was read from.
+fn kept<T: Clone>(
+    assets: &CookedAssets,
+    kept: &HashMap<AssetId, (String, T)>,
+    id: AssetId,
+) -> Option<T> {
+    let (file, made) = kept.get(&id)?;
+    (assets.manifest().get(id)?.file == *file).then(|| made.clone())
+}
+
+impl Renderer {
+    /// Loads the cooked scene `id` from `assets` onto the GPU, as
+    /// [`Renderer::load_scene_in_background`] does, and waits for it.
+    ///
+    /// # Errors
+    ///
+    /// [`SceneError::Load`] if an asset cannot be read; [`SceneError::Render`] if the GPU's memory
+    /// cannot hold an object, the device is lost, the GPU cannot sample the cooked textures
+    /// (`GfxError::UnsupportedTexture`), or a material has values out of their ranges, or a texture
+    /// of the wrong kind for its slot, data where it reads colors or the reverse
+    /// ([`RenderError::InvalidMaterial`]); [`SceneError::Placement`] if a node places a mesh at a
+    /// point that is not finite, which a transform that overflows gives, or a light at such a point
+    /// or with no direction, as a transform that flattens its −Z axis gives. When several assets
+    /// fail, the error is the first that a task of the load reports, which can change from one run
+    /// to the next.
+    ///
+    /// # Panics
+    ///
+    /// As [`Renderer::load_scene_in_background`] and [`SceneLoad::take`].
+    pub fn load_scene(
+        &self,
+        gpu: &Gpu,
+        assets: &CookedAssets,
+        id: AssetId,
+    ) -> Result<LoadedScene, SceneError> {
+        self.load_scene_in_background(gpu, assets, id).wait()
+    }
+
+    /// Starts loading the cooked scene `id` from `assets` onto the GPU, and returns at once: the
+    /// returned [`SceneLoad`] gives the scene once it is loaded. The load reads every mesh its
+    /// nodes place, every material those meshes are drawn with and every texture those materials
+    /// read, each once, by background tasks of the engine's pool (`slime_tasks`), which create
+    /// their GPU objects through clones of `gpu` and write their vertices and texels into staging
+    /// buffers (ADR-0073, ADR-0107); and it places its lights by their nodes in world space, at the
+    /// node's origin, along its −Z axis whatever its scale. A glTF file's default scene has the
+    /// file's ID.
+    ///
+    /// The renderer's uploader submits the copies of the meshes and textures to the GPU, at most a
+    /// budget of bytes per frame ([`Renderer::render`] says how much), so that a frame does not
+    /// wait for all of a load's copies, and a load takes longer the more bytes it brings. The load
+    /// ends when the last of its tasks and of its copies does, without a thread of its own: the
+    /// pool's threads are shared by every load of the process, and keep one for the work that a
+    /// frame waits for. A frame that draws the first shadows, or changes the shape of the frame
+    /// otherwise, can cost more during a load than after it.
+    ///
+    /// # Panics
+    ///
+    /// If the operating system cannot start the threads of the engine's pool.
+    pub fn load_scene_in_background(
+        &self,
+        gpu: &Gpu,
+        assets: &CookedAssets,
+        id: AssetId,
+    ) -> SceneLoad {
+        self.start_scene_load(gpu, assets, id, Reusable::default())
+    }
+
+    /// Starts loading the cooked scene `id` from `assets` again, as
+    /// [`Renderer::load_scene_in_background`] does, once the cooked data has changed: the meshes
+    /// and textures of `previous` whose cooked file the manifest of `assets` still names are kept,
+    /// neither read nor uploaded again: the cooker names each cooked file after what made it
+    /// (`slime_cook::cook` says how), so the same name holds the same data. The materials are made
+    /// again, from the textures kept or uploaded, with the values the cooked data gives: the values
+    /// that a game set on the materials of `previous` ([`Material::set_values`]) are not carried
+    /// over, and a game that changes them finds them again in the new scene
+    /// ([`LoadedScene::material`]). `previous` stays whole, to be drawn while the load goes on; the
+    /// new scene and it share what was kept.
+    ///
+    /// # Panics
+    ///
+    /// As [`Renderer::load_scene_in_background`]; and when a material is made, if `previous` was
+    /// loaded on another device than `gpu`'s: wgpu refuses its textures.
+    pub fn reload_scene_in_background(
+        &self,
+        gpu: &Gpu,
+        assets: &CookedAssets,
+        id: AssetId,
+        previous: &LoadedScene,
+    ) -> SceneLoad {
+        self.start_scene_load(gpu, assets, id, previous.reusable.clone())
+    }
+
+    /// Starts the load of the scene `id` from `assets`, which keeps what `reuse` holds whose cooked
+    /// file the manifest still names.
+    fn start_scene_load(
+        &self,
+        gpu: &Gpu,
+        assets: &CookedAssets,
+        id: AssetId,
+        reuse: Reusable,
+    ) -> SceneLoad {
+        let load = self.start_load(
+            gpu,
+            assets,
+            reuse,
+            move |job, context| {
+                let scene = context.assets.scene(id)?;
+                // The meshes, each once, in the order in which the nodes first place them.
+                let mut mesh_ids = Vec::new();
+                let mut seen = HashSet::new();
+                for &mesh in scene.nodes.iter().flat_map(|node| &node.meshes) {
+                    if seen.insert(mesh) {
+                        mesh_ids.push(mesh);
+                    }
+                }
+                if let Some(work) = job.work().as_mut() {
+                    work.scene = Some(scene);
+                }
+                job.ask(mesh_ids)
+            },
+            |mut work| {
+                let scene = work
+                    .scene
+                    .take()
+                    .expect("a scene's load reads its scene first");
+                let batch = work.made_batch()?;
+                work.assemble(scene, batch)
+            },
+        );
+        SceneLoad { load }
+    }
+
+    /// Starts loading the meshes `mesh_ids` from `assets`, each once, with the materials they are
+    /// drawn with and the textures those read, as a scene's load does: a batch for the asset cache,
+    /// which keeps what `reuse` holds whose cooked file the manifest still names.
+    pub(crate) fn start_batch(
+        &self,
+        gpu: &Gpu,
+        assets: &CookedAssets,
+        reuse: Reusable,
+        mesh_ids: Vec<AssetId>,
+    ) -> Load<Batch> {
+        self.start_load(
+            gpu,
+            assets,
+            reuse,
+            move |job, _| job.ask(mesh_ids),
+            Work::batch,
+        )
+    }
+
+    /// Starts a load whose first task, `begin`, asks for what it loads, and whose result
+    /// `complete` makes from what it made.
+    fn start_load<T: Send + 'static>(
+        &self,
+        gpu: &Gpu,
+        assets: &CookedAssets,
+        reuse: Reusable,
+        begin: impl FnOnce(&Arc<Job<T>>, &Context) -> Result<(), SceneError> + Send + 'static,
+        complete: impl FnOnce(Work) -> Result<T, SceneError> + Send + 'static,
+    ) -> Load<T> {
+        let job = Arc::new(Job {
+            number: loads::number(),
+            progress: Mutex::new(Progress {
+                result: None,
+                taken: false,
+                dropped: false,
+                stopped: false,
+                running: 0,
+            }),
+            changed: Condvar::new(),
+            work: Mutex::new(Some(Work {
+                gpu: gpu.clone(),
+                assets: Arc::new(assets.clone()),
+                parts: self.material_parts.clone(),
+                meshes: self.meshes.clone(),
+                uploader: self.uploader.clone(),
+                reuse,
+                mesh_ids: Vec::new(),
+                scene: None,
+                made: Assembly::default(),
+            })),
+            left: AtomicUsize::new(0),
+            failure: Mutex::new(None),
+            panic: Mutex::new(None),
+            upload_dropped: AtomicBool::new(false),
+            complete: Mutex::new(Some(Box::new(complete))),
+        });
+        job.spawn(begin);
+        Load { job }
+    }
+}
+
+impl Work {
+    /// Completes the batch of the meshes asked for from what the load made, once it made
+    /// everything: the materials its meshes are drawn with, created with the samplers they need.
+    fn batch(mut self) -> Result<Batch, SceneError> {
+        self.made_batch()
+    }
+
+    fn made_batch(&mut self) -> Result<Batch, SceneError> {
+        let made = std::mem::take(&mut self.made);
+        let meshes: Vec<(AssetId, MadeMesh)> = self
+            .mesh_ids
             .iter()
             .copied()
             .zip(made.meshes)
@@ -958,15 +1146,44 @@ pub(crate) fn upload_texture(
     label: &str,
     data: &CookedTexture,
 ) -> Result<Texture, RenderError> {
-    let format = match data.encoding {
+    let levels: Vec<&[u8]> = data.levels.iter().map(Vec::as_slice).collect();
+    Ok(gpu.create_texture_with_levels(
+        label,
+        data.width,
+        data.height,
+        texture_format(data.encoding),
+        &levels,
+    )?)
+}
+
+/// Leaves the upload of a cooked texture to `uploader`, which calls `done` once its copies are
+/// submitted, as [`Uploader::texture`] says; the texture is returned at once, to be drawn then.
+fn queue_texture(
+    uploader: &Uploader,
+    label: &str,
+    data: &CookedTexture,
+    done: impl FnOnce(Result<(), GfxError>) + Send + 'static,
+) -> Result<Texture, RenderError> {
+    let levels: Vec<&[u8]> = data.levels.iter().map(Vec::as_slice).collect();
+    Ok(uploader.texture(
+        label,
+        data.width,
+        data.height,
+        texture_format(data.encoding),
+        &levels,
+        done,
+    )?)
+}
+
+/// The GPU format of a cooked texture's encoding.
+fn texture_format(encoding: TextureEncoding) -> TextureFormat {
+    match encoding {
         TextureEncoding::Bc7Srgb => TextureFormat::Bc7RgbaUnormSrgb,
         TextureEncoding::Bc7 => TextureFormat::Bc7RgbaUnorm,
         TextureEncoding::Bc5 => TextureFormat::Bc5RgUnorm,
         TextureEncoding::Rgba8Srgb => TextureFormat::Rgba8UnormSrgb,
         TextureEncoding::Rgba8 => TextureFormat::Rgba8Unorm,
-    };
-    let levels: Vec<&[u8]> = data.levels.iter().map(Vec::as_slice).collect();
-    Ok(gpu.create_texture_with_levels(label, data.width, data.height, format, &levels)?)
+    }
 }
 
 /// The GPU layer's sampler for a cooked texture slot's.
@@ -1021,10 +1238,12 @@ fn grow(
 mod tests {
     use std::fs;
     use std::sync::Barrier;
+    use std::sync::mpsc;
     use std::time::Duration;
 
     use slime_assets::{AssetKind, CookedMesh, MANIFEST_FILE, Manifest, ManifestEntry, SceneNode};
     use slime_gfx::TextureFormat;
+    use slime_tasks::Priority;
 
     use super::*;
 
@@ -1113,11 +1332,14 @@ mod tests {
 
     #[test]
     fn a_load_dropped_while_its_tasks_wait_in_the_pool_returns_at_once() {
+        let _holding = crate::loads::tests::HOLDING_THE_POOL
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
         let gpu = Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists them");
         let renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
         let (assets, scene) = squares("dropped", 8);
-        // Every thread of the pool waits for the test, held by frame tasks, which every thread takes,
-        // so that the load's tasks wait in its queue.
+        // Every thread of the pool waits for the test, held by frame tasks, which every thread
+        // takes, so that the load's tasks wait in its queue.
         let threads = slime_tasks::threads();
         let barrier = Arc::new(Barrier::new(threads + 1));
         let (busy, all_busy) = mpsc::channel();
@@ -1151,5 +1373,33 @@ mod tests {
         let _ = fs::remove_dir_all(
             std::env::temp_dir().join(format!("slime-render-{}", std::process::id())),
         );
+    }
+
+    #[test]
+    fn a_panic_of_a_task_in_its_upload_s_hand_off_is_the_one_raised() {
+        let gpu = Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists them");
+        let renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
+        // An empty manifest, in a directory apart from `squares`', which another test removes.
+        let directory =
+            std::env::temp_dir().join(format!("slime-render-hand-off-{}", std::process::id()));
+        fs::create_dir_all(&directory).expect("the directory can be created");
+        fs::write(directory.join(MANIFEST_FILE), Manifest::new().to_bytes()).expect("written");
+        let assets = CookedAssets::open(&directory).expect("the manifest is read");
+        // The upload's callback is dropped by the panic's unwinding, before the task records it.
+        let load = renderer.start_load(
+            &gpu,
+            &assets,
+            Reusable::default(),
+            |job, _| {
+                let _done = job.upload_done();
+                panic!("the task's own panic");
+            },
+            |_| Ok(()),
+        );
+        let panic = panic::catch_unwind(AssertUnwindSafe(|| load.wait()))
+            .expect_err("the load raises its task's panic");
+        assert_eq!(panic.downcast_ref::<&str>(), Some(&"the task's own panic"));
+        drop(assets);
+        let _ = fs::remove_dir_all(directory);
     }
 }

@@ -31,11 +31,13 @@ blend transparent surfaces.
   graph is the renderer's own: games that draw with `slime-gfx` order their passes themselves.
 - Is built on `slime-gfx`'s engine-owned types only: it does not use wgpu
   (`docs/adr/0027-the-render-crate.md`).
-- Loads cooked scenes in the background: a thread per load, and background tasks of the engine's
-  pool (`slime-tasks`), which read and upload one mesh or one texture each through clones of the
-  `Gpu` (`docs/adr/0073-loading-scenes-in-the-background.md`,
-  `docs/adr/0107-the-execution-model.md`). It computes the sky's environment as frame tasks of
-  the same pool.
+- Loads cooked scenes in the background, as background tasks of the engine's pool (`slime-tasks`),
+  a few of the process's loads' tasks at once (`src/loads.rs`), which read one mesh or one texture
+  each and write it into staging buffers through clones of the `Gpu`; the renderer's uploader
+  (`slime_gfx::Uploader`) submits their copies, within a budget of bytes per frame
+  (`docs/adr/0073-loading-scenes-in-the-background.md`, `docs/adr/0107-the-execution-model.md`,
+  `docs/adr/0118-the-task-pool-and-the-copies-to-the-gpu.md`). It computes the sky's environment
+  as frame tasks of the same pool.
 - Draws what it is given: a flat list of instances that the application builds for each frame.
   It keeps no scene between frames and has no scene graph; `slime-world-render` builds such lists
   from a world (`docs/adr/0084-what-the-world-draws.md`).

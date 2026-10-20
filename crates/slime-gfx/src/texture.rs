@@ -6,6 +6,7 @@ use std::borrow::Cow;
 use crate::error::GfxError;
 use crate::gpu::{Gpu, submit};
 use crate::render_target::TextureFormat;
+use crate::upload::{Staged, StagedCopy};
 
 /// A texture that shaders sample through a bind group
 /// ([`BindingResource::Texture`](crate::BindingResource::Texture)), with a
@@ -184,7 +185,7 @@ impl Gpu {
     }
 
     /// Creates a texture of `layers` images (1, or 6 for a cube) from the levels the caller
-    /// gives, each level holding every image.
+    /// gives, each level holding every image, and submits their copies at once.
     fn create_texture_from_levels(
         &self,
         label: &str,
@@ -193,6 +194,58 @@ impl Gpu {
         format: TextureFormat,
         levels: &[&[u8]],
     ) -> Result<Texture, GfxError> {
+        let (texture, staged) = self.stage_texture(
+            label,
+            (width, height, layers),
+            format,
+            levels,
+            self.max_buffer_size(),
+            |size| {
+                Ok(self.device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some(label),
+                    size,
+                    usage: wgpu::BufferUsages::MAP_WRITE | wgpu::BufferUsages::COPY_SRC,
+                    mapped_at_creation: true,
+                }))
+            },
+        )?;
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some(label) });
+        for staged in &staged {
+            staged.buffer.unmap();
+            for copy in &staged.copies {
+                copy.record(&mut encoder, &staged.buffer);
+            }
+        }
+        submit(self, [encoder.finish()]);
+        // Memory that runs out while the levels are uploaded loses the device.
+        self.check()?;
+        Ok(texture)
+    }
+
+    /// Creates a texture of `layers` images from `levels`, as [`Gpu::create_texture_with_levels`]
+    /// checks them, and writes the levels into staging buffers of at most `largest` bytes each,
+    /// which `staging(size)` gives mapped: the texture, and each buffer with the copies that bring
+    /// what it holds into the texture. The texels are written outside any lock of wgpu's, so that
+    /// a thread that writes them does not hold up the thread that submits frames (ADR-0074).
+    ///
+    /// # Errors
+    ///
+    /// As [`Gpu::create_texture_with_levels`], and those of `staging`.
+    ///
+    /// # Panics
+    ///
+    /// As [`Gpu::create_texture_with_levels`].
+    pub(crate) fn stage_texture(
+        &self,
+        label: &str,
+        (width, height, layers): (u32, u32, u32),
+        format: TextureFormat,
+        levels: &[&[u8]],
+        largest: u64,
+        mut staging: impl FnMut(u64) -> Result<wgpu::Buffer, GfxError>,
+    ) -> Result<(Texture, Vec<Staged>), GfxError> {
         assert!(
             width > 0 && height > 0,
             "texture `{label}` is {width}x{height}: a texture has at least one pixel"
@@ -225,18 +278,16 @@ impl Gpu {
             );
         }
         // The levels reach the texture through buffers that the CPU writes while they are mapped,
-        // then copies that the GPU runs, submitted at once. The queue's own writes
-        // (`write_texture`) would copy them into wgpu's staging memory while holding a lock that
-        // every submission takes, so that a thread uploading textures, as `slime-render`'s loading
-        // threads do, would hold up the thread that submits frames (ADR-0074).
+        // then copies that the GPU runs. The queue's own writes (`write_texture`) would copy them
+        // into wgpu's staging memory while holding a lock that every submission takes (ADR-0074).
         let level_rows: Vec<(u32, u32)> = (0..levels.len())
             .map(|index| {
                 let (level_width, level_height) = level_size(index);
                 format.rows(level_width, level_height)
             })
             .collect();
-        let (bands, sizes) = bands(&level_rows, layers, self.max_buffer_size());
-        let (texture, staging) = self.create(label, || {
+        let (bands, sizes) = bands(&level_rows, layers, largest.min(self.max_buffer_size()));
+        let (texture, buffers) = self.create(label, || {
             let texture = self.device.create_texture(&wgpu::TextureDescriptor {
                 label: Some(label),
                 size: wgpu::Extent3d {
@@ -251,29 +302,21 @@ impl Gpu {
                 usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
                 view_formats: &[],
             });
-            let staging: Vec<wgpu::Buffer> = sizes
-                .iter()
-                .map(|&size| {
-                    self.device.create_buffer(&wgpu::BufferDescriptor {
-                        label: Some(label),
-                        size,
-                        usage: wgpu::BufferUsages::MAP_WRITE | wgpu::BufferUsages::COPY_SRC,
-                        mapped_at_creation: true,
-                    })
-                })
-                .collect();
-            (texture, staging)
+            let buffers: Result<Vec<wgpu::Buffer>, GfxError> =
+                sizes.iter().map(|&size| staging(size)).collect();
+            (texture, buffers)
         })?;
+        let buffers = buffers?;
         for band in &bands {
             let (row, rows) = level_rows[band.level];
             let size = u64::from(band.pitch) * u64::from(band.rows);
             let first = (band.layer * rows + band.first_row) as usize * row as usize;
             let source = &levels[band.level][first..first + band.rows as usize * row as usize];
-            // Created mapped, the buffer is mapped unless the device was lost since `create`
-            // checked it, and another thread's submission released its objects; unmapped, a buffer
-            // that is not mapped would be a misuse that panics.
+            // A buffer given mapped is mapped unless the device was lost since `create` checked
+            // it, and another thread's submission released its objects; unmapped, a buffer that
+            // is not mapped would be a misuse that panics.
             let Ok(mut mapped) =
-                staging[band.buffer].get_mapped_range_mut(band.offset..band.offset + size)
+                buffers[band.buffer].get_mapped_range_mut(band.offset..band.offset + size)
             else {
                 assert!(
                     self.check().is_err() || !self.still_valid(),
@@ -288,44 +331,25 @@ impl Gpu {
                     .copy_from_slice(source_row);
             }
         }
-        for buffer in &staging {
-            buffer.unmap();
-        }
         // A level of a block-compressed format smaller than a block is copied as the whole block,
         // which wgpu sizes it to.
-        let texels_per_row = if format.is_block_compressed() { 4 } else { 1 };
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some(label) });
-        for band in &bands {
+        let block = if format.is_block_compressed() { 4 } else { 1 };
+        let mut staged: Vec<Staged> = buffers
+            .into_iter()
+            .map(|buffer| Staged {
+                buffer,
+                copies: Vec::new(),
+            })
+            .collect();
+        for band in bands {
             let (level_width, _) = level_size(band.level);
-            encoder.copy_buffer_to_texture(
-                wgpu::TexelCopyBufferInfo {
-                    buffer: &staging[band.buffer],
-                    layout: wgpu::TexelCopyBufferLayout {
-                        offset: band.offset,
-                        bytes_per_row: Some(band.pitch),
-                        rows_per_image: Some(band.rows),
-                    },
-                },
-                wgpu::TexelCopyTextureInfo {
-                    texture: &texture,
-                    mip_level: band.level as u32,
-                    origin: wgpu::Origin3d {
-                        x: 0,
-                        y: band.first_row * texels_per_row,
-                        z: band.layer,
-                    },
-                    aspect: wgpu::TextureAspect::All,
-                },
-                wgpu::Extent3d {
-                    width: level_width.next_multiple_of(texels_per_row),
-                    height: band.rows * texels_per_row,
-                    depth_or_array_layers: 1,
-                },
-            );
+            staged[band.buffer].copies.push(StagedCopy::Band {
+                texture: texture.clone(),
+                band,
+                width: level_width.next_multiple_of(block),
+                block,
+            });
         }
-        submit(self, [encoder.finish()]);
         let view = texture.create_view(&wgpu::TextureViewDescriptor {
             dimension: Some(if layers == 6 {
                 wgpu::TextureViewDimension::Cube
@@ -334,15 +358,14 @@ impl Gpu {
             }),
             ..wgpu::TextureViewDescriptor::default()
         });
-        // Memory that runs out while the levels are uploaded loses the device.
-        self.check()?;
         // The view keeps the texture alive.
-        Ok(Texture {
+        let texture = Texture {
             view,
             width,
             height,
             format,
-        })
+        };
+        Ok((texture, staged))
     }
 }
 
@@ -469,14 +492,14 @@ const PLACEMENT: u64 = 512;
 /// `level`, which the staging buffer `buffer` holds from `offset`, each row `pitch` bytes after the
 /// one before. A row is a row of texels, or of blocks for a block-compressed format.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct Band {
-    level: usize,
-    layer: u32,
-    first_row: u32,
-    rows: u32,
+pub(crate) struct Band {
+    pub(crate) level: usize,
+    pub(crate) layer: u32,
+    pub(crate) first_row: u32,
+    pub(crate) rows: u32,
     buffer: usize,
-    offset: u64,
-    pitch: u32,
+    pub(crate) offset: u64,
+    pub(crate) pitch: u32,
 }
 
 /// How to upload levels of `layers` images each, whose rows `level_rows` gives (the bytes of a row,

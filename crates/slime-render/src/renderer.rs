@@ -17,7 +17,7 @@ use slime_gfx::{
     BindingType, ComparisonSampler, CullMode, DepthBias, DepthCompare, DepthState, DepthTarget,
     Filter, FragmentState, GfxError, Gpu, RenderPass, RenderPipeline, RenderPipelineDescriptor,
     RenderTarget, Sampler, SamplerDescriptor, ShaderModule, ShaderStages, StorageBuffer, Texture,
-    TextureFormat, UniformBuffer,
+    TextureFormat, UniformBuffer, Uploader,
 };
 
 use crate::bytes::{push_f32s, push_mat3, push_mat4, push_u32s};
@@ -95,6 +95,11 @@ const MATERIAL_TEXTURE_SLOTS: u32 = 5;
 /// How far below zero the determinant of a transform's normalized columns must be for the
 /// transform to mirror (see `is_mirrored`).
 const MIRROR_THRESHOLD: f32 = 1e-5;
+/// The most bytes of copies that a renderer's uploader submits for each frame
+/// (`slime_gfx::Uploader` says what else renews its budget, and when copies go whatever it): the
+/// meshes and textures that its loads bring reach the GPU at that pace while frames are drawn
+/// (ADR-0107, ADR-0118).
+const UPLOAD_BYTES_PER_FRAME: u64 = 8 << 20;
 /// How many instances the buffer of the instances' values holds when the renderer is created, and
 /// how many entries the list of the instances that the draws draw does; each doubles whenever a
 /// frame needs more, and comes back down once a frame uses a quarter of it or less
@@ -301,37 +306,42 @@ pub struct RenderStats {
 /// Each frame takes these passes (ADR-0034, ADR-0037, ADR-0038, ADR-0039, ADR-0040): the shadow
 /// pass draws the depths of the instances, as the scene's first directional light that casts
 /// shadows sees them, into the tile of each of its four cascades (ADR-0064); the spot lights'
-/// shadow pass draws them, as each spot light that casts shadows sees them, into its tile of the
-/// atlas (ADR-0058, ADR-0061); the scene pass draws the instances into a target of half-precision
-/// floats, where light may exceed 1, of four samples per pixel, with a depth target of four samples
-/// too (ADR-0056), their light multiplied by the scene's exposure, the shadowed directional light's
-/// only where the finest cascades that hold a point show nothing nearer to it, each spot light's
-/// that casts shadows only where its tile does, and the environment's; the sky pass draws the
-/// environment where no surface is, sample by sample; the resolve pass averages the samples of each
-/// pixel into a target of one sample per pixel, each weighed by its brightness (ADR-0060), so that
-/// the edges of what both passes drew are smooth (multisample anti-aliasing); the bloom's passes
-/// filter that light down into a chain of levels, each half the size of the one before, then
-/// average them back up into a blurred copy; the tone-mapping pass then mixes the blurred copy in
-/// by the scene's bloom strength and maps the light to the output's range with Khronos PBR Neutral.
-/// The renderer owns ten pipelines: two for the shadow pass (the second discards what masked
-/// materials discard), three for the scene pass, which differ by the faces they cull and among
-/// which each draw chooses (ADR-0035), the sky pass's, the resolve pass's, the bloom's two (down
-/// and up) and the tone-mapping pass's; the table of the BRDF's scale and bias and a black
-/// environment for scenes without one; the cascades' atlas, 4096 × 4096 depths (64 MiB) created by
-/// the first frame in which a directional light casts shadows; the spot lights' shadow atlas, as
-/// large, created by the first frame in which a spot light casts shadows; the buffer of the shadow
-/// passes' views; the buffers of the instances' values and of the list of the instances that each
-/// draw draws; the pages that hold its meshes' vertices and indices ([`Mesh`]); and the frame's
-/// render graph (ADR-0041): its passes in order, the high-dynamic-range and depth targets and the
-/// bloom's levels at the size of the output it draws into, the groups that read them and GPU
-/// timers for its submissions, built again when the frame's shape changes (the output's size,
-/// either shadow pass or the bloom turned on or off). A renderer draws best into outputs of one
-/// size: drawing into outputs of two sizes in turn creates its targets again at every call, and
-/// reports no tone-mapping or bloom time; use one renderer per output size. At 1920 × 1080 with the
-/// bloom, a renderer holds about 122 MiB of GPU memory: 111 for the high-dynamic-range and depth
-/// targets, 95 of them for their four samples per pixel, and 10.5 for the bloom's levels; then 64
-/// more once a directional light has cast shadows, and 64 more once a spot light has; at 3840 ×
-/// 2160, about 485 MiB, and as much more; and the pages of its meshes.
+/// shadow pass draws them, as each spot light that casts shadows sees them, into its tile
+/// of the atlas (ADR-0058, ADR-0061); the scene pass draws the instances into a target of
+/// half-precision floats, where light may exceed 1, of four samples per pixel, with a depth
+/// target of four samples too (ADR-0056), their light multiplied by the scene's exposure,
+/// the shadowed directional light's only where the finest cascades that hold a point show
+/// nothing nearer to it, each spot light's that casts shadows only where its tile does, and
+/// the environment's; the sky pass draws the environment where no surface is, sample by sample;
+/// the resolve pass averages the samples of each pixel into a target of one sample per pixel,
+/// each weighed by its brightness (ADR-0060), so that the edges of what both passes drew are
+/// smooth (multisample anti-aliasing); the bloom's passes filter that light down into a chain
+/// of levels, each half the size of the one before, then average them back up into a blurred
+/// copy; the tone-mapping pass then mixes the blurred copy in by the scene's bloom strength
+/// and maps the light to the output's range with Khronos PBR Neutral. The renderer owns ten
+/// pipelines: two for the shadow pass (the second discards what masked materials discard),
+/// three for the scene pass, which differ by the faces they cull and among which each draw
+/// chooses (ADR-0035), the sky pass's, the resolve pass's, the bloom's two (down and up) and
+/// the tone-mapping pass's; the table of the BRDF's scale and bias and a black environment
+/// for scenes without one; the cascades' atlas, 4096 × 4096 depths (64 MiB) created by the
+/// first frame in which a directional light casts shadows; the spot lights' shadow atlas, as
+/// large, created by the first frame in which a spot light casts shadows; the buffer of the
+/// shadow passes' views; the buffers of the instances' values and of the list of the instances
+/// that each draw draws; the pages that hold its meshes' vertices and indices ([`Mesh`]);
+/// the uploader that submits the copies of what its loads bring, with a thread of its own
+/// (`slime_gfx::Uploader`); and the frame's render graph (ADR-0041): its passes in order, the
+/// high-dynamic-range and depth targets and the bloom's levels at the size of the output it
+/// draws into, the groups that read them and GPU timers for its submissions, built again when
+/// the frame's shape changes (the output's size, either shadow pass or the bloom turned on or
+/// off). A renderer draws best into outputs of one size: drawing into outputs of two sizes in
+/// turn creates its targets again at every call, and reports no tone-mapping or bloom time;
+/// use one renderer per output size. At 1920 × 1080 with the bloom, a renderer holds about 122
+/// MiB of GPU memory: 111 for the high-dynamic-range and depth targets, 95 of them for their
+/// four samples per pixel, and 10.5 for the bloom's levels; then 64 more once a directional
+/// light has cast shadows, and 64 more once a spot light has; at 3840 × 2160, about 485 MiB,
+/// and as much more; and the pages of its meshes; and, in the CPU's memory, its uploader's
+/// staging buffers: up to 32 MiB kept for the next loads, and, while a load lasts, what it read
+/// that waits for its copies.
 ///
 /// Each frame, the scene pass leaves out the instances whose boxes lie outside what the camera
 /// sees (frustum culling), and the shadow passes those whose boxes lie outside each cascade's
@@ -364,6 +374,9 @@ pub struct Renderer {
     environment_sampler: Sampler,
     /// The pages of the meshes it creates, which its loads share.
     pub(crate) meshes: MeshPages,
+    /// The one owner of the copies to the GPU of what its loads bring, at most
+    /// [`UPLOAD_BYTES_PER_FRAME`] per frame, which each frame renews (ADR-0107).
+    pub(crate) uploader: Uploader,
     /// The storage buffers of the instances that a frame draws, and the group that binds them.
     instances: InstanceBuffers,
     /// What the frame drawn last worked out about its instances: kept from one frame to the next,
@@ -526,12 +539,13 @@ fn bloom_levels(width: u32, height: u32) -> usize {
 
 impl Renderer {
     /// Creates a renderer that draws into output targets of `format`: the window's, for a
-    /// windowed application (`Context::surface_format` in `slime-app`). An sRGB format encodes the
-    /// tone-mapped light for display; `Rgba16Float` holds the tone-mapped values themselves;
-    /// `Rgba8Unorm` stores them unencoded, which displays too dark. The first renderer of a process
-    /// computes the table of the BRDF's scale and bias for image-based lighting on the CPU, as frame
-    /// tasks of the engine's pool and on the calling thread (`slime_tasks`, ADR-0039, ADR-0107):
-    /// about 15 ms in a release build, more in a debug build; the others reuse it.
+    /// windowed application (`Context::surface_format` in `slime-app`). An sRGB format encodes
+    /// the tone-mapped light for display; `Rgba16Float` holds the tone-mapped values themselves;
+    /// `Rgba8Unorm` stores them unencoded, which displays too dark. The first renderer of
+    /// a process computes the table of the BRDF's scale and bias for image-based lighting on
+    /// the CPU, as frame tasks of the engine's pool and on the calling thread (`slime_tasks`,
+    /// ADR-0039, ADR-0107): about 15 ms in a release build, more in a debug build; the others
+    /// reuse it.
     ///
     /// # Errors
     ///
@@ -539,6 +553,11 @@ impl Renderer {
     /// ten pipelines, made from the embedded sources ([`ShaderSources::embedded`]); with
     /// [`GfxError::OutOfMemory`] if the GPU's memory cannot hold the shadow map or the renderer's
     /// other objects; or with [`GfxError::DeviceLost`] if the device is lost.
+    ///
+    /// # Panics
+    ///
+    /// If the operating system cannot start the thread of the renderer's uploader, or the threads
+    /// of the engine's pool when the renderer is the first user of the pool.
     pub fn new(gpu: &Gpu, format: TextureFormat) -> Result<Self, RenderError> {
         // The frame's values, then the environment, the BRDF table and the sampler that reads both.
         let frame_layout = gpu.create_bind_group_layout(
@@ -787,6 +806,7 @@ impl Renderer {
             brdf_table,
             environment_sampler,
             meshes: MeshPages::default(),
+            uploader: Uploader::new(gpu, UPLOAD_BYTES_PER_FRAME),
             instances,
             scratch: Scratch::default(),
             frame: None,
@@ -835,14 +855,14 @@ impl Renderer {
         Ok(())
     }
 
-    /// Computes the environment of `sky` on the CPU and uploads it (ADR-0039): the sky drawn into a
-    /// cube map of 128 × 128 texels per face, each the average of 2 × 2 points of it, then
-    /// prefiltered for roughnesses 0.25, 0.5, 0.75 and 1 into faces of 64, 32, 16 and 8 texels, the
-    /// last also the light that matte surfaces diffuse: 1.0 MiB of half-precision floats. This
-    /// takes tens of milliseconds in a release build, as frame tasks of the engine's pool and on
-    /// the calling thread (`slime_tasks`, ADR-0107), several times as long in a debug build: create an environment once per sky, not per frame. A sky of one radiance in
-    /// every direction, without a sun, takes almost none. The environment is not tied to this
-    /// renderer.
+    /// Computes the environment of `sky` on the CPU and uploads it (ADR-0039): the sky drawn
+    /// into a cube map of 128 × 128 texels per face, each the average of 2 × 2 points of it,
+    /// then prefiltered for roughnesses 0.25, 0.5, 0.75 and 1 into faces of 64, 32, 16 and 8
+    /// texels, the last also the light that matte surfaces diffuse: 1.0 MiB of half-precision
+    /// floats. This takes tens of milliseconds in a release build, as frame tasks of the engine's
+    /// pool and on the calling thread (`slime_tasks`, ADR-0107), several times as long in a debug
+    /// build: create an environment once per sky, not per frame. A sky of one radiance in every
+    /// direction, without a sun, takes almost none. The environment is not tied to this renderer.
     ///
     /// # Errors
     ///
@@ -967,7 +987,7 @@ impl Renderer {
     /// point lights cast no shadows. The sky pass draws the environment, exposed, where no
     /// surface was drawn, with its sun's disc. The resolve pass then averages the samples of
     /// each pixel, each weighed by 1 / (1 + its brightest channel), which smooths the edges of
-    /// what both passes drew, the bright ones too (ADR-0056, ADR-0060).  Unless `scene.bloom`
+    /// what both passes drew, the bright ones too (ADR-0056, ADR-0060). Unless `scene.bloom`
     /// is 0 or `target` is smaller than 15 × 15, the bloom's passes filter that light down
     /// into levels of half the size of the one before, to a side of at least 8 texels, with
     /// Jimenez's 13-tap filter, then average them back up through 3 × 3 tents, every level
@@ -988,6 +1008,14 @@ impl Renderer {
     /// values and of their list grow when a frame draws more than they hold, and shrink back once
     /// a frame uses a quarter of them or less. Each instance drawn takes 128 bytes of values, and
     /// 4 bytes in the list for each pass that draws it.
+    ///
+    /// Each call renews the budget of the renderer's uploader (`slime_gfx::Uploader`, which says
+    /// what else renews it, and when copies go whatever it): once the frame is submitted, the
+    /// uploader submits at most 8 MiB of the copies that the renderer's loads left it, which the
+    /// GPU runs after the frame (ADR-0107, ADR-0118). The meshes and textures that a load brings
+    /// reach the GPU at that pace while frames are drawn; a renderer that draws several outputs a
+    /// frame renews the budget for each. Its staging buffers, kept for the next loads, take up to
+    /// 32 MiB of the CPU's memory.
     ///
     /// # Errors
     ///
@@ -1453,6 +1481,8 @@ impl Renderer {
             |index| frame.graph.gpu_time(index),
             &mut stats,
         );
+        // The copies of what loads bring follow the frame just submitted, a budget of them.
+        self.uploader.frame();
         stats.cpu_time = started.elapsed();
         Ok(stats)
     }

@@ -10,7 +10,7 @@ Started in M4a.2. It holds the asset ID; the cooked formats, textures in KTX2 fi
 the engine's own, and scene files in the binary encoding of documents
 ([ADR-0095](../../docs/adr/0095-cooked-scene-files.md)); the manifest of a directory of cooked
 data; and the reading of that directory by ID, which `slime-render` does in the background, from
-threads of its own.
+tasks of the engine's pool.
 
 ## Role
 

@@ -12,6 +12,12 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   which run tasks of two priorities, `Frame` and `Background`, a free thread taking a frame task
   first and background tasks never holding every thread; `slime_tasks::map` computes items in
   parallel, the calling thread taking its share.
+- `slime_gfx::Uploader`, the one owner of the copies to the GPU of what loads bring: textures and
+  ranges of vertex and index buffers written into staging buffers by the threads that load,
+  reused from one upload to the next, and their copies submitted by a thread of the uploader's,
+  within a budget of bytes per frame that `Uploader::frame` renews.
+- `loading.textures`, a benchmark of sixteen textures of 4096² loaded while frames are drawn; the
+  loading benchmarks give the longest frame while their meshes load.
 - `World::spawn_keyed` creates an entity whose persistent identity is a key that the game chooses:
   what a game creates in code while it makes its start world, named so that saves and hot reload
   find it whatever else the game creates, and in whichever order. A run that creates one under a
@@ -51,6 +57,13 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   engine's pool, where they ran on a pool of `slime-render`'s own of at most four threads; the
   sky's environment and the BRDF table are computed by frame tasks of the pool and the calling
   thread, where they started a thread per core; the cooker encodes textures on the pool.
+- A load no longer slows the frames: its tasks write what they read into staging buffers, and the
+  renderer's uploader submits their copies after each frame, at most 8 MiB for each frame or
+  each 16.7 ms without one, so that a load of sixteen textures of 4096² keeps every frame under
+  11 ms on the owner's GPU, where frames took up to 31 ms. Before the first frame, and 100 ms after
+  the last, the copies go whatever the budget, so that a load that a program waits for without
+  drawing is not held back. The tasks of the process's loads run two at a time; a load ends with
+  its last task or copy, without a thread of its own, and starting one takes about a microsecond.
 - `RenderPass::draw_indexed` takes a base vertex and a range of instances.
 - `RenderStats::draw_calls` and the shadow passes' draw calls count draws of groups of instances,
   where they counted one per instance; `triangles` counts those of the instances drawn.

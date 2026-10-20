@@ -16,9 +16,10 @@ use crate::renderer::Renderer;
 /// the world holds none (`docs/adr/0084-what-the-world-draws.md`).
 ///
 /// A game asks for the meshes it draws at each frame ([`AssetCache::request`]); those the cache
-/// neither holds nor is loading start loading in the background, as a batch, on the renderer's
-/// threads, as [`Renderer::load_scene_in_background`] loads a scene. [`AssetCache::poll`] takes the
-/// batches that finished, each whole: a mesh is drawn once its batch is, never a part of a batch.
+/// neither holds nor is loading start loading in the background, as a batch, by tasks of the
+/// engine's pool, as [`Renderer::load_scene_in_background`] loads a scene.
+/// [`AssetCache::poll`] takes the batches that finished, each whole: a mesh is drawn once its batch
+/// is, never a part of a batch.
 /// An asset that several meshes share, a material or a texture, is loaded once and kept once; but
 /// two batches loading at once that both read a texture the cache does not hold yet upload it each,
 /// and the cache keeps both until a reload.
@@ -98,7 +99,7 @@ impl AssetCache {
     ///
     /// # Panics
     ///
-    /// If the operating system cannot start the batch's thread, as
+    /// If the operating system cannot start the threads of the engine's pool, as
     /// [`Renderer::load_scene_in_background`] says; and when the batch's materials are made, if
     /// the cache holds textures that another device than `gpu`'s made: a lost device was not
     /// followed by [`AssetCache::clear`].
@@ -125,14 +126,7 @@ impl AssetCache {
             meshes: HashMap::new(),
             textures: self.textures.clone(),
         };
-        let ids = wanted.clone();
-        let load = renderer.start(
-            "slime-render asset load",
-            gpu,
-            &self.assets,
-            reuse,
-            move |loader, reports| loader.load_meshes(&ids, reports),
-        );
+        let load = renderer.start_batch(gpu, &self.assets, reuse, wanted.clone());
         self.loads.push((wanted, load));
     }
 
@@ -148,7 +142,7 @@ impl AssetCache {
     ///
     /// # Panics
     ///
-    /// With the panic of a loading thread, as [`SceneLoad::take`](crate::SceneLoad::take) says:
+    /// With the panic of a task of a load, as [`SceneLoad::take`](crate::SceneLoad::take) says:
     /// the batch that panicked is then over, and its meshes are not asked for again, as for a batch
     /// that failed; a reload that panicked is over, and leaves what the cache held whole. The
     /// errors of the batches taken before it are lost.
@@ -238,13 +232,7 @@ impl AssetCache {
             meshes: self.meshes.clone(),
             textures: self.textures.clone(),
         };
-        self.reload = Some(renderer.start(
-            "slime-render asset reload",
-            gpu,
-            &self.assets,
-            reuse,
-            move |loader, reports| loader.load_meshes(&ids, reports),
-        ));
+        self.reload = Some(renderer.start_batch(gpu, &self.assets, reuse, ids));
     }
 
     /// Drops every GPU object the cache holds, and cancels its loads and its reload, as dropping a

@@ -129,8 +129,8 @@ today has:
 
 - No text, game UI, audio, physics, animation or editor.
 - An asset pipeline that imports glTF scenes, scene files and PNG and JPEG images only: the cooker,
-  `slime-cook`, makes them cooked data, which the renderer loads whole, on threads of its own while
-  the game goes on (`Renderer::load_scene_in_background`), and again when it changes
+  `slime-cook`, makes them cooked data, which the renderer loads whole, in the background while the
+  game goes on (`Renderer::load_scene_in_background`), and again when it changes
   (`slime-cook watch`), as the renderer's shaders are.
 - A world (`slime-world`) of entities, components and their hierarchy, drawn through
   `slime-world-render`, whose components are reflected and edited by name (`slime-reflect`), and

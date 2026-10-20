@@ -1,7 +1,8 @@
 //! Sampling textures: nearest and linear filtering, the address modes, set on their own for each
 //! direction of a sampler, a magnified texture read with the magnification filter rather than the
 //! minification one, the decoding of sRGB formats, a texture created by another thread through a
-//! clone of the `Gpu`, and a texture larger than the largest buffer, checked by reading pixels back.
+//! clone of the `Gpu`, a texture larger than the largest buffer, and a texture that an uploader
+//! brings within its budget, checked by reading pixels back.
 //! Runs on whatever adapter the machine offers, like `device.rs`.
 
 use slime_color::LinearColor;
@@ -9,7 +10,7 @@ use slime_gfx::{
     AddressMode, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource,
     BindingType, CullMode, Filter, FragmentState, Gpu, Image, RenderPassDescriptor, RenderPipeline,
     RenderPipelineDescriptor, RenderTarget, Sampler, SamplerDescriptor, ShaderStages, Texture,
-    TextureFormat, VertexAttribute, VertexFormat, VertexLayout,
+    TextureFormat, Uploader, VertexAttribute, VertexFormat, VertexLayout,
 };
 
 /// Draws the texture at group 0 with the texture coordinates of the vertices.
@@ -434,4 +435,39 @@ fn minified_textures_are_read_from_their_smaller_levels() {
             "{position:?}: expected grey, got {red}"
         );
     }
+}
+
+#[test]
+fn a_texture_that_an_uploader_brings_draws_once_its_upload_is_done() {
+    let setup = Setup::new();
+    // A budget of the smallest staging buffer: the level's 256 KiB, rows of 1 KiB, go in four
+    // bands of 64 rows, one per budget, once a frame is drawn.
+    let uploader = Uploader::new(&setup.gpu, 64 << 10);
+    let started = std::time::Instant::now();
+    uploader.frame();
+    let side = 256;
+    let half = (side * side / 2) as usize;
+    let level = [RED.repeat(half), GREEN.repeat(half)].concat();
+    let (done, uploaded) = std::sync::mpsc::channel();
+    let texture = uploader
+        .texture(
+            "uploaded",
+            side,
+            side,
+            TextureFormat::Rgba8UnormSrgb,
+            &[&level],
+            move |result| done.send(result.is_ok()).expect("the test waits"),
+        )
+        .expect("the GPU has memory for it");
+    // The budget renews every 16.7 ms when no other frame comes: the upload ends without one.
+    assert_eq!(
+        uploaded.recv_timeout(std::time::Duration::from_secs(10)),
+        Ok(true)
+    );
+    // 256 KiB of rows at 64 KiB a budget: three renewals at least.
+    assert!(started.elapsed() >= std::time::Duration::from_millis(45));
+    let sampler = setup.sampler(Filter::Nearest, AddressMode::ClampToEdge);
+    let image = setup.draw(&texture, &sampler, [1.0, 1.0]);
+    assert_eq!(pixel(&image, (1, 1)), rgb(RED));
+    assert_eq!(pixel(&image, (6, 6)), rgb(GREEN));
 }

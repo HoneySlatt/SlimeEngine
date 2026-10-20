@@ -14,7 +14,7 @@ use crate::storage_buffer::write_range;
 #[derive(Clone, Debug)]
 pub struct IndexBuffer {
     pub(crate) buffer: wgpu::Buffer,
-    label: String,
+    pub(crate) label: String,
     count: u32,
 }
 

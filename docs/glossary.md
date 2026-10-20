@@ -869,6 +869,10 @@ never a module path, so that moving a type breaks nothing; a former name stays a
 criterion. Stages are numbered from 0; a stage may be split (Stage 3a and 3b), and a stage added
 later takes a letter (Stage 3c), so that the numbers cited elsewhere stay right.
 
+**Staging buffer.** A buffer in memory that the CPU writes and the GPU reads, from which a copy
+brings bytes into a texture or a buffer that the GPU alone reads fast. The *uploader* keeps them
+from one upload to the next.
+
 **Start world.** The *world* as a game makes it at the start of a run, from the scenes it spawns
 and as it prepares them, which a *save* holds the differences from and is loaded into
 (`slime_world::World::save`, [ADR-0087](adr/0087-the-worlds-documents.md)).
@@ -912,11 +916,12 @@ up, which stops the run, when that fails or when it is lost again each time
 ([ADR-0025](adr/0025-giving-up-a-lost-surface.md)).
 
 **Task pool.** Threads that run small pieces of work, *tasks*, as they come, each on the first
-thread free. `slime-render` has one of its own, private, which loads scenes in the background: each
-task reads and uploads one mesh or one texture
-([ADR-0073](adr/0073-loading-scenes-in-the-background.md)).
-[ADR-0107](adr/0107-the-execution-model.md) decides one pool for the whole engine in its place,
-with two priorities, *frame* and *background*.
+thread free. The engine has one, `slime-tasks`, the machine's logical cores but one, whose tasks
+have one of two priorities: a *frame* task, work that the frame being made waits for, such as the
+sky's environment, which a free thread takes first; a *background* task, work that no frame waits
+for, such as a load or the cooker's encoding, which never holds every thread
+([ADR-0107](adr/0107-the-execution-model.md),
+[ADR-0118](adr/0118-the-task-pool-and-the-copies-to-the-gpu.md)).
 
 **Tangent.** A direction in a surface, along which the texture's u coordinate grows. With the
 normal and the *handedness* w (±1, −1 where the texture is mirrored on the surface), it gives the
@@ -990,6 +995,12 @@ leave it out, with its descendants, as they do what a game makes again at each r
 effect ([ADR-0087](adr/0087-the-worlds-documents.md)). A level written back as a scene file writes
 the component, and leaves out only what the run created that holds it, or is under what does
 ([ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)).
+
+**Uploader.** The one owner of the copies to the GPU of what loads bring
+(`slime_gfx::Uploader`): the threads that load write textures and vertices into *staging buffers*,
+and the uploader's thread submits their copies after each frame, at most a budget of bytes per
+frame while frames are drawn, so that a frame does not wait for all of a load's copies ([ADR-0107](adr/0107-the-execution-model.md),
+[ADR-0118](adr/0118-the-task-pool-and-the-copies-to-the-gpu.md)).
 
 **Upgrade.** The function that brings a value of a reflected type from one version of the type to
 the next, on the value as a *document* holds it, before the type reads it; a type past version 1

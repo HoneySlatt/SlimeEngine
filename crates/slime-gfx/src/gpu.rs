@@ -19,7 +19,7 @@ const DEFAULT_BACKENDS: wgpu::Backends = wgpu::Backends::VULKAN;
 ///
 /// Cloning a `Gpu` gives another handle to the same device and queue, cheaply: threads that share
 /// the device each hold a clone, and an object that one clone creates is used with any other, as
-/// `slime-render`'s loading threads do. Each clone sees the loss of the device ([`Gpu::check`]).
+/// the tasks of `slime-render`'s loads do. Each clone sees the loss of the device ([`Gpu::check`]).
 /// The work that a clone submits waits while the device's window surface is configured, which wgpu
 /// would otherwise fail: a resize of the window during a load does not lose the surface.
 ///

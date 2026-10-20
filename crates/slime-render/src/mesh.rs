@@ -5,7 +5,8 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use glam::Vec3;
 use slime_gfx::{
-    GfxError, Gpu, IndexBuffer, VertexAttribute, VertexBuffer, VertexFormat, VertexLayout,
+    GfxError, Gpu, IndexBuffer, UploadTarget, Uploader, VertexAttribute, VertexBuffer,
+    VertexFormat, VertexLayout,
 };
 
 use crate::bytes::push_f32s;
@@ -178,18 +179,87 @@ impl Mesh {
         label: &str,
         data: &MeshData,
     ) -> Result<Self, RenderError> {
+        let place = Self::place(gpu, pages, label, data)?;
+        gpu.write_vertex_buffer(
+            &place.page.vertices,
+            u64::from(place.vertices.start) * VERTEX_STRIDE,
+            &data.vertex_bytes(),
+        );
+        gpu.write_index_buffer(&place.page.indices, place.indices.start, &data.indices);
+        Ok(Self::placed(place, data))
+    }
+
+    /// Checks `data`, places it in a page of `pages`, and leaves its copy to `uploader`, which
+    /// calls `done` once it is submitted, as [`Uploader::buffers`] says: what a load does, so that
+    /// the copy waits for a frame's budget. The mesh is returned at once, to be drawn then.
+    ///
+    /// # Errors
+    ///
+    /// As [`Renderer::create_mesh`](crate::Renderer::create_mesh); `done` is not called then.
+    pub(crate) fn upload(
+        gpu: &Gpu,
+        pages: &MeshPages,
+        uploader: &Uploader,
+        label: &str,
+        data: &MeshData,
+        done: impl FnOnce(Result<(), GfxError>) + Send + 'static,
+    ) -> Result<Self, RenderError> {
+        let place = Arc::new(Self::place(gpu, pages, label, data)?);
+        // The ranges stay taken until their copy is submitted: a mesh dropped before, as when its
+        // load is cancelled, must not give them to another, which the late copy would overwrite.
+        let held = Arc::clone(&place);
+        let indices: Vec<u8> = data
+            .indices
+            .iter()
+            .flat_map(|index| index.to_le_bytes())
+            .collect();
+        uploader.buffers(
+            label,
+            &[
+                (
+                    UploadTarget::Vertices(&place.page.vertices),
+                    u64::from(place.vertices.start) * VERTEX_STRIDE,
+                    &data.vertex_bytes(),
+                ),
+                (
+                    UploadTarget::Indices(&place.page.indices),
+                    u64::from(place.indices.start) * 4,
+                    &indices,
+                ),
+            ],
+            move |result| {
+                drop(held);
+                done(result);
+            },
+        )?;
+        Ok(Self::placed(place, data))
+    }
+
+    /// Checks `data`, and takes ranges of a page of `pages` for it.
+    fn place(
+        gpu: &Gpu,
+        pages: &MeshPages,
+        label: &str,
+        data: &MeshData,
+    ) -> Result<MeshPlace, RenderError> {
         data.check(gpu.max_buffer_size())
             .map_err(|reason| RenderError::InvalidMesh {
                 label: label.to_owned(),
                 reason,
             })?;
-        let place = pages.place(gpu, &data.vertex_bytes(), &data.indices)?;
+        let vertices = u32::try_from(data.positions.len()).expect("checked by MeshData");
+        let indices = u32::try_from(data.indices.len()).expect("checked by MeshData");
+        Ok(pages.place(gpu, vertices, indices)?)
+    }
+
+    /// The mesh of `data` at `place`.
+    fn placed(place: impl Into<Arc<MeshPlace>>, data: &MeshData) -> Self {
         let (min, max) = data.bounds();
-        Ok(Self {
-            place: Arc::new(place),
+        Self {
+            place: place.into(),
             center: (min + max) / 2.0,
             half_size: (max - min) / 2.0,
-        })
+        }
     }
 }
 
@@ -256,12 +326,9 @@ const LARGEST_PAGE: u32 = 1 << 20;
 const INDICES_PER_VERTEX: u32 = 4;
 
 impl MeshPages {
-    /// Places `vertices`, given as the bytes [`MeshData::vertex_bytes`] gives, and `indices` in the
-    /// first page with room for both, or in a new page, and writes them there.
-    fn place(&self, gpu: &Gpu, vertices: &[u8], indices: &[u32]) -> Result<MeshPlace, GfxError> {
-        let vertex_count =
-            u32::try_from(vertices.len() as u64 / VERTEX_STRIDE).expect("checked by MeshData");
-        let index_count = u32::try_from(indices.len()).expect("checked by MeshData");
+    /// Takes ranges for `vertex_count` vertices and `index_count` indices in the first page with
+    /// room for both, or in a new page.
+    fn place(&self, gpu: &Gpu, vertex_count: u32, index_count: u32) -> Result<MeshPlace, GfxError> {
         let (page, (vertex_range, index_range)) = {
             let mut pages = self.lock();
             let room = pages.pages.iter_mut().find_map(|space| {
@@ -279,20 +346,12 @@ impl MeshPages {
                 }
             }
         };
-        // Made before the writes, so that the ranges go back to the page whatever happens.
-        let place = MeshPlace {
+        Ok(MeshPlace {
             page,
             vertices: vertex_range,
             indices: index_range,
             pages: self.clone(),
-        };
-        gpu.write_vertex_buffer(
-            &place.page.vertices,
-            u64::from(place.vertices.start) * VERTEX_STRIDE,
-            vertices,
-        );
-        gpu.write_index_buffer(&place.page.indices, place.indices.start, indices);
-        Ok(place)
+        })
     }
 
     /// Gives the ranges of `place` back to its page, and frees the page if it holds no mesh then.
