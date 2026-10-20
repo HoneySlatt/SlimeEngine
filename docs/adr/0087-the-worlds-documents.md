@@ -8,9 +8,10 @@
   [0089](0089-scenes-and-prefabs.md) (what a save holds of the scenes and prefabs spawned while a
   game runs), [0092](0092-a-world-written-back-as-a-scene.md) (a rotation changed is a difference
   whole), [0093](0093-saves-and-hot-reload-with-placements.md) (a save says its layout, holds what
-  the world spawned while it ran, and is loaded through a scene library) and
+  the world spawned while it ran, and is loaded through a scene library),
   [0101](0101-saves-and-identities-that-never-mislead.md) (the identities of what a game creates in
   code, saves of layout 3, references compared by the identity they name, and what loading warns of)
+  and [0108](0108-what-the-world-knows-of-its-changes.md) (driven components)
 - Date: 2026-10-16
 
 ## Context

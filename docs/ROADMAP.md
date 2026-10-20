@@ -278,6 +278,7 @@ Between Stage 5b and Stage 6 come two passes, without a release of their own (AD
 
 - Frustum culling and instancing, moved from Stage 9a (ADR-0097), first, before the viewport, on the decisions of the foundations pass
 - The execution model (ADR-0107), before play in editor: one task pool of the engine's, with a priority for the frame and one for the background; the copies to the GPU submitted by one owner within a budget of bytes per frame; the phases of a frame, the world read only while it is drawn; game time apart from real time, with pause and one step; a game as a simulation and a presentation, run by a host
+- What the world knows of its changes (ADR-0108), before the hierarchy and the inspector: a tick on every value of a component, read since a reader's last tick, with summaries, a log of removals and a structure counter; components that clone; the mark of driven components, before the editor writes levels
 - The engine's UI framework, as far as the editor needs it: text in several writing systems, layout, docking, widgets, input routing, focus, drag and drop, theming (ADR-0098)
 - Viewport, hierarchy, inspector (driven by reflection), asset browser
 - Command and transaction system: every edit is undoable
@@ -292,12 +293,13 @@ Between Stage 5b and Stage 6 come two passes, without a release of their own (AD
 **Goal.** What a game needs beyond rendering, built on a proper concurrency model.
 
 - Job system, grown from Stage 6's task pool (ADR-0107): dependencies, loops split across threads, work stealing if a measurement asks for it
+- Hooks per component type, messages read at fixed phases, and a queue of the changes that parallel systems defer, designed with physics, audio and the events of games (ADR-0108)
 - Memory: frame, arena and pool allocators where measurements justify them; allocation tracking
 - Visual profiler: CPU, jobs, memory, GPU, frames, from a trace stream
 - Physics behind an engine abstraction: bodies, colliders, constraints, queries (a ray or a segment against the world, ADR-0057), character controller; the backend chosen against vehicles (wheels and suspension, motorbikes, free flight), walking inside a moving vehicle, 2D, characters driven by physics, worlds in double precision and a simulation that runs the same way twice (ADR-0098)
 - Riding: a character attached to a mount or a seat, with its animations, input and camera (ADR-0098)
 - Audio: sources, listener, spatialization, buses, mixing, streaming; the importer of audio files, moved from Stage 4 (ADR-0068); the backend chosen against sound placed precisely around the listener's head, reverberation per room and sounds muffled by walls (ADR-0098)
-- The core of skeletal animation: skeletons, skinning, clips, blending, moved from Stage 9b (ADR-0097)
+- The core of skeletal animation: skeletons, skinning, clips, blending, moved from Stage 9b (ADR-0097); poses that are not entities, and bones that things are attached to (ADR-0108)
 - Input action mapping, and the keys and buttons held if Stage 6 did not need them
 - UI of games: text, menus, HUD, on the engine's UI framework, grown with animation, transforms, masks, effects on text and three-dimensional elements (ADR-0098)
 

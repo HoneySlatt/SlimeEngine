@@ -146,20 +146,20 @@ the ADR linking to it.
 | [0076](0076-hot-reload-of-cooked-data.md) | Hot reload of cooked data | Accepted; amended by 0084 and 0102 |
 | [0077](0077-hot-reload-of-shaders.md) | Hot reload of shaders | Accepted; amended by 0104 |
 | [0078](0078-stage-5-in-two-halves.md) | Stage 5 in two halves | Accepted; amended by 0090 |
-| [0079](0079-the-engines-own-world.md) | The engine's own world | Accepted; amended by 0087 and 0107 |
+| [0079](0079-the-engines-own-world.md) | The engine's own world | Accepted; amended by 0087, 0107 and 0108 |
 | [0080](0080-reflection-and-serialization.md) | Reflection and serialization | Accepted; amended by 0085, 0086 and 0101 |
 | [0081](0081-stage-5a-the-world.md) | Stage 5a: the world | Accepted |
 | [0082](0082-the-worlds-storage-and-handles.md) | The world's storage and handles | Accepted |
-| [0083](0083-transforms-and-the-hierarchy.md) | Transforms and the hierarchy | Accepted; amended by 0087 and 0106 |
+| [0083](0083-transforms-and-the-hierarchy.md) | Transforms and the hierarchy | Accepted; amended by 0087, 0106 and 0108 |
 | [0084](0084-what-the-world-draws.md) | What the world draws | Accepted; amended by 0106 |
-| [0085](0085-reflection.md) | Reflection | Accepted; amended by 0086, 0087 and 0101 |
+| [0085](0085-reflection.md) | Reflection | Accepted; amended by 0086, 0087, 0101 and 0108 |
 | [0086](0086-serialization.md) | Serialization | Accepted; amended by 0087, 0091 and 0102 |
-| [0087](0087-the-worlds-documents.md) | The world's documents | Accepted; amended by 0088, 0089, 0092, 0093 and 0101 |
-| [0088](0088-saving-and-resuming-a-run.md) | Saving and resuming a run | Accepted; amended by 0101 |
+| [0087](0087-the-worlds-documents.md) | The world's documents | Accepted; amended by 0088, 0089, 0092, 0093, 0101 and 0108 |
+| [0088](0088-saving-and-resuming-a-run.md) | Saving and resuming a run | Accepted; amended by 0101 and 0108 |
 | [0089](0089-scenes-and-prefabs.md) | Scenes and prefabs | Accepted; amended by 0101 |
 | [0090](0090-stage-5b-scenes-and-prefabs.md) | Stage 5b: scenes and prefabs | Accepted |
 | [0091](0091-scene-documents-and-placements.md) | Scene documents and placements | Accepted; amended by 0102 |
-| [0092](0092-a-world-written-back-as-a-scene.md) | A world written back as a scene | Accepted; amended by 0101 |
+| [0092](0092-a-world-written-back-as-a-scene.md) | A world written back as a scene | Accepted; amended by 0101 and 0108 |
 | [0093](0093-saves-and-hot-reload-with-placements.md) | Saves and hot reload with placements | Accepted; amended by 0101 |
 | [0094](0094-the-binary-encoding-of-documents.md) | The binary encoding of documents | Accepted |
 | [0095](0095-cooked-scene-files.md) | Cooked scene files | Accepted |
@@ -175,3 +175,4 @@ the ADR linking to it.
 | [0105](0105-egui-fonts-ship-with-the-dev-overlay.md) | egui's fonts ship with the dev overlay | Accepted |
 | [0106](0106-the-measured-quick-wins.md) | The measured quick wins | Accepted |
 | [0107](0107-the-execution-model.md) | The execution model | Accepted |
+| [0108](0108-what-the-world-knows-of-its-changes.md) | What the world knows of its changes | Accepted |

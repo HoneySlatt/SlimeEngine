@@ -2,7 +2,7 @@
 
 - Status: Accepted; amends [0087](0087-the-worlds-documents.md) (a rotation changed is a difference
   whole); amended by [0101](0101-saves-and-identities-that-never-mislead.md) (`Unsaved` in a level
-  written back)
+  written back) and [0108](0108-what-the-world-knows-of-its-changes.md) (driven components)
 - Date: 2026-10-17
 
 ## Context

@@ -4,8 +4,9 @@
   registered, and the `check` attribute) and [0008](0008-errors-logging-and-assertions.md)
   (`slime-reflect`'s errors, written without `thiserror`); amended by [0086](0086-serialization.md)
   (defaults described by their values, and upgrades), [0087](0087-the-worlds-documents.md) (a
-  transient field has a default) and [0101](0101-saves-and-identities-that-never-mislead.md) (ranges
-  compared in a field's own type, and what the derive refuses)
+  transient field has a default), [0101](0101-saves-and-identities-that-never-mislead.md) (ranges
+  compared in a field's own type, and what the derive refuses) and
+  [0108](0108-what-the-world-knows-of-its-changes.md) (components that clone)
 - Date: 2026-10-16
 
 ## Context

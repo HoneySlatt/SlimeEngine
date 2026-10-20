@@ -1,8 +1,9 @@
 # 0083. Transforms and the hierarchy
 
-- Status: Accepted; amended by [0087](0087-the-worlds-documents.md) (keys and names that hold `/`)
-  and [0106](0106-the-measured-quick-wins.md) (the children read through an iterator, linked to
-  their siblings)
+- Status: Accepted; amended by [0087](0087-the-worlds-documents.md) (keys and names that hold `/`),
+  [0106](0106-the-measured-quick-wins.md) (the children read through an iterator, linked to their
+  siblings) and [0108](0108-what-the-world-knows-of-its-changes.md) (the marks of transforms on
+  the world's ticks, and the joints of a skin, which are not entities)
 - Date: 2026-10-16
 
 ## Context

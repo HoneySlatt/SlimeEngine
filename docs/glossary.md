@@ -37,6 +37,10 @@ clears it, as when its *device* is lost ([ADR-0084](adr/0084-what-the-world-draw
 its source, so that it stays the same when the file is moved or renamed. A *sub-asset*'s ID is
 derived from its file's ([ADR-0069](adr/0069-the-asset-pipeline.md)).
 
+**Attachment (bone).** A component that hangs an entity on a bone of another entity's skeleton,
+naming the entity and the bone; saves and scene files hold it as any reference
+([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)). Decided, not built yet.
+
 **Binary encoding (documents).** The engine's own encoding of a *document* in bytes, without its
 types: its keys and texts once each, then its values, each a tag and what it holds. A reader reads it
 as it reads the text, and its errors name the byte (`slime_serialize::encode`,
@@ -170,6 +174,11 @@ encoding* ([ADR-0086](adr/0086-serialization.md)).
 
 **Double-sided material.** A material whose back faces are drawn too, shaded with their normals
 reversed (glTF).
+
+**Driven (component).** A component that the game, an animation or physics computes again, so
+that its value of the moment does not matter: saves, the overrides of a *prefab* and a level
+written back leave it as its author wrote it. An entity marks which of its components are driven
+([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)). Decided, not built yet.
 
 **Driver.** The loop that decides when frames run and what time each one represents. `run` has a
 headless driver (frames back to back, simulated time) and a windowed driver, called back by the
@@ -542,6 +551,10 @@ letter key of the top row is `KeyQ` on every layout, whether it is labelled Q (Q
 while a world runs, under `created/<number>`; the entities of a placement are named through it, as
 `zone/lantern 3/light`. Not an *instance (render)* ([ADR-0089](adr/0089-scenes-and-prefabs.md)).
 
+**Pose (skeleton).** Where each bone of a skeleton is at a moment: one component of flat arrays,
+never saved, rather than an entity per bone
+([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)). Decided, not built yet.
+
 **Pre-exposure.** Multiplying the scene's light by the *exposure* in the scene pass, before the
 *HDR* target is written, so that light in physical units fits *half precision*
 ([ADR-0037](adr/0037-lights-in-physical-units-and-pre-exposure.md)); the target holds that light
@@ -778,6 +791,10 @@ where a field that its type does not have is an error; leniently for a save, whi
 version of a program may have written, where such a field is left out with a warning
 ([ADR-0080](adr/0080-reflection-and-serialization.md)).
 
+**Structure counter.** A number of the world's that grows when entities are spawned or destroyed,
+change parent or name, so that a list of the entities is made again only then
+([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)). Decided, not built yet.
+
 **Sub-asset.** An *asset* inside a source file, such as a mesh, a material or a scene of a glTF
 file, whose ID is derived from the file's ID, its kind and its name
 ([ADR-0069](adr/0069-the-asset-pipeline.md)).
@@ -820,6 +837,11 @@ cooker averages its levels and compresses it ([ADR-0071](adr/0071-cooked-texture
 **Threat model.** What the files that the engine reads from outside its program may hold, damaged,
 edited or made by a buggy tool, and what the engine promises about them: no panic, hang, exhausted
 memory or lost progress ([ADR-0096](adr/0096-the-files-the-engine-reads.md)).
+
+**Tick (world).** A number that grows as the world changes. Each value of a component holds the
+tick at which it was added and the one at which it last changed, and a reader asks what changed
+since the tick at which it last read
+([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)). Decided, not built yet.
 
 **Timestamp query.** A GPU feature that writes the GPU's clock at a point of its command stream;
 two of them, around a render pass, give its *GPU time* (`slime_gfx::GpuTimer`). Optional: the

@@ -29,8 +29,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0104](adr/0104-the-build-ci-and-measurements.md),
   [ADR-0105](adr/0105-egui-fonts-ship-with-the-dev-overlay.md)) are done, and P4
   ([ADR-0106](adr/0106-the-measured-quick-wins.md)) but B4-F01, which P6's execution model weighs;
-  P6 is current: its execution model is decided
-  ([ADR-0107](adr/0107-the-execution-model.md)).
+  P6 is current: its execution model
+  ([ADR-0107](adr/0107-the-execution-model.md)) and what the world knows of its changes
+  ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)) are decided.
 - The games the engine aims at, described on 2026-10-19
   ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)): nine profiles, from *Hunna Wood* to a
   massively multiplayer game, listed in [`ROADMAP.md`](ROADMAP.md). They add criteria to P6, one UI
@@ -685,6 +686,11 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
     ADR-0098 adds: a world cheap to snapshot and simulate again, as the prediction of a shooter
     needs; change detection precise enough to send only what changed; identities of entities that
     can hold from one machine to another.
+    **Decided** on 2026-10-20, in [ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md):
+    a tick on every value of a component, with summaries, a log of removals and a structure
+    counter; driven components, and poses that are not entities; hooks, messages and deferred
+    changes at Stage 7; components that clone, and a copy of the world built with its first user.
+    The identities that hold from one machine to another go with stable references, below.
   - Stable references and operations that undo keeps reversible, so that undoing a deletion gives
     back the same entity, built on P1's identities (C1-03, C4-01).
     P1 leaves a question, which the owner decided on 2026-10-19 to weigh here, with stable
