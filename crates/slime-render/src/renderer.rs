@@ -5,6 +5,9 @@
 //! resolve of its samples, the bloom's chain of blurred copies, then tone mapping, which mixes the
 //! bloom in.
 
+use std::collections::HashMap;
+use std::hash::{BuildHasherDefault, Hasher};
+use std::ptr;
 use std::time::{Duration, Instant};
 
 use glam::{DAffine3, DMat4, DVec3, Mat3, Mat4, Vec3};
@@ -978,6 +981,9 @@ impl Renderer {
 
         // Every position reaches the GPU relative to the camera (ADR-0048).
         let origin = scene.camera.eye;
+        // The draws of each pass go by pipeline, then material, then mesh, so that each binds
+        // only what changed since the one before.
+        let (scene_order, shadow_order) = draw_orders(scene.instances);
         // The first directional light that casts shadows casts them, through its cascades, each
         // drawing the instances that cast shadows across its square (ADR-0038, ADR-0064); none when
         // no such instance reaches any cascade.
@@ -1002,12 +1008,13 @@ impl Renderer {
                         let camera = &scene.camera;
                         let (near, far) = cascade_slice(camera, light.shadow_distance, cascade);
                         let view = CascadeView::new(light.direction, camera, aspect, near, far)?;
-                        let instances: Vec<usize> = (0..)
-                            .zip(scene.instances)
-                            .filter(|(_, instance)| {
+                        let instances: Vec<usize> = shadow_order
+                            .iter()
+                            .copied()
+                            .filter(|&slot| {
+                                let instance = &scene.instances[slot];
                                 instance.casts_shadows && view.reaches(boxed(instance))
                             })
-                            .map(|(slot, _)| slot)
                             .collect();
                         // A cascade that nothing reaches is cleared: the points its square holds
                         // are lit.
@@ -1041,9 +1048,11 @@ impl Renderer {
             .zip(spot_tiles(spot_lights.len()))
             .map(|(light, tile)| {
                 let view = SpotView::new(light, origin, tile.size);
-                let instances = (0..)
-                    .zip(scene.instances)
-                    .filter(|(_, instance)| {
+                let instances = shadow_order
+                    .iter()
+                    .copied()
+                    .filter(|&slot| {
+                        let instance = &scene.instances[slot];
                         instance.casts_shadows
                             && view.reaches(
                                 light.range,
@@ -1054,7 +1063,6 @@ impl Renderer {
                                 ),
                             )
                     })
-                    .map(|(slot, _)| slot)
                     .collect();
                 spot_views.push(view);
                 SpotDraw { tile, instances }
@@ -1261,6 +1269,7 @@ impl Renderer {
                     group,
                     frame_group,
                     scene,
+                    &scene_order,
                     cascades,
                     &spot_draws,
                     &mut stats,
@@ -1281,24 +1290,24 @@ impl Renderer {
     }
 
     /// Draws the depths of `instance`, at `slot` of the instance buffer, in a shadow pass, with the
-    /// shadow pipeline its material asks for, set when it differs from `bound`, the one set last.
-    fn draw_caster(
+    /// shadow pipeline its material asks for, set when it differs from the one set last.
+    fn draw_caster<'a>(
         &self,
         render_pass: &mut RenderPass<'_>,
-        bound: &mut Option<bool>,
+        bound: &mut Bound<'a>,
         slot: usize,
-        instance: &Instance<'_>,
+        instance: &Instance<'a>,
     ) {
         let masked = instance.material.masked;
-        if *bound != Some(masked) {
+        if bound.pipeline != Some(u8::from(masked)) {
             render_pass.set_pipeline(if masked {
                 &self.pipelines.masked_shadow
             } else {
                 &self.pipelines.shadow
             });
-            *bound = Some(masked);
+            bound.pipeline_set(u8::from(masked));
         }
-        self.instances.draw(render_pass, slot, instance);
+        self.instances.draw(render_pass, bound, slot, instance);
     }
 
     /// Records `pass`, which reads its transient targets through `group`, drawing `scene`, and
@@ -1314,6 +1323,7 @@ impl Renderer {
         group: Option<&BindGroup>,
         frame_group: &BindGroup,
         scene: &Scene<'_>,
+        scene_order: &[usize],
         cascades: &[CascadeDraw],
         spot_draws: &[SpotDraw],
         stats: &mut RenderStats,
@@ -1321,7 +1331,7 @@ impl Renderer {
         match pass {
             Pass::Shadow => {
                 render_pass.set_bind_group(0, frame_group, &[]);
-                let mut bound = None;
+                let mut bound = Bound::default();
                 // Each cascade's view, in the first slots.
                 for (view, cascade) in (0..).zip(cascades) {
                     let ShadowTile { x, y, size } = cascade.tile;
@@ -1337,7 +1347,7 @@ impl Renderer {
             }
             Pass::SpotShadows => {
                 render_pass.set_bind_group(0, frame_group, &[]);
-                let mut bound = None;
+                let mut bound = Bound::default();
                 // Each tile's view, in the slots after the cascades'.
                 for (view, draw) in (CASCADES..).zip(spot_draws) {
                     let ShadowTile { x, y, size } = draw.tile;
@@ -1354,19 +1364,17 @@ impl Renderer {
             Pass::Scene => {
                 render_pass.set_bind_group(0, frame_group, &[]);
                 render_pass.set_bind_group(3, &self.shadow_group, &[]);
-                // The three pipelines share their layouts, so the bound groups stay bound when one
-                // replaces another; it is set only when a draw needs another.
-                let mut bound = None;
-                for (slot, instance) in scene.instances.iter().enumerate() {
-                    let cull = cull_mode(
-                        instance.material.double_sided,
-                        is_mirrored(linear(instance.transform)),
-                    );
-                    if bound != Some(cull) {
+                // A pipeline is set only when a draw needs another, which the draws' order makes
+                // rare.
+                let mut bound = Bound::default();
+                for &slot in scene_order {
+                    let instance = &scene.instances[slot];
+                    let cull = scene_pipeline(instance);
+                    if bound.pipeline != Some(cull as u8) {
                         render_pass.set_pipeline(self.pipelines.scene.get(cull));
-                        bound = Some(cull);
+                        bound.pipeline_set(cull as u8);
                     }
-                    self.instances.draw(render_pass, slot, instance);
+                    self.instances.draw(render_pass, &mut bound, slot, instance);
                     stats.draw_calls += 1;
                     stats.triangles += u64::from(instance.mesh.triangle_count());
                 }
@@ -2055,16 +2063,161 @@ impl InstanceSlots {
     }
 
     /// Draws `instance`, whose values are in slot `slot`, with the pipeline that `pass` has set:
-    /// binds its material at group 1 and its slot at group 2, then its mesh.
-    fn draw(&self, pass: &mut RenderPass<'_>, slot: usize, instance: &Instance<'_>) {
+    /// binds its slot at group 2, and its material at group 1 and its mesh unless `bound` says
+    /// that the draw before bound them.
+    fn draw<'a>(
+        &self,
+        pass: &mut RenderPass<'_>,
+        bound: &mut Bound<'a>,
+        slot: usize,
+        instance: &Instance<'a>,
+    ) {
         let offset = u32::try_from(slot * self.stride)
             .expect("the instance buffer is smaller than the device allows");
-        pass.set_bind_group(1, &instance.material.group, &[]);
+        if !bound
+            .material
+            .is_some_and(|material| ptr::eq(material, instance.material))
+        {
+            pass.set_bind_group(1, &instance.material.group, &[]);
+            bound.material = Some(instance.material);
+        }
         pass.set_bind_group(2, &self.group, &[offset]);
-        pass.set_vertex_buffer(0, &instance.mesh.vertices);
-        pass.set_index_buffer(&instance.mesh.indices);
+        if !bound.mesh.is_some_and(|mesh| ptr::eq(mesh, instance.mesh)) {
+            pass.set_vertex_buffer(0, &instance.mesh.vertices);
+            pass.set_index_buffer(&instance.mesh.indices);
+            bound.mesh = Some(instance.mesh);
+        }
         pass.draw_indexed(0..instance.mesh.indices.count());
     }
+}
+
+/// What a pass bound for the draws before the next: its pipeline, by the index that the pass gives
+/// its pipelines, the material and the mesh. A draw binds only what differs.
+#[derive(Default)]
+struct Bound<'a> {
+    pipeline: Option<u8>,
+    material: Option<&'a Material>,
+    mesh: Option<&'a Mesh>,
+}
+
+impl Bound<'_> {
+    /// Records that the pass set the pipeline of index `pipeline`. The material and the mesh are
+    /// bound again after it, whose layout may differ from the one before.
+    fn pipeline_set(&mut self, pipeline: u8) {
+        *self = Self {
+            pipeline: Some(pipeline),
+            ..Self::default()
+        };
+    }
+}
+
+/// How the scene pass draws `instance`: the faces its pipeline culls.
+fn scene_pipeline(instance: &Instance<'_>) -> CullMode {
+    cull_mode(
+        instance.material.double_sided,
+        is_mirrored(linear(instance.transform)),
+    )
+}
+
+/// The order in which objects first appear in a frame's instances, by their addresses: what
+/// [`draw_orders`] sorts by, which a frame of 10 000 instances asks 20 000 times.
+#[derive(Default)]
+struct FirstSeen {
+    ranks: HashMap<*const (), u32, BuildHasherDefault<AddressHasher>>,
+    /// The last object asked for, and its rank: instances that follow each other often share
+    /// their material and their mesh.
+    last: Option<(*const (), u32)>,
+}
+
+impl FirstSeen {
+    /// The rank of `object` among those asked for: 0 for the first, then 1 for the next new one.
+    fn rank(&mut self, object: *const ()) -> u32 {
+        if let Some((last, rank)) = self.last
+            && last == object
+        {
+            return rank;
+        }
+        let next = u32::try_from(self.ranks.len()).expect("fewer objects than 2^32");
+        let rank = *self.ranks.entry(object).or_insert(next);
+        self.last = Some((object, rank));
+        rank
+    }
+}
+
+/// The hasher of [`FirstSeen`]: an address, spread over the 64 bits by a multiplication, which
+/// the standard hasher's rounds would cost several times over.
+#[derive(Default)]
+struct AddressHasher(u64);
+
+impl Hasher for AddressHasher {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+
+    fn write_usize(&mut self, address: usize) {
+        self.0 = (address as u64)
+            .wrapping_mul(0x9e37_79b9_7f4a_7c15)
+            .rotate_left(26);
+    }
+
+    // An address writes a `usize`; any other way of writing it still hashes every byte.
+    fn write(&mut self, bytes: &[u8]) {
+        for &byte in bytes {
+            self.0 = (self.0.rotate_left(8) ^ u64::from(byte)).wrapping_mul(0x9e37_79b9_7f4a_7c15);
+        }
+    }
+}
+
+/// The slots of `instances` in the order that the scene pass draws them, then in the order that
+/// the shadow passes draw those that cast shadows: by pipeline, then by material, then by mesh,
+/// each material and mesh in the order it first appears among `instances`, then by slot. Two
+/// instances' order is the same from one frame to the next, whatever the addresses of their
+/// materials and meshes, so that two surfaces at the same depth are drawn the same way.
+fn draw_orders(instances: &[Instance<'_>]) -> (Vec<usize>, Vec<usize>) {
+    orders(instances.iter().map(|instance| Draw {
+        scene_pipeline: scene_pipeline(instance) as u8,
+        shadow_pipeline: u8::from(instance.material.masked),
+        material: ptr::from_ref(instance.material).cast(),
+        mesh: ptr::from_ref(instance.mesh).cast(),
+        casts_shadows: instance.casts_shadows,
+    }))
+}
+
+/// What [`orders`] sorts a draw by.
+struct Draw {
+    scene_pipeline: u8,
+    shadow_pipeline: u8,
+    material: *const (),
+    mesh: *const (),
+    casts_shadows: bool,
+}
+
+/// [`draw_orders`], for draws given by what they are sorted by, in the order of their slots.
+fn orders(draws: impl ExactSizeIterator<Item = Draw>) -> (Vec<usize>, Vec<usize>) {
+    let mut materials = FirstSeen::default();
+    let mut meshes = FirstSeen::default();
+    let mut scene = Vec::with_capacity(draws.len());
+    let mut shadows = Vec::with_capacity(draws.len());
+    for (slot, draw) in draws.enumerate() {
+        let material = materials.rank(draw.material);
+        let mesh = meshes.rank(draw.mesh);
+        // One number per draw, which sorts as the tuple of its parts would, faster.
+        let key = |pipeline: u8| {
+            u128::from(pipeline) << 96
+                | u128::from(material) << 64
+                | u128::from(mesh) << 32
+                | slot as u128
+        };
+        scene.push(key(draw.scene_pipeline));
+        if draw.casts_shadows {
+            shadows.push(key(draw.shadow_pipeline));
+        }
+    }
+    scene.sort_unstable();
+    shadows.sort_unstable();
+    // The slot is the key's low 32 bits; a frame holds fewer instances than 2^32.
+    let slots = |keys: Vec<u128>| keys.into_iter().map(|key| key as u32 as usize).collect();
+    (slots(scene), slots(shadows))
 }
 
 #[cfg(test)]
@@ -2072,6 +2225,36 @@ mod tests {
     use glam::{EulerRot, Quat, Vec4};
 
     use super::*;
+
+    /// Draws of two materials and two meshes, in turn, and of two pipelines: each pass draws them
+    /// by pipeline, then material, then mesh, as each first appears, then by slot, whatever their
+    /// addresses; the shadow passes only those that cast shadows.
+    #[test]
+    fn draws_go_by_pipeline_then_material_then_mesh_as_they_first_appear() {
+        // The second material and mesh at lower addresses than the first: the order is not theirs.
+        let objects = [0_u8; 4];
+        let address = |index: usize| ptr::from_ref(&objects[index]).cast::<()>();
+        let (first_material, second_material) = (address(3), address(0));
+        let (first_mesh, second_mesh) = (address(2), address(1));
+        let draw = |pipeline: u8, material, mesh, casts_shadows| Draw {
+            scene_pipeline: pipeline,
+            shadow_pipeline: pipeline,
+            material,
+            mesh,
+            casts_shadows,
+        };
+        let draws = [
+            draw(0, first_material, first_mesh, true),
+            draw(0, second_material, first_mesh, true),
+            draw(1, first_material, second_mesh, true),
+            draw(0, first_material, second_mesh, false),
+            draw(0, second_material, first_mesh, true),
+            draw(0, first_material, first_mesh, true),
+        ];
+        let (scene, shadows) = orders(draws.into_iter());
+        assert_eq!(scene, [0, 5, 3, 1, 4, 2]);
+        assert_eq!(shadows, [0, 5, 1, 4, 2]);
+    }
     use crate::environment::{
         BRDF_TABLE_SIZE, ENVIRONMENT_LEVELS, GROUND_HAZE, SUN_ANGULAR_RADIUS,
     };
