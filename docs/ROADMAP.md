@@ -281,7 +281,7 @@ Between Stage 5b and Stage 6 come two passes, without a release of their own (AD
 - What the world knows of its changes (ADR-0108), before the hierarchy and the inspector: a tick on every value of a component, read since a reader's last tick, with summaries, a log of removals and a structure counter; components that clone; the mark of driven components, before the editor writes levels
 - The engine's UI framework, as far as the editor needs it: text in several writing systems, layout, docking, widgets, input routing, focus, drag and drop, theming (ADR-0098)
 - Viewport, hierarchy, inspector (driven by reflection), asset browser
-- Command and transaction system: every edit is undoable
+- Command and transaction system: every edit is undoable, its entities named by their persistent identities, a deletion undone by creating its entities again under the same identities, the commands kept in a journal; what the editor creates named at once as its level's file names it (ADR-0109)
 - Play in editor, the game running in a child process first, as the foundations pass decides (ADR-0097)
 - The engine's MCP server: AI agents read the world, act through the editor's commands, capture views, read measurements and logs, cook, run tests and play the game with scripted input; reachable from the user's machine only, absent from shipped builds (ADR-0099)
 - The keys and buttons held, kept by the engine, if the viewport's camera moves with them, with the keyboard shared between the editor's UI and the game; at Stage 7 otherwise (ADR-0057)
@@ -392,7 +392,7 @@ The stage is split in two halves when it is planned (ADR-0098).
 
 **Goal.** Scale beyond a single machine.
 
-- Networking: transport, replication, RPC, prediction, reconciliation, lag compensation, interest management for hundreds of players in one place (ADR-0098)
+- Networking: transport, replication, RPC, prediction, reconciliation, lag compensation, interest management for hundreds of players in one place (ADR-0098); what a run creates numbered by the server, what scenes place named alike on every machine (ADR-0109)
 - Synchronized physics, proximity voice chat, games hosted by a player with relays, a world split between servers (ADR-0098)
 - The threat model of ADR-0096 extended to the network (ADR-0098)
 - The data that servers keep for players converted from one version of a game to the next (ADR-0100)

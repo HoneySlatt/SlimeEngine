@@ -146,9 +146,9 @@ the ADR linking to it.
 | [0076](0076-hot-reload-of-cooked-data.md) | Hot reload of cooked data | Accepted; amended by 0084 and 0102 |
 | [0077](0077-hot-reload-of-shaders.md) | Hot reload of shaders | Accepted; amended by 0104 |
 | [0078](0078-stage-5-in-two-halves.md) | Stage 5 in two halves | Accepted; amended by 0090 |
-| [0079](0079-the-engines-own-world.md) | The engine's own world | Accepted; amended by 0087, 0107 and 0108 |
+| [0079](0079-the-engines-own-world.md) | The engine's own world | Accepted; amended by 0087, 0107, 0108 and 0109 |
 | [0080](0080-reflection-and-serialization.md) | Reflection and serialization | Accepted; amended by 0085, 0086 and 0101 |
-| [0081](0081-stage-5a-the-world.md) | Stage 5a: the world | Accepted |
+| [0081](0081-stage-5a-the-world.md) | Stage 5a: the world | Accepted; amended by 0109 |
 | [0082](0082-the-worlds-storage-and-handles.md) | The world's storage and handles | Accepted |
 | [0083](0083-transforms-and-the-hierarchy.md) | Transforms and the hierarchy | Accepted; amended by 0087, 0106 and 0108 |
 | [0084](0084-what-the-world-draws.md) | What the world draws | Accepted; amended by 0106 |
@@ -159,8 +159,8 @@ the ADR linking to it.
 | [0089](0089-scenes-and-prefabs.md) | Scenes and prefabs | Accepted; amended by 0101 |
 | [0090](0090-stage-5b-scenes-and-prefabs.md) | Stage 5b: scenes and prefabs | Accepted |
 | [0091](0091-scene-documents-and-placements.md) | Scene documents and placements | Accepted; amended by 0102 |
-| [0092](0092-a-world-written-back-as-a-scene.md) | A world written back as a scene | Accepted; amended by 0101 and 0108 |
-| [0093](0093-saves-and-hot-reload-with-placements.md) | Saves and hot reload with placements | Accepted; amended by 0101 |
+| [0092](0092-a-world-written-back-as-a-scene.md) | A world written back as a scene | Accepted; amended by 0101, 0108 and 0109 |
+| [0093](0093-saves-and-hot-reload-with-placements.md) | Saves and hot reload with placements | Accepted; amended by 0101 and 0109 |
 | [0094](0094-the-binary-encoding-of-documents.md) | The binary encoding of documents | Accepted |
 | [0095](0095-cooked-scene-files.md) | Cooked scene files | Accepted |
 | [0096](0096-the-files-the-engine-reads.md) | The files the engine reads: what they may hold, and what the engine promises | Accepted |
@@ -168,7 +168,7 @@ the ADR linking to it.
 | [0098](0098-the-games-the-engine-aims-at.md) | The games the engine aims at, and the roadmap they shape | Accepted |
 | [0099](0099-ai-agents-drive-the-engine.md) | AI agents drive the engine through its own MCP server | Accepted |
 | [0100](0100-updates-of-shipped-games.md) | Updates of shipped games | Accepted |
-| [0101](0101-saves-and-identities-that-never-mislead.md) | Saves and identities that never mislead | Accepted |
+| [0101](0101-saves-and-identities-that-never-mislead.md) | Saves and identities that never mislead | Accepted; amended by 0109 |
 | [0102](0102-a-damaged-file-gives-an-error.md) | A damaged file gives an error, never a crash | Accepted |
 | [0103](0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md) | A lost GPU device is recovered wherever the loss is found | Accepted |
 | [0104](0104-the-build-ci-and-measurements.md) | The build, CI and measurements | Accepted |
@@ -176,3 +176,4 @@ the ADR linking to it.
 | [0106](0106-the-measured-quick-wins.md) | The measured quick wins | Accepted |
 | [0107](0107-the-execution-model.md) | The execution model | Accepted |
 | [0108](0108-what-the-world-knows-of-its-changes.md) | What the world knows of its changes | Accepted |
+| [0109](0109-stable-references-and-undo.md) | Stable references and undo | Accepted |

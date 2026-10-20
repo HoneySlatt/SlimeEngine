@@ -29,9 +29,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0104](adr/0104-the-build-ci-and-measurements.md),
   [ADR-0105](adr/0105-egui-fonts-ship-with-the-dev-overlay.md)) are done, and P4
   ([ADR-0106](adr/0106-the-measured-quick-wins.md)) but B4-F01, which P6's execution model weighs;
-  P6 is current: its execution model
-  ([ADR-0107](adr/0107-the-execution-model.md)) and what the world knows of its changes
-  ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)) are decided.
+  P6 is current: its execution model ([ADR-0107](adr/0107-the-execution-model.md)), what the
+  world knows of its changes ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)), and
+  stable references and undo ([ADR-0109](adr/0109-stable-references-and-undo.md)) are decided.
 - The games the engine aims at, described on 2026-10-19
   ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)): nine profiles, from *Hunna Wood* to a
   massively multiplayer game, listed in [`ROADMAP.md`](ROADMAP.md). They add criteria to P6, one UI
@@ -703,6 +703,12 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
     the cost of setting aside all that a save holds of them at an update that changes one value.
     Until then, the fingerprint holds no values, and a game names by a key what it creates at its
     start.
+    **Decided** on 2026-10-20, in [ADR-0109](adr/0109-stable-references-and-undo.md): the
+    editor's commands name entities by their persistent identities and are kept in a journal, a
+    deletion undone by creating its entities again under the same identities, at their rank; what
+    the editor creates named at once as its level's file names it, and a created entity written
+    into a level carried once; what a start creates in code has a key, or saving refuses; across
+    machines, what a run creates numbered by the server; a compact form in memory on measurement.
   - How the editor runs a game's code: a game becomes a library and its binaries, amending
     [ADR-0055](adr/0055-games-in-the-workspace.md); playing in the editor starts the game in a
     child process first (C4-02, C6-01, C7-02).
@@ -1189,8 +1195,16 @@ GitHub issues, linked from their entry; this list stays the reference.
   fingerprint of their numbers, the types of their components and their names: a later version of
   a game that creates two such entities in the other order is not told apart, and the save's
   changes go to the entity of each number. A game names by a key what it creates at its start
-  (`World::spawn_keyed`); whether the fingerprint holds the values too is weighed in P6, with
-  stable references, as the owner decided.
+  (`World::spawn_keyed`). [ADR-0109](adr/0109-stable-references-and-undo.md) decides that saving
+  refuses a world whose start created an entity that has no key and is not `Unsaved`, built at
+  Stage 6.
+- **A created entity written into its level exists twice once the run is carried into it**
+  (ADR-0092, ADR-0093). An entity created in code under a scene's root keeps `created/<n>`, and
+  the file that `World::write_scene` writes holds it under an ID of its own, `zone/torch-0rdx`;
+  once the file is cooked again, `World::carry` gives the file's entity and the run's, without a
+  word. The audit's test showed it at 0.4, and again on 2026-10-20.
+  [ADR-0109](adr/0109-stable-references-and-undo.md) decides that carrying recognizes the entity
+  by the ID that the world gave it, built at Stage 6, before the editor writes levels.
 - **`World::spawn_keyed` gives a key under which the world remembers a scene of which nothing
   lives** (ADR-0101): the entity created is then saved as that scene's root, and set aside with the
   scene when a save loads where the scene cannot be resolved. `World::spawn_scene` refuses a key

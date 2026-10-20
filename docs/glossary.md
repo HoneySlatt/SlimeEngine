@@ -349,6 +349,11 @@ them, built for each frame.
 weighted by the cosine of its incidence, in *lux*: a matte surface of albedo c reflects
 c × irradiance / π. The roughest of the *prefiltered levels* holds the irradiance divided by π.
 
+**Journal (editor).** The editor's commands kept in order, each naming entities by their
+*persistent identities*: undo and redo read it, and it is written to disk, so that an editor that
+crashed replays it and a test replays an editing session
+([ADR-0109](adr/0109-stable-references-and-undo.md)). Decided, not built yet.
+
 **KTX2.** The Khronos Group's file format for GPU textures, which holds every mipmap level of a
 texture in its GPU format: the format of cooked textures
 ([ADR-0069](adr/0069-the-asset-pipeline.md)).
@@ -530,7 +535,9 @@ the numbers that follow the count of the world it is loaded into; and for an ent
 [ADR-0087](adr/0087-the-worlds-documents.md),
 [ADR-0091](adr/0091-scene-documents-and-placements.md),
 [ADR-0092](adr/0092-a-world-written-back-as-a-scene.md),
-[ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)).
+[ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)). The editor's commands will
+name the entities that they change by it, an entity's handle being a cache of it there
+([ADR-0109](adr/0109-stable-references-and-undo.md); decided, not built yet).
 
 **Peter-panning.** A shadow that starts a little away from the object that casts it, because the
 *depth bias* pushes the stored depths back, or the *normal offset* moves the point looked up: in

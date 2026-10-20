@@ -1,6 +1,7 @@
 # 0081. Stage 5a: the world
 
-- Status: Accepted
+- Status: Accepted; amended by [0109](0109-stable-references-and-undo.md) (the world panel's
+  edits name entities by identity)
 - Date: 2026-10-16
 
 ## Context
