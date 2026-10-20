@@ -80,7 +80,8 @@ Their rustdoc gives the formats and the rules.
 [`slime-serialize`](../slime-serialize/README.md), which reads and writes metadata files and
 encodes scene files, and [`slime-reflect`](../slime-reflect/README.md), which describes what
 metadata files hold; [`slime-world`](../slime-world/README.md), which reads the layout of the scene
-files that it checks. `uuid` for random
+files that it checks; [`slime-tasks`](../slime-tasks/README.md), the engine's task pool, on which
+it encodes textures. `uuid` for random
 IDs, `blake3` to derive the IDs of sub-assets and name cooked files, `png` and `zune-jpeg` to decode
 images, `block_compression` to compress textures, `gltf` to read glTF files, `bevy_mikktspace` to
 compute tangents, `glam` for their vectors, `thiserror` for its error types.

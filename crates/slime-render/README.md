@@ -31,9 +31,11 @@ blend transparent surfaces.
   graph is the renderer's own: games that draw with `slime-gfx` order their passes themselves.
 - Is built on `slime-gfx`'s engine-owned types only: it does not use wgpu
   (`docs/adr/0027-the-render-crate.md`).
-- Loads cooked scenes on threads of its own: a thread per load, and a task pool private to the
-  crate (`src/pool.rs`), whose threads read and upload one mesh or one texture per task through
-  clones of the `Gpu` (`docs/adr/0073-loading-scenes-in-the-background.md`).
+- Loads cooked scenes in the background: a thread per load, and background tasks of the engine's
+  pool (`slime-tasks`), which read and upload one mesh or one texture each through clones of the
+  `Gpu` (`docs/adr/0073-loading-scenes-in-the-background.md`,
+  `docs/adr/0107-the-execution-model.md`). It computes the sky's environment as frame tasks of
+  the same pool.
 - Draws what it is given: a flat list of instances that the application builds for each frame.
   It keeps no scene between frames and has no scene graph; `slime-world-render` builds such lists
   from a world (`docs/adr/0084-what-the-world-draws.md`).
@@ -128,7 +130,7 @@ fn main() -> Result<(), RenderError> {
   BC5 or 8-bit texels, every level as the cooker made it (ADR-0071). Normal textures are read by
   their x and y, z rebuilt, so that BC5 serves.
 - `Renderer::load_scene_in_background(gpu, &CookedAssets, id)` starts loading a cooked scene onto
-  the GPU, on the renderer's threads, and returns a `SceneLoad` at once, which a game polls at each
+  the GPU, in the background, and returns a `SceneLoad` at once, which a game polls at each
   frame with `take` until it gives the scene, whole; `Renderer::load_scene` starts a load and waits
   for it. A load reads every mesh its nodes place, the materials they are drawn with and the
   textures those read, each once; its `LoadedScene` gives the `instances` to draw, the `lights` in
@@ -190,6 +192,7 @@ errors.
 
 - `slime-gfx`: the GPU objects and the render passes.
 - `slime-color`: `LinearColor`, the colors of materials, lights and skies.
+- `slime-tasks`: the engine's task pool, which runs the loads and computes the sky's environment.
 - `slime-assets`: the cooked data of the asset pipeline, which the renderer turns into its own GPU
   objects (ADR-0069).
 - `glam`: vectors, matrices and quaternions.

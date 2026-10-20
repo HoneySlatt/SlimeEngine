@@ -14,6 +14,7 @@ use std::sync::{Arc, LazyLock};
 use glam::{DVec3, Vec3};
 use slime_color::LinearColor;
 use slime_gfx::{GfxError, Gpu, Texture, TextureFormat, f32_to_f16};
+use slime_tasks::Priority;
 
 use crate::light::{DirectionalLight, LARGEST_LIGHT, Light, rgb, unit};
 
@@ -260,7 +261,8 @@ pub(crate) fn environment_levels(sky: &Sky) -> Vec<Vec<f32>> {
             .collect();
     }
     let size = ENVIRONMENT_SIZE;
-    let base = CubeMap::from_fn(size, |face, x, y| {
+    let sky = *sky;
+    let base = CubeMap::from_fn(size, move |face, x, y| {
         // The average of four points, a quarter of a texel from its centre on each axis.
         [(0.25, 0.25), (0.75, 0.25), (0.25, 0.75), (0.75, 0.75)]
             .iter()
@@ -276,13 +278,14 @@ pub(crate) fn environment_levels(sky: &Sky) -> Vec<Vec<f32>> {
 /// The environment's levels from its first, `base`: each next level half the size of the one
 /// before and prefiltered for its roughness (see the module's documentation).
 fn prefiltered_levels(base: CubeMap) -> Vec<Vec<f32>> {
-    let chain = base.chain();
+    let chain = Arc::new(base.chain());
     let mut levels = vec![chain[0].rgba()];
     for (level, &count) in PREFILTER_SAMPLES.iter().enumerate().skip(1) {
         let roughness = level as f32 / (ENVIRONMENT_LEVELS - 1) as f32;
         let samples = prefilter_samples(roughness, count, chain[0].size);
         let size = chain[0].size >> level;
-        let prefiltered = CubeMap::from_fn(size, |face, x, y| {
+        let chain = Arc::clone(&chain);
+        let prefiltered = CubeMap::from_fn(size, move |face, x, y| {
             let n = texel_direction(face, x as f32 + 0.5, y as f32 + 0.5, size).normalize();
             let (t, b) = n.any_orthonormal_pair();
             let mut sum = Vec3::ZERO;
@@ -403,10 +406,10 @@ struct CubeMap {
 }
 
 impl CubeMap {
-    /// A cube map whose texel (x, y) of each face is `texel(face, x, y)`, computed on every core.
-    fn from_fn(size: u32, texel: impl Fn(usize, u32, u32) -> Vec3 + Sync) -> Self {
+    /// A cube map whose texel (x, y) of each face is `texel(face, x, y)`, computed in parallel.
+    fn from_fn(size: u32, texel: impl Fn(usize, u32, u32) -> Vec3 + Send + Sync + 'static) -> Self {
         let face_texels = (size * size) as usize;
-        let texels = computed_on_every_core(6 * face_texels, |index| {
+        let texels = computed_in_parallel(6 * face_texels, move |index| {
             let (face, within) = (index / face_texels, index % face_texels);
             texel(face, within as u32 % size, within as u32 / size)
         });
@@ -415,16 +418,16 @@ impl CubeMap {
 
     /// This map, then each next level half its size, each texel the average of the four it
     /// covers, down to faces of one texel.
-    fn chain(self) -> Vec<CubeMap> {
-        let mut chain = vec![self];
+    fn chain(self) -> Vec<Arc<CubeMap>> {
+        let mut chain = vec![Arc::new(self)];
         while chain.last().is_some_and(|level| level.size > 1) {
-            let level = chain.last().expect("the chain is not empty");
+            let level = Arc::clone(chain.last().expect("the chain is not empty"));
             let size = level.size / 2;
-            let halved = CubeMap::from_fn(size, |face, x, y| {
+            let halved = CubeMap::from_fn(size, move |face, x, y| {
                 let at = |dx, dy| level.texel(face, 2 * x + dx, 2 * y + dy);
                 (at(0, 0) + at(1, 0) + at(0, 1) + at(1, 1)) / 4.0
             });
-            chain.push(halved);
+            chain.push(Arc::new(halved));
         }
         chain
     }
@@ -459,7 +462,7 @@ impl CubeMap {
 
 /// The radiance along `direction` at the level of detail `lod` of `chain`, blended between the two
 /// nearest levels.
-fn sample_chain(chain: &[CubeMap], direction: Vec3, lod: f32) -> Vec3 {
+fn sample_chain(chain: &[Arc<CubeMap>], direction: Vec3, lod: f32) -> Vec3 {
     let lod = lod.clamp(0.0, (chain.len() - 1) as f32);
     let lower = lod.floor() as usize;
     let upper = (lower + 1).min(chain.len() - 1);
@@ -477,7 +480,7 @@ fn sample_chain(chain: &[CubeMap], direction: Vec3, lod: f32) -> Vec3 {
 pub(crate) static BRDF_TABLE: LazyLock<Vec<f32>> = LazyLock::new(|| {
     let size = BRDF_TABLE_SIZE;
     let last = (size - 1) as f32;
-    computed_on_every_core((size * size) as usize, |index| {
+    computed_in_parallel((size * size) as usize, move |index| {
         let (i, j) = (index as u32 % size, index as u32 / size);
         let n_dot_v = (i as f32 / last).max(SMALLEST_N_DOT_V);
         let (a, b) = brdf_scale_and_bias(n_dot_v, j as f32 / last, BRDF_TABLE_SAMPLES);
@@ -488,26 +491,24 @@ pub(crate) static BRDF_TABLE: LazyLock<Vec<f32>> = LazyLock::new(|| {
     .collect()
 });
 
-/// `value(i)` for each i from 0 to `count`, in order, computed by one thread per core, each taking
-/// a contiguous range: whatever thread computes a value, it is the same.
-fn computed_on_every_core<T: Copy + Default + Send>(
+/// `value(i)` for each i from 0 to `count`, in order, computed by the engine's pool as frame tasks
+/// and by the calling thread (`slime_tasks::map`), in contiguous runs of values, several for each
+/// thread, so that the threads share work that costs more in some places than in others: whatever
+/// thread computes a value, it is the same.
+fn computed_in_parallel<T: Send + 'static>(
     count: usize,
-    value: impl Fn(usize) -> T + Sync,
+    value: impl Fn(usize) -> T + Send + Sync + 'static,
 ) -> Vec<T> {
-    let mut values = vec![T::default(); count];
-    let threads = std::thread::available_parallelism().map_or(1, usize::from);
-    let chunk = count.div_ceil(threads).max(1);
-    std::thread::scope(|scope| {
-        for (index, values) in values.chunks_mut(chunk).enumerate() {
-            let value = &value;
-            scope.spawn(move || {
-                for (offset, slot) in values.iter_mut().enumerate() {
-                    *slot = value(index * chunk + offset);
-                }
-            });
-        }
-    });
-    values
+    let runs = (4 * (slime_tasks::threads() + 1)).clamp(1, count.max(1));
+    let run = count.div_ceil(runs).max(1);
+    slime_tasks::map(Priority::Frame, count.div_ceil(run), move |index| {
+        (index * run..((index + 1) * run).min(count))
+            .map(&value)
+            .collect::<Vec<T>>()
+    })
+    .into_iter()
+    .flatten()
+    .collect()
 }
 
 /// A and B of [`BRDF_TABLE`] at `n_dot_v` and `roughness`, from `count` half vectors h of a
@@ -876,7 +877,7 @@ mod tests {
         // 2/3 n·axis. Along each axis, so that a face turned the wrong way shows.
         let (a, b) = (1.0, 0.75);
         for axis in [Vec3::X, Vec3::Y, Vec3::Z] {
-            let base = CubeMap::from_fn(ENVIRONMENT_SIZE, |face, x, y| {
+            let base = CubeMap::from_fn(ENVIRONMENT_SIZE, move |face, x, y| {
                 let direction =
                     texel_direction(face, x as f32 + 0.5, y as f32 + 0.5, ENVIRONMENT_SIZE);
                 Vec3::splat(a + b * direction.normalize().dot(axis))
@@ -964,7 +965,8 @@ mod tests {
         const TOLERANCES: [f32; ENVIRONMENT_LEVELS] = [0.0, 0.033, 0.021, 0.017, 0.005];
         let levels = environment_levels(&SAMPLE_SKY);
         let size = ENVIRONMENT_SIZE;
-        let base = CubeMap::from_fn(size, |face, x, y| texel(&levels[0], size, face, x, y));
+        let first = levels[0].clone();
+        let base = CubeMap::from_fn(size, move |face, x, y| texel(&first, size, face, x, y));
         for (level, values) in levels.iter().enumerate().skip(1) {
             let level_size = size >> level;
             let roughness = level as f64 / (ENVIRONMENT_LEVELS - 1) as f64;

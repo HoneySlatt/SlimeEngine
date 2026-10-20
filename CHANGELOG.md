@@ -8,6 +8,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- `slime-tasks`, the engine's task pool: as many threads as the machine's logical cores but one,
+  which run tasks of two priorities, `Frame` and `Background`, a free thread taking a frame task
+  first and background tasks never holding every thread; `slime_tasks::map` computes items in
+  parallel, the calling thread taking its share.
 - `World::spawn_keyed` creates an entity whose persistent identity is a key that the game chooses:
   what a game creates in code while it makes its start world, named so that saves and hot reload
   find it whatever else the game creates, and in whichever order. A run that creates one under a
@@ -43,6 +47,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- The loads of cooked scenes and of the asset cache's batches run as background tasks of the
+  engine's pool, where they ran on a pool of `slime-render`'s own of at most four threads; the
+  sky's environment and the BRDF table are computed by frame tasks of the pool and the calling
+  thread, where they started a thread per core; the cooker encodes textures on the pool.
 - `RenderPass::draw_indexed` takes a base vertex and a range of instances.
 - `RenderStats::draw_calls` and the shadow passes' draw calls count draws of groups of instances,
   where they counted one per instance; `triangles` counts those of the instances drawn.

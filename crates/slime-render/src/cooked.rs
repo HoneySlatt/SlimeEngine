@@ -1,5 +1,5 @@
 //! Cooked scenes on the GPU: a scene that the asset pipeline cooked, its meshes, materials and
-//! textures uploaded on the renderer's threads, its nodes flattened into instances and its lights
+//! textures uploaded by tasks of the engine's pool, its nodes flattened into instances and its lights
 //! placed in world space.
 
 use std::collections::hash_map::Entry;
@@ -16,12 +16,13 @@ use slime_assets::{
 };
 use slime_color::LinearColor;
 use slime_gfx::{AddressMode, Filter, Gpu, Sampler, SamplerDescriptor, Texture, TextureFormat};
+use slime_tasks::Priority;
 
 use crate::error::RenderError;
 use crate::light::{DirectionalLight, Light, PointLight, SpotLight};
 use crate::material::{AlphaMode, Material, MaterialData, MaterialParts, SampledTexture};
 use crate::mesh::{Mesh, MeshData, MeshPages};
-use crate::pool;
+
 use crate::renderer::{Instance, Renderer};
 
 /// Why a cooked scene cannot be loaded.
@@ -101,7 +102,7 @@ impl LoadedScene {
     }
 }
 
-/// A cooked scene being loaded in the background, on threads of the renderer's own
+/// A cooked scene being loaded in the background, by tasks of the engine's pool
 /// ([`Renderer::load_scene_in_background`]). A game polls it at each frame with
 /// [`SceneLoad::take`], which gives the whole scene once it is loaded, never a part of it; or waits
 /// for it with [`SceneLoad::wait`].
@@ -127,7 +128,7 @@ impl SceneLoad {
     /// With the panic of a loading thread, if one panicked, even when an asset also failed: a bug,
     /// as when a scene is reloaded on another device than the one it was loaded on
     /// ([`Renderer::reload_scene_in_background`]). Also if the operating system could not start
-    /// the renderer's threads.
+    /// the threads of the engine's pool.
     pub fn take(&mut self) -> Option<Result<LoadedScene, SceneError>> {
         self.load.take()
     }
@@ -146,7 +147,7 @@ impl SceneLoad {
     }
 }
 
-/// A load that runs on a thread of its own, which waits for its tasks on the renderer's pool: a
+/// A load that runs on a thread of its own, which waits for its tasks on the engine's pool: a
 /// scene's ([`SceneLoad`]), or a batch of meshes for the asset cache. Dropping it cancels the load,
 /// as [`SceneLoad`] says.
 pub(crate) struct Load<T> {
@@ -227,12 +228,12 @@ impl Renderer {
     /// Starts loading the cooked scene `id` from `assets` onto the GPU, and returns at once: the
     /// returned [`SceneLoad`] gives the scene once it is loaded. The load reads every mesh its
     /// nodes place, every material those meshes are drawn with and every texture those materials
-    /// read, each once, on the renderer's threads, which create their GPU objects through clones of
-    /// `gpu` (ADR-0073); and it places its lights by their nodes in world space, at the node's
+    /// read, each once, by background tasks of the engine's pool (`slime_tasks`), which create their
+    /// GPU objects through clones of `gpu` (ADR-0073, ADR-0107); and it places its lights by their nodes in world space, at the node's
     /// origin, along its −Z axis whatever its scale. A glTF file's default scene has the file's ID.
     ///
-    /// The renderer's threads are as many as the machine's cores but one, at least 1 and at most
-    /// 4, shared by every load of the process; each load has a thread of its own besides, which
+    /// The pool's threads are shared by every load of the process, and keep one for the work that
+    /// a frame waits for; each load has a thread of its own besides, which
     /// reads the scene and its materials and puts the loaded scene together. Their uploads do not
     /// hold up the thread that submits frames (ADR-0074); a frame that draws the first shadows, or
     /// changes the shape of the frame otherwise, still costs more during a load than after it.
@@ -434,7 +435,7 @@ impl Tasks {
         self.pending += 1;
         let work = Arc::clone(&self.work);
         let sender = self.sender.clone();
-        pool::run(move || {
+        slime_tasks::run(Priority::Background, move || {
             let shared = {
                 let mut work = work
                     .lock()
@@ -1115,14 +1116,15 @@ mod tests {
         let gpu = Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists them");
         let renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
         let (assets, scene) = squares("dropped", 8);
-        // Every thread of the pool waits for the test, so that the load's tasks wait in its queue.
-        let threads = pool::threads();
+        // Every thread of the pool waits for the test, held by frame tasks, which every thread takes,
+        // so that the load's tasks wait in its queue.
+        let threads = slime_tasks::threads();
         let barrier = Arc::new(Barrier::new(threads + 1));
         let (busy, all_busy) = mpsc::channel();
         for _ in 0..threads {
             let barrier = Arc::clone(&barrier);
             let busy = busy.clone();
-            pool::run(move || {
+            slime_tasks::run(Priority::Frame, move || {
                 busy.send(()).expect("the test waits");
                 barrier.wait();
             });

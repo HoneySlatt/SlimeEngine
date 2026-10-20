@@ -94,6 +94,7 @@ slime-platform = { path = "crates/slime-platform" }
 slime-reflect = { path = "crates/slime-reflect" }
 slime-reflect-derive = { path = "crates/slime-reflect-derive" }
 slime-serialize = { path = "crates/slime-serialize" }
+slime-tasks = { path = "crates/slime-tasks" }
 slime-render = { path = "crates/slime-render" }
 slime-world = { path = "crates/slime-world" }
 slime-world-render = { path = "crates/slime-world-render" }

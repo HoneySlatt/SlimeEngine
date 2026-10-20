@@ -32,7 +32,7 @@ sample game, *Hunna Wood* (`games/hunnawood`), a role-playing game seen in the
 third person and made with the public API only, loads its first zone from cooked assets
 ([ADR-0067](docs/adr/0067-hunna-wood-replaces-nightwatch.md)): a forest path to a ruined chapel,
 where the hero finds a key that opens a door, by day and by night. Stage 4b made loaded
-assets live: scenes load on threads of the renderer's own while the game draws, a game can go on
+assets live: scenes load in the background while the game draws, a game can go on
 after a lost GPU device, a material's values change while it runs, and a texture or a shader
 changed on disk changes in the running game. Stage 5a gave the engine a world, reflection and
 saves: the world keeps a game's entities, their components and their hierarchy, places them,

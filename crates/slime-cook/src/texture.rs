@@ -2,7 +2,9 @@
 //! compressed for the GPU.
 
 use slime_color::{linear_to_srgb8, srgb8_to_linear};
-use std::thread;
+use std::sync::Arc;
+
+use slime_tasks::Priority;
 
 use block_compression::encode::compress_rgba8;
 use block_compression::{BC7Settings, CompressionVariant};
@@ -55,8 +57,9 @@ impl TextureRole {
 /// opaque: on a noisy test image of 2048 × 2048 texels, they made blocks as close to the image
 /// as the "basic" settings (a peak signal-to-noise ratio of 55.3 dB) in less than half their
 /// time, and every level of a texture of 4096 × 4096 texels takes about 5 s on the 16 threads of
-/// the development machine (ADR-0071). The blocks of each level are encoded on every thread the
-/// machine offers, each a band of rows; the result does not depend on their number. A level
+/// the development machine (ADR-0071). The blocks of each level are encoded on the engine's task
+/// pool, as background work, and on the calling thread, each task a band of rows; the result does
+/// not depend on their number. A level
 /// smaller than a block repeats its last row and column to fill it.
 pub fn cook_texture(image: &Image, role: TextureRole) -> CookedTexture {
     let compressed = image.width >= 4 && image.height >= 4;
@@ -283,26 +286,38 @@ fn padded(level: &Image) -> Image {
 }
 
 /// The blocks of `level`, whose sides are multiples of 4, in `variant`: bands of block rows encoded
-/// on as many threads as the machine offers.
+/// by the engine's task pool, as background tasks, and by the calling thread (`slime_tasks::map`),
+/// several bands for each thread, so that the threads share the work evenly.
 fn encode(variant: CompressionVariant, level: &Image) -> Vec<u8> {
     let block_rows = (level.height / 4) as usize;
     let row_bytes = variant.bytes_per_row(level.width) as usize;
     let texel_row_bytes = level.width as usize * 4;
-    let threads = thread::available_parallelism().map_or(1, |count| count.get());
-    let rows_per_band = block_rows.div_ceil(threads.min(block_rows));
-    let mut blocks = vec![0; variant.blocks_byte_size(level.width, level.height)];
-    thread::scope(|scope| {
-        for (band, output) in blocks.chunks_mut(rows_per_band * row_bytes).enumerate() {
-            let rows = output.len() / row_bytes;
-            let start = band * rows_per_band * 4 * texel_row_bytes;
-            let texels = &level.rgba[start..start + rows * 4 * texel_row_bytes];
-            let width = level.width;
-            scope.spawn(move || {
-                compress_rgba8(variant, texels, output, width, rows as u32 * 4, width * 4);
-            });
-        }
-    });
-    blocks
+    let bands = (4 * (slime_tasks::threads() + 1)).min(block_rows);
+    let rows_per_band = block_rows.div_ceil(bands);
+    // The tasks own what they read: a copy of the level, small beside the time to encode it.
+    let texels = Arc::new(level.rgba.clone());
+    let width = level.width;
+    slime_tasks::map(
+        Priority::Background,
+        block_rows.div_ceil(rows_per_band),
+        move |band| {
+            let first = band * rows_per_band;
+            let rows = rows_per_band.min(block_rows - first);
+            let start = first * 4 * texel_row_bytes;
+            let texels = &texels[start..start + rows * 4 * texel_row_bytes];
+            let mut blocks = vec![0; rows * row_bytes];
+            compress_rgba8(
+                variant,
+                texels,
+                &mut blocks,
+                width,
+                rows as u32 * 4,
+                width * 4,
+            );
+            blocks
+        },
+    )
+    .concat()
 }
 
 #[cfg(test)]
@@ -489,9 +504,10 @@ mod tests {
         let start = std::time::Instant::now();
         let texture = cook_texture(&picture, TextureRole::Color);
         println!(
-            "4096 x 4096, BC7 with sRGB, {} levels, on {} threads: {:?}",
+            "4096 x 4096, BC7 with sRGB, {} levels, on the {} threads of the pool and the calling \
+             one: {:?}",
             texture.levels.len(),
-            thread::available_parallelism().map_or(1, |count| count.get()),
+            slime_tasks::threads(),
             start.elapsed()
         );
     }

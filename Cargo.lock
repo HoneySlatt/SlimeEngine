@@ -2053,6 +2053,7 @@ dependencies = [
  "slime-color",
  "slime-reflect",
  "slime-serialize",
+ "slime-tasks",
  "slime-world",
  "thiserror 2.0.21",
  "uuid",
@@ -2141,6 +2142,7 @@ dependencies = [
  "slime-assets",
  "slime-color",
  "slime-gfx",
+ "slime-tasks",
  "thiserror 2.0.21",
  "tracing",
 ]
@@ -2154,6 +2156,10 @@ dependencies = [
  "thiserror 2.0.21",
  "toml_edit",
 ]
+
+[[package]]
+name = "slime-tasks"
+version = "0.4.0"
 
 [[package]]
 name = "slime-world"

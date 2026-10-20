@@ -529,9 +529,9 @@ impl Renderer {
     /// windowed application (`Context::surface_format` in `slime-app`). An sRGB format encodes the
     /// tone-mapped light for display; `Rgba16Float` holds the tone-mapped values themselves;
     /// `Rgba8Unorm` stores them unencoded, which displays too dark. The first renderer of a process
-    /// computes the table of the BRDF's scale and bias for image-based lighting on the CPU, on
-    /// every core (ADR-0039): about 15 ms in a release build, more in a debug build; the others
-    /// reuse it.
+    /// computes the table of the BRDF's scale and bias for image-based lighting on the CPU, as frame
+    /// tasks of the engine's pool and on the calling thread (`slime_tasks`, ADR-0039, ADR-0107):
+    /// about 15 ms in a release build, more in a debug build; the others reuse it.
     ///
     /// # Errors
     ///
@@ -839,8 +839,8 @@ impl Renderer {
     /// cube map of 128 × 128 texels per face, each the average of 2 × 2 points of it, then
     /// prefiltered for roughnesses 0.25, 0.5, 0.75 and 1 into faces of 64, 32, 16 and 8 texels, the
     /// last also the light that matte surfaces diffuse: 1.0 MiB of half-precision floats. This
-    /// takes tens of milliseconds on every core in a release build, several times as long in a
-    /// debug build: create an environment once per sky, not per frame. A sky of one radiance in
+    /// takes tens of milliseconds in a release build, as frame tasks of the engine's pool and on
+    /// the calling thread (`slime_tasks`, ADR-0107), several times as long in a debug build: create an environment once per sky, not per frame. A sky of one radiance in
     /// every direction, without a sun, takes almost none. The environment is not tied to this
     /// renderer.
     ///

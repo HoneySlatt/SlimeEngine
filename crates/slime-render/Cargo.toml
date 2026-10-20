@@ -15,5 +15,7 @@ glam.workspace = true
 slime-assets.workspace = true
 slime-color.workspace = true
 slime-gfx.workspace = true
+# The engine's task pool, on which loads and the sky's environment run (ADR-0107).
+slime-tasks.workspace = true
 thiserror.workspace = true
 tracing.workspace = true

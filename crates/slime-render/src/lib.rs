@@ -10,7 +10,6 @@ mod graph;
 mod light;
 mod material;
 mod mesh;
-mod pool;
 mod renderer;
 mod shaders;
 mod shadow;

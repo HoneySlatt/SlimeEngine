@@ -19,6 +19,8 @@ glam.workspace = true
 png.workspace = true
 slime-assets.workspace = true
 slime-color.workspace = true
+# The engine's task pool, on which textures are encoded (ADR-0107).
+slime-tasks.workspace = true
 # Metadata files are read and written through the engine's serialization (ADR-0086).
 slime-reflect.workspace = true
 slime-serialize.workspace = true
