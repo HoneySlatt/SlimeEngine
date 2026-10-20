@@ -612,9 +612,6 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
 - **P5, in the Windows virtual machine.** The benchmarks on Direct3D 12, `cargo run --release -p
   slime-benches -- render world loading`; the figures of WARP that the Windows job's log of
   `af512af` prints.
-- **P4, on Linux.** *Hunna Wood*'s zone played by day and at night, `cargo run -p hunnawood --
-  --new --save <a file of its own>`, and found unchanged: the hero's coat, whose textures are now
-  compressed, and the shadows, whose draws go in another order.
 
 ### P1 — Saves and identities that never mislead
 
@@ -1149,9 +1146,8 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
     the cooker copying textures it did not stretch, rustdoc that said what the code no longer did,
     the start write of a uniform buffer without a test of its contract, and ADR-0106 silent on two
     ADRs that it amends. All are fixed.
-  - Not done, the owner's by hand, which wait in the
-    [list of checks by hand](#checks-by-hand-waiting-for-the-owner): the zone played by day and at
-    night.
+  - The owner's check by hand, on Linux: the owner played the zone on 2026-10-20, from
+    `cargo run -p hunnawood -- --new --save <a file of its own>`, and found it unchanged.
 
 ### P6 — The foundation decisions
 
