@@ -82,7 +82,7 @@ Each is decided by ADR at the stage where it becomes necessary, not earlier.
 
 | Topic | Candidates | Decide at |
 |---|---|---|
-| Design of the UI framework | Retained, immediate or hybrid; the crates it builds on for text, layout and accessibility (ADR-0098) | Stage 6 |
+| Design of the UI framework | Retained, immediate or hybrid; the crates it builds on for text, layout and accessibility (ADR-0098) | Stage 6b |
 | Physics backend | rapier3d, Jolt or other, behind an abstraction, against the needs of ADR-0098 | Stage 7 |
 | Audio backend | To evaluate, against the needs of ADR-0098 | Stage 7 |
 | Scripting language | Lua, C#, dedicated VM, other | Stage 8 |
@@ -270,33 +270,45 @@ The stage comes right after Stage 5a, and is released as 0.4 (ADR-0090).
 
 **Exit.** The game's scenes round-trip through save and load as files. Prefabs instantiate with overrides. The sample game's zone is made of prefabs.
 
-Between Stage 5b and Stage 6 come two passes, without a release of their own (ADR-0097): an audit pass, which fixes what an audit of 0.4 found in saves, identities, the readers of files (ADR-0096), the recovery from a lost GPU device, and measured quick wins, and puts the engine's measurements in CI; then a foundations pass, which decides as ADRs what the editor will freeze: the execution model, change detection, stable references and reversible operations, how the editor runs a game's code, the frame contract, a study of open worlds, an asset request API, hardware tiers, and what the GPU layer gives the editor, each weighed against the games of section 1 (ADR-0098) and against AI agents driving the engine (ADR-0099). `docs/PLAN.md` details both.
+Between Stage 5b and Stage 6 come two passes, without a release of their own (ADR-0097): an audit pass, which fixes what an audit of 0.4 found in saves, identities, the readers of files (ADR-0096), the recovery from a lost GPU device, and measured quick wins, and puts the engine's measurements in CI; then a foundations pass, which decides as ADRs what the editor will freeze: the execution model, change detection, stable references and reversible operations, how the editor runs a game's code, the frame contract, a study of open worlds, an asset request API, hardware tiers, and what the GPU layer gives the editor, each weighed against the games of section 1 (ADR-0098) and against AI agents driving the engine (ADR-0099). `docs/PLAN.md` details both. What they deliver ships with 0.5, Stage 6a's release (ADR-0116).
 
-### Stage 6 — Editor foundation → 0.5
+Stage 6 is split in two halves (ADR-0116): what the editor stands on, built and checked without the editor's interface, then the editor. A reference to Stage 6 means both.
+
+### Stage 6a — What the editor stands on → 0.5
+
+**Goal.** Everything that the editor stands on, built and checked without the editor's interface, and used by the sample game.
+
+- Frustum culling and instancing, moved from Stage 9a (ADR-0097), first, on the decisions of the foundations pass, with the GPU layer's storage buffers and instanced draws (ADR-0115), and the benchmarks measured at the hardware tiers' resolutions (ADR-0114)
+- The execution model (ADR-0107): one task pool of the engine's, with a priority for the frame and one for the background; the copies to the GPU submitted by one owner within a budget of bytes per frame; the phases of a frame, the world read only while it is drawn; game time apart from real time, with pause and one step; a game as a simulation and a presentation, run by a host; the keys and buttons held, kept by the engine and given to the simulation as input (ADR-0057)
+- What the world knows of its changes (ADR-0108): a tick on every value of a component, read since a reader's last tick, with summaries, a log of removals and a structure counter; components that clone
+- The frame contract (ADR-0111): a frame that owns what it draws, an asset cache that loads without the renderer, views apart from the renderer with settings of their own, and materials of a kind registered with the renderer, the physically based one first; the adapter's limits asked for above a floor checked at startup (ADR-0114)
+- A game is a library and its program (ADR-0110)
+- The development channel, the link between a running game and the tools that drive it, and the engine's MCP server, before play in the editor (ADR-0116): AI agents pause, step and read a running game, change its world, capture its image, read its measurements and logs, cook, run tests and play the game with scripted input; reachable from the user's machine only, absent from shipped builds (ADR-0099, ADR-0110)
+- Identities and saves, before the editor writes levels: the mark of driven components (ADR-0108); a key for each entity that a game's code creates at the start of a run, and an entity that a run created, once written into its level, recognized there when hot reload carries the run, not created again (ADR-0109); saves made of differences per scene with what persists chosen by the game, and entities adopted out of their scene (ADR-0112)
+- Assets asked for by requests that carry a priority and return a handle, their loads cancelled when no handle holds them, and dropped least recently used first under a budget of memory (ADR-0113)
+- A milestone of rendering for the editor: blending and lines, an unlit material, picking by the GPU and by the CPU, two points of each view's graph where a client inserts its draws, such as the editor's grid, icons, gizmos and outline (ADR-0115)
+
+**Exit.** *Hunna Wood* runs on what the editor stands on, on Linux and on Windows: what the camera does not see is not drawn and the rest is drawn by instances, measured at the hardware tiers' resolutions against their budgets; its zone loads without a frame missing its time; its game time pauses and steps; an agent drives it through the engine's MCP server, pausing and stepping it, reading and changing its world, capturing its image and playing it with scripted input; its saves are differences per scene, which cost what changed. The `world` example draws a frame in several views and picks the object under the cursor.
+
+### Stage 6b — The editor → 0.6
 
 **Goal.** A real editor, built as a client of the engine.
 
-- Frustum culling and instancing, moved from Stage 9a (ADR-0097), first, before the viewport, on the decisions of the foundations pass, with the GPU layer's storage buffers and instanced draws (ADR-0115)
-- The frame contract (ADR-0111), before the editor's viewport: a frame that owns what it draws, an asset cache that loads without the renderer, views apart from the renderer with settings of their own, and materials of a kind registered with the renderer, the physically based one first; the adapter's limits asked for above a floor checked at startup, and the benchmarks measured at the hardware tiers' resolutions (ADR-0114)
-- The execution model (ADR-0107), before play in editor: one task pool of the engine's, with a priority for the frame and one for the background; the copies to the GPU submitted by one owner within a budget of bytes per frame; the phases of a frame, the world read only while it is drawn; game time apart from real time, with pause and one step; a game as a simulation and a presentation, run by a host
-- What the world knows of its changes (ADR-0108), before the hierarchy and the inspector: a tick on every value of a component, read since a reader's last tick, with summaries, a log of removals and a structure counter; components that clone; the mark of driven components, before the editor writes levels
-- A milestone of rendering for the editor before its viewport: blending and lines, an unlit material, picking by the GPU and by the CPU, two points of each view's graph where the editor inserts its grid, icons, gizmos and outline (ADR-0115)
+- The editor's core first, without its interface: a command and transaction system, every edit undoable, its entities named by their persistent identities, a deletion undone by creating its entities again under the same identities, the commands kept in a journal; what the editor creates named at once as its level's file names it (ADR-0109); the MCP server acts through the same commands (ADR-0099)
 - The engine's UI framework, as far as the editor needs it: text in several writing systems, layout, docking, widgets, input routing, focus, drag and drop, theming (ADR-0098)
-- Viewport, hierarchy, inspector (driven by reflection), asset browser
-- Command and transaction system: every edit is undoable, its entities named by their persistent identities, a deletion undone by creating its entities again under the same identities, the commands kept in a journal; what the editor creates named at once as its level's file names it (ADR-0109)
-- Assets asked for by requests that carry a priority and return a handle, their loads cancelled when no handle holds them, and dropped least recently used first under a budget of memory (ADR-0113)
-- Levels made of several scene files, former identities written when the editor moves an entity out of its file, references to entities of other scenes (`EntityRef`), saves made of differences per scene with what persists chosen by the game, and entities adopted out of their scene (ADR-0112)
-- Play in editor, the game running in a child process first (ADR-0097), in its own window, linked to the editor and to tools by a development channel; a change of the game's code starts it again where it was; a game is a library, its program and its editor (ADR-0110)
-- The engine's MCP server: AI agents read the world, act through the editor's commands, capture views, read measurements and logs, cook, run tests and play the game with scripted input; reachable from the user's machine only, absent from shipped builds (ADR-0099)
-- The keys and buttons held, kept by the engine, if the viewport's camera moves with them, with the keyboard shared between the editor's UI and the game; at Stage 7 otherwise (ADR-0057)
+- Viewport, hierarchy, inspector (driven by reflection), gizmos, asset browser
+- Levels made of several scene files, former identities written when the editor moves an entity out of its file, and references to entities of other scenes, `EntityRef` (ADR-0112)
+- Play in the editor, the game running in a child process first (ADR-0097), in its own window, linked to the editor and to tools by the development channel; a change of the game's code starts it again where it was; a game's editor, a package beside its library and its program (ADR-0110)
+
+The stage is planned in detail at Stage 6a's close, with a study of the UI framework's design, and split again then if it needs to be (ADR-0116).
 
 **Exit.** A level of the game is built, saved and reloaded entirely in the editor, with undo/redo on every operation. The editor uses no private engine API.
 
-### Stage 7 — Runtime systems → 0.6
+### Stage 7 — Runtime systems → 0.7
 
 **Goal.** What a game needs beyond rendering, built on a proper concurrency model.
 
-- Job system, grown from Stage 6's task pool (ADR-0107): dependencies, loops split across threads, work stealing if a measurement asks for it
+- Job system, grown from Stage 6a's task pool (ADR-0107): dependencies, loops split across threads, work stealing if a measurement asks for it
 - A render thread, decided by measuring the CPU that rendering still costs against the frame of delay it adds (ADR-0111)
 - Hooks per component type, messages read at fixed phases, and a queue of the changes that parallel systems defer, designed with physics, audio and the events of games (ADR-0108)
 - Memory: frame, arena and pool allocators where measurements justify them; allocation tracking
@@ -305,12 +317,12 @@ Between Stage 5b and Stage 6 come two passes, without a release of their own (AD
 - Riding: a character attached to a mount or a seat, with its animations, input and camera (ADR-0098)
 - Audio: sources, listener, spatialization, buses, mixing, streaming; the importer of audio files, moved from Stage 4 (ADR-0068); the backend chosen against sound placed precisely around the listener's head, reverberation per room and sounds muffled by walls (ADR-0098)
 - The core of skeletal animation: skeletons, skinning, clips, blending, moved from Stage 9b (ADR-0097); poses that are not entities, and bones that things are attached to (ADR-0108)
-- Input action mapping, and the keys and buttons held if Stage 6 did not need them
+- Input action mapping, on the keys and buttons held that Stage 6a keeps (ADR-0107)
 - UI of games: text, menus, HUD, on the engine's UI framework, grown with animation, transforms, masks, effects on text and three-dimensional elements (ADR-0098)
 
 **Exit.** The game has an animated character in a physical level, with sound and a UI, and is profiled end to end.
 
-### Stage 8 — Extensibility → 0.7
+### Stage 8 — Extensibility → 0.8
 
 **Goal.** Others can extend the engine without modifying it.
 
@@ -324,7 +336,7 @@ The C ABI and the C++ SDK moved to Stage 11, derived from the API that the edito
 
 Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b needs a production renderer first.
 
-### Stage 9a — Production renderer → 0.8
+### Stage 9a — Production renderer → 0.9
 
 **Goal.** Render what a shipped game shows, beyond a simple scene.
 
@@ -342,7 +354,7 @@ Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b nee
 
 **Exit.** A level of the game, outdoors and indoors, with a day-night cycle, many lights, transparency and anti-aliasing, within the frame budgets tracked for the sample, covered by image tests.
 
-### Stage 9b — Content production → 0.9
+### Stage 9b — Content production → 0.10
 
 **Goal.** A team can produce a narrative game.
 
@@ -372,13 +384,13 @@ Stage 9c is added by ADR-0098: the rendering of the games of section 1, and cons
 - Whether wgpu stays: as a fallback, for debugging, or for macOS
 - The enthusiast hardware tier, at 4K with ray tracing (ADR-0114)
 
-Before this stage, a feature that wgpu blocks goes through wgpu's access to the API underneath it. The stage comes right after Stage 9b and has no release of its own; what it delivers is released with 0.10.
+Before this stage, a feature that wgpu blocks goes through wgpu's access to the API underneath it. The stage comes right after Stage 9b and has no release of its own; what it delivers is released with 0.11 (ADR-0116).
 
 **Exit.** The game runs on the native backends on Linux and on Windows, and the image tests pass on them as on wgpu.
 
 Stage 10 is split in two (ADR-0097): streaming, which an open world needs, does not wait for networking, which the first game does not need.
 
-### Stage 10a — Large worlds → 0.10
+### Stage 10a — Large worlds → 0.11
 
 **Goal.** Scale beyond a single level.
 
@@ -394,7 +406,7 @@ The stage is split in two halves when it is planned (ADR-0098).
 
 **Exit.** The game streams an open world.
 
-### Stage 10b — Networking → 0.11
+### Stage 10b — Networking → 0.12
 
 **Goal.** Scale beyond a single machine.
 
@@ -408,7 +420,7 @@ The stage is split in two halves when it is planned (ADR-0098).
 
 **Exit.** Several clients play the game connected to a dedicated server.
 
-### Stage 11 — Production readiness → 0.12, then 1.0
+### Stage 11 — Production readiness → 0.13, then 1.0
 
 **Goal.** External projects can rely on the engine.
 
@@ -422,7 +434,7 @@ The stage is split in two halves when it is planned (ADR-0098).
 - macOS as a supported platform
 - User, SDK and engine documentation
 
-**Exit for 0.12.** An external project is built without touching engine source.
+**Exit for 0.13.** An external project is built without touching engine source.
 **Exit for 1.0.** A compatibility promise can be made and kept. There is no deadline for this.
 
 ## 7. Continuous tracks
@@ -492,14 +504,15 @@ Direction only. None of this is planned work until Stage 11 is reached.
 | — | 4b | Live assets, released with 0.3 |
 | 0.3 | 5a | Reflection, serialization, world |
 | 0.4 | 5b | Scenes and prefabs |
-| — | — | An audit pass and a foundations pass, released with 0.5 (ADR-0097) |
-| 0.5 | 6 | Editor |
-| 0.6 | 7 | Runtime systems |
-| 0.7 | 8 | Plugins, scripting |
-| 0.8 | 9a | Production renderer |
-| 0.9 | 9b | Content production |
-| — | 9c | Native GPU backends, released with 0.10 |
-| 0.10 | 10a | Large worlds |
-| 0.11 | 10b | Networking |
-| 0.12 | 11 | Usable by external projects |
+| — | — | An audit pass and a foundations pass, released with 0.5 (ADR-0097, ADR-0116) |
+| 0.5 | 6a | What the editor stands on |
+| 0.6 | 6b | Editor |
+| 0.7 | 7 | Runtime systems |
+| 0.8 | 8 | Plugins, scripting |
+| 0.9 | 9a | Production renderer |
+| 0.10 | 9b | Content production |
+| — | 9c | Native GPU backends, released with 0.11 |
+| 0.11 | 10a | Large worlds |
+| 0.12 | 10b | Networking |
+| 0.13 | 11 | Usable by external projects |
 | 1.0 | 11 | Stable API and SDK |

@@ -1,7 +1,8 @@
 # 0110. How the editor runs a game's code
 
 - Status: Accepted; amends [0055](0055-games-in-the-workspace.md) (a game is a library, its program
-  and its editor)
+  and its editor); amended by [0116](0116-stage-6-in-two-halves.md) (the development channel built
+  before play in the editor, with the MCP server)
 - Date: 2026-10-20
 
 ## Context

@@ -157,15 +157,15 @@ the ADR linking to it.
 | [0087](0087-the-worlds-documents.md) | The world's documents | Accepted; amended by 0088, 0089, 0092, 0093, 0101, 0108 and 0112 |
 | [0088](0088-saving-and-resuming-a-run.md) | Saving and resuming a run | Accepted; amended by 0101, 0108 and 0112 |
 | [0089](0089-scenes-and-prefabs.md) | Scenes and prefabs | Accepted; amended by 0101 and 0112 |
-| [0090](0090-stage-5b-scenes-and-prefabs.md) | Stage 5b: scenes and prefabs | Accepted |
+| [0090](0090-stage-5b-scenes-and-prefabs.md) | Stage 5b: scenes and prefabs | Accepted; amended by 0097 and 0116 |
 | [0091](0091-scene-documents-and-placements.md) | Scene documents and placements | Accepted; amended by 0102 and 0112 |
 | [0092](0092-a-world-written-back-as-a-scene.md) | A world written back as a scene | Accepted; amended by 0101, 0108 and 0109 |
 | [0093](0093-saves-and-hot-reload-with-placements.md) | Saves and hot reload with placements | Accepted; amended by 0101, 0109 and 0112 |
 | [0094](0094-the-binary-encoding-of-documents.md) | The binary encoding of documents | Accepted |
 | [0095](0095-cooked-scene-files.md) | Cooked scene files | Accepted |
 | [0096](0096-the-files-the-engine-reads.md) | The files the engine reads: what they may hold, and what the engine promises | Accepted |
-| [0097](0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md) | An audit pass and a foundations pass before Stage 6, and the roadmap after them | Accepted; amended by 0098, 0099, 0100, 0107, 0112 and 0114 |
-| [0098](0098-the-games-the-engine-aims-at.md) | The games the engine aims at, and the roadmap they shape | Accepted; amended by 0114 |
+| [0097](0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md) | An audit pass and a foundations pass before Stage 6, and the roadmap after them | Accepted; amended by 0098, 0099, 0100, 0107, 0112, 0114 and 0116 |
+| [0098](0098-the-games-the-engine-aims-at.md) | The games the engine aims at, and the roadmap they shape | Accepted; amended by 0114 and 0116 |
 | [0099](0099-ai-agents-drive-the-engine.md) | AI agents drive the engine through its own MCP server | Accepted |
 | [0100](0100-updates-of-shipped-games.md) | Updates of shipped games | Accepted |
 | [0101](0101-saves-and-identities-that-never-mislead.md) | Saves and identities that never mislead | Accepted; amended by 0109 and 0112 |
@@ -176,10 +176,11 @@ the ADR linking to it.
 | [0106](0106-the-measured-quick-wins.md) | The measured quick wins | Accepted |
 | [0107](0107-the-execution-model.md) | The execution model | Accepted |
 | [0108](0108-what-the-world-knows-of-its-changes.md) | What the world knows of its changes | Accepted |
-| [0109](0109-stable-references-and-undo.md) | Stable references and undo | Accepted |
-| [0110](0110-how-the-editor-runs-a-games-code.md) | How the editor runs a game's code | Accepted |
+| [0109](0109-stable-references-and-undo.md) | Stable references and undo | Accepted; amended by 0116 |
+| [0110](0110-how-the-editor-runs-a-games-code.md) | How the editor runs a game's code | Accepted; amended by 0116 |
 | [0111](0111-the-frame-contract.md) | The frame contract | Accepted; amended by 0115 |
 | [0112](0112-levels-saves-and-worlds-for-open-worlds.md) | Levels, saves and worlds for open worlds | Accepted |
 | [0113](0113-asset-requests-residency-and-priorities.md) | Asset requests, residency and priorities | Accepted |
 | [0114](0114-hardware-tiers-and-the-gpus-limits.md) | Hardware tiers and the GPU's limits | Accepted |
 | [0115](0115-what-the-gpu-layer-gives-the-editor.md) | What the GPU layer gives the editor | Accepted |
+| [0116](0116-stage-6-in-two-halves.md) | Stage 6 in two halves | Accepted |

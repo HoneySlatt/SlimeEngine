@@ -112,6 +112,12 @@ documents ([`CONTRIBUTING.md`](../CONTRIBUTING.md#checks)).
 crate depends on: the examples, the games, such as *Hunna Wood*, and the dev *overlay*
 (`slime-devui`).
 
+**Command.** A change of the world asked for outside the *phases* of a frame that may make it, by
+the editor, the dev *overlay*, a tool or a load: a value that names its entities by their
+*persistent identities*, queued, and applied at the start of the next frame
+([ADR-0107](adr/0107-the-execution-model.md), [ADR-0109](adr/0109-stable-references-and-undo.md)).
+The editor's commands are kept in its *journal*, which undo and redo read. Decided, not built yet.
+
 **Comparison sampler.** A sampler that compares a reference depth with the depths stored in a
 *depth target* instead of reading them: each pixel read gives 1 where the comparison holds and 0
 where it does not, and linear filtering blends the four nearest results
@@ -142,7 +148,8 @@ direction: the face is the axis along which the direction is longest
 **Culling.** Not drawing the triangles that face one way, usually the back faces of closed
 meshes, which their front faces hide anyway (`slime_gfx::CullMode`). A triangle faces the front
 when its vertices wind counter-clockwise on screen. The renderer chooses it per draw, from the
-material's double-sidedness and from whether the instance is *mirrored* (ADR-0035).
+material's double-sidedness and from whether the instance is *mirrored* (ADR-0035). Not to be
+confused with *frustum culling*.
 
 **Debug group.** A named section of the commands of a render pass, shown by GPU capture tools such
 as RenderDoc (`RenderPass::debug_group`).
@@ -283,6 +290,13 @@ waits between them, so that the engine asks for at most `AppConfig::max_frame_ra
 second on average. With the default *present mode*, it alone paces the frames
 ([ADR-0021](adr/0021-frame-pacing.md), which calls it the timer, or the schedule).
 
+**Frustum culling.** Leaving out of a pass the *instances* that it cannot show: those whose box,
+the smallest box around their mesh, lies outside the volume that the pass's camera or light covers,
+its *frustum*. The shadow passes do it for each *cascade* and each spot light
+(`slime_render::Renderer`); the scene pass draws every instance until Stage 6a's first milestone
+builds it ([ADR-0097](adr/0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md),
+[`docs/PLAN.md`](PLAN.md)).
+
 **Fullscreen triangle.** One triangle larger than the target, which covers every pixel of it,
 built by the vertex shader from the vertex index without a vertex buffer: how a pass that
 processes a whole image, such as tone mapping, draws.
@@ -375,6 +389,13 @@ vertices (`slime_gfx::IndexBuffer`).
 **Instance (render).** One thing the renderer draws: a *mesh*, a *material* and a transform from
 the mesh's space to world space (`slime_render::Instance`). A render *scene* is a flat list of
 them, built for each frame.
+
+**Instancing.** Drawing with one draw call the *instances* that share a mesh and a material, each
+reading its own values, its transform among them, by its index
+([ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md)). Decided, not built yet: the
+renderer draws each instance with a draw call of its own until Stage 6a's first milestone
+([ADR-0097](adr/0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md),
+[`docs/PLAN.md`](PLAN.md)).
 
 **Interpolation factor.** The fraction of a fixed step accumulated but not yet run
 (`FixedStep::alpha`), between 0 and 1. Used to draw a state between the last two fixed steps:

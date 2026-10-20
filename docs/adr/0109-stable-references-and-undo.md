@@ -5,7 +5,9 @@
   identities, not their handles), [0092](0092-a-world-written-back-as-a-scene.md) and
   [0093](0093-saves-and-hot-reload-with-placements.md) (what the editor creates is named for good,
   and a created entity written into a scene is carried once) and
-  [0101](0101-saves-and-identities-that-never-mislead.md) (what a start creates in code has a key)
+  [0101](0101-saves-and-identities-that-never-mislead.md) (what a start creates in code has a key);
+  amended by [0116](0116-stage-6-in-two-halves.md) (a created entity carried once before the
+  editor's command system)
 - Date: 2026-10-20
 
 ## Context

@@ -16,29 +16,29 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0089](adr/0089-scenes-and-prefabs.md) to [ADR-0095](adr/0095-cooked-scene-files.md)).
   Worlds are written in files, scene files that place prefabs with overrides, cooked into a binary
   encoding of the engine's own; *Hunna Wood*'s zone is made of prefabs, on Linux and on Windows.
-- The audit pass before Stage 6: current
+- The audit pass and the foundations pass before Stage 6: done on 2026-10-20
   ([ADR-0096](adr/0096-the-files-the-engine-reads.md),
   [ADR-0097](adr/0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md)). An audit of 0.4
   found defects that lose or change a player's saves, files that crash the engine, a recovery from a
-  lost GPU device that covers one case, and quick wins that it measured. Milestones P1 to P5 fix
-  them; then a foundations pass, P6, decides as ADRs what the editor will freeze. Stage 6, the
-  editor, is planned with the owner after it. P1
+  lost GPU device that covers one case, and quick wins that it measured. P1
   ([ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)), P2
   ([ADR-0102](adr/0102-a-damaged-file-gives-an-error.md)), P3
-  ([ADR-0103](adr/0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md)) and P5
+  ([ADR-0103](adr/0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md)), P5
   ([ADR-0104](adr/0104-the-build-ci-and-measurements.md),
-  [ADR-0105](adr/0105-egui-fonts-ship-with-the-dev-overlay.md)) are done, and P4
-  ([ADR-0106](adr/0106-the-measured-quick-wins.md)) but B4-F01, which P6's execution model weighs;
-  P6 is current: its execution model ([ADR-0107](adr/0107-the-execution-model.md)), what the
-  world knows of its changes ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)),
-  stable references and undo ([ADR-0109](adr/0109-stable-references-and-undo.md)), how the editor
-  runs a game's code ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)), the frame
-  contract ([ADR-0111](adr/0111-the-frame-contract.md)), levels, saves and worlds for open worlds
+  [ADR-0105](adr/0105-egui-fonts-ship-with-the-dev-overlay.md)) and P4
+  ([ADR-0106](adr/0106-the-measured-quick-wins.md)) fixed them, but B4-F01, which M6a.2 fixes.
+  P6 decided as ADRs what the editor will freeze: the execution model
+  ([ADR-0107](adr/0107-the-execution-model.md)), what the world knows of its changes
+  ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)), stable references and undo
+  ([ADR-0109](adr/0109-stable-references-and-undo.md)), how the editor runs a game's code
+  ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)), the frame contract
+  ([ADR-0111](adr/0111-the-frame-contract.md)), levels, saves and worlds for open worlds
   ([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)), asset requests
   ([ADR-0113](adr/0113-asset-requests-residency-and-priorities.md)), hardware tiers
   ([ADR-0114](adr/0114-hardware-tiers-and-the-gpus-limits.md)), and what the GPU layer gives the
-  editor ([ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md)) are decided: every decision
-  of P6 is taken, and Stage 6 is to be planned with the owner on them.
+  editor ([ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md)). The passes' checks by hand
+  wait for the owner ([the list](#checks-by-hand-waiting-for-the-owner)); what both deliver ships
+  with 0.5.
 - The games the engine aims at, described on 2026-10-19
   ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)): nine profiles, from *Hunna Wood* to a
   massively multiplayer game, listed in [`ROADMAP.md`](ROADMAP.md). They add criteria to P6, one UI
@@ -47,20 +47,505 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   AI agents drive the engine through an MCP server of its own, from Stage 6, each later stage
   exposing its systems to it. [ADR-0100](adr/0100-updates-of-shipped-games.md): updates of shipped
   games at Stages 9b and 10b, and a shipped game's saves that load in all its later versions.
+- Stage 6a — What the editor stands on: planned on 2026-10-20 and validated by the owner
+  ([ADR-0116](adr/0116-stage-6-in-two-halves.md)), to be released as 0.5 at its close, with both
+  passes. Stage 6 is split in two halves: Stage 6b, the editor, is planned in detail at Stage 6a's
+  close and released as 0.6. Next: M6a.1.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
+| [M6a.1](#m6a1--frustum-culling-and-instancing) | What the camera does not see is not drawn, and the instances of one mesh and one material are drawn together | Planned |
+| [M6a.2](#m6a2--the-engines-task-pool-and-copies-to-the-gpu-within-a-budget) | A load never slows the frames, and the engine's compute work runs on one task pool | Planned |
+| [M6a.3](#m6a3--what-the-world-knows-of-its-changes) | Each reader of the world asks what changed since it last read; components clone | Planned |
+| [M6a.4](#m6a4--a-frame-that-owns-what-it-draws) | A frame owns what it draws, and loading needs no renderer | Planned |
+| [M6a.5](#m6a5--the-phases-of-a-frame-game-time-and-a-game-as-a-simulation-and-a-presentation) | Each phase of a frame says who may change the world; game time pauses and steps; a game's rules run without a GPU | Planned |
+| [M6a.6](#m6a6--the-development-channel-and-the-mcp-server) | An agent drives a running game without a person | Planned |
+| [M6a.7](#m6a7--identities-and-saves-per-scene) | A save holds what was changed and costs what changed; an entity outlives its level | Planned |
+| [M6a.8](#m6a8--views-apart-from-the-renderer) | One renderer draws several views, each with its own settings | Planned |
+| [M6a.9](#m6a9--asset-requests) | What a view lacks loads first, and assets stay within a budget of memory | Planned |
+| [M6a.10](#m6a10--rendering-for-the-editor) | The renderer draws what an editor shows, and says what is under the cursor | Planned |
+| [M6a.11](#m6a11--windows-check-documentation-release-05) | Stage 6a is done and released as 0.5, with the audit pass and the foundations pass | Planned |
 | [P1](#p1--saves-and-identities-that-never-mislead) | A save, a scene file and a level written back hold what the world holds and name the entities they mean; a game resumes only a save it can play, and never loses one | Done |
 | [P2](#p2--a-damaged-file-gives-an-error-never-a-crash) | No damaged or edited file makes the engine panic, hang or exhaust its memory (ADR-0096) | Done |
 | [P3](#p3--the-loss-of-the-gpu-device-and-the-main-loop) | A lost GPU device is recovered wherever the loss is found, and a panic in `render` stays an ordinary panic | Done |
 | [P5](#p5--the-build-ci-and-measurements-tracked-from-one-commit-to-the-next) | Every crate compiled once, CI under its limit, and the engine's measurements tracked from one commit to the next | Done |
-| [P4](#p4--the-measured-quick-wins) | The quick wins that the audit measured, each measured again before and after | Done but B4-F01, which P6's execution model weighs |
-| [P6](#p6--the-foundation-decisions) | What the editor will freeze, decided as ADRs | Current: every decision taken (ADR-0107 to ADR-0115); Stage 6 to be planned with the owner |
+| [P4](#p4--the-measured-quick-wins) | The quick wins that the audit measured, each measured again before and after | Done but B4-F01, which M6a.2 fixes |
+| [P6](#p6--the-foundation-decisions) | What the editor will freeze, decided as ADRs | Done |
 
 Stages 0, 1, 2, 3a, 3b, 3c, 3d, 4a, 4b, 5a and 5b are done; see [Completed
 stages](#completed-stages).
+
+## Stage 6a — What the editor stands on
+
+Exit criterion (see [`ROADMAP.md`](ROADMAP.md#stage-6a--what-the-editor-stands-on--05)): *Hunna
+Wood* runs on what the editor stands on, on Linux and on Windows. What the camera does not see is
+not drawn, and the rest is drawn by instances, measured at the hardware tiers' resolutions against
+their budgets ([ADR-0114](adr/0114-hardware-tiers-and-the-gpus-limits.md)); its zone loads without
+a frame missing its time; its game time pauses and steps; an agent drives it through the engine's
+MCP server, pausing and stepping it, reading and changing its world, capturing its image and
+playing it with scripted input; its saves are differences per scene, which cost what changed. The
+`world` example draws a frame in several views and picks the object under the cursor.
+
+This is the first half of Stage 6 ([ADR-0116](adr/0116-stage-6-in-two-halves.md)): what the
+editor stands on, built and checked without the editor's interface, on the decisions of the
+foundations pass. Where the engine stands at the start:
+
+- **Every instance is drawn, with a draw call of its own**, its values in a slot of 256 bytes of a
+  uniform buffer. The shadow passes leave out the instances that a cascade or a spot light does not
+  reach; the scene pass draws them all ([Known debt](#known-debt)).
+- **Threads started four ways**: `slime-render`'s private pool of up to four threads, which loads;
+  a thread per load, which waits for its tasks; a thread per logical core for the sky's
+  environment; the cooker's own. The loading tasks submit their copies to the GPU as they read, and
+  a load slows every frame (B4-F01, [ADR-0107](adr/0107-the-execution-model.md)).
+- **Only transforms tell that they changed**: every other reader reads the whole world each time
+  ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)).
+- **A frame borrows**: `FrameBuilder::build` and `AssetCache::request` take the `Renderer`, and
+  `Frame`, `Scene` and `Instance` borrow what they draw; a renderer draws one output of one size
+  ([ADR-0111](adr/0111-the-frame-contract.md)).
+- **A game is one block**: every method of `App` receives a `Context` that holds the world, the GPU
+  and the window, and *Hunna Wood* changes its world while it draws; one time, without pause or
+  step (ADR-0107).
+- **Nothing links a running game to a tool**: agents reach it through tests, logs and captures of
+  their own ([ADR-0099](adr/0099-ai-agents-drive-the-engine.md),
+  [ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)).
+- **A save is the difference from a start world that the game makes again whole**, at each save;
+  nothing outlives its scene; *Hunna Wood* puts its fire's intensity back before each save
+  (`unflicker`); a created entity written into its level exists twice once carried
+  ([ADR-0109](adr/0109-stable-references-and-undo.md),
+  [ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)).
+- **The asset cache keeps all it loaded**, until new cooked data or a lost device, and loads
+  without priorities or cancellation
+  ([ADR-0113](adr/0113-asset-requests-residency-and-priorities.md)).
+- **No blending, lines, integer targets or picking**, and the renderer's passes are a closed list
+  ([ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md)).
+
+Out of scope: Stage 6b's work, the editor's commands beyond the dev overlay's edits, its journal,
+undo and redo, the UI framework, the editor's window, viewport, hierarchy, inspector, gizmos and
+asset browser, levels of several files, the former identities that the editor writes, `EntityRef`,
+play in the editor, a game started again after a change of its code, and *Hunna Wood*'s editor
+package; the job system, a render thread, hooks, messages and deferred changes (Stage 7); a copy of
+the world and its restore (with their first user); a frame updated by what changed rather than
+built again (on measurement, ADR-0111); kinds of material of a game's own, transparency sorted by
+depth, compute shaders and indirect draws (Stage 9a); layers that depend on the story (Stage 9b);
+textures streamed by their levels of detail, cells and transfer between worlds (Stage 10a).
+
+Decisions taken when the stage was planned, by the owner on 2026-10-20, with the alternatives they
+rejected, are in [ADR-0116](adr/0116-stage-6-in-two-halves.md): Stage 6 in two halves, each
+released, Stage 6a as 0.5 and Stage 6b as 0.6, every later stage released one version later; the
+order below, each milestone after what it needs, the riskier first; the development channel and
+the MCP server before play in the editor; identities and saves per scene in Stage 6a; the frame
+that owns what it draws before the split of a game; Stage 6b beginning with the editor's core. What
+each milestone builds was decided in ADR-0107 to ADR-0115; each milestone that designs a part
+records its design in a new ADR, which amends the ADR that decided the part where it changes it.
+
+Risks:
+
+- **The size of the half.** Eleven milestones, most of them large; M6a.7 is split in two within
+  Stage 6a if it outgrows one.
+- **Every program changes.** M6a.3 gives guards on mutable access, M6a.4 a frame without lifetimes
+  and M6a.5 the split of `App`, which its thirteen implementations (eight tests of `slime-app`, four
+  examples and *Hunna Wood*), the three examples of the crates' READMEs and the benchmarks follow.
+  The order makes each change once.
+- **Costs per access.** Ticks and counted references add work to each write and each instance:
+  M6a.3 and M6a.4 measure them on the benchmarks of 100 000 entities, before and after.
+- **Concurrency.** The task pool and the owner of the copies change how a load meets a lost device:
+  P3's scenarios run again at M6a.2.
+- **A port that listens.** The development channel is local, guarded by a token and absent from
+  shipped builds; M6a.6 extends [ADR-0096](adr/0096-the-files-the-engine-reads.md)'s threat model to
+  it.
+- **Saves.** M6a.7 changes the layout of saves: the fixture is made again, and whether the saves of
+  layouts 2 and 3, those of 0.4 and those written since P1, are still read is decided and tested.
+- **One GPU.** Budgets are checked on the owner's RX 6900 XT only ([Known debt](#known-debt)).
+- **The cost of the checks.** CI's jobs stay under the owner's 20 minutes
+  ([ADR-0104](adr/0104-the-build-ci-and-measurements.md)): each milestone that adds a crate records
+  how long they take.
+
+### M6a.1 — Frustum culling and instancing
+
+- **Goal.** What the camera does not see is not drawn, and the instances of one mesh and one
+  material are drawn by one draw call: a frame costs what is seen, not the world's size.
+- **Findings.** G29: beyond 1 048 576 meshes drawn, `render` panics in wgpu. The known debt: every
+  instance drawn with a draw call of its own, its values in a slot of 256 bytes, half of it padding.
+- **Crates.** `slime-gfx`, `slime-render`, `slime-benches`.
+- **Delivers.** In `slime-gfx`, as [ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md)
+  decides, amending ADR-0026: a storage buffer, and buffers that declare several uses and are
+  written by ranges; meshes that share buffers, an indexed draw from a base vertex; a range of
+  instances per draw. In `slime-render`: the instances' values in a storage buffer, read by the
+  instance's index; the camera's view culled by each instance's box; each pass's draws grouped by
+  pipeline, material and mesh into instanced draws, the shadow passes' included; the instances
+  beyond what the device's limits hold left out with a warning. The render benchmarks at the
+  hardware tiers' resolutions, 1280 × 800, 1920 × 1080 and 2560 × 1440, and
+  [`measurements.md`](measurements.md) comparing each figure with its budget scaled to the RX
+  6900 XT (ADR-0114). The ADR of the design; the renderer's rustdoc and README,
+  [`benches/README.md`](../benches/README.md), `docs/ARCHITECTURE.md`, the glossary,
+  `CHANGELOG.md`; the known debt above retired.
+- **Done when.** The image tests pass unchanged, within the tolerances of
+  [ADR-0054](adr/0054-image-tests-allow-0-2-percent-on-other-drivers.md); tests: an instance outside
+  the view is not drawn, and its shadow still falls in the view; the instances of one mesh and one
+  material take one draw call per pipeline; past the device's limits, the rest are left out with a
+  warning, without a panic (G29); `render.instances.10k` and `render.unseen.10k` measured before
+  and after, on lavapipe and on the RX 6900 XT, and `render.instances.100k` on the RX 6900 XT
+  alone, which lavapipe cannot run, all at the tiers' resolutions; CI is green.
+- **How to test.** `cargo test -p slime-gfx -p slime-render`; `cargo run --release -p
+  slime-benches -- render render.instances.100k`.
+- **By hand.** The owner plays the zone by day and at night, and finds it unchanged.
+
+### M6a.2 — The engine's task pool, and copies to the GPU within a budget
+
+- **Goal.** A load never slows the frames, and the engine's compute work runs on one task pool,
+  with a priority for what a frame waits for.
+- **Findings.** B4-F01, which P4 left to P6's execution model: during a load, the render CPU went
+  from 0.5 to 2.9 ms on the audit's RX 6900 XT, and to 16.6 ms at the 99th percentile with textures
+  of 4096² texels; on *Hunna Wood*'s zone, from 0.54 to 0.77 ms at the median and 2.2 ms at the 90th
+  percentile ([P4's outcome](#p4--the-measured-quick-wins)).
+- **Crates.** A new crate at the bottom of the workspace, on the standard library alone;
+  `slime-render`, `slime-world-render`, `slime-cook`, `slime-benches`.
+- **Delivers.** The engine's task pool, as [ADR-0107](adr/0107-the-execution-model.md) decides:
+  the machine's logical cores but one, at least one; tasks of a *frame* and of a *background*
+  priority, a free thread taking a frame task first, background tasks never holding every thread;
+  `slime-render`'s private pool, the threads of the sky's environment and the cooker's moved onto
+  it, the sky made by frame tasks. Loading tasks write texels and vertices into staging buffers
+  reused from one load to the next; one thread of the renderer submits the copies, within a budget
+  of bytes per frame set by measurement; a load ends with its last task, without a thread that
+  waits for it. A benchmark of a load of textures of 4096², the audit's case. Its design recorded in
+  an ADR where it adds to ADR-0107; the figures in the rustdoc; the new crate's README;
+  `docs/ARCHITECTURE.md`'s threads and loading, `benches/README.md`, `measurements.md`, the
+  glossary, `CHANGELOG.md`; the known debt of B4-F01 retired.
+- **Done when.** Tests: a frame task is taken before every background task, and finds a thread
+  while background tasks fill the pool; a scene still arrives whole; the cook gives the same bytes;
+  the lost-device scenarios of P3 pass; on the RX 6900 XT, while the zone loads and while the
+  textures of 4096² load, the render CPU stays near what it is once loaded, and no frame takes more
+  than 16.7 ms, the frame of 60 frames a second (ADR-0114); CI is green.
+- **How to test.** `cargo test --workspace`; `cargo run --release -p slime-benches -- loading
+  loading.zone`; `scripts/check.sh`.
+- **By hand.** The owner starts the game, and sees the zone appear as before.
+
+### M6a.3 — What the world knows of its changes
+
+- **Goal.** Each reader of the world asks what was added, changed or removed since it last read,
+  rather than reading the whole world; components clone.
+- **Findings.** G32, in part: `World::is_hidden` walks the ancestors of what draws, at each frame.
+- **Crates.** `slime-world`; `slime-world-render`, `slime-devui`, *Hunna Wood*, the examples and
+  the benchmarks, for the guards and `Clone`.
+- **Delivers.** As [ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md) decides: on every
+  value of a component, the tick at which it was added and the one at which it last changed;
+  mutable access through a guard that stamps the value written, and a variant that stamps only a
+  value that differs; a summary per storage and per block; a log of removals; a structure counter;
+  the marks of stale transforms kept by the same guard; a flag of the entities that an ancestor
+  hides, which `World::is_hidden` reads; `Component: Clone`. The world panel makes its list again
+  only when the structure counter moves. A benchmark of a reader of 100 000 entities of which 1 %
+  changed. The width of a tick and the size of a block set by measurement; its design recorded in
+  an ADR where it adds to ADR-0108; the rustdoc, `docs/ARCHITECTURE.md`'s world,
+  `benches/README.md`, `measurements.md`, the glossary, `CHANGELOG.md`.
+- **Done when.** Tests: each of two readers sees a value written through a guard once, at its own
+  pace; the variant does not stamp a value set equal; removed components and destroyed entities are
+  in the log, with their ticks; the structure counter moves when an entity is spawned or destroyed,
+  or changes parent or name, and only then; a reader skips the blocks that did not change; the
+  hidden flag follows `Hidden` and changes of parent; `world.frame.100k`, `world.transforms.100k`
+  and a reader of 100 000 entities of which 1 % changed measured before and after; CI is green.
+- **How to test.** `cargo test -p slime-world`; `cargo run --release -p slime-benches -- world`.
+
+### M6a.4 — A frame that owns what it draws
+
+- **Goal.** A frame is a value of its own, built from the world, then drawn without it, and loading
+  needs no renderer: what views, the editor's previews and one day a render thread need.
+- **Findings.** G17, medium: `FrameBuilder::build` borrows the asset cache, the `Frame` that it
+  returns borrows its meshes and materials, and `AssetCache::request` borrows the `Renderer`, so
+  that no thread can draw one frame while the next is built.
+- **Crates.** `slime-render`, `slime-world-render`, `slime-gfx`; the examples, *Hunna Wood* and the
+  benchmarks.
+- **Delivers.** As [ADR-0111](adr/0111-the-frame-contract.md) decides: `Frame`, `Scene` and
+  `Instance` without lifetimes, their meshes and materials held by counted references, the frame
+  holding its lights and its environment; an asset cache that keeps what it needs of the renderer,
+  `AssetCache::request` and `FrameBuilder::build` taking no `Renderer`; a material of a kind
+  registered with the renderer, which gives its shaders, its parameters described by reflection and
+  the passes it draws in, the physically based kind alone. As
+  [ADR-0114](adr/0114-hardware-tiers-and-the-gpus-limits.md) decides: the device asks for the
+  adapter's limits, above a floor written in `slime-gfx` and checked when a device opens, below
+  which it refuses with an error that names the limit and the value needed; what CI's WARP offers,
+  read from its job's log. The ADR of the design; the rustdoc, the READMEs, the renderer's rule on
+  what it keeps among them, `docs/ARCHITECTURE.md`'s frame, `measurements.md`, the glossary,
+  `CHANGELOG.md`; G17 retired.
+- **Done when.** A frame built on one thread is drawn on another, `Send` and `'static` as the
+  `threads` modules check; the image tests pass unchanged; a cache loads and keeps meshes without a
+  renderer; the physically based kind draws as the material did; a floor above what an adapter
+  offers refuses it, naming the limit; lavapipe and WARP open above the floor in CI; the cost of the
+  counted references measured on `world.frame.100k`, and on `render.instances.100k` on the RX
+  6900 XT; CI is green.
+- **How to test.** `cargo test --workspace`; `cargo run --release -p slime-benches -- world render
+  render.instances.100k`.
+
+### M6a.5 — The phases of a frame, game time, and a game as a simulation and a presentation
+
+- **Goal.** Each phase of a frame says who may change the world; game time pauses, slows down and
+  steps; a game's rules run without a GPU or a window, as tests, the editor's child process and one
+  day a server run them.
+- **Crates.** `slime-app`, `slime-world`, `slime-devui`, `slime-platform` if the keys held need it;
+  the examples, *Hunna Wood* and the benchmarks.
+- **Delivers.** As [ADR-0107](adr/0107-the-execution-model.md) decides: `App` giving way to a
+  simulation and a presentation, run by a host, `run` the host of a game's program; the six phases
+  of a frame, extraction and rendering given the world as `&World` or not at all, in the two calls
+  of [ADR-0111](adr/0111-the-frame-contract.md); a change asked outside the first three phases
+  queued as a command and applied at the next frame's start, the first command a value set at a
+  property path of a component, on an entity named by its persistent identity
+  ([ADR-0109](adr/0109-stable-references-and-undo.md)), which the dev overlay's world panel sends;
+  the input given as data, the keys and buttons held kept by the engine
+  ([ADR-0057](adr/0057-what-the-first-game-asks-of-the-next-stages.md)); real time and game time,
+  with a speed, a pause and one step, a fixed step of the same duration at every speed. *Hunna
+  Wood* becomes a library and its program ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md),
+  amending [ADR-0055](adr/0055-games-in-the-workspace.md)): its rules a simulation whose fixed step
+  no longer waits for its view, game time kept paused by its program until the zone is drawn; its
+  fire's flicker out of `render`; its camera in the presentation; its overlay's edits commands, and
+  its cooked data that changed applied at the start of a frame; keys of its overlay that pause and
+  step. The examples, and those of the READMEs, moved. The ADR of the design; the rustdoc,
+  `slime-app`'s README, `docs/ARCHITECTURE.md`'s flows, the glossary, `CHANGELOG.md`, the game's
+  README.
+- **Done when.** Tests, headless and in Weston: the phases run in their order, and a presentation
+  that writes the world does not compile (`compile_fail`); at a speed of a quarter, a step runs at
+  every fourth frame at 60 Hz and the presentation interpolates between steps; paused, no step
+  runs; one step runs exactly one; a command sent during a frame is applied at the next one's start;
+  *Hunna Wood*'s rules run through its library for hundreds of steps without a GPU; the lifecycle
+  and lost-device scenarios pass; CI is green.
+- **How to test.** `cargo test --workspace`; `scripts/check.sh`.
+- **By hand.** The owner plays the zone, pauses and steps it from the overlay, and finds it
+  otherwise unchanged.
+
+### M6a.6 — The development channel and the MCP server
+
+- **Goal.** An agent, or a test, drives a running game without a person: it pauses and steps it,
+  reads and changes its world, captures its image, plays it with scripted input, reads its logs and
+  measurements. Each later milestone exposes its system to it.
+- **Crates.** `slime-app`, whose host listens; `slime-gfx` or `slime-render`, for captures of the
+  game's image, which a window's image does not allow today
+  ([ADR-0033](adr/0033-gpu-layer-for-multi-pass-rendering.md)); the MCP server, a program of the
+  workspace; *Hunna Wood* and the examples.
+- **Delivers.** As [ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md) decides: a game started
+  with a secret token in its environment listens on `127.0.0.1`, on a port that the system
+  chooses, made known to whoever started it, and accepts a connection only with that token; started
+  without one, it does not listen. Messages in the binary encoding, behind a version of the protocol
+  that both ends check: the host's controls, pause, speed, one step and stop; commands; questions on
+  the world, through reflection; captures of its image; scripted input; and from the game, its
+  state, its logs and its measurements. How the token is drawn from the system's randomness, and
+  whether that needs a dependency; how a build is made for development or for shipping, the channel
+  and the server left out of the latter. As
+  [ADR-0099](adr/0099-ai-agents-drive-the-engine.md) decides: the engine's MCP server, which starts
+  a game with a token, and gives an agent these operations, cooking, the tests, and reloading what
+  hot reload reloads; its dependency asked for, with the alternatives considered. ADR-0096's threat
+  model extended to the channel and the server; the ADR of the design; the server's README,
+  `AGENTS.md`'s and `CONTRIBUTING.md`'s commands, `docs/ARCHITECTURE.md`,
+  [`dependencies.md`](dependencies.md), the glossary, `CHANGELOG.md`.
+- **Done when.** Tests start *Hunna Wood* with a token, in Weston on lavapipe, connect to it, pause
+  it, step it, read the hero's transform by its identity, change a value, walk the hero with
+  scripted input and capture its image; a connection without the token, or of another version of
+  the protocol, is refused with a message; a game started without a token opens no port; a build for
+  shipping holds neither the channel nor the server; a test drives the game through the server's
+  tools; the agent that builds the milestone checks a change of the game on screen through the
+  server; CI is green.
+- **How to test.** `cargo test --workspace`; `scripts/check.sh`.
+- **By hand.** In the Windows virtual machine: the system's firewall asks nothing when the game
+  listens.
+
+### M6a.7 — Identities and saves per scene
+
+- **Goal.** A save, and a level written back, hold what an author or a player changed, no more; a
+  save costs what changed; an entity outlives its level.
+- **Findings.** The known debt: a created entity written into its level exists twice once carried,
+  which the audit's test showed again on 2026-10-20; what a start creates without a key can take
+  another's saved changes; a key under which the world remembers a scene of which nothing lives;
+  P1's way round G02, a level that keeps something of the one before it under a key of its own.
+- **Crates.** `slime-world`, `slime-serialize`; *Hunna Wood*, the `world` example, the benchmarks
+  and the MCP server.
+- **Delivers.** As [ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md) decides: the mark of
+  driven components, which saves, the overrides of prefabs and levels written back leave as their
+  author wrote them, in the place of *Hunna Wood*'s `unflicker`. As
+  [ADR-0109](adr/0109-stable-references-and-undo.md) decides: what a start creates in code holds a
+  key or is `Unsaved`, else saving refuses, naming the entities; a created entity that a scene
+  written back holds is carried once, known by the ID that the world gave it. As
+  [ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md) decides: saves made of differences
+  per scene, each scene compared with its base, what it spawns and what the game adds when it spawns
+  it, without a start world made again; the differences of a scene unloaded kept, and applied again
+  when it loads; what persists, what resets and what is never saved, chosen per scene and per
+  entity; adoption, an entity taken out of its scene under a key of its own, its former identity
+  written, so that `World::spawn_scene` no longer refuses a level because something of the one
+  before it lives; a run carried through hot reload the same way; the cost of a save following the
+  ticks of M6a.3, and a benchmark of a save of 100 000 entities of which 1 % changed. A new layout
+  of saves, with whether the saves of layouts 2 and 3, those of 0.4 and those written since P1, are
+  still read decided, and *Hunna Wood*'s fixture made again
+  ([ADR-0100](adr/0100-updates-of-shipped-games.md)). Saving and loading a running game exposed to
+  the MCP server. The ADR of the design; the rustdoc, `docs/ARCHITECTURE.md`'s saves,
+  `benches/README.md`, `measurements.md`, the glossary, `CHANGELOG.md`, the game's README; the
+  known debt above retired. If it outgrows a milestone, it is split in two within Stage 6a: first
+  the driven mark, the keys and the carried entity, then saves per scene and adoption.
+- **Done when.** The audit's test of the torch, moved into the repository, passes; tests: a driven
+  component is saved and written back as its author wrote it, and computed again after a load; a
+  start that creates an entity without a key refuses to save, naming it; a save of 100 000 entities
+  of which 1 % changed costs what changed, measured; a scene unloaded, then loaded again, gets back
+  its differences; a scene reset by a signal of the game forgets them, a persistent one keeps them;
+  an adopted entity outlives the level that replaced its own, with its references, through a save
+  and a load; hot reload carries a run as before; a test saves and loads a running game through
+  the MCP server; *Hunna Wood*'s tests pass on the zone and its fixture resumes; CI is green.
+- **How to test.** `cargo test -p slime-world -p slime-serialize`; `cargo test -p hunnawood --
+  --ignored`.
+- **By hand.** The owner plays: F5, F9, quit and resume.
+
+### M6a.8 — Views apart from the renderer
+
+- **Goal.** One renderer draws several views, each with its own camera, size and settings, and
+  makes once what views share; a view resized frees its old targets before it makes new ones.
+- **Findings.** G18: a resize keeps the targets of the old size while it creates the new ones, and
+  after `GfxError::OutOfMemory` keeps targets that no longer fit. G37: if creating the spot lights'
+  shadow atlas runs out of memory, the sun loses its shadows without a word. G47: a multisampled
+  output target makes `render` panic inside wgpu. The known debt: a renderer whose frame changes
+  shape reports no tone-mapping or bloom time, and one renderer per output size.
+- **Crates.** `slime-render`, `slime-world-render`; the examples, *Hunna Wood*, the benchmarks and
+  the MCP server.
+- **Delivers.** As [ADR-0111](adr/0111-the-frame-contract.md) decides: what views share made once,
+  the pipelines, the spot lights' shadows, the environment and the BRDF table; for each view, its
+  camera, size, settings, targets, timers and history; a part of the render graph per view; the
+  sun's cascade atlases from a pool that views drawn in turn share; a view's settings, a
+  perspective or orthographic projection, an offset of its projection, its render scale, its
+  anti-aliasing, a mode of debugging that shows normals or shadows, the passes it runs; several
+  views per frame; a view's targets made again once its size holds still, the old ones freed
+  first. The `world` example draws a second view, orthographic, from above. Any view's image
+  captured through the MCP server. The ADR of the design; the rustdoc, `docs/ARCHITECTURE.md`'s
+  rendering, the glossary, `CHANGELOG.md`; the known debt above retired.
+- **Done when.** Image tests: each of two views of a frame gives the image that it gives drawn
+  alone; an orthographic view; a render scale of one half; the two modes of debugging; two halves of
+  an image drawn with offsets give the whole; four views of 1280 × 720 with the sun measured against
+  the 508 MiB of four renderers today; a view resized never holds both sizes' targets at once, and a
+  size that does not fit leaves the view without targets, with an error, rather than with old ones;
+  the tests that confirmed G18, G37 and G47 pass; a test captures each of two views through the
+  MCP server; CI is green.
+- **How to test.** `cargo test -p slime-render -p slime-world-render`; `cargo run --example world`.
+- **By hand.** The owner looks at the `world` example's two views.
+
+### M6a.9 — Asset requests
+
+- **Goal.** What a view lacks loads before what is fetched ahead, a load that nothing needs any more
+  stops, and the memory that assets take stays within a budget.
+- **Findings.** G16, in part: one unreadable file hides its whole batch of meshes, until the cooked
+  data changes. Trying a passing error again, such as GPU memory running out, is Stage 6b's.
+- **Crates.** `slime-render`, `slime-world-render`; *Hunna Wood*, the examples, the benchmarks and
+  the MCP server.
+- **Delivers.** As [ADR-0113](adr/0113-asset-requests-residency-and-priorities.md) decides:
+  requests that carry a priority, *now*, *soon* or *later*, and return a request handle, the assets
+  asked for together arriving together; an asset kept, or kept loading, while a handle holds it;
+  the last handle dropped cancels a load or makes the asset releasable; a priority changed while
+  the handle lives; the bridge from the world to the renderer, `slime-world-render`, holding
+  handles for what each view draws; the owner of the copies to
+  the GPU serving the classes in their order, within its budget; releasable assets ranked by their
+  last use, and dropped least recently used first past a budget per kind, textures and meshes, by
+  default the minimum hardware tier's ([ADR-0114](adr/0114-hardware-tiers-and-the-gpus-limits.md)),
+  never one that a handle holds, with a report when that is not enough; what the engine holds
+  counted from the sizes of what it creates; a load that fails reported by its handle, without
+  keeping the other assets of its request from arriving; new cooked data and a lost device keeping
+  handles valid. The cache's requests and memory read through the MCP server. The ADR of the
+  design; the rustdoc, `docs/ARCHITECTURE.md`'s loading, the glossary, `CHANGELOG.md`.
+- **Done when.** Tests: a request's assets stay while a handle holds them; dropping the last handle
+  cancels a load in progress and makes a loaded asset releasable; requests of the three classes are
+  served in their order, and one raised from *soon* to *now* moves ahead; past its budget, the cache
+  drops the releasable assets least recently used and never a held one, and reports when it cannot
+  drop enough; an unreadable mesh no longer hides the others of its request (G16); handles stay
+  valid through new cooked data and a lost device; a long session of requests and releases keeps
+  the memory within its budget; *Hunna Wood*'s hero arrives before its zone; a test reads the
+  cache's requests and memory through the MCP server; CI is green.
+- **How to test.** `cargo test -p slime-render -p slime-world-render`; `cargo run --release -p
+  slime-benches -- loading loading.zone`.
+
+### M6a.10 — Rendering for the editor
+
+- **Goal.** The renderer draws what an editor shows, lines, blended overlays and unlit icons, and
+  says which object is under the cursor.
+- **Crates.** `slime-gfx`, `slime-render`, `slime-world-render`; the examples and the MCP server.
+- **Delivers.** As [ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md) decides, in
+  `slime-gfx`: blending, lines, a render target of integers, a target read back without waiting, a
+  part of a texture written, a pass that resolves a depth of four samples into one, amending
+  ADR-0059. In `slime-render`: the unlit kind of material, the second kind; two points of each
+  view's graph where a client registers its draws, in the scene pass after the opaque instances,
+  and after tone mapping, amending ADR-0041. Picking by the GPU: an image of the instances'
+  numbers, at one sample per pixel, read back a frame or two later without holding up a frame,
+  given up without a panic on a lost device, each number mapped by the bridge to the persistent
+  identity of the entity drawn. Picking by the CPU: a ray against the instances' bounds, then against the triangles of the
+  meshes that it meets, kept in the CPU's memory for it. A view's image sampled by another pipeline
+  through `slime-gfx`, which Stage 6b's interface shows. The `world` example draws a grid at the
+  first point, and the box of what is clicked at the second. The entity under a pixel of a view
+  named through the MCP server. The ADR of the design; the rustdoc, `docs/ARCHITECTURE.md`, the
+  glossary, `CHANGELOG.md`.
+- **Done when.** Image tests: lines; blending; an unlit material; a grid, drawn at the first point,
+  hidden by the objects in front of it; lines drawn at the second point over everything; picking by
+  the GPU and by the CPU name the same entity under a set of pixels of a scene without masked
+  materials, and the GPU's passes between the cut-out leaves of a masked one to what is behind; a
+  readback never holds up a frame; a device lost while picking gives no answer and no panic; a
+  test names the entity under a pixel through the MCP server; CI is green.
+- **How to test.** `cargo test -p slime-gfx -p slime-render -p slime-world-render`; `cargo run
+  --example world`.
+- **By hand.** The owner clicks objects in the `world` example.
+
+### M6a.11 — Windows check, documentation, release 0.5
+
+- **Goal.** Stage 6a is done, checked on Windows, and released as 0.5 with the audit pass and the
+  foundations pass.
+- **Delivers.** The owner's check, in the Windows virtual machine, of the programs that CI builds,
+  with the checks by hand that wait in [the list](#checks-by-hand-waiting-for-the-owner) if the
+  owner makes them then; the documents reread as a newcomer would read them; `CHANGELOG.md`'s
+  section of 0.5; the release, as [Releasing](#releasing) says; Stage 6b planned with the owner.
+- **Done when.** The owner played *Hunna Wood* and ran the `world` example on Windows; the documents
+  are reread and corrected; CI is green on the release commit; the tag and the GitHub release exist,
+  with the Windows programs.
+- **By hand.** In the Windows virtual machine: *Hunna Wood* played, paused and stepped, saved and
+  resumed; the `world` example's views and picking; the firewall, when the game listens (M6a.6).
+
+## Stage 6b — The editor
+
+Exit criterion (see [`ROADMAP.md`](ROADMAP.md#stage-6b--the-editor--06)): a level of the game is
+built, saved and reloaded entirely in the editor, with undo/redo on every operation; the editor uses
+no private engine API. Released as 0.6 ([ADR-0116](adr/0116-stage-6-in-two-halves.md)).
+
+The stage is planned in detail with the owner at Stage 6a's close, with a study of the UI
+framework's design ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)), and split again then if
+it needs to be. Its milestones, in an order provisional until then:
+
+1. **The editor's core, without its interface**
+   ([ADR-0109](adr/0109-stable-references-and-undo.md)): the editor's commands, which name entities
+   by their persistent identities, an entity created under a given identity and at a given rank
+   among its siblings, a deletion undone by creating its subtree again, the journal, undo and redo,
+   the selection, a level opened and written back; the MCP server acting through the same commands
+   ([ADR-0099](adr/0099-ai-agents-drive-the-engine.md)).
+2. **The engine's UI framework**, in two or three milestones (ADR-0098): its design and its
+   dependencies, decided then; text in several writing systems, layout, widgets, input routing,
+   focus, drag and drop, theming, docking, lists that lay out only what shows; what the platform
+   lacks for an editor, the clipboard, input methods and cursors among it
+   ([ADR-0097](adr/0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md)'s list).
+3. **The editor's window and its viewport**: *Hunna Wood*'s editor, the package
+   `games/hunnawood-editor` ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)); a level
+   opened; a view in a panel; its camera; the grid and the icons of lights; a click that selects,
+   and the selection outlined; G34, with the editor's model of windows.
+4. **Play in the editor** (ADR-0110): the game started in a child process on the level being
+   edited, with a save of its own, in its own window; pause, speed, one step and stop; the game
+   started again where it was after a change of its code; the world updated in place when a prefab
+   changes while the game runs, keeping the handles that its code holds
+   ([ADR-0089](adr/0089-scenes-and-prefabs.md)); the three seconds from Play to control, measured.
+5. **The hierarchy and the inspector**: a tree that lays out only what shows (G46), reparenting by
+   drag and drop, an inspector driven by reflection, which changes a value only when the user
+   changed it (G33), overrides marked, applied and reverted; `EntityRef`, a reference to an entity
+   of any scene, and its picker ([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md));
+   the rest of G32; what becomes of the dev overlay's world panel
+   ([ADR-0081](adr/0081-stage-5a-the-world.md)).
+6. **Gizmos and placing**: moving, turning and scaling a selection; creating, duplicating and
+   deleting.
+7. **Levels of several files** (ADR-0112): parts of a level opened alone, former identities
+   written when an entity moves out of its file, a prefab made of a selection among them
+   ([ADR-0092](adr/0092-a-world-written-back-as-a-scene.md)); a valid change of a prefab that makes
+   a level placing it refuse, checked before saving; whether a level that cannot spawn opens
+   leniently, to be repaired (ADR-0089); G31, G40, G42, G43 and G45; whether a file says the parents
+   and the order of a placement's entities, and keeps the comments of a file written by hand
+   ([Known debt](#known-debt)).
+8. **The asset browser**: the cooker's index of assets, thumbnails, assets dragged into the view,
+   cooking from the editor; a load that a passing error failed tried again (G16); G20, G23, G49 to
+   G53 and G56.
+9. **Windows check, documentation, release 0.6.**
 
 ## The audit pass and the foundations pass
 
@@ -80,8 +565,8 @@ moving into the repository the test that confirmed its defect, failing, then mak
 
 The milestones run in the order of the status table: P5 comes before P4, which measures each gain
 with P5's benchmarks. Each follows the definition of done, its review included, and starts on the
-owner's go. Neither pass has a release of its own: what they deliver ships with 0.5, the editor's
-release.
+owner's go. Neither pass has a release of its own: what they deliver ships with 0.5, Stage 6a's
+release ([ADR-0116](adr/0116-stage-6-in-two-halves.md)).
 
 The audit left unfinished: the measurements of five quick wins, which P4 made; a run of an hour,
 how memory, open files and frame times move over a long game; and every check on Windows, which the
@@ -782,6 +1267,14 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
   measured, and no more.
 - **Done when.** Every decision is accepted and written; Stage 6 is planned with the owner on them,
   its first milestone frustum culling and instancing.
+- **Outcome.** Done on 2026-10-20. The owner took its nine decisions that day, one at a time, each
+  presented as three or four questions with their options: ADR-0107 to ADR-0115 record them, each
+  reviewed against the code before it was pushed, and amend the earlier ADRs that their status
+  lines name. No code was written for them: what each builds, and when, is Stage 6's. Stage 6 was
+  planned with the owner the same day, on them:
+  [ADR-0116](adr/0116-stage-6-in-two-halves.md) splits it in two halves, each released, and orders
+  [Stage 6a](#stage-6a--what-the-editor-stands-on), whose first milestone, M6a.1, is frustum culling
+  and instancing.
 
 ## Releasing
 
@@ -845,7 +1338,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   the 99th percentile with textures of 4096² texels; on *Hunna Wood*'s zone, from 0.54 to 0.77 ms
   at the median and 2.2 ms at the 90th percentile (P4's outcome).
   [ADR-0107](adr/0107-the-execution-model.md) decides one thread that submits the copies, within a
-  budget of bytes per frame, built at Stage 6.
+  budget of bytes per frame, built at M6a.2.
 - **The first frame that draws shadows costs more, and more still while a scene loads**
   ([ADR-0074](adr/0074-uploading-textures-without-holding-up-frames.md)). It makes the renderer
   create its shadow atlas and its frame again; during a load, the GPU, busy with the load's copies,
@@ -1108,7 +1601,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   [ADR-0106](adr/0106-the-measured-quick-wins.md)). `Renderer::render` writes and sends only the
   slots of the frame's instances, but each is a slot of a uniform buffer, aligned as the device's
   limits ask, 256 bytes with the defaults, for 128 bytes of values. A storage buffer indexed by the
-  instance would send half as many bytes; instancing decides it at Stage 6 (ADR-0097).
+  instance would send half as many bytes; instancing decides it at M6a.1 (ADR-0097).
 - **The dev overlay can still panic on a lost device** (ADR-0022, ADR-0103). `Overlay::render`
   skips the frame when the device was lost earlier in it, and `Overlay::new` returns an error on a
   lost device, but two cases panic inside egui-wgpu or wgpu: a loss that egui-wgpu's own buffer
@@ -1140,9 +1633,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   instances that the camera does not see, and instances of the same mesh and material are not
   drawn together: a frame's CPU and GPU time grow with every instance of the scene, wherever it is,
   0.6 to 2.4 µs of CPU per instance on the owner's machine. Frustum culling and instancing begin
-  Stage 6 (ADR-0097). Since P4, each pass draws by pipeline, material and mesh, and binds only what
-  changed ([ADR-0106](adr/0106-the-measured-quick-wins.md)), which lavapipe shows no gain from;
-  on a GPU, it is not measured yet.
+  Stage 6a, at M6a.1 (ADR-0097). Since P4, each pass draws by pipeline, material and mesh, and
+  binds only what changed ([ADR-0106](adr/0106-the-measured-quick-wins.md)), which lavapipe shows
+  no gain from; on a GPU, it is not measured yet.
 - **Cascades are fitted to spheres around slices of the view** (ADR-0064). Each covers its slice
   whichever way the camera looks, which keeps its texels steady, but a wide view makes the spheres
   large: in the first game, *Nightwatch* (deleted at M4a.7), with the single map's 30 m, the texels
@@ -1239,20 +1732,20 @@ GitHub issues, linked from their entry; this list stays the reference.
   changes go to the entity of each number. A game names by a key what it creates at its start
   (`World::spawn_keyed`). [ADR-0109](adr/0109-stable-references-and-undo.md) decides that saving
   refuses a world whose start created an entity that has no key and is not `Unsaved`, built at
-  Stage 6.
+  M6a.7.
 - **A created entity written into its level exists twice once the run is carried into it**
   (ADR-0092, ADR-0093). An entity created in code under a scene's root keeps `created/<n>`, and
   the file that `World::write_scene` writes holds it under an ID of its own, `zone/torch-0rdx`;
   once the file is cooked again, `World::carry` gives the file's entity and the run's, without a
   word. The audit's test showed it at 0.4, and again on 2026-10-20.
   [ADR-0109](adr/0109-stable-references-and-undo.md) decides that carrying recognizes the entity
-  by the ID that the world gave it, built at Stage 6, before the editor writes levels.
+  by the ID that the world gave it, built at M6a.7, before the editor writes levels.
 - **`World::spawn_keyed` gives a key under which the world remembers a scene of which nothing
   lives** (ADR-0101): the entity created is then saved as that scene's root, and set aside with the
   scene when a save loads where the scene cannot be resolved. `World::spawn_scene` refuses a key
   whose scene has an entity alive; a key whose scene is gone whole is the world's to forget or
   refuse. [ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md) decides adoption and
-  saves per scene, which settle it when they are built, at Stage 6.
+  saves per scene, which settle it when they are built, at M6a.7.
 - **`Range::contains` stays public beside `Range::holds`**: two ways to check a number against a
   range, the first in `f64`, which only tests' helpers use. Every check of a field's range uses
   `Range::holds` (ADR-0101); the helpers can move to it, and `contains` go.
@@ -1288,9 +1781,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   loses it. An entity of a placement moved out of the place that its prefab gives it is written in
   that place, and the children of a placement's entity in its prefab's order, then the file's; both
   are reported: a scene file has no parents for a placement's entities, nor an order among them.
-  Stage 6 decides whether a file says them.
+  Stage 6b decides whether a file says them.
 - **A scene file written back loses its comments** (ADR-0089): `World::write_scene` writes the
-  canonical form. Stage 6 decides whether its editor keeps the comments of files written by hand.
+  canonical form. Stage 6b decides whether its editor keeps the comments of files written by hand.
 - **The cooked glTF scene is a format apart from the binary encoding** (ADR-0089, ADR-0095). A
   glTF file's scenes are cooked into a format of their own, `slime_assets::CookedScene`, and only
   the typed properties of their nodes into the binary encoding: cooked scenes have two formats, and
@@ -1348,7 +1841,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   during the next call, by then read from newer timers; such a renderer also creates its targets
   again at every call, as it did before. Use one renderer per output size.
   [ADR-0111](adr/0111-the-frame-contract.md) decides views apart from the renderer, each with its
-  own targets and timers, built at Stage 6.
+  own targets and timers, built at M6a.8.
 - **Tiny, very bright sources blink in the bloom** (ADR-0040). Without a firefly filter (Karis's
   average dims the sun's halo and makes it flicker, measured), a highlight smaller than a pixel
   blooms as its coverage of the pixel changes from frame to frame. Temporal anti-aliasing, or a cap
@@ -1383,26 +1876,27 @@ fixes ([ADR-0097](adr/0097-an-audit-pass-and-a-foundations-pass-before-stage-6.m
 number, its rank on [ADR-0096](adr/0096-the-files-the-engine-reads.md)'s scale and the stage it
 waits for. A test that confirms each is kept outside the repository, and comes in with its fix.
 
-- **One unreadable file hides its whole batch of meshes** (G16, medium; Stage 6). The asset cache
-  loads meshes in batches, all those a frame asks for in one, 430 for *Hunna Wood*'s zone: a batch
-  that fails draws none of its meshes, and is not asked for again until the cooked data changes
-  (ADR-0084), a passing error such as GPU memory running out included. Failing mesh by mesh, and
-  trying a passing error again, is to decide with the editor's asset browser.
-- **A resize keeps the targets of the old size while it creates the new ones** (G18, medium; Stage
-  6): the GPU memory of the frame's targets is twice as large for that moment, and after
+- **One unreadable file hides its whole batch of meshes** (G16, medium; M6a.9, and Stage 6b for
+  passing errors). The asset cache loads meshes in batches, all those a frame asks for in one, 430
+  for *Hunna Wood*'s zone: a batch that fails draws none of its meshes, and is not asked for again
+  until the cooked data changes (ADR-0084), a passing error such as GPU memory running out
+  included. M6a.9's requests fail asset by asset; trying a passing error again is to decide with
+  the editor's asset browser.
+- **A resize keeps the targets of the old size while it creates the new ones** (G18, medium;
+  M6a.8): the GPU memory of the frame's targets is twice as large for that moment, and after
   `GfxError::OutOfMemory` the renderer keeps targets that no longer fit, which nothing releases.
 - **On Windows, a `.meta` whose name differs from its source's by case only takes a new ID at every
-  cook** (G20, medium; Stage 6), and `slime-cook watch` cooks again without end: the scan matches
+  cook** (G20, medium; Stage 6b), and `slime-cook watch` cooks again without end: the scan matches
   the two files by the file system's rule, which ignores case on NTFS, then looks the ID up by the
   exact path. Not run on Windows by the audit: it waits in the
   [list of checks by hand](#checks-by-hand-waiting-for-the-owner).
-- **Importing a glTF file takes time quadratic in its named meshes** (G23, medium; Stage 6): 38 to
+- **Importing a glTF file takes time quadratic in its named meshes** (G23, medium; Stage 6b): 38 to
   57 s for 80 000 meshes, as each name is counted against the whole list.
 - **The world's storage keeps 4 MB per component type and per million slots, and gives nothing back
   after destruction** (G28, medium; Stage 10a): each type keeps an index of 4 bytes per slot up to
   the highest slot that held it, and neither the index, the nodes nor the slots shrink
   ([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)).
-- **Beyond 1 048 576 meshes drawn, `render` panics in wgpu** (G29, medium; Stage 6): the instance
+- **Beyond 1 048 576 meshes drawn, `render` panics in wgpu** (G29, medium; M6a.1): the instance
   buffer doubles past the 256 MiB that the device allows, and a world loaded from files reaches it
   with no cap. Instancing lifts it; capping the instances as ADR-0042 caps lights would avoid it.
 - **Masked foliage loses its coverage in its smaller mip levels** (G30, medium; Stage 9a): the
@@ -1410,58 +1904,58 @@ waits for. A test that confirms each is kept outside the repository, and comes i
   falls in the levels drawn far away, down to none, and trees fade in the distance. Preserving
   coverage per level for textures that a masked material reads is to do before large exteriors.
 - **`World::write_scene` writes, without an error, a level that cannot be opened again** (G31,
-  medium; Stage 6): it never counts the entities that the file gives once its placements resolve,
+  medium; Stage 6b): it never counts the entities that the file gives once its placements resolve,
   which the reader refuses beyond `MAX_ENTITIES`, nor what they take, refused beyond
   `MAX_SCENE_SIZE`.
-- **A very deep hierarchy costs quadratic time** (G32, medium; Stage 6): spawning, loading, saving
-  and each frame walk every entity's ancestors (`set_parent`'s search for a cycle, `World::unsaved`,
-  `is_hidden`, `interpolated_transform`).
+- **A very deep hierarchy costs quadratic time** (G32, medium; `is_hidden` at M6a.3, the rest in
+  Stage 6b): spawning, loading, saving and each frame walk every entity's ancestors (`set_parent`'s
+  search for a cycle, `World::unsaved`, `is_hidden`, `interpolated_transform`).
 - **The world panel rounds a number that was only clicked or crossed with the keyboard, and writes
-  the rounding into the world** (G33, medium; Stage 6): egui's `DragValue` shows as many decimals as
-  the drag's speed gives, and writes back the text it shows when it loses the focus. The rule for
+  the rounding into the world** (G33, medium; Stage 6b): egui's `DragValue` shows as many decimals
+  as the drag's speed gives, and writes back the text it shows when it loses the focus. The rule for
   the editor's inspector: a field changes a value only when the user changed it.
 - **A GPU object used with another `Gpu` acts on another object without a word, and no API opens a
-  second window on the same GPU** (G34, medium; Stage 6): each `Gpu` numbers its objects from zero,
+  second window on the same GPU** (G34, medium; Stage 6b): each `Gpu` numbers its objects from zero,
   and a window's surface comes only with a new `Gpu`. The editor's model of windows decides.
 - **If creating the spot lights' shadow atlas runs out of memory, the sun loses its shadows without
-  a word** (G37, low; Stage 6), until a frame creates it: the atlases' bind group is not built
+  a word** (G37, low; M6a.8), until a frame creates it: the atlases' bind group is not built
   again.
 - **Between two fixed steps, the children of a turning parent cut the arc's chord while their
   siblings stay on it** (G38, low; Stage 7): a child moved by its parent is drawn in a straight line
   between its two positions. Interpolating through the hierarchy is to decide before skeletal
   animation turns many hierarchies.
 - **A string on several lines in a scene file checked out on Windows keeps its CRLF line ends**
-  (G40, low; Stage 6): `.gitattributes` keeps `*.toml`, `*.meta` and `*.tsv` at LF, not `*.scene`,
+  (G40, low; Stage 6b): `.gitattributes` keeps `*.toml`, `*.meta` and `*.tsv` at LF, not `*.scene`,
   so that the value and the cooked bytes depend on the checkout.
 - **A negative integer, or one too large, for an unsigned field gives a wrong message** (G42, low;
-  Stage 6): "not an integer" or "not text", rather than its range.
-- **The writer of documents accepts what the reader refuses** (G43, low; Stage 6): a reserved key
+  Stage 6b): "not an integer" or "not text", rather than its range.
+- **The writer of documents accepts what the reader refuses** (G43, low; Stage 6b): a reserved key
   `$…` at the root, and a field given twice, the second lost.
 - **A camera target farther than about 2 × 10¹⁹ m draws nothing, without a message** (G44, low;
   later): `view_from_eye` squares the direction in `f32`.
 - **`World::write_scene` loops without end when more than 1 679 616 entities need IDs from one
-  base** (G45, low; Stage 6): it draws four base-36 characters until one is free.
-- **The world panel costs about 1.25 µs per entity and per frame** (G46, low; Stage 6): 125 to 145
+  base** (G45, low; Stage 6b): it draws four base-36 characters until one is free.
+- **The world panel costs about 1.25 µs per entity and per frame** (G46, low; Stage 6b): 125 to 145
   ms per frame at 100 000 entities, every row laid out, visible or not. The editor's hierarchy needs
   a virtualized list.
-- **A multisampled output target makes `render` panic inside wgpu** (G47, low), a panic that its
-  rustdoc does not list.
+- **A multisampled output target makes `render` panic inside wgpu** (G47, low; M6a.8), a panic
+  that its rustdoc does not list.
 - **`Registry::register_dynamic` accepts version 0, which the derive refuses** (G48, low; Stage 8):
   the values are written, then never read back, with a wrong message.
-- **Two cooks in one process share their temporary files** (G49, low; Stage 6): named after the
+- **Two cooks in one process share their temporary files** (G49, low; Stage 6b): named after the
   process, they separate processes, not threads, and one cook fails at random, naming a file that
   exists.
-- **An output directory inside the sources breaks the next cook** (G50, low; Stage 6): cooked glTF
+- **An output directory inside the sources breaks the next cook** (G50, low; Stage 6b): cooked glTF
   scenes take the `.scene` extension of scene files, which the next scan reads as sources.
 - **After a glTF file is moved with its `.meta`, the cooker's cache keeps the old path** (G51, low;
-  Stage 6): the manifest names it, and warnings blame tables that are right.
+  Stage 6b): the manifest names it, and warnings blame tables that are right.
 - **Two `.meta` with one ID, one of them without a source, make the cook stop without saying which
-  is the orphan** (G52, low; Stage 6).
-- **`Manifest::from_bytes` refuses a valid manifest whose names are short** (G53, low; Stage 6): it
+  is the orphan** (G52, low; Stage 6b).
+- **`Manifest::from_bytes` refuses a valid manifest whose names are short** (G53, low; Stage 6b): it
   assumes 45 bytes per entry where the least is 37.
 - **With `--watch`, after the cooked data is cleaned, a reload that the game refuses leaves it
-  unable to save** (G56, low; Stage 6): `SceneLibrary::reload` forgets the changed scenes before the
-  game accepts them, and the files of the old manifest are gone.
+  unable to save** (G56, low; Stage 6b): `SceneLibrary::reload` forgets the changed scenes before
+  the game accepts them, and the files of the old manifest are gone.
 - **The dev overlay is built into the game that ships**, egui and its fonts with it (B1-F08):
   an estimated 10 s of the game's release build, 46 s on the owner's machine. The owner
   chose on 2026-10-19 to keep it in the game, and its fonts with it (P5); building it only in

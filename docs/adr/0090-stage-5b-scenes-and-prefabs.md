@@ -1,6 +1,8 @@
 # 0090. Stage 5b: scenes and prefabs
 
-- Status: Accepted; amends [0078](0078-stage-5-in-two-halves.md) (Stage 5b is released as 0.4)
+- Status: Accepted; amends [0078](0078-stage-5-in-two-halves.md) (Stage 5b is released as 0.4);
+  amended by [0097](0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md) (Stage 11 is
+  released as 0.12) and [0116](0116-stage-6-in-two-halves.md) (the editor is released as 0.6)
 - Date: 2026-10-17
 
 ## Context

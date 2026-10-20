@@ -1,13 +1,15 @@
 # 0097. An audit pass and a foundations pass before Stage 6, and the roadmap after them
 
 - Status: Accepted; amends [0052](0052-amend-roadmap-before-0-1.md) (Stage 9a's content and the
-  release map); amended by [0098](0098-the-games-the-engine-aims-at.md) (the criteria of the
+  release map) and [0090](0090-stage-5b-scenes-and-prefabs.md) (Stage 11's release); amended by
+  [0098](0098-the-games-the-engine-aims-at.md) (the criteria of the
   foundations pass), [0099](0099-ai-agents-drive-the-engine.md) (one more criterion of the
   foundations pass), [0100](0100-updates-of-shipped-games.md) (what it leaves for Stage 9b),
   [0107](0107-the-execution-model.md) (the time of a game, brought from Stage 7 to Stage 6),
   [0112](0112-levels-saves-and-worlds-for-open-worlds.md) (saves that cost what changed, brought to
-  Stage 6) and [0114](0114-hardware-tiers-and-the-gpus-limits.md) (three hardware tiers rather than
-  a minimum and a target)
+  Stage 6), [0114](0114-hardware-tiers-and-the-gpus-limits.md) (three hardware tiers rather than
+  a minimum and a target) and [0116](0116-stage-6-in-two-halves.md) (the passes ship with 0.5,
+  Stage 6a's release, and every later stage is released one version later)
 - Date: 2026-10-19
 
 ## Context
