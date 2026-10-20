@@ -14,15 +14,16 @@ exposes the light, spreads a bloom around it, tone maps it and dithers it into t
 reports what each frame cost on the CPU and the GPU. It smooths the edges of what it draws with four
 samples per pixel. It loads cooked scenes in the background, and again when their cooked data
 changes, and keeps the meshes that a game draws by their asset IDs in a cache; a material's values
-change while a game runs, and so do the renderer's shaders. It does not yet blend transparent
-surfaces or leave out what the camera does not see.
+change while a game runs, and so do the renderer's shaders. It leaves out of each pass what that
+pass does not see, and draws the instances of one mesh and one material together. It does not yet
+blend transparent surfaces.
 
 ## Role
 
 - Owns what drawing a scene needs beyond the GPU layer: the vertex layout and the shaders, the
   camera's matrices, the values the shaders read (per frame, per material, per instance) and
-  their layout, the high-dynamic-range and depth targets, and the buffer of the instances'
-  values.
+  their layout, the high-dynamic-range and depth targets, the buffers of the instances' values,
+  and the buffers that its meshes' vertices and indices share.
 - Orders and records its frame's passes with a render graph (`src/graph.rs`, private;
   `docs/adr/0041-render-graph.md`): each pass declares the targets it draws into and the ones it
   samples, the graph orders the passes by them, creates the targets that live for one frame at the
@@ -89,7 +90,7 @@ fn main() -> Result<(), RenderError> {
     scene.lights = &lights;
     scene.exposure = PI / 100_000.0;
     let stats = renderer.render(&gpu, &target, &scene)?;
-    assert_eq!((stats.draw_calls, stats.triangles), (1, 1));
+    assert_eq!((stats.draw_calls, stats.instances, stats.triangles), (1, 1, 1));
 
     let image = gpu.read_render_target(&target)?;
     let center = (32 * 64 + 32) * 4;
@@ -114,8 +115,9 @@ fn main() -> Result<(), RenderError> {
 - `MeshData::cube()`, `MeshData::sphere(rings, segments)` and `MeshData::square()` make simple
   shapes in code, one metre across and centred on their origin, for an instance's transform to
   place and scale.
-- `Renderer::create_mesh(gpu, label, &MeshData)` uploads a `Mesh`; mesh data that cannot be drawn
-  is returned as `RenderError::InvalidMesh`. `Renderer::create_material(gpu, label,
+- `Renderer::create_mesh(gpu, label, &MeshData)` uploads a `Mesh`, into buffers that it shares with
+  the renderer's other meshes; mesh data that cannot be drawn is returned as
+  `RenderError::InvalidMesh`. `Renderer::create_material(gpu, label,
   &MaterialData)` creates a `Material` with glTF's metallic-roughness model, its textures given as
   `SampledTexture`s; values out of their ranges are returned as `RenderError::InvalidMaterial`.
   `Material::set_values(gpu, MaterialValues)` changes a material's values while a game runs, its
@@ -152,7 +154,9 @@ fn main() -> Result<(), RenderError> {
   `bloom`, or whether an instance casts shadows, are set once they are made (ADR-0046).
 - `Renderer::render(gpu, target, &scene)` draws a frame in passes (the directional light's shadows,
   the spot lights' shadows, scene, sky, resolve, bloom, tone mapping) and returns its `RenderStats`:
-  draw calls, triangles, and the CPU and GPU time of its passes.
+  draw calls, instances, triangles, and the CPU and GPU time of its passes. Each pass leaves out the
+  instances that it does not see (frustum culling), and draws those of one mesh and one material
+  that one pipeline draws together, with one draw call (instancing).
 - `Camera`: where the scene is seen from. `Light`: one of glTF's punctual lights, a
   `DirectionalLight`, of which the first that casts shadows casts the scene's through cascades, a
   `PointLight` or a `SpotLight`, every one of which may cast shadows into a tile of the shadow

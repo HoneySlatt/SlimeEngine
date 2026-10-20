@@ -4,9 +4,10 @@
 //! its scale, and the exposure multiplies the light, which surfaces reflect above 1 without
 //! clipping, before the high-dynamic-range target is written (ADR-0037). Also what the renderer
 //! keeps from one frame to the next, with the same lit square: the targets follow the size of the
-//! output, the projection its aspect ratio, the instance buffer grows beyond its first size, and
-//! the statistics give the GPU time of each pass, the shadow and sky passes' included. Runs on
-//! whatever adapter the machine offers.
+//! output, the projection its aspect ratio, the buffer of the instances' values grows beyond its
+//! first size, the instances of one mesh and one material take one draw call per pipeline, those
+//! out of view none, and the statistics give the GPU time of each pass, the shadow and sky passes'
+//! included. Runs on whatever adapter the machine offers.
 
 #[path = "common/tone_curve.rs"]
 mod tone_curve;
@@ -311,26 +312,49 @@ fn the_projection_follows_the_aspect_ratio_of_the_output() {
 }
 
 #[test]
-fn instances_beyond_the_first_instance_buffer_are_drawn_where_they_are() {
+fn instances_beyond_the_first_size_of_the_values_buffer_are_drawn_where_they_are() {
     let mut setup = Setup::new();
     assert_close(
         setup.center_red(from_the_front(), 0.0, Mat4::IDENTITY),
         fully_lit(),
         "one instance",
     );
-    // A hundred instances, more than the 64 the instance buffer starts with: all but the last
-    // are flattened to a point, so the center is lit only if the last one, in a slot of the grown
-    // buffer, gets its own transform. Built column by column: `Mat4::from_scale` asserts, when
-    // glam's assertions are on, that the scale is not zero.
+    // A hundred instances, more than the 64 that the buffer of their values starts with: all but
+    // the last are flattened to a point, so the center is lit only if the last one, whose values
+    // are in the grown buffer, gets its own transform. Built column by column: `Mat4::from_scale`
+    // asserts, when glam's assertions are on, that the scale is not zero.
     let point = Mat4::from_cols(Vec4::ZERO, Vec4::ZERO, Vec4::ZERO, Vec4::W);
     let mut transforms = vec![point; 99];
     transforms.push(Mat4::IDENTITY);
     let (red, stats) = setup.center_of(&transforms, (SIZE, SIZE));
-    assert_eq!(stats.draw_calls, 100);
+    // One mesh and one material: one draw call draws them all.
+    assert_eq!((stats.draw_calls, stats.instances), (1, 100));
     assert_close(red, fully_lit(), "the last of 100 instances");
     // Fewer instances again, in the grown buffer.
     let (red, _) = setup.center_of(&[point, Mat4::IDENTITY, point], (SIZE, SIZE));
     assert_close(red, fully_lit(), "the second of 3 instances");
+}
+
+#[test]
+fn the_instances_of_one_mesh_and_one_material_take_one_draw_call_per_pipeline() {
+    let mut setup = Setup::new();
+    // Four small squares side by side, two of them mirrored, whose front faces wind clockwise: the
+    // pipeline that culls front faces draws those.
+    let at = |x: f32| {
+        Mat4::from_translation(Vec3::new(x, 0.0, 0.0)) * Mat4::from_scale(Vec3::splat(0.2))
+    };
+    let mirrored = |x: f32| at(x) * Mat4::from_scale(Vec3::new(-1.0, 1.0, 1.0));
+    let (_, stats) = setup.center_of(
+        &[at(-0.6), mirrored(-0.2), at(0.2), mirrored(0.6)],
+        (SIZE, SIZE),
+    );
+    assert_eq!((stats.draw_calls, stats.instances), (2, 4));
+    // A square far out of view is left out, its triangles with it.
+    let (_, stats) = setup.center_of(&[at(0.0), at(100.0)], (SIZE, SIZE));
+    assert_eq!(
+        (stats.draw_calls, stats.instances, stats.triangles),
+        (1, 1, 2)
+    );
 }
 
 #[test]

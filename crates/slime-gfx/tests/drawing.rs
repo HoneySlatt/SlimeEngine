@@ -1,8 +1,9 @@
 //! Drawing with the resources a renderer needs: indexed draws, a uniform buffer read through a
-//! bind group, a pass that keeps the image and its depth, depth testing and face culling, checked
-//! by reading pixels back; a shader that reads more than a uniform binding holds, refused. The
-//! colors are pure, whose sRGB encoding every driver gets exactly. Runs on whatever adapter the
-//! machine offers, like `device.rs`.
+//! bind group, a pass that keeps the image and its depth, depth testing and face culling, instanced
+//! draws that read each instance's values from a storage buffer and a mesh from its base vertex in
+//! buffers written by ranges, checked by reading pixels back; a shader that reads more than a
+//! uniform binding holds, refused. The colors are pure, whose sRGB encoding every driver gets
+//! exactly. Runs on whatever adapter the machine offers, like `device.rs`.
 
 use slime_color::LinearColor;
 use slime_gfx::{
@@ -203,7 +204,7 @@ fn an_indexed_quad_fills_the_target() {
         pass.set_pipeline(&pipeline);
         pass.set_vertex_buffer(0, &corners);
         pass.set_index_buffer(&indices);
-        pass.draw_indexed(0..indices.count());
+        pass.draw_indexed(0..indices.count(), 0, 0..1);
     });
     for pixel in image.pixels.chunks(4) {
         assert_eq!(pixel, [255, 255, 255, 255]);
@@ -563,4 +564,150 @@ fn a_dynamic_offset_selects_the_values_of_each_draw() {
     assert_eq!(pixel(&image, BOTTOM_LEFT), [255, 255, 255], "first draw");
     assert_eq!(pixel(&image, TOP_RIGHT), [255, 255, 255], "second draw");
     assert_eq!(pixel(&image, (6, 6)), [0, 0, 0], "in neither triangle");
+}
+
+/// Vertices with a position in clip space, each instance moved and colored by its values in a
+/// storage buffer, which its number indexes.
+const INSTANCED_SHADER: &str = "
+struct Instance {
+    offset: vec4<f32>,
+    color: vec4<f32>,
+}
+@group(0) @binding(0) var<storage, read> instances: array<Instance>;
+
+struct VertexOutput {
+    @builtin(position) position: vec4<f32>,
+    @location(0) color: vec3<f32>,
+}
+
+@vertex
+fn vs_main(
+    @location(0) position: vec3<f32>,
+    @builtin(instance_index) index: u32,
+) -> VertexOutput {
+    let instance = instances[index];
+    var output: VertexOutput;
+    output.position = vec4<f32>(position.xy + instance.offset.xy, position.z, 1.0);
+    output.color = instance.color.rgb;
+    return output;
+}
+
+@fragment
+fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
+    return vec4<f32>(input.color, 1.0);
+}
+";
+
+/// What [`INSTANCED_SHADER`] reads of one instance: its offset and its color, as two `vec4<f32>`.
+fn instance_bytes(offset: [f32; 2], color: [f32; 3]) -> Vec<u8> {
+    [
+        offset[0], offset[1], 0.0, 0.0, color[0], color[1], color[2], 1.0,
+    ]
+    .iter()
+    .flat_map(|value| value.to_le_bytes())
+    .collect()
+}
+
+#[test]
+fn an_instanced_draw_reads_each_instance_s_values_and_a_mesh_from_its_base_vertex() {
+    let scene = Scene::new();
+    let gpu = &scene.gpu;
+    let layout = gpu
+        .create_bind_group_layout(
+            "instances",
+            &[BindGroupLayoutEntry {
+                binding: 0,
+                visible_to: ShaderStages::Vertex,
+                ty: BindingType::StorageBuffer { size: 32 },
+            }],
+        )
+        .expect("the GPU has memory for it");
+    // Three instances, of which the draw takes the last two: the first, white, moved to the bottom
+    // right quarter, would show there if the instances' numbers started from 0.
+    let instances = gpu
+        .create_storage_buffer("instances", 3 * 32)
+        .expect("the GPU has memory for it");
+    gpu.write_storage_buffer(&instances, 0, &instance_bytes([1.0, 0.0], WHITE));
+    gpu.write_storage_buffer(
+        &instances,
+        32,
+        &[
+            instance_bytes([0.0, 0.0], RED),
+            instance_bytes([1.0, 1.0], BLUE),
+        ]
+        .concat(),
+    );
+    let group = gpu
+        .create_bind_group(
+            "instances",
+            &layout,
+            &[BindGroupEntry {
+                binding: 0,
+                resource: BindingResource::StorageBuffer(&instances),
+            }],
+        )
+        .expect("the GPU has memory for it");
+    let shader = gpu
+        .create_shader_module("instanced", INSTANCED_SHADER)
+        .expect("the shader compiles");
+    let pipeline = gpu
+        .create_render_pipeline(&RenderPipelineDescriptor {
+            label: "instanced",
+            shader: &shader,
+            vertex_entry_point: "vs_main",
+            vertex_layout: Some(VertexLayout {
+                stride: 3 * 4,
+                attributes: &[VertexAttribute {
+                    location: 0,
+                    offset: 0,
+                    format: VertexFormat::Float32x3,
+                }],
+            }),
+            fragment: Some(FragmentState {
+                entry_point: "fs_main",
+                target_format: Some(scene.target.format()),
+            }),
+            bind_group_layouts: &[&layout],
+            depth: None,
+            cull: CullMode::None,
+            multisampled: false,
+        })
+        .expect("the pipeline is valid");
+    // Two meshes in one vertex buffer and one index buffer, each indexed from 0, written by ranges:
+    // a triangle flattened to a point, then the bottom left quarter, from vertex 3 and index 3.
+    let vertices = gpu
+        .create_zeroed_vertex_buffer("two meshes", 6 * 12)
+        .expect("the GPU has memory for it");
+    let quarter: Vec<u8> = QUARTER
+        .iter()
+        .flat_map(|(position, _)| position.iter().flat_map(|value| value.to_le_bytes()))
+        .collect();
+    gpu.write_vertex_buffer(&vertices, 3 * 12, &quarter);
+    let indices = gpu
+        .create_zeroed_index_buffer("two meshes", 6)
+        .expect("the GPU has memory for it");
+    gpu.write_index_buffer(&indices, 3, &[0, 1, 2]);
+
+    let pass = RenderPassDescriptor {
+        target: &scene.target,
+        clear: Some(LinearColor::BLACK),
+        depth: None,
+        timer: None,
+        resolve: None,
+    };
+    gpu.render(&pass, |pass| {
+        pass.set_pipeline(&pipeline);
+        pass.set_bind_group(0, &group, &[]);
+        pass.set_vertex_buffer(0, &vertices);
+        pass.set_index_buffer(&indices);
+        pass.draw_indexed(3..6, 3, 1..3);
+    });
+    let image = scene.image();
+    assert_eq!(
+        pixel(&image, BOTTOM_LEFT),
+        [255, 0, 0],
+        "the second instance"
+    );
+    assert_eq!(pixel(&image, TOP_RIGHT), [0, 0, 255], "the third instance");
+    assert_eq!(pixel(&image, (6, 6)), [0, 0, 0], "the first is not drawn");
 }

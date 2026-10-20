@@ -217,7 +217,9 @@ fast as *FXC*'s ([ADR-0066](adr/0066-shipping-dxc-beside-the-programs.md)).
 **Dynamic offset.** The start of the range of a *uniform buffer* that a *bind group* binds, given
 each time the group is bound (`RenderPass::set_bind_group`) rather than when the group is created,
 as a multiple of `Gpu::uniform_offset_alignment`. One buffer and one group then serve many draws,
-one range each: the renderer's instances ([ADR-0027](adr/0027-the-render-crate.md)).
+one range each: the views of the tiles that the renderer's shadow passes draw
+(`slime_render::Renderer`). The instances' values are in a *storage buffer* instead
+([ADR-0117](adr/0117-frustum-culling-and-instancing.md)).
 
 **Emission.** The light a surface gives off, added to the light it reflects: glTF's emissive
 factor, its strength (`KHR_materials_emissive_strength`) and its texture, in *nits*.
@@ -292,10 +294,10 @@ second on average. With the default *present mode*, it alone paces the frames
 
 **Frustum culling.** Leaving out of a pass the *instances* that it cannot show: those whose box,
 the smallest box around their mesh, lies outside the volume that the pass's camera or light covers,
-its *frustum*. The shadow passes do it for each *cascade* and each spot light
-(`slime_render::Renderer`); the scene pass draws every instance until Stage 6a's first milestone
-builds it ([ADR-0097](adr/0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md),
-[`docs/PLAN.md`](PLAN.md)).
+its *frustum*. The scene pass does it for the camera's view, the shadow passes for each *cascade*
+and each spot light (`slime_render::Renderer`,
+[ADR-0117](adr/0117-frustum-culling-and-instancing.md)): an instance that the camera does not see
+may still cast a shadow into its view.
 
 **Fullscreen triangle.** One triangle larger than the target, which covers every pixel of it,
 built by the vertex shader from the vertex index without a vertex buffer: how a pass that
@@ -391,11 +393,10 @@ the mesh's space to world space (`slime_render::Instance`). A render *scene* is 
 them, built for each frame.
 
 **Instancing.** Drawing with one draw call the *instances* that share a mesh and a material, each
-reading its own values, its transform among them, by its index
-([ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md)). Decided, not built yet: the
-renderer draws each instance with a draw call of its own until Stage 6a's first milestone
-([ADR-0097](adr/0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md),
-[`docs/PLAN.md`](PLAN.md)).
+reading its own values, its transform among them, from a storage buffer by its index
+([ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md)). Each pass of the renderer draws so
+the instances of one pipeline, material and mesh that it keeps (`slime_render::Renderer`,
+[ADR-0117](adr/0117-frustum-culling-and-instancing.md)).
 
 **Interpolation factor.** The fraction of a fixed step accumulated but not yet run
 (`FixedStep::alpha`), between 0 and 1. Used to draw a state between the last two fixed steps:
@@ -489,7 +490,7 @@ Stage 6, through which agents drive the editor and running games
 ([ADR-0099](adr/0099-ai-agents-drive-the-engine.md)).
 
 **Mesh.** Triangles given as vertices (a position, a normal, texture coordinates and a *tangent*
-each) and indices, uploaded to the GPU (`slime_render::Mesh`, from `MeshData`).
+each) and indices, uploaded to the GPU into a *page* (`slime_render::Mesh`, from `MeshData`).
 
 **Metadata file.** The file `<file>.meta` committed beside a *source asset*, which holds its *asset
 ID*, a *document* of a `Metadata` value ([ADR-0069](adr/0069-the-asset-pipeline.md),
@@ -575,6 +576,11 @@ stays when the prefab later takes the same value, and one whose target the prefa
 kept and reported ([ADR-0089](adr/0089-scenes-and-prefabs.md)).
 
 **Owner.** The person who validates the project's direction and its architecture decisions.
+
+**Page (meshes).** A vertex buffer and an index buffer that hold the vertices and indices of many
+*meshes*, each in a range of its own, so that draws of different meshes bind no other buffer: a
+renderer and its loads place their meshes in its pages (`slime_render::Mesh`,
+[ADR-0117](adr/0117-frustum-culling-and-instancing.md)).
 
 **Partial value.** A *value* that leaves some of its fields out, those of its structs and variants
 at any depth, its tuples, lists and options whole: what changed of a value, as a save holds it. An
@@ -866,6 +872,11 @@ later takes a letter (Stage 3c), so that the numbers cited elsewhere stay right.
 **Start world.** The *world* as a game makes it at the start of a run, from the scenes it spawns
 and as it prepares them, which a *save* holds the differences from and is loaded into
 (`slime_world::World::save`, [ADR-0087](adr/0087-the-worlds-documents.md)).
+
+**Storage buffer.** A buffer that shaders read as an array they index, `var<storage, read>` in WGSL
+(`slime_gfx::StorageBuffer`): the renderer's instances find their values in one by their number
+([ADR-0117](adr/0117-frustum-culling-and-instancing.md)). See *uniform buffer*, which holds the
+values that a whole draw reads.
 
 **Stretch.** How much an entity's own meshes and shapes are scaled along its own axes, which its
 children do not inherit: a wall longer than it is tall. Children inherit a uniform scale only, so

@@ -196,6 +196,10 @@ pub fn instances(
             format!("draw calls {at}: scene, shadow cascades"),
             format!("{}, {}", stats.draw_calls, stats.shadow_draw_calls),
         ));
+        rows.push(Row::new(
+            format!("instances that the scene pass drew {at}"),
+            stats.instances.to_string(),
+        ));
     }
     Ok(rows)
 }

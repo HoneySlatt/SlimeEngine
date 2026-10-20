@@ -7,6 +7,7 @@ use crate::error::GfxError;
 use crate::gpu::Gpu;
 use crate::render_target::RenderTarget;
 use crate::sampler::{ComparisonSampler, Sampler};
+use crate::storage_buffer::StorageBuffer;
 use crate::texture::Texture;
 use crate::uniform_buffer::UniformBuffer;
 
@@ -47,6 +48,15 @@ pub enum BindingType {
         /// refused when it is made ([`Gpu::create_render_pipeline`]), rather than when a draw binds
         /// the group; binding a smaller buffer or range panics when the group is made
         /// ([`Gpu::create_bind_group`]).
+        size: u64,
+    },
+    /// A [`StorageBuffer`], declared `var<storage, read>` in WGSL: an array, or a structure ending
+    /// with one, that the shaders index and do not write.
+    StorageBuffer {
+        /// The least size, in bytes, of the buffer that a group binds there: at least what the
+        /// shaders read whatever the array's length, one element of it for an array, and not zero.
+        /// A pipeline whose shader reads more is refused when it is made, and binding a smaller
+        /// buffer panics when the group is made, as for a uniform binding.
         size: u64,
     },
     /// A [`Texture`], or a [`RenderTarget`] that an earlier pass drew into, declared
@@ -106,6 +116,8 @@ pub enum BindingResource<'a> {
         /// The size of the range, in bytes: what the shader's uniform declares.
         size: usize,
     },
+    /// A whole storage buffer, for a [`BindingType::StorageBuffer`] binding.
+    StorageBuffer(&'a StorageBuffer),
     /// A texture, for a [`BindingType::Texture`] binding, or a [`BindingType::CubeTexture`] one
     /// for a cube texture.
     Texture(&'a Texture),
@@ -156,8 +168,8 @@ impl Gpu {
     ///
     /// # Panics
     ///
-    /// If two entries have the same binding number, or a uniform binding a size of zero: this is a
-    /// bug in the caller (ADR-0016).
+    /// If two entries have the same binding number, or a uniform or storage binding a size of zero:
+    /// this is a bug in the caller (ADR-0016).
     pub fn create_bind_group_layout(
         &self,
         label: &str,
@@ -177,6 +189,13 @@ impl Gpu {
                         has_dynamic_offset: dynamic_offset,
                         min_binding_size: Some(
                             NonZeroU64::new(size).expect("a uniform binding's size is not zero"),
+                        ),
+                    },
+                    BindingType::StorageBuffer { size } => wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: Some(
+                            NonZeroU64::new(size).expect("a storage binding's size is not zero"),
                         ),
                     },
                     BindingType::Texture => wgpu::BindingType::Texture {
@@ -231,7 +250,7 @@ impl Gpu {
     /// # Panics
     ///
     /// If a range has a size of zero or larger than its buffer, or if the entries do not match the
-    /// layout: a binding missing, a buffer or range smaller than its uniform binding's size, or a
+    /// layout: a binding missing, a buffer or range smaller than its binding's size, or a
     /// resource of another kind than its entry declares, such as a depth target at a `Texture`
     /// binding, a cube texture at a `Texture` binding or the reverse, a render target or texture at
     /// a `DepthTexture` binding, or a [`Sampler`] at a `ComparisonSampler` binding or the reverse.
@@ -262,6 +281,7 @@ impl Gpu {
                             size: Some(size),
                         })
                     }
+                    BindingResource::StorageBuffer(buffer) => buffer.buffer.as_entire_binding(),
                     BindingResource::Texture(texture) => {
                         wgpu::BindingResource::TextureView(&texture.view)
                     }

@@ -9,9 +9,10 @@ Partial. It opens a GPU device, with or without a window, draws into offscreen i
 them back, and draws into a window:
 
 - It draws lists of triangles from vertex and index buffers, or from the vertex index alone (a
-  fullscreen triangle).
-- Its shaders read uniform buffers, textures, samplers and comparison samplers through bind
-  groups, with a depth test, a depth bias and face culling.
+  fullscreen triangle); many instances in one draw, each finding its values in a storage buffer
+  by its number; and meshes that share a vertex and an index buffer, each from its first vertex.
+- Its shaders read uniform and storage buffers, textures, samplers and comparison samplers through
+  bind groups, with a depth test, a depth bias and face culling.
 - It draws into 8-bit sRGB or linear images, into 16-bit floating-point ones (high dynamic range),
   or into a depth target only.
 - It draws into images of four samples per pixel, which a pass resolves into ordinary ones, or
@@ -127,12 +128,15 @@ fn main() -> Result<(), GfxError> {
 - The GPU objects, each created by a method of `Gpu` with a label that names it in error messages
   and capture tools, are handles that their clones share (ADR-0017): `RenderTarget` and
   `DepthTarget`, which passes draw into and later passes sample; `Texture`, `Sampler` and
-  `ComparisonSampler`; `VertexBuffer`, `IndexBuffer` and `UniformBuffer`; `BindGroupLayout` and
+  `ComparisonSampler`; `VertexBuffer`, `IndexBuffer`, `UniformBuffer` and `StorageBuffer`, each of
+  one use and copies into it, so that the CPU writes them by ranges (`Gpu::write_vertex_buffer`,
+  `write_index_buffer`, `write_storage_buffer`; ADR-0117); `BindGroupLayout` and
   `BindGroup`, the resources a pipeline's shaders read (ADR-0026), whose uniform bindings declare
   the size of their values, so that a pipeline whose shader reads more is refused when it is made
   (ADR-0077); `ShaderModule` and `RenderPipeline`; and `GpuTimer`, which times passes on the GPU.
 - `Gpu::render` and `Gpu::render_depth` run one pass, through a `RenderPass`, and `Gpu::submit`
-  records several into one submission (ADR-0033). `RenderPass::set_viewport` draws into part of a
+  records several into one submission (ADR-0033). `RenderPass::draw_indexed` draws a range of
+  instances, from a base vertex (ADR-0117). `RenderPass::set_viewport` draws into part of a
   pass's targets, so that one pass can draw several views side by side, as a shadow atlas holds
   them. `Gpu::read_render_target` and `Gpu::read_float_render_target` copy a target back to the
   CPU.

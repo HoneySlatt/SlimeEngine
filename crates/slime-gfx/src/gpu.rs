@@ -460,6 +460,22 @@ impl Gpu {
         buffer
     }
 
+    /// Creates a buffer of `usage` and of `size` bytes, all zero, inside [`create`](Self::create),
+    /// which reports a buffer that could not be created: wgpu zeroes what is not written.
+    pub(crate) fn create_zeroed_buffer(
+        &self,
+        label: &str,
+        size: u64,
+        usage: wgpu::BufferUsages,
+    ) -> wgpu::Buffer {
+        self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some(label),
+            size,
+            usage,
+            mapped_at_creation: false,
+        })
+    }
+
     /// The name of the adapter in use, as its driver reports it: for example
     /// `"AMD Radeon RX 6900 XT (RADV NAVI21)"`, or `"llvmpipe (LLVM 21.1.8, 256 bits)"` for
     /// lavapipe.
@@ -502,6 +518,16 @@ impl Gpu {
     /// [`Gpu::create_index_buffer`] panic on a larger one.
     pub fn max_buffer_size(&self) -> u64 {
         self.device.limits().max_buffer_size
+    }
+
+    /// The largest storage buffer that a shader reads at once, in bytes: the size of the largest
+    /// buffer the device creates or of the largest range it binds for storage, whichever is
+    /// smaller (128 MiB with the default limits).
+    pub fn max_storage_buffer_size(&self) -> u64 {
+        let limits = self.device.limits();
+        limits
+            .max_buffer_size
+            .min(limits.max_storage_buffer_binding_size)
     }
 
     /// Submits an empty piece of work, then blocks until the GPU has finished everything submitted

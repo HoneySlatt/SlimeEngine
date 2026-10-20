@@ -428,10 +428,12 @@ fn a_square_above_a_floor_darkens_a_square_of_the_floor_blended_over_six_texels(
             &[Light::Directional(sun.0)],
             &[(&white, floor(side)), (&white, square)],
         );
-        // Both reach every cascade: each is drawn in all four.
+        // The square lies outside what the camera sees, which frustum culling leaves out of the
+        // scene pass, but its shadow falls in it. Both reach every cascade: each is drawn in all
+        // four, both by one draw, being of one mesh and one material.
         assert_eq!(
-            (stats.draw_calls, stats.shadow_draw_calls),
-            (2, 8),
+            (stats.draw_calls, stats.instances, stats.shadow_draw_calls),
+            (1, 1, 4),
             "{case}"
         );
         let (mut dark, mut beyond_the_first) = (0, 0);
@@ -583,7 +585,8 @@ fn only_the_first_directional_light_that_casts_shadows_casts_them() {
         casts_shadows: false,
         ..light
     };
-    // The floor and the square reach every cascade of the light that casts shadows: 8 draws.
+    // The floor and the square, of one mesh, reach every cascade of the light that casts shadows:
+    // one draw in each.
     for (lights, shadowed, draws, case) in [
         (
             [
@@ -592,7 +595,7 @@ fn only_the_first_directional_light_that_casts_shadows_casts_them() {
                 Light::Directional(above.0),
             ],
             true,
-            8,
+            4,
             "a point light, then the slanted light, then the one from above",
         ),
         (
@@ -602,7 +605,7 @@ fn only_the_first_directional_light_that_casts_shadows_casts_them() {
                 Light::Directional(slanted.0),
             ],
             false,
-            8,
+            4,
             "a point light, then the light from above, then the slanted one",
         ),
         (
@@ -612,7 +615,7 @@ fn only_the_first_directional_light_that_casts_shadows_casts_them() {
                 Light::Directional(slanted.0),
             ],
             true,
-            8,
+            4,
             "the light from above casting no shadows, then the slanted one",
         ),
         (
@@ -759,8 +762,12 @@ fn an_instance_that_casts_no_shadow_is_left_out_and_what_lies_beyond_the_map_is_
         &[Light::Directional(sun.0)],
         &[(&white, floor(1_000.0), false), (&white, strip, true)],
     );
-    // The strip, 2 m beside the camera, reaches the two farther cascades only.
-    assert_eq!((stats.draw_calls, stats.shadow_draw_calls), (2, 2));
+    // The strip, 2 m beside the camera, reaches the two farther cascades only; the floor and the
+    // strip, of one mesh and one material, are drawn by one draw.
+    assert_eq!(
+        (stats.draw_calls, stats.instances, stats.shadow_draw_calls),
+        (1, 2, 2)
+    );
     let (mut near, mut far) = (0, 0);
     let (largest, _) = largest_differences(&image, |pixel| {
         let point = brdf::seen_point(&camera, (SIZE, SIZE), pixel, 0.0);

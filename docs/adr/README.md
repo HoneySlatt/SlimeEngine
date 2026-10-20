@@ -93,8 +93,8 @@ the ADR linking to it.
 | [0023](0023-dependency-checks-for-the-supported-targets.md) | Check the dependencies of the supported targets only | Accepted |
 | [0024](0024-windowed-lifecycle-check-in-weston.md) | Windowed lifecycle check in the headless compositor | Accepted; extended on 2026-10-13 |
 | [0025](0025-giving-up-a-lost-surface.md) | Giving up a window's surface that is lost for good | Accepted |
-| [0026](0026-resource-binding-and-depth.md) | Resource binding and depth in `slime-gfx` | Accepted; amended by 0032, 0033, 0047, 0106 and 0115 |
-| [0027](0027-the-render-crate.md) | The render crate, what it draws, and glam | Accepted; amended by 0034, 0035, 0037, 0038, 0039, 0040, 0041, 0047, 0048 and 0111 |
+| [0026](0026-resource-binding-and-depth.md) | Resource binding and depth in `slime-gfx` | Accepted; amended by 0032, 0033, 0047, 0106, 0115 and 0117 |
+| [0027](0027-the-render-crate.md) | The render crate, what it draws, and glam | Accepted; amended by 0034, 0035, 0037, 0038, 0039, 0040, 0041, 0047, 0048, 0111 and 0117 |
 | [0028](0028-image-tests-tolerate-a-few-pixels.md) | Image tests tolerate a few differing pixels | Accepted; amended by 0030 |
 | [0029](0029-temporary-gltf-loading.md) | Temporary glTF loading, in the examples | Superseded by 0069 |
 | [0030](0030-image-tests-strict-on-the-reference-driver.md) | Image tests: strict on the reference driver, loose on the others | Accepted; amended by 0054 |
@@ -173,7 +173,7 @@ the ADR linking to it.
 | [0103](0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md) | A lost GPU device is recovered wherever the loss is found | Accepted |
 | [0104](0104-the-build-ci-and-measurements.md) | The build, CI and measurements | Accepted; amended by 0114 |
 | [0105](0105-egui-fonts-ship-with-the-dev-overlay.md) | egui's fonts ship with the dev overlay | Accepted |
-| [0106](0106-the-measured-quick-wins.md) | The measured quick wins | Accepted |
+| [0106](0106-the-measured-quick-wins.md) | The measured quick wins | Accepted; amended by 0117 |
 | [0107](0107-the-execution-model.md) | The execution model | Accepted |
 | [0108](0108-what-the-world-knows-of-its-changes.md) | What the world knows of its changes | Accepted |
 | [0109](0109-stable-references-and-undo.md) | Stable references and undo | Accepted; amended by 0116 |
@@ -182,5 +182,6 @@ the ADR linking to it.
 | [0112](0112-levels-saves-and-worlds-for-open-worlds.md) | Levels, saves and worlds for open worlds | Accepted |
 | [0113](0113-asset-requests-residency-and-priorities.md) | Asset requests, residency and priorities | Accepted |
 | [0114](0114-hardware-tiers-and-the-gpus-limits.md) | Hardware tiers and the GPU's limits | Accepted |
-| [0115](0115-what-the-gpu-layer-gives-the-editor.md) | What the GPU layer gives the editor | Accepted |
+| [0115](0115-what-the-gpu-layer-gives-the-editor.md) | What the GPU layer gives the editor | Accepted; amended by 0117 |
 | [0116](0116-stage-6-in-two-halves.md) | Stage 6 in two halves | Accepted |
+| [0117](0117-frustum-culling-and-instancing.md) | Frustum culling and instancing | Accepted |

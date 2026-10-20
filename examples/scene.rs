@@ -464,8 +464,10 @@ impl App for SceneExample {
                             });
                         }
                         ui.label(format!(
-                            "{} draw calls, {} triangles; {} draw calls for shadows",
+                            "{} draw calls of {} instances, {} triangles; \
+                             {} draw calls for shadows",
                             stats.draw_calls,
+                            stats.instances,
                             stats.triangles,
                             stats.shadow_draw_calls + stats.spot_shadow_draw_calls
                         ));
@@ -513,6 +515,7 @@ impl App for SceneExample {
         tracing::info!(
             drawn = self.drawn,
             draw_calls = self.stats.draw_calls,
+            instances = self.stats.instances,
             shadow_draw_calls = self.stats.shadow_draw_calls,
             spot_shadow_draw_calls = self.stats.spot_shadow_draw_calls,
             triangles = self.stats.triangles,

@@ -562,6 +562,7 @@ impl App for HunnaWood {
         tracing::info!(
             drawn = self.drawn,
             draw_calls = self.stats.draw_calls,
+            instances = self.stats.instances,
             shadow_draw_calls = self.stats.shadow_draw_calls,
             spot_shadow_draw_calls = self.stats.spot_shadow_draw_calls,
             triangles = self.stats.triangles,

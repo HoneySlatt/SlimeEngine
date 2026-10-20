@@ -1,7 +1,12 @@
 //! Meshes: triangles, given as vertices and indices, uploaded to the GPU.
 
+use std::ops::Range;
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+
 use glam::Vec3;
-use slime_gfx::{Gpu, IndexBuffer, VertexAttribute, VertexBuffer, VertexFormat, VertexLayout};
+use slime_gfx::{
+    GfxError, Gpu, IndexBuffer, VertexAttribute, VertexBuffer, VertexFormat, VertexLayout,
+};
 
 use crate::bytes::push_f32s;
 use crate::error::RenderError;
@@ -137,11 +142,17 @@ impl MeshData {
 /// A mesh on the GPU, created by [`Renderer::create_mesh`](crate::Renderer::create_mesh). Any
 /// renderer of the same `Gpu` draws it.
 ///
-/// Clones refer to the same buffers.
+/// Its vertices and its indices lie in buffers that it shares with other meshes of the renderer
+/// that created it, each in a range of its own, so that draws of different meshes bind no other
+/// buffer: a *page* of 3 MiB of vertices and 1 MiB of indices at first, each later page twice the
+/// size of the largest, up to 48 MiB and 16 MiB, and a mesh larger than that in a page of its own.
+/// A page's buffers are named after its number in capture tools, not after its meshes.
+///
+/// Clones refer to the same ranges, which their page takes back when the last clone is dropped; a
+/// page whose meshes are all dropped is freed.
 #[derive(Clone, Debug)]
 pub struct Mesh {
-    pub(crate) vertices: VertexBuffer,
-    pub(crate) indices: IndexBuffer,
+    pub(crate) place: Arc<MeshPlace>,
     /// The center of the smallest box around the positions, in the mesh's own space.
     pub(crate) center: Vec3,
     /// Half the size of that box along each axis.
@@ -151,26 +162,253 @@ pub struct Mesh {
 impl Mesh {
     /// How many triangles the mesh has.
     pub fn triangle_count(&self) -> u32 {
-        self.indices.count() / 3
+        self.place.indices.len() as u32 / 3
     }
 
-    /// Checks `data` and uploads it.
-    pub(crate) fn new(gpu: &Gpu, label: &str, data: &MeshData) -> Result<Self, RenderError> {
+    /// What it and its clones share, by which the renderer tells meshes apart: clones are one mesh,
+    /// drawn together.
+    pub(crate) fn identity(&self) -> *const () {
+        Arc::as_ptr(&self.place).cast()
+    }
+
+    /// Checks `data` and uploads it into a page of `pages`.
+    pub(crate) fn new(
+        gpu: &Gpu,
+        pages: &MeshPages,
+        label: &str,
+        data: &MeshData,
+    ) -> Result<Self, RenderError> {
         data.check(gpu.max_buffer_size())
             .map_err(|reason| RenderError::InvalidMesh {
                 label: label.to_owned(),
                 reason,
             })?;
-        let vertices =
-            gpu.create_vertex_buffer(&format!("{label} vertices"), &data.vertex_bytes())?;
-        let indices = gpu.create_index_buffer(&format!("{label} indices"), &data.indices)?;
+        let place = pages.place(gpu, &data.vertex_bytes(), &data.indices)?;
         let (min, max) = data.bounds();
         Ok(Self {
-            vertices,
-            indices,
+            place: Arc::new(place),
             center: (min + max) / 2.0,
             half_size: (max - min) / 2.0,
         })
+    }
+}
+
+/// The buffers of one page of meshes.
+#[derive(Debug)]
+pub(crate) struct Page {
+    pub(crate) vertices: VertexBuffer,
+    pub(crate) indices: IndexBuffer,
+}
+
+/// Where a mesh's vertices and indices are: a range of each of its page's buffers, counted in
+/// vertices and in indices, which the page takes back when this is dropped.
+pub(crate) struct MeshPlace {
+    pub(crate) page: Arc<Page>,
+    pub(crate) vertices: Range<u32>,
+    pub(crate) indices: Range<u32>,
+    pages: MeshPages,
+}
+
+impl std::fmt::Debug for MeshPlace {
+    // Without the pages, which every mesh would print whole.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MeshPlace")
+            .field("vertices", &self.vertices)
+            .field("indices", &self.indices)
+            .finish_non_exhaustive()
+    }
+}
+
+impl Drop for MeshPlace {
+    fn drop(&mut self) {
+        self.pages.give_back(self);
+    }
+}
+
+/// The pages of the meshes of a renderer, which its loads share: clones refer to the same pages.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct MeshPages {
+    pages: Arc<Mutex<Pages>>,
+}
+
+#[derive(Debug, Default)]
+struct Pages {
+    pages: Vec<PageSpace>,
+    /// The number the next page is named after.
+    next: usize,
+}
+
+/// A page, and its free ranges.
+#[derive(Debug)]
+struct PageSpace {
+    page: Arc<Page>,
+    vertices: FreeRanges,
+    indices: FreeRanges,
+    /// How many meshes it holds.
+    meshes: usize,
+}
+
+/// The vertices of the first page, and the most of a page shared by several meshes: 3 MiB and
+/// 48 MiB of vertices of 48 bytes. Each page holds four times as many indices as vertices: 1 MiB
+/// and 16 MiB.
+const SMALLEST_PAGE: u32 = 1 << 16;
+const LARGEST_PAGE: u32 = 1 << 20;
+const INDICES_PER_VERTEX: u32 = 4;
+
+impl MeshPages {
+    /// Places `vertices`, given as the bytes [`MeshData::vertex_bytes`] gives, and `indices` in the
+    /// first page with room for both, or in a new page, and writes them there.
+    fn place(&self, gpu: &Gpu, vertices: &[u8], indices: &[u32]) -> Result<MeshPlace, GfxError> {
+        let vertex_count =
+            u32::try_from(vertices.len() as u64 / VERTEX_STRIDE).expect("checked by MeshData");
+        let index_count = u32::try_from(indices.len()).expect("checked by MeshData");
+        let (page, (vertex_range, index_range)) = {
+            let mut pages = self.lock();
+            let room = pages.pages.iter_mut().find_map(|space| {
+                let taken = space.take(vertex_count, index_count)?;
+                Some((Arc::clone(&space.page), taken))
+            });
+            match room {
+                Some(room) => room,
+                None => {
+                    let space = pages.add(gpu, vertex_count, index_count)?;
+                    let taken = space
+                        .take(vertex_count, index_count)
+                        .expect("a new page has room for what it was made for");
+                    (Arc::clone(&space.page), taken)
+                }
+            }
+        };
+        // Made before the writes, so that the ranges go back to the page whatever happens.
+        let place = MeshPlace {
+            page,
+            vertices: vertex_range,
+            indices: index_range,
+            pages: self.clone(),
+        };
+        gpu.write_vertex_buffer(
+            &place.page.vertices,
+            u64::from(place.vertices.start) * VERTEX_STRIDE,
+            vertices,
+        );
+        gpu.write_index_buffer(&place.page.indices, place.indices.start, indices);
+        Ok(place)
+    }
+
+    /// Gives the ranges of `place` back to its page, and frees the page if it holds no mesh then.
+    fn give_back(&self, place: &MeshPlace) {
+        let mut pages = self.lock();
+        let index = pages
+            .pages
+            .iter()
+            .position(|space| Arc::ptr_eq(&space.page, &place.page))
+            .expect("a mesh's page is kept while it holds the mesh");
+        let space = &mut pages.pages[index];
+        space.vertices.give(place.vertices.clone());
+        space.indices.give(place.indices.clone());
+        space.meshes -= 1;
+        if space.meshes == 0 {
+            pages.pages.swap_remove(index);
+        }
+    }
+
+    fn lock(&self) -> MutexGuard<'_, Pages> {
+        // A panic while the pages are held leaves them whole: a page is added once created, and
+        // ranges move between a page and its meshes in steps that cannot panic.
+        self.pages.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+impl Pages {
+    /// Adds a page with room for `vertices` vertices and `indices` indices: twice the size of the
+    /// largest page, from [`SMALLEST_PAGE`] vertices to [`LARGEST_PAGE`], or as large as they need
+    /// when that is more.
+    fn add(&mut self, gpu: &Gpu, vertices: u32, indices: u32) -> Result<&mut PageSpace, GfxError> {
+        let largest = self.pages.iter().map(|space| space.vertices.capacity).max();
+        let shared = largest.map_or(SMALLEST_PAGE, |largest| (2 * largest).min(LARGEST_PAGE));
+        let vertex_capacity = shared.max(vertices);
+        let index_capacity = (shared * INDICES_PER_VERTEX).max(indices);
+        let name = self.next;
+        let page = Arc::new(Page {
+            vertices: gpu.create_zeroed_vertex_buffer(
+                &format!("meshes, page {name}, vertices"),
+                u64::from(vertex_capacity) * VERTEX_STRIDE,
+            )?,
+            indices: gpu.create_zeroed_index_buffer(
+                &format!("meshes, page {name}, indices"),
+                index_capacity,
+            )?,
+        });
+        self.next += 1;
+        self.pages.push(PageSpace {
+            page,
+            vertices: FreeRanges::new(vertex_capacity),
+            indices: FreeRanges::new(index_capacity),
+            meshes: 0,
+        });
+        Ok(self.pages.last_mut().expect("pushed"))
+    }
+}
+
+impl PageSpace {
+    /// Takes room for `vertices` vertices and `indices` indices, both or neither.
+    fn take(&mut self, vertices: u32, indices: u32) -> Option<(Range<u32>, Range<u32>)> {
+        let vertex_range = self.vertices.take(vertices)?;
+        let Some(index_range) = self.indices.take(indices) else {
+            self.vertices.give(vertex_range);
+            return None;
+        };
+        self.meshes += 1;
+        Some((vertex_range, index_range))
+    }
+}
+
+/// The free ranges of a buffer of `capacity` elements, in order, none touching another.
+#[derive(Debug)]
+struct FreeRanges {
+    capacity: u32,
+    free: Vec<Range<u32>>,
+}
+
+impl FreeRanges {
+    fn new(capacity: u32) -> Self {
+        Self {
+            capacity,
+            free: std::iter::once(0..capacity).collect(),
+        }
+    }
+
+    /// Takes `count` elements from the first free range that holds them.
+    fn take(&mut self, count: u32) -> Option<Range<u32>> {
+        let index = self
+            .free
+            .iter()
+            .position(|free| free.len() as u32 >= count)?;
+        let start = self.free[index].start;
+        self.free[index].start += count;
+        if self.free[index].is_empty() {
+            self.free.remove(index);
+        }
+        Some(start..start + count)
+    }
+
+    /// Gives `range` back, joined to the free ranges it touches.
+    fn give(&mut self, range: Range<u32>) {
+        let index = self.free.partition_point(|free| free.start < range.start);
+        let joins_next = self
+            .free
+            .get(index)
+            .is_some_and(|next| next.start == range.end);
+        let joins_previous = index > 0 && self.free[index - 1].end == range.start;
+        match (joins_previous, joins_next) {
+            (true, true) => {
+                self.free[index - 1].end = self.free[index].end;
+                self.free.remove(index);
+            }
+            (true, false) => self.free[index - 1].end = range.end,
+            (false, true) => self.free[index].start = range.start,
+            (false, false) => self.free.insert(index, range),
+        }
     }
 }
 
@@ -344,5 +582,90 @@ mod tests {
                     .to_owned()
             )
         );
+    }
+
+    #[test]
+    fn free_ranges_are_taken_from_the_first_that_fits_and_given_back_joined() {
+        let mut free = FreeRanges::new(10);
+        assert_eq!(free.take(4), Some(0..4));
+        assert_eq!(free.take(4), Some(4..8));
+        assert_eq!(free.take(4), None, "2 left");
+        free.give(0..4);
+        assert_eq!(free.take(3), Some(0..3), "the first that fits");
+        free.give(4..8);
+        // 3..4 and 4..8 join, then 8..10: one range of 7.
+        assert_eq!((free.free.len(), free.free[0].clone()), (1, 3..10));
+        free.give(0..3);
+        assert_eq!(
+            (free.free.len(), free.free[0].clone()),
+            (1, 0..10),
+            "whole again"
+        );
+        assert_eq!(free.take(10), Some(0..10));
+        assert!(free.free.is_empty());
+    }
+
+    /// The number of pages of `pages`, and the vertices of each.
+    fn page_sizes(pages: &MeshPages) -> Vec<u32> {
+        let pages = pages.lock();
+        pages
+            .pages
+            .iter()
+            .map(|space| space.vertices.capacity)
+            .collect()
+    }
+
+    /// A strip of `vertices` vertices, two triangles for every two vertices past the first two.
+    fn strip(vertices: usize) -> MeshData {
+        let mut data = triangle();
+        data.positions = (0..vertices)
+            .map(|index| [index as f32, (index % 2) as f32, 0.0])
+            .collect();
+        data.normals = vec![[0.0, 0.0, 1.0]; vertices];
+        data.uvs = vec![[0.0, 0.0]; vertices];
+        data.tangents = vec![[1.0, 0.0, 0.0, 1.0]; vertices];
+        data.indices = (0..vertices as u32 - 2)
+            .flat_map(|first| [first, first + 1, first + 2])
+            .collect();
+        data
+    }
+
+    #[test]
+    fn meshes_share_a_page_until_it_is_full_and_a_page_is_freed_with_its_last_mesh() {
+        let gpu = Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists them");
+        let pages = MeshPages::default();
+        let mesh = |data: &MeshData| Mesh::new(&gpu, &pages, "strip", data).expect("uploaded");
+        let first = mesh(&triangle());
+        let second = mesh(&triangle());
+        assert!(
+            Arc::ptr_eq(&first.place.page, &second.place.page),
+            "one page"
+        );
+        assert_eq!(
+            (first.place.vertices.clone(), second.place.vertices.clone()),
+            (0..3, 3..6)
+        );
+        assert_eq!(second.place.indices, 3..6);
+        assert_eq!(second.triangle_count(), 1);
+        // The first page full, the next is twice as large; a mesh larger than the largest shared
+        // page has a page of its own size.
+        let full = mesh(&strip(SMALLEST_PAGE as usize - 6));
+        let next = mesh(&triangle());
+        let large = mesh(&strip(LARGEST_PAGE as usize + 1));
+        assert_eq!(
+            page_sizes(&pages),
+            [SMALLEST_PAGE, 2 * SMALLEST_PAGE, LARGEST_PAGE + 1]
+        );
+        assert!(!Arc::ptr_eq(&next.place.page, &first.place.page));
+        // A clone keeps its ranges; the last one gives them back, for the next mesh.
+        let clone = first.clone();
+        drop(first);
+        drop(clone);
+        assert_eq!(mesh(&triangle()).place.vertices, 0..3, "reused");
+        // A page whose meshes are all dropped is freed.
+        drop(large);
+        assert_eq!(page_sizes(&pages), [SMALLEST_PAGE, 2 * SMALLEST_PAGE]);
+        drop((second, full, next));
+        assert!(page_sizes(&pages).is_empty());
     }
 }

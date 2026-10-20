@@ -1,6 +1,6 @@
 //! The camera: where the scene is seen from, and how it is projected.
 
-use glam::{DMat4, DVec3, Mat4, Vec3};
+use glam::{DMat4, DVec3, Mat4, Vec3, Vec4};
 
 /// A perspective camera, looking from [`eye`](Self::eye) at [`target`](Self::target).
 ///
@@ -92,6 +92,49 @@ impl Camera {
     }
 }
 
+/// What a camera sees, for frustum culling: the space between the four planes through the eye and
+/// the sides of the image, beyond the near plane, in the frame's space (ADR-0048). It has no far
+/// plane: nothing is too far to be seen (ADR-0047).
+pub(crate) struct Frustum {
+    /// Each plane as (n, d), n pointing inside: a point p is on its inner side when n · p + d is
+    /// not negative. Left, right, bottom, top, near.
+    planes: [Vec4; 5],
+}
+
+impl Frustum {
+    /// The frustum of `view_projection`, the matrix from the frame's space to clip space, whose
+    /// rows give its planes (Gribb and Hartmann): a point is seen where −w ≤ x ≤ w, −w ≤ y ≤ w and
+    /// z ≤ w, reversed depth putting the near plane at z = w, and 0 ≤ z holding everywhere.
+    pub(crate) fn new(view_projection: Mat4) -> Self {
+        let [x, y, z, w] = [0, 1, 2, 3].map(|row| view_projection.row(row));
+        Self {
+            planes: [w + x, w - x, w + y, w - y, w - z],
+        }
+    }
+
+    /// Whether the box of an instance may be seen: `transform` takes it from its own space, where
+    /// it has its center and half its size along each axis, to the frame's space. A box that some
+    /// plane leaves wholly outside is not seen; one that crosses each plane, or that lies inside,
+    /// is, even when it lies outside two planes near a corner, which costs a draw and keeps the
+    /// test cheap. A box at no finite place is not seen.
+    pub(crate) fn holds(&self, (transform, center, half_size): (Mat4, Vec3, Vec3)) -> bool {
+        let center = transform.transform_point3(center);
+        // The box's half axes in the frame's space: how far it reaches from its center along a
+        // plane's normal is the sum of their lengths along it.
+        let axes = [
+            transform.x_axis.truncate() * half_size.x,
+            transform.y_axis.truncate() * half_size.y,
+            transform.z_axis.truncate() * half_size.z,
+        ];
+        self.planes.iter().all(|plane| {
+            let normal = plane.truncate();
+            let reach: f32 = axes.iter().map(|axis| normal.dot(*axis).abs()).sum();
+            // Not a number, for a box at no finite place, compares as false: not seen.
+            normal.dot(center) + plane.w >= -reach
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -148,6 +191,112 @@ mod tests {
                 ..Camera::default()
             };
             assert!(camera.view().abs_diff_eq(unit, 1e-6), "length {length}");
+        }
+    }
+
+    /// The frustum of the default camera, looking down −Z from 5 m in front of the origin with a
+    /// field of view of 60°, on a square image: in the frame's space, the eye is at the origin.
+    fn frustum() -> Frustum {
+        let camera = Camera::default();
+        Frustum::new(camera.projection(1.0) * camera.view_from_eye())
+    }
+
+    /// A box of half size `half` at `center`, in the frame's space.
+    fn boxed(center: Vec3, half: f32) -> (Mat4, Vec3, Vec3) {
+        (
+            Mat4::from_translation(center),
+            Vec3::ZERO,
+            Vec3::splat(half),
+        )
+    }
+
+    #[test]
+    fn a_box_in_view_or_across_its_edges_is_seen_and_one_beyond_them_is_not() {
+        let frustum = frustum();
+        // 10 m ahead, the image spans tan(30°) × 10 = 5.77 m on each side of the axis.
+        for (center, half, seen, case) in [
+            (Vec3::new(0.0, 0.0, -10.0), 0.5, true, "ahead"),
+            (
+                Vec3::new(6.0, 0.0, -10.0),
+                0.5,
+                true,
+                "across the right edge",
+            ),
+            (
+                Vec3::new(7.0, 0.0, -10.0),
+                0.5,
+                false,
+                "beyond the right edge",
+            ),
+            (
+                Vec3::new(0.0, -7.0, -10.0),
+                0.5,
+                false,
+                "beyond the bottom edge",
+            ),
+            (Vec3::new(0.0, 0.0, 10.0), 0.5, false, "behind the eye"),
+            (Vec3::new(0.0, 0.0, 0.0), 0.5, true, "around the eye"),
+            (
+                Vec3::new(0.0, 0.0, -0.05),
+                0.01,
+                false,
+                "nearer than the near plane",
+            ),
+            (
+                Vec3::new(0.0, 0.0, -1e9),
+                1.0,
+                true,
+                "farther than any far plane",
+            ),
+        ] {
+            assert_eq!(frustum.holds(boxed(center, half)), seen, "{case}");
+        }
+    }
+
+    #[test]
+    fn a_box_turned_and_scaled_reaches_as_far_as_its_corners() {
+        let frustum = frustum();
+        // A rod 4 m long along X, its center 7.5 m right of the axis 10 m ahead: lying along X it
+        // reaches 5.5 m right of the axis, in view; turned along Y, it does not.
+        let at = Mat4::from_translation(Vec3::new(7.5, 0.0, -10.0));
+        let rod = Mat4::from_scale(Vec3::new(4.0, 0.1, 0.1));
+        let along_x = at * rod;
+        let along_y = at * Mat4::from_rotation_z(std::f32::consts::FRAC_PI_2) * rod;
+        let unit = (Vec3::ZERO, Vec3::splat(0.5));
+        assert!(frustum.holds((along_x, unit.0, unit.1)), "along X");
+        assert!(!frustum.holds((along_y, unit.0, unit.1)), "along Y");
+    }
+
+    #[test]
+    fn the_frustum_follows_where_the_camera_looks_and_the_image_s_aspect() {
+        // Looking along +X from the origin, at an image twice as wide as it is high: 10 m ahead, it
+        // spans tan(30°) × 10 = 5.77 m up and down, twice that, 11.5 m, to each side.
+        let camera = Camera {
+            eye: DVec3::ZERO,
+            target: DVec3::X,
+            ..Camera::default()
+        };
+        let frustum = Frustum::new(camera.projection(2.0) * camera.view_from_eye());
+        for (center, seen, case) in [
+            (Vec3::new(10.0, 0.0, 0.0), true, "ahead"),
+            (Vec3::new(-10.0, 0.0, 0.0), false, "behind"),
+            (Vec3::new(10.0, 0.0, 11.0), true, "11 m to the side"),
+            (Vec3::new(10.0, 0.0, 12.5), false, "12.5 m to the side"),
+            (Vec3::new(10.0, 7.0, 0.0), false, "7 m up"),
+        ] {
+            assert_eq!(frustum.holds(boxed(center, 0.25)), seen, "{case}");
+        }
+    }
+
+    #[test]
+    fn a_box_at_no_finite_place_is_not_seen() {
+        let frustum = frustum();
+        for value in [f32::NAN, f32::INFINITY] {
+            let transform = Mat4::from_translation(Vec3::new(0.0, 0.0, value));
+            assert!(
+                !frustum.holds((transform, Vec3::ZERO, Vec3::ONE)),
+                "{value}"
+            );
         }
     }
 }

@@ -25,7 +25,7 @@ struct Benchmark {
     name: &'static str,
     about: &'static str,
     /// Whether it runs only when an argument is its whole name, not the start of it: the zone's
-    /// needs the zone fetched and cooked first, and lavapipe crashes on a frame of 100 000 draws.
+    /// needs the zone fetched and cooked first.
     on_request: bool,
     run: fn(&mut Context) -> Result<Vec<Row>, String>,
 }
@@ -33,20 +33,20 @@ struct Benchmark {
 const BENCHMARKS: &[Benchmark] = &[
     Benchmark {
         name: "render.instances.10k",
-        about: "10 000 cubes, each its own draw, lit by a sun that casts shadows, under a sky",
+        about: "10 000 cubes of one mesh, lit by a sun that casts shadows, under a sky",
         on_request: false,
         run: |context| render::instances(context, 10_000, 30, render::View::Grid),
     },
     Benchmark {
         name: "render.unseen.10k",
-        about: "the 10 000 cubes of `render.instances.10k`, none of them in view: the commands",
+        about: "the 10 000 cubes of `render.instances.10k`, none of them in view",
         on_request: false,
         run: |context| render::instances(context, 10_000, 30, render::View::Sky),
     },
     Benchmark {
         name: "render.instances.100k",
-        about: "100 000 cubes, as `render.instances.10k`, on request since lavapipe crashes on it",
-        on_request: true,
+        about: "100 000 cubes, as `render.instances.10k`",
+        on_request: false,
         run: |context| render::instances(context, 100_000, 8, render::View::Grid),
     },
     Benchmark {

@@ -6,7 +6,8 @@
 //! bloom in.
 
 use std::collections::HashMap;
-use std::ptr;
+use std::ops::Range;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use glam::{DAffine3, DMat4, DVec3, Mat3, Mat4, Vec3};
@@ -15,19 +16,19 @@ use slime_gfx::{
     AddressMode, BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource,
     BindingType, ComparisonSampler, CullMode, DepthBias, DepthCompare, DepthState, DepthTarget,
     Filter, FragmentState, GfxError, Gpu, RenderPass, RenderPipeline, RenderPipelineDescriptor,
-    RenderTarget, Sampler, SamplerDescriptor, ShaderModule, ShaderStages, Texture, TextureFormat,
-    UniformBuffer,
+    RenderTarget, Sampler, SamplerDescriptor, ShaderModule, ShaderStages, StorageBuffer, Texture,
+    TextureFormat, UniformBuffer,
 };
 
 use crate::bytes::{push_f32s, push_mat3, push_mat4, push_u32s};
-use crate::camera::Camera;
+use crate::camera::{Camera, Frustum};
 use crate::cooked::upload_texture;
 use crate::environment::{Environment, Sky, brdf_table};
 use crate::error::RenderError;
 use crate::graph::{ColorId, Draws, Graph, Imported, PassDeclaration, scaled_side};
 use crate::light::{LIGHT_VALUES_SIZE, Light, MAX_LIGHTS, NO_TILE, SpotLight};
 use crate::material::{MATERIAL_VALUES_SIZE, Material, MaterialData, MaterialParts};
-use crate::mesh::{Mesh, MeshData, VERTEX_LAYOUT};
+use crate::mesh::{Mesh, MeshData, MeshPages, Page, VERTEX_LAYOUT};
 use crate::shaders::ShaderSources;
 use crate::shadow::{
     CASCADE_ATLAS_SIZE, CASCADES, CascadeView, SHADOW_BIAS, SPOT_ATLAS_SIZE, ShadowTile, SpotView,
@@ -62,10 +63,30 @@ const FRAME_VALUES_SIZE: usize = 2 * 64
 const SHADOW_TILE_VALUES_SIZE: usize = 64 + 16;
 /// The index of the shadowed light when the cascades shadow none: no light has it.
 const NO_SHADOWED_LIGHT: u32 = u32::MAX;
-/// The size of the values each instance has in the instance buffer: its `mat4x4<f32>` transform,
-/// the `mat3x3<f32>` that transforms its normals (three columns padded to 16 bytes), and its
-/// handedness, padded to 16 bytes.
+/// The size of the values of an instance in the buffer of the instances' values, `Instance` in
+/// `shader.wgsl`: its `mat4x4<f32>` transform, the `mat3x3<f32>` that transforms its normals (three
+/// columns padded to 16 bytes), and its handedness, padded to 16 bytes.
 const INSTANCE_VALUES_SIZE: usize = 64 + 3 * 16 + 16;
+/// The bits of the passes that draw an instance in a frame: the scene pass's, then one for each
+/// cascade, from the nearest, then one for each tile of the spot lights' atlas.
+const SCENE_PASS: u32 = 1;
+const fn cascade_pass(cascade: usize) -> u32 {
+    1 << (1 + cascade)
+}
+const fn spot_pass(tile: usize) -> u32 {
+    1 << (1 + CASCADES + tile)
+}
+/// The bits of every cascade.
+const CASCADE_PASSES: u32 = ((1 << CASCADES) - 1) << 1;
+/// Where the values of an instance that no pass draws are: nowhere.
+const NOT_DRAWN: u32 = u32::MAX;
+const _: () = assert!(
+    1 + CASCADES + MAX_LIGHTS <= 32,
+    "an instance's passes fit in a u32"
+);
+// Every pass draws an instance at most once, so that the list of the instances that each draw
+// draws never needs more bytes than their values: it is never the larger buffer.
+const _: () = assert!((1 + CASCADES + MAX_LIGHTS) * 4 <= INSTANCE_VALUES_SIZE);
 /// The size of the values of one view of a shadow pass, `ShadowView` in `shader.wgsl`: a matrix.
 const SHADOW_VIEW_SIZE: usize = 64;
 /// The texture slots of a material, each a texture and its sampler: base color,
@@ -74,8 +95,9 @@ const MATERIAL_TEXTURE_SLOTS: u32 = 5;
 /// How far below zero the determinant of a transform's normalized columns must be for the
 /// transform to mirror (see `is_mirrored`).
 const MIRROR_THRESHOLD: f32 = 1e-5;
-/// How many instances the instance buffer holds when the renderer is created; it doubles whenever
-/// a scene has more, and comes back down once a frame uses a quarter of it or less
+/// How many instances the buffer of the instances' values holds when the renderer is created, and
+/// how many entries the list of the instances that the draws draw does; each doubles whenever a
+/// frame needs more, and comes back down once a frame uses a quarter of it or less
 /// (`instance_capacity`).
 const INITIAL_INSTANCE_CAPACITY: usize = 64;
 
@@ -97,7 +119,7 @@ pub struct Instance<'a> {
     /// scales unevenly, even when it flattens them along one axis.
     pub transform: DAffine3,
     /// Whether it casts shadows (ADR-0038, ADR-0049); it receives them either way. An instance that
-    /// casts none is left out of the shadow passes, which it would otherwise cost draw calls, and
+    /// casts none is left out of the shadow passes, which it would otherwise cost GPU time, and
     /// of the depths each cascade spans along the light (ADR-0050, ADR-0064): a vast floor or a sky
     /// dome that nothing needs to shade would otherwise stretch them, and coarsen the depths the
     /// cascade tells apart.
@@ -180,10 +202,15 @@ pub struct Scene<'a> {
     /// smaller than 15 × 15 pixels have no bloom. From 0 to 1: [`Renderer::render`] panics
     /// otherwise.
     pub bloom: f32,
-    /// What to draw. Each pass draws them grouped by pipeline, then by material, then by mesh,
-    /// each material and mesh in the order it first appears here, then in this order, so that a
-    /// draw binds only what changed since the one before (ADR-0106): of two surfaces at the same
-    /// depth, the one drawn first stays, which this order alone does not decide.
+    /// What to draw. Each pass draws those it sees, grouped by pipeline, then by material, then by
+    /// mesh, each material and mesh in the order it first appears here, a clone counting as the
+    /// material or the mesh it was cloned from, then in this order, so that a draw binds only what
+    /// changed since the one before (ADR-0106); the instances of one pipeline, material and mesh
+    /// that follow each other in that order are drawn by one draw call (instancing), in that order
+    /// still. Of two surfaces at the same depth, the one drawn
+    /// first stays, which this order alone does not decide. The shadow passes draw the instances
+    /// of one mesh together whatever their materials, except those of masked materials, whose
+    /// shadows the material cuts.
     pub instances: &'a [Instance<'a>],
 }
 
@@ -207,10 +234,15 @@ impl<'a> Scene<'a> {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct RenderStats {
-    /// Draw calls of the scene pass: one per instance. The draws of the sky, bloom and
-    /// tone-mapping passes are not counted.
+    /// Draw calls of the scene pass: one per group of instances of one pipeline, material and mesh
+    /// that it draws ([`Scene::instances`]). The draws of the sky, bloom and tone-mapping passes
+    /// are not counted.
     pub draw_calls: u32,
-    /// Triangles the scene pass submitted to the GPU, before culling.
+    /// Instances the scene pass drew: those whose box the camera sees, frustum culling having left
+    /// the others out.
+    pub instances: u32,
+    /// Triangles the scene pass submitted to the GPU: those of the instances it drew, before the
+    /// GPU culls the faces turned away.
     pub triangles: u64,
     /// How long [`Renderer::render`] took on the CPU: packing the values, recording the passes and
     /// submitting them, four to a submission (ADR-0041). It includes any wait inside a submission:
@@ -235,13 +267,16 @@ pub struct RenderStats {
     pub tone_mapping_gpu_time: Option<Duration>,
     /// Draw calls of the shadow pass, which draws the shadows of the scene's first directional
     /// light that casts shadows into its four cascades (ADR-0038, ADR-0064): for each cascade, one
-    /// per instance that casts shadows whose box reaches across its square, so that an instance
-    /// costs up to four. None when no directional light of the scene casts shadows, when no
-    /// instance that casts shadows reaches any cascade or every one that does is flattened to a
-    /// point, which casts nothing, or when the camera sees nothing: the pass is then skipped.
+    /// per group of the instances that cast shadows whose boxes reach across its square, of one
+    /// mesh, and of one material for masked ones ([`Scene::instances`]), so that an instance is
+    /// drawn up to four times, whether the camera sees it or not. None when no directional light of
+    /// the scene casts shadows, when no instance that casts shadows reaches any cascade or every
+    /// one that does is flattened to a point, which casts nothing, or when the camera sees nothing:
+    /// the pass is then skipped.
     pub shadow_draw_calls: u32,
     /// The draw calls the spot lights' shadow pass made: for each spot light that casts shadows,
-    /// one per instance that casts shadows whose box reaches into its tile.
+    /// one per group of the instances that cast shadows whose boxes reach into its tile, grouped as
+    /// in the cascades.
     pub spot_shadow_draw_calls: u32,
     /// How long the GPU took to draw the cascades, under the same rules as `scene_gpu_time`;
     /// `None` too for a frame that skipped the shadow pass.
@@ -285,21 +320,31 @@ pub struct RenderStats {
 /// environment for scenes without one; the cascades' atlas, 4096 × 4096 depths (64 MiB) created by
 /// the first frame in which a directional light casts shadows; the spot lights' shadow atlas, as
 /// large, created by the first frame in which a spot light casts shadows; the buffer of the shadow
-/// passes' views; the buffer of the instances' values; and the frame's render graph (ADR-0041): its
-/// passes in order, the high-dynamic-range and depth targets and the bloom's levels at the size of
-/// the output it draws into, the groups that read them and GPU timers for its submissions, built
-/// again when the frame's shape changes (the output's size, either shadow pass or the bloom turned
-/// on or off). A renderer draws best into outputs of one size: drawing into outputs of two sizes in
-/// turn creates its targets again at every call, and reports no tone-mapping or bloom time; use one
-/// renderer per output size. At 1920 × 1080 with the bloom, a renderer holds about 122 MiB of GPU
-/// memory: 111 for the high-dynamic-range and depth targets, 95 of them for their four samples per
-/// pixel, and 10.5 for the bloom's levels; then 64 more once a directional light has cast shadows,
-/// and 64 more once a spot light has; at 3840 × 2160, about 485 MiB, and as much more.
+/// passes' views; the buffers of the instances' values and of the list of the instances that each
+/// draw draws; the pages that hold its meshes' vertices and indices ([`Mesh`]); and the frame's
+/// render graph (ADR-0041): its passes in order, the high-dynamic-range and depth targets and the
+/// bloom's levels at the size of the output it draws into, the groups that read them and GPU
+/// timers for its submissions, built again when the frame's shape changes (the output's size,
+/// either shadow pass or the bloom turned on or off). A renderer draws best into outputs of one
+/// size: drawing into outputs of two sizes in turn creates its targets again at every call, and
+/// reports no tone-mapping or bloom time; use one renderer per output size. At 1920 × 1080 with the
+/// bloom, a renderer holds about 122 MiB of GPU memory: 111 for the high-dynamic-range and depth
+/// targets, 95 of them for their four samples per pixel, and 10.5 for the bloom's levels; then 64
+/// more once a directional light has cast shadows, and 64 more once a spot light has; at 3840 ×
+/// 2160, about 485 MiB, and as much more; and the pages of its meshes.
 ///
-/// It does not yet smooth the edges that a masked material cuts inside a triangle, blend
-/// transparent surfaces, or leave out the instances that the camera does not see: every instance
-/// costs one draw call in the scene pass wherever it is; the shadow passes leave out only what
-/// lies outside each cascade's square and each spot light's cone.
+/// Each frame, the scene pass leaves out the instances whose boxes lie outside what the camera
+/// sees (frustum culling), and the shadow passes those whose boxes lie outside each cascade's
+/// square and each spot light's cone; each pass then draws the instances it keeps of one
+/// pipeline, material and mesh with one draw call (instancing), each instance's values read from a
+/// storage buffer by its number. Nothing is kept from one frame to the next: every instance of the
+/// scene costs CPU time at each frame, to place its box and test it, whether a pass draws it or
+/// not. A frame draws at most as many instances as the device's storage buffers hold values of,
+/// 1 048 576 with the default limits: the instances beyond, in the order of the scene's, are left
+/// out of every pass, with a warning the first time a renderer meets such a scene.
+///
+/// It does not yet smooth the edges that a masked material cuts inside a triangle, or blend
+/// transparent surfaces.
 pub struct Renderer {
     /// The output's format.
     format: TextureFormat,
@@ -317,11 +362,14 @@ pub struct Renderer {
     brdf_table: Texture,
     /// Reads the environment and the BRDF table.
     environment_sampler: Sampler,
-    instances: InstanceSlots,
-    /// The values of the instances of the frame drawn last, each slot padded to the buffer's
-    /// stride: kept from one frame to the next, so that a frame writes into memory it has, and no
-    /// larger than the buffer once the buffer shrinks.
-    instance_values: Vec<u8>,
+    /// The pages of the meshes it creates, which its loads share.
+    pub(crate) meshes: MeshPages,
+    /// The storage buffers of the instances that a frame draws, and the group that binds them.
+    instances: InstanceBuffers,
+    /// What the frame drawn last worked out about its instances: kept from one frame to the next,
+    /// so that a frame writes into memory it has, and given back after a peak, as the buffers
+    /// shrink (`reuse`).
+    scratch: Scratch,
     /// The frame's graph and what reads its targets: created by the first `render`, and again
     /// when the frame's shape changes.
     frame: Option<Frame>,
@@ -357,8 +405,34 @@ pub struct Renderer {
     /// The indices of the lights that the last frame left out, which [`Light::check`] refused:
     /// each is said when it is first left out, not at every frame.
     left_out_lights: Vec<usize>,
+    /// Whether a frame left out instances beyond what the device's storage buffers hold: it is
+    /// said once, not at every frame.
+    warned_of_instances: bool,
 }
 
+/// What a frame works out about the scene's instances, one entry per instance, or per instance
+/// that a pass draws.
+#[derive(Default)]
+struct Scratch {
+    /// Each instance's transform from its mesh's space to the frame's space.
+    models: Vec<Mat4>,
+    /// The passes that draw each instance: bits of [`SCENE_PASS`], [`cascade_pass`] and
+    /// [`spot_pass`].
+    passes: Vec<u32>,
+    /// For each instance that a pass draws, where its values are in the buffer of values: the
+    /// instances drawn, in the scene's order.
+    values_of: Vec<u32>,
+    /// The values of the instances drawn, as the buffer holds them.
+    values: Vec<u8>,
+    /// The keys of the instances that the scene pass draws, and of those that the shadow passes
+    /// draw, sorted ([`draw_keys`]).
+    scene_keys: Vec<u128>,
+    shadow_keys: Vec<u128>,
+    /// For each draw of each pass, in the order of the passes and of their draws, where the
+    /// values of the instances it draws are, as the buffer of the list holds them: 32-bit
+    /// numbers.
+    list: Vec<u8>,
+}
 /// The passes of the renderer's frame (ADR-0041), as its graph names them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Pass {
@@ -412,15 +486,25 @@ struct CascadeDraw {
     view_projection: Mat4,
     /// The width of its texels, in metres.
     texel: f32,
-    /// The slots of the instances that cast shadows across its square.
-    instances: Vec<usize>,
+    /// The draws of the instances that cast shadows across its square.
+    draws: Vec<Batch>,
 }
 
 /// What the spot lights' shadow pass draws into one tile of the atlas.
 struct SpotDraw {
     tile: ShadowTile,
-    /// The slots of the instances that cast shadows into the tile.
-    instances: Vec<usize>,
+    /// The draws of the instances that cast shadows into the tile.
+    draws: Vec<Batch>,
+}
+
+/// One draw call: the instances of one pipeline, material and mesh that a pass draws together.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Batch {
+    /// The index in the scene's instances of the first instance it draws, whose pipeline,
+    /// material and mesh are those of every one.
+    first: usize,
+    /// Where the instances it draws are in the list of the instances that the draws draw.
+    instances: Range<u32>,
 }
 
 /// How many levels the bloom's chain has for an output of `width` × `height` pixels: the level
@@ -456,19 +540,6 @@ impl Renderer {
     /// [`GfxError::OutOfMemory`] if the GPU's memory cannot hold the shadow map or the renderer's
     /// other objects; or with [`GfxError::DeviceLost`] if the device is lost.
     pub fn new(gpu: &Gpu, format: TextureFormat) -> Result<Self, RenderError> {
-        let uniform = |label: &str, dynamic_offset: bool, size: usize| {
-            gpu.create_bind_group_layout(
-                label,
-                &[BindGroupLayoutEntry {
-                    binding: 0,
-                    visible_to: ShaderStages::VertexAndFragment,
-                    ty: BindingType::UniformBuffer {
-                        dynamic_offset,
-                        size: size as u64,
-                    },
-                }],
-            )
-        };
         // The frame's values, then the environment, the BRDF table and the sampler that reads both.
         let frame_layout = gpu.create_bind_group_layout(
             "frame",
@@ -520,7 +591,25 @@ impl Renderer {
             }
         }
         let material_layout = gpu.create_bind_group_layout("material", &material_entries)?;
-        let instance_layout = uniform("instance", true, INSTANCE_VALUES_SIZE)?;
+        // The instances' values, then the list of the instances that each draw draws, by the index
+        // of their values: the vertex shader passes on what the fragment shader needs.
+        let instance_layout = gpu.create_bind_group_layout(
+            "instances",
+            &[
+                BindGroupLayoutEntry {
+                    binding: 0,
+                    visible_to: ShaderStages::Vertex,
+                    ty: BindingType::StorageBuffer {
+                        size: INSTANCE_VALUES_SIZE as u64,
+                    },
+                },
+                BindGroupLayoutEntry {
+                    binding: 1,
+                    visible_to: ShaderStages::Vertex,
+                    ty: BindingType::StorageBuffer { size: 4 },
+                },
+            ],
+        )?;
         // Apart from the frame's group, which the shadow pass binds: a pass cannot bind what it
         // draws into.
         let shadow_layout = gpu.create_bind_group_layout(
@@ -674,7 +763,12 @@ impl Renderer {
             &[255, 255, 255, 255],
         )?;
         let default_sampler = gpu.create_sampler("default", &SamplerDescriptor::default())?;
-        let instances = InstanceSlots::new(gpu, &layouts.instance, INITIAL_INSTANCE_CAPACITY)?;
+        let instances = InstanceBuffers::new(
+            gpu,
+            &layouts.instance,
+            INITIAL_INSTANCE_CAPACITY,
+            INITIAL_INSTANCE_CAPACITY,
+        )?;
         if !gpu.can_time() {
             tracing::info!("the adapter cannot time its work: the statistics have no GPU time");
         }
@@ -692,8 +786,9 @@ impl Renderer {
             no_environment,
             brdf_table,
             environment_sampler,
+            meshes: MeshPages::default(),
             instances,
-            instance_values: Vec::new(),
+            scratch: Scratch::default(),
             frame: None,
             cascade_atlas: None,
             no_atlas,
@@ -707,6 +802,7 @@ impl Renderer {
             tone_mapping_settings,
             warned_of_lights: false,
             left_out_lights: Vec::new(),
+            warned_of_instances: false,
         })
     }
 
@@ -792,8 +888,9 @@ impl Renderer {
         upload_texture(gpu, label, data)
     }
 
-    /// Uploads a mesh: 48 bytes per vertex and 4 per index. `label` names its buffers in error
-    /// messages and in GPU capture tools.
+    /// Uploads a mesh: 48 bytes per vertex and 4 per index, into a page of the meshes that this
+    /// renderer creates ([`Mesh`]), a new page when none has room. `label` names it in error
+    /// messages.
     ///
     /// # Errors
     ///
@@ -803,15 +900,15 @@ impl Renderer {
     /// normal, uv or tangent) that is not finite, or vertices or indices that need a buffer larger
     /// than the device accepts ([`Gpu::max_buffer_size`], 256 MiB with the
     /// default limits: 5 592 405 vertices, or 67 108 864 indices). [`RenderError::Gfx`] with
-    /// [`GfxError::OutOfMemory`] if the GPU's memory cannot hold the mesh, or with
-    /// [`GfxError::DeviceLost`] once the device is lost.
+    /// [`GfxError::OutOfMemory`] if the GPU's memory cannot hold the new page that the mesh
+    /// needs, or with [`GfxError::DeviceLost`] once the device is lost.
     pub fn create_mesh(
         &self,
         gpu: &Gpu,
         label: &str,
         data: &MeshData,
     ) -> Result<Mesh, RenderError> {
-        Mesh::new(gpu, label, data)
+        Mesh::new(gpu, &self.meshes, label, data)
     }
 
     /// Creates a material. `label` names it in error messages and in GPU capture tools. The
@@ -842,58 +939,61 @@ impl Renderer {
 
     /// Draws `scene` into `target`, in passes. The first directional light of `scene.lights` that
     /// casts shadows casts them through four cascades: what the camera sees up to the light's
-    /// [`shadow_distance`](crate::DirectionalLight::shadow_distance) is split along its axis into
-    /// four slices, each twice as deep as the one before, and each slice is covered by a square
-    /// across the light, of 2048 × 2048 texels whatever its size (ADR-0038, ADR-0049, ADR-0050,
-    /// ADR-0064). The shadow pass draws into the tile of each cascade the depths of the instances
-    /// that cast shadows across its square, all their faces (the parts that masked materials
-    /// discard excepted), as the light sees them; it is skipped when no directional light casts
-    /// shadows, or when no instance that casts shadows reaches any cascade. The spot lights' shadow
-    /// pass then draws, into the tile of the atlas of each spot light that casts shadows, the
-    /// depths of the instances that cast shadows inside its cone and range, seen in perspective
-    /// from the light (ADR-0058, ADR-0061); it is skipped when no spot light casts shadows. The
-    /// scene pass draws every instance into a high-dynamic-range target of four samples per pixel
-    /// with the depth test, so that nearer surfaces hide farther ones whatever their order, each
-    /// surface shaded by the scene's light with glTF's metallic-roughness model and its material's
-    /// textures, the shadowed light's only where its cascades hold nothing nearer to it: the finest
-    /// cascade whose square holds a point shades it, and fades into the next across a band, a tenth
-    /// of its width, at its edge, as the last one does into light, beyond which nothing is shadowed
-    /// (ADR-0065); a point is looked up in each cascade at most 4.5 of its texels off its triangle,
-    /// towards the light, and compared through a filter over 5 × 5 texels so that a shadow's edges
-    /// fade smoothly over about six texels (ADR-0063); each surface is culled or not as its
-    /// material and its transform ask (ADR-0035), the scene's environment reflected as its material
-    /// reflects it (ADR-0039), its light multiplied by the scene's exposure (ADR-0037). Each spot
-    /// light that casts shadows lights a point only where its tile holds nothing nearer to it,
-    /// looked up off the triangle by up to 4.5 of the tile's texels and compared as the directional
-    /// light's cascades are (ADR-0061, ADR-0062); point lights cast no shadows. The sky pass draws
-    /// the environment, exposed, where no surface was drawn, with its sun's disc. The resolve pass
-    /// then averages the samples of each pixel, each weighed by 1 / (1 + its brightest channel),
-    /// which smooths the edges of what both passes drew, the bright ones too (ADR-0056, ADR-0060).
-    /// Unless `scene.bloom` is 0 or `target` is smaller than 15 × 15, the bloom's passes filter
-    /// that light down into levels of half the size of the one before, to a side of at least 8
-    /// texels, with Jimenez's 13-tap filter, then average them back up through 3 × 3 tents, every
-    /// level with the same weight, into a blurred copy (ADR-0040): 11 passes at 1280 × 720, 13 at
-    /// 1920 × 1080. The tone-mapping pass then mixes the blurred copy in by `scene.bloom`, maps
-    /// that light to the range a display shows with Khronos PBR Neutral, which lowers a color whose
-    /// channels all lie between 0.08 and 0.8 by 0.04, a darker one less, and compresses a brighter
-    /// one towards 1 and turns it towards white, dithers it when `target` has 8 bits per channel,
-    /// with noise of up to one step that keeps its average and leaves black and white as they are
-    /// (ADR-0051), and writes it into `target`, opaque. A render graph orders the passes, and they
-    /// are recorded in that order, four to a submission named after `target` (ADR-0041); the work
-    /// runs on the GPU after this method returns.
+    /// [`shadow_distance`](crate::DirectionalLight::shadow_distance) is split along its axis
+    /// into four slices, each twice as deep as the one before, and each slice is covered by a
+    /// square across the light, of 2048 × 2048 texels whatever its size (ADR-0038, ADR-0049,
+    /// ADR-0050, ADR-0064). The shadow pass draws into the tile of each cascade the depths of
+    /// the instances that cast shadows across its square, all their faces (the parts that masked
+    /// materials discard excepted), as the light sees them; it is skipped when no directional
+    /// light casts shadows, or when no instance that casts shadows reaches any cascade. The
+    /// spot lights' shadow pass then draws, into the tile of the atlas of each spot light
+    /// that casts shadows, the depths of the instances that cast shadows inside its cone and
+    /// range, seen in perspective from the light (ADR-0058, ADR-0061); it is skipped when no
+    /// spot light casts shadows. The scene pass draws the instances whose boxes the camera
+    /// sees into a high-dynamic-range target of four samples per pixel with the depth test,
+    /// so that nearer surfaces hide farther ones whatever their order, each surface shaded by
+    /// the scene's light with glTF's metallic-roughness model and its material's textures,
+    /// the shadowed light's only where its cascades hold nothing nearer to it: the finest
+    /// cascade whose square holds a point shades it, and fades into the next across a band, a
+    /// tenth of its width, at its edge, as the last one does into light, beyond which nothing
+    /// is shadowed (ADR-0065); a point is looked up in each cascade at most 4.5 of its texels
+    /// off its triangle, towards the light, and compared through a filter over 5 × 5 texels
+    /// so that a shadow's edges fade smoothly over about six texels (ADR-0063); each surface is
+    /// culled or not as its material and its transform ask (ADR-0035), the scene's environment
+    /// reflected as its material reflects it (ADR-0039), its light multiplied by the scene's
+    /// exposure (ADR-0037). Each spot light that casts shadows lights a point only where its
+    /// tile holds nothing nearer to it, looked up off the triangle by up to 4.5 of the tile's
+    /// texels and compared as the directional light's cascades are (ADR-0061, ADR-0062);
+    /// point lights cast no shadows. The sky pass draws the environment, exposed, where no
+    /// surface was drawn, with its sun's disc. The resolve pass then averages the samples of
+    /// each pixel, each weighed by 1 / (1 + its brightest channel), which smooths the edges of
+    /// what both passes drew, the bright ones too (ADR-0056, ADR-0060).  Unless `scene.bloom`
+    /// is 0 or `target` is smaller than 15 × 15, the bloom's passes filter that light down
+    /// into levels of half the size of the one before, to a side of at least 8 texels, with
+    /// Jimenez's 13-tap filter, then average them back up through 3 × 3 tents, every level
+    /// with the same weight, into a blurred copy (ADR-0040): 11 passes at 1280 × 720, 13 at
+    /// 1920 × 1080. The tone-mapping pass then mixes the blurred copy in by `scene.bloom`,
+    /// maps that light to the range a display shows with Khronos PBR Neutral, which lowers
+    /// a color whose channels all lie between 0.08 and 0.8 by 0.04, a darker one less, and
+    /// compresses a brighter one towards 1 and turns it towards white, dithers it when `target`
+    /// has 8 bits per channel, with noise of up to one step that keeps its average and leaves
+    /// black and white as they are (ADR-0051), and writes it into `target`, opaque. A render
+    /// graph orders the passes, and they are recorded in that order, four to a submission
+    /// named after `target` (ADR-0041); the work runs on the GPU after this method returns.
     ///
     /// The high-dynamic-range and depth targets are created at the size of `target` the first
     /// time, and again whenever that size changes; the bloom's levels (4.7 MiB at 1280 × 720,
     /// 10.5 MiB at 1920 × 1080) likewise, and only while the bloom runs: they are freed when it
-    /// stops, and created again, in one frame, when it resumes. The instance buffer grows when a
-    /// scene has more instances than it holds, and shrinks back once a frame uses a quarter of it
-    /// or less.
+    /// stops, and created again, in one frame, when it resumes. The buffers of the instances'
+    /// values and of their list grow when a frame draws more than they hold, and shrink back once
+    /// a frame uses a quarter of them or less. Each instance drawn takes 128 bytes of values, and
+    /// 4 bytes in the list for each pass that draws it.
     ///
     /// # Errors
     ///
     /// [`RenderError::Gfx`] with [`GfxError::OutOfMemory`] when the GPU's memory cannot hold what
     /// the frame creates: the targets of a new size, the bloom's levels when it resumes, the
-    /// instance buffer when it grows or shrinks, or the bindings of a new environment; or with
+    /// instances' buffers when they grow or shrink, or the bindings of a new environment; or with
     /// [`GfxError::DeviceLost`] once the device is lost, whether the frame creates anything or not.
     /// Nothing is drawn then, and the renderer keeps what it had: the next call tries again, so
     /// that a game can free memory, or draw into a smaller target, in between.
@@ -901,14 +1001,13 @@ impl Renderer {
     /// # Panics
     ///
     /// If `target` does not have the format the renderer was created for; if the scene's exposure
-    /// or bloom is outside the range its documentation gives (the message names it); or if the
-    /// instances need a buffer larger than the device allows (256 MiB with the default limits:
-    /// about a million instances): these are bugs in the caller. A light with a value outside the
-    /// range its documentation gives, which a game's data may hold ([`Light::check`]), or a point
-    /// or spot light farther than 10¹⁸ m from the camera along an axis, where the shader's 32-bit
-    /// floats no longer measure it, is left out, with a warning that names it by its index in the
-    /// scene's lights when it is first left out; the [`MAX_LIGHTS`] drawn are the first of the
-    /// others.
+    /// or bloom is outside the range its documentation gives (the message names it): these are bugs
+    /// in the caller. Instances beyond what the device's storage buffers hold are left out, with a
+    /// warning ([`Renderer`]). A light with a value outside the range its documentation gives,
+    /// which a game's data may hold ([`Light::check`]), or a point or spot light farther than
+    /// 10¹⁸ m from the camera along an axis, where the shader's 32-bit floats no longer measure it,
+    /// is left out, with a warning that names it by its index in the scene's lights when it is
+    /// first left out; the [`MAX_LIGHTS`] drawn are the first of the others.
     ///
     /// With glam's assertions on (see [`Camera`]), also for a camera that would otherwise draw
     /// nothing usable, as [`Camera::view_projection`] does.
@@ -988,21 +1087,42 @@ impl Renderer {
 
         // Every position reaches the GPU relative to the camera (ADR-0048).
         let origin = scene.camera.eye;
-        // The draws of each pass go by pipeline, then material, then mesh, so that each binds
-        // only what changed since the one before.
-        let (scene_order, shadow_order) = draw_orders(scene.instances);
+        let aspect = width as f32 / height as f32;
+        let view_projection = scene.camera.projection(aspect) * scene.camera.view_from_eye();
+        let instances = scene.instances;
+        let Scratch {
+            models,
+            passes,
+            values_of,
+            values,
+            scene_keys,
+            shadow_keys,
+            list,
+        } = &mut self.scratch;
+        reuse(models, instances.len());
+        models.extend(
+            instances
+                .iter()
+                .map(|instance| relative_to(origin, instance.transform)),
+        );
+        let boxed = |slot: usize| {
+            let mesh = instances[slot].mesh;
+            (models[slot], mesh.center, mesh.half_size)
+        };
+        // The scene pass draws what the camera sees.
+        let frustum = Frustum::new(view_projection);
+        reuse(passes, instances.len());
+        passes.extend((0..instances.len()).map(|slot| {
+            if frustum.holds(boxed(slot)) {
+                SCENE_PASS
+            } else {
+                0
+            }
+        }));
         // The first directional light that casts shadows casts them, through its cascades, each
         // drawing the instances that cast shadows across its square (ADR-0038, ADR-0064); none when
-        // no such instance reaches any cascade.
-        let aspect = width as f32 / height as f32;
-        let boxed = |instance: &Instance<'_>| {
-            (
-                relative_to(origin, instance.transform),
-                instance.mesh.center,
-                instance.mesh.half_size,
-            )
-        };
-        let shadow = lights
+        // the camera sees nothing.
+        let shadowed = lights
             .iter()
             .enumerate()
             .find_map(|(index, light)| match light {
@@ -1010,36 +1130,15 @@ impl Renderer {
                 _ => None,
             })
             .and_then(|(index, light)| {
-                let cascades = (0..CASCADES)
+                let views = (0..CASCADES)
                     .map(|cascade| {
                         let camera = &scene.camera;
                         let (near, far) = cascade_slice(camera, light.shadow_distance, cascade);
-                        let view = CascadeView::new(light.direction, camera, aspect, near, far)?;
-                        let instances: Vec<usize> = shadow_order
-                            .iter()
-                            .copied()
-                            .filter(|&slot| {
-                                let instance = &scene.instances[slot];
-                                instance.casts_shadows && view.reaches(boxed(instance))
-                            })
-                            .collect();
-                        // A cascade that nothing reaches is cleared: the points its square holds
-                        // are lit.
-                        let view_projection = view.view_projection(
-                            instances.iter().map(|&slot| boxed(&scene.instances[slot])),
-                        );
-                        Some(CascadeDraw {
-                            tile: cascade_tile(cascade),
-                            view_projection,
-                            texel: view.texel,
-                            instances,
-                        })
+                        CascadeView::new(light.direction, camera, aspect, near, far)
                     })
-                    .collect::<Option<Vec<CascadeDraw>>>()?;
-                let reached = cascades.iter().any(|cascade| !cascade.instances.is_empty());
-                reached.then_some((index, cascades))
+                    .collect::<Option<Vec<CascadeView>>>()?;
+                Some((index, views))
             });
-
         // Each spot light that casts shadows, among those drawn, gets a tile of the atlas, in the
         // scene's order, and draws there the instances that cast shadows into it (ADR-0058).
         let spot_lights: Vec<&SpotLight> = lights
@@ -1049,32 +1148,121 @@ impl Renderer {
                 _ => None,
             })
             .collect();
-        let mut spot_views = Vec::with_capacity(spot_lights.len());
-        let spot_draws: Vec<SpotDraw> = spot_lights
+        let tiles: Vec<ShadowTile> = spot_tiles(spot_lights.len()).collect();
+        let spot_views: Vec<SpotView> = spot_lights
             .iter()
-            .zip(spot_tiles(spot_lights.len()))
-            .map(|(light, tile)| {
-                let view = SpotView::new(light, origin, tile.size);
-                let instances = shadow_order
-                    .iter()
-                    .copied()
-                    .filter(|&slot| {
-                        let instance = &scene.instances[slot];
-                        instance.casts_shadows
-                            && view.reaches(
-                                light.range,
-                                (
-                                    relative_to(origin, instance.transform),
-                                    instance.mesh.center,
-                                    instance.mesh.half_size,
-                                ),
-                            )
-                    })
-                    .collect();
-                spot_views.push(view);
-                SpotDraw { tile, instances }
+            .zip(&tiles)
+            .map(|(light, tile)| SpotView::new(light, origin, tile.size))
+            .collect();
+        for (slot, instance) in instances.iter().enumerate() {
+            if !instance.casts_shadows {
+                continue;
+            }
+            let boxed = boxed(slot);
+            for (cascade, view) in shadowed.iter().flat_map(|(_, views)| views).enumerate() {
+                if view.reaches(boxed) {
+                    passes[slot] |= cascade_pass(cascade);
+                }
+            }
+            for (tile, (light, view)) in spot_lights.iter().zip(&spot_views).enumerate() {
+                if view.reaches(light.range, boxed) {
+                    passes[slot] |= spot_pass(tile);
+                }
+            }
+        }
+        // A frame draws at most as many instances as a storage buffer holds values of (G29): the
+        // last ones that a pass draws are left out of every pass, rather than make a buffer that
+        // the device refuses.
+        let most = u32::try_from(gpu.max_storage_buffer_size() / INSTANCE_VALUES_SIZE as u64)
+            .unwrap_or(u32::MAX);
+        reuse(values_of, instances.len());
+        let (drawn, left_out) = place_values(passes, most, values_of);
+        if left_out > 0 && !self.warned_of_instances {
+            tracing::warn!(
+                drawn,
+                left_out,
+                "the passes draw more instances than the device's storage buffers hold the values \
+                 of: the last ones, in the scene's order, are left out (said once per renderer)"
+            );
+            self.warned_of_instances = true;
+        }
+        // Each cascade's depths are fitted to the boxes that reach across its square; a cascade
+        // that nothing reaches is cleared, and the points its square holds are lit.
+        let mut shadow = shadowed.and_then(|(index, views)| {
+            let reached = passes.iter().any(|&pass| pass & CASCADE_PASSES != 0);
+            let cascades = views.iter().enumerate().map(|(cascade, view)| {
+                let reaching = (0..instances.len())
+                    .filter(|&slot| passes[slot] & cascade_pass(cascade) != 0)
+                    .map(boxed);
+                CascadeDraw {
+                    tile: cascade_tile(cascade),
+                    view_projection: view.view_projection(reaching),
+                    texel: view.texel,
+                    draws: Vec::new(),
+                }
+            });
+            reached.then(|| (index, cascades.collect::<Vec<CascadeDraw>>()))
+        });
+        // The draws of each pass go by pipeline, then material, then mesh, so that each binds
+        // only what changed since the one before, and draws together the instances of one.
+        reuse(scene_keys, instances.len());
+        reuse(shadow_keys, instances.len());
+        draw_keys(instances, passes, scene_keys, shadow_keys);
+        list.clear();
+        let scene_draws = batches(scene_keys.iter().copied(), values_of, list);
+        let (passes, shadow_keys): (&[u32], &[u128]) = (passes, shadow_keys);
+        let in_pass = |pass: u32| {
+            shadow_keys
+                .iter()
+                .copied()
+                .filter(move |&key| passes[slot_of(key)] & pass != 0)
+        };
+        if let Some((_, cascades)) = &mut shadow {
+            for (cascade, draw) in cascades.iter_mut().enumerate() {
+                draw.draws = batches(in_pass(cascade_pass(cascade)), values_of, list);
+            }
+        }
+        let spot_draws: Vec<SpotDraw> = tiles
+            .iter()
+            .enumerate()
+            .map(|(index, &tile)| SpotDraw {
+                tile,
+                draws: batches(in_pass(spot_pass(index)), values_of, list),
             })
             .collect();
+        // The values of the instances drawn, in the scene's order.
+        values.clear();
+        for (slot, instance) in instances.iter().enumerate() {
+            if values_of[slot] == NOT_DRAWN {
+                continue;
+            }
+            let linear = linear(instance.transform);
+            push_mat4(values, models[slot]);
+            push_mat3(values, normal_matrix(linear));
+            let handedness = if is_mirrored(linear) { -1.0 } else { 1.0 };
+            push_f32s(values, &[handedness, 0.0, 0.0, 0.0]);
+        }
+        let capacity = (
+            instance_capacity(self.instances.capacity.0, drawn as usize).min(most as usize),
+            instance_capacity(self.instances.capacity.1, list.len() / 4)
+                .min((gpu.max_storage_buffer_size() / 4) as usize),
+        );
+        if capacity != self.instances.capacity {
+            tracing::debug!(?capacity, "resizing the instances' buffers");
+            self.instances =
+                InstanceBuffers::new(gpu, &self.layouts.instance, capacity.0, capacity.1)?;
+            // The memory of the values and of the list follows the buffers, back down after a
+            // peak.
+            values.shrink_to(capacity.0 * INSTANCE_VALUES_SIZE);
+            list.shrink_to(capacity.1 * 4);
+        }
+        if !values.is_empty() {
+            gpu.write_storage_buffer(&self.instances.values, 0, values);
+        }
+        if !list.is_empty() {
+            gpu.write_storage_buffer(&self.instances.list, 0, list);
+        }
+
         // Each atlas is created by the first frame that draws into it, and the scene pass reads it
         // from then on, where it read a texel of its own.
         let mut created = false;
@@ -1105,7 +1293,6 @@ impl Renderer {
         }
 
         let mut frame_bytes = Vec::with_capacity(FRAME_VALUES_SIZE);
-        let view_projection = scene.camera.projection(aspect) * scene.camera.view_from_eye();
         push_mat4(&mut frame_bytes, view_projection);
         // Without the camera's position, its inverse gives directions from the camera.
         push_mat4(&mut frame_bytes, view_projection.inverse());
@@ -1213,34 +1400,6 @@ impl Renderer {
         }
         let frame_group = &self.frame_group.1;
 
-        let capacity = instance_capacity(self.instances.capacity, scene.instances.len());
-        if capacity != self.instances.capacity {
-            tracing::debug!(capacity, "resizing the instance buffer");
-            self.instances = InstanceSlots::new(gpu, &self.layouts.instance, capacity)?;
-            // The values' memory follows the buffer, back down after a peak.
-            self.instance_values
-                .shrink_to(capacity * self.instances.stride);
-        }
-        let stride = self.instances.stride;
-        // The slots are written one after another, each padded to the stride, and only those that
-        // the frame's instances use reach the buffer, whose other slots no draw reads.
-        let instance_bytes = &mut self.instance_values;
-        instance_bytes.clear();
-        for instance in scene.instances {
-            push_mat4(instance_bytes, relative_to(origin, instance.transform));
-            push_mat3(instance_bytes, normal_matrix(linear(instance.transform)));
-            let handedness = if is_mirrored(linear(instance.transform)) {
-                -1.0
-            } else {
-                1.0
-            };
-            push_f32s(instance_bytes, &[handedness, 0.0, 0.0, 0.0]);
-            instance_bytes.resize(instance_bytes.len().next_multiple_of(stride), 0);
-        }
-        if !instance_bytes.is_empty() {
-            gpu.write_uniform_buffer_start(&self.instances.buffer, instance_bytes);
-        }
-
         let shape = Shape {
             width,
             height,
@@ -1278,7 +1437,7 @@ impl Renderer {
                     group,
                     frame_group,
                     scene,
-                    &scene_order,
+                    &scene_draws,
                     cascades,
                     &spot_draws,
                     &mut stats,
@@ -1298,14 +1457,15 @@ impl Renderer {
         Ok(stats)
     }
 
-    /// Draws the depths of `instance`, at `slot` of the instance buffer, in a shadow pass, with the
-    /// shadow pipeline its material asks for, set when it differs from the one set last.
+    /// Draws the depths of the instances `instances` of the list, of `instance`'s mesh and
+    /// material, in a shadow pass, with the shadow pipeline its material asks for, set when it
+    /// differs from the one set last.
     fn draw_caster<'a>(
         &self,
         render_pass: &mut RenderPass<'_>,
         bound: &mut Bound<'a>,
-        slot: usize,
         instance: &Instance<'a>,
+        instances: Range<u32>,
     ) {
         let masked = instance.material.masked;
         if bound.pipeline != Some(u8::from(masked)) {
@@ -1316,7 +1476,8 @@ impl Renderer {
             });
             bound.pipeline = Some(u8::from(masked));
         }
-        self.instances.draw(render_pass, bound, slot, instance);
+        // Only the masked materials' pipeline reads the material.
+        draw(render_pass, bound, instance, masked, instances);
     }
 
     /// Records `pass`, which reads its transient targets through `group`, drawing `scene`, and
@@ -1332,7 +1493,7 @@ impl Renderer {
         group: Option<&BindGroup>,
         frame_group: &BindGroup,
         scene: &Scene<'_>,
-        scene_order: &[usize],
+        scene_draws: &[Batch],
         cascades: &[CascadeDraw],
         spot_draws: &[SpotDraw],
         stats: &mut RenderStats,
@@ -1340,6 +1501,7 @@ impl Renderer {
         match pass {
             Pass::Shadow => {
                 render_pass.set_bind_group(0, frame_group, &[]);
+                render_pass.set_bind_group(2, &self.instances.group, &[]);
                 let mut bound = Bound::default();
                 // Each cascade's view, in the first slots.
                 for (view, cascade) in (0..).zip(cascades) {
@@ -1348,14 +1510,21 @@ impl Renderer {
                     let offset = u32::try_from(view * self.shadow_view_stride)
                         .expect("at most CASCADES views");
                     render_pass.set_bind_group(3, &self.shadow_views_group, &[offset]);
-                    for &slot in &cascade.instances {
-                        self.draw_caster(render_pass, &mut bound, slot, &scene.instances[slot]);
+                    for batch in &cascade.draws {
+                        let instance = &scene.instances[batch.first];
+                        self.draw_caster(
+                            render_pass,
+                            &mut bound,
+                            instance,
+                            batch.instances.clone(),
+                        );
                         stats.shadow_draw_calls += 1;
                     }
                 }
             }
             Pass::SpotShadows => {
                 render_pass.set_bind_group(0, frame_group, &[]);
+                render_pass.set_bind_group(2, &self.instances.group, &[]);
                 let mut bound = Bound::default();
                 // Each tile's view, in the slots after the cascades'.
                 for (view, draw) in (CASCADES..).zip(spot_draws) {
@@ -1364,28 +1533,43 @@ impl Renderer {
                     let offset = u32::try_from(view * self.shadow_view_stride)
                         .expect("at most MAX_LIGHTS views");
                     render_pass.set_bind_group(3, &self.shadow_views_group, &[offset]);
-                    for &slot in &draw.instances {
-                        self.draw_caster(render_pass, &mut bound, slot, &scene.instances[slot]);
+                    for batch in &draw.draws {
+                        let instance = &scene.instances[batch.first];
+                        self.draw_caster(
+                            render_pass,
+                            &mut bound,
+                            instance,
+                            batch.instances.clone(),
+                        );
                         stats.spot_shadow_draw_calls += 1;
                     }
                 }
             }
             Pass::Scene => {
                 render_pass.set_bind_group(0, frame_group, &[]);
+                render_pass.set_bind_group(2, &self.instances.group, &[]);
                 render_pass.set_bind_group(3, &self.shadow_group, &[]);
                 // A pipeline is set only when a draw needs another, which the draws' order makes
                 // rare.
                 let mut bound = Bound::default();
-                for &slot in scene_order {
-                    let instance = &scene.instances[slot];
+                for batch in scene_draws {
+                    let instance = &scene.instances[batch.first];
                     let cull = scene_pipeline(instance);
                     if bound.pipeline != Some(cull as u8) {
                         render_pass.set_pipeline(self.pipelines.scene.get(cull));
                         bound.pipeline = Some(cull as u8);
                     }
-                    self.instances.draw(render_pass, &mut bound, slot, instance);
+                    draw(
+                        render_pass,
+                        &mut bound,
+                        instance,
+                        true,
+                        batch.instances.clone(),
+                    );
+                    let count = batch.instances.end - batch.instances.start;
                     stats.draw_calls += 1;
-                    stats.triangles += u64::from(instance.mesh.triangle_count());
+                    stats.instances += count;
+                    stats.triangles += u64::from(instance.mesh.triangle_count()) * u64::from(count);
                 }
             }
             Pass::Sky => {
@@ -2016,7 +2200,17 @@ fn is_mirrored(linear: Mat3) -> bool {
     x.dot(y.cross(z)) < -MIRROR_THRESHOLD
 }
 
-/// How many slots the instance buffer has for a frame of `instances` instances when it has
+/// Empties `entries` for a frame that needs `needed` of them, and gives back their memory once a
+/// frame needs a quarter of it or less, down to [`INITIAL_INSTANCE_CAPACITY`], as the instances'
+/// buffers shrink (`instance_capacity`): a peak does not keep its memory for every later frame.
+fn reuse<T>(entries: &mut Vec<T>, needed: usize) {
+    entries.clear();
+    if needed <= entries.capacity() / 4 && entries.capacity() > INITIAL_INSTANCE_CAPACITY {
+        entries.shrink_to(needed.max(INITIAL_INSTANCE_CAPACITY));
+    }
+}
+
+/// How many entries a buffer of the instances has for a frame that needs `instances` when it has
 /// `capacity`: twice as many as before until they fit, and back to the smallest such size from
 /// [`INITIAL_INSTANCE_CAPACITY`] once the frame uses a quarter or less, so that a peak (a
 /// loading screen, a burst of debris) does not keep its memory for every later frame, and a count
@@ -2037,78 +2231,94 @@ fn instance_capacity(capacity: usize, instances: usize) -> usize {
     }
 }
 
-/// The uniform buffer holding the values of every instance of a frame, one slot per instance at
-/// a multiple of the device's alignment, and the group that binds one slot at a time.
-struct InstanceSlots {
-    buffer: UniformBuffer,
+/// The storage buffers of the instances that a frame draws: the values of each, and the list, for
+/// each draw of each pass, of the instances it draws, by where their values are; and the group
+/// that binds both, at group 2, where the vertex shader reads, for the instance of number n, the
+/// values at the n-th entry of the list.
+struct InstanceBuffers {
+    values: StorageBuffer,
+    list: StorageBuffer,
     group: BindGroup,
-    /// How many slots the buffer has.
-    capacity: usize,
-    /// The distance between slots, in bytes.
-    stride: usize,
+    /// How many instances `values` holds the values of, and how many entries `list` holds.
+    capacity: (usize, usize),
 }
 
-impl InstanceSlots {
-    fn new(gpu: &Gpu, layout: &BindGroupLayout, capacity: usize) -> Result<Self, GfxError> {
-        let stride = INSTANCE_VALUES_SIZE.next_multiple_of(gpu.uniform_offset_alignment());
-        let buffer = gpu.create_uniform_buffer("instances", &vec![0; capacity * stride])?;
+impl InstanceBuffers {
+    fn new(
+        gpu: &Gpu,
+        layout: &BindGroupLayout,
+        values: usize,
+        list: usize,
+    ) -> Result<Self, GfxError> {
+        let buffers = (
+            gpu.create_storage_buffer("instances", (values * INSTANCE_VALUES_SIZE) as u64)?,
+            gpu.create_storage_buffer("instances drawn", (list * 4) as u64)?,
+        );
         let group = gpu.create_bind_group(
             "instances",
             layout,
-            &[BindGroupEntry {
-                binding: 0,
-                resource: BindingResource::UniformBufferRange {
-                    buffer: &buffer,
-                    size: INSTANCE_VALUES_SIZE,
+            &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: BindingResource::StorageBuffer(&buffers.0),
                 },
-            }],
+                BindGroupEntry {
+                    binding: 1,
+                    resource: BindingResource::StorageBuffer(&buffers.1),
+                },
+            ],
         )?;
         Ok(Self {
-            buffer,
+            values: buffers.0,
+            list: buffers.1,
             group,
-            capacity,
-            stride,
+            capacity: (values, list),
         })
-    }
-
-    /// Draws `instance`, whose values are in slot `slot`, with the pipeline that `pass` has set:
-    /// binds its slot at group 2, and its material at group 1 and its mesh unless `bound` says
-    /// that the draw before bound them.
-    fn draw<'a>(
-        &self,
-        pass: &mut RenderPass<'_>,
-        bound: &mut Bound<'a>,
-        slot: usize,
-        instance: &Instance<'a>,
-    ) {
-        let offset = u32::try_from(slot * self.stride)
-            .expect("the instance buffer is smaller than the device allows");
-        if !bound
-            .material
-            .is_some_and(|material| ptr::eq(material, instance.material))
-        {
-            pass.set_bind_group(1, &instance.material.group, &[]);
-            bound.material = Some(instance.material);
-        }
-        pass.set_bind_group(2, &self.group, &[offset]);
-        if !bound.mesh.is_some_and(|mesh| ptr::eq(mesh, instance.mesh)) {
-            pass.set_vertex_buffer(0, &instance.mesh.vertices);
-            pass.set_index_buffer(&instance.mesh.indices);
-            bound.mesh = Some(instance.mesh);
-        }
-        pass.draw_indexed(0..instance.mesh.indices.count());
     }
 }
 
+/// Draws the instances `instances` of the list, of `instance`'s mesh and material, with the
+/// pipeline that `pass` has set: binds its material at group 1 unless the draw before bound it,
+/// or, when the pipeline does not read it (`reads_material` false), unless a material is bound at
+/// all, the pipeline's layout asking for one; and its mesh's page unless the draw before bound
+/// that page.
+fn draw<'a>(
+    pass: &mut RenderPass<'_>,
+    bound: &mut Bound<'a>,
+    instance: &Instance<'a>,
+    reads_material: bool,
+    instances: Range<u32>,
+) {
+    let material_bound = bound.material.is_some_and(|material| {
+        !reads_material || material.identity() == instance.material.identity()
+    });
+    if !material_bound {
+        pass.set_bind_group(1, &instance.material.group, &[]);
+        bound.material = Some(instance.material);
+    }
+    let place = &instance.mesh.place;
+    if !bound
+        .page
+        .is_some_and(|page| Arc::ptr_eq(page, &place.page))
+    {
+        pass.set_vertex_buffer(0, &place.page.vertices);
+        pass.set_index_buffer(&place.page.indices);
+        bound.page = Some(&place.page);
+    }
+    let base_vertex =
+        i32::try_from(place.vertices.start).expect("a page holds fewer than 2^31 vertices");
+    pass.draw_indexed(place.indices.clone(), base_vertex, instances);
+}
+
 /// What a pass bound for the draws before the next: its pipeline, by the index that the pass gives
-/// its pipelines, the material and the mesh. A draw binds only what differs. The pipelines of a
-/// pass share their groups' layouts and their vertices' layout, so that what is bound stays bound
-/// when one pipeline replaces another.
+/// its pipelines, the material and the page of the meshes. A draw binds only what differs. The
+/// pipelines of a pass share their groups' layouts and their vertices' layout, so that what is
+/// bound stays bound when one pipeline replaces another.
 #[derive(Default)]
 struct Bound<'a> {
     pipeline: Option<u8>,
     material: Option<&'a Material>,
-    mesh: Option<&'a Mesh>,
+    page: Option<&'a Arc<Page>>,
 }
 
 /// How the scene pass draws `instance`: the faces its pipeline culls.
@@ -2119,8 +2329,9 @@ fn scene_pipeline(instance: &Instance<'_>) -> CullMode {
     )
 }
 
-/// The order in which objects first appear in a frame's instances, by their addresses: what
-/// [`draw_orders`] sorts by, which a frame of 10 000 instances asks 20 000 times.
+/// The order in which objects first appear in a frame's instances, by what each and its clones
+/// share (`Mesh::identity`, `Material::identity`): what
+/// [`draw_keys`] sorts by, which a frame of 10 000 instances asks 20 000 times.
 #[derive(Default)]
 struct FirstSeen {
     ranks: HashMap<*const (), u32>,
@@ -2144,67 +2355,142 @@ impl FirstSeen {
     }
 }
 
-/// The slots of `instances` in the order that the scene pass draws them, then in the order that
-/// the shadow passes draw those that cast shadows: by pipeline, then by material, then by mesh,
-/// each material and mesh in the order it first appears among `instances`, then by slot. Two
-/// instances' order is the same from one frame to the next, whatever the addresses of their
-/// materials and meshes, so that two surfaces at the same depth are drawn the same way.
-fn draw_orders(instances: &[Instance<'_>]) -> (Vec<usize>, Vec<usize>) {
-    orders(instances.iter().map(|instance| Draw {
-        scene_pipeline: scene_pipeline(instance) as u8,
-        shadow_pipeline: u8::from(instance.material.masked),
-        material: ptr::from_ref(instance.material).cast(),
-        mesh: ptr::from_ref(instance.mesh).cast(),
-        casts_shadows: instance.casts_shadows,
-    }))
+/// Fills `values_of` with where the values of each instance that `passes` says a pass draws are,
+/// in the scene's order, and [`NOT_DRAWN`] for the others, after leaving out of every pass the
+/// instances drawn beyond the first `most`. Returns how many instances are drawn, and how many
+/// were left out.
+fn place_values(passes: &mut [u32], most: u32, values_of: &mut Vec<u32>) -> (u32, usize) {
+    let (mut drawn, mut left_out) = (0_u32, 0_usize);
+    values_of.clear();
+    for pass in passes {
+        if *pass != 0 && drawn == most {
+            *pass = 0;
+            left_out += 1;
+        }
+        values_of.push(if *pass == 0 { NOT_DRAWN } else { drawn });
+        drawn += u32::from(*pass != 0);
+    }
+    (drawn, left_out)
 }
 
-/// What [`orders`] sorts a draw by.
+/// Fills `scene` with the keys of the instances that the scene pass draws, as `passes` says, and
+/// `shadows` with those of the instances that a shadow pass draws, each sorted in the order that
+/// the passes draw them: by pipeline, then by material, then by mesh, each material and mesh in
+/// the order it first appears among `instances`, then by slot, the index in `instances`. The
+/// shadow passes' keys leave out the materials of the pipeline that does not read them, so that
+/// the instances of one mesh are drawn together whatever their materials. Two instances' order is
+/// the same from one frame to the next, whatever the addresses of their materials and meshes and
+/// whatever the others that the passes draw, so that two surfaces at the same depth are drawn the
+/// same way.
+fn draw_keys(
+    instances: &[Instance<'_>],
+    passes: &[u32],
+    scene: &mut Vec<u128>,
+    shadows: &mut Vec<u128>,
+) {
+    keys(
+        instances.iter().zip(passes).map(|(instance, &passes)| {
+            let in_scene = passes & SCENE_PASS != 0;
+            Draw {
+                // Worked out only for the instances drawn: it normalizes the transform's axes.
+                scene_pipeline: if in_scene {
+                    scene_pipeline(instance) as u8
+                } else {
+                    0
+                },
+                masked: instance.material.masked,
+                material: instance.material.identity(),
+                mesh: instance.mesh.identity(),
+                in_scene,
+                in_shadows: passes & !SCENE_PASS != 0,
+            }
+        }),
+        scene,
+        shadows,
+    );
+}
+
+/// What [`keys`] sorts a draw by.
 struct Draw {
     scene_pipeline: u8,
-    shadow_pipeline: u8,
+    /// Whether its material is masked: the shadow passes draw it with the pipeline of masked
+    /// materials, 1, which reads the material, rather than with the other, 0.
+    masked: bool,
     material: *const (),
     mesh: *const (),
-    casts_shadows: bool,
+    in_scene: bool,
+    in_shadows: bool,
 }
 
-/// [`draw_orders`], for draws given by what they are sorted by, in the order of their slots.
-fn orders(draws: impl ExactSizeIterator<Item = Draw>) -> (Vec<usize>, Vec<usize>) {
+/// [`draw_keys`], for draws given by what they are sorted by, in the order of their slots.
+fn keys(draws: impl Iterator<Item = Draw>, scene: &mut Vec<u128>, shadows: &mut Vec<u128>) {
     let mut materials = FirstSeen::default();
     let mut meshes = FirstSeen::default();
-    let mut scene = Vec::with_capacity(draws.len());
-    let mut shadows = Vec::with_capacity(draws.len());
+    scene.clear();
+    shadows.clear();
     for (slot, draw) in draws.enumerate() {
         let material = materials.rank(draw.material);
         let mesh = meshes.rank(draw.mesh);
         // One number per draw, which sorts as the tuple of its parts would, faster.
-        let key = |pipeline: u8| {
+        let key = |pipeline: u8, material: u32| {
             u128::from(pipeline) << 96
                 | u128::from(material) << 64
                 | u128::from(mesh) << 32
                 | slot as u128
         };
-        scene.push(key(draw.scene_pipeline));
-        if draw.casts_shadows {
-            shadows.push(key(draw.shadow_pipeline));
+        if draw.in_scene {
+            scene.push(key(draw.scene_pipeline, material));
+        }
+        if draw.in_shadows {
+            let material = if draw.masked { material } else { 0 };
+            shadows.push(key(u8::from(draw.masked), material));
         }
     }
     scene.sort_unstable();
     shadows.sort_unstable();
-    // The slot is the key's low 32 bits; a frame holds fewer instances than 2^32.
-    let slots = |keys: Vec<u128>| keys.into_iter().map(|key| key as u32 as usize).collect();
-    (slots(scene), slots(shadows))
+}
+
+/// The slot of the instance of `key`: its low 32 bits; a frame holds fewer instances than 2^32.
+fn slot_of(key: u128) -> usize {
+    key as u32 as usize
+}
+
+/// The draws of the instances of `keys`, in their order: one for each run of keys of one pipeline,
+/// material and mesh, the bits above the slot. Appends to `list` where the values of each instance
+/// are, which `values_of` gives for each slot, as the buffer of the list holds them.
+fn batches(keys: impl Iterator<Item = u128>, values_of: &[u32], list: &mut Vec<u8>) -> Vec<Batch> {
+    let mut draws: Vec<Batch> = Vec::new();
+    let mut drawn = None;
+    for key in keys {
+        let slot = slot_of(key);
+        let entry = u32::try_from(list.len() / 4).expect("the list is smaller than 2^32 entries");
+        push_u32s(list, &[values_of[slot]]);
+        match draws.last_mut() {
+            Some(draw) if drawn == Some(key >> 32) => draw.instances.end += 1,
+            _ => {
+                draws.push(Batch {
+                    first: slot,
+                    instances: entry..entry + 1,
+                });
+                drawn = Some(key >> 32);
+            }
+        }
+    }
+    draws
 }
 
 #[cfg(test)]
 mod tests {
+    use std::ptr;
+
     use glam::{EulerRot, Quat, Vec4};
 
     use super::*;
 
     /// Draws of two materials and two meshes, in turn, and of two pipelines: each pass draws them
     /// by pipeline, then material, then mesh, as each first appears, then by slot, whatever their
-    /// addresses; the shadow passes only those that cast shadows.
+    /// addresses; the shadow passes only those that cast shadows, by mesh alone for the materials
+    /// that are not masked.
     #[test]
     fn draws_go_by_pipeline_then_material_then_mesh_as_they_first_appear() {
         // The second material and mesh at lower addresses than the first: the order is not theirs.
@@ -2212,12 +2498,13 @@ mod tests {
         let address = |index: usize| ptr::from_ref(&objects[index]).cast::<()>();
         let (first_material, second_material) = (address(3), address(0));
         let (first_mesh, second_mesh) = (address(2), address(1));
-        let draw = |pipeline: u8, material, mesh, casts_shadows| Draw {
+        let draw = |pipeline: u8, material, mesh, in_shadows| Draw {
             scene_pipeline: pipeline,
-            shadow_pipeline: pipeline,
+            masked: pipeline == 1,
             material,
             mesh,
-            casts_shadows,
+            in_scene: true,
+            in_shadows,
         };
         let draws = [
             draw(0, first_material, first_mesh, true),
@@ -2227,9 +2514,76 @@ mod tests {
             draw(0, second_material, first_mesh, true),
             draw(0, first_material, first_mesh, true),
         ];
-        let (scene, shadows) = orders(draws.into_iter());
-        assert_eq!(scene, [0, 5, 3, 1, 4, 2]);
-        assert_eq!(shadows, [0, 5, 1, 4, 2]);
+        let (mut scene, mut shadows) = (Vec::new(), Vec::new());
+        keys(draws.into_iter(), &mut scene, &mut shadows);
+        let slots = |keys: &[u128]| keys.iter().map(|&key| slot_of(key)).collect::<Vec<_>>();
+        assert_eq!(slots(&scene), [0, 5, 3, 1, 4, 2]);
+        // The shadow pipeline of materials that are not masked reads no material.
+        assert_eq!(slots(&shadows), [0, 1, 4, 5, 2]);
+        // The draws of one pipeline, material and mesh that follow each other are one draw each.
+        let mut list = Vec::new();
+        let values_of = [10, 11, 12, 13, 14, 15];
+        let draws = batches(scene.iter().copied(), &values_of, &mut list);
+        let firsts: Vec<(usize, Range<u32>)> = draws
+            .into_iter()
+            .map(|draw| (draw.first, draw.instances))
+            .collect();
+        assert_eq!(firsts, [(0, 0..2), (3, 2..3), (1, 3..5), (2, 5..6)]);
+        let entries: Vec<u32> = list
+            .chunks(4)
+            .map(|bytes| u32::from_le_bytes(bytes.try_into().unwrap()))
+            .collect();
+        assert_eq!(entries, [10, 15, 13, 11, 14, 12]);
+    }
+
+    /// G29: past the most instances that the buffer of values holds, the last ones drawn are left
+    /// out of every pass, rather than make a buffer that the device refuses.
+    #[test]
+    fn the_instances_drawn_beyond_what_the_values_buffer_holds_are_left_out_of_every_pass() {
+        let mut passes = [
+            SCENE_PASS,
+            0,
+            cascade_pass(0),
+            SCENE_PASS | spot_pass(3),
+            SCENE_PASS,
+        ];
+        let mut values_of = Vec::new();
+        assert_eq!(place_values(&mut passes, 2, &mut values_of), (2, 2));
+        assert_eq!(passes, [SCENE_PASS, 0, cascade_pass(0), 0, 0]);
+        assert_eq!(values_of, [0, NOT_DRAWN, 1, NOT_DRAWN, NOT_DRAWN]);
+        // Within the most, every instance drawn keeps its passes.
+        let mut passes = [SCENE_PASS, 0, cascade_pass(1)];
+        assert_eq!(place_values(&mut passes, 2, &mut values_of), (2, 0));
+        assert_eq!(values_of, [0, NOT_DRAWN, 1]);
+    }
+
+    /// Only the instances that the scene pass draws are sorted for it, and only those that a
+    /// shadow pass draws for the shadows; their order is the one they have among all.
+    #[test]
+    fn only_the_instances_drawn_are_sorted_in_the_order_they_have_among_all() {
+        let objects = [0_u8; 2];
+        let address = |index: usize| ptr::from_ref(&objects[index]).cast::<()>();
+        let draw = |material, in_scene, in_shadows| Draw {
+            scene_pipeline: 0,
+            masked: true,
+            material: address(material),
+            mesh: address(0),
+            in_scene,
+            in_shadows,
+        };
+        // The second material first appears at slot 1, which no pass draws: it still comes after
+        // the first.
+        let draws = [
+            draw(0, false, false),
+            draw(1, false, false),
+            draw(1, true, true),
+            draw(0, true, false),
+        ];
+        let (mut scene, mut shadows) = (Vec::new(), Vec::new());
+        keys(draws.into_iter(), &mut scene, &mut shadows);
+        let slots = |keys: &[u128]| keys.iter().map(|&key| slot_of(key)).collect::<Vec<_>>();
+        assert_eq!(slots(&scene), [3, 2]);
+        assert_eq!(slots(&shadows), [2]);
     }
     use crate::environment::{
         BRDF_TABLE_SIZE, ENVIRONMENT_LEVELS, GROUND_HAZE, SUN_ANGULAR_RADIUS,
@@ -2598,6 +2952,16 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn what_a_frame_works_out_gives_its_memory_back_after_a_peak() {
+        let mut entries: Vec<u32> = Vec::with_capacity(100_000);
+        reuse(&mut entries, 50_000);
+        assert!(entries.capacity() >= 100_000, "half of it is needed: kept");
+        reuse(&mut entries, 10);
+        assert!(entries.is_empty());
+        assert!(entries.capacity() < 1_000, "{}", entries.capacity());
     }
 
     #[test]

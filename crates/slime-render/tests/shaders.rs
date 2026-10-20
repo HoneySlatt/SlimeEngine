@@ -180,7 +180,7 @@ fn a_shader_that_reads_more_values_than_it_is_given_is_refused_with_its_pipeline
     let embedded = ShaderSources::embedded();
     // Each instance's values, larger than the renderer's. Matched without the line's end, which a
     // checkout on Windows turns into CRLF.
-    let instance = "struct InstanceUniform {";
+    let instance = "struct Instance {";
     assert!(embedded.scene.contains(instance));
     let larger = ShaderSources {
         scene: embedded.scene.replace(

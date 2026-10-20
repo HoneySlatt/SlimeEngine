@@ -168,7 +168,7 @@ struct MaterialUniform {
 @group(1) @binding(9) var emissive_texture: texture_2d<f32>;
 @group(1) @binding(10) var emissive_sampler: sampler;
 
-struct InstanceUniform {
+struct Instance {
     // From the mesh's space to the frame's space.
     model: mat4x4<f32>,
     // For normals: proportional to the inverse transpose of the model's rotation and scale, so
@@ -178,7 +178,11 @@ struct InstanceUniform {
     // screen, and the cross product that gives its bitangents turns the other way.
     handedness: f32,
 }
-@group(2) @binding(0) var<uniform> instance: InstanceUniform;
+// The values of the instances that the frame's passes draw, and, for each draw, where the values
+// of the instances it draws are: the instance of number n, `@builtin(instance_index)`, has its
+// values at instances[drawn[n]].
+@group(2) @binding(0) var<storage, read> instances: array<Instance>;
+@group(2) @binding(1) var<storage, read> drawn: array<u32>;
 
 // The cascades' atlas: each tile the depths of what the shadowed light reaches first across its
 // square, drawn by the shadow pass (ADR-0064); one texel, never read, until a directional light
@@ -209,10 +213,13 @@ struct VertexOutput {
     @location(2) position: vec3<f32>,
     // xyz with world space's axes, of any length; w: the bitangent's sign times the handedness.
     @location(3) tangent: vec4<f32>,
+    // The instance's handedness, the same at every vertex.
+    @location(4) @interpolate(flat) handedness: f32,
 }
 
 @vertex
-fn vs_main(input: VertexInput) -> VertexOutput {
+fn vs_main(input: VertexInput, @builtin(instance_index) index: u32) -> VertexOutput {
+    let instance = instances[drawn[index]];
     var output: VertexOutput;
     let position = instance.model * vec4<f32>(input.position, 1.0);
     output.clip_position = frame.view_proj * position;
@@ -225,6 +232,7 @@ fn vs_main(input: VertexInput) -> VertexOutput {
         (instance.model * vec4<f32>(input.tangent.xyz, 0.0)).xyz,
         input.tangent.w * instance.handedness,
     );
+    output.handedness = instance.handedness;
     return output;
 }
 
@@ -262,8 +270,13 @@ struct ShadowView {
 @group(3) @binding(3) var<uniform> shadow_view: ShadowView;
 
 @vertex
-fn vs_shadow(@location(0) position: vec3<f32>, @location(2) uv: vec2<f32>) -> ShadowVertex {
-    return ShadowVertex(shadow_view.view_proj * (instance.model * vec4<f32>(position, 1.0)), uv);
+fn vs_shadow(
+    @location(0) position: vec3<f32>,
+    @location(2) uv: vec2<f32>,
+    @builtin(instance_index) index: u32,
+) -> ShadowVertex {
+    let model = instances[drawn[index]].model;
+    return ShadowVertex(shadow_view.view_proj * (model * vec4<f32>(position, 1.0)), uv);
 }
 
 // The shadow pass of masked materials: below the cutoff, no depth is written, as in the scene pass.
@@ -302,7 +315,13 @@ fn fs_main(
     }
     let metallic = clamp(material.metallic * metallic_roughness.b, 0.0, 1.0);
     let roughness = clamp(material.roughness * metallic_roughness.g, MIN_ROUGHNESS, 1.0);
-    let normal = shading_normal(input.normal, input.tangent, encoded_normal, front_facing);
+    let normal = shading_normal(
+        input.normal,
+        input.tangent,
+        encoded_normal,
+        front_facing,
+        input.handedness,
+    );
     // The camera is at the origin of the frame's space.
     let to_camera = normalize(-input.position);
     // Read once, outside the loop over the lights, whose bound the shader compiler of Direct3D 12
@@ -593,12 +612,13 @@ fn spot_light_reaching(
 // The unit normal a fragment is shaded with: the mesh's interpolated normal, tilted by the normal
 // texture in tangent space (x along the tangent, y along the bitangent, up the texture's image,
 // z along the normal, rebuilt from x and y), and turned around on a face seen from behind, which
-// only double-sided materials draw (glTF).
+// only double-sided materials draw (glTF); `handedness` is the instance's.
 fn shading_normal(
     normal: vec3<f32>,
     tangent: vec4<f32>,
     encoded: vec2<f32>,
     front_facing: bool,
+    handedness: f32,
 ) -> vec3<f32> {
     var n = normalize(normal);
     // Without a normal texture the scale is 0, and the mesh's normal is kept exactly.
@@ -618,7 +638,7 @@ fn shading_normal(
     }
     // A mirrored instance's front faces wind clockwise on screen: the rasterizer calls them back
     // faces.
-    let seen_from_the_front = front_facing == (instance.handedness > 0.0);
+    let seen_from_the_front = front_facing == (handedness > 0.0);
     return select(-n, n, seen_from_the_front);
 }
 

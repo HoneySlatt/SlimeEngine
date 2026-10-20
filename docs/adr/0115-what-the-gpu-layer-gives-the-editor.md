@@ -3,7 +3,9 @@
 - Status: Accepted; amends [0026](0026-resource-binding-and-depth.md) (buffers of several declared
   uses, written by ranges), [0041](0041-render-graph.md) (points where a client inserts its draws in
   a view's graph), [0059](0059-multisampling-in-the-gpu-layer.md) (a depth resolved when a pass
-  asks for it) and [0111](0111-the-frame-contract.md) (an unlit kind of material at Stage 6)
+  asks for it) and [0111](0111-the-frame-contract.md) (an unlit kind of material at Stage 6);
+  amended by [0117](0117-frustum-culling-and-instancing.md) (each buffer's uses are those of its
+  type)
 - Date: 2026-10-20
 
 ## Context

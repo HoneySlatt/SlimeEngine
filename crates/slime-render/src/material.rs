@@ -302,6 +302,12 @@ pub struct Material {
 }
 
 impl Material {
+    /// What it and its clones share, by which the renderer tells materials apart: clones are one
+    /// material, drawn together.
+    pub(crate) fn identity(&self) -> *const () {
+        Arc::as_ptr(&self.values).cast()
+    }
+
     /// The values it is drawn with: those it was created with, or the last that
     /// [`Material::set_values`] gave it, or one of its clones.
     pub fn values(&self) -> MaterialValues {

@@ -188,7 +188,7 @@ impl Setup {
             pass.set_bind_group(0, &group, &[]);
             pass.set_vertex_buffer(0, &vertices);
             pass.set_index_buffer(&indices);
-            pass.draw_indexed(0..6);
+            pass.draw_indexed(0..6, 0, 0..1);
         });
         self.gpu
             .read_render_target(&self.target)

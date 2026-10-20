@@ -18,6 +18,7 @@ mod pipeline;
 mod render_target;
 mod sampler;
 mod shader;
+mod storage_buffer;
 mod surface;
 mod texture;
 mod timer;
@@ -42,6 +43,7 @@ pub use pipeline::{
 pub use render_target::{MULTISAMPLE_COUNT, RenderTarget, TextureFormat};
 pub use sampler::{AddressMode, ComparisonSampler, Filter, Sampler, SamplerDescriptor};
 pub use shader::ShaderModule;
+pub use storage_buffer::StorageBuffer;
 pub use surface::{PresentMode, Surface, SurfaceFrame};
 pub use texture::Texture;
 pub use timer::GpuTimer;
@@ -70,6 +72,7 @@ mod threads {
         send_and_sync::<VertexBuffer>();
         send_and_sync::<IndexBuffer>();
         send_and_sync::<UniformBuffer>();
+        send_and_sync::<StorageBuffer>();
         send_and_sync::<BindGroupLayout>();
         send_and_sync::<BindGroup>();
         send_and_sync::<ShaderModule>();

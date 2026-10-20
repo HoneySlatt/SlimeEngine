@@ -20,7 +20,7 @@ use slime_gfx::{AddressMode, Filter, Gpu, Sampler, SamplerDescriptor, Texture, T
 use crate::error::RenderError;
 use crate::light::{DirectionalLight, Light, PointLight, SpotLight};
 use crate::material::{AlphaMode, Material, MaterialData, MaterialParts, SampledTexture};
-use crate::mesh::{Mesh, MeshData};
+use crate::mesh::{Mesh, MeshData, MeshPages};
 use crate::pool;
 use crate::renderer::{Instance, Renderer};
 
@@ -313,6 +313,7 @@ impl Renderer {
             gpu: gpu.clone(),
             assets: Arc::new(assets.clone()),
             parts: self.material_parts.clone(),
+            meshes: self.meshes.clone(),
             reuse,
             sender: sender.clone(),
         };
@@ -332,6 +333,8 @@ pub(crate) struct Loader {
     gpu: Gpu,
     assets: Arc<CookedAssets>,
     parts: MaterialParts,
+    /// The pages of the renderer's meshes, into which the load's meshes go.
+    meshes: MeshPages,
     /// What the scene that the load reloads was made of, to keep; empty for a first load.
     reuse: Reusable,
     /// Where the load's tasks report.
@@ -529,6 +532,7 @@ impl Loader {
                 kept.push((index, mesh));
                 continue;
             }
+            let pages = self.meshes.clone();
             tasks.spawn(move |gpu, assets| {
                 let cooked = assets.mesh(id)?;
                 let data = MeshData {
@@ -538,7 +542,7 @@ impl Loader {
                     tangents: cooked.tangents,
                     indices: cooked.indices,
                 };
-                let mesh = Mesh::new(gpu, &cooked.name, &data)?;
+                let mesh = Mesh::new(gpu, &pages, &cooked.name, &data)?;
                 let material = cooked.material;
                 let bounds = cooked.bounds;
                 Ok(Made::Mesh(

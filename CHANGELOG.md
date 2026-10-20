@@ -27,9 +27,28 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   the next.
 - `Gpu::write_uniform_buffer_start` writes the start of a uniform buffer and leaves the rest as it
   is.
+- The renderer leaves out of the scene pass the instances whose boxes the camera does not see
+  (frustum culling), and draws the instances of one pipeline, material and mesh that a pass keeps
+  with one draw call (instancing): a frame's CPU time follows what each pass sees
+  ([`docs/measurements.md`](docs/measurements.md)). `RenderStats::instances` counts the instances
+  that the scene pass drew. Past what the device's storage buffers hold the values of, 1 048 576
+  instances with the default limits, the last instances are left out with a warning, where
+  `render` panicked inside wgpu.
+- `slime_gfx::StorageBuffer`, which shaders read at a `BindingType::StorageBuffer` binding;
+  `Gpu::create_zeroed_vertex_buffer`, `create_zeroed_index_buffer`, `write_vertex_buffer`,
+  `write_index_buffer` and `write_storage_buffer`, which write buffers by ranges; and
+  `Gpu::max_storage_buffer_size`.
+- The render benchmarks draw at the screens of the hardware tiers, 1280 × 800, 1920 × 1080 and
+  2560 × 1440, and give the sum of the GPU times of a frame's passes.
 
 ### Changed
 
+- `RenderPass::draw_indexed` takes a base vertex and a range of instances.
+- `RenderStats::draw_calls` and the shadow passes' draw calls count draws of groups of instances,
+  where they counted one per instance; `triangles` counts those of the instances drawn.
+- A renderer's meshes share its buffers: `Renderer::create_mesh` and the loads write a mesh's
+  vertices and indices into the first of the renderer's pages that has room, and capture tools
+  name the pages' buffers, not each mesh's.
 - Saves are of layout 3: they say what the start of the run created outside scenes, its count and a
   fingerprint of those entities. What the run created takes, when the save loads, the numbers that
   follow the world's count, so that an update of the game that creates one more entity at the start

@@ -137,9 +137,9 @@ today has:
   saved as what changed since the start of a run; *Hunna Wood* saves one run, in one file. Scene
   files are cooked, and written by hand; a world is written back as a scene file through the API,
   and no editor writes them yet.
-- A renderer without blended transparency or culling of what the camera does not see; with a
-  capped number of lights, and shadows from one directional light and from spot lights, none from
-  point lights.
+- A renderer that leaves out what the camera does not see and draws the instances of one mesh and
+  one material together, without blended transparency; with a capped number of lights, and
+  shadows from one directional light and from spot lights, none from point lights.
 - One window, which cannot go fullscreen, grab or hide the cursor, or report raw mouse motion; no
   gamepads, touch input or input methods.
 - A run that stops when the GPU device is lost, unless the game asks to go on with a new one and

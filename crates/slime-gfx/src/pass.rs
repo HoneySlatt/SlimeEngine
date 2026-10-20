@@ -124,9 +124,20 @@ impl RenderPass<'_> {
     }
 
     /// Draws the vertices that the indices of the range `indices` of the index buffer name, three
-    /// by three as triangles.
-    pub fn draw_indexed(&mut self, indices: Range<u32>) {
-        self.pass.draw_indexed(indices, 0, 0..1);
+    /// by three as triangles, once for each instance of the range `instances`: an index i names the
+    /// vertex `base_vertex` + i of the vertex buffer, so that one buffer holds the vertices of many
+    /// meshes, each indexed from 0. The vertex shader gets the instance's number, from
+    /// `instances.start`, as `@builtin(instance_index)`, by which it finds its values in a storage
+    /// buffer, on every graphics API; the instances are drawn in the order of their numbers, the
+    /// triangles of one before those of the next.
+    ///
+    /// # Panics
+    ///
+    /// When the commands are submitted, if the range `indices` reaches beyond the index buffer:
+    /// wgpu rejects it. An index that names a vertex beyond the vertex buffer is not checked; the
+    /// GPU reads zeros or nothing there.
+    pub fn draw_indexed(&mut self, indices: Range<u32>, base_vertex: i32, instances: Range<u32>) {
+        self.pass.draw_indexed(indices, base_vertex, instances);
     }
 
     /// Groups the commands that `record` gives under `label`, for GPU capture tools such as

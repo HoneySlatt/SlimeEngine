@@ -406,9 +406,12 @@ renderer = Renderer::new(&gpu, format)                 the output's format; four
 │                                                      cube, prefiltered into four levels on
 │                                                      every core (environment.rs), uploaded in
 │                                                      Rgba16Float; its sun's disc
-├── create_mesh(&gpu, label, &MeshData)                vertex and index buffers, after a check;
-│                                                      48-byte vertices with their tangent; the
-│                                                      box around the positions
+├── create_mesh(&gpu, label, &MeshData)                after a check, 48-byte vertices with their
+│                                                      tangent and the indices written into the
+│                                                      first page of the renderer's meshes with
+│                                                      room for both (mesh.rs, ADR-0117), a new
+│                                                      page when none has; the box around the
+│                                                      positions
 ├── create_material(&gpu, label, &MaterialData)        a 48-byte uniform buffer and five texture
 │                                                      and sampler pairs (one white pixel for
 │                                                      each slot left empty) in a bind group,
@@ -425,12 +428,15 @@ renderer = Renderer::new(&gpu, format)                 the output's format; four
     │                                                  others left out with a warning (ADR-0102)
     ├── every position moved by −camera.eye, in f64 (ADR-0048): the GPU draws relative to the
     │   camera, so that what is near it keeps its precision however far from the origin
+    ├── each instance's box tested against the camera's view, its four sides and its near plane
+    │   (camera.rs): the scene pass draws only those that may be seen (frustum culling, ADR-0117)
     ├── the four cascades of the first directional light that casts shadows (shadow.rs,
     │   ADR-0050, ADR-0064): what the camera sees up to the light's shadow distance split along
     │   its axis into four slices, each twice as deep as the one before; for each, its tile of the
     │   cascades' atlas, an orthographic projection across the light covering the sphere around
-    │   its slice, moved to a texel grid fixed in the world, the instances whose boxes reach
-    │   across that square, and along the light the depths their boxes span
+    │   its slice, moved to a texel grid fixed in the world, the instances that cast shadows
+    │   whose boxes reach across that square, seen by the camera or not, and along the light the
+    │   depths their boxes span
     ├── each spot light that casts shadows, in the scene's order: its tile of the atlas, 2048 or
     │   1024 texels wide by how many cast them, its perspective view from the light, from 5 cm
     │   out, its cone and a margin, up to 80° from its axis, and the instances whose boxes reach
@@ -444,12 +450,15 @@ renderer = Renderer::new(&gpu, format)                 the output's format; four
     │   atlas, and the cascades' views, places and texel widths; bind group 0, with the
     │   environment, the BRDF table and their sampler, built again when the scene names another
     │   environment (a black one for none)
-    ├── the instance buffer ← each instance's relative transform,     bind group 2, one dynamic
-    │   normal matrix and handedness (−1 when it mirrors), one slot    offset per instance
-    │   each, at the device's alignment; grows when a scene needs it, shrinks back after a peak;
-    │   only the frame's slots written (ADR-0106)
-    ├── each pass's draws ordered by pipeline, then material, then mesh, each as it first appears
-    │   among the instances: a draw binds only what changed since the one before (ADR-0106)
+    ├── each pass's instances ordered by pipeline, then material, then mesh, each as it first
+    │   appears among all the instances, the shadow passes' by mesh alone but for masked
+    │   materials: a draw binds only what changed since the one before (ADR-0106), and each run
+    │   of one pipeline, material and mesh is one draw (instancing, ADR-0117); at most as many
+    │   instances as a storage buffer holds the values of, the last left out with a warning
+    ├── the instances' storage buffers, bind group 2 ← each instance that a pass draws: its
+    │   relative transform, normal matrix and handedness (−1 when it mirrors), in the scene's
+    │   order; and for each draw of each pass, where the values of its instances are;
+    │   grown when a frame needs it, shrunk back after a peak
     ├── the frame's render graph, built again when the frame's shape changes (the target's size,
     │   either shadow pass or the bloom starting or stopping): the passes below, each declaring the
     │   targets it draws into and samples, ordered by them; the HDR target (Rgba16Float) and the
@@ -461,19 +470,22 @@ renderer = Renderer::new(&gpu, format)                 the output's format; four
     │   by its submission's GpuTimer when the adapter can:
     │   ├── the shadow pass into the cascades' atlas, created by the first frame that needs it, a
     │   │   depth-only pass skipped when no light or no instance casts shadows: for each cascade,
-    │   │   its tile (set_viewport) and its view's slot at group 3; for each instance that casts
-    │   │   shadows and whose box reaches across its square, the shadow pipeline its material
-    │   │   asks for (masked or not), its bind groups and buffers, draw_indexed
+    │   │   its tile (set_viewport) and its view's slot at group 3; for each group of the instances
+    │   │   that cast shadows and whose boxes reach across its square, the shadow pipeline their
+    │   │   material asks for (masked or not), the material when it changes and the pipeline
+    │   │   reads it, the mesh's page when it changes, one draw_indexed of the group's instances
     │   ├── the spot lights' shadow pass into the atlas, created by the first frame that needs it,
     │   │   skipped when no spot light casts shadows: for each such light, its tile
     │   │   (set_viewport) and its view's slot; for each instance that casts shadows and whose box
-    │   │   reaches into its cone and range, as above (ADR-0058, ADR-0061)
+    │   │   reaches into its cone and range, grouped as above (ADR-0058, ADR-0061)
     │   ├── the scene pass into the multisampled HDR target, cleared to black, the group of both
     │   │   atlases (a texel in the place of each until it exists) bound at group 3, the shadowed
     │   │   light looked up in the finest cascades that hold each fragment (ADR-0065), each spot
-    │   │   light that casts shadows in its tile (ADR-0062): for each instance, the pipeline that
-    │   │   its material's double-sidedness and its transform's mirroring choose (set when it
-    │   │   changes), its material's bind group 1, its slot, its buffers, draw_indexed
+    │   │   light that casts shadows in its tile (ADR-0062): for each group of the instances that
+    │   │   the camera sees, the pipeline that its material's double-sidedness and its transform's
+    │   │   mirroring choose (set when it changes), its material's bind group 1 and its mesh's
+    │   │   page when they change, one draw_indexed of the group's instances from the mesh's base
+    │   │   vertex
     │   ├── the sky pass into the multisampled HDR target, keeping it and the depth target: one
     │   │   triangle at depth 0, at infinity, drawn where the depth test of each sample finds no
     │   │   surface, reads the environment along each pixel's direction, adds the sun's disc, times
@@ -490,9 +502,9 @@ renderer = Renderer::new(&gpu, format)                 the output's format; four
     │       by 64, applies Khronos PBR Neutral, dithers an 8-bit target with a triangular noise
     │       of one step hashed from the pixel's position (ADR-0051), and writes it opaque; an sRGB
     │       target encodes it
-    └── RenderStats: the scene pass's draw calls and triangles, the shadow passes' draw calls, the
-        CPU time of this call, and the GPU time of each pass, the bloom's summed, a few frames old,
-        the latest that came back
+    └── RenderStats: the scene pass's draw calls, instances and triangles, the shadow passes' draw
+        calls, the CPU time of this call, and the GPU time of each pass, the bloom's summed, a few
+        frames old, the latest that came back
 ```
 
 The dev overlay ([`crates/slime-devui/src/lib.rs`](../crates/slime-devui/src/lib.rs),
@@ -631,8 +643,10 @@ and prefabs", below)
 │   │                                                  default one (load_scene: then waits)
 │   └── on the load's own thread
 │       ├── assets.scene(id)                           its nodes, and the meshes they place
-│       ├── a task per mesh, on the task pool          assets.mesh(id), uploaded through a clone
-│       │                                              of the Gpu
+│       ├── a task per mesh, on the task pool          assets.mesh(id), written through a clone
+│       │                                              of the Gpu into the renderer's pages of
+│       │                                              meshes, which the tasks share under a
+│       │                                              lock (ADR-0117)
 │       ├── assets.material(id), as meshes name them   each read once; then a task per texture:
 │       │                                              assets.texture(id), uploaded in the GPU
 │       │                                              format of its encoding, through a buffer
