@@ -160,9 +160,13 @@ impl World {
     /// is the light it places (`docs/adr/0084-what-the-world-draws.md`). `false` if it is not
     /// alive.
     pub fn is_hidden(&self, entity: Entity) -> bool {
+        // The storage looked up once, not at each ancestor: a frame asks it of every entity.
+        let Some(hidden) = self.storage::<Hidden>() else {
+            return false;
+        };
         let mut next = self.contains(entity).then_some(entity);
         while let Some(entity) = next {
-            if self.get::<Hidden>(entity).is_some() {
+            if hidden.get(entity.index()).is_some() {
                 return true;
             }
             next = self.nodes[entity.index() as usize].parent;
@@ -194,6 +198,9 @@ impl World {
             }
             stale.push(entity);
             current = node.parent;
+        }
+        if stale.is_empty() {
+            return base;
         }
         let transforms = self.storage::<Transform>();
         stale.iter().rev().fold(base, |parent, entity| {

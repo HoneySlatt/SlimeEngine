@@ -2,14 +2,13 @@
 //! (`docs/adr/0085-reflection.md`).
 
 use std::any::TypeId;
-use std::collections::HashMap;
 
 use slime_reflect::{Path, Registry, Value};
 
 use crate::entity::Entity;
 use crate::error::WorldError;
 use crate::transform::Transform;
-use crate::world::{Component, World, mark_stale};
+use crate::world::{Component, ComponentIds, World, mark_stale};
 
 impl World {
     /// The types of the world's components, and the types their values hold: the engine's, every
@@ -252,7 +251,7 @@ impl World {
 /// As [`World::storage_named`].
 pub(crate) fn storage_in_registry(
     registry: &Registry,
-    component_ids: &HashMap<TypeId, usize>,
+    component_ids: &ComponentIds,
     component: &str,
 ) -> Result<(usize, String), WorldError> {
     let unknown = || WorldError::UnknownComponent(component.to_owned());

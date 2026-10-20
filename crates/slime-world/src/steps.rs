@@ -77,6 +77,10 @@ impl World {
     /// hold, is drawn as it is now. `None` if the entity is not alive or has no `Transform`.
     pub fn interpolated_transform(&self, entity: Entity, fraction: f64) -> Option<GlobalTransform> {
         let now = self.global_transform(entity)?;
+        if self.changes.moved.is_empty() {
+            // Nothing moved during the last step: no ancestor to look for.
+            return Some(now);
+        }
         let node = &self.nodes[entity.index() as usize];
         if node.moved != 0 {
             let (_, before) = self.changes.moved[node.moved as usize - 1];

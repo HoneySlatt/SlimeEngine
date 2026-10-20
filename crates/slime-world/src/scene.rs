@@ -13,7 +13,7 @@ use crate::identity::{CREATED, PersistentId};
 use crate::library::{Overrides, Placement, ResolvedScene};
 use crate::reflection::storage_in_registry;
 use crate::transform::Transform;
-use crate::world::{Identity, SpawnedScene, World, mark_stale};
+use crate::world::{ComponentIds, Identity, SpawnedScene, World, mark_stale};
 use crate::write_back::with_handles;
 
 /// The identity of what is spawned under `key`, if it can be a key: not empty, without `/`, and not
@@ -352,7 +352,7 @@ pub(crate) type Storages<'s> = HashMap<&'s str, usize>;
 /// [`WorldError::UnknownComponent`] for a type that the world stores no component of.
 pub(crate) fn storages_of<'s>(
     registry: &Registry,
-    component_ids: &HashMap<TypeId, usize>,
+    component_ids: &ComponentIds,
     scene: &'s ResolvedScene,
 ) -> Result<Storages<'s>, WorldError> {
     let mut storages = Storages::new();

@@ -7,10 +7,10 @@
 //! storage of the component that the fewest entities hold.
 
 use std::any::{Any, TypeId, type_name};
-use std::collections::HashMap;
 
 use crate::entity::Entity;
 use crate::storage::{AnyStorage, Storage};
+use crate::world::ComponentIds;
 use crate::{Component, World};
 
 mod sealed {
@@ -79,7 +79,7 @@ pub trait QueryMut: sealed::Sealed {
 
     #[doc(hidden)]
     fn borrow<'w>(
-        ids: &HashMap<TypeId, usize>,
+        ids: &ComponentIds,
         storages: &mut [Option<&'w mut dyn AnyStorage>],
     ) -> Option<Self::Borrow<'w>>;
 
@@ -93,7 +93,7 @@ pub trait QueryMut: sealed::Sealed {
 /// The storage of `T` among those a query borrows, taken so that no other part of the query can
 /// borrow it too; `None` when no entity has ever held a `T`.
 fn take<'w, T: Component>(
-    ids: &HashMap<TypeId, usize>,
+    ids: &ComponentIds,
     storages: &mut [Option<&'w mut dyn AnyStorage>],
 ) -> Option<&'w mut Storage<T>> {
     let id = *ids.get(&TypeId::of::<T>())?;
@@ -116,7 +116,7 @@ impl<T: Component> QueryMut for &T {
     }
 
     fn borrow<'w>(
-        ids: &HashMap<TypeId, usize>,
+        ids: &ComponentIds,
         storages: &mut [Option<&'w mut dyn AnyStorage>],
     ) -> Option<&'w Storage<T>> {
         take::<T>(ids, storages).map(|storage| &*storage)
@@ -140,7 +140,7 @@ impl<T: Component> QueryMut for &mut T {
     }
 
     fn borrow<'w>(
-        ids: &HashMap<TypeId, usize>,
+        ids: &ComponentIds,
         storages: &mut [Option<&'w mut dyn AnyStorage>],
     ) -> Option<&'w mut Storage<T>> {
         take::<T>(ids, storages)
@@ -193,7 +193,7 @@ macro_rules! tuples {
             }
 
             fn borrow<'w>(
-                ids: &HashMap<TypeId, usize>,
+                ids: &ComponentIds,
                 storages: &mut [Option<&'w mut dyn AnyStorage>],
             ) -> Option<Self::Borrow<'w>> {
                 Some(($($part::borrow(ids, storages)?,)+))

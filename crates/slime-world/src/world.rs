@@ -2,6 +2,7 @@
 
 use std::any::{Any, TypeId};
 use std::collections::{BTreeMap, HashMap};
+use std::hash::{BuildHasherDefault, Hasher};
 use std::mem;
 use std::sync::Arc;
 
@@ -86,7 +87,7 @@ pub struct World {
     pub(crate) storages: Vec<Box<dyn AnyStorage>>,
     /// The component ID of each type: the index of its storage. IDs are the world's own, given in
     /// the order types are first inserted.
-    pub(crate) component_ids: HashMap<TypeId, usize>,
+    pub(crate) component_ids: ComponentIds,
     /// The type of each storage, by component ID.
     pub(crate) component_types: Vec<TypeId>,
     /// The types of the components, those the world has stored and those registered ahead, and
@@ -292,10 +293,36 @@ pub(crate) fn mark_stale(nodes: &mut [Node], changes: &mut Changes, slot: u32) {
     }
 }
 
+/// Each component type's index among a world's storages. A `TypeId` is a hash already, which the
+/// standard hasher would hash again at each lookup: a frame looks up a few storages per entity.
+/// Public in a private module: the queries' traits name it, and nothing outside the crate can.
+pub type ComponentIds = HashMap<TypeId, usize, BuildHasherDefault<TypeIdHasher>>;
+
+/// The hasher of [`ComponentIds`]: it keeps the hash that a `TypeId` writes.
+#[derive(Default)]
+pub struct TypeIdHasher(u64);
+
+impl Hasher for TypeIdHasher {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+
+    fn write_u64(&mut self, hash: u64) {
+        self.0 ^= hash;
+    }
+
+    // A `TypeId` writes a `u64` today; any other way of writing it still hashes every byte.
+    fn write(&mut self, bytes: &[u8]) {
+        for &byte in bytes {
+            self.0 = self.0.rotate_left(8) ^ u64::from(byte);
+        }
+    }
+}
+
 /// The storage of `T` among a world's, if an entity has ever held a `T`: [`World::storage`], for
 /// code that borrows the world's other fields apart.
 pub(crate) fn storage_in<'s, T: Component>(
-    component_ids: &HashMap<TypeId, usize>,
+    component_ids: &ComponentIds,
     storages: &'s [Box<dyn AnyStorage>],
 ) -> Option<&'s Storage<T>> {
     let id = *component_ids.get(&TypeId::of::<T>())?;
@@ -329,7 +356,7 @@ impl World {
         let mut world = Self {
             entities: Entities::default(),
             storages: Vec::new(),
-            component_ids: HashMap::new(),
+            component_ids: ComponentIds::default(),
             component_types: Vec::new(),
             registry: Registry::new(),
             nodes: Vec::new(),
