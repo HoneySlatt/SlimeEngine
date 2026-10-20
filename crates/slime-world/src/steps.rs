@@ -150,6 +150,35 @@ mod tests {
         assert_eq!(drawn(&world, rock, 0.5), 5.0, "the rock did not move");
     }
 
+    /// An entity set where it already is during each step, as a game that sets its sun from the
+    /// time of day does, is drawn exactly where it is at every fraction of a step: a sun that did
+    /// not move keeps the sky it made.
+    #[test]
+    fn an_entity_set_where_it_is_during_a_step_is_drawn_exactly_there() {
+        let mut world = World::new();
+        let sun = world.spawn();
+        let at = Transform {
+            translation: DVec3::new(0.3, 7.1, -2.9),
+            rotation: Quat::from_rotation_x(-0.9) * Quat::from_rotation_y(0.4),
+            ..Transform::IDENTITY
+        };
+        world.insert(sun, at);
+        world.update_transforms();
+        let here = world.global_transform(sun).expect("placed");
+        for frame in 0..24 {
+            world.begin_fixed_step();
+            *world.get_mut::<Transform>(sun).expect("placed") = at;
+            world.end_fixed_step();
+            world.update_transforms();
+            let fraction = (f64::from(frame) * 60.0 / 144.0).fract();
+            assert_eq!(
+                world.interpolated_transform(sun, fraction),
+                Some(here),
+                "{fraction}"
+            );
+        }
+    }
+
     #[test]
     fn a_frame_without_a_step_keeps_the_last_two_and_one_with_two_takes_the_last() {
         let mut world = World::new();

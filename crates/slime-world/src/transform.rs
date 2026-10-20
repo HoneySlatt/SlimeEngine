@@ -152,11 +152,22 @@ impl GlobalTransform {
     }
 
     /// The transform `fraction` of the way from this one to `to`, from 0 to 1: translations in
-    /// between in `f64`, rotations along the shortest arc between them, scales in between.
+    /// between in `f64`, rotations along the shortest arc between them, scales in between. A part
+    /// that is the same in both is that part exactly, which interpolating it in floating point
+    /// would not always give back: an entity that did not move is drawn exactly where it is, and
+    /// a sun that did not turn keeps the sky it made.
     pub fn lerp(&self, to: &Self, fraction: f64) -> Self {
         Self {
-            translation: self.translation.lerp(to.translation, fraction),
-            rotation: self.rotation.slerp(to.rotation, fraction as f32),
+            translation: if self.translation == to.translation {
+                to.translation
+            } else {
+                self.translation.lerp(to.translation, fraction)
+            },
+            rotation: if self.rotation == to.rotation {
+                to.rotation
+            } else {
+                self.rotation.slerp(to.rotation, fraction as f32)
+            },
             scale: self.scale + (to.scale - self.scale) * fraction as f32,
         }
     }
