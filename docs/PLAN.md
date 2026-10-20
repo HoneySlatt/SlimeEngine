@@ -94,6 +94,32 @@ Risks:
 - **Fuzzing in CI.** Tests that mutate valid files at random must stay within a time budget, and
   reproduce a failure from its seed.
 
+### Checks by hand waiting for the owner
+
+The checks by hand of the milestones done that the owner has not made yet. The owner decided on
+2026-10-20 to make them later, together: each milestone adds its own here when it is done, and a
+check leaves the list once made, its result written in its milestone's outcome. The game is run
+with `--new --save <a file of its own>`, so that the owner's save is left alone.
+
+- **P2, in the Windows virtual machine.** `scene.exe` of CI's artifact, on a copy of its `assets`
+  directory whose first mesh has one byte changed: an error that names the file, then status 1.
+- **G20, in the Windows virtual machine.** A source asset whose `.meta` differs from its own name
+  by case only, cooked twice: whether its ID changes at each cook, and whether `slime-cook watch`
+  cooks it again without end (see [Known debt](#left-by-the-audit-of-04)).
+- **P3, in the Windows virtual machine.** A timeout detection and recovery (TDR) forced while the
+  zone loads, then a second while the game makes its GPU objects again: a new device each time,
+  the log saying "the GPU device was lost; a new one replaces it", and the game going on. The
+  windows of `hunnawood.exe` and `scene.exe` resized several times, maximized and restored: no
+  "ResizeBuffers failed", "cannot be configured" or "surface was lost" in the log, which only
+  Direct3D 12 can show. Optionally, the dev overlay's button that loses the device, four times
+  within five minutes: three new devices, then the game stops with an error of a lost device.
+- **P5, in the Windows virtual machine.** The benchmarks on Direct3D 12, `cargo run --release -p
+  slime-benches -- render world loading`; the figures of WARP that the Windows job's log of
+  `af512af` prints.
+- **P5, on Linux with the RX 6900 XT, before P4 starts.** The section of that GPU in
+  [`measurements.md`](measurements.md), the zone cooked: `scripts/measure.sh "P5, RX 6900 XT"
+  render world loading loading.zone render.instances.100k >> docs/measurements.md`.
+
 ### P1 — Saves and identities that never mislead
 
 - **Goal.** A save, a scene file and a level written back hold what the world holds, and are applied
@@ -411,7 +437,8 @@ Risks:
   a loss found by a loading thread stopped the game; that shaders and pipelines were created
   without the question to wgpu; and documents that said more than the code did. All are fixed. The
   checks by hand in the Windows virtual machine, a TDR forced while the zone loads, then while the
-  game restores its objects, are the owner's, after the push. CI took 14 minutes 19 seconds on
+  game restores its objects, are the owner's, and wait in the
+  [list of checks by hand](#checks-by-hand-waiting-for-the-owner). CI took 14 minutes 19 seconds on
   Linux and 16 minutes 22 seconds on Windows.
 
 ### P5 — The build, CI, and measurements tracked from one commit to the next
@@ -509,9 +536,10 @@ Risks:
     script that could count no library compiled again when it could not read cargo's output; and
     documents that said more than the code did. All are fixed, but the cost of a trace, which is
     documented.
-  - Not done, the owner's by hand: the measurements of rendering and loading on Direct3D 12 in
-    the Windows virtual machine, the Windows job's log of `af512af`, and the section of the RX
-    6900 XT on Linux.
+  - Not done, the owner's by hand, which wait in the
+    [list of checks by hand](#checks-by-hand-waiting-for-the-owner): the measurements of
+    rendering and loading on Direct3D 12 in the Windows virtual machine, the Windows job's log of
+    `af512af`, and the section of the RX 6900 XT on Linux.
 
 ### P4 — The measured quick wins
 
@@ -1213,7 +1241,8 @@ waits for. A test that confirms each is kept outside the repository, and comes i
 - **On Windows, a `.meta` whose name differs from its source's by case only takes a new ID at every
   cook** (G20, medium; Stage 6), and `slime-cook watch` cooks again without end: the scan matches
   the two files by the file system's rule, which ignores case on NTFS, then looks the ID up by the
-  exact path. Not run on Windows by the audit, to check in the owner's virtual machine.
+  exact path. Not run on Windows by the audit: it waits in the
+  [list of checks by hand](#checks-by-hand-waiting-for-the-owner).
 - **Importing a glTF file takes time quadratic in its named meshes** (G23, medium; Stage 6): 38 to
   57 s for 80 000 meshes, as each name is counted against the whole list.
 - **The world's storage keeps 4 MB per component type and per million slots, and gives nothing back
