@@ -81,4 +81,27 @@ impl Gpu {
         );
         self.queue.write_buffer(&buffer.buffer, 0, contents);
     }
+
+    /// Replaces the first `contents.len()` bytes of `buffer` with `contents`, and leaves the
+    /// others as they are: for a buffer whose slots a frame uses only some of, from the first,
+    /// which sends the GPU only those. The draws of work submitted after this call read the new
+    /// content, as [`Gpu::write_uniform_buffer`] says.
+    ///
+    /// # Panics
+    ///
+    /// If `contents` is empty, longer than the buffer, or its length is not a multiple of 4 bytes,
+    /// which GPU copies require.
+    pub fn write_uniform_buffer_start(&self, buffer: &UniformBuffer, contents: &[u8]) {
+        assert!(
+            !contents.is_empty()
+                && contents.len() <= buffer.size
+                && contents.len().is_multiple_of(4),
+            "uniform buffer `{}` holds {} bytes, and {} cannot be written at its start: at least 4, \
+             in multiples of 4, at most its size",
+            buffer.label,
+            buffer.size,
+            contents.len()
+        );
+        self.queue.write_buffer(&buffer.buffer, 0, contents);
+    }
 }

@@ -316,6 +316,9 @@ pub struct Renderer {
     /// Reads the environment and the BRDF table.
     environment_sampler: Sampler,
     instances: InstanceSlots,
+    /// The values of the instances of the frame drawn last, each slot padded to the buffer's
+    /// stride: kept from one frame to the next, so that a frame writes into memory it has.
+    instance_values: Vec<u8>,
     /// The frame's graph and what reads its targets: created by the first `render`, and again
     /// when the frame's shape changes.
     frame: Option<Frame>,
@@ -687,6 +690,7 @@ impl Renderer {
             brdf_table,
             environment_sampler,
             instances,
+            instance_values: Vec::new(),
             frame: None,
             cascade_atlas: None,
             no_atlas,
@@ -1212,25 +1216,24 @@ impl Renderer {
             self.instances = InstanceSlots::new(gpu, &self.layouts.instance, capacity)?;
         }
         let stride = self.instances.stride;
-        // The slots are written one after another, each padded to the stride, and the slots no
-        // instance uses are left zero: the buffer is written whole.
-        let mut instance_bytes = Vec::with_capacity(capacity * stride);
+        // The slots are written one after another, each padded to the stride, and only those that
+        // the frame's instances use reach the buffer, whose other slots no draw reads.
+        let instance_bytes = &mut self.instance_values;
+        instance_bytes.clear();
         for instance in scene.instances {
-            push_mat4(&mut instance_bytes, relative_to(origin, instance.transform));
-            push_mat3(
-                &mut instance_bytes,
-                normal_matrix(linear(instance.transform)),
-            );
+            push_mat4(instance_bytes, relative_to(origin, instance.transform));
+            push_mat3(instance_bytes, normal_matrix(linear(instance.transform)));
             let handedness = if is_mirrored(linear(instance.transform)) {
                 -1.0
             } else {
                 1.0
             };
-            push_f32s(&mut instance_bytes, &[handedness, 0.0, 0.0, 0.0]);
+            push_f32s(instance_bytes, &[handedness, 0.0, 0.0, 0.0]);
             instance_bytes.resize(instance_bytes.len().next_multiple_of(stride), 0);
         }
-        instance_bytes.resize(capacity * stride, 0);
-        gpu.write_uniform_buffer(&self.instances.buffer, &instance_bytes);
+        if !instance_bytes.is_empty() {
+            gpu.write_uniform_buffer_start(&self.instances.buffer, instance_bytes);
+        }
 
         let shape = Shape {
             width,
