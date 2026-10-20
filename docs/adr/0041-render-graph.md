@@ -3,7 +3,8 @@
 - Status: Accepted; amends [0027](0027-the-render-crate.md),
   [0033](0033-gpu-layer-for-multi-pass-rendering.md),
   [0034](0034-hdr-rendering-and-tone-mapping.md), [0038](0038-shadow-mapping.md),
-  [0039](0039-image-based-lighting-computed-on-the-cpu.md) and [0040](0040-bloom.md)
+  [0039](0039-image-based-lighting-computed-on-the-cpu.md) and [0040](0040-bloom.md); amended by
+  [0111](0111-the-frame-contract.md) (views apart from the renderer, a part of the graph each)
 - Date: 2026-10-14
 
 ## Context

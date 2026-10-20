@@ -94,7 +94,7 @@ the ADR linking to it.
 | [0024](0024-windowed-lifecycle-check-in-weston.md) | Windowed lifecycle check in the headless compositor | Accepted; extended on 2026-10-13 |
 | [0025](0025-giving-up-a-lost-surface.md) | Giving up a window's surface that is lost for good | Accepted |
 | [0026](0026-resource-binding-and-depth.md) | Resource binding and depth in `slime-gfx` | Accepted; amended by 0032, 0033, 0047 and 0106 |
-| [0027](0027-the-render-crate.md) | The render crate, what it draws, and glam | Accepted; amended by 0034, 0035, 0037, 0038, 0039, 0040, 0041, 0047 and 0048 |
+| [0027](0027-the-render-crate.md) | The render crate, what it draws, and glam | Accepted; amended by 0034, 0035, 0037, 0038, 0039, 0040, 0041, 0047, 0048 and 0111 |
 | [0028](0028-image-tests-tolerate-a-few-pixels.md) | Image tests tolerate a few differing pixels | Accepted; amended by 0030 |
 | [0029](0029-temporary-gltf-loading.md) | Temporary glTF loading, in the examples | Superseded by 0069 |
 | [0030](0030-image-tests-strict-on-the-reference-driver.md) | Image tests: strict on the reference driver, loose on the others | Accepted; amended by 0054 |
@@ -102,13 +102,13 @@ the ADR linking to it.
 | [0032](0032-mipmaps-computed-at-texture-creation.md) | Mipmaps computed by the engine when a texture is created | Accepted; amended by 0039 and 0071 |
 | [0033](0033-gpu-layer-for-multi-pass-rendering.md) | The GPU layer for multi-pass rendering | Accepted; amended by 0038, 0039, 0041, 0047 and 0059 |
 | [0034](0034-hdr-rendering-and-tone-mapping.md) | HDR rendering and tone mapping | Accepted; amended by 0035, 0037, 0039, 0040, 0041 and 0051 |
-| [0035](0035-physically-based-materials.md) | Physically based materials | Accepted; amended by 0037, 0039 and 0069 |
+| [0035](0035-physically-based-materials.md) | Physically based materials | Accepted; amended by 0037, 0039, 0069 and 0111 |
 | [0036](0036-direct3d-12-shader-compiler.md) | The shader compiler of Direct3D 12 | Accepted; amended by 0066 |
 | [0037](0037-lights-in-physical-units-and-pre-exposure.md) | Lights in physical units, and pre-exposure | Accepted; amended by 0038, 0039, 0040 and 0042 |
 | [0038](0038-shadow-mapping.md) | Shadow mapping | Accepted; amended by 0039, 0041, 0047, 0049, 0050, 0061, 0063 and 0064 |
 | [0039](0039-image-based-lighting-computed-on-the-cpu.md) | Image-based lighting computed on the CPU | Accepted; amended by 0041 |
 | [0040](0040-bloom.md) | Bloom | Accepted; amended by 0041 |
-| [0041](0041-render-graph.md) | The render graph | Accepted |
+| [0041](0041-render-graph.md) | The render graph | Accepted; amended by 0111 |
 | [0042](0042-lights-beyond-the-most-drawn-and-checked-scene-values.md) | Lights beyond the most drawn, and checked scene values | Accepted; amended by 0102 and 0106 |
 | [0043](0043-application-errors-during-a-run.md) | Application errors during a run | Accepted |
 | [0044](0044-running-out-of-gpu-memory.md) | Running out of GPU memory | Accepted |
@@ -151,7 +151,7 @@ the ADR linking to it.
 | [0081](0081-stage-5a-the-world.md) | Stage 5a: the world | Accepted; amended by 0109 |
 | [0082](0082-the-worlds-storage-and-handles.md) | The world's storage and handles | Accepted |
 | [0083](0083-transforms-and-the-hierarchy.md) | Transforms and the hierarchy | Accepted; amended by 0087, 0106 and 0108 |
-| [0084](0084-what-the-world-draws.md) | What the world draws | Accepted; amended by 0106 |
+| [0084](0084-what-the-world-draws.md) | What the world draws | Accepted; amended by 0106 and 0111 |
 | [0085](0085-reflection.md) | Reflection | Accepted; amended by 0086, 0087, 0101 and 0108 |
 | [0086](0086-serialization.md) | Serialization | Accepted; amended by 0087, 0091 and 0102 |
 | [0087](0087-the-worlds-documents.md) | The world's documents | Accepted; amended by 0088, 0089, 0092, 0093, 0101 and 0108 |
@@ -178,3 +178,4 @@ the ADR linking to it.
 | [0108](0108-what-the-world-knows-of-its-changes.md) | What the world knows of its changes | Accepted |
 | [0109](0109-stable-references-and-undo.md) | Stable references and undo | Accepted |
 | [0110](0110-how-the-editor-runs-a-games-code.md) | How the editor runs a game's code | Accepted |
+| [0111](0111-the-frame-contract.md) | The frame contract | Accepted |

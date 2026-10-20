@@ -31,9 +31,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0106](adr/0106-the-measured-quick-wins.md)) but B4-F01, which P6's execution model weighs;
   P6 is current: its execution model ([ADR-0107](adr/0107-the-execution-model.md)), what the
   world knows of its changes ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)),
-  stable references and undo ([ADR-0109](adr/0109-stable-references-and-undo.md)), and how the
-  editor runs a game's code ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)) are
-  decided.
+  stable references and undo ([ADR-0109](adr/0109-stable-references-and-undo.md)), how the editor
+  runs a game's code ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)), and the frame
+  contract ([ADR-0111](adr/0111-the-frame-contract.md)) are decided.
 - The games the engine aims at, described on 2026-10-19
   ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)): nine profiles, from *Hunna Wood* to a
   massively multiplayer game, listed in [`ROADMAP.md`](ROADMAP.md). They add criteria to P6, one UI
@@ -729,6 +729,11 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
     shadow atlases per output.
     ADR-0098 adds: what a game hands the renderer for an object is not limited to the fields of
     the physically based material, and a frame may hold several views.
+    **Decided** on 2026-10-20, in [ADR-0111](adr/0111-the-frame-contract.md): a frame that owns
+    what it draws, and an asset cache that loads without the renderer, the render thread decided
+    at Stage 7 on measurement; views apart from the renderer, with settings of their own; a
+    material of a kind registered with the renderer; the frame built again each time until a
+    measurement asks to update only what changed.
   - A study of open worlds: cells, identities, saves per scene, references across scenes (C3-02,
     C4-03, C4-05, C7-03).
     ADR-0098 adds: several worlds, and a state that follows the player from one to the other; a
@@ -1312,6 +1317,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   stopping) builds the frame again with new timers, and the last submission's times come back
   during the next call, by then read from newer timers; such a renderer also creates its targets
   again at every call, as it did before. Use one renderer per output size.
+  [ADR-0111](adr/0111-the-frame-contract.md) decides views apart from the renderer, each with its
+  own targets and timers, built at Stage 6.
 - **Tiny, very bright sources blink in the bloom** (ADR-0040). Without a firefly filter (Karis's
   average dims the sun's halo and makes it flicker, measured), a highlight smaller than a pixel
   blooms as its coverage of the pixel changes from frame to frame. Temporal anti-aliasing, or a cap

@@ -197,4 +197,6 @@ errors.
 - Use wgpu: it draws through `slime-gfx`'s types only.
 - Depend on `slime-platform` or `slime-app`: it draws into any render target, with or without a
   window.
-- Keep a scene between frames: it draws what it is given.
+- Keep a scene between frames: it draws what it is given; what it keeps from one frame to the next
+  is memory it reuses or a cache of what it is given
+  ([ADR-0111](../../docs/adr/0111-the-frame-contract.md)).

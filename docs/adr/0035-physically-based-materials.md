@@ -5,8 +5,9 @@
   [0037](0037-lights-in-physical-units-and-pre-exposure.md) (the frame's values, the light's color
   and illuminance, and the loader's lists: lights), by
   [0039](0039-image-based-lighting-computed-on-the-cpu.md) (the environment's light replaces the
-  ambient term) and by [0069](0069-the-asset-pipeline.md) (the examples' loader is deleted, with
-  ADR-0029)
+  ambient term), by [0069](0069-the-asset-pipeline.md) (the examples' loader is deleted, with
+  ADR-0029) and by [0111](0111-the-frame-contract.md) (the physically based material is one kind of
+  material)
 - Date: 2026-10-13
 
 ## Context

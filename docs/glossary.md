@@ -254,6 +254,10 @@ the frame rate advances (`slime_app::time::FixedStep`). A frame runs zero or mor
 **Frame.** One iteration of the main loop. Its *delta* is the time it represents: the time since
 the previous frame, limited to a maximum (`slime_app::time::FrameClock`).
 
+**Frame contract.** What the world gives the renderer at each frame, and how: a frame that owns
+what it draws, built by `slime-world-render`, drawn in one or more *views*, each object naming a
+material of some *kind* ([ADR-0111](adr/0111-the-frame-contract.md)). Decided, not built yet.
+
 **Frame scheduler (frame limiter).** The part of the windowed driver that schedules frames and
 waits between them, so that the engine asks for at most `AppConfig::max_frame_rate` frames per
 second on average. With the default *present mode*, it alone paces the frames
@@ -360,6 +364,11 @@ c × irradiance / π. The roughest of the *prefiltered levels* holds the irradia
 *persistent identities*: undo and redo read it, and it is written to disk, so that an editor that
 crashed replays it and a test replays an editing session
 ([ADR-0109](adr/0109-stable-references-and-undo.md)). Decided, not built yet.
+
+**Kind (material).** A way of lighting a surface that the renderer knows by registration: its
+shaders, its parameters described by reflection, and the passes it draws in. The physically based
+material is the one kind until Stage 9a ([ADR-0111](adr/0111-the-frame-contract.md)). Decided, not
+built yet.
 
 **KTX2.** The Khronos Group's file format for GPU textures, which holds every mipmap level of a
 texture in its GPU format: the format of cooked textures
@@ -916,6 +925,11 @@ names one, `#[reflect(upgrade = ...)]`, and a reader applies them in turn
 **Value (reflection).** A reflected value as plain data, without its Rust type: booleans, integers,
 floats of either width, text, structs, enums, options, lists, references to assets and entities
 (`slime_reflect::Value`). What passes between reflection, files, saves and editors.
+
+**View (render).** What one camera draws in a frame, into targets of its own, with settings of
+its own (projection, render scale, anti-aliasing, debugging, passes). What views share (pipelines,
+spot lights' shadows, the environment) the renderer makes once
+([ADR-0111](adr/0111-the-frame-contract.md)). Decided, not built yet.
 
 **Visual target.** A reference image that a game sets for its look, on its target *hardware tier*
 at its frame rate: the gap between the game's image and its targets is the measured problem by
