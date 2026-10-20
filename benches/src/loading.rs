@@ -1,13 +1,22 @@
-//! The benchmarks of loading: a load started with a large manifest, and the meshes of *Hunna
-//! Wood*'s zone loaded while frames are drawn.
+//! The benchmarks of loading: a load started with a large manifest, and meshes loaded while frames
+//! are drawn: *Hunna Wood*'s zone, and squares textured with textures of 4096².
 
 use std::fs;
+use std::path::Path;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use slime_assets::{AssetId, AssetKind, CookedAssets, MANIFEST_FILE, Manifest, ManifestEntry};
+use slime_assets::{
+    AssetId, AssetKind, CookedAssets, CookedMaterial, CookedMesh, CookedTexture, MANIFEST_FILE,
+    Manifest, ManifestEntry, MaterialTexture, TextureEncoding, TextureFilter, TextureSampler,
+    TextureWrap,
+};
+use slime_render::glam::DAffine3;
 use slime_render::glam::DVec3;
-use slime_render::{AssetCache, Camera, Renderer, Sky};
+use slime_render::{
+    AssetCache, Camera, DirectionalLight, Instance, Light, MaterialData, MeshData, Renderer, Scene,
+    Sky,
+};
 use slime_world::{Meshes, Transform, World};
 use slime_world_render::FrameBuilder;
 
@@ -16,7 +25,7 @@ use crate::render::{EXPOSURE, FORMAT, sky_and_sun};
 use crate::world::spawn_sun;
 
 /// How far apart the zone's meshes are placed, in metres: more than the largest of them.
-const SPACING: f64 = 30.0;
+const ZONE_SPACING: f64 = 30.0;
 
 /// The directory of a manifest of `count` meshes, none of whose files exist: a load started from
 /// it fails in its thread, after the work on the calling thread that the benchmark times.
@@ -69,12 +78,9 @@ pub fn batch(context: &mut Context) -> Result<Vec<Row>, String> {
 }
 
 /// *Hunna Wood*'s zone, cooked in `target/cooked/hunnawood`: each of its meshes placed once, on
-/// a grid, then drawn by day, under a sun that casts shadows, at 1280 × 720 from above while they
-/// load with their materials and textures, each frame waited for on the GPU, until a frame draws
-/// them whole; then five frames more. The time to that frame runs from the opening of the cooked
-/// zone, once the renderer is made. Not the zone's scene, whose components of the game's only the
-/// game registers: the zone's bytes, laid out otherwise. It runs only when asked for, since the
-/// zone is fetched and cooked first.
+/// a grid, then drawn as [`drawn_while_loading`] says. Not the zone's scene, whose components of
+/// the game's only the game registers: the zone's bytes, laid out otherwise. It runs only when
+/// asked for, since the zone is fetched and cooked first.
 pub fn zone(context: &mut Context) -> Result<Vec<Row>, String> {
     let directory = Context::root().join("target/cooked/hunnawood");
     if !directory.join(MANIFEST_FILE).is_file() {
@@ -85,13 +91,138 @@ pub fn zone(context: &mut Context) -> Result<Vec<Row>, String> {
             directory.display()
         ));
     }
+    drawn_while_loading(context, &directory, ZONE_SPACING, "cooked zone opened")
+}
+
+/// How many meshes [`textures`] loads, each with a material and a texture of its own.
+const TEXTURED_MESHES: u128 = 16;
+/// The side of their textures, in texels: the largest that a cooked texture has.
+const TEXTURE_SIDE: u32 = 4096;
+
+/// [`TEXTURED_MESHES`] squares, each drawn with a material of its own whose base color is a
+/// texture of [`TEXTURE_SIDE`] × [`TEXTURE_SIDE`] texels in BC7, every level of detail with it:
+/// 21.3 MiB each, 341 MiB in all, loaded and drawn as [`drawn_while_loading`] says. Written once,
+/// into `target/benches/textures`, without the cooker, whose BC7 encoder would take seconds per
+/// texture: their blocks are a pattern, which the GPU decodes as any other.
+pub fn textures(context: &mut Context) -> Result<Vec<Row>, String> {
+    let directory = Context::root().join("target/benches/textures");
+    if !directory.join(MANIFEST_FILE).is_file() {
+        write_textured_squares(&directory)?;
+    }
+    drawn_while_loading(context, &directory, 2.0, "cooked data opened")
+}
+
+/// Writes the cooked data of [`textures`] into `directory`.
+fn write_textured_squares(directory: &Path) -> Result<(), String> {
+    fs::create_dir_all(directory).map_err(|error| error.to_string())?;
+    let mut manifest = Manifest::new();
+    let mut write = |id: u128, kind, file: String, bytes: Vec<u8>, needs| {
+        fs::write(directory.join(&file), &bytes).map_err(|error| error.to_string())?;
+        manifest.insert(
+            AssetId::from_u128(id),
+            ManifestEntry {
+                kind,
+                file,
+                size: bytes.len() as u64,
+                needs,
+                source: "benchmark.gltf".to_owned(),
+            },
+        );
+        Ok::<(), String>(())
+    };
+    let square = MeshData::square();
+    for index in 0..TEXTURED_MESHES {
+        let (mesh, material, texture) = (1000 + index, 2000 + index, 3000 + index);
+        let levels = (0..)
+            .map(|level| TEXTURE_SIDE >> level)
+            .take_while(|&side| side > 0)
+            .enumerate()
+            .map(|(level, side)| {
+                let size = TextureEncoding::Bc7Srgb.level_size(side, side);
+                // Each texture and each level its own pattern of bytes.
+                (0..size)
+                    .map(|byte| (byte as u128 * 31 + index * 7 + level as u128) as u8)
+                    .collect()
+            })
+            .collect();
+        let cooked = CookedTexture {
+            width: TEXTURE_SIDE,
+            height: TEXTURE_SIDE,
+            encoding: TextureEncoding::Bc7Srgb,
+            levels,
+        };
+        write(
+            texture,
+            AssetKind::Texture,
+            format!("{index}.ktx2"),
+            cooked.to_ktx2(),
+            Vec::new(),
+        )?;
+        let slot = MaterialTexture {
+            texture: AssetId::from_u128(texture),
+            sampler: TextureSampler {
+                mag_filter: TextureFilter::Linear,
+                min_filter: TextureFilter::Linear,
+                wrap_u: TextureWrap::Repeat,
+                wrap_v: TextureWrap::Repeat,
+            },
+        };
+        let cooked = CookedMaterial {
+            name: format!("textured {index}"),
+            base_color_texture: Some(slot),
+            metallic: 0.0,
+            ..CookedMaterial::default()
+        };
+        write(
+            material,
+            AssetKind::Material,
+            format!("{index}.material"),
+            cooked.to_bytes(),
+            vec![AssetId::from_u128(texture)],
+        )?;
+        let cooked = CookedMesh {
+            name: format!("textured {index}"),
+            material: AssetId::from_u128(material),
+            positions: square.positions.clone(),
+            normals: square.normals.clone(),
+            uvs: square.uvs.clone(),
+            tangents: square.tangents.clone(),
+            indices: square.indices.clone(),
+            bounds: [[-0.5, -0.5, 0.0], [0.5, 0.5, 0.0]],
+        };
+        write(
+            mesh,
+            AssetKind::Mesh,
+            format!("{index}.mesh"),
+            cooked.to_bytes(),
+            vec![AssetId::from_u128(material)],
+        )?;
+    }
+    // The manifest last: a run stopped while writing leaves none, and the next writes again.
+    fs::write(directory.join(MANIFEST_FILE), manifest.to_bytes()).map_err(|error| error.to_string())
+}
+
+/// The meshes of the cooked data in `directory`, each placed once on a grid, `spacing` metres
+/// apart, then drawn by day, under a sun that casts shadows, at 1280 × 720 from above while they
+/// load with their materials and textures, each frame waited for on the GPU, until a frame draws
+/// them whole; then five frames more. The time to that frame runs from the opening of the cooked
+/// data, once the renderer is made; `opened` names that opening's row.
+fn drawn_while_loading(
+    context: &mut Context,
+    directory: &Path,
+    spacing: f64,
+    opened: &str,
+) -> Result<Vec<Row>, String> {
     let gpu = &context.gpu;
     let mut renderer = Renderer::new(gpu, FORMAT).map_err(|error| error.to_string())?;
     let target = gpu
         .create_render_target("benchmark frame", 1280, 720, FORMAT)
         .map_err(|error| error.to_string())?;
+    let (sky, sun) = sky_and_sun();
+    let mut builder = FrameBuilder::new(Some(Sky { sun: None, ..sky }));
+    warm_up(gpu, &mut renderer, &mut builder, &target, sun, directory)?;
     let start = Instant::now();
-    let (assets, opened) = timed(|| CookedAssets::open(&directory));
+    let (assets, opening) = timed(|| CookedAssets::open(directory));
     let assets = assets.map_err(|error| error.to_string())?;
     let meshes = meshes_of(&assets);
     let side = (meshes.len() as f64).sqrt().ceil().max(1.0) as usize;
@@ -101,7 +232,7 @@ pub fn zone(context: &mut Context) -> Result<Vec<Row>, String> {
         let (x, z) = ((index % side) as f64, (index / side) as f64);
         world.insert(
             entity,
-            Transform::from_translation(DVec3::new(x * SPACING, 0.0, z * SPACING)),
+            Transform::from_translation(DVec3::new(x * spacing, 0.0, z * spacing)),
         );
         world.insert(
             entity,
@@ -113,18 +244,17 @@ pub fn zone(context: &mut Context) -> Result<Vec<Row>, String> {
     }
     spawn_sun(&mut world);
     world.update_transforms();
-    let middle = (side as f64 - 1.0) * SPACING / 2.0;
+    let middle = (side as f64 - 1.0) * spacing / 2.0;
     let mut cache = AssetCache::new(assets);
-    let (sky, _) = sky_and_sun();
-    let mut builder = FrameBuilder::new(Some(Sky { sun: None, ..sky }));
     let camera = Camera {
         eye: DVec3::new(middle, middle + 20.0, middle * 2.0 + 40.0),
         target: DVec3::new(middle, 0.0, middle),
         ..Camera::default()
     };
-    let (mut loading, mut after) = (Vec::new(), Vec::new());
+    let (mut loading, mut after, mut frames) = (Vec::new(), Vec::new(), Vec::new());
     let mut first_whole = None;
     while after.len() < 5 {
+        let frame_start = Instant::now();
         let mut frame = builder
             .build(&world, &mut cache, &renderer, gpu, 0.0)
             .map_err(|error| error.to_string())?;
@@ -143,13 +273,14 @@ pub fn zone(context: &mut Context) -> Result<Vec<Row>, String> {
             first_whole.get_or_insert(start.elapsed());
             after.push(stats.cpu_time);
         } else if start.elapsed() > LOAD_LIMIT {
-            return Err(format!("the zone's meshes did not load in {LOAD_LIMIT:?}"));
+            return Err(format!("the meshes did not load in {LOAD_LIMIT:?}"));
         } else {
             loading.push(stats.cpu_time);
+            frames.push(frame_start.elapsed());
         }
     }
     let mut rows = vec![
-        Row::new("cooked zone opened", ms(opened)),
+        Row::new(opened, ms(opening)),
         Row::new("meshes placed", meshes.len().to_string()),
         Row::new(
             "first frame that draws them whole, from the opening",
@@ -161,10 +292,56 @@ pub fn zone(context: &mut Context) -> Result<Vec<Row>, String> {
             "CPU of `Renderer::render` while they load",
             &loading,
         ));
+        rows.push(Row::new(
+            format!(
+                "frame while they load, built, drawn and waited for on the GPU, longest of {}",
+                frames.len()
+            ),
+            ms(frames.iter().copied().max().unwrap_or_default()),
+        ));
     }
     rows.extend(Row::times(
         "CPU of `Renderer::render` once they are loaded",
         &after,
     ));
     Ok(rows)
+}
+
+/// Gives the frame its shape before the load starts, so that what a load costs the frames is not
+/// mixed with what a first frame costs: draws a cube that casts a shadow under `sun`, which makes
+/// the renderer's targets and its cascades' atlas, and builds a frame of a world with the sun
+/// alone, which makes the sky's environment, with an asset cache of the cooked data in `directory`
+/// that it asks nothing of.
+fn warm_up(
+    gpu: &slime_gfx::Gpu,
+    renderer: &mut Renderer,
+    builder: &mut FrameBuilder,
+    target: &slime_gfx::RenderTarget,
+    sun: DirectionalLight,
+    directory: &Path,
+) -> Result<(), String> {
+    let error = |error: slime_render::RenderError| error.to_string();
+    let cube = renderer
+        .create_mesh(gpu, "warm-up cube", &MeshData::cube())
+        .map_err(error)?;
+    let white = renderer
+        .create_material(gpu, "warm-up", &MaterialData::default())
+        .map_err(error)?;
+    let instances = [Instance::new(&cube, &white, DAffine3::IDENTITY)];
+    let lights = [Light::Directional(sun)];
+    let mut scene = Scene::new(Camera::default(), &instances);
+    scene.lights = &lights;
+    renderer.render(gpu, target, &scene).map_err(error)?;
+    let mut world = World::new();
+    spawn_sun(&mut world);
+    world.update_transforms();
+    let mut cache =
+        AssetCache::new(CookedAssets::open(directory).map_err(|error| error.to_string())?);
+    let mut frame = builder
+        .build(&world, &mut cache, renderer, gpu, 0.0)
+        .map_err(|error| error.to_string())?;
+    renderer
+        .render(gpu, target, &frame.scene(Camera::default()))
+        .map_err(error)?;
+    gpu.wait_idle().map_err(|error| error.to_string())
 }

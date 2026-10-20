@@ -92,6 +92,12 @@ const BENCHMARKS: &[Benchmark] = &[
         run: loading::batch,
     },
     Benchmark {
+        name: "loading.textures",
+        about: "16 squares, each with a texture of 4096² of its own, loaded while frames are drawn",
+        on_request: false,
+        run: loading::textures,
+    },
+    Benchmark {
         name: "loading.zone",
         about: "the meshes of Hunna Wood's zone, cooked in target/cooked/hunnawood, placed once \
                 each, loaded while frames are drawn",
