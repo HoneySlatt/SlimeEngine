@@ -1,7 +1,7 @@
 # 0074. Uploading textures without holding up frames
 
 - Status: Accepted; amends [0073](0073-loading-scenes-in-the-background.md) (what a load costs the
-  frames)
+  frames); amended by [0107](0107-the-execution-model.md) (one owner of the copies to the GPU)
 - Date: 2026-10-15
 
 ## Context

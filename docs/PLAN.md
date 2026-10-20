@@ -29,7 +29,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0104](adr/0104-the-build-ci-and-measurements.md),
   [ADR-0105](adr/0105-egui-fonts-ship-with-the-dev-overlay.md)) are done, and P4
   ([ADR-0106](adr/0106-the-measured-quick-wins.md)) but B4-F01, which P6's execution model weighs;
-  P6 is current.
+  P6 is current: its execution model is decided
+  ([ADR-0107](adr/0107-the-execution-model.md)).
 - The games the engine aims at, described on 2026-10-19
   ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)): nine profiles, from *Hunna Wood* to a
   massively multiplayer game, listed in [`ROADMAP.md`](ROADMAP.md). They add criteria to P6, one UI
@@ -665,7 +666,7 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
   with its options, and each building only what Stage 6 uses; the rest keeps its stage.
 - **The decisions**, with the audit's findings that ask for them:
   - The execution model: the phases of a frame, where the engine's systems run, the priorities and
-    budgets of background work (C1-01, C1-06, C5-01, C7-05). Three mechanisms of threads exist
+    budgets of background work (C1-01, C1-06, C5-01, C7-05). Four mechanisms of threads exist
     today, none with priorities; the parallel job system stays at Stage 7.
     [ADR-0098](adr/0098-the-games-the-engine-aims-at.md) adds: a game time apart from real time,
     that slows while the UI and the camera run at real speed; background work budgeted so that a
@@ -674,6 +675,10 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
     P4 leaves B4-F01, the frames that a load slows (see [Known debt](#known-debt)): one thread
     that submits to the GPU within a budget of bytes per frame, against what ADR-0072 and
     ADR-0074 decided.
+    **Decided** on 2026-10-20, in [ADR-0107](adr/0107-the-execution-model.md): one task pool of
+    the engine's with a frame and a background priority, one owner of the copies to the GPU within
+    a budget of bytes per frame, the phases of a frame, game time apart from real time, and a game
+    as a simulation and a presentation run by a host; built at Stage 6, before play in the editor.
   - Change detection beyond transforms, changes deferred during a traversal, lifecycle hooks, and
     the state that systems compute apart from the state an author writes (C1-02, C1-04, C1-07,
     C5-02, C5-04).
@@ -786,11 +791,10 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **A load slows every frame while it lasts** (B4-F01). The renderer's loading threads, four at
   most, create the GPU objects and submit their copies as they read them, alongside the frames: on
   the audit's RX 6900 XT, the render CPU went from 0.5 to 2.9 ms during a load, and to 16.6 ms at
-  the 99th percentile with textures of 4096² texels. One thread that submits, within a budget of
-  bytes per frame, would change who creates and uploads the GPU objects, which
-  [ADR-0072](adr/0072-stage-4b-live-assets.md) and
-  [ADR-0074](adr/0074-uploading-textures-without-holding-up-frames.md) decided, and the budgets of
-  background work are P6's execution model, which weighs it.
+  the 99th percentile with textures of 4096² texels; on *Hunna Wood*'s zone, from 0.54 to 0.77 ms
+  at the median and 2.2 ms at the 90th percentile (P4's outcome).
+  [ADR-0107](adr/0107-the-execution-model.md) decides one thread that submits the copies, within a
+  budget of bytes per frame, built at Stage 6.
 - **The first frame that draws shadows costs more, and more still while a scene loads**
   ([ADR-0074](adr/0074-uploading-textures-without-holding-up-frames.md)). It makes the renderer
   create its shadow atlas and its frame again; during a load, the GPU, busy with the load's copies,

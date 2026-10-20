@@ -3,7 +3,8 @@
 - Status: Accepted; amends [0052](0052-amend-roadmap-before-0-1.md) (Stage 9a's content and the
   release map); amended by [0098](0098-the-games-the-engine-aims-at.md) (the criteria of the
   foundations pass), [0099](0099-ai-agents-drive-the-engine.md) (one more criterion of the
-  foundations pass) and [0100](0100-updates-of-shipped-games.md) (what it leaves for Stage 9b)
+  foundations pass), [0100](0100-updates-of-shipped-games.md) (what it leaves for Stage 9b) and
+  [0107](0107-the-execution-model.md) (the time of a game, brought from Stage 7 to Stage 6)
 - Date: 2026-10-19
 
 ## Context

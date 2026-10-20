@@ -1,6 +1,6 @@
 # 0009. Frame timing
 
-- Status: Accepted
+- Status: Accepted; amended by [0107](0107-the-execution-model.md) (game time apart from real time)
 - Date: 2026-10-12
 
 ## Context

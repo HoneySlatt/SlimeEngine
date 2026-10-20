@@ -277,6 +277,7 @@ Between Stage 5b and Stage 6 come two passes, without a release of their own (AD
 **Goal.** A real editor, built as a client of the engine.
 
 - Frustum culling and instancing, moved from Stage 9a (ADR-0097), first, before the viewport, on the decisions of the foundations pass
+- The execution model (ADR-0107), before play in editor: one task pool of the engine's, with a priority for the frame and one for the background; the copies to the GPU submitted by one owner within a budget of bytes per frame; the phases of a frame, the world read only while it is drawn; game time apart from real time, with pause and one step; a game as a simulation and a presentation, run by a host
 - The engine's UI framework, as far as the editor needs it: text in several writing systems, layout, docking, widgets, input routing, focus, drag and drop, theming (ADR-0098)
 - Viewport, hierarchy, inspector (driven by reflection), asset browser
 - Command and transaction system: every edit is undoable
@@ -290,7 +291,7 @@ Between Stage 5b and Stage 6 come two passes, without a release of their own (AD
 
 **Goal.** What a game needs beyond rendering, built on a proper concurrency model.
 
-- Job system: work stealing, dependencies, priorities
+- Job system, grown from Stage 6's task pool (ADR-0107): dependencies, loops split across threads, work stealing if a measurement asks for it
 - Memory: frame, arena and pool allocators where measurements justify them; allocation tracking
 - Visual profiler: CPU, jobs, memory, GPU, frames, from a trace stream
 - Physics behind an engine abstraction: bodies, colliders, constraints, queries (a ray or a segment against the world, ADR-0057), character controller; the backend chosen against vehicles (wheels and suspension, motorbikes, free flight), walking inside a moving vehicle, 2D, characters driven by physics, worlds in double precision and a simulation that runs the same way twice (ADR-0098)
@@ -450,7 +451,7 @@ Direction only. None of this is planned work until Stage 11 is reached.
 |---|---|
 | platform | no engine crate (ADR-0004) |
 | gfx | color only (ADR-0079); window handles through the `raw-window-handle` traits, not `platform` |
-| render | gfx, assets, color: it loads its own kinds of asset (ADR-0069), on a task pool of its own from Stage 4b (ADR-0072). Not world: `slime-world-render`, a bridge between them, builds each frame from the world (ADR-0079) |
+| render | gfx, assets, color: it loads its own kinds of asset (ADR-0069), on a task pool of its own from Stage 4b (ADR-0072), the engine's from Stage 6 (ADR-0107). Not world: `slime-world-render`, a bridge between them, builds each frame from the world (ADR-0079) |
 | assets | reflect only (ADR-0069, ADR-0080) |
 | color | reflect only (ADR-0079) |
 | reflect | its derive macro only (ADR-0080) |

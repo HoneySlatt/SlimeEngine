@@ -255,6 +255,10 @@ and disappear into it: any loss or gain of light shows.
 *DXC* is not beside the program, with a warning in the log: its code is slower
 ([ADR-0066](adr/0066-shipping-dxc-beside-the-programs.md)).
 
+**Game time.** The time of a game's *simulation*, apart from *real time*: it advances at a
+speed, 1 by default, less to slow the game down, 0 to pause it, and its fixed steps keep their
+duration at every speed ([ADR-0107](adr/0107-the-execution-model.md)). Decided, not built yet.
+
 **glTF.** The Khronos Group's format for 3D scenes: meshes, materials, textures and a node
 hierarchy, as a JSON file with binary buffers, or as one GLB file with everything embedded. The
 cooker, `slime-cook`, imports both ([ADR-0069](adr/0069-the-asset-pipeline.md)).
@@ -283,6 +287,11 @@ configuration, used by automated tests and, later, by dedicated servers.
 before it is mapped to the display's range by *tone mapping*. The engine draws them into
 `Rgba16Float` render targets: the renderer draws the scene into one at the output's size, which
 its tone-mapping pass reads.
+
+**Host.** What runs a game's *simulation*, and its *presentation* when it has one: it owns the loop,
+the world, *game time* and *real time*, the input and the decision to stop. The game's program, the
+editor's child process, a test and a dedicated server are hosts
+([ADR-0107](adr/0107-the-execution-model.md)). Decided, not built yet.
 
 **Hot reload.** Replacing, in a running game, the *cooked data* or the shaders that changed on
 disk, without restarting the game. `slime-cook watch` cooks again the sources that change, and a
@@ -518,6 +527,10 @@ the numbers that follow the count of the world it is loaded into; and for an ent
 *depth bias* pushes the stored depths back, or the *normal offset* moves the point looked up: in
 the renderer, by up to 4.5 of the shadow map's texels.
 
+**Phase (frame).** One of the steps of a frame, in their order: start, fixed steps, update,
+transforms, extraction, render and present, each saying who may change the world
+([ADR-0107](adr/0107-the-execution-model.md)). Decided, not built yet.
+
 **Physical key.** The position of a key on the keyboard, whatever the layout
 (`slime_platform::KeyCode`), named after the character it produces on a US keyboard: the first
 letter key of the top row is `KeyQ` on every layout, whether it is labelled Q (QWERTY) or A
@@ -552,6 +565,10 @@ next refreshes, as the *present mode* says.
 never waits; with *FIFO*, every image is shown in order, one per refresh, and presenting waits
 while earlier images are still to be shown ([ADR-0021](adr/0021-frame-pacing.md)).
 
+**Presentation.** The part of a game that shows it: the camera, the drawing, the dev overlay, later
+sound. It reads the world without writing it, on *real time*
+([ADR-0107](adr/0107-the-execution-model.md)). Decided, not built yet.
+
 **Property path.** Where a part of a reflected *value* is, as fields joined by `.` and indices in
 brackets: `color.r`, `ids[2]` (`slime_reflect::Path`). A field of an enum is one of the variant
 the value holds; an option that holds a value is gone through, to the value.
@@ -567,6 +584,10 @@ zero, smoothly.
 some types, with those components, `&T` to read one and `&mut T` to change it
 (`slime_world::Query`, `slime_world::QueryMut`,
 [ADR-0082](adr/0082-the-worlds-storage-and-handles.md)).
+
+**Real time.** The frames' deltas, limited after a pause, whose sum is *application time*: the UI,
+the camera, the editor and the dev overlay run on it whatever the *game time*
+([ADR-0107](adr/0107-the-execution-model.md)).
 
 **Redraw request.** A notice from the windowing system that the window should be drawn now:
 either the engine asked for it (`Window::request_redraw`), or the system did on its own, for
@@ -701,6 +722,10 @@ passes do. The *render graph* is built again, and its GPU times start over, when
 **Simulated time.** Frame deltas supplied as a constant duration instead of being measured, so
 that a run gives the same results on every machine. Headless runs use it.
 
+**Simulation.** The part of a game that holds its rules: it changes the world on *game time*, from
+input given as data, without a GPU or a window, and asks its *host* to stop rather than ending the
+process ([ADR-0107](adr/0107-the-execution-model.md)). Decided, not built yet.
+
 **Skeleton (crate).** A crate that exists with its documentation and inherits the workspace
 policies, but holds no code yet.
 
@@ -776,6 +801,8 @@ up, which stops the run, when that fails or when it is lost again each time
 thread free. `slime-render` has one of its own, private, which loads scenes in the background: each
 task reads and uploads one mesh or one texture
 ([ADR-0073](adr/0073-loading-scenes-in-the-background.md)).
+[ADR-0107](adr/0107-the-execution-model.md) decides one pool for the whole engine in its place,
+with two priorities, *frame* and *background*.
 
 **Tangent.** A direction in a surface, along which the texture's u coordinate grows. With the
 normal and the *handedness* w (±1, −1 where the texture is mirrored on the surface), it gives the

@@ -3,7 +3,7 @@
 - Status: Accepted; amends [0045](0045-one-linear-color-type.md) (where the color type lives) and
   [0048](0048-rendering-relative-to-the-camera.md) (positions in the API); amended by
   [0087](0087-the-worlds-documents.md) (what a save differs from, and the identities of entities
-  created outside scenes)
+  created outside scenes) and [0107](0107-the-execution-model.md) (the phases of a frame)
 - Date: 2026-10-16
 
 ## Context
