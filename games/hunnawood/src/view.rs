@@ -385,7 +385,7 @@ impl View {
         } else {
             (&mut self.day, DAY_EXPOSURE)
         };
-        let frame = builder.build(world, &mut self.cache, &self.renderer, gpu, alpha)?;
+        let mut frame = builder.build(world, &mut self.cache, &self.renderer, gpu, alpha)?;
         if !self.zone_shown {
             if let Some(error) = taken.first().or(frame.errors.first()) {
                 // As in `View::new`: the loss itself, not a message that hides it.

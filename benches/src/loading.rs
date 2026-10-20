@@ -125,7 +125,7 @@ pub fn zone(context: &mut Context) -> Result<Vec<Row>, String> {
     let (mut loading, mut after) = (Vec::new(), Vec::new());
     let mut first_whole = None;
     while after.len() < 5 {
-        let frame = builder
+        let mut frame = builder
             .build(&world, &mut cache, &renderer, gpu, 0.0)
             .map_err(|error| error.to_string())?;
         if let Some(error) = frame.errors.first() {

@@ -353,7 +353,7 @@ impl App for WorldExample {
             near: radius / 1000.0,
             ..Camera::default()
         };
-        let frame = match self.builder.build(
+        let mut frame = match self.builder.build(
             ctx.world(),
             &mut self.cache,
             renderer,

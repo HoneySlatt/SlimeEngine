@@ -3,10 +3,10 @@
 use std::collections::HashSet;
 
 use slime_gfx::Gpu;
-use slime_render::glam::Vec3;
+use slime_render::glam::{DVec3, Vec3};
 use slime_render::{
-    AssetCache, Camera, DirectionalLight, Environment, Instance, Light, PointLight, RenderError,
-    Renderer, Scene, SceneError, Sky, SpotLight,
+    AssetCache, Camera, DirectionalLight, Environment, Instance, Light, MAX_LIGHTS, PointLight,
+    RenderError, Renderer, Scene, SceneError, Sky, SpotLight,
 };
 use slime_world::{Entity, Meshes, Transform, World};
 
@@ -31,6 +31,10 @@ use slime_world::{Entity, Meshes, Transform, World};
 ///   first to the lights, so that its shadows are the ones drawn when it casts any. When several
 ///   show in the sky, the first in the world's order, which destroying entities can change, is the
 ///   sun, and a warning is logged.
+/// - When the world places more lights than the renderer draws, [`MAX_LIGHTS`], the scene that
+///   [`Frame::scene`] gives puts first, after the sun, the other directional lights, which reach
+///   everywhere, then the point and spot lights nearest the camera: the renderer draws the first
+///   ones, and the lamps near the player are among them.
 ///
 /// The camera, the exposure and the bloom are the game's, which it sets on the scene that
 /// [`Frame::scene`] gives.
@@ -59,8 +63,9 @@ pub struct FrameBuilder {
 pub struct Frame<'a> {
     /// The instances of the meshes that the world places and the cache holds.
     pub instances: Vec<Instance<'a>>,
-    /// The lights that the world places.
-    pub lights: &'a [Light],
+    /// The lights that the world places, the sky's sun first, then in the world's order, which
+    /// [`Frame::scene`] changes when they are more than the renderer draws.
+    pub lights: &'a mut [Light],
     /// The sky's environment, if the game gave a sky.
     pub environment: Option<&'a Environment>,
     /// How many meshes the cache was loading once the frame was built ([`AssetCache::loading`]):
@@ -71,12 +76,20 @@ pub struct Frame<'a> {
     /// those meshes are not drawn, nor asked for again until the cooked data changes
     /// ([`AssetCache::poll`]). Each is logged too.
     pub errors: Vec<SceneError>,
+    /// Whether `lights` starts with the sky's sun.
+    sun: bool,
 }
 
 impl Frame<'_> {
     /// The scene to draw, seen from `camera`, with the frame's instances, lights and environment;
-    /// its other fields, the exposure and the bloom, are the game's to set.
-    pub fn scene(&self, camera: Camera) -> Scene<'_> {
+    /// its other fields, the exposure and the bloom, are the game's to set. When the frame has more
+    /// lights than the renderer draws, [`MAX_LIGHTS`], it orders them first, as
+    /// [`FrameBuilder`] says: the sun, the other directional lights, then the others nearest
+    /// `camera`'s eye first, in the world's order for those as near.
+    pub fn scene(&mut self, camera: Camera) -> Scene<'_> {
+        if self.lights.len() > MAX_LIGHTS {
+            nearest_first(self.lights, self.sun, camera.eye);
+        }
         let mut scene = Scene::new(camera, &self.instances);
         scene.lights = self.lights;
         scene.environment = self.environment;
@@ -200,15 +213,35 @@ impl FrameBuilder {
         }
         Ok(Frame {
             instances,
-            lights: &self.lights,
+            lights: &mut self.lights,
             environment: self
                 .environment
                 .as_ref()
                 .map(|(_, environment)| environment),
             loading,
             errors,
+            sun: sun.is_some(),
         })
     }
+}
+
+/// Orders `lights`, which start with the sky's sun if `sun`, so that the renderer draws those that
+/// matter most to the player: the sun stays first, then come the other directional lights, which
+/// reach everywhere, then the point and spot lights by their distance to `eye`, each group in the
+/// order it had for lights as near.
+fn nearest_first(lights: &mut [Light], sun: bool, eye: DVec3) {
+    let rest = &mut lights[usize::from(sun)..];
+    rest.sort_by(|a, b| {
+        let key = |light: &Light| match light {
+            Light::Directional(_) => (0, 0.0),
+            Light::Point(point) => (1, point.position.distance_squared(eye)),
+            Light::Spot(spot) => (1, spot.position.distance_squared(eye)),
+        };
+        let ((a_group, a_distance), (b_group, b_distance)) = (key(a), key(b));
+        a_group
+            .cmp(&b_group)
+            .then(a_distance.total_cmp(&b_distance))
+    });
 }
 
 /// Puts into `lights` the lights that `world` draws at `fraction` of a step, the sky's sun first, so
@@ -360,6 +393,54 @@ mod tests {
         assert_eq!(sun.map(|sun| sun.illuminance), Some(3.0));
         assert_eq!(lights.len(), 3);
         assert!(matches!(lights[0], Light::Directional(light) if light.illuminance == 3.0));
+    }
+
+    /// A world of more lights than the renderer draws: its sun, then point lights placed farther
+    /// from the camera the earlier they were spawned, and a directional light last. The renderer
+    /// draws the first 16 it is given: the sun, the other directional light, then the 14 point
+    /// lights nearest the camera, in the order of their distance.
+    #[test]
+    fn beyond_the_lights_drawn_the_nearest_to_the_camera_come_first() {
+        let mut world = World::new();
+        let place = |world: &mut World, at: DVec3, light: slime_world::Light| {
+            let entity = world.spawn();
+            world.insert(entity, Transform::from_translation(at));
+            world.insert(entity, light);
+        };
+        let directional = |in_sky: bool| slime_world::Light::Directional {
+            color: LinearColor::WHITE,
+            illuminance: 1.0,
+            casts_shadows: true,
+            shadow_distance: None,
+            in_sky,
+        };
+        place(&mut world, DVec3::ZERO, directional(true));
+        for metres in (1..=30).rev() {
+            let point = slime_world::Light::Point {
+                color: LinearColor::WHITE,
+                intensity: f32::from(u8::try_from(metres).expect("small")),
+                range: None,
+            };
+            place(&mut world, DVec3::new(f64::from(metres), 0.0, 0.0), point);
+        }
+        place(&mut world, DVec3::ZERO, directional(false));
+        let mut lights = Vec::new();
+        let (sun, _) = world_lights(&world, 0.0, &mut lights, &mut Vec::new());
+        assert_eq!(lights.len(), 32);
+        nearest_first(&mut lights, sun.is_some(), DVec3::new(-0.5, 0.0, 0.0));
+        assert!(matches!(lights[0], Light::Directional(light) if light.illuminance == 1.0));
+        assert!(matches!(lights[1], Light::Directional(_)));
+        let drawn: Vec<f32> = lights[2..MAX_LIGHTS]
+            .iter()
+            .map(|light| match light {
+                Light::Point(point) => point.intensity,
+                other => panic!("a point light, not {other:?}"),
+            })
+            .collect();
+        assert_eq!(
+            drawn,
+            (1..=14).map(|metres| metres as f32).collect::<Vec<_>>()
+        );
     }
 
     #[test]

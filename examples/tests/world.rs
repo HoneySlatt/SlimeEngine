@@ -119,7 +119,7 @@ impl Drawing {
         camera: Camera,
     ) -> (Image, RenderStats) {
         self.settle(gpu, world);
-        let frame = self
+        let mut frame = self
             .builder
             .build(world, &mut self.cache, &self.renderer, gpu, 0.0)
             .expect("the frame is built");
