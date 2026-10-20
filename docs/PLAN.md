@@ -32,8 +32,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   P6 is current: its execution model ([ADR-0107](adr/0107-the-execution-model.md)), what the
   world knows of its changes ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)),
   stable references and undo ([ADR-0109](adr/0109-stable-references-and-undo.md)), how the editor
-  runs a game's code ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)), and the frame
-  contract ([ADR-0111](adr/0111-the-frame-contract.md)) are decided.
+  runs a game's code ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)), the frame
+  contract ([ADR-0111](adr/0111-the-frame-contract.md)), and levels, saves and worlds for open
+  worlds ([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)) are decided.
 - The games the engine aims at, described on 2026-10-19
   ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)): nine profiles, from *Hunna Wood* to a
   massively multiplayer game, listed in [`ROADMAP.md`](ROADMAP.md). They add criteria to P6, one UI
@@ -744,6 +745,12 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
     that spawned it, as a companion that follows the hero from one level to the next. For now,
     `World::spawn_scene` refuses the new scene until nothing of the old one lives (G02), and a level
     that keeps something of the one before it goes under a key of its own.
+    **Decided** on 2026-10-20, in [ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md):
+    a level made of several files, cells kept out of identities, former identities written by the
+    editor; `EntityRef`, a reference to an entity of any scene that waits for its target; saves made
+    of differences per scene, a game choosing what persists, what resets and what is never saved;
+    adoption of what outlives its scene, transfer between worlds at Stage 10a, layers that depend
+    on the story at Stage 9b.
   - An asset request API, with priorities, cancellation, a memory budget and eviction (C3-01).
   - Hardware tiers, with budgets scaled from the RX 6900 XT's measurements (C2-03): a modest
     minimum at high frame rates, and a high-end tier for the visual targets of the realistic games
@@ -1222,7 +1229,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   lives** (ADR-0101): the entity created is then saved as that scene's root, and set aside with the
   scene when a save loads where the scene cannot be resolved. `World::spawn_scene` refuses a key
   whose scene has an entity alive; a key whose scene is gone whole is the world's to forget or
-  refuse, with P6's study of open worlds.
+  refuse. [ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md) decides adoption and
+  saves per scene, which settle it when they are built, at Stage 6.
 - **`Range::contains` stays public beside `Range::holds`**: two ways to check a number against a
   range, the first in `f64`, which only tests' helpers use. Every check of a field's range uses
   `Range::holds` (ADR-0101); the helpers can move to it, and `contains` go.

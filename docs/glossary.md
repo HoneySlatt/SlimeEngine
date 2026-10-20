@@ -6,6 +6,11 @@ game-development vocabulary is not repeated here. Entries are in alphabetical or
 **Adapter.** A GPU as wgpu sees it, through one graphics API: a discrete or integrated GPU, or a
 software driver such as lavapipe or WARP. The engine opens one adapter's *device* to use it.
 
+**Adoption (entity).** A game taking an entity out of the scene that spawned it and giving it a
+key of its own, so that it outlives the scene, as a companion who follows the hero from one level
+to the next; its former identity is written, so that saves and references follow it
+([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)). Decided, not built yet.
+
 **ADR (Architecture Decision Record).** A short document in [`docs/adr/`](adr/README.md) that
 records one decision: its context, the decision, the alternatives rejected and the consequences.
 
@@ -215,6 +220,11 @@ GPU objects of `slime_gfx` hold wgpu's, `slime_platform::Window` holds winit's
 written to files: files and saves name an entity by its *persistent identity*
 ([ADR-0079](adr/0079-the-engines-own-world.md)).
 
+**EntityRef.** A reference to an entity by its *persistent identity*, which finds the entity's
+handle when the entity is loaded, and waits for it otherwise: files and saves write it, whatever
+scene its target belongs to
+([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)). Decided, not built yet.
+
 **Environment.** The surroundings of a scene as the renderer draws and reflects them: a *sky* drawn
 on the CPU into a *cube texture* and its *prefiltered levels* (`slime_render::Environment`,
 [ADR-0039](adr/0039-image-based-lighting-computed-on-the-cpu.md)).
@@ -250,6 +260,10 @@ blinks as its coverage of the pixel changes from frame to frame. The renderer do
 
 **Fixed step.** A duration of time, constant for a run, in which code that must not depend on
 the frame rate advances (`slime_app::time::FixedStep`). A frame runs zero or more fixed steps.
+
+**Former identity.** What an entity was called before the editor moved it out of its file, which
+the file that holds it then writes, so that saves, overrides and references that named it find it
+([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)). Decided, not built yet.
 
 **Frame.** One iteration of the main loop. Its *delta* is the time it represents: the time since
 the previous frame, limited to a maximum (`slime_app::time::FrameClock`).
@@ -380,6 +394,11 @@ creation method of `slime_gfx::Gpu`. Error messages and GPU capture tools show i
 **lavapipe.** Mesa's Vulkan driver that renders on the CPU. The checks and CI use it on Linux, so
 that GPU tests give the same results on every machine, including machines without a GPU. It is
 the *reference driver* of the image tests.
+
+**Layer (scene).** A part of a level that holds a condition on the state of a game's story, such
+as "after the quest X", and exists only while it holds; the editor shows or hides each layer
+([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)). Decided for Stage 9b, not built
+yet.
 
 **Layout (document).** How a *save* or a *scene file* lays out its sections and keys, which a
 reader reads before their values (`slime_world::outline` reads a scene file's); its `layout` key
@@ -538,6 +557,11 @@ instead of blocky. A *comparison sampler* with linear filtering does it over 2 �
 GPU; the renderer makes nine such comparisons over 5 × 5 texels, placed and weighed as Castaño
 proposed, so that a shadow's edge fades smoothly over about six texels
 ([ADR-0063](adr/0063-a-smoother-shadow-filter.md)).
+
+**Persistence (save).** What becomes of what a scene or an entity changed from what its scene
+spawned: kept for good in saves, reset when the scene loads again or when the game signals it, or
+never saved
+([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)). Decided, not built yet.
 
 **Persistent identity.** How files and saves name an *entity*: the key that a scene was spawned
 under, then the path of the IDs local to each file through the *placements* that placed it, such as

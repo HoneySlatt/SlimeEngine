@@ -3,8 +3,9 @@
 - Status: Accepted; amends [0087](0087-the-worlds-documents.md) (a save says its layout, holds what
   the world spawned while it ran, and is loaded through a scene library); amended by
   [0101](0101-saves-and-identities-that-never-mislead.md) (a change of level, and the numbers of
-  what a run spawned) and [0109](0109-stable-references-and-undo.md) (a created entity written
-  into a scene is carried once)
+  what a run spawned), [0109](0109-stable-references-and-undo.md) (a created entity written into a
+  scene is carried once) and [0112](0112-levels-saves-and-worlds-for-open-worlds.md) (saves made of
+  differences per scene, and what persists)
 - Date: 2026-10-18
 
 ## Context

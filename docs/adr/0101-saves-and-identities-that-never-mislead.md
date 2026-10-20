@@ -9,7 +9,8 @@
   back, and the numbers of what a run spawned), [0092](0092-a-world-written-back-as-a-scene.md)
   (`Unsaved` in a level written back) and [0093](0093-saves-and-hot-reload-with-placements.md) (a
   change of level, and the numbers of what a run spawned); amended by
-  [0109](0109-stable-references-and-undo.md) (what a start creates in code has a key)
+  [0109](0109-stable-references-and-undo.md) (what a start creates in code has a key) and
+  [0112](0112-levels-saves-and-worlds-for-open-worlds.md) (an entity that outlives its scene)
 - Date: 2026-10-19
 
 ## Context

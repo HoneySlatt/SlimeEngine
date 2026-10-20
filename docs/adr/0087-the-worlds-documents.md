@@ -10,8 +10,10 @@
   whole), [0093](0093-saves-and-hot-reload-with-placements.md) (a save says its layout, holds what
   the world spawned while it ran, and is loaded through a scene library),
   [0101](0101-saves-and-identities-that-never-mislead.md) (the identities of what a game creates in
-  code, saves of layout 3, references compared by the identity they name, and what loading warns of)
-  and [0108](0108-what-the-world-knows-of-its-changes.md) (driven components)
+  code, saves of layout 3, references compared by the identity they name, and what loading warns
+  of), [0108](0108-what-the-world-knows-of-its-changes.md) (driven components) and
+  [0112](0112-levels-saves-and-worlds-for-open-worlds.md) (saves made of differences per scene, and
+  what persists)
 - Date: 2026-10-16
 
 ## Context

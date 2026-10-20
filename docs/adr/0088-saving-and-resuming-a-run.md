@@ -2,9 +2,9 @@
 
 - Status: Accepted; amends [0087](0087-the-worlds-documents.md) (a save begins with what the game
   says of it); amended by [0101](0101-saves-and-identities-that-never-mislead.md) (what *Hunna
-  Wood*'s saves say, and how the game checks, sets aside and writes them) and
-  [0108](0108-what-the-world-knows-of-its-changes.md) (driven components, in place of resetting
-  the fire)
+  Wood*'s saves say, and how the game checks, sets aside and writes them),
+  [0108](0108-what-the-world-knows-of-its-changes.md) (driven components, in place of resetting the
+  fire) and [0112](0112-levels-saves-and-worlds-for-open-worlds.md) (saves without a start world)
 - Date: 2026-10-17
 
 ## Context

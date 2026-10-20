@@ -5,8 +5,9 @@
   [0087](0087-the-worlds-documents.md) (what a save differs from, and the identities of entities
   created outside scenes), [0107](0107-the-execution-model.md) (the phases of a frame),
   [0108](0108-what-the-world-knows-of-its-changes.md) (change detection for every component, and
-  components that clone) and [0109](0109-stable-references-and-undo.md) (undo by persistent
-  identities)
+  components that clone), [0109](0109-stable-references-and-undo.md) (undo by persistent identities)
+  and [0112](0112-levels-saves-and-worlds-for-open-worlds.md) (identities across the cells of a
+  streamed world)
 - Date: 2026-10-16
 
 ## Context
