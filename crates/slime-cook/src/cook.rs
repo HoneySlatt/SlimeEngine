@@ -25,7 +25,7 @@ use crate::texture::{TextureRole, cook_texture};
 /// The version of what the cooker makes of an image: raised whenever the same image would give
 /// other bytes, a change of filter, of encoder settings or of the encoder's version, so that every
 /// texture is cooked again.
-pub const TEXTURE_COOKER_VERSION: u32 = 1;
+pub const TEXTURE_COOKER_VERSION: u32 = 2;
 
 /// The version of what the cooker makes of a glTF file: raised whenever the same file would give
 /// other meshes, materials or scenes, so that every glTF file is imported again.

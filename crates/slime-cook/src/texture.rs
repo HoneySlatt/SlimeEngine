@@ -45,8 +45,11 @@ impl TextureRole {
 
 /// Cooks `image` into a texture for `role`: every level of detail down to one texel, each texel
 /// the average of the texels it covers in the level before, as `slime_gfx::Gpu::create_texture`
-/// filters them, but in the way the role asks; then compressed in BC7 or BC5 when both sides are
-/// multiples of 4, which blocks need, and kept as 8-bit texels otherwise.
+/// filters them, but in the way the role asks; then compressed in BC7 or BC5. Blocks of 4 × 4
+/// texels need sides that are multiples of 4: an image whose sides are at least 4 texels but not
+/// multiples of 4 is first stretched to the next multiples, each texel the average of those it
+/// covers (a side of 2 043 texels gains one, and its texture coordinates still span it whole); an
+/// image smaller than a block, along either side, keeps its texels, as 8-bit texels.
 ///
 /// BC7 takes the "fast" settings of Intel's encoders, with alpha if a texel of the image is not
 /// opaque: on a noisy test image of 2048 × 2048 texels, they made blocks as close to the image
@@ -56,8 +59,15 @@ impl TextureRole {
 /// machine offers, each a band of rows; the result does not depend on their number. A level
 /// smaller than a block repeats its last row and column to fill it.
 pub fn cook_texture(image: &Image, role: TextureRole) -> CookedTexture {
+    let compressed = image.width >= 4 && image.height >= 4;
+    let stretched;
+    let image = if compressed {
+        stretched = stretched_to_blocks(image, role);
+        &stretched
+    } else {
+        image
+    };
     let levels = levels(image, role);
-    let compressed = image.width.is_multiple_of(4) && image.height.is_multiple_of(4);
     let (encoding, variant) = match (role, compressed) {
         (TextureRole::Color, true) => {
             let opaque = image.rgba.chunks(4).all(|texel| texel[3] == 255);
@@ -107,14 +117,47 @@ fn levels(image: &Image, role: TextureRole) -> Vec<Image> {
 
 /// The next level of `level`: half its size, rounded down, at least one texel; each texel the
 /// average of the texels of `level` it covers, each weighted by how much of it is covered (see
-/// [`footprints`]). Colors are averaged in linear light, normals as vectors made of length one
-/// again; alpha, and data, as stored.
+/// [`footprints`]).
 fn halved(level: &Image, role: TextureRole) -> Image {
-    let columns = footprints(level.width);
-    let rows = footprints(level.height);
+    filtered(
+        level,
+        &footprints(level.width),
+        &footprints(level.height),
+        role,
+    )
+}
+
+/// `image` stretched to the next multiples of 4 along each side, unchanged if its sides are
+/// multiples already: each texel the average of the texels of `image` it covers, each weighted
+/// by how much of it is covered.
+fn stretched_to_blocks(image: &Image, role: TextureRole) -> Image {
+    let (width, height) = (
+        image.width.next_multiple_of(4),
+        image.height.next_multiple_of(4),
+    );
+    if (width, height) == (image.width, image.height) {
+        return image.clone();
+    }
+    filtered(
+        image,
+        &spread(image.width, width),
+        &spread(image.height, height),
+        role,
+    )
+}
+
+/// The image whose texel at column `i` and row `j` is the average of the texels of `level` that
+/// `columns[i]` and `rows[j]` give, with their weights. Colors are averaged in linear light,
+/// normals as vectors made of length one again; alpha, and data, as stored.
+fn filtered(
+    level: &Image,
+    columns: &[Vec<(u32, f32)>],
+    rows: &[Vec<(u32, f32)>],
+    role: TextureRole,
+) -> Image {
     let mut rgba = Vec::with_capacity(columns.len() * rows.len() * 4);
-    for row in &rows {
-        for column in &columns {
+    for row in rows {
+        for column in columns {
             let mut sum = [0.0f32; 4];
             for &(source_y, weight_y) in row {
                 for &(source_x, weight_x) in column {
@@ -187,6 +230,28 @@ fn footprints(size: u32) -> Vec<Vec<(u32, f32)>> {
             })
             .collect()
     }
+}
+
+/// Along one side `from` texels long, stretched to `to` texels: for each texel of the result, the
+/// texels it covers, with their weights, which add up to 1. Texel `i` covers `[i, i + 1)` times
+/// `from / to` of the side, each texel of the side weighted by how much of it that is.
+fn spread(from: u32, to: u32) -> Vec<Vec<(u32, f32)>> {
+    let scale = f64::from(from) / f64::from(to);
+    (0..to)
+        .map(|i| {
+            let (start, end) = (f64::from(i) * scale, f64::from(i + 1) * scale);
+            // `start` is at least 0 and below `from`, which fits a `u32`.
+            let first = start.floor() as u32;
+            (first..from)
+                .take_while(|&texel| f64::from(texel) < end)
+                .map(|texel| {
+                    let covered = end.min(f64::from(texel + 1)) - start.max(f64::from(texel));
+                    (texel, (covered / scale) as f32)
+                })
+                .filter(|&(_, weight)| weight > 0.0)
+                .collect()
+        })
+        .collect()
 }
 
 /// A value between 0 and 1 as a byte, rounded.
@@ -272,16 +337,51 @@ mod tests {
             assert_eq!(texture.levels.len(), 5);
             assert_eq!(CookedTexture::from_ktx2(&texture.to_ktx2()), Ok(texture));
         }
-        // Sides that are not multiples of 4 keep their texels.
-        let odd = image(6, 3, |_, _| [1, 2, 3, 4]);
-        let texture = cook_texture(&odd, TextureRole::Color);
+        // An image smaller than a block, along one side or both, keeps its texels.
+        let small = image(6, 3, |_, _| [1, 2, 3, 4]);
+        let texture = cook_texture(&small, TextureRole::Color);
         assert_eq!(texture.encoding, TextureEncoding::Rgba8Srgb);
-        assert_eq!(texture.levels[0], odd.rgba);
+        assert_eq!(texture.levels[0], small.rgba);
         assert_eq!(texture.levels.len(), 3);
         assert_eq!(
-            cook_texture(&odd, TextureRole::Normal).encoding,
+            cook_texture(&small, TextureRole::Normal).encoding,
             TextureEncoding::Rgba8
         );
+    }
+
+    /// An image whose sides are not multiples of 4, but at least a block, is stretched to the next
+    /// multiples, each texel the average of those it covers, and compressed: a color the image
+    /// holds everywhere stays the same.
+    #[test]
+    fn sides_that_blocks_do_not_divide_are_stretched_to_whole_blocks() {
+        let odd = image(10, 7, |_, _| [200, 100, 50, 255]);
+        for (role, encoding) in [
+            (TextureRole::Color, TextureEncoding::Bc7Srgb),
+            (TextureRole::Data, TextureEncoding::Bc7),
+            (TextureRole::Normal, TextureEncoding::Bc5),
+        ] {
+            let texture = cook_texture(&odd, role);
+            assert_eq!(texture.encoding, encoding);
+            assert_eq!((texture.width, texture.height), (12, 8));
+            assert_eq!(texture.levels.len(), 4);
+            assert_eq!(CookedTexture::from_ktx2(&texture.to_ktx2()), Ok(texture));
+        }
+        let stretched = stretched_to_blocks(&odd, TextureRole::Color);
+        assert_eq!((stretched.width, stretched.height), (12, 8));
+        assert!(
+            stretched
+                .rgba
+                .chunks(4)
+                .all(|texel| texel == [200, 100, 50, 255])
+        );
+        // Two black texels then four white along x, stretched to 8: the texel that straddles the
+        // edge covers two thirds of a black texel and a third of a white one.
+        let edge = image(6, 4, |x, _| if x < 2 { [0, 0, 0, 255] } else { [255; 4] });
+        let row: Vec<u8> = stretched_to_blocks(&edge, TextureRole::Data).rgba[..32]
+            .chunks(4)
+            .map(|texel| texel[0])
+            .collect();
+        assert_eq!(row, [0, 0, 85, 255, 255, 255, 255, 255]);
     }
 
     #[test]

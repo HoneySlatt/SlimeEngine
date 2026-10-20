@@ -151,13 +151,9 @@ fn a_game_loads_each_image_s_texture_by_the_image_s_id() {
         .sources
     {
         let texture = assets.texture(source.id).expect("the texture is read");
-        let expected = if texture.width == 16 {
-            TextureEncoding::Bc7Srgb
-        } else {
-            // 6 × 5 texels, which blocks of 4 × 4 do not divide.
-            TextureEncoding::Rgba8Srgb
-        };
-        assert_eq!(texture.encoding, expected);
+        // 16 × 8 texels, and 6 × 5 stretched to 8 × 8, which blocks of 4 × 4 divide.
+        assert!(matches!((texture.width, texture.height), (16, 8) | (8, 8)));
+        assert_eq!(texture.encoding, TextureEncoding::Bc7Srgb);
     }
     let unknown = AssetId::from_u128(42);
     let error = assets.texture(unknown).expect_err("not cooked");
