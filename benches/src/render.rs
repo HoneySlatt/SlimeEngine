@@ -1,5 +1,5 @@
-//! The renderer's benchmarks: a scene of many objects, each its own draw, and its pipelines made
-//! again from their shaders.
+//! The renderer's benchmarks: a scene of many objects, drawn at the hardware tiers' resolutions, and
+//! its pipelines made again from their shaders.
 
 use std::f32::consts::PI;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -8,15 +8,15 @@ use slime_color::LinearColor;
 use slime_gfx::TextureFormat;
 use slime_render::glam::{DAffine3, DVec3, Vec3};
 use slime_render::{
-    Camera, DirectionalLight, Instance, Light, Material, MaterialData, MeshData, Renderer, Scene,
-    ShaderSources, Sky,
+    Camera, DirectionalLight, Instance, Light, Material, MaterialData, MeshData, RenderStats,
+    Renderer, Scene, ShaderSources, Sky,
 };
 
 use crate::measure::{Context, Row, ms, percentile, timed};
 
-/// The size of the frames drawn.
-const WIDTH: u32 = 1280;
-const HEIGHT: u32 = 720;
+/// The sizes of the frames drawn: the screens of the hardware tiers of ADR-0114, handheld, modest
+/// and high, whose budgets `docs/measurements.md` compares the figures with.
+const TIERS: [(u32, u32); 3] = [(1280, 800), (1920, 1080), (2560, 1440)];
 /// The format of the frames drawn, an 8-bit sRGB one, as a window's.
 pub const FORMAT: TextureFormat = TextureFormat::Rgba8UnormSrgb;
 /// Frames drawn before the times are taken: the first ones create the renderer's targets and its
@@ -90,8 +90,8 @@ pub enum View {
 }
 
 /// `count` cubes on a square grid, 3 m apart, of eight materials, in turn, seen as `view` says,
-/// under the examples' sky and its sun: `frames` frames drawn into a target of 1280 × 720, each
-/// waited for on the GPU before the next.
+/// under the examples' sky and its sun: `frames` frames drawn into a target of each size of
+/// [`TIERS`], each waited for on the GPU before the next.
 pub fn instances(
     context: &mut Context,
     count: usize,
@@ -116,9 +116,6 @@ pub fn instances(
         .map_err(error)?;
     let (sky, sun) = sky_and_sun();
     let environment = renderer.create_environment(gpu, &sky).map_err(error)?;
-    let target = gpu
-        .create_render_target("benchmark frame", WIDTH, HEIGHT, FORMAT)
-        .map_err(|error| error.to_string())?;
 
     let side = (count as f64).sqrt().ceil() as usize;
     let spacing = 3.0;
@@ -150,41 +147,83 @@ pub fn instances(
     scene.exposure = EXPOSURE;
     scene.bloom = 0.04;
 
-    let (mut cpu, mut whole, mut scene_gpu) = (Vec::new(), Vec::new(), Vec::new());
-    let mut last = None;
-    for frame in 0..WARM_UP + frames {
-        let (stats, duration) = timed(|| -> Result<_, String> {
-            let stats = renderer.render(gpu, &target, &scene).map_err(error)?;
-            gpu.wait_idle().map_err(|error| error.to_string())?;
-            Ok(stats)
-        });
-        let stats = stats?;
-        if frame >= WARM_UP {
-            cpu.push(stats.cpu_time);
-            whole.push(duration);
-            scene_gpu.extend(stats.scene_gpu_time);
-            last = Some(stats);
-        }
-    }
-    let stats = last.expect("at least one frame is measured");
     let mut rows = Vec::new();
-    rows.extend(Row::times("CPU of `Renderer::render`", &cpu));
-    rows.extend(Row::times("frame, until the GPU finished it", &whole));
-    // Each frame reports the latest time that came back from the GPU, a few frames old.
-    if !scene_gpu.is_empty() {
+    for (width, height) in TIERS {
+        let target = gpu
+            .create_render_target("benchmark frame", width, height, FORMAT)
+            .map_err(|error| error.to_string())?;
+        let at = format!("at {width} × {height}");
+        let (mut cpu, mut whole) = (Vec::new(), Vec::new());
+        let (mut scene_gpu, mut passes_gpu) = (Vec::new(), Vec::new());
+        let mut last = None;
+        for frame in 0..WARM_UP + frames {
+            let (stats, duration) = timed(|| -> Result<_, String> {
+                let stats = renderer.render(gpu, &target, &scene).map_err(error)?;
+                gpu.wait_idle().map_err(|error| error.to_string())?;
+                Ok(stats)
+            });
+            let stats = stats?;
+            if frame >= WARM_UP {
+                cpu.push(stats.cpu_time);
+                whole.push(duration);
+                scene_gpu.extend(stats.scene_gpu_time);
+                passes_gpu.extend(passes_gpu_time(&stats));
+                last = Some(stats);
+            }
+        }
+        let stats = last.expect("at least one frame is measured");
+        rows.extend(Row::times(&format!("CPU of `Renderer::render` {at}"), &cpu));
+        rows.extend(Row::times(
+            &format!("frame, until the GPU finished it, {at}"),
+            &whole,
+        ));
+        // Each frame reports the latest times that came back from the GPU, a few frames old.
+        for (what, times) in [
+            ("scene pass on the GPU", &scene_gpu),
+            ("passes on the GPU, summed", &passes_gpu),
+        ] {
+            if !times.is_empty() {
+                rows.push(Row::new(
+                    format!(
+                        "{what} {at}, median of what {} frames reported",
+                        times.len()
+                    ),
+                    ms(percentile(times, 0.5)),
+                ));
+            }
+        }
         rows.push(Row::new(
-            format!(
-                "scene pass on the GPU, median of what {} frames reported",
-                scene_gpu.len()
-            ),
-            ms(percentile(&scene_gpu, 0.5)),
+            format!("draw calls {at}: scene, shadow cascades"),
+            format!("{}, {}", stats.draw_calls, stats.shadow_draw_calls),
         ));
     }
-    rows.push(Row::new(
-        "draw calls: scene, shadow cascades",
-        format!("{}, {}", stats.draw_calls, stats.shadow_draw_calls),
-    ));
     Ok(rows)
+}
+
+/// The sum of the GPU times of the passes of a frame, which a budget of GPU time is compared with:
+/// on Vulkan, each time runs from the end of the work before the pass, so that the sum is how long
+/// the GPU worked on the frame, without the gaps between its submissions (`GpuTimer`). `None`
+/// until each pass that ran has a time; a shadow pass that drew nothing did not run.
+fn passes_gpu_time(stats: &RenderStats) -> Option<Duration> {
+    let mut sum = Duration::ZERO;
+    for (time, ran) in [
+        (stats.shadow_gpu_time, stats.shadow_draw_calls > 0),
+        (stats.spot_shadow_gpu_time, stats.spot_shadow_draw_calls > 0),
+    ] {
+        if ran {
+            sum += time?;
+        }
+    }
+    for time in [
+        stats.scene_gpu_time,
+        stats.sky_gpu_time,
+        stats.resolve_gpu_time,
+        stats.bloom_gpu_time,
+        stats.tone_mapping_gpu_time,
+    ] {
+        sum += time?;
+    }
+    Some(sum)
 }
 
 /// The renderer's pipelines made again from its embedded shaders, unchanged, five times, then five

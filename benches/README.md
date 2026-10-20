@@ -32,7 +32,7 @@ it is their whole name.
 
 | Name | What it measures | For |
 |---|---|---|
-| `render.instances.10k` | 10 000 cubes, each its own draw, of eight materials, lit by a sun that casts shadows, under a sky with bloom, drawn at 1280 × 720: the CPU of `Renderer::render`, the frame until the GPU finished it, the scene pass on the GPU, the draw calls | B3-F02, B3-F05 |
+| `render.instances.10k` | 10 000 cubes, each its own draw, of eight materials, lit by a sun that casts shadows, under a sky with bloom, drawn at the screens of the hardware tiers of [ADR-0114](../docs/adr/0114-hardware-tiers-and-the-gpus-limits.md), 1280 × 800, 1920 × 1080 and 2560 × 1440: at each, the CPU of `Renderer::render`, the frame until the GPU finished it, the scene pass on the GPU, the passes on the GPU summed, which the tier's budget of GPU time is compared with, and the draw calls | B3-F02, B3-F05 |
 | `render.unseen.10k` | The same 10 000 cubes, of eight materials in turn, with the camera looking at the sky above them: none is in view, and the frame's time is mostly that of its commands, encoded, submitted and set up by the driver | B3-F02, B3-F05 |
 | `render.instances.100k` | The same with 100 000 cubes; on request only, since lavapipe (Mesa 26.2.4) crashes executing such a frame | B3-F02, B3-F05 |
 | `render.shaders` | The renderer's pipelines made again from its shaders unchanged, then after an edit of the scene's shader that the driver's cache cannot hold | C7-08 |
@@ -56,9 +56,11 @@ benchmark measures before and after.
   touch the GPU; the others draw, or make objects on the GPU. On lavapipe, what a draw costs is
   not in what it binds: `render.unseen.10k` shows no gain where a GPU's driver may.
 - A frame "until the GPU finished it" includes the wait of `Gpu::wait_idle`, which wakes up to 1 ms
-  after the GPU finished: on a GPU whose frames take a few milliseconds, the time of the scene
-  pass on the GPU is the figure to compare. Each frame reports the latest time of the scene pass
-  that came back from the GPU, a few frames old.
+  after the GPU finished: on a GPU whose frames take a few milliseconds, the times of the passes
+  on the GPU are the figures to compare. Each frame reports the latest time of each pass that came
+  back from the GPU, a few frames old. Their sum leaves out the gaps between the frame's
+  submissions, in which the GPU waits: it is the GPU's work for the frame, not a frame time
+  ([`GpuTimer`](../crates/slime-gfx/src/timer.rs)).
 - The figures of lavapipe are not those of a GPU: the gains of the renderer are measured on a GPU,
   in a section of its own.
 - A figure compares with a figure of the same machine, driver and build only.
