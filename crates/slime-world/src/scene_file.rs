@@ -152,6 +152,11 @@ pub(crate) fn resolve(
     let mut scene = Resolution {
         registry,
         entries: &entries,
+        entry_of: entries
+            .iter()
+            .enumerate()
+            .map(|(index, entry)| (entry.id.as_str(), index))
+            .collect(),
         prefabs: &prefabs,
         records: Vec::new(),
         paths: HashMap::new(),
@@ -522,6 +527,9 @@ fn known(
 struct Resolution<'a> {
     registry: &'a Registry,
     entries: &'a [Entry],
+    /// The index of each entry, by its ID: an override finds its placement in it, rather than
+    /// among all the entries.
+    entry_of: HashMap<&'a str, usize>,
     /// Each entry's prefab, resolved, if it is a placement.
     prefabs: &'a [Option<ResolvedScene>],
     records: Vec<Record>,
@@ -704,9 +712,9 @@ impl Resolution<'_> {
     /// The entry of the placement that `path` leads into, past its root, if it leads into one.
     fn placement_of(&self, path: &str) -> Option<usize> {
         let (first, _) = path.split_once('/')?;
-        self.entries
-            .iter()
-            .position(|entry| entry.id == first)
+        self.entry_of
+            .get(first)
+            .copied()
             .filter(|&entry| self.prefabs[entry].is_some())
     }
 
@@ -873,9 +881,9 @@ impl Resolution<'_> {
             return Err(invalid(format!("`{path}` is not a path of IDs")));
         }
         let entry = self
-            .entries
-            .iter()
-            .position(|entry| entry.id == first)
+            .entry_of
+            .get(first)
+            .copied()
             .ok_or_else(|| invalid(format!("no placement `{first}` in this scene")))?;
         if self.prefabs[entry].is_none() {
             return Err(invalid(format!(
