@@ -3,6 +3,7 @@
 use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::AssetId;
@@ -16,12 +17,13 @@ use crate::texture::CookedTexture;
 /// A directory of cooked data: the manifest that `slime-cook cook` wrote, and the files it lists,
 /// which a game loads by ID.
 ///
-/// It reads files on the thread that calls it, when asked. It can be cloned, and shared between
-/// threads.
+/// It reads files on the thread that calls it, when asked. It can be shared between threads, and
+/// cloned without copying its manifest, which its clones share: each load that a game starts
+/// takes a clone, and a manifest of 100 000 assets copied at each load cost milliseconds.
 #[derive(Clone, Debug)]
 pub struct CookedAssets {
     directory: PathBuf,
-    manifest: Manifest,
+    manifest: Arc<Manifest>,
 }
 
 impl CookedAssets {
@@ -40,7 +42,7 @@ impl CookedAssets {
             Manifest::from_bytes(&bytes).map_err(|source| LoadError::Cooked { path, source })?;
         Ok(Self {
             directory,
-            manifest,
+            manifest: Arc::new(manifest),
         })
     }
 
@@ -136,7 +138,7 @@ impl CookedAssets {
 pub struct ManifestWatch {
     directory: PathBuf,
     /// The manifest of the cooked data it gave last, or started from.
-    seen: Manifest,
+    seen: Arc<Manifest>,
     /// When it reads the manifest next.
     next: Instant,
     /// Whether the last read failed, so that a failure is told once.
@@ -152,7 +154,7 @@ impl ManifestWatch {
     pub fn new(assets: &CookedAssets, now: Instant) -> Self {
         Self {
             directory: assets.directory.clone(),
-            seen: assets.manifest.clone(),
+            seen: Arc::clone(&assets.manifest),
             next: now + Self::INTERVAL,
             failing: false,
         }
@@ -162,7 +164,7 @@ impl ManifestWatch {
     /// that differs from it is given again: after the game made its GPU objects again from
     /// `assets`, for a new GPU device, while it was loading the data that the watch gave last.
     pub fn start_from(&mut self, assets: &CookedAssets) {
-        self.seen = assets.manifest.clone();
+        self.seen = Arc::clone(&assets.manifest);
     }
 
     /// The cooked data again, if [`ManifestWatch::INTERVAL`] has passed since the last read, at
@@ -183,7 +185,7 @@ impl ManifestWatch {
                 if assets.manifest == self.seen {
                     return Ok(None);
                 }
-                self.seen = assets.manifest.clone();
+                self.seen = Arc::clone(&assets.manifest);
                 Ok(Some(assets))
             }
             Err(_) if self.failing => Ok(None),
