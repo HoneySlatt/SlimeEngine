@@ -736,8 +736,8 @@ settles what a save and a level written back hold of each entity, the second
   tests of `World::carry` in `tests/saves.rs` and `tests/scenes.rs`, and the `world` example's.
   `slime-app`'s `tests/channel.rs` saves and loads a headless run through the channel, and the MCP
   server's `tests/drive.rs` saves *Hunna Wood*'s run, walks on and loads it back. *Hunna Wood*'s
-  tests of the zone pass, its new fixture resumed. `scripts/check.sh` passed. Not verified: the
-  owner's play by hand, F5, F9, quit and resume.
+  tests of the zone pass, its new fixture resumed. `scripts/check.sh` passed, and the owner played
+  it by hand on 2026-10-21: F5, F9, quit and resume.
 
 ### M6a.8 — Views apart from the renderer
 
