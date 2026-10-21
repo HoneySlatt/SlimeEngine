@@ -89,9 +89,11 @@ its method for many lights, and makes registration public for games.
 
 - A frame built on one thread is drawn on another; a cache loads without a renderer; the editor
   builds its previews and thumbnails without borrowing one.
-- Building a frame counts two references per instance: within the noise of a busy machine on
-  `world.frame.100k` and `render.instances.100k`, as [`measurements.md`](../measurements.md) says
-  of a quiet one.
+- Building a frame counts two references per instance, and dropping it gives them back: 1.3 to
+  2.7 ms more for 100 000 instances on `world.frame.100k`, 11 to 23 %; drawing it costs the
+  same ([`measurements.md`](../measurements.md), "M6a.4"). ADR-0111's condition for building the
+  frame from what changed, a frame that costs more to build than to draw, still does not hold:
+  13.3 to 14.4 ms against 19.8 to 21.8 ms.
 - A program below the floor stops at start with the limit it lacks named; above it, the renderer
   draws as many instances as the GPU's storage bindings hold.
 - A program that kept its cache across a lost device makes a new one.

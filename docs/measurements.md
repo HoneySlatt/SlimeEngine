@@ -671,3 +671,85 @@ that chose the size of a block and the width of a tick.
 | `world.changes.100k` | a reader that asks for the lights changed since it last read, the 1 000 found, 90th percentile of 20 | 18.6 µs |
 | `world.changes.100k` | the same, the 1 000 side by side, median of 20 | 4.2 µs |
 | `world.changes.100k` | the same, the 1 000 side by side, 90th percentile of 20 | 4.2 µs |
+
+## M6a.4, before, RX 6900 XT
+
+Commit `e0bb1c9`, on 2026-10-21: the frame that borrows what it draws, the device already opened
+with the adapter's limits, `world.frame.100k` changed as M6a.4 changes it, so that the frame's drop
+is counted. The build is not measured in this section, nor in the next. The runs of this section
+and the next were made one after the other, before, after, before, after. A second run gave
+`FrameBuilder::build` 11.93 ms at the median, and the CPU of `Renderer::render` 20.00, 20.83 and
+19.73 ms at 1280 × 800, 1920 × 1080 and 2560 × 1440.
+
+16 logical CPUs, linux on x86_64, GPU `AMD Radeon RX 6900 XT (RADV NAVI21)`, a release build.
+
+| Benchmark | Measure | Value |
+|---|---|---|
+| `render.instances.100k` | CPU of `Renderer::render` at 1280 × 800, median of 8 | 19.94 ms |
+| `render.instances.100k` | CPU of `Renderer::render` at 1280 × 800, 90th percentile of 8 | 20.04 ms |
+| `render.instances.100k` | frame, until the GPU finished it, at 1280 × 800, median of 8 | 20.72 ms |
+| `render.instances.100k` | frame, until the GPU finished it, at 1280 × 800, 90th percentile of 8 | 20.78 ms |
+| `render.instances.100k` | scene pass on the GPU at 1280 × 800, median of what 8 frames reported | 142.8 µs |
+| `render.instances.100k` | passes on the GPU, summed at 1280 × 800, median of what 8 frames reported | 265.6 µs |
+| `render.instances.100k` | draw calls at 1280 × 800: scene, shadow cascades | 8, 2 |
+| `render.instances.100k` | instances that the scene pass drew at 1280 × 800 | 93539 |
+| `render.instances.100k` | CPU of `Renderer::render` at 1920 × 1080, median of 8 | 20.19 ms |
+| `render.instances.100k` | CPU of `Renderer::render` at 1920 × 1080, 90th percentile of 8 | 21.81 ms |
+| `render.instances.100k` | frame, until the GPU finished it, at 1920 × 1080, median of 8 | 20.93 ms |
+| `render.instances.100k` | frame, until the GPU finished it, at 1920 × 1080, 90th percentile of 8 | 22.58 ms |
+| `render.instances.100k` | scene pass on the GPU at 1920 × 1080, median of what 8 frames reported | 162.8 µs |
+| `render.instances.100k` | passes on the GPU, summed at 1920 × 1080, median of what 8 frames reported | 357.8 µs |
+| `render.instances.100k` | draw calls at 1920 × 1080: scene, shadow cascades | 8, 2 |
+| `render.instances.100k` | instances that the scene pass drew at 1920 × 1080 | 95310 |
+| `render.instances.100k` | CPU of `Renderer::render` at 2560 × 1440, median of 8 | 20.45 ms |
+| `render.instances.100k` | CPU of `Renderer::render` at 2560 × 1440, 90th percentile of 8 | 20.59 ms |
+| `render.instances.100k` | frame, until the GPU finished it, at 2560 × 1440, median of 8 | 21.67 ms |
+| `render.instances.100k` | frame, until the GPU finished it, at 2560 × 1440, 90th percentile of 8 | 21.80 ms |
+| `render.instances.100k` | scene pass on the GPU at 2560 × 1440, median of what 8 frames reported | 192.2 µs |
+| `render.instances.100k` | passes on the GPU, summed at 2560 × 1440, median of what 8 frames reported | 492.1 µs |
+| `render.instances.100k` | draw calls at 2560 × 1440: scene, shadow cascades | 8, 2 |
+| `render.instances.100k` | instances that the scene pass drew at 2560 × 1440 | 95310 |
+| `world.frame.100k` | `FrameBuilder::build`, median of 20 | 11.73 ms |
+| `world.frame.100k` | `FrameBuilder::build`, 90th percentile of 20 | 11.80 ms |
+| `world.frame.100k` | instances in a frame | 100000 |
+
+## M6a.4, RX 6900 XT
+
+Commit `62cb93b`, on 2026-10-21, measured as the section above. A second run gave
+`FrameBuilder::build` 13.28 ms at the median, and the CPU of `Renderer::render` 21.24, 20.19 and
+20.12 ms. Building a frame of 100 000 instances, and dropping it, costs 1.3 to 2.7 ms more: each
+instance counts a reference to its mesh and one to its material, and gives them back when the frame
+is dropped ([ADR-0120](adr/0120-a-frame-that-owns-what-it-draws.md)). Drawing it costs the same,
+within the runs' spread; so do the passes on the GPU.
+
+16 logical CPUs, linux on x86_64, GPU `AMD Radeon RX 6900 XT (RADV NAVI21)`, a release build.
+
+| Benchmark | Measure | Value |
+|---|---|---|
+| `render.instances.100k` | CPU of `Renderer::render` at 1280 × 800, median of 8 | 19.84 ms |
+| `render.instances.100k` | CPU of `Renderer::render` at 1280 × 800, 90th percentile of 8 | 22.44 ms |
+| `render.instances.100k` | frame, until the GPU finished it, at 1280 × 800, median of 8 | 21.11 ms |
+| `render.instances.100k` | frame, until the GPU finished it, at 1280 × 800, 90th percentile of 8 | 22.52 ms |
+| `render.instances.100k` | scene pass on the GPU at 1280 × 800, median of what 8 frames reported | 142.6 µs |
+| `render.instances.100k` | passes on the GPU, summed at 1280 × 800, median of what 8 frames reported | 265.4 µs |
+| `render.instances.100k` | draw calls at 1280 × 800: scene, shadow cascades | 8, 2 |
+| `render.instances.100k` | instances that the scene pass drew at 1280 × 800 | 93539 |
+| `render.instances.100k` | CPU of `Renderer::render` at 1920 × 1080, median of 8 | 21.83 ms |
+| `render.instances.100k` | CPU of `Renderer::render` at 1920 × 1080, 90th percentile of 8 | 21.97 ms |
+| `render.instances.100k` | frame, until the GPU finished it, at 1920 × 1080, median of 8 | 22.63 ms |
+| `render.instances.100k` | frame, until the GPU finished it, at 1920 × 1080, 90th percentile of 8 | 22.75 ms |
+| `render.instances.100k` | scene pass on the GPU at 1920 × 1080, median of what 8 frames reported | 163.0 µs |
+| `render.instances.100k` | passes on the GPU, summed at 1920 × 1080, median of what 8 frames reported | 358.0 µs |
+| `render.instances.100k` | draw calls at 1920 × 1080: scene, shadow cascades | 8, 2 |
+| `render.instances.100k` | instances that the scene pass drew at 1920 × 1080 | 95310 |
+| `render.instances.100k` | CPU of `Renderer::render` at 2560 × 1440, median of 8 | 20.31 ms |
+| `render.instances.100k` | CPU of `Renderer::render` at 2560 × 1440, 90th percentile of 8 | 21.01 ms |
+| `render.instances.100k` | frame, until the GPU finished it, at 2560 × 1440, median of 8 | 21.58 ms |
+| `render.instances.100k` | frame, until the GPU finished it, at 2560 × 1440, 90th percentile of 8 | 22.24 ms |
+| `render.instances.100k` | scene pass on the GPU at 2560 × 1440, median of what 8 frames reported | 193.1 µs |
+| `render.instances.100k` | passes on the GPU, summed at 2560 × 1440, median of what 8 frames reported | 495.4 µs |
+| `render.instances.100k` | draw calls at 2560 × 1440: scene, shadow cascades | 8, 2 |
+| `render.instances.100k` | instances that the scene pass drew at 2560 × 1440 | 95310 |
+| `world.frame.100k` | `FrameBuilder::build`, median of 20 | 14.41 ms |
+| `world.frame.100k` | `FrameBuilder::build`, 90th percentile of 20 | 14.61 ms |
+| `world.frame.100k` | instances in a frame | 100000 |

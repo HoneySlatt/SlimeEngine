@@ -54,7 +54,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0117](adr/0117-frustum-culling-and-instancing.md)), and so is M6a.2, the engine's task
   pool and the copies to the GPU within a budget
   ([ADR-0118](adr/0118-the-task-pool-and-the-copies-to-the-gpu.md)), and M6a.3, what the world
-  knows of its changes ([ADR-0119](adr/0119-the-worlds-ticks-blocks-and-log.md)). Next: M6a.4.
+  knows of its changes ([ADR-0119](adr/0119-the-worlds-ticks-blocks-and-log.md)), and M6a.4, a
+  frame that owns what it draws ([ADR-0120](adr/0120-a-frame-that-owns-what-it-draws.md)). Next:
+  M6a.5.
 
 ## Status
 
@@ -63,7 +65,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6a.1](#m6a1--frustum-culling-and-instancing) | What the camera does not see is not drawn, and the instances of one mesh and one material are drawn together | Done |
 | [M6a.2](#m6a2--the-engines-task-pool-and-copies-to-the-gpu-within-a-budget) | A load never slows the frames, and the engine's compute work runs on one task pool | Done |
 | [M6a.3](#m6a3--what-the-world-knows-of-its-changes) | Each reader of the world asks what changed since it last read; components clone | Done |
-| [M6a.4](#m6a4--a-frame-that-owns-what-it-draws) | A frame owns what it draws, and loading needs no renderer | Planned |
+| [M6a.4](#m6a4--a-frame-that-owns-what-it-draws) | A frame owns what it draws, and loading needs no renderer | Done |
 | [M6a.5](#m6a5--the-phases-of-a-frame-game-time-and-a-game-as-a-simulation-and-a-presentation) | Each phase of a frame says who may change the world; game time pauses and steps; a game's rules run without a GPU | Planned |
 | [M6a.6](#m6a6--the-development-channel-and-the-mcp-server) | An agent drives a running game without a person | Planned |
 | [M6a.7](#m6a7--identities-and-saves-per-scene) | A save holds what was changed and costs what changed; an entity outlives its level | Planned |
@@ -104,10 +106,10 @@ foundations pass. Where the engine stands at the start:
   environment; the cooker's own. The loading tasks submit their copies to the GPU as they read, and
   a load slows every frame (B4-F01, [ADR-0107](adr/0107-the-execution-model.md)). M6a.2 changed it.
 - **Only transforms tell that they changed**: every other reader reads the whole world each time
-  ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)).
+  ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)). M6a.3 changed it.
 - **A frame borrows**: `FrameBuilder::build` and `AssetCache::request` take the `Renderer`, and
   `Frame`, `Scene` and `Instance` borrow what they draw; a renderer draws one output of one size
-  ([ADR-0111](adr/0111-the-frame-contract.md)).
+  ([ADR-0111](adr/0111-the-frame-contract.md)). M6a.4 changed the first; M6a.8 changes the second.
 - **A game is one block**: every method of `App` receives a `Context` that holds the world, the GPU
   and the window, and *Hunna Wood* changes its world while it draws; one time, without pause or
   step (ADR-0107).
@@ -366,6 +368,32 @@ Risks:
   6900 XT; CI is green.
 - **How to test.** `cargo test --workspace`; `cargo run --release -p slime-benches -- world render
   render.instances.100k`.
+- **Outcome.** Done on 2026-10-21. [ADR-0120](adr/0120-a-frame-that-owns-what-it-draws.md)
+  records the design, and amends ADR-0084, ADR-0111, ADR-0113 and ADR-0114: the floor is WebGPU's
+  default limits, and the device has every limit of its adapter above it, so that a frame draws
+  16 777 215 instances on the RX 6900 XT where it drew 1 048 576, textures written and images read
+  back through buffers of at most 256 MiB still; `Instance` holds clones of its mesh and material,
+  a material one counted reference to what its clones share, and `Scene` and `Frame` own their
+  instances, lights and environment; the asset cache keeps a loader of its renderer's, and a lost
+  device makes a game make a new cache, `AssetCache::clear` gone; `Environment::new` in place of
+  `Renderer::create_environment`; a kind is a trait inside `slime-render`, which the owner chose on
+  2026-10-21, the physically based kind alone, its parameters reflected and converted by the kind.
+  The tests: `a_frame_built_on_one_thread_is_drawn_on_another_as_on_the_first` in the examples'
+  `tests/world.rs`, and the `threads` modules of `slime-render` and `slime-world-render`, which
+  check that scenes and frames are `Send` and `'static`;
+  `a_cache_loads_and_keeps_meshes_without_the_renderer_it_was_made_with`;
+  `an_adapter_below_the_floor_is_refused_with_the_limit_it_lacks` and
+  `the_device_opens_above_the_floor_and_prints_its_limits` in `slime-gfx`, which CI's Windows job
+  runs to print WARP's limits;
+  `a_material_is_of_a_kind_whose_parameters_reflection_describes_and_changes`;
+  `the_pipelines_of_each_kind_have_numbers_of_their_own`; the image tests, unchanged, on lavapipe
+  and the RX 6900 XT. On the RX 6900 XT ([`measurements.md`](measurements.md), sections "M6a.4,
+  before" and "M6a.4", two runs each), building and dropping a frame of 100 000 instances,
+  `world.frame.100k`, takes 13.3 to 14.4 ms where it took 11.7 to 11.9 ms, the counted references;
+  drawing them, `render.instances.100k`, 19.8 to 21.8 ms of CPU where it took 19.7 to 20.8 ms, and
+  the passes on the GPU the same. Built with a material cloned field by field, the frame took a
+  quarter more to build and to draw: a material is one reference. What WARP offers is read from
+  CI's log once the milestone is pushed. Retired: G17.
 
 ### M6a.5 — The phases of a frame, game time, and a game as a simulation and a presentation
 
