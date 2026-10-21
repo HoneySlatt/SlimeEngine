@@ -354,11 +354,11 @@ pub struct RenderStats {
 /// pipeline, material and mesh with one draw call (instancing), each instance's values read from a
 /// storage buffer by its number. Every instance of the scene costs CPU time at each frame, to place
 /// its box and test it, whether a pass draws it or not: the renderer keeps no scene from one frame
-/// to the next, only memory that it reuses. A frame draws at most as many instances as the
-/// device's storage buffers hold values of: 1 048 576 at least, at the engine's floor of limits,
-/// and more on GPUs whose storage bindings are larger, 16 777 215 on the RX 6900 XT. The instances
-/// beyond, in the order of the scene's, are left out of every pass, with a warning the first time
-/// a renderer meets such a scene.
+/// to the next, only memory that it reuses. A frame draws at most as many instances as the device's
+/// storage buffers hold values of: 1 048 576 at least, at the engine's floor of limits, and more on
+/// GPUs whose storage bindings are larger, 16 777 215 on the RX 6900 XT and WARP. The instances
+/// beyond, in the order of the scene's, are left out of every pass, with a warning the first time a
+/// renderer meets such a scene.
 ///
 /// It does not yet smooth the edges that a masked material cuts inside a triangle, or blend
 /// transparent surfaces.

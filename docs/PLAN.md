@@ -392,8 +392,9 @@ Risks:
   `world.frame.100k`, takes 13.3 to 14.4 ms where it took 11.7 to 11.9 ms, the counted references;
   drawing them, `render.instances.100k`, 19.8 to 21.8 ms of CPU where it took 19.7 to 20.8 ms, and
   the passes on the GPU the same. Built with a material cloned field by field, the frame took a
-  quarter more to build and to draw: a material is one reference. What WARP offers is read from
-  CI's log once the milestone is pushed. Retired: G17.
+  quarter more to build and to draw: a material is one reference. WARP, read from CI's log of
+  `050e72d`, offers as much as the RX 6900 XT where the engine sizes itself: textures of 16 384
+  texels a side, storage bindings of 2 GiB, 16 777 215 instances a frame. Retired: G17.
 
 ### M6a.5 — The phases of a frame, game time, and a game as a simulation and a presentation
 

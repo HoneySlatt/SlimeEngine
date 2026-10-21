@@ -127,10 +127,11 @@ impl Gpu {
     /// (wgpu's `Limits::default`): among them, 4 bind groups per pipeline, 16 sampled textures and
     /// 8 storage buffers per shader stage, textures of 8192 texels a side, buffers of 256 MiB and
     /// storage bindings of 128 MiB, offsets aligned on 256 bytes. The engine draws everything it
-    /// draws within them; every desktop GPU of the last ten years offers more, as lavapipe does,
-    /// and WARP at least as much. It has the optional features that the adapter offers among those
-    /// the engine uses: timestamp queries ([`Gpu::can_time`]) and BC texture compression
-    /// ([`Gpu::can_sample_bc`]).
+    /// draws within them; every desktop GPU of the last ten years offers more, as lavapipe and WARP
+    /// do: textures of 16 384 texels a side on all three of the drivers the engine is checked on,
+    /// storage bindings of 2 GiB on the RX 6900 XT and WARP, of 128 MiB on lavapipe. It has the
+    /// optional features that the adapter offers among those the engine uses: timestamp queries
+    /// ([`Gpu::can_time`]) and BC texture compression ([`Gpu::can_sample_bc`]).
     ///
     /// On Direct3D 12, shaders are compiled with DXC when its library, `dxcompiler.dll`, lies
     /// beside the program, and otherwise with FXC, which is part of Windows but whose code runs
