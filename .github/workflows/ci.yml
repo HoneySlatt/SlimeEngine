@@ -80,7 +80,7 @@ jobs:
       - name: GPU timing and multi-pass tests, the renderer's shaders made again, and the device's limits, printing what WARP measures and offers
         run: |
           cargo test --locked -p slime-gfx --test timing --test passes -- --nocapture --test-threads=1
-          cargo test --locked -p slime-gfx --lib -- the_device_has_its_adapter_s_limits_above_the_floor --nocapture
+          cargo test --locked -p slime-gfx --lib -- the_device_opens_above_the_floor_and_prints_its_limits --nocapture
           cargo test --locked -p slime-render --test shaders -- --nocapture --test-threads=1
       - name: Headless samples
         run: |

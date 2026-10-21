@@ -127,9 +127,10 @@ impl Gpu {
     /// (wgpu's `Limits::default`): among them, 4 bind groups per pipeline, 16 sampled textures and
     /// 8 storage buffers per shader stage, textures of 8192 texels a side, buffers of 256 MiB and
     /// storage bindings of 128 MiB, offsets aligned on 256 bytes. The engine draws everything it
-    /// draws within them, and every desktop GPU of the last ten years offers more, as lavapipe and
-    /// WARP do. It has the optional features that the adapter offers among those the engine uses:
-    /// timestamp queries ([`Gpu::can_time`]) and BC texture compression ([`Gpu::can_sample_bc`]).
+    /// draws within them; every desktop GPU of the last ten years offers more, as lavapipe does,
+    /// and WARP at least as much. It has the optional features that the adapter offers among those
+    /// the engine uses: timestamp queries ([`Gpu::can_time`]) and BC texture compression
+    /// ([`Gpu::can_sample_bc`]).
     ///
     /// On Direct3D 12, shaders are compiled with DXC when its library, `dxcompiler.dll`, lies
     /// beside the program, and otherwise with FXC, which is part of Windows but whose code runs
@@ -511,15 +512,16 @@ impl Gpu {
 
     /// The alignment, in bytes, of the offsets given to
     /// [`RenderPass::set_bind_group`](crate::RenderPass::set_bind_group) for bindings with a
-    /// dynamic offset (256 at most: the engine's floor, [`Gpu::new`]): a uniform buffer that holds the values of
-    /// many draws lays them out at multiples of it.
+    /// dynamic offset (256 at most: the engine's floor, [`Gpu::new`]): a uniform buffer that holds
+    /// the values of many draws lays them out at multiples of it.
     pub fn uniform_offset_alignment(&self) -> usize {
         self.device.limits().min_uniform_buffer_offset_alignment as usize
     }
 
     /// The largest width or height, in pixels, of a texture, a render target, a depth target or a
     /// window's image: the adapter's, 8192 at least, the engine's floor. A caller that creates
-    /// textures from files checks their size against it: [`Gpu::create_texture`] panics on a larger one.
+    /// textures from files checks their size against it: [`Gpu::create_texture`] panics on a larger
+    /// one.
     pub fn max_texture_dimension(&self) -> u32 {
         self.device.limits().max_texture_dimension_2d
     }
@@ -626,8 +628,8 @@ pub(crate) fn create_instance() -> wgpu::Instance {
     wgpu::Instance::new(descriptor)
 }
 
-/// The least that the engine needs of a GPU adapter's limits, the *floor*, which [`Gpu::new`] checks
-/// and describes (ADR-0114).
+/// The least that the engine needs of a GPU adapter's limits, the *floor*, which [`Gpu::new`]
+/// checks and describes (ADR-0114).
 fn floor() -> wgpu::Limits {
     wgpu::Limits::default()
 }
@@ -765,7 +767,7 @@ mod tests {
 
     /// Prints the limits of the device, which CI's log shows for the drivers it runs on.
     #[test]
-    fn the_device_has_its_adapter_s_limits_above_the_floor() {
+    fn the_device_opens_above_the_floor_and_prints_its_limits() {
         let gpu = Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists them");
         let limits = gpu.device.limits();
         assert!(floor().check_limits(&limits), "{limits:#?}");

@@ -34,7 +34,7 @@ use crate::renderer::Renderer;
 /// - **A lost device.** A cache loads through the renderer that it was made with, and for its
 ///   device: a game drops it with that renderer, and makes a new one with the renderer that
 ///   replaces it, which loads again what the game draws.
-/// - **Memory.** It keeps what it loaded until it is cleared: nothing is dropped when no one draws
+/// - **Memory.** It keeps what it loaded until it is dropped: nothing is dropped when no one draws
 ///   it any more.
 ///
 /// It holds no GPU object of its own beyond those, needs no window, and can be moved to another

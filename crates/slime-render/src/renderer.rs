@@ -20,14 +20,17 @@ use slime_gfx::{
     TextureFormat, UniformBuffer, Uploader,
 };
 
+use slime_reflect::Registry;
+
 use crate::bytes::{push_f32s, push_mat3, push_mat4, push_u32s};
 use crate::camera::{Camera, Frustum};
 use crate::cooked::upload_texture;
 use crate::environment::{Environment, brdf_table};
 use crate::error::RenderError;
 use crate::graph::{ColorId, Draws, Graph, Imported, PassDeclaration, scaled_side};
+use crate::kind::{MaterialKind, PhysicallyBased};
 use crate::light::{LIGHT_VALUES_SIZE, Light, MAX_LIGHTS, NO_TILE, SpotLight};
-use crate::material::{MATERIAL_VALUES_SIZE, Material, MaterialData, MaterialParts};
+use crate::material::{Material, MaterialData, MaterialParts, PHYSICALLY_BASED};
 use crate::mesh::{Mesh, MeshData, MeshPages, Page, VERTEX_LAYOUT};
 use crate::shaders::ShaderSources;
 use crate::shadow::{
@@ -89,9 +92,6 @@ const _: () = assert!(
 const _: () = assert!((1 + CASCADES + MAX_LIGHTS) * 4 <= INSTANCE_VALUES_SIZE);
 /// The size of the values of one view of a shadow pass, `ShadowView` in `shader.wgsl`: a matrix.
 const SHADOW_VIEW_SIZE: usize = 64;
-/// The texture slots of a material, each a texture and its sampler: base color,
-/// metallic-roughness, normal, occlusion, emissive (ADR-0035).
-const MATERIAL_TEXTURE_SLOTS: u32 = 5;
 /// How far below zero the determinant of a transform's normalized columns must be for the
 /// transform to mirror (see `is_mirrored`).
 const MIRROR_THRESHOLD: f32 = 1e-5;
@@ -352,18 +352,21 @@ pub struct RenderStats {
 /// sees (frustum culling), and the shadow passes those whose boxes lie outside each cascade's
 /// square and each spot light's cone; each pass then draws the instances it keeps of one
 /// pipeline, material and mesh with one draw call (instancing), each instance's values read from a
-/// storage buffer by its number. Nothing is kept from one frame to the next: every instance of the
-/// scene costs CPU time at each frame, to place its box and test it, whether a pass draws it or
-/// not. A frame draws at most as many instances as the device's storage buffers hold values of:
-/// 1 048 576 at least, at the engine's floor of limits, and more on GPUs whose storage bindings
-/// are larger, 16 777 215 on the RX 6900 XT. The instances beyond, in the order of the scene's,
-/// are left out of every pass, with a warning the first time a renderer meets such a scene.
+/// storage buffer by its number. Every instance of the scene costs CPU time at each frame, to place
+/// its box and test it, whether a pass draws it or not: the renderer keeps no scene from one frame
+/// to the next, only memory that it reuses. A frame draws at most as many instances as the
+/// device's storage buffers hold values of: 1 048 576 at least, at the engine's floor of limits,
+/// and more on GPUs whose storage bindings are larger, 16 777 215 on the RX 6900 XT. The instances
+/// beyond, in the order of the scene's, are left out of every pass, with a warning the first time
+/// a renderer meets such a scene.
 ///
 /// It does not yet smooth the edges that a masked material cuts inside a triangle, or blend
 /// transparent surfaces.
 pub struct Renderer {
     /// The output's format.
     format: TextureFormat,
+    /// The kinds of materials it draws (ADR-0111): the physically based one alone.
+    kinds: Vec<Kind>,
     /// Its pipelines, made from its shaders' sources ([`Renderer::set_shaders`]).
     pipelines: Pipelines,
     /// The layouts of the groups that its pipelines read.
@@ -594,28 +597,16 @@ impl Renderer {
                 },
             ],
         )?;
-        // The material's values, then each texture slot: a texture and its sampler.
-        let mut material_entries = vec![BindGroupLayoutEntry {
-            binding: 0,
-            visible_to: ShaderStages::Fragment,
-            ty: BindingType::UniformBuffer {
-                dynamic_offset: false,
-                size: MATERIAL_VALUES_SIZE as u64,
-            },
-        }];
-        for slot in 0..MATERIAL_TEXTURE_SLOTS {
-            for (binding, ty) in [
-                (1 + 2 * slot, BindingType::Texture),
-                (2 + 2 * slot, BindingType::Sampler),
-            ] {
-                material_entries.push(BindGroupLayoutEntry {
-                    binding,
-                    visible_to: ShaderStages::Fragment,
-                    ty,
-                });
-            }
-        }
-        let material_layout = gpu.create_bind_group_layout("material", &material_entries)?;
+        // The kinds of materials it draws, each with the layout of its materials' group: the
+        // physically based one at `PHYSICALLY_BASED`, the index that its materials hold.
+        let kinds = [&PhysicallyBased as &'static dyn MaterialKind]
+            .into_iter()
+            .map(|kind| {
+                let layout = gpu.create_bind_group_layout(kind.name(), &kind.bindings())?;
+                Ok(Kind { kind, layout })
+            })
+            .collect::<Result<Vec<_>, GfxError>>()?;
+        debug_assert_eq!(kinds[PHYSICALLY_BASED].kind.name(), PhysicallyBased.name());
         // The instances' values, then the list of the instances that each draw draws, by the index
         // of their values: the vertex shader passes on what the fragment shader needs.
         let instance_layout = gpu.create_bind_group_layout(
@@ -749,7 +740,6 @@ impl Renderer {
         )?;
         let layouts = Layouts {
             frame: frame_layout,
-            material: material_layout.clone(),
             instance: instance_layout,
             shadow: shadow_layout,
             shadow_views: shadow_views_layout,
@@ -758,7 +748,7 @@ impl Renderer {
             bloom_up: bloom_up_layout,
             resolve: resolve_layout,
         };
-        let pipelines = Pipelines::new(gpu, &ShaderSources::embedded(), &layouts, format)?;
+        let pipelines = Pipelines::new(gpu, &ShaderSources::embedded(), &layouts, &kinds, format)?;
         let tone_mapping_settings =
             gpu.create_uniform_buffer("tone-mapping settings", &[0; TONE_MAPPING_SETTINGS_SIZE])?;
         let frame_uniform = gpu.create_uniform_buffer("frame", &[0; FRAME_VALUES_SIZE])?;
@@ -797,8 +787,10 @@ impl Renderer {
         if !gpu.can_time() {
             tracing::info!("the adapter cannot time its work: the statistics have no GPU time");
         }
+        let material_layout = kinds[PHYSICALLY_BASED].layout.clone();
         Ok(Self {
             format,
+            kinds,
             pipelines,
             layouts,
             material_parts: MaterialParts {
@@ -857,8 +849,19 @@ impl Renderer {
     /// renderer gives it at a uniform binding, or, on Direct3D 12, when the shader compiler
     /// rejects one; with [`GfxError::DeviceLost`] once the device is lost.
     pub fn set_shaders(&mut self, gpu: &Gpu, sources: &ShaderSources) -> Result<(), RenderError> {
-        self.pipelines = Pipelines::new(gpu, sources, &self.layouts, self.format)?;
+        self.pipelines = Pipelines::new(gpu, sources, &self.layouts, &self.kinds, self.format)?;
         Ok(())
+    }
+
+    /// Registers in `registry` the type of the parameters of each kind of material that it draws
+    /// (ADR-0111), so that an editor shows and edits a material's parameters
+    /// ([`Material::parameters`]) by their names and ranges, whatever its kind; returns the kinds'
+    /// names, each with its parameters' type's.
+    pub fn describe_materials(&self, registry: &mut Registry) -> Vec<(&'static str, String)> {
+        self.kinds
+            .iter()
+            .map(|kind| (kind.kind.name(), kind.kind.describe(registry)))
+            .collect()
     }
 
     /// Uploads a cooked texture, every level as the cooker made it, in the GPU format of its
@@ -1164,7 +1167,11 @@ impl Renderer {
             .map(|(light, tile)| SpotView::new(light, origin, tile.size))
             .collect();
         for (slot, instance) in instances.iter().enumerate() {
-            if !instance.casts_shadows {
+            if !instance.casts_shadows
+                || !self.kinds[instance.material.inner.kind]
+                    .kind
+                    .casts_shadows()
+            {
                 continue;
             }
             let boxed = boxed(slot);
@@ -1478,14 +1485,16 @@ impl Renderer {
         instance: &'a Instance,
         instances: Range<u32>,
     ) {
-        let masked = instance.material.masked;
-        if bound.pipeline != Some(u8::from(masked)) {
+        let masked = instance.material.inner.masked;
+        let pipeline = shadow_pipeline(instance.material.inner.kind, masked);
+        if bound.pipeline != Some(pipeline) {
+            let pipelines = &self.pipelines.kinds[instance.material.inner.kind];
             render_pass.set_pipeline(if masked {
-                &self.pipelines.masked_shadow
+                &pipelines.masked_shadow
             } else {
-                &self.pipelines.shadow
+                &pipelines.shadow
             });
-            bound.pipeline = Some(u8::from(masked));
+            bound.pipeline = Some(pipeline);
         }
         // Only the masked materials' pipeline reads the material.
         draw(render_pass, bound, instance, masked, instances);
@@ -1565,10 +1574,12 @@ impl Renderer {
                 let mut bound = Bound::default();
                 for batch in scene_draws {
                     let instance = &scene.instances[batch.first];
-                    let cull = scene_pipeline(instance);
-                    if bound.pipeline != Some(cull as u8) {
-                        render_pass.set_pipeline(self.pipelines.scene.get(cull));
-                        bound.pipeline = Some(cull as u8);
+                    let cull = scene_cull(instance);
+                    let pipeline = scene_pipeline(instance.material.inner.kind, cull);
+                    if bound.pipeline != Some(pipeline) {
+                        let pipelines = &self.pipelines.kinds[instance.material.inner.kind];
+                        render_pass.set_pipeline(pipelines.scene.get(cull));
+                        bound.pipeline = Some(pipeline);
                     }
                     draw(
                         render_pass,
@@ -1972,8 +1983,6 @@ fn normal_matrix(linear: Mat3) -> Mat3 {
 struct Layouts {
     /// The frame's group: the frame's values, the environment, the BRDF table and their sampler.
     frame: BindGroupLayout,
-    /// A material's group: its values, and its five textures with their samplers.
-    material: BindGroupLayout,
     /// An instance's values, at an offset given when the group is bound.
     instance: BindGroupLayout,
     /// The atlases and their comparison sampler, which the scene pass reads.
@@ -1991,16 +2000,13 @@ struct Layouts {
     resolve: BindGroupLayout,
 }
 
-/// The renderer's ten pipelines, made from the sources of its four shaders.
+/// The renderer's pipelines, made from the sources of its four shaders: those of the frame's
+/// passes, and those of each kind of material that it draws.
 struct Pipelines {
-    /// The scene pass's.
-    scene: ScenePipelines,
+    /// The scene and shadow passes' pipelines of each kind, in the order of the renderer's kinds.
+    kinds: Vec<KindPipelines>,
     /// Draws the environment where no surface is.
     sky: RenderPipeline,
-    /// Draws the instances' depths as the shadowed light sees them, culling no face.
-    shadow: RenderPipeline,
-    /// The same, discarding what masked materials discard.
-    masked_shadow: RenderPipeline,
     /// Averages the samples of each pixel, weighed by their brightness.
     resolve: RenderPipeline,
     /// Filters a level of the bloom down from the one above, the scene's light for the first.
@@ -2011,89 +2017,59 @@ struct Pipelines {
     tone_mapping: RenderPipeline,
 }
 
+/// The pipelines of a kind of material.
+struct KindPipelines {
+    /// The scene pass's.
+    scene: ScenePipelines,
+    /// Draws the instances' depths as the shadowed light sees them, culling no face.
+    shadow: RenderPipeline,
+    /// The same, discarding what masked materials discard.
+    masked_shadow: RenderPipeline,
+}
+
 impl Pipelines {
-    /// The pipelines that `sources` make, reading groups of `layouts`, the tone-mapping pass's
-    /// drawing into targets of `format`. Each shader module is named after its file, so that an
-    /// error says which file its line and column are in.
+    /// The pipelines that `sources` make, reading groups of `layouts`, those of the materials of
+    /// each of `kinds` through the layout beside it, the tone-mapping pass's drawing into targets
+    /// of `format`. Each shader module is named after its file, so that an error says which file
+    /// its line and column are in.
     fn new(
         gpu: &Gpu,
         sources: &ShaderSources,
         layouts: &Layouts,
+        kinds: &[Kind],
         format: TextureFormat,
     ) -> Result<Self, GfxError> {
-        // The four modules first, so that a shader that does not compile is found before any
-        // pipeline is made.
-        let shader = gpu.create_shader_module("shader.wgsl", &sources.scene)?;
+        // The modules first, each file once, so that a shader that does not compile is found
+        // before any pipeline is made.
+        let mut modules = vec![(
+            "shader.wgsl",
+            gpu.create_shader_module("shader.wgsl", &sources.scene)?,
+        )];
+        for kind in kinds {
+            let (file, source) = kind.kind.shader(sources);
+            if !modules.iter().any(|&(made, _)| made == file) {
+                modules.push((file, gpu.create_shader_module(file, source)?));
+            }
+        }
         let bloom_shader = gpu.create_shader_module("bloom.wgsl", &sources.bloom)?;
         let resolve_shader = gpu.create_shader_module("resolve.wgsl", &sources.resolve)?;
         let tone_mapping_shader =
             gpu.create_shader_module("tone_mapping.wgsl", &sources.tone_mapping)?;
-        let scene_pipeline = |label: &str, cull: CullMode| {
-            gpu.create_render_pipeline(&RenderPipelineDescriptor {
-                label,
-                shader: &shader,
-                vertex_entry_point: "vs_main",
-                vertex_layout: Some(VERTEX_LAYOUT),
-                fragment: Some(FragmentState {
-                    entry_point: "fs_main",
-                    target_format: Some(HDR_FORMAT),
-                }),
-                bind_group_layouts: &[
-                    &layouts.frame,
-                    &layouts.material,
-                    &layouts.instance,
-                    &layouts.shadow,
-                ],
-                depth: Some(DepthState {
-                    compare: DepthCompare::Greater,
-                    write: true,
-                    bias: DepthBias::default(),
-                }),
-                cull,
-                multisampled: true,
-            })
+        let module = |file: &str| {
+            &modules
+                .iter()
+                .find(|&&(made, _)| made == file)
+                .expect("every file's module is made first")
+                .1
         };
-        // Every face casts, whichever way it faces the light: a single-sided surface stops light
-        // from behind too, and mirrored instances need no other pipeline.
-        let shadow_pipeline = |label: &str, fragment: Option<FragmentState<'_>>| {
-            gpu.create_render_pipeline(&RenderPipelineDescriptor {
-                label,
-                shader: &shader,
-                vertex_entry_point: "vs_shadow",
-                vertex_layout: Some(VERTEX_LAYOUT),
-                fragment,
-                bind_group_layouts: &[
-                    &layouts.frame,
-                    &layouts.material,
-                    &layouts.instance,
-                    &layouts.shadow_views,
-                ],
-                depth: Some(DepthState {
-                    compare: DepthCompare::Greater,
-                    write: true,
-                    bias: SHADOW_BIAS,
-                }),
-                cull: CullMode::None,
-                multisampled: false,
-            })
-        };
-        let masked_shadow = shadow_pipeline(
-            "shadow, masked",
-            Some(FragmentState {
-                entry_point: "fs_shadow",
-                target_format: None,
-            }),
-        )?;
-        let shadow = shadow_pipeline("shadow", None)?;
-        let scene = ScenePipelines {
-            back_culled: scene_pipeline("scene, back faces culled", CullMode::Back)?,
-            front_culled: scene_pipeline("scene, front faces culled", CullMode::Front)?,
-            unculled: scene_pipeline("scene, no face culled", CullMode::None)?,
-        };
+        let kinds = kinds
+            .iter()
+            .map(|kind| KindPipelines::new(gpu, module(kind.kind.shader(sources).0), layouts, kind))
+            .collect::<Result<_, _>>()?;
         // Where the depth target still holds the farthest depth, which the sky's triangle has.
         let sky = gpu.create_render_pipeline(&RenderPipelineDescriptor {
             label: "sky",
-            shader: &shader,
+            shader: module("shader.wgsl"),
             vertex_entry_point: "vs_sky",
             vertex_layout: None,
             fragment: Some(FragmentState {
@@ -2131,10 +2107,8 @@ impl Pipelines {
             })
         };
         Ok(Self {
-            scene,
+            kinds,
             sky,
-            shadow,
-            masked_shadow,
             resolve: fullscreen(
                 "resolve",
                 &resolve_shader,
@@ -2162,6 +2136,88 @@ impl Pipelines {
                 "fs_main",
                 &layouts.tone_mapping,
                 format,
+            )?,
+        })
+    }
+}
+
+/// A kind of material that a renderer draws, and the layout of its materials' group.
+struct Kind {
+    kind: &'static dyn MaterialKind,
+    layout: BindGroupLayout,
+}
+
+impl KindPipelines {
+    /// The pipelines of `kind`, from its shader `module`, reading its materials' group through its
+    /// layout and the renderer's other groups through `layouts`.
+    fn new(
+        gpu: &Gpu,
+        module: &ShaderModule,
+        layouts: &Layouts,
+        kind: &Kind,
+    ) -> Result<Self, GfxError> {
+        let scene_pipeline = |label: &str, cull: CullMode| {
+            gpu.create_render_pipeline(&RenderPipelineDescriptor {
+                label,
+                shader: module,
+                vertex_entry_point: "vs_main",
+                vertex_layout: Some(VERTEX_LAYOUT),
+                fragment: Some(FragmentState {
+                    entry_point: "fs_main",
+                    target_format: Some(HDR_FORMAT),
+                }),
+                bind_group_layouts: &[
+                    &layouts.frame,
+                    &kind.layout,
+                    &layouts.instance,
+                    &layouts.shadow,
+                ],
+                depth: Some(DepthState {
+                    compare: DepthCompare::Greater,
+                    write: true,
+                    bias: DepthBias::default(),
+                }),
+                cull,
+                multisampled: true,
+            })
+        };
+        // Every face casts, whichever way it faces the light: a single-sided surface stops light
+        // from behind too, and mirrored instances need no other pipeline.
+        let shadow_pipeline = |label: &str, fragment: Option<FragmentState<'_>>| {
+            gpu.create_render_pipeline(&RenderPipelineDescriptor {
+                label,
+                shader: module,
+                vertex_entry_point: "vs_shadow",
+                vertex_layout: Some(VERTEX_LAYOUT),
+                fragment,
+                bind_group_layouts: &[
+                    &layouts.frame,
+                    &kind.layout,
+                    &layouts.instance,
+                    &layouts.shadow_views,
+                ],
+                depth: Some(DepthState {
+                    compare: DepthCompare::Greater,
+                    write: true,
+                    bias: SHADOW_BIAS,
+                }),
+                cull: CullMode::None,
+                multisampled: false,
+            })
+        };
+        Ok(Self {
+            scene: ScenePipelines {
+                back_culled: scene_pipeline("scene, back faces culled", CullMode::Back)?,
+                front_culled: scene_pipeline("scene, front faces culled", CullMode::Front)?,
+                unculled: scene_pipeline("scene, no face culled", CullMode::None)?,
+            },
+            shadow: shadow_pipeline("shadow", None)?,
+            masked_shadow: shadow_pipeline(
+                "shadow, masked",
+                Some(FragmentState {
+                    entry_point: "fs_shadow",
+                    target_format: None,
+                }),
             )?,
         })
     }
@@ -2290,9 +2346,9 @@ impl InstanceBuffers {
 
 /// Draws the instances `instances` of the list, of `instance`'s mesh and material, with the
 /// pipeline that `pass` has set: binds its material at group 1 unless the draw before bound it,
-/// or, when the pipeline does not read it (`reads_material` false), unless a material is bound at
-/// all, the pipeline's layout asking for one; and its mesh's page unless the draw before bound
-/// that page.
+/// or, when the pipeline does not read it (`reads_material` false), unless a material of its kind
+/// is bound, the pipeline's layout asking for one of that kind's group; and its mesh's page unless
+/// the draw before bound that page.
 fn draw<'a>(
     pass: &mut RenderPass<'_>,
     bound: &mut Bound<'a>,
@@ -2301,10 +2357,14 @@ fn draw<'a>(
     instances: Range<u32>,
 ) {
     let material_bound = bound.material.is_some_and(|material| {
-        !reads_material || material.identity() == instance.material.identity()
+        if reads_material {
+            material.identity() == instance.material.identity()
+        } else {
+            material.inner.kind == instance.material.inner.kind
+        }
     });
     if !material_bound {
-        pass.set_bind_group(1, &instance.material.group, &[]);
+        pass.set_bind_group(1, &instance.material.inner.group, &[]);
         bound.material = Some(&instance.material);
     }
     let place = &instance.mesh.place;
@@ -2323,21 +2383,36 @@ fn draw<'a>(
 
 /// What a pass bound for the draws before the next: its pipeline, by the index that the pass gives
 /// its pipelines, the material and the page of the meshes. A draw binds only what differs. The
-/// pipelines of a pass share their groups' layouts and their vertices' layout, so that what is
-/// bound stays bound when one pipeline replaces another.
+/// pipelines of a pass share their vertices' layout and the layouts of their groups but the
+/// material's, which is its kind's, so that what is bound stays bound when one pipeline replaces
+/// another, a material when the new pipeline is of its kind.
 #[derive(Default)]
 struct Bound<'a> {
-    pipeline: Option<u8>,
+    pipeline: Option<u32>,
     material: Option<&'a Material>,
     page: Option<&'a Arc<Page>>,
 }
 
 /// How the scene pass draws `instance`: the faces its pipeline culls.
-fn scene_pipeline(instance: &Instance) -> CullMode {
+fn scene_cull(instance: &Instance) -> CullMode {
     cull_mode(
-        instance.material.double_sided,
+        instance.material.inner.double_sided,
         is_mirrored(linear(instance.transform)),
     )
+}
+
+/// The number of the scene pass's pipeline of the kind numbered `kind` that culls `cull`, unique
+/// among the scene pass's pipelines: the draws are sorted by it, and a pipeline is set when it
+/// changes.
+fn scene_pipeline(kind: usize, cull: CullMode) -> u32 {
+    // A renderer has a few kinds.
+    kind as u32 * 4 + cull as u32
+}
+
+/// The number of the shadow passes' pipeline of the kind numbered `kind`, of masked materials or
+/// of the others, unique among the shadow passes' pipelines.
+fn shadow_pipeline(kind: usize, masked: bool) -> u32 {
+    kind as u32 * 2 + u32::from(masked)
 }
 
 /// The order in which objects first appear in a frame's instances, by what each and its clones
@@ -2405,11 +2480,15 @@ fn draw_keys(
             Draw {
                 // Worked out only for the instances drawn: it normalizes the transform's axes.
                 scene_pipeline: if in_scene {
-                    scene_pipeline(instance) as u8
+                    scene_pipeline(instance.material.inner.kind, scene_cull(instance))
                 } else {
                     0
                 },
-                masked: instance.material.masked,
+                shadow_pipeline: shadow_pipeline(
+                    instance.material.inner.kind,
+                    instance.material.inner.masked,
+                ),
+                masked: instance.material.inner.masked,
                 material: instance.material.identity(),
                 mesh: instance.mesh.identity(),
                 in_scene,
@@ -2423,9 +2502,12 @@ fn draw_keys(
 
 /// What [`keys`] sorts a draw by.
 struct Draw {
-    scene_pipeline: u8,
+    /// The number of its pipeline in the scene pass ([`scene_pipeline`]).
+    scene_pipeline: u32,
+    /// The number of its pipeline in the shadow passes ([`shadow_pipeline`]).
+    shadow_pipeline: u32,
     /// Whether its material is masked: the shadow passes draw it with the pipeline of masked
-    /// materials, 1, which reads the material, rather than with the other, 0.
+    /// materials, which reads the material, and those of the others by mesh alone.
     masked: bool,
     material: *const (),
     mesh: *const (),
@@ -2443,7 +2525,7 @@ fn keys(draws: impl Iterator<Item = Draw>, scene: &mut Vec<u128>, shadows: &mut 
         let material = materials.rank(draw.material);
         let mesh = meshes.rank(draw.mesh);
         // One number per draw, which sorts as the tuple of its parts would, faster.
-        let key = |pipeline: u8, material: u32| {
+        let key = |pipeline: u32, material: u32| {
             u128::from(pipeline) << 96
                 | u128::from(material) << 64
                 | u128::from(mesh) << 32
@@ -2454,7 +2536,7 @@ fn keys(draws: impl Iterator<Item = Draw>, scene: &mut Vec<u128>, shadows: &mut 
         }
         if draw.in_shadows {
             let material = if draw.masked { material } else { 0 };
-            shadows.push(key(u8::from(draw.masked), material));
+            shadows.push(key(draw.shadow_pipeline, material));
         }
     }
     scene.sort_unstable();
@@ -2498,6 +2580,25 @@ mod tests {
 
     use super::*;
 
+    /// The pipelines of the kinds are numbered apart: a pass sorts its draws by kind, then by
+    /// pipeline, and sets a pipeline only when the number changes.
+    #[test]
+    fn the_pipelines_of_each_kind_have_numbers_of_their_own() {
+        let culls = [CullMode::None, CullMode::Back, CullMode::Front];
+        let mut scene: Vec<u32> = (0..3)
+            .flat_map(|kind| culls.map(|cull| scene_pipeline(kind, cull)))
+            .collect();
+        let mut shadows: Vec<u32> = (0..3)
+            .flat_map(|kind| [false, true].map(|masked| shadow_pipeline(kind, masked)))
+            .collect();
+        for numbers in [&mut scene, &mut shadows] {
+            let sorted = numbers.windows(2).all(|pair| pair[0] < pair[1]);
+            assert!(sorted, "kind by kind, each apart: {numbers:?}");
+        }
+        assert_eq!(scene_pipeline(0, CullMode::Back), CullMode::Back as u32);
+        assert_eq!(shadow_pipeline(0, true), 1);
+    }
+
     /// Draws of two materials and two meshes, in turn, and of two pipelines: each pass draws them
     /// by pipeline, then material, then mesh, as each first appears, then by slot, whatever their
     /// addresses; the shadow passes only those that cast shadows, by mesh alone for the materials
@@ -2509,8 +2610,9 @@ mod tests {
         let address = |index: usize| ptr::from_ref(&objects[index]).cast::<()>();
         let (first_material, second_material) = (address(3), address(0));
         let (first_mesh, second_mesh) = (address(2), address(1));
-        let draw = |pipeline: u8, material, mesh, in_shadows| Draw {
+        let draw = |pipeline: u32, material, mesh, in_shadows| Draw {
             scene_pipeline: pipeline,
+            shadow_pipeline: pipeline,
             masked: pipeline == 1,
             material,
             mesh,
@@ -2576,6 +2678,7 @@ mod tests {
         let address = |index: usize| ptr::from_ref(&objects[index]).cast::<()>();
         let draw = |material, in_scene, in_shadows| Draw {
             scene_pipeline: 0,
+            shadow_pipeline: 1,
             masked: true,
             material: address(material),
             mesh: address(0),

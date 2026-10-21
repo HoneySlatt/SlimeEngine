@@ -114,8 +114,8 @@ fn main() -> Result<(), RenderError> {
   the embedded sources or those of the shaders' files, and `ShaderWatch` tells a game when the
   files change (ADR-0077).
 - `Environment::new(gpu, &Sky)` computes, on the CPU, the `Environment` that lights a scene and
-  shows behind it, which any renderer draws with: a procedural sky of a zenith, a horizon, a ground and an optional sun.
-  It is slow: create one per sky, not per frame.
+  shows behind it, which any renderer draws with: a procedural sky of a zenith, a horizon, a ground
+  and an optional sun. It is slow: create one per sky, not per frame.
 - `MeshData::cube()`, `MeshData::sphere(rings, segments)` and `MeshData::square()` make simple
   shapes in code, one metre across and centred on their origin, for an instance's transform to
   place and scale.
@@ -127,6 +127,13 @@ fn main() -> Result<(), RenderError> {
   `Material::set_values(gpu, MaterialValues)` changes a material's values while a game runs, its
   textures staying as made, for a fire that flickers; `Material::values` reads them. Meshes,
   materials and environments are shared by their clones.
+- Each material is of a *kind*, a way of lighting a surface that the renderer knows by
+  registration, which gives the shader of its passes, its materials' group and its parameters'
+  type, and converts a material's parameters into what its shader reads: the physically based kind
+  alone until Stage 9a (ADR-0111, ADR-0120). `Material::kind` names it;
+  `Material::parameters` and `Material::set_parameters` read and change its parameters through
+  reflection, and `Renderer::describe_materials` registers their types, so that an editor shows
+  those of any kind.
 - `Renderer::create_texture(gpu, label, &CookedTexture)` uploads a texture cooked by the asset
   pipeline, read from a directory of cooked data with `slime_assets::CookedAssets::texture`: BC7,
   BC5 or 8-bit texels, every level as the cooker made it (ADR-0071). Normal textures are read by
@@ -157,9 +164,10 @@ fn main() -> Result<(), RenderError> {
   loaded.
 - `Scene::new(camera, instances)` and `Instance::new(&mesh, &material, transform)` make what a
   frame draws, which owns it: an instance holds clones of its mesh and its material, counted
-  references to the same GPU objects, and a scene its instances, lights and environment, so that
-  one built on a thread is drawn on another (ADR-0111); their other fields, such as the scene's `lights`, `environment`, `exposure` and
-  `bloom`, or whether an instance casts shadows, are set once they are made (ADR-0046).
+  references to the same GPU objects, and a scene its instances, lights and environment, so that one
+  built on a thread is drawn on another (ADR-0111); their other fields, such as the scene's
+  `lights`, `environment`, `exposure` and `bloom`, or whether an instance casts shadows, are set
+  once they are made (ADR-0046).
 - `Renderer::render(gpu, target, &scene)` draws a frame in passes (the directional light's shadows,
   the spot lights' shadows, scene, sky, resolve, bloom, tone mapping) and returns its `RenderStats`:
   draw calls, instances, triangles, and the CPU and GPU time of its passes. Each pass leaves out the
@@ -199,6 +207,7 @@ errors.
 - `slime-gfx`: the GPU objects and the render passes.
 - `slime-color`: `LinearColor`, the colors of materials, lights and skies.
 - `slime-tasks`: the engine's task pool, which runs the loads and computes the sky's environment.
+- `slime-reflect`: describes the parameters of each kind of material to an editor (ADR-0111).
 - `slime-assets`: the cooked data of the asset pipeline, which the renderer turns into its own GPU
   objects (ADR-0069).
 - `glam`: vectors, matrices and quaternions.

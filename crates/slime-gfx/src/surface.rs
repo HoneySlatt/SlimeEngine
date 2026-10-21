@@ -75,7 +75,8 @@ pub struct Surface {
     /// The present mode asked for, which a surface created again for a new device asks for too.
     present_mode: PresentMode,
     format: TextureFormat,
-    /// The largest width or height the device accepts for an image (8192 at least: the engine's floor).
+    /// The largest width or height the device accepts for an image (8192 at least: the engine's
+    /// floor).
     max_dimension: u32,
     /// Whether the window is larger than that, so that its images are smaller than it.
     oversize: bool,
@@ -105,8 +106,9 @@ impl Gpu {
     /// # Errors
     ///
     /// - [`GfxError::NoAdapter`] if no graphics API is available at all (no Vulkan driver on Linux)
-    ///   or no adapter can present to the window, and [`GfxError::RequestDevice`] if the adapter
-    ///   refuses to open a device.
+    ///   or no adapter can present to the window; [`GfxError::BelowFloor`] if the adapter offers
+    ///   less than the engine's floor of one of its limits ([`Gpu::new`]); and
+    ///   [`GfxError::RequestDevice`] if the adapter refuses to open a device.
     /// - [`GfxError::CreateSurface`] if the graphics API cannot draw into this window.
     /// - [`GfxError::SurfaceFormat`] if the window offers no sRGB format that the engine supports.
     pub fn new_for_window<W>(
@@ -254,9 +256,9 @@ impl Surface {
 
     /// Sets the size of the window's images, in physical pixels; call it whenever the window is
     /// resized. The images change size from the next [`acquire`](Self::acquire). A size of zero,
-    /// for example while the window is minimized, means there is nothing to draw. A width or
-    /// height above what the device accepts (8192 at least: the engine's floor) is limited to it, and
-    /// the log says so once: the images are then smaller than the window.
+    /// for example while the window is minimized, means there is nothing to draw. A width or height
+    /// above what the device accepts (8192 at least: the engine's floor) is limited to it, and the
+    /// log says so once: the images are then smaller than the window.
     pub fn resize(&mut self, width: u32, height: u32) {
         let oversize = width > self.max_dimension || height > self.max_dimension;
         if oversize && !self.oversize {

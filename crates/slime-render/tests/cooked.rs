@@ -5,8 +5,8 @@
 //! material found by its name, and changed; a scene loaded again, which keeps what did not change,
 //! and fails without harm to the scene before; the asset cache, which loads what is asked for once,
 //! in batches, keeps the textures it holds, does not ask again for what failed or panicked, loads
-//! again after it is cleared, and reloads what changed. Runs on whatever adapter the machine
-//! offers.
+//! and keeps meshes once the renderer it was made with is dropped, and reloads what changed. Runs
+//! on whatever adapter the machine offers.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -463,8 +463,8 @@ fn a_load_on_a_lost_device_ends_with_the_loss_and_never_hangs() {
         )),
         "{errors:?}"
     );
-    // The renderer, its uploader's thread with it, goes.
-    drop(renderer);
+    // The renderer and the cache go, and the uploader's thread with the last of them.
+    drop((renderer, cache));
 }
 
 #[test]

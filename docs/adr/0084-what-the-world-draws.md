@@ -4,7 +4,9 @@
   camera first, beyond those the renderer draws), [0111](0111-the-frame-contract.md) (a frame that
   owns what it draws, and a cache that loads without the renderer) and
   [0113](0113-asset-requests-residency-and-priorities.md) (assets requested through handles, by the
-  bridge, the editor and games, and dropped when nothing holds them)
+  bridge, the editor and games, and dropped when nothing holds them) and
+  [0120](0120-a-frame-that-owns-what-it-draws.md) (no `AssetCache::clear`: a cache is made again
+  with the renderer that replaces a lost one)
 - Date: 2026-10-16
 
 ## Context

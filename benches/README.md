@@ -36,7 +36,7 @@ it is their whole name.
 | `render.unseen.10k` | The same 10 000 cubes, with the camera looking at the sky above them: none is in view, so that the scene pass draws none, and the frame's time is that of the instances culled and of the shadows they cast below | B3-F02, B3-F05 |
 | `render.instances.100k` | The same with 100 000 cubes | B3-F02, B3-F05 |
 | `render.shaders` | The renderer's pipelines made again from its shaders unchanged, then after an edit of the scene's shader that the driver's cache cannot hold | C7-08 |
-| `world.frame.100k` | `FrameBuilder::build` over 100 000 entities that place one of the sample's meshes each, under 1 000 parents, once the cache holds them | B2-F06 |
+| `world.frame.100k` | `FrameBuilder::build` over 100 000 entities that place one of the sample's meshes each, under 1 000 parents, once the cache holds them, and the frame dropped | B2-F06 |
 | `world.transforms.100k` | `World::update_transforms` after the 1 000 parents of 100 000 entities moved | B2-F06 |
 | `world.changes.100k` | 100 000 entities that place a light each, of which 1 000 change between two reads: the lights changed through `World::get_mut`, then found, twenty times with the lights spread over the world, every hundredth, by a reader that keeps a copy of every light and compares each with it, and by one that asks the world for what changed since it last read (`World::changed`); then twenty times with the lights side by side, by the second | [ADR-0108](../docs/adr/0108-what-the-world-knows-of-its-changes.md) |
 | `world.children` | A parent of 10 000, then 20 000 children emptied, each given no parent: twice the children take four times as long while it is quadratic | G27 |

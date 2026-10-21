@@ -5,7 +5,8 @@
   [0097](0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md) (three hardware tiers rather
   than a minimum and a target), [0098](0098-the-games-the-engine-aims-at.md) (a handheld tier below
   the modest one) and [0104](0104-the-build-ci-and-measurements.md) (benchmarks measured at the
-  tiers' resolutions and compared with their budgets)
+  tiers' resolutions and compared with their budgets); amended by
+  [0120](0120-a-frame-that-owns-what-it-draws.md) (the floor's figures: WebGPU's default limits)
 - Date: 2026-10-20
 
 ## Context

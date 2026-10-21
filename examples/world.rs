@@ -5,9 +5,9 @@
 //! in the background, and drawn through `slime-world-render`, its sun given once, to the sky and to
 //! the lights. The glowing ring floats up and down at the fixed step, its light with it, and each
 //! frame draws it between its last two places. The camera turns around the scene. After a lost GPU
-//! device, it goes on: a new asset cache loads the world's meshes again, and the world is untouched.
-//! F2 shows the dev overlay's world panel, which lists the entities by name and edits their
-//! components (`slime-devui`). Escape, closing the window or Ctrl+C quits.
+//! device, it goes on: a new asset cache loads the world's meshes again, and the world is
+//! untouched. F2 shows the dev overlay's world panel, which lists the entities by name and edits
+//! their components (`slime-devui`). Escape, closing the window or Ctrl+C quits.
 //!
 //! When it quits, it saves its world (`docs/adr/0087-the-worlds-documents.md`): what differs from
 //! the world as it spawns it at the start, the ring's place and what the panel changed. It loads
@@ -90,6 +90,9 @@ struct WorldExample {
     panel_shown: bool,
     /// The renderer's asset cache, while there is a GPU.
     cache: Option<AssetCache>,
+    /// The cooked data that the cache loads from, the last that the watch gave: a cache made
+    /// after a lost device loads from it.
+    cached: CookedAssets,
     builder: FrameBuilder,
     /// The ring, where the file puts it, if the scene has one.
     ring: Option<(Entity, f64)>,
@@ -117,7 +120,7 @@ impl WorldExample {
             (ctx.gpu(), ctx.surface_format(), ctx.window())
         {
             let renderer = Renderer::new(gpu, format)?;
-            self.cache = Some(AssetCache::new(&renderer, self.assets.clone()));
+            self.cache = Some(AssetCache::new(&renderer, self.cached.clone()));
             self.renderer = Some(renderer);
             self.overlay = Some(Overlay::new(gpu, format, window.scale_factor())?);
         }
@@ -169,6 +172,7 @@ impl WorldExample {
                 return;
             }
         };
+        self.cached = assets.clone();
         if let (Some(gpu), Some(cache)) = (ctx.gpu(), &mut self.cache) {
             cache.reload(gpu, assets.clone());
         }
@@ -484,6 +488,7 @@ fn main() -> ExitCode {
         .then(|| ManifestWatch::new(&assets, Instant::now()));
     let mut example = WorldExample {
         cache: None,
+        cached: assets.clone(),
         scenes: SceneLibrary::of(assets.clone()),
         assets,
         renderer: None,

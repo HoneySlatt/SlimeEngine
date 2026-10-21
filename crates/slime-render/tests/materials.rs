@@ -3,7 +3,8 @@
 //! with the base color, and an opaque material ignores the alpha of its base color (masks are in
 //! `shading.rs`); meshes, materials and environments are drawn by any renderer of their GPU, not
 //! only the one that made them; a material changed in place draws as one made with its new values,
-//! and refuses the values that its creation refuses. Runs on whatever adapter the machine offers.
+//! and refuses the values that its creation refuses; a material is of a kind, whose parameters
+//! reflection describes and changes. Runs on whatever adapter the machine offers.
 
 #[path = "common/tone_curve.rs"]
 mod tone_curve;
@@ -12,6 +13,7 @@ use std::f32::consts::PI;
 
 use slime_color::LinearColor;
 use slime_gfx::{AddressMode, Filter, Gpu, Image, SamplerDescriptor, TextureFormat};
+use slime_reflect::{Path, Reflect, Registry, Value};
 use slime_render::glam::{DAffine3, DVec3, Vec3};
 use slime_render::{
     AlphaMode, Camera, DirectionalLight, Environment, Instance, Light, Material, MaterialData,
@@ -444,4 +446,68 @@ fn values_refused_at_creation_are_refused_in_place_too() {
             },
         )
         .expect("a mask's cutoff changes");
+}
+
+#[test]
+fn a_material_is_of_a_kind_whose_parameters_reflection_describes_and_changes() {
+    let gpu =
+        Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+    let renderer =
+        Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer is created");
+    let material = renderer
+        .create_material(&gpu, "reflected", &MaterialData::default())
+        .expect("the GPU has memory for it");
+    assert_eq!(material.kind(), "physically based");
+    let mut registry = Registry::new();
+    assert_eq!(
+        renderer.describe_materials(&mut registry),
+        [("physically based", "MaterialValues".to_owned())]
+    );
+    // A field changed by its name, within its range, as an editor does.
+    let roughness: Path = "roughness".parse().expect("a path");
+    let mut parameters = material.parameters();
+    registry
+        .set(
+            "MaterialValues",
+            &mut parameters,
+            &roughness,
+            Value::F32(0.25),
+        )
+        .expect("within its range");
+    material
+        .set_parameters(&gpu, &parameters)
+        .expect("the material takes them");
+    assert_eq!(material.values().roughness, 0.25);
+    assert!(
+        registry
+            .set(
+                "MaterialValues",
+                &mut parameters,
+                &roughness,
+                Value::F32(1.5)
+            )
+            .is_err(),
+        "out of its range"
+    );
+    let Err(error) = material.set_parameters(&gpu, &Value::Bool(true)) else {
+        panic!("a value of another type taken");
+    };
+    assert!(
+        matches!(error, RenderError::InvalidMaterial { .. }),
+        "{error}"
+    );
+    assert_eq!(
+        material.values().roughness,
+        0.25,
+        "the material did not change"
+    );
+    // A value of the type, whose color its check refuses.
+    let red = MaterialValues {
+        base_color: LinearColor::rgb(1.5, 0.0, 0.0),
+        ..material.values()
+    };
+    let Err(error) = material.set_parameters(&gpu, &red.to_value()) else {
+        panic!("a red above 1 taken");
+    };
+    assert!(error.to_string().contains("red 1.5"), "{error}");
 }

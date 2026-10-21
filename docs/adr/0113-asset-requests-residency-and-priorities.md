@@ -2,7 +2,9 @@
 
 - Status: Accepted; amends [0073](0073-loading-scenes-in-the-background.md) (loads given a
   priority, and cancelled) and [0084](0084-what-the-world-draws.md) (assets requested through
-  handles, by the bridge, the editor and games, and dropped when nothing holds them)
+  handles, by the bridge, the editor and games, and dropped when nothing holds them); amended by
+  [0120](0120-a-frame-that-owns-what-it-draws.md) (after a lost device, the cache is made again
+  rather than cleared)
 - Date: 2026-10-20
 
 ## Context

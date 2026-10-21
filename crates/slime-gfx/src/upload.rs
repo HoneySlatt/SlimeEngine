@@ -278,7 +278,9 @@ impl Uploader {
     ///
     /// # Panics
     ///
-    /// As [`Gpu::create_texture_with_levels`].
+    /// As [`Gpu::create_texture_with_levels`]; and if a row of a level, its bytes rounded up to a
+    /// multiple of 256, is larger than the uploader's budget, which a texture of more than 8192
+    /// half-float texels a side passes with the smallest budget, 64 KiB.
     pub fn texture(
         &self,
         label: &str,

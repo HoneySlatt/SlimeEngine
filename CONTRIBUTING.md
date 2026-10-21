@@ -264,9 +264,10 @@ samples with no display server available, the windowed samples, the `scene` exam
 the cooked sample with one byte changed, which must end with an error and not a panic, the game
 (its new runs, and one
 resumed from a copy of its save fixture, its saves kept in a private directory) and the windowed
-lifecycle test inside a headless Weston compositor (and that test's resize and oversize scenarios
-in a second one, at scale 2), and `lychee` (links between Markdown files). The individual commands are listed
-in [`AGENTS.md`](AGENTS.md#environment-and-commands) for when you want to run only one of them.
+lifecycle test inside a headless Weston compositor (and that test's resize and oversize scenarios in
+a second one, at scale 2), and `lychee` (links between Markdown files). The individual commands are
+listed in [`AGENTS.md`](AGENTS.md#environment-and-commands) for when you want to run only one of
+them.
 
 The script also runs clippy for the Windows target, which catches code that does not compile on
 Windows without a Windows machine.

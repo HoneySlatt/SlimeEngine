@@ -118,9 +118,9 @@ impl Gpu {
     /// [`Gpu::create_texture`]; a sampler reads no level beyond the last given.
     ///
     /// The levels reach the GPU through buffers of the texture's own, of at most 256 MiB each,
-    /// which the CPU writes, and copies submitted at once: creating a texture costs a submission, and does not hold up the
-    /// submissions of other threads while the texels are written (ADR-0074). Every texture of this
-    /// crate is created so.
+    /// which the CPU writes, and copies submitted at once: creating a texture costs a submission,
+    /// and does not hold up the submissions of other threads while the texels are written
+    /// (ADR-0074). Every texture of this crate is created so.
     ///
     /// # Errors
     ///
@@ -286,7 +286,7 @@ impl Gpu {
                 format.rows(level_width, level_height)
             })
             .collect();
-        let (bands, sizes) = bands(&level_rows, layers, largest.min(self.max_buffer_size()));
+        let (bands, sizes) = bands(&level_rows, layers, largest);
         let (texture, buffers) = self.create(label, || {
             let texture = self.device.create_texture(&wgpu::TextureDescriptor {
                 label: Some(label),
@@ -511,8 +511,14 @@ fn bands(level_rows: &[(u32, u32)], layers: u32, largest: u64) -> (Vec<Band>, Ve
     let mut sizes = vec![0u64];
     for (level, &(row, rows)) in level_rows.iter().enumerate() {
         let pitch = row.next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
-        // A row always fits: the widest, 8192 float texels, takes 64 KiB.
+        // A row fits in a staging buffer of the floor's largest size: the widest, 16 384 half-float
+        // texels on the GPUs the engine is checked on, takes 128 KiB. An uploader's budget may be
+        // smaller, down to 64 KiB.
         let most = (largest / u64::from(pitch)).min(u64::from(rows)) as u32;
+        assert!(
+            most > 0,
+            "a row of {pitch} bytes is larger than the staging buffers, of {largest} bytes"
+        );
         for layer in 0..layers {
             let mut first_row = 0;
             while first_row < rows {
@@ -544,6 +550,12 @@ fn bands(level_rows: &[(u32, u32)], layers: u32, largest: u64) -> (Vec<Band>, Ve
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[should_panic(expected = "larger than the staging buffers")]
+    fn a_row_larger_than_the_staging_buffers_is_refused() {
+        bands(&[(65_537, 1)], 1, 65_536);
+    }
 
     #[test]
     fn an_upload_is_cut_into_bands_that_fit_the_largest_buffer() {

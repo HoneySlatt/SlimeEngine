@@ -8,6 +8,12 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- Kinds of materials (ADR-0111): each material is of a kind, which gives the renderer the shader of
+  its passes, its materials' group and its parameters' type, the physically based kind alone,
+  which draws as before. `Material::kind` names it; `Material::parameters` and
+  `Material::set_parameters` read and change a material's parameters through reflection
+  (`MaterialValues` is reflected), and `Renderer::describe_materials` registers their types for
+  an editor.
 - The world knows what changed (ADR-0108, ADR-0119): each value of a component holds the ticks at
   which it was added and last changed, `World::tick` gives the world's tick, which a reader keeps,
   and `World::changed` the components of a type written or added since, skipping the blocks of
@@ -50,9 +56,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   (frustum culling), and draws the instances of one pipeline, material and mesh that a pass keeps
   with one draw call (instancing): a frame's CPU time follows what each pass sees
   ([`docs/measurements.md`](docs/measurements.md)). `RenderStats::instances` counts the instances
-  that the scene pass drew. Past what the device's storage buffers hold the values of, 1 048 576
-  instances with the default limits, the last instances are left out with a warning, where
-  `render` panicked inside wgpu.
+  that the scene pass drew. Past what the device's storage buffers hold the values of, the last
+  instances are left out with a warning, where `render` panicked inside wgpu.
 - `slime_gfx::StorageBuffer`, which shaders read at a `BindingType::StorageBuffer` binding;
   `Gpu::create_zeroed_vertex_buffer`, `create_zeroed_index_buffer`, `write_vertex_buffer`,
   `write_index_buffer` and `write_storage_buffer`, which write buffers by ranges; and
@@ -83,8 +88,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   `&mut T`: it reads as the value, and its first write stamps it as changed. Code that wrote
   through `&mut T` mostly compiles as it was; a closure of `query_mut` that writes through a guard
   declares it `mut`, a function that takes `&mut T` is given `&mut guard`, and a match that binds
-  parts of the value to change them matches `&mut *guard`. A `Transform` reached without being written no longer marks where its entity is in
-  the world to be computed again.
+  parts of the value to change them matches `&mut *guard`. A `Transform` reached without being
+  written no longer marks where its entity is in the world to be computed again.
 - `Component` requires `Clone`: every component can be cloned, so that a world can be copied.
 - `World::is_hidden` reads a flag that adding or removing `Hidden`, and changing parent, keep,
   rather than walking the entity's ancestors: a frame of 100 000 entities is built in 10.0 to

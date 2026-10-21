@@ -108,7 +108,7 @@ fn load_all(
 }
 
 /// `FrameBuilder::build` over the large world, its meshes those of the examples' sample, once the
-/// cache holds them all: twenty frames, without a sky.
+/// cache holds them all, and the frame dropped: twenty frames, without a sky.
 pub fn frame(context: &mut Context) -> Result<Vec<Row>, String> {
     let assets = context.sample()?;
     let (world, _) = large_world(&meshes_of(&assets))?;
@@ -118,8 +118,13 @@ pub fn frame(context: &mut Context) -> Result<Vec<Row>, String> {
     let drawn = load_all(&world, &mut builder, &mut cache, context)?;
     let mut times = Vec::new();
     for _ in 0..20 {
-        let (frame, duration) = timed(|| builder.build(&world, &mut cache, &context.gpu, 0.0));
-        frame.map_err(|error| error.to_string())?;
+        // The frame dropped inside, as a game drops it once drawn: what it holds is counted.
+        let (built, duration) = timed(|| {
+            builder
+                .build(&world, &mut cache, &context.gpu, 0.0)
+                .map(|frame| frame.instances.len())
+        });
+        built.map_err(|error| error.to_string())?;
         times.push(duration);
     }
     let mut rows = Vec::from(Row::times("`FrameBuilder::build`", &times));

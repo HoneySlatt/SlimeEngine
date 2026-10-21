@@ -59,7 +59,7 @@ created only when code needs it.
 | [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu, apart from the dev overlay through its `wgpu` feature | `wgpu`, `pollster`, `raw-window-handle`, `slime-color`, `thiserror`, `tracing` | Opens a GPU device, and another in place of a lost one; draws into offscreen images, 8-bit or 16-bit float, and reads them back; draws into a window; later passes sample what earlier ones drew; depth-only passes; images of four samples per pixel, resolved for anti-aliasing; textures and cube textures whose levels the caller gives, half-precision floats and BC7 and BC5 blocks among their formats; storage buffers, buffers written by ranges, instanced draws from a base vertex; an uploader that submits the copies of what loads bring within a budget of bytes per frame, on a thread of its own |
 | [`slime-color`](../crates/slime-color/README.md) | The color type of every API of the engine, `LinearColor`, and the sRGB transfer function, below every crate that holds a color ([ADR-0045](adr/0045-one-linear-color-type.md), [ADR-0079](adr/0079-the-engines-own-world.md)); headless | `slime-reflect` | Linear colors and their constructors, sRGB bytes decoded and encoded |
 | [`slime-tasks`](../crates/slime-tasks/README.md) | The engine's task pool: the threads on which the engine computes, with a priority for the work that a frame waits for ([ADR-0107](adr/0107-the-execution-model.md)); headless, on the standard library alone | none | One pool, the machine's logical cores but one; frame and background tasks, a thread always left for frame tasks; items computed in parallel, the calling thread taking its share |
-| [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, lit by directional, point and spot lights, seen from a camera, into render targets, and reports what a frame cost; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `slime-assets`, `slime-color`, `slime-tasks`, `glam`, `thiserror`, `tracing` | Textures and scenes cooked by the asset pipeline, loaded onto the GPU, BC7 and BC5 among them, normal textures read by x and y; meshes with tangents, simple shapes made in code (a cube, a sphere, a square), glTF's metallic-roughness materials (five textures, masks, double-sided, values that change while a game runs, found by name in a loaded scene), a perspective camera, the depth test, up to 16 directional, point and spot lights in physical units (`KHR_lights_punctual`), a procedural sky computed on the CPU that surfaces reflect (image-based lighting) and that is drawn behind them with its sun's disc, the shadows of the first directional light that casts them (four cascades in one atlas, filtered over 5 × 5 texels) and of every spot light that casts them (a tile each of one atlas), mirrored instances drawn with their front faces, the scene drawn in HDR with its light exposed, at four samples per pixel (multisample anti-aliasing), an energy-conserving bloom, then tone mapped, the passes ordered by a render graph and recorded four to a submission, statistics with the GPU time of each pass; scenes loaded in the background, and again when their cooked data changed, keeping what did not change; the meshes a game draws kept by asset ID in a cache, loaded in batches as they are asked for, loaded again when their cooked data changes, dropped after a lost device ([ADR-0084](adr/0084-what-the-world-draws.md)); its shaders replaced while it runs |
+| [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, lit by directional, point and spot lights, seen from a camera, into render targets, and reports what a frame cost; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `slime-assets`, `slime-color`, `slime-reflect`, `slime-tasks`, `glam`, `thiserror`, `tracing` | Textures and scenes cooked by the asset pipeline, loaded onto the GPU, BC7 and BC5 among them, normal textures read by x and y; meshes with tangents, simple shapes made in code (a cube, a sphere, a square), glTF's metallic-roughness materials (five textures, masks, double-sided, values that change while a game runs, found by name in a loaded scene), a perspective camera, the depth test, up to 16 directional, point and spot lights in physical units (`KHR_lights_punctual`), a procedural sky computed on the CPU that surfaces reflect (image-based lighting) and that is drawn behind them with its sun's disc, the shadows of the first directional light that casts them (four cascades in one atlas, filtered over 5 × 5 texels) and of every spot light that casts them (a tile each of one atlas), mirrored instances drawn with their front faces, the scene drawn in HDR with its light exposed, at four samples per pixel (multisample anti-aliasing), an energy-conserving bloom, then tone mapped, the passes ordered by a render graph and recorded four to a submission, statistics with the GPU time of each pass; scenes loaded in the background, and again when their cooked data changed, keeping what did not change; the meshes a game draws kept by asset ID in a cache, loaded in batches as they are asked for, loaded again when their cooked data changes, dropped after a lost device ([ADR-0084](adr/0084-what-the-world-draws.md)); its shaders replaced while it runs |
 | [`slime-reflect`](../crates/slime-reflect/README.md) | Reflection: types described at run time, their values as plain data, read and changed by property path through a registry, compared and their differences applied ([ADR-0080](adr/0080-reflection-and-serialization.md), [ADR-0085](adr/0085-reflection.md)); headless | `glam`, `slime-reflect-derive` | `Reflect` and its derive, with stable names, aliases, versions and their upgrades, default values, skipped and transient fields, ranges and units; one value type, references to assets and entities kinds of their own; descriptions of types; a registry, explicit and recursive, that holds types with no Rust type behind them, checks values, sets their parts by path within their fields' ranges and lists their leaves; the standard types, glam's `Vec3`, `DVec3` and `Quat`; no files: `slime-serialize` writes and reads them |
 | [`slime-reflect-derive`](../crates/slime-reflect-derive/README.md) | The derive macro of reflection, `#[derive(Reflect)]`, which `slime-reflect` re-exports | `proc-macro2`, `quote`, `syn` | Structs and enums, their doc comments and attributes; generic types, lifetimes, unions and types without a name refused |
 | [`slime-serialize`](../crates/slime-serialize/README.md) | Serialization: values of reflected types written to TOML documents by the engine's own writer and read back, from earlier versions of their types too, and the same documents in a binary encoding of the engine's own ([ADR-0080](adr/0080-reflection-and-serialization.md), [ADR-0086](adr/0086-serialization.md), [ADR-0094](adr/0094-the-binary-encoding-of-documents.md)); headless | `slime-reflect`, `toml_edit`, `thiserror` | Documents of any registered type's value, whole or in part; the same bytes for the same value; versions written past 1 and earlier values brought forward by their types' upgrades; strict and lenient reading, errors by line, column and path, limits on size and depth; documents of several values, references to entities written as the names that a world gives them, and to assets as a document names them, their IDs unless it says otherwise; a document's layout read and its errors placed by the program that reads it, as a world reads scene files; the binary encoding written from a text and read through the same reader, its errors by byte |
@@ -102,7 +102,8 @@ slime-world ──▶ slime-assets (cooked scenes), slime-serialize (saves, scen
 slime-world-render ──▶ slime-world, slime-render, slime-gfx
 slime-gfx, slime-render, slime-cook, slime-world ──▶ slime-color (the color type)
 slime-render, slime-cook ──▶ slime-tasks (the engine's task pool)
-slime-assets, slime-color, slime-world ──▶ slime-reflect ──▶ glam, slime-reflect-derive (reflection)
+slime-assets, slime-color, slime-render, slime-world ──▶ slime-reflect ──▶ glam, slime-reflect-derive
+                                                    (reflection)
 slime-serialize ──▶ slime-reflect, toml_edit (documents)
 ```
 
@@ -323,9 +324,9 @@ gpu = Gpu::new()
 │                                                        offsets into a uniform buffer
 ├── max_texture_dimension()                              the largest side of a texture or a
 │                                                        target: the adapter's, at least the
-│                                                        floor's, 8192 (ADR-0114)
+│                                                        floor's (ADR-0114, ADR-0120)
 ├── max_buffer_size()                                    the largest buffer: the adapter's, at
-│                                                        least the floor's, 256 MiB
+│                                                        least the floor's
 ├── create_timer(label, passes)                          a GpuTimer for up to `passes` passes of a
 │                                                        submission, when can_time() says the
 │                                                        adapter has timestamp queries
@@ -388,12 +389,15 @@ render graph
 [ADR-0064](adr/0064-cascaded-shadow-maps.md), [ADR-0065](adr/0065-reading-the-cascades.md)):
 
 ```text
-renderer = Renderer::new(&gpu, format)                 the output's format; four shaders and ten
-│                                                      pipelines: two depth-only ones for the
-│                                                      shadow passes (the second discards what
-│                                                      masked materials discard), three for the
+renderer = Renderer::new(&gpu, format)                 the output's format; its kinds of
+│                                                      materials registered, the physically
+│                                                      based one alone (kind.rs, ADR-0120);
+│                                                      four shaders and ten pipelines: for each
+│                                                      kind, two depth-only ones for the shadow
+│                                                      passes (the second discards what masked
+│                                                      materials discard) and three for the
 │                                                      scene (depth test, into Rgba16Float),
-│                                                      culling back faces, front faces or none,
+│                                                      culling back faces, front faces or none;
 │                                                      the sky's, the resolve's, the bloom's two
 │                                                      (down and up) and the tone-mapping one
 │                                                      (each a fullscreen triangle); the BRDF
@@ -405,11 +409,6 @@ renderer = Renderer::new(&gpu, format)                 the output's format; four
 ├── set_shaders(&gpu, &ShaderSources)                  the ten pipelines made again from new
 │                                                      sources, all or none: on an error, the
 │                                                      ones it had stay (ADR-0077)
-├── Environment::new(&gpu, &Sky)                      the sky drawn on the CPU into a 128-texel
-│                                                      cube, prefiltered into four levels by
-│                                                      frame tasks of the engine's pool and the
-│                                                      calling thread (environment.rs),
-│                                                      uploaded in Rgba16Float; its sun's disc
 ├── create_mesh(&gpu, label, &MeshData)                after a check, 48-byte vertices with their
 │                                                      tangent and the indices written into the
 │                                                      first page of the renderer's meshes with
@@ -510,6 +509,14 @@ renderer = Renderer::new(&gpu, format)                 the output's format; four
         calls, the CPU time of this call, and the GPU time of each pass, the bloom's summed, a few
         frames old, the latest that came back
 ```
+
+An environment is made apart from any renderer, which any draws with: `Environment::new(&gpu, &Sky)`
+draws the sky on the CPU into a 128-texel cube, prefiltered into four levels by frame tasks of the
+engine's pool and the calling thread (`environment.rs`), and uploads it in `Rgba16Float`, with its
+sun's disc. A scene, the instances, lights and environment of a frame, owns what it draws: its
+instances hold clones of their meshes and materials, counted references, so that a scene built on
+one thread is drawn on another ([ADR-0111](adr/0111-the-frame-contract.md),
+[ADR-0120](adr/0120-a-frame-that-owns-what-it-draws.md)).
 
 The dev overlay ([`crates/slime-devui/src/lib.rs`](../crates/slime-devui/src/lib.rs),
 [ADR-0031](adr/0031-dev-overlay-with-egui.md)) draws after the tone-mapping pass, in the output,
@@ -754,8 +761,9 @@ frame
 ```
 
 After a lost device, the game makes a new cache with the renderer that replaces the lost one, and
-drops the builder's environment; what the world names loads again by itself. With `--watch`, the game gives new cooked data to
-`AssetCache::reload`, which keeps what did not change and takes the rest at once.
+drops the builder's environment; what the world names loads again by itself. With `--watch`, the
+game gives new cooked data to `AssetCache::reload`, which keeps what did not change and takes the
+rest at once.
 
 ### Scenes and prefabs
 
@@ -1073,7 +1081,9 @@ tests):
   asset cache, statistics, windows, events, the application's `Context` and `AppConfig`, the dev
   overlay, worlds and entity handles, scene libraries and resolved scenes, the frame builder of
   `slime-world-render` and its frames, reflected values and registries, and the error types of those
-  crates. wgpu keeps its error scopes per thread, so
+  crates. Scenes, their instances and the frames of `slime-world-render` are also `'static`: they
+  own what they draw, so that a frame built on one thread is drawn on another (ADR-0120). wgpu keeps
+  its error scopes per thread, so
   GPU objects can be created from several threads.
   wgpu fails to configure a window's surface when another thread submits work while it waits for
   the GPU, as the uploader's thread does: the `Gpu`'s submissions, from any thread, wait while the

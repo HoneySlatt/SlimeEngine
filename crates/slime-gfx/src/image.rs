@@ -133,7 +133,8 @@ impl Gpu {
         let row_bytes = width * bytes_per_pixel;
         // Copies from a texture to a buffer need rows aligned to 256 bytes.
         let padded_row_bytes = row_bytes.next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
-        // A row always fits: the widest one, 8192 float pixels, takes 64 KiB.
+        // A row always fits: the widest, 16 384 half-float pixels on the GPUs the engine is checked
+        // on, takes 128 KiB.
         let band_rows =
             (largest_buffer / u64::from(padded_row_bytes)).min(u64::from(height)) as u32;
         let buffer_label = format!("{} readback", target.label);

@@ -84,7 +84,9 @@ The log level of every example is set by the `SLIME_LOG` environment variable, f
   the renderer gives, and the reference images of `tests/gltf.rs`, within the same tolerance; the
   ring moved at fixed steps, drawn where the fraction of a step puts it, and not sliding when
   teleported; a hidden subtree and its light left out; and, after a lost device, the same image
-  drawn from the cache made again, the world untouched. Without a GPU, it spawns the cooked yard,
+  drawn from the cache made again, the world untouched; a frame built on one thread drawn on
+  another, once its cache and builder are dropped, as on the first. Without a GPU, it spawns the
+  cooked yard,
   its lamps placed with their overrides, and changes the lamp in a copy of the sources, cooks it
   again and carries a run into the yard spawned anew: every lamp follows but where the yard
   overrides it, and what the run changed stays.

@@ -151,7 +151,7 @@ the ADR linking to it.
 | [0081](0081-stage-5a-the-world.md) | Stage 5a: the world | Accepted; amended by 0109 |
 | [0082](0082-the-worlds-storage-and-handles.md) | The world's storage and handles | Accepted; amended by 0119 |
 | [0083](0083-transforms-and-the-hierarchy.md) | Transforms and the hierarchy | Accepted; amended by 0087, 0106 and 0108 |
-| [0084](0084-what-the-world-draws.md) | What the world draws | Accepted; amended by 0106, 0111 and 0113 |
+| [0084](0084-what-the-world-draws.md) | What the world draws | Accepted; amended by 0106, 0111, 0113 and 0120 |
 | [0085](0085-reflection.md) | Reflection | Accepted; amended by 0086, 0087, 0101 and 0108 |
 | [0086](0086-serialization.md) | Serialization | Accepted; amended by 0087, 0091 and 0102 |
 | [0087](0087-the-worlds-documents.md) | The world's documents | Accepted; amended by 0088, 0089, 0092, 0093, 0101, 0108 and 0112 |
@@ -178,12 +178,13 @@ the ADR linking to it.
 | [0108](0108-what-the-world-knows-of-its-changes.md) | What the world knows of its changes | Accepted; amended by 0119 |
 | [0109](0109-stable-references-and-undo.md) | Stable references and undo | Accepted; amended by 0116 |
 | [0110](0110-how-the-editor-runs-a-games-code.md) | How the editor runs a game's code | Accepted; amended by 0116 |
-| [0111](0111-the-frame-contract.md) | The frame contract | Accepted; amended by 0115 |
+| [0111](0111-the-frame-contract.md) | The frame contract | Accepted; amended by 0115 and 0120 |
 | [0112](0112-levels-saves-and-worlds-for-open-worlds.md) | Levels, saves and worlds for open worlds | Accepted |
-| [0113](0113-asset-requests-residency-and-priorities.md) | Asset requests, residency and priorities | Accepted |
-| [0114](0114-hardware-tiers-and-the-gpus-limits.md) | Hardware tiers and the GPU's limits | Accepted |
+| [0113](0113-asset-requests-residency-and-priorities.md) | Asset requests, residency and priorities | Accepted; amended by 0120 |
+| [0114](0114-hardware-tiers-and-the-gpus-limits.md) | Hardware tiers and the GPU's limits | Accepted; amended by 0120 |
 | [0115](0115-what-the-gpu-layer-gives-the-editor.md) | What the GPU layer gives the editor | Accepted; amended by 0117 |
 | [0116](0116-stage-6-in-two-halves.md) | Stage 6 in two halves | Accepted |
 | [0117](0117-frustum-culling-and-instancing.md) | Frustum culling and instancing | Accepted |
 | [0118](0118-the-task-pool-and-the-copies-to-the-gpu.md) | The task pool and the copies to the GPU | Accepted |
 | [0119](0119-the-worlds-ticks-blocks-and-log.md) | The world's ticks, blocks and log | Accepted |
+| [0120](0120-a-frame-that-owns-what-it-draws.md) | A frame that owns what it draws | Accepted |

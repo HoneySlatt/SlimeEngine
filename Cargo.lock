@@ -2142,6 +2142,7 @@ dependencies = [
  "slime-assets",
  "slime-color",
  "slime-gfx",
+ "slime-reflect",
  "slime-tasks",
  "thiserror 2.0.21",
  "tracing",

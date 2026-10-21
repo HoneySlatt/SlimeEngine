@@ -4,8 +4,9 @@
 //! glTF test's reference images (`tests/reference/gltf-front.png` and `gltf-back.png`) within the
 //! same tolerance (`common/reference_image.rs`); what moves at fixed steps is drawn where the
 //! fraction of a step puts it; a hidden subtree is not drawn, nor its light; after a lost device,
-//! the cache made again draws the same world, which the loss left as it was. The cooked yard
-//! (`examples/assets/yard.scene`) spawns its lamps with their overrides, and follows its lamp
+//! the cache made again draws the same world, which the loss left as it was; a frame built on one
+//! thread, once its cache and builder are dropped, is drawn on another as on the first. The cooked
+//! yard (`examples/assets/yard.scene`) spawns its lamps with their overrides, and follows its lamp
 //! cooked again, without a GPU (`docs/adr/0095-cooked-scene-files.md`). Runs on whatever adapter
 //! the machine offers.
 
@@ -224,8 +225,14 @@ fn a_frame_built_on_one_thread_is_drawn_on_another_as_on_the_first() {
         .builder
         .build(&world, &mut drawing.cache, &gpu, 0.0)
         .expect("the frame is built");
-    // The frame owns what it draws: the cache and the builder go, the renderer goes with it.
-    let Drawing { mut renderer, .. } = drawing;
+    // The frame owns what it draws: the cache and the builder go, and the renderer goes to the
+    // other thread.
+    let Drawing {
+        mut renderer,
+        cache,
+        builder,
+    } = drawing;
+    drop((cache, builder));
     let there = std::thread::spawn({
         let gpu = gpu.clone();
         move || {

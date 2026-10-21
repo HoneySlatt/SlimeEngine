@@ -7,6 +7,7 @@ mod cooked;
 mod environment;
 mod error;
 mod graph;
+mod kind;
 mod light;
 mod loads;
 mod material;

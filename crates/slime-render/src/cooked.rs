@@ -102,7 +102,7 @@ impl LoadedScene {
     pub fn material(&self, name: &str) -> Option<&Material> {
         self.materials
             .iter()
-            .find(|material| &*material.label == name)
+            .find(|material| &*material.inner.label == name)
     }
 }
 

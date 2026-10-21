@@ -1606,19 +1606,20 @@ GitHub issues, linked from their entry; this list stays the reference.
   presents was rejected: it would show a black or half-drawn frame instead of skipping it, and
   present during unwinding.
 - **An oversize window's surface is configured again at every frame on X11.** A window wider or
-  taller than the device's largest image (8192 pixels with the default limits) gets images of that
-  size, smaller than the window. On X11, Mesa's Vulkan drivers mark such a swapchain suboptimal, and
-  every image of it too. `Surface::acquire` treats each suboptimal image as a reason to configure
-  the surface again, at the same clamped size, so every frame waits for the GPU to finish and
-  rebuilds the window's images. The frames are correct, and only `debug` logs show it; Wayland and
-  Direct3D 12 are not affected. Not setting `stale` in the `Suboptimal` arm of `Surface::next_image`
-  while `oversize` is set is not enough: measured, the `Outdated` branch then configures the surface
-  again. Asking the device for the adapter's own largest image (`max_texture_dimension_2d`) instead
-  of the default limit would make such windows rare. To measure, before and after: start Xvfb with a
-  screen wider than 9000 pixels; with `WAYLAND_DISPLAY` unset, `DISPLAY` set to it and lavapipe, run
-  the child of the `oversize` scenario of `crates/slime-app/tests/windowed_lifecycle.rs` with
-  `SLIME_LOG=wgpu_core=debug`; count wgpu-core's `configuring surface with` records (about one per
-  frame without the fix, one with it) and note the frame times.
+  taller than the device's largest image (the adapter's, 16 384 pixels on lavapipe and the RX
+  6900 XT since M6a.4 asks for the adapter's limits) gets images of that size, smaller than the
+  window. On X11, Mesa's Vulkan drivers mark such a swapchain suboptimal, and every image of it too.
+  `Surface::acquire` treats each suboptimal image as a reason to configure the surface again, at
+  the same clamped size, so every frame waits for the GPU to finish and rebuilds the window's
+  images. The frames are correct, and only `debug` logs show it; Wayland and Direct3D 12 are not
+  affected. Not setting `stale` in the `Suboptimal` arm of `Surface::next_image` while `oversize`
+  is set is not enough: measured, the `Outdated` branch then configures the surface again. Such
+  windows are rare since the device asks for the adapter's largest image, and were not measured
+  again. To measure, before and after: start Xvfb with a screen wider than 16 384 pixels; with
+  `WAYLAND_DISPLAY` unset, `DISPLAY` set to it and lavapipe, run the child of the `oversize`
+  scenario of `crates/slime-app/tests/windowed_lifecycle.rs`, its window widened past the largest
+  image, with `SLIME_LOG=wgpu_core=debug`; count wgpu-core's `configuring surface with` records
+  (about one per frame without the fix, one with it) and note the frame times.
 - **Termination signals are ignored for the rest of the process when `ctrlc` cannot start its
   thread.** `ctrlc` installs its handlers, then starts the thread that waits for what they catch.
   When that thread cannot start (a limit on threads reached when `run` installs the handler), the

@@ -5,7 +5,8 @@
   kind of material), [0041](0041-render-graph.md) (views apart from the renderer, a part of the
   graph each) and [0084](0084-what-the-world-draws.md) (a frame that owns what it draws, and a cache
   that loads without the renderer); amended by [0115](0115-what-the-gpu-layer-gives-the-editor.md)
-  (an unlit kind of material at Stage 6)
+  (an unlit kind of material at Stage 6) and [0120](0120-a-frame-that-owns-what-it-draws.md) (the
+  shape of the owned frame and of the kinds of materials)
 - Date: 2026-10-20
 
 ## Context

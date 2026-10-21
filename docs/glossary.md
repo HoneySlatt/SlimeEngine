@@ -35,8 +35,9 @@ scene. Each comes from a *source asset* and reaches the game as *cooked data*
 **Asset cache.** The GPU objects of the meshes that a game draws, with their materials and
 textures, kept by *asset ID* outside the *world* (`slime_render::AssetCache`): the world names
 assets by ID and holds no GPU object. It loads what is asked for in batches, in the background,
-each whole, loads again what changed in new *cooked data*, and drops everything when the game
-clears it, as when its *device* is lost ([ADR-0084](adr/0084-what-the-world-draws.md)).
+each whole, and loads again what changed in new *cooked data*; when its *device* is lost, the game
+makes a new cache with the new renderer ([ADR-0084](adr/0084-what-the-world-draws.md),
+[ADR-0120](adr/0120-a-frame-that-owns-what-it-draws.md)).
 
 **Asset ID.** The identity of an *asset*: a random 128-bit UUID kept in the *metadata file* beside
 its source, so that it stays the same when the file is moved or renamed. A *sub-asset*'s ID is
@@ -291,7 +292,8 @@ the previous frame, limited to a maximum (`slime_app::time::FrameClock`).
 
 **Frame contract.** What the world gives the renderer at each frame, and how: a frame that owns
 what it draws, built by `slime-world-render`, drawn in one or more *views*, each object naming a
-material of some *kind* ([ADR-0111](adr/0111-the-frame-contract.md)). Decided, not built yet.
+material of some *kind* ([ADR-0111](adr/0111-the-frame-contract.md)). The frame that owns what it
+draws and the kinds are built; views apart from the renderer are not yet.
 
 **Frame scheduler (frame limiter).** The part of the windowed driver that schedules frames and
 waits between them, so that the engine asks for at most `AppConfig::max_frame_rate` frames per
@@ -428,7 +430,8 @@ crashed replays it and a test replays an editing session
 shaders, its parameters described by reflection, and the passes it draws in. The physically based
 material is the first kind, an unlit one for the editor's gizmos and icons the second, at Stage 6;
 games register theirs from Stage 9a ([ADR-0111](adr/0111-the-frame-contract.md),
-[ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md)). Decided, not built yet.
+[ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md)). The physically based kind is built
+(`Material::kind`, `Renderer::describe_materials`); the unlit one is not yet.
 
 **KTX2.** The Khronos Group's file format for GPU textures, which holds every mipmap level of a
 texture in its GPU format: the format of cooked textures
@@ -493,7 +496,8 @@ and size, and the IDs it needs to load ([ADR-0069](adr/0069-the-asset-pipeline.m
 metallic and roughness, normal, occlusion and emissive textures each read with a *sampler*, an
 alpha mode and double-sidedness (`slime_render::Material`, from `MaterialData`;
 [ADR-0035](adr/0035-physically-based-materials.md)). Its values can change while a game runs,
-but not its textures, its sidedness or the kind of its alpha mode (`Material::set_values`).
+but not its textures, its sidedness or the kind of its alpha mode (`Material::set_values`, or
+`Material::set_parameters` through reflection). It is of a *kind*, the physically based one.
 
 **MCP (Model Context Protocol).** An open protocol through which coding agents, such as Claude
 Code and Codex, call the tools of other programs. The engine is to have a server of its own from
@@ -789,9 +793,9 @@ world spawned ([ADR-0069](adr/0069-the-asset-pipeline.md),
 [ADR-0083](adr/0083-transforms-and-the-hierarchy.md), [ADR-0095](adr/0095-cooked-scene-files.md)).
 
 **Scene (render).** What the renderer draws in one frame: a camera, *punctual lights*, an
-*environment*, an *exposure* and *instances* (`slime_render::Scene`). Not a scene graph: the
-renderer keeps nothing between frames; `slime-world-render` builds one from the *world* at each
-frame ([ADR-0084](adr/0084-what-the-world-draws.md)).
+*environment*, an *exposure* and *instances* (`slime_render::Scene`), which it owns. Not a scene
+graph: the renderer keeps no scene between frames; `slime-world-render` builds one from the *world*
+at each frame ([ADR-0084](adr/0084-what-the-world-draws.md)).
 
 **Scene file.** A scene written as TOML, with the extension `.scene`: its entities under IDs of the
 file, their parents and components, the *prefabs* that it places with their *overrides*, and the

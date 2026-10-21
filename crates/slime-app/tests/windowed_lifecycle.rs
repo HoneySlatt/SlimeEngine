@@ -11,9 +11,9 @@
 //! scene do.
 //! `scripts/check.sh` runs it in a headless Weston with lavapipe, then runs it again in a second
 //! one, at scale 2, for the resizes and the window larger than the GPU can draw into, which only
-//! the compositor that doubles a window makes wider than the largest window (ADR-0024). It is not in the default run of `cargo test`
-//! (`test = false` in Cargo.toml), since it needs a compositor, and it has no harness, since the
-//! windowing library needs the main thread.
+//! the compositor that doubles a window makes wider than the largest window (ADR-0024). It is not
+//! in the default run of `cargo test` (`test = false` in Cargo.toml), since it needs a compositor,
+//! and it has no harness, since the windowing library needs the main thread.
 //!
 //! A process can run one windowed application, so each scenario runs in a child process: this
 //! program runs itself again with `SLIME_APP_TEST_SCENARIO` set, and checks what the child prints.

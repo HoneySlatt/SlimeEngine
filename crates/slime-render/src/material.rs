@@ -7,13 +7,25 @@ use slime_gfx::{
     BindGroup, BindGroupEntry, BindGroupLayout, BindingResource, Gpu, Sampler, Texture,
     UniformBuffer,
 };
+use slime_reflect::{Reflect, Value};
 
 use crate::bytes::push_f32s;
 use crate::error::RenderError;
+use crate::kind::{MaterialKind, PhysicallyBased};
 
 /// The size of a material's values as `MaterialUniform` in `shader.wgsl` lays them out: the base
 /// color (16 bytes), the emission (12) and five numbers (20).
 pub(crate) const MATERIAL_VALUES_SIZE: usize = 48;
+
+/// The texture slots of a material, each a texture and its sampler: base color,
+/// metallic-roughness, normal, occlusion, emissive (ADR-0035).
+pub(crate) const MATERIAL_TEXTURE_SLOTS: u32 = 5;
+
+/// The index of the physically based kind among a renderer's kinds ([`MaterialKind`]): the kind of
+/// every material made by [`MaterialParts`].
+///
+/// [`MaterialKind`]: crate::kind::MaterialKind
+pub(crate) const PHYSICALLY_BASED: usize = 0;
 
 /// A texture and the sampler that reads it, made with
 /// [`Gpu::create_texture`](slime_gfx::Gpu::create_texture) and
@@ -28,7 +40,8 @@ pub struct SampledTexture<'a> {
 
 /// How a material uses the alpha of its base color (the factor's times the texture's): glTF's
 /// alpha modes, but for blending (`BLEND`), which the renderer does not do.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Reflect)]
+#[reflect(name = "AlphaMode")]
 pub enum AlphaMode {
     /// The alpha is ignored: the surface is drawn wherever it is (glTF's `OPAQUE`).
     #[default]
@@ -37,6 +50,7 @@ pub enum AlphaMode {
     /// elsewhere the surface is drawn opaque. glTF's default cutoff is 0.5.
     Mask {
         /// The smallest alpha that is drawn: 0 or more, and above 1, nothing is drawn.
+        #[reflect(range(min = 0.0))]
         cutoff: f32,
     },
 }
@@ -181,28 +195,43 @@ impl MaterialData<'_> {
 /// [`Renderer::create_material`](crate::Renderer::create_material) and [`Material::set_values`]
 /// refuse values out of these ranges, which would draw nothing that a surface can look like: a
 /// value that is not a number spreads through the bloom over the whole frame.
-#[derive(Clone, Copy, Debug, PartialEq)]
+///
+/// They are the parameters of the physically based kind of material (ADR-0111), described by
+/// reflection, so that an editor shows and edits them by their names and ranges
+/// ([`Material::parameters`]).
+#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
+#[reflect(name = "MaterialValues", check = MaterialValues::check)]
 pub struct MaterialValues {
-    /// As [`MaterialData::base_color`].
+    /// The color a dielectric diffuses and a metal reflects, times its texture, from 0 to 1.
     pub base_color: LinearColor,
-    /// As [`MaterialData::metallic`].
+    /// 0 for a dielectric, 1 for a metal, times its texture.
+    #[reflect(range(min = 0.0, max = 1.0))]
     pub metallic: f32,
-    /// As [`MaterialData::roughness`].
+    /// From 0, a mirror, to 1: the rougher, the wider and dimmer the highlights.
+    #[reflect(range(min = 0.0, max = 1.0))]
     pub roughness: f32,
-    /// As [`MaterialData::normal_scale`].
+    /// Multiplies the x and y of the normal texture's normals: 0 keeps the mesh's normal.
     pub normal_scale: f32,
-    /// As [`MaterialData::occlusion_strength`].
+    /// How much the occlusion texture counts, from 0, not at all, to 1.
+    #[reflect(range(min = 0.0, max = 1.0))]
     pub occlusion_strength: f32,
-    /// As [`MaterialData::emissive`].
+    /// The light the surface emits, from 0 to 1 in each channel; its alpha is ignored.
     pub emissive: LinearColor,
-    /// As [`MaterialData::emissive_strength`].
+    /// Multiplies the emission: above 1 for a surface brighter than white.
+    #[reflect(range(min = 0.0))]
     pub emissive_strength: f32,
-    /// As [`MaterialData::alpha_mode`]. A material keeps the mode it was made with: its cutoff can
-    /// change, but not whether it has one.
+    /// How the alpha of the base color is used. A material keeps the mode it was made with: its
+    /// cutoff can change, but not whether it has one.
     pub alpha_mode: AlphaMode,
 }
 
 impl MaterialValues {
+    /// Accepts the values if they lie in their ranges, the colors' included, which ranges on fields
+    /// cannot say: what reflection checks when it reads values (`#[reflect(check)]`).
+    fn check(&self) -> Result<(), String> {
+        self.invalid().map_or(Ok(()), Err)
+    }
+
     /// Which value is outside the range [`MaterialValues`] gives, if one is.
     pub(crate) fn invalid(&self) -> Option<String> {
         let LinearColor { r, g, b, a } = self.base_color;
@@ -282,23 +311,33 @@ impl MaterialValues {
 /// A material on the GPU, created by [`Renderer::create_material`](crate::Renderer::create_material).
 /// It keeps its textures and samplers alive. Any renderer of the same `Gpu` draws with it.
 ///
-/// Clones refer to the same material: a change of values through one of them
-/// ([`Material::set_values`]) changes how every instance drawn with any of them looks.
+/// Clones refer to the same material, through one counted reference: a change of values through
+/// one of them ([`Material::set_values`]) changes how every instance drawn with any of them looks.
 #[derive(Clone, Debug)]
 pub struct Material {
+    pub(crate) inner: Arc<MaterialInner>,
+}
+
+/// What a material and its clones share.
+#[derive(Debug)]
+pub(crate) struct MaterialInner {
     pub(crate) group: BindGroup,
-    /// The buffer that the scene shader reads its values from.
+    /// The buffer that the scene shader reads its parameters from.
     uniform: UniformBuffer,
-    /// The values in `uniform`, which its clones share.
-    values: Arc<Mutex<MaterialValues>>,
+    /// Its parameters, a value of the type that its kind describes, which `uniform` holds as its
+    /// kind packs them.
+    parameters: Mutex<Value>,
     /// The label it was created with: a cooked material's name.
-    pub(crate) label: Arc<str>,
+    pub(crate) label: Box<str>,
     /// Whether it has a normal texture, without which its normal scale is not used.
-    normal_texture: bool,
+    pub(crate) normal_texture: bool,
     /// Whether its draws cull no face (ADR-0035).
     pub(crate) double_sided: bool,
     /// Whether its shadow is cut out where it discards fragments (ADR-0038).
     pub(crate) masked: bool,
+    /// Its kind, and the kind's index among a renderer's kinds.
+    of_kind: &'static dyn MaterialKind,
+    pub(crate) kind: usize,
 }
 
 impl PartialEq for Material {
@@ -315,20 +354,78 @@ impl Material {
     /// What it and its clones share, by which the renderer tells materials apart: clones are one
     /// material, drawn together.
     pub(crate) fn identity(&self) -> *const () {
-        Arc::as_ptr(&self.values).cast()
+        Arc::as_ptr(&self.inner).cast()
     }
 
-    /// The values it is drawn with: those it was created with, or the last that
-    /// [`Material::set_values`] gave it, or one of its clones.
+    /// The name of its kind, the way it lights its surface (ADR-0111): `"physically based"`, the
+    /// only kind a renderer draws until Stage 9a.
+    pub fn kind(&self) -> &'static str {
+        self.inner.of_kind.name()
+    }
+
+    /// Its parameters, through reflection, as an editor shows them: a value of the type that its
+    /// kind describes ([`Renderer::describe_materials`](crate::Renderer::describe_materials)),
+    /// [`MaterialValues`] for the physically based kind.
+    pub fn parameters(&self) -> Value {
+        self.inner
+            .parameters
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    /// Changes its parameters to those that `parameters` describes, as an editor does, through
+    /// reflection; its textures and its sidedness stay as made. Its kind converts them into what
+    /// its shader reads. The work submitted to the GPU after this call draws with the new
+    /// parameters, the work submitted before with the old ones: called between two frames
+    /// ([`Renderer::render`](crate::Renderer::render)), as a game does, it changes the next frame
+    /// whole. Once the device is lost, it changes the parameters that [`Material::parameters`]
+    /// gives, and nothing that is drawn.
+    ///
+    /// # Errors
+    ///
+    /// [`RenderError::InvalidMaterial`] if its kind refuses `parameters`: a value that is not of
+    /// its parameters' type, that holds a number out of its field's range or breaks a rule of the
+    /// type, or, for the physically based kind, an alpha mode that adds a cutoff to an opaque
+    /// material or removes the cutoff of a masked one. The material is not changed then.
+    ///
+    /// # Panics
+    ///
+    /// If `gpu` is not the device the material was created with, and is not lost: wgpu panics.
+    pub fn set_parameters(&self, gpu: &Gpu, parameters: &Value) -> Result<(), RenderError> {
+        let bytes = self
+            .inner
+            .of_kind
+            .pack(&self.inner, parameters)
+            .map_err(|reason| RenderError::InvalidMaterial {
+                label: self.inner.label.to_string(),
+                reason,
+            })?;
+        // A panic while the lock is held, when `gpu` is another device, leaves the parameters
+        // whole: the old ones. Under the lock, so that the buffer holds what the clones read.
+        let mut current = self
+            .inner
+            .parameters
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        gpu.write_uniform_buffer(&self.inner.uniform, &bytes);
+        *current = parameters.clone();
+        Ok(())
+    }
+
+    /// The values it is drawn with, the parameters of the physically based kind: those it was
+    /// created with, or the last that [`Material::set_values`] or [`Material::set_parameters`]
+    /// gave it, or one of its clones.
+    ///
+    /// # Panics
+    ///
+    /// If it is not of the physically based kind, which no material is until Stage 9a.
     pub fn values(&self) -> MaterialValues {
-        *self.values.lock().unwrap_or_else(PoisonError::into_inner)
+        MaterialValues::from_value(&self.parameters())
+            .expect("a physically based material's parameters are its values")
     }
 
-    /// Changes the values it is drawn with to `values`; its textures and its sidedness stay as
-    /// made. The work submitted to the GPU after this call draws with the new values, the work
-    /// submitted before with the old ones: called between two frames ([`Renderer::render`](crate::Renderer::render)), as a
-    /// game does, it changes the next frame whole. Once the device is lost, it changes the values
-    /// that [`Material::values`] gives, and nothing that is drawn.
+    /// Changes the values it is drawn with to `values`, as [`Material::set_parameters`] does.
     ///
     /// # Errors
     ///
@@ -338,27 +435,16 @@ impl Material {
     ///
     /// # Panics
     ///
-    /// If `gpu` is not the device the material was created with, and is not lost: wgpu panics.
+    /// As [`Material::set_parameters`].
     pub fn set_values(&self, gpu: &Gpu, values: MaterialValues) -> Result<(), RenderError> {
-        let invalid = |reason| RenderError::InvalidMaterial {
-            label: self.label.to_string(),
-            reason,
-        };
+        // Said as creating a material says it, rather than as reflection does.
         if let Some(reason) = values.invalid() {
-            return Err(invalid(reason));
+            return Err(RenderError::InvalidMaterial {
+                label: self.inner.label.to_string(),
+                reason,
+            });
         }
-        if matches!(values.alpha_mode, AlphaMode::Mask { .. }) != self.masked {
-            return Err(invalid(format!(
-                "its alpha mode stays {}",
-                if self.masked { "a mask" } else { "opaque" }
-            )));
-        }
-        // A panic while the lock is held, when `gpu` is another device, leaves the values whole: the
-        // old ones. Under the lock, so that the buffer holds the values that the clones read.
-        let mut current = self.values.lock().unwrap_or_else(PoisonError::into_inner);
-        gpu.write_uniform_buffer(&self.uniform, &values.bytes(self.normal_texture));
-        *current = values;
-        Ok(())
+        self.set_parameters(gpu, &values.to_value())
     }
 }
 
@@ -417,13 +503,17 @@ impl MaterialParts {
         }
         let group = gpu.create_bind_group(label, &self.layout, &entries)?;
         Ok(Material {
-            group,
-            uniform,
-            values: Arc::new(Mutex::new(values)),
-            label: label.into(),
-            normal_texture,
-            double_sided: data.double_sided,
-            masked: matches!(data.alpha_mode, AlphaMode::Mask { .. }),
+            inner: Arc::new(MaterialInner {
+                group,
+                uniform,
+                parameters: Mutex::new(values.to_value()),
+                label: label.into(),
+                normal_texture,
+                double_sided: data.double_sided,
+                masked: matches!(data.alpha_mode, AlphaMode::Mask { .. }),
+                kind: PHYSICALLY_BASED,
+                of_kind: &PhysicallyBased,
+            }),
         })
     }
 }
