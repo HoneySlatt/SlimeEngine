@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use slime_gfx::Gpu;
 use slime_render::glam::{DVec3, Vec3};
 use slime_render::{
-    AssetCache, Camera, DirectionalLight, Environment, Instance, Light, MAX_LIGHTS, PointLight,
+    AssetCache, DirectionalLight, Environment, Instance, Light, MAX_LIGHTS, PointLight,
     RenderError, Scene, SceneError, Sky, SpotLight,
 };
 use slime_world::{Entity, Meshes, Transform, World};
@@ -33,11 +33,13 @@ use slime_world::{Entity, Meshes, Transform, World};
 ///   sun, and a warning is logged.
 /// - When the world places more lights than the renderer draws, [`MAX_LIGHTS`], the scene that
 ///   [`Frame::scene`] gives puts first, after the sun, the other directional lights, which reach
-///   everywhere, then the point and spot lights nearest the camera: the renderer draws the first
-///   ones, and the lamps near the player are among them.
+///   everywhere, then the point and spot lights nearest a point that the game gives, the eye of its
+///   main view's camera or where its player stands: the renderer draws the first ones, the same in
+///   every view, and the lamps near the player are among them.
 ///
-/// The camera, the exposure and the bloom are the game's, which it sets on the scene that
-/// [`Frame::scene`] gives.
+/// The cameras, the exposure and the bloom are the game's: it sets the exposure and the bloom on
+/// the scene that [`Frame::scene`] gives, and draws it through views of its own cameras
+/// (`slime_render::ViewDraw`).
 ///
 /// # Costs
 ///
@@ -86,12 +88,13 @@ pub struct Frame {
 }
 
 impl Frame {
-    /// The scene to draw, seen from `camera`, with the frame's instances, lights and environment,
-    /// which it takes; its other fields, the exposure and the bloom, are the game's to set. When
-    /// the frame has more lights than the renderer draws, [`MAX_LIGHTS`], it orders them first, as
-    /// [`FrameBuilder`] says: the sun, the other directional lights, then the others nearest
-    /// `camera`'s eye first, in the world's order for those as near.
-    pub fn scene(self, camera: Camera) -> Scene {
+    /// The scene to draw, with the frame's instances, lights and environment, which it takes; its
+    /// other fields, the exposure and the bloom, are the game's to set. When the frame has more
+    /// lights than the renderer draws, [`MAX_LIGHTS`], it orders them first, as [`FrameBuilder`]
+    /// says: the sun, the other directional lights, then the others nearest `near` first, in the
+    /// world's order for those as near. A game gives the eye of its main view's camera, or where
+    /// its player stands.
+    pub fn scene(self, near: DVec3) -> Scene {
         let Self {
             instances,
             mut lights,
@@ -100,9 +103,9 @@ impl Frame {
             ..
         } = self;
         if lights.len() > MAX_LIGHTS {
-            nearest_first(&mut lights, sun, camera.eye);
+            nearest_first(&mut lights, sun, near);
         }
-        let mut scene = Scene::new(camera, instances);
+        let mut scene = Scene::new(instances);
         scene.lights = lights.into_iter().map(|(_, light)| light).collect();
         scene.environment = environment;
         scene
@@ -237,15 +240,15 @@ impl FrameBuilder {
 
 /// Orders `lights`, which start with the sky's sun if `sun`, so that the renderer draws those that
 /// matter most to the player: the sun stays first, then come the other directional lights, which
-/// reach everywhere, then the point and spot lights by their distance to `eye`, each group in the
+/// reach everywhere, then the point and spot lights by their distance to `near`, each group in the
 /// order it had for lights as near.
-fn nearest_first(lights: &mut [(Entity, Light)], sun: bool, eye: DVec3) {
+fn nearest_first(lights: &mut [(Entity, Light)], sun: bool, near: DVec3) {
     let rest = &mut lights[usize::from(sun)..];
     rest.sort_by(|(_, a), (_, b)| {
         let key = |light: &Light| match light {
             Light::Directional(_) => (0, 0.0),
-            Light::Point(point) => (1, point.position.distance_squared(eye)),
-            Light::Spot(spot) => (1, spot.position.distance_squared(eye)),
+            Light::Point(point) => (1, point.position.distance_squared(near)),
+            Light::Spot(spot) => (1, spot.position.distance_squared(near)),
         };
         let ((a_group, a_distance), (b_group, b_distance)) = (key(a), key(b));
         a_group

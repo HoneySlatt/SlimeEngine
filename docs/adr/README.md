@@ -105,17 +105,17 @@ the ADR linking to it.
 | [0035](0035-physically-based-materials.md) | Physically based materials | Accepted; amended by 0037, 0039, 0069 and 0111 |
 | [0036](0036-direct3d-12-shader-compiler.md) | The shader compiler of Direct3D 12 | Accepted; amended by 0066 |
 | [0037](0037-lights-in-physical-units-and-pre-exposure.md) | Lights in physical units, and pre-exposure | Accepted; amended by 0038, 0039, 0040 and 0042 |
-| [0038](0038-shadow-mapping.md) | Shadow mapping | Accepted; amended by 0039, 0041, 0047, 0049, 0050, 0061, 0063 and 0064 |
+| [0038](0038-shadow-mapping.md) | Shadow mapping | Accepted; amended by 0039, 0041, 0047, 0049, 0050, 0061, 0063, 0064 and 0126 |
 | [0039](0039-image-based-lighting-computed-on-the-cpu.md) | Image-based lighting computed on the CPU | Accepted; amended by 0041 |
 | [0040](0040-bloom.md) | Bloom | Accepted; amended by 0041 |
-| [0041](0041-render-graph.md) | The render graph | Accepted; amended by 0111 and 0115 |
+| [0041](0041-render-graph.md) | The render graph | Accepted; amended by 0111, 0115 and 0126 |
 | [0042](0042-lights-beyond-the-most-drawn-and-checked-scene-values.md) | Lights beyond the most drawn, and checked scene values | Accepted; amended by 0102 and 0106 |
 | [0043](0043-application-errors-during-a-run.md) | Application errors during a run | Accepted |
 | [0044](0044-running-out-of-gpu-memory.md) | Running out of GPU memory | Accepted |
 | [0045](0045-one-linear-color-type.md) | One linear color type | Accepted; amended by 0079, 0084 |
 | [0046](0046-constructors-for-the-structs-a-game-fills-in.md) | Constructors for the structs a game fills in | Accepted |
-| [0047](0047-reversed-depth-with-an-infinite-far-plane.md) | Reversed depth with an infinite far plane | Accepted |
-| [0048](0048-rendering-relative-to-the-camera.md) | Rendering relative to the camera | Accepted; amended by 0079 |
+| [0047](0047-reversed-depth-with-an-infinite-far-plane.md) | Reversed depth with an infinite far plane | Accepted; amended by 0126 |
+| [0048](0048-rendering-relative-to-the-camera.md) | Rendering relative to the camera | Accepted; amended by 0079 and 0126 |
 | [0049](0049-instances-that-cast-no-shadow.md) | Instances that cast no shadow | Accepted; amended by 0050 |
 | [0050](0050-a-shadow-region-that-follows-the-camera.md) | A shadow region that follows the camera | Accepted; amended by 0063, 0064 and 0065 |
 | [0051](0051-dithering-8-bit-outputs.md) | Dithering 8-bit outputs | Accepted |
@@ -125,13 +125,13 @@ the ADR linking to it.
 | [0055](0055-games-in-the-workspace.md) | Games in the workspace | Accepted; amended by 0067 and 0110 |
 | [0056](0056-stage-3d-anti-aliasing-and-spot-light-shadows.md) | Stage 3d: anti-aliasing and the shadows of spot lights | Accepted; amended by 0058 and 0064 |
 | [0057](0057-what-the-first-game-asks-of-the-next-stages.md) | What the first game asks of the next stages | Accepted; amended by 0121 |
-| [0058](0058-shadows-for-every-spot-light-in-one-atlas.md) | Shadows for every spot light, in one atlas | Accepted |
+| [0058](0058-shadows-for-every-spot-light-in-one-atlas.md) | Shadows for every spot light, in one atlas | Accepted; amended by 0126 |
 | [0059](0059-multisampling-in-the-gpu-layer.md) | Multisampling in the GPU layer | Accepted; amended by 0060 and 0115 |
 | [0060](0060-resolving-the-samples-weighed-by-their-brightness.md) | Resolving the samples weighed by their brightness | Accepted |
 | [0061](0061-projecting-the-shadows-of-spot-lights.md) | Projecting the shadows of spot lights | Accepted; amended by 0062 and 0063 |
 | [0062](0062-looking-spot-shadows-up-off-the-triangle.md) | Looking spot lights' shadows up off the triangle | Accepted; amended by 0063 and 0065 |
 | [0063](0063-a-smoother-shadow-filter.md) | A smoother shadow filter | Accepted; amended by 0064 |
-| [0064](0064-cascaded-shadow-maps.md) | Cascaded shadow maps | Accepted; amended by 0065 |
+| [0064](0064-cascaded-shadow-maps.md) | Cascaded shadow maps | Accepted; amended by 0065 and 0126 |
 | [0065](0065-reading-the-cascades.md) | Reading the cascades | Accepted |
 | [0066](0066-shipping-dxc-beside-the-programs.md) | Shipping DXC beside the programs | Accepted |
 | [0067](0067-hunna-wood-replaces-nightwatch.md) | Hunna Wood replaces Nightwatch as the sample game | Accepted |
@@ -151,7 +151,7 @@ the ADR linking to it.
 | [0081](0081-stage-5a-the-world.md) | Stage 5a: the world | Accepted; amended by 0109 |
 | [0082](0082-the-worlds-storage-and-handles.md) | The world's storage and handles | Accepted; amended by 0119 |
 | [0083](0083-transforms-and-the-hierarchy.md) | Transforms and the hierarchy | Accepted; amended by 0087, 0106 and 0108 |
-| [0084](0084-what-the-world-draws.md) | What the world draws | Accepted; amended by 0106, 0111, 0113 and 0120 |
+| [0084](0084-what-the-world-draws.md) | What the world draws | Accepted; amended by 0106, 0111, 0113, 0120 and 0126 |
 | [0085](0085-reflection.md) | Reflection | Accepted; amended by 0086, 0087, 0101 and 0108 |
 | [0086](0086-serialization.md) | Serialization | Accepted; amended by 0087, 0091 and 0102 |
 | [0087](0087-the-worlds-documents.md) | The world's documents | Accepted; amended by 0088, 0089, 0092, 0093, 0101, 0108, 0112, 0124 and 0125 |
@@ -173,23 +173,24 @@ the ADR linking to it.
 | [0103](0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md) | A lost GPU device is recovered wherever the loss is found | Accepted |
 | [0104](0104-the-build-ci-and-measurements.md) | The build, CI and measurements | Accepted; amended by 0114 and 0123 |
 | [0105](0105-egui-fonts-ship-with-the-dev-overlay.md) | egui's fonts ship with the dev overlay | Accepted |
-| [0106](0106-the-measured-quick-wins.md) | The measured quick wins | Accepted; amended by 0117 |
+| [0106](0106-the-measured-quick-wins.md) | The measured quick wins | Accepted; amended by 0117 and 0126 |
 | [0107](0107-the-execution-model.md) | The execution model | Accepted; amended by 0118 and 0121 |
 | [0108](0108-what-the-world-knows-of-its-changes.md) | What the world knows of its changes | Accepted; amended by 0119 and 0124 |
 | [0109](0109-stable-references-and-undo.md) | Stable references and undo | Accepted; amended by 0116 and 0124 |
 | [0110](0110-how-the-editor-runs-a-games-code.md) | How the editor runs a game's code | Accepted; amended by 0116, 0121 and 0122 |
-| [0111](0111-the-frame-contract.md) | The frame contract | Accepted; amended by 0115 and 0120 |
+| [0111](0111-the-frame-contract.md) | The frame contract | Accepted; amended by 0115, 0120 and 0126 |
 | [0112](0112-levels-saves-and-worlds-for-open-worlds.md) | Levels, saves and worlds for open worlds | Accepted; amended by 0125 |
 | [0113](0113-asset-requests-residency-and-priorities.md) | Asset requests, residency and priorities | Accepted; amended by 0120 |
 | [0114](0114-hardware-tiers-and-the-gpus-limits.md) | Hardware tiers and the GPU's limits | Accepted; amended by 0120 |
 | [0115](0115-what-the-gpu-layer-gives-the-editor.md) | What the GPU layer gives the editor | Accepted; amended by 0117 |
-| [0116](0116-stage-6-in-two-halves.md) | Stage 6 in two halves | Accepted; amended by 0124 |
+| [0116](0116-stage-6-in-two-halves.md) | Stage 6 in two halves | Accepted; amended by 0124 and 0126 |
 | [0117](0117-frustum-culling-and-instancing.md) | Frustum culling and instancing | Accepted |
 | [0118](0118-the-task-pool-and-the-copies-to-the-gpu.md) | The task pool and the copies to the GPU | Accepted |
 | [0119](0119-the-worlds-ticks-blocks-and-log.md) | The world's ticks, blocks and log | Accepted |
 | [0120](0120-a-frame-that-owns-what-it-draws.md) | A frame that owns what it draws | Accepted; amended by 0121 |
 | [0121](0121-a-game-as-a-simulation-and-a-presentation.md) | A game as a simulation and a presentation | Accepted; amended by 0122 |
-| [0122](0122-the-development-channel.md) | The development channel and the MCP server | Accepted; amended by 0125 |
+| [0122](0122-the-development-channel.md) | The development channel and the MCP server | Accepted; amended by 0125 and 0126 |
 | [0123](0123-the-linux-checks-in-two-jobs.md) | The Linux checks in two jobs | Accepted |
 | [0124](0124-driven-components-keys-and-created-entities-in-levels.md) | Driven components, start keys and created entities written into levels | Accepted; amended by 0125 |
 | [0125](0125-saves-per-scene.md) | Saves per scene, scenes unloaded and adoption | Accepted |
+| [0126](0126-views-apart-from-the-renderer.md) | Views apart from the renderer | Accepted |

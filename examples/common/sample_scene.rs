@@ -13,7 +13,7 @@ use slime_gfx::{Gpu, RenderTarget};
 use slime_render::glam::{DVec3, Vec3};
 use slime_render::{
     Camera, DirectionalLight, Environment, Light, LoadedScene, RenderError, RenderStats, Renderer,
-    Scene, SceneLoad, ShaderSources, Sky,
+    Scene, SceneLoad, ShaderSources, Sky, View, ViewDraw,
 };
 
 /// The ID of the sample asset, `examples/assets/scene.glb`, made in Blender by
@@ -78,6 +78,8 @@ const SUN: DirectionalLight = DirectionalLight {
 /// A loaded cooked scene, its sky and the renderer that draws them, for targets of one format.
 pub struct SampleScene {
     renderer: Renderer,
+    /// What drawing the scene keeps from one frame to the next.
+    view: View,
     loaded: LoadedScene,
     bounds: Bounds,
     /// The sun of its sky, which `environment` was computed around.
@@ -101,8 +103,10 @@ impl SampleScene {
     ) -> Result<Self, Box<dyn Error + Send + Sync>> {
         let (bounds, sun) = framing(&loaded)?;
         let (environment, environment_time) = sky(gpu, sun)?;
+        let view = renderer.create_view(gpu, "sample scene")?;
         Ok(Self {
             renderer,
+            view,
             loaded,
             bounds,
             sun,
@@ -195,12 +199,17 @@ impl SampleScene {
                 other => other,
             })
             .collect();
-        let mut scene = Scene::new(camera, instances.clone());
+        let mut scene = Scene::new(instances.clone());
         scene.lights = lights.to_vec();
         scene.environment = Some(self.environment.clone());
         scene.exposure = exposure;
         scene.bloom = bloom;
-        self.renderer.render(gpu, target, &scene)
+        self.renderer.render(
+            gpu,
+            &scene,
+            &mut [ViewDraw::new(&mut self.view, camera, target)],
+        )?;
+        Ok(self.view.stats())
     }
 }
 

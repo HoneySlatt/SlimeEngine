@@ -37,6 +37,7 @@ if runs headless; then
     # separate command: cargo ignores `--test` when `--all-targets` is given.
     cargo clippy --locked -p slime-app --test windowed_lifecycle -- -D warnings
     cargo clippy --locked -p slime-mcp --test drive -- -D warnings
+    cargo clippy --locked -p slime-mcp --test views -- -D warnings
     # The game built for shipping, without the development channel (ADR-0122): the code that stands in
     # for the channel is compiled only there.
     cargo clippy --locked -p hunnawood --no-default-features --all-targets -- -D warnings
@@ -45,6 +46,7 @@ if runs headless; then
     cargo clippy --workspace --all-targets --locked --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p slime-app --test windowed_lifecycle --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p slime-mcp --test drive --target x86_64-pc-windows-msvc -- -D warnings
+    cargo clippy --locked -p slime-mcp --test views --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p hunnawood --no-default-features --all-targets --target x86_64-pc-windows-msvc -- -D warnings
 
     step "Build"
@@ -153,6 +155,12 @@ if runs windowed; then
     # The world example draws it from a world, and fails if no frame drew all of it.
     env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
         timeout -k 10 120 cargo run --locked --example world -- --assets "$cooked/first" --frames 120 ||
+        { cat "$runtime/slime-check.log"; exit 1; }
+    # An agent's session through the MCP server captures each of its two views, the yard and the map
+    # (ADR-0126). The test needs a compositor, so it is outside the default test run.
+    env -u DISPLAY XDG_RUNTIME_DIR="$runtime" XDG_DATA_HOME="$runtime/data" WAYLAND_DISPLAY=slime-check \
+        VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+        timeout -k 10 300 cargo test --locked -p slime-mcp --test views -- "$cooked/first" ||
         { cat "$runtime/slime-check.log"; exit 1; }
     # The game too (ADR-0055), by day and at night, each run a new one. It draws the zone cooked above;
     # a frame of it takes seconds on lavapipe, most of them in the shadows of the sun or the moon

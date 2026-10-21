@@ -2,7 +2,8 @@
 
 - Status: Accepted; amends [0026](0026-resource-binding-and-depth.md),
   [0027](0027-the-render-crate.md), [0033](0033-gpu-layer-for-multi-pass-rendering.md) and
-  [0038](0038-shadow-mapping.md)
+  [0038](0038-shadow-mapping.md); amended by [0126](0126-views-apart-from-the-renderer.md) (an
+  orthographic camera's far plane)
 - Date: 2026-10-14
 
 ## Context

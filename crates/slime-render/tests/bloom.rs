@@ -15,8 +15,8 @@ use slime_color::LinearColor;
 use slime_gfx::{FloatImage, Gpu, TextureFormat};
 use slime_render::glam::{DAffine3, DVec3, Vec3};
 use slime_render::{
-    Camera, Environment, Instance, Material, MaterialData, Mesh, MeshData, RenderStats, Renderer,
-    Scene, Sky,
+    Camera, Environment, Instance, Material, MaterialData, Mesh, MeshData, Projection, RenderStats,
+    Renderer, Scene, Sky, View, ViewDraw,
 };
 
 fn gpu() -> Gpu {
@@ -31,7 +31,7 @@ fn camera() -> Camera {
     Camera {
         eye: Vec3::new(0.0, 0.0, DISTANCE).as_dvec3(),
         target: DVec3::ZERO,
-        fov_y: FOV_Y,
+        projection: Projection::Perspective { fov_y: FOV_Y },
         near: 1.0,
         ..Camera::default()
     }
@@ -65,6 +65,7 @@ fn pixel_square(width: u32, height: u32, (x, y): (u32, u32)) -> MeshData {
 struct Pixel {
     gpu: Gpu,
     renderer: Renderer,
+    view: View,
     emitter: Material,
 }
 
@@ -85,9 +86,13 @@ impl Pixel {
                 },
             )
             .expect("the GPU has memory for it");
+        let view = renderer
+            .create_view(&gpu, "view")
+            .expect("the view is created");
         Self {
             gpu,
             renderer,
+            view,
             emitter,
         }
     }
@@ -108,12 +113,16 @@ impl Pixel {
             .create_mesh(&self.gpu, "pixel", &pixel_square(width, height, at))
             .expect("the square is valid");
         let instances = [Instance::new(&mesh, &self.emitter, DAffine3::IDENTITY)];
-        let mut scene = Scene::new(camera(), instances.clone());
+        let mut scene = Scene::new(instances.clone());
         scene.bloom = bloom;
-        let stats = self
-            .renderer
-            .render(&self.gpu, &output, &scene)
+        self.renderer
+            .render(
+                &self.gpu,
+                &scene,
+                &mut [ViewDraw::new(&mut self.view, camera(), &output)],
+            )
             .expect("the frame is drawn");
+        let stats = self.view.stats();
         let image = self
             .gpu
             .read_float_render_target(&output)
@@ -237,12 +246,20 @@ fn uniform(
         },
     )
     .expect("the GPU has memory for it");
-    let mut scene = Scene::new(Camera::default(), Vec::new());
+    let mut scene = Scene::new(Vec::new());
     scene.environment = Some(environment.clone());
     scene.bloom = bloom;
-    let stats = renderer
-        .render(gpu, &output, &scene)
+    let mut view = renderer
+        .create_view(gpu, "view")
+        .expect("the view is created");
+    renderer
+        .render(
+            gpu,
+            &scene,
+            &mut [ViewDraw::new(&mut view, Camera::default(), &output)],
+        )
         .expect("the frame is drawn");
+    let stats = view.stats();
     (
         gpu.read_float_render_target(&output)
             .expect("the image is read back"),
@@ -345,7 +362,7 @@ fn the_chain_follows_the_size_of_the_output() {
 }
 
 #[test]
-fn a_renderer_whose_frame_changes_shape_draws_what_a_new_one_draws_and_times_it_again() {
+fn a_view_whose_frame_changes_shape_draws_what_a_new_one_draws_and_times_it_again() {
     // The bloom stops and resumes, the output grows and shrinks back: each change builds the
     // frame's graph again, with new targets and timers (ADR-0041).
     let shapes = [
@@ -361,7 +378,7 @@ fn a_renderer_whose_frame_changes_shape_draws_what_a_new_one_draws_and_times_it_
         let (fresh, _) = Pixel::new(200.0).draw(size, (20, 20), bloom);
         assert!(
             image.pixels == fresh.pixels,
-            "change {index}, {size:?} at {bloom}: not what a new renderer draws"
+            "change {index}, {size:?} at {bloom}: not what a new view draws"
         );
         if !scene.gpu.can_time() {
             continue;

@@ -4,7 +4,9 @@
 //! `slime-app` keeps, through a library of the cooked scenes, its meshes loaded by an asset cache
 //! in the background, and drawn through `slime-world-render`, its sun given once, to the sky and to
 //! the lights. The glowing ring floats up and down at the fixed step, its light with it, and each
-//! frame draws it between its last two places. The camera turns around the scene. After a lost GPU
+//! frame draws it between its last two places. The camera turns around the scene, and a second
+//! view, orthographic, draws a map of it from above in the window's top right corner
+//! (`docs/adr/0126-views-apart-from-the-renderer.md`). After a lost GPU
 //! device, it goes on: a new asset cache loads the world's meshes again, and the world is
 //! untouched. F2 shows the dev overlay's world panel, which lists the entities by name and edits
 //! their components (`slime-devui`). Escape, closing the window or Ctrl+C quits.
@@ -52,13 +54,15 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::Instant;
 
-use slime_app::{AppConfig, AppError, Context, Presentation, Simulation, SimulationContext};
+use slime_app::{
+    AppConfig, AppError, Context, Presentation, ShownView, Simulation, SimulationContext,
+};
 use slime_assets::{CookedAssets, ManifestWatch};
 use slime_devui::{Overlay, WorldPanel};
 use slime_gfx::RenderTarget;
 use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, WindowConfig};
-use slime_render::glam::DVec3;
-use slime_render::{AssetCache, Camera, Renderer, Scene};
+use slime_render::glam::{DVec3, Vec3};
+use slime_render::{AssetCache, Camera, Projection, Renderer, Scene, View, ViewDraw, Viewport};
 use slime_world::{Entity, Light, PersistentId, SceneLibrary, Tick, Transform, World};
 use slime_world_render::FrameBuilder;
 
@@ -75,6 +79,10 @@ const FLOAT_HEIGHT: f64 = 0.3;
 const FLOAT_PERIOD: f64 = 3.0;
 /// Radians per second at which the camera turns around the scene.
 const TURN_SPEED: f32 = 0.2;
+/// The side of the map, a fraction of the window's shorter side, and its margin from the window's
+/// edges, a fraction of its own side.
+const MAP_SIDE: f32 = 0.3;
+const MAP_MARGIN: f32 = 0.05;
 
 /// The example's rules: the yard spawned, its ring floating at the fixed step, and, with `--watch`,
 /// the run carried into the scenes that changed.
@@ -95,10 +103,14 @@ struct Yard {
 }
 
 /// What the example shows of the yard: the renderer and its asset cache while there is a GPU, the
-/// camera turning around the yard, and the dev overlay's world panel.
+/// camera turning around the yard, the map drawn from above, and the dev overlay's world panel.
 struct YardView {
     /// The renderer, while there is a GPU.
     renderer: Option<Renderer>,
+    /// The views of the camera turning around the yard and of the map, while there is a GPU.
+    views: Option<(View, View)>,
+    /// Where the last frame drew them into the window's image, by their names.
+    shown: Vec<ShownView>,
     /// The dev overlay, while there is a GPU, and its world panel, shown with F2.
     overlay: Option<Overlay>,
     panel: WorldPanel,
@@ -109,8 +121,9 @@ struct YardView {
     /// after a lost device loads from it.
     cached: CookedAssets,
     builder: FrameBuilder,
-    /// The frame that `extract` built, which `render` draws.
-    scene: Option<Scene>,
+    /// The frame that `extract` built, which `render` draws, and the cameras of the yard's view
+    /// and of the map.
+    scene: Option<(Scene, Camera, Camera)>,
     /// Whether that frame draws the whole world: every mesh it names held by the cache.
     whole: bool,
     /// The point the camera looks at, how far from it the yard reaches, and the world's structure
@@ -203,6 +216,10 @@ impl YardView {
             (ctx.gpu(), ctx.surface_format(), ctx.window())
         {
             let renderer = Renderer::new(gpu, format)?;
+            self.views = Some((
+                renderer.create_view(gpu, "yard")?,
+                renderer.create_view(gpu, "map")?,
+            ));
             self.cache = Some(AssetCache::new(&renderer, self.cached.clone()));
             self.renderer = Some(renderer);
             self.overlay = Some(Overlay::new(gpu, format, window.scale_factor())?);
@@ -422,6 +439,18 @@ impl Presentation for YardView {
             near: radius / 1000.0,
             ..Camera::default()
         };
+        // From above, north up: what is farther is as large, as on a map.
+        let map = Camera {
+            eye: center + DVec3::new(0.0, f64::from(radius) * 2.0, 0.0),
+            target: center,
+            up: Vec3::NEG_Z,
+            projection: Projection::Orthographic {
+                height: radius * 1.25,
+                far: radius * 4.0,
+            },
+            near: radius / 1000.0,
+            ..Camera::default()
+        };
         let frame = match self
             .builder
             .build(world, cache, gpu, ctx.time().game().alpha())
@@ -433,10 +462,10 @@ impl Presentation for YardView {
             }
         };
         self.whole = frame.loading == 0;
-        let mut scene = frame.scene(camera);
+        let mut scene = frame.scene(camera.eye);
         scene.exposure = EXPOSURE;
         scene.bloom = BLOOM;
-        self.scene = Some(scene);
+        self.scene = Some((scene, camera, map));
         let mut commands = Vec::new();
         if let (Some(overlay), Some(window)) = (&mut self.overlay, ctx.window()) {
             let (panel, shown) = (&mut self.panel, self.panel_shown);
@@ -454,15 +483,50 @@ impl Presentation for YardView {
     }
 
     fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
-        let (Some(gpu), Some(renderer), Some(scene)) =
-            (ctx.gpu(), self.renderer.as_mut(), self.scene.take())
-        else {
+        // What a tool captures is what this frame draws.
+        self.shown.clear();
+        let (Some(gpu), Some(renderer), Some((yard, map)), Some((scene, camera, map_camera))) = (
+            ctx.gpu(),
+            self.renderer.as_mut(),
+            self.views.as_mut(),
+            self.scene.take(),
+        ) else {
             return;
         };
-        if let Err(error) = renderer.render(gpu, target, &scene) {
+        let mut draws = vec![ViewDraw::new(yard, camera, target)];
+        let side = (target.width().min(target.height()) as f32 * MAP_SIDE) as u32;
+        let margin = (side as f32 * MAP_MARGIN) as u32;
+        // A window too small for a map draws none.
+        if side > 0 {
+            let mut corner = ViewDraw::new(map, map_camera, target);
+            corner.viewport = Some(Viewport {
+                x: target.width() - side - margin,
+                y: margin,
+                width: side,
+                height: side,
+            });
+            draws.push(corner);
+        }
+        if let Err(error) = renderer.render(gpu, &scene, &mut draws) {
             ctx.exit_with_error(error);
             return;
         }
+        self.shown = ["yard", "map"]
+            .into_iter()
+            .zip(&draws)
+            .map(|(name, draw)| {
+                let viewport = draw
+                    .viewport
+                    .unwrap_or_else(|| Viewport::whole(draw.target));
+                ShownView {
+                    name: name.to_owned(),
+                    x: viewport.x,
+                    y: viewport.y,
+                    width: viewport.width,
+                    height: viewport.height,
+                }
+            })
+            .collect();
         if let Some(overlay) = &mut self.overlay {
             overlay.render(gpu, target);
         }
@@ -474,9 +538,15 @@ impl Presentation for YardView {
         }
     }
 
+    fn views(&self) -> Vec<ShownView> {
+        self.shown.clone()
+    }
+
     fn gpu_lost(&mut self, _ctx: &mut Context) {
         // Every GPU object goes, the frame not drawn with them; the world stays as it is.
         self.renderer = None;
+        self.views = None;
+        self.shown.clear();
         self.overlay = None;
         self.cache = None;
         self.scene = None;
@@ -540,6 +610,8 @@ fn main() -> ExitCode {
     };
     let mut view = YardView {
         renderer: None,
+        views: None,
+        shown: Vec::new(),
         overlay: None,
         panel: WorldPanel::default(),
         panel_shown: false,

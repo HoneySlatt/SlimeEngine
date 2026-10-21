@@ -15,7 +15,7 @@ use slime_render::glam::DAffine3;
 use slime_render::glam::DVec3;
 use slime_render::{
     AssetCache, Camera, DirectionalLight, Instance, Light, MaterialData, MeshData, Renderer, Scene,
-    Sky,
+    Sky, View, ViewDraw,
 };
 use slime_world::{Meshes, Transform, World};
 use slime_world_render::FrameBuilder;
@@ -215,12 +215,23 @@ fn drawn_while_loading(
 ) -> Result<Vec<Row>, String> {
     let gpu = &context.gpu;
     let mut renderer = Renderer::new(gpu, FORMAT).map_err(|error| error.to_string())?;
+    let mut view = renderer
+        .create_view(gpu, "benchmark")
+        .map_err(|error| error.to_string())?;
     let target = gpu
         .create_render_target("benchmark frame", 1280, 720, FORMAT)
         .map_err(|error| error.to_string())?;
     let (sky, sun) = sky_and_sun();
     let mut builder = FrameBuilder::new(Some(Sky { sun: None, ..sky }));
-    warm_up(gpu, &mut renderer, &mut builder, &target, sun, directory)?;
+    warm_up(
+        gpu,
+        &mut renderer,
+        &mut view,
+        &mut builder,
+        &target,
+        sun,
+        directory,
+    )?;
     let start = Instant::now();
     let (assets, opening) = timed(|| CookedAssets::open(directory));
     let assets = assets.map_err(|error| error.to_string())?;
@@ -262,12 +273,17 @@ fn drawn_while_loading(
             return Err(error.to_string());
         }
         let whole = frame.loading == 0;
-        let mut scene = frame.scene(camera);
+        let mut scene = frame.scene(camera.eye);
         scene.exposure = EXPOSURE;
         scene.bloom = 0.04;
-        let stats = renderer
-            .render(gpu, &target, &scene)
+        renderer
+            .render(
+                gpu,
+                &scene,
+                &mut [ViewDraw::new(&mut view, camera, &target)],
+            )
             .map_err(|error| error.to_string())?;
+        let stats = view.stats();
         gpu.wait_idle().map_err(|error| error.to_string())?;
         if whole {
             first_whole.get_or_insert(start.elapsed());
@@ -309,12 +325,13 @@ fn drawn_while_loading(
 
 /// Gives the frame its shape before the load starts, so that what a load costs the frames is not
 /// mixed with what a first frame costs: draws a cube that casts a shadow under `sun`, which makes
-/// the renderer's targets and its cascades' atlas, and builds a frame of a world with the sun
+/// `view`'s targets and the renderer's cascades' atlas, and builds a frame of a world with the sun
 /// alone, which makes the sky's environment, with an asset cache of the cooked data in `directory`
 /// that it asks nothing of.
 fn warm_up(
     gpu: &slime_gfx::Gpu,
     renderer: &mut Renderer,
+    view: &mut View,
     builder: &mut FrameBuilder,
     target: &slime_gfx::RenderTarget,
     sun: DirectionalLight,
@@ -329,9 +346,12 @@ fn warm_up(
         .map_err(error)?;
     let instances = [Instance::new(&cube, &white, DAffine3::IDENTITY)];
     let lights = [Light::Directional(sun)];
-    let mut scene = Scene::new(Camera::default(), instances.clone());
+    let mut scene = Scene::new(instances.clone());
     scene.lights = lights.to_vec();
-    renderer.render(gpu, target, &scene).map_err(error)?;
+    let camera = Camera::default();
+    renderer
+        .render(gpu, &scene, &mut [ViewDraw::new(view, camera, target)])
+        .map_err(error)?;
     let mut world = World::new();
     spawn_sun(&mut world);
     world.update_transforms();
@@ -343,7 +363,11 @@ fn warm_up(
         .build(&world, &mut cache, gpu, 0.0)
         .map_err(|error| error.to_string())?;
     renderer
-        .render(gpu, target, &frame.scene(Camera::default()))
+        .render(
+            gpu,
+            &frame.scene(camera.eye),
+            &mut [ViewDraw::new(view, camera, target)],
+        )
         .map_err(error)?;
     gpu.wait_idle().map_err(|error| error.to_string())
 }

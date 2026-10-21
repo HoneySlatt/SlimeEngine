@@ -12,7 +12,7 @@ use slime_gfx::{GfxError, Gpu, RenderTarget, TextureFormat};
 use slime_render::glam::{DAffine3, DVec3, Vec3};
 use slime_render::{
     Camera, DirectionalLight, Environment, Instance, Light, Material, MaterialData, Mesh, MeshData,
-    RenderError, Renderer, Scene, ShaderSources, Sky,
+    RenderError, Renderer, Scene, ShaderSources, Sky, View, ViewDraw,
 };
 
 const SIZE: u32 = 64;
@@ -22,6 +22,7 @@ const SIZE: u32 = 64;
 struct Setup {
     gpu: Gpu,
     renderer: Renderer,
+    view: View,
     target: RenderTarget,
     sphere: Mesh,
     material: Material,
@@ -61,9 +62,13 @@ impl Setup {
             },
         )
         .expect("the GPU has memory for it");
+        let view = renderer
+            .create_view(&gpu, "view")
+            .expect("the view is created");
         Self {
             gpu,
             renderer,
+            view,
             target,
             sphere,
             material,
@@ -87,12 +92,16 @@ impl Setup {
             eye: DVec3::new(0.0, 0.5, 2.5),
             ..Camera::default()
         };
-        let mut scene = Scene::new(camera, instances.clone());
+        let mut scene = Scene::new(instances.clone());
         scene.lights = lights.to_vec();
         scene.environment = Some(self.environment.clone());
         scene.bloom = 0.04;
         self.renderer
-            .render(&self.gpu, &self.target, &scene)
+            .render(
+                &self.gpu,
+                &scene,
+                &mut [ViewDraw::new(&mut self.view, camera, &self.target)],
+            )
             .expect("the frame is drawn");
         self.gpu
             .read_render_target(&self.target)

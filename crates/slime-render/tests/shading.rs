@@ -31,7 +31,7 @@ use slime_gfx::{
 use slime_render::glam::{DAffine3, DVec3, Mat4, Quat, Vec3, Vec4};
 use slime_render::{
     AlphaMode, Camera, DirectionalLight, Environment, Instance, Light, Material, MaterialData,
-    Mesh, MeshData, Renderer, SampledTexture, Scene, Sky,
+    Mesh, MeshData, Renderer, SampledTexture, Scene, Sky, View, ViewDraw,
 };
 
 use brdf::Surface;
@@ -61,6 +61,7 @@ const TOWARDS_BITANGENT: [u8; 4] = [128, 191, 238, 255];
 struct Setup {
     gpu: Gpu,
     renderer: Renderer,
+    view: View,
     output: RenderTarget,
     square: Mesh,
     nearest: Sampler,
@@ -89,9 +90,13 @@ impl Setup {
                 },
             )
             .expect("the GPU has memory for it");
+        let view = renderer
+            .create_view(&gpu, "view")
+            .expect("the view is created");
         Self {
             gpu,
             renderer,
+            view,
             output,
             square,
             nearest,
@@ -154,11 +159,15 @@ impl Setup {
             .expect("the GPU has memory for it")
         });
         let lights = [Light::Directional(light)];
-        let mut scene = Scene::new(camera, instances.clone());
+        let mut scene = Scene::new(instances.clone());
         scene.lights = lights.to_vec();
         scene.environment = environment.clone();
         self.renderer
-            .render(&self.gpu, &self.output, &scene)
+            .render(
+                &self.gpu,
+                &scene,
+                &mut [ViewDraw::new(&mut self.view, camera, &self.output)],
+            )
             .expect("the frame is drawn");
         self.gpu
             .read_float_render_target(&self.output)

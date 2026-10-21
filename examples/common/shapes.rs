@@ -11,7 +11,7 @@ use slime_gfx::{Gpu, RenderTarget, SamplerDescriptor, TextureFormat};
 use slime_render::glam::{DAffine3, DQuat, DVec3, Vec3};
 use slime_render::{
     Camera, DirectionalLight, Environment, Instance, Light, Material, MaterialData, Mesh, MeshData,
-    RenderError, RenderStats, Renderer, SampledTexture, Scene, Sky,
+    RenderError, RenderStats, Renderer, SampledTexture, Scene, Sky, View, ViewDraw,
 };
 
 /// A slightly warm light of π lux from above and from the side the camera starts on, under which a
@@ -57,6 +57,8 @@ const CHECKER_SQUARE: u32 = 8;
 /// The renderer and the GPU objects of the shapes, for targets of one format.
 pub struct Shapes {
     renderer: Renderer,
+    /// What drawing the shapes keeps from one frame to the next.
+    view: View,
     cube: Mesh,
     sphere: Mesh,
     orange: Material,
@@ -127,9 +129,11 @@ impl Shapes {
         let [dielectrics, metals] = spheres;
         let spheres = [dielectrics?, metals?];
         let environment = Environment::new(gpu, &SKY)?;
+        let view = renderer.create_view(gpu, "shapes")?;
         Ok(Self {
             environment,
             renderer,
+            view,
             cube,
             sphere,
             orange,
@@ -204,11 +208,16 @@ impl Shapes {
             }
         }
         let lights = [Light::Directional(SUN)];
-        let mut scene = Scene::new(camera, instances.clone());
+        let mut scene = Scene::new(instances.clone());
         scene.lights = lights.to_vec();
         scene.environment = Some(self.environment.clone());
         scene.bloom = BLOOM;
-        self.renderer.render(gpu, target, &scene)
+        self.renderer.render(
+            gpu,
+            &scene,
+            &mut [ViewDraw::new(&mut self.view, camera, target)],
+        )?;
+        Ok(self.view.stats())
     }
 }
 

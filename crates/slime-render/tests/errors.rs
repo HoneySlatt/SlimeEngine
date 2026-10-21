@@ -5,7 +5,9 @@
 
 use slime_color::LinearColor;
 use slime_gfx::{GfxError, Gpu, RenderTarget, TextureFormat};
-use slime_render::{Camera, Environment, MaterialData, RenderError, Renderer, Scene, Sky};
+use slime_render::{
+    Camera, Environment, MaterialData, RenderError, Renderer, Scene, Sky, View, ViewDraw,
+};
 
 const FORMAT: TextureFormat = TextureFormat::Rgba8UnormSrgb;
 
@@ -24,21 +26,31 @@ fn creations_on_a_lost_device_return_the_loss() {
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
     let mut renderer = Renderer::new(&gpu, FORMAT).expect("the renderer is created");
     let (small, larger) = (target(&gpu, 32), target(&gpu, 64));
-    let mut scene = Scene::new(Camera::default(), Vec::new());
+    let mut view = renderer
+        .create_view(&gpu, "view")
+        .expect("the view is created");
+    let mut scene = Scene::new(Vec::new());
     scene.bloom = 0.5;
-    renderer
-        .render(&gpu, &small, &scene)
-        .expect("the frame is drawn");
+    let draw = |renderer: &mut Renderer, view: &mut View, target: &RenderTarget| {
+        renderer.render(
+            &gpu,
+            &scene,
+            &mut [ViewDraw::new(view, Camera::default(), target)],
+        )
+    };
+    draw(&mut renderer, &mut view, &small).expect("the frame is drawn");
 
     // A loss, as a driver reset would cause.
     gpu.lose();
 
     // A frame of the same size creates nothing, and is not drawn either.
-    let frame = renderer.render(&gpu, &small, &scene);
+    let frame = draw(&mut renderer, &mut view, &small);
     assert!(is_lost(&frame), "{frame:?}");
     // A frame of a new size creates its targets: it is not drawn, and the renderer does not panic.
-    let frame = renderer.render(&gpu, &larger, &scene);
+    let frame = draw(&mut renderer, &mut view, &larger);
     assert!(is_lost(&frame), "{frame:?}");
+    let view = renderer.create_view(&gpu, "lost");
+    assert!(is_lost(&view), "{view:?}");
     let material = renderer.create_material(&gpu, "lost", &MaterialData::default());
     assert!(is_lost(&material), "{material:?}");
     let grey = Sky {

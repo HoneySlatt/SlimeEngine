@@ -34,7 +34,7 @@ use slime_gfx::{FloatImage, Gpu, RenderTarget, TextureFormat};
 use slime_render::glam::{DAffine3, DVec3, EulerRot, Mat4, Vec3};
 use slime_render::{
     AlphaMode, Camera, DirectionalLight, Environment, Instance, Light, Material, MaterialData,
-    Mesh, MeshData, PointLight, RenderStats, Renderer, Scene, Sky,
+    Mesh, MeshData, PointLight, Projection, RenderStats, Renderer, Scene, Sky, View, ViewDraw,
 };
 
 use brdf::Surface;
@@ -56,6 +56,7 @@ const SKY: f64 = 0.125;
 struct Setup {
     gpu: Gpu,
     renderer: Renderer,
+    view: View,
     output: RenderTarget,
     square: Mesh,
     white: Material,
@@ -89,10 +90,14 @@ impl Setup {
             },
         )
         .expect("the GPU has memory for it");
+        let view = renderer
+            .create_view(&gpu, "view")
+            .expect("the view is created");
         Self {
             sky,
             gpu,
             renderer,
+            view,
             output,
             square,
             white,
@@ -136,13 +141,17 @@ impl Setup {
                 instance
             })
             .collect();
-        let mut scene = Scene::new(camera, instances.clone());
+        let mut scene = Scene::new(instances.clone());
         scene.lights = lights.to_vec();
         scene.environment = Some(self.sky.clone());
-        let stats = self
-            .renderer
-            .render(&self.gpu, &self.output, &scene)
+        self.renderer
+            .render(
+                &self.gpu,
+                &scene,
+                &mut [ViewDraw::new(&mut self.view, camera, &self.output)],
+            )
             .expect("the frame is drawn");
+        let stats = self.view.stats();
         let image = self
             .gpu
             .read_float_render_target(&self.output)
@@ -258,7 +267,10 @@ struct Cascade {
 fn cascades(camera: &Camera, distance: f32, axes: [DVec3; 2]) -> [Cascade; 4] {
     let end = |index: usize| f64::from(distance) * ((2u32 << index) - 1) as f64 / 15.0;
     let near_plane = f64::from(camera.near);
-    let tan = (f64::from(camera.fov_y) / 2.0).tan();
+    let Projection::Perspective { fov_y } = camera.projection else {
+        panic!("the cascades of a camera in perspective");
+    };
+    let tan = (f64::from(fov_y) / 2.0).tan();
     let corner = 2.0 * tan * tan;
     let eye = camera.eye;
     let forward = (camera.target - eye).normalize();
@@ -839,12 +851,16 @@ fn a_lit_sphere_does_not_shadow_itself() {
             DAffine3::from_mat4(transform.as_dmat4()),
         )];
         let lights = [Light::Directional(light)];
-        let mut scene = Scene::new(camera, instances.clone());
+        let mut scene = Scene::new(instances.clone());
         scene.lights = lights.to_vec();
         scene.environment = Some(setup.sky.clone());
         setup
             .renderer
-            .render(&setup.gpu, &setup.output, &scene)
+            .render(
+                &setup.gpu,
+                &scene,
+                &mut [ViewDraw::new(&mut setup.view, camera, &setup.output)],
+            )
             .expect("the frame is drawn");
         setup
             .gpu

@@ -129,7 +129,8 @@ fn main() -> Result<(), GfxError> {
 - Every method that creates a GPU object returns a `Result`: a buffer, texture or timer that the
   GPU's memory cannot hold is `GfxError::OutOfMemory`, so that a game can free memory or ask for
   less (ADR-0044); the `SLIME_GPU_MEMORY_BUDGET` environment variable (`MEMORY_BUDGET_ENV_VAR`)
-  lowers that memory, to a percentage of what the driver allows.
+  lowers that memory, to a percentage of what the driver allows. `Gpu::memory_in_use` gives what
+  the device's objects take, as wgpu counts it on Vulkan and Direct3D 12.
 - The GPU objects, each created by a method of `Gpu` with a label that names it in error messages
   and capture tools, are handles that their clones share (ADR-0017): `RenderTarget` and
   `DepthTarget`, which passes draw into and later passes sample; `Texture`, `Sampler` and
@@ -155,7 +156,8 @@ fn main() -> Result<(), GfxError> {
   targets of `MULTISAMPLE_COUNT` samples per pixel, which pipelines built `multisampled` draw into;
   `RenderPassDescriptor::resolve` names the target of one sample that the pass averages them into
   as it ends (ADR-0059); a later pass's shader can also read them sample by sample, at a
-  `BindingType::MultisampledTexture` binding (ADR-0060).
+  `BindingType::MultisampledTexture` binding (ADR-0060). `RenderTarget::is_multisampled` tells them
+  from targets of one sample.
 - `Surface::acquire` gives the `SurfaceFrame` to draw a window's next image into, and
   `SurfaceFrame::present` shows it, as its `PresentMode` says (ADR-0021). The surface releases the
   last image when it is dropped or restored, so that an image that a panic or a lost device left

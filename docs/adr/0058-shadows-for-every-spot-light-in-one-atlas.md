@@ -1,7 +1,8 @@
 # 0058. Shadows for every spot light, in one atlas
 
 - Status: Accepted; amends [0056](0056-stage-3d-anti-aliasing-and-spot-light-shadows.md) (how many
-  spot lights cast shadows, and through what)
+  spot lights cast shadows, and through what); amended by
+  [0126](0126-views-apart-from-the-renderer.md) (the tiles drawn once a frame)
 - Date: 2026-10-15
 
 ## Context

@@ -30,7 +30,7 @@ use slime_gfx::{FloatImage, Gpu, RenderTarget, TextureFormat};
 use slime_render::glam::{DAffine3, DVec3, Vec3};
 use slime_render::{
     Camera, DirectionalLight, Instance, Light, MAX_LIGHTS, Material, MaterialData, Mesh, MeshData,
-    PointLight, Renderer, Scene, SpotLight,
+    PointLight, Renderer, Scene, SpotLight, View, ViewDraw,
 };
 
 use brdf::Surface;
@@ -51,6 +51,7 @@ const WHITE: Surface = Surface {
 struct Setup {
     gpu: Gpu,
     renderer: Renderer,
+    view: View,
     output: RenderTarget,
     square: Mesh,
     white: Material,
@@ -87,9 +88,13 @@ impl Setup {
         let white = renderer
             .create_material(&gpu, "white", &MaterialData::default())
             .expect("the GPU has memory for it");
+        let view = renderer
+            .create_view(&gpu, "view")
+            .expect("the view is created");
         Self {
             gpu,
             renderer,
+            view,
             output,
             square,
             white,
@@ -109,11 +114,15 @@ impl Setup {
             material.unwrap_or(&self.white),
             DAffine3::IDENTITY,
         )];
-        let mut scene = Scene::new(camera(), instances.clone());
+        let mut scene = Scene::new(instances.clone());
         scene.lights = lights.to_vec();
         scene.exposure = exposure;
         self.renderer
-            .render(&self.gpu, &self.output, &scene)
+            .render(
+                &self.gpu,
+                &scene,
+                &mut [ViewDraw::new(&mut self.view, camera(), &self.output)],
+            )
             .expect("the frame is drawn");
         self.gpu
             .read_float_render_target(&self.output)

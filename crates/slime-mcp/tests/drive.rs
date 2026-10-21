@@ -8,63 +8,17 @@
 //! with lavapipe, as it runs the windowed lifecycle test (ADR-0024). It is not in the default run of
 //! `cargo test` (`test = false` in Cargo.toml), and has no harness, so that its failures print once.
 
-use std::io::{BufRead as _, BufReader, Write as _};
-use std::path::{Path, PathBuf};
-use std::process::{ChildStdin, ChildStdout, Command, Stdio};
+#[path = "common/session.rs"]
+mod session;
 
-use base64::Engine as _;
-use serde_json::{Value, json};
+use std::path::Path;
 
-/// The server's ends of the conversation.
-struct Session {
-    input: ChildStdin,
-    output: BufReader<ChildStdout>,
-    next: u64,
-}
+use serde_json::json;
 
-impl Session {
-    /// Sends `method` with `params`, and returns the result of the server's answer.
-    fn call(&mut self, method: &str, params: Value) -> Value {
-        self.next += 1;
-        let id = self.next;
-        let request = json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params });
-        writeln!(self.input, "{request}").expect("the server reads");
-        self.input.flush().expect("the server reads");
-        loop {
-            let mut line = String::new();
-            let read = self
-                .output
-                .read_line(&mut line)
-                .expect("the server answers");
-            assert!(read > 0, "the server ended before answering {method}");
-            let answer: Value = serde_json::from_str(&line).expect("JSON");
-            if answer["id"] == json!(id) {
-                assert!(answer["error"].is_null(), "{method}: {answer}");
-                return answer["result"].clone();
-            }
-        }
-    }
-
-    /// Calls the tool `name` with `arguments`, and returns the texts of its result and the result;
-    /// it panics when the tool fails.
-    fn tool(&mut self, name: &str, arguments: Value) -> (Vec<String>, Value) {
-        let result = self.call(
-            "tools/call",
-            json!({ "name": name, "arguments": arguments }),
-        );
-        let texts = result["content"]
-            .as_array()
-            .expect("content")
-            .iter()
-            .filter_map(|block| block["text"].as_str().map(str::to_owned))
-            .collect::<Vec<_>>();
-        assert_ne!(result["isError"], json!(true), "{name}: {texts:?}");
-        (texts, result)
-    }
-}
+use session::{Session, image, server};
 
 fn main() {
-    let server = PathBuf::from(env!("CARGO_BIN_EXE_slime-mcp"));
+    let server = server();
     let target = server.parent().expect("the target directory");
     let game = target.join(format!("hunnawood{}", std::env::consts::EXE_SUFFIX));
     assert!(
@@ -82,36 +36,12 @@ fn main() {
         let _ = std::fs::remove_file(file);
     }
 
-    let mut child = Command::new(&server)
-        .current_dir(&workspace)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("the server starts");
-    let mut session = Session {
-        input: child.stdin.take().expect("piped"),
-        output: BufReader::new(child.stdout.take().expect("piped")),
-        next: 0,
-    };
-    let initialized = session.call(
-        "initialize",
-        json!({
-            "protocolVersion": "2025-06-18",
-            "capabilities": {},
-            "clientInfo": { "name": "drive", "version": "1" },
-        }),
-    );
+    let (mut session, mut child, initialized) = Session::start(&workspace, "drive");
     assert!(
         initialized["capabilities"]["tools"].is_object(),
         "{initialized}"
     );
     assert_eq!(initialized["serverInfo"]["name"], json!("slime-mcp"));
-    writeln!(
-        session.input,
-        "{}",
-        json!({ "jsonrpc": "2.0", "method": "notifications/initialized" })
-    )
-    .expect("the server reads");
     let tools = session.call("tools/list", json!({}));
     let names: Vec<&str> = tools["tools"]
         .as_array()
@@ -186,25 +116,11 @@ fn main() {
     assert_eq!(place(&loaded), place(&walked), "{loaded:?}");
     let (state, _) = session.tool("game_state", json!({}));
     assert!(state[0].contains("paused"), "{state:?}");
-    let (_, image) = session.tool("capture", json!({}));
-    let blocks = image["content"].as_array().expect("content");
-    let png = blocks
-        .iter()
-        .find(|block| block["type"] == json!("image"))
-        .expect("an image");
-    assert_eq!(png["mimeType"], json!("image/png"));
-    let bytes = base64::engine::general_purpose::STANDARD
-        .decode(png["data"].as_str().expect("base64"))
-        .expect("base64");
-    let mut decoder = png::Decoder::new(std::io::Cursor::new(bytes))
-        .read_info()
-        .expect("a PNG image");
-    let mut pixels = vec![0; decoder.output_buffer_size().expect("a size")];
-    let frame = decoder.next_frame(&mut pixels).expect("its pixels");
-    assert!(frame.width > 0 && frame.height > 0);
+    let (_, captured) = session.tool("capture", json!({}));
+    let (width, height, pixels) = image(&captured);
+    assert!(width > 0 && height > 0);
     // The zone drawn, not a cleared image: many colors.
-    let colors: std::collections::HashSet<&[u8]> =
-        pixels[..frame.buffer_size()].chunks(4).collect();
+    let colors: std::collections::HashSet<&[u8]> = pixels.chunks(4).collect();
     assert!(colors.len() > 1000, "{} colors", colors.len());
     let (lines, _) = session.tool("read_logs", json!({ "after": 0 }));
     assert!(lines[0].contains("development channel"), "{lines:?}");

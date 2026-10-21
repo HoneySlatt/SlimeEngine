@@ -8,7 +8,7 @@ use glam::camera::rh::view::look_to_mat4;
 use glam::{DMat4, DVec3, DVec4, Mat3, Mat4, Vec3};
 use slime_gfx::DepthBias;
 
-use crate::camera::Camera;
+use crate::camera::{Camera, Projection};
 use crate::light::{MAX_LIGHTS, SpotLight, unit};
 
 /// How far the shadow pass pushes away each depth it stores, towards 0 (depth is reversed,
@@ -204,24 +204,40 @@ impl CascadeView {
     }
 }
 
-/// The sphere around what `camera` sees, for an output `aspect` times as wide as it is high, from
-/// `near` to `far` along its axis, or to `near` when `far` is nearer: its center, relative to the
-/// eye, and its radius, in f64. It is the smallest sphere centred on the view's axis that holds the
-/// corners of both planes: its radius depends on the field of view, the aspect and the two
-/// distances, not on where the camera looks.
+/// The sphere around what `camera` sees, its whole image whatever part of it the camera draws, for
+/// an output `aspect` times as wide as it is high, from `near` to `far` along its axis, or to
+/// `near` when `far` is nearer: its center, relative to the eye, and its radius, in f64. It is the
+/// smallest sphere centred on the view's axis that holds the corners of both planes: its radius
+/// depends on the projection, the aspect and the two distances, not on where the camera looks, and
+/// cameras that draw parts of one image share it.
 pub(crate) fn view_sphere(camera: &Camera, aspect: f32, near: f32, far: f32) -> (DVec3, f64) {
     let near = f64::from(near);
     let far = f64::from(far).max(near);
-    let tan_y = (f64::from(camera.fov_y) / 2.0).tan();
-    // The squared tangent of the angle from the axis to a corner.
-    let corner = tan_y * tan_y * (1.0 + f64::from(aspect) * f64::from(aspect));
-    // The point of the axis as far from a corner of the near plane as from one of the far plane,
-    // or the far plane's center when that point lies beyond it: a wide view, whose far corners
-    // alone set the sphere.
-    let along = ((far + near) * (corner + 1.0) / 2.0).min(far);
-    let radius = (far * far * corner + (far - along) * (far - along)).sqrt();
+    let aspect = f64::from(camera.whole_aspect(aspect));
     let forward = (camera.target - camera.eye).normalize();
-    (forward * along, radius)
+    match camera.projection {
+        Projection::Perspective { fov_y } => {
+            let tan_y = (f64::from(fov_y) / 2.0).tan();
+            // The squared tangent of the angle from the axis to a corner.
+            let corner = tan_y * tan_y * (1.0 + aspect * aspect);
+            // The point of the axis as far from a corner of the near plane as from one of the far
+            // plane, or the far plane's center when that point lies beyond it: a wide view, whose
+            // far corners alone set the sphere.
+            let along = ((far + near) * (corner + 1.0) / 2.0).min(far);
+            let radius = (far * far * corner + (far - along) * (far - along)).sqrt();
+            (forward * along, radius)
+        }
+        // Both planes as large: the sphere around their middle.
+        Projection::Orthographic { height, .. } => {
+            let half_height = f64::from(height) / 2.0;
+            let corner = half_height * half_height * (1.0 + aspect * aspect);
+            let half_depth = (far - near) / 2.0;
+            (
+                forward * (near + half_depth),
+                (corner + half_depth * half_depth).sqrt(),
+            )
+        }
+    }
 }
 
 /// The width and the height of the spot lights' shadow atlas, in texels: 64 MiB of 32-bit depths
@@ -560,7 +576,9 @@ mod tests {
     fn the_sphere_holds_the_corners_of_the_near_and_far_planes() {
         for (fov_degrees, aspect) in [(60.0f32, 1.0), (60.0, ASPECT), (120.0, 3.0), (10.0, 0.5)] {
             let camera = Camera {
-                fov_y: fov_degrees.to_radians(),
+                projection: Projection::Perspective {
+                    fov_y: fov_degrees.to_radians(),
+                },
                 ..camera(Vec3::ZERO, Vec3::new(0.2, 0.1, -1.0))
             };
             // The whole view up to 50 m, then slices of it, as the cascades have them.
@@ -584,6 +602,47 @@ mod tests {
                      the center, radius {radius}"
                 );
             }
+        }
+    }
+
+    /// An orthographic camera's planes are as large at every distance: the sphere around a slice is
+    /// centred between its planes, and holds their corners, of the whole image whatever part of it
+    /// the camera draws.
+    #[test]
+    fn the_sphere_of_an_orthographic_camera_holds_the_corners_of_both_planes() {
+        let orthographic = Camera {
+            near: 0.5,
+            projection: Projection::Orthographic {
+                height: 6.0,
+                far: 80.0,
+            },
+            ..camera(Vec3::ZERO, Vec3::new(0.2, -1.0, -0.3))
+        };
+        let quarter = Camera {
+            part: crate::ImagePart {
+                x: 0.5,
+                y: 0.5,
+                width: 0.5,
+                height: 0.5,
+            },
+            ..orthographic
+        };
+        for (near, far) in [(0.5, 50.0), (6.0, 14.0)] {
+            let (center, radius) = view_sphere(&orthographic, ASPECT, near, far);
+            // The quarter of an image of this aspect gives the same sphere.
+            assert_eq!(view_sphere(&quarter, ASPECT, near, far), (center, radius));
+            let forward = (orthographic.target - orthographic.eye).normalize();
+            let middle = forward * (f64::from(near) + f64::from(far)) / 2.0;
+            assert!(center.distance(middle) < 1e-9, "{center} against {middle}");
+            let (half_height, half_width) = (3.0, 3.0 * f64::from(ASPECT));
+            let corner = (half_height * half_height
+                + half_width * half_width
+                + (f64::from(far - near) / 2.0).powi(2))
+            .sqrt();
+            assert!(
+                (radius - corner).abs() < 1e-9 * corner,
+                "{radius} against {corner}"
+            );
         }
     }
 

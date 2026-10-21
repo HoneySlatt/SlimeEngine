@@ -25,7 +25,7 @@ hold yet, and draws the game's sky around the world's sun.
 
 ```rust,no_run
 use slime_gfx::Gpu;
-use slime_render::{AssetCache, Camera, RenderError, Renderer};
+use slime_render::{AssetCache, Camera, RenderError, Renderer, View, ViewDraw};
 use slime_world::World;
 use slime_world_render::FrameBuilder;
 
@@ -36,14 +36,17 @@ fn draw(
     world: &World,
     cache: &mut AssetCache,
     renderer: &mut Renderer,
+    view: &mut View,
     gpu: &Gpu,
     target: &slime_gfx::RenderTarget,
     alpha: f64,
 ) -> Result<(), RenderError> {
     let frame = builder.build(world, cache, gpu, alpha)?;
-    let mut scene = frame.scene(Camera::default());
+    let camera = Camera::default();
+    // The lamps nearest the camera are drawn when the world places more than the renderer draws.
+    let mut scene = frame.scene(camera.eye);
     scene.exposure = 0.5;
-    renderer.render(gpu, target, &scene)?;
+    renderer.render(gpu, &scene, &mut [ViewDraw::new(view, camera, target)])?;
     Ok(())
 }
 ```
@@ -51,10 +54,10 @@ fn draw(
 - `FrameBuilder::new(sky)` draws a world around the game's `Sky`, without its sun, which the world
   gives; `FrameBuilder::build(world, cache, gpu, alpha)` gives a `Frame`, the instances, lights and
   environment of one frame, which it owns, so that it can be drawn on another thread, each light
-  with its entity, so that a game's presentation changes what it shows of one without the world,
-  and whose `scene(camera)` is the renderer's `Scene`, its lights the nearest to the camera first
-  when they are more than the renderer draws, with how many meshes still load and why the batches
-  that finished failed.
+  with its entity, so that a game's presentation changes what it shows of one without the world, and
+  whose `scene(near)` is the renderer's `Scene`, its lights the nearest to a point that the game
+  gives first when they are more than the renderer draws, with how many meshes still load and why
+  the batches that finished failed.
 - `FrameBuilder::set_sky` draws the world around another sky from the next frame on, and
   `FrameBuilder::release` drops the environment when the device is lost.
 

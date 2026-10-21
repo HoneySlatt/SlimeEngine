@@ -6,11 +6,12 @@
 //! bloom in.
 
 use std::collections::HashMap;
+use std::fmt;
 use std::ops::Range;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use glam::{DAffine3, DMat4, DVec3, Mat3, Mat4, Vec3};
+use glam::{DAffine3, DMat4, DVec3, Mat3, Mat4, Vec3, Vec4};
 use slime_assets::CookedTexture;
 use slime_gfx::{
     AddressMode, BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource,
@@ -23,7 +24,7 @@ use slime_gfx::{
 use slime_reflect::Registry;
 
 use crate::bytes::{push_f32s, push_mat3, push_mat4, push_u32s};
-use crate::camera::{Camera, Frustum};
+use crate::camera::{Camera, Frustum, Projection};
 use crate::cooked::upload_texture;
 use crate::environment::{Environment, brdf_table};
 use crate::error::RenderError;
@@ -39,8 +40,9 @@ use crate::shadow::{
 };
 
 /// The size of the buffer of the tone-mapping pass's settings: `Settings` in `tone_mapping.wgsl`,
-/// three numbers, which the renderer writes followed by a fourth, unused.
-const TONE_MAPPING_SETTINGS_SIZE: usize = 16;
+/// three numbers, which the renderer writes followed by a fourth, unused, then where the view's
+/// rectangle starts in its output, two numbers followed by two unused.
+const TONE_MAPPING_SETTINGS_SIZE: usize = 32;
 /// The size of the buffer of a level's weight in the bloom's average up: `Weight` in `bloom.wgsl`,
 /// one number, which the renderer writes followed by three, unused.
 const BLOOM_WEIGHT_SIZE: usize = 16;
@@ -53,12 +55,13 @@ const BLOOM_SMALLEST_SIDE: u32 = 8;
 const HDR_FORMAT: TextureFormat = TextureFormat::Rgba16Float;
 /// The size of the values of a frame, as `FrameUniform` in `shader.wgsl` lays them out: the
 /// camera's two `mat4x4<f32>`; the exposure, the number of lights and the index of the light the
-/// cascades shadow (16 bytes); the direction towards the sun's disc and its radiance (16 bytes
-/// each); room for [`MAX_LIGHTS`] lights and as many tiles of the spot lights' atlas; then the
-/// [`CASCADES`] tiles of the cascades' atlas: 2 800 bytes.
+/// cascades shadow (16 bytes); the direction towards an orthographic camera (16 bytes); the
+/// direction towards the sun's disc and its radiance (16 bytes each); room for [`MAX_LIGHTS`]
+/// lights and as many tiles of the spot lights' atlas; then the [`CASCADES`] tiles of the
+/// cascades' atlas: 2 816 bytes.
 const FRAME_VALUES_SIZE: usize = 2 * 64
     + 16
-    + 2 * 16
+    + 3 * 16
     + MAX_LIGHTS * (LIGHT_VALUES_SIZE + SHADOW_TILE_VALUES_SIZE)
     + CASCADES * SHADOW_TILE_VALUES_SIZE;
 /// The size of the values of one tile of a shadow atlas, `ShadowTile` in `shader.wgsl`: its
@@ -156,9 +159,11 @@ impl Instance {
 /// floats, which reach 65 504, hold exposed light up to 64 × 65 504 (ADR-0040): exposed light above
 /// it is clipped to it.
 ///
-/// Positions are in world space, in metres, as `f64`s (ADR-0079). The renderer moves them by
-/// −`camera.eye` in `f64` before they reach the GPU as `f32`s (ADR-0048), so that what is near the
-/// camera is drawn as precisely 10 000 km from the origin as at it.
+/// Positions are in world space, in metres, as `f64`s (ADR-0079). For each view, the renderer moves
+/// them by −the eye of its camera in `f64` before they reach the GPU as `f32`s (ADR-0048), so
+/// that what is near the camera is drawn as precisely 10 000 km from the origin as at it. The scene
+/// holds no camera: each view that draws it has its own ([`ViewDraw`]), and every view draws the
+/// same lights.
 ///
 /// Made by [`Scene::new`], so that a field added later does not break the code that makes one
 /// (ADR-0046), then filled in by changing the fields. It owns what it draws: its instances hold
@@ -166,19 +171,20 @@ impl Instance {
 /// on another (ADR-0111).
 ///
 /// ```
-/// # use slime_render::{Camera, DirectionalLight, Light, Scene};
-/// let mut scene = Scene::new(Camera::default(), Vec::new());
+/// # use slime_render::{DirectionalLight, Light, Scene};
+/// let mut scene = Scene::new(Vec::new());
 /// scene.lights = vec![Light::Directional(DirectionalLight::default())];
 /// scene.exposure = 0.5;
 /// ```
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct Scene {
-    /// Where the scene is seen from.
-    pub camera: Camera,
-    /// What lights the surfaces. [`Renderer::render`] draws the first [`MAX_LIGHTS`] and leaves
-    /// the others out, logging a warning the first time a renderer meets such a scene; it panics
-    /// on a drawn light with a value outside the range its documentation gives.
+    /// What lights the surfaces, the same in every view. [`Renderer::render`] draws the first
+    /// [`MAX_LIGHTS`] that it can draw from every view's camera and leaves the others out, logging
+    /// a warning the first time a renderer meets such a scene ([`Renderer::render`] says which it
+    /// cannot draw). A game whose scene holds more orders them first by what matters most to its
+    /// views, as `slime-world-render` orders point and spot lights by their distance from a point
+    /// that the game gives.
     pub lights: Vec<Light>,
     /// What surrounds the scene (ADR-0039): its light reaches every surface, reflected as glTF's
     /// materials reflect it (image-based lighting, with the split sum and the light that rough
@@ -224,13 +230,12 @@ pub struct Scene {
 }
 
 impl Scene {
-    /// `instances` seen from `camera`, without lights or environment, at an exposure of 1 and
-    /// without bloom: only the instances' emission lights the frame, as it is, on black. A slice
-    /// of instances is cloned into the scene.
+    /// `instances`, without lights or environment, at an exposure of 1 and without bloom: only the
+    /// instances' emission lights the frame, as it is, on black. A slice of instances is cloned
+    /// into the scene.
     #[must_use]
-    pub fn new(camera: Camera, instances: impl Into<Vec<Instance>>) -> Self {
+    pub fn new(instances: impl Into<Vec<Instance>>) -> Self {
         Self {
-            camera,
             lights: Vec::new(),
             environment: None,
             exposure: 1.0,
@@ -240,7 +245,7 @@ impl Scene {
     }
 }
 
-/// What drawing a scene took.
+/// What drawing a scene through a view took ([`View::stats`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct RenderStats {
@@ -248,28 +253,30 @@ pub struct RenderStats {
     /// that it draws ([`Scene::instances`]). The draws of the sky, bloom and tone-mapping passes
     /// are not counted.
     pub draw_calls: u32,
-    /// Instances the scene pass drew: those whose box the camera sees, frustum culling having left
-    /// the others out.
+    /// Instances the scene pass drew: those whose box the view's camera sees, frustum culling
+    /// having left the others out.
     pub instances: u32,
     /// Triangles the scene pass submitted to the GPU: those of the instances it drew, before the
     /// GPU culls the faces turned away.
     pub triangles: u64,
-    /// How long [`Renderer::render`] took on the CPU: packing the values, recording the passes and
-    /// submitting them, four to a submission (ADR-0041). It includes any wait inside a submission:
-    /// lavapipe runs a submission only once the previous one is done, so on lavapipe it holds the
-    /// GPU work of the frame's earlier submissions, and in a windowed run the wait for the previous
-    /// frame.
+    /// How long the view's part of [`Renderer::render`] took on the CPU: working out what it draws,
+    /// packing its values, making its targets when they change, recording its passes and
+    /// submitting them, four to a submission (ADR-0041); not what the call does once for every
+    /// view, checking the lights, creating the atlases and renewing the uploader's budget. It
+    /// includes any wait inside a submission: lavapipe runs a submission only once the previous one
+    /// is done, so on lavapipe it holds the GPU work of the frame's earlier submissions, and in a
+    /// windowed run the wait for the previous frame; and the wait for the GPU when its size changes.
     pub cpu_time: Duration,
     /// How long the GPU took to draw the scene into the high-dynamic-range target: the latest time
     /// that has come back, a few frames old. The passes of a frame are timed four to a submission
     /// (ADR-0041): the times of the passes of one submission come from the same frame, those of
     /// different submissions can come from different frames, usually consecutive ones. `None` on
     /// adapters that cannot time their work ([`Gpu::can_time`](slime_gfx::Gpu::can_time)), until
-    /// the first time comes back, and for a few frames after the frame's passes or targets change
-    /// (the output's size, the shadow pass or the bloom turned on or off), until the submission
-    /// that holds the pass has its first time. A renderer whose frame changes at every call, drawing
-    /// into outputs of two sizes in turn for example, gets no tone-mapping or bloom time: use one
-    /// renderer per output size.
+    /// the first time comes back, and for a few frames after the view's passes or targets change
+    /// (the size of its rectangle, a shadow pass or the bloom turned on or off, its place first
+    /// among the views of a call or not), until the submission that holds the pass has its first
+    /// time. A view whose frame changes at every call, drawing into rectangles of two sizes in turn
+    /// for example, gets no tone-mapping or bloom time: use one view per size.
     pub scene_gpu_time: Option<Duration>,
     /// How long the GPU took for the tone-mapping pass, under the same rules. On Vulkan, each time
     /// runs from the end of the work before the pass to its end, so the times of a frame do not
@@ -286,13 +293,14 @@ pub struct RenderStats {
     pub shadow_draw_calls: u32,
     /// The draw calls the spot lights' shadow pass made: for each spot light that casts shadows,
     /// one per group of the instances that cast shadows whose boxes reach into its tile, grouped as
-    /// in the cascades.
+    /// in the cascades. The first view of a call draws the tiles for every view: 0 for the others.
     pub spot_shadow_draw_calls: u32,
     /// How long the GPU took to draw the cascades, under the same rules as `scene_gpu_time`;
     /// `None` too for a frame that skipped the shadow pass.
     pub shadow_gpu_time: Option<Duration>,
     /// How long the GPU took to draw the spot lights' shadow atlas, under the same rules as
-    /// `scene_gpu_time`; `None` too for a frame in which no spot light casts shadows.
+    /// `scene_gpu_time`; `None` too for a frame in which no spot light casts shadows, and for a
+    /// view that is not the first of its call.
     pub spot_shadow_gpu_time: Option<Duration>,
     /// How long the GPU took to draw the sky behind the scene, under the same rules as
     /// `scene_gpu_time`.
@@ -306,9 +314,148 @@ pub struct RenderStats {
     pub bloom_gpu_time: Option<Duration>,
 }
 
-/// Draws scenes into output targets of one format.
+/// What a camera's image drawn into an output keeps from one frame to the next: the values that its
+/// passes read, the buffers of the instances that it draws, its frame's graph with the
+/// high-dynamic-range and depth targets and the bloom's levels at the size it draws, and the
+/// statistics of its last frame (ADR-0111, ADR-0126). A game holds one for each image that it
+/// draws: the player's, each half of a split screen, a map in a corner, the editor's viewport;
+/// and keeps it from frame to frame, so that its targets are made once. Created by
+/// [`Renderer::create_view`] and drawn by [`Renderer::render`] through a [`ViewDraw`]; dropping
+/// it frees its GPU memory once the GPU has drawn what it drew.
 ///
-/// Each frame takes these passes (ADR-0034, ADR-0037, ADR-0038, ADR-0039, ADR-0040): the shadow
+/// Its targets are created at the size of the rectangle it draws into the first time, and again
+/// whenever that size changes, the old ones freed first, so that the GPU never holds both: the call
+/// that changes the size waits for the GPU to finish the frames that use them (G18). A view draws
+/// best into rectangles of one size: drawing into rectangles of two sizes in turn creates its
+/// targets again, and waits for the GPU, at every frame, and reports no tone-mapping or bloom time;
+/// use one view per size.
+/// At 1920 × 1080 with the bloom, a view holds about 122 MiB of GPU memory: 111 for the
+/// high-dynamic-range and depth targets, 95 of them for their four samples per pixel, and 10.5 for
+/// the bloom's levels; at 1280 × 720, about 54 MiB; at 3840 × 2160, about 485 MiB. Its buffers
+/// take a few kilobytes, and those of its instances 128 bytes for each instance that it draws.
+pub struct View {
+    /// Names it in its submissions and in error messages.
+    label: String,
+    /// The values of its frame, `FrameUniform` in `shader.wgsl`.
+    frame_uniform: UniformBuffer,
+    /// The environment its frame's group was last built with, kept alive by it, and that group.
+    frame_group: (Environment, BindGroup),
+    /// The storage buffers of the instances that it draws, and the group that binds them.
+    instances: InstanceBuffers,
+    /// What its last frame worked out about its instances: kept from one frame to the next, so
+    /// that a frame writes into memory it has, and given back after a peak, as the buffers shrink
+    /// (`reuse`).
+    scratch: Scratch,
+    /// Its frame's graph and what reads its targets: created by its first frame, and again when
+    /// its shape changes.
+    frame: Option<Frame>,
+    /// The view of each tile that its shadow passes draw: the cascades' in the first [`CASCADES`]
+    /// slots, then one per spot light that casts shadows, each slot
+    /// [`Renderer::shadow_view_stride`] bytes apart, written at every frame.
+    shadow_views: UniformBuffer,
+    /// Those views, bound at group 3 of the shadow passes, at the offset of each.
+    shadow_views_group: BindGroup,
+    /// The tone-mapping pass's settings, `Settings` in `tone_mapping.wgsl`: the strength it mixes
+    /// the blurred copy in by, how it dithers the output (ADR-0051), and where the view's rectangle
+    /// starts in its output, written at every frame.
+    tone_mapping_settings: UniformBuffer,
+    /// What its last frame took.
+    stats: RenderStats,
+}
+
+impl fmt::Debug for View {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("View")
+            .field("label", &self.label)
+            .field("stats", &self.stats)
+            .finish_non_exhaustive()
+    }
+}
+
+impl View {
+    /// The label it was created with.
+    #[must_use]
+    pub fn label(&self) -> &str {
+        &self.label
+    }
+
+    /// What drawing it took in the last [`Renderer::render`] that drew it; the default before.
+    #[must_use]
+    pub fn stats(&self) -> RenderStats {
+        self.stats
+    }
+}
+
+/// A rectangle of an output, in pixels from its top left corner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Viewport {
+    /// The column of its left edge.
+    pub x: u32,
+    /// The row of its top edge.
+    pub y: u32,
+    /// Its width, at least 1.
+    pub width: u32,
+    /// Its height, at least 1.
+    pub height: u32,
+}
+
+impl Viewport {
+    /// The whole of `target`.
+    #[must_use]
+    pub fn whole(target: &RenderTarget) -> Self {
+        Self {
+            x: 0,
+            y: 0,
+            width: target.width(),
+            height: target.height(),
+        }
+    }
+}
+
+/// One view that [`Renderer::render`] draws: the [`View`] it draws through, the camera it sees the
+/// scene from, and the output it draws into.
+///
+/// Made by [`ViewDraw::new`], so that a field added later does not break the code that makes one
+/// (ADR-0046); the fields can then be changed.
+#[non_exhaustive]
+pub struct ViewDraw<'a> {
+    /// What the view keeps from one frame to the next: its targets and its statistics.
+    pub view: &'a mut View,
+    /// Where it sees the scene from, how, and which part of the camera's image it draws.
+    pub camera: Camera,
+    /// What it draws into: a target of the renderer's format, of one sample per pixel.
+    pub target: &'a RenderTarget,
+    /// The rectangle of `target` that it draws into, inside it; `None` for the whole target. The
+    /// camera's image, or its part, fills the rectangle at the rectangle's aspect: its height, the
+    /// field of view or the orthographic height, is kept, and its width follows. Unless the
+    /// rectangle is the whole target, the pixels outside it keep what they held, which other views
+    /// draw.
+    pub viewport: Option<Viewport>,
+}
+
+impl<'a> ViewDraw<'a> {
+    /// `view` drawing `camera`'s image into the whole of `target`.
+    #[must_use]
+    pub fn new(view: &'a mut View, camera: Camera, target: &'a RenderTarget) -> Self {
+        Self {
+            view,
+            camera,
+            target,
+            viewport: None,
+        }
+    }
+
+    /// The rectangle of its target that it draws into.
+    fn viewport(&self) -> Viewport {
+        self.viewport
+            .unwrap_or_else(|| Viewport::whole(self.target))
+    }
+}
+
+/// Draws scenes into output targets of one format, through views: each [`View`] a camera's image
+/// drawn into an output, or into a rectangle of it, several in a frame (ADR-0111, ADR-0126).
+///
+/// Each view takes these passes (ADR-0034, ADR-0037, ADR-0038, ADR-0039, ADR-0040): the shadow
 /// pass draws the depths of the instances, as the scene's first directional light that casts
 /// shadows sees them, into the tile of each of its four cascades (ADR-0064); the spot lights'
 /// shadow pass draws them, as each spot light that casts shadows sees them, into its tile
@@ -323,42 +470,37 @@ pub struct RenderStats {
 /// smooth (multisample anti-aliasing); the bloom's passes filter that light down into a chain
 /// of levels, each half the size of the one before, then average them back up into a blurred
 /// copy; the tone-mapping pass then mixes the blurred copy in by the scene's bloom strength
-/// and maps the light to the output's range with Khronos PBR Neutral. The renderer owns ten
-/// pipelines: two for the shadow pass (the second discards what masked materials discard),
-/// three for the scene pass, which differ by the faces they cull and among which each draw
-/// chooses (ADR-0035), the sky pass's, the resolve pass's, the bloom's two (down and up) and
-/// the tone-mapping pass's; the table of the BRDF's scale and bias and a black environment
-/// for scenes without one; the cascades' atlas, 4096 × 4096 depths (64 MiB) created by the
-/// first frame in which a directional light casts shadows; the spot lights' shadow atlas, as
-/// large, created by the first frame in which a spot light casts shadows; the buffer of the
-/// shadow passes' views; the buffers of the instances' values and of the list of the instances
-/// that each draw draws; the pages that hold its meshes' vertices and indices ([`Mesh`]);
-/// the uploader that submits the copies of what its loads bring, with a thread of its own
-/// (`slime_gfx::Uploader`); and the frame's render graph (ADR-0041): its passes in order, the
-/// high-dynamic-range and depth targets and the bloom's levels at the size of the output it
-/// draws into, the groups that read them and GPU timers for its submissions, built again when
-/// the frame's shape changes (the output's size, either shadow pass or the bloom turned on or
-/// off). A renderer draws best into outputs of one size: drawing into outputs of two sizes in
-/// turn creates its targets again at every call, and reports no tone-mapping or bloom time;
-/// use one renderer per output size. At 1920 × 1080 with the bloom, a renderer holds about 122
-/// MiB of GPU memory: 111 for the high-dynamic-range and depth targets, 95 of them for their
-/// four samples per pixel, and 10.5 for the bloom's levels; then 64 more once a directional
-/// light has cast shadows, and 64 more once a spot light has; at 3840 × 2160, about 485 MiB,
-/// and as much more; and the pages of its meshes; and, in the CPU's memory, its uploader's
-/// staging buffers: up to 32 MiB kept for the next loads, and, while a load lasts, what it read
-/// that waits for its copies.
+/// and maps the light to the output's range with Khronos PBR Neutral.
 ///
-/// Each frame, the scene pass leaves out the instances whose boxes lie outside what the camera
+/// The renderer owns what every view shares: ten pipelines, two for the shadow pass (the second
+/// discards what masked materials discard), three for the scene pass, which differ by the faces
+/// they cull and among which each draw chooses (ADR-0035), the sky pass's, the resolve pass's, the
+/// bloom's two (down and up) and the tone-mapping pass's; the table of the BRDF's scale and bias
+/// and a black environment for scenes without one; the cascades' atlas, 4096 × 4096 depths (64
+/// MiB), created by the first frame in which a directional light casts shadows, which each view
+/// draws in turn for its own camera; the spot lights' shadow atlas, as large, created by the first
+/// frame in which a spot light casts shadows, which the first view of each frame draws for every
+/// view; the pages that hold its meshes' vertices and indices ([`Mesh`]); and the uploader that
+/// submits the copies of what its loads bring, with a thread of its own (`slime_gfx::Uploader`),
+/// whose staging buffers take up to 32 MiB of the CPU's memory kept for the next loads, and, while
+/// a load lasts, what it read that waits for its copies. Each view owns the rest ([`View`]): the
+/// buffers of its values and of its instances, and its frame's render graph (ADR-0041), its passes
+/// in order, the high-dynamic-range and depth targets and the bloom's levels at the size of the
+/// rectangle it draws into, the groups that read them and GPU timers for its submissions, built
+/// again when the frame's shape changes (the rectangle's size, either shadow pass or the bloom
+/// turned on or off, the rectangle covering its output or not).
+///
+/// In each view, the scene pass leaves out the instances whose boxes lie outside what its camera
 /// sees (frustum culling), and the shadow passes those whose boxes lie outside each cascade's
-/// square and each spot light's cone; each pass then draws the instances it keeps of one
-/// pipeline, material and mesh with one draw call (instancing), each instance's values read from a
-/// storage buffer by its number. Every instance of the scene costs CPU time at each frame, to place
-/// its box and test it, whether a pass draws it or not: the renderer keeps no scene from one frame
-/// to the next, only memory that it reuses. A frame draws at most as many instances as the device's
-/// storage buffers hold values of: 1 048 576 at least, at the engine's floor of limits, and more on
-/// GPUs whose storage bindings are larger, 16 777 215 on the RX 6900 XT and WARP. The instances
-/// beyond, in the order of the scene's, are left out of every pass, with a warning the first time a
-/// renderer meets such a scene.
+/// square and each spot light's cone; each pass then draws the instances it keeps of one pipeline,
+/// material and mesh with one draw call (instancing), each instance's values read from a storage
+/// buffer by its number. Every instance of the scene costs CPU time in each view at each frame, to
+/// place its box and test it, whether a pass draws it or not: the renderer keeps no scene from one
+/// frame to the next, only memory that it reuses. A view draws at most as many instances as the
+/// device's storage buffers hold values of: 1 048 576 at least, at the engine's floor of limits,
+/// and more on GPUs whose storage bindings are larger, 16 777 215 on the RX 6900 XT and WARP. The
+/// instances beyond, in the order of the scene's, are left out of every pass, with a warning the
+/// first time a renderer meets such a scene.
 ///
 /// It does not yet smooth the edges that a masked material cuts inside a triangle, or blend
 /// transparent surfaces.
@@ -373,9 +515,6 @@ pub struct Renderer {
     layouts: Layouts,
     /// What creating a material takes besides its data.
     pub(crate) material_parts: MaterialParts,
-    frame_uniform: UniformBuffer,
-    /// The environment the frame's group was last built with, kept alive by it, and that group.
-    frame_group: (Environment, BindGroup),
     /// One black texel, the environment of scenes without one.
     no_environment: Environment,
     brdf_table: Texture,
@@ -386,41 +525,28 @@ pub struct Renderer {
     /// The one owner of the copies to the GPU of what its loads bring, at most
     /// [`UPLOAD_BYTES_PER_FRAME`] per frame, which each frame renews (ADR-0107).
     pub(crate) uploader: Uploader,
-    /// The storage buffers of the instances that a frame draws, and the group that binds them.
-    instances: InstanceBuffers,
-    /// What the frame drawn last worked out about its instances: kept from one frame to the next,
-    /// so that a frame writes into memory it has, and given back after a peak, as the buffers
-    /// shrink (`reuse`).
-    scratch: Scratch,
-    /// The frame's graph and what reads its targets: created by the first `render`, and again
-    /// when the frame's shape changes.
-    frame: Option<Frame>,
     /// The cascades' atlas (ADR-0064): the depths that the shadow pass draws into the tile of each
     /// cascade, which the scene pass compares with; created by the first frame in which a
-    /// directional light casts shadows, then kept.
+    /// directional light casts shadows, then kept, and drawn by each view in turn.
     cascade_atlas: Option<DepthTarget>,
     /// One texel, bound in the place of either atlas until it is created.
     no_atlas: DepthTarget,
     /// The cascades' atlas, its comparison sampler and the spot lights' atlas, bound at group 3 of
-    /// the scene pass, built again when either atlas is created.
+    /// the scene pass, built again whenever the atlases differ from those it was built with.
     shadow_group: BindGroup,
+    /// Whether the cascades' atlas and the spot lights' atlas were created when `shadow_group` was
+    /// built.
+    shadow_group_atlases: (bool, bool),
     shadow_sampler: ComparisonSampler,
-    /// The view of each tile that the shadow passes draw: the cascades' in the first [`CASCADES`]
-    /// slots, then one per spot light that casts shadows, each slot `shadow_view_stride` bytes
-    /// apart, written at every frame.
-    shadow_views: UniformBuffer,
+    /// The bytes between two slots of a view's buffer of the shadow passes' views
+    /// ([`View::shadow_views`]).
     shadow_view_stride: usize,
-    /// Those views, bound at group 3 of the shadow passes, at the offset of each.
-    shadow_views_group: BindGroup,
     /// The spot lights' shadow atlas (ADR-0058): created by the first frame in which a spot light
-    /// casts shadows, then kept.
+    /// casts shadows, then kept, and drawn by the first view of each frame.
     spot_atlas: Option<DepthTarget>,
     /// Linear, mirrored at the edges: reads the levels between their texels, and beyond them their
     /// texels mirrored, so that a pixel near an edge keeps its light and none wraps around.
     bloom_sampler: Sampler,
-    /// The tone-mapping pass's settings, `Settings` in `tone_mapping.wgsl`: the strength it mixes
-    /// the blurred copy in by, written every frame, and how it dithers the output (ADR-0051).
-    tone_mapping_settings: UniformBuffer,
     /// Whether a scene with more than [`MAX_LIGHTS`] lights was drawn: it is said once, not at
     /// every frame.
     warned_of_lights: bool,
@@ -478,8 +604,10 @@ pub(crate) enum Pass {
     ToneMapping,
 }
 
-/// What decides the passes and targets of a frame: the output's size, whether the shadow pass
-/// runs, whether the spot lights' shadow pass does, and whether the bloom's passes do.
+/// What decides the passes and targets of a view's frame: the size of the rectangle it draws
+/// into, whether the shadow pass runs, whether the spot lights' shadow pass does, whether the
+/// bloom's passes do, and whether its rectangle is its whole output, which the tone-mapping pass
+/// then clears rather than keeps.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Shape {
     width: u32,
@@ -487,6 +615,33 @@ struct Shape {
     shadow: bool,
     spot_shadows: bool,
     bloom: bool,
+    whole: bool,
+}
+
+/// What [`Renderer::render`] worked out for one view before anything is recorded, which it then
+/// records.
+struct Prepared {
+    shape: Shape,
+    /// The scene pass's draws.
+    scene_draws: Vec<Batch>,
+    /// The cascades' draws; none without a shadowed light.
+    cascades: Vec<CascadeDraw>,
+    /// The spot lights' shadow pass's draws: those of the view that draws the atlas.
+    spot_draws: Vec<SpotDraw>,
+    /// How many instances its passes draw, and how many it left out beyond what the device's
+    /// storage buffers hold the values of.
+    instances: (u32, usize),
+    /// How long working it out took on the CPU.
+    cpu_time: Duration,
+}
+
+/// The groups of a view that its passes bind, and the rectangle of its output that it draws into
+/// when that is not the whole output.
+struct ViewGroups<'a> {
+    frame: &'a BindGroup,
+    instances: &'a BindGroup,
+    shadow_views: &'a BindGroup,
+    viewport: Option<Viewport>,
 }
 
 /// The frame's graph for one [`Shape`], with the groups that read its targets. Built again,
@@ -671,23 +826,7 @@ impl Renderer {
         let no_atlas = gpu.create_depth_target("no shadow atlas", 1, 1)?;
         let shadow_group =
             shadow_group(gpu, &shadow_layout, &no_atlas, &shadow_sampler, &no_atlas)?;
-        // The views of the cascades, then one per tile of the spot lights' atlas.
         let shadow_view_stride = SHADOW_VIEW_SIZE.next_multiple_of(gpu.uniform_offset_alignment());
-        let shadow_views = gpu.create_uniform_buffer(
-            "shadow views",
-            &vec![0; (CASCADES + MAX_LIGHTS) * shadow_view_stride],
-        )?;
-        let shadow_views_group = gpu.create_bind_group(
-            "shadow views",
-            &shadow_views_layout,
-            &[BindGroupEntry {
-                binding: 3,
-                resource: BindingResource::UniformBufferRange {
-                    buffer: &shadow_views,
-                    size: SHADOW_VIEW_SIZE,
-                },
-            }],
-        )?;
         let fragment_entries = |types: &[BindingType]| -> Vec<BindGroupLayoutEntry> {
             (0..)
                 .zip(types)
@@ -749,9 +888,6 @@ impl Renderer {
             resolve: resolve_layout,
         };
         let pipelines = Pipelines::new(gpu, &ShaderSources::embedded(), &layouts, &kinds, format)?;
-        let tone_mapping_settings =
-            gpu.create_uniform_buffer("tone-mapping settings", &[0; TONE_MAPPING_SETTINGS_SIZE])?;
-        let frame_uniform = gpu.create_uniform_buffer("frame", &[0; FRAME_VALUES_SIZE])?;
         let no_environment = Environment::black(gpu)?;
         let brdf_table = brdf_table(gpu)?;
         let environment_sampler = gpu.create_sampler(
@@ -762,14 +898,6 @@ impl Renderer {
                 ..SamplerDescriptor::default()
             },
         )?;
-        let frame_group = frame_group(
-            gpu,
-            &layouts.frame,
-            &frame_uniform,
-            &no_environment,
-            &brdf_table,
-            &environment_sampler,
-        )?;
         let white = gpu.create_texture(
             "white",
             1,
@@ -778,12 +906,6 @@ impl Renderer {
             &[255, 255, 255, 255],
         )?;
         let default_sampler = gpu.create_sampler("default", &SamplerDescriptor::default())?;
-        let instances = InstanceBuffers::new(
-            gpu,
-            &layouts.instance,
-            INITIAL_INSTANCE_CAPACITY,
-            INITIAL_INSTANCE_CAPACITY,
-        )?;
         if !gpu.can_time() {
             tracing::info!("the adapter cannot time its work: the statistics have no GPU time");
         }
@@ -798,29 +920,79 @@ impl Renderer {
                 white,
                 sampler: default_sampler,
             },
-            frame_uniform,
-            frame_group: (no_environment.clone(), frame_group),
             no_environment,
             brdf_table,
             environment_sampler,
             meshes: MeshPages::default(),
             uploader: Uploader::new(gpu, UPLOAD_BYTES_PER_FRAME),
-            instances,
-            scratch: Scratch::default(),
-            frame: None,
             cascade_atlas: None,
             no_atlas,
             shadow_group,
+            shadow_group_atlases: (false, false),
             shadow_sampler,
-            shadow_views,
             shadow_view_stride,
-            shadow_views_group,
             spot_atlas: None,
             bloom_sampler,
-            tone_mapping_settings,
             warned_of_lights: false,
             left_out_lights: Vec::new(),
             warned_of_instances: false,
+        })
+    }
+
+    /// Creates a view, which [`Renderer::render`] draws a camera's image through into an output of
+    /// this renderer's format. `label` names it in the submissions it draws, in GPU capture tools
+    /// and in error messages. It holds a few kilobytes of GPU memory until its first frame, which
+    /// creates its targets ([`View`]).
+    ///
+    /// # Errors
+    ///
+    /// [`RenderError::Gfx`] with [`GfxError::OutOfMemory`] if the GPU's memory cannot hold its
+    /// buffers, or with [`GfxError::DeviceLost`] once the device is lost.
+    pub fn create_view(&self, gpu: &Gpu, label: &str) -> Result<View, RenderError> {
+        let frame_uniform = gpu.create_uniform_buffer(label, &[0; FRAME_VALUES_SIZE])?;
+        let frame_group = frame_group(
+            gpu,
+            &self.layouts.frame,
+            &frame_uniform,
+            &self.no_environment,
+            &self.brdf_table,
+            &self.environment_sampler,
+        )?;
+        let instances = InstanceBuffers::new(
+            gpu,
+            &self.layouts.instance,
+            INITIAL_INSTANCE_CAPACITY,
+            INITIAL_INSTANCE_CAPACITY,
+        )?;
+        // The views of the cascades, then one per tile of the spot lights' atlas.
+        let shadow_views = gpu.create_uniform_buffer(
+            "shadow views",
+            &vec![0; (CASCADES + MAX_LIGHTS) * self.shadow_view_stride],
+        )?;
+        let shadow_views_group = gpu.create_bind_group(
+            "shadow views",
+            &self.layouts.shadow_views,
+            &[BindGroupEntry {
+                binding: 3,
+                resource: BindingResource::UniformBufferRange {
+                    buffer: &shadow_views,
+                    size: SHADOW_VIEW_SIZE,
+                },
+            }],
+        )?;
+        let tone_mapping_settings =
+            gpu.create_uniform_buffer("tone-mapping settings", &[0; TONE_MAPPING_SETTINGS_SIZE])?;
+        Ok(View {
+            label: label.to_owned(),
+            frame_uniform,
+            frame_group: (self.no_environment.clone(), frame_group),
+            instances,
+            scratch: Scratch::default(),
+            frame: None,
+            shadow_views,
+            shadow_views_group,
+            tone_mapping_settings,
+            stats: RenderStats::default(),
         })
     }
 
@@ -941,95 +1113,108 @@ impl Renderer {
         self.material_parts.create(gpu, label, data)
     }
 
-    /// Draws `scene` into `target`, in passes. The first directional light of `scene.lights` that
-    /// casts shadows casts them through four cascades: what the camera sees up to the light's
-    /// [`shadow_distance`](crate::DirectionalLight::shadow_distance) is split along its axis
-    /// into four slices, each twice as deep as the one before, and each slice is covered by a
-    /// square across the light, of 2048 × 2048 texels whatever its size (ADR-0038, ADR-0049,
-    /// ADR-0050, ADR-0064). The shadow pass draws into the tile of each cascade the depths of
-    /// the instances that cast shadows across its square, all their faces (the parts that masked
-    /// materials discard excepted), as the light sees them; it is skipped when no directional
-    /// light casts shadows, or when no instance that casts shadows reaches any cascade. The
-    /// spot lights' shadow pass then draws, into the tile of the atlas of each spot light
-    /// that casts shadows, the depths of the instances that cast shadows inside its cone and
-    /// range, seen in perspective from the light (ADR-0058, ADR-0061); it is skipped when no
-    /// spot light casts shadows. The scene pass draws the instances whose boxes the camera
-    /// sees into a high-dynamic-range target of four samples per pixel with the depth test,
-    /// so that nearer surfaces hide farther ones whatever their order, each surface shaded by
-    /// the scene's light with glTF's metallic-roughness model and its material's textures,
-    /// the shadowed light's only where its cascades hold nothing nearer to it: the finest
-    /// cascade whose square holds a point shades it, and fades into the next across a band, a
-    /// tenth of its width, at its edge, as the last one does into light, beyond which nothing
-    /// is shadowed (ADR-0065); a point is looked up in each cascade at most 4.5 of its texels
-    /// off its triangle, towards the light, and compared through a filter over 5 × 5 texels
-    /// so that a shadow's edges fade smoothly over about six texels (ADR-0063); each surface is
-    /// culled or not as its material and its transform ask (ADR-0035), the scene's environment
-    /// reflected as its material reflects it (ADR-0039), its light multiplied by the scene's
-    /// exposure (ADR-0037). Each spot light that casts shadows lights a point only where its
-    /// tile holds nothing nearer to it, looked up off the triangle by up to 4.5 of the tile's
-    /// texels and compared as the directional light's cascades are (ADR-0061, ADR-0062);
-    /// point lights cast no shadows. The sky pass draws the environment, exposed, where no
-    /// surface was drawn, with its sun's disc. The resolve pass then averages the samples of
-    /// each pixel, each weighed by 1 / (1 + its brightest channel), which smooths the edges of
-    /// what both passes drew, the bright ones too (ADR-0056, ADR-0060). Unless `scene.bloom`
-    /// is 0 or `target` is smaller than 15 × 15, the bloom's passes filter that light down
-    /// into levels of half the size of the one before, to a side of at least 8 texels, with
-    /// Jimenez's 13-tap filter, then average them back up through 3 × 3 tents, every level
-    /// with the same weight, into a blurred copy (ADR-0040): 11 passes at 1280 × 720, 13 at
-    /// 1920 × 1080. The tone-mapping pass then mixes the blurred copy in by `scene.bloom`,
-    /// maps that light to the range a display shows with Khronos PBR Neutral, which lowers
-    /// a color whose channels all lie between 0.08 and 0.8 by 0.04, a darker one less, and
-    /// compresses a brighter one towards 1 and turns it towards white, dithers it when `target`
-    /// has 8 bits per channel, with noise of up to one step that keeps its average and leaves
-    /// black and white as they are (ADR-0051), and writes it into `target`, opaque. A render
-    /// graph orders the passes, and they are recorded in that order, four to a submission
-    /// named after `target` (ADR-0041); the work runs on the GPU after this method returns.
+    /// Draws `scene` through each of `views`, in their order, each into its rectangle of its
+    /// target, in passes. The first directional light of `scene.lights` that casts shadows casts
+    /// them through four cascades: what a view's camera sees up to the light's
+    /// [`shadow_distance`](crate::DirectionalLight::shadow_distance), and no farther than an
+    /// orthographic camera's far plane, is split along its axis into four slices, each twice as
+    /// deep as the one before, and each slice is covered by a square across the light, of 2048 ×
+    /// 2048 texels whatever its size (ADR-0038, ADR-0049, ADR-0050, ADR-0064); a camera that draws
+    /// a part of its image ([`ImagePart`](crate::ImagePart)) fits them to its whole image, so that
+    /// the parts of one image show the same shadows. The shadow pass draws into the tile of each
+    /// cascade the depths of the instances that cast shadows across its square, all their faces
+    /// (the parts that masked materials discard excepted), as the light sees them; it is skipped
+    /// when no directional light casts shadows, or when no instance that casts shadows reaches any
+    /// cascade. The spot lights' shadow pass then draws, into the tile of the atlas of each spot
+    /// light that casts shadows, the depths of the instances that cast shadows inside its cone and
+    /// range, seen in perspective from the light (ADR-0058, ADR-0061); it is skipped when no spot
+    /// light casts shadows. The scene pass draws the instances whose boxes the view's camera sees
+    /// into a high-dynamic-range target of four samples per pixel with the depth test, so that
+    /// nearer surfaces hide farther ones whatever their order, each surface shaded by the scene's
+    /// light with glTF's metallic-roughness model and its material's textures, the shadowed light's
+    /// only where its cascades hold nothing nearer to it: the finest cascade whose square holds a
+    /// point shades it, and fades into the next across a band, a tenth of its width, at its edge,
+    /// as the last one does into light, beyond which nothing is shadowed (ADR-0065); a point is
+    /// looked up in each cascade at most 4.5 of its texels off its triangle, towards the light, and
+    /// compared through a filter over 5 × 5 texels so that a shadow's edges fade smoothly over
+    /// about six texels (ADR-0063); each surface is culled or not as its material and its transform
+    /// ask (ADR-0035), the scene's environment reflected as its material reflects it (ADR-0039),
+    /// its light multiplied by the scene's exposure (ADR-0037). Each spot light that casts shadows
+    /// lights a point only where its tile holds nothing nearer to it, looked up off the triangle by
+    /// up to 4.5 of the tile's texels and compared as the directional light's cascades are
+    /// (ADR-0061, ADR-0062); point lights cast no shadows. The sky pass draws the environment,
+    /// exposed, where no surface was drawn, with its sun's disc. The resolve pass then averages the
+    /// samples of each pixel, each weighed by 1 / (1 + its brightest channel), which smooths the
+    /// edges of what both passes drew, the bright ones too (ADR-0056, ADR-0060). Unless
+    /// `scene.bloom` is 0 or the view's rectangle is smaller than 15 × 15, the bloom's passes
+    /// filter that light down into levels of half the size of the one before, to a side of at least
+    /// 8 texels, with Jimenez's 13-tap filter, then average them back up through 3 × 3 tents,
+    /// every level with the same weight, into a blurred copy (ADR-0040): 11 passes at 1280 × 720,
+    /// 13 at 1920 × 1080. The tone-mapping pass then mixes the blurred copy in by `scene.bloom`,
+    /// maps that light to the range a display shows with Khronos PBR Neutral, which lowers a color
+    /// whose channels all lie between 0.08 and 0.8 by 0.04, a darker one less, and compresses a
+    /// brighter one towards 1 and turns it towards white, dithers it when the target has 8 bits per
+    /// channel, with noise of up to one step that keeps its average and leaves black and white as
+    /// they are (ADR-0051), and writes it into the view's rectangle, opaque: a view that covers its
+    /// target clears it first, one that draws into a part of it leaves the rest as it was. A render
+    /// graph orders each view's passes, and they are recorded in that order, four to a submission
+    /// named after the view and its target (ADR-0041), one view after the other; the work runs on
+    /// the GPU after this method returns.
     ///
-    /// The high-dynamic-range and depth targets are created at the size of `target` the first
-    /// time, and again whenever that size changes; the bloom's levels (4.7 MiB at 1280 × 720,
-    /// 10.5 MiB at 1920 × 1080) likewise, and only while the bloom runs: they are freed when it
-    /// stops, and created again, in one frame, when it resumes. The buffers of the instances'
-    /// values and of their list grow when a frame draws more than they hold, and shrink back once
-    /// a frame uses a quarter of them or less. Each instance drawn takes 128 bytes of values, and
-    /// 4 bytes in the list for each pass that draws it.
+    /// What the views share is drawn once or in turn (ADR-0126): every view draws the same lights,
+    /// those that the renderer can draw from every view's camera; the first view draws the spot
+    /// lights' tiles, which every view reads; the cascades' atlas holds one view's cascades at a
+    /// time, each view drawing its own before its scene pass reads them, as the GPU runs the
+    /// submissions in their order.
+    ///
+    /// A view's high-dynamic-range and depth targets are created at the size of its rectangle the
+    /// first time, and again whenever that size changes, its old targets freed first, once the GPU
+    /// has finished the frames that use them, which the call waits for; the bloom's levels (4.7 MiB
+    /// at 1280 × 720, 10.5 MiB at 1920 × 1080) likewise, and only while the bloom runs: they are
+    /// freed when it stops, and created again, in one frame, when it resumes. The buffers of a
+    /// view's instances' values and of their list grow when a frame draws more than they hold, and
+    /// shrink back once a frame uses a quarter of them or less. Each instance drawn takes 128 bytes
+    /// of values, and 4 bytes in the list for each pass that draws it.
     ///
     /// Each call renews the budget of the renderer's uploader (`slime_gfx::Uploader`, which says
-    /// what else renews it, and when copies go whatever it): once the frame is submitted, the
+    /// what else renews it, and when copies go whatever it): once the views are submitted, the
     /// uploader submits at most 8 MiB of the copies that the renderer's loads left it, which the
-    /// GPU runs after the frame (ADR-0107, ADR-0118). The meshes and textures that a load brings
-    /// reach the GPU at that pace while frames are drawn; a renderer that draws several outputs a
-    /// frame renews the budget for each. Its staging buffers, kept for the next loads, take up to
-    /// 32 MiB of the CPU's memory.
+    /// GPU runs after them (ADR-0107, ADR-0118). The meshes and textures that a load brings reach
+    /// the GPU at that pace while frames are drawn; a game that draws its views in several calls a
+    /// frame renews the budget at each.
     ///
     /// # Errors
     ///
     /// [`RenderError::Gfx`] with [`GfxError::OutOfMemory`] when the GPU's memory cannot hold what
-    /// the frame creates: the targets of a new size, the bloom's levels when it resumes, the
-    /// instances' buffers when they grow or shrink, or the bindings of a new environment; or with
-    /// [`GfxError::DeviceLost`] once the device is lost, whether the frame creates anything or not.
-    /// Nothing is drawn then, and the renderer keeps what it had: the next call tries again, so
-    /// that a game can free memory, or draw into a smaller target, in between.
+    /// the frame creates: a view's targets of a new size, its bloom's levels when it resumes, its
+    /// instances' buffers when they grow or shrink, the bindings of a new environment, or an atlas
+    /// when a light first casts shadows into it; or with [`GfxError::DeviceLost`] once the device
+    /// is lost, whether the frame creates anything or not. Nothing is drawn then, in any view, and
+    /// each keeps what it had, but a view whose rectangle changed size, which freed its old targets
+    /// and has none until a frame makes them: the next call tries again, so that a game can free
+    /// memory, or draw into smaller rectangles, in between.
     ///
     /// # Panics
     ///
-    /// If `target` does not have the format the renderer was created for; if the scene's exposure
-    /// or bloom is outside the range its documentation gives (the message names it): these are bugs
-    /// in the caller. Instances beyond what the device's storage buffers hold are left out, with a
-    /// warning ([`Renderer`]). A light with a value outside the range its documentation gives,
-    /// which a game's data may hold ([`Light::check`]), or a point or spot light farther than
-    /// 10¹⁸ m from the camera along an axis, where the shader's 32-bit floats no longer measure it,
-    /// is left out, with a warning that names it by its index in the scene's lights when it is
-    /// first left out; the [`MAX_LIGHTS`] drawn are the first of the others.
+    /// If a view's target does not have the format the renderer was created for, or holds several
+    /// samples per pixel, which the renderer resolves itself; if a view's rectangle has no pixel or
+    /// does not lie inside its target; if the scene's exposure or bloom is outside the range its
+    /// documentation gives (the message names it): these are bugs in the caller. Instances beyond
+    /// what the device's storage buffers hold are left out, with a warning ([`Renderer`]). A light
+    /// with a value outside the range its documentation gives, which a game's data may hold
+    /// ([`Light::check`]), or a point or spot light farther than 10¹⁸ m from a view's camera
+    /// along an axis, where the shader's 32-bit floats no longer measure it, is left out of every
+    /// view, with a warning that names it by its index in the scene's lights when it is first left
+    /// out; the [`MAX_LIGHTS`] drawn are the first of the others.
     ///
     /// With glam's assertions on (see [`Camera`]), also for a camera that would otherwise draw
     /// nothing usable, as [`Camera::view_projection`] does.
     pub fn render(
         &mut self,
         gpu: &Gpu,
-        target: &RenderTarget,
         scene: &Scene,
-    ) -> Result<RenderStats, RenderError> {
-        let started = Instant::now();
+        views: &mut [ViewDraw<'_>],
+    ) -> Result<(), RenderError> {
         assert!(
             scene.exposure.is_finite() && scene.exposure >= 0.0,
             "the scene's exposure is {}; it is finite and not negative",
@@ -1040,13 +1225,126 @@ impl Renderer {
             "the scene's bloom is {}; it is from 0 to 1",
             scene.bloom
         );
+        for draw in views.iter() {
+            let target = draw.target;
+            assert!(
+                target.format() == self.format,
+                "the renderer draws into {:?} targets, not into `{}`, which is {:?}",
+                self.format,
+                target.label(),
+                target.format()
+            );
+            assert!(
+                !target.is_multisampled(),
+                "the renderer draws into targets of one sample per pixel, not into `{}`, which has \
+                 several: it resolves its own samples (ADR-0056)",
+                target.label()
+            );
+            let viewport = draw.viewport();
+            assert!(
+                viewport.width > 0
+                    && viewport.height > 0
+                    && viewport.x.checked_add(viewport.width) <= Some(target.width())
+                    && viewport.y.checked_add(viewport.height) <= Some(target.height()),
+                "the view `{}` draws into {viewport:?}, which is not a rectangle of `{}`, of {} × \
+                 {} pixels",
+                draw.view.label,
+                target.label(),
+                target.width(),
+                target.height()
+            );
+        }
+        // A lost device ignores what is recorded on it: without this, a frame that creates
+        // nothing would report itself drawn.
+        gpu.check()?;
+        let lights = self.lights_drawn(scene, views);
+        let lights = &lights[..];
+        // Each spot light that casts shadows, among those drawn, gets a tile of the atlas, in the
+        // scene's order, which the first view draws for every view (ADR-0058, ADR-0111).
+        let spot_lights: Vec<&SpotLight> = lights
+            .iter()
+            .filter_map(|light| match light {
+                Light::Spot(light) if light.casts_shadows => Some(light),
+                _ => None,
+            })
+            .collect();
+        let tiles: Vec<ShadowTile> = spot_tiles(spot_lights.len()).collect();
+        // What can fail, each view's buffers and targets, before anything is drawn.
+        let mut prepared = Vec::with_capacity(views.len());
+        for (index, draw) in views.iter_mut().enumerate() {
+            let spots = (index == 0).then_some(&tiles[..]);
+            let view = self.prepare(gpu, scene, lights, draw, &spot_lights, spots)?;
+            let (drawn, left_out) = view.instances;
+            if left_out > 0 && !self.warned_of_instances {
+                tracing::warn!(
+                    drawn,
+                    left_out,
+                    "the passes draw more instances than the device's storage buffers hold the \
+                     values of: the last ones, in the scene's order, are left out (said once per \
+                     renderer)"
+                );
+                self.warned_of_instances = true;
+            }
+            prepared.push(view);
+        }
+        // Each atlas is created by the first frame that draws into it, and the scene pass reads it
+        // from then on, where it read a texel of its own; the group that binds them follows them,
+        // whichever frame created them, so that one whose group could not be made makes it at the
+        // next frame (G37).
+        if prepared.iter().any(|view| view.shape.shadow) && self.cascade_atlas.is_none() {
+            self.cascade_atlas = Some(gpu.create_depth_target(
+                "cascades' atlas",
+                CASCADE_ATLAS_SIZE,
+                CASCADE_ATLAS_SIZE,
+            )?);
+        }
+        if prepared.iter().any(|view| view.shape.spot_shadows) && self.spot_atlas.is_none() {
+            self.spot_atlas = Some(gpu.create_depth_target(
+                "spot shadow atlas",
+                SPOT_ATLAS_SIZE,
+                SPOT_ATLAS_SIZE,
+            )?);
+        }
+        let atlases = (self.cascade_atlas.is_some(), self.spot_atlas.is_some());
+        if atlases != self.shadow_group_atlases {
+            self.shadow_group = shadow_group(
+                gpu,
+                &self.layouts.shadow,
+                self.cascade_atlas.as_ref().unwrap_or(&self.no_atlas),
+                &self.shadow_sampler,
+                self.spot_atlas.as_ref().unwrap_or(&self.no_atlas),
+            )?;
+            self.shadow_group_atlases = atlases;
+        }
+        // Each view in turn: the cascades' atlas, which each view draws for its camera, holds one
+        // view's at a time, the GPU running a frame's work in the order it is submitted.
+        for (draw, prepared) in views.iter_mut().zip(prepared) {
+            self.record_view(gpu, scene, draw, prepared);
+        }
+        // The copies of what loads bring follow the frame just submitted, a budget of them.
+        self.uploader.frame();
+        Ok(())
+    }
+
+    /// The lights of `scene` that a frame draws for `views`: those that every view's camera can
+    /// draw, in the scene's order, the first [`MAX_LIGHTS`] of them; each left out is said when it
+    /// is first left out, and too many lights once per renderer.
+    fn lights_drawn(&mut self, scene: &Scene, views: &[ViewDraw<'_>]) -> Vec<Light> {
         // Lights come from a game's data, which a player should not see end the game: a light that
         // cannot be drawn is left out, and a scene with more lights than the renderer packs draws
         // its first ones.
         let mut left_out = Vec::new();
         let mut lights = Vec::with_capacity(scene.lights.len().min(MAX_LIGHTS));
         for (index, light) in scene.lights.iter().enumerate() {
-            match light.check_from(scene.camera.eye) {
+            // `check_from` checks the light's values too.
+            let checked = if views.is_empty() {
+                light.check()
+            } else {
+                views
+                    .iter()
+                    .try_for_each(|draw| light.check_from(draw.camera.eye))
+            };
+            match checked {
                 Ok(()) => lights.push(*light),
                 Err(reason) => {
                     // In the order of the indices, as `left_out` is.
@@ -1070,18 +1368,26 @@ impl Renderer {
             self.warned_of_lights = true;
         }
         lights.truncate(MAX_LIGHTS);
-        let lights = &lights[..];
-        assert!(
-            target.format() == self.format,
-            "the renderer draws into {:?} targets, not into `{}`, which is {:?}",
-            self.format,
-            target.label(),
-            target.format()
-        );
-        // A lost device ignores what is recorded on it: without this, a frame that creates
-        // nothing would report itself drawn.
-        gpu.check()?;
-        let (width, height) = (target.width(), target.height());
+        lights
+    }
+
+    /// Works out what `draw`'s view draws of `scene`, lit by `lights`, writes its values and makes
+    /// what it lacks, its buffers and targets; `spots`, for the view that draws the spot lights'
+    /// shadows, their tiles, the spot lights that cast shadows being `spot_lights`.
+    fn prepare(
+        &self,
+        gpu: &Gpu,
+        scene: &Scene,
+        lights: &[Light],
+        draw: &mut ViewDraw<'_>,
+        spot_lights: &[&SpotLight],
+        spots: Option<&[ShadowTile]>,
+    ) -> Result<Prepared, RenderError> {
+        let started = Instant::now();
+        let viewport = draw.viewport();
+        let camera = &draw.camera;
+        let view = &mut *draw.view;
+        let (width, height) = (viewport.width, viewport.height);
         let bloom = scene.bloom > 0.0 && bloom_levels(width, height) > 0;
         // An 8-bit output is dithered by one of its 255 steps; a floating-point one is not.
         let step = if self.format == TextureFormat::Rgba16Float {
@@ -1095,12 +1401,18 @@ impl Renderer {
             &mut settings,
             &[if bloom { scene.bloom } else { 0.0 }, step, srgb, 0.0],
         );
-        gpu.write_uniform_buffer(&self.tone_mapping_settings, &settings);
+        // Where the view's rectangle starts in its output: the scene's light is read relative to
+        // it.
+        push_f32s(
+            &mut settings,
+            &[viewport.x as f32, viewport.y as f32, 0.0, 0.0],
+        );
+        gpu.write_uniform_buffer(&view.tone_mapping_settings, &settings);
 
         // Every position reaches the GPU relative to the camera (ADR-0048).
-        let origin = scene.camera.eye;
+        let origin = camera.eye;
         let aspect = width as f32 / height as f32;
-        let view_projection = scene.camera.projection(aspect) * scene.camera.view_from_eye();
+        let view_projection = camera.projection(aspect) * camera.view_from_eye();
         let instances = &scene.instances;
         let Scratch {
             models,
@@ -1110,7 +1422,7 @@ impl Renderer {
             scene_keys,
             shadow_keys,
             list,
-        } = &mut self.scratch;
+        } = &mut view.scratch;
         reuse(models, instances.len());
         models.extend(
             instances
@@ -1133,7 +1445,7 @@ impl Renderer {
         }));
         // The first directional light that casts shadows casts them, through its cascades, each
         // drawing the instances that cast shadows across its square (ADR-0038, ADR-0064); none when
-        // the camera sees nothing.
+        // the camera sees nothing. An orthographic camera sees nothing beyond its far plane.
         let shadowed = lights
             .iter()
             .enumerate()
@@ -1142,28 +1454,23 @@ impl Renderer {
                 _ => None,
             })
             .and_then(|(index, light)| {
+                let distance = match camera.projection {
+                    Projection::Orthographic { far, .. } => light.shadow_distance.min(far),
+                    Projection::Perspective { .. } => light.shadow_distance,
+                };
                 let views = (0..CASCADES)
                     .map(|cascade| {
-                        let camera = &scene.camera;
-                        let (near, far) = cascade_slice(camera, light.shadow_distance, cascade);
+                        let (near, far) = cascade_slice(camera, distance, cascade);
                         CascadeView::new(light.direction, camera, aspect, near, far)
                     })
                     .collect::<Option<Vec<CascadeView>>>()?;
                 Some((index, views))
             });
-        // Each spot light that casts shadows, among those drawn, gets a tile of the atlas, in the
-        // scene's order, and draws there the instances that cast shadows into it (ADR-0058).
-        let spot_lights: Vec<&SpotLight> = lights
-            .iter()
-            .filter_map(|light| match light {
-                Light::Spot(light) if light.casts_shadows => Some(light),
-                _ => None,
-            })
-            .collect();
-        let tiles: Vec<ShadowTile> = spot_tiles(spot_lights.len()).collect();
+        // The spot lights' tiles as this view's camera reads them; the view that draws them draws
+        // into each the instances that cast shadows into it.
         let spot_views: Vec<SpotView> = spot_lights
             .iter()
-            .zip(&tiles)
+            .zip(spot_tiles(spot_lights.len()))
             .map(|(light, tile)| SpotView::new(light, origin, tile.size))
             .collect();
         for (slot, instance) in instances.iter().enumerate() {
@@ -1180,9 +1487,11 @@ impl Renderer {
                     passes[slot] |= cascade_pass(cascade);
                 }
             }
-            for (tile, (light, view)) in spot_lights.iter().zip(&spot_views).enumerate() {
-                if view.reaches(light.range, boxed) {
-                    passes[slot] |= spot_pass(tile);
+            if spots.is_some() {
+                for (tile, (light, view)) in spot_lights.iter().zip(&spot_views).enumerate() {
+                    if view.reaches(light.range, boxed) {
+                        passes[slot] |= spot_pass(tile);
+                    }
                 }
             }
         }
@@ -1193,18 +1502,9 @@ impl Renderer {
             .unwrap_or(u32::MAX);
         reuse(values_of, instances.len());
         let (drawn, left_out) = place_values(passes, most, values_of);
-        if left_out > 0 && !self.warned_of_instances {
-            tracing::warn!(
-                drawn,
-                left_out,
-                "the passes draw more instances than the device's storage buffers hold the values \
-                 of: the last ones, in the scene's order, are left out (said once per renderer)"
-            );
-            self.warned_of_instances = true;
-        }
         // Each cascade's depths are fitted to the boxes that reach across its square; a cascade
         // that nothing reaches is cleared, and the points its square holds are lit.
-        let mut shadow = shadowed.and_then(|(index, views)| {
+        let shadow = shadowed.and_then(|(index, views)| {
             let reached = passes.iter().any(|&pass| pass & CASCADE_PASSES != 0);
             let cascades = views.iter().enumerate().map(|(cascade, view)| {
                 let reaching = (0..instances.len())
@@ -1233,12 +1533,15 @@ impl Renderer {
                 .copied()
                 .filter(move |&key| passes[slot_of(key)] & pass != 0)
         };
-        if let Some((_, cascades)) = &mut shadow {
-            for (cascade, draw) in cascades.iter_mut().enumerate() {
-                draw.draws = batches(in_pass(cascade_pass(cascade)), values_of, list);
-            }
+        let (shadowed, mut cascades) = match shadow {
+            Some((index, cascades)) => (u32::try_from(index).expect("below MAX_LIGHTS"), cascades),
+            None => (NO_SHADOWED_LIGHT, Vec::new()),
+        };
+        for (cascade, draw) in cascades.iter_mut().enumerate() {
+            draw.draws = batches(in_pass(cascade_pass(cascade)), values_of, list);
         }
-        let spot_draws: Vec<SpotDraw> = tiles
+        let spot_draws: Vec<SpotDraw> = spots
+            .unwrap_or_default()
             .iter()
             .enumerate()
             .map(|(index, &tile)| SpotDraw {
@@ -1259,13 +1562,17 @@ impl Renderer {
             push_f32s(values, &[handedness, 0.0, 0.0, 0.0]);
         }
         let capacity = (
-            instance_capacity(self.instances.capacity.0, drawn as usize).min(most as usize),
-            instance_capacity(self.instances.capacity.1, list.len() / 4)
+            instance_capacity(view.instances.capacity.0, drawn as usize).min(most as usize),
+            instance_capacity(view.instances.capacity.1, list.len() / 4)
                 .min((gpu.max_storage_buffer_size() / 4) as usize),
         );
-        if capacity != self.instances.capacity {
-            tracing::debug!(?capacity, "resizing the instances' buffers");
-            self.instances =
+        if capacity != view.instances.capacity {
+            tracing::debug!(
+                ?capacity,
+                view = view.label,
+                "resizing the instances' buffers"
+            );
+            view.instances =
                 InstanceBuffers::new(gpu, &self.layouts.instance, capacity.0, capacity.1)?;
             // The memory of the values and of the list follows the buffers, back down after a
             // peak.
@@ -1273,52 +1580,22 @@ impl Renderer {
             list.shrink_to(capacity.1 * 4);
         }
         if !values.is_empty() {
-            gpu.write_storage_buffer(&self.instances.values, 0, values);
+            gpu.write_storage_buffer(&view.instances.values, 0, values);
         }
         if !list.is_empty() {
-            gpu.write_storage_buffer(&self.instances.list, 0, list);
-        }
-
-        // Each atlas is created by the first frame that draws into it, and the scene pass reads it
-        // from then on, where it read a texel of its own.
-        let mut created = false;
-        if shadow.is_some() && self.cascade_atlas.is_none() {
-            self.cascade_atlas = Some(gpu.create_depth_target(
-                "cascades' atlas",
-                CASCADE_ATLAS_SIZE,
-                CASCADE_ATLAS_SIZE,
-            )?);
-            created = true;
-        }
-        if !spot_draws.is_empty() && self.spot_atlas.is_none() {
-            self.spot_atlas = Some(gpu.create_depth_target(
-                "spot shadow atlas",
-                SPOT_ATLAS_SIZE,
-                SPOT_ATLAS_SIZE,
-            )?);
-            created = true;
-        }
-        if created {
-            self.shadow_group = shadow_group(
-                gpu,
-                &self.layouts.shadow,
-                self.cascade_atlas.as_ref().unwrap_or(&self.no_atlas),
-                &self.shadow_sampler,
-                self.spot_atlas.as_ref().unwrap_or(&self.no_atlas),
-            )?;
+            gpu.write_storage_buffer(&view.instances.list, 0, list);
         }
 
         let mut frame_bytes = Vec::with_capacity(FRAME_VALUES_SIZE);
         push_mat4(&mut frame_bytes, view_projection);
-        // Without the camera's position, its inverse gives directions from the camera.
-        push_mat4(&mut frame_bytes, view_projection.inverse());
-        let (shadowed, cascades) = match &shadow {
-            Some((index, cascades)) => (
-                u32::try_from(*index).expect("below MAX_LIGHTS"),
-                cascades.as_slice(),
-            ),
-            None => (NO_SHADOWED_LIGHT, [].as_slice()),
-        };
+        // In perspective, without the camera's position, its inverse gives directions from the
+        // camera; an orthographic camera sees every pixel along its axis.
+        let orthographic = camera.orthographic_backward();
+        let sky_from_clip = orthographic.map_or_else(
+            || view_projection.inverse(),
+            |backward| Mat4::from_cols(Vec4::ZERO, Vec4::ZERO, Vec4::ZERO, (-backward).extend(0.0)),
+        );
+        push_mat4(&mut frame_bytes, sky_from_clip);
         push_f32s(&mut frame_bytes, &[scene.exposure]);
         push_u32s(
             &mut frame_bytes,
@@ -1328,15 +1605,20 @@ impl Renderer {
                 0,
             ],
         );
+        // An orthographic camera is seen from the same direction everywhere.
+        let to_camera = orthographic.map_or([0.0; 4], |backward| {
+            [backward.x, backward.y, backward.z, 1.0]
+        });
+        push_f32s(&mut frame_bytes, &to_camera);
         let environment = scene.environment.as_ref().unwrap_or(&self.no_environment);
         let (to_sun, sun) = (environment.to_sun, environment.sun_radiance);
         push_f32s(&mut frame_bytes, &[to_sun.x, to_sun.y, to_sun.z, 0.0]);
         push_f32s(&mut frame_bytes, &[sun.x, sun.y, sun.z, 0.0]);
         // Each spot light that casts shadows with the index of its tile, in their order.
-        let mut tiles = 0..;
+        let mut tile_indices = 0..;
         for light in lights {
             let tile = match light {
-                Light::Spot(light) if light.casts_shadows => tiles.next().expect("endless"),
+                Light::Spot(light) if light.casts_shadows => tile_indices.next().expect("endless"),
                 _ => NO_TILE,
             };
             light.push_values(&mut frame_bytes, origin, tile);
@@ -1349,27 +1631,27 @@ impl Renderer {
         // The tiles, in the atlas's texture coordinates, and the width of their texels 1 m along
         // their light's axis.
         let atlas = SPOT_ATLAS_SIZE as f32;
-        for (view, draw) in spot_views.iter().zip(&spot_draws) {
-            let ShadowTile { x, y, size } = draw.tile;
-            push_mat4(&mut frame_bytes, view.view_projection);
+        for (spot_view, tile) in spot_views.iter().zip(spot_tiles(spot_lights.len())) {
+            let ShadowTile { x, y, size } = tile;
+            push_mat4(&mut frame_bytes, spot_view.view_projection);
             push_f32s(
                 &mut frame_bytes,
                 &[
                     x as f32 / atlas,
                     y as f32 / atlas,
                     size as f32 / atlas,
-                    2.0 * view.tan_half / size as f32,
+                    2.0 * spot_view.tan_half / size as f32,
                 ],
             );
         }
         frame_bytes.resize(
-            frame_bytes.len() + (MAX_LIGHTS - spot_draws.len()) * SHADOW_TILE_VALUES_SIZE,
+            frame_bytes.len() + (MAX_LIGHTS - spot_views.len()) * SHADOW_TILE_VALUES_SIZE,
             0,
         );
         // The cascades' tiles, in their atlas's texture coordinates, and the width of their texels
         // in metres; nothing without a shadowed light.
         let atlas = CASCADE_ATLAS_SIZE as f32;
-        for cascade in cascades {
+        for cascade in &cascades {
             let ShadowTile { x, y, size } = cascade.tile;
             push_mat4(&mut frame_bytes, cascade.view_projection);
             push_f32s(
@@ -1383,7 +1665,7 @@ impl Renderer {
             );
         }
         frame_bytes.resize(FRAME_VALUES_SIZE, 0);
-        gpu.write_uniform_buffer(&self.frame_uniform, &frame_bytes);
+        gpu.write_uniform_buffer(&view.frame_uniform, &frame_bytes);
 
         // The views of the shadow passes, each in its slot: the cascades', then the spot tiles'.
         let slots = (CASCADES + MAX_LIGHTS) * self.shadow_view_stride;
@@ -1393,57 +1675,92 @@ impl Renderer {
                 .get(index)
                 .map_or(Mat4::IDENTITY, |cascade| cascade.view_projection)
         });
-        let views = cascade_views.chain(spot_views.iter().map(|view| view.view_projection));
-        for view in views {
-            push_mat4(&mut view_bytes, view);
+        let shadow_views =
+            cascade_views.chain(spot_views.iter().map(|spot_view| spot_view.view_projection));
+        for shadow_view in shadow_views {
+            push_mat4(&mut view_bytes, shadow_view);
             view_bytes.resize(
                 view_bytes.len().next_multiple_of(self.shadow_view_stride),
                 0,
             );
         }
         view_bytes.resize(slots, 0);
-        gpu.write_uniform_buffer(&self.shadow_views, &view_bytes);
-        if !self.frame_group.0.is(environment) {
+        gpu.write_uniform_buffer(&view.shadow_views, &view_bytes);
+        if !view.frame_group.0.is(environment) {
             let group = frame_group(
                 gpu,
                 &self.layouts.frame,
-                &self.frame_uniform,
+                &view.frame_uniform,
                 environment,
                 &self.brdf_table,
                 &self.environment_sampler,
             )?;
-            self.frame_group = (environment.clone(), group);
+            view.frame_group = (environment.clone(), group);
         }
-        let frame_group = &self.frame_group.1;
 
         let shape = Shape {
             width,
             height,
-            shadow: shadow.is_some(),
+            shadow: !cascades.is_empty(),
             spot_shadows: !spot_draws.is_empty(),
             bloom,
+            whole: viewport == Viewport::whole(draw.target),
         };
-        if self.frame.as_ref().is_none_or(|frame| frame.shape != shape) {
-            tracing::debug!(?shape, "building the frame's graph");
-            self.frame = Some(self.build_frame(gpu, shape, self.frame.as_ref())?);
+        if view.frame.as_ref().is_none_or(|frame| frame.shape != shape) {
+            tracing::debug!(?shape, view = view.label, "building the frame's graph");
+            // A frame of another size frees the targets of the one before first, once the GPU has
+            // finished the frames that use them, so that it never holds both (G18): a size that
+            // does not fit leaves the view without targets.
+            if view.frame.as_ref().is_some_and(|frame| {
+                (frame.shape.width, frame.shape.height) != (shape.width, shape.height)
+            }) {
+                view.frame = None;
+                gpu.wait_idle()?;
+            }
+            let frame =
+                self.build_frame(gpu, shape, view.frame.as_ref(), &view.tone_mapping_settings)?;
+            view.frame = Some(frame);
         }
-        let frame = self.frame.as_ref().expect("built above");
+        Ok(Prepared {
+            shape,
+            scene_draws,
+            cascades,
+            spot_draws,
+            instances: (drawn, left_out),
+            cpu_time: started.elapsed(),
+        })
+    }
 
+    /// Records the passes of `draw`'s view, which `prepared` worked out, and keeps their
+    /// statistics in the view.
+    fn record_view(&self, gpu: &Gpu, scene: &Scene, draw: &mut ViewDraw<'_>, prepared: Prepared) {
+        let started = Instant::now();
+        let viewport = draw.viewport();
+        let target = draw.target;
+        let view = &mut *draw.view;
+        let frame = view.frame.as_ref().expect("prepared");
         let mut stats = RenderStats::default();
         // In the order `declare_frame` imports them.
         let mut imported = vec![Imported::Color(target)];
         for (drawn, atlas) in [
-            (shape.shadow, &self.cascade_atlas),
-            (shape.spot_shadows, &self.spot_atlas),
+            (prepared.shape.shadow, &self.cascade_atlas),
+            (prepared.shape.spot_shadows, &self.spot_atlas),
         ] {
             if let (true, Some(atlas)) = (drawn, atlas) {
                 imported.push(Imported::Depth(atlas));
             }
         }
-        // The submissions are named after the output, so that capture tools show which it drew.
+        let groups = ViewGroups {
+            frame: &view.frame_group.1,
+            instances: &view.instances.group,
+            shadow_views: &view.shadow_views_group,
+            viewport: (!prepared.shape.whole).then_some(viewport),
+        };
+        // The submissions are named after the view and its output, so that capture tools show which
+        // it drew.
         frame.graph.record(
             gpu,
-            target.label(),
+            &format!("{}: {}", view.label, target.label()),
             &imported,
             |index, pass, render_pass| {
                 let group = frame.groups[index].as_ref();
@@ -1451,11 +1768,9 @@ impl Renderer {
                     pass,
                     render_pass,
                     group,
-                    frame_group,
+                    &groups,
                     scene,
-                    &scene_draws,
-                    cascades,
-                    &spot_draws,
+                    &prepared,
                     &mut stats,
                 );
             },
@@ -1469,10 +1784,8 @@ impl Renderer {
             |index| frame.graph.gpu_time(index),
             &mut stats,
         );
-        // The copies of what loads bring follow the frame just submitted, a budget of them.
-        self.uploader.frame();
-        stats.cpu_time = started.elapsed();
-        Ok(stats)
+        stats.cpu_time = prepared.cpu_time + started.elapsed();
+        view.stats = stats;
     }
 
     /// Draws the depths of the instances `instances` of the list, of `instance`'s mesh and
@@ -1500,36 +1813,35 @@ impl Renderer {
         draw(render_pass, bound, instance, masked, instances);
     }
 
-    /// Records `pass`, which reads its transient targets through `group`, drawing `scene`, and
-    /// counts its draws in `stats`.
+    /// Records `pass` of a view, which reads its transient targets through `group` and the view's
+    /// values through `groups`, drawing `scene` as `prepared` worked out, and counts its draws in
+    /// `stats`.
     #[expect(
         clippy::too_many_arguments,
-        reason = "the frame's parts that every pass may need, gathered by `render`"
+        reason = "the view's parts that every pass may need, gathered by `record_view`"
     )]
     fn record(
         &self,
         pass: Pass,
         render_pass: &mut RenderPass<'_>,
         group: Option<&BindGroup>,
-        frame_group: &BindGroup,
+        groups: &ViewGroups<'_>,
         scene: &Scene,
-        scene_draws: &[Batch],
-        cascades: &[CascadeDraw],
-        spot_draws: &[SpotDraw],
+        prepared: &Prepared,
         stats: &mut RenderStats,
     ) {
         match pass {
             Pass::Shadow => {
-                render_pass.set_bind_group(0, frame_group, &[]);
-                render_pass.set_bind_group(2, &self.instances.group, &[]);
+                render_pass.set_bind_group(0, groups.frame, &[]);
+                render_pass.set_bind_group(2, groups.instances, &[]);
                 let mut bound = Bound::default();
                 // Each cascade's view, in the first slots.
-                for (view, cascade) in (0..).zip(cascades) {
+                for (view, cascade) in (0..).zip(&prepared.cascades) {
                     let ShadowTile { x, y, size } = cascade.tile;
                     render_pass.set_viewport(x, y, size, size);
                     let offset = u32::try_from(view * self.shadow_view_stride)
                         .expect("at most CASCADES views");
-                    render_pass.set_bind_group(3, &self.shadow_views_group, &[offset]);
+                    render_pass.set_bind_group(3, groups.shadow_views, &[offset]);
                     for batch in &cascade.draws {
                         let instance = &scene.instances[batch.first];
                         self.draw_caster(
@@ -1543,16 +1855,16 @@ impl Renderer {
                 }
             }
             Pass::SpotShadows => {
-                render_pass.set_bind_group(0, frame_group, &[]);
-                render_pass.set_bind_group(2, &self.instances.group, &[]);
+                render_pass.set_bind_group(0, groups.frame, &[]);
+                render_pass.set_bind_group(2, groups.instances, &[]);
                 let mut bound = Bound::default();
                 // Each tile's view, in the slots after the cascades'.
-                for (view, draw) in (CASCADES..).zip(spot_draws) {
+                for (view, draw) in (CASCADES..).zip(&prepared.spot_draws) {
                     let ShadowTile { x, y, size } = draw.tile;
                     render_pass.set_viewport(x, y, size, size);
                     let offset = u32::try_from(view * self.shadow_view_stride)
                         .expect("at most MAX_LIGHTS views");
-                    render_pass.set_bind_group(3, &self.shadow_views_group, &[offset]);
+                    render_pass.set_bind_group(3, groups.shadow_views, &[offset]);
                     for batch in &draw.draws {
                         let instance = &scene.instances[batch.first];
                         self.draw_caster(
@@ -1566,13 +1878,13 @@ impl Renderer {
                 }
             }
             Pass::Scene => {
-                render_pass.set_bind_group(0, frame_group, &[]);
-                render_pass.set_bind_group(2, &self.instances.group, &[]);
+                render_pass.set_bind_group(0, groups.frame, &[]);
+                render_pass.set_bind_group(2, groups.instances, &[]);
                 render_pass.set_bind_group(3, &self.shadow_group, &[]);
                 // A pipeline is set only when a draw needs another, which the draws' order makes
                 // rare.
                 let mut bound = Bound::default();
-                for batch in scene_draws {
+                for batch in &prepared.scene_draws {
                     let instance = &scene.instances[batch.first];
                     let cull = scene_cull(instance);
                     let pipeline = scene_pipeline(instance.material.inner.kind, cull);
@@ -1596,7 +1908,7 @@ impl Renderer {
             }
             Pass::Sky => {
                 render_pass.set_pipeline(&self.pipelines.sky);
-                render_pass.set_bind_group(0, frame_group, &[]);
+                render_pass.set_bind_group(0, groups.frame, &[]);
                 render_pass.draw(0..3);
             }
             Pass::Resolve => {
@@ -1614,6 +1926,16 @@ impl Renderer {
                 render_pass.draw(0..3);
             }
             Pass::ToneMapping => render_pass.debug_group("tone mapping", |render_pass| {
+                // A view that draws into a part of its output covers that part alone.
+                if let Some(Viewport {
+                    x,
+                    y,
+                    width,
+                    height,
+                }) = groups.viewport
+                {
+                    render_pass.set_viewport(x, y, width, height);
+                }
                 render_pass.set_pipeline(&self.pipelines.tone_mapping);
                 render_pass.set_bind_group(0, group.expect("tone mapping reads the scene"), &[]);
                 render_pass.draw(0..3);
@@ -1622,12 +1944,14 @@ impl Renderer {
     }
 
     /// The frame of `shape`: its graph, compiled, with its transient targets created (those of
-    /// `previous` reused where they match) and its timers, and the groups that read the targets.
+    /// `previous` reused where they match) and its timers, and the groups that read the targets,
+    /// the tone-mapping pass's reading its view's `tone_mapping_settings`.
     fn build_frame(
         &self,
         gpu: &Gpu,
         shape: Shape,
         previous: Option<&Frame>,
+        tone_mapping_settings: &UniformBuffer,
     ) -> Result<Frame, GfxError> {
         let mut graph = declare_frame(shape);
         // `declare_frame` builds every shape from the same rules, which the tests compile.
@@ -1690,7 +2014,7 @@ impl Renderer {
                                 BindingResource::RenderTarget(hdr),
                                 BindingResource::RenderTarget(read(1).unwrap_or(hdr)),
                                 BindingResource::Sampler(&self.bloom_sampler),
-                                BindingResource::UniformBuffer(&self.tone_mapping_settings),
+                                BindingResource::UniformBuffer(tone_mapping_settings),
                             ],
                             None,
                         )
@@ -1846,12 +2170,18 @@ fn declare_frame(shape: Shape) -> Graph {
             [Some((*coarser).into()), Some(bloom_down[index].into())],
         ));
     }
-    // The tone-mapping pass clears rather than keeps the output: its triangle covers every pixel,
-    // and a clear does not read what the window's image held before.
+    // The tone-mapping pass clears rather than keeps an output that the view covers: its triangle
+    // covers every pixel, and a clear does not read what the window's image held before. A view
+    // that draws into a part of its output keeps the rest, which other views draw.
     let blurred = bloom_up.first().or(bloom_down.first()).copied();
     graph.add_pass(pass(
         Pass::ToneMapping,
-        cleared(output),
+        Draws::Color {
+            target: output,
+            depth: None,
+            clear: shape.whole,
+            resolve: None,
+        },
         [Some(hdr.into()), blurred.map(Into::into)],
     ));
     graph
@@ -3036,6 +3366,7 @@ mod tests {
                         shadow,
                         spot_shadows,
                         bloom: bloom && bloom_levels(width, height) > 0,
+                        whole: true,
                     };
                     let mut graph = declare_frame(shape);
                     if let Err(error) = graph.compile() {
@@ -3065,6 +3396,32 @@ mod tests {
                     assert_eq!(passes, expected, "{shape:?}");
                 }
             }
+        }
+    }
+
+    /// A view that covers its output clears it as it maps its light; one that draws into a part
+    /// of it keeps the rest, which other views draw.
+    #[test]
+    fn a_view_drawn_into_a_part_of_its_output_keeps_the_rest() {
+        for whole in [true, false] {
+            let shape = Shape {
+                width: 640,
+                height: 360,
+                shadow: true,
+                spot_shadows: false,
+                bloom: true,
+                whole,
+            };
+            let graph = declare_frame(shape);
+            let tone_mapping = graph
+                .declarations()
+                .iter()
+                .find(|declaration| declaration.pass == Pass::ToneMapping)
+                .expect("declared");
+            let Draws::Color { clear, .. } = tone_mapping.draws else {
+                panic!("tone mapping draws colors");
+            };
+            assert_eq!(clear, whole);
         }
     }
 
@@ -3154,5 +3511,80 @@ mod tests {
             &mut stats,
         );
         assert_eq!((stats.bloom_gpu_time, stats.shadow_gpu_time), (None, None));
+    }
+
+    /// G37: a frame that created the cascades' atlas but could not make the group that binds it, as
+    /// when the GPU's memory runs out at the spot lights' atlas in between, leaves the atlas without
+    /// its group; the next frame makes the group, and the sun's shadows show, as a new renderer
+    /// draws them.
+    #[test]
+    fn an_atlas_whose_group_was_not_made_is_bound_from_the_next_frame() {
+        let gpu = Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists them");
+        let draw = |renderer: &mut Renderer, casts_shadows: bool| {
+            let square = renderer
+                .create_mesh(&gpu, "square", &MeshData::square())
+                .expect("the square is valid");
+            let cube = renderer
+                .create_mesh(&gpu, "cube", &MeshData::cube())
+                .expect("the cube is valid");
+            let white = renderer
+                .create_material(&gpu, "white", &MaterialData::default())
+                .expect("the GPU has memory for it");
+            let flat = glam::DQuat::from_rotation_x(-std::f64::consts::FRAC_PI_2);
+            let mut scene = Scene::new(vec![
+                Instance::new(
+                    &square,
+                    &white,
+                    DAffine3::from_scale_rotation_translation(
+                        DVec3::new(8.0, 8.0, 1.0),
+                        flat,
+                        DVec3::ZERO,
+                    ),
+                ),
+                Instance::new(&cube, &white, DAffine3::from_translation(DVec3::Y)),
+            ]);
+            scene.lights = vec![Light::Directional(crate::DirectionalLight {
+                direction: Vec3::new(-0.3, -1.0, -0.2),
+                illuminance: 3.0,
+                shadow_distance: 10.0,
+                casts_shadows,
+                ..crate::DirectionalLight::default()
+            })];
+            let camera = Camera {
+                eye: DVec3::new(0.0, 4.0, 5.0),
+                target: DVec3::ZERO,
+                ..Camera::default()
+            };
+            let target = gpu
+                .create_render_target("output", 32, 32, TextureFormat::Rgba16Float)
+                .expect("the GPU has memory for it");
+            let mut view = renderer
+                .create_view(&gpu, "view")
+                .expect("the view is created");
+            renderer
+                .render(
+                    &gpu,
+                    &scene,
+                    &mut [ViewDraw::new(&mut view, camera, &target)],
+                )
+                .expect("the frame is drawn");
+            gpu.read_float_render_target(&target)
+                .expect("the image is read back")
+        };
+        let mut fresh = Renderer::new(&gpu, TextureFormat::Rgba16Float).expect("the renderer");
+        let expected = draw(&mut fresh, true);
+        assert!(
+            draw(&mut fresh, false).pixels != expected.pixels,
+            "the image shows the sun's shadows"
+        );
+        let mut renderer = Renderer::new(&gpu, TextureFormat::Rgba16Float).expect("the renderer");
+        renderer.cascade_atlas = Some(
+            gpu.create_depth_target("cascades' atlas", CASCADE_ATLAS_SIZE, CASCADE_ATLAS_SIZE)
+                .expect("the GPU has memory for it"),
+        );
+        assert!(
+            draw(&mut renderer, true).pixels == expected.pixels,
+            "the sun's shadows show"
+        );
     }
 }

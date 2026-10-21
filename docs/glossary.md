@@ -312,7 +312,7 @@ the previous frame, limited to a maximum (`slime_app::time::FrameClock`).
 **Frame contract.** What the world gives the renderer at each frame, and how: a frame that owns
 what it draws, built by `slime-world-render`, drawn in one or more *views*, each object naming a
 material of some *kind* ([ADR-0111](adr/0111-the-frame-contract.md)). The frame that owns what it
-draws and the kinds are built; views apart from the renderer are not yet.
+draws, the kinds and the views are built; the settings of a view are not yet.
 
 **Frame scheduler (frame limiter).** The part of the windowed driver that schedules frames and
 waits between them, so that the engine asks for at most `AppConfig::max_frame_rate` frames per
@@ -406,6 +406,12 @@ run into the world spawned anew from the scenes that changed (`World::carry`,
 **Illuminance.** The light a surface facing a light receives from it, in *lux*, which the *BRDF*
 turns into the light the surface reflects: a `DirectionalLight`'s `illuminance`, and what a point
 or spot light gives at a distance (ADR-0035, ADR-0037).
+
+**Image part (camera).** The part of a camera's image that a *view* draws, as fractions of the
+whole image's width and height (`slime_render::ImagePart`): the whole image's projection is moved
+and scaled so that the part fills the view, and parts drawn side by side make the whole image, for
+a split screen of one camera or a magnifier. Its shadows are those of the whole image
+([ADR-0126](adr/0126-views-apart-from-the-renderer.md)).
 
 **Image-based lighting (IBL).** Lighting surfaces with the light of their whole surroundings, read
 from images of it, here an *environment*, rather than from *punctual lights* alone.
@@ -612,6 +618,12 @@ reaches each point of a surface, darkening creases (glTF).
 **Offscreen rendering.** Drawing into an image that no window shows, a *render target*, for
 example to read it back to the CPU. Image tests render this way, without a windowing system.
 
+**Orthographic projection.** A camera's projection in which what is farther is as large, every
+pixel seen along the camera's axis, as a map or a plan is drawn (`slime_render::Projection`): a box
+as high as the camera's height, as wide as its aspect makes it, from its near plane to its far one,
+beyond which nothing is seen ([ADR-0126](adr/0126-views-apart-from-the-renderer.md)). See
+*reversed depth*.
+
 **Overlay (dev).** Panels drawn over the engine's frames with egui, to show statistics and
 tooling over a running application (`slime_devui::Overlay`,
 [ADR-0031](adr/0031-dev-overlay-with-egui.md)). Removed once what replaces it does at least as
@@ -789,7 +801,8 @@ files, and `ResolvedScene::from_cooked` a glTF scene alone; a world spawns it un
 as it needs ([ADR-0091](adr/0091-scene-documents-and-placements.md)).
 
 **Reversed depth (reversed-Z).** Depth that runs from 1 at the near plane to 0 infinitely far,
-the far plane being at infinity ([ADR-0047](adr/0047-reversed-depth-with-an-infinite-far-plane.md)).
+the far plane being at infinity ([ADR-0047](adr/0047-reversed-depth-with-an-infinite-far-plane.md)),
+or, for an *orthographic projection*, linearly to 0 at its far plane.
 A perspective projection crowds far distances near one end of the depth range; reversed, that end
 is 0, where floating-point depths are finest, so that 32-bit depths keep a precision relative to
 the distance, at any distance. Passes clear *depth targets* to 0, a depth test keeps the greater
@@ -1082,10 +1095,13 @@ names one, `#[reflect(upgrade = ...)]`, and a reader applies them in turn
 floats of either width, text, structs, enums, options, lists, references to assets and entities
 (`slime_reflect::Value`). What passes between reflection, files, saves and editors.
 
-**View (render).** What one camera draws in a frame, into targets of its own, with settings of
-its own (projection, render scale, anti-aliasing, debugging, passes). What views share (pipelines,
-spot lights' shadows, the environment) the renderer makes once
-([ADR-0111](adr/0111-the-frame-contract.md)). Decided, not built yet.
+**View (render).** A camera's image drawn into a render target, or into a rectangle of one, which
+the game holds from frame to frame (`slime_render::View`): its targets at the size it draws, its
+buffers, its part of the render graph and its statistics. A frame draws one or more, each with its
+own camera; what they share, the pipelines, the meshes, the spot lights' shadows and the sun's
+cascades' atlas, the renderer makes once ([ADR-0111](adr/0111-the-frame-contract.md),
+[ADR-0126](adr/0126-views-apart-from-the-renderer.md)). The settings of a view (render scale,
+anti-aliasing, debugging, passes) are not built yet.
 
 **Visual target.** A reference image that a game sets for its look, on its target *hardware tier*
 at its frame rate: the gap between the game's image and its targets is the measured problem by

@@ -210,6 +210,14 @@ pub trait Presentation {
         let _ = (ctx, target);
     }
 
+    /// The views that the last [`render`](Self::render) drew into the window's image, each by its
+    /// name and its rectangle, through which a tool captures the part of the image that one draws
+    /// (the development channel's capture, ADR-0126). A rectangle lies inside the image. The
+    /// default names none: a tool then captures the whole image.
+    fn views(&self) -> Vec<ShownView> {
+        Vec::new()
+    }
+
     /// Called between frames when the GPU device was lost and the run is about to open a new one,
     /// as a game asks with
     /// [`AppConfig::restore_lost_device`](crate::AppConfig::restore_lost_device): the presentation
@@ -260,6 +268,22 @@ pub trait Presentation {
 
 /// A game that shows nothing, as a program that runs only its rules.
 impl Presentation for () {}
+
+/// A view that a presentation drew into the window's image ([`Presentation::views`]): its name, and
+/// its rectangle, in pixels from the image's top left corner.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ShownView {
+    /// What a tool names it by: `map`.
+    pub name: String,
+    /// The column of its left edge.
+    pub x: u32,
+    /// The row of its top edge.
+    pub y: u32,
+    /// Its width, at least 1.
+    pub width: u32,
+    /// Its height, at least 1.
+    pub height: u32,
+}
 
 #[cfg(test)]
 mod tests {

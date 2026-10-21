@@ -18,7 +18,7 @@ use slime_gfx::{FloatImage, Gpu, RenderTarget, TextureFormat};
 use slime_render::glam::{DAffine3, DVec3, Mat4, Vec3};
 use slime_render::{
     Camera, Environment, Instance, Light, Material, MaterialData, Mesh, MeshData, RenderStats,
-    Renderer, Scene, Sky, SpotLight,
+    Renderer, Scene, Sky, SpotLight, View, ViewDraw,
 };
 
 const SIZE: u32 = 64;
@@ -30,6 +30,7 @@ const SKY: f32 = 0.125;
 struct Setup {
     gpu: Gpu,
     renderer: Renderer,
+    view: View,
     output: RenderTarget,
     square: Mesh,
     white: Material,
@@ -62,9 +63,13 @@ impl Setup {
             },
         )
         .expect("the GPU has memory for it");
+        let view = renderer
+            .create_view(&gpu, "view")
+            .expect("the view is created");
         Self {
             gpu,
             renderer,
+            view,
             output,
             square,
             white,
@@ -93,13 +98,17 @@ impl Setup {
                 instance
             })
             .collect();
-        let mut scene = Scene::new(camera, instances.clone());
+        let mut scene = Scene::new(instances.clone());
         scene.lights = lights.to_vec();
         scene.environment = Some(self.sky.clone());
-        let stats = self
-            .renderer
-            .render(&self.gpu, &self.output, &scene)
+        self.renderer
+            .render(
+                &self.gpu,
+                &scene,
+                &mut [ViewDraw::new(&mut self.view, camera, &self.output)],
+            )
             .expect("the frame is drawn");
+        let stats = self.view.stats();
         let image = self
             .gpu
             .read_float_render_target(&self.output)
@@ -269,12 +278,16 @@ fn a_lit_floor_and_a_lit_sphere_do_not_shadow_themselves() {
         instance.casts_shadows = casts_shadows;
         let instances = [instance];
         let lights = [light];
-        let mut scene = Scene::new(camera, instances.clone());
+        let mut scene = Scene::new(instances.clone());
         scene.lights = lights.to_vec();
         scene.environment = Some(setup.sky.clone());
         setup
             .renderer
-            .render(&setup.gpu, &setup.output, &scene)
+            .render(
+                &setup.gpu,
+                &scene,
+                &mut [ViewDraw::new(&mut setup.view, camera, &setup.output)],
+            )
             .expect("the frame is drawn");
         setup
             .gpu
@@ -454,13 +467,18 @@ fn a_masked_material_casts_no_shadow_where_it_discards() {
         cut.casts_shadows = casts_shadows;
         instances.push(cut);
         let lights = [light];
-        let mut scene = Scene::new(camera, instances.clone());
+        let mut scene = Scene::new(instances.clone());
         scene.lights = lights.to_vec();
         scene.environment = Some(setup.sky.clone());
-        let stats = setup
+        setup
             .renderer
-            .render(&setup.gpu, &setup.output, &scene)
+            .render(
+                &setup.gpu,
+                &scene,
+                &mut [ViewDraw::new(&mut setup.view, camera, &setup.output)],
+            )
             .expect("the frame is drawn");
+        let stats = setup.view.stats();
         let image = setup
             .gpu
             .read_float_render_target(&setup.output)

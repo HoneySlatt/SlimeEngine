@@ -20,7 +20,7 @@ use slime_gfx::{Gpu, Image, TextureFormat};
 use slime_render::glam::{DAffine3, DVec3, Mat4, Vec3, Vec4};
 use slime_render::{
     Camera, DirectionalLight, Environment, Instance, Light, Material, MaterialData, Mesh, MeshData,
-    RenderStats, Renderer, Scene, Sky,
+    RenderStats, Renderer, Scene, Sky, View, ViewDraw,
 };
 
 use tone_curve::displayed;
@@ -31,6 +31,7 @@ const SIZE: u32 = 16;
 struct Setup {
     gpu: Gpu,
     renderer: Renderer,
+    view: View,
     square: Mesh,
     white: Material,
 }
@@ -47,9 +48,13 @@ impl Setup {
         let white = renderer
             .create_material(&gpu, "white", &MaterialData::default())
             .expect("the GPU has memory for it");
+        let view = renderer
+            .create_view(&gpu, "view")
+            .expect("the view is created");
         Self {
             gpu,
             renderer,
+            view,
             square,
             white,
         }
@@ -120,14 +125,18 @@ impl Setup {
             .expect("the GPU has memory for it")
         });
         let lights = [Light::Directional(light)];
-        let mut scene = Scene::new(camera, instances.clone());
+        let mut scene = Scene::new(instances.clone());
         scene.lights = lights.to_vec();
         scene.environment = environment.clone();
         scene.exposure = exposure;
-        let stats = self
-            .renderer
-            .render(&self.gpu, &target, &scene)
+        self.renderer
+            .render(
+                &self.gpu,
+                &scene,
+                &mut [ViewDraw::new(&mut self.view, camera, &target)],
+            )
             .expect("the frame is drawn");
+        let stats = self.view.stats();
         let image = self
             .gpu
             .read_render_target(&target)

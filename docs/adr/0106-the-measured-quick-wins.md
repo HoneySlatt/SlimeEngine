@@ -1,12 +1,13 @@
 # 0106. The measured quick wins
 
-- Status: Accepted; amends [0042](0042-lights-beyond-the-most-drawn-and-checked-scene-values.md)
-  and [0084](0084-what-the-world-draws.md) (which lights a world gives the renderer first),
+- Status: Accepted; amends [0042](0042-lights-beyond-the-most-drawn-and-checked-scene-values.md) and
+  [0084](0084-what-the-world-draws.md) (which lights a world gives the renderer first),
   [0069](0069-the-asset-pipeline.md) and [0071](0071-cooked-textures.md) (textures whose sides are
   not multiples of 4), [0083](0083-transforms-and-the-hierarchy.md) (how an entity's children are
   read) and [0026](0026-resource-binding-and-depth.md) (a uniform buffer's start written alone);
   amended by [0117](0117-frustum-culling-and-instancing.md) (the shadow passes group what they draw
-  by mesh, the material only for masked materials)
+  by mesh, the material only for masked materials) and [0126](0126-views-apart-from-the-renderer.md)
+  (the lights nearest a point that the game gives first)
 - Date: 2026-10-20
 
 ## Context

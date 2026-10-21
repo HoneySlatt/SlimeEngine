@@ -11,7 +11,8 @@ use slime_color::LinearColor;
 use slime_gfx::{FloatImage, Gpu, RenderTarget, TextureFormat};
 use slime_render::glam::{DVec3, Vec3};
 use slime_render::{
-    Camera, DirectionalLight, Environment, Light, RenderStats, Renderer, Scene, Sky,
+    Camera, DirectionalLight, Environment, Light, Projection, RenderStats, Renderer, Scene, Sky,
+    ViewDraw,
 };
 
 /// Light, and what Khronos PBR Neutral makes of it, each derived by hand from the specification's
@@ -59,12 +60,20 @@ fn draw(
         },
     )
     .expect("the GPU has memory for it");
-    let mut scene = Scene::new(Camera::default(), Vec::new());
+    let mut scene = Scene::new(Vec::new());
     scene.environment = Some(environment.clone());
     scene.exposure = exposure;
+    let mut view = renderer
+        .create_view(gpu, "view")
+        .expect("the view is created");
     renderer
-        .render(gpu, output, &scene)
-        .expect("the frame is drawn")
+        .render(
+            gpu,
+            &scene,
+            &mut [ViewDraw::new(&mut view, Camera::default(), output)],
+        )
+        .expect("the frame is drawn");
+    view.stats()
 }
 
 /// Checks that every pixel of `image` shows `expected`, opaque, within 10^-3: about two steps of
@@ -190,16 +199,23 @@ fn the_sky_is_exposed_before_the_high_dynamic_range_target_and_kept_within_its_r
         let narrow = Camera {
             eye: DVec3::ZERO,
             target: -direction.as_dvec3(),
-            fov_y: 0.001,
+            projection: Projection::Perspective { fov_y: 0.001 },
             ..Camera::default()
         };
         let lights = [Light::Directional(sun)];
-        let mut scene = Scene::new(narrow, Vec::new());
+        let mut scene = Scene::new(Vec::new());
         scene.lights = lights.to_vec();
         scene.environment = Some(environment.clone());
         scene.exposure = exposure;
+        let mut view = renderer
+            .create_view(&gpu, "view")
+            .expect("the view is created");
         renderer
-            .render(&gpu, &output, &scene)
+            .render(
+                &gpu,
+                &scene,
+                &mut [ViewDraw::new(&mut view, narrow, &output)],
+            )
             .expect("the frame is drawn");
         gpu.read_float_render_target(&output)
             .expect("the image is read back")

@@ -106,8 +106,9 @@ struct ShadowTile {
 struct FrameUniform {
     // From the frame's space to clip space.
     view_proj: mat4x4<f32>,
-    // From clip space to directions from the camera, with world space's axes: the inverse of
-    // view_proj. A point (x, y, 0, 1) at infinity gives (d, 0), d the direction it is seen in.
+    // From clip space to directions from the camera, with world space's axes: in perspective, the
+    // inverse of view_proj, which gives a point (x, y, 0, 1) at infinity (d, 0), d the direction it
+    // is seen in; for an orthographic camera, its axis for every point.
     sky_from_clip: mat4x4<f32>,
     // What the light is multiplied by before it is written into the high-dynamic-range target
     // (pre-exposure, ADR-0037).
@@ -117,6 +118,9 @@ struct FrameUniform {
     // The index in `lights` of the light that the cascades shadow, the scene's first directional
     // light that casts shadows; light_count or more when none is.
     shadowed_light: u32,
+    // For an orthographic camera, xyz the unit direction towards it, the same everywhere, and w 1;
+    // 0 in perspective, where it lies at the frame's origin.
+    orthographic: vec4<f32>,
     // The unit direction towards the centre of the environment's sun's disc, and the disc's
     // radiance, in nits: 0 without a sun (ADR-0039).
     to_sun: vec3<f32>,
@@ -322,8 +326,11 @@ fn fs_main(
         front_facing,
         input.handedness,
     );
-    // The camera is at the origin of the frame's space.
-    let to_camera = normalize(-input.position);
+    // A camera in perspective is at the origin of the frame's space.
+    var to_camera = normalize(-input.position);
+    if frame.orthographic.w > 0.0 {
+        to_camera = frame.orthographic.xyz;
+    }
     // Read once, outside the loop over the lights, whose bound the shader compiler of Direct3D 12
     // cannot unroll.
     var shadow = 1.0;

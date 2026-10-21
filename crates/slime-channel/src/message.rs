@@ -90,9 +90,14 @@ pub enum Request {
         /// The key, by its position.
         key: String,
     },
-    /// The image that the game shows: [`Reply::Image`], once the next frame is drawn. It fails in a
-    /// run without a window, and where the window's system does not let its images be copied.
-    Capture,
+    /// The image that the game shows, or the part of it that one of its views draws:
+    /// [`Reply::Image`], once the next frame is drawn. It fails in a run without a window, where
+    /// the window's system does not let its images be copied, and for a view that the frame does
+    /// not draw.
+    Capture {
+        /// The view, by the name that [`GameState::views`] gives; empty for the whole image.
+        view: String,
+    },
     /// The lines of the game's log after the line numbered `after`: [`Reply::Logs`], at most
     /// [`MAX_LOG_LINES`](crate::MAX_LOG_LINES) of them.
     Logs {
@@ -158,8 +163,9 @@ pub enum Reply {
         /// Its components, by their types' names, in the world's order.
         components: Vec<ComponentText>,
     },
-    /// The image that the game shows, whose pixels follow the message: `width` × `height` pixels,
-    /// rows from top to bottom, four bytes each, red, green, blue and alpha, sRGB-encoded.
+    /// The image that the game shows, or the part of it that a view draws, whose pixels follow the
+    /// message: `width` × `height` pixels, rows from top to bottom, four bytes each, red, green, blue
+    /// and alpha, sRGB-encoded.
     Image {
         /// Width in pixels.
         width: u32,
@@ -199,6 +205,9 @@ pub struct GameState {
     pub longest_frame_ms: f64,
     /// The entities of the world.
     pub entities: u64,
+    /// The names of the views that the last frame drew into the window's image, which a capture
+    /// names ([`Request::Capture`]); none for a game that names none, or without a window.
+    pub views: Vec<String>,
 }
 
 /// An entity, as a list of entities names it.
@@ -299,7 +308,7 @@ mod tests {
             },
             Request::Press { key: text("KeyW") },
             Request::Release { key: text("KeyW") },
-            Request::Capture,
+            Request::Capture { view: text("map") },
             Request::Logs { after: 7 },
             Request::Save {
                 file: text("/tmp/run.toml"),
@@ -340,6 +349,7 @@ mod tests {
                     frame_ms: 16.7,
                     longest_frame_ms: 20.0,
                     entities: 400,
+                    views: vec![text("map")],
                 },
             },
             Reply::Entities {

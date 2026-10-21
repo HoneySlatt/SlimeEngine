@@ -21,7 +21,7 @@ use slime_gfx::{Gpu, RenderTarget, TextureFormat};
 use slime_render::glam::Vec3;
 use slime_render::{
     AssetCache, Camera, MaterialValues, RenderError, RenderStats, Renderer, Scene, ShaderSources,
-    Sky,
+    Sky, ViewDraw,
 };
 use slime_world::{Entity, Light, Meshes, Transform, World};
 use slime_world_render::FrameBuilder;
@@ -228,6 +228,8 @@ fn cannot_load(what: &str, error: impl Display) -> AppError {
 /// of one format.
 pub struct View {
     renderer: Renderer,
+    /// What drawing the hero's camera into the window keeps from one frame to the next.
+    shown: slime_render::View,
     cache: AssetCache,
     /// What builds the frames by day, around the overcast sky, and at night, around the night sky
     /// and its moon: each keeps the environment of its sky, so that each is computed once.
@@ -236,8 +238,8 @@ pub struct View {
     glow: Glow,
     /// Whether a frame drew every mesh that the world names: the zone, whole.
     zone_shown: bool,
-    /// The frame that `extract` built, which `render` draws.
-    scene: Option<Scene>,
+    /// The frame that `extract` built, which `render` draws, and the camera it is seen from.
+    scene: Option<(Scene, Camera)>,
 }
 
 impl View {
@@ -269,6 +271,7 @@ impl View {
         let renderer = Renderer::new(gpu, format)?;
         let mut view = Self {
             cache: AssetCache::new(&renderer, assets.clone()),
+            shown: renderer.create_view(gpu, "hero")?,
             renderer,
             day: FrameBuilder::new(Some(OVERCAST)),
             night: FrameBuilder::new(Some(NIGHT_SKY)),
@@ -397,10 +400,10 @@ impl View {
             self.zone_shown = frame.loading == 0;
         }
         flicker_the_fire(world, &mut frame.lights, seconds);
-        let mut scene = frame.scene(camera);
+        let mut scene = frame.scene(camera.eye);
         scene.exposure = exposure;
         scene.bloom = BLOOM;
-        self.scene = Some(scene);
+        self.scene = Some((scene, camera));
         Ok(())
     }
 
@@ -415,10 +418,12 @@ impl View {
         gpu: &Gpu,
         target: &RenderTarget,
     ) -> Result<Option<RenderStats>, RenderError> {
-        let Some(scene) = self.scene.take() else {
+        let Some((scene, camera)) = self.scene.take() else {
             return Ok(None);
         };
-        self.renderer.render(gpu, target, &scene).map(Some)
+        let mut draws = [ViewDraw::new(&mut self.shown, camera, target)];
+        self.renderer.render(gpu, &scene, &mut draws)?;
+        Ok(Some(self.shown.stats()))
     }
 }
 

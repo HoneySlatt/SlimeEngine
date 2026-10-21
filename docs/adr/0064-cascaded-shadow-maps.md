@@ -5,7 +5,9 @@
   [0052](0052-amend-roadmap-before-0-1.md) and
   [0056](0056-stage-3d-anti-aliasing-and-spot-light-shadows.md) (cascades move from Stage 9a to
   Stage 3d), and [0063](0063-a-smoother-shadow-filter.md) (cascades, which it left apart); amended
-  by [0065](0065-reading-the-cascades.md) (how a cascade is chosen and its band read)
+  by [0065](0065-reading-the-cascades.md) (how a cascade is chosen and its band read) and
+  [0126](0126-views-apart-from-the-renderer.md) (the cascades fitted to each view's camera, drawn in
+  turn into one atlas)
 - Date: 2026-10-15
 
 ## Context

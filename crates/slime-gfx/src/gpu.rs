@@ -545,6 +545,17 @@ impl Gpu {
             .min(limits.max_storage_buffer_binding_size)
     }
 
+    /// The bytes of GPU memory that the device's buffers, textures and other objects take, as the
+    /// allocator of wgpu counts them, without what the driver keeps for itself; `None` where wgpu
+    /// does not count them, which it does on Vulkan and Direct3D 12. An object dropped gives its
+    /// memory back once the GPU has finished the work submitted with it: after
+    /// [`Gpu::wait_idle`], at once.
+    pub fn memory_in_use(&self) -> Option<u64> {
+        self.device
+            .generate_allocator_report()
+            .map(|report| report.total_allocated_bytes)
+    }
+
     /// Submits an empty piece of work, then blocks until the GPU has finished everything submitted
     /// so far, or the device is lost. It does not poll the device, on which wgpu panics when the
     /// poll finds the device lost (ADR-0103): it submits empty work until the GPU has finished,
@@ -728,7 +739,12 @@ fn instance_flags() -> wgpu::InstanceFlags {
 }
 
 #[cfg(test)]
+#[path = "../tests/common/memory_budget.rs"]
+mod memory_budget;
+
+#[cfg(test)]
 mod tests {
+    use super::memory_budget::{CHILD_ENV, run_out_of_memory_in_a_child};
     use super::*;
     use crate::{RenderPassDescriptor, RenderTarget, TextureFormat};
     use slime_color::LinearColor;
@@ -947,75 +963,12 @@ mod tests {
         }
     }
 
-    /// Set in the processes that the out-of-memory tests start.
-    const CHILD_ENV: &str = "SLIME_GFX_TEST_CHILD";
-
     /// The most render targets of [`filler`] that a child creates: 4 GiB.
     const FILLERS: usize = 8;
 
     /// A render target of 8192 × 8192 pixels of 8 bytes: 512 MiB.
     fn filler(gpu: &Gpu) -> Result<RenderTarget, GfxError> {
         gpu.create_render_target("filler", 8192, 8192, TextureFormat::Rgba16Float)
-    }
-
-    /// Runs the test `name` again in processes of its own, with [`MEMORY_BUDGET_ENV_VAR`] set,
-    /// and returns what the first one that ran out of memory printed; `None` when nothing runs out
-    /// even at a budget of 1 %: wgpu does not read the driver's budget, as with RADV, whose budget
-    /// wgpu 30 ignores because of a driver bug, and no budget can make memory run out.
-    ///
-    /// The budget is a share of the memory that the driver says the process may use, but drivers
-    /// count what is already used differently: lavapipe counts the whole machine's memory, which
-    /// the creations of a test do not change, so that below a share that depends on what else
-    /// runs, the device does not even open, and above it, nothing runs out. A binary search looks
-    /// for a share in between, where the child prints neither `no device` nor `never ran out`. What
-    /// else runs on the machine moves that share; the search starts again, up to three times, when
-    /// it has moved too far to be found.
-    fn run_out_of_memory_in_a_child(name: &str) -> Option<String> {
-        if child(name, 1).contains("never ran out") {
-            return None;
-        }
-        for _ in 0..3 {
-            if let Some(stdout) = search_budget(name) {
-                return Some(stdout);
-            }
-        }
-        panic!("no budget lets the device open and then run out of memory within 4 GiB");
-    }
-
-    /// One binary search of [`run_out_of_memory_in_a_child`].
-    fn search_budget(name: &str) -> Option<String> {
-        let (mut low, mut high) = (1_u8, 100_u8);
-        while low <= high {
-            let budget = low + (high - low) / 2;
-            let stdout = child(name, budget);
-            if stdout.contains("no device") {
-                low = budget + 1;
-            } else if stdout.contains("never ran out") {
-                high = budget - 1;
-            } else {
-                return Some(stdout);
-            }
-        }
-        None
-    }
-
-    /// What the test `name` prints when it runs in a process of its own, with a memory budget of
-    /// `budget` %.
-    fn child(name: &str, budget: u8) -> String {
-        let output = std::process::Command::new(std::env::current_exe().expect("test binary path"))
-            .args(["--exact", name, "--nocapture"])
-            .env(CHILD_ENV, "1")
-            .env(MEMORY_BUDGET_ENV_VAR, budget.to_string())
-            .output()
-            .expect("child test process runs");
-        let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
-        assert!(
-            output.status.success(),
-            "the child failed with a budget of {budget} %: {}\n{stdout}\n{}",
-            output.status,
-            String::from_utf8_lossy(&output.stderr)
-        );
-        stdout
     }
 
     /// The GPU of a child, or `None`, once it has printed `no device`, when the budget is too small

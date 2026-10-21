@@ -16,7 +16,9 @@ mod tone_curve;
 use slime_color::LinearColor;
 use slime_gfx::{FloatImage, Gpu, TextureFormat};
 use slime_render::glam::{DAffine3, DVec3, Mat4, Vec3};
-use slime_render::{Camera, Instance, MaterialData, MeshData, Renderer, Scene};
+use slime_render::{
+    Camera, Instance, MaterialData, MeshData, Projection, Renderer, Scene, ViewDraw,
+};
 
 /// The output's side, in pixels; the square's left edge crosses its column `EDGE_COLUMN`.
 const SIZE: u32 = 8;
@@ -30,7 +32,7 @@ fn camera() -> Camera {
     Camera {
         eye: Vec3::new(0.0, 0.0, DISTANCE).as_dvec3(),
         target: DVec3::ZERO,
-        fov_y: FOV_Y,
+        projection: Projection::Perspective { fov_y: FOV_Y },
         near: 1.0,
         ..Camera::default()
     }
@@ -73,9 +75,16 @@ fn draw(emission: f32) -> FloatImage {
         &emitter,
         DAffine3::from_mat4(transform.as_dmat4()),
     )];
-    let scene = Scene::new(camera(), instances.clone());
+    let scene = Scene::new(instances.clone());
+    let mut view = renderer
+        .create_view(&gpu, "view")
+        .expect("the view is created");
     renderer
-        .render(&gpu, &output, &scene)
+        .render(
+            &gpu,
+            &scene,
+            &mut [ViewDraw::new(&mut view, camera(), &output)],
+        )
         .expect("the frame is drawn");
     gpu.read_float_render_target(&output)
         .expect("the image is read back")

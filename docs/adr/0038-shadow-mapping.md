@@ -4,15 +4,16 @@
   [0033](0033-gpu-layer-for-multi-pass-rendering.md) and
   [0037](0037-lights-in-physical-units-and-pre-exposure.md); amended by
   [0039](0039-image-based-lighting-computed-on-the-cpu.md) (the frame's values; group 0 holds the
-  environment), by [0041](0041-render-graph.md) (the shadow pass shares a submission and its
-  timer), by [0047](0047-reversed-depth-with-an-infinite-far-plane.md) (the map's depth
-  reversed, its comparison and bias), by [0049](0049-instances-that-cast-no-shadow.md)
-  (instances that cast no shadow; points beyond the map lit) and by
-  [0050](0050-a-shadow-region-that-follows-the-camera.md) (the map follows the camera; a normal
-  offset instead of the slope-scaled bias), by
+  environment), by [0041](0041-render-graph.md) (the shadow pass shares a submission and its timer),
+  by [0047](0047-reversed-depth-with-an-infinite-far-plane.md) (the map's depth reversed, its
+  comparison and bias), by [0049](0049-instances-that-cast-no-shadow.md) (instances that cast no
+  shadow; points beyond the map lit) and by [0050](0050-a-shadow-region-that-follows-the-camera.md)
+  (the map follows the camera; a normal offset instead of the slope-scaled bias), by
   [0061](0061-projecting-the-shadows-of-spot-lights.md) (the shadow pass reads its view from a
-  buffer of views), by [0063](0063-a-smoother-shadow-filter.md) (the filter) and by
-  [0064](0064-cascaded-shadow-maps.md) (four cascades instead of one map)
+  buffer of views), by [0063](0063-a-smoother-shadow-filter.md) (the filter), by
+  [0064](0064-cascaded-shadow-maps.md) (four cascades instead of one map) and by
+  [0126](0126-views-apart-from-the-renderer.md) (the cascades fitted to each view's camera, drawn in
+  turn into one atlas)
 - Date: 2026-10-13
 
 ## Context

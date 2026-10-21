@@ -155,6 +155,11 @@ impl RenderTarget {
         self.format
     }
 
+    /// Whether it holds several samples per pixel ([`Gpu::create_multisampled_render_target`]).
+    pub fn is_multisampled(&self) -> bool {
+        self.texture.sample_count() > 1
+    }
+
     /// Whether the GPU can copy the texture, which [`Gpu::read_render_target`] does.
     pub(crate) fn readable(&self) -> bool {
         self.texture.usage().contains(wgpu::TextureUsages::COPY_SRC)

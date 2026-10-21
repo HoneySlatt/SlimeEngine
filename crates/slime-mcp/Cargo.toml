@@ -28,3 +28,10 @@ serde_json.workspace = true
 name = "drive"
 test = false
 harness = false
+
+# Captures each view of the `world` example, which needs a Wayland compositor and the examples'
+# cooked assets: `scripts/check.sh` runs it in a headless Weston too (ADR-0126).
+[[test]]
+name = "views"
+test = false
+harness = false

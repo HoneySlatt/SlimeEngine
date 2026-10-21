@@ -266,7 +266,12 @@ fn a_tool_with_the_token_drives_a_headless_run() {
             .all(|pair| pair[1].number == pair[0].number + 1)
     );
     assert!(matches!(
-        ask(&mut client, Request::Capture),
+        ask(
+            &mut client,
+            Request::Capture {
+                view: String::new()
+            }
+        ),
         Reply::Failed { .. }
     ));
     assert!(matches!(

@@ -224,9 +224,9 @@ A game built with its default features holds the engine's development channel
 ([ADR-0122](docs/adr/0122-the-development-channel.md)): started with a token in its environment, it
 listens on the machine's own address for the tools that drive it; started without one, it does not.
 The engine's MCP server, `slime-mcp`, starts a game so, and gives an agent the tools to pause and
-step it, read and change its world, play it with keys, save and load its run to files of the
-agent's own, capture its image and read its log; its [README](crates/slime-mcp/README.md) says how
-to give it to an agent. The game opens its window on
+step it, read and change its world, play it with keys, save and load its run to files of the agent's
+own, capture its image or one of its views and read its log; its
+[README](crates/slime-mcp/README.md) says how to give it to an agent. The game opens its window on
 the display that the server's environment names: to keep it off your desktop, give the server the
 environment of a headless Weston, `XDG_RUNTIME_DIR` and `WAYLAND_DISPLAY`, with
 `VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD"` so that lavapipe draws it, as `scripts/check.sh` runs the
@@ -278,8 +278,9 @@ database, so it needs network access), the list of the sample game's source asse
 (`scripts/fetch-assets.sh`), `slime-cook check` (every source asset has a metadata file of its own,
 [ADR-0069](docs/adr/0069-the-asset-pipeline.md)), the sample's assets cooked twice and compared, the
 sample game's zone fetched and cooked, and the tests that read it, the
-samples with no display server available, the windowed samples, the `scene` example on a copy of
-the cooked sample with one byte changed, which must end with an error and not a panic, the game
+samples with no display server available, the windowed samples, the `world` example's two views
+captured by an agent's session through the MCP server, the `scene` example on a copy of the cooked
+sample with one byte changed, which must end with an error and not a panic, the game
 (its new runs, one resumed from a copy of its save fixture, and one driven by an agent's session
 through the MCP server, their saves kept apart from the user's) and the windowed lifecycle test
 inside a headless Weston compositor (and that test's resize and oversize scenarios in a second one,

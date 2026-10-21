@@ -9,13 +9,13 @@ use slime_channel::{
     ANNOUNCEMENT, ComponentText, EntitySummary, GameState, Incoming, Listener, LogLine,
     MAX_ENTITIES, MAX_LOG_LINES, Reply, Request, TOKEN_ENV_VAR, Token,
 };
-use slime_gfx::{Gpu, RenderTarget};
+use slime_gfx::{Gpu, Image, RenderTarget};
 use slime_platform::KeyCode;
 use slime_reflect::{Kind, Path, Reflect as _, Registry, Value};
 use slime_serialize::{Composer, Document, Mode, References};
 use slime_world::{Command, Entity, Name, PersistentId, World};
 
-use crate::game::Simulation;
+use crate::game::{ShownView, Simulation};
 use crate::host::Host;
 use crate::log_lines;
 
@@ -74,11 +74,13 @@ impl DevChannel {
     /// requests that arrived, which change the host as a frame's start may. A step is answered once
     /// the frames have run every step asked for, so that what the tool asks next comes after them;
     /// a capture waits for the frame's image ([`DevChannel::capture`]); `windowed` says whether
-    /// the run has one. A save and a load are `simulation`'s ([`Simulation::save`]).
+    /// the run has one, and `views` names the views that its last frame drew. A save and a load are
+    /// `simulation`'s ([`Simulation::save`]).
     pub(crate) fn answer(
         &mut self,
         host: &mut Host,
         simulation: &mut dyn Simulation,
+        views: &[ShownView],
         frames: u64,
         real: Duration,
         windowed: bool,
@@ -106,11 +108,18 @@ impl DevChannel {
         }
         self.steps = waiting;
         while let Some(incoming) = self.listener.next() {
-            if matches!(incoming.request(), Request::Capture) && windowed {
+            if matches!(incoming.request(), Request::Capture { .. }) && windowed {
                 self.captures.push(incoming);
                 continue;
             }
-            let reply = self.reply(host, simulation, frames, incoming.request(), windowed);
+            let reply = self.reply(
+                host,
+                simulation,
+                views,
+                frames,
+                incoming.request(),
+                windowed,
+            );
             if matches!(incoming.request(), Request::Step { .. }) && reply == Reply::Done {
                 let ctx = host.context();
                 let until = ctx.time().game().steps() + u64::from(ctx.steps_asked());
@@ -126,19 +135,47 @@ impl DevChannel {
         !self.captures.is_empty()
     }
 
-    /// Answers the captures that wait with `target`, the frame's image, drawn and not yet shown.
-    pub(crate) fn capture(&mut self, gpu: &Gpu, target: &RenderTarget) {
+    /// Answers the captures that wait with `target`, the frame's image, drawn and not yet shown, or
+    /// with the part of it that one of `views` draws.
+    pub(crate) fn capture(&mut self, gpu: &Gpu, target: &RenderTarget, views: &[ShownView]) {
         let image = gpu.read_render_target(target);
         for incoming in self.captures.drain(..) {
-            match &image {
-                Ok(image) => incoming.answer_with(
-                    Reply::Image {
-                        width: image.width,
-                        height: image.height,
-                    },
-                    image.pixels.clone(),
-                ),
-                Err(error) => incoming.answer(failed(error)),
+            let Request::Capture { view } = incoming.request().clone() else {
+                unreachable!("only captures wait for the frame's image");
+            };
+            let image = match &image {
+                Ok(image) => image,
+                Err(error) => {
+                    incoming.answer(failed(error));
+                    continue;
+                }
+            };
+            if view.is_empty() {
+                let reply = Reply::Image {
+                    width: image.width,
+                    height: image.height,
+                };
+                incoming.answer_with(reply, image.pixels.clone());
+            } else if let Some(shown) = views.iter().find(|shown| shown.name == view) {
+                match cropped(image, shown) {
+                    Some((width, height, pixels)) => {
+                        incoming.answer_with(Reply::Image { width, height }, pixels);
+                    }
+                    None => incoming.answer(failed(format!(
+                        "the view `{view}` lies outside the image, of {} × {} pixels",
+                        image.width, image.height
+                    ))),
+                }
+            } else {
+                let names: Vec<&str> = views.iter().map(|shown| shown.name.as_str()).collect();
+                incoming.answer(failed(format!(
+                    "the frame draws no view `{view}`: it draws {}",
+                    if names.is_empty() {
+                        "none by name".to_owned()
+                    } else {
+                        format!("`{}`", names.join("`, `"))
+                    }
+                )));
             }
         }
     }
@@ -148,6 +185,7 @@ impl DevChannel {
         &self,
         host: &mut Host,
         simulation: &mut dyn Simulation,
+        views: &[ShownView],
         frames: u64,
         request: &Request,
         windowed: bool,
@@ -155,7 +193,7 @@ impl DevChannel {
         let ctx = host.context_mut();
         match request {
             Request::State => Reply::State {
-                state: self.state(host, frames),
+                state: self.state(host, views, frames),
             },
             Request::Pause => {
                 ctx.pause();
@@ -208,7 +246,7 @@ impl DevChannel {
                 }
                 Reply::Done
             }
-            Request::Capture => {
+            Request::Capture { .. } => {
                 debug_assert!(!windowed, "a windowed run's capture waits for its image");
                 failed("a run without a window shows no image")
             }
@@ -234,8 +272,9 @@ impl DevChannel {
         }
     }
 
-    /// The game's state at the start of a frame, after `frames` frames.
-    fn state(&self, host: &Host, frames: u64) -> GameState {
+    /// The game's state at the start of a frame, after `frames` frames, the last of which drew
+    /// `views`.
+    fn state(&self, host: &Host, views: &[ShownView], frames: u64) -> GameState {
         let ctx = host.context();
         let (real, game) = (ctx.time().real(), ctx.time().game());
         let milliseconds = |time: Duration| time.as_secs_f64() * 1000.0;
@@ -256,6 +295,7 @@ impl DevChannel {
                 .map(milliseconds)
                 .fold(0.0, f64::max),
             entities: host.world().len() as u64,
+            views: views.iter().map(|shown| shown.name.clone()).collect(),
         }
     }
 }
@@ -265,6 +305,26 @@ fn failed(why: impl ToString) -> Reply {
     Reply::Failed {
         message: why.to_string(),
     }
+}
+
+/// The part of `image` that `view` covers, cut at the image's edges, as a presentation's views of
+/// an earlier frame may pass them: its width, its height and its pixels, rows from top to bottom,
+/// four bytes each; `None` when the view covers none of the image.
+fn cropped(image: &Image, view: &ShownView) -> Option<(u32, u32, Vec<u8>)> {
+    let right = view.x.saturating_add(view.width).min(image.width);
+    let bottom = view.y.saturating_add(view.height).min(image.height);
+    if view.x >= right || view.y >= bottom {
+        return None;
+    }
+    let row_bytes = (right - view.x) as usize * 4;
+    let pixels = (view.y..bottom)
+        .flat_map(|row| {
+            let start = (row as usize * image.width as usize + view.x as usize) * 4;
+            &image.pixels[start..start + row_bytes]
+        })
+        .copied()
+        .collect();
+    Some((right - view.x, bottom - view.y, pixels))
 }
 
 /// The entity of `world` and its name, as a list of entities gives it.
@@ -423,5 +483,46 @@ impl References for Identities<'_> {
             Value::Entity(bits) => Some(bits),
             _ => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A view's part of the image, cut at the image's edges; none for a view beyond them.
+    #[test]
+    fn a_capture_of_a_view_is_its_part_of_the_image() {
+        // 4 × 3 pixels, each holding its column and row.
+        let image = Image {
+            width: 4,
+            height: 3,
+            pixels: (0..3_u8)
+                .flat_map(|y| (0..4_u8).flat_map(move |x| [x, y, 0, 255]))
+                .collect(),
+        };
+        let view = |x, y, width, height| ShownView {
+            name: "map".to_owned(),
+            x,
+            y,
+            width,
+            height,
+        };
+        let (width, height, pixels) = cropped(&image, &view(1, 1, 2, 2)).expect("inside");
+        assert_eq!((width, height), (2, 2));
+        assert_eq!(
+            pixels,
+            [
+                [1, 1, 0, 255],
+                [2, 1, 0, 255],
+                [1, 2, 0, 255],
+                [2, 2, 0, 255]
+            ]
+            .concat()
+        );
+        let (width, height, pixels) = cropped(&image, &view(3, 2, 5, 5)).expect("across");
+        assert_eq!((width, height, pixels), (1, 1, vec![3, 2, 0, 255]));
+        assert_eq!(cropped(&image, &view(4, 0, 2, 2)), None);
+        assert_eq!(cropped(&image, &view(0, 0, 0, 2)), None);
     }
 }

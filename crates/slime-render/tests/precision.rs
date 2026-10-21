@@ -13,6 +13,7 @@ use slime_gfx::{FloatImage, Gpu, TextureFormat};
 use slime_render::glam::{DAffine3, DQuat, DVec3, Vec3};
 use slime_render::{
     Camera, DirectionalLight, Instance, Light, MaterialData, MeshData, PointLight, Renderer, Scene,
+    ViewDraw,
 };
 
 const SIZE: u32 = 64;
@@ -73,18 +74,23 @@ fn draw(offset: DVec3) -> FloatImage {
             range: Some(0.25),
         }),
     ];
-    let mut scene = Scene::new(
-        Camera {
-            eye: offset + DVec3::new(0.125, 0.25, 0.25),
-            target: offset + DVec3::new(0.0, 0.015_625, 0.0),
-            near: 0.001,
-            ..Camera::default()
-        },
-        instances.clone(),
-    );
+    let camera = Camera {
+        eye: offset + DVec3::new(0.125, 0.25, 0.25),
+        target: offset + DVec3::new(0.0, 0.015_625, 0.0),
+        near: 0.001,
+        ..Camera::default()
+    };
+    let mut scene = Scene::new(instances.clone());
     scene.lights = lights.to_vec();
+    let mut view = renderer
+        .create_view(&gpu, "view")
+        .expect("the view is created");
     renderer
-        .render(&gpu, &output, &scene)
+        .render(
+            &gpu,
+            &scene,
+            &mut [ViewDraw::new(&mut view, camera, &output)],
+        )
         .expect("the frame is drawn");
     gpu.read_float_render_target(&output)
         .expect("the image is read back")

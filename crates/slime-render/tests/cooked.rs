@@ -22,7 +22,7 @@ use slime_gfx::{GfxError, Gpu, TextureFormat};
 use slime_render::glam::{DAffine3, DVec3, Mat4, Vec3};
 use slime_render::{
     AssetCache, Camera, DirectionalLight, Instance, Light, LoadedScene, MaterialValues, MeshData,
-    RenderError, Renderer, Scene, SceneError, scene_lights,
+    RenderError, Renderer, Scene, SceneError, ViewDraw, scene_lights,
 };
 
 const TEXTURE: AssetId = AssetId::from_u128(1);
@@ -281,11 +281,18 @@ fn center_of(gpu: &Gpu, renderer: &mut Renderer, instance: Instance) -> [u8; 3] 
         ..DirectionalLight::default()
     })];
     let instances = [instance];
-    let mut scene = Scene::new(camera, instances.clone());
+    let mut scene = Scene::new(instances.clone());
     scene.lights = lights.to_vec();
     scene.exposure = 0.5;
+    let mut view = renderer
+        .create_view(gpu, "view")
+        .expect("the view is created");
     renderer
-        .render(gpu, &target, &scene)
+        .render(
+            gpu,
+            &scene,
+            &mut [ViewDraw::new(&mut view, camera, &target)],
+        )
         .expect("the frame is drawn");
     let image = gpu.read_render_target(&target).expect("read back");
     let center = &image.pixels[(8 * 16 + 8) * 4..][..3];
@@ -358,12 +365,19 @@ fn a_cooked_scene_is_placed_lit_and_drawn() {
         target: DVec3::ZERO,
         ..Camera::default()
     };
-    let mut scene = Scene::new(camera, instances.clone());
+    let mut scene = Scene::new(instances.clone());
     scene.lights = loaded.lights.to_vec();
     scene.exposure = 0.5;
     let mut renderer = renderer;
+    let mut view = renderer
+        .create_view(&gpu, "view")
+        .expect("the view is created");
     renderer
-        .render(&gpu, &target, &scene)
+        .render(
+            &gpu,
+            &scene,
+            &mut [ViewDraw::new(&mut view, camera, &target)],
+        )
         .expect("the frame is drawn");
     let image = gpu.read_render_target(&target).expect("read back");
     let center = &image.pixels[(8 * 16 + 8) * 4..][..4];

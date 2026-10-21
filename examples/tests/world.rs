@@ -37,7 +37,7 @@ use cooked::sample;
 use sample_scene::{BLOOM, Bounds, EXPOSURE, SCENE, SKY};
 use slime_gfx::{Gpu, Image, RenderTarget, TextureFormat};
 use slime_render::glam::DAffine3;
-use slime_render::{AssetCache, Camera, Light, RenderStats, Renderer};
+use slime_render::{AssetCache, Camera, Light, RenderStats, Renderer, View, ViewDraw};
 use slime_world::{
     Entity, Hidden, Meshes, PersistentId, ResolvedScene, SceneLibrary, Transform, World,
 };
@@ -81,6 +81,7 @@ fn entity(world: &World, name: &str) -> Entity {
 /// What draws a world: its renderer, the cache of its meshes, and what builds its frames.
 struct Drawing {
     renderer: Renderer,
+    view: View,
     cache: AssetCache,
     builder: FrameBuilder,
 }
@@ -90,6 +91,7 @@ impl Drawing {
         let renderer = Renderer::new(gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
         Self {
             cache: AssetCache::new(&renderer, sample().clone()),
+            view: renderer.create_view(gpu, "world").expect("the view"),
             renderer,
             builder: FrameBuilder::new(Some(SKY)),
         }
@@ -125,15 +127,18 @@ impl Drawing {
             .builder
             .build(world, &mut self.cache, gpu, 0.0)
             .expect("the frame is built");
-        let mut scene = frame.scene(camera);
+        let mut scene = frame.scene(camera.eye);
         scene.exposure = EXPOSURE;
         scene.bloom = BLOOM;
-        let stats = self
-            .renderer
-            .render(gpu, target, &scene)
+        self.renderer
+            .render(
+                gpu,
+                &scene,
+                &mut [ViewDraw::new(&mut self.view, camera, target)],
+            )
             .expect("the frame is drawn");
         let image = gpu.read_render_target(target).expect("read back");
-        (image, stats)
+        (image, self.view.stats())
     }
 }
 
@@ -225,10 +230,11 @@ fn a_frame_built_on_one_thread_is_drawn_on_another_as_on_the_first() {
         .builder
         .build(&world, &mut drawing.cache, &gpu, 0.0)
         .expect("the frame is built");
-    // The frame owns what it draws: the cache and the builder go, and the renderer goes to the
-    // other thread.
+    // The frame owns what it draws: the cache and the builder go, and the renderer and its view go
+    // to the other thread.
     let Drawing {
         mut renderer,
+        mut view,
         cache,
         builder,
     } = drawing;
@@ -237,11 +243,15 @@ fn a_frame_built_on_one_thread_is_drawn_on_another_as_on_the_first() {
         let gpu = gpu.clone();
         move || {
             let target = target(&gpu);
-            let mut scene = frame.scene(camera);
+            let mut scene = frame.scene(camera.eye);
             scene.exposure = EXPOSURE;
             scene.bloom = BLOOM;
             renderer
-                .render(&gpu, &target, &scene)
+                .render(
+                    &gpu,
+                    &scene,
+                    &mut [ViewDraw::new(&mut view, camera, &target)],
+                )
                 .expect("the frame is drawn");
             gpu.read_render_target(&target).expect("read back")
         }
@@ -379,16 +389,18 @@ fn after_a_lost_device_the_cache_made_again_draws_the_same_world() {
     drawing.builder.release();
     let Drawing {
         renderer,
+        view,
         cache,
         builder,
     } = drawing;
     // Nothing may hold the lost device when the new one opens (`Gpu::restore`): the renderer goes,
-    // with the cache that loads through it.
-    drop((renderer, cache));
+    // with its view and the cache that loads through it.
+    drop((renderer, view, cache));
     let gpu = gpu.restore().expect("a new device opens");
     let renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
     let mut drawing = Drawing {
         cache: AssetCache::new(&renderer, sample().clone()),
+        view: renderer.create_view(&gpu, "world").expect("the view"),
         renderer,
         builder,
     };

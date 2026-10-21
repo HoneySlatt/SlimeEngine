@@ -9,7 +9,7 @@ use slime_gfx::TextureFormat;
 use slime_render::glam::{DAffine3, DVec3, Vec3};
 use slime_render::{
     Camera, DirectionalLight, Environment, Instance, Light, Material, MaterialData, MeshData,
-    RenderStats, Renderer, Scene, ShaderSources, Sky,
+    RenderStats, Renderer, Scene, ShaderSources, Sky, ViewDraw,
 };
 
 use crate::measure::{Context, Row, ms, percentile, timed};
@@ -101,6 +101,7 @@ pub fn instances(
     let gpu = &context.gpu;
     let error = |error: slime_render::RenderError| error.to_string();
     let mut renderer = Renderer::new(gpu, FORMAT).map_err(error)?;
+    let mut render_view = renderer.create_view(gpu, "benchmark").map_err(error)?;
     let mesh = renderer.create_mesh(gpu, "cube", &cube()).map_err(error)?;
     let materials = (0..8)
         .map(|index| {
@@ -141,7 +142,7 @@ pub fn instances(
         },
     };
     let lights = [Light::Directional(sun)];
-    let mut scene = Scene::new(camera, instances.clone());
+    let mut scene = Scene::new(instances.clone());
     scene.lights = lights.to_vec();
     scene.environment = Some(environment.clone());
     scene.exposure = EXPOSURE;
@@ -158,9 +159,10 @@ pub fn instances(
         let mut last = None;
         for frame in 0..WARM_UP + frames {
             let (stats, duration) = timed(|| -> Result<_, String> {
-                let stats = renderer.render(gpu, &target, &scene).map_err(error)?;
+                let mut draws = [ViewDraw::new(&mut render_view, camera, &target)];
+                renderer.render(gpu, &scene, &mut draws).map_err(error)?;
                 gpu.wait_idle().map_err(|error| error.to_string())?;
-                Ok(stats)
+                Ok(render_view.stats())
             });
             let stats = stats?;
             if frame >= WARM_UP {

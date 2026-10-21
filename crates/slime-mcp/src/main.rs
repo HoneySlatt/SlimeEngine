@@ -119,6 +119,14 @@ struct Key {
     key: String,
 }
 
+/// What `capture` takes.
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct Capture {
+    /// The view whose part of the image to give, by the name that `game_state` lists; the whole
+    /// image if left out.
+    view: Option<String>,
+}
+
 /// What `read_logs` takes.
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct ReadLogs {
@@ -298,7 +306,7 @@ fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
         Reply::State { state } => text(format!(
             "frame {}, game time {}: {} fixed steps run, {:.3} s of game time, at a speed of {}; \
              {:.3} s of real time; frames of {:.2} ms on average, {:.2} ms at the longest, over the \
-             last ones; {} entities",
+             last ones; {} entities; {}",
             state.frame,
             match (state.paused, state.held) {
                 (true, true) => "paused, and held by the game, as while it loads",
@@ -313,6 +321,11 @@ fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
             state.frame_ms,
             state.longest_frame_ms,
             state.entities,
+            if state.views.is_empty() {
+                "no view named".to_owned()
+            } else {
+                format!("views `{}`", state.views.join("`, `"))
+            },
         )),
         Reply::Entities { entities, more } => {
             let mut lines: Vec<String> = entities
@@ -565,10 +578,17 @@ impl Server {
 
     #[tool(
         description = "The image that the game shows, as the player sees it, dev overlay included, \
-                       once its next frame is drawn."
+                       once its next frame is drawn; or the part of it that one of its views \
+                       draws, named as `game_state` lists them."
     )]
-    async fn capture(&self) -> Result<CallToolResult, McpError> {
-        self.ask(Request::Capture).await
+    async fn capture(
+        &self,
+        Parameters(Capture { view }): Parameters<Capture>,
+    ) -> Result<CallToolResult, McpError> {
+        self.ask(Request::Capture {
+            view: view.unwrap_or_default(),
+        })
+        .await
     }
 
     #[tool(description = "The lines of the game's log after a given line, oldest first.")]

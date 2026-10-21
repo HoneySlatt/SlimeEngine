@@ -22,14 +22,14 @@ mod shapes;
 pub use glam;
 
 pub use cache::AssetCache;
-pub use camera::Camera;
+pub use camera::{Camera, ImagePart, Projection};
 pub use cooked::{LoadedScene, SceneError, SceneLoad, scene_lights};
 pub use environment::{Environment, Sky};
 pub use error::RenderError;
 pub use light::{DirectionalLight, Light, MAX_LIGHTS, PointLight, SpotLight};
 pub use material::{AlphaMode, Material, MaterialData, MaterialValues, SampledTexture};
 pub use mesh::{Mesh, MeshData};
-pub use renderer::{Instance, RenderStats, Renderer, Scene};
+pub use renderer::{Instance, RenderStats, Renderer, Scene, View, ViewDraw, Viewport};
 pub use shaders::{ShaderSources, ShaderWatch};
 
 /// Which types may cross threads (`docs/ARCHITECTURE.md`, "Threads"): checked when the tests are
@@ -58,8 +58,10 @@ mod threads {
         send_and_sync::<Instance>();
         send_and_sync::<RenderStats>();
         send_and_sync::<RenderError>();
-        // `render` takes the renderer mutably: one thread draws with it at a time.
-        send::<Renderer>();
+        send_and_sync::<Renderer>();
+        // A view's timers read their times back through a cell; `render` takes the views mutably:
+        // one thread draws with them at a time.
+        send::<View>();
     }
 
     #[test]

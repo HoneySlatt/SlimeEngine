@@ -51,13 +51,14 @@ The tools, each described to the agent by the server itself, with its parameters
   `["cargo", "run", "-p", "hunnawood", "--", "--new", "--save", "/tmp/agent-run.toml"]`.
   `stop_game` asks it to stop, as closing its window would, and kills it if it does not. A game
   that ended on its own is told at the next tool that asks it, and forgotten.
-- `game_state`, `pause`, `resume`, `step` and `set_speed`: the host's controls of game time; a step
-  answers once its steps have run.
+- `game_state`, `pause`, `resume`, `step` and `set_speed`: the host's controls of game time, and the
+  names of the views that the game's last frame drew; a step answers once its steps have run.
 - `list_entities`, `inspect_entity` and `set_property`: the world, its entities named by their
   persistent identities, `hero`, `zone/door`, its values written in the engine's notation, as a
   scene file holds them.
 - `press_key` and `release_key`: keys, named by their position on the keyboard, `KeyW`.
-- `capture`: the image that the game shows, as a PNG image.
+- `capture`: the image that the game shows, or the part of it that one of its views draws, named
+  as `game_state` lists them (`docs/adr/0126-views-apart-from-the-renderer.md`), as a PNG image.
 - `read_logs`: the lines of the game's log after a given line.
 - `save_game` and `load_game`: the game's run saved to a file, and loaded from one in place of the
   run, as the game saves and resumes its own runs; a file of the agent's, never the player's save.
@@ -68,6 +69,9 @@ The tools, each described to the agent by the server itself, with its parameters
 reads and changes the hero, walks it, saves the run, moves it and loads it back, captures its image
 and reads its log. It needs a Wayland
 compositor and the game's zone cooked: `scripts/check.sh` runs it in a headless Weston.
+`tests/views.rs` starts the `world` example, which draws the yard and a map in a corner, and
+captures the whole image and each view; it needs the examples' assets cooked, in the directory
+that its first argument names, and `scripts/check.sh` runs it there too.
 
 ## Dependencies
 

@@ -26,7 +26,7 @@ use slime_gfx::{FloatImage, Gpu, RenderTarget, TextureFormat};
 use slime_render::glam::{DAffine3, DVec3, Vec3};
 use slime_render::{
     Camera, DirectionalLight, Environment, Instance, Material, MaterialData, Mesh, MeshData,
-    Renderer, Scene, Sky,
+    Projection, Renderer, Scene, Sky, View, ViewDraw,
 };
 
 use tone_curve::tone_map;
@@ -105,6 +105,7 @@ fn sky(d: DVec3) -> DVec3 {
 struct Setup {
     gpu: Gpu,
     renderer: Renderer,
+    view: View,
     output: RenderTarget,
     sphere: Mesh,
 }
@@ -121,9 +122,13 @@ impl Setup {
         let sphere = renderer
             .create_mesh(&gpu, "sphere", &MeshData::sphere(64, 128))
             .expect("the sphere is valid");
+        let view = renderer
+            .create_view(&gpu, "view")
+            .expect("the view is created");
         Self {
             gpu,
             renderer,
+            view,
             output,
             sphere,
         }
@@ -153,11 +158,15 @@ impl Setup {
             })
             .into_iter()
             .collect();
-        let mut scene = Scene::new(camera, instances.clone());
+        let mut scene = Scene::new(instances.clone());
         scene.environment = Some(environment.clone());
         scene.exposure = exposure;
         self.renderer
-            .render(&self.gpu, &self.output, &scene)
+            .render(
+                &self.gpu,
+                &scene,
+                &mut [ViewDraw::new(&mut self.view, camera, &self.output)],
+            )
             .expect("the frame is drawn");
         self.gpu
             .read_float_render_target(&self.output)
@@ -187,7 +196,9 @@ fn camera(direction: Vec3) -> Camera {
     Camera {
         eye: direction.normalize().as_dvec3() * 3.0,
         target: DVec3::ZERO,
-        fov_y: 45f32.to_radians(),
+        projection: Projection::Perspective {
+            fov_y: 45f32.to_radians(),
+        },
         ..Camera::default()
     }
 }
@@ -475,7 +486,9 @@ fn the_sky_shows_where_no_surface_is() {
             let camera = Camera {
                 eye: direction.as_dvec3() * 3.0,
                 target: DVec3::ZERO,
-                fov_y: 70f32.to_radians(),
+                projection: Projection::Perspective {
+                    fov_y: 70f32.to_radians(),
+                },
                 ..Camera::default()
             };
             let image = setup.draw(camera, &environment, None, 0.5);
@@ -521,7 +534,9 @@ fn a_sun_whose_disc_is_brighter_than_a_float_holds_leaves_the_rest_of_the_sky_as
     let camera = Camera {
         eye: direction.as_dvec3() * 3.0,
         target: DVec3::ZERO,
-        fov_y: 70f32.to_radians(),
+        projection: Projection::Perspective {
+            fov_y: 70f32.to_radians(),
+        },
         ..Camera::default()
     };
     let to_sun = -SUNNY_SKY
@@ -554,16 +569,23 @@ fn an_environment_draws_with_any_renderer_and_a_scene_without_one_is_black() {
     let made_here = setup.draw(camera, &environment, Some(&material), 1.0);
     let mut other =
         Renderer::new(&setup.gpu, TextureFormat::Rgba16Float).expect("the renderer is created");
+    let mut view = other
+        .create_view(&setup.gpu, "other view")
+        .expect("the view is created");
     // The unit sphere, as `draw` draws it.
     let instances = [Instance::new(
         &setup.sphere,
         &material,
         DAffine3::from_scale(DVec3::splat(2.0)),
     )];
-    let mut scene = Scene::new(camera, instances.clone());
+    let mut scene = Scene::new(instances.clone());
     scene.environment = Some(environment.clone());
     other
-        .render(&setup.gpu, &setup.output, &scene)
+        .render(
+            &setup.gpu,
+            &scene,
+            &mut [ViewDraw::new(&mut view, camera, &setup.output)],
+        )
         .expect("the frame is drawn");
     let drawn_elsewhere = setup
         .gpu
@@ -572,7 +594,11 @@ fn an_environment_draws_with_any_renderer_and_a_scene_without_one_is_black() {
     assert_eq!(drawn_elsewhere.pixels, made_here.pixels);
     scene.environment = None;
     other
-        .render(&setup.gpu, &setup.output, &scene)
+        .render(
+            &setup.gpu,
+            &scene,
+            &mut [ViewDraw::new(&mut view, camera, &setup.output)],
+        )
         .expect("the frame is drawn");
     let black = setup
         .gpu

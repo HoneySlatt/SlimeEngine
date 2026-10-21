@@ -8,6 +8,22 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- Views apart from the renderer (ADR-0111, ADR-0126): `Renderer::create_view` makes a `View`, a
+  camera's image drawn into an output, which a game holds from frame to frame, and
+  `Renderer::render(gpu, &scene, &mut [ViewDraw])` draws a scene through several in a frame, each
+  with its camera, its target and, as a `Viewport`, the rectangle of the target that it draws into.
+  The views share the renderer's pipelines, meshes and shadow atlases: four views of 1280 × 720
+  with the sun take about 60 % of what four renderers took (`docs/measurements.md`). A view's
+  statistics are its own (`View::stats`).
+- Orthographic cameras and parts of an image: `Camera::projection` is a `Projection`, in
+  perspective or orthographic, and `Camera::part`, an `ImagePart`, draws a part of the camera's
+  image, for a split screen or a magnifier. The `world` example draws a map of the yard from above
+  in a corner of its window.
+- `Gpu::memory_in_use`: the GPU memory that the device's objects take, as wgpu counts it on Vulkan
+  and Direct3D 12.
+- A tool captures one view of a running game: `Presentation::views` names the views that a frame
+  drew, the development channel's protocol, at version 3, lists them in the game's state and
+  captures one by its name, and the MCP server's `capture` takes the view's name.
 - Scenes unloaded and adoption (ADR-0112, ADR-0125): `World::unload_scene` destroys a scene and
   keeps what the run changed of it, which spawning the same scene under its key again and settling
   it applies; `slime_world::Persistence`, on a scene's root or on an entity, makes what the run
@@ -16,7 +32,7 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   its level.
 - Saving and loading a running game from a tool: `Simulation::save` and `Simulation::load`, which
   *Hunna Wood* implements, answer the development channel's `Request::Save` and `Request::Load`, and
-  the MCP server's `save_game` and `load_game` tools; the channel's protocol is at version 2.
+  the MCP server's `save_game` and `load_game` tools.
 - Driven components (ADR-0108, ADR-0124): an entity marks with `slime_world::Driven` the
   components that a system computes again, `Driven = ["Transform"]` in a scene file; saves and
   scene files written back leave them as their author wrote them, and `World::first_difference`
@@ -115,6 +131,14 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- `Scene::new(instances)` takes no camera: a view gives it (`ViewDraw`), and every view draws the
+  scene's lights, those that the renderer can draw from every view's camera.
+  `Camera::fov_y` is `Projection::Perspective { fov_y }`. `Renderer::render` returns nothing; the
+  statistics are each view's. `slime_world_render::Frame::scene` takes the point that the lights
+  beyond those drawn are nearest to, rather than a camera.
+- A view whose size changes frees its old targets, once the GPU has finished the frames that use
+  them, before it makes new ones: the GPU never holds both, and a size that does not fit leaves the
+  view without targets.
 - Saves per scene (ADR-0125): a game settles its world once it made the start of a run, and again
   once it prepared a scene that it spawned since (`World::settle`); `World::save(about)` writes what
   the run changed since, without a start world, and costs what changed: about a hundred times
@@ -251,6 +275,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- When creating the spot lights' shadow atlas ran out of GPU memory after the cascades' atlas was
+  created, the sun lost its shadows for good; the atlases' group is now made again whenever the
+  atlases change.
+- A multisampled output made `Renderer::render` panic inside wgpu; the renderer refuses it with a
+  message of its own, which its documentation lists.
 - An entity that a run created, or a prefab that it placed, written into its level by
   `World::write_scene`, exists once when the run is carried into the file cooked again
   (`World::carry`), a level that the run changed to included, the file's entity given what the run

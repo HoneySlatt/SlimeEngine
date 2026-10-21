@@ -17,7 +17,7 @@ use slime_reflect::{Path, Reflect, Registry, Value};
 use slime_render::glam::{DAffine3, DVec3, Vec3};
 use slime_render::{
     AlphaMode, Camera, DirectionalLight, Environment, Instance, Light, Material, MaterialData,
-    MaterialValues, MeshData, RenderError, Renderer, SampledTexture, Scene,
+    MaterialValues, MeshData, RenderError, Renderer, SampledTexture, Scene, ViewDraw,
 };
 
 const SIZE: u32 = 16;
@@ -38,6 +38,9 @@ fn the_base_color_texture_is_read_at_the_texture_coordinates_and_tints_the_base_
         .create_render_target("materials", SIZE, SIZE, TextureFormat::Rgba8UnormSrgb)
         .expect("the GPU has memory for it");
     let mut renderer = Renderer::new(&gpu, target.format()).expect("the renderer is created");
+    let mut view = renderer
+        .create_view(&gpu, "view")
+        .expect("the view is created");
     // A square facing +Z, with the texture's top left at its top left, drawn two units wide.
     let square = renderer
         .create_mesh(&gpu, "square", &MeshData::square())
@@ -144,10 +147,14 @@ fn the_base_color_texture_is_read_at_the_texture_coordinates_and_tints_the_base_
             DAffine3::from_scale(DVec3::splat(2.0)),
         )];
         let lights = [light];
-        let mut scene = Scene::new(camera, instances.clone());
+        let mut scene = Scene::new(instances.clone());
         scene.lights = lights.to_vec();
         renderer
-            .render(&gpu, &target, &scene)
+            .render(
+                &gpu,
+                &scene,
+                &mut [ViewDraw::new(&mut view, camera, &target)],
+            )
             .expect("the frame is drawn");
         let image = gpu
             .read_render_target(&target)
@@ -216,12 +223,19 @@ fn meshes_materials_and_environments_are_drawn_by_any_renderer_of_their_gpu() {
         ..Camera::default()
     };
     let instances = [Instance::new(&triangle, &red, DAffine3::IDENTITY)];
-    let mut scene = Scene::new(camera, instances.clone());
+    let mut scene = Scene::new(instances.clone());
     scene.environment = Some(sky.clone());
 
     let [by_first, by_second] = [&mut first, &mut second].map(|renderer| {
+        let mut view = renderer
+            .create_view(&gpu, "view")
+            .expect("the view is created");
         renderer
-            .render(&gpu, &target, &scene)
+            .render(
+                &gpu,
+                &scene,
+                &mut [ViewDraw::new(&mut view, camera, &target)],
+            )
             .expect("the frame is drawn");
         gpu.read_render_target(&target)
             .expect("the image is read back")
@@ -263,6 +277,9 @@ fn a_material_changed_in_place_draws_as_one_made_with_the_new_values() {
         .create_render_target("changed", SIZE, SIZE, TextureFormat::Rgba8UnormSrgb)
         .expect("the GPU has memory for it");
     let mut renderer = Renderer::new(&gpu, target.format()).expect("the renderer is created");
+    let mut view = renderer
+        .create_view(&gpu, "view")
+        .expect("the view is created");
     let square = renderer
         .create_mesh(&gpu, "square", &MeshData::square())
         .expect("the square is valid");
@@ -344,10 +361,14 @@ fn a_material_changed_in_place_draws_as_one_made_with_the_new_values() {
             material,
             DAffine3::from_scale(DVec3::splat(2.0)),
         )];
-        let mut scene = Scene::new(camera, instances.clone());
+        let mut scene = Scene::new(instances.clone());
         scene.lights = light.to_vec();
         renderer
-            .render(&gpu, &target, &scene)
+            .render(
+                &gpu,
+                &scene,
+                &mut [ViewDraw::new(&mut view, camera, &target)],
+            )
             .expect("the frame is drawn");
         gpu.read_render_target(&target)
             .expect("the image is read back")

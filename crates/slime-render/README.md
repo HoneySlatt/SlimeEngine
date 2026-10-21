@@ -5,30 +5,33 @@ the GPU layer (`slime-gfx`).
 
 ## Status
 
-Partial (`docs/PLAN.md`). It draws instances of meshes from a perspective camera, each with a
+Partial (`docs/PLAN.md`). It draws instances of meshes from cameras in perspective or orthographic,
+through views, several a frame, each into an output or a rectangle of it, each instance with a
 material in glTF's metallic-roughness model, lit by directional, point and spot lights in physical
 units and by a procedural sky that surfaces reflect and that shows behind them, with the shadows of
-one directional light around the camera, drawn in four cascades, and of every spot light that casts
-them. It draws in high dynamic range, then
-exposes the light, spreads a bloom around it, tone maps it and dithers it into the output, and
-reports what each frame cost on the CPU and the GPU. It smooths the edges of what it draws with four
-samples per pixel. It loads cooked scenes in the background, and again when their cooked data
-changes, and keeps the meshes that a game draws by their asset IDs in a cache; a material's values
-change while a game runs, and so do the renderer's shaders. It leaves out of each pass what that
-pass does not see, and draws the instances of one mesh and one material together. It does not yet
-blend transparent surfaces.
+one directional light around each view's camera, drawn in four cascades, and of every spot light
+that casts them. It draws in high dynamic range, then exposes the light, spreads a bloom around it,
+tone maps it and dithers it into the output, and reports what each frame cost on the CPU and the
+GPU. It smooths the edges of what it draws with four samples per pixel. It loads cooked scenes in
+the background, and again when their cooked data changes, and keeps the meshes that a game draws by
+their asset IDs in a cache; a material's values change while a game runs, and so do the renderer's
+shaders. It leaves out of each pass what that pass does not see, and draws the instances of one mesh
+and one material together. It does not yet blend transparent surfaces.
 
 ## Role
 
 - Owns what drawing a scene needs beyond the GPU layer: the vertex layout and the shaders, the
-  camera's matrices, the values the shaders read (per frame, per material, per instance) and
-  their layout, the high-dynamic-range and depth targets, the buffers of the instances' values,
-  and the buffers that its meshes' vertices and indices share.
-- Orders and records its frame's passes with a render graph (`src/graph.rs`, private;
+  camera's matrices, the values the shaders read (per view, per material, per instance) and
+  their layout, the high-dynamic-range and depth targets of each view, the buffers of the
+  instances' values, and the buffers that its meshes' vertices and indices share. What views share
+  is the renderer's, what each needs alone the view's
+  ([ADR-0126](../../docs/adr/0126-views-apart-from-the-renderer.md)).
+- Orders and records each view's passes with a render graph (`src/graph.rs`, private;
   `docs/adr/0041-render-graph.md`): each pass declares the targets it draws into and the ones it
   samples, the graph orders the passes by them, creates the targets that live for one frame at the
-  output's size or a fraction of it, and records the passes in order, four to a submission. The
-  graph is the renderer's own: games that draw with `slime-gfx` order their passes themselves.
+  size of the view's rectangle or a fraction of it, and records the passes in order, four to a
+  submission. The graph is the renderer's own: games that draw with `slime-gfx` order their passes
+  themselves.
 - Is built on `slime-gfx`'s engine-owned types only: it does not use wgpu
   (`docs/adr/0027-the-render-crate.md`).
 - Loads cooked scenes in the background, as background tasks of the engine's pool (`slime-tasks`),
@@ -52,6 +55,7 @@ use slime_gfx::{Gpu, TextureFormat};
 use slime_render::glam::{DAffine3, DVec3, Vec3};
 use slime_render::{
     Camera, DirectionalLight, Instance, Light, MaterialData, MeshData, RenderError, Renderer, Scene,
+    ViewDraw,
 };
 
 use std::f32::consts::PI;
@@ -90,10 +94,14 @@ fn main() -> Result<(), RenderError> {
     // A scene starts without lights, environment or bloom (which would spread a little of the
     // triangle's light around its edges); its fields are then set. It owns what it draws, its
     // instances holding clones of their meshes and materials.
-    let mut scene = Scene::new(camera, instances);
+    let mut scene = Scene::new(instances);
     scene.lights = vec![sun];
     scene.exposure = PI / 100_000.0;
-    let stats = renderer.render(&gpu, &target, &scene)?;
+    // A view keeps what drawing the camera's image needs from one frame to the next, its targets
+    // made at the size of the first frame's.
+    let mut view = renderer.create_view(&gpu, "image")?;
+    renderer.render(&gpu, &scene, &mut [ViewDraw::new(&mut view, camera, &target)])?;
+    let stats = view.stats();
     assert_eq!((stats.draw_calls, stats.instances, stats.triangles), (1, 1, 1));
 
     let image = gpu.read_render_target(&target)?;
@@ -107,8 +115,11 @@ fn main() -> Result<(), RenderError> {
 ```
 
 - `Renderer::new(gpu, format)` creates a renderer for output targets of one format: the window's
-  for a windowed application (`Context::surface_format` in `slime-app`). Use one renderer per output
-  size.
+  for a windowed application (`Context::surface_format` in `slime-app`). It holds what every view
+  shares: its pipelines, its meshes' pages, its uploader and the shadow atlases.
+- `Renderer::create_view(gpu, label)` creates a `View`, which a game keeps for each image that it
+  draws, the player's, each half of a split screen, a map in a corner: its targets, at the size
+  it draws, and the statistics of its last frame (`View::stats`).
 - `Renderer::set_shaders(gpu, &ShaderSources)` makes the renderer's pipelines again from new WGSL
   sources, all or none, so that a game sees a shader change while it runs; `ShaderSources` holds
   the embedded sources or those of the shaders' files, and `ShaderWatch` tells a game when the
@@ -162,18 +173,22 @@ fn main() -> Result<(), RenderError> {
 - `scene_lights(&CookedScene)` gives the lights that a cooked scene's nodes place, as a
   `LoadedScene` holds them, without loading the scene: a game knows its sun before its scene is
   loaded.
-- `Scene::new(camera, instances)` and `Instance::new(&mesh, &material, transform)` make what a
+- `Scene::new(instances)` and `Instance::new(&mesh, &material, transform)` make what a
   frame draws, which owns it: an instance holds clones of its mesh and its material, counted
   references to the same GPU objects, and a scene its instances, lights and environment, so that one
   built on a thread is drawn on another (ADR-0111); their other fields, such as the scene's
   `lights`, `environment`, `exposure` and `bloom`, or whether an instance casts shadows, are set
   once they are made (ADR-0046).
-- `Renderer::render(gpu, target, &scene)` draws a frame in passes (the directional light's shadows,
-  the spot lights' shadows, scene, sky, resolve, bloom, tone mapping) and returns its `RenderStats`:
-  draw calls, instances, triangles, and the CPU and GPU time of its passes. Each pass leaves out the
+- `Renderer::render(gpu, &scene, &mut [ViewDraw])` draws a scene through each view, in passes (the
+  directional light's shadows, the spot lights' shadows, scene, sky, resolve, bloom, tone mapping),
+  and keeps in each view its `RenderStats`: draw calls, instances, triangles, and the CPU and GPU
+  time of its passes. A `ViewDraw` gives a view its camera, its target and, as a `Viewport`, the
+  rectangle of the target that it draws into, the whole target by default. Each pass leaves out the
   instances that it does not see (frustum culling), and draws those of one mesh and one material
   that one pipeline draws together, with one draw call (instancing).
-- `Camera`: where the scene is seen from. `Light`: one of glTF's punctual lights, a
+- `Camera`: where a view sees the scene from, through a `Projection`, in perspective or
+  orthographic, and the `ImagePart` of its image that it draws, the whole image or a part of it, for
+  a split screen or a magnifier. `Light`: one of glTF's punctual lights, a
   `DirectionalLight`, of which the first that casts shadows casts the scene's through cascades, a
   `PointLight` or a `SpotLight`, every one of which may cast shadows into a tile of the shadow
   atlas; a scene has at most `MAX_LIGHTS` of them drawn. `Light::check` says whether the renderer
@@ -196,11 +211,12 @@ errors.
   light that surfaces reflect and emit and for the sky.
 - Colors are `slime-color`'s `LinearColor`s, linear (ADR-0045). Light is not negative and may
   exceed 1 until it is tone mapped.
-- Depth is reversed, from 1 at the near plane to 0 at infinity (ADR-0047).
+- Depth is reversed, from 1 at the near plane to 0 at infinity in perspective (ADR-0047), and to 0
+  at the far plane of an orthographic camera.
 - Tangents and normal textures follow glTF.
 - Positions are world positions, as `f64`s (ADR-0079): the camera's, the lights' and the
-  instances'; the renderer draws them relative to the camera, in `f64` until they reach the GPU
-  as `f32`s (ADR-0048).
+  instances'; the renderer draws them relative to each view's camera, in `f64` until they reach the
+  GPU as `f32`s (ADR-0048).
 
 ## Dependencies
 

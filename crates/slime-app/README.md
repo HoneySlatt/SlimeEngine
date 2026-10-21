@@ -118,8 +118,10 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   typed into a field: the simulation's input then does not see a key or a button put down, and
   always sees one let go; for each frame, `extract`, which reads the world and makes what the
   frame draws, then, when the window can show a new image, `render`, which draws it into the
-  window's image without the world (`docs/adr/0111-the-frame-contract.md`); `gpu_lost` and
-  `gpu_restored` when the run replaces a lost GPU device, which a game asks for with
+  window's image without the world (`docs/adr/0111-the-frame-contract.md`), and `views`, which
+  names the views that it drew there, each with its rectangle (`ShownView`), so that a tool
+  captures one through the development channel (`docs/adr/0126-views-apart-from-the-renderer.md`);
+  `gpu_lost` and `gpu_restored` when the run replaces a lost GPU device, which a game asks for with
   `AppConfig::restore_lost_device`: it drops its GPU objects in the first, before the new device
   opens, and creates them again in the second
   (`docs/adr/0075-recovering-from-a-lost-gpu-device.md`); `stop` once. Only windowed runs call

@@ -26,7 +26,7 @@ it is built this way.
 │   ├── slime-reflect/   reflection: types described at run time, their values read and set by path
 │   ├── slime-reflect-derive/  the derive macro of reflection, which slime-reflect re-exports
 │   ├── slime-serialize/ serialization: reflected values in TOML documents, or a binary encoding
-│   ├── slime-render/    renderer: meshes, PBR materials, camera, lights, shadows, HDR, tone mapping
+│   ├── slime-render/    renderer: meshes, PBR materials, cameras, views, lights, shadows, HDR, tone mapping
 │   ├── slime-tasks/     the engine's task pool: the threads on which the engine computes
 │   ├── slime-world/     the world: a game's entities, their components and their hierarchy
 │   └── slime-world-render/  the bridge from a world to the renderer: what a world draws, each frame
@@ -60,10 +60,10 @@ created only when code needs it.
 | [`slime-platform`](../crates/slime-platform/README.md) | The window, its events and keyboard and mouse input, and that input as data, the keys and buttons held; the only crate that uses the windowing library (winit) | `winit`, `raw-window-handle`, `thiserror`, `tracing` | One window; window, keyboard and mouse events; the keys and mouse buttons held, pressed and released since the last frame |
 | [`slime-app`](../crates/slime-app/README.md) | A game run as a simulation, its rules, and a presentation, what the player sees, by a host that owns its world, real time and game time, its input and its commands, through the phases of each frame ([ADR-0107](adr/0107-the-execution-model.md), [ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)); the main loop, diagnostics setup, headless mode | `slime-platform`, `slime-gfx`, `slime-world`, `ctrlc`, `thiserror`, `tracing`, `tracing-subscriber`, `nu-ansi-term` (Windows only); with its `development` feature, `slime-channel`, `slime-reflect`, `slime-serialize` | Headless runs, and windowed runs drawn by the GPU, which go on with a new device after a lost one when the game asks; game time that pauses, slows down and steps, and that a game holds while it is not ready; commands applied at the start of a frame; a host that a test drives without a GPU; with its `development` feature, which a game turns on by default, the development channel, through which tools drive a run started with a token ([ADR-0122](adr/0122-the-development-channel.md)) |
 | [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu, apart from the dev overlay through its `wgpu` feature | `wgpu`, `pollster`, `raw-window-handle`, `slime-color`, `thiserror`, `tracing` | Opens a GPU device, and another in place of a lost one; draws into offscreen images, 8-bit or 16-bit float, and reads them back; draws into a window; later passes sample what earlier ones drew; depth-only passes; images of four samples per pixel, resolved for anti-aliasing; textures and cube textures whose levels the caller gives, half-precision floats and BC7 and BC5 blocks among their formats; storage buffers, buffers written by ranges, instanced draws from a base vertex; an uploader that submits the copies of what loads bring within a budget of bytes per frame, on a thread of its own; a window's image read back where the system allows it |
-| [`slime-channel`](../crates/slime-channel/README.md) | The development channel: the protocol between a running game and the tools that drive it, and both of its ends, the game's listener and the tools' client ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md), [ADR-0122](adr/0122-the-development-channel.md)); headless | `getrandom`, `slime-reflect`, `slime-serialize`, `thiserror`, `tracing` | Version 2: a game started with a token listens on the machine's own address and accepts only the token and its version; the host's controls, the world read and changed through reflection, scripted keys, captures of the game's image, its state, log and frames' times, and its run saved to a file and loaded from one ([ADR-0125](adr/0125-saves-per-scene.md)); a game started by a tool with a new token |
+| [`slime-channel`](../crates/slime-channel/README.md) | The development channel: the protocol between a running game and the tools that drive it, and both of its ends, the game's listener and the tools' client ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md), [ADR-0122](adr/0122-the-development-channel.md)); headless | `getrandom`, `slime-reflect`, `slime-serialize`, `thiserror`, `tracing` | Version 3: a game started with a token listens on the machine's own address and accepts only the token and its version; the host's controls, the world read and changed through reflection, scripted keys, captures of the game's image or of one of its views ([ADR-0126](adr/0126-views-apart-from-the-renderer.md)), its state, log and frames' times, and its run saved to a file and loaded from one ([ADR-0125](adr/0125-saves-per-scene.md)); a game started by a tool with a new token |
 | [`slime-color`](../crates/slime-color/README.md) | The color type of every API of the engine, `LinearColor`, and the sRGB transfer function, below every crate that holds a color ([ADR-0045](adr/0045-one-linear-color-type.md), [ADR-0079](adr/0079-the-engines-own-world.md)); headless | `slime-reflect` | Linear colors and their constructors, sRGB bytes decoded and encoded |
 | [`slime-tasks`](../crates/slime-tasks/README.md) | The engine's task pool: the threads on which the engine computes, with a priority for the work that a frame waits for ([ADR-0107](adr/0107-the-execution-model.md)); headless, on the standard library alone | none | One pool, the machine's logical cores but one; frame and background tasks, a thread always left for frame tasks; items computed in parallel, the calling thread taking its share |
-| [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, lit by directional, point and spot lights, seen from a camera, into render targets, and reports what a frame cost; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `slime-assets`, `slime-color`, `slime-reflect`, `slime-tasks`, `glam`, `thiserror`, `tracing` | Textures and scenes cooked by the asset pipeline, loaded onto the GPU, BC7 and BC5 among them, normal textures read by x and y; meshes with tangents, simple shapes made in code (a cube, a sphere, a square), glTF's metallic-roughness materials (five textures, masks, double-sided, values that change while a game runs, found by name in a loaded scene), a perspective camera, the depth test, up to 16 directional, point and spot lights in physical units (`KHR_lights_punctual`), a procedural sky computed on the CPU that surfaces reflect (image-based lighting) and that is drawn behind them with its sun's disc, the shadows of the first directional light that casts them (four cascades in one atlas, filtered over 5 × 5 texels) and of every spot light that casts them (a tile each of one atlas), mirrored instances drawn with their front faces, the scene drawn in HDR with its light exposed, at four samples per pixel (multisample anti-aliasing), an energy-conserving bloom, then tone mapped, the passes ordered by a render graph and recorded four to a submission, statistics with the GPU time of each pass; scenes loaded in the background, and again when their cooked data changed, keeping what did not change; the meshes a game draws kept by asset ID in a cache, loaded in batches as they are asked for, loaded again when their cooked data changes, dropped after a lost device ([ADR-0084](adr/0084-what-the-world-draws.md)); its shaders replaced while it runs |
+| [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, lit by directional, point and spot lights, seen from cameras through views, into render targets or rectangles of them, and reports what each view cost; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `slime-assets`, `slime-color`, `slime-reflect`, `slime-tasks`, `glam`, `thiserror`, `tracing` | Textures and scenes cooked by the asset pipeline, loaded onto the GPU, BC7 and BC5 among them, normal textures read by x and y; meshes with tangents, simple shapes made in code (a cube, a sphere, a square), glTF's metallic-roughness materials (five textures, masks, double-sided, values that change while a game runs, found by name in a loaded scene), cameras in perspective or orthographic, drawing their whole image or a part of it, several views a frame sharing the pipelines, the meshes and the shadow atlases, each with its own targets at the size it draws ([ADR-0126](adr/0126-views-apart-from-the-renderer.md)), the depth test, up to 16 directional, point and spot lights in physical units (`KHR_lights_punctual`), a procedural sky computed on the CPU that surfaces reflect (image-based lighting) and that is drawn behind them with its sun's disc, the shadows of the first directional light that casts them (four cascades in one atlas, filtered over 5 × 5 texels) and of every spot light that casts them (a tile each of one atlas), mirrored instances drawn with their front faces, the scene drawn in HDR with its light exposed, at four samples per pixel (multisample anti-aliasing), an energy-conserving bloom, then tone mapped, the passes ordered by a render graph and recorded four to a submission, statistics with the GPU time of each pass; scenes loaded in the background, and again when their cooked data changed, keeping what did not change; the meshes a game draws kept by asset ID in a cache, loaded in batches as they are asked for, loaded again when their cooked data changes, dropped after a lost device ([ADR-0084](adr/0084-what-the-world-draws.md)); its shaders replaced while it runs |
 | [`slime-reflect`](../crates/slime-reflect/README.md) | Reflection: types described at run time, their values as plain data, read and changed by property path through a registry, compared and their differences applied ([ADR-0080](adr/0080-reflection-and-serialization.md), [ADR-0085](adr/0085-reflection.md)); headless | `glam`, `slime-reflect-derive` | `Reflect` and its derive, with stable names, aliases, versions and their upgrades, default values, skipped and transient fields, ranges and units; one value type, references to assets and entities kinds of their own; descriptions of types; a registry, explicit and recursive, that holds types with no Rust type behind them, checks values, sets their parts by path within their fields' ranges and lists their leaves; the standard types, glam's `Vec3`, `DVec3` and `Quat`; no files: `slime-serialize` writes and reads them |
 | [`slime-reflect-derive`](../crates/slime-reflect-derive/README.md) | The derive macro of reflection, `#[derive(Reflect)]`, which `slime-reflect` re-exports | `proc-macro2`, `quote`, `syn` | Structs and enums, their doc comments and attributes; generic types, lifetimes, unions and types without a name refused |
 | [`slime-serialize`](../crates/slime-serialize/README.md) | Serialization: values of reflected types written to TOML documents by the engine's own writer and read back, from earlier versions of their types too, and the same documents in a binary encoding of the engine's own ([ADR-0080](adr/0080-reflection-and-serialization.md), [ADR-0086](adr/0086-serialization.md), [ADR-0094](adr/0094-the-binary-encoding-of-documents.md)); headless | `slime-reflect`, `toml_edit`, `thiserror` | Documents of any registered type's value, whole or in part; the same bytes for the same value; versions written past 1 and earlier values brought forward by their types' upgrades; strict and lenient reading, errors by line, column and path, limits on size and depth; documents of several values, references to entities written as the names that a world gives them, and to assets as a document names them, their IDs unless it says otherwise; a document's layout read and its errors placed by the program that reads it, as a world reads scene files; the binary encoding written from a text and read through the same reader, its errors by byte |
@@ -71,7 +71,7 @@ created only when code needs it.
 | [`slime-world-render`](../crates/slime-world-render/README.md) | The bridge from a world to the renderer: builds, at each frame, the instances, the lights and the sky's environment that a world draws, from the GPU objects of an asset cache ([ADR-0084](adr/0084-what-the-world-draws.md)); neither the world nor the renderer depends on it | `slime-world`, `slime-render`, `slime-gfx`, `tracing` | Meshes drawn where the world draws them between fixed steps, those the cache does not hold asked for; lights at their entities, each named by its entity in the frame; hidden subtrees left out; the game's sky around the world's sun, given once |
 | [`slime-assets`](../crates/slime-assets/README.md) | The assets as games load them: asset IDs, cooked data and its manifest, read by ID from a directory of cooked data ([ADR-0069](adr/0069-the-asset-pipeline.md)); headless | `slime-reflect`, `ktx2`, `thiserror` | The asset ID and its text form, a UUID; cooked textures in KTX2 files ([ADR-0071](adr/0071-cooked-textures.md)), meshes, materials and scenes, their nodes' extras and typed components among them; cooked scene files, read as bytes ([ADR-0095](adr/0095-cooked-scene-files.md)); the manifest; reading them by ID; a watch of the manifest, for hot reload |
 | [`slime-cook`](../crates/slime-cook/README.md) | The cooker: turns source assets into cooked data before games run; a library and its program, which no game links ([ADR-0069](adr/0069-the-asset-pipeline.md)) | `slime-assets`, `slime-color`, `slime-reflect`, `slime-serialize`, `slime-tasks`, `slime-world`, `bevy_mikktspace`, `blake3`, `block_compression`, `glam`, `gltf`, `png`, `uuid`, `zune-jpeg`, `thiserror` | IDs for source files in metadata files beside them, read and written through `slime-serialize`, their check, and the IDs of the assets inside a file; PNG and JPEG images cooked into textures compressed in BC7 or BC5, every level computed; glTF files imported into meshes (MikkTSpace tangents), materials and scenes; the typed properties of their nodes; scene files checked and cooked into the binary encoding of documents ([ADR-0095](adr/0095-cooked-scene-files.md)); a directory cooked again only where it changed, with its manifest, once or at each change |
-| [`slime-mcp`](../crates/slime-mcp/README.md) | The engine's MCP server: an AI agent drives a running game through it, as a person would ([ADR-0099](adr/0099-ai-agents-drive-the-engine.md), [ADR-0122](adr/0122-the-development-channel.md)); a program, which no game links | `slime-channel`, `rmcp`, `tokio`, `serde`, `base64`, `png` | One game at a time, started with a token and driven through its development channel; its captures as PNG images; assets cooked and tests run |
+| [`slime-mcp`](../crates/slime-mcp/README.md) | The engine's MCP server: an AI agent drives a running game through it, as a person would ([ADR-0099](adr/0099-ai-agents-drive-the-engine.md), [ADR-0122](adr/0122-the-development-channel.md)); a program, which no game links | `slime-channel`, `rmcp`, `tokio`, `serde`, `base64`, `png` | One game at a time, started with a token and driven through its development channel; its captures, whole or of one view, as PNG images; assets cooked and tests run |
 | [`slime-devui`](../crates/slime-devui/README.md) | The dev overlay: egui drawn over the engine's frames, fed with the engine's events, and its world panel; tooling, removed once something does at least as well ([ADR-0052](adr/0052-amend-roadmap-before-0-1.md), [ADR-0081](adr/0081-stage-5a-the-world.md)) | `egui`, `egui-wgpu`, `slime-assets`, `slime-color`, `slime-gfx` (with its `wgpu` feature), `slime-platform`, `slime-reflect`, `slime-world` | Panels built when a frame is extracted and drawn over it when it is rendered; a world's entities listed by name and their components edited through reflection, each edit returned as a command for the caller to send; no clipboard or input methods |
 | [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-assets`, `slime-color`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `slime-world`, `slime-world-render`, `png`, `tracing`; for the tests, `slime-cook` and `gltf` | `hello`, `headless`, `window`, `offscreen`, `scene`, which draws a cooked scene, `world`, which spawns a yard of prefabs from a cooked scene file and draws it from a world; the reference image tests, and tests that cook glTF files and draw them |
 | [`slime-benches`](../benches/README.md) | The engine's benchmarks, a program whose figures [`measurements.md`](measurements.md) keeps; a client of the engine through its public API only, not part of the engine ([ADR-0104](adr/0104-the-build-ci-and-measurements.md)) | `slime-app`, `slime-assets`, `slime-color`, `slime-cook`, `slime-gfx`, `slime-render`, `slime-world`, `slime-world-render` | The scenarios that its README lists, of rendering, of the world and of loading |
@@ -126,8 +126,9 @@ lists every dependency.
   ([ADR-0079](adr/0079-the-engines-own-world.md)).
 - `slime-render` depends on `slime-gfx` only and does not use wgpu
   ([ADR-0027](adr/0027-the-render-crate.md)). `slime-app` does not depend on it: a game's
-  presentation creates its `Renderer` in `start`, from the GPU of its `Context`, and calls it in
-  `extract` and `render`.
+  presentation creates its `Renderer` and its views in `start`, from the GPU of its `Context`, and
+  calls them in `extract` and `render`; it names the views it drew to the development channel
+  (`Presentation::views`).
 - `slime-devui` is the one crate besides `slime-gfx` that reaches wgpu, through the `wgpu` feature
   of `slime-gfx`, to draw egui with egui's own renderer ([ADR-0031](adr/0031-dev-overlay-with-egui.md)).
   The engine's own tests may enable the feature too. `slime-devui` is tooling, a client of the
@@ -243,7 +244,8 @@ frame                                     span "frame", trace level
     │                                     span "acquire"
     ├── presentation.render(ctx, target)  6. draws into the image, without the world; span
     │                                        "render"
-    ├── channel.capture(gpu, target)      a tool asked for the image: copied back to the CPU
+    ├── channel.capture(gpu, target,      a tool asked for the image, or for the part of it that
+    │       presentation.views())         one of its views draws: copied back to the CPU
     └── image.present()                   hands it to the window; span "present"
 ```
 
@@ -423,11 +425,13 @@ PNG within a tolerance ([ADR-0018](adr/0018-reference-image-tests.md)).
 ### Rendering a scene
 
 `slime-render` draws meshes with the objects above. The application builds a `Scene` for each
-frame, a flat list of instances seen from a camera, and the renderer draws it into any render
-target, the window's image or an offscreen one, in passes: the directional light's shadows, in
-cascades, the spot lights' shadows, the scene in high dynamic range, the sky behind it, the resolve
-of its samples, the bloom's chain, then tone mapping into the target, ordered and recorded by a
-render graph
+frame, a flat list of instances with the lights, the environment, the exposure and the bloom, and
+the renderer draws it through views, each a camera's image drawn into a render target, the
+window's image or an offscreen one, or into a rectangle of it, several a frame
+([ADR-0126](adr/0126-views-apart-from-the-renderer.md)), in passes: the directional light's
+shadows, in cascades, the spot lights' shadows, the scene in high dynamic range, the sky behind it,
+the resolve of its samples, the bloom's chain, then tone mapping into the target, ordered and
+recorded by a render graph for each view
 ([`crates/slime-render/src/renderer.rs`](../crates/slime-render/src/renderer.rs),
 [`crates/slime-render/src/graph.rs`](../crates/slime-render/src/graph.rs), rules:
 [ADR-0027](adr/0027-the-render-crate.md), [ADR-0034](adr/0034-hdr-rendering-and-tone-mapping.md),
@@ -455,7 +459,11 @@ renderer = Renderer::new(&gpu, format)                 the output's format; its 
 │                                                      environment; a texel of depth bound in
 │                                                      the place of either shadow atlas until
 │                                                      it exists, in the group that reads them,
-│                                                      bind group 3
+│                                                      bind group 3; the shadow atlases, when a
+│                                                      light first casts shadows into one
+├── create_view(&gpu, label) → View                    what one image keeps from frame to frame:
+│                                                      the buffers of its values and instances,
+│                                                      its graph, targets and timers, its stats
 ├── set_shaders(&gpu, &ShaderSources)                  the ten pipelines made again from new
 │                                                      sources, all or none: on an error, the
 │                                                      ones it had stay (ADR-0077)
@@ -474,31 +482,44 @@ renderer = Renderer::new(&gpu, format)                 the output's format; its 
 │                                                      Material::set_values checks new values
 │                                                      and writes them into the uniform buffer,
 │                                                      for the frames submitted after it
-└── render(&gpu, &target, &Scene { camera, lights, environment, exposure, bloom, instances })
-    │                                                  → RenderStats, or the error of a creation
-    │                                                  (ADR-0044); draws the first 16 lights of
-    │                                                  those that Light::check accepts, the
-    │                                                  others left out with a warning (ADR-0102)
+└── render(&gpu, &Scene { lights, environment, exposure, bloom, instances },
+    │      &mut [ViewDraw { view, camera, target, viewport }])
+    │                                                  → each view's RenderStats in the view, or
+    │                                                  the error of a creation (ADR-0044); draws
+    │                                                  the first 16 lights of those that
+    │                                                  Light::check accepts from every view's
+    │                                                  camera, the others left out with a
+    │                                                  warning (ADR-0102); every view prepared,
+    │                                                  its values written and its targets made,
+    │                                                  before any is recorded: an error draws
+    │                                                  nothing; for each view, in turn:
     ├── every position moved by −camera.eye, in f64 (ADR-0048): the GPU draws relative to the
-    │   camera, so that what is near it keeps its precision however far from the origin
-    ├── each instance's box tested against the camera's view, its four sides and its near plane
-    │   (camera.rs): the scene pass draws only those that may be seen (frustum culling, ADR-0117)
+    │   view's camera, so that what is near it keeps its precision however far from the origin
+    ├── the camera's projection (camera.rs): in perspective, or orthographic, depth reversed and
+    │   linear to its far plane; moved and scaled so that the part of its image that it draws fills
+    │   the view's rectangle
+    ├── each instance's box tested against the camera's view, its four sides, its near plane and an
+    │   orthographic camera's far plane: the scene pass draws only those that may be seen (frustum
+    │   culling, ADR-0117)
     ├── the four cascades of the first directional light that casts shadows (shadow.rs,
-    │   ADR-0050, ADR-0064): what the camera sees up to the light's shadow distance split along
-    │   its axis into four slices, each twice as deep as the one before; for each, its tile of the
-    │   cascades' atlas, an orthographic projection across the light covering the sphere around
-    │   its slice, moved to a texel grid fixed in the world, the instances that cast shadows
-    │   whose boxes reach across that square, seen by the camera or not, and along the light the
-    │   depths their boxes span
+    │   ADR-0050, ADR-0064): what the camera sees of its whole image up to the light's shadow
+    │   distance split along its axis into four slices, each twice as deep as the one before; for
+    │   each, its tile of the cascades' atlas, an orthographic projection across the light
+    │   covering the sphere around its slice, moved to a texel grid fixed in the world, the
+    │   instances that cast shadows whose boxes reach across that square, seen by the camera or
+    │   not, and along the light the depths their boxes span
     ├── each spot light that casts shadows, in the scene's order: its tile of the atlas, 2048 or
     │   1024 texels wide by how many cast them, its perspective view from the light, from 5 cm
-    │   out, its cone and a margin, up to 80° from its axis, and the instances whose boxes reach
-    │   into it (shadow.rs, ADR-0058, ADR-0061)
+    │   out, its cone and a margin, up to 80° from its axis, and, for the first view only, which
+    │   draws the atlas for every view, the instances whose boxes reach into it (shadow.rs,
+    │   ADR-0058, ADR-0061)
     ├── the buffer of the shadow passes' views ← the cascades' views, then each spot light's,
     │   one slot each at the device's alignment; bound at group 3 of the shadow pipelines
-    ├── the frame uniform ← the camera's projection times its rotation, the sky's directions from
-    │   clip space (its inverse), the exposure, the number of lights and the shadowed light's index,
-    │   the sun's disc (direction, radiance), the lights (64 bytes each, at most 16, a spot
+    ├── the view's frame uniform ← the camera's projection times its rotation, the sky's
+    │   directions from clip space (its inverse; an orthographic camera's axis for every pixel),
+    │   the exposure, the number of lights and the shadowed light's index, the direction towards an
+    │   orthographic camera, the sun's disc (direction, radiance), the lights (64 bytes each, at
+    │   most 16, a spot
     │   light's with the index of its tile), the spot lights' tiles' views and places in their
     │   atlas, and the cascades' views, places and texel widths; bind group 0, with the
     │   environment, the BRDF table and their sampler, built again when the scene names another
@@ -512,23 +533,27 @@ renderer = Renderer::new(&gpu, format)                 the output's format; its 
     │   relative transform, normal matrix and handedness (−1 when it mirrors), in the scene's
     │   order; and for each draw of each pass, where the values of its instances are;
     │   grown when a frame needs it, shrunk back after a peak
-    ├── the frame's render graph, built again when the frame's shape changes (the target's size,
-    │   either shadow pass or the bloom starting or stopping): the passes below, each declaring the
-    │   targets it draws into and samples, ordered by them; the HDR target (Rgba16Float) and the
-    │   depth target, of four samples per pixel, the HDR target their samples are resolved into,
-    │   and, while the bloom runs, its levels (the output divided by 2^i, rounded to the nearest,
-    │   to a side of 8 texels), created at the target's size; the groups that read them, built
-    │   from the passes' declarations; a GpuTimer per submission
-    ├── the passes, in the graph's order, four to a submission named after the target, each timed
-    │   by its submission's GpuTimer when the adapter can:
+    ├── the view's render graph, built again when its shape changes (the rectangle's size, its old
+    │   targets dropped and the GPU waited for first, so that it never holds both; either shadow
+    │   pass or the bloom starting or stopping; the rectangle covering its target or not): the
+    │   passes below, each declaring the targets it draws into and samples, ordered by them; the
+    │   HDR target (Rgba16Float) and the depth target, of four samples per pixel, the HDR target
+    │   their samples are resolved into, and, while the bloom runs, its levels (the rectangle
+    │   divided by 2^i, rounded to the nearest, to a side of 8 texels), created at the rectangle's
+    │   size; the groups that read them, built from the passes' declarations; a GpuTimer per
+    │   submission
+    ├── the passes, in the graph's order, four to a submission named after the view and its
+    │   target, each timed by its submission's GpuTimer when the adapter can:
     │   ├── the shadow pass into the cascades' atlas, created by the first frame that needs it, a
-    │   │   depth-only pass skipped when no light or no instance casts shadows: for each cascade,
+    │   │   depth-only pass skipped when no light or no instance casts shadows, each view drawing
+    │   │   its own cascades in turn, before its scene pass reads them: for each cascade,
     │   │   its tile (set_viewport) and its view's slot at group 3; for each group of the instances
     │   │   that cast shadows and whose boxes reach across its square, the shadow pipeline their
     │   │   material asks for (masked or not), the material when it changes and the pipeline
     │   │   reads it, the mesh's page when it changes, one draw_indexed of the group's instances
     │   ├── the spot lights' shadow pass into the atlas, created by the first frame that needs it,
-    │   │   skipped when no spot light casts shadows: for each such light, its tile
+    │   │   the first view's alone, skipped when no spot light casts shadows: for each such light,
+    │   │   its tile
     │   │   (set_viewport) and its view's slot; for each instance that casts shadows and whose box
     │   │   reaches into its cone and range, grouped as above (ADR-0058, ADR-0061)
     │   ├── the scene pass into the multisampled HDR target, cleared to black, the group of both
@@ -550,14 +575,16 @@ renderer = Renderer::new(&gpu, format)                 the output's format; its 
     │   │   down from the one above with Jimenez's 13 taps, then each averaged up with the coarser
     │   │   average through a 3 × 3 tent, every level with the same weight, every read mirrored at
     │   │   the edges; no pass reads what it writes
-    │   └── the tone-mapping pass into the target: one fullscreen triangle reads each pixel's texel
+    │   └── the tone-mapping pass into the view's rectangle of the target (set_viewport), which it
+    │       clears when the rectangle covers the target and keeps otherwise: one triangle over the
+    │       rectangle reads each pixel's texel at its position less the rectangle's corner
     │       (textureLoad), mixes in the bloom's first average by the scene's strength, multiplies
     │       by 64, applies Khronos PBR Neutral, dithers an 8-bit target with a triangular noise
     │       of one step hashed from the pixel's position (ADR-0051), and writes it opaque; an sRGB
     │       target encodes it
-    └── RenderStats: the scene pass's draw calls, instances and triangles, the shadow passes' draw
-        calls, the CPU time of this call, and the GPU time of each pass, the bloom's summed, a few
-        frames old, the latest that came back
+    └── the view's RenderStats (View::stats): the scene pass's draw calls, instances and
+        triangles, the shadow passes' draw calls, the CPU time of its part of this call, and the
+        GPU time of each pass, the bloom's summed, a few frames old, the latest that came back
 ```
 
 An environment is made apart from any renderer, which any draws with: `Environment::new(&gpu, &Sky)`
@@ -802,13 +829,13 @@ frame
         │                                            engine's pool (ADR-0073, ADR-0107)
         ├── each entity with a Light: the renderer's light at its origin, along its −Z axis, the
         │   sun first, so that it casts the shadows; beyond the lights that the renderer draws,
-        │   frame.scene(camera) puts the other directional lights next, then the nearest to the
-        │   camera (ADR-0106)
+        │   frame.scene(near) puts the other directional lights next, then the nearest to a point
+        │   that the game gives (ADR-0106, ADR-0126)
         ├── the sky's environment, made again when the game's sky or the sun changed: the first
         │   directional light that shows in the sky
         └── Frame { instances, lights, environment, loading, errors }, which owns what it
             draws (ADR-0111), each light with its entity, so that the presentation changes
-            what it shows of one without the world (ADR-0121) → frame.scene(camera) →
+            what it shows of one without the world (ADR-0121) → frame.scene(near) →
             renderer.render, at presentation.render, on this thread or another
 ```
 
@@ -1185,14 +1212,16 @@ Client::connect(address, token)
                                                  answered as no request
 Client::request(request) ──────────────────────▶ the connection's thread queues it for the game
                                                  at the start of the next frame,
-                                                 DevChannel::answer(host, simulation):
+                                                 DevChannel::answer(host, simulation,
+                                                 presentation.views()):
                                                  ├── the steps asked for that have all run: Done
                                                  ├── each request queued, answered with the host's
                                                  │   world, clocks and input, a save or a load by
                                                  │   the simulation; a step once its steps have
                                                  │   run, over the next frames
                                                  └── a capture after the frame's render, from the
-                                                     window's image, before it is shown
+                                                     window's image, before it is shown, cropped
+                                                     to the view that it names
 reply, and an image's pixels ◀────────────────── written by the connection's thread
 ```
 
@@ -1223,21 +1252,20 @@ tests):
 - **Shared between threads** (`Send` and `Sync`): the `Gpu`, whose clones share its device, its
   `Surface` and every GPU object it creates (targets, textures, samplers, buffers, bind groups and
   their layouts, shader modules, pipelines), its uploaders, images read back, meshes, materials,
-  environments, cameras, lights, scenes and instances, loaded scenes and loads in progress, the
-  asset cache, statistics, windows, events, the input, the host, its `Context` and `AppConfig`, the
-  dev overlay, worlds and entity handles, scene libraries and resolved scenes, the frame builder of
-  `slime-world-render` and its frames, reflected values and registries, the development channel's
-  tokens, messages and clients, and the error types of those
-  crates. Scenes, their instances and the frames of `slime-world-render` are also `'static`: they
-  own what they draw, so that a frame built on one thread is drawn on another (ADR-0120). wgpu keeps
-  its error scopes per thread, so
-  GPU objects can be created from several threads.
+  environments, cameras, lights, scenes and instances, the renderer, loaded scenes and loads in
+  progress, the asset cache, statistics, windows, events, the input, the host, its `Context` and
+  `AppConfig`, the dev overlay, worlds and entity handles, scene libraries and resolved scenes, the
+  frame builder of `slime-world-render` and its frames, reflected values and registries, the
+  development channel's tokens, messages and clients, and the error types of those crates. Scenes,
+  their instances and the frames of `slime-world-render` are also `'static`: they own what they
+  draw, so that a frame built on one thread is drawn on another (ADR-0120). wgpu keeps its error
+  scopes per thread, so GPU objects can be created from several threads.
   wgpu fails to configure a window's surface when another thread submits work while it waits for
   the GPU, as the uploader's thread does: the `Gpu`'s submissions, from any thread, wait while the
   surface is configured.
 - **Moved between threads, used by one at a time** (`Send` only): a `GpuTimer`, which reads its
-  times back through a cell, and so the `Renderer` that holds them; `Renderer::render` takes it
-  mutably anyway. The development channel's `Listener` and the requests it hands over,
+  times back through a cell, and so the renderer's `View` that holds them; `Renderer::render`
+  takes it mutably anyway. The development channel's `Listener` and the requests it hands over,
   `Incoming`, which answer through a channel of the standard library.
 
 ## Platforms

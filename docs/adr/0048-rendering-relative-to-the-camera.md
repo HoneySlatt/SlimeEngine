@@ -1,7 +1,8 @@
 # 0048. Rendering relative to the camera
 
 - Status: Accepted; amends [0027](0027-the-render-crate.md); amended by
-  [0079](0079-the-engines-own-world.md) (positions are `f64` in the API)
+  [0079](0079-the-engines-own-world.md) (positions are `f64` in the API) and
+  [0126](0126-views-apart-from-the-renderer.md) (positions relative to each view's camera)
 - Date: 2026-10-14
 
 ## Context
