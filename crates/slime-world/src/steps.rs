@@ -71,10 +71,10 @@ impl World {
     /// - Otherwise, and for a world that runs no step, where it is now.
     ///
     /// A frame without a step keeps the last step's two transforms; a frame with several, the last
-    /// one's. Reaching a [`Transform`](crate::Transform) mutably outside a step counts as a change:
-    /// a game that only reads one reads it immutably. An entity given another parent during a step
-    /// is drawn from where it was to where it goes. A stretch, which `GlobalTransform` does not
-    /// hold, is drawn as it is now. `None` if the entity is not alive or has no `Transform`.
+    /// one's. Writing a [`Transform`](crate::Transform) outside a step, even with the value it held,
+    /// counts as a change; reaching one without writing it does not. An entity given another parent
+    /// during a step is drawn from where it was to where it goes. A stretch, which `GlobalTransform`
+    /// does not hold, is drawn as it is now. `None` if the entity is not alive or has no `Transform`.
     pub fn interpolated_transform(&self, entity: Entity, fraction: f64) -> Option<GlobalTransform> {
         let now = self.global_transform(entity)?;
         if self.changes.moved.is_empty() {

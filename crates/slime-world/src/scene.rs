@@ -13,7 +13,7 @@ use crate::identity::{CREATED, PersistentId};
 use crate::library::{Overrides, Placement, ResolvedScene};
 use crate::reflection::storage_in_registry;
 use crate::transform::Transform;
-use crate::world::{ComponentIds, Identity, SpawnedScene, World, mark_stale};
+use crate::world::{ComponentIds, Identity, SpawnedScene, World};
 use crate::write_back::with_handles;
 
 /// The identity of what is spawned under `key`, if it can be a key: not empty, without `/`, and not
@@ -248,14 +248,18 @@ impl World {
                 _ => self.identify(entity, id.clone()),
             }
         }
+        let tick = self.next_tick();
         for ((record, &entity), id) in scene.0.records.iter().zip(&entities).zip(ids) {
             for (name, value) in &record.components {
                 let storage = storages[name.as_str()];
                 let inserted = if holds_entity(value) {
-                    self.storages[storage]
-                        .insert_value(entity.index(), &with_handles(value, &spawned))
+                    self.storages[storage].insert_value(
+                        entity.index(),
+                        &with_handles(value, &spawned),
+                        tick,
+                    )
                 } else {
-                    self.storages[storage].insert_value(entity.index(), value)
+                    self.storages[storage].insert_value(entity.index(), value, tick)
                 };
                 if let Err(error) = inserted {
                     // Without parents yet: each is despawned alone. The root of a placement made
@@ -273,8 +277,8 @@ impl World {
                         error: Box::new(error),
                     });
                 }
+                self.held_changed(self.component_types[storage], entity.index());
                 if self.component_types[storage] == TypeId::of::<Transform>() {
-                    mark_stale(&mut self.nodes, &mut self.changes, entity.index());
                     self.teleport(entity);
                 }
             }

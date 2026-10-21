@@ -18,8 +18,9 @@ selected and, for a placement, its prefab (`docs/adr/0090-stage-5b-scenes-and-pr
 edits its components through reflection, for whoever works on a game, as
 `docs/adr/0081-stage-5a-the-world.md` decided. It does not undo, add, remove or save components,
 which the editor that `docs/ROADMAP.md` plans for Stage 6 is to do; the panel goes with the rest of
-the overlay once that editor does at least as well. What it edits, and its limits, are in the
-rustdoc of `WorldPanel`.
+the overlay once that editor does at least as well. It makes its list of entities again only when
+the world's structure moves (`World::structure`). What it edits, and its limits, are in the rustdoc
+of `WorldPanel`.
 
 ## Role
 

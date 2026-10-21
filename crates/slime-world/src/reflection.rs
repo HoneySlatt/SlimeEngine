@@ -8,7 +8,7 @@ use slime_reflect::{Path, Registry, Value};
 use crate::entity::Entity;
 use crate::error::WorldError;
 use crate::transform::Transform;
-use crate::world::{Component, ComponentIds, World, mark_stale};
+use crate::world::{Component, ComponentIds, World};
 
 impl World {
     /// The types of the world's components, and the types their values hold: the engine's, every
@@ -72,7 +72,8 @@ impl World {
     /// Replaces `entity`'s component whose type is named `component` with the one that `value`
     /// describes, once reflection has checked it, its numbers within its fields' ranges
     /// ([`Registry::set`]), and the component's type has accepted it, as it accepts every value it
-    /// reads (`#[reflect(check)]`). A [`Transform`] set this way counts as changed.
+    /// reads (`#[reflect(check)]`). The component is stamped as changed ([`World::changed`]), and a
+    /// [`Transform`] set this way marks its subtree to be computed again.
     ///
     /// # Errors
     ///
@@ -93,8 +94,8 @@ impl World {
     /// to `value`, once reflection has checked it, as [`Registry::set`] does: a field of the
     /// component, an element of a list, a field of the variant an enum holds, through an option
     /// that holds a value. The component is read again whole from its value, which its type's
-    /// check accepts or refuses: a field that the type skips takes its `Default` value. A
-    /// [`Transform`] changed this way counts as changed.
+    /// check accepts or refuses: a field that the type skips takes its `Default` value. The
+    /// component is stamped as changed, as [`World::set_component_value`] says.
     ///
     /// ```
     /// use slime_color::LinearColor;
@@ -140,12 +141,11 @@ impl World {
         self.registry
             .set(&name, &mut current, path, value)
             .map_err(refused)?;
+        let tick = self.next_tick();
         self.storages[id]
-            .set_value(slot, &current)
+            .set_value(slot, &current, tick)
             .map_err(refused)?;
-        if self.component_types[id] == TypeId::of::<Transform>() {
-            mark_stale(&mut self.nodes, &mut self.changes, slot);
-        }
+        self.held_changed(self.component_types[id], slot);
         Ok(())
     }
 
@@ -153,8 +153,9 @@ impl World {
     /// alias, that `value` describes, in place of the one of that type it holds, if it holds one:
     /// what a save that adds a component does. The type must have a storage in the world: one that
     /// it has stored, or registered ([`World::register`]). The value is checked as
-    /// [`World::set_component_value`] checks it. A [`Transform`] attached so counts as changed, and
-    /// one that the entity did not hold is drawn at once where it is, as [`World::insert`] does.
+    /// [`World::set_component_value`] checks it, and stamped as [`World::insert`] stamps it. A
+    /// [`Transform`] attached so marks its subtree to be computed again, and one that the entity did
+    /// not hold is drawn at once where it is, as [`World::insert`] does.
     ///
     /// # Errors
     ///
@@ -184,29 +185,27 @@ impl World {
             .map_err(refused)?;
         let slot = entity.index();
         let held = self.storages[id].holds(slot);
+        let tick = self.next_tick();
         self.storages[id]
-            .insert_value(slot, &checked)
+            .insert_value(slot, &checked, tick)
             .map_err(refused)?;
-        if type_id == TypeId::of::<Transform>() {
-            mark_stale(&mut self.nodes, &mut self.changes, slot);
-            if !held {
-                self.teleport(entity);
-            }
+        self.held_changed(type_id, slot);
+        if type_id == TypeId::of::<Transform>() && !held {
+            self.teleport(entity);
         }
         Ok(())
     }
 
     /// Detaches from `entity` its component whose type is named `component`, by its name or an
     /// alias, and returns its value, if the entity is alive and held one: what a save that removes a
-    /// component does.
+    /// component does. The world's log of removals tells it, as [`World::remove`] does.
     pub fn remove_component_value(&mut self, entity: Entity, component: &str) -> Option<Value> {
         let (id, _) = self.held(entity, component).ok()?;
         let slot = entity.index();
         let value = self.storages[id].value(slot);
-        self.storages[id].remove_slot(slot);
-        if self.component_types[id] == TypeId::of::<Transform>() {
-            mark_stale(&mut self.nodes, &mut self.changes, slot);
-        }
+        let tick = self.next_tick();
+        self.storages[id].remove_slot(slot, entity, tick);
+        self.held_changed(self.component_types[id], slot);
         value
     }
 
@@ -605,7 +604,7 @@ mod tests {
         assert_eq!(world.entities().collect::<Vec<_>>(), [second]);
         assert!(world.component_names(entity).is_empty());
         // Registered ahead, before any entity holds one.
-        #[derive(Reflect)]
+        #[derive(Clone, Reflect)]
         #[reflect(name = "test::Saved")]
         struct Saved(u32);
         impl Component for Saved {}
@@ -821,7 +820,7 @@ mod tests {
             (entity, "test::Saved", "a type registered but never stored"),
             (entity, "f32", "a type that is no component"),
         ];
-        #[derive(Reflect)]
+        #[derive(Clone, Reflect)]
         #[reflect(name = "test::Saved")]
         struct Saved(u32);
         impl Component for Saved {}

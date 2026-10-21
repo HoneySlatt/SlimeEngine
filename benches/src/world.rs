@@ -236,7 +236,7 @@ pub fn sky(context: &mut Context) -> Result<Vec<Row>, String> {
     let mut times = Vec::new();
     for frame in 1..=24 {
         world.begin_fixed_step();
-        if let Some(transform) = world.get_mut::<Transform>(sun) {
+        if let Some(mut transform) = world.get_mut::<Transform>(sun) {
             *transform = at;
         }
         world.end_fixed_step();
@@ -282,9 +282,11 @@ fn point_light(intensity: f32) -> Light {
     }
 }
 
-/// A reader of 100 000 entities that place a light each, of which 1 % change between two reads:
-/// the lights changed through `World::get_mut`, then a reader that compares every light with the
-/// copy it keeps finds them, twenty times.
+/// Readers of 100 000 entities that place a light each, of which 1 % change between two reads:
+/// the lights changed through `World::get_mut`, then found by a reader that compares every light
+/// with the copy it keeps, and by one that asks the world for what changed since it last read
+/// (`World::changed`), twenty times with the lights changed spread over the world, every hundredth;
+/// then by the second, twenty times with the lights changed side by side.
 pub fn changes(_context: &mut Context) -> Result<Vec<Row>, String> {
     let mut world = World::new();
     let entities: Vec<Entity> = (0..READ_ENTITIES)
@@ -298,37 +300,66 @@ pub fn changes(_context: &mut Context) -> Result<Vec<Row>, String> {
         .query::<&Light>()
         .map(|(entity, light)| (entity, *light))
         .collect();
-    let (mut writes, mut compared) = (Vec::new(), Vec::new());
-    for round in 0..20 {
-        let ((), duration) = timed(|| {
-            for &entity in entities
+    let mut read = world.tick();
+    let (mut writes, mut compared, mut asked, mut side_by_side) =
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    let found = |found: usize| {
+        if found == CHANGED_ENTITIES {
+            Ok(())
+        } else {
+            Err(format!(
+                "the reader found {found} lights changed, not {CHANGED_ENTITIES}"
+            ))
+        }
+    };
+    for round in 0..40 {
+        // Twenty rounds of lights spread over the world, then twenty of lights side by side.
+        let spread = round < 20;
+        let changed: Vec<Entity> = if spread {
+            entities
                 .iter()
                 .skip(round)
                 .step_by(READ_ENTITIES / CHANGED_ENTITIES)
-            {
-                if let Some(light) = world.get_mut::<Light>(entity) {
+                .copied()
+                .collect()
+        } else {
+            let first = (round - 20) * CHANGED_ENTITIES;
+            entities[first..first + CHANGED_ENTITIES].to_vec()
+        };
+        let ((), duration) = timed(|| {
+            for &entity in &changed {
+                if let Some(mut light) = world.get_mut::<Light>(entity) {
                     *light = point_light(-1.0 - round as f32);
                 }
             }
         });
         writes.push(duration);
-        let (found, duration) = timed(|| {
-            let mut found = 0;
-            for (entity, light) in world.query::<&Light>() {
-                let kept = copy.entry(entity).or_insert(*light);
-                if kept != light {
-                    *kept = *light;
-                    found += 1;
+        if spread {
+            let (count, duration) = timed(|| {
+                let mut count = 0;
+                for (entity, light) in world.query::<&Light>() {
+                    let kept = copy.entry(entity).or_insert(*light);
+                    if kept != light {
+                        *kept = *light;
+                        count += 1;
+                    }
                 }
-            }
-            found
-        });
-        if found != CHANGED_ENTITIES {
-            return Err(format!(
-                "the reader found {found} lights changed, not {CHANGED_ENTITIES}"
-            ));
+                count
+            });
+            found(count)?;
+            compared.push(duration);
         }
-        compared.push(duration);
+        let (count, duration) = timed(|| {
+            let count = world.changed::<Light>(read).count();
+            read = world.tick();
+            count
+        });
+        found(count)?;
+        if spread {
+            asked.push(duration);
+        } else {
+            side_by_side.push(duration);
+        }
     }
     let mut rows = Vec::from(Row::times(
         "1 000 lights changed through `World::get_mut`",
@@ -337,6 +368,14 @@ pub fn changes(_context: &mut Context) -> Result<Vec<Row>, String> {
     rows.extend(Row::times(
         "a reader that compares each light with its copy, the 1 000 found",
         &compared,
+    ));
+    rows.extend(Row::times(
+        "a reader that asks for the lights changed since it last read, the 1 000 found",
+        &asked,
+    ));
+    rows.extend(Row::times(
+        "the same, the 1 000 side by side",
+        &side_by_side,
     ));
     Ok(rows)
 }

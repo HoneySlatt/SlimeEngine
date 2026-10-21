@@ -8,7 +8,7 @@ use slime_assets::AssetId;
 use slime_color::LinearColor;
 use slime_reflect::{FieldInfo, Kind, Path, Range, Reflect, Registry, Value, VariantInfo};
 use slime_world::glam::{DVec3, EulerRot, Quat, Vec3};
-use slime_world::{Entity, Name, World};
+use slime_world::{Entity, Name, Tick, World};
 
 /// The width the panel opens with, in points.
 const WIDTH: f32 = 380.0;
@@ -55,9 +55,18 @@ pub struct Edit {
 /// to the world, which refuses a value out of its field's range or that breaks a rule of its type,
 /// and hands the refusal back ([`WorldPanel::refused`]) to show it. It does not undo, nor add,
 /// remove or save components.
+///
+/// It makes its list of entities again only when the world's structure moves
+/// ([`World::structure`]): a world of many entities costs a frame of the panel little while they
+/// keep their names and parents. Shown another world, as after a hot reload, it lists the new one
+/// once their structures' ticks or their numbers of entities differ.
 #[derive(Debug, Default)]
 pub struct WorldPanel {
     filter: String,
+    /// Each entity listed, what the panel calls it, and that in lower case for the filter.
+    list: Vec<(Entity, String, String)>,
+    /// The world's structure, and its number of entities, when the list was made.
+    listed: Option<(Tick, usize)>,
     selected: Option<Entity>,
     /// Why the world refused the last edit, until the next one.
     refusal: Option<String>,
@@ -108,15 +117,30 @@ impl WorldPanel {
             .max_height(LIST_HEIGHT)
             .auto_shrink([false, true])
             .show(ui, |ui| {
-                for entity in world.entities() {
-                    let name = name(world, entity);
-                    if name.to_lowercase().contains(&filter)
+                let now = Some((world.structure(), world.len()));
+                if self.listed != now {
+                    self.list = world
+                        .entities()
+                        .map(|entity| {
+                            let name = name(world, entity);
+                            let lower = name.to_lowercase();
+                            (entity, name, lower)
+                        })
+                        .collect();
+                    self.listed = now;
+                }
+                let mut clicked = None;
+                for (entity, name, lower) in &self.list {
+                    if lower.contains(&filter)
                         && ui
-                            .selectable_label(self.selected == Some(entity), name)
+                            .selectable_label(self.selected == Some(*entity), name.as_str())
                             .clicked()
                     {
-                        self.select(entity);
+                        clicked = Some(*entity);
                     }
+                }
+                if let Some(entity) = clicked {
+                    self.select(entity);
                 }
             });
         ui.separator();

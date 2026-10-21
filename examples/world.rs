@@ -214,8 +214,11 @@ fn start(world: &mut World, scenes: &mut SceneLibrary) -> Result<(), AppError> {
     let yard = scenes.resolve(world.registry(), YARD)?;
     world.spawn_scene(KEY, &yard)?;
     let mut sun = false;
-    world.query_mut::<&mut Light>(|_, light| {
-        if let Light::Directional { in_sky, .. } = light {
+    world.query_mut::<&mut Light>(|_, mut light| {
+        // Read first: only the lights written are stamped as changed.
+        if matches!(*light, Light::Directional { .. })
+            && let Light::Directional { in_sky, .. } = &mut *light
+        {
             *in_sky = !sun;
             sun = true;
         }
@@ -328,7 +331,7 @@ impl App for WorldExample {
             return;
         };
         let height = base + FLOAT_HEIGHT * (TAU * self.time / FLOAT_PERIOD).sin();
-        if let Some(transform) = ctx.world_mut().get_mut::<Transform>(ring) {
+        if let Some(mut transform) = ctx.world_mut().get_mut::<Transform>(ring) {
             transform.translation.y = height;
         }
         self.floated = (self.floated.0.min(height), self.floated.1.max(height));

@@ -1971,9 +1971,9 @@ waits for. A test that confirms each is kept outside the repository, and comes i
   medium; Stage 6b): it never counts the entities that the file gives once its placements resolve,
   which the reader refuses beyond `MAX_ENTITIES`, nor what they take, refused beyond
   `MAX_SCENE_SIZE`.
-- **A very deep hierarchy costs quadratic time** (G32, medium; `is_hidden` at M6a.3, the rest in
-  Stage 6b): spawning, loading, saving and each frame walk every entity's ancestors (`set_parent`'s
-  search for a cycle, `World::unsaved`, `is_hidden`, `interpolated_transform`).
+- **A very deep hierarchy costs quadratic time** (G32, medium; Stage 6b): spawning, loading, saving
+  and each frame walk every entity's ancestors (`set_parent`'s search for a cycle,
+  `World::unsaved`, `interpolated_transform`). M6a.3 made `World::is_hidden` read a flag.
 - **The world panel rounds a number that was only clicked or crossed with the keyboard, and writes
   the rounding into the world** (G33, medium; Stage 6b): egui's `DragValue` shows as many decimals
   as the drag's speed gives, and writes back the text it shows when it loses the focus. The rule for
@@ -2000,8 +2000,9 @@ waits for. A test that confirms each is kept outside the repository, and comes i
 - **`World::write_scene` loops without end when more than 1 679 616 entities need IDs from one
   base** (G45, low; Stage 6b): it draws four base-36 characters until one is free.
 - **The world panel costs about 1.25 µs per entity and per frame** (G46, low; Stage 6b): 125 to 145
-  ms per frame at 100 000 entities, every row laid out, visible or not. The editor's hierarchy needs
-  a virtualized list.
+  ms per frame at 100 000 entities, every row laid out, visible or not, measured before M6a.3,
+  which makes the list again only when the world's structure moves, and was not measured again.
+  The editor's hierarchy needs a virtualized list.
 - **A multisampled output target makes `render` panic inside wgpu** (G47, low; M6a.8), a panic
   that its rustdoc does not list.
 - **`Registry::register_dynamic` accepts version 0, which the derive refuses** (G48, low; Stage 8):

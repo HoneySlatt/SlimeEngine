@@ -327,8 +327,8 @@ impl Game {
 
     /// Places the hero's entity as `hero` says.
     fn place(&self, world: &mut World, hero: Hero) {
-        if let Some(transform) = world.get_mut::<Transform>(self.hero) {
-            hero.place(transform);
+        if let Some(mut transform) = world.get_mut::<Transform>(self.hero) {
+            hero.place(&mut transform);
         }
     }
 

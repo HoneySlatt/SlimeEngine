@@ -8,6 +8,15 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- The world knows what changed (ADR-0108, ADR-0119): each value of a component holds the ticks at
+  which it was added and last changed, `World::tick` gives the world's tick, which a reader keeps,
+  and `World::changed` the components of a type written or added since, skipping the blocks of
+  values that did not change: 1 000 lights changed among 100 000 found in 18 µs, where comparing
+  every light with a copy took 3.4 ms. `World::removed` and `World::destroyed` tell what left
+  since, `World::structure` when entities last came, went, changed parent or name, and
+  `World::ticks` a component's ticks. `Mut::set_if_differs` writes and stamps only a value that
+  differs.
+- `world.changes.100k`, a benchmark of readers of 100 000 entities of which 1 % changed.
 - `slime-tasks`, the engine's task pool: as many threads as the machine's logical cores but one,
   which run tasks of two priorities, `Frame` and `Background`, a free thread taking a frame task
   first and background tasks never holding every thread; `slime_tasks::map` computes items in
@@ -53,6 +62,18 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- `World::get_mut` and `World::query_mut`'s `&mut T` give a guard, `slime_world::Mut`, rather than
+  `&mut T`: it reads as the value, and its first write stamps it as changed. Code that wrote
+  through `&mut T` mostly compiles as it was; a closure of `query_mut` that writes through a guard
+  declares it `mut`, a function that takes `&mut T` is given `&mut guard`, and a match that binds
+  parts of the value to change them matches `&mut *guard`. A `Transform` reached without being written no longer marks where its entity is in
+  the world to be computed again.
+- `Component` requires `Clone`: every component can be cloned, so that a world can be copied.
+- `World::is_hidden` reads a flag that adding or removing `Hidden`, and changing parent, keep,
+  rather than walking the entity's ancestors: a frame of 100 000 entities is built in 10.0 to
+  10.4 ms, where it took 11.4 ms.
+- The dev overlay's world panel makes its list of entities again only when the world's structure
+  moves.
 - The loads of cooked scenes and of the asset cache's batches run as background tasks of the
   engine's pool, where they ran on a pool of `slime-render`'s own of at most four threads; the
   sky's environment and the BRDF table are computed by frame tasks of the pool and the calling

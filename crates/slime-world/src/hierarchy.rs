@@ -108,7 +108,8 @@ pub(crate) fn leave_parent(nodes: &mut [Node], child: Entity) {
 impl World {
     /// Makes `parent` the parent of `child`, its last child, or puts `child` at the root for
     /// `None`. The child keeps its [`Transform`], now relative to its new parent, so that where it
-    /// is in the world changes with it.
+    /// is in the world changes with it. A child already where it goes, its parent's last child or
+    /// at the root, stays as it is, and the world's structure with it ([`World::structure`]).
     ///
     /// # Errors
     ///
@@ -129,10 +130,20 @@ impl World {
                 ancestor = self.nodes[entity.index() as usize].parent;
             }
         }
+        // Already where it goes: nothing moves, and the structure stays as it is.
+        let at_end = match parent {
+            Some(parent) => self.nodes[parent.index() as usize].last_child == Some(child),
+            None => true,
+        };
+        if self.nodes[child.index() as usize].parent == parent && at_end {
+            return Ok(());
+        }
+        self.structure = self.next_tick();
         leave_parent(&mut self.nodes, child);
         if let Some(parent) = parent {
             join_parent(&mut self.nodes, child, parent);
         }
+        self.update_hidden(child.index());
         if self.nodes[child.index() as usize].stale {
             // Stale already, perhaps through its old parent, whose subtree no longer holds it.
             self.changes.stale.push(child.index());
@@ -167,18 +178,40 @@ impl World {
     /// is the light it places (`docs/adr/0084-what-the-world-draws.md`). `false` if it is not
     /// alive.
     pub fn is_hidden(&self, entity: Entity) -> bool {
-        // The storage looked up once, not at each ancestor: a frame asks it of every entity.
-        let Some(hidden) = self.storage::<Hidden>() else {
-            return false;
+        self.contains(entity) && self.nodes[entity.index() as usize].hidden
+    }
+
+    /// Sets whether the slot's entity is hidden, by itself or through an ancestor, from the
+    /// [`Hidden`] it holds and its parent's flag, and its descendants' after it, down to those
+    /// whose flag stays as it was.
+    pub(crate) fn update_hidden(&mut self, slot: u32) {
+        let Self {
+            nodes,
+            storages,
+            component_ids,
+            ..
+        } = self;
+        let hidden = storage_in::<Hidden>(component_ids, storages);
+        let flag = |nodes: &[Node], slot: u32| {
+            hidden.is_some_and(|hidden| hidden.get(slot).is_some())
+                || nodes[slot as usize]
+                    .parent
+                    .is_some_and(|parent| nodes[parent.index() as usize].hidden)
         };
-        let mut next = self.contains(entity).then_some(entity);
-        while let Some(entity) = next {
-            if hidden.get(entity.index()).is_some() {
-                return true;
-            }
-            next = self.nodes[entity.index() as usize].parent;
+        let hides = flag(nodes, slot);
+        if hides == nodes[slot as usize].hidden {
+            return;
         }
-        false
+        nodes[slot as usize].hidden = hides;
+        // Empty for an entity without children, as most are: nothing to allocate then.
+        let mut next: Vec<u32> = children_of(nodes, slot).map(Entity::index).collect();
+        while let Some(slot) = next.pop() {
+            let hides = flag(nodes, slot);
+            if hides != nodes[slot as usize].hidden {
+                nodes[slot as usize].hidden = hides;
+                next.extend(children_of(nodes, slot).map(Entity::index));
+            }
+        }
     }
 
     /// Where the entity is in the world: its [`Transform`] composed with its ancestors', an
@@ -437,7 +470,7 @@ mod tests {
         assert_eq!(x_of(&world, grandchild), 12.0, "current before the update");
         world.update_transforms();
         assert_eq!(x_of(&world, grandchild), 12.0);
-        world.query_mut::<&mut Transform>(|_, transform| transform.rotation = Quat::IDENTITY);
+        world.query_mut::<&mut Transform>(|_, mut transform| transform.rotation = Quat::IDENTITY);
         world.insert(second, at(5.0));
         assert_eq!(x_of(&world, second), 15.0);
         world.remove::<Transform>(root);
@@ -466,7 +499,18 @@ mod tests {
         world.update_transforms();
         assert_eq!(world.computed, 0, "nothing changed");
         world.get_mut::<Transform>(second).expect("placed");
-        world.get_mut::<Transform>(root).expect("placed");
+        world.update_transforms();
+        assert_eq!(world.computed, 0, "reached, not written");
+        world
+            .get_mut::<Transform>(second)
+            .expect("placed")
+            .translation
+            .y = 1.0;
+        world
+            .get_mut::<Transform>(root)
+            .expect("placed")
+            .translation
+            .y = 1.0;
         world.update_transforms();
         assert_eq!(world.computed, 4, "the whole family, each once");
     }
@@ -529,7 +573,7 @@ mod tests {
 
     #[test]
     fn a_component_that_panics_as_it_is_dropped_leaves_the_hierarchy_whole() {
-        #[derive(slime_reflect::Reflect)]
+        #[derive(Clone, slime_reflect::Reflect)]
         #[reflect(name = "test::Fragile")]
         struct Fragile;
         impl crate::Component for Fragile {}

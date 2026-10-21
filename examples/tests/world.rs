@@ -61,8 +61,8 @@ fn world() -> World {
         )
         .expect("spawned");
     let sun = entity(&world, "sun");
-    if let Some(slime_world::Light::Directional { in_sky, .. }) =
-        world.get_mut::<slime_world::Light>(sun)
+    if let Some(mut light) = world.get_mut::<slime_world::Light>(sun)
+        && let slime_world::Light::Directional { in_sky, .. } = &mut *light
     {
         *in_sky = true;
     }
@@ -161,10 +161,10 @@ fn camera(bounds: &Bounds, yaw: f32, pitch: f32) -> (Camera, f32) {
 
 /// Gives every directional light of `world` the shadow distance `reach`, as the sample does.
 fn reach(world: &mut World, reach: f32) {
-    world.query_mut::<&mut slime_world::Light>(|_, light| {
+    world.query_mut::<&mut slime_world::Light>(|_, mut light| {
         if let slime_world::Light::Directional {
             shadow_distance, ..
-        } = light
+        } = &mut *light
         {
             *shadow_distance = Some(reach);
         }

@@ -41,8 +41,10 @@ use slime_world::{Entity, Meshes, Transform, World};
 ///
 /// # Costs
 ///
-/// Building a frame walks the entities that hold meshes or lights, and the ancestors of each, and
-/// looks each mesh up in the cache. Making the sky's environment again costs what
+/// Building a frame walks the entities that hold meshes or lights, and looks each mesh up in the
+/// cache; when anything moved during the last fixed step, it also walks the ancestors of each
+/// entity that did not move itself, to draw it with the nearest that did
+/// ([`World::interpolated_transform`]). Making the sky's environment again costs what
 /// [`Renderer::create_environment`] does, tens of milliseconds: a sun that moves at every frame
 /// makes it again at every frame.
 pub struct FrameBuilder {

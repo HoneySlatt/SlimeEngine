@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use slime_reflect::{Reflect, Registry};
 
+use crate::change::{Log, Mut, Tick, TransformMarks};
 use crate::components::{Extras, Hidden, Light, Meshes, Name, Unsaved};
 use crate::entity::{Entities, Entity};
 use crate::hierarchy::{children_of, leave_parent};
@@ -17,13 +18,16 @@ use crate::query::{Query, QueryIter, QueryMut};
 use crate::storage::{AnyStorage, Storage};
 use crate::transform::{GlobalTransform, Transform};
 
-/// A value that an entity can hold, of a type that threads can share and that reflection
-/// describes ([`Reflect`]), so that every component can be listed, edited and saved by name
-/// (`docs/adr/0085-reflection.md`). An entity holds at most one component of each type.
+/// A value that an entity can hold, of a type that threads can share, that reflection describes
+/// ([`Reflect`]), so that every component can be listed, edited and saved by name
+/// (`docs/adr/0085-reflection.md`), and that can be cloned, so that a world can be copied
+/// (`docs/adr/0108-what-the-world-knows-of-its-changes.md`): what cannot be, a physics world or
+/// an open file, lives beside the world, and a component holds a handle to it. An entity holds at
+/// most one component of each type.
 ///
 /// A type becomes a component by saying so, `impl Component for Position {}`, so that a tuple or a
 /// function given to [`World::insert`] by mistake does not compile.
-pub trait Component: Reflect {}
+pub trait Component: Reflect + Clone {}
 
 /// The entities of a game, their components and their hierarchy
 /// (`docs/adr/0079-the-engines-own-world.md`).
@@ -38,11 +42,11 @@ pub trait Component: Reflect {}
 /// use slime_reflect::Reflect;
 /// use slime_world::{Component, World};
 ///
-/// #[derive(Debug, PartialEq, Reflect)]
+/// #[derive(Clone, Debug, PartialEq, Reflect)]
 /// #[reflect(name = "demo::Position")]
 /// struct Position(f64);
 /// impl Component for Position {}
-/// #[derive(Reflect)]
+/// #[derive(Clone, Reflect)]
 /// #[reflect(name = "demo::Velocity")]
 /// struct Velocity(f64);
 /// impl Component for Velocity {}
@@ -55,7 +59,7 @@ pub trait Component: Reflect {}
 /// world.insert(rock, Position(10.0));
 ///
 /// // What moves moves: the rock has no velocity, so the query does not visit it.
-/// world.query_mut::<(&mut Position, &Velocity)>(|_, (position, velocity)| {
+/// world.query_mut::<(&mut Position, &Velocity)>(|_, (mut position, velocity)| {
 ///     position.0 += velocity.0 / 60.0;
 /// });
 /// assert_eq!(world.get::<Position>(hero), Some(&Position(0.05)));
@@ -72,13 +76,17 @@ pub trait Component: Reflect {}
 /// Reading, changing, attaching or detaching an entity's component looks up its type, then its
 /// slot. Destroying an entity takes a step for each component type that the world has held, for it
 /// and each of its descendants; a child leaves its parent in a few steps, whatever its siblings.
-/// A query walks the
-/// components of the type that the fewest entities hold, and looks the others up for each of them.
-/// A type that no entity has held costs nothing; one that entities have held keeps its storage,
-/// whose index from slots to values grows with the highest slot that held one. Changing a
-/// transform marks the entity's subtree, which [`World::update_transforms`] computes again, and
-/// which reading a transform in the world computes meanwhile; during a fixed step, it also keeps
-/// the subtree's transforms from before the step, once per entity and step.
+/// A query walks the components of the type that the fewest entities hold, and looks the others up
+/// for each of them. A type that no entity has held costs nothing; one that entities have held
+/// keeps its storage, whose index from slots to values grows with the highest slot that held one.
+/// Each value also holds its two ticks, 16 bytes, and each block of 16 values a summary of their
+/// changes, 8 bytes; a write through a guard stamps the value, its block and its storage once, and
+/// a removal logs the entity it left. Changing a transform marks the entity's subtree, which
+/// [`World::update_transforms`] computes again, and which reading a transform in the world
+/// computes meanwhile; during a fixed step, it also keeps the subtree's transforms from before the
+/// step, once per entity and step. Adding or removing [`Hidden`], or giving an entity another
+/// parent, sets the hidden flag of the entity and of its descendants whose flag changes, which
+/// [`World::is_hidden`] then reads in one step.
 /// `docs/adr/0082-the-worlds-storage-and-handles.md` gives what 100 000 entities cost, and
 /// `docs/adr/0083-transforms-and-the-hierarchy.md` what the hierarchy changed of it and what their
 /// transforms cost.
@@ -116,6 +124,12 @@ pub struct World {
     /// How many placements made while the world runs it kept when it last forgot those of which no
     /// entity lives.
     pub(crate) placements_kept: usize,
+    /// The latest tick given: each operation that may change the world takes the next one.
+    pub(crate) tick: Tick,
+    /// The latest tick at which an entity was spawned or destroyed, or changed parent.
+    pub(crate) structure: Tick,
+    /// The entities destroyed.
+    pub(crate) destroyed: Log,
     /// How many transforms in the world were computed again, for the tests.
     #[cfg(test)]
     pub(crate) computed: usize,
@@ -142,6 +156,8 @@ pub(crate) struct Node {
     pub(crate) global: GlobalTransform,
     /// Whether `global` must be computed again. A stale node's descendants are stale too.
     pub(crate) stale: bool,
+    /// Whether the entity, or one of its ancestors, holds [`Hidden`].
+    pub(crate) hidden: bool,
     /// Its index in [`Changes::moved`] plus one, if its transform in the world changed during the
     /// last fixed step; 0 if it did not, or changed outside a step since.
     pub(crate) moved: u32,
@@ -335,6 +351,21 @@ pub(crate) fn storage_in<'s, T: Component>(
     )
 }
 
+/// The storage of `T` among a world's, to change, if an entity has ever held a `T`, for code that
+/// borrows the world's other fields apart.
+pub(crate) fn storage_in_mut<'s, T: Component>(
+    component_ids: &ComponentIds,
+    storages: &'s mut [Box<dyn AnyStorage>],
+) -> Option<&'s mut Storage<T>> {
+    let id = *component_ids.get(&TypeId::of::<T>())?;
+    let storage: &mut dyn Any = &mut *storages[id];
+    Some(
+        storage
+            .downcast_mut::<Storage<T>>()
+            .expect("a storage holds the type it is registered under"),
+    )
+}
+
 impl std::fmt::Debug for World {
     /// How many entities are alive: what a world holds is read through its queries.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -368,6 +399,9 @@ impl World {
             scenes: BTreeMap::new(),
             placements: BTreeMap::new(),
             placements_kept: 0,
+            tick: Tick::default(),
+            structure: Tick::default(),
+            destroyed: Log::EMPTY,
             #[cfg(test)]
             computed: 0,
         };
@@ -414,6 +448,7 @@ impl World {
     /// A new entity without a persistent identity, which a scene then gives it.
     pub(crate) fn spawn_bare(&mut self) -> Entity {
         let entity = self.entities.spawn();
+        self.structure = self.next_tick();
         let slot = entity.index() as usize;
         if self.nodes.len() <= slot {
             self.nodes.resize_with(slot + 1, Node::default);
@@ -435,8 +470,10 @@ impl World {
         if !self.entities.contains(entity) {
             return false;
         }
+        let tick = self.next_tick();
+        self.structure = tick;
         if self.nodes[entity.index() as usize].child_count == 0 {
-            self.destroy(entity);
+            self.destroy(entity, tick);
             return true;
         }
         // Each entity before its children, its first child first: destroyed in the opposite
@@ -448,23 +485,25 @@ impl World {
             next.extend(children_of(&self.nodes, entity.index()).rev());
         }
         for &entity in subtree.iter().rev() {
-            self.destroy(entity);
+            self.destroy(entity, tick);
         }
         true
     }
 
-    /// Destroys a live entity whose children are destroyed already.
-    fn destroy(&mut self, entity: Entity) {
+    /// Destroys a live entity whose children are destroyed already, logging at `tick` that it and
+    /// its components left.
+    fn destroy(&mut self, entity: Entity, tick: Tick) {
         let slot = entity.index();
         // Components first: if one panics as it is dropped, the entity stays alive with the
         // others, still its parent's child, rather than leaving them to the next entity of its
         // slot.
         for storage in &mut self.storages {
-            storage.remove_slot(slot);
+            storage.remove_slot(slot, entity, tick);
         }
         leave_parent(&mut self.nodes, entity);
         let node = mem::take(&mut self.nodes[slot as usize]);
         self.entities.despawn(entity);
+        self.destroyed.push(tick, entity);
         match node.identity {
             Identity::None => {}
             Identity::Scene(identity) => {
@@ -490,8 +529,9 @@ impl World {
     }
 
     /// Attaches a component to an entity, and gives back the component of the same type that it
-    /// replaced, if the entity held one. The first component of a type that the world stores
-    /// registers the type ([`World::register`]).
+    /// replaced, if the entity held one. The component is stamped as changed, and as added unless
+    /// it replaced one ([`Ticks`](crate::Ticks)). The first component of a type that the world
+    /// stores registers the type ([`World::register`]).
     ///
     /// # Panics
     ///
@@ -502,13 +542,14 @@ impl World {
             self.entities.contains(entity),
             "a component attached to {entity:?}, which is not alive"
         );
-        self.transform_changes::<T>(entity.index());
+        let tick = self.next_tick();
         let id = self.storage_id::<T>();
         let storage: &mut dyn Any = &mut *self.storages[id];
         let replaced = storage
             .downcast_mut::<Storage<T>>()
             .expect("a storage holds the type it is registered under")
-            .insert(entity.index(), component);
+            .insert(entity.index(), component, tick);
+        self.held_changed(TypeId::of::<T>(), entity.index());
         // An entity placed for the first time during a fixed step had no place before it: it is
         // drawn at once where it is, rather than from where its parent was.
         if replaced.is_none() && TypeId::of::<T>() == TypeId::of::<Transform>() {
@@ -517,14 +558,18 @@ impl World {
         replaced
     }
 
-    /// Detaches the entity's component of type `T`, if it holds one.
+    /// Detaches the entity's component of type `T`, if it holds one, which the world's log of
+    /// removals tells ([`World::removed`]).
     pub fn remove<T: Component>(&mut self, entity: Entity) -> Option<T> {
         if !self.entities.contains(entity) {
             return None;
         }
-        let removed = self.storage_mut::<T>()?.remove(entity.index());
+        let tick = self.next_tick();
+        let removed = self
+            .storage_mut::<T>()?
+            .remove(entity.index(), entity, tick);
         if removed.is_some() {
-            self.transform_changes::<T>(entity.index());
+            self.held_changed(TypeId::of::<T>(), entity.index());
         }
         removed
     }
@@ -537,15 +582,31 @@ impl World {
         self.storage::<T>()?.get(entity.index())
     }
 
-    /// The entity's component of type `T`, to change, if it is alive and holds one. A
-    /// [`Transform`] reached this way counts as changed.
-    pub fn get_mut<T: Component>(&mut self, entity: Entity) -> Option<&mut T> {
+    /// The entity's component of type `T`, to change through a guard, if it is alive and holds
+    /// one. The first write through the guard stamps the value as changed, for the world's readers
+    /// ([`World::changed`]); a [`Transform`] written so marks where its entity and their
+    /// descendants are in the world to be computed again. Reaching a value without writing it
+    /// changes nothing.
+    pub fn get_mut<T: Component>(&mut self, entity: Entity) -> Option<Mut<'_, T>> {
         if !self.entities.contains(entity) {
             return None;
         }
-        self.storage::<T>()?.get(entity.index())?;
-        self.transform_changes::<T>(entity.index());
-        self.storage_mut::<T>()?.get_mut(entity.index())
+        let tick = self.next_tick();
+        let slot = entity.index();
+        let Self {
+            storages,
+            component_ids,
+            nodes,
+            changes,
+            ..
+        } = self;
+        let storage = storage_in_mut::<T>(component_ids, storages)?;
+        let marks = (TypeId::of::<T>() == TypeId::of::<Transform>()).then_some(TransformMarks {
+            nodes: nodes.as_mut_slice(),
+            changes,
+            slot,
+        });
+        storage.get_mut(slot, tick, marks)
     }
 
     /// The entities that hold every component that the query reads, with those components, in no
@@ -555,7 +616,7 @@ impl World {
     /// use slime_reflect::Reflect;
     /// use slime_world::{Component, Name, World};
     ///
-    /// #[derive(Reflect)]
+    /// #[derive(Clone, Reflect)]
     /// #[reflect(name = "demo::Lantern")]
     /// struct Lantern;
     /// impl Component for Lantern {}
@@ -576,8 +637,8 @@ impl World {
     }
 
     /// Calls `visit` for each entity that holds every component that the query names, with those
-    /// components, in no particular order: `&mut T` to change one, `&T` to read it. A
-    /// [`Transform`] reached as `&mut Transform` counts as changed.
+    /// components, in no particular order: `&mut T` to change one, through a guard that stamps it
+    /// once written, as [`World::get_mut`] does; `&T` to read it.
     ///
     /// # Panics
     ///
@@ -595,6 +656,7 @@ impl World {
         let changes_transforms = types
             .iter()
             .any(|&(type_id, _, mutable)| mutable && type_id == TypeId::of::<Transform>());
+        let tick = self.next_tick();
         let Self {
             entities,
             storages,
@@ -614,21 +676,32 @@ impl World {
         // `visit` changes components, never which entities hold them: the slots stay as they are.
         for index in 0..Q::driver(&borrow).len() {
             let slot = Q::driver(&borrow)[index];
-            if let Some(item) = Q::get(&mut borrow, slot) {
-                // Before `visit`, so that one that panics leaves no change unmarked.
-                if changes_transforms {
-                    mark_stale(nodes, changes, slot);
-                }
+            let mut marks = changes_transforms.then_some(TransformMarks {
+                nodes: nodes.as_mut_slice(),
+                changes: &mut *changes,
+                slot,
+            });
+            if let Some(item) = Q::get(&mut borrow, slot, tick, &mut marks) {
                 visit(entities.at(slot), item);
             }
         }
     }
 
-    /// Marks the slot's transform in the world stale if `T` is [`Transform`].
-    fn transform_changes<T: Component>(&mut self, slot: u32) {
-        if TypeId::of::<T>() == TypeId::of::<Transform>() {
+    /// Keeps what the world derives from the components that the slot holds, once one of
+    /// `type_id` was attached, replaced or detached: where a transform's entity and their
+    /// descendants are in the world is computed again, and whether a subtree is hidden.
+    pub(crate) fn held_changed(&mut self, type_id: TypeId, slot: u32) {
+        if type_id == TypeId::of::<Transform>() {
             mark_stale(&mut self.nodes, &mut self.changes, slot);
+        } else if type_id == TypeId::of::<Hidden>() {
+            self.update_hidden(slot);
         }
+    }
+
+    /// The next tick, which an operation that may change the world stamps its changes with.
+    pub(crate) fn next_tick(&mut self) -> Tick {
+        self.tick = self.tick.next();
+        self.tick
     }
 
     /// The component ID of `T`, its storage made and its type registered the first time.
@@ -650,13 +723,7 @@ impl World {
     }
 
     fn storage_mut<T: Component>(&mut self) -> Option<&mut Storage<T>> {
-        let id = *self.component_ids.get(&TypeId::of::<T>())?;
-        let storage: &mut dyn Any = &mut *self.storages[id];
-        Some(
-            storage
-                .downcast_mut::<Storage<T>>()
-                .expect("a storage holds the type it is registered under"),
-        )
+        storage_in_mut(&self.component_ids, &mut self.storages)
     }
 
     /// The handle of the entity alive in the slot, which a storage holds a value for.
@@ -673,23 +740,23 @@ mod tests {
 
     use super::*;
 
-    #[derive(Debug, PartialEq, Reflect)]
+    #[derive(Clone, Debug, PartialEq, Reflect)]
     #[reflect(name = "test::Position")]
     struct Position(f64);
     impl Component for Position {}
 
-    #[derive(Debug, PartialEq, Reflect)]
+    #[derive(Clone, Debug, PartialEq, Reflect)]
     #[reflect(name = "test::Velocity")]
     struct Velocity(f64);
     impl Component for Velocity {}
 
-    #[derive(Debug, PartialEq, Reflect)]
+    #[derive(Clone, Debug, PartialEq, Reflect)]
     #[reflect(name = "test::Name")]
     struct Name(String);
     impl Component for Name {}
 
     /// A component type that no entity of the tests holds.
-    #[derive(Reflect)]
+    #[derive(Clone, Reflect)]
     #[reflect(name = "test::Unused")]
     struct Unused;
     impl Component for Unused {}
@@ -711,7 +778,7 @@ mod tests {
     #[test]
     fn a_destroyed_entity_drops_its_components_and_its_handle_finds_nothing() {
         /// Counts how many of its values were dropped.
-        #[derive(Reflect)]
+        #[derive(Clone, Reflect)]
         #[reflect(name = "test::Counted")]
         struct Counted(#[reflect(skip)] Arc<AtomicUsize>);
         impl Component for Counted {}
@@ -819,7 +886,7 @@ mod tests {
 
     #[test]
     fn a_component_that_panics_as_it_is_dropped_leaves_its_entity_alive() {
-        #[derive(Reflect)]
+        #[derive(Clone, Reflect)]
         #[reflect(name = "test::Fragile")]
         struct Fragile;
         impl Component for Fragile {}
@@ -909,7 +976,7 @@ mod tests {
     fn changes_made_through_a_query_are_in_the_world() {
         let (mut world, entities) = world_of(10);
         let mut visits = 0;
-        world.query_mut::<(&mut Position, &Velocity)>(|_, (position, velocity)| {
+        world.query_mut::<(&mut Position, &Velocity)>(|_, (mut position, velocity)| {
             position.0 += velocity.0;
             visits += 1;
         });
@@ -921,7 +988,7 @@ mod tests {
                 Some(&Position(index as f64 + moved))
             );
         }
-        world.query_mut::<&mut Name>(|_, name| name.0 = "renamed".to_owned());
+        world.query_mut::<&mut Name>(|_, mut name| name.0 = "renamed".to_owned());
         assert!(world.query::<&Name>().all(|(_, name)| name.0 == "renamed"));
         world.query_mut::<(&mut Unused, &Position)>(|_, _| unreachable!("no entity holds one"));
     }
@@ -984,7 +1051,7 @@ mod tests {
             },
         );
         time("move the 50 000 entities with a velocity", &mut || {
-            world.query_mut::<(&mut Position, &Velocity)>(|_, (position, velocity)| {
+            world.query_mut::<(&mut Position, &Velocity)>(|_, (mut position, velocity)| {
                 position.0 += velocity.0;
             });
         });

@@ -11,7 +11,9 @@ parent and children and where each one is in the world, and spawns scenes as ent
 identities: glTF scenes as the cooker makes them, and scene files that place prefabs, each placement
 with values of its own. Its components say what is drawn, by asset ID, and it keeps where what moved
 during the last fixed step was, to draw it between its two transforms; `slime-world-render` draws
-it. Every component is reflected, and reached by name. It saves what differs from the world as a
+it. Every component is reflected, reached by name, and cloned. It knows what changed: each value
+holds the ticks at which it was added and last changed, and readers ask what changed, what left and
+whether the hierarchy moved since they last read. It saves what differs from the world as a
 game makes it at the start of a run, as text, what it spawned while it ran as its scenes, and loads
 it back; it writes a world, or a subtree of it, back as a scene file that keeps its placements. Its
 library of scenes reads them from cooked data, the scene files in their binary encoding.
@@ -21,6 +23,10 @@ library of scenes reads them from cooked data, the scene files in their binary e
 - Keeps a game's things as *entities*, handles made of an index and a generation, and their
   values as *components*, one of each type per entity, stored by type
   (`docs/adr/0082-the-worlds-storage-and-handles.md`).
+- Stamps every change with the world's *tick*, so that each reader asks, at its own pace, what was
+  added, changed or removed since it last read, rather than read the whole world
+  (`docs/adr/0108-what-the-world-knows-of-its-changes.md`,
+  `docs/adr/0119-the-worlds-ticks-blocks-and-log.md`).
 - Keeps the *hierarchy*, each entity's parent and children, and where each entity with a
   `Transform` is in the world, positions in double precision
   (`docs/adr/0083-transforms-and-the-hierarchy.md`).
@@ -51,7 +57,7 @@ use slime_reflect::{Reflect, Value};
 use slime_world::{Component, Transform, World};
 use slime_world::glam::DVec3;
 
-#[derive(Reflect)]
+#[derive(Clone, Reflect)]
 #[reflect(name = "demo::Velocity")]
 struct Velocity(f64);
 impl Component for Velocity {}
@@ -64,7 +70,7 @@ let lantern = world.spawn();
 world.insert(lantern, Transform::from_translation(DVec3::new(0.0, 2.0, 0.0)));
 world.set_parent(lantern, Some(cart)).expect("both are alive");
 
-world.query_mut::<(&mut Transform, &Velocity)>(|_, (transform, velocity)| {
+world.query_mut::<(&mut Transform, &Velocity)>(|_, (mut transform, velocity)| {
     transform.translation.x += velocity.0;
 });
 // The lantern rides on the cart.
@@ -82,10 +88,16 @@ assert_eq!(world.get::<Velocity>(cart).expect("held").0, 5.0);
   the handle of a destroyed entity finds nothing afterwards.
 - `World::insert`, `get`, `get_mut` and `remove` attach, read, change and detach one component of
   an entity. A component is a value of a type that threads can share, that reflection describes
-  (`#[derive(Reflect)]`, `slime-reflect`), and that says it is one: `impl Component for Velocity {}`.
+  (`#[derive(Reflect)]`, `slime-reflect`), that clones, and that says it is one:
+  `impl Component for Velocity {}`. `get_mut` gives a guard, `Mut`, whose first write stamps the
+  value as changed; `Mut::set_if_differs` writes and stamps only a value that differs.
 - `World::query` reads the entities that hold every component of a `Query`, `&T` or a tuple of up
   to four, through an iterator; `World::query_mut` changes them through a closure, with `&mut T`
-  in its `QueryMut`.
+  in its `QueryMut`, which gives guards: a closure that writes through one declares it `mut`.
+- `World::tick` is the world's tick now, which a reader keeps; `World::changed` gives the components
+  of a type written or added after a tick, skipping the blocks of values that did not change;
+  `World::removed` and `World::destroyed`, what left after it; `World::structure`, the tick at
+  which entities last came, went, changed parent or name; `World::ticks`, a component's ticks.
 - `World::set_parent`, `parent` and `children` keep the hierarchy, `children` an iterator over an
   entity's children in their order, each linked to its siblings, so that one leaves its parent in
   constant time (`docs/adr/0106-the-measured-quick-wins.md`). `Transform` places an entity

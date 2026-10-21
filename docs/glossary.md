@@ -127,7 +127,8 @@ Shadow maps are read this way. See *percentage-closer filtering*.
 **Component.** A piece of data that an *entity* holds, such as its transform, a light or a collider:
 an entity holds at most one component of each type, and the *world* stores components by type
 ([ADR-0079](adr/0079-the-engines-own-world.md)). Every component type has *reflection*
-([ADR-0085](adr/0085-reflection.md)).
+([ADR-0085](adr/0085-reflection.md)), and clones
+([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)).
 
 **Component ID.** The number by which a *world* knows a *component* type, given in the order types
 are first attached. It stays in the process: files name types through *reflection*
@@ -330,6 +331,11 @@ the bloom's passes summed) with the CPU time of the call (`slime_render::RenderS
 
 **Graphics API.** The interface between programs and GPU drivers: Vulkan (the engine's choice on
 Linux) and Direct3D 12 (on Windows). wgpu translates the engine's calls into one of them.
+
+**Guard (world).** What reaching a *component* to change it gives (`slime_world::Mut`): it reads
+as the value, and its first write stamps the value with the world's *tick*, so that readers learn
+that it changed; reaching a value without writing it changes nothing
+([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)).
 
 **Half-precision float.** A 16-bit floating-point number (IEEE 754 binary16): 11 significant bits,
 values up to ±65 504. The channels of `Rgba16Float` render targets, which the engine converts to
@@ -686,7 +692,7 @@ its outer one. A point or spot light's optional range is the distance at which i
 zero, smoothly.
 
 **Query (world).** What a game asks a *world* for: the entities that hold every *component* of
-some types, with those components, `&T` to read one and `&mut T` to change it
+some types, with those components, `&T` to read one and `&mut T` to change it through a *guard*
 (`slime_world::Query`, `slime_world::QueryMut`,
 [ADR-0082](adr/0082-the-worlds-storage-and-handles.md)).
 
@@ -892,9 +898,9 @@ where a field that its type does not have is an error; leniently for a save, whi
 version of a program may have written, where such a field is left out with a warning
 ([ADR-0080](adr/0080-reflection-and-serialization.md)).
 
-**Structure counter.** A number of the world's that grows when entities are spawned or destroyed,
-change parent or name, so that a list of the entities is made again only then
-([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)). Decided, not built yet.
+**Structure counter.** The latest *tick* at which a world's entities were spawned or destroyed,
+changed parent or name (`World::structure`), so that a list of the entities is made again only
+then ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)).
 
 **Sub-asset.** An *asset* inside a source file, such as a mesh, a material or a scene of a glTF
 file, whose ID is derived from the file's ID, its kind and its name
@@ -940,10 +946,11 @@ cooker averages its levels and compresses it ([ADR-0071](adr/0071-cooked-texture
 edited or made by a buggy tool, and what the engine promises about them: no panic, hang, exhausted
 memory or lost progress ([ADR-0096](adr/0096-the-files-the-engine-reads.md)).
 
-**Tick (world).** A number that grows as the world changes. Each value of a component holds the
-tick at which it was added and the one at which it last changed, and a reader asks what changed
-since the tick at which it last read
-([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)). Decided, not built yet.
+**Tick (world).** A number that grows by one at each operation that may change a world
+(`slime_world::Tick`). Each value of a component holds the tick at which it was added and the one
+at which it last changed, and a reader asks what changed since the tick at which it last read
+([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md),
+[ADR-0119](adr/0119-the-worlds-ticks-blocks-and-log.md)).
 
 **Timestamp query.** A GPU feature that writes the GPU's clock at a point of its command stream;
 two of them, around a render pass, give its *GPU time* (`slime_gfx::GpuTimer`). Optional: the

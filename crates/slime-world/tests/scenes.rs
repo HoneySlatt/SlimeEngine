@@ -251,6 +251,15 @@ fn a_prefab_placed_three_times_gives_three_subtrees_equal_to_it_but_where_overri
     assert!(value(&yard, "yard/shed/light", "Hidden").is_some());
     assert!(value(&yard, "yard/gate/light", "Hidden").is_none());
     assert!(
+        yard.is_hidden(entity(&yard, "yard/shed/light")),
+        "hidden by the yard"
+    );
+    assert!(
+        yard.is_hidden(entity(&yard, "yard/gate/glass")),
+        "hidden by the lamp"
+    );
+    assert!(!yard.is_hidden(entity(&yard, "yard/gate/light")));
+    assert!(
         yard.find(&"yard/porch/glass".parse().unwrap()).is_none(),
         "removed"
     );

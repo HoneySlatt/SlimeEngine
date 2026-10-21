@@ -8,10 +8,11 @@
 
 use std::any::{Any, TypeId, type_name};
 
+use crate::change::{Mut, Tick, TransformMarks};
 use crate::entity::Entity;
 use crate::storage::{AnyStorage, Storage};
 use crate::world::ComponentIds;
-use crate::{Component, World};
+use crate::{Component, Transform, World};
 
 mod sealed {
     /// Keeps the query traits to the types this crate implements them for.
@@ -63,12 +64,14 @@ impl<T: Component> Query for &T {
     }
 }
 
-/// A query that may change components: `&T` to read, `&mut T` to change, or a tuple of up to four
-/// of these, such as `(&mut Position, &Velocity)`. It names each component type once.
+/// A query that may change components: `&T` to read, `&mut T` to change, through a guard that
+/// stamps the value once written ([`Mut`]), or a tuple of up to four of these, such as
+/// `(&mut Position, &Velocity)`. It names each component type once.
 ///
 /// [`World::query_mut`] runs it. Its other items are the crate's own machinery.
 pub trait QueryMut: sealed::Sealed {
-    /// What the query gives for one entity: `&T`, `&mut T`, or a tuple of what its parts give.
+    /// What the query gives for one entity: `&T`, [`Mut<T>`](Mut) for `&mut T`, or a tuple of what
+    /// its parts give.
     type Item<'a>;
 
     #[doc(hidden)]
@@ -86,8 +89,15 @@ pub trait QueryMut: sealed::Sealed {
     #[doc(hidden)]
     fn driver<'b>(borrow: &'b Self::Borrow<'_>) -> &'b [u32];
 
+    /// The slot's item, its guards stamping with `tick`; the part that changes a transform takes
+    /// `marks`, which its first write marks.
     #[doc(hidden)]
-    fn get<'a>(borrow: &'a mut Self::Borrow<'_>, slot: u32) -> Option<Self::Item<'a>>;
+    fn get<'a>(
+        borrow: &'a mut Self::Borrow<'_>,
+        slot: u32,
+        tick: Tick,
+        marks: &mut Option<TransformMarks<'a>>,
+    ) -> Option<Self::Item<'a>>;
 }
 
 /// The storage of `T` among those a query borrows, taken so that no other part of the query can
@@ -126,13 +136,18 @@ impl<T: Component> QueryMut for &T {
         storage.slots()
     }
 
-    fn get<'a>(storage: &'a mut &Storage<T>, slot: u32) -> Option<&'a T> {
+    fn get<'a>(
+        storage: &'a mut &Storage<T>,
+        slot: u32,
+        _: Tick,
+        _: &mut Option<TransformMarks<'a>>,
+    ) -> Option<&'a T> {
         storage.get(slot)
     }
 }
 
 impl<T: Component> QueryMut for &mut T {
-    type Item<'a> = &'a mut T;
+    type Item<'a> = Mut<'a, T>;
     type Borrow<'w> = &'w mut Storage<T>;
 
     fn component_types(types: &mut Vec<(TypeId, &'static str, bool)>) {
@@ -150,8 +165,18 @@ impl<T: Component> QueryMut for &mut T {
         storage.slots()
     }
 
-    fn get<'a>(storage: &'a mut &mut Storage<T>, slot: u32) -> Option<&'a mut T> {
-        storage.get_mut(slot)
+    fn get<'a>(
+        storage: &'a mut &mut Storage<T>,
+        slot: u32,
+        tick: Tick,
+        marks: &mut Option<TransformMarks<'a>>,
+    ) -> Option<Mut<'a, T>> {
+        let marks = if TypeId::of::<T>() == TypeId::of::<Transform>() {
+            marks.take()
+        } else {
+            None
+        };
+        storage.get_mut(slot, tick, marks)
     }
 }
 
@@ -210,8 +235,13 @@ macro_rules! tuples {
                 driver.expect("a tuple has parts")
             }
 
-            fn get<'a>(borrow: &'a mut Self::Borrow<'_>, slot: u32) -> Option<Self::Item<'a>> {
-                Some(($($part::get(&mut borrow.$index, slot)?,)+))
+            fn get<'a>(
+                borrow: &'a mut Self::Borrow<'_>,
+                slot: u32,
+                tick: Tick,
+                marks: &mut Option<TransformMarks<'a>>,
+            ) -> Option<Self::Item<'a>> {
+                Some(($($part::get(&mut borrow.$index, slot, tick, marks)?,)+))
             }
         }
     };

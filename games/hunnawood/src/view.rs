@@ -95,8 +95,8 @@ fn key_pulse(seconds: f64) -> f32 {
 /// start: around the intensity the zone gave them, by the fire's flicker.
 pub fn light_the_fire(world: &mut World, seconds: f64) {
     let times = flicker(seconds);
-    world.query_mut::<(&Flickers, &mut Light)>(|_, (flickers, light)| {
-        if let Light::Point { intensity, .. } = light {
+    world.query_mut::<(&Flickers, &mut Light)>(|_, (flickers, mut light)| {
+        if let Light::Point { intensity, .. } = &mut *light {
             *intensity = flickers.intensity * times;
         }
     });

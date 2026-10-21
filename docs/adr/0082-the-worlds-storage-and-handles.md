@@ -1,6 +1,8 @@
 # 0082. The world's storage and handles
 
-- Status: Accepted
+- Status: Accepted; amended by [0119](0119-the-worlds-ticks-blocks-and-log.md) (the ticks of each
+  value, a summary per block of values and a log of removals in each storage; `query_mut` gives
+  guards)
 - Date: 2026-10-16
 
 ## Context

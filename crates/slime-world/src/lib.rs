@@ -1,5 +1,6 @@
 #![doc = include_str!("../README.md")]
 
+mod change;
 mod components;
 mod document;
 mod entity;
@@ -17,6 +18,7 @@ mod transform;
 mod world;
 mod write_back;
 
+pub use change::{Mut, Removals, Tick, Ticks};
 pub use components::{Extras, Hidden, Light, Meshes, Name, Unsaved};
 pub use document::{DocumentError, Loaded, SetAside};
 pub use entity::Entity;

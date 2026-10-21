@@ -233,8 +233,8 @@ pub fn reload(
 /// zone gives it: the view makes them flicker at each frame, and what is saved would hold each
 /// frame's.
 fn unflicker(world: &mut World) {
-    world.query_mut::<(&Flickers, &mut Light)>(|_, (flickers, light)| {
-        if let Light::Point { intensity, .. } = light {
+    world.query_mut::<(&Flickers, &mut Light)>(|_, (flickers, mut light)| {
+        if let Light::Point { intensity, .. } = &mut *light {
             *intensity = flickers.intensity;
         }
     });
@@ -560,7 +560,7 @@ mod runs {
             game.step(&mut world, Vec2::X, 1.0 / 60.0);
         }
         // What the run changed of the layout, as the world panel changes it, does not make it another.
-        world.query_mut::<&mut Collider>(|_, collider| collider.height = 3.5);
+        world.query_mut::<&mut Collider>(|_, mut collider| collider.height = 3.5);
         let text = save(&mut world, &mut scenes).expect("saved");
         let new = new_game(&mut scenes);
         let (resumed, resumed_game, loaded) = resume(&text, new, &mut scenes).expect("resumed");

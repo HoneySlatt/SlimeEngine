@@ -149,7 +149,7 @@ the ADR linking to it.
 | [0079](0079-the-engines-own-world.md) | The engine's own world | Accepted; amended by 0087, 0107, 0108, 0109 and 0112 |
 | [0080](0080-reflection-and-serialization.md) | Reflection and serialization | Accepted; amended by 0085, 0086 and 0101 |
 | [0081](0081-stage-5a-the-world.md) | Stage 5a: the world | Accepted; amended by 0109 |
-| [0082](0082-the-worlds-storage-and-handles.md) | The world's storage and handles | Accepted |
+| [0082](0082-the-worlds-storage-and-handles.md) | The world's storage and handles | Accepted; amended by 0119 |
 | [0083](0083-transforms-and-the-hierarchy.md) | Transforms and the hierarchy | Accepted; amended by 0087, 0106 and 0108 |
 | [0084](0084-what-the-world-draws.md) | What the world draws | Accepted; amended by 0106, 0111 and 0113 |
 | [0085](0085-reflection.md) | Reflection | Accepted; amended by 0086, 0087, 0101 and 0108 |
@@ -175,7 +175,7 @@ the ADR linking to it.
 | [0105](0105-egui-fonts-ship-with-the-dev-overlay.md) | egui's fonts ship with the dev overlay | Accepted |
 | [0106](0106-the-measured-quick-wins.md) | The measured quick wins | Accepted; amended by 0117 |
 | [0107](0107-the-execution-model.md) | The execution model | Accepted; amended by 0118 |
-| [0108](0108-what-the-world-knows-of-its-changes.md) | What the world knows of its changes | Accepted |
+| [0108](0108-what-the-world-knows-of-its-changes.md) | What the world knows of its changes | Accepted; amended by 0119 |
 | [0109](0109-stable-references-and-undo.md) | Stable references and undo | Accepted; amended by 0116 |
 | [0110](0110-how-the-editor-runs-a-games-code.md) | How the editor runs a game's code | Accepted; amended by 0116 |
 | [0111](0111-the-frame-contract.md) | The frame contract | Accepted; amended by 0115 |
@@ -186,3 +186,4 @@ the ADR linking to it.
 | [0116](0116-stage-6-in-two-halves.md) | Stage 6 in two halves | Accepted |
 | [0117](0117-frustum-culling-and-instancing.md) | Frustum culling and instancing | Accepted |
 | [0118](0118-the-task-pool-and-the-copies-to-the-gpu.md) | The task pool and the copies to the GPU | Accepted |
+| [0119](0119-the-worlds-ticks-blocks-and-log.md) | The world's ticks, blocks and log | Accepted |
