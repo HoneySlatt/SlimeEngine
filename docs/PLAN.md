@@ -57,7 +57,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   knows of its changes ([ADR-0119](adr/0119-the-worlds-ticks-blocks-and-log.md)), and M6a.4, a
   frame that owns what it draws ([ADR-0120](adr/0120-a-frame-that-owns-what-it-draws.md)), and
   M6a.5, a game as a simulation and a presentation
-  ([ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)). Next: M6a.6.
+  ([ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)), and M6a.6, the development
+  channel and the MCP server, through which an agent drives a running game
+  ([ADR-0122](adr/0122-the-development-channel.md)). Next: M6a.7.
 
 ## Status
 
@@ -68,7 +70,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6a.3](#m6a3--what-the-world-knows-of-its-changes) | Each reader of the world asks what changed since it last read; components clone | Done |
 | [M6a.4](#m6a4--a-frame-that-owns-what-it-draws) | A frame owns what it draws, and loading needs no renderer | Done |
 | [M6a.5](#m6a5--the-phases-of-a-frame-game-time-and-a-game-as-a-simulation-and-a-presentation) | Each phase of a frame says who may change the world; game time pauses and steps; a game's rules run without a GPU | Done |
-| [M6a.6](#m6a6--the-development-channel-and-the-mcp-server) | An agent drives a running game without a person | Planned |
+| [M6a.6](#m6a6--the-development-channel-and-the-mcp-server) | An agent drives a running game without a person | Done |
 | [M6a.7](#m6a7--identities-and-saves-per-scene) | A save holds what was changed and costs what changed; an entity outlives its level | Planned |
 | [M6a.8](#m6a8--views-apart-from-the-renderer) | One renderer draws several views, each with its own settings | Planned |
 | [M6a.9](#m6a9--asset-requests) | What a view lacks loads first, and assets stay within a budget of memory | Planned |
@@ -510,6 +512,52 @@ Risks:
 - **How to test.** `cargo test --workspace`; `scripts/check.sh`.
 - **By hand.** In the Windows virtual machine: the system's firewall asks nothing when the game
   listens.
+- **Outcome.** Done on 2026-10-21. [ADR-0122](adr/0122-the-development-channel.md) records the
+  design, extends ADR-0096's threat model to the channel and the server, and amends ADR-0033,
+  ADR-0099, ADR-0110 and ADR-0121. The owner chose on 2026-10-21: `rmcp`, the protocol's official
+  Rust implementation, for the server; `getrandom` for the token; a cargo feature of `slime-app`,
+  `development`, which a game turns on by default and its build for shipping leaves out; the
+  capture copied from the window's image; `base64` for the captures that the server returns. The
+  new crate `slime-channel` holds the protocol, version 1, and both of its ends; `slime-app`
+  answers the requests at the start of a frame, a step once its steps have run and a capture
+  between the frame's render and its presentation, and keeps the last lines of its log; the new
+  program `slime-mcp` is the MCP server, whose tools start a game, drive it, cook and run the tests.
+  A window's image is read back where the system allows it. Building it found two things: *Hunna
+  Wood* paused game time while its zone loaded and ran it again once the zone was drawn, which undid
+  a tool's pause, so a game now holds game time apart from the pause (`Context::hold`); and a step
+  answered at once let the tool's next requests in between its frames, so it is answered once its
+  steps have run. The review found, and the milestone fixed: a client that read late answers as
+  the next requests' after a timeout, which now gives its connection up, the server connecting
+  again; connections without the token that could start threads without end, and a hello read a
+  byte at a time past its time, now bounded in number and by one deadline; a refusal that wrote
+  what the connection sent into the log, now escaped; a server that kept a game that had ended. The
+  tests: in `slime-channel`, a connection without the token, of another version of the protocol,
+  or whose first message is no hello, refused with the reason, before any request reaches the
+  game; connections that send no hello, closed unread past those that may wait, and refused once
+  their time has passed, after which a tool with the token connects; a second hello answered as no
+  request; a message too long, which closes the connection with the reason; a request to a game
+  that stopped; every message, each request and each reply, through its encoding, and bytes that
+  are none refused; in `slime-app`'s `tests/channel.rs`, a headless run started with a token by
+  `launch`, a connection with another token refused, then paused, twenty steps run with W held,
+  the lantern read by its identity and moved 20 m, a value set and read back, and refused out of
+  its range, of another type or not a value, the entities found whatever the case, the log read, a
+  capture refused without a window, a key unknown refused, steps that no run would end answered
+  as dropped when a second connection lets game time run again, and stopped; and a run started
+  without a token, whose output says nothing of a channel, which shows that it opened no port, the
+  code reading the token before it listens; the game clock held; a window's image that cannot be
+  copied refused. In Weston on
+  lavapipe, `slime-mcp`'s `tests/drive.rs` plays an agent's session through the server: it starts
+  *Hunna Wood* with a new save, pauses it, reads the hero's transform and look, sets where it
+  looks, walks it with W over thirty steps, reads the state, captures its image as a PNG image of
+  many colors, reads its log and stops it. `scripts/check.sh` runs it, builds the game for shipping, which must
+  depend on neither `slime-channel` nor `slime-mcp` and hold neither the channel's variable nor its
+  announcement, and runs clippy on that build. The agent that built the milestone checked a change
+  on screen through the server: it started the game in a headless Weston, captured the zone by
+  day, set the zone's time of day to night through `set_property`, ran one step, and captured the
+  zone at night, its lanterns lit. Nothing was measured: the milestone claims no speed. Left: the
+  limits that [Known debt](#known-debt) lists; the owner's check of the firewall, in [the
+  list](#checks-by-hand-waiting-for-the-owner); and how long CI takes with the two crates, which
+  its first run on the milestone tells.
 
 ### M6a.7 — Identities and saves per scene
 
@@ -780,6 +828,10 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
 - **P5, in the Windows virtual machine.** The benchmarks on Direct3D 12, `cargo run --release -p
   slime-benches -- render world loading`; the figures of WARP that the Windows job's log of
   `af512af` prints.
+- **M6a.6, in the Windows virtual machine.** `hunnawood.exe` of CI's artifact started with a token
+  in its environment, from PowerShell: `$env:SLIME_DEV_TOKEN = "00112233445566778899aabbccddeeff"`,
+  then `.\hunnawood.exe --new --save run.toml`. It writes `slime-dev-channel 127.0.0.1:<port>`, its
+  log says that the development channel listens, and the system's firewall asks nothing.
 
 ### P1 — Saves and identities that never mislead
 
@@ -1503,6 +1555,16 @@ GitHub issues, linked from their entry; this list stays the reference.
   requests of M6a.9 ([ADR-0113](adr/0113-asset-requests-residency-and-priorities.md)) weigh it.
   How many of the loads' tasks run at once, and the budget, were measured on the owner's RX 6900 XT
   alone; each renderer has an uploader of its own, and two renderers send twice the budget.
+- **The development channel scripts keys only, and captures windowed runs only**
+  ([ADR-0122](adr/0122-the-development-channel.md)). A tool puts keys down and lets them go, not
+  the mouse nor text; a run without a window has no image to capture; the measurements that the
+  channel gives are the frames' times, not the renderer's statistics, which the presentation holds;
+  an MCP server drives one game at a time; a component that refers to an entity without a
+  persistent identity is read, the reference written as no entity, and cannot be written back. A
+  window's image is created with the copy-source usage
+  wherever the system offers it, at every frame, whether or not a tool captures it: what that costs
+  a driver is not measured. Each later milestone exposes its system to the channel
+  ([ADR-0116](adr/0116-stage-6-in-two-halves.md)).
 - **The first frame that draws shadows costs more, and more still while a scene loads**
   ([ADR-0074](adr/0074-uploading-textures-without-holding-up-frames.md)). It makes the renderer
   create its shadow atlas and its frame again; during a load, the GPU, busy with the load's copies,
