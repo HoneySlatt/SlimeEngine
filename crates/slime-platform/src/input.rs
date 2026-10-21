@@ -70,8 +70,8 @@ pub enum Key {
 }
 
 /// Declares a public enum whose variants have the same names as some of a winit enum's variants,
-/// plus an optional variant of its own, and a function that translates winit's value into it
-/// (`None` for a value the engine does not list).
+/// plus an optional variant of its own, its variants' names as text and back, and a function that
+/// translates winit's value into it (`None` for a value the engine does not list).
 macro_rules! mirror_enum {
     (
         $(#[$meta:meta])*
@@ -87,6 +87,26 @@ macro_rules! mirror_enum {
                 $variant,
             )*
             $($(#[$extra_meta])* $extra,)?
+        }
+
+        impl $engine {
+            /// The variant's name, as the code writes it: how the tools of the development channel,
+            /// and egui, name keys.
+            pub fn name(self) -> &'static str {
+                match self {
+                    $(Self::$variant => stringify!($variant),)*
+                    $(Self::$extra => stringify!($extra),)?
+                }
+            }
+
+            /// The variant whose [`name`](Self::name) is `name`, if one is.
+            pub fn from_name(name: &str) -> Option<Self> {
+                match name {
+                    $(stringify!($variant) => Some(Self::$variant),)*
+                    $(stringify!($extra) => Some(Self::$extra),)?
+                    _ => None,
+                }
+            }
         }
 
         fn $translate(value: $winit) -> Option<$engine> {
@@ -303,6 +323,20 @@ mod tests {
     use winit::keyboard::{NativeKey, NativeKeyCode, SmolStr};
 
     use super::*;
+
+    #[test]
+    fn a_key_is_found_again_by_its_name() {
+        for key in [
+            KeyCode::KeyW,
+            KeyCode::Escape,
+            KeyCode::F35,
+            KeyCode::Unidentified,
+        ] {
+            assert_eq!(KeyCode::from_name(key.name()), Some(key));
+        }
+        assert_eq!(KeyCode::KeyW.name(), "KeyW");
+        assert_eq!(KeyCode::from_name("W"), None);
+    }
 
     #[test]
     fn physical_keys_keep_their_w3c_name() {

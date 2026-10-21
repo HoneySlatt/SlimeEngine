@@ -51,9 +51,13 @@ its own too, in which the cooker cooks scene files, and Blender's nodes carry ty
 runs; *Hunna Wood*'s zone is a scene file that places its land and six lanterns of one prefab.
 Since 0.4, an audit pass fixed defects that an audit of 0.4 found in saves and identities, in the
 readers of files and in the recovery from a lost GPU device, and made the quick wins that it
-measured; a foundations pass decided as ADRs what the editor will freeze. Both ship with 0.5.
-[`docs/PLAN.md`](docs/PLAN.md) says what comes next, Stage 6a, what the editor stands on, then
-Stage 6b, the editor, and lists the known debt.
+measured; a foundations pass decided as ADRs what the editor will freeze. Both ship with 0.5, with
+Stage 6a, what the editor stands on, under way: among what it gave so far, a game is a simulation,
+its rules, and a presentation, what the player sees, run through the phases of a frame on a game
+time that pauses and steps, and an AI agent drives a running game through its development channel
+and the engine's MCP server, `slime-mcp`, which starts it, pauses it, reads and changes its world,
+plays it and sees its image. [`docs/PLAN.md`](docs/PLAN.md) says what Stage 6a has done and what
+comes next, then Stage 6b, the editor, and lists the known debt.
 
 ## Getting started
 
@@ -68,6 +72,7 @@ cargo test --workspace
 cargo run --example window   # the examples are listed in examples/README.md
 cargo run -p hunnawood       # the game, once its zone is cooked: games/hunnawood/README.md
 scripts/check.sh             # every check, exactly as CI runs them (Linux only)
+cargo run --quiet -p slime-mcp  # the MCP server through which an agent drives a game: crates/slime-mcp
 ```
 
 Each CI run on GitHub also publishes the `hello`, `headless`, `window`, `offscreen`, `scene` and

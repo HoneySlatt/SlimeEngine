@@ -30,3 +30,9 @@ slime-serialize.workspace = true
 slime-world.workspace = true
 slime-world-render.workspace = true
 tracing.workspace = true
+
+[features]
+# The development channel, through which tools and agents drive the game (ADR-0122); a build for
+# shipping leaves it out, with `--no-default-features`.
+default = ["development"]
+development = ["slime-app/development"]

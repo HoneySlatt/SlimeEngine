@@ -2,9 +2,10 @@
 
 - Status: Accepted; amends [0055](0055-games-in-the-workspace.md) (a game is a library, its program
   and its editor); amended by [0116](0116-stage-6-in-two-halves.md) (the development channel built
-  before play in the editor, with the MCP server) and
+  before play in the editor, with the MCP server),
   [0121](0121-a-game-as-a-simulation-and-a-presentation.md) (a game's library holds its
-  presentation too)
+  presentation too) and [0122](0122-the-development-channel.md) (the token's randomness, where the
+  port is made known, values as text in the messages, builds for development and for shipping)
 - Date: 2026-10-20
 
 ## Context

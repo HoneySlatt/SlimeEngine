@@ -18,10 +18,16 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 # `--all-targets` leaves out the test targets marked `test = false`, so they are named here, in a
 # separate command: cargo ignores `--test` when `--all-targets` is given.
 cargo clippy --locked -p slime-app --test windowed_lifecycle -- -D warnings
+cargo clippy --locked -p slime-mcp --test drive -- -D warnings
+# The game built for shipping, without the development channel (ADR-0122): the code that stands in
+# for the channel is compiled only there.
+cargo clippy --locked -p hunnawood --no-default-features --all-targets -- -D warnings
 
 step "Clippy for Windows (compiles the Windows code paths without a Windows machine)"
 cargo clippy --workspace --all-targets --locked --target x86_64-pc-windows-msvc -- -D warnings
 cargo clippy --locked -p slime-app --test windowed_lifecycle --target x86_64-pc-windows-msvc -- -D warnings
+cargo clippy --locked -p slime-mcp --test drive --target x86_64-pc-windows-msvc -- -D warnings
+cargo clippy --locked -p hunnawood --no-default-features --all-targets --target x86_64-pc-windows-msvc -- -D warnings
 
 step "Build"
 cargo build --workspace --all-targets --locked
@@ -144,6 +150,14 @@ env -u DISPLAY XDG_RUNTIME_DIR="$runtime" XDG_DATA_HOME="$runtime/data" WAYLAND_
     { cat "$runtime/slime-check.log"; exit 1; }
 grep -q "the run resumes from" "$runtime/resumed.log" ||
     { echo "the game did not resume the run of its save"; exit 1; }
+# And driven by an agent's session through the MCP server, which starts it with a token and
+# connects to its development channel: pauses it, steps it, reads and changes the hero, walks it
+# with a scripted key, captures its image and reads its log (ADR-0122). The test needs a
+# compositor, so it is outside the default test run, as the lifecycle test below is.
+env -u DISPLAY XDG_RUNTIME_DIR="$runtime" XDG_DATA_HOME="$runtime/data" WAYLAND_DISPLAY=slime-check \
+    VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+    timeout -k 10 600 cargo test --locked -p slime-mcp --test drive ||
+    { cat "$runtime/slime-check.log"; exit 1; }
 # The windowed lifecycle test needs the compositor too, so it is outside the default test run
 # (ADR-0024).
 env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
@@ -158,6 +172,19 @@ env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check-scaled \
     SLIME_APP_TEST_SCALED=1 VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
     timeout -k 10 120 cargo test --locked -p slime-app --test windowed_lifecycle ||
     { cat "$runtime/slime-check-scaled.log"; exit 1; }
+
+step "The game built for shipping holds neither the development channel nor the MCP server (ADR-0122)"
+if cargo tree --locked -p hunnawood --no-default-features -e normal | grep -E 'slime-(channel|mcp) '; then
+    echo "the game built for shipping depends on the crates above"
+    exit 1
+fi
+# The next `cargo build` or `cargo run` that names the game builds it again with its default
+# features.
+cargo build --locked -p hunnawood --no-default-features
+if grep -a -q -e SLIME_DEV_TOKEN -e slime-dev-channel target/debug/hunnawood; then
+    echo "the game built for shipping holds the development channel"
+    exit 1
+fi
 
 step "Documentation links"
 # Tracked and new, non-ignored Markdown files. External links are not checked: they fail for

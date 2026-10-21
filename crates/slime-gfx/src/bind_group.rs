@@ -337,11 +337,14 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "COPY_SRC")]
-    fn a_window_image_cannot_be_read_back() {
+    fn a_window_image_that_cannot_be_copied_is_not_read_back() {
         let gpu =
             Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-        let _ = gpu.read_render_target(&window_image(&gpu));
+        let read = gpu.read_render_target(&window_image(&gpu));
+        assert!(
+            matches!(read, Err(GfxError::NotReadable { .. })),
+            "{read:?}"
+        );
     }
 
     #[test]

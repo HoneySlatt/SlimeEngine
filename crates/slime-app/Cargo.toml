@@ -12,6 +12,12 @@ workspace = true
 
 [dependencies]
 ctrlc.workspace = true
+# The development channel, in programs built with the `development` feature (ADR-0122): its
+# protocol, and the reflection and documents through which it reads and writes the world's values
+# as text.
+slime-channel = { workspace = true, optional = true }
+slime-reflect = { workspace = true, optional = true }
+slime-serialize = { workspace = true, optional = true }
 slime-gfx.workspace = true
 slime-platform.workspace = true
 slime-world.workspace = true
@@ -21,17 +27,30 @@ tracing.workspace = true
 # subscriber also receive the records of the `log` crate, through which wgpu logs.
 tracing-subscriber = { workspace = true, features = ["tracing-log"] }
 
+[features]
+# The development channel: a program started with a token listens for the tools that drive it
+# (ADR-0110, ADR-0122). A game turns it on by default, and a build for shipping leaves it out
+# (`--no-default-features`).
+development = ["dep:slime-channel", "dep:slime-reflect", "dep:slime-serialize"]
+
 [target.'cfg(windows)'.dependencies]
 nu-ansi-term.workspace = true
 
 # The README's example and the windowed lifecycle test clear their targets to a color.
 [dev-dependencies]
 slime-color.workspace = true
+# The channel test is a tool that drives a run.
+slime-channel.workspace = true
 # The lifecycle test's commands carry reflected values.
 slime-reflect.workspace = true
 # The windowed lifecycle test makes a device invalid without telling the engine, as wgpu does
 # before it reports a driver reset, which no API of the engine does.
 slime-gfx = { workspace = true, features = ["wgpu"] }
+
+# Drives a run through its development channel, which the feature builds.
+[[test]]
+name = "channel"
+required-features = ["development"]
 
 # Runs on the main thread, which the windowing library requires: see the test's module comment.
 [[test]]

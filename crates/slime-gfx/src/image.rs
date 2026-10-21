@@ -44,19 +44,30 @@ impl Gpu {
     ///
     /// [`GfxError::DeviceLost`] once the device is lost ([`Gpu::check`]), before or while it waits
     /// for the GPU; [`GfxError::OutOfMemory`] if the GPU's memory cannot hold the buffer the pixels
-    /// are copied into; [`GfxError::Readback`] if reading the GPU's memory fails otherwise.
+    /// are copied into; [`GfxError::Readback`] if reading the GPU's memory fails otherwise;
+    /// [`GfxError::NotReadable`] for the image of a window whose platform does not let it be copied
+    /// ([`SurfaceFrame::target`](crate::SurfaceFrame::target)).
     ///
     /// # Panics
     ///
-    /// If `target` is `Rgba16Float`, which [`Gpu::read_float_render_target`] reads; if `target` is
-    /// the image of a window ([`SurfaceFrame::target`](crate::SurfaceFrame::target)): only targets
-    /// created by [`Gpu::create_render_target`] can be read back.
+    /// If `target` is `Rgba16Float`, which [`Gpu::read_float_render_target`] reads, or is
+    /// multisampled.
     pub fn read_render_target(&self, target: &RenderTarget) -> Result<Image, GfxError> {
         assert!(
             target.format() != TextureFormat::Rgba16Float,
             "render target `{}` is Rgba16Float: read it with Gpu::read_float_render_target",
             target.label
         );
+        assert!(
+            target.texture.sample_count() == 1,
+            "render target `{}` is multisampled: read the target that a pass resolves it into",
+            target.label
+        );
+        if !target.readable() {
+            return Err(GfxError::NotReadable {
+                label: target.label.clone(),
+            });
+        }
         let mut pixels = self.read_texels(target, 4)?;
         if target.format() == TextureFormat::Bgra8UnormSrgb {
             for pixel in pixels.as_chunks_mut::<4>().0 {

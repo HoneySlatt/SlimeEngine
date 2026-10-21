@@ -1,6 +1,7 @@
 # 0096. The files the engine reads: what they may hold, and what the engine promises
 
-- Status: Accepted
+- Status: Accepted; amended by [0122](0122-the-development-channel.md) (the threat model extended to
+  the development channel and the MCP server)
 - Date: 2026-10-19
 
 ## Context

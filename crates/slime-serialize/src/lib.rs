@@ -268,6 +268,38 @@ pub fn encode(text: &str) -> Result<Vec<u8>, ReadError> {
     Ok(bytes)
 }
 
+/// Reads the value of the type named `ty` that `bytes`, a document in the engine's binary encoding
+/// ([`encode`]), hold, as [`read`] reads it from the text: what a program reads of a document that
+/// it was sent rather than cooked, as the messages of the development channel.
+///
+/// ```
+/// use slime_reflect::{Registry, Value};
+/// use slime_serialize::{Mode, encode, read_binary};
+///
+/// let bytes = encode("\"$value\" = 30.0\n").expect("TOML");
+/// let mut registry = Registry::new();
+/// registry.register::<f32>();
+/// let read = read_binary(&registry, "f32", &bytes, Mode::Strict).expect("a number");
+/// assert_eq!(read.value, Value::F32(30.0));
+/// ```
+///
+/// # Errors
+///
+/// As [`Document::parse_binary`] and [`read`].
+pub fn read_binary(
+    registry: &Registry,
+    ty: &str,
+    bytes: &[u8],
+    mode: Mode,
+) -> Result<Read, ReadError> {
+    let mut document = Document::parse_binary(registry, bytes, mode)?;
+    let value = document.root(ty, false)?;
+    Ok(Read {
+        value,
+        warnings: document.warnings(),
+    })
+}
+
 /// Writes `value` as [`write`](fn@write) does, its type registered in a registry of its own.
 ///
 /// # Errors

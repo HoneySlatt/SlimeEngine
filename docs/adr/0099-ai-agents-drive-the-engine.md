@@ -1,7 +1,8 @@
 # 0099. AI agents drive the engine through its own MCP server
 
 - Status: Accepted; amends [0097](0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md)
-  (a criterion of the foundations pass)
+  (a criterion of the foundations pass); amended by [0122](0122-the-development-channel.md) (the
+  server's dependency, and where it runs)
 - Date: 2026-10-19
 
 ## Context

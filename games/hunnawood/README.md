@@ -47,8 +47,15 @@ cargo run -p hunnawood -- --save <file>    # saves to, and resumes from, another
 Without `--assets`, it reads `hunnawood-assets` beside the program if that directory holds a
 manifest, as where CI ships it, and `target/cooked/hunnawood` otherwise.
 
+Built with its default features, the game holds the engine's development channel
+([ADR-0122](../../docs/adr/0122-the-development-channel.md)): started with a token, as the engine's
+MCP server starts it ([`crates/slime-mcp`](../../crates/slime-mcp/README.md)), it listens on the
+machine's own address for the tools and the agents that drive it; started without one, as above, it
+does not. `cargo build -p hunnawood --no-default-features` builds it for shipping, without the
+channel.
+
 The window shows its first frame once the hero is loaded and the skies computed, while the zone
-loads in the background: until it is drawn, game time is paused, the hero stands at the start under
+loads in the background: until it is drawn, game time is held, the hero stands at the start under
 the sky, the camera turns around it, and the hero does not move. The log says when the zone is first
 drawn, after how many frames, and the longest interval between two of them, the measure that
 [ADR-0074](../../docs/adr/0074-uploading-textures-without-holding-up-frames.md) gives.
@@ -207,7 +214,7 @@ the world panel finds the entity it showed again by its identity.
 | `main.rs` | The program: the command line, the world built before the window opens, a new run or the save resumed, and the rules and the screen run with `slime_app::run` |
 | `lib.rs` | The library: its modules, and the two parts that a host runs |
 | `simulation.rs` | The rules as a simulation (`slime_app::Simulation`): the hero walked at each fixed step as the keys held ask, where the player looks turned on real time, rest, restart, saving with F5 and when the game stops, loading with F9, Escape, and with `--watch` the run carried into the scenes that changed; a save resumed from its file, or set aside |
-| `screen.rs` | What the player sees as a presentation (`slime_app::Presentation`): the view made when the window opens and again with a new GPU device, the camera, game time held paused until the zone is drawn, the dev overlay and its keys, F3 and F4, and with `--watch` the cooked data and the shaders loaded again |
+| `screen.rs` | What the player sees as a presentation (`slime_app::Presentation`): the view made when the window opens and again with a new GPU device, the camera, game time held until the zone is drawn, the dev overlay and its keys, F3 and F4, and with `--watch` the cooked data and the shaders loaded again |
 | `assets.rs` | Where the cooked data is, and the IDs of the zone's scene file and the hero, from their metadata files |
 | `saves.rs` | The save: where its file is, held by one copy of the game at a time, what it holds and how it is read and written, and a run resumed from it once it is checked; a run carried into the scenes that changed on disk, or started again when the zone's layout changed |
 | `rules.rs` | The rules, as functions over the world and without the GPU: the hero's movement, its heading, and its collisions, as a circle on the ground against the colliders that are not hidden and the zone's edge; the key, the door, the campfire and the time of day |
@@ -223,8 +230,9 @@ every machine and at every speed; the world draws the hero between its last two 
 of a step that the frame comes after the last one (`GameTime::alpha`), so that it moves smoothly at
 any frame rate, and the camera turns on real time, at the frame's rate. A restart, made between two
 steps, is drawn at once. The rules need no GPU, so that their tests run anywhere, in worlds of their
-own. The screen holds game time paused until the zone is drawn, so that the hero does not walk where
-the player cannot see. A move is made in parts of at most half the hero's radius, each pushed out of
+own. The screen holds game time until the zone is drawn, so that the hero does not walk where the
+player cannot see: a hold of its own (`Context::hold`), apart from the pause that the player and the
+tools set. A move is made in parts of at most half the hero's radius, each pushed out of
 the colliders it overlaps, so that no step carries the hero through a thin collider or past a
 corner.
 
@@ -393,7 +401,8 @@ zone; `slime-color`, for the colors of its lights and skies; `slime-world`, its 
 `slime-world-render`, which draws it; `slime-reflect`, which describes its components, as every
 component is; `slime-serialize`, for the size of the largest save, up to which it reads its save,
 and whose tests encode with it the components of the zones they make, as the cooker does; and
-`tracing` for the log.
+`tracing` for the log. Its default feature, `development`, turns on `slime-app`'s, the development
+channel.
 
 ## Must not
 

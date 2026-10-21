@@ -6,7 +6,8 @@
   window's image, the update while game time is paused, the pause apart from the speed, and a
   game's cooked data that changed applied by its own simulation until the editor's hot reload),
   [0110](0110-how-the-editor-runs-a-games-code.md) (a game's library holds its presentation too)
-  and [0120](0120-a-frame-that-owns-what-it-draws.md) (the frame's lights name their entities)
+  and [0120](0120-a-frame-that-owns-what-it-draws.md) (the frame's lights name their entities);
+  amended by [0122](0122-the-development-channel.md) (a game holds game time apart from the pause)
 - Date: 2026-10-21
 
 ## Context

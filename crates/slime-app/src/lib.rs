@@ -1,10 +1,14 @@
 #![doc = include_str!("../README.md")]
 
 mod app;
+#[cfg(feature = "development")]
+mod channel;
 mod diagnostics;
 mod error;
 mod game;
 mod host;
+#[cfg(feature = "development")]
+mod log_lines;
 mod signal;
 pub mod time;
 mod trace;

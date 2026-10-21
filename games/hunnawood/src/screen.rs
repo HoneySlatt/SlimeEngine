@@ -2,7 +2,7 @@
 //! (`slime_app::Presentation`, `docs/adr/0107-the-execution-model.md`): the view of the world, the
 //! camera behind the hero, and the dev overlay. It reads the world, never writes it: the overlay's
 //! edits are commands, which the host applies at the start of the next frame. It holds game time
-//! paused until the zone is drawn, so that the hero does not walk where the player cannot see.
+//! until the zone is drawn, so that the hero does not walk where the player cannot see.
 
 use std::time::{Duration, Instant};
 
@@ -46,8 +46,6 @@ pub struct Screen {
     lose_asked: bool,
     /// The frames drawn while the zone loads; `None` once they are logged.
     loading: Option<Loading>,
-    /// Whether the screen holds game time paused until the zone is drawn.
-    holding: bool,
     /// With `--watch`, what tells when the cooked data changes, which the view loads again.
     watch: Option<ManifestWatch>,
     /// With `--watch`, what tells when the renderer's shader files change.
@@ -102,12 +100,12 @@ impl Screen {
             lose_device_at,
             lose_asked: false,
             loading: Some(Loading::default()),
-            holding: false,
         }
     }
 
     /// Makes the view of `world` with the GPU device of `ctx` ([`View::new`]), and holds game time
-    /// paused until it draws the zone, unless something else paused it.
+    /// until it draws the zone ([`Context::hold`]), apart from the pause that the player and the
+    /// tools set.
     fn open(&mut self, ctx: &mut Context, world: &World) -> Result<(), AppError> {
         let (Some(gpu), Some(format)) = (ctx.gpu(), ctx.surface_format()) else {
             return Err("Hunna Wood needs a window".into());
@@ -121,10 +119,7 @@ impl Screen {
             hero,
             rules::night(world),
         )?);
-        if !ctx.paused() {
-            ctx.pause();
-            self.holding = true;
-        }
+        ctx.hold(true);
         Ok(())
     }
 
@@ -210,8 +205,6 @@ impl Presentation for Screen {
                 KeyCode::F1 => overlay.toggle_statistics(),
                 KeyCode::F2 => overlay.toggle_panel(),
                 KeyCode::F3 if !typing => {
-                    // The player takes game time over: the screen no longer holds it.
-                    self.holding = false;
                     if ctx.paused() {
                         ctx.resume();
                     } else {
@@ -326,10 +319,7 @@ impl Presentation for Screen {
         if view.zone_shown() {
             self.drawn += 1;
             // The zone is drawn: the hero may walk where the player sees.
-            if self.holding {
-                ctx.resume();
-                self.holding = false;
-            }
+            ctx.hold(false);
             if let Some(loading) = &mut self.loading {
                 loading.shown = true;
             }

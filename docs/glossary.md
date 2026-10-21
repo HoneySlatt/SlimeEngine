@@ -86,6 +86,10 @@ that a surface reflecting f0 at normal incidence reflects f0 A + B of a uniform 
 (single scattering): the second factor of the *split sum*. The renderer computes it on the CPU once
 per process, 32 × 32 ([ADR-0039](adr/0039-image-based-lighting-computed-on-the-cpu.md)).
 
+**Build for shipping.** A game built without its default features, `--no-default-features`, so
+without `slime-app`'s `development` feature: it holds no *development channel*. The checks build
+*Hunna Wood* so, and fail if it holds one ([ADR-0122](adr/0122-the-development-channel.md)).
+
 **Camera-relative rendering.** Drawing in world space moved so that the camera's eye is at the
 origin: the renderer subtracts the eye from every position, all `f64`s, on the CPU, so that the
 GPU's 32-bit floats hold small numbers near the camera, as precise 10 000 km from the world's
@@ -177,11 +181,12 @@ which a render pass keeps the nearest surface whatever the order the surfaces ar
 *depth test* (`slime_gfx::DepthTarget`, `slime_gfx::DepthState`). Later passes can sample it, as
 a *shadow map* is read. Depths are reversed (*reversed depth*).
 
-**Development channel.** The link between a game that runs in development and the tools that
-drive it: the editor that started it, the MCP server, tests. The game listens on the machine's own
-address, guarded by a secret token that whoever starts it gives it; through it, the editor pauses,
-steps and inspects the game, and sends it commands. Shipped games have none
-([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)). Decided, not built yet.
+**Development channel.** The link between a running game and the tools that drive it: the *MCP*
+server, tests, and from Stage 6b the editor. A game started with a *token* in its environment
+listens on the machine's own address; through it, a tool pauses, steps and reads the game, changes
+its world, plays it with keys and captures its image (`slime-channel`,
+[ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md),
+[ADR-0122](adr/0122-the-development-channel.md)). A *build for shipping* has none.
 
 **Device (GPU).** The engine's connection to an adapter: it creates GPU resources, and its
 *queue* receives the work to execute (`slime_gfx::Gpu`). It is *lost* when the driver crashes or
@@ -367,6 +372,11 @@ before it is mapped to the display's range by *tone mapping*. The engine draws t
 `Rgba16Float` render targets: the renderer draws the scene into one at the output's size, which
 its tone-mapping pass reads.
 
+**Hold (game time).** What a game sets while it is not ready to be played, a zone that loads: held
+and not paused, game time stands still, without touching the pause that the player and the tools
+set; steps asked for while paused run all the same (`Context::hold`,
+[ADR-0122](adr/0122-the-development-channel.md)).
+
 **Host.** What runs a game's *simulation*, and its *presentation* when it has one: it owns the loop,
 the world, *game time* and *real time*, the input, the *commands* queued and the decision to stop
 (`slime_app::Host`). The game's program (`slime_app::run`), which the editor is to start as its
@@ -510,9 +520,10 @@ but not its textures, its sidedness or the kind of its alpha mode (`Material::se
 `Material::set_parameters` through reflection). It is of a *kind*, the physically based one.
 
 **MCP (Model Context Protocol).** An open protocol through which coding agents, such as Claude
-Code and Codex, call the tools of other programs. The engine is to have a server of its own from
-Stage 6, through which agents drive the editor and running games
-([ADR-0099](adr/0099-ai-agents-drive-the-engine.md)).
+Code and Codex, call the tools of other programs. The engine's own server, `slime-mcp`, lets them
+drive a running game through its *development channel*; the editor's commands join it at Stage 6b
+([ADR-0099](adr/0099-ai-agents-drive-the-engine.md),
+[ADR-0122](adr/0122-the-development-channel.md)).
 
 **Mesh.** Triangles given as vertices (a position, a normal, texture coordinates and a *tangent*
 each) and indices, uploaded to the GPU into a *page* (`slime_render::Mesh`, from `MeshData`).
@@ -979,6 +990,11 @@ at which it last changed, and a reader asks what changed since the tick at which
 two of them, around a render pass, give its *GPU time* (`slime_gfx::GpuTimer`). Optional: the
 device asks for it only when the adapter offers it (`Gpu::can_time`,
 [ADR-0031](adr/0031-dev-overlay-with-egui.md)).
+
+**Token (development channel).** The secret, 128 random bits, that whoever starts a game gives it in
+its environment, never on its command line, and without which no connection to its *development
+channel* is accepted (`slime_channel::Token`,
+[ADR-0122](adr/0122-the-development-channel.md)).
 
 **Tone mapping.** Mapping the *HDR* colors of a scene to the range a display shows, 0 to 1, with a
 curve that compresses highlights instead of clipping them. The renderer's tone-mapping pass draws a

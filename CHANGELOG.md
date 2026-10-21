@@ -8,6 +8,25 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- The development channel (ADR-0110, ADR-0122): a game built with `slime-app`'s `development`
+  feature, on by default in *Hunna Wood* and in the examples, and started with a token in
+  `SLIME_DEV_TOKEN`, listens on `127.0.0.1` and answers the tools that connect with the token: its
+  state and its frames' times; pause, speed, steps and stop; its entities and their components,
+  read and set by persistent identity through reflection; keys put down and let go; its window's
+  image; the last lines of its log. Started without a token, it opens no port; built with
+  `--no-default-features`, it holds no channel. The new `slime-channel` crate holds the protocol
+  and both of its ends: `Listener` for the game, `launch` and `Client` for the tools.
+- `slime-mcp`, the engine's MCP server: an agent starts a game through it and drives it through
+  its development channel, sees its image as a PNG image, cooks assets and runs the tests
+  ([`crates/slime-mcp/README.md`](crates/slime-mcp/README.md)).
+- `Context::hold`, a hold of game time apart from the pause, which a game sets while it is not ready
+  to be played; *Hunna Wood* holds its time while its zone loads, so that a pause set meanwhile is
+  kept once the zone is drawn.
+- `Gpu::read_render_target` reads a window's image back where the window's system allows it
+  (`GfxError::NotReadable` otherwise). `KeyCode::name` and
+  `KeyCode::from_name` give a key's code as text and back; `Registry::type_at` gives the type of
+  the part of a value at a path; `slime_serialize::read_binary` reads a value from the binary
+  encoding.
 - Game time (ADR-0107, ADR-0121): a game's simulation runs on a time of its own, which the host
   slows down or hastens (`Context::set_speed`), pauses (`Context::pause`, `Context::resume`) and
   steps while paused (`Context::step`), its fixed steps keeping their duration at every speed;

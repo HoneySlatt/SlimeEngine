@@ -51,6 +51,19 @@ nu-ansi-term = "0.50.3"
 # Reads PNG files: the source images of the asset pipeline's cooker; the examples and tests write
 # and read them too (reference images, the offscreen example).
 png = "0.18.1"
+# The engine's MCP server only (ADR-0099, ADR-0122): the Model Context Protocol, through its
+# official SDK, served on standard input and output, its tools' parameters described by the
+# JSON Schema of `schemars`, which rmcp re-exports; tokio, the runtime it runs on; serde, which reads
+# the tools' parameters; base64, which encodes the images it returns.
+base64 = "0.23"
+rmcp = { version = "3.6.0", default-features = false, features = ["server", "macros", "transport-io"] }
+serde = { version = "1.0.229", features = ["derive"] }
+tokio = { version = "1.53.2", features = ["macros", "rt"] }
+# The MCP server's tests only: they speak JSON-RPC to it. Already built for gltf and rmcp.
+serde_json = "1.0.154"
+# The development channel's secret token: 128 bits from the system's randomness, which the
+# standard library does not give yet (ADR-0122). Already built for uuid.
+getrandom = "0.4.3"
 # Waits for wgpu's requests, which are futures: opening the GPU, and the errors caught while a
 # shader module or pipeline is created.
 pollster = "1.0.1"
@@ -85,6 +98,7 @@ zune-jpeg = "0.5.15"
 
 # Workspace crates.
 slime-app = { path = "crates/slime-app" }
+slime-channel = { path = "crates/slime-channel" }
 slime-assets = { path = "crates/slime-assets" }
 slime-color = { path = "crates/slime-color" }
 slime-cook = { path = "crates/slime-cook" }

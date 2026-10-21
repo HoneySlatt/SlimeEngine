@@ -268,6 +268,8 @@ pub(crate) struct GameClock {
     fixed: FixedStep,
     speed: f64,
     paused: bool,
+    /// Whether the program holds game time, apart from the pause.
+    held: bool,
     /// The steps asked for while paused, which the next frames run.
     asked: u32,
 }
@@ -278,6 +280,7 @@ impl GameClock {
             fixed,
             speed: 1.0,
             paused: false,
+            held: false,
             asked: 0,
         }
     }
@@ -312,22 +315,40 @@ impl GameClock {
         }
     }
 
-    /// Asks for one step, which the next frame runs, while game time is paused; nothing otherwise.
-    pub(crate) fn ask_step(&mut self) {
+    pub(crate) fn held(&self) -> bool {
+        self.held
+    }
+
+    /// Holds game time, or lets it go, apart from the pause: held and not paused, it stands still.
+    pub(crate) fn set_held(&mut self, held: bool) {
+        self.held = held;
+    }
+
+    /// The steps asked for and not run yet.
+    #[cfg(feature = "development")]
+    pub(crate) fn asked(&self) -> u32 {
+        self.asked
+    }
+
+    /// Asks for `steps` more steps, which the next frames run, while game time is paused; nothing
+    /// otherwise.
+    pub(crate) fn ask_steps(&mut self, steps: u32) {
         if self.paused {
-            self.asked = self.asked.saturating_add(1);
+            self.asked = self.asked.saturating_add(steps);
         }
     }
 
     /// Adds a frame of `real` time, and returns how many fixed steps to run in it, the game time it
     /// added, and the fraction of a step accumulated and not run ([`GameTime::alpha`]). Paused, the
     /// frame runs the steps asked for, at most as many as a frame runs, and the rest wait for the
-    /// next ones.
+    /// next ones. Held and not paused, it runs none.
     pub(crate) fn advance(&mut self, real: Duration) -> (u32, Duration, f64) {
         let (steps, delta) = if self.paused {
             let steps = self.asked.min(self.fixed.max_steps_per_frame());
             self.asked -= steps;
             (steps, Duration::ZERO)
+        } else if self.held {
+            (0, Duration::ZERO)
         } else {
             // Exact for a speed of 1, a delta being far below the 2^53 nanoseconds that f64 holds.
             let nanos = (real.as_nanos() as f64 * self.speed).round();
@@ -502,7 +523,7 @@ mod tests {
             [(0, 0.5); 3],
             "nothing runs, alpha stays"
         );
-        clock.ask_step();
+        clock.ask_steps(1);
         assert_eq!(run(&mut clock, 2), [(1, 0.5), (0, 0.5)]);
         // Running again, at the speed it had.
         clock.set_paused(false);
@@ -510,13 +531,30 @@ mod tests {
     }
 
     #[test]
+    fn held_game_time_stands_still_but_for_the_steps_asked_while_paused() {
+        let mut clock = clock();
+        clock.set_held(true);
+        assert_eq!(run(&mut clock, 2), [(0, 0.0); 2]);
+        clock.set_paused(true);
+        clock.ask_steps(1);
+        assert_eq!(
+            run(&mut clock, 1),
+            [(1, 0.0)],
+            "a step asked for runs all the same"
+        );
+        clock.set_paused(false);
+        assert_eq!(run(&mut clock, 1), [(0, 0.0)], "still held");
+        clock.set_held(false);
+        assert_eq!(run(&mut clock, 1), [(1, 0.0)]);
+    }
+
+    #[test]
     fn a_step_asked_for_while_game_time_runs_changes_nothing() {
         let mut clock = clock();
-        clock.ask_step();
+        clock.ask_steps(1);
         assert_eq!(run(&mut clock, 2), [(1, 0.0); 2]);
         clock.set_paused(true);
-        clock.ask_step();
-        clock.ask_step();
+        clock.ask_steps(2);
         // Dropped when game time runs again.
         clock.set_paused(false);
         clock.set_paused(true);

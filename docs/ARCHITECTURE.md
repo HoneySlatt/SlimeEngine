@@ -16,10 +16,12 @@ it is built this way.
 ├── crates/              engine crates, one directory per crate, named after the package
 │   ├── slime-app/       a game run as a simulation and a presentation by a host: the main loop
 │   ├── slime-assets/    assets as games load them: asset IDs, cooked data, the manifest
+│   ├── slime-channel/   the development channel: a running game driven by tools, its protocol
 │   ├── slime-color/     the color type of every API: linear colors, the sRGB transfer function
 │   ├── slime-cook/      the asset pipeline's cooker, a library and its program
 │   ├── slime-devui/     dev overlay (egui), temporary tooling
 │   ├── slime-gfx/       GPU layer (wgpu)
+│   ├── slime-mcp/       the engine's MCP server: an agent drives a running game through it
 │   ├── slime-platform/  window, its events and input
 │   ├── slime-reflect/   reflection: types described at run time, their values read and set by path
 │   ├── slime-reflect-derive/  the derive macro of reflection, which slime-reflect re-exports
@@ -56,8 +58,9 @@ created only when code needs it.
 | Crate | Role | Depends on | Status |
 |---|---|---|---|
 | [`slime-platform`](../crates/slime-platform/README.md) | The window, its events and keyboard and mouse input, and that input as data, the keys and buttons held; the only crate that uses the windowing library (winit) | `winit`, `raw-window-handle`, `thiserror`, `tracing` | One window; window, keyboard and mouse events; the keys and mouse buttons held, pressed and released since the last frame |
-| [`slime-app`](../crates/slime-app/README.md) | A game run as a simulation, its rules, and a presentation, what the player sees, by a host that owns its world, real time and game time, its input and its commands, through the phases of each frame ([ADR-0107](adr/0107-the-execution-model.md), [ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)); the main loop, diagnostics setup, headless mode | `slime-platform`, `slime-gfx`, `slime-world`, `ctrlc`, `thiserror`, `tracing`, `tracing-subscriber`, `nu-ansi-term` (Windows only) | Headless runs, and windowed runs drawn by the GPU, which go on with a new device after a lost one when the game asks; game time that pauses, slows down and steps; commands applied at the start of a frame; a host that a test drives without a GPU |
-| [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu, apart from the dev overlay through its `wgpu` feature | `wgpu`, `pollster`, `raw-window-handle`, `slime-color`, `thiserror`, `tracing` | Opens a GPU device, and another in place of a lost one; draws into offscreen images, 8-bit or 16-bit float, and reads them back; draws into a window; later passes sample what earlier ones drew; depth-only passes; images of four samples per pixel, resolved for anti-aliasing; textures and cube textures whose levels the caller gives, half-precision floats and BC7 and BC5 blocks among their formats; storage buffers, buffers written by ranges, instanced draws from a base vertex; an uploader that submits the copies of what loads bring within a budget of bytes per frame, on a thread of its own |
+| [`slime-app`](../crates/slime-app/README.md) | A game run as a simulation, its rules, and a presentation, what the player sees, by a host that owns its world, real time and game time, its input and its commands, through the phases of each frame ([ADR-0107](adr/0107-the-execution-model.md), [ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)); the main loop, diagnostics setup, headless mode | `slime-platform`, `slime-gfx`, `slime-world`, `ctrlc`, `thiserror`, `tracing`, `tracing-subscriber`, `nu-ansi-term` (Windows only); with its `development` feature, `slime-channel`, `slime-reflect`, `slime-serialize` | Headless runs, and windowed runs drawn by the GPU, which go on with a new device after a lost one when the game asks; game time that pauses, slows down and steps, and that a game holds while it is not ready; commands applied at the start of a frame; a host that a test drives without a GPU; with its `development` feature, which a game turns on by default, the development channel, through which tools drive a run started with a token ([ADR-0122](adr/0122-the-development-channel.md)) |
+| [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu, apart from the dev overlay through its `wgpu` feature | `wgpu`, `pollster`, `raw-window-handle`, `slime-color`, `thiserror`, `tracing` | Opens a GPU device, and another in place of a lost one; draws into offscreen images, 8-bit or 16-bit float, and reads them back; draws into a window; later passes sample what earlier ones drew; depth-only passes; images of four samples per pixel, resolved for anti-aliasing; textures and cube textures whose levels the caller gives, half-precision floats and BC7 and BC5 blocks among their formats; storage buffers, buffers written by ranges, instanced draws from a base vertex; an uploader that submits the copies of what loads bring within a budget of bytes per frame, on a thread of its own; a window's image read back where the system allows it |
+| [`slime-channel`](../crates/slime-channel/README.md) | The development channel: the protocol between a running game and the tools that drive it, and both of its ends, the game's listener and the tools' client ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md), [ADR-0122](adr/0122-the-development-channel.md)); headless | `getrandom`, `slime-reflect`, `slime-serialize`, `thiserror`, `tracing` | Version 1: a game started with a token listens on the machine's own address and accepts only the token and its version; the host's controls, the world read and changed through reflection, scripted keys, captures of the game's image, its state, log and frames' times; a game started by a tool with a new token |
 | [`slime-color`](../crates/slime-color/README.md) | The color type of every API of the engine, `LinearColor`, and the sRGB transfer function, below every crate that holds a color ([ADR-0045](adr/0045-one-linear-color-type.md), [ADR-0079](adr/0079-the-engines-own-world.md)); headless | `slime-reflect` | Linear colors and their constructors, sRGB bytes decoded and encoded |
 | [`slime-tasks`](../crates/slime-tasks/README.md) | The engine's task pool: the threads on which the engine computes, with a priority for the work that a frame waits for ([ADR-0107](adr/0107-the-execution-model.md)); headless, on the standard library alone | none | One pool, the machine's logical cores but one; frame and background tasks, a thread always left for frame tasks; items computed in parallel, the calling thread taking its share |
 | [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, lit by directional, point and spot lights, seen from a camera, into render targets, and reports what a frame cost; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `slime-assets`, `slime-color`, `slime-reflect`, `slime-tasks`, `glam`, `thiserror`, `tracing` | Textures and scenes cooked by the asset pipeline, loaded onto the GPU, BC7 and BC5 among them, normal textures read by x and y; meshes with tangents, simple shapes made in code (a cube, a sphere, a square), glTF's metallic-roughness materials (five textures, masks, double-sided, values that change while a game runs, found by name in a loaded scene), a perspective camera, the depth test, up to 16 directional, point and spot lights in physical units (`KHR_lights_punctual`), a procedural sky computed on the CPU that surfaces reflect (image-based lighting) and that is drawn behind them with its sun's disc, the shadows of the first directional light that casts them (four cascades in one atlas, filtered over 5 × 5 texels) and of every spot light that casts them (a tile each of one atlas), mirrored instances drawn with their front faces, the scene drawn in HDR with its light exposed, at four samples per pixel (multisample anti-aliasing), an energy-conserving bloom, then tone mapped, the passes ordered by a render graph and recorded four to a submission, statistics with the GPU time of each pass; scenes loaded in the background, and again when their cooked data changed, keeping what did not change; the meshes a game draws kept by asset ID in a cache, loaded in batches as they are asked for, loaded again when their cooked data changes, dropped after a lost device ([ADR-0084](adr/0084-what-the-world-draws.md)); its shaders replaced while it runs |
@@ -68,17 +71,20 @@ created only when code needs it.
 | [`slime-world-render`](../crates/slime-world-render/README.md) | The bridge from a world to the renderer: builds, at each frame, the instances, the lights and the sky's environment that a world draws, from the GPU objects of an asset cache ([ADR-0084](adr/0084-what-the-world-draws.md)); neither the world nor the renderer depends on it | `slime-world`, `slime-render`, `slime-gfx`, `tracing` | Meshes drawn where the world draws them between fixed steps, those the cache does not hold asked for; lights at their entities, each named by its entity in the frame; hidden subtrees left out; the game's sky around the world's sun, given once |
 | [`slime-assets`](../crates/slime-assets/README.md) | The assets as games load them: asset IDs, cooked data and its manifest, read by ID from a directory of cooked data ([ADR-0069](adr/0069-the-asset-pipeline.md)); headless | `slime-reflect`, `ktx2`, `thiserror` | The asset ID and its text form, a UUID; cooked textures in KTX2 files ([ADR-0071](adr/0071-cooked-textures.md)), meshes, materials and scenes, their nodes' extras and typed components among them; cooked scene files, read as bytes ([ADR-0095](adr/0095-cooked-scene-files.md)); the manifest; reading them by ID; a watch of the manifest, for hot reload |
 | [`slime-cook`](../crates/slime-cook/README.md) | The cooker: turns source assets into cooked data before games run; a library and its program, which no game links ([ADR-0069](adr/0069-the-asset-pipeline.md)) | `slime-assets`, `slime-color`, `slime-reflect`, `slime-serialize`, `slime-tasks`, `slime-world`, `bevy_mikktspace`, `blake3`, `block_compression`, `glam`, `gltf`, `png`, `uuid`, `zune-jpeg`, `thiserror` | IDs for source files in metadata files beside them, read and written through `slime-serialize`, their check, and the IDs of the assets inside a file; PNG and JPEG images cooked into textures compressed in BC7 or BC5, every level computed; glTF files imported into meshes (MikkTSpace tangents), materials and scenes; the typed properties of their nodes; scene files checked and cooked into the binary encoding of documents ([ADR-0095](adr/0095-cooked-scene-files.md)); a directory cooked again only where it changed, with its manifest, once or at each change |
+| [`slime-mcp`](../crates/slime-mcp/README.md) | The engine's MCP server: an AI agent drives a running game through it, as a person would ([ADR-0099](adr/0099-ai-agents-drive-the-engine.md), [ADR-0122](adr/0122-the-development-channel.md)); a program, which no game links | `slime-channel`, `rmcp`, `tokio`, `serde`, `base64`, `png` | One game at a time, started with a token and driven through its development channel; its captures as PNG images; assets cooked and tests run |
 | [`slime-devui`](../crates/slime-devui/README.md) | The dev overlay: egui drawn over the engine's frames, fed with the engine's events, and its world panel; tooling, removed once something does at least as well ([ADR-0052](adr/0052-amend-roadmap-before-0-1.md), [ADR-0081](adr/0081-stage-5a-the-world.md)) | `egui`, `egui-wgpu`, `slime-assets`, `slime-color`, `slime-gfx` (with its `wgpu` feature), `slime-platform`, `slime-reflect`, `slime-world` | Panels built when a frame is extracted and drawn over it when it is rendered; a world's entities listed by name and their components edited through reflection, each edit returned as a command for the caller to send; no clipboard or input methods |
 | [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-assets`, `slime-color`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `slime-world`, `slime-world-render`, `png`, `tracing`; for the tests, `slime-cook` and `gltf` | `hello`, `headless`, `window`, `offscreen`, `scene`, which draws a cooked scene, `world`, which spawns a yard of prefabs from a cooked scene file and draws it from a world; the reference image tests, and tests that cook glTF files and draw them |
 | [`slime-benches`](../benches/README.md) | The engine's benchmarks, a program whose figures [`measurements.md`](measurements.md) keeps; a client of the engine through its public API only, not part of the engine ([ADR-0104](adr/0104-the-build-ci-and-measurements.md)) | `slime-app`, `slime-assets`, `slime-color`, `slime-cook`, `slime-gfx`, `slime-render`, `slime-world`, `slime-world-render` | The scenarios that its README lists, of rendering, of the world and of loading |
-| [`hunnawood`](../games/hunnawood/README.md) | Hunna Wood, the game that every stage grows from Stage 4a on; a client of the engine through its public API only, not part of the engine ([ADR-0055](adr/0055-games-in-the-workspace.md), [ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)) | `slime-app`, `slime-assets`, `slime-color`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-reflect`, `slime-render`, `slime-serialize`, `slime-world`, `slime-world-render`, `tracing` | A library, its rules as a simulation and what the player sees as a presentation, and its program ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md), [ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)); a forest zone, a scene file that places the land and six lanterns of one prefab, and its hero, read from cooked data and spawned in the game's world, its colliders, markers and lights' times of day as the game's components, typed properties of their nodes, the camera behind the hero along where the player looks, the hero's movement and its collisions with boxes turned about the vertical and cylinders, a key that opens a door, a campfire that flickers, the zone drawn while it loads, game time held paused until the zone is drawn, and paused, slowed down and stepped from the dev overlay, the run kept after a lost GPU device, the run carried into the scenes changed on disk, and the shaders loaded again when their files change (`--watch`); the run saved on F5 and on quit, loaded on F9 and resumed on start, a save checked before it is resumed and held by one copy of the game at a time ([ADR-0088](adr/0088-saving-and-resuming-a-run.md), [ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)) |
+| [`hunnawood`](../games/hunnawood/README.md) | Hunna Wood, the game that every stage grows from Stage 4a on; a client of the engine through its public API only, not part of the engine ([ADR-0055](adr/0055-games-in-the-workspace.md), [ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)) | `slime-app`, `slime-assets`, `slime-color`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-reflect`, `slime-render`, `slime-serialize`, `slime-world`, `slime-world-render`, `tracing` | A library, its rules as a simulation and what the player sees as a presentation, and its program ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md), [ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)); a forest zone, a scene file that places the land and six lanterns of one prefab, and its hero, read from cooked data and spawned in the game's world, its colliders, markers and lights' times of day as the game's components, typed properties of their nodes, the camera behind the hero along where the player looks, the hero's movement and its collisions with boxes turned about the vertical and cylinders, a key that opens a door, a campfire that flickers, the zone drawn while it loads, game time held until the zone is drawn, and paused, slowed down and stepped from the dev overlay, the run kept after a lost GPU device, the run carried into the scenes changed on disk, and the shaders loaded again when their files change (`--watch`); the run saved on F5 and on quit, loaded on F9 and resumed on start, a save checked before it is resumed and held by one copy of the game at a time ([ADR-0088](adr/0088-saving-and-resuming-a-run.md), [ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)); the development channel in its default build ([ADR-0122](adr/0122-the-development-channel.md)) |
 
 ## Dependency rules
 
 ```text
 slime-examples ──▶ slime-app ──┬──▶ slime-platform ──▶ winit
        │                       ├──▶ slime-gfx ──────▶ wgpu
-       │                       └──▶ slime-world (the game's world)
+       │                       ├──▶ slime-world (the game's world)
+       │                       └──▶ slime-channel (feature development) ──▶ getrandom, slime-reflect,
+       │                                                                    slime-serialize
        ├──▶ slime-render ──────────▶ slime-gfx
        ├──▶ slime-assets (cooked data); the tests: slime-cook (they cook first)
        ├──▶ slime-world-render ──▶ slime-world, slime-render (a world drawn)
@@ -92,6 +98,8 @@ slime-examples ──▶ slime-app ──┬──▶ slime-platform ──▶ w
 hunnawood  ──▶ slime-app, slime-assets, slime-render, slime-platform, slime-gfx, slime-color, slime-devui,
                slime-world, slime-world-render, slime-reflect, slime-serialize (the size of a
                save; its tests, the zones they make) (public API only)
+
+slime-mcp ──▶ slime-channel (a game driven), rmcp, tokio (the Model Context Protocol)
 
 slime-benches ──▶ slime-app (diagnostics), slime-assets, slime-color, slime-cook, slime-gfx,
                   slime-render, slime-world, slime-world-render (public API only)
@@ -144,8 +152,16 @@ lists every dependency.
 - `slime-serialize` depends on `slime-reflect` and on a TOML parser only, and no crate that only
   describes its types depends on it: the crates that read and write files do, the cooker for its
   metadata files and the scene files that it cooks, the world for its saves and its scene files,
-  and *Hunna Wood* for the size of the largest save, which it reads its save up to
-  ([ADR-0086](adr/0086-serialization.md), [ADR-0095](adr/0095-cooked-scene-files.md)).
+  *Hunna Wood* for the size of the largest save, which it reads its save up to, the development
+  channel for its messages, and `slime-app`, with its `development` feature, for the values that the
+  channel reads and writes as text
+  ([ADR-0086](adr/0086-serialization.md), [ADR-0095](adr/0095-cooked-scene-files.md),
+  [ADR-0122](adr/0122-the-development-channel.md)).
+- `slime-channel` depends on reflection and serialization, and on no GPU, window or world, so that
+  the MCP server and the tests link it without the engine's runtime. `slime-app` links it only with
+  its `development` feature, which a game turns on by default and its build for shipping leaves out.
+  `slime-mcp` is a program, on which nothing depends: no game links it
+  ([ADR-0122](adr/0122-the-development-channel.md)).
 - `slime-world-render` depends on the world and on the renderer, and neither depends on it: the
   world holds no GPU object, and the renderer draws any list of instances it is given
   ([ADR-0079](adr/0079-the-engines-own-world.md), [ADR-0084](adr/0084-what-the-world-draws.md)).
@@ -176,7 +192,9 @@ then logs one line describing the engine and the machine. From then on, every `t
 from the engine, the game or a dependency goes through that subscriber. When the `SLIME_TRACE`
 environment variable names a file, the subscriber also writes there every span entered and left,
 the phases of each frame among them, in a format that profilers open
-([ADR-0104](adr/0104-the-build-ci-and-measurements.md)). Source:
+([ADR-0104](adr/0104-the-build-ci-and-measurements.md)). In a program built with `slime-app`'s
+`development` feature and started with a token, the subscriber also keeps the last lines that the
+log writes, which the [development channel](#the-development-channel) gives the tools. Source:
 [`crates/slime-app/src/diagnostics.rs`](../crates/slime-app/src/diagnostics.rs); conventions:
 [ADR-0008](adr/0008-errors-logging-and-assertions.md).
 
@@ -197,6 +215,9 @@ represent; every driver runs a frame the same way (`Frames::run_one` in
 
 ```text
 frame                                     span "frame", trace level
+├── channel.answer(host)                  with the `development` feature and a token: the tools'
+│                                         requests answered with the host (below, "The
+│                                         development channel")
 ├── host.frame(simulation, delta)         phases 1 to 4 (Host::frame):
 │   ├── FrameClock::advance(delta)        real time: the time the frame represents, limited
 │   ├── world.apply(command), in order    1. the commands sent since the last frame
@@ -222,6 +243,7 @@ frame                                     span "frame", trace level
     │                                     span "acquire"
     ├── presentation.render(ctx, target)  6. draws into the image, without the world; span
     │                                        "render"
+    ├── channel.capture(gpu, target)      a tool asked for the image: copied back to the CPU
     └── image.present()                   hands it to the window; span "present"
 ```
 
@@ -1099,6 +1121,48 @@ frame (measured, or simulated in headless runs), gets a `FrameTime` back, and gi
 [`crates/slime-app/src/time.rs`](../crates/slime-app/src/time.rs); rules:
 [ADR-0009](adr/0009-frame-timing.md).
 
+### The development channel
+
+A tool, the engine's MCP server or a test, drives a running game through its *development
+channel* ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md),
+[ADR-0122](adr/0122-the-development-channel.md)). `slime-channel` holds the protocol and both of
+its ends; the game's side is in `slime-app`, behind its `development` feature
+([`crates/slime-app/src/channel.rs`](../crates/slime-app/src/channel.rs)):
+
+```text
+tool                                             game, built with the `development` feature
+slime_channel::launch(command)
+├── Token::generate (getrandom)
+├── starts the game, the token in its ─────────▶ run → Frames::new → DevChannel::open
+│   environment only (SLIME_DEV_TOKEN)           ├── Listener::open: 127.0.0.1, a port that the
+│                                                │   system chooses; a thread accepts connections
+└── reads its standard output until ◀─────────── └── "slime-dev-channel 127.0.0.1:<port>" on its
+    the announcement                                 standard output
+Client::connect(address, token)
+└── Hello { version, token } ──────────────────▶ a thread for the connection, unless too many
+                                                 wait for their hello: refused with the reason
+                                                 (another version or token, not a hello, too
+                                                 large, too late), or Welcome; a later hello is
+                                                 answered as no request
+Client::request(request) ──────────────────────▶ the connection's thread queues it for the game
+                                                 at the start of the next frame,
+                                                 DevChannel::answer(host):
+                                                 ├── the steps asked for that have all run: Done
+                                                 ├── each request queued, answered with the host's
+                                                 │   world, clocks and input; a step once its
+                                                 │   steps have run, over the next frames
+                                                 └── a capture after the frame's render, from the
+                                                     window's image, before it is shown
+reply, and an image's pixels ◀────────────────── written by the connection's thread
+```
+
+Messages are values of reflected types in the binary encoding of documents
+([ADR-0094](adr/0094-the-binary-encoding-of-documents.md)); the values of a game's components cross
+as text in the engine's notation, which the game reads with its own registry, so that a tool needs
+no type of the game. The MCP server turns each of its tools into one of these requests, or runs the
+cooker or `cargo test`; a game started without a token, or built without the feature, opens no
+port.
+
 ### Threads
 
 `run` drives the game from the main thread, and the renderer records and submits its
@@ -1109,7 +1173,9 @@ logical cores but one, live as long as the process, a few of the loads' tasks at
 GPU objects through clones of the `Gpu`. Each renderer has a thread of its own besides, its
 uploader's, which submits the copies of what the loads bring, and waits rather than computes
 (ADR-0118). The sky's environment is computed by frame tasks of the same pool, and the
-cooker encodes textures on it. What may cross threads is stated, so that
+cooker encodes textures on it. A game's development channel has a thread that accepts connections,
+and one for each connection, which wait rather than compute ([above](#the-development-channel)).
+What may cross threads is stated, so that
 later stages (a render thread, the job system) can rely on it, and checked when the tests of the
 crates that own these types compile (a `threads` module in their `lib.rs`, or in `slime-devui`'s
 tests):
@@ -1120,7 +1186,8 @@ tests):
   environments, cameras, lights, scenes and instances, loaded scenes and loads in progress, the
   asset cache, statistics, windows, events, the input, the host, its `Context` and `AppConfig`, the
   dev overlay, worlds and entity handles, scene libraries and resolved scenes, the frame builder of
-  `slime-world-render` and its frames, reflected values and registries, and the error types of those
+  `slime-world-render` and its frames, reflected values and registries, the development channel's
+  tokens, messages and clients, and the error types of those
   crates. Scenes, their instances and the frames of `slime-world-render` are also `'static`: they
   own what they draw, so that a frame built on one thread is drawn on another (ADR-0120). wgpu keeps
   its error scopes per thread, so
@@ -1130,7 +1197,8 @@ tests):
   surface is configured.
 - **Moved between threads, used by one at a time** (`Send` only): a `GpuTimer`, which reads its
   times back through a cell, and so the `Renderer` that holds them; `Renderer::render` takes it
-  mutably anyway.
+  mutably anyway. The development channel's `Listener` and the requests it hands over,
+  `Incoming`, which answer through a channel of the standard library.
 
 ## Platforms
 

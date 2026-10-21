@@ -154,6 +154,10 @@ impl Default for AppConfig {
 /// draw into the window: no GPU adapter is available: ...`), so that a caller only has to exit with
 /// a failure.
 ///
+/// Built with the `development` feature, a run whose environment gives a token listens for the
+/// tools that drive it, before its `start` methods, and answers them at the start of each frame
+/// (the crate's documentation says what they ask).
+///
 /// # Panics
 ///
 /// If `config.fixed_step`, `config.max_fixed_steps_per_frame` or `config.max_frame_delta` is
@@ -202,6 +206,9 @@ fn run_headless(simulation: &mut impl Simulation, config: &AppConfig) -> Result<
 pub(crate) struct Frames {
     count: u64,
     limit: Option<u64>,
+    /// The development channel, when the environment gave a token.
+    #[cfg(feature = "development")]
+    channel: Option<crate::channel::DevChannel>,
 }
 
 impl Frames {
@@ -209,6 +216,8 @@ impl Frames {
         Self {
             count: 0,
             limit: config.frame_limit,
+            #[cfg(feature = "development")]
+            channel: crate::channel::DevChannel::open(),
         }
     }
 
@@ -266,6 +275,10 @@ impl Frames {
         // The host's clock numbers its frames as this count does: one each.
         let index = self.count;
         let _frame_span = tracing::trace_span!("frame", index).entered();
+        #[cfg(feature = "development")]
+        if let Some(channel) = &mut self.channel {
+            channel.answer(host, index, raw_delta, surface.is_some());
+        }
         host.frame(simulation, raw_delta);
         if let Some(surface) = surface {
             {
@@ -280,6 +293,12 @@ impl Frames {
                 {
                     let _span = tracing::trace_span!("render").entered();
                     presentation.render(&mut host.context, image.target());
+                }
+                #[cfg(feature = "development")]
+                if let (Some(channel), Some(gpu)) = (&mut self.channel, host.context.gpu())
+                    && channel.wants_capture()
+                {
+                    channel.capture(gpu, image.target());
                 }
                 let _span = tracing::trace_span!("present").entered();
                 image.present();

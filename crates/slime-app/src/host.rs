@@ -309,16 +309,43 @@ impl Context {
         self.clock.set_paused(true);
     }
 
-    /// Lets game time run again, at its speed, from the next frame on.
+    /// Lets game time run again, at its speed, from the next frame on; the steps asked for and not
+    /// run yet are dropped.
     pub fn resume(&mut self) {
         self.clock.set_paused(false);
+    }
+
+    /// Whether the program holds game time ([`hold`](Self::hold)).
+    pub fn held(&self) -> bool {
+        self.clock.held()
+    }
+
+    /// Holds game time from the next frame on, or lets it go, apart from the pause that the player
+    /// and the tools set: held and not paused, game time stands still, as a program keeps it while
+    /// it is not ready to be played, a zone that loads. A pause set meanwhile stays when the hold
+    /// goes; steps asked for while paused run, held or not.
+    pub fn hold(&mut self, held: bool) {
+        self.clock.set_held(held);
     }
 
     /// While game time is paused, asks for one fixed step, which the next frame runs: as many steps
     /// as asked for, at most [`AppConfig::max_fixed_steps_per_frame`] per frame. While game time
     /// runs, it does nothing.
     pub fn step(&mut self) {
-        self.clock.ask_step();
+        self.clock.ask_steps(1);
+    }
+
+    /// While game time is paused, asks for `steps` more fixed steps, as many calls to
+    /// [`step`](Self::step) would.
+    #[cfg(feature = "development")]
+    pub(crate) fn ask_steps(&mut self, steps: u32) {
+        self.clock.ask_steps(steps);
+    }
+
+    /// The steps asked for while paused that no frame has run yet.
+    #[cfg(feature = "development")]
+    pub(crate) fn steps_asked(&self) -> u32 {
+        self.clock.asked()
     }
 
     /// Queues `command`, which the host applies at the start of the next frame, after those sent

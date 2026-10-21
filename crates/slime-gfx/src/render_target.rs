@@ -122,7 +122,8 @@ impl TextureFormat {
 
 /// A texture that render passes draw into: an offscreen image ([`Gpu::create_render_target`]),
 /// which can be read back and sampled by later passes; the image of a window for one frame
-/// ([`SurfaceFrame::target`](crate::SurfaceFrame::target)), which can be neither; or an offscreen
+/// ([`SurfaceFrame::target`](crate::SurfaceFrame::target)), which cannot be sampled, and is read
+/// back only where the window lets the GPU copy it; or an offscreen
 /// image of several samples per pixel ([`Gpu::create_multisampled_render_target`]), which a pass
 /// resolves into an ordinary one, and which later passes can read sample by sample.
 ///
@@ -152,6 +153,11 @@ impl RenderTarget {
     /// The format of the pixels.
     pub fn format(&self) -> TextureFormat {
         self.format
+    }
+
+    /// Whether the GPU can copy the texture, which [`Gpu::read_render_target`] does.
+    pub(crate) fn readable(&self) -> bool {
+        self.texture.usage().contains(wgpu::TextureUsages::COPY_SRC)
     }
 
     /// The label given at creation. It names the target in error messages and, in GPU capture

@@ -1,0 +1,20 @@
+[package]
+name = "slime-channel"
+description = "SlimeEngine's development channel: the link between a running game and the tools that drive it."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# The secret token, 128 bits drawn from the system's randomness (ADR-0122).
+getrandom.workspace = true
+# The messages are reflected values, in the engine's binary encoding (ADR-0110).
+slime-reflect.workspace = true
+slime-serialize.workspace = true
+thiserror.workspace = true
+tracing.workspace = true

@@ -114,7 +114,7 @@ impl Input {
         let pressed = event.state == ButtonState::Pressed;
         let name = match &event.logical {
             Key::Character(character) => character.clone(),
-            Key::Named(named) => format!("{named:?}"),
+            Key::Named(named) => named.name().to_owned(),
             Key::Dead(_) | Key::Unidentified => String::new(),
         };
         if let Some(key) = egui::Key::from_name(&name) {

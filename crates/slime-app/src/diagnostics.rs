@@ -107,9 +107,11 @@ fn install_subscriber() {
         .ok()
         .and_then(|value| with_default_level(&value))
         .unwrap_or_else(|| DEFAULT_LOG_FILTER.to_owned());
-    let filter = EnvFilter::builder()
-        .with_default_directive(LevelFilter::INFO.into())
-        .parse_lossy(directives);
+    let filter = |directives: &str| {
+        EnvFilter::builder()
+            .with_default_directive(LevelFilter::INFO.into())
+            .parse_lossy(directives)
+    };
     let log = tracing_subscriber::fmt::layer()
         .with_writer(std::io::stderr)
         .with_ansi(use_colors())
@@ -120,7 +122,22 @@ fn install_subscriber() {
         // events are lost either way; the engine must go on.
         .log_internal_errors(false)
         // The log's filter is its own, so that the trace holds the spans that the log leaves out.
-        .with_filter(filter);
+        .with_filter(filter(&directives));
+    // What the log writes, kept for the tools that read it through the development channel: in a
+    // run that a tool started with a token only, so that another run formats its events once.
+    #[cfg(feature = "development")]
+    let kept = std::env::var_os(slime_channel::TOKEN_ENV_VAR)
+        .is_some()
+        .then(|| {
+            tracing_subscriber::fmt::layer()
+                .with_writer(crate::log_lines::Kept)
+                .with_ansi(false)
+                .without_time()
+                .log_internal_errors(false)
+                .with_filter(filter(&directives))
+        });
+    #[cfg(not(feature = "development"))]
+    let kept = None::<tracing_subscriber::layer::Identity>;
     let trace_path = std::env::var_os(TRACE_ENV_VAR).filter(|path| !path.is_empty());
     let trace_file = trace_path
         .as_ref()
@@ -140,6 +157,7 @@ fn install_subscriber() {
     };
     let installed = tracing_subscriber::registry()
         .with(log)
+        .with(kept)
         .with(trace)
         .try_init();
     if let Err(error) = installed {

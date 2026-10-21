@@ -28,9 +28,10 @@ them.
 - `Registry`, the types a program describes, by name and alias, registered explicitly, each
   registration registering the types its values hold; it can hold a type with no Rust type behind
   it. It checks values against their types, sets their parts by `Path` within the fields' ranges,
-  lists their leaves, and brings values of earlier versions of a type to its version through the
-  type's upgrade. `Registry::difference` gives what changed of a value as a part of it, its
-  transient fields left out, and `Registry::overlay` sets a part back: what a save holds.
+  says the type of the part at a path (`Registry::type_at`), lists their leaves, and brings values
+  of earlier versions of a type to its version through the type's upgrade.
+  `Registry::difference` gives what changed of a value as a part of it, its transient fields left
+  out, and `Registry::overlay` sets a part back: what a save holds.
 - `diff` and `apply`: what differs between two values, path by path, and those differences set.
 
 A crate that owns a value type implements reflection where the type is defined: `slime-assets`

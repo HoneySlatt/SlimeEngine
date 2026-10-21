@@ -100,6 +100,15 @@ pub enum GfxError {
         /// the graphics API refused to configure it.
         message: String,
     },
+    /// The render target cannot be read back: the image of a window whose platform does not let
+    /// the GPU copy it.
+    #[error(
+        "the render target `{label}` cannot be read back: its window does not let it be copied"
+    )]
+    NotReadable {
+        /// The label of the render target.
+        label: String,
+    },
     /// Reading a render target back to the CPU failed.
     #[error("reading the render target `{label}` back failed")]
     Readback {

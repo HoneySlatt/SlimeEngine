@@ -480,6 +480,35 @@ impl Registry {
         Ok(())
     }
 
+    /// The name of the type of the part of `value`, a value of the type named `ty`, that `path`
+    /// leads to, as [`Registry::set`] finds it: what a value given as text for that part is read
+    /// as. An option on the way that holds a value is gone through, to the value; the part itself,
+    /// an option too, keeps its type.
+    ///
+    /// ```
+    /// use slime_reflect::{Reflect, Registry};
+    ///
+    /// #[derive(Reflect)]
+    /// #[reflect(name = "Lamp")]
+    /// struct Lamp {
+    ///     range: Option<f32>,
+    /// }
+    ///
+    /// let mut registry = Registry::new();
+    /// registry.register::<Lamp>();
+    /// let lamp = Lamp { range: Some(4.0) }.to_value();
+    /// let range = "range".parse().unwrap();
+    /// assert_eq!(registry.type_at("Lamp", &lamp, &range).expect("a field"), "Option<f32>");
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// When `path` names no part of `value` ([`Problem::NoSuchPath`]), or a type on the way is not
+    /// registered.
+    pub fn type_at(&self, ty: &str, value: &Value, path: &Path) -> Result<String, ReflectError> {
+        self.resolve(ty, value, path).map(|(ty, _)| ty)
+    }
+
     /// The leaves of `value`, a value of the type named `ty`, in the order of its fields and
     /// elements: what an editor lists, and edits one at a time ([`Registry::set`]).
     ///

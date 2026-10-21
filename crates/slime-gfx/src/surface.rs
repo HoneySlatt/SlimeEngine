@@ -38,9 +38,13 @@ pub enum PresentMode {
 /// back.
 const MAX_LOSSES_IN_A_ROW: u32 = 3;
 
-/// The usage of a window's images: the GPU draws into them, and nothing else. They can neither be
-/// sampled nor read back (ADR-0033); a test of `bind_group.rs` relies on this very value.
+/// The usage of a window's images: the GPU draws into them, and they cannot be sampled
+/// (ADR-0033); a test of `bind_group.rs` relies on this very value. Where the window lets them be
+/// copied, they can be read back too ([`READ_BACK_USAGE`]).
 pub(crate) const WINDOW_IMAGE_USAGE: wgpu::TextureUsages = wgpu::TextureUsages::RENDER_ATTACHMENT;
+/// What a window's images can do besides, where the window offers it: be copied, which reads them
+/// back, for a capture of what a game shows (`docs/adr/0122-the-development-channel.md`).
+const READ_BACK_USAGE: wgpu::TextureUsages = wgpu::TextureUsages::COPY_SRC;
 
 /// The wgpu present mode for `requested`, among those the window offers. Every window offers
 /// FIFO.
@@ -211,10 +215,12 @@ impl Surface {
             formats = ?capabilities.formats,
             present_modes = ?capabilities.present_modes,
             alpha_modes = ?capabilities.alpha_modes,
+            usages = ?capabilities.usages,
             "what the window's surface supports"
         );
+        let usage = WINDOW_IMAGE_USAGE | (capabilities.usages & READ_BACK_USAGE);
         let config = wgpu::SurfaceConfiguration {
-            usage: WINDOW_IMAGE_USAGE,
+            usage,
             format: format.to_wgpu(),
             color_space: wgpu::SurfaceColorSpace::Auto,
             // Set by `resize` below, which limits the size to what the device accepts.
@@ -555,9 +561,11 @@ impl Drop for Outstanding {
 }
 
 impl SurfaceFrame {
-    /// The target to draw into. It is valid until the frame is presented, and can neither be read
-    /// back ([`Gpu::read_render_target`] panics on it) nor sampled ([`Gpu::create_bind_group`]
-    /// panics on it).
+    /// The target to draw into. It is valid until the frame is presented, and cannot be sampled
+    /// ([`Gpu::create_bind_group`] panics on it). It can be read back before it is presented
+    /// ([`Gpu::read_render_target`]) where the window lets the GPU copy its images, as Vulkan and
+    /// Direct3D 12 usually do: a capture of what a game shows reads it
+    /// (`docs/adr/0122-the-development-channel.md`).
     pub fn target(&self) -> &RenderTarget {
         &self.target
     }

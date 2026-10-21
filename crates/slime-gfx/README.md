@@ -149,7 +149,8 @@ fn main() -> Result<(), GfxError> {
   instances, from a base vertex (ADR-0117). `RenderPass::set_viewport` draws into part of a
   pass's targets, so that one pass can draw several views side by side, as a shadow atlas holds
   them. `Gpu::read_render_target` and `Gpu::read_float_render_target` copy a target back to the
-  CPU.
+  CPU, a window's image too where the window's system allows it (`GfxError::NotReadable` otherwise,
+  ADR-0122): a tool captures what the player sees so.
 - `Gpu::create_multisampled_render_target` and `Gpu::create_multisampled_depth_target` create
   targets of `MULTISAMPLE_COUNT` samples per pixel, which pipelines built `multisampled` draw into;
   `RenderPassDescriptor::resolve` names the target of one sample that the pass averages them into

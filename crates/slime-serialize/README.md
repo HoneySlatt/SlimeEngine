@@ -40,7 +40,8 @@ properties of glTF nodes, in the binary encoding, which a world reads when it re
 - `encode` and `Document::parse_binary`: the same documents in the engine's binary encoding,
   without their types, encoded from a text, a composer's too, by a program that knows no type such
   as a cooker, and read through the same reader as text, strict and lenient alike; errors name the
-  byte. The module `format` lays out its bytes.
+  byte. `read_binary` reads the value of a registered type that such bytes hold, as `read` reads a
+  text. The module `format` lays out its bytes.
 
 ## Entry points
 

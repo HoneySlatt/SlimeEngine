@@ -10,7 +10,9 @@ Games run headless or with one window that receives keyboard and mouse input and
 into with the GPU; the phases of a frame, game time that pauses, slows down and steps, the input
 as data, commands applied at the start of a frame, the main loop, exit requests, errors at
 startup, clean shutdown on Ctrl+C and other termination signals, profiling spans and diagnostics
-work; a windowed run that asks for it goes on with a new GPU device after a lost one. What is
+work; a windowed run that asks for it goes on with a new GPU device after a lost one; a run
+built with the `development` feature and started with a token answers the tools that drive it
+through the development channel. What is
 missing is listed in `docs/PLAN.md` (known debt).
 
 ## Role
@@ -27,6 +29,9 @@ missing is listed in `docs/PLAN.md` (known debt).
   automated tests use, and dedicated servers could; a test drives a host itself, without a GPU.
 - With a window, opens the GPU that draws into it, and gives each frame an image of the window to
   draw into, which it then shows.
+- With its `development` feature, which a game turns on by default and a build for shipping leaves
+  out, answers the tools that drive a run started with a token, through the development channel
+  (`slime-channel`, `docs/adr/0122-the-development-channel.md`).
 - Sets up the engine's diagnostics.
 
 ## Entry points
@@ -186,7 +191,9 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
 - `Context`: what the presentation, and whoever drives a host, can ask from the engine: the window
   (`Context::window`), the GPU that draws into it (`Context::gpu`) and the format of its images
   (`Context::surface_format`), all `None` when headless; both times (`Context::time`); game time's
-  speed, pause and one step (`set_speed`, `pause`, `resume`, `step`), applied from the next frame;
+  speed, pause and one step (`set_speed`, `pause`, `resume`, `step`), applied from the next frame,
+  and its hold, which a game sets while it is not ready to be played, apart from the pause
+  (`hold`, `held`);
   the commands (`Context::send`), and those that the world refused at this frame's start
   (`Context::refused`); stopping the run (`request_exit`), or failing it (`exit_with_error`); and
   whether it is going to stop (`exit_requested`), which reports a termination signal as soon as it
@@ -216,6 +223,14 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
 - `error_chain(&error)`: an error's message followed by the message of each of its causes
   (`error: cause: cause of cause`), the line `run` logs for a failed run. A program that does not
   use `run`, as the `offscreen` example, logs its errors with it.
+- The `development` feature: a run whose environment gives a token (`slime_channel::TOKEN_ENV_VAR`)
+  listens on `127.0.0.1`, writes where on its standard output, and answers, at the start of each
+  frame, the requests of the tools that connect with the token: its state, the host's controls,
+  its world read and changed through reflection, keys put down and let go, its window's image,
+  copied after the frame is drawn and before it is shown, and the last lines of its log
+  (`slime_channel::MAX_LOG_LINES`), which only such a run keeps. Without a token, it does not
+  listen. The `slime-channel` crate holds the protocol and its limits; `tests/channel.rs` drives a
+  headless run through it.
 
 Engine code and games log through the `tracing` macros. The conventions for errors, log levels and
 assertions are in `docs/adr/0008-errors-logging-and-assertions.md`; why the engine owns the main
@@ -242,6 +257,9 @@ the name the graphics API gives it.
 - `slime-gfx`: the GPU and the window's surface, for windowed runs.
 - `slime-platform`: the window and its events, for windowed runs, and the input as data.
 - `slime-world`: the game's world, which it owns, and its commands.
+- `slime-channel`, `slime-reflect` and `slime-serialize`, with the `development` feature only: the
+  development channel, and the reflection and the documents through which it reads and writes the
+  world's values as text.
 - `thiserror`: derives `RunError`'s `Display` and `Error` implementations.
 - `tracing`: the logging macros and profiling spans.
 - `tracing-subscriber`: the subscriber that formats, filters and writes log events, including the

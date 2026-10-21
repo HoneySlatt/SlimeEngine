@@ -15,7 +15,9 @@ workspace = true
 # The tests only: they write the small glTF files they cook.
 gltf.workspace = true
 png.workspace = true
-slime-app.workspace = true
+# The examples' programs are never shipped: they hold the development channel, through which
+# tools drive them (ADR-0122).
+slime-app = { workspace = true, features = ["development"] }
 slime-assets.workspace = true
 slime-color.workspace = true
 slime-cook.workspace = true
