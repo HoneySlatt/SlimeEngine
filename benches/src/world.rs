@@ -6,11 +6,11 @@ use std::collections::HashMap;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use slime_assets::AssetId;
+use slime_assets::{AssetId, CookedScene, SceneNode};
 use slime_color::LinearColor;
-use slime_render::glam::{DVec3, Quat};
+use slime_render::glam::{DVec3, Mat4, Quat, Vec3};
 use slime_render::{AssetCache, Renderer};
-use slime_world::{Entity, Light, Meshes, SceneLibrary, Transform, World};
+use slime_world::{Entity, Light, Meshes, Name, ResolvedScene, SceneLibrary, Transform, World};
 use slime_world_render::FrameBuilder;
 
 use crate::measure::{Context, LOAD_LIMIT, Row, meshes_of, ms, percentile, timed};
@@ -380,4 +380,73 @@ pub fn changes(_context: &mut Context) -> Result<Vec<Row>, String> {
         &side_by_side,
     ));
     Ok(rows)
+}
+
+/// A level of 100 000 entities, each with a name and a transform, spawned under the key `level`
+/// from a cooked scene; 1 % of them moved by a run, then saved and loaded again, five times each:
+/// what a save costs when little changed, the start that it differs from made again each time, as
+/// a game makes it.
+pub fn save(_context: &mut Context) -> Result<Vec<Row>, String> {
+    let nodes = (0..READ_ENTITIES)
+        .map(|index| SceneNode {
+            name: format!("n{index}"),
+            parent: None,
+            transform: Mat4::from_translation(Vec3::new(index as f32, 0.0, 0.0)).to_cols_array(),
+            meshes: Vec::new(),
+            light: None,
+            extras: Vec::new(),
+            components: Vec::new(),
+        })
+        .collect();
+    let cooked = CookedScene {
+        name: "level".to_owned(),
+        nodes,
+    };
+    let registry = World::new();
+    let scene = ResolvedScene::from_cooked(AssetId::from_u128(1), &cooked, registry.registry())
+        .map_err(|error| error.to_string())?;
+    let start = || -> Result<World, String> {
+        let mut world = World::new();
+        world
+            .spawn_scene("level", &scene)
+            .map_err(|error| error.to_string())?;
+        Ok(world)
+    };
+    let mut run = start()?;
+    let moved: Vec<Entity> = run
+        .query::<&Name>()
+        .map(|(entity, _)| entity)
+        .step_by(READ_ENTITIES / CHANGED_ENTITIES)
+        .collect();
+    for &entity in &moved {
+        if let Some(mut transform) = run.get_mut::<Transform>(entity) {
+            transform.translation.y = 1.0;
+        }
+    }
+    let (mut saves, mut loads) = (Vec::new(), Vec::new());
+    let mut size = 0;
+    for _ in 0..5 {
+        let (saved, duration) = timed(|| run.save(&start().expect("a start"), &Default::default()));
+        let saved = saved.map_err(|error| error.to_string())?;
+        saves.push(duration);
+        size = saved.len();
+        let mut loaded = start()?;
+        let (report, duration) = timed(|| loaded.load(&saved, &mut SceneLibrary::new()));
+        let report = report.map_err(|error| error.to_string())?;
+        if !report.set_aside.is_empty() {
+            return Err(format!("the save set aside {:?}", report.set_aside));
+        }
+        loads.push(duration);
+    }
+    Ok(vec![
+        Row::new(
+            format!(
+                "save of {READ_ENTITIES} entities, {CHANGED_ENTITIES} moved, the level spawned again \
+                 to compare with, as a game makes its start, median of 5"
+            ),
+            ms(percentile(&saves, 0.5)),
+        ),
+        Row::new("its load, median of 5", ms(percentile(&loads, 0.5))),
+        Row::new("its size", format!("{} kB", size / 1000)),
+    ])
 }

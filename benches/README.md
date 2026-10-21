@@ -41,6 +41,7 @@ it is their whole name.
 | `world.changes.100k` | 100 000 entities that place a light each, of which 1 000 change between two reads: the lights changed through `World::get_mut`, then found, twenty times with the lights spread over the world, every hundredth, by a reader that keeps a copy of every light and compares each with it, and by one that asks the world for what changed since it last read (`World::changed`); then twenty times with the lights side by side, by the second | [ADR-0108](../docs/adr/0108-what-the-world-knows-of-its-changes.md) |
 | `world.children` | A parent of 10 000, then 20 000 children emptied, each given no parent: twice the children take four times as long while it is quadratic | G27 |
 | `world.placements` | A scene file that places a prefab 2 000, then 8 000 times, each with a change, resolved | G26 |
+| `world.save.100k` | A level of 100 000 entities, each with a name and a transform, spawned from a cooked scene, of which a run moves 1 000: saved and loaded again five times, the time of a save, the level spawned again first to compare with as a game makes its start, of a load into a level spawned, and the save's size | [ADR-0112](../docs/adr/0112-levels-saves-and-worlds-for-open-worlds.md) |
 | `world.sky` | Frames built around a sun that does not move, the sun set where it is at each fixed step, at the fractions of a step at which a display of 144 Hz shows a game stepping at 60 Hz, after a first frame that makes the sky's environment: the frames that made it again | G13 |
 | `loading.batch` | A load of meshes started, on the calling thread, with a manifest of 10 000, then 100 000 assets | G25, B4-F03 |
 | `loading.textures` | 16 squares, each drawn with a material of its own whose base color is a texture of 4096 × 4096 texels in BC7, every level of detail with it, 341 MiB in all, written once into `target/benches/textures` without the cooker, loaded and drawn as `loading.zone` is: the case of the audit's B4-F01 | B4-F01 |
@@ -54,8 +55,8 @@ changes the benchmark measures before and after.
 - On lavapipe, which renders on the CPU, `Renderer::render`'s CPU time holds the GPU work of the
   frame's earlier submissions, which lavapipe runs one after the other
   ([`RenderStats::cpu_time`](../crates/slime-render/src/renderer.rs)): it is not a CPU time
-  there. `world.transforms.100k`, `world.changes.100k`, `world.children`, `world.placements` and
-  `loading.batch` do not touch the GPU; the others draw, or make objects on the GPU.
+  there. `world.transforms.100k`, `world.changes.100k`, `world.children`, `world.placements`,
+  `world.save.100k` and `loading.batch` do not touch the GPU; the others draw, or make objects on the GPU.
 - A frame "until the GPU finished it" includes the wait of `Gpu::wait_idle`, which wakes up to 1 ms
   after the GPU finished: on a GPU whose frames take a few milliseconds, the times of the passes
   on the GPU are the figures to compare. Each frame reports the latest time of each pass that came

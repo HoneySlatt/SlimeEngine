@@ -86,6 +86,12 @@ const BENCHMARKS: &[Benchmark] = &[
         run: world::placements,
     },
     Benchmark {
+        name: "world.save.100k",
+        about: "a level of 100 000 entities, 1 % of them moved, saved and loaded",
+        on_request: false,
+        run: world::save,
+    },
+    Benchmark {
         name: "world.sky",
         about: "frames built around a sun that does not move, between two fixed steps",
         on_request: false,
