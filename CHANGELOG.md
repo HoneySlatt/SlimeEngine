@@ -8,6 +8,15 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- Scenes unloaded and adoption (ADR-0112, ADR-0125): `World::unload_scene` destroys a scene and
+  keeps what the run changed of it, which spawning the same scene under its key again and settling
+  it applies; `slime_world::Persistence`, on a scene's root or on an entity, makes what the run
+  changed of it reset instead, `Persistence = "Reset"` in a scene file. `World::adopt` takes an
+  entity of a scene out of it under a key of its own, its former identity kept, so that it outlives
+  its level.
+- Saving and loading a running game from a tool: `Simulation::save` and `Simulation::load`, which
+  *Hunna Wood* implements, answer the development channel's `Request::Save` and `Request::Load`, and
+  the MCP server's `save_game` and `load_game` tools; the channel's protocol is at version 2.
 - Driven components (ADR-0108, ADR-0124): an entity marks with `slime_world::Driven` the
   components that a system computes again, `Driven = ["Transform"]` in a scene file; saves and
   scene files written back leave them as their author wrote them, and `World::first_difference`
@@ -106,11 +115,22 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- Saves per scene (ADR-0125): a game settles its world once it made the start of a run, and again
+  once it prepared a scene that it spawned since (`World::settle`); `World::save(about)` writes what
+  the run changed since, without a start world, and costs what changed: about a hundred times
+  less for a level of 100 000 entities of which 1 % moved (`docs/measurements.md`). `World::load`
+  takes a callback that prepares the scenes that a save spawns, and `World::carry` no longer takes
+  the start of the scenes before they changed. Saves take layout 5: the saves of layouts 1 to 4,
+  those of 0.3, of 0.4 and of the versions since, are refused (`DocumentError::Layout`), and *Hunna
+  Wood* sets such a save aside as `save.toml.earlier-version` and starts a new run; its fixture is
+  made again.
+- `World::spawn_scene` under a key that holds a scene unloads that one first, rather than refusing
+  while an entity of it lives: `WorldError::KeyInUse` is gone, and a level that keeps something of
+  the one before adopts it.
 - Saving refuses a start that created, without a key, entities that saves hold
   (`DocumentError::UnkeyedAtStart`, which names them; ADR-0109, ADR-0124): a start names what it
   creates with `World::spawn_keyed`, a prefab with `World::spawn_scene`, or marks it `Unsaved`.
-  Saves take layout 4, without the fingerprint of the start's creations; those of layouts 1 to 3
-  are read as before.
+  Saves no longer hold the fingerprint of the start's creations.
 - A game is a simulation and a presentation (ADR-0107, ADR-0121): `slime_app::App` gave way to
   `Simulation`, a game's rules, whose `start`, `fixed_step`, `update` and `stop` receive the world
   to change and a `SimulationContext` (the input, both times, the run's stop), and `Presentation`,

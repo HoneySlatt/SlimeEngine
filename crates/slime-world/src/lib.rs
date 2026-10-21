@@ -1,5 +1,6 @@
 #![doc = include_str!("../README.md")]
 
+mod base;
 mod change;
 mod command;
 mod components;
@@ -16,12 +17,13 @@ mod scene_file;
 mod steps;
 mod storage;
 mod transform;
+mod unload;
 mod world;
 mod write_back;
 
 pub use change::{Mut, Removals, Tick, Ticks};
 pub use command::Command;
-pub use components::{Driven, Extras, Hidden, Light, Meshes, Name, Unsaved};
+pub use components::{Driven, Extras, Hidden, Light, Meshes, Name, Persistence, Unsaved};
 pub use document::{DocumentError, Loaded, SetAside};
 pub use entity::Entity;
 pub use error::WorldError;

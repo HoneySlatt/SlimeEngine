@@ -383,9 +383,8 @@ pub fn changes(_context: &mut Context) -> Result<Vec<Row>, String> {
 }
 
 /// A level of 100 000 entities, each with a name and a transform, spawned under the key `level`
-/// from a cooked scene; 1 % of them moved by a run, then saved and loaded again, five times each:
-/// what a save costs when little changed, the start that it differs from made again each time, as
-/// a game makes it.
+/// from a cooked scene and settled; 1 % of them moved by a run, then saved and loaded again, five
+/// times each: what a save costs when little changed.
 pub fn save(_context: &mut Context) -> Result<Vec<Row>, String> {
     let nodes = (0..READ_ENTITIES)
         .map(|index| SceneNode {
@@ -410,6 +409,7 @@ pub fn save(_context: &mut Context) -> Result<Vec<Row>, String> {
         world
             .spawn_scene("level", &scene)
             .map_err(|error| error.to_string())?;
+        world.settle();
         Ok(world)
     };
     let mut run = start()?;
@@ -426,12 +426,13 @@ pub fn save(_context: &mut Context) -> Result<Vec<Row>, String> {
     let (mut saves, mut loads) = (Vec::new(), Vec::new());
     let mut size = 0;
     for _ in 0..5 {
-        let (saved, duration) = timed(|| run.save(&start().expect("a start"), &Default::default()));
+        let (saved, duration) = timed(|| run.save(&Default::default()));
         let saved = saved.map_err(|error| error.to_string())?;
         saves.push(duration);
         size = saved.len();
         let mut loaded = start()?;
-        let (report, duration) = timed(|| loaded.load(&saved, &mut SceneLibrary::new()));
+        let (report, duration) =
+            timed(|| loaded.load(&saved, &mut SceneLibrary::new(), &mut |_, _| {}));
         let report = report.map_err(|error| error.to_string())?;
         if !report.set_aside.is_empty() {
             return Err(format!("the save set aside {:?}", report.set_aside));
@@ -440,10 +441,7 @@ pub fn save(_context: &mut Context) -> Result<Vec<Row>, String> {
     }
     Ok(vec![
         Row::new(
-            format!(
-                "save of {READ_ENTITIES} entities, {CHANGED_ENTITIES} moved, the level spawned again \
-                 to compare with, as a game makes its start, median of 5"
-            ),
+            format!("save of {READ_ENTITIES} entities, {CHANGED_ENTITIES} moved, median of 5"),
             ms(percentile(&saves, 0.5)),
         ),
         Row::new("its load, median of 5", ms(percentile(&loads, 0.5))),

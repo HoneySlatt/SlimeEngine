@@ -60,14 +60,14 @@ created only when code needs it.
 | [`slime-platform`](../crates/slime-platform/README.md) | The window, its events and keyboard and mouse input, and that input as data, the keys and buttons held; the only crate that uses the windowing library (winit) | `winit`, `raw-window-handle`, `thiserror`, `tracing` | One window; window, keyboard and mouse events; the keys and mouse buttons held, pressed and released since the last frame |
 | [`slime-app`](../crates/slime-app/README.md) | A game run as a simulation, its rules, and a presentation, what the player sees, by a host that owns its world, real time and game time, its input and its commands, through the phases of each frame ([ADR-0107](adr/0107-the-execution-model.md), [ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)); the main loop, diagnostics setup, headless mode | `slime-platform`, `slime-gfx`, `slime-world`, `ctrlc`, `thiserror`, `tracing`, `tracing-subscriber`, `nu-ansi-term` (Windows only); with its `development` feature, `slime-channel`, `slime-reflect`, `slime-serialize` | Headless runs, and windowed runs drawn by the GPU, which go on with a new device after a lost one when the game asks; game time that pauses, slows down and steps, and that a game holds while it is not ready; commands applied at the start of a frame; a host that a test drives without a GPU; with its `development` feature, which a game turns on by default, the development channel, through which tools drive a run started with a token ([ADR-0122](adr/0122-the-development-channel.md)) |
 | [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu, apart from the dev overlay through its `wgpu` feature | `wgpu`, `pollster`, `raw-window-handle`, `slime-color`, `thiserror`, `tracing` | Opens a GPU device, and another in place of a lost one; draws into offscreen images, 8-bit or 16-bit float, and reads them back; draws into a window; later passes sample what earlier ones drew; depth-only passes; images of four samples per pixel, resolved for anti-aliasing; textures and cube textures whose levels the caller gives, half-precision floats and BC7 and BC5 blocks among their formats; storage buffers, buffers written by ranges, instanced draws from a base vertex; an uploader that submits the copies of what loads bring within a budget of bytes per frame, on a thread of its own; a window's image read back where the system allows it |
-| [`slime-channel`](../crates/slime-channel/README.md) | The development channel: the protocol between a running game and the tools that drive it, and both of its ends, the game's listener and the tools' client ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md), [ADR-0122](adr/0122-the-development-channel.md)); headless | `getrandom`, `slime-reflect`, `slime-serialize`, `thiserror`, `tracing` | Version 1: a game started with a token listens on the machine's own address and accepts only the token and its version; the host's controls, the world read and changed through reflection, scripted keys, captures of the game's image, its state, log and frames' times; a game started by a tool with a new token |
+| [`slime-channel`](../crates/slime-channel/README.md) | The development channel: the protocol between a running game and the tools that drive it, and both of its ends, the game's listener and the tools' client ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md), [ADR-0122](adr/0122-the-development-channel.md)); headless | `getrandom`, `slime-reflect`, `slime-serialize`, `thiserror`, `tracing` | Version 2: a game started with a token listens on the machine's own address and accepts only the token and its version; the host's controls, the world read and changed through reflection, scripted keys, captures of the game's image, its state, log and frames' times, and its run saved to a file and loaded from one ([ADR-0125](adr/0125-saves-per-scene.md)); a game started by a tool with a new token |
 | [`slime-color`](../crates/slime-color/README.md) | The color type of every API of the engine, `LinearColor`, and the sRGB transfer function, below every crate that holds a color ([ADR-0045](adr/0045-one-linear-color-type.md), [ADR-0079](adr/0079-the-engines-own-world.md)); headless | `slime-reflect` | Linear colors and their constructors, sRGB bytes decoded and encoded |
 | [`slime-tasks`](../crates/slime-tasks/README.md) | The engine's task pool: the threads on which the engine computes, with a priority for the work that a frame waits for ([ADR-0107](adr/0107-the-execution-model.md)); headless, on the standard library alone | none | One pool, the machine's logical cores but one; frame and background tasks, a thread always left for frame tasks; items computed in parallel, the calling thread taking its share |
 | [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, lit by directional, point and spot lights, seen from a camera, into render targets, and reports what a frame cost; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `slime-assets`, `slime-color`, `slime-reflect`, `slime-tasks`, `glam`, `thiserror`, `tracing` | Textures and scenes cooked by the asset pipeline, loaded onto the GPU, BC7 and BC5 among them, normal textures read by x and y; meshes with tangents, simple shapes made in code (a cube, a sphere, a square), glTF's metallic-roughness materials (five textures, masks, double-sided, values that change while a game runs, found by name in a loaded scene), a perspective camera, the depth test, up to 16 directional, point and spot lights in physical units (`KHR_lights_punctual`), a procedural sky computed on the CPU that surfaces reflect (image-based lighting) and that is drawn behind them with its sun's disc, the shadows of the first directional light that casts them (four cascades in one atlas, filtered over 5 × 5 texels) and of every spot light that casts them (a tile each of one atlas), mirrored instances drawn with their front faces, the scene drawn in HDR with its light exposed, at four samples per pixel (multisample anti-aliasing), an energy-conserving bloom, then tone mapped, the passes ordered by a render graph and recorded four to a submission, statistics with the GPU time of each pass; scenes loaded in the background, and again when their cooked data changed, keeping what did not change; the meshes a game draws kept by asset ID in a cache, loaded in batches as they are asked for, loaded again when their cooked data changes, dropped after a lost device ([ADR-0084](adr/0084-what-the-world-draws.md)); its shaders replaced while it runs |
 | [`slime-reflect`](../crates/slime-reflect/README.md) | Reflection: types described at run time, their values as plain data, read and changed by property path through a registry, compared and their differences applied ([ADR-0080](adr/0080-reflection-and-serialization.md), [ADR-0085](adr/0085-reflection.md)); headless | `glam`, `slime-reflect-derive` | `Reflect` and its derive, with stable names, aliases, versions and their upgrades, default values, skipped and transient fields, ranges and units; one value type, references to assets and entities kinds of their own; descriptions of types; a registry, explicit and recursive, that holds types with no Rust type behind them, checks values, sets their parts by path within their fields' ranges and lists their leaves; the standard types, glam's `Vec3`, `DVec3` and `Quat`; no files: `slime-serialize` writes and reads them |
 | [`slime-reflect-derive`](../crates/slime-reflect-derive/README.md) | The derive macro of reflection, `#[derive(Reflect)]`, which `slime-reflect` re-exports | `proc-macro2`, `quote`, `syn` | Structs and enums, their doc comments and attributes; generic types, lifetimes, unions and types without a name refused |
 | [`slime-serialize`](../crates/slime-serialize/README.md) | Serialization: values of reflected types written to TOML documents by the engine's own writer and read back, from earlier versions of their types too, and the same documents in a binary encoding of the engine's own ([ADR-0080](adr/0080-reflection-and-serialization.md), [ADR-0086](adr/0086-serialization.md), [ADR-0094](adr/0094-the-binary-encoding-of-documents.md)); headless | `slime-reflect`, `toml_edit`, `thiserror` | Documents of any registered type's value, whole or in part; the same bytes for the same value; versions written past 1 and earlier values brought forward by their types' upgrades; strict and lenient reading, errors by line, column and path, limits on size and depth; documents of several values, references to entities written as the names that a world gives them, and to assets as a document names them, their IDs unless it says otherwise; a document's layout read and its errors placed by the program that reads it, as a world reads scene files; the binary encoding written from a text and read through the same reader, its errors by byte |
-| [`slime-world`](../crates/slime-world/README.md) | The world: a game's entities, their components and their hierarchy, kept by the engine ([ADR-0079](adr/0079-the-engines-own-world.md)); headless | `slime-assets`, `slime-color`, `slime-reflect`, `slime-serialize`, `glam`, `thiserror`, `tracing` | Entities as handles of an index and a generation, the components attached to them stored by type, queries that read through an iterator or change through a closure ([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)); every change stamped with the world's tick, written through guards, so that readers ask what was added, changed or removed since they last read, and whether the hierarchy moved ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md), [ADR-0119](adr/0119-the-worlds-ticks-blocks-and-log.md)); parents and children, transforms with `f64` translations, a uniform scale and a stretch, and where each entity is in the world, always current ([ADR-0083](adr/0083-transforms-and-the-hierarchy.md)); scenes spawned as entities with persistent identities, glTF scenes and scene files whose placements of prefabs carry overrides, resolved by a library of scenes, and written back as scene files that keep their placements ([ADR-0089](adr/0089-scenes-and-prefabs.md), [ADR-0091](adr/0091-scene-documents-and-placements.md), [ADR-0092](adr/0092-a-world-written-back-as-a-scene.md)); what is drawn, meshes by asset ID, lights and hidden subtrees, and the transforms before the last fixed step of what moved during it ([ADR-0084](adr/0084-what-the-world-draws.md)); every component reflected, and listed, read and set by name and property path through the world's registry ([ADR-0085](adr/0085-reflection.md)); saves of what differs from the world as a game makes it at the start of a run, what it spawned while it ran saved as its scenes, loaded back ([ADR-0087](adr/0087-the-worlds-documents.md), [ADR-0093](adr/0093-saves-and-hot-reload-with-placements.md)); components marked driven, which saves and scene files written back leave as their author wrote them ([ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md)); commands that name their entities by persistent identity, applied by a host at the start of a frame ([ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)) |
+| [`slime-world`](../crates/slime-world/README.md) | The world: a game's entities, their components and their hierarchy, kept by the engine ([ADR-0079](adr/0079-the-engines-own-world.md)); headless | `slime-assets`, `slime-color`, `slime-reflect`, `slime-serialize`, `glam`, `thiserror`, `tracing` | Entities as handles of an index and a generation, the components attached to them stored by type, queries that read through an iterator or change through a closure ([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)); every change stamped with the world's tick, written through guards, so that readers ask what was added, changed or removed since they last read, and whether the hierarchy moved ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md), [ADR-0119](adr/0119-the-worlds-ticks-blocks-and-log.md)); parents and children, transforms with `f64` translations, a uniform scale and a stretch, and where each entity is in the world, always current ([ADR-0083](adr/0083-transforms-and-the-hierarchy.md)); scenes spawned as entities with persistent identities, glTF scenes and scene files whose placements of prefabs carry overrides, resolved by a library of scenes, and written back as scene files that keep their placements ([ADR-0089](adr/0089-scenes-and-prefabs.md), [ADR-0091](adr/0091-scene-documents-and-placements.md), [ADR-0092](adr/0092-a-world-written-back-as-a-scene.md)); what is drawn, meshes by asset ID, lights and hidden subtrees, and the transforms before the last fixed step of what moved during it ([ADR-0084](adr/0084-what-the-world-draws.md)); every component reflected, and listed, read and set by name and property path through the world's registry ([ADR-0085](adr/0085-reflection.md)); saves of what a run changed since the game settled the world, at the cost of what changed, the scenes that it spawned saved by their keys and assets, loaded back, what a run changed of a scene unloaded kept until it is spawned again, and entities adopted out of their scenes under keys of their own ([ADR-0087](adr/0087-the-worlds-documents.md), [ADR-0093](adr/0093-saves-and-hot-reload-with-placements.md), [ADR-0125](adr/0125-saves-per-scene.md)); components marked driven, which saves and scene files written back leave as their author wrote them ([ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md)); commands that name their entities by persistent identity, applied by a host at the start of a frame ([ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)) |
 | [`slime-world-render`](../crates/slime-world-render/README.md) | The bridge from a world to the renderer: builds, at each frame, the instances, the lights and the sky's environment that a world draws, from the GPU objects of an asset cache ([ADR-0084](adr/0084-what-the-world-draws.md)); neither the world nor the renderer depends on it | `slime-world`, `slime-render`, `slime-gfx`, `tracing` | Meshes drawn where the world draws them between fixed steps, those the cache does not hold asked for; lights at their entities, each named by its entity in the frame; hidden subtrees left out; the game's sky around the world's sun, given once |
 | [`slime-assets`](../crates/slime-assets/README.md) | The assets as games load them: asset IDs, cooked data and its manifest, read by ID from a directory of cooked data ([ADR-0069](adr/0069-the-asset-pipeline.md)); headless | `slime-reflect`, `ktx2`, `thiserror` | The asset ID and its text form, a UUID; cooked textures in KTX2 files ([ADR-0071](adr/0071-cooked-textures.md)), meshes, materials and scenes, their nodes' extras and typed components among them; cooked scene files, read as bytes ([ADR-0095](adr/0095-cooked-scene-files.md)); the manifest; reading them by ID; a watch of the manifest, for hot reload |
 | [`slime-cook`](../crates/slime-cook/README.md) | The cooker: turns source assets into cooked data before games run; a library and its program, which no game links ([ADR-0069](adr/0069-the-asset-pipeline.md)) | `slime-assets`, `slime-color`, `slime-reflect`, `slime-serialize`, `slime-tasks`, `slime-world`, `bevy_mikktspace`, `blake3`, `block_compression`, `glam`, `gltf`, `png`, `uuid`, `zune-jpeg`, `thiserror` | IDs for source files in metadata files beside them, read and written through `slime-serialize`, their check, and the IDs of the assets inside a file; PNG and JPEG images cooked into textures compressed in BC7 or BC5, every level computed; glTF files imported into meshes (MikkTSpace tangents), materials and scenes; the typed properties of their nodes; scene files checked and cooked into the binary encoding of documents ([ADR-0095](adr/0095-cooked-scene-files.md)); a directory cooked again only where it changed, with its manifest, once or at each change |
@@ -75,7 +75,7 @@ created only when code needs it.
 | [`slime-devui`](../crates/slime-devui/README.md) | The dev overlay: egui drawn over the engine's frames, fed with the engine's events, and its world panel; tooling, removed once something does at least as well ([ADR-0052](adr/0052-amend-roadmap-before-0-1.md), [ADR-0081](adr/0081-stage-5a-the-world.md)) | `egui`, `egui-wgpu`, `slime-assets`, `slime-color`, `slime-gfx` (with its `wgpu` feature), `slime-platform`, `slime-reflect`, `slime-world` | Panels built when a frame is extracted and drawn over it when it is rendered; a world's entities listed by name and their components edited through reflection, each edit returned as a command for the caller to send; no clipboard or input methods |
 | [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-assets`, `slime-color`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `slime-world`, `slime-world-render`, `png`, `tracing`; for the tests, `slime-cook` and `gltf` | `hello`, `headless`, `window`, `offscreen`, `scene`, which draws a cooked scene, `world`, which spawns a yard of prefabs from a cooked scene file and draws it from a world; the reference image tests, and tests that cook glTF files and draw them |
 | [`slime-benches`](../benches/README.md) | The engine's benchmarks, a program whose figures [`measurements.md`](measurements.md) keeps; a client of the engine through its public API only, not part of the engine ([ADR-0104](adr/0104-the-build-ci-and-measurements.md)) | `slime-app`, `slime-assets`, `slime-color`, `slime-cook`, `slime-gfx`, `slime-render`, `slime-world`, `slime-world-render` | The scenarios that its README lists, of rendering, of the world and of loading |
-| [`hunnawood`](../games/hunnawood/README.md) | Hunna Wood, the game that every stage grows from Stage 4a on; a client of the engine through its public API only, not part of the engine ([ADR-0055](adr/0055-games-in-the-workspace.md), [ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)) | `slime-app`, `slime-assets`, `slime-color`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-reflect`, `slime-render`, `slime-serialize`, `slime-world`, `slime-world-render`, `tracing` | A library, its rules as a simulation and what the player sees as a presentation, and its program ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md), [ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)); a forest zone, a scene file that places the land and six lanterns of one prefab, and its hero, read from cooked data and spawned in the game's world, its colliders, markers and lights' times of day as the game's components, typed properties of their nodes, the camera behind the hero along where the player looks, the hero's movement and its collisions with boxes turned about the vertical and cylinders, a key that opens a door, a campfire that flickers, the zone drawn while it loads, game time held until the zone is drawn, and paused, slowed down and stepped from the dev overlay, the run kept after a lost GPU device, the run carried into the scenes changed on disk, and the shaders loaded again when their files change (`--watch`); the run saved on F5 and on quit, loaded on F9 and resumed on start, a save checked before it is resumed and held by one copy of the game at a time ([ADR-0088](adr/0088-saving-and-resuming-a-run.md), [ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)); the development channel in its default build ([ADR-0122](adr/0122-the-development-channel.md)) |
+| [`hunnawood`](../games/hunnawood/README.md) | Hunna Wood, the game that every stage grows from Stage 4a on; a client of the engine through its public API only, not part of the engine ([ADR-0055](adr/0055-games-in-the-workspace.md), [ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)) | `slime-app`, `slime-assets`, `slime-color`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-reflect`, `slime-render`, `slime-serialize`, `slime-world`, `slime-world-render`, `tracing` | A library, its rules as a simulation and what the player sees as a presentation, and its program ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md), [ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)); a forest zone, a scene file that places the land and six lanterns of one prefab, and its hero, read from cooked data and spawned in the game's world, its colliders, markers and lights' times of day as the game's components, typed properties of their nodes, the camera behind the hero along where the player looks, the hero's movement and its collisions with boxes turned about the vertical and cylinders, a key that opens a door, a campfire that flickers, the zone drawn while it loads, game time held until the zone is drawn, and paused, slowed down and stepped from the dev overlay, the run kept after a lost GPU device, the run carried into the scenes changed on disk, and the shaders loaded again when their files change (`--watch`); the run saved on F5 and on quit, loaded on F9 and resumed on start, a save checked before it is resumed and held by one copy of the game at a time ([ADR-0088](adr/0088-saving-and-resuming-a-run.md), [ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md), [ADR-0125](adr/0125-saves-per-scene.md)); the development channel in its default build ([ADR-0122](adr/0122-the-development-channel.md)) |
 
 ## Dependency rules
 
@@ -980,88 +980,110 @@ reads and writes its metadata files so, as values of `Metadata`.
 
 ### Saving and loading a world
 
-A save holds what differs between a world and `start`, the world that the game makes at the start
-of a run, from the same scenes and as it prepares them ([ADR-0087](adr/0087-the-worlds-documents.md)).
-Entities are matched by their persistent identities: a scene's entity by its key and its path
-through the placements, `zone/door`, `zone/lamp 3/light`; one created outside a scene by its number,
+A game *settles* its world once it made the start of a run, and again once it prepared a scene that
+it spawned since (`World::settle`): what the world holds then is its *base*, which saves compare
+it with ([ADR-0125](adr/0125-saves-per-scene.md)). From then on the world keeps a copy of each
+value at its first change, the parent before an entity's first move, and the identity of each
+entity settled that the run destroys: a save reads them, and costs what changed. Entities are
+matched by their persistent identities: a scene's entity by its key and its path through the
+placements, `zone/door`, `zone/lamp 3/light`; one created outside a scene by its number,
 `created/3`, or by the key that the game gave it, `camera` (`World::spawn_keyed`). What the run
 created takes, when its save loads, the numbers that follow the count of the world it is loaded
-into ([ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)); a start that created, without
-a key, entities that saves hold cannot be saved against
+into ([ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)); a world whose start created,
+without a key, entities that saves hold cannot be saved
 ([ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md)). A save is one
-document of several values, written through `slime-serialize`'s
-`Composer` and read through its `Document`, references to entities written as persistent
-identities. What the world spawned while it ran, a scene under a key or a placement made
-while it ran, is saved as its scene, by its asset ID, and what differs from it; loading spawns it
-again through a scene library ([ADR-0093](adr/0093-saves-and-hot-reload-with-placements.md)).
+document of several values, written through `slime-serialize`'s `Composer` and read through its
+`Document`, references to entities written as persistent identities.
+
+A scene unloaded (`World::unload_scene`), or replaced by another under its key
+(`World::spawn_scene`), leaves behind what the run changed of it, kept by its key and its asset, its
+references as identities, but what its `Persistence` resets; spawning it again under its key and
+settling it applies them. An entity adopted (`World::adopt`) leaves its scene for a key of its own,
+its former identity kept, so that a level replaces another without taking it along.
 
 ```text
-world.save(&start, &about)                           slime-world
+world.settle()                                       slime-world: the base; the copies and the
+                                                     identities of what was destroyed forgotten,
+                                                     but what was adopted out of a scene; a scene
+                                                     spawned again takes back what the world kept
+                                                     of it when it unloaded it, what referred to a
+                                                     record adopted away, or was under it, given to
+                                                     the entity adopted
+
+world.save(&about)                                   slime-world
 ├── about                                            what the game says of the save, which
 │                                                    World::about reads alone
-├── layout, next_created, [start], [scenes]          the save's layout; the world's count of
-│                                                    created entities; the count of what start
-│                                                    created outside scenes, with a fingerprint of
-│                                                    those entities in layout 3; each scene that
-│                                                    start spawned and that no other replaced: its
-│                                                    key, name and a fingerprint of what it
-│                                                    resolves to, prefabs included
-├── [spawned]                                        what the world spawned while it ran, by its
-│                                                    root, a key or created/N: its scene's asset
-│                                                    ID, name and fingerprint, and the identity
-│                                                    that a scene file written back gives a
-│                                                    placement; its entities compared with what
-│                                                    the scene spawns
-├── [removed], [parents]                             the entities of start, or of what was
-│                                                    spawned, gone; the components gone, the
-│                                                    parents changed
-├── [created]                                        each entity created since, whole, under its
-│                                                    number or its key: its parent, components and,
-│                                                    if a scene file written back holds it, the
-│                                                    identity that the file gives it
+├── layout, next_created, [start], [adopted]         the save's layout, 5; the world's count of
+│                                                    created entities; the count that the start
+│                                                    reached; the former identities of what the
+│                                                    run adopted, with their scenes' assets
+├── [scenes], [spawned]                              each scene under a key: its asset ID, name
+│                                                    and a fingerprint of what it resolves to,
+│                                                    prefabs included; each placement of which
+│                                                    the save holds an entity, by its root, with
+│                                                    the identity that a scene file written back
+│                                                    gives it
+├── [removed], [parents]                             the entities settled that the run destroyed;
+│                                                    the components removed; the parents changed
 ├── [added], [changed]                               the components added, whole; what changed of
-│                                                    the others, as parts (Registry::difference),
-│                                                    but of those that their entity marks driven
-│                                                    in start and still in the world
+│                                                    the others since their base, as parts
+│                                                    (Registry::difference), but of those that
+│                                                    their entity marks driven at its base and
+│                                                    still
+├── [created]                                        what the run created, and adopted, whole:
+│                                                    parent, components and, if a scene file
+│                                                    written back holds it, the identity that the
+│                                                    file gives it
+├── [unloaded.<key>.<asset>]                         what the world keeps of each scene unloaded,
+│                                                    laid out as the sections above
 └── Composer::finish                                 slime-serialize: the same worlds, the same
                                                      bytes; Unsaved entities and transient fields
                                                      left out
 
-start.load(text, &mut scenes)                        a world the game made as at the start of a run
+start.load(text, &mut scenes, &mut prepare)          a world the game made as at the start of a run,
+│                                                    settled first if it never was
 ├── read_layout                                      first reading: all that can refuse the save,
-│                                                    before the world changes: its layout and
-│                                                    sections, what it spawns and creates, each
-│                                                    identity once, the run's numbers following
-│                                                    the world's count, its scenes, what it
-│                                                    removes, the parents
-├── spawn what ran                                   what the world spawned while it ran, each
-│                                                    scene as the library resolves it now, under
-│                                                    the same identity; another scene under its
-│                                                    key has its entities destroyed first, what is
-│                                                    under them and not of it kept; a placement
-│                                                    that the world has under the identity that a
-│                                                    scene file gave it, after the scenes, is
-│                                                    that one, not placed again; what it cannot
-│                                                    give set aside
-├── create                                           the created entities spawned under their
-│                                                    keys or numbers, so that references can name
-│                                                    them; one that the world has under the
-│                                                    identity that a scene file gave it is that
-│                                                    entity
+│                                                    before the world changes: its layout, which
+│                                                    must be 5, and sections, what it spawns,
+│                                                    adopts and creates, each identity once, the
+│                                                    run's numbers following the world's count,
+│                                                    what it removes, the parents, what it keeps
+│                                                    of scenes unloaded
+├── unload, spawn what ran                           the scenes that the run unloaded unloaded;
+│                                                    each scene that the world lacks, or holds
+│                                                    another in place of, as the library resolves
+│                                                    it now, under its key, the world's first
+│                                                    destroyed, what is under it and not of it
+│                                                    kept; the placements, one that the world has
+│                                                    under the identity that a scene file gave it
+│                                                    being that one; what it cannot give set aside
+├── adopt again                                      what the run adopted and holds, where the
+│                                                    world holds its former entity, of the same
+│                                                    scene: adopted again, but what the run
+│                                                    destroyed of it
+├── create                                           the created and adopted entities spawned
+│                                                    under their keys or numbers, so that
+│                                                    references can name them; one that the world
+│                                                    has under the identity that a scene file
+│                                                    gave it is that entity
 ├── read_values                                      second reading: the components' values,
 │                                                    references resolved; what the program does
 │                                                    not know left out with a warning, what
 │                                                    cannot be read set aside
+├── prepare, settle                                  the game prepares each scene spawned, and the
+│                                                    world is settled
 └── apply                                            removed, parents, added, changed
                                                      (Registry::overlay): what the world no longer
-                                                     has set aside, and what the save holds of the
-                                                     start's numbered entities when start created
-                                                     others; the scenes changed since named
+                                                     has set aside; the scenes changed since named;
+                                                     then what the run kept of a scene that it
+                                                     spawned again and had not settled
 
-run.carry(&old_start, start, &mut scenes)            hot reload: the run saved against the start
-                                                     world made before the files changed, and
-                                                     loaded into the one made from them
+run.carry(start, &mut scenes, &mut prepare)          hot reload: the run saved, and loaded into the
+                                                     world made from the files as they are now
 ```
+
+The game's simulation saves and loads a run to a file when a tool asks through the development
+channel (`Simulation::save` and `Simulation::load`, see "The development channel" below).
 
 ### Losing the GPU
 
@@ -1163,11 +1185,12 @@ Client::connect(address, token)
                                                  answered as no request
 Client::request(request) ──────────────────────▶ the connection's thread queues it for the game
                                                  at the start of the next frame,
-                                                 DevChannel::answer(host):
+                                                 DevChannel::answer(host, simulation):
                                                  ├── the steps asked for that have all run: Done
                                                  ├── each request queued, answered with the host's
-                                                 │   world, clocks and input; a step once its
-                                                 │   steps have run, over the next frames
+                                                 │   world, clocks and input, a save or a load by
+                                                 │   the simulation; a step once its steps have
+                                                 │   run, over the next frames
                                                  └── a capture after the frame's render, from the
                                                      window's image, before it is shown
 reply, and an image's pixels ◀────────────────── written by the connection's thread

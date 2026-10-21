@@ -89,13 +89,14 @@ pub trait QueryMut: sealed::Sealed {
     #[doc(hidden)]
     fn driver<'b>(borrow: &'b Self::Borrow<'_>) -> &'b [u32];
 
-    /// The slot's item, its guards stamping with `tick`; the part that changes a transform takes
-    /// `marks`, which its first write marks.
+    /// The slot's item, its guards stamping with `tick` and keeping the bases of an entity settled
+    /// at `base`; the part that changes a transform takes `marks`, which its first write marks.
     #[doc(hidden)]
     fn get<'a>(
         borrow: &'a mut Self::Borrow<'_>,
         slot: u32,
         tick: Tick,
+        base: Tick,
         marks: &mut Option<TransformMarks<'a>>,
     ) -> Option<Self::Item<'a>>;
 }
@@ -140,6 +141,7 @@ impl<T: Component> QueryMut for &T {
         storage: &'a mut &Storage<T>,
         slot: u32,
         _: Tick,
+        _: Tick,
         _: &mut Option<TransformMarks<'a>>,
     ) -> Option<&'a T> {
         storage.get(slot)
@@ -169,6 +171,7 @@ impl<T: Component> QueryMut for &mut T {
         storage: &'a mut &mut Storage<T>,
         slot: u32,
         tick: Tick,
+        base: Tick,
         marks: &mut Option<TransformMarks<'a>>,
     ) -> Option<Mut<'a, T>> {
         let marks = if TypeId::of::<T>() == TypeId::of::<Transform>() {
@@ -176,7 +179,7 @@ impl<T: Component> QueryMut for &mut T {
         } else {
             None
         };
-        storage.get_mut(slot, tick, marks)
+        storage.get_mut(slot, tick, base, marks)
     }
 }
 
@@ -239,9 +242,10 @@ macro_rules! tuples {
                 borrow: &'a mut Self::Borrow<'_>,
                 slot: u32,
                 tick: Tick,
+                base: Tick,
                 marks: &mut Option<TransformMarks<'a>>,
             ) -> Option<Self::Item<'a>> {
-                Some(($($part::get(&mut borrow.$index, slot, tick, marks)?,)+))
+                Some(($($part::get(&mut borrow.$index, slot, tick, base, marks)?,)+))
             }
         }
     };

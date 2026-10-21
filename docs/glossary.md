@@ -6,10 +6,12 @@ game-development vocabulary is not repeated here. Entries are in alphabetical or
 **Adapter.** A GPU as wgpu sees it, through one graphics API: a discrete or integrated GPU, or a
 software driver such as lavapipe or WARP. The engine opens one adapter's *device* to use it.
 
-**Adoption (entity).** A game taking an entity out of the scene that spawned it and giving it a
-key of its own, so that it outlives the scene, as a companion who follows the hero from one level
-to the next; its former identity is written, so that saves and references follow it
-([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)). Decided, not built yet.
+**Adoption (entity).** A game taking an entity out of the scene that spawned it, with its
+descendants whose identities are under its own, and giving it a key of its own
+(`slime_world::World::adopt`), so that it outlives the scene, as a companion who follows the hero
+from one level to the next; its *former identity* is kept, and saves keep it, so that references
+written before find it ([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md),
+[ADR-0125](adr/0125-saves-per-scene.md)).
 
 **ADR (Architecture Decision Record).** A short document in [`docs/adr/`](adr/README.md) that
 records one decision: its context, the decision, the alternatives rejected and the consequences.
@@ -52,6 +54,11 @@ recently used first, when the cache passes its budget of memory
 **Attachment (bone).** A component that hangs an entity on a bone of another entity's skeleton,
 naming the entity and the bone; saves and scene files hold it as any reference
 ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)). Decided, not built yet.
+
+**Base (save).** What a *world* held when the game *settled* it, which its *saves* compare it
+with: the world keeps a copy of each value at its first change after its entity was settled, and
+the identity of each entity settled that the run destroys, so that a save costs what changed
+([ADR-0125](adr/0125-saves-per-scene.md)).
 
 **Binary encoding (documents).** The engine's own encoding of a *document* in bytes, without its
 types: its keys and texts once each, then its values, each a tag and what it holds. A reader reads it
@@ -293,9 +300,11 @@ textures a shader reads or how large a buffer is: WebGPU's default limits. A dev
 every limit that its adapter offers, and an adapter below the floor is refused, the limit named
 (`slime_gfx::GfxError::BelowFloor`, [ADR-0114](adr/0114-hardware-tiers-and-the-gpus-limits.md)).
 
-**Former identity.** What an entity was called before the editor moved it out of its file, which
-the file that holds it then writes, so that saves, overrides and references that named it find it
-([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)). Decided, not built yet.
+**Former identity.** What an entity was called before it left its scene: before a game *adopted* it,
+which the world keeps and saves write, so that references written before find it
+([ADR-0125](adr/0125-saves-per-scene.md)); or before the editor moved it out of its file, which the
+file that holds it then writes, so that saves, overrides and references that named it find it
+([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)), decided and not built yet.
 
 **Frame.** One iteration of the main loop. Its *delta* is the time it represents: the time since
 the previous frame, limited to a maximum (`slime_app::time::FrameClock`).
@@ -636,10 +645,13 @@ GPU; the renderer makes nine such comparisons over 5 × 5 texels, placed and wei
 proposed, so that a shadow's edge fades smoothly over about six texels
 ([ADR-0063](adr/0063-a-smoother-shadow-filter.md)).
 
-**Persistence (save).** What becomes of what a scene or an entity changed from what its scene
-spawned: kept for good in saves, reset when the scene loads again or when the game signals it, or
-never saved
-([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)). Decided, not built yet.
+**Persistence (save).** What becomes of what the run changed of a scene's entity when the scene is
+*unloaded*, as the component `slime_world::Persistence` says it, on the scene's root for its scene
+or on an entity for itself: *persistent*, kept and applied again when the scene is spawned again, a
+door broken open; *reset*, forgotten, the scene spawned again giving the entity as its file does, an
+enemy that comes back. What is never saved is *Unsaved* or *driven*
+([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md),
+[ADR-0125](adr/0125-saves-per-scene.md)).
 
 **Persistent identity.** How files and saves name an *entity*: the key that a scene was spawned
 under, then the path of the IDs local to each file through the *placements* that placed it, such as
@@ -799,18 +811,19 @@ tests coverage and depth; not the *sample* of a stage.
 **Sampler.** How shaders read a texture: nearest or linear filtering, and what lies beyond its
 edges (repeat, mirror or clamp) (`slime_gfx::Sampler`).
 
-**Save (game).** What differs between a *world* and its *start world*, written to a file: entities
-removed and created, components added, removed and changed, parents changed, entities named by
-their *persistent identities*; it begins with what the game says of it, such as what it was made
-on, which can be read alone, and how many entities its start world created outside scenes. What
-the world spawned while it ran is saved as its scenes, with what differs from them. Loading spawns
-those scenes again, then applies the differences, to a start world spawned from the scenes as they
-are now, so that a game update that changes a scene reaches the saves made before; what the run
-created takes the numbers that follow that world's count
+**Save (game).** What a run changed of a *world* since the game *settled* it, its *base*, written to
+a file: the scenes spawned under keys and the *placements*, by their assets, entities removed and
+created, components added, removed and changed, parents changed, entities named by their
+*persistent identities*, and what the world keeps of the scenes that it *unloaded*; it begins with
+what the game says of it, such as what it was made on, which can be read alone. Loading applies it
+to a *start world* made from the scenes as they are now, spawning the scenes that it lacks, so that
+a game update that changes a scene reaches the saves made before; what the run created takes the
+numbers that follow that world's count. It costs what changed
 ([ADR-0079](adr/0079-the-engines-own-world.md),
 [ADR-0087](adr/0087-the-worlds-documents.md), [ADR-0088](adr/0088-saving-and-resuming-a-run.md),
 [ADR-0093](adr/0093-saves-and-hot-reload-with-placements.md),
-[ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)).
+[ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md),
+[ADR-0125](adr/0125-saves-per-scene.md)).
 
 **Scene (cooked).** A glTF file's node hierarchy as the cooker makes it
 (`slime_assets::CookedScene`): each node's name, parent, transform, meshes, light, `extras` and
@@ -845,6 +858,11 @@ whose target the *prefab* or the world no longer has (`slime_world::SetAside`,
 [ADR-0089](adr/0089-scenes-and-prefabs.md)). In *Hunna Wood*, a save that is not resumed is set
 aside too: renamed beside the save's file, so that the next save does not write over it
 ([ADR-0088](adr/0088-saving-and-resuming-a-run.md)).
+
+**Settle (world).** Make what a *world* holds the *base* of its *saves*
+(`slime_world::World::settle`): a game settles its world once it made the start of a run, and again
+once it prepared a scene that it spawned while the run goes on, so that what it adds to the scene as
+it spawns it is not saved ([ADR-0125](adr/0125-saves-per-scene.md)).
 
 **Shadow acne.** Speckles of shadow that a surface casts on itself where its depth and the one
 stored in the *shadow map* differ only by rounding or by the map's texels; a *depth bias* and a
@@ -915,9 +933,9 @@ later takes a letter (Stage 3c), so that the numbers cited elsewhere stay right.
 brings bytes into a texture or a buffer that the GPU alone reads fast. The *uploader* keeps them
 from one upload to the next.
 
-**Start world.** The *world* as a game makes it at the start of a run, from the scenes it spawns
-and as it prepares them, which a *save* holds the differences from and is loaded into
-(`slime_world::World::save`, [ADR-0087](adr/0087-the-worlds-documents.md)).
+**Start world.** The *world* as a game makes it at the start of a run, from the scenes it spawns and
+as it prepares them, then *settles*: the *base* of its *saves*, and the world that a save is loaded
+into (`slime_world::World::load`, [ADR-0125](adr/0125-saves-per-scene.md)).
 
 **Storage buffer.** A buffer that shaders read as an array they index, `var<storage, read>` in WGSL
 (`slime_gfx::StorageBuffer`): the renderer's instances find their values in one by their number
@@ -1037,6 +1055,11 @@ untyped `extras` ([ADR-0095](adr/0095-cooked-scene-files.md)).
 
 **Uniform buffer.** A buffer of values that a whole draw reads, such as a camera's matrices,
 declared `var<uniform>` in WGSL and read through a *bind group* (`slime_gfx::UniformBuffer`).
+
+**Unload (scene).** Destroy the entities of a scene spawned under a key and forget it, keeping what
+the run changed of it, but what *resets*, until the game spawns the same scene under the key again
+and *settles* it (`slime_world::World::unload_scene`); spawning another scene under the key unloads
+the one before ([ADR-0125](adr/0125-saves-per-scene.md)).
 
 **Unsaved (entity).** An entity that holds the `Unsaved` component, or whose ancestor does: saves
 leave it out, with its descendants, as they do what a game makes again at each run, such as an

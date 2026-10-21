@@ -74,55 +74,53 @@ and so does the button of the dev overlay (F1).
 
 With `--watch`, the game reads the manifest of its cooked data now and then
 (`slime_assets::ManifestWatch`), its view once the zone is shown and nothing loads, and its rules at
-each frame, beside `slime-cook watch` running on the zone's
-sources ([`CONTRIBUTING.md`](../../CONTRIBUTING.md#changing-assets-while-a-game-runs),
-[ADR-0076](../../docs/adr/0076-hot-reload-of-cooked-data.md)): the meshes, materials and
-textures that changed load again, the others are kept, and those drawn stay as they were until all
-of them are loaded. When a scene changed, the zone's scene file, the land, the lantern or the hero,
-the game makes a new game of the scenes as they are now, and compares its zone's layout with the
-layout of a new game of the scenes before ([`src/saves.rs`](src/saves.rs)), number by number,
-within a small tolerance (`zone::SAME_WITHIN`), whatever the order of the colliders. When the
-layout changed, a collider, the start, the key, the door, the campfire, the terrace or the bounds,
-the run starts again in the new game, as R does. Otherwise the run is carried into it through a save: what
-the run changed is saved against the game before and loaded into the new one, the hero where it
-stood, the key, the door and the time of day as they were
-([ADR-0093](../../docs/adr/0093-saves-and-hot-reload-with-placements.md)); what the run changed of
-the layout itself, a collider through the world panel, does not start it again. What moved or went
-changes at once, and what is new shows once its meshes are loaded, so that the zone changes in parts
-rather than whole. Scenes that cannot be played leave the run as it is, while the meshes, materials
-and textures that changed load all the same: the rules and the view follow the cooked data apart
-([ADR-0121](../../docs/adr/0121-a-game-as-a-simulation-and-a-presentation.md)). A reload that fails
-keeps what is drawn; the log says why.
-The same option reads the renderer's shaders, in `crates/slime-render/src`, when they change, and
-draws with them from the next frame; a shader that does not compile leaves the frames as they were,
-and the log says where it fails ([ADR-0077](../../docs/adr/0077-hot-reload-of-shaders.md)).
+each frame, beside `slime-cook watch` running on the zone's sources
+([`CONTRIBUTING.md`](../../CONTRIBUTING.md#changing-assets-while-a-game-runs),
+[ADR-0076](../../docs/adr/0076-hot-reload-of-cooked-data.md)): the meshes, materials and textures
+that changed load again, the others are kept, and those drawn stay as they were until all of them
+are loaded. When a scene changed, the zone's scene file, the land, the lantern or the hero, the game
+makes a new game of the scenes as they are now, and compares its zone's layout with the layout of
+the run's start, which it keeps ([`src/saves.rs`](src/saves.rs)), number by number, within a small
+tolerance (`zone::SAME_WITHIN`), whatever the order of the colliders. When the layout changed, a
+collider, the start, the key, the door, the campfire, the terrace or the bounds, the run starts
+again in the new game, as R does. Otherwise the run is carried into it through a save: what the run
+changed is saved and loaded into the new one, the hero where it stood, the key, the door and the
+time of day as they were ([ADR-0125](../../docs/adr/0125-saves-per-scene.md)); what the run changed
+of the layout itself, a collider through the world panel, does not start it again. What moved or
+went changes at once, and what is new shows once its meshes are loaded, so that the zone changes in
+parts rather than whole. Scenes that cannot be played leave the run as it is, while the meshes,
+materials and textures that changed load all the same: the rules and the view follow the cooked data
+apart ([ADR-0121](../../docs/adr/0121-a-game-as-a-simulation-and-a-presentation.md)). A reload that
+fails keeps what is drawn; the log says why. The same option reads the renderer's shaders, in
+`crates/slime-render/src`, when they change, and draws with them from the next frame; a shader that
+does not compile leaves the frames as they were, and the log says where it fails
+([ADR-0077](../../docs/adr/0077-hot-reload-of-shaders.md)).
 
 The game resumes its save when it starts, and saves the run when it quits, however it quits; F5
 saves the run, and F9 loads the save in place of the run, the hero at once where the save puts it
 ([ADR-0088](../../docs/adr/0088-saving-and-resuming-a-run.md)). `--new` starts a new run, whose
 first save, on F5 or on quitting, writes over the save, as after R. The save is one file,
 `hunnawood/save.toml` in the user's data directory: `$XDG_DATA_HOME`, else `~/.local/share`, on
-Linux; `%APPDATA%` on Windows; `--save <file>` names another. It is text, which says what differs
-between the run and a new game by day (`slime_world::World::save`), and begins with what it says of
-itself: the version of the game that wrote it, and the layout of the zone it was made on, its
-numbers.
+Linux; `%APPDATA%` on Windows; `--save <file>` names another. It is text, which says what the run
+changed of a new game by day (`slime_world::World::save`), and begins with what it says of itself:
+the version of the game that wrote it, and the layout of the zone it was made on, its numbers.
 
 A save is checked before it is resumed. One that is not resumed is set aside, so that the next save
 does not write over it, and a new run starts. It is set aside under a name that says why, and never
 in place of one set aside before, which keeps its own: `save.toml.later-version`, then
 `save.toml.later-version.2`, and on. A save is not resumed when it cannot be read, not TOML, of a
 later version of the format, or larger than the largest save that the engine reads
-(`slime_serialize::MAX_SIZE`), which the game does not read further (`unreadable`); when a later
-version of the game wrote it (`later-version`); when it was made on another layout of the zone, as
-hot reload starts the run again when the layout changes, or says none, as a file that is not a save
-(`other-layout`), the saves of 0.4 compared by the fingerprint of their layout that they say; when
-it holds what this version of the game does not know, a component, a field or a value that a later
-version adds, or that an update removed without an upgrade, which writing it back would lose
-(`unknown-content`); and when the run it holds
-cannot be played, as when it removes the hero or the key (`unplayable`). One that can be neither
-read nor set aside, locked by another program, is kept, and so is a directory in the save's place,
-which the game neither reads nor moves; the run is not saved then: the log says so, and `--save`
-names another file.
+(`slime_serialize::MAX_SIZE`), which the game does not read further (`unreadable`); when an earlier
+version of the engine wrote it, whose saves this one no longer reads, as those of the versions
+before 0.5 (`earlier-version`); when a later version of the game wrote it (`later-version`); when it
+was made on another layout of the zone, as hot reload starts the run again when the layout changes,
+or says none (`other-layout`); when it holds what this version of the game does not know, a
+component, a field or a value that a later version adds, or that an update removed without an
+upgrade, which writing it back would lose (`unknown-content`); and when the run it holds cannot be
+played, as when it removes the hero or the key (`unplayable`). One that can be neither read nor set
+aside, locked by another program, is kept, and so is a directory in the save's place, which the game
+neither reads nor moves; the run is not saved then: the log says so, and `--save` names another
+file.
 
 One copy of the game at a time holds the save: it locks a file beside it, `save.toml.lock`, while it
 runs, which the system lets go however the game ends, and leaves on the disk. Another copy started
@@ -134,16 +132,17 @@ was saved or loaded, and where the run stands. When Windows ends the session, th
 without quitting, and the run since the last F5 is lost (see the known debt in
 [`docs/PLAN.md`](../../docs/PLAN.md#known-debt)).
 
-[`fixtures/save.toml`](fixtures/save.toml) is a save of 0.4 made at the chapel's portal, at night,
-after resting by the campfire, which every later version must resume: a test resumes it and walks on
-to the terrace, and `scripts/check.sh` starts the game from a copy of it. It says the fingerprint of
-its layout, where later saves say their layout's numbers. A change of the zone's layout
-makes it a save of another layout, which the test then refuses: make it again at the same place,
-with `cargo run -p hunnawood -- --new --save games/hunnawood/fixtures/save.toml`, resting by the
-campfire and walking to the portal, then quitting without moving, which saves it, and say so in the
-commit. [`fixtures/save-0.3.toml`](fixtures/save-0.3.toml) is the fixture of 0.3, made on the zone
-before it was made of prefabs, whose identities name entities that are gone or elsewhere: a test
-sets it aside as a save of another layout, and a new run starts.
+[`fixtures/save.toml`](fixtures/save.toml) is a save made at the chapel's portal, at night, after
+resting by the campfire, which every later version must resume: a test resumes it and walks on to
+the terrace, and `scripts/check.sh` starts the game from a copy of it. It was made by the walk that
+the game's tests script to the portal (`walk_to_the_portal_at_night`), when the engine's saves took
+their layout of 0.5 ([ADR-0125](../../docs/adr/0125-saves-per-scene.md)). A change of the zone's
+layout makes it a save of another layout, which the test then refuses: make it again at the same
+place, with `cargo run -p hunnawood -- --new --save games/hunnawood/fixtures/save.toml`, resting by
+the campfire and walking to the portal, then quitting without moving, which saves it, and say so in
+the commit. [`fixtures/save-0.3.toml`](fixtures/save-0.3.toml) is the fixture of 0.3, made on the
+zone before it was made of prefabs, whose identities name entities that are gone or elsewhere: a
+test sets it aside as a save of an earlier version of the engine, and a new run starts.
 
 | Key | Does |
 |---|---|
@@ -199,15 +198,16 @@ under a name such as `hunnawood::Collider`, as every component is
 ([ADR-0085](../../docs/adr/0085-reflection.md)), and `Game::spawn` registers them all in the world
 before it spawns the zone.
 
-Since the run is in the world, a save is the world's: what differs between the world and a new game
-by day, made again from the scenes when the game saves, and a run resumed is a new game by day to
-which the save is applied ([ADR-0087](../../docs/adr/0087-the-worlds-documents.md)), as a run
-carried into scenes changed on disk is. A new game by day, whatever `--night` says, so that a save
-made at night is resumed at night. The fire flickers in the frame that the view draws, not in the
-world, which holds its light as the zone gives it. A save holds where the player looks; a run of a
-save made before the game kept it looks where the hero faces. F9 makes a new world, in place of the
-host's, and a new `Game` with it; the view, which holds no entity, draws it from the next frame, and
-the world panel finds the entity it showed again by its identity.
+Since the run is in the world, a save is the world's: what the run changed of the new game by day
+that the game made and settled, and a run resumed is a new game by day to which the save is applied
+([ADR-0125](../../docs/adr/0125-saves-per-scene.md)), as a run carried into scenes changed on disk
+is. The game keeps the layout of that new game's zone, which its saves say. A new game by day,
+whatever `--night` says, so that a save made at night is resumed at night. The fire flickers in the
+frame that the view draws, not in the world, which holds its light as the zone gives it. A save
+holds where the player looks; a run of a save made before the game kept it looks where the hero
+faces. F9 makes a new world, in place of the host's, and a new `Game` with it; the view, which holds
+no entity, draws it from the next frame, and the world panel finds the entity it showed again by its
+identity.
 
 | Module | What it holds |
 |---|---|
@@ -382,15 +382,15 @@ which every lantern follows but for what the scene file overrides; the colliders
 and the moon in the night's sky. In `src/rules.rs`: a walk along the path that rests by the
 campfire, is saved at the chapel's portal and resumed in a new game, then takes the key, opens the
 door and reaches the terrace, and starts again from the same state; the save committed as a fixture,
-resumed, from which the walk goes on to the terrace, and the fixture of 0.3, a save of another
-layout; a run changed (an oak removed, a lantern dimmed, the key hidden), saved and resumed, which
-saves again to the same bytes and goes on the same for 300 steps; a walk to the door without the
-key, which it stops; and the hero kept out of every collider. In `src/view.rs`: the campfire's
-light, which flickers, and the materials that glow. In `src/simulation.rs`: the fixture of 0.3, set
-aside, which leaves no run to resume. They need the cooked zone, so `cargo test` leaves them out:
-`scripts/check.sh` fetches and cooks it, then runs them, and after the commands above, `cargo test
--p hunnawood -- --ignored` does. Two more are measurements: what reading, resolving and spawning the
-zone cost, and, on a GPU, what building a frame of the zone's world costs on the CPU.
+resumed, from which the walk goes on to the terrace, and the fixture of 0.3, a save of an earlier
+version of the engine; a run changed (an oak removed, a lantern dimmed, the key hidden), saved and
+resumed, which saves again to the same bytes and goes on the same for 300 steps; a walk to the door
+without the key, which it stops; and the hero kept out of every collider. In `src/view.rs`: the
+campfire's light, which flickers, and the materials that glow. In `src/simulation.rs`: the fixture
+of 0.3, set aside, which leaves no run to resume. They need the cooked zone, so `cargo test` leaves
+them out: `scripts/check.sh` fetches and cooks it, then runs them, and after the commands above,
+`cargo test -p hunnawood -- --ignored` does. Two more are measurements: what reading, resolving and
+spawning the zone cost, and, on a GPU, what building a frame of the zone's world costs on the CPU.
 
 ## Dependencies
 

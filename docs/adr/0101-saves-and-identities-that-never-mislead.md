@@ -10,9 +10,10 @@
   (`Unsaved` in a level written back) and [0093](0093-saves-and-hot-reload-with-placements.md) (a
   change of level, and the numbers of what a run spawned); amended by
   [0109](0109-stable-references-and-undo.md) (what a start creates in code has a key),
-  [0112](0112-levels-saves-and-worlds-for-open-worlds.md) (an entity that outlives its scene) and
+  [0112](0112-levels-saves-and-worlds-for-open-worlds.md) (an entity that outlives its scene),
   [0124](0124-driven-components-keys-and-created-entities-in-levels.md) (the fingerprint of a
-  start's creations no longer written)
+  start's creations no longer written) and [0125](0125-saves-per-scene.md) (`World::spawn_scene`
+  unloads the scene before it under its key)
 - Date: 2026-10-19
 
 ## Context

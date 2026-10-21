@@ -1,15 +1,17 @@
 //! The game's saves (`docs/adr/0088-saving-and-resuming-a-run.md`): one file, `hunnawood/save.toml`
-//! in the user's data directory unless `--save` names another, which holds what differs between the
-//! run and a new game by day (`slime_world::World::save`), the version of the game that wrote it,
-//! and the layout of the zone it was made on. A save is checked before it is resumed ([`resume`]):
-//! one made on another layout is not resumed, as the run starts again when the layout changes under
-//! hot reload, which carries the run through a save otherwise ([`reload`]); nor is one that a later
-//! version of the game wrote, one that holds what this version does not know, which writing it
-//! back would lose, or one whose run cannot be played. One copy of the game at a time holds a
-//! save's file ([`SaveFile`]).
+//! in the user's data directory unless `--save` names another, which holds what the run changed of
+//! a new game by day, the world as the game made it and settled it (`slime_world::World::save`),
+//! the version of the game that wrote it, and the layout of the zone it was made on. A save is
+//! checked before it is resumed ([`resume`]): one made on another layout is not resumed, as the run
+//! starts again when the layout changes under hot reload, which carries the run through a save
+//! otherwise ([`reload`]); nor is one that an earlier version of the engine wrote, whose saves this
+//! one no longer reads, one that a later version of the game wrote, one that holds what this
+//! version does not know, which writing it back would lose, or one whose run cannot be played. One
+//! copy of the game at a time holds a save's file ([`SaveFile`]).
 
 use std::collections::BTreeMap;
 use std::ffi::OsString;
+use std::fmt;
 use std::fs::{File, TryLockError};
 use std::io::{self, Read as _, Write as _};
 use std::path::{Path, PathBuf};
@@ -28,9 +30,6 @@ const FILE: &str = "save.toml";
 /// the game that wrote it, and the layout of the zone it was made on ([`Layout::to_text`]).
 const VERSION: &str = "version";
 const ZONE: &str = "zone";
-/// The key under which a save of 0.4 says the fingerprint of the zone's layout it was made on
-/// ([`Layout::fingerprint`]), which it is compared by, as 0.4 compared it.
-const LAYOUT_0_4: &str = "layout";
 /// The version of the game, which its saves say.
 pub const THIS_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -57,9 +56,9 @@ pub fn default_file() -> Option<PathBuf> {
         .map(|directory| directory.join(DIRECTORY).join(FILE))
 }
 
-/// A new game of the zone and the hero as `scenes` resolves them, by day, in a world of its own:
-/// the world that saves differ from, whatever `--night` says, so that a save made at night is
-/// resumed at night.
+/// A new game of the zone and the hero as `scenes` resolves them, by day, in a world of its own,
+/// settled (`World::settle`): the world that saves differ from, whatever `--night` says, so that a
+/// save made at night is resumed at night.
 ///
 /// # Errors
 ///
@@ -67,25 +66,24 @@ pub fn default_file() -> Option<PathBuf> {
 pub fn start(scenes: &mut SceneLibrary) -> Result<(World, Game), String> {
     let mut world = World::new();
     let game = Game::spawn(&mut world, scenes, false)?;
+    world.settle();
     Ok((world, game))
 }
 
-/// The save of the run in `world`, a game of `scenes`: what differs from a new game by day
-/// ([`start`]); the version of the game; and the layout of that new game's zone, as its scenes place
-/// it, whatever the run changed of it.
+/// The save of the run in `world`: what it changed of the new game by day that it started from
+/// ([`start`]); the version of the game; and `layout`, the layout of that new game's zone, as its
+/// scenes placed it, whatever the run changed of it.
 ///
 /// # Errors
 ///
-/// When the zone cannot be played, or the world cannot be saved ([`World::save`]).
-pub fn save(world: &World, scenes: &mut SceneLibrary) -> Result<String, String> {
-    let (start, start_game) = start(scenes)?;
-    let layout = start_game.zone().layout(&start).to_text();
+/// When the world cannot be saved ([`World::save`]).
+pub fn save(world: &World, layout: &Layout) -> Result<String, String> {
     let about = BTreeMap::from([
         (VERSION.to_owned(), THIS_VERSION.to_owned()),
-        (ZONE.to_owned(), layout),
+        (ZONE.to_owned(), layout.to_text()),
     ]);
     world
-        .save(&start, &about)
+        .save(&about)
         .map_err(|error| slime_app::error_chain(&error))
 }
 
@@ -95,6 +93,9 @@ pub enum NotResumed {
     /// It is not a save that this program reads: not TOML, of a later version of its format, not a
     /// save.
     Unreadable(DocumentError),
+    /// An earlier version of the engine wrote it, whose saves this one no longer reads: why
+    /// ([`DocumentError::Layout`]).
+    Earlier(DocumentError),
     /// A later version of the game wrote it, as it says: the version it says.
     Later(String),
     /// It was made on another layout of the zone.
@@ -106,16 +107,55 @@ pub enum NotResumed {
     Unplayable(String),
 }
 
+impl NotResumed {
+    /// The end of the name that a save not resumed for this reason is set aside under
+    /// ([`set_aside`]).
+    pub fn aside(&self) -> &'static str {
+        match self {
+            Self::Unreadable(_) => "unreadable",
+            Self::Earlier(_) => "earlier-version",
+            Self::Later(_) => "later-version",
+            Self::OtherLayout => "other-layout",
+            Self::Unknown(_) => "unknown-content",
+            Self::Unplayable(_) => "unplayable",
+        }
+    }
+}
+
+impl fmt::Display for NotResumed {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Unreadable(error) | Self::Earlier(error) => {
+                f.write_str(&slime_app::error_chain(error))
+            }
+            Self::Later(version) => write!(
+                f,
+                "version {version} of the game wrote it, a later one than this one, {THIS_VERSION}"
+            ),
+            Self::OtherLayout => f.write_str("it was made on another layout of the zone"),
+            Self::Unknown(unknown) => write!(
+                f,
+                "it holds what this version of the game does not know, which writing it back \
+                 would lose: {}",
+                unknown.join("; ")
+            ),
+            Self::Unplayable(why) => write!(f, "its run cannot be played: {why}"),
+        }
+    }
+}
+
+impl std::error::Error for NotResumed {}
+
 /// The run that the save `text` holds, resumed in `start`, a new game by day of `scenes`
 /// ([`start`]), and what loading it set aside. The save is checked first: what it says of itself,
-/// the version of the game that wrote it and the layout it was made on, then what loading it left
-/// out, and last the game found again in the world loaded, which loading may have changed whole.
-/// A save of 0.4 says no version, and the fingerprint of its layout, which is compared with the
-/// fingerprint of `start`'s, as 0.4 compared it.
+/// the layout of saves that it was written in, the version of the game that wrote it and the layout
+/// of the zone it was made on, then what loading it left out, and last the game found again in the
+/// world loaded, which loading may have changed whole.
 ///
 /// # Errors
 ///
-/// In the order checked: [`NotResumed::Unreadable`] when it cannot be read; [`NotResumed::Later`]
+/// In the order checked: [`NotResumed::Unreadable`] when it cannot be read, and
+/// [`NotResumed::Earlier`] when an earlier version of the engine wrote it; [`NotResumed::Later`]
 /// when it says a later version than this one (`later`); [`NotResumed::OtherLayout`] when it says
 /// another layout of the zone than `start`'s ([`Layout::matches`]), or none;
 /// [`NotResumed::Unknown`] when loading it warned of what this version does not know;
@@ -125,21 +165,27 @@ pub fn resume(
     start: (World, Game),
     scenes: &mut SceneLibrary,
 ) -> Result<(World, Game, Loaded), NotResumed> {
-    let about = World::about(text).map_err(NotResumed::Unreadable)?;
+    let about = World::about(text).map_err(|error| match error {
+        DocumentError::Layout { found, read } if found < read => NotResumed::Earlier(error),
+        error => NotResumed::Unreadable(error),
+    })?;
     if let Some(version) = about.get(VERSION).filter(|version| later(version)) {
         return Err(NotResumed::Later(version.clone()));
     }
     let (mut world, game) = start;
     let layout = game.zone().layout(&world);
-    let same = match (about.get(ZONE), about.get(LAYOUT_0_4)) {
-        (Some(zone), _) => Layout::from_text(zone).is_some_and(|zone| zone.matches(&layout)),
-        (None, Some(fingerprint)) => *fingerprint == layout.fingerprint(),
-        (None, None) => false,
-    };
+    let same = about
+        .get(ZONE)
+        .and_then(|zone| Layout::from_text(zone))
+        .is_some_and(|zone| zone.matches(&layout));
     if !same {
         return Err(NotResumed::OtherLayout);
     }
-    let loaded = world.load(text, scenes).map_err(NotResumed::Unreadable)?;
+    // The save names the scenes that a new game spawns, the zone and the hero: it spawns none that
+    // the game would prepare.
+    let loaded = world
+        .load(text, scenes, &mut |_, _| {})
+        .map_err(NotResumed::Unreadable)?;
     if !loaded.warnings.is_empty() {
         let unknown = loaded.warnings.iter().map(ToString::to_string).collect();
         return Err(NotResumed::Unknown(unknown));
@@ -149,8 +195,8 @@ pub fn resume(
 }
 
 /// Whether `version`, as a save says it, is a later version of the game than this one: its numbers,
-/// separated by dots, compared in turn, as `0.10.0` after `0.4.0`. A version that is not numbers so,
-/// which no version of the game writes, is a later one unless it is this one.
+/// separated by dots, compared in turn, as `0.10.0` after `0.4.0`. A version that is not numbers
+/// so, which no version of the game writes, is a later one unless it is this one.
 fn later(version: &str) -> bool {
     let numbers = |version: &str| -> Option<Vec<u64>> {
         version
@@ -170,6 +216,8 @@ pub struct Reloaded {
     pub world: World,
     /// The game that plays in it.
     pub game: Game,
+    /// The layout of the new game's zone, which the run's saves say from now on.
+    pub layout: Layout,
     /// Whether the run started again, the zone's layout having changed, rather than went on.
     pub restarted: bool,
     /// What carrying the run set aside, and the scenes that changed since the game was made: what
@@ -177,15 +225,16 @@ pub struct Reloaded {
     pub loaded: Option<Loaded>,
 }
 
-/// The run in `world` after the scenes of `scenes` changed: `before` is the new game by day of the
-/// scenes before they changed ([`start`]). The new game of the scenes as they are now decides:
+/// The run in `world` after the scenes of `scenes` changed: `layout` is the layout of the zone of
+/// the new game by day that the run started from ([`start`]), of the scenes before they changed.
+/// The new game of the scenes as they are now decides:
 ///
-/// - when its zone's layout is not `before`'s ([`Layout::matches`]), a new run starts in it, at the
+/// - when its zone's layout is not `layout` ([`Layout::matches`]), a new run starts in it, at the
 ///   time of day that `starts_at_night` gives, as R starts one, since the hero could stand in a new
 ///   wall, or the key have moved after it was taken;
-/// - otherwise the run is carried into it: what the run changed of `before` is saved, and loaded
-///   into the new game (`World::carry`), the hero where it stood, the key, the door and the time of
-///   day as they were, the scenes as they are now, and the game found again in the world carried
+/// - otherwise the run is carried into it: what the run changed is saved, and loaded into the new
+///   game (`World::carry`), the hero where it stood, the key, the door and the time of day as they
+///   were, the scenes as they are now, and the game found again in the world carried
 ///   ([`Game::find`]). What the run changed of the layout itself, a collider through the world
 ///   panel, does not start it again.
 ///
@@ -195,30 +244,34 @@ pub struct Reloaded {
 /// played once carried. `world` is left as it was then.
 pub fn reload(
     world: &World,
-    before: &(World, Game),
+    layout: &Layout,
     scenes: &mut SceneLibrary,
     starts_at_night: bool,
 ) -> Result<Reloaded, String> {
     let (mut after, mut game) = start(scenes)?;
     game.set_starts_at_night(starts_at_night);
-    let layout = |(world, game): (&World, &Game)| game.zone().layout(world);
-    if !layout((&before.0, &before.1)).matches(&layout((&after, &game))) {
+    let new = game.zone().layout(&after);
+    if !layout.matches(&new) {
         game.restart(&mut after);
         return Ok(Reloaded {
             world: after,
             game,
+            layout: new,
             restarted: true,
             loaded: None,
         });
     }
+    // The new game names the scenes that the run spawned, the zone and the hero: carrying spawns
+    // none that the game would prepare.
     let (world, loaded) = world
-        .carry(&before.0, after, scenes)
+        .carry(after, scenes, &mut |_, _| {})
         .map_err(|error| slime_app::error_chain(&error))?;
     let game = Game::find(&world, starts_at_night)
         .map_err(|why| format!("the run carried cannot be played: {why}"))?;
     Ok(Reloaded {
         world,
         game,
+        layout: new,
         restarted: false,
         loaded: Some(loaded),
     })
@@ -296,10 +349,10 @@ pub fn read(file: &Path) -> io::Result<String> {
 }
 
 /// Writes `text` to `file`, its directory made if it has none, through a file beside it of this
-/// process's own, `<file>.<process id>.new`, written to the disk, then renamed over it: `file` holds
-/// the save before or the new one, never part of one, a power cut included, and never a mix of two
-/// writers'. The file beside it does not outlive an error; a process killed while it writes leaves
-/// it.
+/// process's own, `<file>.<process id>.new`, written to the disk, then renamed over it: `file`
+/// holds the save before or the new one, never part of one, a power cut included, and never a mix
+/// of two writers'. The file beside it does not outlive an error; a process killed while it writes
+/// leaves it.
 ///
 /// # Errors
 ///
@@ -540,12 +593,14 @@ mod runs {
         let mut scenes = plan.scenes();
         let new_game = |scenes: &mut SceneLibrary| start(scenes).expect("the zone can be played");
         let (mut world, game) = new_game(&mut scenes);
+        let layout = game.zone().layout(&world);
         for _ in 0..30 {
             game.step(&mut world, Vec2::X, 1.0 / 60.0);
         }
-        // What the run changed of the layout, as the world panel changes it, does not make it another.
+        // What the run changed of the layout, as the world panel changes it, does not make it
+        // another.
         world.query_mut::<&mut Collider>(|_, mut collider| collider.height = 3.5);
-        let text = save(&world, &mut scenes).expect("saved");
+        let text = save(&world, &layout).expect("saved");
         let new = new_game(&mut scenes);
         let (resumed, resumed_game, loaded) = resume(&text, new, &mut scenes).expect("resumed");
         assert!(loaded.set_aside.is_empty() && loaded.scenes_changed.is_empty());
@@ -560,14 +615,16 @@ mod runs {
             resume(&text, elsewhere, &mut other),
             Err(NotResumed::OtherLayout)
         ));
-        // Not a save, a save of a later format, one that says no layout.
-        for refused in ["layout = [", "\"$format\" = 2\n", ""] {
+        // Not a save, a save of a later format, an empty file; a save that says no layout of saves,
+        // as those of 0.3, is one of an earlier version of the engine.
+        for refused in ["layout = [", "\"$format\" = 2\n", "", "next_created = 1\n"] {
             let new = new_game(&mut scenes);
             let resumed = resume(refused, new, &mut scenes);
             assert!(
                 matches!(
                     (refused, &resumed),
-                    ("", Err(NotResumed::OtherLayout)) | (_, Err(NotResumed::Unreadable(_)))
+                    ("next_created = 1\n", Err(NotResumed::Earlier(_)))
+                        | (_, Err(NotResumed::Unreadable(_)))
                 ),
                 "{refused:?}: {:?}",
                 resumed.as_ref().err()
@@ -588,9 +645,10 @@ mod runs {
     ) -> (String, SceneLibrary) {
         let mut scenes = plan.scenes();
         let (mut world, game) = start(&mut scenes).expect("the zone can be played");
+        let layout = game.zone().layout(&world);
         game.step(&mut world, Vec2::X, 1.0 / 60.0);
         change(&mut world, &game);
-        (save(&world, &mut scenes).expect("saved"), scenes)
+        (save(&world, &layout).expect("saved"), scenes)
     }
 
     #[test]
@@ -681,23 +739,17 @@ mod runs {
 
     #[test]
     fn a_save_is_resumed_on_its_layout_given_a_few_units_in_the_last_place() {
-        // The start on a boundary of the rounding of 0.4's fingerprint, and the save made on the
-        // next number up: as the platforms' maths, or an update that does not change the zone,
-        // may give the same layout.
+        // The start on a boundary of a rounding to ten-thousandths, and the save made on the next
+        // number up: as the platforms' maths, or an update that does not change the zone, may give
+        // the same layout.
         let word = |number: f32| (number * 10_000.0).round();
         let at = (1..1000)
             .map(|n| (n as f32 + 0.5) / 10_000.0)
             .find(|&at| word(at) != word(at.next_up()))
             .expect("a number on a boundary");
-        let (text, mut made_on) = saved(&zone([at, 0.0], Vec::new()), |_, _| {});
+        let (text, _) = saved(&zone([at, 0.0], Vec::new()), |_, _| {});
         let mut scenes = zone([at.next_up(), 0.0], Vec::new()).scenes();
         let new = start(&mut scenes).expect("the zone can be played");
-        let fingerprint = |(world, game): &(World, Game)| game.zone().layout(world).fingerprint();
-        assert_ne!(
-            fingerprint(&start(&mut made_on).expect("playable")),
-            fingerprint(&new),
-            "0.4 would have set the save aside"
-        );
         resume(&text, new, &mut scenes).expect("the same layout");
     }
 }

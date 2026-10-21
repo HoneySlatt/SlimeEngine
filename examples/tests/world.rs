@@ -404,13 +404,15 @@ fn after_a_lost_device_the_cache_made_again_draws_the_same_world() {
     );
 }
 
-/// The examples' yard spawned from `scenes` under the key `yard`, as the `world` example spawns it.
+/// The examples' yard spawned from `scenes` under the key `yard`, and settled, as the `world`
+/// example spawns it.
 fn yard(scenes: &mut SceneLibrary) -> World {
     let mut world = World::new();
     let yard = scenes
         .resolve(world.registry(), YARD)
         .expect("the yard resolves");
     world.spawn_scene("yard", &yard).expect("spawned");
+    world.settle();
     world
 }
 
@@ -461,7 +463,6 @@ fn a_lamp_cooked_again_reaches_every_lamp_but_where_the_yard_overrides_it() {
     slime_cook::cook(&sources, &output).expect("cooked");
     let open = || slime_assets::CookedAssets::open(&output).expect("the cooked data");
     let mut scenes = SceneLibrary::of(open());
-    let old_start = yard(&mut scenes);
     let mut run = yard(&mut scenes);
     let ring = run
         .find(&PersistentId::new(["yard", "sample", "ring"]))
@@ -487,7 +488,7 @@ fn a_lamp_cooked_again_reaches_every_lamp_but_where_the_yard_overrides_it() {
     slime_cook::cook(&sources, &output).expect("cooked again");
     assert_eq!(scenes.reload(open()).len(), 1, "the lamp changed");
     let (carried, loaded) = run
-        .carry(&old_start, yard(&mut scenes), &mut scenes)
+        .carry(yard(&mut scenes), &mut scenes, &mut |_, _| {})
         .expect("carried");
     assert!(loaded.set_aside.is_empty(), "{:?}", loaded.set_aside);
     let green = Some([1.0, 1.0, 0.2]);
@@ -528,6 +529,6 @@ fn a_lamp_cooked_again_reaches_every_lamp_but_where_the_yard_overrides_it() {
     // example floats again from there.
     assert_eq!(
         height(&carried, &["yard", "sample", "ring"]),
-        height(&old_start, &["yard", "sample", "ring"]),
+        height(&yard(&mut scenes), &["yard", "sample", "ring"]),
     );
 }

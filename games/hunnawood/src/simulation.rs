@@ -12,12 +12,13 @@ use std::time::Instant;
 use slime_app::{AppError, Simulation, SimulationContext};
 use slime_assets::{CookedAssets, ManifestWatch};
 use slime_platform::KeyCode;
-use slime_world::{SceneLibrary, World};
+use slime_world::{Loaded, SceneLibrary, World};
 
 use crate::controls;
 use crate::look::Look;
 use crate::rules::Game;
-use crate::saves::{self, NotResumed, SaveFile};
+use crate::saves::{self, SaveFile};
+use crate::zone::Layout;
 
 /// *Hunna Wood*'s rules, which a host runs: the game in its world, the scenes it is a game of, and
 /// the save's file.
@@ -26,6 +27,9 @@ pub struct HunnaWood {
     /// [`Simulation::start`] gives it to the host, which keeps it.
     world: Option<World>,
     game: Game,
+    /// The layout of the zone of the new game by day that the run started from, which its saves
+    /// say ([`saves::save`]).
+    layout: Layout,
     /// The scenes of the cooked data, the zone's, those it places and the hero's, of which a new
     /// game by day is made, which saves differ from: the scenes of the run in the world.
     scenes: SceneLibrary,
@@ -40,10 +44,12 @@ pub struct HunnaWood {
 }
 
 impl HunnaWood {
-    /// The rules of `game` in `world`, a game of `scenes`, saving to `save_file`, following the
-    /// cooked data that `watch` watches, if it watches it.
+    /// The rules of `game` in `world`, a game of `scenes` started from a new game whose zone's
+    /// layout is `layout`, saving to `save_file`, following the cooked data that `watch` watches,
+    /// if it watches it.
     pub fn new(
         (world, game): (World, Game),
+        layout: Layout,
         scenes: SceneLibrary,
         save_file: Result<SaveFile, String>,
         watch: Option<(ManifestWatch, CookedAssets)>,
@@ -51,6 +57,7 @@ impl HunnaWood {
         Self {
             world: Some(world),
             game,
+            layout,
             scenes,
             save_file,
             watch,
@@ -58,7 +65,7 @@ impl HunnaWood {
     }
 
     /// Saves the run in `world` to the save's file, as F5 asks and as stopping does.
-    fn save(&mut self, world: &World) {
+    fn save_run(&mut self, world: &World) {
         let file = match &self.save_file {
             Ok(file) => file.path(),
             Err(why) => {
@@ -66,9 +73,7 @@ impl HunnaWood {
                 return;
             }
         };
-        let saved = saves::save(world, &mut self.scenes)
-            .and_then(|text| saves::write(file, &text).map_err(|error| error.to_string()));
-        match saved {
+        match self.save_to(world, file) {
             Ok(()) => log_run(
                 &self.game,
                 world,
@@ -78,9 +83,15 @@ impl HunnaWood {
         }
     }
 
+    /// Saves the run in `world` to `file`.
+    fn save_to(&self, world: &World, file: &Path) -> Result<(), String> {
+        let text = saves::save(world, &self.layout)?;
+        saves::write(file, &text).map_err(|error| error.to_string())
+    }
+
     /// Loads the run of the save's file in place of the run in `world`, as F9 asks: the hero is
     /// drawn at once where the save puts it. A save that cannot be resumed leaves the run as it is.
-    fn load(&mut self, world: &mut World) {
+    fn load_run(&mut self, world: &mut World) {
         let file = match &self.save_file {
             Ok(file) => file.path().to_owned(),
             Err(why) => {
@@ -89,16 +100,19 @@ impl HunnaWood {
             }
         };
         match resume_from(&file, &mut self.scenes) {
-            Resume::Run(run) => {
-                let (loaded, mut game) = *run;
-                game.set_starts_at_night(self.game.starts_at_night());
-                *world = loaded;
-                self.game = game;
-                self.look_somewhere(world);
-            }
+            Resume::Run(run) => self.take(world, *run),
             Resume::Nothing => {}
             Resume::Keep => self.save_file = Err(kept(&file)),
         }
+    }
+
+    /// Puts `run`, a run resumed, in place of the run in `world`, its game starting at the time of
+    /// day that the run's does.
+    fn take(&mut self, world: &mut World, (resumed, mut game): (World, Game)) {
+        game.set_starts_at_night(self.game.starts_at_night());
+        *world = resumed;
+        self.game = game;
+        self.look_somewhere(world);
     }
 
     /// Makes the player look where the hero faces when the run holds no look, as the run of a save
@@ -128,14 +142,10 @@ impl HunnaWood {
             }
         };
         tracing::info!("the cooked data changed: what changed loads again");
-        // The new game of the scenes before they changed, which the run differs from.
-        let before = saves::start(&mut self.scenes);
         let changed = self.scenes.reload(assets.clone());
         if !changed.is_empty() {
             let starts_at_night = self.game.starts_at_night();
-            let reloaded = before.and_then(|before| {
-                saves::reload(world, &before, &mut self.scenes, starts_at_night)
-            });
+            let reloaded = saves::reload(world, &self.layout, &mut self.scenes, starts_at_night);
             let reloaded = match reloaded {
                 Ok(reloaded) => reloaded,
                 Err(error) => {
@@ -158,6 +168,7 @@ impl HunnaWood {
             }
             *world = reloaded.world;
             self.game = reloaded.game;
+            self.layout = reloaded.layout;
             if reloaded.restarted {
                 self.game.look_along_hero(world);
                 tracing::info!("the zone's layout changed: the run starts again");
@@ -229,17 +240,41 @@ impl Simulation for HunnaWood {
             tracing::info!("the hero rests by the campfire until the {time}");
         }
         if save {
-            self.save(world);
+            self.save_run(world);
         }
         if load {
-            self.load(world);
+            self.load_run(world);
         }
         self.watch(world);
     }
 
     fn stop(&mut self, _ctx: &mut SimulationContext<'_>, world: &mut World) {
         // However the run stops: Escape, the window closed, a signal, an error.
-        self.save(world);
+        self.save_run(world);
+    }
+
+    fn save(&mut self, world: &World, file: &Path) -> Result<(), AppError> {
+        self.save_to(world, file)?;
+        log_run(
+            &self.game,
+            world,
+            &format!("the run is saved to {}", file.display()),
+        );
+        Ok(())
+    }
+
+    fn load(&mut self, world: &mut World, file: &Path) -> Result<(), AppError> {
+        let text = saves::read(file)?;
+        let start = saves::start(&mut self.scenes)?;
+        let (resumed, game, loaded) = saves::resume(&text, start, &mut self.scenes)?;
+        log_loaded(&loaded);
+        log_run(
+            &game,
+            &resumed,
+            &format!("the run is loaded from {}", file.display()),
+        );
+        self.take(world, (resumed, game));
+        Ok(())
     }
 }
 
@@ -256,11 +291,12 @@ pub enum Resume {
     Keep,
 }
 
-/// The run of the save in `file`, resumed in a new game of `scenes`, if the file holds one that
-/// can be resumed ([`saves::resume`]); logged either way. A save that is not resumed is set aside
-/// ([`saves::set_aside`]), so that the next save does not write over it, under a name that says
-/// why: `unreadable`, `later-version`, `other-layout`, `unknown-content`, `unplayable`. What is not
-/// a file, a directory or a pipe, is neither read nor moved.
+/// The run of the save in `file`, resumed in a new game of `scenes`, if the file holds one that can
+/// be resumed ([`saves::resume`]); logged either way. A save that is not resumed is set aside
+/// ([`saves::set_aside`]), so that the next save does not write over it, under a name that says why
+/// ([`saves::NotResumed::aside`]): `unreadable`, `earlier-version`, `later-version`,
+/// `other-layout`, `unknown-content`, `unplayable`. What is not a file, a directory or a pipe, is
+/// neither read nor moved.
 pub fn resume_from(file: &Path, scenes: &mut SceneLibrary) -> Resume {
     let shown = file.display();
     match std::fs::metadata(file) {
@@ -289,50 +325,26 @@ pub fn resume_from(file: &Path, scenes: &mut SceneLibrary) -> Resume {
     };
     match saves::resume(&text, start, scenes) {
         Ok((world, game, loaded)) => {
-            for scene in &loaded.scenes_changed {
-                tracing::info!("the scene `{scene}` changed since the save");
-            }
-            for aside in &loaded.set_aside {
-                tracing::warn!(
-                    entity = aside.entity,
-                    component = aside.component,
-                    "set aside from the save: {}",
-                    aside.reason
-                );
-            }
+            log_loaded(&loaded);
             log_run(&game, &world, &format!("the run resumes from {shown}"));
             Resume::Run(Box::new((world, game)))
         }
-        Err(NotResumed::Unreadable(error)) => {
-            set_aside(file, "unreadable", &slime_app::error_chain(&error))
-        }
-        Err(NotResumed::Later(version)) => set_aside(
-            file,
-            "later-version",
-            &format!(
-                "version {version} of the game wrote it, a later one than this one, {}",
-                saves::THIS_VERSION
-            ),
-        ),
-        Err(NotResumed::OtherLayout) => set_aside(
-            file,
-            "other-layout",
-            "it was made on another layout of the zone",
-        ),
-        Err(NotResumed::Unknown(unknown)) => set_aside(
-            file,
-            "unknown-content",
-            &format!(
-                "it holds what this version of the game does not know, which writing it back \
-                 would lose: {}",
-                unknown.join("; ")
-            ),
-        ),
-        Err(NotResumed::Unplayable(why)) => set_aside(
-            file,
-            "unplayable",
-            &format!("its run cannot be played: {why}"),
-        ),
+        Err(why) => set_aside(file, why.aside(), &why.to_string()),
+    }
+}
+
+/// Logs what loading a save said: the scenes that changed since, and what it set aside.
+fn log_loaded(loaded: &Loaded) {
+    for scene in &loaded.scenes_changed {
+        tracing::info!("the scene `{scene}` changed since the save");
+    }
+    for aside in &loaded.set_aside {
+        tracing::warn!(
+            entity = aside.entity,
+            component = aside.component,
+            "set aside from the save: {}",
+            aside.reason
+        );
     }
 }
 
@@ -395,8 +407,11 @@ mod tests {
     /// in a host without a window or a GPU.
     fn hosted() -> (Host, HunnaWood) {
         let plan = zone([0.0, 0.0], Vec::new());
+        let (world, game) = plan.play();
+        let layout = game.zone().layout(&world);
         let mut rules = HunnaWood::new(
-            plan.play(),
+            (world, game),
+            layout,
             plan.scenes(),
             Err("a test saves nothing".to_owned()),
             None,
@@ -480,8 +495,8 @@ mod tests {
         let file = directory.join("save.toml");
         let plan = zone([0.0, 0.0], Vec::new());
         let mut scenes = plan.scenes();
-        let (world, _) = saves::start(&mut scenes).expect("playable");
-        let text = saves::save(&world, &mut scenes).expect("saved");
+        let (world, game) = saves::start(&mut scenes).expect("playable");
+        let text = saves::save(&world, &game.zone().layout(&world)).expect("saved");
         let later = text.replacen(
             &format!("version = \"{}\"", saves::THIS_VERSION),
             "version = \"99.0.0\"",
@@ -490,7 +505,7 @@ mod tests {
         for (written, name) in [
             (later.as_str(), "save.toml.later-version"),
             ("not = [ a save", "save.toml.unreadable"),
-            ("", "save.toml.other-layout"),
+            ("", "save.toml.unreadable.2"),
             (later.as_str(), "save.toml.later-version.2"),
         ] {
             std::fs::write(&file, written).expect("written");
@@ -507,7 +522,7 @@ mod tests {
 
     #[test]
     #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
-    fn a_save_of_another_layout_is_set_aside_and_a_new_run_starts() {
+    fn a_save_of_an_earlier_version_of_the_engine_is_set_aside_and_a_new_run_starts() {
         let directory =
             std::env::temp_dir().join(format!("hunnawood-0.3-save-{}", std::process::id()));
         std::fs::create_dir_all(&directory).expect("a directory");
@@ -516,7 +531,7 @@ mod tests {
         let mut scenes = cooked::zone().1;
         assert!(matches!(resume_from(&file, &mut scenes), Resume::Nothing));
         assert!(!file.exists(), "set aside");
-        let aside = directory.join("save.toml.other-layout");
+        let aside = directory.join("save.toml.earlier-version");
         assert_eq!(
             std::fs::read_to_string(&aside).expect("set aside"),
             include_str!("../fixtures/save-0.3.toml")

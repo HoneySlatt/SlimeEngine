@@ -6,10 +6,11 @@ use std::hash::{BuildHasherDefault, Hasher};
 use std::mem;
 use std::sync::Arc;
 
+use slime_assets::AssetId;
 use slime_reflect::{Reflect, Registry};
 
 use crate::change::{Log, Mut, Tick, TransformMarks};
-use crate::components::{Driven, Extras, Hidden, Light, Meshes, Name, Unsaved};
+use crate::components::{Driven, Extras, Hidden, Light, Meshes, Name, Persistence, Unsaved};
 use crate::entity::{Entities, Entity};
 use crate::hierarchy::{children_of, leave_parent};
 use crate::identity::PersistentId;
@@ -17,6 +18,7 @@ use crate::library::{Placement, ResolvedScene};
 use crate::query::{Query, QueryIter, QueryMut};
 use crate::storage::{AnyStorage, Storage};
 use crate::transform::{GlobalTransform, Transform};
+use crate::unload::Unloaded;
 
 /// A value that an entity can hold, of a type that threads can share, that reflection describes
 /// ([`Reflect`]), so that every component can be listed, edited and saved by name
@@ -117,6 +119,12 @@ pub struct World {
     /// what a save names, so that loading it says which changed since. A scene stays when its root
     /// is destroyed, since its entities moved elsewhere live on.
     pub(crate) scenes: BTreeMap<String, SpawnedScene>,
+    /// What the world keeps of the scenes that it unloaded, by the keys they were spawned under and
+    /// their assets (`World::unload_scene`): applied again when one is spawned again under its key.
+    pub(crate) unloaded: BTreeMap<(String, AssetId), Unloaded>,
+    /// The identities that the entities adopted had in their scenes, by the keys that adopting gave
+    /// them (`World::adopt`): what references written before find them by.
+    pub(crate) formers: BTreeMap<String, Former>,
     /// The prefabs of the placements made while the world runs, by their numbers: kept while an
     /// entity of one lives, as a save writes those whose entities live on, their root destroyed,
     /// and forgotten some time after, as more are made.
@@ -124,6 +132,19 @@ pub struct World {
     /// How many placements made while the world runs it kept when it last forgot those of which no
     /// entity lives.
     pub(crate) placements_kept: usize,
+    /// The tick at which the world was last settled, if it ever was (`World::settle`).
+    pub(crate) settled: Option<Tick>,
+    /// The count of the entities created outside scenes when the world was first settled, after
+    /// which the run's are numbered.
+    pub(crate) start_created: u64,
+    /// The numbers of the entities that the start created outside scenes without a key, alive when
+    /// the world was first settled: a save of the world refuses those that it would hold.
+    pub(crate) unkeyed_at_start: Vec<u64>,
+    /// The entities settled that the run destroyed since, by their persistent identities, each
+    /// with the [`Persistence`] that it held then: what a save says the run removed, so that it
+    /// costs what changed. Those that saves leave out are not kept, nor those of a scene or a
+    /// placement once it goes, or is spawned again.
+    pub(crate) gone: HashMap<PersistentId, Option<Persistence>>,
     /// The latest tick given: each operation that may change the world takes the next one.
     pub(crate) tick: Tick,
     /// The latest tick at which an entity was spawned or destroyed, or changed parent.
@@ -163,6 +184,11 @@ pub(crate) struct Node {
     pub(crate) moved: u32,
     /// What the scene that spawned it placed here, if it is a placement's root.
     pub(crate) placement: Option<Arc<Placement>>,
+    /// The tick at which it was settled, at or before which its values are the base that a save
+    /// compares them with; zero if it never was (`World::settle`).
+    pub(crate) base: Tick,
+    /// Its parent when it was settled, by identity, kept at the first change of parent after it.
+    pub(crate) parent_kept: Option<Option<PersistentId>>,
     /// The ID that a scene file written from the world gave it, an entity created outside a scene,
     /// which it keeps when the world is written again.
     pub(crate) written_id: Option<Box<str>>,
@@ -187,15 +213,25 @@ pub(crate) enum Identity {
     Created(u64),
 }
 
-/// A scene spawned in a world: its name, a fingerprint of what it held then, and the scene.
+/// The identity that an entity adopted had in its scene, and that scene, by its asset: a scene
+/// spawned under a key, or a placement's prefab (`World::adopt`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Former {
+    pub(crate) id: PersistentId,
+    pub(crate) scene: AssetId,
+}
+
+/// A scene spawned in a world: a fingerprint of what it held then, and the scene.
 #[derive(Clone, Debug)]
 pub(crate) struct SpawnedScene {
-    pub(crate) name: String,
     /// The scene's fingerprint (`ResolvedScene`): another content gives another fingerprint, but
     /// for a chance of one in 2⁶⁴.
     pub(crate) content: u64,
     /// The scene, as it was resolved: what writing the world back as a scene file reads.
     pub(crate) scene: ResolvedScene,
+    /// Whether the world settled it since it was spawned (`World::settle`), which applies what the
+    /// world kept of it when it was unloaded.
+    pub(crate) settled: bool,
 }
 
 /// The entities created outside scenes, by their numbers, kept so that spawning and destroying one
@@ -241,18 +277,6 @@ impl Created {
         if self.destroyed * 2 > self.entries.len() {
             self.forget_destroyed(entities);
         }
-    }
-
-    /// The numbers whose entities `entities` holds, with their entities, in the order of the
-    /// numbers.
-    pub(crate) fn alive<'a>(
-        &'a self,
-        entities: &'a Entities,
-    ) -> impl Iterator<Item = (u64, Entity)> + 'a {
-        self.entries
-            .iter()
-            .copied()
-            .filter(|&(_, entity)| entities.contains(entity))
     }
 
     /// Leaves out the entries whose entities `entities` no longer holds.
@@ -402,8 +426,14 @@ impl World {
             created: Created::default(),
             next_created: 1,
             scenes: BTreeMap::new(),
+            unloaded: BTreeMap::new(),
+            formers: BTreeMap::new(),
             placements: BTreeMap::new(),
             placements_kept: 0,
+            settled: None,
+            start_created: 0,
+            unkeyed_at_start: Vec::new(),
+            gone: HashMap::new(),
             tick: Tick::default(),
             structure: Tick::default(),
             destroyed: Log::EMPTY,
@@ -418,6 +448,7 @@ impl World {
         world.register::<Extras>();
         world.register::<Unsaved>();
         world.register::<Driven>();
+        world.register::<Persistence>();
         // What saves hold besides components: names, lists of them, counts.
         world.registry.register::<Option<String>>();
         world.registry.register::<Vec<String>>();
@@ -431,12 +462,9 @@ impl World {
     /// [`Unsaved`]. A number names an entity by its rank of creation, which a later version of the
     /// game, or another order, gives to another: an entity that a game creates while it makes its
     /// start world is named by a key instead ([`World::spawn_keyed`]), or left out of saves, and
-    /// saving against a start that created others is refused ([`World::save`]). What the run
+    /// saving a world whose start created others is refused ([`World::save`]). What the run
     /// created takes, when its save loads, the numbers that follow the count of the world that it is
-    /// loaded into. Saves of layout 3, made before that refusal, hold a fingerprint of the start's
-    /// numbered entities, their numbers, the types of their components and their [`Name`]s, and
-    /// loading sets aside what they hold of them when the start that they are loaded into created
-    /// others ([`World::load`]).
+    /// loaded into.
     ///
     /// # Panics
     ///
@@ -478,6 +506,7 @@ impl World {
         let tick = self.next_tick();
         self.structure = tick;
         if self.nodes[entity.index() as usize].child_count == 0 {
+            self.keep_gone(entity);
             self.destroy(entity, tick);
             return true;
         }
@@ -489,10 +518,25 @@ impl World {
             subtree.push(entity);
             next.extend(children_of(&self.nodes, entity.index()).rev());
         }
+        for &entity in &subtree {
+            self.keep_gone(entity);
+        }
         for &entity in subtree.iter().rev() {
             self.destroy(entity, tick);
         }
         true
+    }
+
+    /// Keeps the identity of `entity`, which is about to be destroyed, among those that the run
+    /// destroyed (`gone`) if it was settled and saves hold it.
+    fn keep_gone(&mut self, entity: Entity) {
+        if self.nodes[entity.index() as usize].base == Tick::default() || self.unsaved(entity) {
+            return;
+        }
+        if let Some(id) = self.persistent_id(entity) {
+            let persistence = self.get::<Persistence>(entity).copied();
+            self.gone.insert(id, persistence);
+        }
     }
 
     /// Destroys a live entity whose children are destroyed already, logging at `tick` that it and
@@ -548,12 +592,13 @@ impl World {
             "a component attached to {entity:?}, which is not alive"
         );
         let tick = self.next_tick();
+        let base = self.nodes[entity.index() as usize].base;
         let id = self.storage_id::<T>();
         let storage: &mut dyn Any = &mut *self.storages[id];
         let replaced = storage
             .downcast_mut::<Storage<T>>()
             .expect("a storage holds the type it is registered under")
-            .insert(entity.index(), component, tick);
+            .insert(entity.index(), component, tick, base);
         self.held_changed(TypeId::of::<T>(), entity.index());
         // An entity placed for the first time during a fixed step had no place before it: it is
         // drawn at once where it is, rather than from where its parent was.
@@ -570,9 +615,10 @@ impl World {
             return None;
         }
         let tick = self.next_tick();
+        let base = self.nodes[entity.index() as usize].base;
         let removed = self
             .storage_mut::<T>()?
-            .remove(entity.index(), entity, tick);
+            .remove(entity.index(), entity, tick, base);
         if removed.is_some() {
             self.held_changed(TypeId::of::<T>(), entity.index());
         }
@@ -598,6 +644,7 @@ impl World {
         }
         let tick = self.next_tick();
         let slot = entity.index();
+        let base = self.nodes[slot as usize].base;
         let Self {
             storages,
             component_ids,
@@ -611,7 +658,7 @@ impl World {
             changes,
             slot,
         });
-        storage.get_mut(slot, tick, marks)
+        storage.get_mut(slot, tick, base, marks)
     }
 
     /// The entities that hold every component that the query reads, with those components, in no
@@ -681,12 +728,13 @@ impl World {
         // `visit` changes components, never which entities hold them: the slots stay as they are.
         for index in 0..Q::driver(&borrow).len() {
             let slot = Q::driver(&borrow)[index];
+            let base = nodes[slot as usize].base;
             let mut marks = changes_transforms.then_some(TransformMarks {
                 nodes: nodes.as_mut_slice(),
                 changes: &mut *changes,
                 slot,
             });
-            if let Some(item) = Q::get(&mut borrow, slot, tick, &mut marks) {
+            if let Some(item) = Q::get(&mut borrow, slot, tick, base, &mut marks) {
                 visit(entities.at(slot), item);
             }
         }

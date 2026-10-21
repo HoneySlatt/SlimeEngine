@@ -56,7 +56,9 @@ Stage 6a, what the editor stands on, under way: among what it gave so far, a gam
 its rules, and a presentation, what the player sees, run through the phases of a frame on a game
 time that pauses and steps, and an AI agent drives a running game through its development channel
 and the engine's MCP server, `slime-mcp`, which starts it, pauses it, reads and changes its world,
-plays it and sees its image. [`docs/PLAN.md`](docs/PLAN.md) says what Stage 6a has done and what
+plays it, saves and loads it, and sees its image; a save costs what the run changed since the game
+settled its world, a level unloaded keeps what the run changed of it, and an entity adopted
+outlives its level. [`docs/PLAN.md`](docs/PLAN.md) says what Stage 6a has done and what
 comes next, then Stage 6b, the editor, and lists the known debt.
 
 ## Getting started
@@ -140,7 +142,8 @@ today has:
   (`slime-cook watch`), as the renderer's shaders are.
 - A world (`slime-world`) of entities, components and their hierarchy, drawn through
   `slime-world-render`, whose components are reflected and edited by name (`slime-reflect`), and
-  saved as what changed since the start of a run; *Hunna Wood* saves one run, in one file. Scene
+  saved as what changed since the game settled it, at the cost of what changed; *Hunna Wood* saves
+  one run, in one file, and refuses the saves of the versions before 0.5. Scene
   files are cooked, and written by hand; a world is written back as a scene file through the API,
   and no editor writes them yet.
 - A renderer that leaves out what the camera does not see and draws the instances of one mesh and

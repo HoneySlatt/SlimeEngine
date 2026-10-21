@@ -124,6 +124,7 @@ fn world() -> World {
     world.register::<Glow>();
     world.register::<Aim>();
     world.register::<Counter>();
+    world.settle();
     world
 }
 
@@ -176,7 +177,6 @@ fn a_value_at_its_field_s_bound_is_saved_spawned_and_written_back() {
         "yard",
         "[entities.mill.components]\nName = \"mill\"\n\"test::Blend\" = { amount = 0.7 }\n",
     )]);
-    let (start, _) = blended(&mut scenes);
     let (mut run, root) = blended(&mut scenes);
     let mill = entity(&run, "yard/mill");
     assert_eq!(
@@ -185,11 +185,11 @@ fn a_value_at_its_field_s_bound_is_saved_spawned_and_written_back() {
         "a file at the bound"
     );
     run.get_mut::<Blend>(mill).expect("held").amount = 0.9;
-    let save = run
-        .save(&start, &Default::default())
-        .expect("saved at the bound");
+    let save = run.save(&Default::default()).expect("saved at the bound");
     let (mut loaded, _) = blended(&mut scenes);
-    loaded.load(&save, &mut scenes).expect("loaded");
+    loaded
+        .load(&save, &mut scenes, &mut |_, _| {})
+        .expect("loaded");
     assert_eq!(
         loaded.get::<Blend>(entity(&loaded, "yard/mill")),
         Some(&Blend { amount: 0.9 })
@@ -907,6 +907,7 @@ fn a_world_spawned_from_scene_files_saves_and_loads_back() {
     let start = |scenes: &mut SceneLibrary| {
         let mut world = world();
         spawn(&mut world, scenes, YARD, "yard");
+        world.settle();
         world
     };
     let mut played = start(&mut scenes);
@@ -920,11 +921,11 @@ fn a_world_spawned_from_scene_files_saves_and_loads_back() {
         )
         .expect("in range");
     played.despawn(entity(&played, "yard/shed"));
-    let save = played
-        .save(&start(&mut scenes), &Default::default())
-        .expect("saved");
+    let save = played.save(&Default::default()).expect("saved");
     let mut loaded = start(&mut scenes);
-    let report = loaded.load(&save, &mut scenes).expect("loaded");
+    let report = loaded
+        .load(&save, &mut scenes, &mut |_, _| {})
+        .expect("loaded");
     assert!(report.set_aside.is_empty(), "{:?}", report.set_aside);
     assert!(report.scenes_changed.is_empty());
     assert_eq!(played.first_difference(&loaded), None);
@@ -952,8 +953,8 @@ fn a_scene_that_cannot_spawn_leaves_a_world_that_holds_scenes_as_it_was() {
     assert_eq!(held.first_difference(&same), None);
     assert!(held.find(&PersistentId::new(["lamp"])).is_none());
     assert_eq!(
-        held.save(&same, &Default::default()).expect("saved"),
-        same.save(&same, &Default::default()).expect("saved"),
+        held.save(&Default::default()).expect("saved"),
+        same.save(&Default::default()).expect("saved"),
         "nothing to save: the count of created entities untouched"
     );
 }
@@ -986,6 +987,7 @@ fn respawned(scenes: &mut SceneLibrary, text: &str) -> World {
     scenes.insert_file(YARD, "yard", text);
     let mut world = world();
     spawn(&mut world, scenes, YARD, "yard");
+    world.settle();
     world
 }
 
@@ -1863,6 +1865,7 @@ fn yard_lamp_and_village() -> SceneLibrary {
 fn yard(scenes: &mut SceneLibrary) -> World {
     let mut world = world();
     spawn(&mut world, scenes, YARD, "yard");
+    world.settle();
     world
 }
 
@@ -1910,11 +1913,9 @@ fn intensity(world: &World, id: &str) -> f32 {
 fn what_a_run_spawns_is_saved_as_its_scenes_and_loads_back_into_the_same_world() {
     let mut scenes = yard_lamp_and_village();
     let played = run(&mut scenes);
-    let save = played
-        .save(&yard(&mut scenes), &Default::default())
-        .expect("saved");
+    let save = played.save(&Default::default()).expect("saved");
     for written in [
-        "layout = 4\n".to_owned(),
+        "layout = 5\n".to_owned(),
         format!("\"created/1\" = {{ scene = \"{LAMP}\", name = \"lamp\", content = "),
         format!("village = {{ scene = \"{VILLAGE}\", name = \"village\", content = "),
         "[changed.\"created/1/light\"]\n\"test::Glow\" = { intensity = 5.0 }\n".to_owned(),
@@ -1927,18 +1928,15 @@ fn what_a_run_spawns_is_saved_as_its_scenes_and_loads_back_into_the_same_world()
         "placed, not created: {save}"
     );
     let mut loaded = yard(&mut scenes);
-    let report = loaded.load(&save, &mut scenes).expect("loaded");
+    let report = loaded
+        .load(&save, &mut scenes, &mut |_, _| {})
+        .expect("loaded");
     assert!(
         report.set_aside.is_empty() && report.scenes_changed.is_empty(),
         "{report:?}"
     );
     assert_eq!(played.first_difference(&loaded), None, "{save}");
-    assert_eq!(
-        loaded
-            .save(&yard(&mut scenes), &Default::default())
-            .expect("saved again"),
-        save
-    );
+    assert_eq!(loaded.save(&Default::default()).expect("saved again"), save);
     assert!(loaded.placement(entity(&loaded, "created/1")).is_some());
     let hook = loaded
         .get::<Aim>(entity(&loaded, "created/2"))
@@ -1957,15 +1955,15 @@ fn a_prefab_fixed_after_a_save_reaches_what_the_run_spawned_but_what_the_run_cha
     let mut played = run(&mut scenes);
     let lamp = scenes.resolve(played.registry(), LAMP).expect("resolved");
     played.spawn_placement(&lamp, None).expect("placed");
-    let save = played
-        .save(&yard(&mut scenes), &Default::default())
-        .expect("saved");
+    let save = played.save(&Default::default()).expect("saved");
     // The lamp glows more, and holds a hook of its own.
     let fixed = LAMP_FILE.replace("intensity = 40.0", "intensity = 50.0")
         + "\n[entities.hook]\nparent = \"post\"\n";
     scenes.insert_file(LAMP, "lamp", fixed);
     let mut loaded = yard(&mut scenes);
-    let report = loaded.load(&save, &mut scenes).expect("loaded");
+    let report = loaded
+        .load(&save, &mut scenes, &mut |_, _| {})
+        .expect("loaded");
     assert!(report.set_aside.is_empty(), "{:?}", report.set_aside);
     let mut changed = report.scenes_changed.clone();
     changed.sort();
@@ -2003,12 +2001,12 @@ fn what_a_run_spawned_from_a_scene_that_the_game_no_longer_has_is_set_aside() {
         .resolve(played.registry(), VILLAGE)
         .expect("resolved");
     played.spawn_placement(&village, None).expect("placed");
-    let save = played
-        .save(&yard(&mut scenes), &Default::default())
-        .expect("saved");
+    let save = played.save(&Default::default()).expect("saved");
     let mut without = library(&[(YARD, "yard", YARD_FILE), (LAMP, "lamp", LAMP_FILE)]);
     let mut loaded = yard(&mut without);
-    let report = loaded.load(&save, &mut without).expect("loaded");
+    let report = loaded
+        .load(&save, &mut without, &mut |_, _| {})
+        .expect("loaded");
     assert!(loaded.find(&"village".parse().unwrap()).is_none());
     for (entity, component) in [
         ("village", None),
@@ -2050,13 +2048,13 @@ fn a_placement_whose_root_is_destroyed_is_saved_while_an_entity_of_it_lives() {
     // A lamp marked Unsaved, which a save leaves out.
     let unsaved = played.spawn_placement(&lamp, None).expect("placed");
     played.insert(unsaved, slime_world::Unsaved);
-    let save = played
-        .save(&yard(&mut scenes), &Default::default())
-        .expect("saved");
+    let save = played.save(&Default::default()).expect("saved");
     assert!(save.contains("\"created/1\" = { scene"), "{save}");
     assert!(!save.contains("created/2"), "{save}");
     let mut loaded = yard(&mut scenes);
-    let report = loaded.load(&save, &mut scenes).expect("loaded");
+    let report = loaded
+        .load(&save, &mut scenes, &mut |_, _| {})
+        .expect("loaded");
     assert!(report.set_aside.is_empty(), "{:?}", report.set_aside);
     assert_eq!(played.first_difference(&loaded), None, "{save}");
     assert_eq!(parent(&loaded, "created/1/light"), Some("yard".to_owned()));
@@ -2065,7 +2063,6 @@ fn a_placement_whose_root_is_destroyed_is_saved_while_an_entity_of_it_lives() {
 #[test]
 fn a_run_carried_through_a_save_into_a_new_start_is_the_run_saved_and_loaded_into_it() {
     let mut scenes = yard_lamp_and_village();
-    let old_start = yard(&mut scenes);
     let mut played = run(&mut scenes);
     let lamp = scenes.resolve(played.registry(), LAMP).expect("resolved");
     played.spawn_placement(&lamp, None).expect("placed");
@@ -2077,12 +2074,14 @@ fn a_run_carried_through_a_save_into_a_new_start_is_the_run_saved_and_loaded_int
         LAMP_FILE.replace("intensity = 40.0", "intensity = 60.0"),
     );
     let (carried, report) = played
-        .carry(&old_start, yard(&mut scenes), &mut scenes)
+        .carry(yard(&mut scenes), &mut scenes, &mut |_, _| {})
         .expect("carried");
     assert!(report.set_aside.is_empty(), "{:?}", report.set_aside);
-    let save = played.save(&old_start, &Default::default()).expect("saved");
+    let save = played.save(&Default::default()).expect("saved");
     let mut loaded = yard(&mut scenes);
-    loaded.load(&save, &mut scenes).expect("loaded");
+    loaded
+        .load(&save, &mut scenes, &mut |_, _| {})
+        .expect("loaded");
     assert_eq!(carried.first_difference(&loaded), None);
     // The lamp changed in every placement but where an override or the run changed it.
     for (id, expected) in [
@@ -2102,14 +2101,12 @@ fn a_run_carried_through_a_save_into_a_new_start_is_the_run_saved_and_loaded_int
 #[test]
 fn saves_of_what_a_run_spawned_cut_or_changed_at_every_character_are_refused_or_loaded() {
     let mut scenes = yard_lamp_and_village();
-    let save = run(&mut scenes)
-        .save(&yard(&mut scenes), &Default::default())
-        .expect("saved");
+    let save = run(&mut scenes).save(&Default::default()).expect("saved");
     for (at, _) in save.char_indices() {
         let changed = format!("{}#{}", &save[..at], &save[at + 1..]);
         for text in [&save[..at], &changed] {
             let mut loaded = yard(&mut scenes);
-            if loaded.load(text, &mut scenes).is_err() {
+            if loaded.load(text, &mut scenes, &mut |_, _| {}).is_err() {
                 assert_eq!(loaded.first_difference(&yard(&mut scenes)), None, "{text}");
                 assert_eq!(loaded.len(), yard(&mut scenes).len(), "{text}");
             }
@@ -2120,46 +2117,40 @@ fn saves_of_what_a_run_spawned_cut_or_changed_at_every_character_are_refused_or_
 #[test]
 fn a_save_that_spawns_under_an_identity_in_use_is_refused_or_set_aside() {
     let mut scenes = yard_lamp_and_village();
-    let save = run(&mut scenes)
-        .save(&yard(&mut scenes), &Default::default())
-        .expect("saved");
+    let save = run(&mut scenes).save(&Default::default()).expect("saved");
     // A start that created one more entity outside scenes: what the run created takes the numbers
     // that follow the world's count.
     let mut more = yard(&mut scenes);
     let extra = more.spawn();
-    more.load(&save, &mut scenes).expect("loaded");
+    more.load(&save, &mut scenes, &mut |_, _| {})
+        .expect("loaded");
     assert_eq!(
         more.persistent_id(extra),
         Some("created/1".parse().unwrap())
     );
     assert!(value(&more, "created/2/light", "test::Glow").is_some());
-    // A save of 0.4, which does not say what its start created, into such a world: refused,
-    // unchanged.
-    let old = save
-        .replace("layout = 4", "layout = 2")
-        .replace("start = { created = 1 }\n", "");
-    assert_ne!(old, save);
+    // A save that does not say what its start created, into such a world: refused, unchanged.
+    let edited = save.replace("start = { created = 1 }\n", "");
+    assert_ne!(edited, save);
     let mut taken = yard(&mut scenes);
     taken.spawn();
     let before = taken.len();
     assert!(matches!(
-        taken.load(&old, &mut scenes),
+        taken.load(&edited, &mut scenes, &mut |_, _| {}),
         Err(slime_world::DocumentError::IdentityInUse(_))
     ));
     assert_eq!(taken.len(), before);
     assert!(taken.find(&"village".parse().unwrap()).is_none());
-    // A start world that spawns the village itself: its entities take the run's changes.
+    // A start world that spawns the village itself: its entities take the run's changes, the scene
+    // kept.
     let mut spawning = yard(&mut scenes);
     spawn(&mut spawning, &mut scenes, VILLAGE, "village");
-    let report = spawning.load(&save, &mut scenes).expect("loaded");
-    assert_eq!(
-        report
-            .set_aside
-            .iter()
-            .map(|aside| aside.entity.as_str())
-            .collect::<Vec<_>>(),
-        ["village"]
-    );
+    let kept = entity(&spawning, "village");
+    let report = spawning
+        .load(&save, &mut scenes, &mut |_, _| {})
+        .expect("loaded");
+    assert!(report.set_aside.is_empty(), "{:?}", report.set_aside);
+    assert_eq!(entity(&spawning, "village"), kept);
     assert!(value(&spawning, "village/square/post", "Hidden").is_some());
 }
 
@@ -2169,6 +2160,7 @@ fn a_run_that_spawns_another_scene_under_a_key_of_its_start_saves_and_loads_it()
     let start = |scenes: &mut SceneLibrary| {
         let mut world = yard(scenes);
         spawn(&mut world, scenes, LAMP, "level");
+        world.settle();
         world
     };
     // The run changes level: the lamp under `level` gives way to the village.
@@ -2179,23 +2171,18 @@ fn a_run_that_spawns_another_scene_under_a_key_of_its_start_saves_and_loads_it()
         .expect("resolved");
     played.spawn_scene("level", &village).expect("spawned");
     played.insert(entity(&played, "level/square/post"), Hidden);
-    let save = played
-        .save(&start(&mut scenes), &Default::default())
-        .expect("saved");
+    let save = played.save(&Default::default()).expect("saved");
     assert!(
         save.contains(&format!("level = {{ scene = \"{VILLAGE}\"")),
         "{save}"
     );
     let mut loaded = start(&mut scenes);
-    let report = loaded.load(&save, &mut scenes).expect("loaded");
+    let report = loaded
+        .load(&save, &mut scenes, &mut |_, _| {})
+        .expect("loaded");
     assert!(report.set_aside.is_empty(), "{:?}", report.set_aside);
     assert_eq!(played.first_difference(&loaded), None, "{save}");
-    assert_eq!(
-        loaded
-            .save(&start(&mut scenes), &Default::default())
-            .expect("saved again"),
-        save
-    );
+    assert_eq!(loaded.save(&Default::default()).expect("saved again"), save);
 }
 
 #[test]
@@ -2209,19 +2196,14 @@ fn a_reference_to_an_entity_of_what_a_run_spawned_destroyed_since_saves_the_same
         .set_parent(entity(&played, "created/1/light"), None)
         .expect("alive");
     played.despawn(entity(&played, "created/1/post"));
-    let save = played
-        .save(&yard(&mut scenes), &Default::default())
-        .expect("saved");
+    let save = played.save(&Default::default()).expect("saved");
     let mut loaded = yard(&mut scenes);
-    let report = loaded.load(&save, &mut scenes).expect("loaded");
+    let report = loaded
+        .load(&save, &mut scenes, &mut |_, _| {})
+        .expect("loaded");
     assert!(report.set_aside.is_empty(), "{:?}", report.set_aside);
     assert_eq!(played.first_difference(&loaded), None, "{save}");
-    assert_eq!(
-        loaded
-            .save(&yard(&mut scenes), &Default::default())
-            .expect("saved again"),
-        save
-    );
+    assert_eq!(loaded.save(&Default::default()).expect("saved again"), save);
 }
 
 #[test]
@@ -2237,9 +2219,7 @@ fn what_a_run_spawned_under_an_entity_marked_unsaved_is_left_out_whatever_the_or
     let mut played = yard(&mut scenes);
     spawn(&mut played, &mut scenes, ODD, "odd");
     played.despawn(entity(&played, "odd/a"));
-    let save = played
-        .save(&yard(&mut scenes), &Default::default())
-        .expect("saved");
+    let save = played.save(&Default::default()).expect("saved");
     assert!(!save.contains("odd/a"), "{save}");
 }
 
@@ -2367,13 +2347,13 @@ fn what_resolving_spawning_writing_and_saving_scenes_costs() {
                 .expect("in range");
         }
         let started = std::time::Instant::now();
-        let save = world
-            .save(&self::world(), &Default::default())
-            .expect("saved");
+        let save = world.save(&Default::default()).expect("saved");
         let saved = started.elapsed();
         let started = std::time::Instant::now();
         let mut loaded = self::world();
-        loaded.load(&save, &mut scenes).expect("loaded");
+        loaded
+            .load(&save, &mut scenes, &mut |_, _| {})
+            .expect("loaded");
         eprintln!(
             "1000 placements of {entities} entities made while the world runs: {} entities, saved in {saved:?}, loaded in {:?}, {} bytes",
             world.len(),

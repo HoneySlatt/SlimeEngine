@@ -9,13 +9,13 @@
 //! untouched. F2 shows the dev overlay's world panel, which lists the entities by name and edits
 //! their components (`slime-devui`). Escape, closing the window or Ctrl+C quits.
 //!
-//! When it quits, it saves its world (`docs/adr/0087-the-worlds-documents.md`): what differs from
-//! the world as it spawns it at the start, what the panel changed. The ring's transform is driven,
-//! as the yard marks it (`slime_world::Driven`): the save and the file leave the ring where the yard
-//! puts it, and the example would float it again from there. It loads the save into a world spawned
-//! anew, and the run fails if that world is not the one saved. It also writes the yard back as a
-//! scene file (`docs/adr/0092-a-world-written-back-as-a-scene.md`), spawns that file, and the run
-//! fails if the world spawned is not the one written.
+//! When it quits, it saves its world (`docs/adr/0125-saves-per-scene.md`): what the run changed
+//! since the example settled the world that it spawns at the start, what the panel changed. The
+//! ring's transform is driven, as the yard marks it (`slime_world::Driven`): the save and the file
+//! leave the ring where the yard puts it, and the example would float it again from there. It loads
+//! the save into a world spawned anew, and the run fails if that world is not the one saved. It
+//! also writes the yard back as a scene file (`docs/adr/0092-a-world-written-back-as-a-scene.md`),
+//! spawns that file, and the run fails if the world spawned is not the one written.
 //! `SLIME_LOG=debug` shows the save and the file.
 //!
 //! It reads cooked data, which `slime-cook` makes first:
@@ -137,9 +137,9 @@ impl Yard {
     }
 
     /// With `--watch`, takes the scenes that changed in the cooked data: if one did, the run is
-    /// carried into the yard spawned anew from them, as it was saved against the yard spawned
-    /// before and loaded into the new one. If they cannot be spawned, the library goes back to the
-    /// scenes of the world that runs, which goes on.
+    /// carried into the yard spawned anew from them, saved and loaded into the new one. If they
+    /// cannot be spawned, the library goes back to the scenes of the world that runs, which goes
+    /// on.
     fn watch(&mut self, world: &mut World) {
         let Some(watch) = &mut self.watch else {
             return;
@@ -155,17 +155,16 @@ impl Yard {
                 return;
             }
         };
-        // The world as the example started it from the scenes before they changed, then after.
-        let before = made(&mut self.scenes);
         let changed = self.scenes.reload(assets.clone());
         if changed.is_empty() {
             self.assets = assets;
             return;
         }
-        let carried = before.and_then(|before| {
-            let after = made(&mut self.scenes)?;
+        // The world as the example starts it from the scenes as they are now, which names the yard:
+        // carrying spawns no scene that the example would prepare.
+        let carried = made(&mut self.scenes).and_then(|after| {
             let centre = ring(&after).map(|(_, height)| height);
-            let carried = world.carry(&before, after, &mut self.scenes)?;
+            let carried = world.carry(after, &mut self.scenes, &mut |_, _| {})?;
             Ok((carried, centre))
         });
         match carried {
@@ -230,8 +229,8 @@ impl YardView {
 }
 
 /// Spawns the yard of `scenes` in `world` under [`KEY`], its first directional light, the sample's
-/// sun, showing in the sky: the world as the example makes it at the start of a run, from which its
-/// save differs.
+/// sun, showing in the sky, and settles it: the world as the example makes it at the start of a
+/// run, from which its save differs.
 fn start(world: &mut World, scenes: &mut SceneLibrary) -> Result<(), AppError> {
     let yard = scenes.resolve(world.registry(), YARD)?;
     world.spawn_scene(KEY, &yard)?;
@@ -245,6 +244,7 @@ fn start(world: &mut World, scenes: &mut SceneLibrary) -> Result<(), AppError> {
             sun = true;
         }
     });
+    world.settle();
     Ok(())
 }
 
@@ -261,16 +261,16 @@ fn made(scenes: &mut SceneLibrary) -> Result<World, AppError> {
     Ok(world)
 }
 
-/// Saves `world`, which ran from the yard of `scenes`, as what differs from the world as the
-/// example makes it at the start ([`start`]), loads the save into another world made so, and checks
+/// Saves `world`, which ran from the yard of `scenes`, as what the run changed since the example
+/// made it at the start ([`start`]), loads the save into another world made so, and checks
 /// that it is the world saved, entity by entity, floats by their bits; then writes the yard back as
 /// a scene file, spawns that file, and checks that the world spawned is the world written. Returns
 /// the sizes of the save and of the file in bytes; logs their texts at the `debug` level.
 fn round_trip(world: &mut World, scenes: &mut SceneLibrary) -> Result<(usize, usize), AppError> {
-    let save = world.save(&made(scenes)?, &BTreeMap::new())?;
+    let save = world.save(&BTreeMap::new())?;
     tracing::debug!("the save:\n{save}");
     let mut loaded = made(scenes)?;
-    let report = loaded.load(&save, scenes)?;
+    let report = loaded.load(&save, scenes, &mut |_, _| {})?;
     if !report.set_aside.is_empty() {
         return Err(format!("the save set aside {:?}", report.set_aside).into());
     }

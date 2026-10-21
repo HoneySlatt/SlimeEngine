@@ -53,21 +53,23 @@ fn a_section_that_a_save_does_not_hold_is_a_warning_and_one_of_the_wrong_kind_re
         world
             .spawn_scene("a", &cooked("a", &["gate", "well"]))
             .expect("spawned");
+        world.settle();
         world
     };
     for (text, unknown) in [
         (
-            "[chnaged.\"a/well\".Transform]\ntranslation = { x = 3.0 }\n",
+            "layout = 5\n[chnaged.\"a/well\".Transform]\ntranslation = { x = 3.0 }\n",
             "chnaged",
         ),
-        ("[removed]\nentity = [\"a/well\"]\n", "entity"),
+        ("layout = 5\n[removed]\nentity = [\"a/well\"]\n", "entity"),
         (
-            "[scenes]\na = { name = \"a\", content = \"0\", contents = \"0\" }\n",
+            "layout = 5\n[scenes]\na = { scene = \"00000000-0000-0000-0000-000000000001\", \
+             name = \"a\", content = \"0\", contents = \"0\" }\n",
             "contents",
         ),
     ] {
         let loaded = start()
-            .load(text, &mut SceneLibrary::new())
+            .load(text, &mut SceneLibrary::new(), &mut |_, _| {})
             .expect("a save");
         assert!(
             loaded.warnings.iter().any(|warning| warning
@@ -84,7 +86,11 @@ fn a_section_that_a_save_does_not_hold_is_a_warning_and_one_of_the_wrong_kind_re
         "[added]\n\"a/well\" = \"Hidden\"\n",
     ] {
         let error = start()
-            .load(text, &mut SceneLibrary::new())
+            .load(
+                &format!("layout = 5\n{text}"),
+                &mut SceneLibrary::new(),
+                &mut |_, _| {},
+            )
             .expect_err(text);
         assert!(matches!(error, DocumentError::Read(_)), "{text}: {error}");
     }
@@ -109,6 +115,7 @@ fn start_in_order(a_first: bool) -> World {
     }
     let (gate, well) = (entity(&world, "a/gate"), entity(&world, "a/well"));
     world.insert(gate, Aim { at: well });
+    world.settle();
     world
 }
 
@@ -126,15 +133,15 @@ fn a_reference_that_the_run_changed_is_saved_whatever_order_the_start_was_made_i
     );
     assert_ne!(run.persistent_id(target), start.persistent_id(target));
     run.insert(entity(&run, "a/gate"), Aim { at: target });
-    let save = run.save(&start, &Default::default()).expect("saved");
+    let save = run.save(&Default::default()).expect("saved");
     let mut loaded = start_in_order(true);
     loaded
-        .load(&save, &mut SceneLibrary::new())
+        .load(&save, &mut SceneLibrary::new(), &mut |_, _| {})
         .expect("loaded");
     assert_eq!(run.first_difference(&loaded), None, "{save}");
     // And a reference that the run left as it was is no difference.
     let unchanged = start_in_order(false)
-        .save(&start, &Default::default())
+        .save(&Default::default())
         .expect("saved");
     assert!(!unchanged.contains("test::Aim"), "{unchanged}");
 }
@@ -152,6 +159,7 @@ fn made_in_code(names: &[&str], keyed: bool) -> World {
         world.insert(entity, Name(name.to_owned()));
         world.insert(entity, Transform::IDENTITY);
     }
+    world.settle();
     world
 }
 
@@ -177,11 +185,10 @@ fn what_a_run_changed_of_the_start_made_in_code_loads_back_into_the_same_start()
     let mut run = made_in_code(&["rig", "weather"], true);
     let rig = named(&run, "rig");
     run.insert(rig, Transform::from_translation(DVec3::new(5.0, 0.0, 0.0)));
-    let start = made_in_code(&["rig", "weather"], true);
-    let save = run.save(&start, &Default::default()).expect("saved");
+    let save = run.save(&Default::default()).expect("saved");
     let mut loaded = made_in_code(&["rig", "weather"], true);
     let report = loaded
-        .load(&save, &mut SceneLibrary::new())
+        .load(&save, &mut SceneLibrary::new(), &mut |_, _| {})
         .expect("loaded");
     assert!(report.set_aside.is_empty(), "{report:?}");
     assert_eq!(run.first_difference(&loaded), None);
@@ -190,12 +197,7 @@ fn what_a_run_changed_of_the_start_made_in_code_loads_back_into_the_same_start()
 #[test]
 fn a_start_that_created_entities_without_a_key_refuses_to_save_naming_them() {
     let start = made_in_code(&["rig", "weather"], false);
-    let refused = start
-        .save(
-            &made_in_code(&["rig", "weather"], false),
-            &Default::default(),
-        )
-        .expect_err("refused");
+    let refused = start.save(&Default::default()).expect_err("refused");
     assert!(
         matches!(&refused, DocumentError::UnkeyedAtStart(named)
             if named == &["`created/1` (rig)".to_owned(), "`created/2` (weather)".to_owned()]),
@@ -211,7 +213,7 @@ fn a_start_that_created_entities_without_a_key_refuses_to_save_naming_them() {
     };
     let mut run = unsaved();
     run.spawn();
-    assert!(run.save(&unsaved(), &Default::default()).is_ok());
+    assert!(run.save(&Default::default()).is_ok());
 }
 
 #[test]
@@ -225,11 +227,10 @@ fn an_update_that_creates_one_more_entity_at_the_start_never_moves_another() {
     run.insert(rig, Transform::from_translation(DVec3::new(5.0, 0.0, 0.0)));
     let enemy = run.spawn();
     run.insert(enemy, Name("enemy".to_owned()));
-    let start = made_in_code(&["rig", "weather"], true);
-    let save = run.save(&start, &Default::default()).expect("saved");
+    let save = run.save(&Default::default()).expect("saved");
     let mut loaded = made_in_code(&["music", "rig", "weather"], true);
     let report = loaded
-        .load(&save, &mut SceneLibrary::new())
+        .load(&save, &mut SceneLibrary::new(), &mut |_, _| {})
         .expect("the save of a run loads after an update");
     assert_eq!(x(&loaded, "music"), 0.0);
     assert_eq!(x(&loaded, "rig"), 5.0);
@@ -243,23 +244,22 @@ fn an_update_that_creates_one_more_entity_at_the_start_never_moves_another() {
 
 #[test]
 fn an_entity_that_a_run_creates_under_a_key_is_saved_and_loads_back() {
-    let start = made_in_code(&["rig"], true);
     let mut run = made_in_code(&["rig"], true);
     let boss = run.spawn_keyed("boss").expect("a free key");
     run.insert(boss, Name("boss".to_owned()));
     run.set_parent(boss, Some(named(&run, "rig")))
         .expect("alive");
-    let save = run.save(&start, &Default::default()).expect("saved");
+    let save = run.save(&Default::default()).expect("saved");
     assert!(save.contains("[created.boss"), "{save}");
     let mut loaded = made_in_code(&["rig"], true);
     loaded
-        .load(&save, &mut SceneLibrary::new())
+        .load(&save, &mut SceneLibrary::new(), &mut |_, _| {})
         .expect("loaded");
     assert_eq!(run.first_difference(&loaded), None);
     // A start that holds the key already.
     let mut taken = made_in_code(&["rig", "boss"], true);
     let error = taken
-        .load(&save, &mut SceneLibrary::new())
+        .load(&save, &mut SceneLibrary::new(), &mut |_, _| {})
         .expect_err("in use");
     assert!(
         matches!(error, DocumentError::IdentityInUse(ref id) if id.to_string() == "boss"),
@@ -304,6 +304,7 @@ fn a_hot_reload_after_a_level_gains_a_marker_moves_only_the_enemy_that_the_run_m
             world.insert(placed, Name(name));
             world.insert(placed, Transform::from_translation(at));
         }
+        world.settle();
         world
     };
     let mut old = library(&before);
@@ -313,10 +314,11 @@ fn a_hot_reload_after_a_level_gains_a_marker_moves_only_the_enemy_that_the_run_m
         enemy,
         Transform::from_translation(DVec3::new(100.0, 0.0, 0.0)),
     );
-    let old_start = start(&mut old);
     let mut new = library(&after);
     let new_start = start(&mut new);
-    let (carried, report) = run.carry(&old_start, new_start, &mut new).expect("carried");
+    let (carried, report) = run
+        .carry(new_start, &mut new, &mut |_, _| {})
+        .expect("carried");
     assert_eq!(x(&carried, "enemy at a"), 10.0);
     assert_eq!(x(&carried, "enemy at c"), 30.0);
     assert_eq!(x(&carried, "enemy at b"), 100.0);
@@ -347,10 +349,12 @@ fn levels() -> SceneLibrary {
 /// The start of a run: the town under `level`, and the hero, created outside scenes under a key.
 fn in_town(scenes: &mut SceneLibrary) -> World {
     let mut world = World::new();
+    world.register::<Aim>();
     let town = scenes.resolve(world.registry(), TOWN).expect("resolved");
     world.spawn_scene("level", &town).expect("spawned");
     let hero = world.spawn_keyed("hero").expect("a free key");
     world.insert(hero, Name("hero".to_owned()));
+    world.settle();
     world
 }
 
@@ -362,38 +366,56 @@ fn to_the_cave(world: &mut World, key: &str, scenes: &mut SceneLibrary) {
 }
 
 #[test]
-fn a_level_spawned_under_a_key_waits_until_nothing_of_the_one_before_lives() {
+fn an_adopted_entity_outlives_the_level_that_replaced_its_own_through_a_save_and_a_load() {
     let mut scenes = levels();
     let mut run = in_town(&mut scenes);
-    // The companion follows the hero out of the town, whose root is destroyed.
+    // The companion follows the hero, who aims at it, out of the town, which the cave replaces.
     let hero = entity(&run, "hero");
-    run.set_parent(entity(&run, "level/companion"), Some(hero))
-        .expect("alive");
-    run.despawn(entity(&run, "level"));
+    let companion = entity(&run, "level/companion");
+    run.adopt(companion, "companion").expect("adopted");
+    run.set_parent(companion, Some(hero)).expect("alive");
+    run.insert(hero, Aim { at: companion });
     let cave = scenes.resolve(run.registry(), CAVE).expect("resolved");
-    let refused = run
-        .spawn_scene("level", &cave)
-        .expect_err("the companion lives");
-    assert_eq!(
-        refused,
-        WorldError::KeyInUse {
-            key: "level".to_owned(),
-            entity: "level/companion".parse().unwrap(),
-        }
-    );
-    // The cave under a key of its own keeps the companion, through a save and a load.
-    run.spawn_scene("cave", &cave).expect("spawned");
-    let save = run
-        .save(&in_town(&mut scenes), &Default::default())
-        .expect("saved");
-    let mut loaded = in_town(&mut scenes);
-    let report = loaded.load(&save, &mut scenes).expect("loaded");
-    assert!(report.set_aside.is_empty(), "{report:?}");
-    assert_eq!(run.first_difference(&loaded), None);
-    // Once the companion is gone, the cave goes under `level`.
-    let mut run = in_town(&mut scenes);
-    to_the_cave(&mut run, "level", &mut scenes);
+    run.spawn_scene("level", &cave)
+        .expect("the town unloaded first");
+    run.settle();
+    assert_eq!(run.find(&"companion".parse().unwrap()), Some(companion));
+    assert!(run.find(&"level/companion".parse().unwrap()).is_none());
     assert!(run.find(&"level/rock".parse().unwrap()).is_some());
+    let save = run.save(&Default::default()).expect("saved");
+    assert!(
+        save.contains("companion = { former = \"level/companion\""),
+        "{save}"
+    );
+    let mut loaded = in_town(&mut scenes);
+    let report = loaded
+        .load(&save, &mut scenes, &mut |_, _| {})
+        .expect("loaded");
+    assert!(report.set_aside.is_empty(), "{report:?}");
+    assert_eq!(run.first_difference(&loaded), None, "{save}");
+    assert_eq!(loaded.save(&Default::default()).expect("saved again"), save);
+    let hero = entity(&loaded, "hero");
+    let companion = entity(&loaded, "companion");
+    assert_eq!(loaded.get::<Aim>(hero).expect("held").at, companion);
+    // Back in the town, which does not spawn the companion again.
+    let town = scenes.resolve(loaded.registry(), TOWN).expect("resolved");
+    loaded
+        .spawn_scene("level", &town)
+        .expect("the cave unloaded first");
+    loaded.settle();
+    assert!(loaded.find(&"level/companion".parse().unwrap()).is_none());
+    assert!(loaded.find(&"level/floor".parse().unwrap()).is_some());
+    assert_eq!(loaded.parent(companion), Some(hero));
+    // An entity that is no scene's below its root is not adopted.
+    assert_eq!(
+        loaded.adopt(hero, "other"),
+        Err(WorldError::NotAdoptable(hero))
+    );
+    let floor = entity(&loaded, "level/floor");
+    assert_eq!(
+        loaded.adopt(floor, "companion"),
+        Err(WorldError::IdentityInUse("companion".parse().unwrap()))
+    );
 }
 
 #[test]
@@ -406,6 +428,7 @@ fn what_the_run_placed_in_a_level_outlives_the_run_leaving_it() {
         let mut world = World::new();
         let town = scenes.resolve(world.registry(), TOWN).expect("resolved");
         world.spawn_scene("level", &town).expect("spawned");
+        world.settle();
         world
     };
     let arrive = |world: &mut World, scenes: &mut SceneLibrary| {
@@ -419,18 +442,16 @@ fn what_the_run_placed_in_a_level_outlives_the_run_leaving_it() {
     run.set_parent(entity(&run, "created/1"), None)
         .expect("alive");
     to_the_cave(&mut run, "level", &mut scenes);
-    let save = run
-        .save(&start(&mut scenes), &Default::default())
-        .expect("saved");
+    let save = run.save(&Default::default()).expect("saved");
     let mut loaded = start(&mut scenes);
-    let report = loaded.load(&save, &mut scenes).expect("loaded");
+    let report = loaded
+        .load(&save, &mut scenes, &mut |_, _| {})
+        .expect("loaded");
     assert!(report.set_aside.is_empty(), "{report:?}");
     assert!(loaded.find(&"created/1/sword".parse().unwrap()).is_some());
     assert_eq!(run.first_difference(&loaded), None);
     // Loaded, then saved again: the same save.
-    let again = loaded
-        .save(&start(&mut scenes), &Default::default())
-        .expect("saved");
+    let again = loaded.save(&Default::default()).expect("saved");
     assert_eq!(again, save);
     // Carried through hot reload, the cave edited: the edit reaches the run, the hero stays.
     scenes.insert_file(
@@ -440,7 +461,7 @@ fn what_the_run_placed_in_a_level_outlives_the_run_leaving_it() {
          [entities.torch.components]\nName = \"torch\"\n",
     );
     let (carried, report) = run
-        .carry(&start(&mut levels()), start(&mut scenes), &mut scenes)
+        .carry(start(&mut scenes), &mut scenes, &mut |_, _| {})
         .expect("carried");
     assert!(report.set_aside.is_empty(), "{report:?}");
     assert!(carried.find(&"level/torch".parse().unwrap()).is_some());
@@ -450,14 +471,420 @@ fn what_the_run_placed_in_a_level_outlives_the_run_leaving_it() {
     let mut run = start(&mut scenes);
     arrive(&mut run, &mut scenes);
     to_the_cave(&mut run, "level", &mut scenes);
-    let save = run
-        .save(&start(&mut scenes), &Default::default())
-        .expect("saved");
+    let save = run.save(&Default::default()).expect("saved");
     let mut loaded = start(&mut scenes);
-    let report = loaded.load(&save, &mut scenes).expect("loaded");
+    let report = loaded
+        .load(&save, &mut scenes, &mut |_, _| {})
+        .expect("loaded");
     assert!(report.set_aside.is_empty(), "{report:?}");
     assert!(loaded.find(&"created/1".parse().unwrap()).is_none());
     assert_eq!(run.first_difference(&loaded), None);
+}
+
+/// The scenes of [`levels`], the town holding a chest that a lever opens and an enemy that resets,
+/// its root marked as `town` says.
+fn guarded_levels(town: &str) -> SceneLibrary {
+    let mut scenes = levels();
+    scenes.insert_file(
+        TOWN,
+        "town",
+        format!(
+            "{town}[entities.floor.components]\nName = \"floor\"\n\n\
+             [entities.chest.components]\nName = \"chest\"\nPersistence = \"Persistent\"\n\n\
+             [entities.lever.components]\nName = \"lever\"\n\n\
+             [entities.enemy.components]\nName = \"enemy\"\nPersistence = \"Reset\"\n"
+        ),
+    );
+    scenes
+}
+
+/// The run of [`in_town`]: the chest opened, which the lever aims at, the floor hidden, the enemy
+/// killed.
+fn played_in_town(scenes: &mut SceneLibrary) -> World {
+    let mut run = in_town(scenes);
+    let chest = entity(&run, "level/chest");
+    run.insert(
+        chest,
+        Transform::from_translation(DVec3::new(0.0, 1.0, 0.0)),
+    );
+    run.insert(entity(&run, "level/lever"), Aim { at: chest });
+    run.insert(entity(&run, "level/floor"), Hidden);
+    run.despawn(entity(&run, "level/enemy"));
+    run
+}
+
+/// The scene `id` spawned under `level` in `world`, prepared and settled, as a game does when the
+/// run goes there.
+fn go(world: &mut World, scenes: &mut SceneLibrary, id: AssetId) {
+    let level = scenes.resolve(world.registry(), id).expect("resolved");
+    world
+        .spawn_scene("level", &level)
+        .expect("the level before unloaded");
+    world.settle();
+}
+
+#[test]
+fn a_scene_unloaded_then_spawned_again_gets_back_what_the_run_changed_but_what_resets() {
+    let mut scenes = guarded_levels("");
+    let mut run = played_in_town(&mut scenes);
+    go(&mut run, &mut scenes, CAVE);
+    assert!(run.find(&"level/chest".parse().unwrap()).is_none());
+    // Saved in the cave, then loaded: the world keeps what the town kept, as the run did.
+    let save = run.save(&Default::default()).expect("saved");
+    assert!(
+        save.contains(&format!(
+            "[unloaded.level.{TOWN}.added.\"level/floor\"]\nHidden = {{}}"
+        )) && !save.contains("level/enemy"),
+        "{save}"
+    );
+    let mut loaded = in_town(&mut scenes);
+    let report = loaded
+        .load(&save, &mut scenes, &mut |_, _| {})
+        .expect("loaded");
+    assert!(report.set_aside.is_empty(), "{report:?}");
+    assert_eq!(run.first_difference(&loaded), None, "{save}");
+    assert_eq!(loaded.save(&Default::default()).expect("saved again"), save);
+    for world in [&mut run, &mut loaded] {
+        go(world, &mut scenes, TOWN);
+        let chest = entity(world, "level/chest");
+        assert_eq!(
+            world.get::<Transform>(chest).expect("held").translation.y,
+            1.0
+        );
+        let lever = entity(world, "level/lever");
+        assert_eq!(world.get::<Aim>(lever).expect("held").at, chest);
+        assert!(world.get::<Hidden>(entity(world, "level/floor")).is_some());
+        assert!(
+            world.find(&"level/enemy".parse().unwrap()).is_some(),
+            "the enemy resets"
+        );
+    }
+    assert_eq!(run.first_difference(&loaded), None);
+    // Spawned again while it is loaded, as when the hero rests: what resets comes back.
+    run.despawn(entity(&run, "level/enemy"));
+    go(&mut run, &mut scenes, TOWN);
+    assert!(run.find(&"level/enemy".parse().unwrap()).is_some());
+    assert!(run.get::<Hidden>(entity(&run, "level/floor")).is_some());
+}
+
+#[test]
+fn a_scene_whose_root_resets_forgets_what_the_run_changed_but_of_what_persists() {
+    let mut scenes = guarded_levels("[root.components]\nPersistence = \"Reset\"\n\n");
+    let mut run = played_in_town(&mut scenes);
+    go(&mut run, &mut scenes, TOWN);
+    let chest = entity(&run, "level/chest");
+    assert_eq!(
+        run.get::<Transform>(chest).expect("held").translation.y,
+        1.0
+    );
+    assert!(run.get::<Hidden>(entity(&run, "level/floor")).is_none());
+    let lever = entity(&run, "level/lever");
+    assert!(run.get::<Aim>(lever).is_none(), "the lever resets");
+    assert!(run.find(&"level/enemy".parse().unwrap()).is_some());
+}
+
+#[test]
+fn a_save_made_with_a_scene_of_the_start_unloaded_unloads_it_and_keeps_what_the_run_kept() {
+    let mut scenes = guarded_levels("");
+    let mut run = played_in_town(&mut scenes);
+    run.unload_scene("level").expect("spawned");
+    assert_eq!(
+        run.unload_scene("level"),
+        Err(WorldError::NoScene("level".to_owned()))
+    );
+    let save = run.save(&Default::default()).expect("saved");
+    let mut loaded = in_town(&mut scenes);
+    loaded
+        .load(&save, &mut scenes, &mut |_, _| {})
+        .expect("loaded");
+    assert!(loaded.find(&"level/floor".parse().unwrap()).is_none());
+    assert_eq!(run.first_difference(&loaded), None);
+    go(&mut loaded, &mut scenes, TOWN);
+    assert!(
+        loaded
+            .get::<Hidden>(entity(&loaded, "level/floor"))
+            .is_some()
+    );
+    // Spawned again, then unloaded before it is settled: what the world kept waits still.
+    let town = scenes.resolve(run.registry(), TOWN).expect("resolved");
+    run.spawn_scene("level", &town).expect("spawned");
+    run.unload_scene("level").expect("spawned");
+    go(&mut run, &mut scenes, TOWN);
+    assert!(run.get::<Hidden>(entity(&run, "level/floor")).is_some());
+}
+
+/// The scenes of [`levels`], the town holding a guide, a sword that the guide holds, a scene file's
+/// entity whose parent it names, and a door that aims at the guide.
+fn guided_levels() -> SceneLibrary {
+    let mut scenes = levels();
+    scenes.insert_file(
+        TOWN,
+        "town",
+        "[entities.floor.components]\nName = \"floor\"\n\n\
+         [entities.guide.components]\nName = \"guide\"\n\n\
+         [entities.sword]\nparent = \"guide\"\n\n[entities.sword.components]\nName = \"sword\"\n\n\
+         [entities.door.components]\nName = \"door\"\n\"test::Aim\" = { at = \"guide\" }\n",
+    );
+    scenes
+}
+
+#[test]
+fn what_its_scene_holds_of_an_adopted_entity_follows_it_through_a_save_and_back_in_its_level() {
+    let mut scenes = guided_levels();
+    let mut run = in_town(&mut scenes);
+    let guide = entity(&run, "level/guide");
+    run.adopt(guide, "companion").expect("adopted");
+    assert_eq!(run.parent(entity(&run, "level/sword")), Some(guide));
+    // Saved with the town loaded, then loaded: the door aims at the companion, which holds the
+    // sword.
+    let save = run.save(&Default::default()).expect("saved");
+    let mut loaded = in_town(&mut scenes);
+    let report = loaded
+        .load(&save, &mut scenes, &mut |_, _| {})
+        .expect("loaded");
+    assert!(report.set_aside.is_empty(), "{report:?}");
+    assert_eq!(run.first_difference(&loaded), None, "{save}");
+    assert_eq!(loaded.save(&Default::default()).expect("again"), save);
+    let companion = entity(&loaded, "companion");
+    let door = entity(&loaded, "level/door");
+    assert_eq!(loaded.get::<Aim>(door).expect("held").at, companion);
+    assert_eq!(
+        loaded.parent(entity(&loaded, "level/sword")),
+        Some(companion)
+    );
+    // To the cave and back: the town spawned again aims at the companion, and gives it the sword,
+    // and its guide is not spawned again.
+    for world in [&mut run, &mut loaded] {
+        go(world, &mut scenes, CAVE);
+        go(world, &mut scenes, TOWN);
+        let companion = entity(world, "companion");
+        let door = entity(world, "level/door");
+        assert_eq!(world.get::<Aim>(door).expect("held").at, companion);
+        assert_eq!(world.parent(entity(world, "level/sword")), Some(companion));
+        assert!(world.find(&"level/guide".parse().unwrap()).is_none());
+    }
+    assert_eq!(run.first_difference(&loaded), None);
+    // A scene that another spawns under the key gives its own guide, which is not the companion.
+    let mut scenes = guided_levels();
+    scenes.insert_file(
+        CAVE,
+        "cave",
+        "[entities.guide.components]\nName = \"guide\"\n",
+    );
+    let mut run = in_town(&mut scenes);
+    let guide = entity(&run, "level/guide");
+    run.adopt(guide, "companion").expect("adopted");
+    go(&mut run, &mut scenes, CAVE);
+    let save = run.save(&Default::default()).expect("saved");
+    let mut loaded = in_town(&mut scenes);
+    loaded
+        .load(&save, &mut scenes, &mut |_, _| {})
+        .expect("loaded");
+    assert_eq!(run.first_difference(&loaded), None, "{save}");
+    assert!(loaded.find(&"level/guide".parse().unwrap()).is_some());
+}
+
+#[test]
+fn an_adopted_entity_that_the_run_destroyed_is_not_brought_back_by_a_load() {
+    let mut scenes = guided_levels();
+    let mut run = in_town(&mut scenes);
+    let guide = entity(&run, "level/guide");
+    run.adopt(guide, "companion").expect("adopted");
+    run.despawn(guide);
+    let save = run.save(&Default::default()).expect("saved");
+    let mut loaded = in_town(&mut scenes);
+    let report = loaded
+        .load(&save, &mut scenes, &mut |_, _| {})
+        .expect("loaded");
+    assert!(report.set_aside.is_empty(), "{report:?}");
+    assert_eq!(run.first_difference(&loaded), None, "{save}");
+    for id in ["companion", "level/guide", "level/sword"] {
+        assert!(loaded.find(&id.parse().unwrap()).is_none(), "{id}");
+    }
+}
+
+#[test]
+fn an_entity_adopted_out_of_a_level_that_a_load_spawns_stays_out_of_it() {
+    let mut scenes = guided_levels();
+    scenes.insert_file(CAVE, "cave", "[entities.npc.components]\nName = \"npc\"\n");
+    let mut run = in_town(&mut scenes);
+    go(&mut run, &mut scenes, CAVE);
+    let npc = entity(&run, "level/npc");
+    run.adopt(npc, "companion").expect("adopted");
+    let save = run.save(&Default::default()).expect("saved");
+    let mut loaded = in_town(&mut scenes);
+    let report = loaded
+        .load(&save, &mut scenes, &mut |_, _| {})
+        .expect("loaded");
+    assert!(report.set_aside.is_empty(), "{report:?}");
+    assert_eq!(run.first_difference(&loaded), None, "{save}");
+    assert_eq!(loaded.save(&Default::default()).expect("again"), save);
+    for world in [&mut run, &mut loaded] {
+        go(world, &mut scenes, TOWN);
+        go(world, &mut scenes, CAVE);
+        assert!(world.find(&"level/npc".parse().unwrap()).is_none());
+        assert!(world.find(&"companion".parse().unwrap()).is_some());
+    }
+    assert_eq!(run.first_difference(&loaded), None);
+}
+
+#[test]
+fn entities_adopted_out_of_two_levels_spawned_under_one_key_are_told_apart() {
+    let mut scenes = guided_levels();
+    scenes.insert_file(
+        CAVE,
+        "cave",
+        "[entities.guide.components]\nName = \"guide\"\n\n\
+         [entities.door.components]\nName = \"door\"\n\"test::Aim\" = { at = \"guide\" }\n",
+    );
+    let mut run = in_town(&mut scenes);
+    run.adopt(entity(&run, "level/guide"), "companion")
+        .expect("adopted");
+    go(&mut run, &mut scenes, CAVE);
+    run.adopt(entity(&run, "level/guide"), "pet")
+        .expect("adopted");
+    // The door of each level aims at the guide adopted out of it.
+    let aimed = |world: &World| {
+        let at = world
+            .get::<Aim>(entity(world, "level/door"))
+            .expect("held")
+            .at;
+        world.persistent_id(at).map(|id| id.to_string())
+    };
+    for (level, adopted) in [(TOWN, "companion"), (CAVE, "pet")] {
+        go(&mut run, &mut scenes, level);
+        assert_eq!(aimed(&run).as_deref(), Some(adopted));
+    }
+    let save = run.save(&Default::default()).expect("saved");
+    let mut loaded = in_town(&mut scenes);
+    loaded
+        .load(&save, &mut scenes, &mut |_, _| {})
+        .expect("loaded");
+    assert_eq!(run.first_difference(&loaded), None, "{save}");
+    go(&mut loaded, &mut scenes, TOWN);
+    assert_eq!(aimed(&loaded).as_deref(), Some("companion"));
+}
+
+#[test]
+fn the_key_of_an_adopted_entity_stays_its_own_once_it_is_gone() {
+    let mut scenes = guided_levels();
+    let mut run = in_town(&mut scenes);
+    let guide = entity(&run, "level/guide");
+    run.adopt(guide, "companion").expect("adopted");
+    run.despawn(guide);
+    let taken = WorldError::IdentityInUse("companion".parse().unwrap());
+    assert_eq!(run.spawn_keyed("companion"), Err(taken.clone()));
+    let floor = entity(&run, "level/floor");
+    assert_eq!(run.adopt(floor, "companion"), Err(taken.clone()));
+    let cave = scenes.resolve(run.registry(), CAVE).expect("resolved");
+    assert_eq!(run.spawn_scene("companion", &cave), Err(taken));
+    // Back in the town, the door aims at no entity, as in a world loaded from the run's save.
+    let dog = run.spawn_keyed("dog").expect("a free key");
+    go(&mut run, &mut scenes, CAVE);
+    go(&mut run, &mut scenes, TOWN);
+    let door = entity(&run, "level/door");
+    assert!(!run.contains(run.get::<Aim>(door).expect("held").at));
+    let save = run.save(&Default::default()).expect("saved");
+    let mut loaded = in_town(&mut scenes);
+    loaded
+        .load(&save, &mut scenes, &mut |_, _| {})
+        .expect("loaded");
+    assert_eq!(run.first_difference(&loaded), None, "{save}");
+    assert!(run.contains(dog));
+}
+
+#[test]
+fn what_the_run_did_to_its_placements_is_saved_after_the_game_settles_a_level() {
+    let mut scenes = levels();
+    let mut run = in_town(&mut scenes);
+    let hero = scenes.resolve(run.registry(), HERO).expect("resolved");
+    let placed = run.spawn_placement(&hero, None).expect("placed");
+    run.insert(placed, Hidden);
+    run.despawn(entity(&run, "created/1/sword"));
+    go(&mut run, &mut scenes, CAVE);
+    let save = run.save(&Default::default()).expect("saved");
+    let mut loaded = in_town(&mut scenes);
+    let report = loaded
+        .load(&save, &mut scenes, &mut |_, _| {})
+        .expect("loaded");
+    assert!(report.set_aside.is_empty(), "{report:?}");
+    assert_eq!(run.first_difference(&loaded), None, "{save}");
+    assert!(loaded.find(&"created/1/sword".parse().unwrap()).is_none());
+    assert!(loaded.get::<Hidden>(entity(&loaded, "created/1")).is_some());
+}
+
+#[test]
+fn what_a_level_unloaded_keeps_names_what_the_run_created_by_the_numbers_that_it_takes() {
+    let mut scenes = guarded_levels("");
+    // A start that creates `spare` entities that saves leave out.
+    let start = |scenes: &mut SceneLibrary, spare: usize| {
+        let mut world = World::new();
+        world.register::<Aim>();
+        for _ in 0..spare {
+            let spark = world.spawn();
+            world.insert(spark, Unsaved);
+        }
+        let town = scenes.resolve(world.registry(), TOWN).expect("resolved");
+        world.spawn_scene("level", &town).expect("spawned");
+        world.settle();
+        world
+    };
+    let mut run = start(&mut scenes, 1);
+    let torch = run.spawn();
+    run.insert(torch, Name("torch".to_owned()));
+    run.insert(entity(&run, "level/lever"), Aim { at: torch });
+    go(&mut run, &mut scenes, CAVE);
+    let save = run.save(&Default::default()).expect("saved");
+    // Loaded into a start that creates one more: the torch takes the next number.
+    let mut loaded = start(&mut scenes, 2);
+    loaded
+        .load(&save, &mut scenes, &mut |_, _| {})
+        .expect("loaded");
+    go(&mut loaded, &mut scenes, TOWN);
+    let aimed = loaded
+        .get::<Aim>(entity(&loaded, "level/lever"))
+        .expect("held")
+        .at;
+    assert_eq!(
+        loaded.persistent_id(aimed),
+        Some("created/3".parse().unwrap())
+    );
+    assert_eq!(loaded.get::<Name>(aimed), Some(&Name("torch".to_owned())));
+}
+
+#[test]
+fn a_save_made_before_a_level_spawned_again_is_settled_gives_back_what_the_level_kept() {
+    let mut scenes = guarded_levels("");
+    let mut run = played_in_town(&mut scenes);
+    go(&mut run, &mut scenes, CAVE);
+    let town = scenes.resolve(run.registry(), TOWN).expect("resolved");
+    run.spawn_scene("level", &town)
+        .expect("the cave unloaded first");
+    let save = run.save(&Default::default()).expect("saved");
+    run.settle();
+    let mut loaded = in_town(&mut scenes);
+    let report = loaded
+        .load(&save, &mut scenes, &mut |_, _| {})
+        .expect("loaded");
+    assert!(report.set_aside.is_empty(), "{report:?}");
+    assert!(
+        loaded
+            .get::<Hidden>(entity(&loaded, "level/floor"))
+            .is_some()
+    );
+    assert_eq!(run.first_difference(&loaded), None, "{save}");
+}
+
+#[test]
+fn a_world_never_settled_is_not_saved() {
+    let mut world = World::new();
+    world.spawn_keyed("camera").expect("a free key");
+    assert!(matches!(
+        world.save(&Default::default()),
+        Err(DocumentError::NotSettled)
+    ));
+    world.settle();
+    world.save(&Default::default()).expect("settled");
 }
 
 #[test]
@@ -472,16 +899,17 @@ fn a_scene_that_the_start_places_in_a_level_outlives_the_run_leaving_it() {
         let hero = world.spawn_scene("hero", &hero).expect("spawned");
         let floor = entity(&world, "level/floor");
         world.set_parent(hero, Some(floor)).expect("alive");
+        world.settle();
         world
     };
     let mut run = start(&mut scenes);
     run.set_parent(entity(&run, "hero"), None).expect("alive");
     to_the_cave(&mut run, "level", &mut scenes);
-    let save = run
-        .save(&start(&mut scenes), &Default::default())
-        .expect("saved");
+    let save = run.save(&Default::default()).expect("saved");
     let mut loaded = start(&mut scenes);
-    let report = loaded.load(&save, &mut scenes).expect("loaded");
+    let report = loaded
+        .load(&save, &mut scenes, &mut |_, _| {})
+        .expect("loaded");
     assert!(report.set_aside.is_empty(), "{report:?}");
     assert!(loaded.find(&"hero/sword".parse().unwrap()).is_some());
     assert_eq!(run.first_difference(&loaded), None);
@@ -494,10 +922,12 @@ fn a_component_of_a_type_or_a_variant_that_this_program_does_not_know_is_a_warni
     world
         .spawn_scene("a", &cooked("a", &["gate", "well"]))
         .expect("spawned");
-    let text = "[added.\"a/gate\"]\n\"test::Chest\" = { gold = 3 }\n\
+    let text = "layout = 5\n[added.\"a/gate\"]\n\"test::Chest\" = { gold = 3 }\n\
                 [added.\"a/well\"]\nLight = { Laser = { color = [1.0, 0.0, 0.0, 1.0] } }\n\
                 [changed.\"a/well\".Transform]\ntranslation = { x = -1.0 }\n";
-    let loaded = world.load(text, &mut SceneLibrary::new()).expect("a save");
+    let loaded = world
+        .load(text, &mut SceneLibrary::new(), &mut |_, _| {})
+        .expect("a save");
     assert!(loaded.set_aside.is_empty(), "{:?}", loaded.set_aside);
     let warnings: Vec<String> = loaded.warnings.iter().map(ToString::to_string).collect();
     assert_eq!(warnings.len(), 2, "{warnings:?}");
@@ -514,12 +944,12 @@ fn a_component_of_a_type_or_a_variant_that_this_program_does_not_know_is_a_warni
 #[test]
 fn a_save_that_gives_a_key_to_a_scene_and_to_an_entity_it_creates_is_refused() {
     // Edited by hand: the run spawned a scene under `camp`, and created an entity under the same key.
-    let text = "[spawned.camp]\nscene = \"00000000-0000-0000-0000-000000000007\"\n\
+    let text = "layout = 5\n[scenes.camp]\nscene = \"00000000-0000-0000-0000-000000000007\"\n\
                 name = \"camp\"\ncontent = \"0000000000000000\"\n\
                 [created.camp]\nparent = []\n";
     let mut world = World::new();
     let error = world
-        .load(text, &mut SceneLibrary::new())
+        .load(text, &mut SceneLibrary::new(), &mut |_, _| {})
         .expect_err("one identity, two entities");
     assert!(
         matches!(&error, DocumentError::IdentityInUse(id) if id.to_string() == "camp"),
@@ -534,7 +964,13 @@ fn a_save_that_holds_many_unknown_keys_warns_of_the_first_and_counts_the_rest() 
         .map(|index| format!("unknown{index} = 1\n"))
         .collect();
     let mut world = World::new();
-    let loaded = world.load(&keys, &mut SceneLibrary::new()).expect("a save");
+    let loaded = world
+        .load(
+            &format!("layout = 5\n{keys}"),
+            &mut SceneLibrary::new(),
+            &mut |_, _| {},
+        )
+        .expect("a save");
     assert_eq!(loaded.warnings.len(), slime_serialize::MAX_WARNINGS + 1);
     assert!(
         loaded.warnings[0].to_string().contains("unknown0"),
@@ -556,16 +992,18 @@ fn a_save_that_spawns_more_bytes_of_scenes_than_a_scene_holds_sets_the_rest_asid
         "big",
         format!("[root.components]\nName = \"{}\"\n", "a".repeat(2 << 20)),
     );
-    let text: String = (0..130)
-        .map(|index| {
+    let text: String = std::iter::once("layout = 5\n".to_owned())
+        .chain((0..130).map(|index| {
             format!(
-                "[spawned.k{index}]\nscene = \"{big}\"\nname = \"big\"\n\
+                "[scenes.k{index}]\nscene = \"{big}\"\nname = \"big\"\n\
                  content = \"0000000000000000\"\n\n"
             )
-        })
+        }))
         .collect();
     let mut world = World::new();
-    let loaded = world.load(&text, &mut scenes).expect("a save");
+    let loaded = world
+        .load(&text, &mut scenes, &mut |_, _| {})
+        .expect("a save");
     let aside: Vec<&str> = loaded
         .set_aside
         .iter()
@@ -591,11 +1029,13 @@ fn a_save_that_spawns_a_scene_under_a_long_key_counts_it_in_the_limit() {
     let mut scenes = SceneLibrary::new();
     scenes.insert_file(lamp, "lamp", entities);
     let text = format!(
-        "[spawned.{}]\nscene = \"{lamp}\"\nname = \"lamp\"\ncontent = \"0000000000000000\"\n",
+        "layout = 5\n[scenes.{}]\nscene = \"{lamp}\"\nname = \"lamp\"\ncontent = \"0000000000000000\"\n",
         "a".repeat(4 << 20)
     );
     let mut world = World::new();
-    let loaded = world.load(&text, &mut scenes).expect("a save");
+    let loaded = world
+        .load(&text, &mut scenes, &mut |_, _| {})
+        .expect("a save");
     assert!(
         loaded.set_aside.len() == 1 && loaded.set_aside[0].reason.contains("bytes of scenes"),
         "{:?}",
@@ -624,9 +1064,9 @@ fn a_created_entity_written_into_its_level_then_carried_exists_once() {
         world.register::<Aim>();
         let scene = library.resolve(world.registry(), ZONE).expect("resolves");
         world.spawn_scene("zone", &scene).expect("spawns");
+        world.settle();
         world
     };
-    let old_start = start(&mut library);
     let mut run = start(&mut library);
     let zone = entity(&run, "zone");
     let torch = run.spawn();
@@ -644,7 +1084,7 @@ fn a_created_entity_written_into_its_level_then_carried_exists_once() {
     let mut cooked = SceneLibrary::new();
     cooked.insert_file(ZONE, "zone", written.text.clone());
     let (carried, report) = run
-        .carry(&old_start, start(&mut cooked), &mut cooked)
+        .carry(start(&mut cooked), &mut cooked, &mut |_, _| {})
         .expect("carried");
     assert!(report.set_aside.is_empty(), "{report:?}");
     let torches: Vec<Entity> = carried
@@ -670,7 +1110,7 @@ fn a_created_entity_written_into_its_level_then_carried_exists_once() {
     );
     // A run carried into the file that is not cooked again creates it as before.
     let (again, report) = run
-        .carry(&old_start, start(&mut library), &mut library)
+        .carry(start(&mut library), &mut library, &mut |_, _| {})
         .expect("carried");
     assert!(report.set_aside.is_empty(), "{report:?}");
     assert!(again.find(&"created/1".parse().unwrap()).is_some());
@@ -707,6 +1147,7 @@ fn a_driven_component_is_saved_and_written_back_as_its_author_wrote_it() {
         world.register::<Aim>();
         let level = scenes.resolve(world.registry(), LEVEL).expect("resolved");
         world.spawn_scene("level", &level).expect("spawned");
+        world.settle();
         world
     };
     let moved = |x: f64| Transform::from_translation(DVec3::new(x, 0.0, 0.0));
@@ -735,13 +1176,13 @@ fn a_driven_component_is_saved_and_written_back_as_its_author_wrote_it() {
     run.set_parent(spark, Some(entity(&run, "level")))
         .expect("both alive");
 
-    let save = run
-        .save(&start(&mut scenes), &Default::default())
-        .expect("saved");
+    let save = run.save(&Default::default()).expect("saved");
     assert!(!save.contains("level/ring"), "{save}");
     assert!(!save.contains("level/lamp"), "{save}");
     let mut loaded = start(&mut scenes);
-    let report = loaded.load(&save, &mut scenes).expect("loaded");
+    let report = loaded
+        .load(&save, &mut scenes, &mut |_, _| {})
+        .expect("loaded");
     assert!(report.set_aside.is_empty(), "{report:?}");
     assert_eq!(
         (
@@ -830,6 +1271,7 @@ fn zone_start(scenes: &mut SceneLibrary) -> World {
         .resolve(world.registry(), TORCH_ZONE)
         .expect("resolved");
     world.spawn_scene("zone", &zone).expect("spawned");
+    world.settle();
     world
 }
 
@@ -844,7 +1286,6 @@ fn all_named(world: &World, name: &str) -> Vec<Entity> {
 #[test]
 fn a_placement_made_while_running_written_into_its_level_then_carried_exists_once() {
     let mut scenes = torch_scenes();
-    let old_start = zone_start(&mut scenes);
     let mut run = zone_start(&mut scenes);
     let lamp = scenes
         .resolve(run.registry(), TORCH_LAMP)
@@ -869,7 +1310,7 @@ fn a_placement_made_while_running_written_into_its_level_then_carried_exists_onc
     let mut cooked = torch_scenes();
     cooked.insert_file(TORCH_ZONE, "zone", written.text);
     let (carried, report) = run
-        .carry(&old_start, zone_start(&mut cooked), &mut cooked)
+        .carry(zone_start(&mut cooked), &mut cooked, &mut |_, _| {})
         .expect("carried");
     assert!(report.set_aside.is_empty(), "{report:?}");
     let lamps: Vec<Entity> = carried
@@ -902,7 +1343,6 @@ fn a_created_entity_written_into_a_level_that_the_run_changed_to_exists_once() {
     // The run leaves the zone for the cave, under a key of its own, creates a torch in the cave
     // and writes the cave back; carried once the cave is cooked again, the torch is the file's.
     let mut scenes = torch_scenes();
-    let old_start = zone_start(&mut scenes);
     let mut run = zone_start(&mut scenes);
     let cave = scenes
         .resolve(run.registry(), TORCH_CAVE)
@@ -919,7 +1359,7 @@ fn a_created_entity_written_into_a_level_that_the_run_changed_to_exists_once() {
     let mut cooked = torch_scenes();
     cooked.insert_file(TORCH_CAVE, "cave", written.text);
     let (carried, report) = run
-        .carry(&old_start, zone_start(&mut cooked), &mut cooked)
+        .carry(zone_start(&mut cooked), &mut cooked, &mut |_, _| {})
         .expect("carried");
     assert!(report.set_aside.is_empty(), "{report:?}");
     let torches = all_named(&carried, "torch");
@@ -937,7 +1377,6 @@ fn a_created_entity_written_into_a_level_that_the_run_changed_to_exists_once() {
 #[test]
 fn the_identity_that_a_file_gives_a_created_entity_outlives_a_load_before_the_file_is_cooked() {
     let mut scenes = torch_scenes();
-    let old_start = zone_start(&mut scenes);
     let mut run = zone_start(&mut scenes);
     let zone = entity(&run, "zone");
     let torch = run.spawn();
@@ -947,9 +1386,11 @@ fn the_identity_that_a_file_gives_a_created_entity_outlives_a_load_before_the_fi
     let written = run.write_scene(zone).expect("written");
     // Saved and resumed before the file is cooked: the torch is created again, and remembers
     // the file's identity, which a file written again gives it again.
-    let save = run.save(&old_start, &Default::default()).expect("saved");
+    let save = run.save(&Default::default()).expect("saved");
     let mut resumed = zone_start(&mut scenes);
-    resumed.load(&save, &mut scenes).expect("loaded");
+    resumed
+        .load(&save, &mut scenes, &mut |_, _| {})
+        .expect("loaded");
     assert_eq!(all_named(&resumed, "torch").len(), 1);
     let rewritten = resumed
         .write_scene(entity(&resumed, "zone"))
@@ -962,11 +1403,7 @@ fn the_identity_that_a_file_gives_a_created_entity_outlives_a_load_before_the_fi
     let mut cooked = torch_scenes();
     cooked.insert_file(TORCH_ZONE, "zone", written.text);
     let (carried, report) = resumed
-        .carry(
-            &zone_start(&mut scenes),
-            zone_start(&mut cooked),
-            &mut cooked,
-        )
+        .carry(zone_start(&mut cooked), &mut cooked, &mut |_, _| {})
         .expect("carried");
     assert!(report.set_aside.is_empty(), "{report:?}");
     let torches = all_named(&carried, "torch");

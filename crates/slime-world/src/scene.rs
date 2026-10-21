@@ -1,12 +1,14 @@
 //! Scenes spawned as entities, and the persistent identities of entities.
 
 use std::any::TypeId;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use slime_reflect::{Registry, Value};
 
+use crate::change::Tick;
 use crate::components::Name;
+use crate::document::created_root;
 use crate::entity::Entity;
 use crate::error::WorldError;
 use crate::identity::{CREATED, PersistentId};
@@ -36,28 +38,60 @@ impl World {
     /// placement's prefab and overrides ([`World::placement`]), and keeps the scene, which a save
     /// names by its name and fingerprint and a file written back reads the table of assets of
     /// ([`World::write_scene`]), even once its root is destroyed, since entities moved out of it live
-    /// on, until another is spawned under `key`: a scene that its library holds too costs a count.
-    /// Another scene is spawned under `key`, as when a run changes level, once nothing of the one
-    /// spawned under it before lives: an entity of it kept, a companion that follows the hero, keeps
-    /// an identity under `key`, which the new scene's would share, so that a level that keeps
-    /// something of the one before it is spawned under a key of its own.
+    /// on, until it is unloaded: a scene that its library holds too costs a count. The scene is at
+    /// its base as it spawns, which saves compare it with, until the game settles it once it has
+    /// prepared it ([`World::settle`]), which applies what the world kept of it if it unloaded it.
+    ///
+    /// A scene spawned under `key` before is unloaded first ([`World::unload_scene`]), as when a
+    /// run changes level, or spawns a level again: what the world keeps of it waits for it to be
+    /// spawned again under `key`. What of it must outlive it, a companion that follows the hero,
+    /// the game adopts first ([`World::adopt`]).
     ///
     /// # Errors
     ///
     /// [`WorldError::InvalidKey`] if `key` is empty, holds `/`, or is `created`, which names the
     /// entities created outside scenes; [`WorldError::IdentityInUse`] if an entity has the identity
-    /// `key`, or one of the scene's, already, as a scene spawned twice under one key gives;
-    /// [`WorldError::KeyInUse`] if an entity of the scene spawned under `key` before lives still;
+    /// `key`, or one of the scene's, already, or an entity was adopted under `key`;
     /// [`WorldError::UnknownComponent`] if a component's type has no storage in the world, as a
     /// type that the game did not register ([`World::register`]) has;
     /// [`WorldError::RefusedInScene`] if a value breaks a rule of its type's check, which reflection
-    /// leaves to the type ([`World::set_component_value`]). Nothing is spawned then.
+    /// leaves to the type ([`World::set_component_value`]). Nothing is spawned then, and the scene
+    /// spawned under `key` before stays.
     ///
     /// # Panics
     ///
     /// If the world runs out of slots ([`World::spawn`]).
     pub fn spawn_scene(&mut self, key: &str, scene: &ResolvedScene) -> Result<Entity, WorldError> {
         let storages = storages_of(&self.registry, &self.component_ids, scene)?;
+        let root = valid_key(key)?;
+        if self.formers.contains_key(key) {
+            return Err(WorldError::IdentityInUse(root));
+        }
+        if let Some(held) = self.scenes.get(key) {
+            // Checked before the scene that it replaces is unloaded, which a refusal leaves.
+            let held: HashSet<PersistentId> = record_ids(&root, &held.scene).into_iter().collect();
+            let ids = record_ids(&root, scene);
+            if let Some(id) = ids
+                .iter()
+                .find(|id| self.identities.contains_key(id) && !held.contains(id))
+            {
+                return Err(WorldError::IdentityInUse(id.clone()));
+            }
+            let none = vec![None; ids.len()];
+            for (record, id) in scene.0.records.iter().zip(&ids) {
+                for (name, value) in &record.components {
+                    self.storages[storages[name.as_str()]]
+                        .accepts(&with_handles(value, &none))
+                        .map_err(|error| WorldError::RefusedInScene {
+                            scene: scene.0.name.clone(),
+                            entity: id.clone(),
+                            component: name.clone(),
+                            error: Box::new(error),
+                        })?;
+                }
+            }
+            self.unload_scene(key)?;
+        }
         self.spawn_scene_with(key, scene, &storages)
     }
 
@@ -83,14 +117,16 @@ impl World {
     /// # Errors
     ///
     /// [`WorldError::InvalidKey`] if `key` is empty, holds `/`, or is `created`;
-    /// [`WorldError::IdentityInUse`] if an entity has the identity `key` already.
+    /// [`WorldError::IdentityInUse`] if an entity has the identity `key` already, or a scene is
+    /// spawned under it, which the game unloads first ([`World::unload_scene`]), or an entity was
+    /// adopted under it ([`World::adopt`]).
     ///
     /// # Panics
     ///
     /// If the world runs out of slots ([`World::spawn`]).
     pub fn spawn_keyed(&mut self, key: &str) -> Result<Entity, WorldError> {
         let id = valid_key(key)?;
-        if self.identities.contains_key(&id) {
+        if self.key_taken(key) {
             return Err(WorldError::IdentityInUse(id));
         }
         let entity = self.spawn_bare();
@@ -107,18 +143,6 @@ impl World {
         storages: &Storages<'_>,
     ) -> Result<Entity, WorldError> {
         let root = valid_key(key)?;
-        // A root alive is a scene spawned twice under the key, which `spawn_records` refuses.
-        if !self.identities.contains_key(&root)
-            && let Some(held) = self.scenes.get(key)
-            && let Some(entity) = record_ids(&root, &held.scene)
-                .into_iter()
-                .find(|id| self.identities.contains_key(id))
-        {
-            return Err(WorldError::KeyInUse {
-                key: key.to_owned(),
-                entity,
-            });
-        }
         let ids = record_ids(&root, scene);
         let entities = self.spawn_records(scene, &ids, None, storages)?;
         if !scene.0.records[0]
@@ -131,11 +155,12 @@ impl World {
         self.scenes.insert(
             key.to_owned(),
             SpawnedScene {
-                name: scene.0.name.clone(),
                 content: scene.0.fingerprint,
                 scene: scene.clone(),
+                settled: false,
             },
         );
+        self.base_spawned(&entities);
         Ok(entities[0])
     }
 
@@ -147,8 +172,8 @@ impl World {
     /// identities are its own followed by their paths in the prefab, `created/7/light`. The world
     /// remembers its prefab, which [`World::placement`] gives while the root lives, and writes it as a
     /// placement in a scene file ([`World::write_scene`]); a save writes it as its prefab with what
-    /// differs from it while an entity of it lives ([`World::save`]). Nothing can be saved against a
-    /// start that placed a prefab so, as for any entity that a start creates without a key: a start
+    /// differs from it while an entity of it lives ([`World::save`]). A world whose start placed a
+    /// prefab so cannot be saved, as for any entity that a start creates without a key: a start
     /// places it under a key with [`World::spawn_scene`]. The root holds no [`Name`], unlike a
     /// placement that a file makes, which spawning names by its ID: the world gives it an ID when it
     /// first writes it, and a file written while it has no name says that its `Name` is removed.
@@ -204,11 +229,13 @@ impl World {
             set_aside: Vec::new(),
         }));
         self.placements.insert(number, prefab.clone());
+        self.base_spawned(&entities);
         Ok(root)
     }
 
-    /// Forgets the placements made while the world runs of which no entity lives: kept until then,
-    /// as a save writes those whose entities live on, their root destroyed.
+    /// Forgets the placements made while the world runs of which no entity lives, and what the run
+    /// destroyed of them: kept until then, as a save writes those whose entities live on, their
+    /// root destroyed.
     fn forget_gone_placements(&mut self) {
         let placements = std::mem::take(&mut self.placements);
         self.placements = placements
@@ -219,6 +246,9 @@ impl World {
                     .any(|id| self.find(id).is_some())
             })
             .collect();
+        let placements = &self.placements;
+        self.gone
+            .retain(|id, _| created_root(id).is_none_or(|number| placements.contains_key(&number)));
         self.placements_kept = self.placements.len();
     }
 
@@ -259,9 +289,15 @@ impl World {
                         entity.index(),
                         &with_handles(value, &spawned),
                         tick,
+                        Tick::default(),
                     )
                 } else {
-                    self.storages[storage].insert_value(entity.index(), value, tick)
+                    self.storages[storage].insert_value(
+                        entity.index(),
+                        value,
+                        tick,
+                        Tick::default(),
+                    )
                 };
                 if let Err(error) = inserted {
                     // Without parents yet: each is despawned alone. The root of a placement made
@@ -576,25 +612,35 @@ mod tests {
     }
 
     #[test]
-    fn a_scene_spawned_twice_under_one_key_is_refused_and_spawns_nothing() {
+    fn a_scene_spawned_again_under_its_key_takes_the_place_of_the_one_before() {
         let mut world = World::new();
-        world
+        let first = world
             .spawn_scene("zone", &resolved(&chapel()))
             .expect("spawned");
-        assert_eq!(
-            world.spawn_scene("zone", &resolved(&chapel())),
-            Err(WorldError::IdentityInUse(PersistentId::new(["zone"])))
-        );
+        let again = world
+            .spawn_scene("zone", &resolved(&chapel()))
+            .expect("the first unloaded");
+        assert!(!world.contains(first) && world.contains(again));
         assert_eq!(world.len(), 4);
+        let keyed = world.spawn_keyed("hall").expect("a free key");
+        assert_eq!(
+            world.spawn_scene("hall", &resolved(&chapel())),
+            Err(WorldError::IdentityInUse(PersistentId::new(["hall"])))
+        );
+        assert!(world.despawn(keyed));
         world
             .spawn_scene("copy", &resolved(&chapel()))
             .expect("another key");
         let root = world.find(&PersistentId::new(["zone"])).expect("spawned");
         assert!(world.despawn(root));
         assert!(world.find(&PersistentId::new(["zone", "door"])).is_none());
-        world
-            .spawn_scene("zone", &resolved(&chapel()))
-            .expect("the key is free again");
+        // A key whose scene is gone whole is still its scene's, until the scene is unloaded.
+        assert_eq!(
+            world.spawn_keyed("zone"),
+            Err(WorldError::IdentityInUse(PersistentId::new(["zone"])))
+        );
+        world.unload_scene("zone").expect("spawned");
+        world.spawn_keyed("zone").expect("the key is free again");
     }
 
     #[test]

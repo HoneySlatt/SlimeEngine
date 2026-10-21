@@ -224,8 +224,9 @@ A game built with its default features holds the engine's development channel
 ([ADR-0122](docs/adr/0122-the-development-channel.md)): started with a token in its environment, it
 listens on the machine's own address for the tools that drive it; started without one, it does not.
 The engine's MCP server, `slime-mcp`, starts a game so, and gives an agent the tools to pause and
-step it, read and change its world, play it with keys, capture its image and read its log; its
-[README](crates/slime-mcp/README.md) says how to give it to an agent. The game opens its window on
+step it, read and change its world, play it with keys, save and load its run to files of the
+agent's own, capture its image and read its log; its [README](crates/slime-mcp/README.md) says how
+to give it to an agent. The game opens its window on
 the display that the server's environment names: to keep it off your desktop, give the server the
 environment of a headless Weston, `XDG_RUNTIME_DIR` and `WAYLAND_DISPLAY`, with
 `VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD"` so that lavapipe draws it, as `scripts/check.sh` runs the

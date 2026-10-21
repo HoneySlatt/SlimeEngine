@@ -49,6 +49,25 @@ pub struct Unsaved;
 
 impl Component for Unsaved {}
 
+/// What becomes of what a run changed of a scene's entity when the scene is unloaded
+/// ([`World::unload_scene`](crate::World::unload_scene)): held by a scene's root, for its scene's
+/// entities; held by an entity, for itself, whatever its scene's. The entities of a scene whose
+/// root holds none are persistent (`docs/adr/0125-saves-per-scene.md`). It is read from the entity
+/// as it holds it when the scene is unloaded, or held it when the run destroyed it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
+#[reflect(name = "Persistence")]
+pub enum Persistence {
+    /// Kept: the world keeps what the run changed of the entity, and applies it again when the
+    /// scene is spawned again, as a save does, a door broken open, a chest emptied.
+    #[default]
+    Persistent,
+    /// Forgotten: spawned again, the scene gives the entity as its file does, an enemy that comes
+    /// back. What the run changed of it is saved while its scene is loaded.
+    Reset,
+}
+
+impl Component for Persistence {}
+
 /// The components of an entity that a system computes again, the game's rules, an animation or
 /// physics, by their types' names, `Transform`: their value at a given moment does not matter, so
 /// that a save, and a scene file written back, leave each as its author wrote it, never its value of
@@ -58,12 +77,13 @@ impl Component for Unsaved {}
 /// that no author wrote, on an entity that a run created or added to one, is saved as it is:
 /// nothing else gives it.
 ///
-/// The mark is authored, as a scene file holds it: a save leaves out the changes of a component that
-/// both the start and the run mark, so that a mark that the run adds, or takes off, hides nothing. It is not inherited: it marks its own entity's
-/// components only. A component is driven whole: a game keeps what a player changes, a lamp
-/// switched off, in another component than the one it drives, the lamp's flicker. It names the
-/// types as the world's registry names them, `Transform`, `hunnawood::Look`, not by their aliases;
-/// a name of no component that the entity holds marks nothing.
+/// The mark is authored, as a scene file holds it: a save leaves out the changes of a component
+/// that both its entity's base and the run mark, so that a mark that the run adds, or takes off,
+/// hides nothing. It is not inherited: it marks its own entity's components only. A component is
+/// driven whole: a game keeps what a player changes, a lamp switched off, in another component than
+/// the one it drives, the lamp's flicker. It names the types as the world's registry names them,
+/// `Transform`, `hunnawood::Look`, not by their aliases; a name of no component that the entity
+/// holds marks nothing.
 #[derive(Clone, Debug, PartialEq, Eq, Reflect)]
 #[reflect(name = "Driven")]
 pub struct Driven(pub Vec<String>);

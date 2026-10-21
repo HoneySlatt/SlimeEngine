@@ -2,6 +2,7 @@
 
 use std::iter::FusedIterator;
 
+use crate::change::Tick;
 use crate::components::Hidden;
 use crate::entity::Entity;
 use crate::error::WorldError;
@@ -137,6 +138,13 @@ impl World {
         };
         if self.nodes[child.index() as usize].parent == parent && at_end {
             return Ok(());
+        }
+        // The parent that it had when it was settled, which a save compares its parent with, kept
+        // at its first change of parent after it.
+        let node = &self.nodes[child.index() as usize];
+        if node.base > Tick::default() && node.parent_kept.is_none() {
+            let before = node.parent.and_then(|parent| self.persistent_id(parent));
+            self.nodes[child.index() as usize].parent_kept = Some(before);
         }
         self.structure = self.next_tick();
         leave_parent(&mut self.nodes, child);

@@ -126,6 +126,8 @@ fn main() {
         "inspect_entity",
         "set_property",
         "capture",
+        "save_game",
+        "load_game",
     ] {
         assert!(names.contains(&name), "{name}: {names:?}");
     }
@@ -167,6 +169,21 @@ fn main() {
     session.tool("release_key", json!({ "key": "KeyW" }));
     let (walked, _) = session.tool("inspect_entity", json!({ "entity": "hero" }));
     assert_ne!(place(&walked), before, "the hero walked: {walked:?}");
+    // Saved there, to a file of the test's own, walked on, then loaded: the hero is back where it
+    // was saved.
+    let saved = Path::new(env!("CARGO_TARGET_TMPDIR")).join("slime-mcp-drive-saved.toml");
+    let _ = std::fs::remove_file(&saved);
+    let file = json!({ "file": saved.to_str().expect("a path of text") });
+    session.tool("save_game", file.clone());
+    assert!(saved.is_file(), "saved");
+    session.tool("press_key", json!({ "key": "KeyW" }));
+    session.tool("step", json!({ "steps": 30 }));
+    session.tool("release_key", json!({ "key": "KeyW" }));
+    let (further, _) = session.tool("inspect_entity", json!({ "entity": "hero" }));
+    assert_ne!(place(&further), place(&walked), "{further:?}");
+    session.tool("load_game", file);
+    let (loaded, _) = session.tool("inspect_entity", json!({ "entity": "hero" }));
+    assert_eq!(place(&loaded), place(&walked), "{loaded:?}");
     let (state, _) = session.tool("game_state", json!({}));
     assert!(state[0].contains("paused"), "{state:?}");
     let (_, image) = session.tool("capture", json!({}));
@@ -197,7 +214,7 @@ fn main() {
     drop(session);
     let status = child.wait().expect("the server ends with its input");
     assert!(status.success(), "{status}");
-    for file in [&save, &lock] {
+    for file in [&save, &lock, &saved] {
         let _ = std::fs::remove_file(file);
     }
     println!("test drive ... ok");

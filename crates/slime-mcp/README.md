@@ -9,9 +9,9 @@ through which coding agents, Claude Code and Codex among them, call the tools of
 
 One game at a time, driven through its development channel (`slime-channel`): started, paused,
 stepped, its speed set, its world read and changed, its keys put down and let go, its image
-captured, its log and its frames' times read, stopped. Assets cooked and tests run. No mouse in
-scripted input yet, and no editor: the editor's commands join the server with the editor, at
-Stage 6b.
+captured, its log and its frames' times read, its run saved and loaded, stopped. Assets cooked and
+tests run. No mouse in scripted input yet, and no editor: the editor's commands join the server with
+the editor, at Stage 6b.
 
 ## Role
 
@@ -59,11 +59,14 @@ The tools, each described to the agent by the server itself, with its parameters
 - `press_key` and `release_key`: keys, named by their position on the keyboard, `KeyW`.
 - `capture`: the image that the game shows, as a PNG image.
 - `read_logs`: the lines of the game's log after a given line.
+- `save_game` and `load_game`: the game's run saved to a file, and loaded from one in place of the
+  run, as the game saves and resumes its own runs; a file of the agent's, never the player's save.
 - `cook`: cooks a directory of source assets, which a game started with `--watch` loads again.
 - `run_tests`: runs `cargo test` with the arguments given.
 
 `tests/drive.rs` plays an agent's session: it starts *Hunna Wood* through the server, pauses it,
-reads and changes the hero, walks it, captures its image and reads its log. It needs a Wayland
+reads and changes the hero, walks it, saves the run, walks on and loads it back, captures its image
+and reads its log. It needs a Wayland
 compositor and the game's zone cooked: `scripts/check.sh` runs it in a headless Weston.
 
 ## Dependencies

@@ -5,7 +5,7 @@
   no longer written), [0108](0108-what-the-world-knows-of-its-changes.md) (the driven mark is a
   component, and its first user), [0109](0109-stable-references-and-undo.md) (how a created entity
   written into a level is carried once) and [0116](0116-stage-6-in-two-halves.md) (M6a.7 in two
-  milestones)
+  milestones); amended by [0125](0125-saves-per-scene.md) (the driven mark read at the base)
 - Date: 2026-10-21
 
 ## Context

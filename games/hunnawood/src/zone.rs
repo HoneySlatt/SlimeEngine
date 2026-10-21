@@ -146,7 +146,7 @@ impl Footprint {
         shape && self.center.abs_diff_eq(other.center, tolerance) && near(self.height, other.height)
     }
 
-    /// Its numbers, as a layout's text and fingerprint give them: its shape, 0 for a box and 1 for
+    /// Its numbers, as a layout's text gives them: its shape, 0 for a box and 1 for
     /// a cylinder; a box's half size and yaw, or a cylinder's radius and two zeros; the center of
     /// its footprint; its height.
     fn numbers(&self) -> [f32; 7] {
@@ -376,40 +376,6 @@ impl Layout {
         })
     }
 
-    /// The fingerprint of the layout that the saves of 0.4 say they were made on (`crate::saves`),
-    /// as 16 hexadecimal digits: the FNV-1a hash of its numbers, each rounded to a ten-thousandth,
-    /// of a metre or of a radian: each list of colliders led by its length, its footprints sorted
-    /// by their numbers, each as [`Layout::to_text`] writes it, then the size of the ground and the
-    /// places. A number that lies within a few units in the last place of a rounding's boundary
-    /// may round either way, by the platforms' maths or an update that does not change the zone,
-    /// and change the fingerprint: [`Layout::matches`] compares layouts since.
-    pub fn fingerprint(&self) -> String {
-        // A saturating cast: −0.0 and 0.0 are one number, and NaN, which no layout holds, is 0.
-        let word = |number: f32| (number * 10_000.0).round() as i64;
-        let mut words = Vec::new();
-        for colliders in [&self.colliders, &self.door_colliders] {
-            let mut footprints: Vec<[i64; 7]> = colliders
-                .iter()
-                .map(|footprint| footprint.numbers().map(word))
-                .collect();
-            footprints.sort_unstable();
-            words.push(colliders.len() as i64);
-            words.extend(footprints.into_iter().flatten());
-        }
-        words.extend(
-            self.places()
-                .into_iter()
-                .flat_map(|place| [place.x, place.y].map(word)),
-        );
-        let hash = words
-            .into_iter()
-            .flat_map(i64::to_le_bytes)
-            .fold(0xcbf2_9ce4_8422_2325_u64, |hash, byte| {
-                (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3)
-            });
-        format!("{hash:016x}")
-    }
-
     /// Half the size of the ground, then the places, in this order: the start, the way the hero
     /// faces there, the key, the door, the campfire and the terrace.
     fn places(&self) -> [Vec2; 7] {
@@ -630,50 +596,8 @@ mod tests {
         assert!(!collider.covers(Vec2::new(0.8, 0.0), 0.25));
     }
 
-    #[test]
-    fn a_layout_s_fingerprint_is_that_of_its_numbers_whatever_their_order() {
-        let footprint = |x: f32, shape| Footprint {
-            shape,
-            center: Vec2::new(x, 2.0),
-            height: 1.5,
-        };
-        let wall = footprint(
-            1.0,
-            Shape::Box {
-                half_size: Vec2::new(3.0, 0.5),
-                yaw: 0.25,
-            },
-        );
-        let pillar = footprint(-4.0, Shape::Cylinder { radius: 0.6 });
-        let layout = Layout {
-            half_size: Vec2::new(30.0, 50.0),
-            colliders: vec![wall, pillar],
-            door_colliders: Vec::new(),
-            start: Vec2::ZERO,
-            facing: Vec2::X,
-            item: Vec2::ONE,
-            door: Vec2::Y,
-            campfire: Vec2::NEG_ONE,
-            terrace: Vec2::NEG_Y,
-        };
-        let mut reordered = layout.clone();
-        reordered.colliders.reverse();
-        assert_eq!(layout.fingerprint(), reordered.fingerprint());
-        // A pillar moved by a ten-thousandth of a metre is the same layout; one moved by a
-        // thousandth is another, and so is a pillar that stops the door.
-        let mut near = layout.clone();
-        near.colliders[1].center.x += 0.000_04;
-        assert_eq!(layout.fingerprint(), near.fingerprint());
-        let mut moved = layout.clone();
-        moved.colliders[1].center.x += 0.001;
-        assert_ne!(layout.fingerprint(), moved.fingerprint());
-        let mut door = layout.clone();
-        door.door_colliders.push(door.colliders.remove(1));
-        assert_ne!(layout.fingerprint(), door.fingerprint());
-    }
-
     /// A layout of a wall, a pillar and a door's collider, whose numbers lie within one unit in the
-    /// last place of the boundaries of the fingerprint's rounding.
+    /// last place of the boundaries of a rounding to ten-thousandths.
     fn on_the_boundaries() -> Layout {
         // 0.00015 is a boundary of the rounding to ten-thousandths, and so is 12.34565.
         let footprint = |x: f32, shape| Footprint {
@@ -714,7 +638,7 @@ mod tests {
         let layout = on_the_boundaries();
         assert!(layout.matches(&layout));
         // One unit in the last place up or down, of a place, a collider's center, a yaw turned
-        // half a turn: the same layout, where the fingerprint of 0.4 changes.
+        // half a turn: the same layout, where numbers rounded to ten-thousandths would differ.
         let mut nudged = layout.clone();
         nudged.start.x = nudged.start.x.next_up();
         nudged.door_colliders[0].center.x = nudged.door_colliders[0].center.x.next_down();
@@ -723,7 +647,6 @@ mod tests {
             *yaw = -*yaw;
         }
         assert!(layout.matches(&nudged) && nudged.matches(&layout));
-        assert_ne!(layout.fingerprint(), nudged.fingerprint());
         // Whatever the order of the colliders.
         let mut reordered = nudged.clone();
         reordered.colliders.reverse();
@@ -751,10 +674,8 @@ mod tests {
     fn a_layout_reads_back_from_its_text_and_nothing_else_does() {
         let layout = on_the_boundaries();
         let text = layout.to_text();
-        assert_eq!(Layout::from_text(&text), Some(layout.clone()), "{text}");
         // Number for number, to the bit.
-        let read = Layout::from_text(&text).expect("a layout");
-        assert_eq!(read.fingerprint(), layout.fingerprint());
+        assert_eq!(Layout::from_text(&text), Some(layout.clone()), "{text}");
         let words: Vec<&str> = text.split(' ').collect();
         let without_last = words[..words.len() - 1].join(" ");
         for wrong in [

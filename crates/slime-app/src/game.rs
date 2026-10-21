@@ -1,6 +1,8 @@
 //! A game as a simulation and a presentation (`docs/adr/0107-the-execution-model.md`): the two
 //! traits that a game implements, which a host runs.
 
+use std::path::Path;
+
 use slime_gfx::RenderTarget;
 use slime_platform::Event;
 use slime_world::World;
@@ -90,6 +92,30 @@ pub trait Simulation {
     /// process ends before the run stops (see [`run`](crate::run)): a game saves its run here.
     fn stop(&mut self, ctx: &mut SimulationContext<'_>, world: &mut World) {
         let _ = (ctx, world);
+    }
+
+    /// Saves the run in `world` to `file`, as a game saves its own runs: what a tool that drives
+    /// the game asks through the development channel, at the start of a frame
+    /// (`docs/adr/0122-the-development-channel.md`, `docs/adr/0125-saves-per-scene.md`).
+    ///
+    /// # Errors
+    ///
+    /// Why the run is not saved: by default, that the game does not save its runs.
+    fn save(&mut self, world: &World, file: &Path) -> Result<(), AppError> {
+        let _ = (world, file);
+        Err("the game does not save its runs".into())
+    }
+
+    /// Loads the run of the save in `file` in place of the run in `world`, as a game resumes its
+    /// own saves: what a tool asks as for [`save`](Self::save). A save that the game does not
+    /// resume leaves the run as it is.
+    ///
+    /// # Errors
+    ///
+    /// Why the save is not loaded: by default, that the game does not save its runs.
+    fn load(&mut self, world: &mut World, file: &Path) -> Result<(), AppError> {
+        let _ = (world, file);
+        Err("the game does not save its runs".into())
     }
 }
 
@@ -234,3 +260,19 @@ pub trait Presentation {
 
 /// A game that shows nothing, as a program that runs only its rules.
 impl Presentation for () {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_simulation_that_does_not_save_its_runs_refuses_to_save_or_load_one() {
+        let mut world = World::new();
+        let file = Path::new("run.toml");
+        for refused in [().save(&world, file), ().load(&mut world, file)] {
+            let refused = refused.expect_err("refused");
+            assert_eq!(refused.to_string(), "the game does not save its runs");
+        }
+        assert!(!file.exists(), "nothing written");
+    }
+}

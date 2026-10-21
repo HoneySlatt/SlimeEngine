@@ -126,6 +126,14 @@ struct ReadLogs {
     after: u64,
 }
 
+/// What `save_game` and `load_game` take.
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct SaveFile {
+    /// The save's file, a path on the game's machine: one of the agent's own, never the player's
+    /// save.
+    file: String,
+}
+
 /// What `cook` takes.
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct Cook {
@@ -569,6 +577,29 @@ impl Server {
         Parameters(ReadLogs { after }): Parameters<ReadLogs>,
     ) -> Result<CallToolResult, McpError> {
         self.ask(Request::Logs { after }).await
+    }
+
+    #[tool(
+        description = "Saves the game's run to a file, as the game saves its own runs, at the start \
+                       of its next frame."
+    )]
+    async fn save_game(
+        &self,
+        Parameters(SaveFile { file }): Parameters<SaveFile>,
+    ) -> Result<CallToolResult, McpError> {
+        self.ask(Request::Save { file }).await
+    }
+
+    #[tool(
+        description = "Loads the run of a save's file in place of the game's run, as the game resumes \
+                       its own saves, at the start of its next frame: a save that the game does not \
+                       resume leaves the run as it is."
+    )]
+    async fn load_game(
+        &self,
+        Parameters(SaveFile { file }): Parameters<SaveFile>,
+    ) -> Result<CallToolResult, McpError> {
+        self.ask(Request::Load { file }).await
     }
 
     #[tool(

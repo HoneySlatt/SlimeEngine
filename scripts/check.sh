@@ -181,7 +181,8 @@ if runs windowed; then
         { echo "the game did not resume the run of its save"; exit 1; }
     # And driven by an agent's session through the MCP server, which starts it with a token and
     # connects to its development channel: pauses it, steps it, reads and changes the hero, walks it
-    # with a scripted key, captures its image and reads its log (ADR-0122). The test needs a
+    # with a scripted key, saves its run and loads it back, captures its image and reads its log
+    # (ADR-0122, ADR-0125). The test needs a
     # compositor, so it is outside the default test run, as the lifecycle test below is.
     env -u DISPLAY XDG_RUNTIME_DIR="$runtime" XDG_DATA_HOME="$runtime/data" WAYLAND_DISPLAY=slime-check \
         VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \

@@ -1,11 +1,13 @@
 //! The development channel of a headless run (`docs/adr/0122-the-development-channel.md`): a run
-//! started with a token listens and says where; a tool that gives the token pauses, steps and
-//! stops it, reads and changes its world, presses its keys and reads its log; one without the token
-//! is refused; a run started without a token says nothing and does not listen.
+//! started with a token listens and says where; a tool that gives the token pauses, steps and stops
+//! it, reads and changes its world, presses its keys, reads its log, and saves and loads its run;
+//! one without the token is refused; a run started without a token says nothing and does not
+//! listen.
 //!
 //! A run reads its token from its environment, which only a process's start sets, so each test runs
 //! this test program again as a child, restricted to the run, its environment set.
 
+use std::path::Path;
 use std::process::{Command, Stdio};
 use std::thread;
 use std::time::Duration;
@@ -18,9 +20,16 @@ use slime_world::{Light, Transform, World};
 
 const CHILD_ENV: &str = "SLIME_APP_TEST_CHILD";
 
-/// A lantern, which moves 1 m along x at each fixed step while W is held, and logs each key put
-/// down.
+/// A lantern, which moves 1 m along x at each fixed step while W is held, logs each key put down,
+/// and saves where it stands, its x as text.
 struct Lantern;
+
+/// The lantern of `world`.
+fn lantern(world: &World) -> slime_world::Entity {
+    world
+        .find(&"lantern".parse().expect("a key"))
+        .expect("spawned")
+}
 
 impl Simulation for Lantern {
     fn start(
@@ -43,9 +52,7 @@ impl Simulation for Lantern {
 
     fn fixed_step(&mut self, ctx: &mut SimulationContext<'_>, world: &mut World) {
         if ctx.input().keys().held(KeyCode::KeyW) {
-            let lantern = world
-                .find(&"lantern".parse().expect("a key"))
-                .expect("spawned");
+            let lantern = lantern(world);
             world
                 .get_mut::<Transform>(lantern)
                 .expect("placed")
@@ -60,6 +67,27 @@ impl Simulation for Lantern {
         }
         // Headless frames run back to back: a little rest each keeps the test light.
         thread::sleep(Duration::from_millis(1));
+    }
+
+    fn save(&mut self, world: &World, file: &Path) -> Result<(), AppError> {
+        let x = world
+            .get::<Transform>(lantern(world))
+            .expect("placed")
+            .translation
+            .x;
+        std::fs::write(file, x.to_string())?;
+        Ok(())
+    }
+
+    fn load(&mut self, world: &mut World, file: &Path) -> Result<(), AppError> {
+        let x = std::fs::read_to_string(file)?.parse()?;
+        let lantern = lantern(world);
+        world
+            .get_mut::<Transform>(lantern)
+            .expect("placed")
+            .translation
+            .x = x;
+        Ok(())
     }
 }
 
@@ -82,6 +110,29 @@ fn command(test: &str) -> Command {
 /// Asks `request`, and returns the reply.
 fn ask(client: &mut Client, request: Request) -> Reply {
     client.request(&request).expect("answered").0
+}
+
+/// Where the lantern stands along x, as the run that `client` drives answers.
+fn x(client: &mut Client) -> f64 {
+    let Reply::Entity { components, .. } = ask(
+        client,
+        Request::Entity {
+            entity: "lantern".to_owned(),
+        },
+    ) else {
+        panic!("the lantern");
+    };
+    let transform = components
+        .iter()
+        .find(|component| component.name == "Transform")
+        .expect("placed");
+    let x = transform
+        .value
+        .split("x = ")
+        .nth(1)
+        .and_then(|rest| rest.split([',', ' ']).next())
+        .expect("an x");
+    x.parse().expect("a number")
 }
 
 #[test]
@@ -140,6 +191,30 @@ fn a_tool_with_the_token_drives_a_headless_run() {
         "{}",
         transform.value
     );
+    // Saved there, by the simulation, to a file of the test's own; moved on, then loaded: back at
+    // 20 m. A file that holds no save is refused, the run left as it is.
+    let saved = std::env::temp_dir().join(format!("slime-app-channel-{}.txt", std::process::id()));
+    let file = || saved.to_string_lossy().into_owned();
+    assert_eq!(
+        ask(&mut client, Request::Save { file: file() }),
+        Reply::Done
+    );
+    assert_eq!(ask(&mut client, Request::Press { key: w() }), Reply::Done);
+    assert_eq!(ask(&mut client, Request::Step { steps: 5 }), Reply::Done);
+    assert_eq!(ask(&mut client, Request::Release { key: w() }), Reply::Done);
+    assert_eq!(x(&mut client), 25.0);
+    assert_eq!(
+        ask(&mut client, Request::Load { file: file() }),
+        Reply::Done
+    );
+    assert_eq!(x(&mut client), 20.0);
+    std::fs::write(&saved, "not a number").expect("written");
+    assert!(matches!(
+        ask(&mut client, Request::Load { file: file() }),
+        Reply::Failed { .. }
+    ));
+    assert_eq!(x(&mut client), 20.0);
+    std::fs::remove_file(&saved).expect("removed");
 
     // A value given as text, read with the component's type, within its range.
     let dim = |value: &str| Request::SetProperty {

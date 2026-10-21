@@ -1,9 +1,9 @@
-//! The world's documents: a save, what differs between a world and the world that a game makes at
-//! the start of a run, and that difference applied again to a world made so
-//! (`docs/adr/0087-the-worlds-documents.md`,
-//! `docs/adr/0093-saves-and-hot-reload-with-placements.md`).
+//! The world's documents: a save, what a run changed of the world as the game made it and settled
+//! it, and that applied again to a world made so (`docs/adr/0087-the-worlds-documents.md`,
+//! `docs/adr/0093-saves-and-hot-reload-with-placements.md`, `docs/adr/0125-saves-per-scene.md`).
 
-use std::cell::RefCell;
+use std::any::TypeId;
+use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::mem;
 
@@ -11,34 +11,35 @@ use slime_assets::AssetId;
 use slime_reflect::{Problem, Reflect, ReflectError, Registry, Value};
 use slime_serialize::{Composer, Document, Mode, ReadError, ReadProblem, References};
 
+use crate::change::Tick;
 use crate::components::{Driven, Name, Unsaved};
 use crate::entity::Entity;
 use crate::identity::{CREATED as CREATED_KEY, PersistentId};
-use crate::library::{
-    MAX_ENTITIES, MAX_SCENE_SIZE, ResolvedScene, SceneLibrary, fingerprint, placed_size,
-};
-use crate::scene::{record_ids, storages_of};
+use crate::library::{MAX_ENTITIES, MAX_SCENE_SIZE, ResolvedScene, SceneLibrary, placed_size};
+use crate::scene::{record_ids, storages_of, valid_key};
 use crate::scene_file::{LAYOUT, for_each_entity, table};
-use crate::world::{Identity, World};
-use crate::write_back::{expected, handle_bits};
+use crate::unload::{Table, Unloaded};
+use crate::world::{Former, Identity, World};
+use crate::write_back::handle_bits;
 
 /// What the game says of the save: its keys and texts.
 const ABOUT: &str = "about";
 /// The count of the entities created outside scenes.
 const NEXT_CREATED: &str = "next_created";
-/// What the start that a save was made against created outside scenes: the count it reached, and
-/// in layout 3 the fingerprint of the entities it created ([`World::created_fingerprint`]), which
-/// layout 4 does without, saving refusing a start that created entities without keys.
+/// The count of the entities created outside scenes that the start of the run reached, after which
+/// the run's are numbered.
 const START: &str = "start";
-/// The layout of saves that this program writes, and the latest that it reads: 1 for the saves of
-/// 0.3, which hold nothing spawned while the world ran, 2 for those of 0.4, which do not say what
-/// their start created, 3 for those that do not say where a scene file written from the world holds
-/// what the run created.
-const LAYOUT_VERSION: u64 = 4;
-/// The scenes that the start spawned, by their keys: their names and contents.
+/// The layout of saves that this program writes, and the only one that it reads
+/// (`docs/adr/0125-saves-per-scene.md`): 5, the differences of each entity from its base. 1 was
+/// that of the saves of 0.3, 2 of 0.4, 3 of those written since P1, 4 of those of M6a.7a: each
+/// held what differs from a start world that the game made again.
+const LAYOUT_VERSION: u64 = 5;
+/// The scenes spawned under keys, the last under each, by their keys: their asset IDs, names and
+/// contents.
 const SCENES: &str = "scenes";
-/// What the world spawned while it ran, by the identities of their roots: their scenes' asset
-/// IDs, names and contents.
+/// The placements made while the world ran of which an entity is alive, by the identities of their
+/// roots, `created/<number>`: their prefabs' asset IDs, names and contents, and the identities that
+/// a scene file written from the world gives them.
 const SPAWNED: &str = "spawned";
 /// The entities and the components removed.
 pub(crate) const REMOVED: &str = "removed";
@@ -54,6 +55,13 @@ const WRITTEN: &str = "written";
 pub(crate) const ADDED: &str = "added";
 /// What changed of the components, in parts.
 pub(crate) const CHANGED: &str = "changed";
+/// What the world keeps of the scenes that it unloaded, by their keys and their asset IDs: their
+/// entities and components removed, their parents changed, and their components added and changed,
+/// in sections laid out as the save's own.
+const UNLOADED: &str = "unloaded";
+/// The identities that the entities adopted had in their scenes, by the keys that adopting gave
+/// them.
+const ADOPTED: &str = "adopted";
 
 /// Why a world cannot be saved, a save loaded, or a world written as a scene file.
 #[derive(Debug, thiserror::Error)]
@@ -78,14 +86,13 @@ pub enum DocumentError {
     /// The save creates an entity, or places a placement made while the world ran, under an identity
     /// that an entity of the world has, or that it gives twice: a key that the world's start gives
     /// already, or that the save gives both to a scene that it spawns and to an entity that it
-    /// creates; or, in a save of layout 2 or earlier, a number, when the game made more entities at
-    /// the start of its run than when the save was made.
+    /// creates.
     #[error(
         "the save creates or places `{0}`, an identity that an entity of the world, or of the save, \
          has already"
     )]
     IdentityInUse(PersistentId),
-    /// The start that the world is saved against created, outside scenes, entities that saves hold
+    /// The start of the world's run created, outside scenes, entities that saves hold
     /// and that have no key, each named by its identity and its [`Name`] if it has one: a later
     /// version of the game that creates them in another order would apply the save's changes to
     /// others. A game creates what its start needs under a key, an entity with
@@ -98,6 +105,20 @@ pub enum DocumentError {
         .0.join(", ")
     )]
     UnkeyedAtStart(Vec<String>),
+    /// The save is of another layout than the one that this program reads: one that an earlier
+    /// version of the engine wrote, which it no longer reads, or a later version
+    /// (`docs/adr/0125-saves-per-scene.md`).
+    #[error("{}", layout_refused(*found, *read))]
+    Layout {
+        /// The layout that the save says: 1 for one that says none, as those of 0.3.
+        found: u64,
+        /// The layout that this program reads.
+        read: u64,
+    },
+    /// The world was never settled ([`World::settle`]): a save cannot tell what the game made at
+    /// the start of the run from what the run changed.
+    #[error("the world was never settled: a game settles it once it has made the start of a run")]
+    NotSettled,
     /// The entity cannot be the root of a scene file written from the world: it is not alive, or it
     /// is a placement or an entity of one, which the scene that places it writes.
     #[error("{entity} cannot be written as a scene's root: {reason}")]
@@ -107,6 +128,40 @@ pub enum DocumentError {
         /// Why.
         reason: String,
     },
+}
+
+/// Why a save of the layout `found` is refused by a program that reads the layout `read`.
+fn layout_refused(found: u64, read: u64) -> String {
+    let wrote = if found < read {
+        "an earlier version of the engine wrote, and which this program no longer reads"
+    } else {
+        "a later version of the engine wrote"
+    };
+    format!("a save of layout {found}, which {wrote}: this program reads saves of layout {read}")
+}
+
+/// Checks that `document` is a save of the layout that this program reads.
+fn check_layout(document: &mut Document<'_>) -> Result<(), DocumentError> {
+    // A save that says no layout is one of 0.3, of layout 1; a document that holds nothing is none.
+    let found = match document
+        .read(&[LAYOUT], "u64", None)
+        .map_err(DocumentError::Read)?
+    {
+        Some(Value::UInt(layout)) => layout,
+        _ if document.keys(&[]).is_empty() => {
+            let problem =
+                Problem::Invalid("the document holds nothing: it is not a save".to_owned());
+            return Err(DocumentError::Read(document.error_at(&[], problem)));
+        }
+        _ => 1,
+    };
+    if found != LAYOUT_VERSION {
+        return Err(DocumentError::Layout {
+            found,
+            read: LAYOUT_VERSION,
+        });
+    }
+    Ok(())
 }
 
 /// What loading a save left aside, and why: what the save holds of entities or components that
@@ -177,32 +232,59 @@ fn sections(document: &mut Document<'_>) -> Result<(), DocumentError> {
         LAYOUT,
         NEXT_CREATED,
         START,
+        ADOPTED,
         SCENES,
         SPAWNED,
         REMOVED,
         PARENTS,
-        CREATED,
         ADDED,
         CHANGED,
+        CREATED,
+        UNLOADED,
     ];
     section(&[], Some(&root))?;
     section(&[ABOUT], None)?;
-    section(&[START], Some(&["created", "content"]))?;
-    section(&[PARENTS], None)?;
-    section(&[REMOVED], Some(&["entities", "components"]))?;
-    section(&[REMOVED, "components"], None)?;
+    section(&[START], Some(&["created"]))?;
     for (name, known) in [
-        (SCENES, Some(&["name", "content"][..])),
+        (ADOPTED, Some(&["former", "scene"][..])),
+        (SCENES, Some(&["scene", "name", "content"][..])),
         (SPAWNED, Some(&["scene", "name", "content", WRITTEN][..])),
         (CREATED, Some(&["parent", "components", WRITTEN][..])),
-        (ADDED, None),
-        (CHANGED, None),
     ] {
         for key in section(&[name], None)? {
             section(&[name, &key], known)?;
             if name == CREATED {
                 section(&[name, &key, "components"], None)?;
             }
+        }
+    }
+    // The differences of the world, and of each scene that it keeps unloaded, laid out alike.
+    differences(&mut section, &[])?;
+    for key in section(&[UNLOADED], None)? {
+        for asset in section(&[UNLOADED, &key], None)? {
+            differences(&mut section, &[UNLOADED, &key, &asset])?;
+        }
+    }
+    Ok(())
+}
+
+/// What checks the table of a save at a place against the keys that it may hold, if it says them,
+/// and gives its keys.
+type Section<'a> = dyn FnMut(&[&str], Option<&[&str]>) -> Result<Vec<String>, DocumentError> + 'a;
+
+/// Checks the differences that a save holds at `place`, of the world or of a scene that it keeps
+/// unloaded, through `section`.
+fn differences(section: &mut Section<'_>, place: &[&str]) -> Result<(), DocumentError> {
+    let mut check = |rest: &[&str], known: Option<&[&str]>| {
+        let at: Vec<&str> = place.iter().chain(rest).copied().collect();
+        section(&at, known)
+    };
+    check(&[PARENTS], None)?;
+    check(&[REMOVED], Some(&["entities", "components"]))?;
+    check(&[REMOVED, "components"], None)?;
+    for name in [ADDED, CHANGED] {
+        for key in check(&[name], None)? {
+            check(&[name, &key], None)?;
         }
     }
     Ok(())
@@ -226,6 +308,9 @@ struct Names<'w> {
     /// What a save names by the numbers of its creations and that the world has under the
     /// identities that a scene file gave it ([`Save::aliases`]).
     aliases: HashMap<String, PersistentId>,
+    /// While it writes what the world keeps of a scene unloaded, the identities that its values
+    /// refer to, by the bits of handles of generation 0 that stand for them ([`Unloaded`]).
+    table: Cell<Option<&'w [PersistentId]>>,
 }
 
 impl<'w> Names<'w> {
@@ -235,6 +320,7 @@ impl<'w> Names<'w> {
             numbers,
             unknown: RefCell::new(Vec::new()),
             aliases: HashMap::new(),
+            table: Cell::new(None),
         }
     }
 }
@@ -242,6 +328,12 @@ impl<'w> Names<'w> {
 impl References for Names<'_> {
     /// An entity destroyed, or that the save leaves out, is no entity, [`NO_ENTITY`].
     fn name(&self, entity: u64) -> Option<String> {
+        if let Some(table) = self.table.get()
+            && entity >> 32 == 0
+        {
+            let id = table.get(entity as usize);
+            return Some(id.map_or_else(|| NO_ENTITY.to_owned(), ToString::to_string));
+        }
         let world = self.world;
         let id = Entity::from_value(&Value::Entity(entity))
             .ok()
@@ -266,89 +358,77 @@ impl References for Names<'_> {
 }
 
 impl World {
-    /// What differs between this world and `start`, the world that the game makes at the start of a
-    /// run, from the same scenes and as it prepares them, as the text of a save
-    /// (`docs/adr/0087-the-worlds-documents.md`,
-    /// `docs/adr/0093-saves-and-hot-reload-with-placements.md`): the entities removed; those
-    /// created while the world ran, whole; the components added, whole, and removed; the parents
-    /// changed; and what changed of the other components, in parts. Entities are matched by their
-    /// persistent identities: one is created since the start if `start` has no entity of its
-    /// identity. Those that hold [`Unsaved`], or whose ancestor does, are left out, as are the
-    /// fields marked transient: an entity of `start` that the world leaves out is not removed, and
-    /// loading the save keeps it as `start` has it, out of its parent if the save removes that. A
-    /// component that its entity marks driven in `start`, as its author marked it ([`Driven`]), and
-    /// still in the world, is not saved as changed: loading leaves it as `start` has it, its
-    /// author's, and its system computes it again; one that the run added, or of an entity that the
-    /// run created, is saved whole, as it is, and a mark that the run added or took off hides
-    /// nothing. A reference to an entity is its persistent
-    /// identity, compared with `start`'s by the identity that each names, whatever order the two
-    /// worlds were made in, and a reference to an entity destroyed or left out is `""`, no entity.
-    /// The save also holds the scenes that `start` spawned, so that loading it says which changed
-    /// since, the count of the entities created outside scenes, and the count of those that `start`
-    /// created. An entity created outside scenes that a scene file written from the world holds
-    /// ([`World::write_scene`]) is saved with the identity that the file gives it. Its first
-    /// section, after the versions of the types past version 1 if it holds some, is `about`,
-    /// what the game says of it, keys and texts that the engine does not read, such as what the run
-    /// was made on, which [`World::about`] reads without loading the save; none for an empty
-    /// `about`.
+    /// The run that the world holds, as the text of a save (`docs/adr/0125-saves-per-scene.md`):
+    /// what changed since the world was settled ([`World::settle`]), as the game made the start of
+    /// the run and each scene that it spawned since, and what the run created since.
     ///
-    /// What the world spawned while it ran, a scene under a key under which `start` spawned no
-    /// scene or another one ([`World::spawn_scene`]), or a placement made while it ran
-    /// ([`World::spawn_placement`]), is written as its scene, by its asset ID and fingerprint,
-    /// while an entity of it is saved: its entities are compared with what the scene spawns, as
-    /// those of `start` are with `start`, and loading spawns the scene as it is then, under the
-    /// same identity, before it applies the rest.
+    /// - The scenes spawned under keys, by key: their asset IDs, names and fingerprints, so that
+    ///   loading spawns those that the world it is loaded into lacks, or holds others in place of,
+    ///   and says which changed since; but a scene of which entities live that the save leaves out
+    ///   every one. The placements made while the world ran of which the save holds an entity, as
+    ///   their prefabs.
+    /// - The entities that the world settled and that the run destroyed, whose identities the world
+    ///   kept as they went: the entities of a placement that the save does not name are not.
+    /// - For each entity settled: the components removed, added, whole, and changed, in parts, and
+    ///   its parent if it changed. Each is compared with its base, which the world kept at its
+    ///   first change: a save costs what changed. A component that its entity marks driven
+    ///   ([`Driven`]), at its base and now, is not saved: loading leaves it as the scene gives it,
+    ///   its author's, and its system computes it again; a mark that the run added or took off
+    ///   hides nothing.
+    /// - The entities created since the start, outside scenes or under keys, and those adopted,
+    ///   whole: their parents and components, and the identity that a scene file written from the
+    ///   world gives one ([`World::write_scene`]); the former identities of those adopted
+    ///   ([`World::adopt`]).
+    /// - What the world keeps of the scenes that it unloaded, by key and asset, laid out as what it
+    ///   saves of the scenes that it holds ([`World::unload_scene`]).
     ///
-    /// The same worlds give the same bytes: entities in the order of their identities, components
-    /// in the order of their names. Its cost grows in proportion with the entities of the two
-    /// worlds and with what differs: measured in a release build on the owner's machine, 10 000
-    /// entities created, each with a name and a transform, save in 0.22 s into 2.9 MB of text, and
-    /// 40 000 in four times as long. A save holds at most [`slime_serialize::MAX_SIZE`] bytes and
-    /// [`slime_serialize::MAX_VALUES`] values, as a reader counts them, about 22 000 such entities,
-    /// whose values it counts 47 each. A thousand placements made while the world runs, each moved
-    /// and a value of it changed, save in 0.08 s into 238 kB, and load in 0.03 s, for a prefab of
-    /// 10 entities; in 0.85 s and 0.16 s for a prefab of 100.
+    /// Entities are named by their persistent identities. Those that hold [`Unsaved`], or whose
+    /// ancestor does, are left out, as are the fields marked transient: an entity settled that the
+    /// world leaves out is not removed, and loading keeps it as the start has it. A reference to an
+    /// entity is its persistent identity, and one to an entity destroyed or left out is `""`, no
+    /// entity. The save also holds the count of the entities created outside scenes, and the count
+    /// that the start reached, after which the run's are numbered. Its first section, after the
+    /// versions of the types past version 1 if it holds some, is `about`, what the game says of it,
+    /// keys and texts that the engine does not read, such as what the run was made on, which
+    /// [`World::about`] reads without loading the save; none for an empty `about`.
+    ///
+    /// The same world gives the same bytes: entities in the order of their identities, components
+    /// in the order of their names. It costs what changed, and what the run created, written
+    /// whole: it reads the values changed, the entities destroyed and the scenes, and walks the
+    /// world's entities once without their components, to find those created and those moved. The
+    /// figures of `world.save.100k` are in `docs/measurements.md`. A save holds at most
+    /// [`slime_serialize::MAX_SIZE`] bytes and [`slime_serialize::MAX_VALUES`] values, as a reader
+    /// counts them.
     ///
     /// # Errors
     ///
-    /// [`DocumentError::Write`] if a value cannot be written, a number out of its field's range, or
-    /// the save would be larger, of more values or deeper than a reader reads
-    /// ([`slime_serialize::MAX_SIZE`], [`slime_serialize::MAX_VALUES`],
-    /// [`slime_serialize::MAX_DEPTH`]); [`DocumentError::UnkeyedAtStart`] if `start` created, outside
-    /// scenes, entities that the save would hold and that have no key.
-    pub fn save(
-        &self,
-        start: &World,
-        about: &BTreeMap<String, String>,
-    ) -> Result<String, DocumentError> {
-        let unkeyed: Vec<String> = start
-            .created
-            .alive(&start.entities)
-            .filter(|&(_, entity)| !start.unsaved(entity))
-            .map(|(number, entity)| {
-                let id = PersistentId::created(number);
-                match start.get::<Name>(entity) {
-                    Some(Name(name)) => format!("`{id}` ({name})"),
-                    None => format!("`{id}`"),
-                }
+    /// [`DocumentError::NotSettled`] if the world was never settled;
+    /// [`DocumentError::UnkeyedAtStart`] if the start created, outside scenes, entities without
+    /// keys that the save would hold; [`DocumentError::Write`] if a value cannot be written, a
+    /// number out of its field's range, or the save would be larger, of more values or deeper than
+    /// a reader reads ([`slime_serialize::MAX_SIZE`], [`slime_serialize::MAX_VALUES`],
+    /// [`slime_serialize::MAX_DEPTH`]).
+    pub fn save(&self, about: &BTreeMap<String, String>) -> Result<String, DocumentError> {
+        if self.settled.is_none() {
+            return Err(DocumentError::NotSettled);
+        }
+        let unkeyed: Vec<String> = self
+            .unkeyed_at_start
+            .iter()
+            .filter_map(|&number| {
+                let entity = self.created.find(number, &self.entities)?;
+                (!self.unsaved(entity)).then(|| {
+                    let id = PersistentId::created(number);
+                    match self.get::<Name>(entity) {
+                        Some(Name(name)) => format!("`{id}` ({name})"),
+                        None => format!("`{id}`"),
+                    }
+                })
             })
             .collect();
         if !unkeyed.is_empty() {
             return Err(DocumentError::UnkeyedAtStart(unkeyed));
         }
-        self.write_save(start, about)
-    }
-
-    /// [`World::save`] without its check of the start's keys: what the start created without a
-    /// key, the save names by its numbers, which a later start may give to other entities. Saves of
-    /// layout 3, which games wrote before saving refused it, hold the fingerprint of those
-    /// creations, which loading checks: the tests make such saves so, and give them that layout and
-    /// fingerprint.
-    fn write_save(
-        &self,
-        start: &World,
-        about: &BTreeMap<String, String>,
-    ) -> Result<String, DocumentError> {
         let names = Names::new(self, Numbers::SAME);
         let mut save = Composer::new(&self.registry)
             .naming(&names)
@@ -361,220 +441,187 @@ impl World {
         }
         put(&[LAYOUT], "u64", Value::UInt(LAYOUT_VERSION))?;
         put(&[NEXT_CREATED], "u64", Value::UInt(self.next_created))?;
-        put(&[START, "created"], "u64", Value::UInt(start.next_created))?;
-        let now = self.saved_entities();
-        let named_now = self.named_entities();
-        for (key, scene) in self
-            .scenes
-            .iter()
-            .filter(|(key, _)| self.spawned_as_at_start(start, key))
-        {
+        put(&[START, "created"], "u64", Value::UInt(self.start_created))?;
+        for (key, former) in &self.formers {
             put(
-                &[SCENES, key, "name"],
+                &[ADOPTED, key, "former"],
                 "String",
-                Value::Text(scene.name.clone()),
+                Value::Text(former.id.to_string()),
             )?;
-            let content = Value::Text(content_text(scene.content));
-            put(&[SCENES, key, "content"], "String", content)?;
+            let scene = Value::Text(former.scene.to_string());
+            put(&[ADOPTED, key, "scene"], "String", scene)?;
         }
-        let spawned = self.spawned_while_running(start, &now);
+        let spawned = self.spawned_in_save();
         for spawned in &spawned {
-            let key = spawned.root.to_string();
             let scene = &spawned.scene.0;
+            let (section, key) = match spawned.key {
+                Some(key) => (SCENES, key.to_owned()),
+                None => (SPAWNED, spawned.root.to_string()),
+            };
             put(
-                &[SPAWNED, &key, "scene"],
+                &[section, &key, "scene"],
                 "String",
                 Value::Text(scene.id.to_string()),
             )?;
             put(
-                &[SPAWNED, &key, "name"],
+                &[section, &key, "name"],
                 "String",
                 Value::Text(scene.name.clone()),
             )?;
             let content = Value::Text(content_text(scene.fingerprint));
-            put(&[SPAWNED, &key, "content"], "String", content)?;
-            if let Some(written) = self.written_as(&spawned.root) {
-                put(&[SPAWNED, &key, WRITTEN], "String", Value::Text(written))?;
-            }
-        }
-        // What each entity is compared with: the start's entity of its identity, saved or not, or
-        // the record of what the world spawned while it ran.
-        let mut before: BTreeMap<PersistentId, Before<'_>> = start
-            .named_entities()
-            .into_iter()
-            .map(|(id, entity)| (id, Before::Start(entity)))
-            .collect();
-        let mut saved_before: Vec<PersistentId> = start.saved_entities().into_keys().collect();
-        for spawned in &spawned {
-            for (index, id) in spawned.ids.iter().enumerate() {
-                before.insert(id.clone(), Before::Spawned(spawned, index));
-                if !spawned.unsaved[index] {
-                    saved_before.push(id.clone());
-                }
-            }
-        }
-        saved_before.sort();
-        // An entity is created since the start if nothing is compared with it; removed if what it
-        // is compared with is saved and the world has no entity of its identity.
-        let removed: Vec<Value> = saved_before
-            .iter()
-            .filter(|id| !named_now.contains_key(*id))
-            .map(|id| Value::Text(id.to_string()))
-            .collect();
-        if !removed.is_empty() {
-            put(&[REMOVED, "entities"], "Vec<String>", Value::List(removed))?;
-        }
-        let parent_of = |world: &World, entity| {
-            world
-                .parent(entity)
-                .and_then(|parent| world.persistent_id(parent))
-        };
-        for (id, &entity) in &now {
-            let key = id.to_string();
-            let Some(&old) = before.get(id) else {
-                continue;
-            };
-            let gone: Vec<Value> = old
-                .component_names(start)
-                .into_iter()
-                .filter(|name| self.component_value(entity, name).is_none())
-                .map(Value::Text)
-                .collect();
-            if !gone.is_empty() {
-                put(
-                    &[REMOVED, "components", &key],
-                    "Vec<String>",
-                    Value::List(gone),
-                )?;
-            }
-            let parent = parent_of(self, entity);
-            if parent != old.parent(start) {
-                put(&[PARENTS, &key], "Option<String>", text_option(parent))?;
+            put(&[section, &key, "content"], "String", content)?;
+            if spawned.key.is_none()
+                && let Some(written) = self.written_as(&spawned.root)
+            {
+                put(&[section, &key, WRITTEN], "String", Value::Text(written))?;
             }
         }
         drop(put);
-        for (id, &entity) in &now {
-            let key = id.to_string();
-            match before.get(id) {
-                None => {
-                    let parent = text_option(parent_of(self, entity));
-                    save.put(&[CREATED, &key, "parent"], "Option<String>", &parent)
-                        .map_err(DocumentError::Write)?;
-                    if let Some(written) = self.written_as(id) {
-                        save.put(&[CREATED, &key, WRITTEN], "String", &Value::Text(written))
-                            .map_err(DocumentError::Write)?;
-                    }
-                    for name in self.component_names_sorted(entity) {
-                        let Some(value) = self.component_value(entity, name) else {
-                            continue;
-                        };
-                        save.put(&[CREATED, &key, "components", name], name, &value)
-                            .map_err(DocumentError::Write)?;
-                    }
+        // What the world settled and the run destroyed, but the entities of the placements that the
+        // save does not name, of which nothing that it holds lives.
+        let named: HashSet<&PersistentId> = spawned.iter().map(|spawned| &spawned.root).collect();
+        let removed: Vec<PersistentId> = self
+            .gone
+            .keys()
+            .filter(|id| {
+                created_root(id).is_none_or(|number| named.contains(&PersistentId::created(number)))
+            })
+            .cloned()
+            .collect();
+        // The entities that a save holds: those that have identities, but those that it leaves out.
+        let saved = |entity: Entity| self.persistent_id(entity).filter(|_| !self.unsaved(entity));
+        // What changed of each entity settled, by its components' bases, kept at their first
+        // change; and the parents changed. What the run created since the start, unsettled, whole.
+        let mut parents = BTreeMap::new();
+        let mut created = BTreeMap::new();
+        for entity in self.entities() {
+            let node = &self.nodes[entity.index() as usize];
+            if node.base == Tick::default() {
+                if let Some(id) = saved(entity) {
+                    created.insert(id, entity);
                 }
-                Some(old) => {
-                    // The mark that its author wrote, which the start holds, and that the run
-                    // keeps: one that the run added does not hide what the run did, a crate that
-                    // physics took over, nor one that it removed what it left, a crate let go.
-                    let driven = old
-                        .value(start, self, "Driven")
-                        .and_then(|value| Driven::from_value(&value).ok());
-                    for name in self.component_names_sorted(entity) {
-                        let Some(value) = self.component_value(entity, name) else {
-                            continue;
-                        };
-                        // A reference to an entity that the save writes as no entity, destroyed or
-                        // left out, compared as one, on both sides: a record gives no entity for
-                        // one of its scene destroyed since.
-                        let value = to_no_entity(value, &names);
-                        let was = old
-                            .value(start, self, name)
-                            .map(|was| to_no_entity(was, &names));
-                        match was {
-                            None => save.put(&[ADDED, &key, name], name, &value),
-                            // As its author wrote it, which the start holds: its system computes
-                            // it again after a load, while the run drives it still.
-                            Some(_)
-                                if driven.as_ref().is_some_and(|d| d.holds(name))
-                                    && self.drives(entity, name) =>
-                            {
-                                Ok(())
-                            }
-                            Some(was) => {
-                                let part = self
-                                    .registry
-                                    .difference(name, &was, &value, false)
-                                    .map_err(DocumentError::Write)?;
-                                match part {
-                                    Some(part) => {
-                                        save.put_part(&[CHANGED, &key, name], name, &part)
-                                    }
-                                    None => Ok(()),
-                                }
-                            }
-                        }
-                        .map_err(DocumentError::Write)?;
-                    }
+            } else if let Some(before) = &node.parent_kept
+                && let Some(id) = saved(entity)
+            {
+                let parent = self
+                    .parent(entity)
+                    .and_then(|parent| self.persistent_id(parent));
+                if parent != *before {
+                    parents.insert(id, parent);
                 }
             }
+        }
+        let changes = self.changes_since_settled(&|entity| saved(entity).is_some());
+        put_differences(&mut save, &[], &removed, &parents, &changes)?;
+        for (id, entity) in created {
+            let key = id.to_string();
+            let parent = text_option(
+                self.parent(entity)
+                    .and_then(|parent| self.persistent_id(parent)),
+            );
+            save.put(&[CREATED, &key, "parent"], "Option<String>", &parent)
+                .map_err(DocumentError::Write)?;
+            if let Some(written) = self.written_as(&id) {
+                save.put(&[CREATED, &key, WRITTEN], "String", &Value::Text(written))
+                    .map_err(DocumentError::Write)?;
+            }
+            for name in self.component_names_sorted(entity) {
+                let Some(value) = self.component_value(entity, name) else {
+                    continue;
+                };
+                save.put(&[CREATED, &key, "components", name], name, &value)
+                    .map_err(DocumentError::Write)?;
+            }
+        }
+        // What the world keeps of the scenes that it unloaded, its references named by the
+        // identities that it keeps.
+        for ((key, asset), kept) in &self.unloaded {
+            let asset = asset.to_string();
+            names.table.set(Some(&kept.references));
+            let parents = &kept.parents;
+            let place = [UNLOADED, key.as_str(), asset.as_str()];
+            put_differences(&mut save, &place, &kept.removed, parents, &kept.differences)?;
+            names.table.set(None);
         }
         save.finish().map_err(DocumentError::Write)
     }
 
     /// Applies the save `text` to this world, which the game has made as at the start of a run,
-    /// from the scenes as they are now ([`World::save`]): what the world spawned while it ran is
-    /// spawned again, each scene resolved through `scenes` as it is now, under the identity that it
-    /// had, but a placement that a scene file written from the world holds and that this world has
-    /// under the identity that the file gave it, which is set back to its prefab and takes the
-    /// save's differences ([`World::carry`]); the entities that the save creates are spawned under
-    /// their identities, but one that this world has so, which takes what the save holds of it,
-    /// whole; the parents set,
-    /// an entity whose parent the world does not have out of its own, the entities removed
-    /// despawned, the entities saved under them that the save does not remove taken out of them
-    /// first, the components removed, added and changed, and the count of the entities created
-    /// outside scenes kept. What the run created outside scenes, its entities and its placements,
-    /// takes the numbers that follow this world's count, whatever the start creates now; what the
-    /// start of the run created keeps its numbers, and in a save of layout 3 what the save holds of
-    /// it is set aside if this world's start created other entities outside scenes, by the
-    /// fingerprint that the save holds, which does not tell apart entities alike in their types and without names created in
-    /// another order ([`World::spawn`]): a key names an entity whatever the start creates
-    /// ([`World::spawn_keyed`]). A save of layout 2 or earlier, which does not say what its start
-    /// created, gives its numbers as they are, unchecked, as 0.4 did. What is set aside names its
-    /// entity as the save does, a number of the run as the save numbers it ([`Loaded::set_aside`]).
-    /// A save is read leniently: what this program does not know is left out, with a warning
-    /// ([`Loaded::warnings`]), a section of the save, a field, and a component of a type or with a
-    /// variant that it does not know included. A difference whose entity or component the world no
-    /// longer has, or that the component's type refuses, is set aside, and the rest applied; so is
-    /// a reference to an entity that the world no longer has, which refers to no entity then, a
-    /// parent that the world does not have, and a scene spawned while the world ran that `scenes`
-    /// cannot give, that the world spawned already, whose values its types refuse, or that would
-    /// bring the entities that the save spawns so past [`MAX_ENTITIES`], or what they take past
-    /// [`MAX_SCENE_SIZE`](crate::MAX_SCENE_SIZE), as a resolved scene's placements are bounded. A
-    /// scene spawned under a key under which the world spawned another destroys that one's entities
-    /// first, as when a run changed level; what is under them without being of that scene stays,
-    /// and the save removes it, or places it where the run left it, as a hero that the start placed
-    /// in the level and that walked out of it. The scenes that changed since the save, those
-    /// spawned while the world ran included, are named. The saves of 0.3, of layout 1, which hold
-    /// nothing spawned while the world ran, are read as they were. Loading entities created costs
-    /// about two and a half times as much as saving them, half of it parsing the text: 0.54 s for
-    /// the 10 000 entities of [`World::save`]'s measure, which gives what placements cost too.
+    /// from the scenes as they are now, and settled ([`World::settle`]); a world never settled is
+    /// settled first (`docs/adr/0125-saves-per-scene.md`).
+    ///
+    /// - The scenes that the save names under keys: one that this world holds is kept, its content
+    ///   compared; one that it lacks, or holds another scene in place of, is spawned, resolved
+    ///   through `scenes` as it is now, in place of this world's, as when a run changed level: what
+    ///   is under that one's entities without being of it stays, and the save removes it, or places
+    ///   it where the run left it, as a hero that the start placed in the level and that walked out
+    ///   of it. `prepare` is called with the key of each scene spawned so, so that the game
+    ///   prepares it as it prepares the scenes that it spawns, and the world is settled then: what
+    ///   the save changed of them, it changes from there. The entities that the save creates exist
+    ///   while they are prepared, without their components or their parents yet, and a preparation
+    ///   may change the scene's entities only ([`World::settle`]). A scene that this world holds
+    ///   and that the save does not name stays, as one that a later version of the game spawns at
+    ///   its start; one that the save says the run unloaded is unloaded, and what the world keeps
+    ///   of the scenes unloaded is the save's ([`World::unload_scene`]), but what the run kept of a
+    ///   scene that it spawned again and had not settled, which is applied once the save is, as the
+    ///   run's next settling would.
+    /// - The placements that the save names are spawned again under the identities that they had,
+    ///   but one that a scene file written from the world holds and that this world has under the
+    ///   identity that the file gave it, which is set back to its prefab and takes the save's
+    ///   differences ([`World::carry`]).
+    /// - The entities that the save creates are spawned under their identities, but one that this
+    ///   world has so, which takes what the save holds of it, whole; those adopted under their
+    ///   keys, their former identities kept ([`World::adopt`]): this world adopts again the
+    ///   entities that it holds under those identities, of the same scene, which take what the save
+    ///   holds of them, so that what refers to them in their scene follows them, but what the run
+    ///   destroyed of them.
+    /// - The parents are set, an entity whose parent the world does not have out of its own; the
+    ///   entities removed despawned, the entities saved under them that the save does not remove
+    ///   taken out of them first; the components removed, added and changed; and the count of the
+    ///   entities created outside scenes kept.
+    ///
+    /// What the run created outside scenes, its entities and its placements, takes the numbers that
+    /// follow this world's count, whatever the start creates now; what the start of the run created
+    /// keeps its numbers: a key names an entity whatever the start creates
+    /// ([`World::spawn_keyed`]). What is set aside names its entity as the save does, a number of
+    /// the run as the save numbers it ([`Loaded::set_aside`]). A save is read leniently: what this
+    /// program does not know is left out, with a warning ([`Loaded::warnings`]), a section of the
+    /// save, a field, and a component of a type or with a variant that it does not know included. A
+    /// difference whose entity or component the world no longer has, or that the component's type
+    /// refuses, is set aside, and the rest applied; so is a reference to an entity that the world
+    /// no longer has, which refers to no entity then, a parent that the world does not have, and a
+    /// scene that `scenes` cannot give, whose values its types refuse, or that would bring the
+    /// entities that the save spawns so past [`MAX_ENTITIES`], or what they take past
+    /// [`MAX_SCENE_SIZE`](crate::MAX_SCENE_SIZE), as a resolved scene's placements are bounded. The
+    /// scenes that changed since the save, the placements included, are named. Loading entities
+    /// created costs about three times as much as saving them: in a release build on the owner's
+    /// machine, 10 000 entities created, each with a name and a transform, 2.9 MB of text, are
+    /// saved in 0.15 s and loaded in 0.42 s, which gives what placements cost too.
     ///
     /// # Errors
     ///
-    /// [`DocumentError::Read`] if the save is not one: not TOML, of a later version of the format,
-    /// of its layout or of a type, too large, or with a section that is not what a save holds;
-    /// [`DocumentError::NotCreated`] if it creates an entity, or places a placement, under an
-    /// identity that a world does not give to the entities it creates;
-    /// [`DocumentError::IdentityInUse`] if it creates or places one under an identity that an
-    /// entity of the world has, or twice. All of it is read before the world changes, which is
-    /// unchanged then.
+    /// [`DocumentError::Layout`] if the save is of another layout than the one that this program
+    /// reads, as the saves that the engine wrote before 0.5 are; [`DocumentError::Read`] if the
+    /// save is not one: not TOML, of a later version of the format or of a type, too large, or with
+    /// a section that is not what a save holds; [`DocumentError::NotCreated`] if it creates an
+    /// entity, or places a placement, under an identity that a world does not give to the entities
+    /// it creates; [`DocumentError::IdentityInUse`] if it creates or places one under an identity
+    /// that an entity of the world has, or twice. All of it is read before the world changes, which
+    /// is unchanged then, but settled if it never was.
     ///
     /// # Panics
     ///
     /// If the world runs out of slots ([`World::spawn`]).
-    pub fn load(&mut self, text: &str, scenes: &mut SceneLibrary) -> Result<Loaded, DocumentError> {
-        // Taken while the world holds its registry, which names the components' types.
-        let start = self.created_fingerprint();
+    pub fn load(
+        &mut self,
+        text: &str,
+        scenes: &mut SceneLibrary,
+        prepare: &mut dyn FnMut(&mut World, &str),
+    ) -> Result<Loaded, DocumentError> {
+        // What the game made is the base of what the save changes.
+        if self.settled.is_none() {
+            self.settle();
+        }
         // Set apart while the save is read, so that the entities that it creates are spawned while
         // the document, which reads through the registry, is open: the save is parsed once.
         let read = {
@@ -585,21 +632,27 @@ impl World {
             };
             Document::parse(&apart.registry, text, Mode::Lenient)
                 .map_err(DocumentError::Read)
-                .and_then(|mut document| {
-                    apart
-                        .world
-                        .read(&apart.registry, &mut document, start, scenes)
-                })
+                .and_then(|mut document| apart.world.read(&apart.registry, &mut document, scenes))
         };
-        let (save, mut loaded) = read?;
+        let (mut save, mut loaded) = read?;
+        // The scenes that the save spawned, prepared as the game prepares those it spawns, then
+        // settled: what the save changes of them, it changes from there.
+        for key in &save.spawned_keys {
+            prepare(self, key);
+        }
+        self.settle();
+        let pending = mem::take(&mut save.pending);
         self.apply_save(save, &mut loaded);
+        for (key, asset, kept) in pending {
+            self.apply_unloaded(&key, asset, kept);
+        }
         Ok(loaded)
     }
 
     /// The run of this world carried into `start`, a world that the game made as at the start of a
-    /// run from its scenes as they are now, when `old_start` is the one that it made before they
-    /// changed: what saving the run against `old_start` and loading the save into `start` give
-    /// (`docs/adr/0089-scenes-and-prefabs.md`), what loading set aside with it. A scene or a prefab
+    /// run from its scenes as they are now, and settled: what saving the run and loading the save
+    /// into `start` give, `prepare` preparing the scenes that loading spawns ([`World::load`],
+    /// `docs/adr/0125-saves-per-scene.md`), what loading set aside with it. A scene or a prefab
     /// changed reaches every entity that it spawned but what the run changed of it, its entities
     /// added appear, and what the run changed stays. An entity that the run created and that a scene
     /// file written from the world holds ([`World::write_scene`]) is the file's entity once the file
@@ -616,12 +669,12 @@ impl World {
     /// As [`World::load`].
     pub fn carry(
         &self,
-        old_start: &World,
         mut start: World,
         scenes: &mut SceneLibrary,
+        prepare: &mut dyn FnMut(&mut World, &str),
     ) -> Result<(World, Loaded), DocumentError> {
-        let save = self.save(old_start, &BTreeMap::new())?;
-        let loaded = start.load(&save, scenes)?;
+        let save = self.save(&BTreeMap::new())?;
+        let loaded = start.load(&save, scenes, prepare)?;
         Ok((start, loaded))
     }
 
@@ -634,22 +687,27 @@ impl World {
     ///
     /// use slime_world::World;
     ///
-    /// let world = World::new();
+    /// let mut world = World::new();
+    /// world.settle();
     /// let about = BTreeMap::from([("made on".to_owned(), "the first zone".to_owned())]);
-    /// let save = world.save(&World::new(), &about).expect("saved");
+    /// let save = world.save(&about).expect("saved");
     /// assert_eq!(World::about(&save).expect("a save"), about);
     /// ```
     ///
     /// # Errors
     ///
     /// [`DocumentError::Read`] if the text is not a document: larger than a reader reads, not TOML,
-    /// of a later version of the format; or if what it says of itself is not text. It reads nothing
-    /// else, and so accepts a save that [`World::load`] would refuse, of a later version of a type.
+    /// of a later version of the format; or if what it says of itself is not text;
+    /// [`DocumentError::Layout`] if it is a save of another layout than the one that this program
+    /// reads. It reads nothing else, and so accepts a save that [`World::load`] would refuse, of a
+    /// later version of a type.
     pub fn about(text: &str) -> Result<BTreeMap<String, String>, DocumentError> {
         let mut registry = Registry::new();
         registry.register::<String>();
+        registry.register::<u64>();
         let mut document =
             Document::parse(&registry, text, Mode::Lenient).map_err(DocumentError::Read)?;
+        check_layout(&mut document)?;
         let mut about = BTreeMap::new();
         for key in document.keys(&[ABOUT]) {
             let read = document
@@ -669,8 +727,9 @@ impl World {
     /// identities they refer to. The entities that hold [`Unsaved`], or whose ancestor does, the
     /// fields marked transient are left out, as a save leaves them out, and so are the values of the
     /// components that an entity of this world marks driven ([`Driven`]), which a system computes
-    /// again, whatever a save holds of them. It tells whether a world
-    /// loaded from a save is the world saved, or whether two runs went the same way.
+    /// again, whatever a save holds of them. It tells whether a world loaded from a save is the
+    /// world saved, or whether two runs went the same way. It compares the entities that the worlds
+    /// hold, not what they keep of the scenes that they unloaded, which their saves compare.
     ///
     /// ```
     /// use slime_world::{Name, World};
@@ -746,63 +805,113 @@ impl World {
     }
 
     /// Reads the save `document`: first all that can refuse it, the world untouched; then spawns
-    /// what the world that made it spawned while it ran, and the entities that it creates, so that
-    /// the components' values read last, which can only be set aside, can refer to them. `start` is
-    /// the world's [`World::created_fingerprint`], taken before its registry was set apart.
+    /// the scenes that the run spawned, and the entities that it creates, so that the components'
+    /// values read last, which can only be set aside, can refer to them.
     fn read(
         &mut self,
         registry: &Registry,
         document: &mut Document<'_>,
-        start: u64,
         scenes: &mut SceneLibrary,
     ) -> Result<(Save, Loaded), DocumentError> {
         let mut loaded = Loaded::default();
-        let (mut save, plan) = self.read_layout(document, start, &mut loaded)?;
-        // Nothing refuses the save from here on: the world changes.
+        let (mut save, plan) = self.read_layout(document, &mut loaded)?;
+        // Nothing refuses the save from here on: the world changes. The scenes that the run
+        // unloaded and that this world holds, unless the save names them under their keys, are
+        // unloaded as the run left them: what the run kept of them is the save's. What it kept of a
+        // scene that it spawned again, and had not settled, is applied once the save is, as the
+        // run's next settling would apply it.
+        let mut unloaded = plan.unloaded;
+        for (key, asset) in unloaded.keys() {
+            if let Some(held) = self.scenes.get(key)
+                && held.scene.id() == *asset
+                && !plan.listed.contains_key(key)
+            {
+                let held = held.scene.clone();
+                self.despawn_scene(key, &held, &mut save.gone);
+            }
+        }
+        let pending: Vec<(String, AssetId)> = unloaded
+            .keys()
+            .filter(|(key, asset)| plan.listed.get(key) == Some(&asset.to_string()))
+            .cloned()
+            .collect();
+        for at in pending {
+            if let Some(kept) = unloaded.remove(&at) {
+                save.pending.push((at.0, at.1, kept));
+            }
+        }
+        self.unloaded = unloaded;
         self.spawn_what_ran(registry, scenes, plan.spawned, &mut save, &mut loaded);
+        // What the run adopted and holds, adopted again where this world holds it, of the same
+        // scene, so that what refers to it in its scene, by its handle, refers to it still: the
+        // save creates it whole; what the run destroyed of it is destroyed, and the records that
+        // the save removes of it are not reported.
+        let created: HashSet<&PersistentId> = plan
+            .created
+            .iter()
+            .filter_map(|creation| match creation {
+                Creation::Key(id, _) => Some(id),
+                Creation::Number(..) => None,
+            })
+            .collect();
+        for (key, former) in &plan.adopted {
+            let root = PersistentId::new([key.as_str()]);
+            if self.formers.get(key) == Some(former) || !created.contains(&root) {
+                continue;
+            }
+            let Some(entity) = self.find(&former.id) else {
+                continue;
+            };
+            if self.scene_of(&former.id) != Some(former.scene) || self.adopt(entity, key).is_err() {
+                continue;
+            }
+            // What it destroys, what is under it taken out first, which the save places.
+            let mut next = vec![entity];
+            while let Some(at) = next.pop() {
+                let children: Vec<Entity> = self.children(at).collect();
+                next.extend(children.iter().copied());
+                let doomed = self.persistent_id(at).is_some_and(|id| {
+                    id.parts().starts_with(root.parts()) && !created.contains(&id)
+                });
+                if doomed {
+                    for child in children {
+                        // Both alive, so taking it out of its parent cannot fail.
+                        let _ = self.set_parent(child, None);
+                    }
+                    self.despawn(at);
+                }
+            }
+            let gone = save.removed.iter().filter(|removed| {
+                removed
+                    .parse::<PersistentId>()
+                    .is_ok_and(|id| id.parts().starts_with(former.id.parts()))
+            });
+            save.gone.extend(gone.cloned());
+        }
+        self.formers = plan.adopted;
         self.create(registry, plan.created, &mut save);
         self.read_values(document, &mut save, &mut loaded);
         Ok((save, loaded))
     }
 
     /// Reads all that refuses the save `document` if it is wrong, without changing the world: its
-    /// layout, what the world that made it spawned while it ran, the numbers of the entities that it
-    /// creates, its count, its scenes, the entities and components that it removes, and the parents.
-    /// `start` is the world's [`World::created_fingerprint`].
+    /// layout, its scenes, what the world that made it spawned while it ran, the numbers of the
+    /// entities that it creates, its count, the entities and components that it removes, and the
+    /// parents.
     fn read_layout(
         &self,
         document: &mut Document<'_>,
-        start: u64,
         loaded: &mut Loaded,
     ) -> Result<(Save, Plan), DocumentError> {
-        if let Some(Value::UInt(layout)) = document
-            .read(&[LAYOUT], "u64", None)
-            .map_err(DocumentError::Read)?
-            && !(1..=LAYOUT_VERSION).contains(&layout)
-        {
-            return Err(DocumentError::Read(document.error_at(
-                &[LAYOUT],
-                Problem::Invalid(format!(
-                    "a save of layout {layout}, where this program reads layouts 1 to \
-                     {LAYOUT_VERSION}"
-                )),
-            )));
-        }
+        check_layout(document)?;
         sections(document)?;
-        let start_created = document
+        let renumbering = match document
             .read(&[START, "created"], "u64", None)
-            .map_err(DocumentError::Read)?;
-        let start_content = document
-            .read(&[START, "content"], "String", None)
-            .map_err(DocumentError::Read)?;
-        let renumbering = match start_created {
+            .map_err(DocumentError::Read)?
+        {
             Some(Value::UInt(from)) => Numbers {
                 from,
                 to: self.next_created,
-                // Saves of layout 3 hold the fingerprint of what their start created: those of
-                // layout 4 name nothing that their start created, which saving refuses.
-                start_changed: start_content
-                    .is_some_and(|content| content != Value::Text(content_text(start))),
             },
             _ => Numbers::SAME,
         };
@@ -837,17 +946,7 @@ impl World {
         // creates, each once.
         let mut keys = HashSet::new();
         for key in document.keys(&[SPAWNED]) {
-            let id = key.parse::<PersistentId>().ok();
-            let identity = match id {
-                Some(id) if id.parts().first().map(String::as_str) == Some(CREATED_KEY) => {
-                    SpawningAs::Placement(number(&key, Some(id))?)
-                }
-                // A key that cannot be one, which spawning the scene refuses, takes nothing.
-                id => {
-                    keys.extend(id.filter(|id| id.parts().len() == 1));
-                    SpawningAs::Key(key.clone())
-                }
-            };
+            let identity = SpawningAs::Placement(number(&key, key.parse().ok())?);
             let mut text = |field: &str| match document
                 .read(&[SPAWNED, &key, field], "String", None)
                 .map_err(DocumentError::Read)?
@@ -864,6 +963,84 @@ impl World {
                 identity,
             });
         }
+        // The scenes that the run had under keys: those of this world kept, their content compared;
+        // the others spawned, in place of this world's under the same key.
+        for key in document.keys(&[SCENES]) {
+            let key = &key;
+            let mut text = |field: &str| match document
+                .read(&[SCENES, key, field], "String", None)
+                .map_err(DocumentError::Read)?
+            {
+                Some(Value::Text(text)) => Ok(text),
+                _ => Ok(String::new()),
+            };
+            let (asset, name, content) = (text("scene")?, text("name")?, text("content")?);
+            plan.listed.insert(key.clone(), asset.clone());
+            let held = self.scenes.get(key).filter(|held| {
+                held.scene.id().to_string() == asset
+                    && self.find(&PersistentId::new([key.as_str()])).is_some()
+            });
+            match held {
+                Some(held) => {
+                    if content_text(held.content) != content {
+                        loaded.scenes_changed.push(key.clone());
+                    }
+                }
+                None => {
+                    keys.extend(
+                        key.parse::<PersistentId>()
+                            .ok()
+                            .filter(|id| id.parts().len() == 1),
+                    );
+                    plan.spawned.push(ToSpawn {
+                        asset,
+                        name,
+                        content,
+                        written: None,
+                        key: key.clone(),
+                        identity: SpawningAs::Key(key.clone()),
+                    });
+                }
+            }
+        }
+        // The keys given to entities adopted, each with the identity that its entity had in its
+        // scene.
+        for key in document.keys(&[ADOPTED]) {
+            let mut text = |field: &str| match document
+                .read(&[ADOPTED, &key, field], "String", None)
+                .map_err(DocumentError::Read)?
+            {
+                Some(Value::Text(text)) => Ok(Some(text)),
+                _ => Ok(None),
+            };
+            let id = text("former")?.and_then(|text| renumbering.identity(&text));
+            let scene = text("scene")?.and_then(|text| text.parse::<AssetId>().ok());
+            let (Some(id), Some(scene)) = (id, scene) else {
+                let problem = Problem::Invalid(
+                    "an entity adopted names the identity that it had in its scene and the scene's \
+                     asset ID"
+                        .to_owned(),
+                );
+                return Err(DocumentError::Read(
+                    document.error_at(&[ADOPTED, &key], problem),
+                ));
+            };
+            if id.parts().len() < 2 || id.created_number().is_some() || valid_key(&key).is_err() {
+                let problem = Problem::Invalid(
+                    "a key adopted is a key, given to an entity of a scene below its root"
+                        .to_owned(),
+                );
+                return Err(DocumentError::Read(
+                    document.error_at(&[ADOPTED, &key], problem),
+                ));
+            }
+            if plan.listed.contains_key(&key) {
+                return Err(DocumentError::IdentityInUse(PersistentId::new([
+                    key.as_str()
+                ])));
+            }
+            plan.adopted.insert(key, Former { id, scene });
+        }
         for key in document.keys(&[CREATED]) {
             let in_file = written(document, CREATED, &key)?.map(|id| Written {
                 id,
@@ -872,12 +1049,16 @@ impl World {
             });
             let id = key.parse::<PersistentId>().ok();
             let creation = match id {
-                // A key that the run gave an entity that it created.
-                Some(id) if id.parts().len() == 1 && id.parts()[0] != CREATED_KEY => {
+                // A key that the run gave an entity that it created, or what of its scene an entity
+                // adopted took under its key.
+                Some(id)
+                    if id.parts()[0] != CREATED_KEY
+                        && (id.parts().len() == 1 || plan.adopted.contains_key(&id.parts()[0])) =>
+                {
                     if self.find(&id).is_some() || !keys.insert(id.clone()) {
                         return Err(DocumentError::IdentityInUse(id));
                     }
-                    Creation::Key(id)
+                    Creation::Key(id, document.keys(&[CREATED, &key, "components"]))
                 }
                 _ => Creation::Number(number(&key, id)?, in_file),
             };
@@ -895,41 +1076,50 @@ impl World {
             numbers: renumbering,
             ..Save::default()
         };
-        for key in document.keys(&[SCENES]) {
-            let content = document
-                .read(&[SCENES, &key, "content"], "String", None)
-                .map_err(DocumentError::Read)?;
-            let same = match (self.scenes.get(&key), content) {
-                (Some(scene), Some(Value::Text(content))) => content_text(scene.content) == content,
-                _ => false,
-            };
-            if !same {
-                loaded.scenes_changed.push(key);
-            }
-        }
-        if let Some(Value::List(entities)) = document
-            .read(&[REMOVED, "entities"], "Vec<String>", None)
-            .map_err(DocumentError::Read)?
-        {
-            save.removed = texts(entities);
-        }
-        for key in document.keys(&[REMOVED, "components"]) {
-            if let Some(Value::List(names)) = document
-                .read(&[REMOVED, "components", &key], "Vec<String>", None)
+        read_removals_at(document, &[], &mut save)?;
+        for key in document.keys(&[CREATED]) {
+            if let Some(parent) = document
+                .read(&[CREATED, &key, "parent"], "Option<String>", None)
                 .map_err(DocumentError::Read)?
             {
-                save.removed_components.push((key, texts(names)));
+                save.parents.push((key, option_text(&parent)));
             }
         }
-        for (section, parent) in [(PARENTS, None), (CREATED, Some("parent"))] {
-            for key in document.keys(&[section]) {
-                let place: Vec<&str> = [section, key.as_str()].into_iter().chain(parent).collect();
-                if let Some(parent) = document
-                    .read(&place, "Option<String>", None)
-                    .map_err(DocumentError::Read)?
-                {
-                    save.parents.push((key, option_text(&parent)));
-                }
+        // What the world that made the save kept of the scenes that it unloaded.
+        for key in document.keys(&[UNLOADED]) {
+            for asset in document.keys(&[UNLOADED, &key]) {
+                let place = [UNLOADED, key.as_str(), asset.as_str()];
+                let Ok(id) = asset.parse::<AssetId>() else {
+                    let problem = Problem::Invalid(format!("`{asset}` is not an asset ID"));
+                    return Err(DocumentError::Read(document.error_at(&place, problem)));
+                };
+                let mut kept = Save::default();
+                read_removals_at(document, &place, &mut kept)?;
+                let table = Table::reading(renumbering);
+                read_values_at(
+                    document,
+                    &place,
+                    &table,
+                    &mut kept,
+                    &mut |document, entity, name, read| match read {
+                        Ok(value) => value,
+                        Err(error) if unknown(&error) => {
+                            document.warn(error);
+                            None
+                        }
+                        Err(error) => {
+                            loaded.set_aside.push(SetAside {
+                                entity: entity.to_owned(),
+                                component: Some(name.to_owned()),
+                                reason: error.to_string(),
+                            });
+                            None
+                        }
+                    },
+                );
+                let references = table.references.into_inner();
+                let kept = unloaded(kept, references, renumbering, &mut loaded.set_aside);
+                plan.unloaded.insert((key.clone(), id), kept);
             }
         }
         Ok((save, plan))
@@ -1001,20 +1191,13 @@ impl World {
             let root = match identity {
                 SpawningAs::Key(key) => {
                     if let Some(held) = self.scenes.get(&key) {
-                        if held.scene.id() == asset_id {
-                            aside(
-                                "the world spawned it already, whose entities take the save's \
-                                 differences"
-                                    .to_owned(),
-                            );
-                            continue;
-                        }
-                        // Another scene under the key, as when a run changed level: the world's
-                        // goes first, with what was under it.
+                        // Another scene under the key, as when a run changed level, or one whose
+                        // root no longer lives: the world's goes first, with what was under it.
                         let held = held.scene.clone();
                         self.despawn_scene(&key, &held, &mut save.gone);
                     }
                     self.spawn_scene_with(&key, &scene, &storages)
+                        .inspect(|_| save.spawned_keys.push(key.clone()))
                 }
                 SpawningAs::Placement(number) => {
                     // Written into a scene file that the world spawned: the file's placement of
@@ -1054,7 +1237,12 @@ impl World {
     /// placement or an entity created outside scenes, is taken out of them first, but what a save
     /// leaves out ([`Unsaved`]): the save removes it, or says where it went when the run left the
     /// level, as a hero that walked out of it.
-    fn despawn_scene(&mut self, key: &str, scene: &ResolvedScene, gone: &mut HashSet<String>) {
+    pub(crate) fn despawn_scene(
+        &mut self,
+        key: &str,
+        scene: &ResolvedScene,
+        gone: &mut HashSet<String>,
+    ) {
         let mut entities = Vec::new();
         for id in record_ids(&PersistentId::new([key]), scene) {
             if let Some(entity) = self.find(&id) {
@@ -1078,6 +1266,7 @@ impl World {
             self.despawn(entity);
         }
         self.scenes.remove(key);
+        self.forget_gone_under(&PersistentId::new([key]));
     }
 
     /// Spawns the entities that a save creates, under their numbers or their keys.
@@ -1097,16 +1286,8 @@ impl World {
                         && save.claimed.insert(entity)
                     {
                         save.aliases.insert(written.key.clone(), written.id.clone());
-                        let components = written
-                            .components
-                            .iter()
-                            .map(|name| {
-                                registry
-                                    .get(name)
-                                    .map_or_else(|| name.clone(), |held| held.info().name.clone())
-                            })
-                            .collect();
-                        save.whole.push((entity, components));
+                        save.whole
+                            .push((entity, canonical(registry, &written.components)));
                         continue;
                     }
                     let entity = self.spawn_bare();
@@ -1116,10 +1297,18 @@ impl World {
                     self.next_created = self.next_created.max(number + 1);
                     created.push((number, entity));
                 }
-                Creation::Key(id) => {
-                    let entity = self.spawn_bare();
-                    self.identify(entity, id);
-                }
+                Creation::Key(id, components) => match self.find(&id) {
+                    // An entity of a scene that the save adopted as it loaded: it keeps only the
+                    // components that the save gives it.
+                    Some(entity) if save.claimed.insert(entity) => {
+                        let components = canonical(registry, &components);
+                        save.whole.push((entity, components));
+                    }
+                    _ => {
+                        let entity = self.spawn_bare();
+                        self.identify(entity, id);
+                    }
+                },
             }
         }
         self.created.extend(created);
@@ -1170,14 +1359,11 @@ impl World {
                 }
             };
             for unknown in names.unknown.take() {
-                let why = if save.numbers.doubtful(&unknown) {
-                    START_CHANGED
-                } else {
-                    "the world does not have it"
-                };
                 aside(
                     loaded,
-                    format!("it refers to `{unknown}`, to no entity now: {why}"),
+                    format!(
+                        "it refers to `{unknown}`, to no entity now: the world does not have it"
+                    ),
                 );
             }
             value
@@ -1191,27 +1377,12 @@ impl World {
                 }
             }
         }
-        for key in document.keys(&[ADDED]) {
-            for name in document.keys(&[ADDED, &key]) {
-                let read = document.read(&[ADDED, &key, &name], &name, Some(&names));
-                if let Some(value) = take(document, &key, &name, read) {
-                    save.added.push((key.clone(), name, value));
-                }
-            }
-        }
-        for key in document.keys(&[CHANGED]) {
-            for name in document.keys(&[CHANGED, &key]) {
-                let read = document.read_part(&[CHANGED, &key, &name], &name, Some(&names));
-                if let Some(part) = take(document, &key, &name, read) {
-                    save.changed.push((key.clone(), name, part));
-                }
-            }
-        }
+        read_values_at(document, &[], &names, save, &mut take);
         loaded.warnings.extend(document.warnings());
     }
 
     /// Applies what a save holds, setting aside what cannot be.
-    fn apply_save(&mut self, save: Save, loaded: &mut Loaded) {
+    pub(crate) fn apply_save(&mut self, save: Save, loaded: &mut Loaded) {
         let mut aside = |entity: &str, component: Option<&str>, reason: &str| {
             loaded.set_aside.push(SetAside {
                 entity: entity.to_owned(),
@@ -1227,13 +1398,7 @@ impl World {
             None => world.entity_named(numbers, key),
         };
         // Why a difference is set aside whose entity, `key`, the world does not have.
-        let gone = |key: &str| {
-            if numbers.doubtful(key) {
-                START_CHANGED
-            } else {
-                "the world has no entity of this identity"
-            }
-        };
+        let gone = |_: &str| "the world has no entity of this identity";
         for &root in &save.reset {
             self.reset_to_prefab(root);
         }
@@ -1378,25 +1543,6 @@ impl World {
             .collect()
     }
 
-    /// The fingerprint of the entities that this world created outside scenes and holds: their
-    /// numbers, the names of their components' types, and their [`Name`]s. A save of layout 3
-    /// holds its start's, so that loading it tells whether the start it is loaded into created the
-    /// same entities, which its differences name by their numbers.
-    fn created_fingerprint(&self) -> u64 {
-        let mut hash = 0xcbf2_9ce4_8422_2325;
-        for (number, entity) in self.created.alive(&self.entities) {
-            hash = fingerprint(hash, &number.to_le_bytes());
-            for name in self.component_names_sorted(entity) {
-                hash = fingerprint(fingerprint(hash, name.as_bytes()), &[0]);
-            }
-            if let Some(Name(name)) = self.get::<Name>(entity) {
-                hash = fingerprint(hash, name.as_bytes());
-            }
-            hash = fingerprint(hash, &[0xff]);
-        }
-        hash
-    }
-
     /// The entities that a save holds, by their persistent identities: all but those that hold
     /// [`Unsaved`], or whose ancestor does.
     fn saved_entities(&self) -> BTreeMap<PersistentId, Entity> {
@@ -1499,19 +1645,19 @@ impl Drop for RegistryApart<'_> {
 
 /// What a save holds, read, but the entities it creates.
 #[derive(Default)]
-struct Save {
+pub(crate) struct Save {
     next_created: u64,
     /// How it names the entities created outside scenes.
-    numbers: Numbers,
-    removed: Vec<String>,
-    removed_components: Vec<(String, Vec<String>)>,
+    pub(crate) numbers: Numbers,
+    pub(crate) removed: Vec<String>,
+    pub(crate) removed_components: Vec<(String, Vec<String>)>,
     /// Each entity given another parent, the created ones included, and its parent, if it has one.
-    parents: Vec<(String, Option<String>)>,
+    pub(crate) parents: Vec<(String, Option<String>)>,
     /// The components added, of the entities the world had and of those it created: the entity,
     /// the component and its value.
-    added: Vec<(String, String, Value)>,
+    pub(crate) added: Vec<(String, String, Value)>,
     /// What changed of the components: the entity, the component and the part.
-    changed: Vec<(String, String, Value)>,
+    pub(crate) changed: Vec<(String, String, Value)>,
     /// The identities of the entities that loading destroyed when it spawned a scene under a key in
     /// place of another: the save removes them, and nothing is reported of them.
     gone: HashSet<String>,
@@ -1525,25 +1671,40 @@ struct Save {
     whole: Vec<(Entity, Vec<String>)>,
     /// The entities of the world that what the save creates or places has become, each once.
     claimed: HashSet<Entity>,
+    /// The keys of the scenes that the save spawned, which the game prepares before they are
+    /// settled.
+    spawned_keys: Vec<String>,
     /// The roots of the placements that the save describes from their prefabs and that the world
     /// has from a scene file, overrides included: set back to their prefabs before the save applies.
     reset: Vec<Entity>,
+    /// What the world that made the save kept of the scenes that it spawned again and had not
+    /// settled, by their keys and assets: applied once the save is.
+    pub(crate) pending: Vec<(String, AssetId, Unloaded)>,
 }
 
 /// What a save holds that refuses it if it is wrong, read before the world changes.
 #[derive(Default)]
 struct Plan {
-    /// What the world that made the save spawned while it ran.
+    /// What the save spawns: the scenes that it names and that the world lacks, or holds others in
+    /// place of, and the placements made while the world that made it ran.
     spawned: Vec<ToSpawn>,
     /// The entities that the save creates: their numbers in this world, or their keys.
     created: Vec<Creation>,
+    /// The scenes that the save names, by their keys: their asset IDs, as the save writes them.
+    listed: BTreeMap<String, String>,
+    /// What the world that made the save kept of the scenes that it unloaded.
+    unloaded: BTreeMap<(String, AssetId), Unloaded>,
+    /// The identities that the entities that it adopted had, and their scenes, by the keys that it
+    /// gave them.
+    adopted: BTreeMap<String, Former>,
 }
 
 /// An entity that a save creates: under a number of the world's count, with what the save says of
 /// it if a scene file written from the world holds it, or a key ([`World::spawn_keyed`]).
 enum Creation {
     Number(u64, Option<Written>),
-    Key(PersistentId),
+    /// Under a key, with the names of the components that the save gives it.
+    Key(PersistentId, Vec<String>),
 }
 
 /// An entity that a save creates and that a scene file written from the world holds
@@ -1559,17 +1720,14 @@ struct Written {
 
 /// How a save names the entities that a world created outside scenes, and what this world names
 /// them as it loads the save ([`World::load`]): what the run created, from the count that the start
-/// it was saved against reached up, takes numbers from this world's count up, whatever the game's
-/// start creates now; what that start created keeps its numbers, unless this world's start created
-/// other entities, by the fingerprint that the save holds of them, when it may be another entity.
+/// of its run reached up, takes numbers from this world's count up, whatever the game's start
+/// creates now; what that start created keeps its numbers.
 #[derive(Clone, Copy)]
-struct Numbers {
+pub(crate) struct Numbers {
     /// The count that the save's start reached.
     from: u64,
     /// This world's count before the save is loaded.
     to: u64,
-    /// Whether this world's start created other entities outside scenes than the save's.
-    start_changed: bool,
 }
 
 impl Default for Numbers {
@@ -1579,12 +1737,10 @@ impl Default for Numbers {
 }
 
 impl Numbers {
-    /// The identities as the save gives them: for a save of layout 2 or earlier, which does not say
-    /// what its start created, and for a world's documents other than saves loaded.
-    const SAME: Self = Self {
+    /// The identities as the save gives them: for a world's documents other than saves loaded.
+    pub(crate) const SAME: Self = Self {
         from: u64::MAX,
         to: u64::MAX,
-        start_changed: false,
     };
 
     /// The number in this world of what the save numbers `number`, if a world can give it.
@@ -1598,15 +1754,15 @@ impl Numbers {
     }
 
     /// The identity in this world of the entity that the save names `text`; `None` if the text
-    /// names no entity, or an entity that the save's start created when this world's start
-    /// created others.
-    fn identity(self, text: &str) -> Option<PersistentId> {
+    /// names no entity. What the save's start created keeps its number: saving refuses a start
+    /// that created what a save would hold, so that only what saves leave out has one.
+    pub(crate) fn identity(self, text: &str) -> Option<PersistentId> {
         let id: PersistentId = text.parse().ok()?;
         let Some(number) = created_root(&id) else {
             return Some(id);
         };
         if number < self.from {
-            return (!self.start_changed).then_some(id);
+            return Some(id);
         }
         let number = self.number(number)?.to_string();
         let parts = [CREATED_KEY, number.as_str()].into_iter();
@@ -1614,34 +1770,17 @@ impl Numbers {
             parts.chain(id.parts()[2..].iter().map(String::as_str)),
         ))
     }
-
-    /// Whether `text` names an entity that the save's start created, which this world's start may
-    /// have given to another entity.
-    fn doubtful(self, text: &str) -> bool {
-        self.start_changed
-            && text
-                .parse()
-                .ok()
-                .and_then(|id| created_root(&id))
-                .is_some_and(|number| number < self.from)
-    }
 }
 
 /// The number of the entity created outside scenes that `id` names, or names a placement's entity
 /// under: `created/7`, `created/7/light`.
-fn created_root(id: &PersistentId) -> Option<u64> {
+pub(crate) fn created_root(id: &PersistentId) -> Option<u64> {
     let parts = id.parts();
     if parts.len() < 2 {
         return None;
     }
     PersistentId::new(parts[..2].iter().map(String::as_str)).created_number()
 }
-
-/// Why a save's difference is set aside when its entity is an entity that the save's start created,
-/// and this world's start created others.
-const START_CHANGED: &str = "the game's start creates other entities outside scenes than when the \
-                             save was made, so that this one may be another: a key would name it \
-                             whatever the start creates (`World::spawn_keyed`)";
 
 /// A scene that the world that made a save spawned while it ran, as the save gives it.
 struct ToSpawn {
@@ -1682,6 +1821,215 @@ fn content_text(fingerprint: u64) -> String {
     format!("{fingerprint:016x}")
 }
 
+/// Puts in `save`, at `place`, the top of the save or the table of a scene that the world keeps
+/// unloaded, what changed of entities: those `removed`, in the order of their identities, the
+/// `parents` changed, and the components removed, added whole and changed in parts.
+fn put_differences(
+    save: &mut Composer<'_>,
+    place: &[&str],
+    removed: &[PersistentId],
+    parents: &BTreeMap<PersistentId, Option<PersistentId>>,
+    differences: &Differences,
+) -> Result<(), DocumentError> {
+    let mut put = |rest: &[&str], ty: &str, value: &Value, part: bool| {
+        let at: Vec<&str> = place.iter().chain(rest).copied().collect();
+        match part {
+            false => save.put(&at, ty, value),
+            true => save.put_part(&at, ty, value),
+        }
+        .map_err(DocumentError::Write)
+    };
+    let mut removed: Vec<String> = removed.iter().map(ToString::to_string).collect();
+    removed.sort_unstable();
+    if !removed.is_empty() {
+        let removed = Value::List(removed.into_iter().map(Value::Text).collect());
+        put(&[REMOVED, "entities"], "Vec<String>", &removed, false)?;
+    }
+    for (id, gone) in &differences.removed {
+        let gone = Value::List(gone.iter().cloned().map(Value::Text).collect());
+        put(
+            &[REMOVED, "components", &id.to_string()],
+            "Vec<String>",
+            &gone,
+            false,
+        )?;
+    }
+    for (id, parent) in parents {
+        let parent = text_option(parent.clone());
+        put(
+            &[PARENTS, &id.to_string()],
+            "Option<String>",
+            &parent,
+            false,
+        )?;
+    }
+    for ((id, name), value) in &differences.added {
+        put(&[ADDED, &id.to_string(), name], name, value, false)?;
+    }
+    for ((id, name), part) in &differences.changed {
+        put(&[CHANGED, &id.to_string(), name], name, part, true)?;
+    }
+    Ok(())
+}
+
+/// Reads the entities and the components removed, and the entities given another parent, that a
+/// save holds at `place`, the top of the save or the table of a scene that it keeps unloaded, into
+/// `save`.
+fn read_removals_at(
+    document: &mut Document<'_>,
+    place: &[&str],
+    save: &mut Save,
+) -> Result<(), DocumentError> {
+    let at = |rest: &[&str]| -> Vec<String> {
+        place
+            .iter()
+            .chain(rest)
+            .map(|&key| key.to_owned())
+            .collect()
+    };
+    let entities = at(&[REMOVED, "entities"]);
+    if let Some(Value::List(entities)) = document
+        .read(&place_of(&entities), "Vec<String>", None)
+        .map_err(DocumentError::Read)?
+    {
+        save.removed = texts(entities);
+    }
+    for key in document.keys(&place_of(&at(&[REMOVED, "components"]))) {
+        let names = at(&[REMOVED, "components", key.as_str()]);
+        if let Some(Value::List(names)) = document
+            .read(&place_of(&names), "Vec<String>", None)
+            .map_err(DocumentError::Read)?
+        {
+            save.removed_components.push((key, texts(names)));
+        }
+    }
+    for key in document.keys(&place_of(&at(&[PARENTS]))) {
+        let parent = at(&[PARENTS, key.as_str()]);
+        if let Some(parent) = document
+            .read(&place_of(&parent), "Option<String>", None)
+            .map_err(DocumentError::Read)?
+        {
+            save.parents.push((key, option_text(&parent)));
+        }
+    }
+    Ok(())
+}
+
+/// The keys of a place held as text, as a document reads them.
+fn place_of(keys: &[String]) -> Vec<&str> {
+    keys.iter().map(String::as_str).collect()
+}
+
+/// What becomes of a value that a save holds, read for an entity and a component: the value, or
+/// none, set aside or warned of.
+type Take<'a> = dyn FnMut(&mut Document<'_>, &str, &str, Result<Option<Value>, ReadError>) -> Option<Value>
+    + 'a;
+
+/// Reads the components added, whole, and changed, in parts, that a save holds at `place`, the top
+/// of the save or the table of a scene that it keeps unloaded, into `save`, naming entities
+/// through `names`; `take` says what becomes of each value read.
+fn read_values_at(
+    document: &mut Document<'_>,
+    place: &[&str],
+    names: &dyn References,
+    save: &mut Save,
+    take: &mut Take<'_>,
+) {
+    for (section, part) in [(ADDED, false), (CHANGED, true)] {
+        let table: Vec<String> = place
+            .iter()
+            .chain([&section])
+            .map(|&key| key.to_owned())
+            .collect();
+        for key in document.keys(&place_of(&table)) {
+            let mut entity = table.clone();
+            entity.push(key.clone());
+            for name in document.keys(&place_of(&entity)) {
+                let mut at = entity.clone();
+                at.push(name.clone());
+                let at = place_of(&at);
+                let read = match part {
+                    false => document.read(&at, &name, Some(names)),
+                    true => document.read_part(&at, &name, Some(names)),
+                };
+                if let Some(value) = take(document, &key, &name, read) {
+                    match part {
+                        false => save.added.push((key.clone(), name, value)),
+                        true => save.changed.push((key.clone(), name, value)),
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// What a world keeps of a scene unloaded, read from a save as `kept`, its values naming entities
+/// by the indices of `references`, its names of entities created outside scenes as `numbers`
+/// gives them in this world; an entity named by what is not a persistent identity is set aside in
+/// `set_aside`.
+fn unloaded(
+    kept: Save,
+    references: Vec<PersistentId>,
+    numbers: Numbers,
+    set_aside: &mut Vec<SetAside>,
+) -> Unloaded {
+    let mut id = |text: &str, component: Option<&str>| {
+        let id = numbers.identity(text);
+        if id.is_none() {
+            set_aside.push(SetAside {
+                entity: text.to_owned(),
+                component: component.map(str::to_owned),
+                reason: "it is not a persistent identity".to_owned(),
+            });
+        }
+        id
+    };
+    let mut unloaded = Unloaded {
+        references,
+        ..Unloaded::default()
+    };
+    unloaded.removed = kept
+        .removed
+        .iter()
+        .filter_map(|text| id(text, None))
+        .collect();
+    for (text, names) in kept.removed_components {
+        if let Some(entity) = id(&text, None) {
+            unloaded.differences.removed.insert(entity, names);
+        }
+    }
+    for (text, parent) in kept.parents {
+        let parent = parent.and_then(|parent| id(&parent, None));
+        if let Some(entity) = id(&text, None) {
+            unloaded.parents.insert(entity, parent);
+        }
+    }
+    for (text, name, value) in kept.added {
+        if let Some(entity) = id(&text, Some(&name)) {
+            unloaded.differences.added.insert((entity, name), value);
+        }
+    }
+    for (text, name, part) in kept.changed {
+        if let Some(entity) = id(&text, Some(&name)) {
+            unloaded.differences.changed.insert((entity, name), part);
+        }
+    }
+    unloaded
+}
+
+/// The names of the components `names`, as `registry` names their types now, rather than by their
+/// aliases.
+fn canonical(registry: &Registry, names: &[String]) -> Vec<String> {
+    names
+        .iter()
+        .map(|name| {
+            registry
+                .get(name)
+                .map_or_else(|| name.clone(), |held| held.info().name.clone())
+        })
+        .collect()
+}
+
 /// The persistent identity `id`, if there is one, as an option of text.
 fn text_option(id: Option<PersistentId>) -> Value {
     Value::Option(id.map(|id| Box::new(Value::Text(id.to_string()))))
@@ -1709,93 +2057,26 @@ fn texts(values: Vec<Value>) -> Vec<String> {
         .collect()
 }
 
-/// A scene that a world spawned while it ran, as a save writes it: under a key that the start did
-/// not spawn, or as a placement made while the world ran.
+/// A scene that a world spawned under a key, or a placement, that a save names, so that loading
+/// spawns it.
 struct Spawned<'w> {
     /// The persistent identity of its root: the key, or `created/<number>`.
     root: PersistentId,
     scene: &'w ResolvedScene,
-    /// The name that spawning gives the root unless the scene gives one: the key; none for a
-    /// placement.
+    /// The key it was spawned under; none for a placement.
     key: Option<&'w str>,
-    /// The persistent identity of each record's entity, in the records' order.
-    ids: Vec<PersistentId>,
-    /// Each record's entity in the world, if one is alive.
-    entities: Vec<Option<Entity>>,
-    /// Whether each record, or an ancestor of it, holds [`Unsaved`], which a save leaves out.
-    unsaved: Vec<bool>,
 }
 
-/// What a save compares an entity of the world with.
-#[derive(Clone, Copy)]
-enum Before<'a> {
-    /// The start's entity of the same identity.
-    Start(Entity),
-    /// The record at this index of a scene spawned while the world ran.
-    Spawned(&'a Spawned<'a>, usize),
-}
-
-impl Before<'_> {
-    /// The persistent identity of the parent, if one.
-    fn parent(self, start: &World) -> Option<PersistentId> {
-        match self {
-            Before::Start(entity) => start
-                .parent(entity)
-                .and_then(|parent| start.persistent_id(parent)),
-            Before::Spawned(spawned, index) => spawned.scene.0.records[index]
-                .parent
-                .map(|parent| spawned.ids[parent as usize].clone()),
-        }
-    }
-
-    /// The names of the components' types, in their order.
-    fn component_names(self, start: &World) -> Vec<String> {
-        match self {
-            Before::Start(entity) => start
-                .component_names_sorted(entity)
-                .into_iter()
-                .map(str::to_owned)
-                .collect(),
-            Before::Spawned(spawned, index) => {
-                let record = &spawned.scene.0.records[index];
-                let mut names: Vec<String> = record
-                    .components
-                    .iter()
-                    .map(|(name, _)| name.clone())
-                    .collect();
-                if index == 0 && spawned.key.is_some() && !names.iter().any(|name| name == "Name") {
-                    names.push("Name".to_owned());
-                }
-                names.sort_unstable();
-                names
-            }
-        }
-    }
-
-    /// The value of the component named `name`, if it holds one, its references made references to
-    /// the entities of `world` of the identities that they name, as the world saved and `start`
-    /// give the same entity other handles when they were not made in the same order.
-    fn value(self, start: &World, world: &World, name: &str) -> Option<Value> {
-        match self {
-            Before::Start(entity) => start.component_value(entity, name).map(|mut value| {
-                for_each_entity(&mut value, &mut |bits| {
-                    let found = Entity::from_value(&Value::Entity(*bits))
-                        .ok()
-                        .and_then(|entity| start.persistent_id(entity))
-                        .and_then(|id| world.find(&id));
-                    *bits = handle_bits(found.unwrap_or(Entity::NONE));
-                });
-                value
-            }),
-            Before::Spawned(spawned, index) => expected(
-                &spawned.scene.0.records[index],
-                index,
-                spawned.key,
-                &spawned.entities,
-                name,
-            ),
-        }
-    }
+/// What changed of the entities that a world settled, since it settled them, by their identities
+/// and their components' names, in their order: what a save writes of them.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Differences {
+    /// The components removed.
+    pub(crate) removed: BTreeMap<PersistentId, Vec<String>>,
+    /// The components added, whole.
+    pub(crate) added: BTreeMap<(PersistentId, String), Value>,
+    /// What changed of the others, in parts.
+    pub(crate) changed: BTreeMap<(PersistentId, String), Value>,
 }
 
 /// What a scene spawned while a world ran was spawned as.
@@ -1807,73 +2088,102 @@ enum SpawningAs {
 }
 
 impl World {
-    /// Whether `start` spawned the scene that this world spawned under `key`: the same asset under
-    /// the same key.
-    fn spawned_as_at_start(&self, start: &World, key: &str) -> bool {
-        match (self.scenes.get(key), start.scenes.get(key)) {
-            (Some(ours), Some(theirs)) => ours.scene.id() == theirs.scene.id(),
-            _ => false,
-        }
-    }
-
-    /// What this world spawned while it ran, against `start`, of which an entity is saved, `saved`:
-    /// the scenes spawned under keys that `start` did not spawn, then the placements made while the
-    /// world ran that `start` did not make, in the order of their roots' identities.
-    fn spawned_while_running<'w>(
-        &'w self,
-        start: &World,
-        saved: &BTreeMap<PersistentId, Entity>,
-    ) -> Vec<Spawned<'w>> {
-        let keys = self
-            .scenes
-            .iter()
-            .filter(|(key, _)| !self.spawned_as_at_start(start, key))
-            .map(|(key, spawned)| {
-                (
-                    PersistentId::new([key.as_str()]),
-                    &spawned.scene,
-                    Some(key.as_str()),
-                )
-            });
+    /// The scenes spawned under keys, the last under each, and the placements, that a save names,
+    /// the scenes first, each in the order of its root's identity. It names a scene under a key,
+    /// unless entities of it live of which it leaves out every one ([`Unsaved`]): one of which no
+    /// entity lives is one that the run destroyed, whose entities it removes. It names a placement
+    /// of which it holds an entity. Its root, which the save holds, is enough: the records are
+    /// looked through only when it does not.
+    fn spawned_in_save(&self) -> Vec<Spawned<'_>> {
+        let keys = self.scenes.iter().map(|(key, spawned)| {
+            (
+                PersistentId::new([key.as_str()]),
+                &spawned.scene,
+                Some(key.as_str()),
+            )
+        });
         let placements = self
             .placements
             .iter()
-            .filter(|(number, _)| !start.placements.contains_key(*number))
             .map(|(&number, scene)| (PersistentId::created(number), scene, None));
-        let mut spawned: Vec<Spawned<'w>> = keys
-            .chain(placements)
-            .filter_map(|(root, scene, key)| {
-                let records = &scene.0.records;
-                let ids = record_ids(&root, scene);
-                if !ids.iter().any(|id| saved.contains_key(id)) {
-                    return None;
+        keys.chain(placements)
+            .filter(|(root, scene, key)| {
+                if self.find(root).is_some_and(|root| !self.unsaved(root)) {
+                    return true;
                 }
-                // Followed up through the parents, which a scene file may give after their children.
-                let unsaved = (0..records.len())
-                    .map(|index| {
-                        let mut next = Some(index);
-                        while let Some(at) = next {
-                            let record = &records[at];
-                            if record.components.iter().any(|(name, _)| name == "Unsaved") {
-                                return true;
-                            }
-                            next = record.parent.map(|parent| parent as usize);
-                        }
-                        false
-                    })
+                let alive: Vec<Entity> = record_ids(root, scene)
+                    .iter()
+                    .filter_map(|id| self.find(id))
                     .collect();
-                Some(Spawned {
-                    entities: ids.iter().map(|id| self.find(id)).collect(),
-                    root,
-                    scene,
-                    key,
-                    ids,
-                    unsaved,
-                })
+                alive.iter().any(|&entity| !self.unsaved(entity))
+                    || (key.is_some() && alive.is_empty())
             })
-            .collect();
-        spawned.sort_by(|a, b| a.root.cmp(&b.root));
-        spawned
+            .map(|(root, scene, key)| Spawned { root, scene, key })
+            .collect()
+    }
+
+    /// What changed since the world settled them of the entities that a save holds, as `saved`
+    /// says: each component changed, added or removed is compared with the base that the world
+    /// kept of it at its first change, but one that its entity marks driven at its base and now.
+    pub(crate) fn changes_since_settled(&self, saved: &dyn Fn(Entity) -> bool) -> Differences {
+        let names = Names::new(self, Numbers::SAME);
+        let driven_id = self.component_ids.get(&TypeId::of::<Driven>()).copied();
+        // The mark that an entity holds, by its slot, at its base or now.
+        let driven = |slot: u32, at_base: bool| -> Option<Driven> {
+            let storage = &self.storages[driven_id?];
+            let value = match (at_base, storage.kept(slot)) {
+                (true, Some(kept)) => kept?,
+                _ => storage.value(slot)?,
+            };
+            Driven::from_value(&value).ok()
+        };
+        let mut differences = Differences::default();
+        for (id, storage) in self.storages.iter().enumerate() {
+            let Some(name) = self
+                .registry
+                .of_type(self.component_types[id])
+                .map(|registration| registration.info().name.clone())
+            else {
+                continue;
+            };
+            for slot in storage.kept_slots() {
+                let entity = self.entity_at(slot);
+                let Some(identity) = self.persistent_id(entity) else {
+                    continue;
+                };
+                if !saved(entity) {
+                    continue;
+                }
+                let Some(base) = storage.kept(slot) else {
+                    continue;
+                };
+                let now = storage.value(slot);
+                let marked = |at_base| driven(slot, at_base).is_some_and(|d| d.holds(&name));
+                match (base, now) {
+                    (Some(_), Some(_)) if marked(true) && marked(false) => {}
+                    (Some(base), Some(now)) => {
+                        let (base, now) = (to_no_entity(base, &names), to_no_entity(now, &names));
+                        if let Ok(Some(part)) = self.registry.difference(&name, &base, &now, false)
+                        {
+                            differences.changed.insert((identity, name.clone()), part);
+                        }
+                    }
+                    (Some(_), None) => differences
+                        .removed
+                        .entry(identity)
+                        .or_default()
+                        .push(name.clone()),
+                    (None, Some(now)) => {
+                        differences.added.insert((identity, name.clone()), now);
+                    }
+                    (None, None) => {}
+                }
+            }
+        }
+        for names in differences.removed.values_mut() {
+            names.sort_unstable();
+        }
+        differences
     }
 }
 
@@ -1921,6 +2231,7 @@ mod tests {
         world
             .spawn_scene("yard", &resolved(&scene()))
             .expect("spawned");
+        world.settle();
         world
     }
 
@@ -1956,18 +2267,16 @@ mod tests {
     #[test]
     fn a_world_saved_and_loaded_into_its_start_is_the_world_saved() {
         let played = played();
-        let save = played.save(&start(), &BTreeMap::new()).expect("saved");
+        let save = played.save(&BTreeMap::new()).expect("saved");
         let mut loaded = start();
         let report = loaded
-            .load(&save, &mut SceneLibrary::new())
+            .load(&save, &mut SceneLibrary::new(), &mut |_, _| {})
             .expect("loaded");
         assert!(report.set_aside.is_empty(), "{:?}", report.set_aside);
         assert!(report.scenes_changed.is_empty() && report.warnings.is_empty());
         assert_eq!(played.first_difference(&loaded), None, "{save}");
         assert_eq!(
-            loaded
-                .save(&start(), &BTreeMap::new())
-                .expect("saved again"),
+            loaded.save(&BTreeMap::new()).expect("saved again"),
             save,
             "the same bytes"
         );
@@ -1980,12 +2289,12 @@ mod tests {
         assert_eq!(loaded.spawn(), entity(&loaded, "created/3"));
         assert_eq!(
             save,
-            r#"layout = 4
+            r#"layout = 5
 next_created = 3
 start = { created = 1 }
 
 [scenes]
-yard = { name = "yard", content = "SCENE" }
+yard = { scene = "00000000-0000-0000-0000-000000000001", name = "yard", content = "SCENE" }
 
 [removed]
 entities = ["yard/tree"]
@@ -1995,6 +2304,12 @@ entities = ["yard/tree"]
 
 [parents]
 "yard/post" = ["yard/well"]
+
+[added."yard/gate"]
+Hidden = {}
+
+[changed."yard/well".Transform]
+translation = { x = 6.5 }
 
 [created."created/1"]
 parent = ["yard/well"]
@@ -2007,12 +2322,6 @@ translation = { x = 0.5, y = 1.0, z = 0.0 }
 rotation = { x = 0.0, y = 0.0, z = 0.0, w = 1.0 }
 scale = 1.0
 stretch = { x = 1.0, y = 1.0, z = 1.0 }
-
-[added."yard/gate"]
-Hidden = {}
-
-[changed."yard/well".Transform]
-translation = { x = 6.5 }
 "#
             .replace("SCENE", &format!("{:016x}", played.scenes["yard"].content))
         );
@@ -2034,12 +2343,14 @@ translation = { x = 6.5 }
 
     #[test]
     fn a_save_loaded_on_a_scene_changed_since_applies_what_it_can_and_says_what_it_cannot() {
-        let save = played().save(&start(), &BTreeMap::new()).expect("saved");
+        let save = played().save(&BTreeMap::new()).expect("saved");
         let mut world = World::new();
         world
             .spawn_scene("yard", &resolved(&scene_changed()))
             .expect("spawned");
-        let report = world.load(&save, &mut SceneLibrary::new()).expect("loaded");
+        let report = world
+            .load(&save, &mut SceneLibrary::new(), &mut |_, _| {})
+            .expect("loaded");
         assert_eq!(report.scenes_changed, ["yard"]);
         let reported: Vec<(&str, Option<&str>)> = report
             .set_aside
@@ -2072,25 +2383,30 @@ translation = { x = 6.5 }
 
     #[test]
     fn a_save_that_is_not_one_is_refused_and_the_world_left_as_it_was() {
-        let save = played().save(&start(), &BTreeMap::new()).expect("saved");
+        let save = played().save(&BTreeMap::new()).expect("saved");
         for (text, problem) in [
             ("next_created = [", "not TOML"),
             ("\"$format\" = 2\n", "newer"),
             ("\"$versions\" = { Transform = 9 }\n", "newer"),
-            ("layout = 5\n", "a save of layout 5"),
+            ("layout = 6\n", "a save of layout 6"),
             (
-                "[spawned.\"created/x\"]\nscene = \"\"\n",
+                "layout = 5\n[spawned.\"created/x\"]\nscene = \"\"\n",
                 "not the identity",
             ),
-            ("[created.\"yard/gate\"]\nparent = []\n", "not the identity"),
+            (
+                "layout = 5\n[created.\"yard/gate\"]\nparent = []\n",
+                "not the identity",
+            ),
             // Its entity created, then taken back when the count cannot be read.
             (
-                "next_created = true\n[created.\"created/7\"]\n",
+                "layout = 5\nnext_created = true\n[created.\"created/7\"]\n",
                 "cannot be read",
             ),
         ] {
             let mut world = start();
-            let error = world.load(text, &mut SceneLibrary::new()).expect_err(text);
+            let error = world
+                .load(text, &mut SceneLibrary::new(), &mut |_, _| {})
+                .expect_err(text);
             assert!(
                 format!(
                     "{error}: {}",
@@ -2115,8 +2431,9 @@ translation = { x = 6.5 }
         let mut world = start();
         world
             .load(
-                "next_created = 2\n[created.\"created/5\"]\n",
+                "layout = 5\nnext_created = 2\n[created.\"created/5\"]\n",
                 &mut SceneLibrary::new(),
+                &mut |_, _| {},
             )
             .expect("loaded");
         let next = world.spawn();
@@ -2124,25 +2441,31 @@ translation = { x = 6.5 }
         // A second load, into a world whose start created more: what the run created takes the
         // numbers that follow the world's.
         let mut world = start();
-        world.load(&save, &mut SceneLibrary::new()).expect("loaded");
-        world.load(&save, &mut SceneLibrary::new()).expect("twice");
+        world
+            .load(&save, &mut SceneLibrary::new(), &mut |_, _| {})
+            .expect("loaded");
+        world
+            .load(&save, &mut SceneLibrary::new(), &mut |_, _| {})
+            .expect("twice");
         assert_eq!(
             world.get::<Name>(entity(&world, "created/3")),
             Some(&Name("torch".to_owned()))
         );
-        // A save of 0.4, of layout 2, which does not say what its start created, gives the numbers
-        // that it holds: they are in use.
+        // A save edited so that it does not say what its start created gives the numbers that it
+        // holds: they are in use.
         let mut world = start();
-        world.load(&save, &mut SceneLibrary::new()).expect("loaded");
-        let old = save.replace("layout = 4", "layout = 2");
-        let old = old.replace("start = { created = 1 }\n", "");
+        world
+            .load(&save, &mut SceneLibrary::new(), &mut |_, _| {})
+            .expect("loaded");
+        let edited = save.replace("start = { created = 1 }\n", "");
+        assert_ne!(edited, save);
         let error = world
-            .load(&old, &mut SceneLibrary::new())
+            .load(&edited, &mut SceneLibrary::new(), &mut |_, _| {})
             .expect_err("in use");
         assert!(matches!(error, DocumentError::IdentityInUse(id) if id.to_string() == "created/1"));
         // Truncated anywhere, a save gives an error or loads what it holds, and never panics.
         for end in (0..save.len()).filter(|&end| save.is_char_boundary(end)) {
-            let _ = start().load(&save[..end], &mut SceneLibrary::new());
+            let _ = start().load(&save[..end], &mut SceneLibrary::new(), &mut |_, _| {});
         }
     }
 
@@ -2157,36 +2480,44 @@ translation = { x = 6.5 }
     impl crate::Component for Rope {}
 
     #[test]
-    fn a_save_of_0_3_loads_as_it_did() {
-        // As 0.3 wrote it: no layout, and a rotation changed by the coordinates that changed.
-        let mut loaded = start();
-        let save =
-            "next_created = 2\n\n[scenes]\nyard = { name = \"yard\", content = \"SCENE\" }\n\n\
-                    [created.\"created/1\"]\nparent = [\"yard/well\"]\n\n\
-                    [created.\"created/1\".components]\nName = \"torch\"\n\n\
-                    [changed.\"yard/well\".Transform]\nrotation = { y = 0.6, w = 0.8 }\n"
-                .replace("SCENE", &format!("{:016x}", loaded.scenes["yard"].content));
-        let report = loaded
-            .load(&save, &mut SceneLibrary::new())
-            .expect("loaded");
-        assert!(
-            report.set_aside.is_empty()
-                && report.scenes_changed.is_empty()
-                && report.warnings.is_empty(),
-            "{report:?}"
-        );
-        let well = entity(&loaded, "yard/well");
-        assert_eq!(
-            loaded.get::<Transform>(well).expect("held").rotation,
-            glam::Quat::from_xyzw(0.0, 0.6, 0.0, 0.8)
-        );
-        assert_eq!(loaded.parent(entity(&loaded, "created/1")), Some(well));
-        assert!(
-            loaded
-                .save(&start(), &BTreeMap::new())
-                .expect("saved")
-                .starts_with("layout = 4\n")
-        );
+    fn a_save_of_an_earlier_layout_is_refused_saying_so() {
+        // As 0.3 wrote it, without a layout; as 0.4, P1 and M6a.7a wrote them, of layouts 2 to 4:
+        // differences from a start world made again, which this program no longer reads.
+        let old = "next_created = 2\n\n[scenes]\nyard = { name = \"yard\", content = \"0\" }\n\n\
+                   [changed.\"yard/well\".Transform]\nrotation = { y = 0.6, w = 0.8 }\n";
+        for layout in [None, Some(2), Some(3), Some(4)] {
+            let text = match layout {
+                Some(layout) => format!("layout = {layout}\n{old}"),
+                None => old.to_owned(),
+            };
+            let mut world = start();
+            let refused = world
+                .load(&text, &mut SceneLibrary::new(), &mut |_, _| {})
+                .expect_err("refused");
+            let message = slime_error_chain(&refused);
+            assert!(
+                message.contains("an earlier version of the engine wrote"),
+                "{layout:?}: {message}"
+            );
+            let well = entity(&world, "yard/well");
+            assert_eq!(
+                world.get::<Transform>(well).expect("held").rotation,
+                glam::Quat::IDENTITY,
+                "unchanged"
+            );
+        }
+    }
+
+    /// `error`'s message, followed by those of its causes.
+    fn slime_error_chain(error: &dyn std::error::Error) -> String {
+        let mut said = error.to_string();
+        let mut cause = error.source();
+        while let Some(error) = cause {
+            said.push_str(": ");
+            said.push_str(&error.to_string());
+            cause = error.source();
+        }
+        said
     }
 
     #[test]
@@ -2196,29 +2527,34 @@ translation = { x = 6.5 }
         let yard = "{ scene = \"00000000-0000-0000-0000-000000000001\" }";
         for (text, refused) in [
             (
-                format!("[spawned]\ncave = {yard}\n\"created/01\" = {yard}\n"),
+                format!(
+                    "layout = 5\n[scenes]\ncave = {yard}\n[spawned]\n\"created/01\" = {yard}\n"
+                ),
                 "not the identity",
             ),
             (
-                format!("[spawned]\ncave = {yard}\nbad = {{ scene = 5 }}\n"),
+                format!("layout = 5\n[scenes]\ncave = {yard}\nbad = {{ scene = 5 }}\n"),
                 "cannot be read",
             ),
             (
-                format!("[spawned]\n\"created/5\" = {yard}\n\"created/1\" = {yard}\n"),
+                format!("layout = 5\n[spawned]\n\"created/5\" = {yard}\n\"created/1\" = {yard}\n"),
                 "has already",
             ),
             (
-                format!("[spawned]\ncave = {yard}\n\n[created.\"created/1\"]\n"),
+                format!("layout = 5\n[scenes]\ncave = {yard}\n\n[created.\"created/1\"]\n"),
                 "has already",
             ),
         ] {
             let made = || {
                 let mut world = start();
                 world.spawn();
+                world.settle();
                 world
             };
             let mut world = made();
-            let error = world.load(&text, &mut scenes).expect_err(&text);
+            let error = world
+                .load(&text, &mut scenes, &mut |_, _| {})
+                .expect_err(&text);
             assert!(
                 format!(
                     "{error}: {}",
@@ -2235,12 +2571,12 @@ translation = { x = 6.5 }
             assert!(world.find(&PersistentId::created(5)).is_none(), "{text}");
             assert_eq!(world.next_created, 2, "{text}");
         }
-        let save = "[spawned]\n\"created/4\" = { scene = \"00000000-0000-0000-0000-000000000001\" }\n\
-                    cave = { scene = \"00000000-0000-0000-0000-000000000001\" }\n\n\
+        let save = "layout = 5\n[scenes]\ncave = { scene = \"00000000-0000-0000-0000-000000000001\" }\n\n\
+                    [spawned]\n\"created/4\" = { scene = \"00000000-0000-0000-0000-000000000001\" }\n\n\
                     [created.\"yard/gate\"]\nparent = []\n";
         let mut world = start();
         assert!(matches!(
-            world.load(save, &mut scenes),
+            world.load(save, &mut scenes, &mut |_, _| {}),
             Err(DocumentError::NotCreated(_))
         ));
         assert_eq!(world.first_difference(&start()), None);
@@ -2249,7 +2585,9 @@ translation = { x = 6.5 }
         assert_eq!(world.persistent_id(next), Some(PersistentId::created(1)));
         // Without what failed, it spawns both.
         let save = save.replace("[created.\"yard/gate\"]\nparent = []\n", "");
-        let report = world.load(&save, &mut scenes).expect("loaded");
+        let report = world
+            .load(&save, &mut scenes, &mut |_, _| {})
+            .expect("loaded");
         assert_eq!(
             report.scenes_changed,
             ["created/4", "cave"],
@@ -2273,6 +2611,7 @@ translation = { x = 6.5 }
         let start = || {
             let mut world = super::tests::start();
             world.register::<Rope>();
+            world.settle();
             world
         };
         let mut played = start();
@@ -2284,7 +2623,7 @@ translation = { x = 6.5 }
                 swing: 0.5,
             },
         );
-        let save = played.save(&start(), &BTreeMap::new()).expect("saved");
+        let save = played.save(&BTreeMap::new()).expect("saved");
         assert!(
             save.contains("[added.\"yard/gate\"]\n\"test::Rope\" = { to = \"yard/well\" }\n"),
             "{save}"
@@ -2292,7 +2631,7 @@ translation = { x = 6.5 }
         assert!(!save.contains("swing"), "{save}");
         let mut loaded = start();
         loaded
-            .load(&save, &mut SceneLibrary::new())
+            .load(&save, &mut SceneLibrary::new(), &mut |_, _| {})
             .expect("loaded");
         let rope = loaded
             .get::<Rope>(entity(&loaded, "yard/gate"))
@@ -2328,11 +2667,11 @@ translation = { x = 6.5 }
                 swing: 0.0,
             },
         );
-        let save = played.save(&start(), &BTreeMap::new()).expect("saved");
+        let save = played.save(&BTreeMap::new()).expect("saved");
         assert!(save.contains("\"test::Rope\" = { to = \"\" }"), "{save}");
         let mut loaded = start();
         let report = loaded
-            .load(&save, &mut SceneLibrary::new())
+            .load(&save, &mut SceneLibrary::new(), &mut |_, _| {})
             .expect("loaded");
         assert!(report.set_aside.is_empty(), "{:?}", report.set_aside);
         for at in ["yard/gate", "yard/well"] {
@@ -2351,8 +2690,9 @@ translation = { x = 6.5 }
         let mut loaded = start();
         let report = loaded
             .load(
-                "[added.\"yard/gate\"]\n\"test::Rope\" = { to = \"yard/nothing\" }\n",
+                "layout = 5\n[added.\"yard/gate\"]\n\"test::Rope\" = { to = \"yard/nothing\" }\n",
                 &mut SceneLibrary::new(),
+                &mut |_, _| {},
             )
             .expect("loaded");
         let rope = loaded
@@ -2389,10 +2729,10 @@ translation = { x = 6.5 }
         played.set_parent(seed, Some(sapling)).expect("a parent");
         played.set_parent(seed, None).expect("no parent");
         played.despawn(tree);
-        let save = played.save(&start(), &BTreeMap::new()).expect("saved");
+        let save = played.save(&BTreeMap::new()).expect("saved");
         let mut loaded = start();
         let report = loaded
-            .load(&save, &mut SceneLibrary::new())
+            .load(&save, &mut SceneLibrary::new(), &mut |_, _| {})
             .expect("loaded");
         assert!(
             report.set_aside.is_empty(),
@@ -2403,10 +2743,10 @@ translation = { x = 6.5 }
         // An entity removed with its parent is not reported as gone.
         let mut played = start();
         played.despawn(entity(&played, "yard/gate"));
-        let save = played.save(&start(), &BTreeMap::new()).expect("saved");
+        let save = played.save(&BTreeMap::new()).expect("saved");
         let mut loaded = start();
         let report = loaded
-            .load(&save, &mut SceneLibrary::new())
+            .load(&save, &mut SceneLibrary::new(), &mut |_, _| {})
             .expect("loaded");
         assert!(
             report.set_aside.is_empty(),
@@ -2419,11 +2759,11 @@ translation = { x = 6.5 }
         let well = entity(&played, "yard/well");
         played.set_parent(well, None).expect("no parent");
         played.despawn(entity(&played, "yard"));
-        let save = played.save(&start(), &BTreeMap::new()).expect("saved");
+        let save = played.save(&BTreeMap::new()).expect("saved");
         assert!(save.contains("[scenes]\nyard = "), "{save}");
         let mut loaded = start();
         let report = loaded
-            .load(&save, &mut SceneLibrary::new())
+            .load(&save, &mut SceneLibrary::new(), &mut |_, _| {})
             .expect("loaded");
         assert!(report.set_aside.is_empty() && report.scenes_changed.is_empty());
         assert_eq!(played.first_difference(&loaded), None, "{save}");
@@ -2473,6 +2813,7 @@ translation = { x = 6.5 }
                     last: None,
                 },
             );
+            world.settle();
             world
         };
         let mut played = start();
@@ -2491,11 +2832,11 @@ translation = { x = 6.5 }
                 last: Some(knot),
             },
         );
-        let save = played.save(&start(), &BTreeMap::new()).expect("saved");
+        let save = played.save(&BTreeMap::new()).expect("saved");
         assert!(!save.contains("shake") && !save.contains("seen"), "{save}");
         let mut loaded = start();
         let report = loaded
-            .load(&save, &mut SceneLibrary::new())
+            .load(&save, &mut SceneLibrary::new(), &mut |_, _| {})
             .expect("loaded");
         assert!(
             report.set_aside.is_empty(),
@@ -2523,13 +2864,13 @@ translation = { x = 6.5 }
     #[test]
     fn numbers_of_entities_created_are_written_one_way_and_never_run_out() {
         for text in [
-            "[created.\"created/18446744073709551615\"]\n",
-            "[created.\"created/9223372036854775808\"]\n",
-            "[created.\"created/01\"]\n",
-            "[created.\"created/+1\"]\n",
+            "layout = 5\n[created.\"created/18446744073709551615\"]\n",
+            "layout = 5\n[created.\"created/9223372036854775808\"]\n",
+            "layout = 5\n[created.\"created/01\"]\n",
+            "layout = 5\n[created.\"created/+1\"]\n",
         ] {
             let error = start()
-                .load(text, &mut SceneLibrary::new())
+                .load(text, &mut SceneLibrary::new(), &mut |_, _| {})
                 .expect_err(text);
             assert!(
                 matches!(error, DocumentError::NotCreated(_)),
@@ -2539,13 +2880,18 @@ translation = { x = 6.5 }
         let largest = i64::MAX as u64;
         for (text, next) in [
             (
-                "next_created = \"18446744073709551615\"\n".to_owned(),
+                "layout = 5\nnext_created = \"18446744073709551615\"\n".to_owned(),
                 largest,
             ),
-            (format!("[created.\"created/{largest}\"]\n"), largest + 1),
+            (
+                format!("layout = 5\n[created.\"created/{largest}\"]\n"),
+                largest + 1,
+            ),
         ] {
             let mut world = start();
-            world.load(&text, &mut SceneLibrary::new()).expect(&text);
+            world
+                .load(&text, &mut SceneLibrary::new(), &mut |_, _| {})
+                .expect(&text);
             let spawned = world.spawn();
             assert_eq!(
                 world.persistent_id(spawned),
@@ -2558,17 +2904,21 @@ translation = { x = 6.5 }
     #[test]
     fn what_the_start_leaves_out_and_the_world_saves_is_not_created_again() {
         let start = || {
-            let mut world = super::tests::start();
+            let mut world = World::new();
+            world
+                .spawn_scene("yard", &resolved(&scene()))
+                .expect("spawned");
             let tree = entity(&world, "yard/tree");
             world.insert(tree, Unsaved);
-            let ember = world.spawn();
+            let ember = world.spawn_keyed("ember").expect("a free key");
             world.set_parent(ember, Some(tree)).expect("a parent");
+            world.settle();
             world
         };
         let mut played = start();
         let tree = entity(&played, "yard/tree");
         played.remove::<Unsaved>(tree);
-        let ember = entity(&played, "created/1");
+        let ember = entity(&played, "ember");
         played.set_parent(ember, None).expect("no parent");
         // The well, which the start saves, is left out since: the save does not remove it.
         let well = entity(&played, "yard/well");
@@ -2579,12 +2929,12 @@ translation = { x = 6.5 }
         played.insert(spark, Unsaved);
         let flame = played.spawn();
         played.set_parent(flame, Some(spark)).expect("a parent");
-        let save = played.save(&start(), &BTreeMap::new()).expect("saved");
+        let save = played.save(&BTreeMap::new()).expect("saved");
         assert!(!save.contains("[created"), "{save}");
         assert!(!save.contains("yard/well"), "{save}");
         let mut loaded = start();
         let report = loaded
-            .load(&save, &mut SceneLibrary::new())
+            .load(&save, &mut SceneLibrary::new(), &mut |_, _| {})
             .expect("loaded");
         assert!(
             report.set_aside.is_empty(),
@@ -2609,10 +2959,10 @@ translation = { x = 6.5 }
         let post = entity(&played, "yard/post");
         played.set_parent(post, Some(spark)).expect("a parent");
         played.despawn(entity(&played, "yard/gate"));
-        let save = played.save(&start(), &BTreeMap::new()).expect("saved");
+        let save = played.save(&BTreeMap::new()).expect("saved");
         let mut loaded = start();
         let report = loaded
-            .load(&save, &mut SceneLibrary::new())
+            .load(&save, &mut SceneLibrary::new(), &mut |_, _| {})
             .expect("loaded");
         assert!(
             report.set_aside.is_empty(),
@@ -2624,7 +2974,7 @@ translation = { x = 6.5 }
         // An entity whose parent the world does not have is out of its own all the same.
         let mut loaded = start();
         let report = loaded
-            .load("[removed]\nentities = [\"yard/gate\"]\n\n[parents]\n\"yard/post\" = [\"yard/shed\"]\n", &mut SceneLibrary::new())
+            .load("layout = 5\n[removed]\nentities = [\"yard/gate\"]\n\n[parents]\n\"yard/post\" = [\"yard/shed\"]\n", &mut SceneLibrary::new(), &mut |_, _| {})
             .expect("loaded");
         let post = entity(&loaded, "yard/post");
         assert_eq!(loaded.parent(post), None);
@@ -2665,12 +3015,12 @@ translation = { x = 6.5 }
         let mut world = start();
         world.register::<Brittle>();
         world.register::<Fragile>();
-        let text = "\"$versions\" = { \"test::Brittle\" = 1 }\n\n\
+        let text = "layout = 5\n\"$versions\" = { \"test::Brittle\" = 1 }\n\n\
                     [removed]\nentities = [\"yard/tree\"]\n\n\
                     [added.\"yard/gate\".\"test::Brittle\"]\nhardness = 2.0\n\n\
                     [added.\"yard/well\".\"test::Fragile\"]\nweight = 500.0\n";
         let report = world
-            .load(text, &mut SceneLibrary::new())
+            .load(text, &mut SceneLibrary::new(), &mut |_, _| {})
             .expect("loaded, the values that panicked set aside");
         let aside: Vec<(&str, Option<&str>)> = report
             .set_aside
@@ -2706,7 +3056,7 @@ translation = { x = 6.5 }
             ("layout".to_owned(), "8fe31823c2a1615f".to_owned()),
             ("made with".to_owned(), "version 0.3".to_owned()),
         ]);
-        let save = played().save(&start(), &about).expect("saved");
+        let save = played().save(&about).expect("saved");
         assert!(
             save.starts_with(
                 "about = { layout = \"8fe31823c2a1615f\", \"made with\" = \"version 0.3\" }\n"
@@ -2716,21 +3066,30 @@ translation = { x = 6.5 }
         assert_eq!(World::about(&save).expect("a save"), about);
         let mut loaded = start();
         let report = loaded
-            .load(&save, &mut SceneLibrary::new())
+            .load(&save, &mut SceneLibrary::new(), &mut |_, _| {})
             .expect("loaded");
         assert!(report.set_aside.is_empty() && report.warnings.is_empty());
         assert_eq!(played().first_difference(&loaded), None);
         // A save without it says nothing; one that is not a save, or says something else than
         // text, is refused.
-        let quiet = played().save(&start(), &BTreeMap::new()).expect("saved");
+        let quiet = played().save(&BTreeMap::new()).expect("saved");
         assert!(!quiet.contains("about"), "{quiet}");
         assert!(World::about(&quiet).expect("a save").is_empty());
-        for text in ["about = [", "about = { layout = 3 }\n", "\"$format\" = 2\n"] {
+        for text in [
+            "about = [",
+            "layout = 5\nabout = { layout = 3 }\n",
+            "\"$format\" = 2\n",
+        ] {
             assert!(
                 matches!(World::about(text), Err(DocumentError::Read(_))),
                 "{text}"
             );
         }
+        // Nor is a save of another layout, which loading refuses.
+        assert!(matches!(
+            World::about("about = { made = \"long ago\" }\n"),
+            Err(DocumentError::Layout { found: 1, read: 5 })
+        ));
     }
 
     #[test]
@@ -2746,77 +3105,14 @@ translation = { x = 6.5 }
             );
         }
         let started = std::time::Instant::now();
-        let save = played.save(&start(), &BTreeMap::new()).expect("saved");
+        let save = played.save(&BTreeMap::new()).expect("saved");
         eprintln!("save {} bytes: {:?}", save.len(), started.elapsed());
         let mut loaded = start();
         let started = std::time::Instant::now();
         loaded
-            .load(&save, &mut SceneLibrary::new())
+            .load(&save, &mut SceneLibrary::new(), &mut |_, _| {})
             .expect("loaded");
         eprintln!("load: {:?}", started.elapsed());
         assert_eq!(played.first_difference(&loaded), None);
-    }
-
-    /// A start made in code, each of `names` an entity created without a key, with that name and a
-    /// transform, in the order given: what saves made before saving refused it name by numbers.
-    fn made_without_keys(names: &[&str]) -> World {
-        let mut world = World::new();
-        for &name in names {
-            let entity = world.spawn();
-            world.insert(entity, Name(name.to_owned()));
-            world.insert(entity, Transform::IDENTITY);
-        }
-        world
-    }
-
-    /// How far east the entity named `name` stands.
-    fn east(world: &World, name: &str) -> f64 {
-        let entity = world
-            .entities()
-            .find(|&entity| world.get::<Name>(entity).is_some_and(|held| held.0 == name))
-            .expect("named");
-        world
-            .get::<Transform>(entity)
-            .expect("placed")
-            .translation
-            .x
-    }
-
-    #[test]
-    fn a_save_made_against_a_start_without_keys_sets_aside_what_another_start_numbers_otherwise() {
-        // Saved as games did before saving refused it, in layout 3, which holds the fingerprint of
-        // what the start created: version 1 of a game makes the rig and the weather without keys,
-        // and the run moves the rig.
-        let mut run = made_without_keys(&["rig", "weather"]);
-        let rig = entity(&run, "created/1");
-        run.insert(rig, Transform::from_translation(DVec3::new(5.0, 0.0, 0.0)));
-        let start = made_without_keys(&["rig", "weather"]);
-        let fingerprint = content_text(start.created_fingerprint());
-        let save = run
-            .write_save(&start, &BTreeMap::new())
-            .expect("saved")
-            .replace("layout = 4", "layout = 3")
-            .replace(
-                "start = { created = 3 }",
-                &format!("start = {{ created = 3, content = \"{fingerprint}\" }}"),
-            );
-        assert!(save.contains(&fingerprint), "{save}");
-        // The same start loads it.
-        let mut same = made_without_keys(&["rig", "weather"]);
-        let report = same.load(&save, &mut SceneLibrary::new()).expect("loaded");
-        assert!(report.set_aside.is_empty(), "{report:?}");
-        assert_eq!(east(&same, "rig"), 5.0);
-        // A start that makes one more, or the same in another order: a number may name another
-        // entity, so the move is set aside, and said.
-        for names in [&["music", "rig", "weather"][..], &["weather", "rig"]] {
-            let mut other = made_without_keys(names);
-            let report = other.load(&save, &mut SceneLibrary::new()).expect("loaded");
-            assert_eq!(east(&other, "rig"), 0.0, "{names:?}");
-            assert_eq!(report.set_aside.len(), 1, "{names:?}: {report:?}");
-            assert!(
-                report.set_aside[0].reason.contains("spawn_keyed"),
-                "{report:?}"
-            );
-        }
     }
 }

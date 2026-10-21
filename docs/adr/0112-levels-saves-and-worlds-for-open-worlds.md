@@ -8,7 +8,8 @@
   [0091](0091-scene-documents-and-placements.md) (references written as absolute identities),
   [0097](0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md) (saves that cost what changed,
   brought to Stage 6) and [0101](0101-saves-and-identities-that-never-mislead.md) (an entity that
-  outlives its scene)
+  outlives its scene); amended by [0125](0125-saves-per-scene.md) (how a scene's base is made, and
+  what resets)
 - Date: 2026-10-20
 
 ## Context

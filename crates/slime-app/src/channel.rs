@@ -15,6 +15,7 @@ use slime_reflect::{Kind, Path, Reflect as _, Registry, Value};
 use slime_serialize::{Composer, Document, Mode, References};
 use slime_world::{Command, Entity, Name, PersistentId, World};
 
+use crate::game::Simulation;
 use crate::host::Host;
 use crate::log_lines;
 
@@ -73,8 +74,15 @@ impl DevChannel {
     /// requests that arrived, which change the host as a frame's start may. A step is answered once
     /// the frames have run every step asked for, so that what the tool asks next comes after them;
     /// a capture waits for the frame's image ([`DevChannel::capture`]); `windowed` says whether
-    /// the run has one.
-    pub(crate) fn answer(&mut self, host: &mut Host, frames: u64, real: Duration, windowed: bool) {
+    /// the run has one. A save and a load are `simulation`'s ([`Simulation::save`]).
+    pub(crate) fn answer(
+        &mut self,
+        host: &mut Host,
+        simulation: &mut dyn Simulation,
+        frames: u64,
+        real: Duration,
+        windowed: bool,
+    ) {
         self.frames.push_back(real);
         if self.frames.len() > FRAMES_MEASURED {
             self.frames.pop_front();
@@ -102,7 +110,7 @@ impl DevChannel {
                 self.captures.push(incoming);
                 continue;
             }
-            let reply = self.reply(host, frames, incoming.request(), windowed);
+            let reply = self.reply(host, simulation, frames, incoming.request(), windowed);
             if matches!(incoming.request(), Request::Step { .. }) && reply == Reply::Done {
                 let ctx = host.context();
                 let until = ctx.time().game().steps() + u64::from(ctx.steps_asked());
@@ -136,7 +144,14 @@ impl DevChannel {
     }
 
     /// The reply to `request`.
-    fn reply(&self, host: &mut Host, frames: u64, request: &Request, windowed: bool) -> Reply {
+    fn reply(
+        &self,
+        host: &mut Host,
+        simulation: &mut dyn Simulation,
+        frames: u64,
+        request: &Request,
+        windowed: bool,
+    ) -> Reply {
         let ctx = host.context_mut();
         match request {
             Request::State => Reply::State {
@@ -204,6 +219,18 @@ impl DevChannel {
                     .map(|(number, text)| LogLine { number, text })
                     .collect(),
             },
+            Request::Save { file } => simulation
+                .save(host.world(), std::path::Path::new(file))
+                .map_or_else(
+                    |error| failed(crate::error_chain(&*error)),
+                    |()| Reply::Done,
+                ),
+            Request::Load { file } => simulation
+                .load(host.world_mut(), std::path::Path::new(file))
+                .map_or_else(
+                    |error| failed(crate::error_chain(&*error)),
+                    |()| Reply::Done,
+                ),
         }
     }
 

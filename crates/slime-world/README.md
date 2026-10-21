@@ -13,9 +13,11 @@ with values of its own. Its components say what is drawn, by asset ID, and it ke
 during the last fixed step was, to draw it between its two transforms; `slime-world-render` draws
 it. Every component is reflected, reached by name, and cloned. It knows what changed: each value
 holds the ticks at which it was added and last changed, and readers ask what changed, what left and
-whether the hierarchy moved since they last read. It saves what differs from the world as a
-game makes it at the start of a run, as text, what it spawned while it ran as its scenes, and loads
-it back; it writes a world, or a subtree of it, back as a scene file that keeps its placements. Its
+whether the hierarchy moved since they last read. It saves what a run changed since the game
+settled the world, as text, at the cost of what changed, keeps what a run changed of a scene that
+it unloads until the scene is spawned again, lets an entity outlive its scene under a key of its
+own, and loads a save back; it writes a world, or a subtree of it, back as a scene file that keeps
+its placements. Its
 library of scenes reads them from cooked data, the scene files in their binary encoding.
 
 ## Role
@@ -42,11 +44,13 @@ library of scenes reads them from cooked data, the scene files in their binary e
   components of glTF nodes among them (`docs/adr/0095-cooked-scene-files.md`).
 - Writes a world, or a subtree of it, back as a scene file that keeps its placements
   (`docs/adr/0092-a-world-written-back-as-a-scene.md`).
-- Saves a world as what differs from the world that the game makes at the start of a run, entities
-  named by their persistent identities, what it spawned while it ran as its scenes, and loads it
-  back, setting aside what no longer applies; carries a run into a world spawned anew from scenes
-  that changed (`docs/adr/0087-the-worlds-documents.md`,
-  `docs/adr/0093-saves-and-hot-reload-with-placements.md`).
+- Saves what a run changed of the world since the game settled it, its *base*, entities named by
+  their persistent identities, the scenes that it spawned as their keys and assets, and loads it
+  back, setting aside what no longer applies; keeps what a run changed of a scene that it unloads,
+  but what resets, until the scene is spawned again; lets an entity outlive its scene, adopted under
+  a key of its own; carries a run into a world spawned anew from scenes that changed
+  (`docs/adr/0087-the-worlds-documents.md`,
+  `docs/adr/0093-saves-and-hot-reload-with-placements.md`, `docs/adr/0125-saves-per-scene.md`).
 - Runs headless: it holds no GPU object and needs no window, so that tests, servers and tools hold
   worlds too. Worlds are values, which threads can share.
 
@@ -116,10 +120,14 @@ assert_eq!(world.get::<Velocity>(cart).expect("held").0, 5.0);
   registry. `outline` reads a scene file's layout without the types of its values, as the cooker
   checks it (`docs/adr/0095-cooked-scene-files.md`).
 - `World::spawn_scene` spawns a resolved scene under a key, its entities named by their paths
-  through the placements, such as `zone/lamp 3/light`, and refuses a key under which it spawned
-  another scene of which an entity lives (`WorldError::KeyInUse`); `World::spawn_keyed` creates an
-  entity named by a key that the game chooses, as what it creates at its start, which saves find
-  whatever else it creates; `World::find` gives the entity of a `PersistentId`; `World::placement` says what the world remembers of a placement: its prefab, and
+  through the placements, such as `zone/lamp 3/light`, unloading the scene spawned under the key
+  before, as when a run changes level; `World::unload_scene` unloads one, keeping what the run
+  changed of it, which spawning it again under its key and settling it applies; `Persistence`, on a
+  scene's root or on an entity, says that what the run changed of it resets instead. `World::adopt`
+  takes an entity of a scene out of it under a key of its own, its former identity kept.
+  `World::spawn_keyed` creates an entity named by a key that the game chooses, as what it creates at
+  its start, which saves find whatever else it creates; `World::find` gives the entity of a
+  `PersistentId`; `World::placement` says what the world remembers of a placement: its prefab, and
   the overrides of the scene that placed it that were set aside. `World::spawn_placement` places a
   prefab while the world runs, under `created/<number>`.
 - `World::write_scene` writes a subtree back as a scene file (`Written`): placements as placements
@@ -146,26 +154,29 @@ assert_eq!(world.get::<Velocity>(cart).expect("held").0, 5.0);
   property path of a component. `World::apply` applies one, as `slime-app`'s host does at the start
   of each frame with those queued since the last one
   (`docs/adr/0121-a-game-as-a-simulation-and-a-presentation.md`).
-- `World::save(start, about)` writes what differs between the world and `start`, the world that the
-  game makes at the start of a run from the same scenes: entities removed and created, components
-  added, removed and changed, parents changed, references to entities as persistent identities, or
-  `""` for no entity. Entities that hold `Unsaved`, with their descendants, and fields marked
-  transient are left out, and no change of the components that their entity marks driven
-  (`Driven`) is saved, their author's values kept, which their system computes again; a start
-  that created, without a key, entities that saves hold is refused
-  (`DocumentError::UnkeyedAtStart`,
+- `World::settle` makes what the world holds the base that its saves compare it with: a game
+  settles it once it made the start of a run, and again once it prepared a scene that it spawned
+  since. `World::save(about)` writes what the run changed since: the scenes under keys and the
+  placements, as their assets, entities removed and created, components added, removed and changed,
+  parents changed, references to entities as persistent identities, or `""` for no entity, and what
+  the world keeps of the scenes that it unloaded. It costs what changed: the world keeps a copy of
+  each value at its first change, and the identity of each entity settled that the run destroys.
+  Entities that hold `Unsaved`, with their descendants, and fields marked transient are left out,
+  and no change of the components that their entity marks driven (`Driven`) is saved, their
+  author's values kept, which their system computes again; a start that created, without a key,
+  entities that saves hold is refused (`DocumentError::UnkeyedAtStart`,
   `docs/adr/0124-driven-components-keys-and-created-entities-in-levels.md`). The save begins with
   `about`, what the game says of it, keys and texts that `World::about` reads without loading the
-  save, and says how many entities `start` created outside scenes.
-  What the world spawned while it ran, a scene under a key or a placement, is saved as its scene and
-  what differs from it. `World::load` applies a save to such a world, spawning those scenes again
-  through a `SceneLibrary`, what the run created numbered after the world's count, and says what it
-  set aside, what it did not know (`Loaded::warnings`) and which scenes changed since
-  (`docs/adr/0101-saves-and-identities-that-never-mislead.md`); `World::carry` carries a run into a start world made from
-  changed files, as hot reload does; `World::first_difference` compares two worlds as saves see
-  them (`docs/adr/0093-saves-and-hot-reload-with-placements.md`). `World::insert_component_value`
-  and `remove_component_value` attach and detach a component by its type's name, as loading a save
-  does.
+  save. `World::load` applies a save to a world made as the game starts a run and settled, spawning
+  through a `SceneLibrary` the scenes that it lacks, which a callback prepares, what the run created
+  numbered after the world's count, and says what it set aside, what it did not know
+  (`Loaded::warnings`) and which scenes changed since
+  (`docs/adr/0101-saves-and-identities-that-never-mislead.md`); a save that an earlier version of
+  the engine wrote is refused (`DocumentError::Layout`). `World::carry` carries a run into a start
+  world made from changed files, as hot reload does; `World::first_difference` compares two worlds
+  as saves see them (`docs/adr/0093-saves-and-hot-reload-with-placements.md`,
+  `docs/adr/0125-saves-per-scene.md`). `World::insert_component_value` and `remove_component_value`
+  attach and detach a component by its type's name, as loading a save does.
 - `slime_world::glam` re-exports the math crate the API uses, so that callers use the same version.
 
 The rustdoc holds the contracts: what panics, what each query visits, what each operation costs.

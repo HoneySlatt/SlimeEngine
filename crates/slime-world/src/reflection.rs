@@ -142,8 +142,9 @@ impl World {
             .set(&name, &mut current, path, value)
             .map_err(refused)?;
         let tick = self.next_tick();
+        let base = self.nodes[slot as usize].base;
         self.storages[id]
-            .set_value(slot, &current, tick)
+            .set_value(slot, &current, tick, base)
             .map_err(refused)?;
         self.held_changed(self.component_types[id], slot);
         Ok(())
@@ -186,8 +187,9 @@ impl World {
         let slot = entity.index();
         let held = self.storages[id].holds(slot);
         let tick = self.next_tick();
+        let base = self.nodes[slot as usize].base;
         self.storages[id]
-            .insert_value(slot, &checked, tick)
+            .insert_value(slot, &checked, tick, base)
             .map_err(refused)?;
         self.held_changed(type_id, slot);
         if type_id == TypeId::of::<Transform>() && !held {
@@ -202,9 +204,9 @@ impl World {
     pub fn remove_component_value(&mut self, entity: Entity, component: &str) -> Option<Value> {
         let (id, _) = self.held(entity, component).ok()?;
         let slot = entity.index();
-        let value = self.storages[id].value(slot);
         let tick = self.next_tick();
-        self.storages[id].remove_slot(slot, entity, tick);
+        let base = self.nodes[slot as usize].base;
+        let value = self.storages[id].remove_value(slot, entity, tick, base);
         self.held_changed(self.component_types[id], slot);
         value
     }

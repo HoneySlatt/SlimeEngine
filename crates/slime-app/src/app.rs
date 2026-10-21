@@ -277,7 +277,7 @@ impl Frames {
         let _frame_span = tracing::trace_span!("frame", index).entered();
         #[cfg(feature = "development")]
         if let Some(channel) = &mut self.channel {
-            channel.answer(host, index, raw_delta, surface.is_some());
+            channel.answer(host, simulation, index, raw_delta, surface.is_some());
         }
         host.frame(simulation, raw_delta);
         if let Some(surface) = surface {

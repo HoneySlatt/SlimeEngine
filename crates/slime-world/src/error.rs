@@ -27,20 +27,14 @@ pub enum WorldError {
     /// would give.
     #[error("an entity has the persistent identity `{0}` already")]
     IdentityInUse(PersistentId),
-    /// The world spawned another scene under the key, of which an entity lives still, moved out
-    /// of it: its identity is under the key, which a scene spawned under it would share
-    /// ([`World::spawn_scene`](crate::World::spawn_scene)).
-    #[error(
-        "the scene spawned under `{key}` before has `{entity}` alive still, whose identity a scene \
-         spawned under the key would share"
-    )]
-    KeyInUse {
-        /// The key.
-        key: String,
-        /// The entity of the scene spawned under it before, by its persistent identity: the first
-        /// of its entities alive.
-        entity: PersistentId,
-    },
+    /// No scene is spawned under the key ([`World::unload_scene`](crate::World::unload_scene)).
+    #[error("no scene is spawned under `{0}`")]
+    NoScene(String),
+    /// The entity is not one that a scene spawned under a key, or a placement, gave, but its root:
+    /// what adopting it would take out of its scene
+    /// ([`World::adopt`](crate::World::adopt)).
+    #[error("{0:?} is not an entity of a scene below its root, which alone can be adopted")]
+    NotAdoptable(Entity),
     /// The entity is not alive, or holds no component of the type named.
     #[error("{entity:?} holds no component `{component}`")]
     NoComponent {

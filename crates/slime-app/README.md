@@ -109,7 +109,8 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   `SimulationContext`: the input (`slime_platform::Input`, the keys and mouse buttons held and
   those pressed and released since the last frame), both times, and the run's stop: it asks to
   stop (`request_exit`), or fails the run (`exit_with_error`), and its host decides what stopping
-  means.
+  means. A game that saves its runs implements `save` and `load` too, to a file given, which the
+  development channel asks for (`docs/adr/0125-saves-per-scene.md`); by default they refuse.
 - `Presentation`: what the player sees, which reads the world and never writes it: every method
   receives it as `&World` or not at all, so that a presentation that writes the world does not
   compile. `start` once the window and the GPU are open; `on_event` for each event of the window,
@@ -227,8 +228,9 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   listens on `127.0.0.1`, writes where on its standard output, and answers, at the start of each
   frame, the requests of the tools that connect with the token: its state, the host's controls,
   its world read and changed through reflection, keys put down and let go, its window's image,
-  copied after the frame is drawn and before it is shown, and the last lines of its log
-  (`slime_channel::MAX_LOG_LINES`), which only such a run keeps. Without a token, it does not
+  copied after the frame is drawn and before it is shown, the last lines of its log
+  (`slime_channel::MAX_LOG_LINES`), which only such a run keeps, and its run saved to a file and
+  loaded from one, by the simulation's `save` and `load`. Without a token, it does not
   listen. The `slime-channel` crate holds the protocol and its limits; `tests/channel.rs` drives a
   headless run through it.
 

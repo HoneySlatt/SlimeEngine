@@ -2,7 +2,7 @@
 //! the world's ticks, the ticks of each value of a component, the guard through which a value is
 //! written, and the log of what left.
 
-use std::collections::{VecDeque, vec_deque};
+use std::collections::{HashMap, VecDeque, vec_deque};
 use std::ops::{Deref, DerefMut};
 
 use crate::components::Name;
@@ -67,9 +67,24 @@ pub struct Mut<'a, T> {
     tick: Tick,
     /// For a transform, what its first write marks; `None` once marked, or for another type.
     marks: Option<TransformMarks<'a>>,
+    /// Where the value's base is kept before its first write after it; `None` once kept, or for
+    /// a value of no base.
+    keep: Option<Keep<'a, T>>,
 }
 
-impl<'a, T> Mut<'a, T> {
+/// Where a guard keeps the base of its value, its value when its entity was last settled
+/// (`World::settle`), before the first write after it: what a save compares the value with
+/// (`docs/adr/0125-saves-per-scene.md`).
+pub(crate) struct Keep<'a, T> {
+    /// The bases kept of the values of a storage, by slot: `None` for a value that the entity did
+    /// not hold.
+    pub(crate) kept: &'a mut HashMap<u32, Option<T>>,
+    pub(crate) slot: u32,
+    /// The tick at which the entity was settled: a value not changed since is its base.
+    pub(crate) base: Tick,
+}
+
+impl<'a, T: Clone> Mut<'a, T> {
     pub(crate) fn new(
         value: &'a mut T,
         changed: &'a mut Tick,
@@ -77,6 +92,7 @@ impl<'a, T> Mut<'a, T> {
         storage: &'a mut Tick,
         tick: Tick,
         marks: Option<TransformMarks<'a>>,
+        keep: Option<Keep<'a, T>>,
     ) -> Self {
         Self {
             value,
@@ -85,13 +101,21 @@ impl<'a, T> Mut<'a, T> {
             storage,
             tick,
             marks,
+            keep,
         }
     }
 
-    /// Stamps the value as changed, once.
+    /// Stamps the value as changed, once, its base kept first if it is still its base.
     fn stamp(&mut self) {
         if *self.changed == self.tick {
             return;
+        }
+        if let Some(keep) = self.keep.take()
+            && *self.changed <= keep.base
+        {
+            keep.kept
+                .entry(keep.slot)
+                .or_insert_with(|| Some(self.value.clone()));
         }
         *self.changed = self.tick;
         *self.block = self.tick;
@@ -125,7 +149,7 @@ impl<T> Deref for Mut<'_, T> {
     }
 }
 
-impl<T> DerefMut for Mut<'_, T> {
+impl<T: Clone> DerefMut for Mut<'_, T> {
     /// The value, to write: stamps it as changed.
     fn deref_mut(&mut self) -> &mut T {
         self.stamp();

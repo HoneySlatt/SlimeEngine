@@ -51,6 +51,7 @@ fn start() -> World {
     world.insert(hero, Name("hero".to_owned()));
     let stone = world.spawn_keyed("stone").expect("a key");
     world.insert(stone, Transform::IDENTITY);
+    world.settle();
     world
 }
 
@@ -78,15 +79,20 @@ fn a_damaged_save_is_refused_or_loaded_never_a_panic() {
     run.insert(spark, Unsaved);
     run.despawn(find(&run, "stone"));
     let save = run
-        .save(
-            &start(),
-            &BTreeMap::from([("game".to_owned(), "0.5".to_owned())]),
-        )
+        .save(&BTreeMap::from([("game".to_owned(), "0.5".to_owned())]))
         .expect("saved");
-    assert!(start().load(&save, &mut SceneLibrary::new()).is_ok());
+    assert!(
+        start()
+            .load(&save, &mut SceneLibrary::new(), &mut |_, _| {})
+            .is_ok()
+    );
     damage(save.as_bytes(), |bytes| {
         let mut world = start();
-        let _ = world.load(&String::from_utf8_lossy(bytes), &mut SceneLibrary::new());
+        let _ = world.load(
+            &String::from_utf8_lossy(bytes),
+            &mut SceneLibrary::new(),
+            &mut |_, _| {},
+        );
     });
 }
 

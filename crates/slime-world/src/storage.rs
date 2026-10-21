@@ -3,11 +3,12 @@
 //! (`crate::change`).
 
 use std::any::Any;
+use std::collections::HashMap;
 use std::mem;
 
 use slime_reflect::{Reflect, ReflectError, Value};
 
-use crate::change::{Log, Mut, Removals, Tick, Ticks, TransformMarks};
+use crate::change::{Keep, Log, Mut, Removals, Tick, Ticks, TransformMarks};
 use crate::entity::Entity;
 use crate::world::Component;
 
@@ -39,9 +40,12 @@ pub struct Storage<T> {
     changed: Tick,
     /// The entities that a component left, by removal or destruction.
     removed: Log,
+    /// The base of each value changed, added or removed since its entity was settled, by slot:
+    /// `None` for a value that the entity did not hold then (`World::settle`).
+    kept: HashMap<u32, Option<T>>,
 }
 
-impl<T> Storage<T> {
+impl<T: Clone> Storage<T> {
     pub(crate) fn new() -> Self {
         Self {
             sparse: Vec::new(),
@@ -51,6 +55,7 @@ impl<T> Storage<T> {
             blocks: Vec::new(),
             changed: Tick::default(),
             removed: Log::EMPTY,
+            kept: HashMap::new(),
         }
     }
 
@@ -66,14 +71,21 @@ impl<T> Storage<T> {
     }
 
     /// The slot's value, to change through a guard that stamps it with `tick` once written, and
-    /// marks its transform in the world stale through `marks`, if given.
+    /// marks its transform in the world stale through `marks`, if given; that keeps the value's
+    /// base first, if its entity was settled at `base` and the value has not changed since.
     pub(crate) fn get_mut<'a>(
         &'a mut self,
         slot: u32,
         tick: Tick,
+        base: Tick,
         marks: Option<TransformMarks<'a>>,
     ) -> Option<Mut<'a, T>> {
         let index = self.dense(slot)?;
+        let keep = (base > Tick::default()).then_some(Keep {
+            kept: &mut self.kept,
+            slot,
+            base,
+        });
         Some(Mut::new(
             &mut self.values[index],
             &mut self.ticks[index].changed,
@@ -81,6 +93,7 @@ impl<T> Storage<T> {
             &mut self.changed,
             tick,
             marks,
+            keep,
         ))
     }
 
@@ -90,13 +103,22 @@ impl<T> Storage<T> {
     }
 
     /// Stores the slot's value, stamped with `tick`, and gives back the one it replaced, whose
-    /// tick of addition the new value keeps.
-    pub(crate) fn insert(&mut self, slot: u32, value: T, tick: Tick) -> Option<T> {
+    /// tick of addition the new value keeps. If the slot's entity was settled at `base`, the base
+    /// is kept first: the value replaced, if it had not changed since, or none, if the slot held
+    /// none.
+    pub(crate) fn insert(&mut self, slot: u32, value: T, tick: Tick, base: Tick) -> Option<T> {
         self.changed = tick;
         if let Some(index) = self.dense(slot) {
+            if base > Tick::default() && self.ticks[index].changed <= base {
+                let held = &self.values[index];
+                self.kept.entry(slot).or_insert_with(|| Some(held.clone()));
+            }
             self.ticks[index].changed = tick;
             self.blocks[index / BLOCK] = tick;
             return Some(mem::replace(&mut self.values[index], value));
+        }
+        if base > Tick::default() {
+            self.kept.entry(slot).or_insert(None);
         }
         let at = slot as usize;
         if self.sparse.len() <= at {
@@ -121,9 +143,20 @@ impl<T> Storage<T> {
     }
 
     /// Takes the slot's value out, moving the last value into its place, and logs that it left
-    /// `entity`, the slot's, at `tick`.
-    pub(crate) fn remove(&mut self, slot: u32, entity: Entity, tick: Tick) -> Option<T> {
+    /// `entity`, the slot's, at `tick`. If the entity was settled at `base` and the value has not
+    /// changed since, the value is kept as its base first.
+    pub(crate) fn remove(
+        &mut self,
+        slot: u32,
+        entity: Entity,
+        tick: Tick,
+        base: Tick,
+    ) -> Option<T> {
         let index = self.dense(slot)?;
+        if base > Tick::default() && self.ticks[index].changed <= base {
+            let held = &self.values[index];
+            self.kept.entry(slot).or_insert_with(|| Some(held.clone()));
+        }
         self.sparse[slot as usize] = EMPTY;
         self.slots.swap_remove(index);
         let value = self.values.swap_remove(index);
@@ -181,9 +214,24 @@ impl<T> Storage<T> {
 /// A storage whose component type is known only to the code that made it: the world keeps them
 /// all side by side, and downcasts each to its `Storage<T>`.
 pub trait AnyStorage: Any + Send + Sync {
-    /// Drops the slot's value, if it has one, logging that it left `entity` at `tick`: its entity
-    /// was destroyed.
+    /// Drops the slot's value, if it has one, logging that it left `entity` at `tick`, and its
+    /// base: its entity was destroyed.
     fn remove_slot(&mut self, slot: u32, entity: Entity, tick: Tick);
+
+    /// Takes the slot's value out, if it has one, logging that it left `entity` at `tick`, and
+    /// returns it through reflection; keeps its base first, as [`Storage::remove`] does for an
+    /// entity settled at `base`.
+    fn remove_value(&mut self, slot: u32, entity: Entity, tick: Tick, base: Tick) -> Option<Value>;
+
+    /// The base kept of the slot's value, through reflection: `Some(None)` if the slot held no
+    /// value then, `None` if nothing was kept, its value unchanged since its entity was settled.
+    fn kept(&self, slot: u32) -> Option<Option<Value>>;
+
+    /// The slots whose base is kept.
+    fn kept_slots(&self) -> Vec<u32>;
+
+    /// Forgets the slot's base: its entity is settled again.
+    fn forget_kept(&mut self, slot: u32);
 
     /// Whether the slot holds a component.
     fn holds(&self, slot: u32) -> bool;
@@ -191,26 +239,66 @@ pub trait AnyStorage: Any + Send + Sync {
     /// The value of the slot's component, through reflection, if it holds one.
     fn value(&self, slot: u32) -> Option<Value>;
 
+    /// Checks that `value` describes a component of the storage's type, as
+    /// [`AnyStorage::insert_value`] takes it.
+    ///
+    /// # Errors
+    ///
+    /// As the component type's [`Reflect::from_value`].
+    fn accepts(&self, value: &Value) -> Result<(), ReflectError>;
+
     /// Gives the slot the component that `value` describes, stamped with `tick`, in place of the
-    /// one it holds, if any.
+    /// one it holds, if any, keeping its base as [`Storage::insert`] does.
     ///
     /// # Errors
     ///
     /// As the component type's [`Reflect::from_value`]: the slot stays as it was then.
-    fn insert_value(&mut self, slot: u32, value: &Value, tick: Tick) -> Result<(), ReflectError>;
+    fn insert_value(
+        &mut self,
+        slot: u32,
+        value: &Value,
+        tick: Tick,
+        base: Tick,
+    ) -> Result<(), ReflectError>;
 
     /// Replaces the slot's component with the one that `value` describes, stamped with `tick`, if
-    /// the slot holds one.
+    /// the slot holds one, keeping its base as [`Storage::get_mut`] does.
     ///
     /// # Errors
     ///
     /// As the component type's [`Reflect::from_value`]: the slot's component stays then.
-    fn set_value(&mut self, slot: u32, value: &Value, tick: Tick) -> Result<(), ReflectError>;
+    fn set_value(
+        &mut self,
+        slot: u32,
+        value: &Value,
+        tick: Tick,
+        base: Tick,
+    ) -> Result<(), ReflectError>;
 }
 
 impl<T: Component> AnyStorage for Storage<T> {
     fn remove_slot(&mut self, slot: u32, entity: Entity, tick: Tick) {
-        self.remove(slot, entity, tick);
+        self.remove(slot, entity, tick, Tick::default());
+        self.kept.remove(&slot);
+    }
+
+    fn remove_value(&mut self, slot: u32, entity: Entity, tick: Tick, base: Tick) -> Option<Value> {
+        self.remove(slot, entity, tick, base)
+            .map(|value| value.to_value())
+    }
+
+    fn kept(&self, slot: u32) -> Option<Option<Value>> {
+        self.kept
+            .get(&slot)
+            .map(|kept| kept.as_ref().map(Reflect::to_value))
+    }
+
+    fn kept_slots(&self) -> Vec<u32> {
+        self.kept.keys().copied().collect()
+    }
+
+    fn forget_kept(&mut self, slot: u32) {
+        self.kept.remove(&slot);
     }
 
     fn holds(&self, slot: u32) -> bool {
@@ -221,15 +309,31 @@ impl<T: Component> AnyStorage for Storage<T> {
         self.get(slot).map(Reflect::to_value)
     }
 
-    fn insert_value(&mut self, slot: u32, value: &Value, tick: Tick) -> Result<(), ReflectError> {
+    fn accepts(&self, value: &Value) -> Result<(), ReflectError> {
+        T::from_value(value).map(drop)
+    }
+
+    fn insert_value(
+        &mut self,
+        slot: u32,
+        value: &Value,
+        tick: Tick,
+        base: Tick,
+    ) -> Result<(), ReflectError> {
         let component = T::from_value(value)?;
-        self.insert(slot, component, tick);
+        self.insert(slot, component, tick, base);
         Ok(())
     }
 
-    fn set_value(&mut self, slot: u32, value: &Value, tick: Tick) -> Result<(), ReflectError> {
+    fn set_value(
+        &mut self,
+        slot: u32,
+        value: &Value,
+        tick: Tick,
+        base: Tick,
+    ) -> Result<(), ReflectError> {
         let component = T::from_value(value)?;
-        if let Some(mut held) = self.get_mut(slot, tick, None) {
+        if let Some(mut held) = self.get_mut(slot, tick, base, None) {
             *held = component;
         }
         Ok(())
@@ -248,12 +352,24 @@ mod tests {
         let mut storage = Storage::new();
         let tick = Tick::default();
         for slot in [4, 0, 9, 2] {
-            assert_eq!(storage.insert(slot, slot * 10, tick), None);
+            assert_eq!(storage.insert(slot, slot * 10, tick, Tick::default()), None);
         }
-        assert_eq!(storage.insert(9, 91, tick), Some(90), "replaced");
-        assert_eq!(storage.remove(0, entity, tick), Some(0));
-        assert_eq!(storage.remove(0, entity, tick), None, "already removed");
-        assert_eq!(storage.remove(5, entity, tick), None, "never held");
+        assert_eq!(
+            storage.insert(9, 91, tick, Tick::default()),
+            Some(90),
+            "replaced"
+        );
+        assert_eq!(storage.remove(0, entity, tick, Tick::default()), Some(0));
+        assert_eq!(
+            storage.remove(0, entity, tick, Tick::default()),
+            None,
+            "already removed"
+        );
+        assert_eq!(
+            storage.remove(5, entity, tick, Tick::default()),
+            None,
+            "never held"
+        );
         assert_eq!(storage.get(4), Some(&40));
         assert_eq!(storage.get(9), Some(&91));
         assert_eq!(storage.get(2), Some(&20));
@@ -261,7 +377,9 @@ mod tests {
         let mut slots = storage.slots().to_vec();
         slots.sort_unstable();
         assert_eq!(slots, [2, 4, 9]);
-        *storage.get_mut(2, tick, None).expect("held") += 1;
+        *storage
+            .get_mut(2, tick, Tick::default(), None)
+            .expect("held") += 1;
         assert_eq!(storage.get(2), Some(&21));
     }
 
@@ -271,11 +389,11 @@ mod tests {
         let mut storage = Storage::new();
         let slots = 0..(BLOCK * 4) as u32;
         for slot in slots.clone() {
-            storage.insert(slot, slot, Tick(1));
+            storage.insert(slot, slot, Tick(1), Tick::default());
         }
         let read = Tick(1);
         *storage
-            .get_mut(BLOCK as u32 + 3, Tick(2), None)
+            .get_mut(BLOCK as u32 + 3, Tick(2), Tick::default(), None)
             .expect("held") = 0;
         assert_eq!(storage.changed_blocks(read).collect::<Vec<_>>(), [1]);
         let changed: Vec<_> = storage
@@ -287,8 +405,10 @@ mod tests {
         // The last value moves into the place of one removed: its new block holds its change, and
         // the block it left keeps its summary, which a reader reads again to find nothing there.
         let entity = entities.spawn();
-        *storage.get_mut(slots.end - 1, Tick(3), None).expect("held") = 7;
-        storage.remove(0, entity, Tick(3));
+        *storage
+            .get_mut(slots.end - 1, Tick(3), Tick::default(), None)
+            .expect("held") = 7;
+        storage.remove(0, entity, Tick(3), Tick::default());
         let read = Tick(2);
         assert_eq!(storage.changed_blocks(read).collect::<Vec<_>>(), [0, 3]);
         let changed: Vec<_> = storage

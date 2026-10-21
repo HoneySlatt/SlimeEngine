@@ -99,6 +99,19 @@ pub enum Request {
         /// The number of the last line already read; 0 for the oldest that the game keeps.
         after: u64,
     },
+    /// Saves the run to a file, as the game saves its own runs. It fails for a game that does not
+    /// save its runs.
+    Save {
+        /// The file, a path on the game's machine.
+        file: String,
+    },
+    /// Loads the run of the save in a file in place of the run, as the game resumes its own saves.
+    /// It fails for a game that does not save its runs, and for a save that it does not resume,
+    /// which leaves the run as it is.
+    Load {
+        /// The file, a path on the game's machine.
+        file: String,
+    },
 }
 
 /// What a game answers to a [`Request`].
@@ -288,6 +301,12 @@ mod tests {
             Request::Release { key: text("KeyW") },
             Request::Capture,
             Request::Logs { after: 7 },
+            Request::Save {
+                file: text("/tmp/run.toml"),
+            },
+            Request::Load {
+                file: text("/tmp/run.toml"),
+            },
         ];
         for request in requests {
             let bytes = encode(&request).expect("encoded");

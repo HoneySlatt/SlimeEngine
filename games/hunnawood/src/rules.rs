@@ -540,10 +540,15 @@ pub(crate) mod tests {
         scenes
     }
 
-    /// A game of `scenes`, in a world of its own, started at night or by day as `night` says.
+    /// A game of `scenes`, in a world of its own: the new game by day that saves differ from
+    /// ([`saves::start`]), started at night or by day as `night` says, as the game's program starts
+    /// it.
     fn play(scenes: &mut SceneLibrary, night: bool) -> (World, Game) {
-        let mut world = World::new();
-        let game = Game::spawn(&mut world, scenes, night).expect("the zone can be played");
+        let (mut world, mut game) = saves::start(scenes).expect("the zone can be played");
+        if night {
+            game.set_starts_at_night(true);
+            game.restart(&mut world);
+        }
         (world, game)
     }
 
@@ -555,9 +560,10 @@ pub(crate) mod tests {
         id: slime_assets::AssetId,
         scene: CookedScene,
     ) -> Result<saves::Reloaded, String> {
-        let before = saves::start(scenes).expect("the scenes before can be played");
+        let (before, game) = saves::start(scenes).expect("the scenes before can be played");
+        let layout = game.zone().layout(&before);
         scenes.insert_cooked(id, scene);
-        saves::reload(world, &before, scenes, false)
+        saves::reload(world, &layout, scenes, false)
     }
 
     impl Plan {
@@ -1565,8 +1571,9 @@ pub(crate) mod tests {
     /// the chapel's portal, at night, after the walk of [`walk_to_the_portal_at_night`].
     const FIXTURE: &str = include_str!("../fixtures/save.toml");
 
-    /// The fixture of 0.3, made on the zone before it was made of prefabs: a save of another
-    /// layout, whose identities name entities that are no longer there, or others.
+    /// The fixture of 0.3, made on the zone before it was made of prefabs, whose identities name
+    /// entities that are no longer there, or others: a save of an earlier version of the engine,
+    /// which this one no longer reads.
     const FIXTURE_0_3: &str = include_str!("../fixtures/save-0.3.toml");
 
     /// The scenes of the cooked data: the zone's, those it places and the hero's.
@@ -1607,10 +1614,11 @@ pub(crate) mod tests {
     fn a_walk_at_night_saved_and_resumed_takes_the_key_and_opens_the_door() {
         let mut scenes = cooked_scenes();
         let (mut played, game) = saves::start(&mut scenes).expect("the zone is whole");
+        let layout = game.zone().layout(&played);
         let first = game.hero(&played);
         walk_to_the_portal_at_night(&game, &mut played);
         // Saved there, and resumed in a new game: the same run, which goes on.
-        let text = saves::save(&played, &mut scenes).expect("saved");
+        let text = saves::save(&played, &layout).expect("saved");
         let start = saves::start(&mut scenes).expect("the zone is whole");
         let (mut world, game, loaded) = saves::resume(&text, start, &mut scenes).expect("resumed");
         assert!(
@@ -1647,12 +1655,12 @@ pub(crate) mod tests {
 
     #[test]
     #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
-    fn the_fixture_of_0_3_is_a_save_of_another_layout() {
+    fn the_fixture_of_0_3_is_a_save_of_an_earlier_version_of_the_engine() {
         let mut scenes = cooked_scenes();
         let start = saves::start(&mut scenes).expect("the zone is whole");
         assert!(matches!(
             saves::resume(FIXTURE_0_3, start, &mut scenes),
-            Err(saves::NotResumed::OtherLayout)
+            Err(saves::NotResumed::Earlier(_))
         ));
     }
 
@@ -1661,6 +1669,7 @@ pub(crate) mod tests {
     fn a_run_saved_and_resumed_in_a_new_game_goes_on_the_same() {
         let mut scenes = cooked_scenes();
         let (mut played, game) = saves::start(&mut scenes).expect("the zone is whole");
+        let layout = game.zone().layout(&played);
         walk(&game, &mut played, &TO_THE_CHAPEL[..7]);
         // An entity removed, a value changed, a component added.
         let find = |world: &World, id: &str| world.find(&id.parse().expect("an identity"));
@@ -1682,7 +1691,7 @@ pub(crate) mod tests {
             )
             .expect("dimmed");
         played.insert(game.zone().item, Hidden);
-        let text = saves::save(&played, &mut scenes).expect("saved");
+        let text = saves::save(&played, &layout).expect("saved");
         let start = saves::start(&mut scenes).expect("the zone is whole");
         let (mut resumed, resumed_game, loaded) =
             saves::resume(&text, start, &mut scenes).expect("resumed");
@@ -1693,7 +1702,7 @@ pub(crate) mod tests {
             "the oak is gone"
         );
         assert_eq!(played.first_difference(&resumed), None, "{text}");
-        let again = saves::save(&resumed, &mut scenes).expect("saved again");
+        let again = saves::save(&resumed, &layout).expect("saved again");
         assert_eq!(again, text, "the same bytes");
         // The same input, step by step, gives both runs the same state.
         for index in 0..300u32 {

@@ -72,6 +72,9 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+    // The layout of the new game's zone, which a save resumed in it was made on: what the run's
+    // saves say.
+    let layout = game.zone().layout(&world);
     let mut save_file = options
         .save
         .clone()
@@ -114,7 +117,7 @@ fn main() -> ExitCode {
     let watch = options
         .watch
         .then(|| (ManifestWatch::new(&cooked, Instant::now()), cooked.clone()));
-    let mut rules = HunnaWood::new((world, game), scenes, save_file, watch);
+    let mut rules = HunnaWood::new((world, game), layout, scenes, save_file, watch);
     let mut screen = Screen::new(
         cooked,
         options.frame_limit,
