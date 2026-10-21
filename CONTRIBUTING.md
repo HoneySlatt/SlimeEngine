@@ -290,7 +290,11 @@ The script also runs clippy for the Windows target, which catches code that does
 Windows without a Windows machine.
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push to `main` and every
-pull request. A Linux job runs the same script. Two Windows jobs run beside it
+pull request. Two Linux jobs run the same script side by side, each one of its two parts
+([ADR-0123](docs/adr/0123-the-linux-checks-in-two-jobs.md)): `scripts/check.sh headless`, every
+check that needs no compositor, and `scripts/check.sh windowed`, the runs in headless Weston
+compositors, which cooks first what they draw; without an argument, the script runs both, one after
+the other. Two Windows jobs run beside them
 ([ADR-0104](docs/adr/0104-the-build-ci-and-measurements.md)). The first, `windows`, runs the
 tests, then the image tests, the GPU timing test, the multi-pass test and the test that makes the
 renderer's shaders again with `--nocapture` so that its log shows what they measured on WARP, then

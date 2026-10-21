@@ -3,7 +3,8 @@
 - Status: Accepted; amends [0004](0004-workspace-layout-and-crate-naming.md) (a top-level `benches/`
   package) and [0077](0077-hot-reload-of-shaders.md) (what an edited shader costs); amended by
   [0114](0114-hardware-tiers-and-the-gpus-limits.md) (benchmarks measured at the tiers' resolutions
-  and compared with their budgets)
+  and compared with their budgets) and [0123](0123-the-linux-checks-in-two-jobs.md) (the Linux
+  checks in two jobs)
 - Date: 2026-10-19
 
 ## Context

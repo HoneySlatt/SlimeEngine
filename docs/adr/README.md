@@ -74,7 +74,7 @@ the ADR linking to it.
 | [0004](0004-workspace-layout-and-crate-naming.md) | Workspace layout and crate naming | Accepted; amended by 0014, 0055, 0104 |
 | [0005](0005-lints-and-unsafe-policy.md) | Lints and `unsafe` policy | Accepted |
 | [0006](0006-dependency-policy.md) | Dependency policy | Accepted; amended by 0023, 0031 |
-| [0007](0007-documentation-tooling-and-ci.md) | Documentation tooling and continuous integration | Accepted; amended by 0015 |
+| [0007](0007-documentation-tooling-and-ci.md) | Documentation tooling and continuous integration | Accepted; amended by 0015 and 0123 |
 | [0008](0008-errors-logging-and-assertions.md) | Errors, logging and assertions | Accepted; amended by 0019 and 0085 |
 | [0009](0009-frame-timing.md) | Frame timing | Accepted; amended by 0107 |
 | [0010](0010-main-loop-ownership.md) | Main loop ownership and the application API | Accepted; amended by 0020 and 0107 |
@@ -171,7 +171,7 @@ the ADR linking to it.
 | [0101](0101-saves-and-identities-that-never-mislead.md) | Saves and identities that never mislead | Accepted; amended by 0109 and 0112 |
 | [0102](0102-a-damaged-file-gives-an-error.md) | A damaged file gives an error, never a crash | Accepted |
 | [0103](0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md) | A lost GPU device is recovered wherever the loss is found | Accepted |
-| [0104](0104-the-build-ci-and-measurements.md) | The build, CI and measurements | Accepted; amended by 0114 |
+| [0104](0104-the-build-ci-and-measurements.md) | The build, CI and measurements | Accepted; amended by 0114 and 0123 |
 | [0105](0105-egui-fonts-ship-with-the-dev-overlay.md) | egui's fonts ship with the dev overlay | Accepted |
 | [0106](0106-the-measured-quick-wins.md) | The measured quick wins | Accepted; amended by 0117 |
 | [0107](0107-the-execution-model.md) | The execution model | Accepted; amended by 0118 and 0121 |
@@ -190,3 +190,4 @@ the ADR linking to it.
 | [0120](0120-a-frame-that-owns-what-it-draws.md) | A frame that owns what it draws | Accepted; amended by 0121 |
 | [0121](0121-a-game-as-a-simulation-and-a-presentation.md) | A game as a simulation and a presentation | Accepted; amended by 0122 |
 | [0122](0122-the-development-channel.md) | The development channel and the MCP server | Accepted |
+| [0123](0123-the-linux-checks-in-two-jobs.md) | The Linux checks in two jobs | Accepted |

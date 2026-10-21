@@ -17,9 +17,17 @@ permissions:
   contents: read
 
 jobs:
-  # Every check, in the same Nix shell that contributors use: a local run of scripts/check.sh and
-  # this job are identical (docs/adr/0007-documentation-tooling-and-ci.md).
+  # Every check, in the same Nix shell that contributors use: a local run of scripts/check.sh does
+  # what these two jobs do together (docs/adr/0007-documentation-tooling-and-ci.md). Each runs one
+  # part of the script, side by side, past the 20 minutes that one took
+  # (docs/adr/0123-the-linux-checks-in-two-jobs.md): `headless`, every check that needs no
+  # compositor, and `windowed`, the runs in headless Weston compositors.
   check:
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [headless, windowed]
+    name: check (${{ matrix.part }})
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -44,11 +52,11 @@ jobs:
           path: target/cooked/hunnawood
           key: hunnawood-cooked-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('games/hunnawood/assets/sources.tsv', 'games/hunnawood/assets/zone/**/*.meta', 'games/hunnawood/assets/zone/**/*.scene', 'crates/slime-cook/src/**', 'crates/slime-cook/Cargo.toml', 'crates/slime-assets/src/**', 'crates/slime-assets/Cargo.toml', 'crates/slime-color/src/**', 'crates/slime-color/Cargo.toml', 'crates/slime-reflect/src/**', 'crates/slime-reflect/Cargo.toml', 'crates/slime-reflect-derive/src/**', 'crates/slime-reflect-derive/Cargo.toml', 'crates/slime-serialize/src/**', 'crates/slime-serialize/Cargo.toml', 'crates/slime-world/src/**', 'crates/slime-world/Cargo.toml', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml') }}
       # Without the flag, an incomplete flake.lock would be completed with an unpinned revision.
-      - run: nix develop --no-update-lock-file --command scripts/check.sh
+      - run: nix develop --no-update-lock-file --command scripts/check.sh ${{ matrix.part }}
 
   # What can only be checked on Windows: running the build, the tests and the samples there. The
   # checks that do not depend on the platform (formatting, rustdoc, dependencies, links) and
-  # compiling for Windows already run in the Linux job. Two jobs run in parallel, past the 20
+  # compiling for Windows already run in the Linux jobs. Two jobs run in parallel, past the 20
   # minutes that one took (docs/adr/0081-stage-5a-the-world.md,
   # docs/adr/0104-the-build-ci-and-measurements.md): this one runs the tests and the samples of the
   # debug build; `windows-release` runs clippy and builds the programs that CI publishes.
@@ -96,7 +104,7 @@ jobs:
             games/hunnawood/assets/zone
             !games/hunnawood/assets/zone/**/*.meta
           key: hunnawood-zone-${{ hashFiles('games/hunnawood/assets/sources.tsv') }}
-      # The zone cooked, kept as in the Linux job.
+      # The zone cooked, kept as in the Linux jobs.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: target/cooked/hunnawood

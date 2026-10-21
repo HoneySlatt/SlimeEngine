@@ -169,8 +169,9 @@ Risks:
   layouts 2 and 3, those of 0.4 and those written since P1, are still read is decided and tested.
 - **One GPU.** Budgets are checked on the owner's RX 6900 XT only ([Known debt](#known-debt)).
 - **The cost of the checks.** CI's jobs stay under the owner's 20 minutes
-  ([ADR-0104](adr/0104-the-build-ci-and-measurements.md)): each milestone that adds a crate records
-  how long they take.
+  ([ADR-0104](adr/0104-the-build-ci-and-measurements.md),
+  [ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md)): each milestone that adds a crate, or a
+  test that drives the game in Weston, records how long they take.
 
 ### M6a.1 — Frustum culling and instancing
 
@@ -556,8 +557,15 @@ Risks:
   day, set the zone's time of day to night through `set_property`, ran one step, and captured the
   zone at night, its lanterns lit. Nothing was measured: the milestone claims no speed. Left: the
   limits that [Known debt](#known-debt) lists; the owner's check of the firewall, in [the
-  list](#checks-by-hand-waiting-for-the-owner); and how long CI takes with the two crates, which
-  its first run on the milestone tells.
+  list](#checks-by-hand-waiting-for-the-owner). CI took 24 minutes 37 seconds on Linux, past the 20
+  minutes that the owner allows: the agent's session took 8 minutes of it, each of its requests
+  waiting for a frame of the zone, which takes seconds on lavapipe; it took 16 minutes 11 seconds
+  for `windows` and 15 minutes 29 seconds for `windows-release`, from 14 minutes 14 seconds, 14
+  minutes 5 seconds and 12 minutes 12 seconds before the milestone. The owner chose on 2026-10-21 to
+  split the Linux checks in two jobs that run side by side, one for each of two parts of
+  `scripts/check.sh`, `headless` and `windowed`
+  ([ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md)), rather than shorten the session or
+  allow the job more time.
 
 ### M6a.7 — Identities and saves per scene
 
