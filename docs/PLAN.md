@@ -62,7 +62,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0122](adr/0122-the-development-channel.md)), and M6a.7a, driven components, keys and
   created entities written into levels
   ([ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md)), and M6a.7b, saves
-  per scene, scenes unloaded and adoption ([ADR-0125](adr/0125-saves-per-scene.md)). Next: M6a.8.
+  per scene, scenes unloaded and adoption ([ADR-0125](adr/0125-saves-per-scene.md)), and M6a.8a,
+  views apart from the renderer ([ADR-0126](adr/0126-views-apart-from-the-renderer.md)). Next:
+  M6a.8b.
 
 ## Status
 
@@ -76,7 +78,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6a.6](#m6a6--the-development-channel-and-the-mcp-server) | An agent drives a running game without a person | Done |
 | [M6a.7a](#m6a7a--driven-components-keys-and-created-entities-written-into-levels) | A save and a level written back hold what was changed, and name for good what a start creates | Done |
 | [M6a.7b](#m6a7b--saves-per-scene-and-adoption) | A save costs what changed; an entity outlives its level | Done |
-| [M6a.8](#m6a8--views-apart-from-the-renderer) | One renderer draws several views, each with its own settings | Planned |
+| [M6a.8a](#m6a8a--views-apart-from-the-renderer) | One renderer draws several views, and makes once what they share | Done |
+| [M6a.8b](#m6a8b--the-settings-of-a-view) | Each view chooses its scale, anti-aliasing, debugging and passes | Planned |
 | [M6a.9](#m6a9--asset-requests) | What a view lacks loads first, and assets stay within a budget of memory | Planned |
 | [M6a.10](#m6a10--rendering-for-the-editor) | The renderer draws what an editor shows, and says what is under the cursor | Planned |
 | [M6a.11](#m6a11--windows-check-documentation-release-05) | Stage 6a is done and released as 0.5, with the audit pass and the foundations pass | Planned |
@@ -116,7 +119,7 @@ foundations pass. Where the engine stands at the start:
   ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)). M6a.3 changed it.
 - **A frame borrows**: `FrameBuilder::build` and `AssetCache::request` take the `Renderer`, and
   `Frame`, `Scene` and `Instance` borrow what they draw; a renderer draws one output of one size
-  ([ADR-0111](adr/0111-the-frame-contract.md)). M6a.4 changed the first; M6a.8 changes the second.
+  ([ADR-0111](adr/0111-the-frame-contract.md)). M6a.4 changed the first, M6a.8a the second.
 - **A game is one block**: every method of `App` receives a `Context` that holds the world, the GPU
   and the window, and *Hunna Wood* changes its world while it draws; one time, without pause or
   step (ADR-0107). M6a.5 changed it.
@@ -157,8 +160,8 @@ records its design in a new ADR, which amends the ADR that decided the part wher
 
 Risks:
 
-- **The size of the half.** Eleven milestones, most of them large; the owner split M6a.7 in two at
-  its start, M6a.7a and M6a.7b.
+- **The size of the half.** Eleven milestones, most of them large; the owner split M6a.7 and M6a.8
+  in two at their starts, M6a.7a and M6a.7b, M6a.8a and M6a.8b.
 - **Every program changes.** M6a.3 gives guards on mutable access, M6a.4 a frame without lifetimes
   and M6a.5 the split of `App`, which its thirteen implementations (eight tests of `slime-app`, four
   examples and *Hunna Wood*), the three examples of the crates' READMEs and the benchmarks follow.
@@ -739,36 +742,97 @@ settles what a save and a level written back hold of each entity, the second
   tests of the zone pass, its new fixture resumed. `scripts/check.sh` passed, and the owner played
   it by hand on 2026-10-21: F5, F9, quit and resume.
 
-### M6a.8 — Views apart from the renderer
+### M6a.8a — Views apart from the renderer
 
-- **Goal.** One renderer draws several views, each with its own camera, size and settings, and
+The owner split M6a.8 in two at its start, on 2026-10-21, as the plan allowed: this first half
+draws several views with one renderer, the second ([M6a.8b](#m6a8b--the-settings-of-a-view)) gives
+each view the settings that change its passes.
+
+- **Goal.** One renderer draws several views, each with its own camera, size and targets, and
   makes once what views share; a view resized frees its old targets before it makes new ones.
 - **Findings.** G18: a resize keeps the targets of the old size while it creates the new ones, and
   after `GfxError::OutOfMemory` keeps targets that no longer fit. G37: if creating the spot lights'
   shadow atlas runs out of memory, the sun loses its shadows without a word. G47: a multisampled
   output target makes `render` panic inside wgpu. The known debt: a renderer whose frame changes
   shape reports no tone-mapping or bloom time, and one renderer per output size.
-- **Crates.** `slime-render`, `slime-world-render`; the examples, *Hunna Wood*, the benchmarks and
-  the MCP server.
+- **Crates.** `slime-render`, `slime-world-render`, `slime-app`, `slime-channel`, `slime-gfx`; the
+  examples, *Hunna Wood*, the benchmarks and the MCP server.
 - **Delivers.** As [ADR-0111](adr/0111-the-frame-contract.md) decides: what views share made once,
-  the pipelines, the spot lights' shadows, the environment and the BRDF table; for each view, its
-  camera, size, settings, targets, timers and history; a part of the render graph per view; the
-  sun's cascade atlases from a pool that views drawn in turn share; a view's settings, a
-  perspective or orthographic projection, an offset of its projection, its render scale, its
-  anti-aliasing, a mode of debugging that shows normals or shadows, the passes it runs; several
-  views per frame; a view's targets made again once its size holds still, the old ones freed
-  first. The `world` example draws a second view, orthographic, from above. Any view's image
+  the pipelines, the spot lights' shadows, the BRDF table; for each view, its camera, size,
+  targets, timers and buffers, and a part of the render graph; the sun's cascade atlas shared by the
+  views drawn in turn; a perspective or orthographic projection, and an offset of it; a view drawn
+  into a rectangle of its output; several views per frame; a view's targets freed before new ones
+  are made. The `world` example draws a second view, orthographic, from above. Any view's image
   captured through the MCP server. The ADR of the design; the rustdoc, `docs/ARCHITECTURE.md`'s
   rendering, the glossary, `CHANGELOG.md`; the known debt above retired.
 - **Done when.** Image tests: each of two views of a frame gives the image that it gives drawn
-  alone; an orthographic view; a render scale of one half; the two modes of debugging; two halves of
-  an image drawn with offsets give the whole; four views of 1280 × 720 with the sun measured against
-  the 508 MiB of four renderers today; a view resized never holds both sizes' targets at once, and a
-  size that does not fit leaves the view without targets, with an error, rather than with old ones;
-  the tests that confirmed G18, G37 and G47 pass; a test captures each of two views through the
-  MCP server; CI is green.
+  alone; an orthographic view; two halves of an image drawn with offsets give the whole; four views
+  of 1280 × 720 with the sun measured against the 508 MiB of four renderers; a view resized never
+  holds both sizes' targets at once, and a size that does not fit leaves the view without targets,
+  with an error, rather than with old ones; the tests that confirmed G18, G37 and G47 pass; a test
+  captures each of two views through the MCP server; CI is green.
 - **How to test.** `cargo test -p slime-render -p slime-world-render`; `cargo run --example world`.
 - **By hand.** The owner looks at the `world` example's two views.
+- **Outcome.** Done on 2026-10-22. [ADR-0126](adr/0126-views-apart-from-the-renderer.md) records
+  the design and the owner's two decisions of 2026-10-21, and amends ADR-0038, ADR-0041, ADR-0047,
+  ADR-0048, ADR-0058, ADR-0064, ADR-0084, ADR-0106, ADR-0111, ADR-0116 and ADR-0122. A `View`, which
+  `Renderer::create_view` makes and the caller holds, keeps what a camera's image needs from frame
+  to frame: the buffers of its values and of its instances, its graph with its targets at the size
+  it draws, its timers and its statistics (`View::stats`); `Renderer::render(gpu, &scene, &mut
+  [ViewDraw])` draws a scene through several views, each with its camera, its target and, as a
+  `Viewport`, its rectangle of the target, into which its tone mapping writes, keeping the rest.
+  The renderer keeps what views share: its pipelines, the BRDF table, its meshes, its uploader and
+  the two shadow atlases; the first view draws the spot lights' tiles for all, and each view its
+  cascades into the one atlas, in turn. `Scene::new` takes no camera, every view draws the scene's
+  lights, and `Frame::scene` orders those beyond what the renderer draws by a point that the game
+  gives. `Camera` holds a `Projection`, in perspective or orthographic, whose depth is reversed and
+  linear to its far plane, and an `ImagePart`, the part of its image that it draws, whose shadows
+  are the whole image's. A view whose size changes drops its frame and waits for the GPU before it
+  makes the new one (G18); the group of the atlases follows the atlases (G37); a multisampled
+  output, or a rectangle outside its target, panics with a message of the renderer's (G47). Every
+  view of a call is prepared before any is recorded: an error draws nothing. `Gpu::memory_in_use`
+  gives the memory that wgpu counts: four views of 1280 × 720 with the sun take about 60 % of what
+  four renderers take, and `render.instances.100k` costs what it did
+  ([`docs/measurements.md`](measurements.md)). `Presentation::views` names the views that a frame
+  drew; version 3 of the development channel lists them in the game's state and captures one by
+  its name, and the MCP server's `capture` takes it. The `world` example draws a map from above,
+  orthographic, in its window's top right corner. The tests, in `slime-render`'s `tests/views.rs`:
+  `each_view_of_a_frame_draws_what_it_draws_alone`, two views sharing the spot lights' tile and
+  the cascades' atlas, frame after frame;
+  `an_orthographic_camera_draws_what_is_farther_as_large`, its sky one color;
+  `the_parts_of_an_image_drawn_side_by_side_make_the_whole`, in perspective and orthographic, where
+  the halves' projection, rounded otherwise, moves a sample across an edge at two pixels;
+  `a_view_drawn_into_a_rectangle_leaves_the_rest_of_its_output`;
+  `four_views_take_one_cascades_atlas_where_four_renderers_took_four`;
+  `a_view_resized_gives_its_old_targets_back`;
+  `a_view_whose_new_size_does_not_fit_keeps_no_targets`, under a memory budget in a child process;
+  `a_multisampled_output_is_a_bug_of_the_caller` and
+  `a_rectangle_beyond_its_output_is_a_bug_of_the_caller`; in `tests/resize.rs`, alone in its
+  process, `a_view_resized_never_holds_the_targets_of_both_sizes`, from the peak of the process's
+  memory on lavapipe; in `renderer.rs`,
+  `an_atlas_whose_group_was_not_made_is_bound_from_the_next_frame` and
+  `a_view_drawn_into_a_part_of_its_output_keeps_the_rest`. The tests of G18 and G37 fail without
+  their fixes, the first as the audit's did, 128 MiB above the steady size during a resize. The MCP
+  server's `tests/views.rs` starts the `world` example, captures the whole image and each view, and
+  checks that the map is the corner of the whole. The known debt of one renderer per output size is
+  retired; a view whose size changes at every frame still waits for the GPU and loses its times
+  (M6a.8b). Not checked by hand yet: the owner's look at the `world` example's two views.
+
+### M6a.8b — The settings of a view
+
+- **Goal.** Each view chooses the scale it renders at, its anti-aliasing, a mode of debugging and
+  the passes it runs; a view whose size changes keeps its targets until its size holds still.
+- **Findings.** None beyond M6a.8a's.
+- **Crates.** `slime-render`; the examples, *Hunna Wood*'s dev overlay and the MCP server.
+- **Delivers.** As [ADR-0111](adr/0111-the-frame-contract.md) decides: a view's render scale, its
+  anti-aliasing, a mode of debugging that shows normals or shadows, the passes it runs; a view's
+  targets made again once its size holds still, the image scaled to its output meanwhile. The ADR
+  of the design; the rustdoc, `docs/ARCHITECTURE.md`'s rendering, the glossary, `CHANGELOG.md`.
+- **Done when.** Image tests: a render scale of one half; each anti-aliasing; the two modes of
+  debugging; a view without the passes it leaves out; a size dragged frame after frame makes its
+  targets once, when it holds still; CI is green.
+- **How to test.** `cargo test -p slime-render`; `cargo run --example world`.
+- **By hand.** The owner drags the `world` example's window and looks at its views' settings.
 
 ### M6a.9 — Asset requests
 
@@ -2192,14 +2256,27 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **The render graph trusts what a pass says it samples from imported targets** (ADR-0041). The
   groups that sample transient targets are built from the declarations, but the scene pass's group
   holding the shadow atlases is built by the renderer: a pass that binds an imported target must
-  declare it, or the graph orders it without knowing.
-- **A renderer whose frame changes shape at every call reports no tone-mapping or bloom time**
-  (ADR-0041). Each change of shape (the output's size, the shadow pass or the bloom starting or
-  stopping) builds the frame again with new timers, and the last submission's times come back
-  during the next call, by then read from newer timers; such a renderer also creates its targets
-  again at every call, as it did before. Use one renderer per output size.
-  [ADR-0111](adr/0111-the-frame-contract.md) decides views apart from the renderer, each with its
-  own targets and timers, built at M6a.8.
+  declare it, or the graph orders it without knowing. The views after the first of a frame read
+  the spot lights' atlas, which the first drew, without declaring it: they rely on the order of the
+  submissions, one view after the other ([ADR-0126](adr/0126-views-apart-from-the-renderer.md)).
+- **An orthographic camera's shadows reach the sun's shadow distance from its eye**
+  ([ADR-0126](adr/0126-views-apart-from-the-renderer.md)): a map drawn from higher above the ground
+  than that distance shows none, and its four cascades are nearly as large, the image's width and
+  height setting them more than their depths (`slime_render::Projection`). Fitting an
+  orthographic camera's cascades to what it sees is to decide when a game draws such maps with
+  shadows.
+- **The views of a frame draw the same lights**
+  ([ADR-0126](adr/0126-views-apart-from-the-renderer.md)): beyond the 16 that the renderer draws,
+  `slime-world-render` keeps those nearest one point that the game gives, so that views far apart,
+  as two players' halves of a split screen in two places, share the lamps of one of them. Stage 9a's
+  method for many lights decides how a view gets its own.
+- **A view whose frame changes shape at every call reports no tone-mapping or bloom time, and
+  waits for the GPU at each change of size** (ADR-0041, ADR-0126; M6a.8b). Each change of shape
+  (the rectangle's size, the shadow pass or the bloom starting or stopping) builds the view's frame
+  again with new timers, and the last submission's times come back during the next call, by then
+  read from newer timers; a change of size frees the old targets first, once the GPU has finished
+  the frames that use them, which the call waits for. A window's edge dragged does both at every
+  frame. Use one view per size; M6a.8b makes a view's targets again once its size holds still.
 - **Tiny, very bright sources blink in the bloom** (ADR-0040). Without a firefly filter (Karis's
   average dims the sun's halo and makes it flicker, measured), a highlight smaller than a pixel
   blooms as its coverage of the pixel changes from frame to frame. Temporal anti-aliasing, or a cap
@@ -2240,9 +2317,6 @@ waits for. A test that confirms each is kept outside the repository, and comes i
   until the cooked data changes (ADR-0084), a passing error such as GPU memory running out
   included. M6a.9's requests fail asset by asset; trying a passing error again is to decide with
   the editor's asset browser.
-- **A resize keeps the targets of the old size while it creates the new ones** (G18, medium;
-  M6a.8): the GPU memory of the frame's targets is twice as large for that moment, and after
-  `GfxError::OutOfMemory` the renderer keeps targets that no longer fit, which nothing releases.
 - **On Windows, a `.meta` whose name differs from its source's by case only takes a new ID at every
   cook** (G20, medium; Stage 6b), and `slime-cook watch` cooks again without end: the scan matches
   the two files by the file system's rule, which ignores case on NTFS, then looks the ID up by the
@@ -2272,9 +2346,6 @@ waits for. A test that confirms each is kept outside the repository, and comes i
 - **A GPU object used with another `Gpu` acts on another object without a word, and no API opens a
   second window on the same GPU** (G34, medium; Stage 6b): each `Gpu` numbers its objects from zero,
   and a window's surface comes only with a new `Gpu`. The editor's model of windows decides.
-- **If creating the spot lights' shadow atlas runs out of memory, the sun loses its shadows without
-  a word** (G37, low; M6a.8), until a frame creates it: the atlases' bind group is not built
-  again.
 - **Between two fixed steps, the children of a turning parent cut the arc's chord while their
   siblings stay on it** (G38, low; Stage 7): a child moved by its parent is drawn in a straight line
   between its two positions. Interpolating through the hierarchy is to decide before skeletal
@@ -2294,8 +2365,6 @@ waits for. A test that confirms each is kept outside the repository, and comes i
   ms per frame at 100 000 entities, every row laid out, visible or not, measured before M6a.3,
   which makes the list again only when the world's structure moves, and was not measured again.
   The editor's hierarchy needs a virtualized list.
-- **A multisampled output target makes `render` panic inside wgpu** (G47, low; M6a.8), a panic
-  that its rustdoc does not list.
 - **`Registry::register_dynamic` accepts version 0, which the derive refuses** (G48, low; Stage 8):
   the values are written, then never read back, with a wrong message.
 - **Two cooks in one process share their temporary files** (G49, low; Stage 6b): named after the

@@ -783,3 +783,33 @@ components; its size is the same, and so is its load, which applies what changed
 | `world.save.100k` | save of 100000 entities, 1000 moved, median of 5 | 6.82 ms |
 | `world.save.100k` | its load, median of 5 | 9.77 ms |
 | `world.save.100k` | its size | 62 kB |
+
+## M6a.8a, RX 6900 XT
+
+Commit `1dbe75c`, on 2026-10-22: views apart from the renderer
+([ADR-0126](adr/0126-views-apart-from-the-renderer.md)). The GPU memory is what wgpu's allocator
+counts (`Gpu::memory_in_use`), without what the driver keeps for itself, printed by the test
+`four_views_take_one_cascades_atlas_where_four_renderers_took_four` of `slime-render`'s
+`tests/views.rs`: four views of 1280 × 720 drawing a floor and two cubes under a sun that casts
+shadows, with the bloom, with one renderer, against four renderers drawing a view each; the
+outputs, created before, are not counted. On lavapipe the same test gave 279.7 MiB and 471.7 MiB.
+The benchmark `render.instances.100k`, which draws through one view, costs what it cost at M6a.4,
+in its section above; the build is not measured.
+
+16 logical CPUs, linux on x86_64, GPU `AMD Radeon RX 6900 XT (RADV NAVI21)`, a debug build of the
+test and a release build of the benchmark.
+
+| Benchmark or test | Measure | Value |
+|---|---|---|
+| `tests/views.rs` | GPU memory of four views of 1280 × 720 with the sun, one renderer | 296.4 MiB |
+| `tests/views.rs` | GPU memory of four renderers with a view each | 491.9 MiB |
+| `render.instances.100k` | CPU of `Renderer::render` at 1280 × 800, median of 8 | 19.33 ms |
+| `render.instances.100k` | CPU of `Renderer::render` at 1280 × 800, 90th percentile of 8 | 19.57 ms |
+| `render.instances.100k` | frame, until the GPU finished it, at 1280 × 800, median of 8 | 20.25 ms |
+| `render.instances.100k` | passes on the GPU, summed at 1280 × 800, median of what 8 frames reported | 264.7 µs |
+| `render.instances.100k` | CPU of `Renderer::render` at 1920 × 1080, median of 8 | 19.60 ms |
+| `render.instances.100k` | frame, until the GPU finished it, at 1920 × 1080, median of 8 | 20.61 ms |
+| `render.instances.100k` | passes on the GPU, summed at 1920 × 1080, median of what 8 frames reported | 355.0 µs |
+| `render.instances.100k` | CPU of `Renderer::render` at 2560 × 1440, median of 8 | 20.91 ms |
+| `render.instances.100k` | frame, until the GPU finished it, at 2560 × 1440, median of 8 | 21.88 ms |
+| `render.instances.100k` | passes on the GPU, summed at 2560 × 1440, median of what 8 frames reported | 493.3 µs |
