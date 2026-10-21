@@ -68,6 +68,12 @@ const BENCHMARKS: &[Benchmark] = &[
         run: world::transforms,
     },
     Benchmark {
+        name: "world.changes.100k",
+        about: "100 000 lights, 1 % of them changed, then found by a reader of the whole world",
+        on_request: false,
+        run: world::changes,
+    },
+    Benchmark {
         name: "world.children",
         about: "a parent of 10 000, then 20 000 children emptied, each child given no parent",
         on_request: false,

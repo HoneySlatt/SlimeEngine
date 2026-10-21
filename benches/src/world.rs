@@ -1,7 +1,8 @@
-//! The world's benchmarks: a frame built from many entities, their transforms, a large hierarchy
-//! changed, a scene file of many placements resolved, and frames built around a sun that does not
-//! move.
+//! The world's benchmarks: a frame built from many entities, their transforms, a reader of what
+//! changed among many, a large hierarchy changed, a scene file of many placements resolved, and
+//! frames built around a sun that does not move.
 
+use std::collections::HashMap;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -266,4 +267,76 @@ pub fn sky(context: &mut Context) -> Result<Vec<Row>, String> {
             remade.to_string(),
         ),
     ])
+}
+
+/// How many entities [`changes`] holds, and how many of them change between two reads.
+const READ_ENTITIES: usize = 100_000;
+const CHANGED_ENTITIES: usize = 1_000;
+
+/// A light whose intensity is `intensity`.
+fn point_light(intensity: f32) -> Light {
+    Light::Point {
+        color: LinearColor::rgb(1.0, 0.8, 0.6),
+        intensity,
+        range: None,
+    }
+}
+
+/// A reader of 100 000 entities that place a light each, of which 1 % change between two reads:
+/// the lights changed through `World::get_mut`, then a reader that compares every light with the
+/// copy it keeps finds them, twenty times.
+pub fn changes(_context: &mut Context) -> Result<Vec<Row>, String> {
+    let mut world = World::new();
+    let entities: Vec<Entity> = (0..READ_ENTITIES)
+        .map(|index| {
+            let entity = world.spawn();
+            world.insert(entity, point_light(index as f32));
+            entity
+        })
+        .collect();
+    let mut copy: HashMap<Entity, Light> = world
+        .query::<&Light>()
+        .map(|(entity, light)| (entity, *light))
+        .collect();
+    let (mut writes, mut compared) = (Vec::new(), Vec::new());
+    for round in 0..20 {
+        let ((), duration) = timed(|| {
+            for &entity in entities
+                .iter()
+                .skip(round)
+                .step_by(READ_ENTITIES / CHANGED_ENTITIES)
+            {
+                if let Some(light) = world.get_mut::<Light>(entity) {
+                    *light = point_light(-1.0 - round as f32);
+                }
+            }
+        });
+        writes.push(duration);
+        let (found, duration) = timed(|| {
+            let mut found = 0;
+            for (entity, light) in world.query::<&Light>() {
+                let kept = copy.entry(entity).or_insert(*light);
+                if kept != light {
+                    *kept = *light;
+                    found += 1;
+                }
+            }
+            found
+        });
+        if found != CHANGED_ENTITIES {
+            return Err(format!(
+                "the reader found {found} lights changed, not {CHANGED_ENTITIES}"
+            ));
+        }
+        compared.push(duration);
+    }
+    let mut rows = Vec::from(Row::times(
+        "1 000 lights changed through `World::get_mut`",
+        &writes,
+    ));
+    rows.extend(Row::times(
+        "a reader that compares each light with its copy, the 1 000 found",
+        &compared,
+    ));
+    Ok(rows)
 }

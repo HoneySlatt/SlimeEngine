@@ -38,6 +38,7 @@ it is their whole name.
 | `render.shaders` | The renderer's pipelines made again from its shaders unchanged, then after an edit of the scene's shader that the driver's cache cannot hold | C7-08 |
 | `world.frame.100k` | `FrameBuilder::build` over 100 000 entities that place one of the sample's meshes each, under 1 000 parents, once the cache holds them | B2-F06 |
 | `world.transforms.100k` | `World::update_transforms` after the 1 000 parents of 100 000 entities moved | B2-F06 |
+| `world.changes.100k` | 100 000 entities that place a light each, of which 1 000 change between two reads, twenty times: the lights changed through `World::get_mut`, then a reader that keeps a copy of every light and compares each with it finds the 1 000 | [ADR-0108](../docs/adr/0108-what-the-world-knows-of-its-changes.md) |
 | `world.children` | A parent of 10 000, then 20 000 children emptied, each given no parent: twice the children take four times as long while it is quadratic | G27 |
 | `world.placements` | A scene file that places a prefab 2 000, then 8 000 times, each with a change, resolved | G26 |
 | `world.sky` | Frames built around a sun that does not move, the sun set where it is at each fixed step, at the fractions of a step at which a display of 144 Hz shows a game stepping at 60 Hz, after a first frame that makes the sky's environment: the frames that made it again | G13 |
@@ -45,16 +46,16 @@ it is their whole name.
 | `loading.textures` | 16 squares, each drawn with a material of its own whose base color is a texture of 4096 × 4096 texels in BC7, every level of detail with it, 341 MiB in all, written once into `target/benches/textures` without the cooker, loaded and drawn as `loading.zone` is: the case of the audit's B4-F01 | B4-F01 |
 | `loading.zone` | The meshes of *Hunna Wood*'s zone, cooked in `target/cooked/hunnawood`, each placed once on a grid and drawn by day, under a sun that casts shadows, at 1280 × 720, while they load with their materials and textures, then once loaded, each frame waited for on the GPU, after frames that made the renderer's targets, its shadows' atlas and the sky, so that a load is not mixed with what a first frame costs: the time from the opening of the cooked zone until a frame draws them whole, the render CPU during the load and after, and the longest frame during the load, built, drawn and waited for. The zone's bytes, not its scene, whose components only the game registers. On request only, since it needs the zone fetched and cooked, as [*Hunna Wood*'s README](../games/hunnawood/README.md) says | B4-F01, B1-F06 |
 
-The last column names the findings of [`docs/PLAN.md`](../docs/PLAN.md) whose changes the
-benchmark measures before and after.
+The last column names the findings of [`docs/PLAN.md`](../docs/PLAN.md), or the decision, whose
+changes the benchmark measures before and after.
 
 ## Reading the figures
 
 - On lavapipe, which renders on the CPU, `Renderer::render`'s CPU time holds the GPU work of the
   frame's earlier submissions, which lavapipe runs one after the other
   ([`RenderStats::cpu_time`](../crates/slime-render/src/renderer.rs)): it is not a CPU time
-  there. `world.transforms.100k`, `world.children`, `world.placements` and `loading.batch` do not
-  touch the GPU; the others draw, or make objects on the GPU.
+  there. `world.transforms.100k`, `world.changes.100k`, `world.children`, `world.placements` and
+  `loading.batch` do not touch the GPU; the others draw, or make objects on the GPU.
 - A frame "until the GPU finished it" includes the wait of `Gpu::wait_idle`, which wakes up to 1 ms
   after the GPU finished: on a GPU whose frames take a few milliseconds, the times of the passes
   on the GPU are the figures to compare. Each frame reports the latest time of each pass that came
